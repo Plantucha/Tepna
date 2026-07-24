@@ -291,6 +291,74 @@ def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = Non
     return {"wedged": bool(reasons), "reasons": reasons, "phantom": phantom}
 
 
+def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None") -> list[str]:
+    """PURE (testable): given the pinned adapter's USB `power/control` value ('auto' | 'on' | None if
+    unknown) and the process CapEff hex ('0000…' | None), return the LOUD startup warnings for any wedge
+    defense that is DISARMED. Empty when everything is armed.
+
+    VIGIL-OVERNIGHT-FINDINGS §P1.4: a resilience feature you cannot SEE is disarmed is worse than none —
+    the 2026-07-23 wedge cost ~110 min precisely because the two defenses (autosuspend-off, a privileged
+    recovery ladder) were silently absent and nothing said so at boot. A fresh install that skips the udev
+    step, or a reboot onto a box without the rule, must be told at 22:00, not discovered at 01:39."""
+    out: list[str] = []
+    if autosuspend_value == "auto":
+        out.append(
+            "USB autosuspend is ENABLED on the BLE adapter (power/control=auto) — an RTL8761B dongle can "
+            "firmware-wedge under load (cost ~110 min on 2026-07-23). Install "
+            "systemd/50-tepna-btdongle.rules (see README 'Install') to disable it.")
+    if capeff_hex is not None:
+        try:
+            if int(capeff_hex, 16) == 0:
+                out.append(
+                    "capture has no CAP_NET_ADMIN — the watchdog's adapter-recovery ladder (hciconfig "
+                    "reset / USB rebind) cannot run and exits 1. Prevention (autosuspend-off, above) is the "
+                    "primary defense; grant the cap for recovery. See VIGIL-OVERNIGHT-FINDINGS §P1.2.")
+        except ValueError:
+            pass
+    return out
+
+
+def _usb_power_control_path(hci: str) -> "str | None":
+    """The USB `power/control` sysfs path for a bluetooth `hciN`, or None if not a USB adapter / not found.
+    Generic: walks /sys/class/bluetooth/<hci>/device up to the first ancestor carrying an idVendor (the USB
+    device node) and returns its power/control. Works on any host, not just this box's bus-port."""
+    try:
+        d = os.path.realpath(f"/sys/class/bluetooth/{hci}/device")
+        while d and d != "/":
+            if os.path.exists(os.path.join(d, "idVendor")):
+                ctrl = os.path.join(d, "power", "control")
+                return ctrl if os.path.exists(ctrl) else None
+            d = os.path.dirname(d)
+    except Exception:
+        pass
+    return None
+
+
+async def startup_defense_check(hci: "str | None") -> None:
+    """Log a LOUD warning at boot for each DISARMED wedge defense (VIGIL-OVERNIGHT-FINDINGS §P1.4). Reads
+    the pinned adapter's autosuspend state + this process's CapEff, and defers the decision to the pure
+    `defense_warnings`. Bounded, never raises — a self-test must never keep capture from starting."""
+    autosuspend = None
+    try:
+        ctrl = _usb_power_control_path(hci) if hci else None
+        if ctrl:
+            with open(ctrl) as f:
+                autosuspend = f.read().strip()
+    except Exception:
+        pass
+    capeff = None
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("CapEff:"):
+                    capeff = line.split()[1]
+                    break
+    except Exception:
+        pass
+    for w in defense_warnings(autosuspend, capeff):
+        log.warning("STARTUP: %s", w)
+
+
 async def adapter_kw() -> dict:
     """bleak kwargs pinning a connection to the CONFIGURED adapter (config `adapter:`), or {} when
     unconfigured/unresolvable so we fall back to the BlueZ default instead of failing hard.
@@ -2673,6 +2741,7 @@ async def main():
         "adapter_resolved": _hci,
         "adapter_ok": ADAPTER is None or bool(_hci),   # a pinned-but-unresolved adapter is the failure
     }
+    await startup_defense_check(_hci)         # LOUD-warn if a wedge defense is disarmed (§P1.4)
     log.info("tepna-capture up: %d device(s), root=%s", len(cfg.get("devices", [])), root)
     sdnotify.sd_notify("READY=1")             # Type=notify: `systemctl start` unblocks once capture is up
     # A (re)start is otherwise invisible overnight — a spurious restart mid-night is exactly what you want
