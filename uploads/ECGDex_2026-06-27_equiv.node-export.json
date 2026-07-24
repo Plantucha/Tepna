@@ -14,6 +14,7 @@
     "source": "ecg",
     "contentId": "de42ad1b210c",
     "startEpochMs": 1781658377723,
+    "durSec": 360.8705467149908,
     "offsetMin": null,
     "events": 0
   },
