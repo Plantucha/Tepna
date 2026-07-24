@@ -203,8 +203,8 @@
         {
           "key": "pred3p",
           "label": "pRED-3p",
-          "value": 5.24,
-          "displayVal": "5.24%",
+          "value": 5.23,
+          "displayVal": "5.23%",
           "score": 1,
           "sev": "g",
           "cat": "spo2"
@@ -937,7 +937,7 @@
         }
       ],
       "artifactCount": 0,
-      "dip3Rate": 8.8
+      "dip3Rate": 8.7
     },
     "hrProfile": {
       "circadianScore": 9.32,
@@ -983,7 +983,7 @@
       "sbiiQ": "Q5(high)"
     },
     "pred3p": {
-      "pred3p": 5.24,
+      "pred3p": 5.23,
       "pred3pQ": "Q2"
     },
     "desSev": {
