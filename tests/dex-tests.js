@@ -4391,7 +4391,7 @@
       T.eq("'Mean RR' is an ECG-ism with NO PPI id (proves the fix was needed)", R.idForLabel('Mean RR'), null);
       T.eq("'Augmentation index' resolves to the emerging ai id", R.idForLabel('Augmentation index'), 'ai');
       T.eq('ai is graded emerging', REG.ai && REG.ai.evidence, 'emerging');
-      if (typeof R.badgeForLabel === 'function' && global.MetricRegistry) {
+      if (typeof R.badgeForLabel === 'function' && globalThis.MetricRegistry) {
         T.ok("the tachogram card title badges MEASURED", /ev-measured/.test(R.badgeForLabel('Mean PPI', true)));
         T.ok("the median-beat AI clause badges EMERGING", /ev-emerging/.test(R.badgeForLabel('Augmentation index', true)));
       }
