@@ -353,16 +353,46 @@ async def _connect(addr: str):
 # keep the plain _connect above.
 _O2_NAME_HINTS = ("o2ring", "s8-aw", "s8aw", "wellue", "checkme")
 
+# Passive scanning (listen only, never transmit scan requests) frees air-time on the shared controller for
+# the live H10/Verity ACL links — but bleak's BlueZ backend only offers it via the AdvertisementMonitor
+# API, which needs `bluez={"or_patterns": [...]}` AND a bluetoothd started with --experimental. Where
+# either is missing it raises BleakError('passive scanning mode requires bluez or_patterns') at scanner
+# construction — INSTANTLY, before any scanning happens. That is not a missed advert, it is a scan that
+# never ran: shipped on 2026-07-22 without an or_patterns filter it took the O2Ring's reconnect to 0%
+# (every cycle logged a link error, the ring never came back all night) while the unit tests stayed green
+# because they stub find_device_by_filter and so never see BlueZ refuse. So passive is now an OPPORTUNISTIC
+# optimisation, never a dependency: try it once, and the moment the stack declines fall back — for the rest
+# of the process — to the plain active scan pull_session.py has always used. A capture that runs is worth
+# more than an air-time saving.
+_O2_PASSIVE_SCAN = True          # flipped off for good by the first refusal from this BlueZ stack
+
 
 @contextlib.asynccontextmanager
 async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 15.0):
+    global _O2_PASSIVE_SCAN
     from bleak import BleakClient as _BC, BleakScanner as _BS
-    from bleak.exc import BleakDeviceNotFoundError as _NotFound
+    from bleak.exc import BleakDeviceNotFoundError as _NotFound, BleakError as _BErr
     akw = await adapter_kw()                      # pin scan AND connect to the configured radio
-    device = await _BS.find_device_by_filter(
-        lambda d, adv: d.address.upper() == addr.upper()
-        or any(h in ((adv.local_name or d.name or "").lower()) for h in name_hints),
-        timeout=timeout, scanning_mode="passive", **akw)   # passive: listen, don't transmit scan reqs
+
+    def _match(d, adv):
+        return (d.address.upper() == addr.upper()
+                or any(h in ((adv.local_name or d.name or "").lower()) for h in name_hints))
+
+    device = None
+    if _O2_PASSIVE_SCAN:
+        try:
+            device = await _BS.find_device_by_filter(
+                _match, timeout=timeout, scanning_mode="passive", **akw)
+        except _BErr as exc:
+            # Only a "this stack can't do passive" refusal downgrades. A real scan failure (adapter wedged,
+            # D-Bus gone) must stay an error the caller retries + the watchdogs can see, not be masked by a
+            # second scan on the same broken radio.
+            if "passive" not in repr(exc).lower():
+                raise
+            _O2_PASSIVE_SCAN = False
+            log.info("passive BLE scan unsupported here (%s) — using active scan for the O2Ring", exc)
+    if device is None and not _O2_PASSIVE_SCAN:
+        device = await _BS.find_device_by_filter(_match, timeout=timeout, **akw)
     if device is None:
         raise _NotFound(addr, "O2Ring not advertising (wear it finger-in + close the phone app)")
     client = _BC(device, **akw)
