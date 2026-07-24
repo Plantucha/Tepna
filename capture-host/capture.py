@@ -274,9 +274,16 @@ def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = Non
         reasons.append("pinned adapter DOWN/not-found")
     for d in devices:
         err = d.get("last_error") or ""
-        if "InProgress" in err and not any_connected:
-            # No device is connected AND a connect is stuck in-progress → the radio itself, not one
-            # churny device. With a live link present this is benign device contention (see docstring).
+        if "InProgress" in err and not any_connected and adapter_up is not True:
+            # No device is connected AND a connect is stuck in-progress → INFER the radio is wedged... but
+            # ONLY when the adapter is not CONFIRMED up. If _adapter_is_up() says the pinned adapter is
+            # UP RUNNING (adapter_up is True), the radio is demonstrably working and this InProgress is
+            # device-side churn — commonly the morning teardown (auto-pull running + every sensor going
+            # off-finger/on-charger at once, so momentarily nobody is connected). Power-cycling a healthy
+            # radio on that is the 2026-07-20 "needless power-cycle is worse than the problem" failure in a
+            # new form (observed as a false sign-2/2 on 2026-07-24 09:46). adapter_up None/False (unknown
+            # or DOWN) still counts InProgress — the inference is only SUPPRESSED by positive proof the
+            # radio is fine. A real DOWN wedge is caught by the pinned-adapter signal above regardless.
             reasons.append(f"{d.get('name')}: InProgress")
         if d.get("bluez_connected") and not d.get("connected"):
             phantom.append(d["address"])

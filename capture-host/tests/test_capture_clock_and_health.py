@@ -278,3 +278,33 @@ def test_adapter_up_none_preserves_prior_behaviour():
     assert capture.classify_adapter_health([
         {"name": "H10", "address": "A", "connected": False, "last_error": "InProgress"}])["wedged"] is True
 
+
+def test_inprogress_with_nobody_connected_is_suppressed_when_the_adapter_is_confirmed_up():
+    """2026-07-24 09:46 false positive: the O2Ring auto-pull + every sensor going off-finger/on-charger at
+    once left nobody connected while InProgress churned, and the watchdog power-cycled a hci0 that was
+    UP RUNNING the whole time. A CONFIRMED-up adapter makes all-disconnected InProgress device churn, not a
+    radio wedge — so it must NOT flag a wedge."""
+    h = capture.classify_adapter_health([
+        {"name": "H10", "address": "A", "connected": False, "last_error": "InProgress"},
+        {"name": "Ring", "address": "B", "connected": False,
+         "last_error": "BleakDeviceNotFoundError('not advertising')"},
+    ], adapter_up=True)
+    assert h["wedged"] is False and h["reasons"] == []
+
+
+def test_inprogress_still_wedges_when_the_adapter_is_down_or_unknown():
+    """The suppression is ONLY on positive proof the radio is up. adapter_up False (DOWN) or None
+    (unprobed) still treats all-disconnected InProgress as a wedge — a real DOWN wedge is never masked."""
+    for up in (False, None):
+        h = capture.classify_adapter_health([
+            {"name": "H10", "address": "A", "connected": False, "last_error": "InProgress"}], adapter_up=up)
+        assert h["wedged"] is True, f"adapter_up={up!r} should still flag InProgress"
+
+
+def test_a_phantom_link_is_a_wedge_even_when_the_adapter_is_up():
+    """The adapter_up gate applies ONLY to the inferred InProgress signal. A phantom BlueZ link is a real
+    stale link that needs clearing regardless of adapter state, so it still flags."""
+    h = capture.classify_adapter_health([
+        {"name": "Ring", "address": "B", "connected": False, "bluez_connected": True}], adapter_up=True)
+    assert h["wedged"] is True and h["phantom"] == ["B"]
+
