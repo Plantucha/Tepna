@@ -34,6 +34,7 @@
     "source": "ResMed AirSense 11 (EDF set)",
     "contentId": "26c487828f52",
     "startEpochMs": 1781392473000,
+    "durSec": 9000,
     "dateAnchorMs": 1781308800000,
     "offsetMin": null,
     "therapyHours": 2.5,
