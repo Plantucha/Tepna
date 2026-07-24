@@ -54,7 +54,7 @@
  * --max-old-space-size is needed on the command line: the parent sizes each child's heap to the host.
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import os from 'node:os';
@@ -231,6 +231,15 @@ const RE_O2 = /^O2Ring[^_]*_(\d{14})\.csv$/;
 // TRIO-BATCH-O2RING-DAT-2026-07-13-BRIEF.md.
 const RE_O2_DAT = /^(\d{14})\.dat$/;
 
+// capture-host (the BLE `capture.py` daemon) layout — the SAME vendor CONTENT under DIFFERENT names
+// (CAPTURE-HOST-INTEGRATOR-FOLD §1): one 14-digit stamp instead of `<YYYYMMDD>_<HHMMSS>`, the device
+// token `VeritySense` (not `Sense`), the stream `MAG` (not `MAGN`), and Wellue-prefixed O2Ring files.
+// The file BYTES are identical to the Polar Sensor Logger / O2Ring exports the DSPs already parse, so
+// matching these names lets a real capture-host night ingest with no rename shim.
+const RE_POLAR_CH = /^Polar_(H10|VeritySense)_([0-9A-Fa-f]+)_(\d{14})_([A-Z0-9]+)\.txt$/;
+const RE_O2_CH = /^Wellue_O2Ring-S_[^_]+_(\d{14})_SPO2\.csv$/;
+const RE_O2_DAT_CH = /^Wellue_O2Ring-S_[^_]+_(\d{14})_STORED\.dat$/; // onboard backup (full session)
+
 // Clock Contract: floating wall-clock ms — components verbatim through Date.UTC, never new Date(str).
 const utc = (y, mo, d, h, mi, s) => Date.UTC(y, mo - 1, d, h, mi, s);
 const parse14 = (s) => utc(+s.slice(0, 4), +s.slice(4, 6), +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14));
@@ -246,8 +255,13 @@ const bump = (key) => {
   return nights.get(key);
 };
 
-for (const name of readdirSync(SRC)) {
-  const full = join(SRC, name);
+// RECURSE: the Polar Sensor Logger corpus is one FLAT folder, but the capture-host daemon writes one
+// SUBDIRECTORY PER NIGHT (plus a `stored/` dir of onboard .dat backups). Walk the tree so both layouts
+// ingest from the same `--src` — the regexes match on the BASENAME, and `readdirSync(recursive:true)`
+// on a flat folder still returns bare filenames, so this is back-compat for the Polar corpus.
+for (const rel of readdirSync(SRC, { recursive: true })) {
+  const name = basename(rel);
+  const full = join(SRC, rel);
   let st;
   try {
     st = statSync(full);
@@ -256,10 +270,22 @@ for (const name of readdirSync(SRC)) {
   }
   if (!st.isFile()) continue;
 
+  // Polar streams — normalize BOTH the Polar Sensor Logger and capture-host layouts to {dev, stream, t0}
+  // (dev ∈ {H10, Sense}, stream ∈ {ECG, ACC, PPG, GYRO, MAGN}) before the shared routing below.
+  let dev = null;
+  let stream = null;
+  let t0 = null;
   let m = RE_POLAR.exec(name);
   if (m) {
-    const [, dev, , date, time, stream] = m;
-    const t0 = parse8_6(date, time);
+    dev = m[1];
+    t0 = parse8_6(m[3], m[4]);
+    stream = m[5];
+  } else if ((m = RE_POLAR_CH.exec(name))) {
+    dev = m[1] === 'VeritySense' ? 'Sense' : m[1];
+    t0 = parse14(m[3]);
+    stream = m[4] === 'MAG' ? 'MAGN' : m[4];
+  }
+  if (dev) {
     const rec = { name, full, t0, bytes: st.size, dev, stream };
     const n = bump(nightKeyOf(t0));
     if (dev === 'H10' && stream === 'ECG') n.ecg.push(rec);
@@ -270,15 +296,17 @@ for (const name of readdirSync(SRC)) {
     else if (dev === 'Sense' && stream === 'MAGN') n.magn.push(rec);
     continue;
   }
-  m = RE_O2.exec(name);
+  // O2Ring vendor CSV — Polar-Sensor-Logger-style "O2Ring …_<14>.csv" OR capture-host "Wellue_O2Ring-S_…_SPO2.csv".
+  m = RE_O2.exec(name) || RE_O2_CH.exec(name);
   if (m) {
-    const t0 = parse14(m[1]);
+    t0 = parse14(m[1]);
     bump(nightKeyOf(t0)).oxy.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'csv', stamp: m[1] });
     continue;
   }
-  m = RE_O2_DAT.exec(name);
+  // O2Ring onboard binary — bare "<14>.dat" OR capture-host "Wellue_O2Ring-S_…_STORED.dat".
+  m = RE_O2_DAT.exec(name) || RE_O2_DAT_CH.exec(name);
   if (m) {
-    const t0 = parse14(m[1]);
+    t0 = parse14(m[1]);
     bump(nightKeyOf(t0)).oxy.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'dat', stamp: m[1] });
   }
 }

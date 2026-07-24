@@ -3450,6 +3450,14 @@
             ? SignalFrame.computeContentId({ signalType: 'ecg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
             : null,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
+        // Declare the recording LENGTH so the Integrator can place a real window on this leg.
+        // CAPTURE-HOST-INTEGRATOR-FOLD §2: without a duration key, integrator-dsp adaptEnvelopeNode
+        // derives endMs from the LAST event only — so an EVENT-SPARSE ECG segment (e.g. a short clean
+        // clip that trips no arrhythmia/CVHR event) collapses to a zero-length window at t0Ms and is
+        // EXCLUDED from the fold's overlap intersection, dropping the strongest concurrent leg even
+        // though its raw ECG genuinely overlapped the other nodes. `durSec` is the key the adapter
+        // already honors generically (DEEP-AUDIT-II §7.6, added for MotionDex) — additive + back-compat.
+        durSec: r.durSec != null ? r.durSec : null,
         offsetMin: r.offsetMin != null ? r.offsetMin : opts.offsetMin != null ? opts.offsetMin : null,
         events: events.length
       },
