@@ -512,6 +512,91 @@ def test_connect_scan_connects_a_found_device(monkeypatch):
     assert events == ["c", "u", "d"]
 
 
+# ── _connect_scan: the passive→active downgrade ─────────────────────────────────────────────────────
+# REGRESSION GUARD. Passive scanning shipped without or_patterns and BlueZ refused it at scanner
+# construction, so the O2Ring's scan never ran and the ring stayed dark for a whole night — while these
+# tests stayed green, because a stubbed find_device_by_filter swallows any kwargs and can't refuse. So the
+# stub has to refuse the way BlueZ does, or this class of break is invisible here again.
+def _passive_refuser(found, calls):
+    """A find_device_by_filter that rejects passive exactly as bleak's BlueZ backend does."""
+    from bleak.exc import BleakError
+    async def find(*a, **k):
+        calls.append(k.get("scanning_mode"))
+        if k.get("scanning_mode") == "passive":
+            raise BleakError("passive scanning mode requires bluez or_patterns")
+        return found
+    return find
+
+
+def test_connect_scan_falls_back_to_active_when_bluez_refuses_passive(monkeypatch):
+    import bleak
+    class _Dev:
+        address = "D1:98:62:7C:92:B3"; name = "S8-AW"
+    events, calls = [], []
+    class _BC:
+        def __init__(self, dev, **kw): pass
+        async def connect(self): events.append("c")
+        async def disconnect(self): events.append("d")
+    monkeypatch.setattr(capture, "_O2_PASSIVE_SCAN", True)
+    monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", _passive_refuser(_Dev(), calls))
+    monkeypatch.setattr(bleak, "BleakClient", _BC)
+    async def no_kw(): return {}
+    monkeypatch.setattr(capture, "adapter_kw", no_kw)
+
+    async def go():
+        async with capture._connect_scan("D1:98:62:7C:92:B3"):
+            events.append("u")
+    _run(go())
+    assert calls == ["passive", None]        # tried passive, then re-scanned actively
+    assert events == ["c", "u", "d"]         # …and the ring still got connected
+    assert capture._O2_PASSIVE_SCAN is False  # refusal is remembered — no wasted attempt next cycle
+
+
+def test_connect_scan_skips_passive_once_the_stack_has_refused_it(monkeypatch):
+    import bleak
+    class _Dev:
+        address = "D1:98:62:7C:92:B3"; name = "S8-AW"
+    calls = []
+    class _BC:
+        def __init__(self, dev, **kw): pass
+        async def connect(self): pass
+        async def disconnect(self): pass
+    monkeypatch.setattr(capture, "_O2_PASSIVE_SCAN", False)   # as left by an earlier refusal
+    monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", _passive_refuser(_Dev(), calls))
+    monkeypatch.setattr(bleak, "BleakClient", _BC)
+    async def no_kw(): return {}
+    monkeypatch.setattr(capture, "adapter_kw", no_kw)
+
+    async def go():
+        async with capture._connect_scan("D1:98:62:7C:92:B3"):
+            pass
+    _run(go())
+    assert calls == [None]                   # one active scan, no passive retry
+
+
+def test_connect_scan_propagates_a_real_scan_error(monkeypatch):
+    """A wedged adapter must stay an error the retry loop + watchdogs can see — not be masked by a
+    second scan on the same broken radio."""
+    import bleak
+    from bleak.exc import BleakError
+    calls = []
+    async def find(*a, **k):
+        calls.append(k.get("scanning_mode"))
+        raise BleakError("org.freedesktop.DBus.Error.NoReply")
+    monkeypatch.setattr(capture, "_O2_PASSIVE_SCAN", True)
+    monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", find)
+    async def no_kw(): return {}
+    monkeypatch.setattr(capture, "adapter_kw", no_kw)
+
+    async def go():
+        async with capture._connect_scan("D1:98:62:7C:92:B3"):
+            pass
+    with pytest.raises(BleakError):
+        _run(go())
+    assert calls == ["passive"]               # no fallback rescan
+    assert capture._O2_PASSIVE_SCAN is True   # and passive is NOT blamed for it
+
+
 # ── pull_oxyii_session ──────────────────────────────────────────────────────────────────────────────
 def test_pull_oxyii_session_pauses_and_pulls(tmp_path, monkeypatch):
     capture._OXYII_PAUSE.clear()
