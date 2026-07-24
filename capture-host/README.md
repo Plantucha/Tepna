@@ -77,6 +77,13 @@ cp config.example.yaml config.yaml && $EDITOR config.yaml
 sudo cp systemd/*.service /etc/systemd/system/
 sudo useradd -r -s /usr/sbin/nologin tepna 2>/dev/null; sudo chown -R tepna /srv/tepna
 sudo systemctl daemon-reload && sudo systemctl enable --now tepna-capture tepna-web
+# Disable USB autosuspend on the BLE dongle (REQUIRED for RTL8761B parts, e.g. TP-Link UB500) — without
+# this the dongle firmware-wedges under load and the night is lost (VIGIL-OVERNIGHT-FINDINGS 2026-07-24).
+# The daemon prints a LOUD "STARTUP: USB autosuspend is ENABLED …" warning at boot if this step is skipped.
+sudo cp systemd/50-tepna-btdongle.rules /etc/udev/rules.d/
+sudo udevadm control --reload && sudo udevadm trigger --action=add --attr-match=idVendor=2357
+# (If your dongle is NOT a UB500, edit idVendor/idProduct in the .rules to match `lsusb`, and disable
+#  autosuspend on it too — most USB BT dongles dislike it.)
 ```
 Open **http://tepna.local/** from any device on the LAN. **Pin this one origin** (not `localhost`,
 not the IP) so the suite's profile + longitudinal history stay consistent.

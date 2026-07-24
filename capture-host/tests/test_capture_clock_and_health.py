@@ -308,3 +308,31 @@ def test_a_phantom_link_is_a_wedge_even_when_the_adapter_is_up():
         {"name": "Ring", "address": "B", "connected": False, "bluez_connected": True}], adapter_up=True)
     assert h["wedged"] is True and h["phantom"] == ["B"]
 
+
+# ── defense_warnings: the startup self-test for disarmed wedge defenses (VIGIL-OVERNIGHT-FINDINGS §P1.4) ─
+def test_all_defenses_armed_warns_nothing():
+    # autosuspend off (the udev rule is installed) + CAP_NET_ADMIN present (non-zero CapEff).
+    assert capture.defense_warnings("on", "0000000000000800") == []
+
+
+def test_autosuspend_auto_warns_about_the_wedge_prevention():
+    ws = capture.defense_warnings("auto", "0000000000000800")
+    assert len(ws) == 1 and "autosuspend is ENABLED" in ws[0] and "50-tepna-btdongle.rules" in ws[0]
+
+
+def test_zero_capeff_warns_the_recovery_ladder_is_disarmed():
+    ws = capture.defense_warnings("on", "0000000000000000")
+    assert len(ws) == 1 and "CAP_NET_ADMIN" in ws[0]
+
+
+def test_both_disarmed_warns_both():
+    ws = capture.defense_warnings("auto", "0000000000000000")
+    assert len(ws) == 2
+
+
+def test_unknown_values_warn_nothing():
+    """None (couldn't read the sysfs/proc value) must not fabricate a warning — a self-test that cries
+    wolf on a read failure gets ignored. 'on' + unreadable CapEff → silent."""
+    assert capture.defense_warnings(None, None) == []
+    assert capture.defense_warnings("on", "notahexnumber") == []
+
