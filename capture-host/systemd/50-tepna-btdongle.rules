@@ -1,0 +1,19 @@
+# 50-tepna-btdongle.rules — disable USB autosuspend on the Tepna bedside Bluetooth dongle.
+#
+# ROOT-CAUSE FIX (VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md §P0.1). The TP-Link UB500 (RTL8761B,
+# USB 2357:0604) firmware-hangs when the kernel USB-autosuspends it under an active BLE workload — the
+# adapter returns "powered but deaf" (hciN goes DOWN) and only a USB re-enumeration, or a lucky firmware
+# self-heal, brings it back. Measured 2026-07-23: two wedges, ~110 min of a sleep capture lost, while a
+# healthy internal radio sat idle. `power/control=on` stops the kernel ever suspending the dongle.
+#
+# Install (one time, needs root):
+#     sudo cp capture-host/systemd/50-tepna-btdongle.rules /etc/udev/rules.d/
+#     sudo udevadm control --reload
+#     sudo udevadm trigger --action=add --attr-match=idVendor=2357   # apply now, no replug
+#
+# Verify:  cat /sys/bus/usb/devices/*/power/control | grep -c on   # the dongle should read "on"
+#
+# If you swap dongles, update idVendor/idProduct to the new part (lsusb) — and disable autosuspend on it
+# too; the RTL8761B is not unique in disliking it.
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="2357", ATTR{idProduct}=="0604", TEST=="power/control", ATTR{power/control}="on"
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="2357", ATTR{idProduct}=="0604", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}="-1"

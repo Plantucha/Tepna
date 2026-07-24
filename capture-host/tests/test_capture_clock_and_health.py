@@ -238,3 +238,43 @@ def test_several_signals_with_a_live_device_report_only_the_real_wedge():
 def test_an_empty_device_list_is_not_wedged():
     assert capture.classify_adapter_health([])["wedged"] is False
 
+
+# ── adapter_up: the pinned-adapter-DOWN signal (VIGIL-OVERNIGHT-FINDINGS 2026-07-24) ──────────────────
+# On 2026-07-23 the USB dongle wedged twice; every connect failed with a plain Timeout('connect timed
+# out'), which is neither InProgress nor a phantom link — so classify read a DOWN radio as "not worn" and
+# the watchdog logged "adapter healthy again" 25×+ over a dead adapter, resetting its escalation counter
+# each time. adapter_up carries the adapter's ACTUAL state so a DOWN dongle is caught directly.
+def test_pinned_adapter_down_with_nothing_connected_is_wedged():
+    h = capture.classify_adapter_health([
+        {"name": "H10", "address": "A", "connected": False,
+         "last_error": "TimeoutError('connect timed out after 30s')"},
+        {"name": "Verity", "address": "C", "connected": False,
+         "last_error": "TimeoutError('connect timed out after 30s')"},
+    ], adapter_up=False)
+    assert h["wedged"] is True and "pinned adapter DOWN/not-found" in h["reasons"]
+
+
+def test_pinned_adapter_down_is_ignored_while_a_device_is_connected():
+    """A live link is proof the radio works — a False adapter_up (probe misread) must NEVER flag a wedge
+    while a device streams, or it could power-cycle a working adapter."""
+    h = capture.classify_adapter_health([
+        {"name": "H10", "address": "A", "connected": True},
+    ], adapter_up=False)
+    assert h["wedged"] is False and h["reasons"] == []
+
+
+def test_adapter_up_true_adds_no_wedge_signal():
+    h = capture.classify_adapter_health([
+        {"name": "H10", "address": "A", "connected": False, "last_error": "not found"},
+    ], adapter_up=True)
+    assert h["wedged"] is False
+
+
+def test_adapter_up_none_preserves_prior_behaviour():
+    """Back-compat: callers that don't probe the adapter (adapter_up defaults None) get the exact
+    pre-2026-07-24 classification — clean not-found benign, InProgress wedged."""
+    assert capture.classify_adapter_health([
+        {"name": "H10", "address": "A", "connected": False, "last_error": "not found"}])["wedged"] is False
+    assert capture.classify_adapter_health([
+        {"name": "H10", "address": "A", "connected": False, "last_error": "InProgress"}])["wedged"] is True
+
