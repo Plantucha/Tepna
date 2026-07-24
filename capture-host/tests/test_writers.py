@@ -135,14 +135,22 @@ def test_write_ppi_header_and_flag_bit_decomposition(tmp_path):
     assert rows[1] == f"{_PTS};5000;60;1000;5;1;0;1"
 
 
-def test_write_hr_one_row_per_rr_and_blank_when_empty(tmp_path):
-    def fn(w):
-        w.write_hr(_PHONE, 7000, 55, [800, 810])   # 2 RR → 2 rows, HR repeated
-        w.write_hr(_PHONE, 7000, 56, [])           # no RR → single blank-RR row
-    rows, w = _write_read(tmp_path, "hr", fn)
-    assert rows[0] == "Phone timestamp;sensor timestamp [ns];HR [bpm];RR-interval [ms]"
-    assert rows[1:] == [f"{_PTS};7000;55;800", f"{_PTS};7000;55;810", f"{_PTS};7000;56;"]
-    assert w.rows == 3                              # 2 RR rows + 1 blank-RR row
+def test_write_hr_splits_into_psl_hr_and_rr_files(tmp_path):
+    """PSL layout (verified against the real corpus): _HR.txt = ONE HR row per notification (HR only,
+    HRV/Breathing columns empty); RR intervals go to a sibling _RR.txt, one row per interval, no blank
+    rows. This lets one parser read Vigil and genuine Polar-Sensor-Logger captures."""
+    p = str(tmp_path / "Polar_H10_02849638_20260620_031641_HR.txt")
+    w = writers.StreamWriter(p, "hr", fsync=False)
+    w.write_hr(_PHONE, 7000, 55, [800, 810])       # 1 HR row + 2 RR rows
+    w.write_hr(_PHONE, 7000, 56, [])               # 1 HR row, NO RR rows (no blank line)
+    w.close()
+    hr = open(p).read().splitlines()
+    rr = open(str(tmp_path / "Polar_H10_02849638_20260620_031641_RR.txt")).read().splitlines()
+    assert hr[0] == "Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];"
+    assert hr[1:] == [f"{_PTS};55", f"{_PTS};56"]              # HR-only, one per notification
+    assert rr[0] == "Phone timestamp;RR-interval [ms]"
+    assert rr[1:] == [f"{_PTS};800", f"{_PTS};810"]            # one per real RR, no blank row
+    assert w.rows == 2                                          # _HR row count (the primary file)
 
 
 def test_ms_column_is_ecg_only_matching_real_polar_sensor_logger(tmp_path):
