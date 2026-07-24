@@ -234,10 +234,19 @@ _POLAR_PAUSED: set = set()
 _RECOVER = asyncio.Event()
 
 
-def classify_adapter_health(devices: list[dict]) -> dict:
-    """PURE (testable): from each configured device's {name, connected, last_error, bluez_connected},
-    decide whether the BLE ADAPTER looks WEDGED vs merely idle because the devices AREN'T WORN — the
-    distinction the whole watchdog turns on. Returns {wedged, reasons, phantom:[addresses]}.
+def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = None) -> dict:
+    """PURE (testable): from each configured device's {name, connected, last_error, bluez_connected} plus
+    the PINNED ADAPTER's own up/down state, decide whether the BLE ADAPTER looks WEDGED vs merely idle
+    because the devices AREN'T WORN — the distinction the whole watchdog turns on. Returns
+    {wedged, reasons, phantom:[addresses]}.
+
+      • `adapter_up` (added 2026-07-24, VIGIL-OVERNIGHT-FINDINGS) is the adapter's ACTUAL state: True =
+        UP RUNNING, False = DOWN or not-resolvable, None = unknown/not probed. It exists because the
+        device-error heuristics below MISS the commonest real wedge: a hung dongle fails connects with a
+        plain `TimeoutError('connect timed out')`, which is neither InProgress nor a phantom link — so a
+        DOWN radio read as "just not worn" and the watchdog logged "adapter healthy again" 25×+ over a
+        dead adapter on 2026-07-23, repeatedly resetting its own escalation counter. None preserves the
+        pre-2026-07-24 behaviour for callers that don't probe it.
 
       • `InProgress` in last_error → connection contention — BUT ADAPTER-LEVEL ONLY WHEN THE RADIO IS
         SERVING NOBODY. A single device's InProgress while OTHERS are connected is DEVICE churn, not an
@@ -257,6 +266,12 @@ def classify_adapter_health(devices: list[dict]) -> dict:
     reasons: list[str] = []
     phantom: list[str] = []
     any_connected = any(d.get("connected") for d in devices)   # is the radio serving ANY live link?
+    # A DOWN/absent pinned adapter while it is serving NOBODY is the most direct wedge signal there is —
+    # and the one the per-device errors below cannot express. Guarded by `not any_connected` (identical to
+    # the InProgress guard): a live link is proof the radio works, so a probe misread can never power-cycle
+    # a demonstrably-working adapter. adapter_up=None (unknown) leaves the device heuristics to stand alone.
+    if adapter_up is False and not any_connected:
+        reasons.append("pinned adapter DOWN/not-found")
     for d in devices:
         err = d.get("last_error") or ""
         if "InProgress" in err and not any_connected:
@@ -1755,6 +1770,22 @@ async def _usb_rebind(dev_id: str) -> bool:
     log.warning("watchdog: recovery: USB re-bound %s — dongle re-enumerated", dev_id); return True
 
 
+async def _adapter_is_up(hci: str) -> "bool | None":
+    """True/False if the pinned adapter `hci` is UP RUNNING, else None when it can't be determined
+    (hciconfig absent, errored, or unparseable). Bounded, never raises — the watchdog treats None as
+    'unknown' and falls back to the device-error heuristics, so a probe failure can never itself trigger a
+    power-cycle. The direct antidote to the false-'healthy' loop (VIGIL-OVERNIGHT-FINDINGS 2026-07-24)."""
+    try:
+        p = await asyncio.create_subprocess_exec(
+            "hciconfig", hci, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await asyncio.wait_for(p.communicate(), timeout=6)
+        if p.returncode != 0:
+            return None
+        return "UP RUNNING" in out.decode("utf-8", "replace")
+    except Exception:
+        return None
+
+
 async def adapter_watchdog(adapter_mac, cfg: dict):
     """Detect a WEDGED BLE adapter (all worn sensors unreachable though the radio is up — the frozen-
     monitor failure) and auto-recover, WITHOUT reacting to the benign 'sensors simply not worn' state.
@@ -1794,7 +1825,14 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
             devs.append({"name": d["name"], "address": d["address"],
                          "connected": bool(st.get("connected")), "last_error": st.get("last_error"),
                          "bluez_connected": bluez})
-        h = classify_adapter_health(devs)
+        # Probe the PINNED adapter's REAL state so a DOWN dongle is caught directly, not inferred from
+        # device errors a plain connect-timeout never carries. adapter_hci() returns None when the
+        # configured adapter isn't resolvable — itself the wedge signature — so that maps to False; a
+        # resolvable-but-DOWN adapter is caught by _adapter_is_up; an undecidable probe returns None and
+        # the device heuristics stand. This is what stops the watchdog declaring health over a dead radio.
+        _hci_now = await adapter_hci()
+        adapter_up = (await _adapter_is_up(_hci_now)) if _hci_now else False
+        h = classify_adapter_health(devs, adapter_up=adapter_up)
         if not h["wedged"]:
             if consecutive:
                 log.info("watchdog: adapter healthy again")
