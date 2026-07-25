@@ -135,3 +135,61 @@ def test_push_rate_falls_back_to_one_for_unmetered_stream():
     q = bus.subscribe()
     bus.push("nosuchstream", [5], fs=None)         # no meta, no fs → rate = 1 (not 0)
     assert q.get_nowait()["fs"] == 1
+
+
+# ── STREAM SHAPE IS AN INVARIANT (VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §2) ────────────────────
+# `push()` used to do `m.chans = nch`, silently conforming the DECLARED shape to whatever arrived.
+# Channel count is fixed by the hardware (capture.py `_LIVE_META`), so a frame of a different width
+# is decoder corruption — and rewriting the metadata to match is the "quietly normalise bad input"
+# move this suite forbids. It must be surfaced, and the corrupt frame must not reach the live view.
+
+def test_channel_count_breach_does_not_rewrite_the_declared_shape():
+    bus = telemetry.TelemetryBus()
+    bus.register("ppg_vs", "PPG (Verity)", "raw", 55, chans=4,
+                 labels=("LED1", "LED2", "LED3", "ambient"))
+    bus.push("ppg_vs", [[1.0, 2.0, 3.0, 4.0]] * 8, 55)
+    assert bus.snapshot("ppg_vs")["chans"] == 4
+    bus.push("ppg_vs", [[1.0, 2.0, 3.0]] * 8, 55)          # decoder corruption: 3 channels
+    assert bus.snapshot("ppg_vs")["chans"] == 4, "the declared shape must survive a bad frame"
+
+
+def test_channel_count_breach_is_recorded_and_surfaced():
+    bus = telemetry.TelemetryBus()
+    bus.register("acc_h10", "ACC (H10)", "mg", 50, chans=3, labels=("X", "Y", "Z"))
+    assert bus.shape_errors() == {}
+    bus.push("acc_h10", [[1.0, 2.0]] * 4, 50)
+    errs = bus.shape_errors()
+    assert "acc_h10" in errs and "3" in errs["acc_h10"] and "2" in errs["acc_h10"]
+    row = [m for m in bus.meta() if m["key"] == "acc_h10"][0]
+    assert "shapeError" in row, "the monitor must be able to see the breach"
+
+
+def test_healthy_stream_carries_no_shape_error_key():
+    """The key's ABSENCE is the all-clear, so it must not appear on a well-formed stream."""
+    bus = telemetry.TelemetryBus()
+    bus.register("ecg_h10", "ECG", "uV", 130, chans=1)
+    bus.push("ecg_h10", [1.0] * 73, 130)
+    assert bus.shape_errors() == {}
+    assert all("shapeError" not in m for m in bus.meta())
+
+
+def test_malformed_frame_is_dropped_from_the_live_ring():
+    """Ragged rows under one declared `chans` would be mis-plotted as real data."""
+    bus = telemetry.TelemetryBus()
+    bus.register("ppg_vs", "PPG", "raw", 55, chans=4)
+    bus.push("ppg_vs", [[1.0, 2.0, 3.0, 4.0]] * 5, 55)
+    bus.push("ppg_vs", [[9.0, 9.0]] * 5, 55)
+    rows = bus.snapshot("ppg_vs")["v"]
+    assert len(rows) == 5, "the corrupt frame must not be ringed"
+    assert all(len(r) == 4 for r in rows), "every ringed row must match the declared width"
+
+
+def test_shape_error_survives_an_unregister_reregister_cycle():
+    """Every reconnect unregisters and re-registers; that must not launder away the evidence."""
+    bus = telemetry.TelemetryBus()
+    bus.register("ppg_vs", "PPG", "raw", 55, chans=4)
+    bus.push("ppg_vs", [[1.0, 2.0]] * 3, 55)
+    assert bus.shape_errors()
+    bus.unregister("ppg_vs")
+    bus.register("ppg_vs", "PPG", "raw", 55, chans=4)
+    assert bus.shape_errors(), "a breach recorded against this night must not be clearable"

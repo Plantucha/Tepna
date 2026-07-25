@@ -1368,7 +1368,7 @@ async def run_oxyii(dev: dict, root: str):
         ppg_idx = [0]                                 # running sample index → synthesized sensor_ns
         # Honest-gap state (O2RING-PPG-GAP §1), per SESSION — a reconnect opens a new file and a new
         # grid, so these reset with ppg_idx rather than persisting across links.
-        ppg_prev_end = [None]                         # host arrival of the previous frame's LAST sample
+        ppg_t0 = [None]                               # host arrival mapped to grid index 0 (session anchor)
         ppg_gaps = [0]                                # gaps inserted this session
         ppg_lost = [0]                                # samples' worth of real time skipped
         stalled = False                               # link held but no frames decoded — reconnect
@@ -1461,24 +1461,46 @@ async def run_oxyii(dev: dict, root: str):
                             # discrete gaps — 11/min, median 49 ms, p90 96 ms, max 287 ms — leaving ~20 %
                             # of beats adjacent to a gap.
                             # This frame's samples are back-timed to END at `arr`, so it covers
-                            # [arr - nps/fs, arr]. Any daylight between the previous frame's end and this
-                            # frame's start is real time the ring measured and the link lost, so ADVANCE
-                            # the grid across it instead of pretending it never happened.
-                            if ppg_prev_end[0] is not None:
-                                gap_s = (arr - ppg_prev_end[0]).total_seconds() - nps / O2PPG_FS
-                                # Only ever advance. A NEGATIVE gap is host-clock jitter delivering a frame
-                                # "early"; rewinding would emit non-monotonic sensor_ns and break parsing.
-                                # The threshold keeps ordinary BLE arrival jitter (measured sd 16.4 ms,
-                                # p95 |step| 29 ms) from minting phantom gaps, while the real losses start
-                                # at ~49 ms median. Slow host-vs-device drift (measured 125.726 vs 125.738
-                                # nominal, ~0.01 %) stays far below it and is spread across frames, so it
-                                # never accumulates into a false gap.
-                                if gap_s > O2PPG_GAP_MIN_S:
-                                    lost = int(round(gap_s * O2PPG_FS))
-                                    ppg_idx[0] += lost
-                                    ppg_gaps[0] += 1
-                                    ppg_lost[0] += lost
-                            ppg_prev_end[0] = arr
+                            # [arr - nps/fs, arr]. Real time the ring measured but the link lost must
+                            # ADVANCE the grid instead of being pretended away.
+                            #
+                            # ⚠️ MEASURED AGAINST A SESSION ANCHOR, NOT THE PREVIOUS FRAME (2026-07-25).
+                            # This used to compare `arr` against the PREVIOUS frame's arrival and advance
+                            # whenever that one delta exceeded the threshold. Because the advance is
+                            # one-sided (we never rewind — see below), that RECTIFIED symmetric BLE arrival
+                            # jitter into monotonic time inflation: every positive excursion past the
+                            # threshold was banked permanently while the compensating negative ones were
+                            # discarded, so the grid drifted ahead of real time even when NOTHING was lost.
+                            # Measured on the real corpus: +210 s of elapsed time that never happened over
+                            # 11.18 h, while rows/wall sat at nominal on every file (i.e. no samples were
+                            # actually missing). A synthetic replay at this code's own documented jitter
+                            # (sd 16.4 ms) inflated a ZERO-LOSS stream by +3.2 % and minted 1264 phantom
+                            # gaps. Downstream that lands in PpgDex's `relSec` beat timeline (its `fs`
+                            # survives — it takes the MEDIAN ns delta), inflating the intervals that cross
+                            # a phantom gap, which is exactly the successive-difference quantity RMSSD is.
+                            #
+                            # Anchoring to the session start makes symmetric jitter CANCEL instead of
+                            # accumulate: a late frame does not advance the grid while the cumulative
+                            # position is still on track, so only a PERSISTENT deficit — a real dropout —
+                            # moves it. Replayed over the same real corpus this cuts the inflation from
+                            # +1.05 % to +0.05 % and the gap count from hundreds per file to single digits.
+                            # (O2RING-PPG-GAP §1; VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §1.)
+                            if ppg_t0[0] is None:
+                                # Map this frame's FIRST sample to grid index 0 — the anchor every later
+                                # frame is measured against.
+                                ppg_t0[0] = arr - _dt.timedelta(seconds=(nps - 1) / O2PPG_FS)
+                            # Where this frame's first sample SHOULD sit on the grid, per the host clock.
+                            target = int(round(
+                                ((arr - ppg_t0[0]).total_seconds() - (nps - 1) / O2PPG_FS) * O2PPG_FS))
+                            # Only ever advance. A target BEHIND the cursor means the ring is running a
+                            # touch slower than the configured `ppg_fs`, or a frame arrived early; rewinding
+                            # would emit non-monotonic sensor_ns and break parsing. Holding still is also
+                            # the SAFE direction — it under-reports a gap rather than inventing one.
+                            if target - ppg_idx[0] > O2PPG_GAP_MIN_S * O2PPG_FS:
+                                lost = target - ppg_idx[0]
+                                ppg_idx[0] += lost
+                                ppg_gaps[0] += 1
+                                ppg_lost[0] += lost
                             for i, v in enumerate(ppg):
                                 ph = arr - _dt.timedelta(seconds=(nps - 1 - i) / O2PPG_FS)
                                 ppgwr.write_ppg(ph, ppg_idx[0] * O2PPG_NS_STEP, 0.0, (v,), 0)
@@ -1596,8 +1618,12 @@ async def run_oxyii(dev: dict, root: str):
             # the gap insertion fixes — a lossy link that LOOKS clean. Logged even at zero, so "no gaps"
             # is an observation rather than an absence of evidence.
             if ppgwr and ppg_idx[0]:
+                # Phrased as what was MEASURED (a grid advance), not as a conclusion about the link. The
+                # old wording asserted "%% of the session's real time was lost by the link" — which the
+                # frame-anchored inflation made false: most of what it reported as loss was rectified
+                # arrival jitter, not lost time. A log line is evidence only if it says what it saw.
                 log.info("%s: PPG grid — %d sample(s) written, %d gap(s) inserted totalling %.1f s "
-                         "(%.2f%% of the session's real time was lost by the link)",
+                         "(%.2f%% of the grid, host-clock deficit vs the session anchor)",
                          name, ppg_idx[0] - ppg_lost[0], ppg_gaps[0], ppg_lost[0] / O2PPG_FS,
                          100.0 * ppg_lost[0] / max(ppg_idx[0], 1))
             # DISCARD HEADER-ONLY FILES, exactly as run_polar does. Writers are opened before the ring is

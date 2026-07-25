@@ -255,3 +255,52 @@ def test_grant_warning_names_the_file_and_the_safe_destination(tmp_path):
 def test_grant_warning_is_silent_for_a_safe_helper(monkeypatch, tmp_path):
     monkeypatch.setattr(helper_path, "is_safely_owned", lambda _p: True)
     assert helper_path.grant_warning(str(tmp_path / "h.sh")) is None
+
+
+# ── STRATUM FAIL-OPEN (VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §3) ───────────────────────────────
+# `read_state` parsed Stratum with `.isdigit()`, so any non-integer form became None and fell into
+# classify()'s "synchronised; stratum not yet reported" branch — which TRUSTS. That is a fail-OPEN
+# on the one field gating absolute-time trust. A REPORTED-but-unreadable stratum is now holdover;
+# a genuinely ABSENT one keeps the documented benefit of the doubt.
+
+def _synced(**kw):
+    base = {"available": True, "ntp_enabled": True, "synchronized": True, "ignored": False}
+    base.update(kw)
+    return base
+
+
+def test_unparseable_stratum_is_holdover_not_trusted():
+    v = hc.classify(_synced(stratum=None, stratum_unparsed=True))
+    assert v["trust"] == "holdover"
+    assert v["absolute_ok"] is False
+    assert "parse" in v["reason"].lower()
+
+
+def test_absent_stratum_still_gets_the_benefit_of_the_doubt():
+    """systemd clears NTPMessage on restart, so absent-but-synchronised is a real, benign state."""
+    v = hc.classify(_synced(stratum=None))
+    assert v["trust"] == "disciplined" and v["absolute_ok"] is True
+
+
+def test_read_state_flags_a_reported_but_unreadable_stratum():
+    """The parse and the verdict must agree — this is the seam the fail-open lived in."""
+    for raw, want_unparsed in (("16", False), ("4", False), ("16.0", False), ("n/a", True), ("", False)):
+        msg = hc.parse_ntp_message(f"{{ Stratum={raw}, Reference=PPS }}" if raw else "{ Reference=PPS }")
+        num = hc._num(msg.get("Stratum"))
+        unparsed = bool((msg.get("Stratum") or "").strip()) and num is None
+        assert unparsed is want_unparsed, f"Stratum={raw!r} -> unparsed={unparsed}"
+
+
+def test_float_stratum_is_read_rather_than_discarded():
+    """`16.0` is a legible stratum 16 — it must land as UNSYNCHRONISED, not as 'not reported'."""
+    msg = hc.parse_ntp_message("{ Stratum=16.0, Reference=PPS }")
+    num = hc._num(msg.get("Stratum"))
+    assert num == 16.0
+    v = hc.classify(_synced(stratum=int(num)))
+    assert v["trust"] == "holdover", "stratum 16 is RFC 5905 unsynchronised"
+
+
+def test_packet_count_tolerates_a_suffixed_form():
+    assert hc._num("36") == 36.0
+    assert hc._num("36 packets") == 36.0
+    assert hc._num("n/a") is None
