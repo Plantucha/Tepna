@@ -453,9 +453,16 @@ class Spo2CsvWriter:
         self._fsync = fsync
         self._last_flush = _time.monotonic()
 
-    def write(self, when: _dt.datetime, spo2: int, pr: int, motion: int) -> None:
+    def write(self, when: _dt.datetime, spo2: int, pr, motion: int) -> None:
+        """`pr` may be None — the ring reports a pulse rate outside 20-250 when it cannot read one.
+        BLANK, never 0, for an absent value: a fabricated 0 is indistinguishable from a real reading
+        (the rule OxyFrameLogWriter's docstring states, which this writer did not follow — capture.py
+        passed `live["pr"] or 0`). Measured against the shipped OxyDex reader, `0` and blank are
+        rejected IDENTICALLY (`parseInt('')` → NaN and `0 < 20` both `continue`), so this changes no
+        downstream number — it stops the FILE asserting a pulse of zero that the ring never measured.
+        Latent in practice: 0 occurrences across 110k rows of the real 2026-07-20..25 corpus."""
         stamp = when.strftime("%H:%M:%S %d/%m/%Y")   # LOCAL civil (Clock Contract) — O2Ring/ViHealth format
-        self._fh.write(f"{stamp},{spo2},{pr},{motion}\n")
+        self._fh.write(f"{stamp},{spo2},{'' if pr is None else pr},{motion}\n")
         self._n += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:

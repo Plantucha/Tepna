@@ -1527,7 +1527,10 @@ async def run_oxyii(dev: dict, root: str):
                         _OXYII_LAST_DURATION[addr] = live["duration"]   # survives the next dropout
                         now = _now()
                         if live["spo2"] is not None:
-                            wr.write(now, live["spo2"], live["pr"] or 0, live["motion"])   # [11], corrected
+                            # `live["pr"]` passed through AS-IS, including None — `or 0` used to turn an
+                            # unreadable pulse rate into a written 0 (VIGIL-PPG-GRID-AUDIT §5.2). The
+                            # writer emits a blank for None; see Spo2CsvWriter.write.
+                            wr.write(now, live["spo2"], live["pr"], live["motion"])   # [11], corrected
                             BUS.push("spo2", [live["spo2"]])
                             if live["pr"]:
                                 BUS.push("pr", [live["pr"]])

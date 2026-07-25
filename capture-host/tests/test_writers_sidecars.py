@@ -214,3 +214,40 @@ def test_a_zero_flush_interval_forces_data_to_disk_immediately(tmp_path):
     w.write(WHEN, "D", True, -50, 90)
     assert len(_rows(str(p))) == 1, "row should be on disk before close()"
     w.close()
+
+
+# ── ABSENT PULSE RATE IS BLANK, NEVER 0 (VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §5.2) ───────────
+# capture.py passed `live["pr"] or 0`, so a pulse rate the ring could not read (parse_live returns
+# None outside 20-250) was written as a real-looking 0 into the vendor CSV OxyDex parses positionally.
+# Same rule OxyFrameLogWriter's docstring already states: a fabricated 0 is indistinguishable from a
+# real reading of 0. Measured against the shipped OxyDex reader, 0 and blank are rejected identically
+# (parseInt('') -> NaN and 0 < 20 both `continue`), so this changes no downstream number — it stops the
+# FILE asserting a pulse of zero the ring never measured.
+
+def test_absent_pulse_rate_is_written_blank_not_zero(tmp_path):
+    p = tmp_path / "spo2.csv"
+    w = Spo2CsvWriter(str(p), fsync=False)
+    w.write(WHEN, 96, None, 0)
+    w.close()
+    row = p.read_text().strip().split("\n")[1]
+    assert row.split(",")[2] == "", f"absent pulse rate must be blank, got {row.split(',')[2]!r}"
+    assert ",0," not in row.split(",", 1)[1] or row.split(",")[3] == "0"
+
+
+def test_a_real_pulse_rate_still_writes_the_number(tmp_path):
+    p = tmp_path / "spo2.csv"
+    w = Spo2CsvWriter(str(p), fsync=False)
+    w.write(WHEN, 96, 54, 0)
+    w.close()
+    assert p.read_text().strip().split("\n")[1].split(",")[2] == "54"
+
+
+def test_a_real_pulse_rate_of_zero_is_impossible_but_would_be_distinguishable(tmp_path):
+    """The point of blank-vs-0: the two states must not collide in the file."""
+    p = tmp_path / "spo2.csv"
+    w = Spo2CsvWriter(str(p), fsync=False)
+    w.write(WHEN, 96, None, 0)
+    w.write(WHEN, 96, 0, 0)
+    w.close()
+    rows = p.read_text().strip().split("\n")[1:]
+    assert rows[0].split(",")[2] != rows[1].split(",")[2], "absent and zero must be distinguishable"

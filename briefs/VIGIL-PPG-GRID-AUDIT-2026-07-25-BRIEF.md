@@ -183,20 +183,55 @@ It was changed deliberately, with the reason recorded inline, not edited to make
 
 ---
 
-## 5. Residue — carried to a follow-up, not fixed here
+## 5. Residue
 
-1. **Already-captured nights carry the inflated grid.** 07-22 → 07-25 O2Ring PPG files have up to +1.8%
-   fabricated elapsed time baked into `sensor timestamp [ns]`. The fix is forward-only. These nights are
-   still usable for anything reading `fs` (unaffected) but their beat *timelines* are stretched at each
-   phantom gap. **Decision owed:** re-derive the grid offline from the phone column, or mark the affected
-   files. Nothing should be re-analysed for HRV until that is settled.
-2. **`capture.py` writes a fabricated `0` for an absent pulse rate** — `wr.write(now, live["spo2"],
-   live["pr"] or 0, live["motion"])`. `parse_live` returns `pr: None` outside 20–250, and this is the
-   vendor CSV OxyDex parses **positionally**. Verified **latent**: 0 occurrences across 110k real rows in
-   six nights. **Not landed here on purpose** — the honest value is a blank, and whether OxyDex's reader
-   tolerates a blank in that column is a cross-boundary question that needs `Dex-Test-Suite.html?full`,
-   which is out of scope for a capture-host-only change.
-3. **The O2Ring live link is thrashing** — 112 sessions on 07-25 (median 5 s, 36% of the night off-link),
+### 5.1 Already-captured nights carry the inflated grid — RESOLVED as *mark*, not *repair*
+
+07-22 → 07-25 O2Ring PPG files have up to +1.8% fabricated elapsed time baked into `sensor timestamp
+[ns]`, and the fix is forward-only. The open question was **re-derive or mark**. Re-derivation was
+investigated and is **impossible**, for two independent reasons:
+
+1. **Frame boundaries are invisible.** Each sample is stamped `arr − (nps−1−i)/fs`, so *inside* a frame
+   the phone step is exactly `1/fs` — and *across* a jitter-free boundary it is **also** exactly `1/fs`.
+   A boundary only becomes visible once jitter has moved it, i.e. precisely the information needed to
+   undo that jitter.
+2. **The phone column is millisecond-quantized.** `_phone_ts` truncates to ms while the true step is
+   7.953 ms, so the column lands on 8000/7000 µs (measured: 247 911 and 12 457 occurrences on one file,
+   **0.00%** at the true step). The sub-ms structure is already gone.
+
+Any repair would therefore be an approximation — **fabricating a grid to replace a fabricated grid**,
+the exact failure class this brief removes. So: **`capture-host/ppg_grid_check.py`** marks instead.
+The measurement is exact (endpoint device-span vs host-span, where ms quantization is negligible against
+hundreds of seconds), and it draws the distinction the finding rests on — a grid that ran ahead because
+the link **lost** time (legitimate) versus one that ran ahead because the code **invented** it, separated
+by `rows/wall`. Short fragments report *not judgeable* rather than a reassuring "ok".
+
+Run over the full corpus (1290 files): **74 INFLATED · 17 lossy · 128 ok · 1071 too short to judge**,
+**+727.2 s** of fabricated elapsed time in the inflated set. Those 74 files' **sample rate is fine**
+(PpgDex takes the median ns delta) so amplitude/morphology work is unaffected — but they must not be
+used for HRV.
+
+### 5.2 The fabricated `0` pulse rate — FIXED (and the deferral reason was wrong)
+
+`wr.write(now, live["spo2"], live["pr"] or 0, live["motion"])` turned a pulse rate the ring could not
+read (`parse_live` returns `None` outside 20–250) into a written **0** in the vendor CSV. Now passed
+through as `None`, and `Spo2CsvWriter` emits a **blank** — the rule `OxyFrameLogWriter`'s own docstring
+already stated and this writer did not follow.
+
+This was deferred on the grounds that a blank might not survive OxyDex's positional reader. **Measured
+against the shipped `oxydex-dsp.js` in a headless realm, that concern was unfounded:** `0` and blank are
+rejected **identically** — `parseInt('')` → `NaN` and `0 < 20` both hit the same `continue`. A 3-row CSV
+whose rows 1 and 3 carry the value under test yields **1 row for both**, and 3 for a valid rate. So the
+change moves no downstream number; it stops the *file* asserting a pulse of zero the ring never measured.
+Still latent regardless: 0 occurrences across 110k real rows.
+
+> **Noted, not fixed (in-suite, separate finding):** OxyDex discards the **entire row** when the pulse
+> rate is unreadable, so a valid SpO₂ sample is thrown away because of an unrelated column. That is a
+> real loss of oximetry and belongs to `oxydex-dsp.js`, behind the browser gate — out of scope here.
+
+### 5.3 Still open — not this brief's work
+
+1. **The O2Ring live link is thrashing** — 112 sessions on 07-25 (median 5 s, 36% of the night off-link),
    265 across the full cross-midnight night. Pre-existing and already characterised in
    `VIGIL-OVERNIGHT-FINDINGS-2026-07-24`; it is what drives the jitter this brief's §1 was rectifying.
    Consequence now measured: **`trio-batch` rejects 07-23 and 07-24 outright** (three-way overlap 0.4–0.6 h
@@ -205,8 +240,11 @@ It was changed deliberately, with the reason recorded inline, not edited to make
    `keep_nights: 14`. Pruning begins deleting unmirrored nights in ~4 days. Unrelated to this brief but
    the most time-critical item on the box.
 
-A follow-up brief is owed for items 1 and 2: **`VIGIL-PPG-GRID-AUDIT-FOLLOWUPS-2026-07-25-BRIEF.md`**
-(not yet created — items are recorded here so nothing is lost if it is deferred).
+**No follow-up brief is spawned.** §5.1 and §5.2 were both closed inside this work-unit; §5.3's two items
+are pre-existing and already tracked by `VIGIL-OVERNIGHT-FINDINGS-2026-07-24` (link resilience) and its
+§P3.2 retention-gate-on-archive item. The one genuinely NEW thing surfaced here that is not this brief's
+to fix — OxyDex discarding a whole row over an unreadable pulse rate (§5.2) — is recorded above and needs
+an in-suite change behind the browser gate.
 
 ---
 
@@ -242,16 +280,20 @@ survive execution:
 
 | file | change |
 |---|---|
-| `capture-host/capture.py` | §1 session-anchored PPG grid; honest log wording |
+| `capture-host/capture.py` | §1 session-anchored PPG grid; honest log wording; §5.2 pass `pr` through as `None` |
 | `capture-host/telemetry.py` | §2 shape invariant + `shape_errors()` + `shapeError` on `meta()` |
 | `capture-host/host_clock.py` | §3 `_num()` stratum/packet parse + `stratum_unparsed` → holdover |
 | `capture-host/link_rssi.py` | §4 RSSI upper bound `+20` → `-1` |
+| `capture-host/writers.py` | §5.2 `Spo2CsvWriter` writes a blank, never `0`, for an absent pulse rate |
+| `capture-host/ppg_grid_check.py` | **new** — §5.1 marks the files the pre-fix grid inflated |
 | `capture-host/tests/test_o2ring_ppg_gap.py` | anchored port; **zero-loss invariant**; outcome-based drift test |
 | `capture-host/tests/test_telemetry.py` | 5 shape-invariant tests |
 | `capture-host/tests/test_host_clock_and_helper_path.py` | 5 fail-open tests |
 | `capture-host/tests/test_link_rssi.py` | 3 bound tests + one deliberate assertion change |
+| `capture-host/tests/test_ppg_grid_check.py` | **new** — 7 tests, incl. lossy-is-not-fabricated |
+| `capture-host/tests/test_writers_sidecars.py` | 3 blank-not-zero tests |
 
-**Gate:** capture-host pytest **947 → 961 green**, 0 regressions.
+**Gate:** capture-host pytest **947 → 971 green**, 0 regressions.
 
 **Mutation-checked.** The headline new test earns its place: against the old algorithm it reports
 **+3.05% inflation / 158 phantom gaps → FAIL**; against the new one **+0.026% / 1 gap → PASS**. A first
