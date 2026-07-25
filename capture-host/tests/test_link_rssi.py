@@ -10,7 +10,11 @@ import link_rssi
 
 def test_parse_rssi_from_hcitool_output():
     assert link_rssi.parse_rssi("RSSI return value: -63") == -63
-    assert link_rssi.parse_rssi("RSSI return value: 0") == 0
+    # `0` was asserted to parse as a READING here until 2026-07-25. It is not one: BlueZ returns 0 from
+    # HCI_Read_RSSI when it has no valid measurement, so accepting it wrote a fabricated -0 dBm into the
+    # LINK sidecar. Changed deliberately, not to make the new bound pass — see VIGIL-PPG-GRID-AUDIT §4
+    # and `test_zero_and_positive_rssi_are_rejected_as_unknown` below.
+    assert link_rssi.parse_rssi("RSSI return value: 0") is None
 
 
 def test_parse_rssi_bare_number_fallback():
@@ -101,3 +105,24 @@ def test_sysfs_hci_skips_a_garbage_address(tmp_path):
     base = tmp_path / "bt"; d = base / "hci0"; d.mkdir(parents=True)
     (d / "address").write_text("not-a-mac")
     assert link_rssi.sysfs_hci(str(base)) == {}
+
+
+# ── POSITIVE RSSI IS NOT A MEASUREMENT (VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §4) ──────────────
+# BlueZ returns 0 (sometimes a small positive) from HCI_Read_RSSI when it has no valid reading —
+# a stale handle, a link being torn down. The old +20 upper bound admitted those sentinels as real
+# dBm, so a night's LINK sidecar carried impossible values that poison any min/max over the column.
+
+def test_zero_and_positive_rssi_are_rejected_as_unknown():
+    """Measured on the real 2026-07-25 capture: 0, +1 and +8 dBm reached the LINK sidecar."""
+    for junk in ("RSSI return value: 0", "RSSI return value: 1", "RSSI return value: 8", "0", "+8"):
+        assert link_rssi.parse_rssi(junk) is None, f"{junk!r} is not a physically possible BLE RSSI"
+
+
+def test_real_negative_rssi_still_parses():
+    assert link_rssi.parse_rssi("RSSI return value: -63") == -63
+    assert link_rssi.parse_rssi("RSSI return value: -1") == -1
+    assert link_rssi.parse_rssi("-84") == -84
+
+
+def test_out_of_range_negative_is_still_rejected():
+    assert link_rssi.parse_rssi("RSSI return value: -128") is None

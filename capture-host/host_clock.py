@@ -82,6 +82,15 @@ def classify(state: dict) -> dict:
     if state.get("ignored"):
         return {"trust": "holdover", "absolute_ok": False,
                 "reason": "the NTP reply was received but REFUSED (root distance too large)"}
+    # A stratum that was REPORTED but could not be read is not the same as one that was never reported.
+    # `read_state` used to parse it with `.isdigit()`, so anything non-integer ("16.0", "n/a") became
+    # None and fell into the "not yet reported" branch below — which TRUSTS. That is a fail-OPEN on the
+    # single field gating absolute-time trust: an unreadable stratum would have been graded `disciplined`.
+    # Absence of evidence is not evidence of health (this module's governing rule), so an unparseable
+    # value is holdover, while a genuinely absent one keeps the documented benefit of the doubt.
+    if state.get("stratum_unparsed"):
+        return {"trust": "holdover", "absolute_ok": False,
+                "reason": "NTP reported a stratum we could not parse — absolute time unverified"}
     st = state.get("stratum")
     if st is None:
         # Synchronised per systemd but no NTPMessage yet (it clears on restart). Believe the flag, say so.
@@ -121,13 +130,21 @@ async def read_state() -> dict:
     a = _kv(t) if rc1 == 0 else {}
     b = _kv(s) if rc2 == 0 else {}
     msg = parse_ntp_message(b.get("NTPMessage", ""))
-    stratum = msg.get("Stratum")
+    # `_num` rather than `.isdigit()` — it already handles the unit-suffixed/whitespace forms systemd
+    # uses elsewhere, and it lets us tell "absent" from "present but unreadable" (see classify()).
+    _raw_stratum = msg.get("Stratum")
+    _stratum_num = _num(_raw_stratum)
+    _raw_packets = msg.get("PacketCount")
+    _packets_num = _num(_raw_packets)
     state = {
         "available": rc1 == 0,
         "ntp_enabled": a.get("NTP") == "yes",
         "synchronized": a.get("NTPSynchronized") == "yes",
         "server": b.get("ServerName") or b.get("ServerAddress") or None,
-        "stratum": int(stratum) if (stratum or "").isdigit() else None,
+        "stratum": int(_stratum_num) if _stratum_num is not None else None,
+        # True == systemd gave us a Stratum we could not read. Distinct from a missing one; classify()
+        # treats it as holdover rather than inheriting the trusted "not yet reported" branch.
+        "stratum_unparsed": bool((_raw_stratum or "").strip()) and _stratum_num is None,
         # `Reference=PPS` means the upstream is a pulse-per-second reference clock — i.e. that server is
         # itself GPS/atomic-disciplined. Worth recording: it is the difference between "some NTP box"
         # and a real stratum-1.
@@ -135,7 +152,7 @@ async def read_state() -> dict:
         "root_dispersion_ms": _num(msg.get("RootDispersion")),
         "jitter_us": _num(msg.get("Jitter")),
         "ignored": msg.get("Ignored") == "yes",
-        "packet_count": int(msg["PacketCount"]) if (msg.get("PacketCount") or "").isdigit() else None,
+        "packet_count": int(_packets_num) if _packets_num is not None else None,
     }
     state.update(classify(state))
     return state
