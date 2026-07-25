@@ -266,6 +266,25 @@
               })
             : null,
         startEpochMs: night.t0Ms, // floating t0Ms (first session)
+        // Declare the recording's WALL-CLOCK SPAN so the Integrator can place a window on this leg even
+        // when the night scored ZERO events. NODE-EXPORT-RECORDING-DURATION brief: without a duration key,
+        // integrator-dsp adaptEnvelopeNode derives endMs from the last event only, so an EVENT-SPARSE CPAP
+        // night (e.g. a 2-min mask-on session with no scored apnea/leak) collapsed to a zero-length window
+        // and was EXCLUDED from the fold — the machine's own therapy/AHI data silently dropped out. `durSec`
+        // is the key the adapter already honors (as for ECGDex/MotionDex/OxyDex). Span = first session start
+        // → LAST session end (max t0Ms + durMin), NOT therapyHours (mask-on usage understates the span).
+        durSec: (function () {
+          var ss = night.sessions || [];
+          if (night.t0Ms == null || !ss.length) return null;
+          var end = null;
+          for (var i = 0; i < ss.length; i++) {
+            if (ss[i].t0Ms != null && ss[i].durMin != null) {
+              var e = ss[i].t0Ms + ss[i].durMin * 60000;
+              if (end == null || e > end) end = e;
+            }
+          }
+          return end != null ? (end - night.t0Ms) / 1000 : null;
+        })(),
         dateAnchorMs: night.dateAnchorMs,
         offsetMin: null, // EDF carries no zone
         therapyHours: night.therapyHours,
