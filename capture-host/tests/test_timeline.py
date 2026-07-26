@@ -386,3 +386,62 @@ def test_the_mappings_that_already_worked_are_unchanged():
     assert base("gyro_vs") == "gyro"
     assert base("ecg") == "ecg"
     assert base("spo2") == "spo2"
+
+
+# ── the night crosses midnight; the folder does not ───────────────────────────────────────────
+# night_dir() rolls by SESSION START date, so a night that begins at 22:26 puts its first hours in
+# yesterday's folder and the rest in today's. nightqc has pooled the two halves since it was written;
+# build() read one directory, so every strip showed the post-midnight half and each device's line
+# appeared to start in the middle of the night. Nothing marked the missing hours — they rendered as
+# `idle`, which is the colour for "nothing was recording", the one reading that is definitely wrong.
+def _sess(d, name, rows=600, fs=1):
+    p = d / name
+    p.write_text("h\n" + "x\n" * rows)
+    return p
+
+
+def test_build_pools_the_previous_day_when_the_night_crossed_midnight(tmp_path):
+    y = tmp_path / "2026-07-25"; y.mkdir()
+    t = tmp_path / "2026-07-26"; t.mkdir()
+    _sess(y, "Polar_H10_02849638_20260725222627_HR.txt", 3600)     # 22:26, yesterday's folder
+    _sess(t, "Polar_H10_02849638_20260726000100_HR.txt", 3600)     # 00:01, today's
+    out = timeline.build(str(t), [{"name": "H10", "device_id": "02849638", "vendor": "Polar",
+                                   "model": "H10", "address": "AA", "streams": ["hr"]}], buckets=48)
+    st = out["devices"][0]["streams"]["hr"]
+    assert st["covered_sec"] >= 7000, f"both halves must count, got {st['covered_sec']}s"
+    # the window itself has to reach back before midnight, or the pooled data has nowhere to draw
+    assert out["t0"] < dt.datetime(2026, 7, 26).timestamp(), "the strip must span the pre-midnight hours"
+
+
+def test_build_does_not_pool_a_previous_day_for_an_ordinary_daytime_folder(tmp_path):
+    """The gate matters: an afternoon session must not drag in a whole unrelated day."""
+    y = tmp_path / "2026-07-25"; y.mkdir()
+    t = tmp_path / "2026-07-26"; t.mkdir()
+    _sess(y, "Polar_H10_02849638_20260725222627_HR.txt", 3600)
+    _sess(t, "Polar_H10_02849638_20260726140000_HR.txt", 600)      # 14:00 — nothing to do with midnight
+    out = timeline.build(str(t), [{"name": "H10", "device_id": "02849638", "vendor": "Polar",
+                                   "model": "H10", "address": "AA", "streams": ["hr"]}], buckets=24)
+    assert out["devices"][0]["streams"]["hr"]["covered_sec"] < 1200, "yesterday must stay out of it"
+
+
+def test_read_link_samples_accepts_several_directories_and_folds_across_them(tmp_path):
+    """The two halves of one night live in two folders, so the mapping learned in one must reach the
+    other — that is where the pre-midnight rows are."""
+    y = tmp_path / "2026-07-25"; y.mkdir()
+    t = tmp_path / "2026-07-26"; t.mkdir()
+    (y / "Tepna_20260725220000_LINK.csv").write_text(
+        "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;"
+        "link_epoch\n2026-07-25T22:30:00.000;Polar H10 02849638;1;-70;80;;;1\n")
+    (t / "Tepna_20260726000000_LINK.csv").write_text(
+        "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;"
+        "link_epoch;address\n2026-07-26T01:00:00.000;Polar H10 02849638;1;-72;80;;;1;24:AC:AC:02:84:96\n")
+    got = timeline.read_link_samples([str(y), str(t)])
+    assert list(got) == ["24:AC:AC:02:84:96"], f"one device across two folders, got {list(got)}"
+    assert len(got["24:AC:AC:02:84:96"]) == 2
+
+
+def test_read_link_samples_still_accepts_a_single_directory(tmp_path):
+    (tmp_path / "Tepna_20260726000000_LINK.csv").write_text(
+        "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;"
+        "link_epoch\n2026-07-26T01:00:00.000;Polar H10;1;-70;80;;;1\n")
+    assert list(timeline.read_link_samples(str(tmp_path))) == ["Polar H10"]

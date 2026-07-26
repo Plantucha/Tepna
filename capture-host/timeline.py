@@ -220,13 +220,18 @@ def read_link_samples(night_dir: str) -> dict[str, list[tuple[float, int, float 
     `name_aliases` entry can still claim it."""
     rows: list[tuple[str, str | None, float, int, float | None]] = []
     name_to_addr: dict[str, str] = {}
-    try:
-        names = [n for n in os.listdir(night_dir) if n.endswith("_LINK.csv")]
-    except OSError:
-        return {}
-    for n in sorted(names):
+    # One directory or several. A night that crosses midnight has its two halves in two folders, so the
+    # name→address mapping learned in the later one has to reach the earlier one's rows.
+    dirs = [night_dir] if isinstance(night_dir, str) else list(night_dir)
+    paths = []
+    for d in dirs:
         try:
-            with open(os.path.join(night_dir, n), errors="replace") as fh:
+            paths += [os.path.join(d, n) for n in sorted(os.listdir(d)) if n.endswith("_LINK.csv")]
+        except OSError:
+            continue
+    for path in paths:
+        try:
+            with open(path, errors="replace") as fh:
                 head = fh.readline().rstrip("\n").split(";")
                 idx = {k: i for i, k in enumerate(head)}
                 i_ts, i_dev = idx.get("Phone timestamp", 0), idx.get("device", 1)
@@ -319,7 +324,23 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
     reported a complete night as `acc 24%` on 2026-07-25."""
     files = nightqc.scan_night(night_dir)
     data = [f for f in files if f["stream"] not in nightqc._SIDECAR_TAGS]
-    link = read_link_samples(night_dir)
+    # THE NIGHT CROSSES MIDNIGHT; THE FOLDER DOES NOT. night_dir() rolls by SESSION START date, so a
+    # night that began at 22:26 leaves its first hours in yesterday's folder. Reading one directory
+    # showed only the post-midnight half — every device's line appeared to start in the middle of the
+    # night, and the missing hours rendered `idle`, the colour that means "nothing was recording".
+    # Same gate nightqc has always used: pool only when THIS folder's earliest session opened just
+    # after midnight, so an ordinary daytime session never drags in a whole prior day.
+    dirs = [night_dir]
+    if data:
+        midnight = nightqc._midnight_of(night_dir)
+        earliest = min(f["session"] for f in data)
+        if midnight is not None and 0 <= earliest - midnight < nightqc._SESSION_GAP_SEC:
+            prev = nightqc._prev_day_dir(night_dir)
+            if prev and os.path.isdir(prev):
+                data = [f for f in nightqc.scan_night(prev)
+                        if f["stream"] not in nightqc._SIDECAR_TAGS] + data
+                dirs.insert(0, prev)
+    link = read_link_samples(dirs)
 
     spans = []
     for f in data:
