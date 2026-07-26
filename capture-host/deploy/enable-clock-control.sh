@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Option B — let the monitor set the clock/NTP again, WITHOUT opening a root hole.
+#   sudo bash enable-clock-control.sh
+set -uo pipefail
+[ "$(id -u)" = 0 ] || { echo "run with sudo: sudo bash $0"; exit 1; }
+SRC=/opt/tepna/capture-host
+DST=/usr/local/lib/tepna          # helper_path.SYSTEM_DIRS[0] — checked BEFORE the in-repo copy
+USER_=vigil
+say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
+
+say "1/4  deploy the helpers root-owned"
+# THE WHOLE POINT. A NOPASSWD grant must name a file the granted user CANNOT rewrite. The in-repo copy is
+# vigil-owned and group-writable, so granting sudo on it would let anything running as vigil — a
+# compromised browser tab, a bad pip package, the unauthenticated web API — overwrite the script and get
+# instant passwordless root. Root-owned 0755 under /usr/local/lib/tepna is the only safe target, and
+# helper_path.resolve() prefers it automatically.
+for h in tepna-clock.sh tepna-rssi.sh; do
+  [ -f "$SRC/$h" ] || { echo "  skip $h (not in repo)"; continue; }
+  install -D -o root -g root -m 0755 "$SRC/$h" "$DST/$h"
+  echo "  ✓ $DST/$h  $(stat -c'%U:%G %a' "$DST/$h")"
+done
+
+say "2/4  scoped sudoers grant (validated before install)"
+TMP=$(mktemp)
+cat > "$TMP" <<RULES
+# Tepna Vigil — the monitor's clock/NTP + RSSI helpers ONLY. Root-owned, non-writable by $USER_.
+$USER_ ALL=(root) NOPASSWD: $DST/tepna-clock.sh
+$USER_ ALL=(root) NOPASSWD: $DST/tepna-rssi.sh
+RULES
+if visudo -cqf "$TMP"; then
+  install -o root -g root -m 0440 "$TMP" /etc/sudoers.d/tepna
+  echo "  ✓ /etc/sudoers.d/tepna installed and syntax-valid"
+else
+  echo "  ✗ sudoers syntax INVALID — not installed (nothing changed)"; rm -f "$TMP"; exit 1
+fi
+rm -f "$TMP"
+
+say "3/4  allow the daemon to escalate to those two helpers"
+# NoNewPrivileges=yes makes sudo structurally impossible, so it has to go for the clock buttons to work.
+# Everything else stays: ProtectSystem=strict, ProtectHome, the ReadWritePaths allowlist. The blast
+# radius is now exactly the two root-owned scripts named above, not "root".
+mkdir -p /etc/systemd/system/tepna-capture.service.d
+cat > /etc/systemd/system/tepna-capture.service.d/clock-control.conf <<'DROPIN'
+[Service]
+# Option B (2026-07-25): the monitor's Save&apply / Sync now / Set timezone call tepna-clock.sh under
+# sudo, which NoNewPrivileges forbids outright. Relaxed here rather than in the unit so re-running
+# install-services.sh cannot silently revert it. Paired with /etc/sudoers.d/tepna, which scopes the
+# grant to two root-owned, non-user-writable helpers.
+NoNewPrivileges=no
+DROPIN
+systemctl daemon-reload
+systemctl restart tepna-capture
+sleep 5
+
+say "4/4  verify"
+echo "  unit           : $(systemctl is-active tepna-capture) / NoNewPrivileges=$(systemctl show tepna-capture -p NoNewPrivileges --value)"
+echo "  helper resolved: $(sudo -u $USER_ $SRC/.venv/bin/python -c "import sys;sys.path.insert(0,'$SRC');import helper_path as h;p=h.resolve('tepna-clock.sh');print(p,'| safely-owned:',h.is_safely_owned(p))" 2>/dev/null)"
+echo "  sudo -n works  : $(sudo -u $USER_ sudo -n $DST/tepna-clock.sh status >/dev/null 2>&1 && echo yes || echo 'no (check the helper accepts `status`)')"
+code=$(curl -s -o /tmp/cs.json -w '%{http_code}' --max-time 20 -X POST http://127.0.0.1:8760/api/clock/sync)
+echo "  POST /api/clock/sync -> HTTP $code"
+echo "  response: $(head -c 200 /tmp/cs.json)"
