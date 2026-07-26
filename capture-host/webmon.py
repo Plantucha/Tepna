@@ -23,6 +23,7 @@ import bonding
 import clockcfg
 import offline_lock
 import polar_psftp
+import storage_targets
 import settings_schema
 from writers import missing_identity
 
@@ -135,6 +136,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             "qc": status.get("qc"),
             # Boot/adapter facts: uptime (a moved started_at = a spurious restart) + a mis-pin flag.
             "host": status.get("host"),
+            # Offload result, so the sidebar pill can say whether anything actually left the box.
+            "archive": status.get("archive"),
         })
 
     async def scan(_req):
@@ -449,6 +452,74 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             _save()
         return web.json_response({"ok": True, "changed": changed, "restart_needed": restart_needed})
 
+    # ── Storage / offload target (STORAGE-OFFLOAD-TARGETS) ──────────────────────────────────────
+    # The box has a small SSD, so finished nights have to leave. This surface owns WHERE they go and
+    # WHEN. It stores no secret: `storage_targets.validate` refuses a password field outright, so
+    # nothing here can put one in config.yaml (world-readable) or echo one back over the LAN.
+
+    def _storage_cfg() -> dict:
+        a = cfg.get("archive") or {}
+        tgt = a.get("target") or None
+        out = {"enabled": bool(a.get("enabled")), "target": tgt,
+               "schedule": a.get("schedule") or {"mode": "after_settle"},
+               "poll_sec": a.get("poll_sec", 3600),
+               "protocols": storage_targets.describe(),
+               "last": a.get("_last_result") or status.get("archive", {}).get("last"),
+               "status": status.get("archive", {})}
+        if tgt:
+            try:
+                out["ready"] = storage_targets.dest_status(tgt)
+                if (tgt.get("kind") or "") == "mount" and tgt.get("protocol") != "local":
+                    out["mount_unit"] = storage_targets.mount_unit(tgt)
+            except storage_targets.StorageError as e:
+                out["ready"] = {"ready": False, "path": None, "reason": str(e)}
+        return out
+
+    async def storage_get(_req):
+        return web.json_response(_storage_cfg())
+
+    async def storage_post(req):
+        """Persist the offload target + schedule. Validated BEFORE anything is written, so a rejected
+        target leaves the previous one running rather than half-applying."""
+        body = await _body(req)
+        try:
+            tgt = storage_targets.validate(body["target"]) if body.get("target") else None
+            sched = storage_targets.validate_schedule(body.get("schedule"))
+        except storage_targets.StorageError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=400)
+        except (KeyError, TypeError) as e:
+            return web.json_response({"ok": False, "error": f"malformed body: {e}"}, status=400)
+        a = cfg.setdefault("archive", {})
+        a["enabled"] = bool(body.get("enabled", True)) and tgt is not None
+        a["schedule"] = sched
+        if tgt is not None:
+            a["target"] = tgt
+            # `dest` stays the single path the mirror writes to, so nightarchive + the retention gate
+            # are unchanged: a mount target IS its mountpoint; a transfer target stages nowhere and is
+            # pushed from the captures dir directly.
+            if tgt["kind"] == "mount":
+                a["dest"] = tgt["mountpoint"]
+            else:
+                a.pop("dest", None)
+        else:
+            a.pop("target", None)
+        if not _save():
+            return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
+        return web.json_response({"ok": True, **_storage_cfg()})
+
+    async def storage_test(req):
+        """Probe a target WITHOUT saving it, so the operator finds a wrong key or path here rather than
+        at 03:00 when a night is waiting to leave."""
+        body = await _body(req)
+        try:
+            tgt = storage_targets.validate(body.get("target") or (cfg.get("archive") or {}).get("target"))
+        except storage_targets.StorageError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=400)
+        try:
+            return web.json_response(await storage_targets.test_target(tgt))
+        except Exception as e:      # a probe must never 500 the monitor
+            return web.json_response({"ok": False, "detail": f"{type(e).__name__}: {e}"})
+
     async def timesync(req):
         """Set ONE device's internal clock from the host. Polar only — the O2Ring already re-syncs its
         RTC on every connect (oxyii 0xC0), so there is nothing manual to do there and we say so rather
@@ -540,6 +611,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/pull", pull_stored_h),
         web.get("/api/settings", settings_get),
         web.post("/api/settings", settings_post),
+        web.get("/api/storage", storage_get),
+        web.post("/api/storage", storage_post),
+        web.post("/api/storage/test", storage_test),
         web.post("/api/timesync", timesync),
         web.post("/api/timesync/all", timesync_all),
         web.get("/api/polar/recordings", polar_recordings),

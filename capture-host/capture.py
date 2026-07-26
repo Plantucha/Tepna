@@ -24,6 +24,7 @@ import sdnotify
 import alerts
 import nightqc
 import nightarchive
+import storage_targets
 from telemetry import TelemetryBus
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
@@ -2395,22 +2396,67 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             log.warning("qc poll failed: %r", e)
 
 
+async def _archive_transfer(captures: str, target: dict, settle: float, schedule: dict) -> None:
+    """Push every settled, not-yet-confirmed night to a TRANSFER target (rsync over SSH).
+
+    The `.archived` marker is written only on a VERIFIED push — a copy that a follow-up `--dry-run`
+    confirms the remote already matches. That is the same line VIGIL-HARDENING-II §1.3 had to draw for
+    the local mirror: "we ran a copy" is not "a second copy exists", and only the latter may release a
+    night to the retention gate. An unverified push leaves the night unmarked, so it is retried next
+    cycle and retention keeps holding it — the safe direction."""
+    active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
+    for night in nightarchive.pending_nights(captures, active):
+        src = os.path.join(captures, night)
+        res = await storage_targets.push_night(src, target)
+        STATUS.setdefault("archive", {}).update(
+            {"last_attempt": night, "target": f"{target['protocol']}://{target.get('host','')}",
+             "ok": res["ok"], "verified": res["verified"], "detail": res["detail"]})
+        if res["ok"] and res["verified"]:
+            open(os.path.join(src, nightarchive._MARKER), "w").close()
+            STATUS["archive"]["last"] = night
+            log.info("archive: pushed %s → %s (%s)", night, target.get("host"), res["detail"])
+        else:
+            log.warning("archive: %s NOT confirmed on %s — %s (night stays held)",
+                        night, target.get("host"), res["detail"])
+            break          # a failing link will fail for every night; stop rather than hammer it
+
+
 async def archive_poller(cfg: dict, root: str):
     """Mirror each COMPLETED night (not tonight — still being written) to a configured destination: a NAS
     mount, the served dir, a backup disk. Idempotent + resumable (a `.archived` marker per night). MIRROR,
     never move — the source stays for the retention guard to prune on its own schedule. No-op unless
     archive.enabled + archive.dest are set."""
     acfg = cfg.get("archive") or {}
-    if not (acfg.get("enabled") and acfg.get("dest")):
+    target = acfg.get("target") or None
+    # A TRANSFER target (rsync) has no local dest — the night is pushed straight off the box. A MOUNT
+    # target is its mountpoint, which is what `dest` already meant, so the mirror path below is unchanged.
+    transfer = bool(target) and target.get("kind") == "transfer"
+    if not acfg.get("enabled") or not (acfg.get("dest") or transfer):
         return
-    dest = acfg["dest"]
+    dest = acfg.get("dest")
     interval = float(acfg.get("poll_sec", 3600))
     settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
+    try:
+        schedule = storage_targets.validate_schedule(acfg.get("schedule"))
+    except storage_targets.StorageError as e:
+        log.warning("archive: bad schedule (%s) — falling back to after_settle", e)
+        schedule = {"mode": "after_settle"}
+    last_run: _dt.datetime | None = None
     _archive_dest_warned = False       # edge-trigger the "dest not present" warning, one per absence
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
+            # WHEN. `after_settle` offloads as soon as a night goes quiet (the old behaviour). `daily`
+            # holds until a wall-clock window — the point of which is that a 350 MB/night push over the
+            # LAN should be allowed to happen while nobody is sleeping next to the box, and while the
+            # link is not also carrying three live BLE streams.
+            if not storage_targets.due(schedule, _now(), last_run):
+                continue
+            if transfer:
+                await _archive_transfer(captures, target, settle, schedule)
+                last_run = _now()
+                continue
             # Mirror only nights that have gone QUIET (no writes for `settle`), never the one still being
             # captured — keyed on file activity, not _now()'s date, so a session that ran past midnight is
             # not copied-and-marked-done mid-recording the moment the clock rolls over.
