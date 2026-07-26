@@ -11,14 +11,39 @@
 #     tepna ALL=(root) NOPASSWD: /opt/tepna/capture-host/tepna-clock.sh
 #
 # Verbs:
-#   ntp <maxPollSec> <server> [server ...]   write the timesyncd drop-in + restart the service
+#   ntp <maxPollSec> <server> [server ...]   point the time daemon at these servers + apply
 #   sync                                     force an immediate re-sync
 #   tz <Area/City>                           set the box timezone (timedatectl set-timezone)
 # Every input is re-validated HERE (defense in depth; clockcfg.py validates too) so the sudoers grant
 # stays safe regardless of the caller.
+#
+# ⚠️ TWO TIME DAEMONS, AND WRITING TO THE WRONG ONE IS SILENT (2026-07-25). This helper assumed
+# systemd-timesyncd. Ubuntu Server and RHEL default to **chrony**, where the old behaviour was the worst
+# possible failure mode: `ntp` wrote /etc/systemd/timesyncd.conf.d/tepna-ntp.conf, which chrony NEVER
+# READS, and `systemctl restart systemd-timesyncd` failed on a unit that does not exist — so the monitor
+# reported the servers saved while the box kept using whatever it had. A control that claims success and
+# changes nothing is exactly what this suite exists to prevent, so the daemon is now DETECTED and each
+# verb is implemented for both. Mirrors host_clock.parse_chrony_tracking on the read side.
 set -eu
 
 DROPIN=/etc/systemd/timesyncd.conf.d/tepna-ntp.conf
+# chrony reads `sourcedir /etc/chrony/sources.d` (servers, reloadable WITHOUT a restart via
+# `chronyc reload sources`) and `confdir /etc/chrony/conf.d`. Writing sources rather than a full config
+# means we never clobber the distro's own chrony.conf.
+CHRONY_SOURCES=/etc/chrony/sources.d/tepna.sources
+
+# Which daemon is actually steering the clock? Prefer what is RUNNING over what is installed — a box can
+# have both packages present with only one active.
+time_daemon() {
+  for u in chrony chronyd; do
+    if systemctl is-active "$u" >/dev/null 2>&1; then echo chrony; return; fi
+  done
+  if systemctl is-active systemd-timesyncd >/dev/null 2>&1; then echo timesyncd; return; fi
+  # Nothing active: fall back to whatever is installed, so a stopped daemon is still configurable.
+  command -v chronyc >/dev/null 2>&1 && { echo chrony; return; }
+  echo timesyncd
+}
+DAEMON="$(time_daemon)"
 
 verb="${1:-}"
 shift 2>/dev/null || true
@@ -33,23 +58,46 @@ case "$verb" in
       # hostname / IPv4 / IPv6 only — reject shell/whitespace metacharacters
       case "$s" in ''|*[!A-Za-z0-9.:-]*) echo "bad server: $s" >&2; exit 2 ;; esac
     done
-    mkdir -p "$(dirname "$DROPIN")"
-    {
-      echo "# Managed by the Tepna Vigil monitor — do not hand-edit."
-      echo "[Time]"
-      echo "NTP=$*"
-      echo "PollIntervalMinSec=32"
-      echo "PollIntervalMaxSec=$maxpoll"
-    } > "$DROPIN"
-    timedatectl set-ntp true
-    systemctl restart systemd-timesyncd
-    echo "ok: NTP=$* PollIntervalMaxSec=${maxpoll}s"
+    if [ "$DAEMON" = chrony ]; then
+      # maxpoll is chrony's log2 seconds, not seconds: 2048 s -> 11. Clamp to chrony's legal 0-31.
+      mp=11; n="$maxpoll"; i=0
+      while [ "$n" -gt 1 ] && [ "$i" -lt 31 ]; do n=$((n / 2)); i=$((i + 1)); done
+      [ "$i" -ge 0 ] && [ "$i" -le 31 ] && mp="$i"
+      mkdir -p "$(dirname "$CHRONY_SOURCES")"
+      {
+        echo "# Managed by the Tepna Vigil monitor — do not hand-edit."
+        for s in "$@"; do echo "server $s iburst prefer maxpoll $mp"; done
+      } > "$CHRONY_SOURCES"
+      timedatectl set-ntp true 2>/dev/null || true
+      # Reload sources in place; only fall back to a restart if the running chronyd refuses.
+      chronyc reload sources >/dev/null 2>&1 || systemctl restart chrony 2>/dev/null || systemctl restart chronyd
+      echo "ok: NTP=$* maxpoll=2^${mp}s (chrony, $CHRONY_SOURCES)"
+    else
+      mkdir -p "$(dirname "$DROPIN")"
+      {
+        echo "# Managed by the Tepna Vigil monitor — do not hand-edit."
+        echo "[Time]"
+        echo "NTP=$*"
+        echo "PollIntervalMinSec=32"
+        echo "PollIntervalMaxSec=$maxpoll"
+      } > "$DROPIN"
+      timedatectl set-ntp true
+      systemctl restart systemd-timesyncd
+      echo "ok: NTP=$* PollIntervalMaxSec=${maxpoll}s (timesyncd)"
+    fi
     ;;
   sync)
-    timedatectl set-ntp false
-    timedatectl set-ntp true
-    systemctl try-restart systemd-timesyncd
-    echo "ok: resync triggered"
+    if [ "$DAEMON" = chrony ]; then
+      # `makestep` steps the clock immediately instead of slewing — the honest analogue of "sync now",
+      # and the only one that visibly moves a clock that is far out.
+      chronyc makestep >/dev/null 2>&1 || { systemctl restart chrony 2>/dev/null || systemctl restart chronyd; }
+      echo "ok: resync triggered (chrony makestep)"
+    else
+      timedatectl set-ntp false
+      timedatectl set-ntp true
+      systemctl try-restart systemd-timesyncd
+      echo "ok: resync triggered (timesyncd)"
+    fi
     ;;
   tz)
     zone="${1:-}"
@@ -60,7 +108,7 @@ case "$verb" in
     echo "ok: timezone=$zone"
     ;;
   *)
-    echo "usage: $0 ntp <maxPollSec> <server...> | sync | tz <Area/City>" >&2
+    echo "usage: $0 ntp <maxPollSec> <server...> | sync | tz <Area/City>   [daemon: $DAEMON]" >&2
     exit 2
     ;;
 esac
