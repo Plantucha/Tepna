@@ -69,3 +69,104 @@ def test_archive_night_recopies_a_changed_file(tmp_path):
     with open(os.path.join(cap, "2026-07-17", "a.txt"), "w") as f:
         f.write("a much longer line")                           # size changed → must recopy
     assert nightarchive.archive_night(cap, "2026-07-17", dest) == 1
+
+
+# ── RETENTION IS GATED ON A SECOND COPY (VIGIL-HARDENING-II §1.1) ──────────────────────────────
+# diskguard.plan_prune deletes by AGE alone, which treats "old" as "safe to lose". It is not. On
+# 2026-07-25 this box had `dest_present:false`: 4 of 10 nights had no marker at all and the other 6
+# were marked against a volume that is no longer present. A second copy is the evidence, not the date.
+
+import diskguard
+
+
+def test_unarchived_nights_lists_exactly_the_single_copy_nights(tmp_path):
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
+    _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x"})
+    _night(cap, "2026-07-19", {"a_b_c_ECG.txt": "x"})
+    assert nightarchive.unarchived_nights(cap) == {"2026-07-18", "2026-07-19"}
+
+
+def test_unarchived_is_empty_when_everything_is_mirrored(tmp_path):
+    cap = str(tmp_path / "captures")
+    for n in ("2026-07-17", "2026-07-18"):
+        _night(cap, n, {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
+    assert nightarchive.unarchived_nights(cap) == set()
+
+
+def test_an_unmirrored_night_survives_the_retention_policy(tmp_path):
+    """THE regression: keep_nights=1 over three nights would delete the two oldest. Because they were
+    never mirrored, the archive gate must hold them."""
+    cap = str(tmp_path / "captures")
+    for n in ("2026-07-17", "2026-07-18", "2026-07-19"):
+        _night(cap, n, {"a_b_c_ECG.txt": "x"})
+    nights = diskguard.list_nights(cap)
+    assert diskguard.plan_prune(nights, 1) == ["2026-07-17", "2026-07-18"], "age alone would delete both"
+    blocked = nightarchive.unarchived_nights(cap)
+    assert diskguard.plan_prune(nights, 1, protect=blocked) == [], "no second copy ⇒ nothing is deleted"
+
+
+def test_a_mirrored_night_is_still_pruned_normally(tmp_path):
+    """The gate must not become a permanent stay of execution — a night WITH a second copy still ages
+    out, or the disk fills for a different reason."""
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
+    _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
+    _night(cap, "2026-07-19", {"a_b_c_ECG.txt": "x"})
+    blocked = nightarchive.unarchived_nights(cap)
+    assert blocked == {"2026-07-19"}, "only the unmirrored night is held"
+    # keep_nights=1 retains 07-19; 07-17 and 07-18 are both stale AND both have a second copy, so the
+    # gate lets both go. It defers deletion, it does not forbid it.
+    assert diskguard.plan_prune(diskguard.list_nights(cap), 1, protect=blocked) == \
+        ["2026-07-17", "2026-07-18"]
+
+
+def test_unreadable_marker_counts_as_unarchived(tmp_path, monkeypatch):
+    """Fails SAFE: doubt about whether a second copy exists must protect the data, never license the
+    delete — the same direction as diskguard.active_nights."""
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
+    monkeypatch.setattr(nightarchive.os.path, "exists",
+                        lambda p: (_ for _ in ()).throw(OSError("EIO")))
+    assert nightarchive.unarchived_nights(cap) == {"2026-07-17"}
+
+
+# ── THE MARKER IS NOT PROOF THE COPY SURVIVES (VIGIL-HARDENING-II §1.3) ────────────────────────
+# `.archived` records that a copy was once MADE. On the real box 2026-07-25, 6 of 10 nights carried
+# the marker while the backup volume was ABSENT — so a marker-only gate would have deleted the on-box
+# copy of a night whose mirror had gone away with the disk, losing both.
+
+def test_a_marked_night_whose_mirror_vanished_is_treated_as_unarchived(tmp_path):
+    cap = str(tmp_path / "captures")
+    dest = str(tmp_path / "backup")
+    os.makedirs(dest)
+    _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
+    _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
+    os.makedirs(os.path.join(dest, "2026-07-17"))          # only THIS one still exists at the dest
+    assert nightarchive.unarchived_nights(cap, dest) == {"2026-07-18"}
+
+
+def test_an_absent_backup_volume_protects_every_night(tmp_path):
+    """dest gone ⇒ nothing can be confirmed ⇒ nothing may be deleted, markers notwithstanding."""
+    cap = str(tmp_path / "captures")
+    for n in ("2026-07-17", "2026-07-18"):
+        _night(cap, n, {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
+    assert nightarchive.unarchived_nights(cap, str(tmp_path / "not-mounted")) == \
+        {"2026-07-17", "2026-07-18"}
+
+
+def test_a_confirmed_mirror_still_allows_the_prune(tmp_path):
+    cap = str(tmp_path / "captures")
+    dest = str(tmp_path / "backup")
+    for n in ("2026-07-17", "2026-07-18"):
+        _night(cap, n, {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
+        os.makedirs(os.path.join(dest, n))
+    assert nightarchive.unarchived_nights(cap, dest) == set()
+
+
+def test_marker_only_mode_is_still_available(tmp_path):
+    """dest=None keeps the weaker marker-only behaviour for callers with no knowable destination."""
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
+    _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x"})
+    assert nightarchive.unarchived_nights(cap) == {"2026-07-18"}

@@ -35,6 +35,43 @@ def pending_nights(captures_dir: str, active: "str | set[str]", marker: str = _M
     return out
 
 
+def unarchived_nights(captures_dir: str, dest: str | None = None, marker: str = _MARKER) -> set[str]:
+    """Night dirs whose second copy cannot be CONFIRMED right now — the retention gate
+    (VIGIL-OVERNIGHT-FINDINGS §P3.2). `diskguard.plan_prune` deletes by AGE alone, which treats "old"
+    as "safe to lose". Age is not evidence of safety; a second copy you can currently see is.
+
+    ⚠️ THE MARKER ALONE IS NOT THAT EVIDENCE. `.archived` records that a copy was once MADE, not that
+    it still EXISTS. Measured on the real box 2026-07-25: 6 of 10 nights carried the marker while the
+    backup volume was **absent** (`dest_present:false`) — so a marker-only gate would have happily
+    deleted the on-box copy of a night whose mirror had gone away with the disk, losing both. When
+    `dest` is given, a night counts as archived only if the marker is present AND `dest/<night>` is
+    actually there; a dest that is missing entirely means NOTHING can be confirmed, so every night is
+    protected.
+
+    Passing `dest=None` falls back to marker-only (used where the destination is not knowable).
+
+    Deliberately fails SAFE throughout: a night whose marker or mirror cannot be read (permission, I/O
+    error on a failing disk — precisely when this runs hot) is reported unconfirmed, so the doubt
+    protects the data instead of licensing its deletion."""
+    nights = diskguard.list_nights(captures_dir)
+    if dest is not None:
+        try:
+            if not os.path.isdir(dest):
+                return set(nights)             # backup volume unmounted/gone — confirm nothing, keep all
+        except OSError:
+            return set(nights)
+    out: set[str] = set()
+    for n in nights:
+        try:
+            if not os.path.exists(os.path.join(captures_dir, n, marker)):
+                out.add(n)
+            elif dest is not None and not os.path.isdir(os.path.join(dest, n)):
+                out.add(n)                     # marker says copied, but the copy is not there any more
+        except OSError:
+            out.add(n)
+    return out
+
+
 def archive_night(captures_dir: str, night: str, dest: str,
                   marker: str = _MARKER, _copy=shutil.copy2) -> int:
     """Mirror one night's files to `dest/<night>/`, then drop the marker. Idempotent: a file already at the

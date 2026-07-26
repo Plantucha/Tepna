@@ -2228,7 +2228,13 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
     min_free_gb = float(scfg.get("min_free_gb", 2))
     settle = float(scfg.get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
+    # Retention only defers to the mirror when there IS one. With archiving off, age is the whole policy
+    # and pruning behaves exactly as before — no silent new way for the disk to fill.
+    acfg = cfg.get("archive") or {}
+    archive_enabled = bool(acfg.get("enabled")) and bool(acfg.get("dest"))
+    archive_dest = acfg.get("dest") or "(no dest configured)"
     low_alerted = False
+    _retention_block_warned = False
     while not _STOP.is_set():
         try:
             rep = diskguard.disk_report(root, min_free_gb)
@@ -2237,22 +2243,65 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
             # sweep that live directory the moment the clock rolls. _now()'s date is a floor so a
             # brand-new night with no files yet (not yet "active") is still never a prune candidate.
             protect = diskguard.active_nights(captures, settle) | {_now().strftime("%Y-%m-%d")}
+            # RETENTION IS GATED ON A SECOND COPY (VIGIL-OVERNIGHT-FINDINGS §P3.2). plan_prune deletes by
+            # AGE alone, which treats "old" as "safe to lose". It is not: on 2026-07-25 this box had
+            # `dest_present:false` — 4 of 10 nights with no marker at all, and the other 6 marked
+            # against a volume that is no longer there — so the 15th night would have deleted a
+            # recording whose only other copy was on a disk the box cannot see. When archiving is
+            # ENABLED, a night is protected until its mirror is CONFIRMED present.
+            #
+            # The cost is deliberate and is the correct trade for this suite: a broken backup volume now
+            # STALLS pruning instead of quietly consuming the only copies. That can fill the disk, so it
+            # must never be silent — it is surfaced in status.json, logged edge-triggered, and folded
+            # into the low-disk alert text so the reason arrives with the symptom. (This module's own
+            # rule: a disk warning is recoverable, deleted recordings are not.)
+            blocked: set[str] = set()
+            if archive_enabled and keep_nights > 0:
+                # `archive_dest` is passed so the gate CONFIRMS the mirror rather than trusting the
+                # `.archived` marker — the marker records that a copy was made, not that it survives.
+                blocked = await asyncio.to_thread(nightarchive.unarchived_nights, captures, archive_dest)
+                protect |= blocked
             # rmtree of a whole night — ~1500 files, ~2 GB — is filesystem work, not arithmetic.
             # disk_report() stays inline (a single statvfs); only the delete is off-loaded.
             pruned = await asyncio.to_thread(diskguard.prune_old_nights, captures, keep_nights, protect)
             if pruned:
                 log.info("storage: pruned %d night(s) past the %d-night retention: %s",
                          len(pruned), keep_nights, ", ".join(pruned))
+            # Only count nights retention WOULD have taken but for the missing mirror — a young night is
+            # protected by age anyway and is not evidence of a backup problem.
+            would_prune = set(diskguard.plan_prune(diskguard.list_nights(captures), keep_nights,
+                                                   protect - blocked))
+            held = sorted(would_prune & blocked)
+            if held and not _retention_block_warned:
+                _retention_block_warned = True
+                log.warning("storage: retention is HELD on %d night(s) past the %d-night policy because "
+                            "they were never mirrored to %s — fix the backup volume or disable archiving; "
+                            "the disk will fill otherwise: %s",
+                            len(held), keep_nights, archive_dest, ", ".join(held))
+            elif not held:
+                _retention_block_warned = False
             rep = diskguard.disk_report(root, min_free_gb)  # re-read after any prune so status is current
             rep["pruned"] = pruned
             rep["keep_nights"] = keep_nights
+            # The monitor must be able to distinguish "retention has nothing to do" from "retention is
+            # being HELD" — they look identical in `pruned: []`, and only one of them fills the disk.
+            rep["retention_held"] = held
+            rep["retention_held_reason"] = (
+                f"{len(held)} night(s) past the {keep_nights}-night policy are unmirrored "
+                f"({archive_dest} absent or failing) — a night is never deleted while it exists on one disk"
+            ) if held else None
             STATUS["storage"] = rep
             if rep["low"] and not low_alerted:             # edge-triggered: one alert per low episode
                 low_alerted = True
                 if notifier:
+                    # Ship the CAUSE with the symptom. A "disk low" alert on a box whose pruning is held
+                    # by a dead backup volume is otherwise actively misleading — it reads as "raise
+                    # keep_nights", which is the one action that would not help.
+                    extra = (f" Retention is HELD on {len(held)} unmirrored night(s) — fix the backup "
+                             f"volume ({archive_dest}); raising keep_nights will NOT free space.") if held else \
+                            " Captures may soon fail — free space or raise keep_nights."
                     await notifier.send("Tepna: disk low",
-                                        f"Only {rep['free_gb']} GB free ({rep['free_pct']}%). "
-                                        f"Captures may soon fail — free space or raise keep_nights.")
+                                        f"Only {rep['free_gb']} GB free ({rep['free_pct']}%)." + extra)
             elif not rep["low"]:
                 low_alerted = False
         except Exception as e:                             # storage bookkeeping must never take capture down
@@ -2631,7 +2680,18 @@ async def main():
     ap.add_argument("--config", default="config.yaml")
     args = ap.parse_args()
     import yaml   # runtime-only dep; imported here so `import capture` (for unit tests) needs no external deps
-    cfg = yaml.safe_load(open(args.config))
+    # Read explicitly (no leaked handle) and REFUSE an empty/non-mapping config with a message that
+    # names the problem. `yaml.safe_load` returns None for an empty file, so the old one-liner turned a
+    # truncated config.yaml into an `AttributeError: 'NoneType' object has no attribute 'get'` several
+    # frames later — the least useful possible symptom for the most likely corruption. The write side
+    # is now atomic (webmon._save), so this should be unreachable; it is the belt to that brace, and it
+    # is what an operator meets if they hand-edit the file at 23:00.
+    with open(args.config) as _cf:
+        cfg = yaml.safe_load(_cf)
+    if not isinstance(cfg, dict):
+        raise SystemExit(f"{args.config}: config is empty or not a YAML mapping (parsed as "
+                         f"{type(cfg).__name__}) — refusing to start with no devices. Restore it from a "
+                         f"backup; a truncated file here means the box would record nothing all night.")
     root = cfg["root"]
     global _CFG
     _CFG = cfg

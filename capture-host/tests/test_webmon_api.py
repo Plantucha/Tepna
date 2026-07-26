@@ -406,3 +406,69 @@ def test_stream_sends_a_snapshot_then_releases_its_subscription(tmp_path):
     chunk = _serve(app, go)
     assert b"snapshot" in chunk
     assert getattr(bus, "_subs", set()) == set() or len(bus._subs) == 0, "subscription leaked"
+
+
+# ── config.yaml IS WRITTEN ATOMICALLY (VIGIL-HARDENING-II §2) ──────────────────────────────────
+# _save() used to be `open(cfg_path, "w")`, which truncates BEFORE it writes. A failure partway (full
+# disk, power cut, kill) left the only copy truncated, and the `except` could not undo it. The blast
+# radius is the whole appliance and it is silent: capture.py reads the config once, at startup, so the
+# damage surfaces as "recorded nothing all night" at the next restart.
+#
+# Driven through /api/remember — the endpoint that actually persists — so the write really happens.
+
+def _seed_config(cfg_path):
+    with open(cfg_path, "w") as f:
+        yaml.safe_dump({"devices": [{"name": "keep me", "vendor": "V", "model": "M",
+                                     "device_id": "1", "address": "AA:BB:CC:DD:EE:FF"}]}, f)
+    return open(cfg_path).read()
+
+
+def test_a_failing_config_write_leaves_the_previous_file_intact(tmp_path, monkeypatch):
+    """THE regression: the old truncating write destroyed the file before it could fail."""
+    app, _cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    before = _seed_config(cfg_path)
+    assert before.strip(), "precondition: a real config exists on disk"
+
+    def boom(*a, **k):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(webmon.yaml, "safe_dump", boom)
+
+    async def go(c):
+        r = await c.post("/api/remember", json={**RING, "address": "11:22:33:44:55:66"})
+        return r.status, await r.json()
+    status, body = _serve(app, go)
+    assert status == 500 and body["ok"] is False, "a failed write must report failure"
+    monkeypatch.undo()
+    assert open(cfg_path).read() == before, \
+        "a failed write must not damage the existing config — the whole point of the atomic replace"
+    assert yaml.safe_load(open(cfg_path))["devices"][0]["name"] == "keep me"
+
+
+def test_no_stray_temp_file_survives_a_failed_write(tmp_path, monkeypatch):
+    app, _cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    _seed_config(cfg_path)
+    def boom(*a, **k):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(webmon.yaml, "safe_dump", boom)
+
+    async def go(c):
+        return (await c.post("/api/remember", json={**RING, "address": "11:22:33:44:55:66"})).status
+    _serve(app, go)
+    monkeypatch.undo()
+    strays = [n for n in os.listdir(os.path.dirname(cfg_path)) if n.endswith(".tmp")]
+    assert strays == [], f"stray temp files left behind: {strays}"
+
+
+def test_a_successful_write_still_lands_the_whole_config(tmp_path):
+    """The atomic path must be a real save, not a safe no-op: every device the daemon holds must be on
+    disk afterwards, not just the newest one."""
+    app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    pre = [d["address"] for d in cfg["devices"]]
+
+    async def go(c):
+        return await (await c.post("/api/remember", json={**RING, "address": "11:22:33:44:55:66"})).json()
+    assert _serve(app, go)["ok"] is True
+    saved = yaml.safe_load(open(cfg_path))
+    addrs = [d["address"] for d in saved["devices"]]
+    assert addrs[-1] == "11:22:33:44:55:66", "the new device landed"
+    assert all(a in addrs for a in pre), f"pre-existing devices must survive: {pre} vs {addrs}"
