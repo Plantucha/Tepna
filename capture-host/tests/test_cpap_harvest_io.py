@@ -128,12 +128,14 @@ def test_nmcli_never_raises(monkeypatch, exc):
 
 def test_wifi_down_delegates(monkeypatch):
     seen = []
+    monkeypatch.setattr(ch, "backend", lambda: "nmcli")
     monkeypatch.setattr(ch, "_nmcli", lambda a, t: seen.append(a) or True)
     assert ch.wifi_down("ezshare") is True
     assert seen[0][:2] == ["connection", "down"]
 
 
 def test_harden_profile_sets_every_safety_key(monkeypatch):
+    monkeypatch.setattr(ch, "backend", lambda: "nmcli")
     """These four keys ARE the ethernet guarantee. Losing ipv4.never-default blackholes the box's
     routing; losing ignore-auto-dns breaks name resolution with routing untouched."""
     seen = []
@@ -163,6 +165,7 @@ def test_default_route_dev_none_when_absent_or_broken(monkeypatch):
 
 
 def test_wifi_up_succeeds_when_route_unchanged(monkeypatch):
+    monkeypatch.setattr(ch, "backend", lambda: "nmcli")
     monkeypatch.setattr(ch, "harden_profile", lambda p: True)
     monkeypatch.setattr(ch, "_nmcli", lambda a, t: True)
     monkeypatch.setattr(ch, "default_route_dev", lambda: "enp9s0")
@@ -173,25 +176,28 @@ def test_wifi_up_tears_down_if_the_card_steals_the_default_route(monkeypatch):
     """THE ethernet guarantee. If the card takes the default route it is torn down immediately and the
     day is skipped — a routeless default blackholes SSH, the served monitor and the NAS pull."""
     downs = []
+    monkeypatch.setattr(ch, "backend", lambda: "nmcli")
     monkeypatch.setattr(ch, "harden_profile", lambda p: True)
     monkeypatch.setattr(ch, "_nmcli", lambda a, t: True)
     monkeypatch.setattr(ch, "default_route_dev", lambda: "wlp10s0")     # moved onto the card
-    monkeypatch.setattr(ch, "wifi_down", lambda p, timeout=30.0: downs.append(p) or True)
+    monkeypatch.setattr(ch, "wifi_down", lambda p, timeout=30.0, iface=None: downs.append(p) or True)
     assert ch.wifi_up("ezshare", guard_dev="enp9s0") is False
     assert downs == ["ezshare"]                          # and it did not leave it associated
 
 
 def test_wifi_up_also_fails_if_the_route_vanishes(monkeypatch):
     downs = []
+    monkeypatch.setattr(ch, "backend", lambda: "nmcli")
     monkeypatch.setattr(ch, "harden_profile", lambda p: True)
     monkeypatch.setattr(ch, "_nmcli", lambda a, t: True)
     monkeypatch.setattr(ch, "default_route_dev", lambda: None)
-    monkeypatch.setattr(ch, "wifi_down", lambda p, timeout=30.0: downs.append(p) or True)
+    monkeypatch.setattr(ch, "wifi_down", lambda p, timeout=30.0, iface=None: downs.append(p) or True)
     assert ch.wifi_up("ezshare", guard_dev="enp9s0") is False
     assert downs == ["ezshare"]
 
 
 def test_wifi_up_without_a_guard_skips_the_check(monkeypatch):
+    monkeypatch.setattr(ch, "backend", lambda: "nmcli")
     monkeypatch.setattr(ch, "harden_profile", lambda p: True)
     monkeypatch.setattr(ch, "_nmcli", lambda a, t: True)
     monkeypatch.setattr(ch, "default_route_dev", lambda: (_ for _ in ()).throw(AssertionError("probed")))
@@ -199,6 +205,7 @@ def test_wifi_up_without_a_guard_skips_the_check(monkeypatch):
 
 
 def test_wifi_up_false_when_the_profile_will_not_come_up(monkeypatch):
+    monkeypatch.setattr(ch, "backend", lambda: "nmcli")
     monkeypatch.setattr(ch, "harden_profile", lambda p: True)
     monkeypatch.setattr(ch, "_nmcli", lambda a, t: False)
     assert ch.wifi_up("ezshare", guard_dev="enp9s0") is False
@@ -307,3 +314,111 @@ def test_harvest_stops_between_nights_when_the_deadline_lands_mid_walk(tmp_path,
     st = ch.harvest(str(tmp_path), deadline=1.0)
     assert st["partial"] is True
     assert st["nights"] < 2                             # gave up at a night boundary, not mid-file
+
+
+# ── wpa_supplicant backend (server boxes have no NetworkManager) ────────────────────────────────────
+def _sh_spy(monkeypatch, results=None):
+    """Record every shelled command; `results` maps a substring -> (rc, out)."""
+    calls = []
+
+    def fake(argv, timeout, sudo=False):
+        calls.append((" ".join(argv), sudo))
+        for frag, rv in (results or {}).items():
+            if frag in " ".join(argv):
+                return rv
+        return (0, "")
+    monkeypatch.setattr(ch, "_sh", fake)
+    return calls
+
+
+def test_backend_is_probed_not_assumed(monkeypatch):
+    """The first cut assumed nmcli and would have failed nightly on the appliance, which runs
+    netplan/systemd-networkd with no NetworkManager at all."""
+    monkeypatch.setattr(ch.shutil if hasattr(ch, "shutil") else ch, "__name__", ch.__name__)
+    import shutil
+    monkeypatch.setattr(shutil, "which", lambda c: "/usr/bin/nmcli" if c == "nmcli" else None)
+    assert ch.backend() == "nmcli"
+    monkeypatch.setattr(shutil, "which", lambda c: None)
+    assert ch.backend() == "wpa"
+
+
+def test_wpa_up_installs_an_address_but_NEVER_a_route(monkeypatch):
+    """THE guarantee, structurally: the card routes nowhere, so the wpa path assigns a static on-link
+    address and runs no DHCP client. There is no route to suppress and nothing to talk us into one."""
+    calls = _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=COMPLETED\n")})
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    assert ch._wpa_up("wlp1s0", "ez Share", "88888888", "192.168.4.2/24", 10) is True
+    flat = [c for c, _ in calls]
+    assert any("ip addr add 192.168.4.2/24 dev wlp1s0" in c for c in flat)
+    assert not any("ip route" in c for c in flat), flat
+    assert not any("dhclient" in c or "dhcpcd" in c for c in flat), flat
+    assert all(sudo for c, sudo in calls if c.startswith(("ip ", "wpa_")))
+
+
+def test_wpa_up_gives_up_and_tears_down_if_it_never_associates(monkeypatch):
+    """Bounded: a card that is powered off must cost one timeout, not a hung task."""
+    _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=SCANNING\n")})
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    t = iter([0.0, 0.0, 99.0, 99.0, 99.0, 99.0])
+    monkeypatch.setattr(ch.time, "monotonic", lambda: next(t, 99.0))
+    downs = []
+    monkeypatch.setattr(ch, "_wpa_down", lambda i: downs.append(i) or True)
+    assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 5) is False
+    assert downs == ["wlp1s0"]
+
+
+def test_wpa_up_false_when_the_supplicant_will_not_start(monkeypatch):
+    _sh_spy(monkeypatch, {"wpa_supplicant": (127, "not installed")})
+    assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 5) is False
+
+
+def test_wpa_down_flushes_before_killing_the_supplicant(monkeypatch):
+    """Address first, so nothing can route over a half-torn link."""
+    calls = _sh_spy(monkeypatch)
+    assert ch._wpa_down("wlp1s0") is True
+    flat = [c for c, _ in calls]
+    assert flat[0].startswith("ip addr flush")
+    assert any("terminate" in c for c in flat) and any("link set wlp1s0 down" in c for c in flat)
+
+
+def test_harden_profile_is_a_noop_on_the_wpa_backend(monkeypatch):
+    """Nothing to harden: no route is installed and no DHCP client runs."""
+    monkeypatch.setattr(ch, "backend", lambda: "wpa")
+    monkeypatch.setattr(ch, "_nmcli", lambda a, t: pytest.fail("must not touch nmcli on the wpa backend"))
+    assert ch.harden_profile("ezshare") is True
+
+
+def test_wifi_up_and_down_route_to_the_wpa_backend(monkeypatch):
+    monkeypatch.setattr(ch, "backend", lambda: "wpa")
+    monkeypatch.setattr(ch, "default_route_dev", lambda: "eno1")
+    seen = {}
+    monkeypatch.setattr(ch, "_wpa_up", lambda i, s, p, a, t: (seen.update(up=i), True)[1])
+    monkeypatch.setattr(ch, "_wpa_down", lambda i: (seen.update(down=i), True)[1])
+    assert ch.wifi_up("ezshare", guard_dev="eno1", iface="wlp1s0") is True
+    assert ch.wifi_down("ezshare", iface="wlp1s0") is True
+    assert seen == {"up": "wlp1s0", "down": "wlp1s0"}
+
+
+def test_sh_never_raises(monkeypatch):
+    for exc, rc in ((FileNotFoundError("x"), 127),
+                    (subprocess.TimeoutExpired(cmd="x", timeout=1), 124),
+                    (RuntimeError("boom"), 1)):
+        def boom(*a, **k):
+            raise exc
+        monkeypatch.setattr(ch.subprocess, "run", boom)
+        assert ch._sh(["x"], 5)[0] == rc
+
+
+def test_wpa_up_still_returns_when_the_psk_conf_cannot_be_unlinked(monkeypatch):
+    """Cleanup of the temp conf is best-effort — a read-only /tmp must not mask a successful
+    association, and must not raise into the harvest task."""
+    _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=COMPLETED\n")})
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(ch.os, "unlink", lambda *_a, **_k: (_ for _ in ()).throw(OSError("EROFS")))
+    assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 10) is True
+
+
+def test_wifi_up_false_when_the_wpa_backend_cannot_associate(monkeypatch):
+    monkeypatch.setattr(ch, "backend", lambda: "wpa")
+    monkeypatch.setattr(ch, "_wpa_up", lambda *a: False)
+    assert ch.wifi_up("ezshare", guard_dev="eno1") is False
