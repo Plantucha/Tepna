@@ -1,0 +1,203 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+**Status:** PROPOSED · **Created:** 2026-07-26
+
+# Vigil — radio coexistence, range recovery, and a journal that hides its own warnings
+
+*(out-of-suite; `capture-host/` only — no bundle / `manifestHash` / provenance impact)*
+
+Everything here was **measured on the box on 2026-07-26**, most of it by accident: a CPAP bulk
+transfer and a deliberate walk-out-of-range happened to overlap an evening of continuous monitoring,
+and between them they exposed one observability bug, one quantified radio interaction, and one
+recovery behaviour that nothing had ever put a number on.
+
+Nothing in this brief is a regression. Every item is a *gap that was invisible until tonight*.
+
+---
+
+## §1 · `capture.py`'s WARNINGs are filed in the journal at INFO — no standard tool can filter them
+
+**The measurement.** Over one daemon lifetime the journal held **33 application warnings**:
+
+```
+11  WARNING Wellue O2Ring-S link error
+11  WARNING Polar Verity Sense link error
+10  WARNING Polar H10 02849638 link error
+ 2  WARNING STARTUP: capture has no CAP_NET_ADMIN
+```
+
+and `journalctl -u tepna-capture -p warning` returned **nothing** for the same window. Confirmed
+directly — `journalctl -o json` on a line whose text begins `WARNING` reports:
+
+```
+PRIORITY=6      2026-07-26 18:39:54 WARNING Polar H10 ... link error: BleakError(...)
+```
+
+**Why.** `capture.py:3011` is `logging.basicConfig(...)`, so severity lives only in the `%(levelname)s`
+**text**. systemd assigns one priority to the whole stream, and every line — INFO, WARNING, ERROR —
+lands as priority 6. The severity is printed but not *expressed*.
+
+**Why it matters more than it looks.** `alerts.py` reads `/api/state` and QC, not the journal, so the
+product's own alerting is **unaffected** — this is not "alerts are broken", and it should not be
+written up as such. What it breaks is every *standard* thing an operator would reach for: `-p warning`,
+`-p err`, a journald-based alert rule, a log-shipping severity filter, `systemctl status`'s red-line
+extraction. Each silently returns clean. An operator who trusts the tooling concludes the box had a
+quiet night; the box had 33 warnings.
+
+**How this was found.** By making exactly that mistake. The overnight watch ran `-p warning` all
+evening and logged "zero warnings" five times while the warnings were sitting in the journal.
+
+**Do.** Emit a syslog priority prefix — systemd parses `<N>` on stdout/stderr with
+`SyslogLevelPrefix=yes`, which is the **default**, so this needs no unit change and no new dependency:
+
+```python
+_SYSLOG = {logging.CRITICAL: 2, logging.ERROR: 3, logging.WARNING: 4, logging.INFO: 6, logging.DEBUG: 7}
+class _PriorityFormatter(logging.Formatter):
+    def format(self, record):
+        return f"<{_SYSLOG.get(record.levelno, 6)}>" + super().format(record)
+```
+
+`python3-systemd`'s `JournalHandler` is the other option and is **not** preferred: it adds a
+dependency to an appliance whose SOUP list is deliberately empty, and it changes how every line is
+framed. The prefix is four characters of behaviour.
+
+**Done when.** `journalctl -u tepna-capture -p warning` returns the link-error lines and *not* the
+INFO lines; a unit test asserts the formatter maps WARNING→`<4>` and INFO→`<6>`; the prefix does not
+appear in the interactive console output path (or, if it does, that is accepted and stated).
+
+---
+
+## §2 · WiFi bulk transfer and BLE capture cannot share a window — with numbers
+
+**The measurement.** A CPAP harvest (ResMed DATALOG over WiFi, ~120 KB/s sustained) started at
+18:27:28 while three BLE sensors were streaming. Reconnect counts, split on that boundary:
+
+| window | Verity | H10 | O2Ring |
+|---|---|---|---|
+| 18:09:23 → 18:27:28 (18 min, **no** transfer) | 1 | 1 | 1 |
+| 18:27:28 → 18:42:53 (15 min, **transfer**) | **9** | **7** | **0** |
+
+The pre-transfer "1"s are each device's initial connect after a daemon restart — i.e. **zero churn in
+18 minutes, then 16 reconnects in 15 minutes.** `link_epoch` corroborates independently (H10 4→8,
+Verity 7→9 in six minutes), and the evening's first `BleakError('failed to discover services, device
+disconnected')` appeared inside the transfer window.
+
+**The methodological correction — this is the part worth carrying forward.** A parallel session
+measured the same interaction with **RSSI over a 3-minute window** and concluded: the two chest/finger
+sensors lost 5–7 dB, *the Verity did not move*, one reconnect total. Every one of those statements is
+defensible for that window and **the attribution is inverted**:
+
+* the **Verity is the worst affected** (9 reconnects) and its RSSI barely moved;
+* the **O2Ring is the only unaffected device** (0 reconnects) and its RSSI *improved*, to −57 dBm;
+* one reconnect per 3 minutes understates the sustained rate by roughly **16×**.
+
+**RSSI is the wrong instrument for this question.** It measures the strength of packets that arrive;
+it cannot see a link that dropped. A device can hold a flat −65 dBm and re-establish its connection
+nine times. Any coexistence decision justified on the RSSI table will be justified on the one
+measurement that missed the effect. **Use reconnect count / `link_epoch` deltas, and measure over the
+whole transfer, not a sample of it.**
+
+**Not the cause.** Load average during the transfer was **0.34** — this is not CPU or I/O starvation,
+and any fix that treats it as scheduling pressure will not work. The remaining hypothesis is 2.4 GHz
+coexistence, consistent with the O2Ring (closest, strongest link) being untouched while the two
+farther Polars churned.
+
+**Do.** Keep the proposed idle-window rule (no bulk transfer while sensors stream / during the
+nocturnal band), and record §2's numbers as its justification rather than the RSSI table. Extrapolated
+cost of *not* having it: ~16 reconnects per 15 min over a 65–70 min pull ≈ **70 reconnects**, each one
+a file split and a few seconds of lost signal. A pull overlapping sleep would shred the night; the
+2026-07-26 pull finished before sleep onset **by luck, not by design**.
+
+**Done when.** Bulk transfer is refused (or deferred) while any BLE stream is active or the clock is
+inside the nocturnal band; a re-measurement with the transfer running and sensors idle *outside* that
+band shows the reconnect delta returning to baseline.
+
+---
+
+## §3 · Out-of-range recovery works; **re-acquisition** is the weak part
+
+**The measurement.** A deliberate walk-out-of-range, 5 s sampling, 183 samples per device:
+
+```
+18:44:23   all three drop within ONE 5 s sample     <- one body carrying three sensors, not three range limits
+18:55:50   O2Ring back    (11.5 min down)
+18:56:28   H10 back       (12.1 min)
+18:59:16   Verity back    (14.9 min)
+```
+
+| | share of window disconnected | deepest RSSI | epoch |
+|---|---|---|---|
+| Verity | **90 %** | −100 dBm | 10 → 12 |
+| H10 | 78 % | −99 dBm | 8 → 11 |
+| O2Ring | 74 % | −91 dBm | 1 → 5 |
+
+**Everything recovered with no intervention** — that is the headline and it is a pass. The daemon
+needed no restart, no adapter reset, and the CAP_NET_ADMIN recovery ladder (§4) was never reached.
+
+**The data is honest about the hole.** ECG stops at 18:44:14 and the next file *starts* at 18:57:00 —
+a 12.7-minute gap recorded as a **new session file**, nothing interpolated across it. That is correct
+behaviour and it is the fragmentation `tools/trio-batch.mjs`'s session merge already stitches.
+
+**What is worth fixing.** After the sensors were **already back in range**, the links flapped for
+3–4 minutes — the O2Ring connected and dropped **four times** between 18:56:55 and 19:00:26, the H10
+twice. Each bounce costs a file split. This is the target the reconnect-backoff work has lacked:
+**zero re-drops within 5 minutes of a recovery, at an RSSI that is already stable.**
+
+**Secondary observation, not yet a finding.** The H10 went **90 % → 80 % battery in ~30 minutes**
+across 11 link epochs. Reconnect churn looks expensive, but a single evening with coarse
+battery reporting is not evidence — this needs a night with a known epoch count before anyone acts on
+it. Recorded so it is not lost, explicitly **not** claimed.
+
+**Done when.** A repeat walk-away *outside* a transfer window (so §2 does not confound it) shows the
+same clean recovery with ≤1 re-drop per device in the 5 minutes after return.
+
+---
+
+## §4 · The adapter-recovery ladder is disarmed, by design, and says so only in a warning nobody can filter
+
+`WARNING STARTUP: capture has no CAP_NET_ADMIN — the watchdog's adapter-recovery ladder (hciconfig
+reset / USB rebind) cannot run and exits 1.` Logged at every start, twice on 2026-07-26.
+
+This is the known, deliberate P1.2 position (`VIGIL-OVERNIGHT-FINDINGS-2026-07-24`): prevention
+(autosuspend-off) is the primary defence and capture stays unprivileged. Nothing new — but it
+compounds §1 (the one warning that says the box cannot self-heal is filed at INFO) and §3 (recovery
+happened to be unnecessary tonight). **Decide and record:** grant the capability, or state that an
+adapter wedge on an unattended night requires a human, and make the startup line visible per §1.
+
+---
+
+## §5 · Immediate, needs a human
+
+`/etc/udev/rules.d/99-tepna-btdongle.rules` on the box is **two fixes behind the repo** — it covers
+`2357:0604` and `8087` only, missing `0bda:b850`, `1915`, `2fe3` (the Raytac that is plugged in
+*right now*) and the `e0/01/01` class catch-all. Detected by `deploy/check-system-files.sh` (PR #435);
+it cannot be installed by an agent because sudo on the box needs a password:
+
+```
+ssh vigil@192.168.0.61 'sudo bash /opt/tepna/capture-host/deploy/check-system-files.sh --install'
+```
+
+Live risk is confined to **hotplug** — all three adapters currently read `control=on delay=-1` because
+the boot service armed them. A replug of the Raytac before this runs leaves it at the kernel default.
+
+---
+
+## §6 · Hypotheses that did NOT survive
+
+* **"The CPAP transfer is starving the capture loop."** Load average 0.34 during a 23 MB/min
+  transfer. Refuted — see §2. Had this been believed, the fix would have been scheduling priority,
+  which addresses nothing.
+* **"The product's alerting is blind to warnings."** `alerts.py` sources `/api/state` and QC, not the
+  journal. §1 is an *operator-tooling* gap, not an alerting failure, and overstating it would be the
+  same error as the RSSI attribution in §2 — a true observation applied to the wrong subject.
+* **"The stalled streams during the transfer are a wedge."** Three samples 20 s apart went
+  `bad=[ecg,acc_h10,hr_h10,bpm_h10]` → `[ecg,acc_h10]` → `[none]`. Flapping, self-recovering,
+  renegotiated within seconds. A stall snapshot is not a wedge; a wedge does not recover.
+
+---
+
+## Sequencing
+
+§1 first and alone — it is four characters of behaviour, and until it lands **every other item here is
+being measured through an instrument that cannot see warnings**, including the §2 re-measurement and
+the §3 repeat. §5 needs only the operator. §2 and §3 are independent of each other. §4 is a decision,
+not code.
