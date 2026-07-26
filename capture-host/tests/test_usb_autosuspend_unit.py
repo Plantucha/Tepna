@@ -120,3 +120,30 @@ def test_a_device_with_two_bluetooth_interfaces_is_counted_once():
     assert "seen=" in s, "the script must remember which parent devices it has already handled"
     assert re.search(r'case " \$seen " in \*" \$port "\*\) continue', s), \
         "dedupe must key on the parent device, not the interface"
+
+
+def test_the_unit_can_actually_start_given_this_repo_s_file_modes():
+    """203/EXEC on first install. Every shell script here is tracked mode 644 and run as
+    `bash <script>` — `git ls-files -s` shows 100644 for all of them, and the deploy docs say
+    `sudo bash expose-monitor.sh`. Naming the script directly in ExecStart assumed an executable bit
+    the repo's convention does not grant, so systemd refused to spawn it and the wedge defence stayed
+    disarmed while the unit reported `enabled`.
+
+    Either form is fine — an interpreter, or a genuinely executable file — but one of them must hold.
+    """
+    m = re.search(r"^ExecStart=(.*)$", _unit(), re.M)
+    assert m, "no ExecStart"
+    cmd = m.group(1).split()
+    via_interpreter = os.path.basename(cmd[0]) in ("bash", "sh", "dash", "env")
+    executable = os.access(SH, os.X_OK)
+    assert via_interpreter or executable, (
+        f"ExecStart={cmd[0]} is neither an interpreter nor an executable file "
+        f"(mode {oct(os.stat(SH).st_mode & 0o777)}) — systemd will fail 203/EXEC")
+
+
+def test_the_script_path_in_execstart_is_the_one_that_exists():
+    """A unit that points at a path the deploy does not create fails the same way, silently enabled."""
+    m = re.search(r"^ExecStart=(.*)$", _unit(), re.M)
+    path = [t for t in m.group(1).split() if t.endswith(".sh")]
+    assert path and path[0].endswith("/capture-host/systemd/tepna-usb-autosuspend.sh"), \
+        f"ExecStart script path does not match the repo layout: {m.group(1)}"

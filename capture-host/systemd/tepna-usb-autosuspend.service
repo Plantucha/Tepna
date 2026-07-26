@@ -19,7 +19,13 @@ Conflicts=shutdown.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/opt/tepna/capture-host/systemd/tepna-usb-autosuspend.sh
+# INVOKED VIA bash, NOT AS AN EXECUTABLE. Every shell script in this repo is tracked mode 644 and
+# run as `bash <script>` — the deploy docs say `sudo bash expose-monitor.sh`, and `git ls-files -s`
+# shows 100644 for all of them. Naming the script directly here assumed a convention the repo does
+# not have, and systemd failed the unit with 203/EXEC (Permission denied) on first install.
+# Going through the interpreter also means a checkout on a filesystem that drops exec bits, or a
+# stray umask, cannot silently disarm the wedge defence again.
+ExecStart=/bin/bash /opt/tepna/capture-host/systemd/tepna-usb-autosuspend.sh
 # Writing sysfs power attributes needs root, and nothing else here does — so the unit is root and
 # capture.py stays unprivileged. That split is deliberate: capture has no CAP_NET_ADMIN by design,
 # which is why PREVENTION (this) is the primary defence and the watchdog's recovery ladder is not.
