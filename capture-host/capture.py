@@ -907,13 +907,25 @@ async def run_polar(dev: dict, root: str):
                         BUS.push(_live_key("bpm", tag), [float(bpm)], 0)
 
                 if hr_writer:
-                    await client.start_notify(HR_UUID, on_hr)
+                    # BOUNDED like every other post-connect GATT await — see the block comment on
+                    # _read_batt below for the 4h25m freeze a bare one cost.
+                    await _bounded_setup(client.start_notify(HR_UUID, on_hr))
 
                 # Battery level via the standard Battery Service (0x2A19). Polar H10 + Verity both expose
                 # it; read once now and refresh every ~2 min. Silent no-op if a firmware lacks the char.
                 async def _read_batt():
                     try:
-                        b = await client.read_gatt_char(BATTERY_UUID)
+                        # THE 2026-07-25 FREEZE. This read sits between the last successful PMD
+                        # START and the hold loop that owns the stall watchdog, and it was
+                        # unbounded. On a link BlueZ never fails it simply never returned: the
+                        # Verity logged four streams `-> ok` at 23:51:23 and then nothing at all
+                        # until 04:16:01 — link up the whole time (680 of 682 poll samples
+                        # connected), zero bytes, and no stall warning, because the watchdog is
+                        # DOWNSTREAM of the thing that was stuck. QC logged `missing stream(s)`
+                        # twice and nothing consumed it.
+                        # The enclosing try/except makes a timeout here a SKIP, which is right:
+                        # battery level is cosmetic and must never cost a session.
+                        b = await _bounded_setup(client.read_gatt_char(BATTERY_UUID))
                         if b:
                             lvl = int(b[0])
                             # CHARGING, INFERRED. A Polar exposes no charge flag mid-session: the
@@ -933,7 +945,8 @@ async def run_polar(dev: dict, root: str):
                 if writers:
                     # Log which PMD measurement types the device actually supports (feature bitmask).
                     try:
-                        feat = pmd.parse_features(bytes(await client.read_gatt_char(pmd.PMD_CONTROL)))
+                        feat = pmd.parse_features(
+                            bytes(await _bounded_setup(client.read_gatt_char(pmd.PMD_CONTROL))))
                         names = sorted(pmd.MEAS_NAME.get(t, hex(t)) for t in feat)
                         log.info("%s PMD supports: %s", name, " ".join(names))
                         _set(name, pmd_supported=names)
@@ -943,7 +956,8 @@ async def run_polar(dev: dict, root: str):
                     # Control-point responses (settings + START acks) arrive as indications; queue them.
                     ctrl_q: asyncio.Queue = asyncio.Queue()
                     try:
-                        await client.start_notify(pmd.PMD_CONTROL, lambda _s, d: ctrl_q.put_nowait(bytes(d)))
+                        await _bounded_setup(client.start_notify(
+                            pmd.PMD_CONTROL, lambda _s, d: ctrl_q.put_nowait(bytes(d))))
                     except Exception as e:
                         # WARNING, not info: without the control channel every _ctrl below times out, so
                         # every START goes unacknowledged and no PMD stream can be confirmed. The session
