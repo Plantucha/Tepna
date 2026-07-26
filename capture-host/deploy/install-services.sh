@@ -22,41 +22,36 @@ apt-get install -y -qq avahi-daemon >/dev/null 2>&1 && echo "  ✓ avahi-daemon"
 systemctl enable --now avahi-daemon >/dev/null 2>&1 || true
 
 say "3/5  web server"
+# ── THE WEB CONFIG HAS ONE SOURCE, AND IT IS NOT THIS FILE ────────────────────────────────────────
+# This step used to write its own /etc/caddy/Caddyfile. It had drifted badly from the one
+# expose-monitor.sh writes — no /monitor route, no /captures route, and a bare `encode gzip` with no
+# match block. Re-running install-services.sh on a working box would therefore have DELETED the
+# monitor and restored the exact gzip stall that froze the live waveform for a day (the encoder
+# buffers until a deflate block fills; an SSE stream never ends, so /api/stream/ecg delivered 0
+# frames in 30 s to any browser). Two files owning one config is how that happens, so this one no
+# longer owns it: it installs Caddy and hands over.
 if apt-get install -y -qq caddy >/dev/null 2>&1; then
   echo "  ✓ caddy from apt"
   install -d -o $OWNER -g $OWNER /var/log/tepna
-  cat > /etc/caddy/Caddyfile <<'CADDY'
-# Tepna web — the bundled Dex apps at ONE pinned origin (see capture-host/Caddyfile for the rationale).
-# Plain HTTP is correct here: no Tepna feature needs a secure context, and the apps make ZERO external
-# requests. Serving them on the LAN is not the same as the app phoning out.
-http://vigil.local, http://vigil {
-	root * /srv/tepna/app
-	file_server browse
-	encode gzip
-	log {
-		output file /var/log/tepna/web.log
-	}
-}
-CADDY
-  systemctl enable --now caddy && systemctl reload caddy 2>/dev/null || systemctl restart caddy
+  if [ -s /etc/caddy/Caddyfile ] && grep -q "handle_path /monitor" /etc/caddy/Caddyfile; then
+    echo "  ✓ existing Caddyfile already serves /monitor — left untouched"
+  else
+    echo "  ⚠ no Tepna Caddyfile yet. Run the ONE tool that owns it:"
+    echo "        sudo bash $(dirname "$0")/expose-monitor.sh"
+    echo "    (it composes, VALIDATES, then installs — and prints a live SSE frame count)"
+  fi
+  systemctl enable --now caddy >/dev/null 2>&1 || true
   systemctl is-active caddy >/dev/null && echo "  ✓ caddy active" || echo "  ✗ caddy not active"
 else
-  echo "  ✗ caddy not in apt — falling back to a minimal static server unit"
-  cat > /etc/systemd/system/tepna-web.service <<'WEB'
-[Unit]
-Description=Tepna web (static Dex apps)
-After=network-online.target
-[Service]
-User=vigil
-WorkingDirectory=/srv/tepna/app
-ExecStart=/usr/bin/python3 -m http.server 80 --bind 0.0.0.0
-Restart=always
-RestartSec=5
-[Install]
-WantedBy=multi-user.target
-WEB
-  systemctl daemon-reload && systemctl enable --now tepna-web
+  echo "  ✗ caddy not in apt — install it, then run expose-monitor.sh"
 fi
+
+say "3b/5  serve the CURRENT bundles"
+# /srv/tepna/app is a COPY of the repo's bundled apps, and nothing was refreshing it. It was
+# populated by hand once and then silently rotted: on 2026-07-26 the served PpgDex.html was a full
+# day behind the repo, and 11 bundles had never been copied at all. A stale bundle is the worst kind
+# of wrong — the phone loads an app that looks right and carries last week's DSP.
+bash "$(dirname "$0")/sync-apps.sh" || echo "  ✗ bundle sync failed"
 
 say "4/5  firewall note"
 command -v ufw >/dev/null && ufw status | head -2 | sed 's/^/  /' || echo "  (ufw not installed — nothing blocking)"

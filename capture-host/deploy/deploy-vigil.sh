@@ -20,6 +20,12 @@ if [ -d "$DEST/.git" ]; then git -C "$DEST" fetch -q origin && git -C "$DEST" ch
 else git clone -q "$REPO" "$DEST"; fi
 echo "   at $(git -C "$DEST" rev-parse --short HEAD)"
 
+say "2b/8  serve the CURRENT bundles"
+# The served directory is a COPY, and until 2026-07-26 nothing refreshed it — it was populated by
+# hand once and drifted a full day behind. Syncing here means a deploy can never leave the phone
+# loading an app that opens, renders and computes with last week's DSP.
+bash "$DEST/capture-host/deploy/sync-apps.sh" || echo "   ✗ bundle sync failed (see above)"
+
 say "3/8  python venv"
 cd "$DEST/capture-host"
 [ -d .venv ] || python3 -m venv .venv
