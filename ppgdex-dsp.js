@@ -410,9 +410,13 @@
     // the first sample, so the common case costs one comparison.
     let replicated = nCh > 1;
     for (let c = 1; replicated && c < nCh; c++) {
-      const a = chArr[0], b = chArr[c];
+      const a = chArr[0],
+        b = chArr[c];
       for (let i = 0; i < n; i++) {
-        if (a[i] !== b[i]) { replicated = false; break; }
+        if (a[i] !== b[i]) {
+          replicated = false;
+          break;
+        }
       }
     }
     const site = nCh === 1 || replicated ? 'finger' : 'wrist';
