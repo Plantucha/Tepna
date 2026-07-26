@@ -38,6 +38,7 @@ import os
 import re
 
 import nightqc
+import writers
 
 # One bucket per ~2 minutes over an 8 h night gives ~240 columns — about one per pixel on a phone-width
 # strip, so nothing is averaged away that the eye could have seen anyway.
@@ -49,25 +50,12 @@ DEFAULT_BUCKETS = 240
 DEGRADED_BELOW = 0.6
 
 _STAMP_RE = re.compile(r"_(\d{14})_")
+# The filename's id field and a device's full identity (current id + corrected-away
+# predecessors) live in writers, next to the capture_filename they invert.
+_file_device_id = writers.file_device_id
 # capture_filename writes `{vendor}_{model}_{device_id}_{stamp}_{TAG}.{ext}`. Vendor and model may
 # themselves contain underscores ("O2Ring-S", and a model could be renamed to anything), so the id is
 # not a fixed field index — but it is ALWAYS the token immediately before the 14-digit stamp.
-_DEVID_RE = re.compile(r"_([^_]+)_\d{14}_")
-
-
-def _file_device_id(name: str) -> str | None:
-    """The device_id FIELD of a capture filename, or None if the name is not one.
-
-    Matching used to be `device_id in filename`, a bare substring test. Polar ids are zero-padded
-    serials, so one is readily contained in another ('2849638' inside '02849638') and the shorter
-    device silently claimed the longer one's files — the strip would show one sensor's capture on the
-    other's card, which is not a gap you would ever notice by eye. A model or vendor string that
-    happened to contain the id matched too.
-    """
-    m = _DEVID_RE.search(name)
-    return m.group(1) if m else None
-
-
 def covered_seconds(intervals: list[tuple[float, float]]) -> float:
     """Total wall time the intervals cover, counting OVERLAP ONCE.
 
@@ -99,14 +87,19 @@ def _stamp_ms(name: str) -> float | None:
         return None
 
 
-def stream_intervals(files: list[dict], device_id: str, tag: str, fs: float) -> list[tuple[float, float]]:
+def stream_intervals(files: list[dict], device_id, tag: str, fs: float) -> list[tuple[float, float]]:
     """[(start_s, end_s)] this stream was writing, from session files alone.
 
     Duration comes from `rows / fs`, NOT from the file's mtime: mtime is when the last flush landed,
-    which for a killed or still-open session is not when the data ends. Rows are the data."""
+    which for a killed or still-open session is not when the data ends. Rows are the data.
+
+    `device_id` may be one id or several — a device that had its id corrected still owns the
+    files written under the old one (writers.device_ids)."""
+    ids = {device_id} if isinstance(device_id, str) else {i for i in (device_id or []) if i}
+    ids.discard("")
     out = []
     for f in files:
-        if f["stream"] != tag or not device_id or _file_device_id(f["file"]) != device_id:
+        if f["stream"] != tag or not ids or _file_device_id(f["file"]) not in ids:
             continue
         t0 = _stamp_ms(f["file"])
         if t0 is None or not f["rows"] or fs <= 0:
@@ -315,7 +308,7 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
         streams = {}
         for s in d.get("streams") or []:
             fs = nightqc._expected_hz(d, s) or 0
-            iv = stream_intervals(data, did, s.upper(), fs)
+            iv = stream_intervals(data, writers.device_ids(d), s.upper(), fs)
             st = apply_link_states(bucket_stream(iv, t0, t1, buckets, fs), conn, wedged)
             covered = covered_seconds(iv)
             streams[s] = {
