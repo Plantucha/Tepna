@@ -24,6 +24,7 @@ import sdnotify
 import alerts
 import nightqc
 import nightarchive
+import storage_targets
 from telemetry import TelemetryBus
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
@@ -1368,7 +1369,7 @@ async def run_oxyii(dev: dict, root: str):
         ppg_idx = [0]                                 # running sample index → synthesized sensor_ns
         # Honest-gap state (O2RING-PPG-GAP §1), per SESSION — a reconnect opens a new file and a new
         # grid, so these reset with ppg_idx rather than persisting across links.
-        ppg_prev_end = [None]                         # host arrival of the previous frame's LAST sample
+        ppg_t0 = [None]                               # host arrival mapped to grid index 0 (session anchor)
         ppg_gaps = [0]                                # gaps inserted this session
         ppg_lost = [0]                                # samples' worth of real time skipped
         stalled = False                               # link held but no frames decoded — reconnect
@@ -1461,24 +1462,46 @@ async def run_oxyii(dev: dict, root: str):
                             # discrete gaps — 11/min, median 49 ms, p90 96 ms, max 287 ms — leaving ~20 %
                             # of beats adjacent to a gap.
                             # This frame's samples are back-timed to END at `arr`, so it covers
-                            # [arr - nps/fs, arr]. Any daylight between the previous frame's end and this
-                            # frame's start is real time the ring measured and the link lost, so ADVANCE
-                            # the grid across it instead of pretending it never happened.
-                            if ppg_prev_end[0] is not None:
-                                gap_s = (arr - ppg_prev_end[0]).total_seconds() - nps / O2PPG_FS
-                                # Only ever advance. A NEGATIVE gap is host-clock jitter delivering a frame
-                                # "early"; rewinding would emit non-monotonic sensor_ns and break parsing.
-                                # The threshold keeps ordinary BLE arrival jitter (measured sd 16.4 ms,
-                                # p95 |step| 29 ms) from minting phantom gaps, while the real losses start
-                                # at ~49 ms median. Slow host-vs-device drift (measured 125.726 vs 125.738
-                                # nominal, ~0.01 %) stays far below it and is spread across frames, so it
-                                # never accumulates into a false gap.
-                                if gap_s > O2PPG_GAP_MIN_S:
-                                    lost = int(round(gap_s * O2PPG_FS))
-                                    ppg_idx[0] += lost
-                                    ppg_gaps[0] += 1
-                                    ppg_lost[0] += lost
-                            ppg_prev_end[0] = arr
+                            # [arr - nps/fs, arr]. Real time the ring measured but the link lost must
+                            # ADVANCE the grid instead of being pretended away.
+                            #
+                            # ⚠️ MEASURED AGAINST A SESSION ANCHOR, NOT THE PREVIOUS FRAME (2026-07-25).
+                            # This used to compare `arr` against the PREVIOUS frame's arrival and advance
+                            # whenever that one delta exceeded the threshold. Because the advance is
+                            # one-sided (we never rewind — see below), that RECTIFIED symmetric BLE arrival
+                            # jitter into monotonic time inflation: every positive excursion past the
+                            # threshold was banked permanently while the compensating negative ones were
+                            # discarded, so the grid drifted ahead of real time even when NOTHING was lost.
+                            # Measured on the real corpus: +210 s of elapsed time that never happened over
+                            # 11.18 h, while rows/wall sat at nominal on every file (i.e. no samples were
+                            # actually missing). A synthetic replay at this code's own documented jitter
+                            # (sd 16.4 ms) inflated a ZERO-LOSS stream by +3.2 % and minted 1264 phantom
+                            # gaps. Downstream that lands in PpgDex's `relSec` beat timeline (its `fs`
+                            # survives — it takes the MEDIAN ns delta), inflating the intervals that cross
+                            # a phantom gap, which is exactly the successive-difference quantity RMSSD is.
+                            #
+                            # Anchoring to the session start makes symmetric jitter CANCEL instead of
+                            # accumulate: a late frame does not advance the grid while the cumulative
+                            # position is still on track, so only a PERSISTENT deficit — a real dropout —
+                            # moves it. Replayed over the same real corpus this cuts the inflation from
+                            # +1.05 % to +0.05 % and the gap count from hundreds per file to single digits.
+                            # (O2RING-PPG-GAP §1; VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §1.)
+                            if ppg_t0[0] is None:
+                                # Map this frame's FIRST sample to grid index 0 — the anchor every later
+                                # frame is measured against.
+                                ppg_t0[0] = arr - _dt.timedelta(seconds=(nps - 1) / O2PPG_FS)
+                            # Where this frame's first sample SHOULD sit on the grid, per the host clock.
+                            target = int(round(
+                                ((arr - ppg_t0[0]).total_seconds() - (nps - 1) / O2PPG_FS) * O2PPG_FS))
+                            # Only ever advance. A target BEHIND the cursor means the ring is running a
+                            # touch slower than the configured `ppg_fs`, or a frame arrived early; rewinding
+                            # would emit non-monotonic sensor_ns and break parsing. Holding still is also
+                            # the SAFE direction — it under-reports a gap rather than inventing one.
+                            if target - ppg_idx[0] > O2PPG_GAP_MIN_S * O2PPG_FS:
+                                lost = target - ppg_idx[0]
+                                ppg_idx[0] += lost
+                                ppg_gaps[0] += 1
+                                ppg_lost[0] += lost
                             for i, v in enumerate(ppg):
                                 ph = arr - _dt.timedelta(seconds=(nps - 1 - i) / O2PPG_FS)
                                 ppgwr.write_ppg(ph, ppg_idx[0] * O2PPG_NS_STEP, 0.0, (v,), 0)
@@ -1505,7 +1528,10 @@ async def run_oxyii(dev: dict, root: str):
                         _OXYII_LAST_DURATION[addr] = live["duration"]   # survives the next dropout
                         now = _now()
                         if live["spo2"] is not None:
-                            wr.write(now, live["spo2"], live["pr"] or 0, live["motion"])   # [11], corrected
+                            # `live["pr"]` passed through AS-IS, including None — `or 0` used to turn an
+                            # unreadable pulse rate into a written 0 (VIGIL-PPG-GRID-AUDIT §5.2). The
+                            # writer emits a blank for None; see Spo2CsvWriter.write.
+                            wr.write(now, live["spo2"], live["pr"], live["motion"])   # [11], corrected
                             BUS.push("spo2", [live["spo2"]])
                             if live["pr"]:
                                 BUS.push("pr", [live["pr"]])
@@ -1596,8 +1622,12 @@ async def run_oxyii(dev: dict, root: str):
             # the gap insertion fixes — a lossy link that LOOKS clean. Logged even at zero, so "no gaps"
             # is an observation rather than an absence of evidence.
             if ppgwr and ppg_idx[0]:
+                # Phrased as what was MEASURED (a grid advance), not as a conclusion about the link. The
+                # old wording asserted "%% of the session's real time was lost by the link" — which the
+                # frame-anchored inflation made false: most of what it reported as loss was rectified
+                # arrival jitter, not lost time. A log line is evidence only if it says what it saw.
                 log.info("%s: PPG grid — %d sample(s) written, %d gap(s) inserted totalling %.1f s "
-                         "(%.2f%% of the session's real time was lost by the link)",
+                         "(%.2f%% of the grid, host-clock deficit vs the session anchor)",
                          name, ppg_idx[0] - ppg_lost[0], ppg_gaps[0], ppg_lost[0] / O2PPG_FS,
                          100.0 * ppg_lost[0] / max(ppg_idx[0], 1))
             # DISCARD HEADER-ONLY FILES, exactly as run_polar does. Writers are opened before the ring is
@@ -2199,7 +2229,13 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
     min_free_gb = float(scfg.get("min_free_gb", 2))
     settle = float(scfg.get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
+    # Retention only defers to the mirror when there IS one. With archiving off, age is the whole policy
+    # and pruning behaves exactly as before — no silent new way for the disk to fill.
+    acfg = cfg.get("archive") or {}
+    archive_enabled = bool(acfg.get("enabled")) and bool(acfg.get("dest"))
+    archive_dest = acfg.get("dest") or "(no dest configured)"
     low_alerted = False
+    _retention_block_warned = False
     while not _STOP.is_set():
         try:
             rep = diskguard.disk_report(root, min_free_gb)
@@ -2208,22 +2244,65 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
             # sweep that live directory the moment the clock rolls. _now()'s date is a floor so a
             # brand-new night with no files yet (not yet "active") is still never a prune candidate.
             protect = diskguard.active_nights(captures, settle) | {_now().strftime("%Y-%m-%d")}
+            # RETENTION IS GATED ON A SECOND COPY (VIGIL-OVERNIGHT-FINDINGS §P3.2). plan_prune deletes by
+            # AGE alone, which treats "old" as "safe to lose". It is not: on 2026-07-25 this box had
+            # `dest_present:false` — 4 of 10 nights with no marker at all, and the other 6 marked
+            # against a volume that is no longer there — so the 15th night would have deleted a
+            # recording whose only other copy was on a disk the box cannot see. When archiving is
+            # ENABLED, a night is protected until its mirror is CONFIRMED present.
+            #
+            # The cost is deliberate and is the correct trade for this suite: a broken backup volume now
+            # STALLS pruning instead of quietly consuming the only copies. That can fill the disk, so it
+            # must never be silent — it is surfaced in status.json, logged edge-triggered, and folded
+            # into the low-disk alert text so the reason arrives with the symptom. (This module's own
+            # rule: a disk warning is recoverable, deleted recordings are not.)
+            blocked: set[str] = set()
+            if archive_enabled and keep_nights > 0:
+                # `archive_dest` is passed so the gate CONFIRMS the mirror rather than trusting the
+                # `.archived` marker — the marker records that a copy was made, not that it survives.
+                blocked = await asyncio.to_thread(nightarchive.unarchived_nights, captures, archive_dest)
+                protect |= blocked
             # rmtree of a whole night — ~1500 files, ~2 GB — is filesystem work, not arithmetic.
             # disk_report() stays inline (a single statvfs); only the delete is off-loaded.
             pruned = await asyncio.to_thread(diskguard.prune_old_nights, captures, keep_nights, protect)
             if pruned:
                 log.info("storage: pruned %d night(s) past the %d-night retention: %s",
                          len(pruned), keep_nights, ", ".join(pruned))
+            # Only count nights retention WOULD have taken but for the missing mirror — a young night is
+            # protected by age anyway and is not evidence of a backup problem.
+            would_prune = set(diskguard.plan_prune(diskguard.list_nights(captures), keep_nights,
+                                                   protect - blocked))
+            held = sorted(would_prune & blocked)
+            if held and not _retention_block_warned:
+                _retention_block_warned = True
+                log.warning("storage: retention is HELD on %d night(s) past the %d-night policy because "
+                            "they were never mirrored to %s — fix the backup volume or disable archiving; "
+                            "the disk will fill otherwise: %s",
+                            len(held), keep_nights, archive_dest, ", ".join(held))
+            elif not held:
+                _retention_block_warned = False
             rep = diskguard.disk_report(root, min_free_gb)  # re-read after any prune so status is current
             rep["pruned"] = pruned
             rep["keep_nights"] = keep_nights
+            # The monitor must be able to distinguish "retention has nothing to do" from "retention is
+            # being HELD" — they look identical in `pruned: []`, and only one of them fills the disk.
+            rep["retention_held"] = held
+            rep["retention_held_reason"] = (
+                f"{len(held)} night(s) past the {keep_nights}-night policy are unmirrored "
+                f"({archive_dest} absent or failing) — a night is never deleted while it exists on one disk"
+            ) if held else None
             STATUS["storage"] = rep
             if rep["low"] and not low_alerted:             # edge-triggered: one alert per low episode
                 low_alerted = True
                 if notifier:
+                    # Ship the CAUSE with the symptom. A "disk low" alert on a box whose pruning is held
+                    # by a dead backup volume is otherwise actively misleading — it reads as "raise
+                    # keep_nights", which is the one action that would not help.
+                    extra = (f" Retention is HELD on {len(held)} unmirrored night(s) — fix the backup "
+                             f"volume ({archive_dest}); raising keep_nights will NOT free space.") if held else \
+                            " Captures may soon fail — free space or raise keep_nights."
                     await notifier.send("Tepna: disk low",
-                                        f"Only {rep['free_gb']} GB free ({rep['free_pct']}%). "
-                                        f"Captures may soon fail — free space or raise keep_nights.")
+                                        f"Only {rep['free_gb']} GB free ({rep['free_pct']}%)." + extra)
             elif not rep["low"]:
                 low_alerted = False
         except Exception as e:                             # storage bookkeeping must never take capture down
@@ -2317,22 +2396,67 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             log.warning("qc poll failed: %r", e)
 
 
+async def _archive_transfer(captures: str, target: dict, settle: float, schedule: dict) -> None:
+    """Push every settled, not-yet-confirmed night to a TRANSFER target (rsync over SSH).
+
+    The `.archived` marker is written only on a VERIFIED push — a copy that a follow-up `--dry-run`
+    confirms the remote already matches. That is the same line VIGIL-HARDENING-II §1.3 had to draw for
+    the local mirror: "we ran a copy" is not "a second copy exists", and only the latter may release a
+    night to the retention gate. An unverified push leaves the night unmarked, so it is retried next
+    cycle and retention keeps holding it — the safe direction."""
+    active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
+    for night in nightarchive.pending_nights(captures, active):
+        src = os.path.join(captures, night)
+        res = await storage_targets.push_night(src, target)
+        STATUS.setdefault("archive", {}).update(
+            {"last_attempt": night, "target": f"{target['protocol']}://{target.get('host','')}",
+             "ok": res["ok"], "verified": res["verified"], "detail": res["detail"]})
+        if res["ok"] and res["verified"]:
+            open(os.path.join(src, nightarchive._MARKER), "w").close()
+            STATUS["archive"]["last"] = night
+            log.info("archive: pushed %s → %s (%s)", night, target.get("host"), res["detail"])
+        else:
+            log.warning("archive: %s NOT confirmed on %s — %s (night stays held)",
+                        night, target.get("host"), res["detail"])
+            break          # a failing link will fail for every night; stop rather than hammer it
+
+
 async def archive_poller(cfg: dict, root: str):
     """Mirror each COMPLETED night (not tonight — still being written) to a configured destination: a NAS
     mount, the served dir, a backup disk. Idempotent + resumable (a `.archived` marker per night). MIRROR,
     never move — the source stays for the retention guard to prune on its own schedule. No-op unless
     archive.enabled + archive.dest are set."""
     acfg = cfg.get("archive") or {}
-    if not (acfg.get("enabled") and acfg.get("dest")):
+    target = acfg.get("target") or None
+    # A TRANSFER target (rsync) has no local dest — the night is pushed straight off the box. A MOUNT
+    # target is its mountpoint, which is what `dest` already meant, so the mirror path below is unchanged.
+    transfer = bool(target) and target.get("kind") == "transfer"
+    if not acfg.get("enabled") or not (acfg.get("dest") or transfer):
         return
-    dest = acfg["dest"]
+    dest = acfg.get("dest")
     interval = float(acfg.get("poll_sec", 3600))
     settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
+    try:
+        schedule = storage_targets.validate_schedule(acfg.get("schedule"))
+    except storage_targets.StorageError as e:
+        log.warning("archive: bad schedule (%s) — falling back to after_settle", e)
+        schedule = {"mode": "after_settle"}
+    last_run: _dt.datetime | None = None
     _archive_dest_warned = False       # edge-trigger the "dest not present" warning, one per absence
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
+            # WHEN. `after_settle` offloads as soon as a night goes quiet (the old behaviour). `daily`
+            # holds until a wall-clock window — the point of which is that a 350 MB/night push over the
+            # LAN should be allowed to happen while nobody is sleeping next to the box, and while the
+            # link is not also carrying three live BLE streams.
+            if not storage_targets.due(schedule, _now(), last_run):
+                continue
+            if transfer:
+                await _archive_transfer(captures, target, settle, schedule)
+                last_run = _now()
+                continue
             # Mirror only nights that have gone QUIET (no writes for `settle`), never the one still being
             # captured — keyed on file activity, not _now()'s date, so a session that ran past midnight is
             # not copied-and-marked-done mid-recording the moment the clock rolls over.
@@ -2602,7 +2726,18 @@ async def main():
     ap.add_argument("--config", default="config.yaml")
     args = ap.parse_args()
     import yaml   # runtime-only dep; imported here so `import capture` (for unit tests) needs no external deps
-    cfg = yaml.safe_load(open(args.config))
+    # Read explicitly (no leaked handle) and REFUSE an empty/non-mapping config with a message that
+    # names the problem. `yaml.safe_load` returns None for an empty file, so the old one-liner turned a
+    # truncated config.yaml into an `AttributeError: 'NoneType' object has no attribute 'get'` several
+    # frames later — the least useful possible symptom for the most likely corruption. The write side
+    # is now atomic (webmon._save), so this should be unreachable; it is the belt to that brace, and it
+    # is what an operator meets if they hand-edit the file at 23:00.
+    with open(args.config) as _cf:
+        cfg = yaml.safe_load(_cf)
+    if not isinstance(cfg, dict):
+        raise SystemExit(f"{args.config}: config is empty or not a YAML mapping (parsed as "
+                         f"{type(cfg).__name__}) — refusing to start with no devices. Restore it from a "
+                         f"backup; a truncated file here means the box would record nothing all night.")
     root = cfg["root"]
     global _CFG
     _CFG = cfg

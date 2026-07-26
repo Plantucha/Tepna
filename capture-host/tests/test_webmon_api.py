@@ -406,3 +406,202 @@ def test_stream_sends_a_snapshot_then_releases_its_subscription(tmp_path):
     chunk = _serve(app, go)
     assert b"snapshot" in chunk
     assert getattr(bus, "_subs", set()) == set() or len(bus._subs) == 0, "subscription leaked"
+
+
+# ── config.yaml IS WRITTEN ATOMICALLY (VIGIL-HARDENING-II §2) ──────────────────────────────────
+# _save() used to be `open(cfg_path, "w")`, which truncates BEFORE it writes. A failure partway (full
+# disk, power cut, kill) left the only copy truncated, and the `except` could not undo it. The blast
+# radius is the whole appliance and it is silent: capture.py reads the config once, at startup, so the
+# damage surfaces as "recorded nothing all night" at the next restart.
+#
+# Driven through /api/remember — the endpoint that actually persists — so the write really happens.
+
+def _seed_config(cfg_path):
+    with open(cfg_path, "w") as f:
+        yaml.safe_dump({"devices": [{"name": "keep me", "vendor": "V", "model": "M",
+                                     "device_id": "1", "address": "AA:BB:CC:DD:EE:FF"}]}, f)
+    return open(cfg_path).read()
+
+
+def test_a_failing_config_write_leaves_the_previous_file_intact(tmp_path, monkeypatch):
+    """THE regression: the old truncating write destroyed the file before it could fail."""
+    app, _cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    before = _seed_config(cfg_path)
+    assert before.strip(), "precondition: a real config exists on disk"
+
+    def boom(*a, **k):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(webmon.yaml, "safe_dump", boom)
+
+    async def go(c):
+        r = await c.post("/api/remember", json={**RING, "address": "11:22:33:44:55:66"})
+        return r.status, await r.json()
+    status, body = _serve(app, go)
+    assert status == 500 and body["ok"] is False, "a failed write must report failure"
+    monkeypatch.undo()
+    assert open(cfg_path).read() == before, \
+        "a failed write must not damage the existing config — the whole point of the atomic replace"
+    assert yaml.safe_load(open(cfg_path))["devices"][0]["name"] == "keep me"
+
+
+def test_no_stray_temp_file_survives_a_failed_write(tmp_path, monkeypatch):
+    app, _cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    _seed_config(cfg_path)
+    def boom(*a, **k):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(webmon.yaml, "safe_dump", boom)
+
+    async def go(c):
+        return (await c.post("/api/remember", json={**RING, "address": "11:22:33:44:55:66"})).status
+    _serve(app, go)
+    monkeypatch.undo()
+    strays = [n for n in os.listdir(os.path.dirname(cfg_path)) if n.endswith(".tmp")]
+    assert strays == [], f"stray temp files left behind: {strays}"
+
+
+def test_a_successful_write_still_lands_the_whole_config(tmp_path):
+    """The atomic path must be a real save, not a safe no-op: every device the daemon holds must be on
+    disk afterwards, not just the newest one."""
+    app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    pre = [d["address"] for d in cfg["devices"]]
+
+    async def go(c):
+        return await (await c.post("/api/remember", json={**RING, "address": "11:22:33:44:55:66"})).json()
+    assert _serve(app, go)["ok"] is True
+    saved = yaml.safe_load(open(cfg_path))
+    addrs = [d["address"] for d in saved["devices"]]
+    assert addrs[-1] == "11:22:33:44:55:66", "the new device landed"
+    assert all(a in addrs for a in pre), f"pre-existing devices must survive: {pre} vs {addrs}"
+
+
+# ── A MAC MUST BE A MAC, WHOLE (VIGIL-HARDENING-III §2) ────────────────────────────────────────
+# _valid_mac used `.match()` on an anchored pattern, but Python's `$` also matches just BEFORE a
+# trailing newline. Not a command injection (only a LONE trailing newline gets through, so nothing
+# can follow it), but /api/remember persists the address — and an address carrying a newline never
+# matches a real BLE address again: "remembered ✓", then silently never captured.
+
+def test_a_trailing_newline_is_not_a_valid_mac():
+    assert webmon._valid_mac("AA:BB:CC:DD:EE:FF") is True
+    assert webmon._valid_mac("aa:bb:cc:dd:ee:ff") is True
+    assert webmon._valid_mac("AA:BB:CC:DD:EE:FF\n") is False, "Python's `$` gotcha"
+    assert webmon._valid_mac("AA:BB:CC:DD:EE:FF\r") is False
+
+
+def test_no_embedded_control_character_survives_validation():
+    """Belt to the brace: the value is f-string-interpolated into a bluetoothctl script."""
+    for bad in ("AA:BB:CC:DD:EE:FF\nquit", "AA:BB:CC:DD:EE:FF\n\n", "AA:BB:CC:DD:EE:FF remove x",
+                " AA:BB:CC:DD:EE:FF", "AA:BB:CC:DD:EE:FFF", "AA:BB:CC:DD:EE", "", None, 42):
+        assert webmon._valid_mac(bad) is False, f"{bad!r} must be rejected"
+
+
+def test_remember_refuses_an_address_with_a_trailing_newline(tmp_path):
+    """The end-to-end consequence: such a device would be persisted and then never captured."""
+    app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    before = len(cfg["devices"])
+
+    async def go(c):
+        r = await c.post("/api/remember", json={**RING, "address": "11:22:33:44:55:66\n"})
+        return r.status
+    assert _serve(app, go) == 400
+    assert len(cfg["devices"]) == before, "config must not gain an uncapturable device"
+
+
+# ── STORAGE / OFFLOAD TARGET API (STORAGE-OFFLOAD-TARGETS) ─────────────────────────────────────
+# The box has a small SSD, so nights must leave. This surface owns where they go and when — and it
+# must never become a place a password comes to rest (config.yaml is world-readable on the box and
+# this API is LAN-reachable through Caddy).
+
+_RSYNC_T = {"protocol": "rsync", "host": "192.168.0.142", "user": "tepna",
+            "share": "/mnt/tank/tepna", "identity": "/home/tepna/.ssh/id_ed25519"}
+
+
+def test_storage_get_lists_the_protocol_catalogue(tmp_path):
+    app, *_ = _mk(tmp_path)
+
+    async def go(c):
+        return await (await c.get("/api/storage")).json()
+    body = _serve(app, go)
+    by = {p["protocol"]: p for p in body["protocols"]}
+    assert {"rsync", "nfs", "smb", "iscsi", "nvmeof", "webdav", "ftp", "local"} <= set(by)
+    assert by["nfs"]["privileged"] is True, "the UI must know this one needs a root step"
+    assert by["rsync"]["privileged"] is False
+
+
+def test_storage_post_persists_the_target_and_schedule(tmp_path):
+    app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
+
+    async def go(c):
+        return await (await c.post("/api/storage", json={
+            "enabled": True, "target": _RSYNC_T,
+            "schedule": {"mode": "daily", "at": "09:30", "window_min": 60}})).json()
+    body = _serve(app, go)
+    assert body["ok"] is True
+    saved = yaml.safe_load(open(cfg_path))["archive"]
+    assert saved["target"]["host"] == "192.168.0.142"
+    assert saved["schedule"] == {"mode": "daily", "at": "09:30", "window_min": 60}
+    assert saved["enabled"] is True
+
+
+def test_a_mount_target_sets_dest_to_its_mountpoint(tmp_path):
+    """nightarchive + the retention gate both key off `dest`, so a mount target must populate it."""
+    app, _cfg, _st, cfg_path, _bus = _mk(tmp_path)
+
+    async def go(c):
+        return await (await c.post("/api/storage", json={"target": {
+            "protocol": "nfs", "host": "nas.local", "share": "/mnt/tank/tepna",
+            "mountpoint": "/srv/tepna/archive"}})).json()
+    body = _serve(app, go)
+    assert body["ok"] is True
+    assert yaml.safe_load(open(cfg_path))["archive"]["dest"] == "/srv/tepna/archive"
+    assert body["mount_unit"]["unit_name"] == "srv-tepna-archive.mount"
+
+
+def test_a_transfer_target_clears_dest(tmp_path):
+    """rsync pushes straight off the box — a stale local `dest` would make the retention gate confirm
+    against a directory nothing writes to."""
+    app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    cfg.setdefault("archive", {})["dest"] = "/srv/tepna/old"
+
+    async def go(c):
+        return await (await c.post("/api/storage", json={"target": _RSYNC_T})).json()
+    assert _serve(app, go)["ok"] is True
+    assert "dest" not in yaml.safe_load(open(cfg_path))["archive"]
+
+
+def test_storage_post_refuses_a_password_and_writes_nothing(tmp_path):
+    app, _cfg, _st, cfg_path, _bus = _mk(tmp_path)
+
+    async def go(c):
+        r = await c.post("/api/storage", json={"target": {**_RSYNC_T, "password": "hunter2"}})
+        return r.status, await r.json()
+    status, body = _serve(app, go)
+    assert status == 400 and "never stores a password" in body["error"]
+    assert not os.path.exists(cfg_path), "a rejected target must not touch config.yaml"
+
+
+def test_storage_post_rejects_an_argv_hostile_host(tmp_path):
+    app, *_ = _mk(tmp_path)
+
+    async def go(c):
+        r = await c.post("/api/storage", json={"target": {**_RSYNC_T, "host": "-e/bin/sh"}})
+        return r.status, await r.json()
+    status, body = _serve(app, go)
+    assert status == 400 and "invalid host" in body["error"]
+
+
+def test_storage_test_reports_an_unmounted_mountpoint_as_not_ready(tmp_path, monkeypatch):
+    app, *_ = _mk(tmp_path)
+    mp = tmp_path / "archive"
+    mp.mkdir()
+    # A mountpoint is constrained to MOUNT_ROOTS because it is WRITTEN to; tmp_path is none of them.
+    # Widen it here so this test exercises the readiness check rather than the location check (which
+    # has its own tests in test_storage_targets.py).
+    monkeypatch.setattr(webmon.storage_targets, "MOUNT_ROOTS",
+                        tuple(webmon.storage_targets.MOUNT_ROOTS) + (str(tmp_path),))
+
+    async def go(c):
+        return await (await c.post("/api/storage/test", json={"target": {
+            "protocol": "nfs", "host": "nas.local", "share": "/mnt/tank/tepna",
+            "mountpoint": str(mp)}})).json()
+    body = _serve(app, go)
+    assert body["ok"] is False and "nothing is mounted" in body["detail"]

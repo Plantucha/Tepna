@@ -336,6 +336,7 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       <div class="nav-item" data-view="scope">〜 Live scope</div>
       <div class="nav-item" data-view="settings">⚙ Settings</div>
       <div class="nav-item" data-view="devices">📡 Devices <span class="nav-badge" id="navDevN" style="display:none"></span></div>
+      <div class="nav-item" data-view="storage">🗄 Storage <span class="nav-badge" id="navStoreN" style="display:none"></span></div>
     </div>
 
     <!-- Live counters live in the sidebar so they stay visible in EVERY view (they used to sit in the
@@ -343,6 +344,16 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
     <div class="side-stats" id="sideStats"></div>
 
     <div class="sidebar-bottom">
+      <!-- STORAGE. The box has a small SSD and ~350 MB/night, so "where do nights go, and is that
+           actually working" belongs where it is visible in EVERY view — not buried in a settings tab.
+           The pill is deliberately blunt about the two states that lose data: an offload target that
+           is not ready, and retention held because nothing can be confirmed off-box. -->
+      <div class="sidebar-data-card" style="margin-bottom:8px;cursor:pointer" onclick="showView('storage')"
+           title="Offload target and disk retention">
+        <div class="data-pill idle" id="storePill"><span class="data-dot"></span> <span id="storeText">Storage —</span></div>
+        <div class="sidebar-data-info" id="storeFree"></div>
+        <div class="sidebar-data-info" id="storeTarget"></div>
+      </div>
       <div class="sidebar-data-card">
         <div class="data-pill idle" id="connPill"><span class="data-dot"></span> <span id="connText">No stream</span></div>
         <div class="sidebar-data-info" id="adapterInfo">adapter —</div>
@@ -480,6 +491,70 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       </div>
     </section>
 
+    <section class="view" id="view-storage">
+      <div class="card">
+        <div class="section-title">Disk on this box</div>
+        <div id="stDisk" class="hint">—</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Offload target</div>
+        <p class="hint">Where finished nights go. A night is only released to the retention guard once a
+          second copy is <em>confirmed</em> — so if this is broken, the box holds nights instead of
+          deleting them, and the disk fills. That is deliberate: a full disk is recoverable, a deleted
+          recording is not.</p>
+
+        <div class="row" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end">
+          <label>Protocol<br><select id="stProto"></select></label>
+          <label id="stHostWrap">Server IP / host<br><input id="stHost" placeholder="192.168.0.142" size="18"></label>
+          <label id="stPortWrap">Port<br><input id="stPort" type="number" size="6" style="width:7em"></label>
+          <label id="stUserWrap">User<br><input id="stUser" placeholder="tepna" size="12"></label>
+        </div>
+        <div class="row" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end;margin-top:.5rem">
+          <label id="stShareWrap" style="flex:1;min-width:16em"><span id="stShareLbl">Share / remote path</span><br>
+            <input id="stShare" style="width:100%" placeholder="/mnt/tank/tepna"></label>
+          <label id="stMountWrap" style="flex:1;min-width:16em">Mountpoint on this box<br>
+            <input id="stMount" style="width:100%" placeholder="/srv/tepna/archive"></label>
+        </div>
+        <div class="row" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end;margin-top:.5rem">
+          <label id="stIdentWrap" style="flex:1;min-width:16em">SSH key path<br>
+            <input id="stIdent" style="width:100%" placeholder="/home/tepna/.ssh/id_ed25519"></label>
+          <label id="stCredWrap" style="flex:1;min-width:16em">Credentials file (root-owned)<br>
+            <input id="stCred" style="width:100%" placeholder="/etc/tepna/smb-credentials"></label>
+        </div>
+        <!-- No password field, anywhere, on purpose. config.yaml is world-readable on the box and this
+             page is LAN-reachable through Caddy, so a typed secret would be at rest in plaintext in
+             both. The API refuses one outright. -->
+        <p class="hint" style="margin-top:.5rem">🔒 Vigil never stores a password. Use an SSH key (rsync)
+          or a root-owned credentials file (SMB) and give its <em>path</em> — the secret stays in a file
+          only root can read.</p>
+
+        <div class="row" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end;margin-top:.6rem">
+          <label>Upload when<br><select id="stMode">
+            <option value="after_settle">As soon as a night finishes</option>
+            <option value="daily">Daily, at a set time</option>
+          </select></label>
+          <label id="stAtWrap">Time (local)<br><input id="stAt" type="time" value="09:00"></label>
+          <label id="stWinWrap">Window (min)<br><input id="stWin" type="number" value="120" style="width:7em"></label>
+          <label><input type="checkbox" id="stVerify" checked> Verify after copy</label>
+        </div>
+
+        <div style="display:flex;gap:.5rem;align-items:center;margin:.9rem 0 .2rem">
+          <button class="btn-primary" onclick="saveStorage(this)">Save target</button>
+          <button class="btn" onclick="testStorage(this)">Test connection</button>
+          <span class="hint" id="stMsg"></span>
+        </div>
+      </div>
+
+      <div class="card" id="stUnitCard" style="display:none">
+        <div class="section-title">One-time root step</div>
+        <p class="hint" id="stUnitWhy"></p>
+        <div id="stSteps" class="hint" style="font-family:ui-monospace,monospace"></div>
+        <pre id="stUnit" style="white-space:pre-wrap;overflow-x:auto;background:var(--surface);
+             border:var(--b);border-radius:6px;padding:10px;font-size:11px"></pre>
+      </div>
+    </section>
+
   </div>
 </div>
 
@@ -488,7 +563,7 @@ const $ = s => document.querySelector(s);
 const api = (p,o) => fetch(p,o).then(r=>r.json());
 const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-let STREAMS = [], DEVICES = [], ADAPTER_MAC = '';
+let STREAMS = [], DEVICES = [], ADAPTER_MAC = '', STATE = null;
 
 // Battery: a drawn meter chip, colored by level (null → nothing shown).
 function battClass(p){ return p==null?'':p<=15?'bad':p<=35?'warn':'ok'; }
@@ -631,11 +706,138 @@ function showView(v){
   VIEW = v;
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active', el.id==='view-'+v));
   document.querySelectorAll('#nav .nav-item').forEach(el=>el.classList.toggle('active', el.dataset.view===v));
-  $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices', settings:'Settings'}[v] || v;
+  $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices', settings:'Settings', storage:'Storage'}[v] || v;
   if(v==='overview'){ ovStart(); scopeStop(); clkStop(); }
   else if(v==='scope'){ ovStop(); scopeResume(); clkStop(); }
   else if(v==='settings'){ ovStop(); scopeStop(); clkStop(); loadSettings(); }
+  else if(v==='storage'){ ovStop(); scopeStop(); clkStop(); loadStorage(); }
   else { ovStop(); scopeStop(); clkStart(); }   // devices view owns the clock/NTP panel
+}
+
+// ── Storage / offload ────────────────────────────────────────────────────────────────────────────
+// Field visibility is driven by the protocol's KIND, which the API supplies rather than the page
+// guessing: a mount target needs a mountpoint on this box and yields a root step; a transfer target
+// needs a remote path and is run by the daemon itself. There is no password input by construction.
+let STORAGE = null;
+const $v = id => ($('#'+id)||{}).value;
+
+function stKind(){
+  const p = $v('stProto'); const e = (STORAGE&&STORAGE.protocols||[]).find(x=>x.protocol===p);
+  return e ? e.kind : 'transfer';
+}
+function stSyncFields(){
+  const p = $v('stProto'), kind = stKind(), mount = kind==='mount', local = p==='local';
+  const show = (id,on) => { const el=$('#'+id); if(el) el.style.display = on ? '' : 'none'; };
+  show('stHostWrap', !local); show('stPortWrap', !local); show('stUserWrap', p==='rsync'||p==='ftp'||p==='webdav');
+  show('stMountWrap', mount);
+  show('stShareWrap', !local);
+  show('stIdentWrap', p==='rsync');
+  show('stCredWrap', p==='smb');
+  show('stAtWrap', $v('stMode')==='daily'); show('stWinWrap', $v('stMode')==='daily');
+  const lbl = {nfs:'Export path on the server', smb:'Share name', iscsi:'Target IQN',
+               nvmeof:'Subsystem NQN', rsync:'Remote path', webdav:'Remote path', ftp:'Remote path'}[p];
+  const el = $('#stShareLbl'); if(el) el.textContent = lbl || 'Share / remote path';
+  const e = (STORAGE&&STORAGE.protocols||[]).find(x=>x.protocol===p);
+  if(e && e.default_port && !$v('stPort')) $('#stPort').value = e.default_port;
+}
+
+async function loadStorage(){
+  STORAGE = await api('/api/storage');
+  const sel = $('#stProto');
+  if(sel && !sel.options.length){
+    sel.innerHTML = (STORAGE.protocols||[]).map(p =>
+      `<option value="${esc(p.protocol)}">${esc(p.label)}${p.privileged?' · needs one root step':''}</option>`).join('');
+    sel.onchange = () => { $('#stPort').value=''; stSyncFields(); };
+    $('#stMode').onchange = stSyncFields;
+  }
+  const t = STORAGE.target || {};
+  if(t.protocol) $('#stProto').value = t.protocol;
+  $('#stHost').value = t.host||''; $('#stPort').value = t.port||'';
+  $('#stUser').value = t.user||''; $('#stShare').value = t.share||'';
+  $('#stMount').value = t.mountpoint||''; $('#stIdent').value = t.identity||'';
+  $('#stCred').value = t.credentials_file||'';
+  $('#stVerify').checked = t.verify !== false;
+  const s = STORAGE.schedule||{mode:'after_settle'};
+  $('#stMode').value = s.mode||'after_settle';
+  if(s.at) $('#stAt').value = s.at;
+  if(s.window_min) $('#stWin').value = s.window_min;
+  stSyncFields();
+  renderStorageStatus();
+}
+
+function renderStorageStatus(){
+  const st = (STATE&&STATE.storage)||{}, r = (STORAGE&&STORAGE.ready)||null;
+  const held = (st.retention_held||[]).length;
+  $('#stDisk').innerHTML = st.free_gb==null ? '—' :
+    `<b>${st.free_gb} GB free</b> of ${st.total_gb} GB (${st.free_pct}%) · keeping ${st.keep_nights} nights`
+    + (held ? `<br><span class="bad">⚠ retention HELD on ${held} night(s)</span> — ${esc(st.retention_held_reason||'')}` : '');
+  const u = (STORAGE&&STORAGE.mount_unit)||null;
+  $('#stUnitCard').style.display = u ? '' : 'none';
+  if(u){
+    $('#stUnitWhy').textContent = 'Vigil runs unprivileged and cannot mount a network filesystem itself. '
+      + 'Install this once as root; after that Vigil verifies it is really mounted before writing.';
+    $('#stSteps').innerHTML = (u.steps||[]).map(s=>`<div>$ ${esc(s)}</div>`).join('');
+    $('#stUnit').textContent = u.unit;
+  }
+  if(r) $('#stMsg').innerHTML = r.ready ? '<span class="ok">target ready</span>'
+                                        : `<span class="bad">${esc(r.reason||'not ready')}</span>`;
+}
+
+function stBody(){
+  const p = $v('stProto'), kind = stKind();
+  const t = {protocol:p, verify:$('#stVerify').checked};
+  if(p!=='local'){ t.host=$v('stHost').trim(); if($v('stPort')) t.port=Number($v('stPort')); t.share=$v('stShare').trim(); }
+  if(kind==='mount') t.mountpoint=$v('stMount').trim();
+  if($v('stUser').trim()) t.user=$v('stUser').trim();
+  if($v('stIdent').trim()) t.identity=$v('stIdent').trim();
+  if($v('stCred').trim()) t.credentials_file=$v('stCred').trim();
+  const sched = {mode:$v('stMode')};
+  if(sched.mode==='daily'){ sched.at=$v('stAt'); sched.window_min=Number($v('stWin'))||120; }
+  return {enabled:true, target:t, schedule:sched};
+}
+
+async function saveStorage(btn){
+  btn.disabled = true; $('#stMsg').textContent = 'saving…';
+  try{
+    const r = await api('/api/storage',{method:'POST',headers:{'content-type':'application/json'},
+                                        body:JSON.stringify(stBody())});
+    if(!r.ok){ $('#stMsg').innerHTML = `<span class="bad">${esc(r.error||'failed')}</span>`; return; }
+    STORAGE = r; renderStorageStatus();
+    $('#stMsg').innerHTML = '<span class="ok">saved</span>';
+  }catch(e){ $('#stMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; }
+  finally{ btn.disabled = false; }
+}
+
+async function testStorage(btn){
+  btn.disabled = true; $('#stMsg').textContent = 'testing…';
+  try{
+    const r = await api('/api/storage/test',{method:'POST',headers:{'content-type':'application/json'},
+                                             body:JSON.stringify({target:stBody().target})});
+    $('#stMsg').innerHTML = r.ok ? `<span class="ok">${esc(r.detail||'reachable')}</span>`
+                                 : `<span class="bad">${esc(r.detail||r.error||'unreachable')}</span>`;
+  }catch(e){ $('#stMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; }
+  finally{ btn.disabled = false; }
+}
+
+// Sidebar pill — visible in EVERY view, because the two states that lose data (target not ready,
+// retention held) are exactly the ones nobody goes looking for.
+function renderStoragePill(st){
+  st = st || {};
+  const held = (st.retention_held||[]).length;
+  const pill = $('#storePill'), txt = $('#storeText');
+  if(!pill) return;
+  let cls = 'idle', label = 'Storage —';
+  if(st.free_gb != null){
+    if(held){ cls='bad'; label = `Retention held · ${held}`; }
+    else if(st.low){ cls='warn'; label = `Disk low · ${st.free_gb} GB`; }
+    else { cls='ok'; label = `${st.free_gb} GB free`; }
+  }
+  pill.className = 'data-pill ' + cls; txt.textContent = label;
+  $('#storeFree').textContent = st.free_pct!=null ? `${st.free_pct}% free · keep ${st.keep_nights}` : '';
+  const a = (STATE&&STATE.archive)||null;
+  $('#storeTarget').textContent = held ? 'nothing confirmed off-box' : (a&&a.last ? `last off-box: ${a.last}` : '');
+  const b = $('#navStoreN');
+  if(b){ b.style.display = held ? '' : 'none'; b.textContent = held; }
 }
 // Refresh the clock/NTP readout only while the Devices view is open.
 let _clkTimer = null;
@@ -654,6 +856,7 @@ setInterval(tick,1000); tick();
 // ══ State + device roster ══
 async function loadState(){
   const s = await api('/api/state');
+  STATE = s;
   STREAMS = s.streams || [];
   DEVICES = s.devices || [];
   ADAPTER_MAC = s.adapter || '';
@@ -669,6 +872,7 @@ async function loadState(){
   const nd=$('#navDevN'); nd.style.display = conn?'inline-block':'none'; nd.textContent = conn;
   renderSideStats();          // sidebar counters: every view, not just Overview
   renderBoxHealth(s.storage, s.qc, s.host);
+  renderStoragePill(s.storage);   // sidebar: visible in every view
   renderDownload(DEVICES);
   renderRemembered(DEVICES);
   renderStreamSel();

@@ -255,3 +255,175 @@ def test_grant_warning_names_the_file_and_the_safe_destination(tmp_path):
 def test_grant_warning_is_silent_for_a_safe_helper(monkeypatch, tmp_path):
     monkeypatch.setattr(helper_path, "is_safely_owned", lambda _p: True)
     assert helper_path.grant_warning(str(tmp_path / "h.sh")) is None
+
+
+# ── STRATUM FAIL-OPEN (VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §3) ───────────────────────────────
+# `read_state` parsed Stratum with `.isdigit()`, so any non-integer form became None and fell into
+# classify()'s "synchronised; stratum not yet reported" branch — which TRUSTS. That is a fail-OPEN
+# on the one field gating absolute-time trust. A REPORTED-but-unreadable stratum is now holdover;
+# a genuinely ABSENT one keeps the documented benefit of the doubt.
+
+def _synced(**kw):
+    base = {"available": True, "ntp_enabled": True, "synchronized": True, "ignored": False}
+    base.update(kw)
+    return base
+
+
+def test_unparseable_stratum_is_holdover_not_trusted():
+    v = hc.classify(_synced(stratum=None, stratum_unparsed=True))
+    assert v["trust"] == "holdover"
+    assert v["absolute_ok"] is False
+    assert "parse" in v["reason"].lower()
+
+
+def test_absent_stratum_still_gets_the_benefit_of_the_doubt():
+    """systemd clears NTPMessage on restart, so absent-but-synchronised is a real, benign state."""
+    v = hc.classify(_synced(stratum=None))
+    assert v["trust"] == "disciplined" and v["absolute_ok"] is True
+
+
+def test_read_state_flags_a_reported_but_unreadable_stratum():
+    """The parse and the verdict must agree — this is the seam the fail-open lived in."""
+    for raw, want_unparsed in (("16", False), ("4", False), ("16.0", False), ("n/a", True), ("", False)):
+        msg = hc.parse_ntp_message(f"{{ Stratum={raw}, Reference=PPS }}" if raw else "{ Reference=PPS }")
+        num = hc._num(msg.get("Stratum"))
+        unparsed = bool((msg.get("Stratum") or "").strip()) and num is None
+        assert unparsed is want_unparsed, f"Stratum={raw!r} -> unparsed={unparsed}"
+
+
+def test_float_stratum_is_read_rather_than_discarded():
+    """`16.0` is a legible stratum 16 — it must land as UNSYNCHRONISED, not as 'not reported'."""
+    msg = hc.parse_ntp_message("{ Stratum=16.0, Reference=PPS }")
+    num = hc._num(msg.get("Stratum"))
+    assert num == 16.0
+    v = hc.classify(_synced(stratum=int(num)))
+    assert v["trust"] == "holdover", "stratum 16 is RFC 5905 unsynchronised"
+
+
+def test_packet_count_tolerates_a_suffixed_form():
+    assert hc._num("36") == 36.0
+    assert hc._num("36 packets") == 36.0
+    assert hc._num("n/a") is None
+
+
+# ── chrony reader (VIGIL-CHRONY-CLOCK-READER) ──────────────────────────────────────────────────
+# Ubuntu Server and RHEL default to chrony, on which `timedatectl show-timesync` returns nothing.
+# Without this reader the daemon still grades the host `disciplined` — but through the weakest branch
+# ("synchronised; stratum not yet reported"), believing systemd's flag with none of the evidence.
+
+CHRONY_TRACKING = """Reference ID    : C0A8007B (192.168.0.123)
+Stratum         : 2
+Ref time (UTC)  : Sun Jul 26 01:07:19 2026
+System time     : 0.000000123 seconds fast of NTP time
+Last offset     : +0.000001234 seconds
+RMS offset      : 0.000002345 seconds
+Frequency       : 12.345 ppm slow
+Residual freq   : +0.001 ppm
+Skew            : 0.123 ppm
+Root delay      : 0.000456789 seconds
+Root dispersion : 0.001052000 seconds
+Update interval : 64.2 seconds
+Leap status     : Normal
+"""
+
+
+def test_chrony_stratum_is_normalised_to_the_SERVER_stratum():
+    """THE subtlety. timedatectl's NTPMessage.Stratum is the SERVER's; chronyc tracking's is THIS
+    HOST's (= server + 1). Mixing them would silently shift MAX_TRUSTED_STRATUM by one hop and make
+    the two readers disagree about an identical clock."""
+    ch = hc.parse_chrony_tracking(CHRONY_TRACKING)
+    assert ch["stratum"] == 1, "a client of a stratum-1 server syncs to a stratum-1 SOURCE"
+    assert ch["host_stratum"] == 2, "chrony's own number is kept verbatim so the -1 stays auditable"
+
+
+def test_both_readers_grade_an_identical_clock_identically():
+    """The gate that makes the normalisation trustworthy rather than merely documented."""
+    via_chrony = hc.classify({"available": True, "ntp_enabled": True, "synchronized": True,
+                              "ignored": False, **hc.parse_chrony_tracking(CHRONY_TRACKING)})
+    msg = hc.parse_ntp_message("{ Leap=0, Stratum=1, Reference=PPS, Jitter=170us }")
+    via_timesyncd = hc.classify({"available": True, "ntp_enabled": True, "synchronized": True,
+                                 "ignored": False, "stratum": int(msg["Stratum"])})
+    assert via_chrony["trust"] == via_timesyncd["trust"] == "disciplined"
+    assert via_chrony["absolute_ok"] is via_timesyncd["absolute_ok"] is True
+
+
+def test_chrony_units_are_converted_to_the_shared_shape():
+    ch = hc.parse_chrony_tracking(CHRONY_TRACKING)
+    assert ch["root_dispersion_ms"] == 1.052, "chrony prints seconds; the state carries ms"
+    assert ch["jitter_us"] == 2.3, "RMS offset seconds -> us"
+    assert ch["reference"] == "192.168.0.123"
+
+
+def test_a_reference_clock_is_not_reported_as_a_server():
+    ch = hc.parse_chrony_tracking("Reference ID    : 50505300 (PPS)\nStratum         : 1\n")
+    assert ch["reference"] == "PPS"
+    assert ch["server"] is None, "a refclock name is not a server address"
+    assert ch["stratum"] == 1, "a host holding its own refclock is clamped to 1, never 0"
+
+
+def test_chrony_with_no_source_is_unsynchronised_not_stratum_zero():
+    ch = hc.parse_chrony_tracking("Reference ID    : 00000000 ()\nStratum         : 0\n"
+                                  "Leap status     : Not synchronised\n")
+    assert ch["stratum"] is None
+    assert ch["leap_ok"] is False
+
+
+def test_chrony_leap_not_synchronised_overrides_a_stale_systemd_flag(monkeypatch):
+    """chrony knows it lost its sources before NTPSynchronized catches up; believe the daemon that is
+    actually steering the clock."""
+    async def fake(*args, timeout=4.0):
+        if "show-timesync" in args:
+            return 0, ""
+        if args[0] == "chronyc":
+            return 0, "Reference ID    : 00000000 ()\nStratum : 0\nLeap status : Not synchronised\n"
+        return 0, "NTP=yes\nNTPSynchronized=yes\n"
+    monkeypatch.setattr(hc, "_run", fake)
+    st = _run(hc.read_state())
+    assert st["synchronized"] is False and st["trust"] == "holdover"
+
+
+def test_read_state_uses_chrony_when_timesyncd_is_silent(monkeypatch):
+    async def fake(*args, timeout=4.0):
+        if "show-timesync" in args:
+            return 0, ""                      # chrony box: timesyncd interface says nothing
+        if args[0] == "chronyc":
+            return 0, CHRONY_TRACKING
+        return 0, "NTP=yes\nNTPSynchronized=yes\n"
+    monkeypatch.setattr(hc, "_run", fake)
+    st = _run(hc.read_state())
+    assert st["time_source"] == "chrony"
+    assert st["stratum"] == 1 and st["host_stratum"] == 2
+    assert st["server"] == "192.168.0.123" and st["root_dispersion_ms"] == 1.052
+    assert st["trust"] == "disciplined" and st["absolute_ok"] is True
+    assert "stratum 1" in st["reason"], "the verdict must cite the evidence, not just the flag"
+
+
+def test_timesyncd_still_wins_when_it_has_an_ntp_message(monkeypatch):
+    """No regression: a timesyncd box must not start shelling out to chronyc."""
+    calls = []
+    async def fake(*args, timeout=4.0):
+        calls.append(args[0])
+        if "show-timesync" in args:
+            return 0, f"ServerName=time.cloudflare.com\nNTPMessage={NTP_BLOB}\n"
+        return 0, "NTP=yes\nNTPSynchronized=yes\n"
+    monkeypatch.setattr(hc, "_run", fake)
+    st = _run(hc.read_state())
+    assert st["time_source"] == "timesyncd" and st["stratum"] == 2
+    assert "chronyc" not in calls, "chrony is only consulted when timesyncd reported nothing"
+
+
+def test_neither_daemon_readable_is_still_a_safe_verdict(monkeypatch):
+    async def fake(*args, timeout=4.0):
+        if args[0] == "chronyc":
+            return 127, ""
+        return 0, "NTP=yes\nNTPSynchronized=yes\n" if "show-timesync" not in args else ""
+    monkeypatch.setattr(hc, "_run", fake)
+    st = _run(hc.read_state())
+    assert st["time_source"] is None
+    assert st["trust"] == "disciplined", "systemd's own flag is still believed, and says so"
+    assert "not yet reported" in st["reason"]
+
+
+def test_parse_chrony_tracking_never_raises_on_junk():
+    for junk in ("", "garbage", ":::", "Stratum : notanumber\n", "Reference ID : \n"):
+        assert isinstance(hc.parse_chrony_tracking(junk), dict)

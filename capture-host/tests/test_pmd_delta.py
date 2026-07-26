@@ -96,3 +96,83 @@ def test_truncated_delta_frame_returns_empty_not_indexerror():
 
 def test_zero_length_delta_payload_returns_empty():
     assert pmd._decode_delta(b"", channels=3, ref_bits=16) == []
+
+
+# ── A PART-DECODED DELTA FRAME IS A GAP, NEVER A GUESS (VIGIL-HARDENING-III §1) ────────────────
+# Every guard in _decode_delta abandons a frame PART-WAY. decode_frame back-times from `last_ns` —
+# the stamp of the frame's LAST sample — so the survivors of a truncated frame used to be stamped as
+# if they were the frame's tail. Measured on the 10→5 case below: 96.2 ms late at 52 Hz, growing with
+# how much was lost. Right values, fabricated times; the Clock Contract forbids exactly that.
+
+import datetime as _dt
+import struct as _struct
+
+import pytest
+
+
+def _enc_delta(meas, last_ns, channels, ref_bits, ref, blocks):
+    """Build a real PMD delta frame: header + reference sample + [dsize][count][deltas...] blocks."""
+    bits = []
+    def put(v, n, signed=True):
+        if signed and v < 0:
+            v += 1 << n
+        for i in range(n):
+            bits.append((v >> i) & 1)
+    for c in ref:
+        put(c, ref_bits)
+    for dsize, count, deltas in blocks:
+        while len(bits) % 8:            # block headers are byte-aligned
+            bits.append(0)
+        put(dsize, 8, False)
+        put(count, 8, False)
+        for d in deltas:
+            put(d, dsize)
+    while len(bits) % 8:
+        bits.append(0)
+    payload = bytearray(len(bits) // 8)
+    for i, b in enumerate(bits):
+        if b:
+            payload[i >> 3] |= 1 << (i & 7)
+    return bytes([meas]) + _struct.pack("<Q", last_ns) + bytes([0x80]) + bytes(payload)
+
+
+_ARR = _dt.datetime(2026, 7, 25, 2, 0, 0)
+_LAST = 800_000_000_000_000_000
+_FS = 52.0
+
+
+def test_a_clean_delta_frame_still_decodes_and_ends_on_last_ns():
+    frame = _enc_delta(pmd.ACC, _LAST, 3, 16, (100, 200, 300), [(4, 9, [1, 1, 1] * 9)])
+    meas, s = pmd.decode_frame(frame, _ARR, fs=_FS)
+    assert meas == pmd.ACC and len(s) == 10
+    assert s[-1].sensor_ns == _LAST, "the last sample carries the frame's own device stamp"
+    assert s[0].sensor_ns == _LAST - round(9 * 1e9 / _FS), "9 steps back for a 10-sample frame"
+
+
+def test_a_truncated_delta_frame_is_dropped_not_mis_stamped():
+    """THE regression: the 5 survivors were stamped as samples 6-10 of a 10-sample frame."""
+    frame = _enc_delta(pmd.ACC, _LAST, 3, 16, (100, 200, 300),
+                       [(4, 4, [1, 1, 1] * 4), (99, 5, [1, 1, 1] * 5)])  # dsize 99 > ref_bits ⇒ corrupt
+    with pytest.raises(ValueError, match="truncated"):
+        pmd.decode_frame(frame, _ARR, fs=_FS)
+
+
+def test_the_truncation_flag_is_set_only_when_samples_were_lost():
+    clean = _enc_delta(pmd.ACC, _LAST, 3, 16, (1, 2, 3), [(4, 6, [1, 1, 1] * 6)])
+    _out, trunc = pmd._decode_delta_ex(clean[10:], channels=3, ref_bits=16)
+    assert trunc is False, "a fully-consumed frame is not truncated"
+    bad = _enc_delta(pmd.ACC, _LAST, 3, 16, (1, 2, 3), [(4, 3, [1, 1, 1] * 3), (99, 4, [1, 1, 1] * 4)])
+    out2, trunc2 = pmd._decode_delta_ex(bad[10:], channels=3, ref_bits=16)
+    assert trunc2 is True and len(out2) == 4, "reference + 3 deltas survived, then it stopped"
+
+
+def test_a_frame_yielding_nothing_is_not_flagged_truncated():
+    """Nothing decoded ⇒ nothing to mis-place ⇒ already a gap; it must not raise."""
+    out, trunc = pmd._decode_delta_ex(b"\x01\x02", channels=3, ref_bits=16)
+    assert out == [] and trunc is False
+
+
+def test_the_legacy_helper_still_returns_a_bare_list():
+    """_decode_delta is the back-compat wrapper every known-answer test above calls."""
+    got = pmd._decode_delta(GYRO_FRAME[10:], channels=3, ref_bits=16)
+    assert isinstance(got, list) and got and isinstance(got[0], tuple)

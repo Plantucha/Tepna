@@ -16,13 +16,14 @@
 #   GET  /api/stream/{key}     -> Server-Sent-Events live waveform (one stream)
 
 from __future__ import annotations
-import asyncio, hmac, json, logging, os, re
+import asyncio, hmac, json, logging, os, re, tempfile
 from aiohttp import web
 import yaml
 import bonding
 import clockcfg
 import offline_lock
 import polar_psftp
+import storage_targets
 import settings_schema
 from writers import missing_identity
 
@@ -36,7 +37,14 @@ _MAC_RE = re.compile(r'^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$')
 
 
 def _valid_mac(a) -> bool:
-    return isinstance(a, str) and bool(_MAC_RE.match(a))
+    # fullmatch, NOT match: Python's `$` also matches just BEFORE a trailing newline, so
+    # "AA:BB:CC:DD:EE:FF\n" passed the anchored pattern. Not a command injection — `$` permits only a
+    # LONE trailing newline with nothing after it, so the worst it put into bonding's bluetoothctl
+    # script was a blank line — but /api/remember persists the address to config.yaml, and an address
+    # with a trailing newline never matches a real BLE address again. That is precisely the failure
+    # writers.IDENTITY_FIELDS exists to stop: "remembered ✓", then silently never captured, for the
+    # rest of the box's life (VIGIL-HARDENING-III §2).
+    return isinstance(a, str) and bool(_MAC_RE.fullmatch(a))
 
 
 async def _body(req) -> dict:
@@ -128,6 +136,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             "qc": status.get("qc"),
             # Boot/adapter facts: uptime (a moved started_at = a spurious restart) + a mis-pin flag.
             "host": status.get("host"),
+            # Offload result, so the sidebar pill can say whether anything actually left the box.
+            "archive": status.get("archive"),
         })
 
     async def scan(_req):
@@ -235,13 +245,51 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "detail": repr(e)}, status=500)
 
     def _save() -> bool:
+        """Persist config.yaml ATOMICALLY — write a sibling temp, fsync, then os.replace.
+
+        This used to be `open(cfg_path, "w")`, which TRUNCATES before it writes. A failure partway —
+        a full disk (the box was at 13.2 % free on 2026-07-25), a power cut, a kill — left config.yaml
+        truncated or empty, and the `except` below could not undo it: by the time it ran, the only copy
+        was already destroyed. Returning ok:false does not restore a file.
+
+        The blast radius is the whole appliance and it is SILENT: capture.py reads the config exactly
+        once, at startup, so a corrupted file changes nothing until the next restart — and then the
+        daemon either fails to parse it or comes up with an empty device list and records nothing, all
+        night, with no error at the time of the damage.
+
+        os.replace() is atomic on POSIX, so a reader sees either the whole old file or the whole new
+        one. The directory fsync is what makes the rename itself survive a power loss (fsyncing the
+        file alone leaves the directory entry unflushed). Failure at ANY step leaves the original
+        untouched and reports false. (VIGIL-DEEP-ANALYSIS §2A kept the honest return value; this fixes
+        the thing it was reporting on.)"""
+        d = os.path.dirname(os.path.abspath(cfg_path)) or "."
+        tmp = None
         try:
-            with open(cfg_path, "w") as f:
+            fd, tmp = tempfile.mkstemp(prefix=".config.", suffix=".yaml.tmp", dir=d)
+            with os.fdopen(fd, "w") as f:
                 yaml.safe_dump(cfg, f, sort_keys=False, default_flow_style=False)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, cfg_path)          # atomic: readers see old-or-new, never a partial file
+            tmp = None
+            try:                               # make the RENAME durable, not just the bytes
+                dfd = os.open(d, os.O_RDONLY)
+                try:
+                    os.fsync(dfd)
+                finally:
+                    os.close(dfd)
+            except OSError:                    # some filesystems refuse a directory fsync; the replace
+                pass                           # already happened and is still atomic
             return True
         except Exception as e:   # a full/read-only disk must NOT report ok:true (VIGIL-DEEP-ANALYSIS §2A)
             _log.warning("config write failed: %r", e)
             return False
+        finally:
+            if tmp and os.path.exists(tmp):
+                try:
+                    os.unlink(tmp)             # never leave a stray .config.*.yaml.tmp behind
+                except OSError:
+                    pass
 
     # ── Clock / NTP / timezone (Clock Contract §🔒 — the box's wall clock stamps every capture) ──
     _clock_sudo = (cfg.get("clock") or {}).get("sudo", True)
@@ -404,6 +452,74 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             _save()
         return web.json_response({"ok": True, "changed": changed, "restart_needed": restart_needed})
 
+    # ── Storage / offload target (STORAGE-OFFLOAD-TARGETS) ──────────────────────────────────────
+    # The box has a small SSD, so finished nights have to leave. This surface owns WHERE they go and
+    # WHEN. It stores no secret: `storage_targets.validate` refuses a password field outright, so
+    # nothing here can put one in config.yaml (world-readable) or echo one back over the LAN.
+
+    def _storage_cfg() -> dict:
+        a = cfg.get("archive") or {}
+        tgt = a.get("target") or None
+        out = {"enabled": bool(a.get("enabled")), "target": tgt,
+               "schedule": a.get("schedule") or {"mode": "after_settle"},
+               "poll_sec": a.get("poll_sec", 3600),
+               "protocols": storage_targets.describe(),
+               "last": a.get("_last_result") or status.get("archive", {}).get("last"),
+               "status": status.get("archive", {})}
+        if tgt:
+            try:
+                out["ready"] = storage_targets.dest_status(tgt)
+                if (tgt.get("kind") or "") == "mount" and tgt.get("protocol") != "local":
+                    out["mount_unit"] = storage_targets.mount_unit(tgt)
+            except storage_targets.StorageError as e:
+                out["ready"] = {"ready": False, "path": None, "reason": str(e)}
+        return out
+
+    async def storage_get(_req):
+        return web.json_response(_storage_cfg())
+
+    async def storage_post(req):
+        """Persist the offload target + schedule. Validated BEFORE anything is written, so a rejected
+        target leaves the previous one running rather than half-applying."""
+        body = await _body(req)
+        try:
+            tgt = storage_targets.validate(body["target"]) if body.get("target") else None
+            sched = storage_targets.validate_schedule(body.get("schedule"))
+        except storage_targets.StorageError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=400)
+        except (KeyError, TypeError) as e:
+            return web.json_response({"ok": False, "error": f"malformed body: {e}"}, status=400)
+        a = cfg.setdefault("archive", {})
+        a["enabled"] = bool(body.get("enabled", True)) and tgt is not None
+        a["schedule"] = sched
+        if tgt is not None:
+            a["target"] = tgt
+            # `dest` stays the single path the mirror writes to, so nightarchive + the retention gate
+            # are unchanged: a mount target IS its mountpoint; a transfer target stages nowhere and is
+            # pushed from the captures dir directly.
+            if tgt["kind"] == "mount":
+                a["dest"] = tgt["mountpoint"]
+            else:
+                a.pop("dest", None)
+        else:
+            a.pop("target", None)
+        if not _save():
+            return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
+        return web.json_response({"ok": True, **_storage_cfg()})
+
+    async def storage_test(req):
+        """Probe a target WITHOUT saving it, so the operator finds a wrong key or path here rather than
+        at 03:00 when a night is waiting to leave."""
+        body = await _body(req)
+        try:
+            tgt = storage_targets.validate(body.get("target") or (cfg.get("archive") or {}).get("target"))
+        except storage_targets.StorageError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=400)
+        try:
+            return web.json_response(await storage_targets.test_target(tgt))
+        except Exception as e:      # a probe must never 500 the monitor
+            return web.json_response({"ok": False, "detail": f"{type(e).__name__}: {e}"})
+
     async def timesync(req):
         """Set ONE device's internal clock from the host. Polar only — the O2Ring already re-syncs its
         RTC on every connect (oxyii 0xC0), so there is nothing manual to do there and we say so rather
@@ -495,6 +611,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/pull", pull_stored_h),
         web.get("/api/settings", settings_get),
         web.post("/api/settings", settings_post),
+        web.get("/api/storage", storage_get),
+        web.post("/api/storage", storage_post),
+        web.post("/api/storage/test", storage_test),
         web.post("/api/timesync", timesync),
         web.post("/api/timesync/all", timesync_all),
         web.get("/api/polar/recordings", polar_recordings),

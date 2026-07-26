@@ -65,17 +65,34 @@ def test_active_nights_cross_midnight_returns_both(tmp_path):
     assert diskguard.active_nights(str(cap), 600, _now=lambda: now) == {"2026-07-18", "2026-07-19"}
 
 
-def test_active_nights_skips_a_night_that_cannot_be_listed(tmp_path, monkeypatch):
-    """A night that vanishes (or denies listing) mid-scan is simply 'not active', never a crash."""
-    cap = tmp_path / "captures"
-    _mk_nights(str(cap), ["2026-07-19"])
+def _flaky_listdir(monkeypatch, night, exc):
     real_listdir = os.listdir
     def flaky(path):
-        if path.endswith("2026-07-19"):
-            raise OSError("gone")                              # the inner per-night scan explodes
+        if path.endswith(night):
+            raise exc                                          # the inner per-night scan explodes
         return real_listdir(path)
     monkeypatch.setattr(diskguard.os, "listdir", flaky)
+
+
+def test_active_nights_vanished_night_is_not_active(tmp_path, monkeypatch):
+    """A night that genuinely disappeared mid-scan is not being written to. Never a crash."""
+    cap = tmp_path / "captures"
+    _mk_nights(str(cap), ["2026-07-19"])
+    _flaky_listdir(monkeypatch, "2026-07-19", FileNotFoundError("gone"))
     assert diskguard.active_nights(str(cap), 600) == set()
+
+
+def test_active_nights_unreadable_night_is_PROTECTED_not_skipped(tmp_path, monkeypatch):
+    """Changed deliberately 2026-07-25 (VIGIL-HARDENING-II §1.2). This asserted `== set()` for a bare
+    OSError, i.e. it PINNED a fail-open: the only consumer of this set is the protect-list for pruning,
+    so an unreadable night looked settled and therefore prunable — the doubt licensed the delete.
+    EACCES/EIO/EMFILE all land here, and EIO on a failing disk is exactly when this runs hot."""
+    cap = tmp_path / "captures"
+    _mk_nights(str(cap), ["2026-07-19"])
+    for exc in (PermissionError("denied"), OSError("EIO"), OSError(24, "Too many open files")):
+        _flaky_listdir(monkeypatch, "2026-07-19", exc)
+        assert diskguard.active_nights(str(cap), 600) == {"2026-07-19"}, (
+            f"an unreadable night must be protected, not swept ({exc!r})")
 
 
 def test_active_nights_missing_dir_is_empty():

@@ -227,14 +227,31 @@ def _i24(b: bytes, o: int) -> int:
 
 
 def _decode_delta(payload: bytes, channels: int, ref_bits: int) -> list[tuple]:
+    """Polar PMD compressed/delta frame — see _decode_delta_ex. Returns only the samples, so every
+    existing caller and known-answer test is unaffected."""
+    return _decode_delta_ex(payload, channels, ref_bits)[0]
+
+
+def _decode_delta_ex(payload: bytes, channels: int, ref_bits: int) -> tuple[list[tuple], bool]:
     """Polar PMD compressed/delta frame (frame_type high bit 0x80). Layout: one full reference sample
     (`channels` × `ref_bits` signed, LSB-first) then repeated blocks — [deltaSize:u8][sampleCount:u8]
     followed by sampleCount×channels deltas of `deltaSize` bits (signed), each accumulated onto the
-    running sample. Bit-packed LSB-first (Polar convention). Verified against real Verity PPG frames."""
+    running sample. Bit-packed LSB-first (Polar convention). Verified against real Verity PPG frames.
+
+    Returns `(samples, truncated)`. **`truncated` is a Clock-Contract obligation, not diagnostics.**
+    Every `break`/early-`return` below abandons a frame PART-WAY, and `decode_frame` back-times from
+    `last_ns` — the stamp of the frame's LAST sample, which in that case was never decoded. The
+    survivors would therefore be stamped as if they were the frame's tail: measured on a synthetic
+    10-sample ACC frame truncated to 5, every survivor lands **96.2 ms late** at 52 Hz, and the error
+    grows with how much of the frame was lost. Real samples at fabricated times is exactly what the
+    Clock Contract forbids, so decode_frame drops such a frame instead of placing it wrongly.
+
+    True ONLY when samples were decoded AND the frame ended early — a frame that yields nothing is
+    already a gap and needs no special handling."""
     pos = 0
     nbits_total = len(payload) * 8
     if channels * ref_bits > nbits_total:   # truncated frame: not even one full reference sample
-        return []                            # (VIGIL-DEEP-ANALYSIS §2C) — never IndexError into the callback
+        return [], False                     # (VIGIL-DEEP-ANALYSIS §2C) — never IndexError into the callback
 
     def read(nbits: int, signed: bool) -> int:
         nonlocal pos
@@ -260,7 +277,7 @@ def _decode_delta(payload: bytes, channels: int, ref_bits: int) -> list[tuple]:
         if pos % 8:
             pos += 8 - (pos % 8)
         if pos + 16 > nbits_total:  # pragma: no cover — unreachable: the `while pos+16<=nbits_total`
-            break                   # guard plus a realign that only rounds pos UP toward N-16 means
+            return out, True        # guard plus a realign that only rounds pos UP toward N-16 means
                                     # pos+16 can never exceed N here. Kept as a defensive belt.
         delta_size = read(8, False)
         count = read(8, False)
@@ -269,9 +286,9 @@ def _decode_delta(payload: bytes, channels: int, ref_bits: int) -> list[tuple]:
         # was misread (a corrupt/misaligned Verity frame), and reading e.g. a 200-bit "delta" is exactly
         # what produced the sparse 1e38 float-garbage rows downstream (0.41% of MAG, measured 2026-07-18).
         if delta_size == 0 or count == 0 or delta_size > ref_bits:
-            break
+            return out, True
         if pos + count * channels * delta_size > nbits_total:
-            break                                   # truncated block — stop, don't fabricate
+            return out, True                        # truncated block — stop, don't fabricate
         for _ in range(count):
             for ch in range(channels):
                 cur[ch] += read(delta_size, True)
@@ -279,9 +296,9 @@ def _decode_delta(payload: bytes, channels: int, ref_bits: int) -> list[tuple]:
             # cannot output it), so it is corruption, not signal. Stop here rather than emit a garbage row
             # — a downstream node with no outlier clamp otherwise blows up (MotionDex movement index 1.5e34).
             if any(c < -limit or c >= limit for c in cur):
-                return out
+                return out, True
             out.append(tuple(cur))
-    return out
+    return out, False          # loop ended because the frame was fully consumed
 
 
 def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
@@ -303,25 +320,26 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
     fs = fs or SAMPLE_HZ.get(meas, 0) or 1
 
     raw: list[tuple] = []
+    truncated = False
     delta = bool(frame_type & 0x80)     # PMD high bit = compressed/delta frame
     base = frame_type & 0x7F
     if meas == ECG and delta:
-        raw = _decode_delta(payload, channels=1, ref_bits=24)
+        raw, truncated = _decode_delta_ex(payload, channels=1, ref_bits=24)
     elif meas == ECG and base == 0:
         for o in range(0, len(payload) - 2, 3):
             raw.append((_i24(payload, o),))
     elif meas == PPG and delta:                          # Verity streams delta PPG (3 LEDs + ambient)
-        raw = _decode_delta(payload, channels=4, ref_bits=24)
+        raw, truncated = _decode_delta_ex(payload, channels=4, ref_bits=24)
     elif meas == PPG and base == 0:
         for o in range(0, len(payload) - 11, 12):       # uncompressed: 3 channels + ambient, int24 each
             raw.append((_i24(payload, o), _i24(payload, o + 3), _i24(payload, o + 6), _i24(payload, o + 9)))
     elif meas == ACC and delta:
-        raw = _decode_delta(payload, channels=3, ref_bits=16)
+        raw, truncated = _decode_delta_ex(payload, channels=3, ref_bits=16)
     elif meas == ACC and base == 1:
         for o in range(0, len(payload) - 5, 6):          # int16 x,y,z (mg)
             raw.append(struct.unpack_from("<hhh", payload, o))
     elif meas in (GYRO, MAG) and delta:                  # Verity IMU streams delta frames (like PPG/ACC)
-        raw = _decode_delta(payload, channels=3, ref_bits=16)
+        raw, truncated = _decode_delta_ex(payload, channels=3, ref_bits=16)
     elif meas in (GYRO, MAG) and base == 0:
         for o in range(0, len(payload) - 5, 6):          # int16 x,y,z (gyro dps / mag gauss, raw)
             raw.append(struct.unpack_from("<hhh", payload, o))
@@ -334,6 +352,18 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
     else:
         raise ValueError(f"PMD meas={meas} frame_type={frame_type:#04x} not decoded (see SDK).")
 
+    # A PART-DECODED DELTA FRAME IS A GAP, NEVER A GUESS (VIGIL-HARDENING-III §1). Back-timing below
+    # anchors on `last_ns`, the stamp of the frame's LAST sample — which a truncated frame never
+    # decoded. Emitting the survivors would stamp them as if they were the frame's tail: measured on a
+    # 10-sample ACC frame truncated to 5, every survivor lands 96.2 ms late at 52 Hz, and the error
+    # scales with how much was lost. Their VALUES are right and their TIMES would be fabricated, which
+    # the Clock Contract forbids outright ("a dropped packet is a GAP, never fabricated rows"), and
+    # unplaceable is exactly what they are: the frame's true sample count is not recoverable once a
+    # block header is corrupt. Raise so on_pmd records it in `last_error` and drops the frame — the
+    # established visible channel — rather than letting a silent partial frame skew the timeline.
+    if truncated:
+        raise ValueError(f"PMD meas={meas} delta frame truncated after {len(raw)} sample(s) — dropped "
+                         f"(its true length is unknowable, so the survivors cannot be placed in time)")
     n = len(raw)
     out: list[Sample] = []
     ppi = (meas == PPI)                                  # PPI entries are per-beat events, not evenly spaced

@@ -35,7 +35,14 @@ def parse_rssi(text: str) -> int | None:
     if not m:
         return None
     val = int(m.group(1))
-    return val if -127 <= val <= 20 else None            # plausible BLE RSSI range; junk → None
+    # Upper bound is -1, not +20. A receiver cannot measure a POSITIVE signal strength: on an LE link
+    # HCI_Read_RSSI returns absolute dBm, and BlueZ hands back 0 (occasionally a small positive) when it
+    # has no valid measurement — a stale handle, a link being torn down. The old +20 bound let those
+    # sentinels through as if they were readings, so a night's RSSI record carried impossible values
+    # (measured 2026-07-25: 0, +1 and +8 dBm across three devices) that then poison any min/max or
+    # threshold computed over the column. Recording "unknown" is the honest answer, and this file's job
+    # is to make link quality EVIDENCE — a fabricated -0 dBm is the opposite (VIGIL-PPG-GRID-AUDIT §4).
+    return val if -127 <= val <= -1 else None            # plausible BLE RSSI range; junk → None
 
 
 def parse_hci_dev(text: str) -> dict[str, str]:

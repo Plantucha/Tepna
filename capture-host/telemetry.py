@@ -7,8 +7,10 @@
 # A dropped subscriber or a slow browser never blocks capture: the per-subscriber queue drops oldest.
 
 from __future__ import annotations
-import asyncio, collections, datetime as _dt, time
+import asyncio, collections, datetime as _dt, logging, time
 from dataclasses import dataclass
+
+log = logging.getLogger("tepna.telemetry")
 
 # ── Link-health thresholds (stream-rate side of the weak-signal warning; the RSSI side is link_rssi.py).
 # A weak/failing BLE link shows up as fewer packets than the stream's nominal rate BEFORE it fully drops —
@@ -69,6 +71,7 @@ class TelemetryBus:
         self._active: set[str] = set()   # streams that have produced data this session
         self._win: dict[str, collections.deque] = {}   # stream -> deque[(mono_ts, n_samples)] for rate calc
         self._last_mono: dict[str, float] = {}         # stream -> monotonic time of last push (stall calc)
+        self._shape_err: dict[str, str] = {}           # stream -> "declared N, got M" (channel-count breach)
 
     def _stream_rate(self, stream: str, now: float) -> tuple[float, float | None, bool]:
         """(effective_fs, age_of_last_sample_s | None, warmup) for one stream, off the trailing window."""
@@ -92,12 +95,23 @@ class TelemetryBus:
         out = []
         for m in self._meta.values():
             eff, age, warmup = self._stream_rate(m.key, now)
-            out.append({"key": m.key, "label": m.label, "unit": m.unit, "fs": m.fs,
-                        "chans": m.chans, "labels": list(m.labels),
-                        "active": m.key in self._active,
-                        "effFs": round(eff, 1),
-                        "health": stream_health(m.fs, eff, age, warmup)})
+            row = {"key": m.key, "label": m.label, "unit": m.unit, "fs": m.fs,
+                   "chans": m.chans, "labels": list(m.labels),
+                   "active": m.key in self._active,
+                   "effFs": round(eff, 1),
+                   "health": stream_health(m.fs, eff, age, warmup)}
+            # Present ONLY when breached, so a reader can treat the key's existence as the alarm and no
+            # existing consumer sees a new field on a healthy stream.
+            if m.key in self._shape_err:
+                row["shapeError"] = self._shape_err[m.key]
+            out.append(row)
         return out
+
+    def shape_errors(self) -> dict[str, str]:
+        """{stream: description} for every stream that has EVER delivered a frame whose channel count
+        contradicted its declared shape. Sticky for the life of the bus — a breach is a data-integrity
+        event, so it must not be cleared by the next well-formed frame. Empty dict == clean."""
+        return dict(self._shape_err)
 
     def register(self, key: str, label: str, unit: str, fs: float,
                  chans: int = 1, labels=()) -> None:
@@ -112,6 +126,9 @@ class TelemetryBus:
         self._active.discard(key)
         self._win.pop(key, None)
         self._last_mono.pop(key, None)
+        # `_shape_err` is deliberately NOT cleared: a breach recorded against this key is evidence about
+        # the night, and an unregister/re-register cycle (which every reconnect performs) must not be
+        # able to launder it away.
 
     def push(self, stream: str, values, fs: float | None = None):
         """Append a frame's worth of samples and broadcast to subscribers. `values` is either a flat
@@ -125,8 +142,30 @@ class TelemetryBus:
         nch = len(rows[0]) if multi else 1
         m = self._meta.get(stream)
         rate = fs or (m.fs if m else 0) or 1
-        if m:
-            m.chans = nch          # keep declared channel count in sync with reality
+        # STREAM SHAPE IS AN INVARIANT, NOT A FIELD TO REFRESH (2026-07-25). This used to do
+        # `m.chans = nch` — silently conforming the DECLARED shape to whatever arrived. A stream's
+        # channel count is fixed by the hardware (`_LIVE_META` in capture.py declares it at START:
+        # ECG 1, PPG 4, ACC/GYRO/MAG 3, PPI 2), so a frame of a different width is decoder corruption,
+        # and rewriting the metadata is precisely the "quietly normalise bad input" move this suite
+        # forbids — it makes the UI believe the sensor genuinely changed shape.
+        #
+        # Recorded and logged rather than RAISED, deliberately. `push()` is called from bleak's
+        # notification callback AFTER the durable write, and outside `on_pmd`'s try/except — a raise
+        # there escapes into the D-Bus dispatch, where it is logged and swallowed. That is quieter, not
+        # louder, and it would abort the status update while changing nothing on disk. `shape_errors()`
+        # rides `meta()` to the monitor, which is the surface a human actually watches.
+        if m and m.chans != nch:
+            prev = self._shape_err.get(stream)
+            self._shape_err[stream] = f"declared {m.chans} channel(s), frame carried {nch}"
+            if prev is None:       # once per stream — this path can run at 130 Hz
+                log.error("STREAM SHAPE BREACH on %r: %s — decoder corruption, not a shape change; "
+                          "dropping the frame from the live view and flagging the stream",
+                          stream, self._shape_err[stream])
+            # DROP the malformed frame rather than ring it. Mixing widths in one ring would hand
+            # `snapshot()` ragged rows under a single declared `chans`, so the UI would mis-plot them as
+            # if they were real. This is a live view — a corrupt frame has no value worth rendering, and
+            # the flag says so out loud. The durable file is unaffected: it was written before this call.
+            return
         # Min 64 keeps slow/event streams (spo2/pr/ppi/rr @ ~1 Hz) to a usable window, not ~12 samples.
         cap = max(64, int(self._ring_seconds * rate))
         ring = self._rings.get(stream)
