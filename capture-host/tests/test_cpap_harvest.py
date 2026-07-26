@@ -95,16 +95,35 @@ def test_short_read_detected():
     assert not ch.short_read({"name": "x", "size": ""}, 5)      # unknown size never claims a short read
 
 
-def test_due_now_fires_once_per_day_after_the_hour():
+def test_due_now_fires_only_inside_a_bounded_window():
+    """A FLOOR (`hour >= at_hour`) shipped once and was wrong. Observed live 2026-07-26: a 19:25 restart
+    re-armed a 13:00 job, and since a deferral deliberately does not consume the day it then retried
+    every 60 s — so it would have fired the moment the sensors came off at bedtime, starting a 2.4 GHz
+    transfer at the START of a night. Only the streaming interlock stood in the way."""
     d = dt.date(2026, 7, 26)
-    before = dt.datetime(2026, 7, 26, 12, 59)
-    at = dt.datetime(2026, 7, 26, 13, 0)
-    later = dt.datetime(2026, 7, 26, 23, 59)
-    assert not ch.due_now(before, 13, None)                    # too early
-    assert ch.due_now(at, 13, None)                            # due
-    assert ch.due_now(later, 13, None)                         # a late boot still catches the day
-    assert not ch.due_now(later, 13, d)                        # already ran today
-    assert ch.due_now(dt.datetime(2026, 7, 27, 13, 0), 13, d)  # next day fires again
+    at = lambda h, m=5: dt.datetime(2026, 7, 26, h, m)   # noqa: E731
+    assert not ch.due_now(at(12, 59), 13, None)          # before the window
+    assert ch.due_now(at(13), 13, None)                  # open
+    assert ch.due_now(at(14, 59), 13, None)              # still open (default 2 h)
+    assert not ch.due_now(at(15), 13, None)              # CLOSED — waits for tomorrow
+    assert not ch.due_now(at(19, 25), 13, None), "the 19:25 restart bug must not come back"
+    assert not ch.due_now(at(13), 13, d)                 # already ran today
+    assert ch.due_now(dt.datetime(2026, 7, 27, 13, 5), 13, d)   # next day reopens
+
+
+def test_due_now_window_is_configurable():
+    assert ch.due_now(dt.datetime(2026, 7, 26, 16, 0), 13, None, window_h=4)
+    assert not ch.due_now(dt.datetime(2026, 7, 26, 17, 0), 13, None, window_h=4)
+
+
+def test_nights_for_scopes():
+    """`missing` is None — every night on the card, which with skip-if-present fetches only what is
+    absent. `last` spans yesterday AND today so a session straddling midnight cannot be missed."""
+    now = dt.datetime(2026, 7, 26, 13, 5)
+    assert ch.nights_for("missing", now) is None
+    assert ch.nights_for("last", now) == {"20260725", "20260726"}
+    wk = ch.nights_for("week", now)
+    assert len(wk) == 8 and "20260719" in wk and "20260726" in wk
 
 
 def test_nine_am_would_have_missed_the_waveform():
