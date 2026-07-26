@@ -16,6 +16,16 @@ StartLimitIntervalSec=0
 Type=notify
 WatchdogSec=120
 User=tepna
+# ARM THE WATCHDOG'S RECOVERY LADDER. Without CAP_NET_ADMIN the daemon runs prevention-only: the
+# adapter watchdog's `hciconfig <hci> reset` and USB unbind/bind both fail silently, so a wedged radio
+# has NO automatic recovery — the exact 2026-07-23 failure that cost ~110 min. `startup_defense_check`
+# has been logging "capture has no CAP_NET_ADMIN" at every boot since; nothing read it, because the
+# monitor filtered on syslog priority and capture logs WARNINGs at PRIORITY=6.
+# Ambient (not just Bounding): the unit runs as an unprivileged User=, and ambient caps are the only
+# ones an unprivileged process actually keeps across exec.
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+
 Group=tepna
 WorkingDirectory=/opt/tepna/capture-host
 # Use the venv's python (see README install).
