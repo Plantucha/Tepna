@@ -80,7 +80,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now tepna-capture tepna-
 # Disable USB autosuspend on the BLE dongle (REQUIRED for RTL8761B parts, e.g. TP-Link UB500) — without
 # this the dongle firmware-wedges under load and the night is lost (VIGIL-OVERNIGHT-FINDINGS 2026-07-24).
 # The daemon prints a LOUD "STARTUP: USB autosuspend is ENABLED …" warning at boot if this step is skipped.
-sudo cp systemd/50-tepna-btdongle.rules /etc/udev/rules.d/
+sudo cp systemd/99-tepna-btdongle.rules /etc/udev/rules.d/   # 99, NOT 50: 60-autosuspend.rules would override a 50- file
 sudo udevadm control --reload && sudo udevadm trigger --action=add --attr-match=idVendor=2357
 # (If your dongle is NOT a UB500, edit idVendor/idProduct in the .rules to match `lsusb`, and disable
 #  autosuspend on it too — most USB BT dongles dislike it.)
