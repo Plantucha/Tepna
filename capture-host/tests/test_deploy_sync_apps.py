@@ -130,3 +130,102 @@ def test_install_services_no_longer_writes_its_own_caddyfile():
     body = open(os.path.join(HERE, "deploy", "install-services.sh"), encoding="utf-8").read()
     assert "cat > /etc/caddy/Caddyfile" not in body, "install-services.sh must not own the web config"
     assert "expose-monitor.sh" in body, "it must point at the tool that does"
+
+
+# ══ /etc DRIFT (2026-07-26) ═══════════════════════════════════════════════════════════════════
+# Same rot as the served bundles, one directory over. On that date the installed udev rule was two
+# fixes behind the repo and a hot-plugged adapter spent the evening with autosuspend live — while
+# `systemctl status` was green, because the file was present and only its CONTENT was stale.
+#
+# It is a CHECKER, not a fixer, and that distinction is load-bearing:
+#     repo  tepna-capture.service : User=tepna  ReadWritePaths=/srv/tepna
+#     box   /etc/systemd/system/  : User=vigil  ReadWritePaths=/srv/tepna /opt/tepna/capture-host
+# `id tepna` on the box: no such user. Syncing that file would leave capture unable to start and
+# revoke the write access webmon needs for config.yaml.
+CHK = os.path.join(HERE, "deploy", "check-system-files.sh")
+
+
+def _chk(src, systemd, udev, *args):
+    return subprocess.run(["bash", CHK, *args], capture_output=True, text=True,
+                          env={**os.environ, "TEPNA_SRC": str(src),
+                               "TEPNA_ETC_SYSTEMD": str(systemd), "TEPNA_ETC_UDEV": str(udev)})
+
+
+def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
+    src = tmp_path / "capture-host" / "systemd"
+    src.mkdir(parents=True)
+    systemd = tmp_path / "etc-systemd"; systemd.mkdir()
+    udev = tmp_path / "etc-udev"; udev.mkdir()
+    (src / "99-tepna-btdongle.rules").write_text('ACTION=="add", ATTR{idVendor}=="2357"\n')
+    (src / "tepna-usb-autosuspend.service").write_text("[Service]\nType=oneshot\n")
+    unit = "[Service]\nUser={u}\nGroup={u}\nReadWritePaths=/srv/tepna\nExecStart=/x\n"
+    (src / "tepna-capture.service").write_text(unit.format(u=capture_user_repo))
+    (udev / "99-tepna-btdongle.rules").write_text('ACTION=="add", ATTR{idVendor}=="2357"\n')
+    (systemd / "tepna-usb-autosuspend.service").write_text("[Service]\nType=oneshot\n")
+    (systemd / "tepna-capture.service").write_text(unit.format(u=capture_user_etc))
+    return tmp_path / "capture-host", systemd, udev
+
+
+def test_a_matching_tree_is_green(tmp_path):
+    src, sd, ud = _tree(tmp_path)
+    r = _chk(src, sd, ud)
+    assert r.returncode == 0, r.stdout
+    assert "0 drifted" in r.stdout
+
+
+def test_a_stale_managed_file_goes_RED(tmp_path):
+    """THE regression: the installed udev rule two fixes behind, with nothing saying so."""
+    src, sd, ud = _tree(tmp_path)
+    (ud / "99-tepna-btdongle.rules").write_text('ACTION=="add", ATTR{idVendor}=="2357"\n# old\n')
+    r = _chk(src, sd, ud)
+    assert r.returncode == 1
+    assert "STALE" in r.stdout
+
+
+def test_a_site_customised_unit_is_NOT_reported_as_drift(tmp_path):
+    """User/Group/ReadWritePaths are the site's to set. Flagging them would make the check cry wolf
+    on every box and train the operator to ignore it."""
+    src, sd, ud = _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="vigil")
+    r = _chk(src, sd, ud)
+    assert r.returncode == 0, r.stdout
+    assert "same but for site keys" in r.stdout
+
+
+def test_a_templated_unit_that_drifts_BEYOND_the_site_keys_is_reported(tmp_path):
+    """Normalising the site keys must not blind the check to a real change in the rest of the unit."""
+    src, sd, ud = _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="vigil")
+    (sd / "tepna-capture.service").write_text(
+        "[Service]\nUser=vigil\nGroup=vigil\nReadWritePaths=/srv/tepna\nExecStart=/x\nRestart=no\n")
+    r = _chk(src, sd, ud)
+    assert r.returncode == 1
+    assert "DRIFTED beyond the site keys" in r.stdout
+
+
+def test_install_never_writes_the_templated_unit(tmp_path):
+    """The repo's copy names a user the box may not have. Writing it would stop capture."""
+    src, sd, ud = _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="vigil")
+    before = (sd / "tepna-capture.service").read_text()
+    _chk(src, sd, ud, "--install")
+    assert (sd / "tepna-capture.service").read_text() == before, \
+        "--install must never touch a site-templated unit"
+
+
+def test_install_does_replace_a_stale_managed_file(tmp_path):
+    src, sd, ud = _tree(tmp_path)
+    (ud / "99-tepna-btdongle.rules").write_text("stale\n")
+    _chk(src, sd, ud, "--install")
+    assert (ud / "99-tepna-btdongle.rules").read_text() == \
+        (src / "systemd" / "99-tepna-btdongle.rules").read_text()
+
+
+def test_a_file_missing_from_etc_is_drift_not_a_crash(tmp_path):
+    src, sd, ud = _tree(tmp_path)
+    os.remove(sd / "tepna-usb-autosuspend.service")
+    r = _chk(src, sd, ud)
+    assert r.returncode == 1
+    assert "NOT INSTALLED" in r.stdout
+
+
+def test_the_deploy_runs_the_check():
+    body = open(os.path.join(HERE, "deploy", "deploy-vigil.sh"), encoding="utf-8").read()
+    assert "check-system-files.sh" in body
