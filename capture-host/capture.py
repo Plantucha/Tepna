@@ -57,7 +57,18 @@ def _dev_tag(dev: dict) -> str:
 
 
 def _live_key(stream: str, tag: str) -> str:
-    return stream if stream in ("ecg", "ppg") else f"{stream}_{tag}"   # ecg/ppg are device-unique
+    """Bus key for a device's stream. Device-qualified UNLESS the stream can only come from one sensor.
+
+    `ppg` was in the unique set and is NOT unique any more (issue #410): the O2Ring streams a finger
+    pleth too, so both it and the Verity declare `ppg`. The Verity therefore kept the bare key, and
+    monitor.html's deviceForStream() — which falls back to "first device whose stream list contains
+    this name" — resolved it to whichever sensor sorts first. On the real box that was the ring, so the
+    Verity's PPG card showed the RING's battery and RSSI. Order-dependent, so it would silently flip if
+    config.yaml were reordered.
+
+    ECG remains genuinely device-unique (only the H10 produces it). The O2Ring's own pleth keeps its
+    distinct `o2ppg` prefix key and is unaffected."""
+    return stream if stream == "ecg" else f"{stream}_{tag}"
 
 
 # Monotonic-anchored wall clock (Clock Contract §🔒). CLOCK_MONOTONIC (via time.monotonic) measures
@@ -2201,7 +2212,8 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
                     st = STATUS["devices"].get(name, {})
                     writer.write(_now(), name, connected, st.get("rssi"), st.get("battery"),
                                  st.get("frames_dropped"), st.get("frames_duplicated"),
-                                 st.get("link_epoch"))    # E5: the reconnect count the 25 s sampling can't miss
+                                 st.get("link_epoch"),    # E5: the reconnect count the 25 s sampling can't miss
+                                 addr)                    # the identity a rename cannot break
             if do_rssi and any_link and not got_any:
                 misses += 1
                 if misses >= 3 and not idle:

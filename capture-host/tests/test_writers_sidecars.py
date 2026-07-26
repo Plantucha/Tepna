@@ -120,10 +120,12 @@ def test_link_log_layout_and_connected_flag(tmp_path):
     w.write(WHEN, "Polar H10", True, -56, 80, link_epoch=1)
     w.write(WHEN, "Polar H10", False, None, None)
     w.close()
-    # link_epoch (E5) is APPENDED last so a positional reader of the first seven columns is unaffected.
+    # link_epoch (E5) and `address` are APPENDED last so a positional reader of the earlier columns is
+    # unaffected. `address` was added 2026-07-26 because `device` is a NAME and a name is not an
+    # identity — a mid-night rename split one sensor's history in two.
     assert _lines(str(p))[0].split(";") == ["Phone timestamp", "device", "connected", "rssi_dbm",
                                             "battery_pct", "frames_dropped", "frames_duplicated",
-                                            "link_epoch"]
+                                            "link_epoch", "address"]
     up, down = (r.split(";") for r in _rows(str(p)))
     assert up[1:5] == ["Polar H10", "1", "-56", "80"]
     assert up[7] == "1", "the reconnect count is recorded"
@@ -251,3 +253,50 @@ def test_a_real_pulse_rate_of_zero_is_impossible_but_would_be_distinguishable(tm
     w.close()
     rows = p.read_text().strip().split("\n")[1:]
     assert rows[0].split(",")[2] != rows[1].split(",")[2], "absent and zero must be distinguishable"
+
+
+# ── THE LINK SIDECAR RECORDS AN IDENTITY, NOT JUST A NAME (issue #410 sibling) ─────────────────
+# `device` is the human NAME, and a name is not an identity — it is editable from the monitor. On
+# 2026-07-25 one re-pair rewrote the Verity's from "Polar Verity Sense" to "Polar Sense 0C301E3F"
+# mid-night, so ONE physical sensor was recorded under TWO keys (3 samples vs 1123) and any per-device
+# aggregate over that night silently split in half. A MAC cannot be edited and cannot collide.
+
+def test_link_row_carries_the_address(tmp_path):
+    p = tmp_path / "link.csv"
+    w = LinkLogWriter(str(p), fsync=False)
+    w.write(WHEN, "Polar Verity Sense", True, -61, 94, None, None, 3, "24:AC:AC:0C:30:1E")
+    w.close()
+    head, row = p.read_text().strip().split("\n")
+    assert head.endswith(";address"), "address must be the LAST column (never shift an existing one)"
+    assert row.split(";")[-1] == "24:AC:AC:0C:30:1E"
+
+
+def test_a_rename_leaves_the_address_stable(tmp_path):
+    """THE regression: the same sensor under two names must still group as one device."""
+    p = tmp_path / "link.csv"
+    w = LinkLogWriter(str(p), fsync=False)
+    w.write(WHEN, "Polar Verity Sense", True, -61, 94, None, None, 3, "24:AC:AC:0C:30:1E")
+    w.write(WHEN, "Polar Sense 0C301E3F", True, -63, 94, None, None, 3, "24:AC:AC:0C:30:1E")
+    w.close()
+    rows = [r.split(";") for r in p.read_text().strip().split("\n")[1:]]
+    assert len({r[1] for r in rows}) == 2, "precondition: the NAME did change"
+    assert len({r[-1] for r in rows}) == 1, "the address must group them as one device"
+
+
+def test_the_first_seven_columns_are_unshifted(tmp_path):
+    """Positional readers of the original columns must be unaffected by the append."""
+    p = tmp_path / "link.csv"
+    w = LinkLogWriter(str(p), fsync=False)
+    w.write(WHEN, "H10", True, -55, 30, 1, 2, 7, "AA:BB:CC:DD:EE:FF")
+    w.close()
+    c = p.read_text().strip().split("\n")[1].split(";")
+    assert c[1] == "H10" and c[2] == "1" and c[3] == "-55" and c[4] == "30"
+    assert c[5] == "1" and c[6] == "2" and c[7] == "7"
+
+
+def test_a_missing_address_is_blank_not_fabricated(tmp_path):
+    p = tmp_path / "link.csv"
+    w = LinkLogWriter(str(p), fsync=False)
+    w.write(WHEN, "H10", False, None, None)
+    w.close()
+    assert p.read_text().strip().split("\n")[1].split(";")[-1] == ""

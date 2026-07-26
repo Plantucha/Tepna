@@ -51,12 +51,17 @@ class StreamMeta:
     labels: tuple = ()  # per-channel labels, e.g. ("LED1","LED2","LED3","ambient") | ("X","Y","Z")
 
 
-# Device-unique base streams. Anything that can come from >1 device (ACC/GYRO/MAG/PPI) is registered
+# Device-unique base streams. Anything that can come from >1 device (ACC/GYRO/MAG/PPI/PPG) is registered
 # per-device at capture time via bus.register() with a device-qualified key, so two sensors' ACC never
 # collide on one ring.
+#
+# `ppg` was listed here and has been REMOVED (issue #410). It stopped being device-unique when the
+# O2Ring began streaming its finger pleth: two devices then declared `ppg`, the bare key went to
+# whichever the UI matched first, and the Verity's card showed the ring's battery/RSSI. Its live entry
+# is now registered as `ppg_vs` from capture.py; leaving a placeholder here would paint a permanently
+# idle "PPG" card that no device ever fills.
 DEFAULT_META = {
     "ecg":  StreamMeta("ecg",  "ECG (Polar H10)",        "µV",    130),
-    "ppg":  StreamMeta("ppg",  "PPG (Verity Sense)",     "raw",    55, 4, ("LED1", "LED2", "LED3", "ambient")),
     "spo2": StreamMeta("spo2", "SpO₂ (Wellue O2Ring)",   "%",       1),
     "pr":   StreamMeta("pr",   "Pulse rate (O2Ring)",    "bpm",     1),
 }

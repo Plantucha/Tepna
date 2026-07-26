@@ -3111,8 +3111,9 @@ def test_link_epoch_reaches_the_sidecar(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 1)
     _run(capture.rssi_poller(None, cfg, str(tmp_path)))
     link = list((tmp_path / "captures").rglob("*_LINK.csv"))[0].read_text().splitlines()
-    assert link[0].endswith("link_epoch")
+    assert link[0].endswith("link_epoch;address")   # address appended 2026-07-26, link_epoch unmoved
     assert link[1].split(";")[7] == "1", "the reconnect count is in the sidecar"
+    assert link[1].split(";")[8] == "AA", "the address travels with it — a rename must not split history"
 
 
 # ── E3 · O2Ring reconnect backoff only resets on a VIABLE session (data flowing), not on bare connect ─

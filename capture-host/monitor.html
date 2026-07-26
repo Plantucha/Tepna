@@ -696,8 +696,16 @@ function deviceForStream(key){
   // is a PREFIX form ('o2ppg'), not a '_o2' suffix, so the tag regex above never matches it. Without this
   // the o2ppg card resolved to no device at all and silently lost its RSSI + battery chips.
   const O2_DERIVED = ['pr', 'motion', 'o2ppg'];
-  return DEVICES.find(d=>(d.streams||[]).includes(base))
-      || (O2_DERIVED.includes(base) ? DEVICES.find(d=>(d.streams||[]).includes('spo2')) : null);
+  // AMBIGUITY MUST NOT RESOLVE BY LIST ORDER (issue #410). `find` returns the FIRST device declaring
+  // this stream, so when two devices declare the same name — as the Verity and the O2Ring both did for
+  // `ppg` — the card silently inherited whichever sensor sorted first, and would have flipped if
+  // config.yaml were reordered. capture.py now device-qualifies every non-unique stream, so this path
+  // should only ever see one match; if it sees several the key is ambiguous and attributing it to any
+  // one device would be a guess, so attribute it to NONE and let the chips read blank.
+  const matches = DEVICES.filter(d=>(d.streams||[]).includes(base));
+  if(matches.length === 1) return matches[0];
+  if(matches.length > 1) return null;
+  return O2_DERIVED.includes(base) ? DEVICES.find(d=>(d.streams||[]).includes('spo2')) : null;
 }
 
 // ══ View routing ══
