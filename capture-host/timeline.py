@@ -232,7 +232,13 @@ def read_link_samples(night_dir: str) -> dict[str, list[tuple[float, int, float 
     for path in paths:
         try:
             with open(path, errors="replace") as fh:
-                head = fh.readline().rstrip("\n").split(";")
+                # Skip any leading '#' provenance comments — the LINK sidecar records which radio
+                # captured the night on the line above the columns (writers.LinkLogWriter). Older
+                # sidecars have none; both shapes must read.
+                line0 = fh.readline()
+                while line0.startswith("#"):
+                    line0 = fh.readline()
+                head = line0.rstrip("\n").split(";")
                 idx = {k: i for i, k in enumerate(head)}
                 i_ts, i_dev = idx.get("Phone timestamp", 0), idx.get("device", 1)
                 i_c, i_r = idx.get("connected", 2), idx.get("rssi_dbm", 3)
@@ -265,6 +271,29 @@ def read_link_samples(night_dir: str) -> dict[str, list[tuple[float, int, float 
             out.setdefault(key, []).append((ts, c, r))
     for v in out.values():
         v.sort()
+    return out
+
+
+def link_adapter(night_dir) -> dict[str, str]:
+    """{sidecar filename: "adapter=… hci=…"} — which radio captured this night, read from the artifact.
+
+    The A/B between two BLE adapters is only worth running if each night can say which one produced
+    it. Before 2026-07-26 nothing did, and three adapters were present on the box."""
+    out: dict[str, str] = {}
+    dirs = [night_dir] if isinstance(night_dir, str) else list(night_dir)
+    for d in dirs:
+        try:
+            names = sorted(n for n in os.listdir(d) if n.endswith("_LINK.csv"))
+        except OSError:
+            continue
+        for n in names:
+            try:
+                with open(os.path.join(d, n), errors="replace") as fh:
+                    first = fh.readline()
+            except OSError:
+                continue
+            if first.startswith("#"):
+                out[n] = first.lstrip("#").strip()
     return out
 
 

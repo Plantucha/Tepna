@@ -2224,6 +2224,11 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
 
     writer = None
     writer_night = None   # the night_dir the open writer points at — roll a fresh CSV when the date turns
+    # WHICH RADIO IS CAPTURING, resolved in the ASYNC body and read by the sync roll_writer below.
+    # Kept refreshed on the poll loop rather than resolved once: hci indices RE-ENUMERATE (a controller
+    # power-cycle swapped hci0/hci2 on 2026-07-18), so a value captured at start can name the wrong
+    # radio by morning — and this string is the night's only record of which one produced it.
+    hci_now: list[str | None] = [None]
 
     def roll_writer():
         # (Re)open the LINK sidecar in TONIGHT's folder. Called before the loop and whenever the wall
@@ -2236,7 +2241,8 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
             os.makedirs(night, exist_ok=True)
             if writer:
                 writer.close()
-            writer = LinkLogWriter(os.path.join(night, f"Tepna_{_now():%Y%m%d%H%M%S}_LINK.csv"))
+            writer = LinkLogWriter(os.path.join(night, f"Tepna_{_now():%Y%m%d%H%M%S}_LINK.csv"),
+                                   adapter=ADAPTER, hci=hci_now[0])
             writer_night = night
             log.info("link provenance → %s", writer.path)
         except Exception as e:
@@ -2244,6 +2250,7 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
             writer, writer_night = None, None
 
     if log_link and root:
+        hci_now[0] = await link_rssi.resolve_hci(ADAPTER, refresh=True) if ADAPTER else None
         roll_writer()
 
     misses = 0
@@ -2255,6 +2262,10 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
             if _RECOVER.is_set() or _OXYII_PAUSE.is_set() or _POLAR_PAUSED:
                 continue                      # don't poke the radio mid-pull / mid-recovery
             if log_link and root and night_dir(root, _now()) != writer_night:
+                # Re-resolve before rolling: the new file's stamp must name the radio capturing NOW,
+                # not the one that was there at boot. This is the only moment it matters, because the
+                # stamp is written once per file.
+                hci_now[0] = await link_rssi.resolve_hci(ADAPTER, refresh=True) if ADAPTER else None
                 roll_writer()                 # midnight crossed — start this night's LINK.csv
             now_mono = _time.monotonic()
             do_rssi = want_rssi and (not idle or now_mono >= next_rssi)

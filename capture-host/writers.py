@@ -451,9 +451,24 @@ class LinkLogWriter:
     evidence badge as a health measurement.
     """
 
-    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
+    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True,
+                 adapter: str | None = None, hci: str | None = None):
+        # WHICH RADIO CAPTURED THIS NIGHT. Written as a header COMMENT, once, before the column line.
+        # Until 2026-07-26 nothing in a night recorded it: three BLE adapters were present on the box
+        # and the only way to say which one produced a given night was to remember. That is fine right
+        # up until you try to compare two of them, at which point the whole comparison rests on an
+        # assertion — and this suite's rule is that a claim about the data must be IN the data.
+        #
+        # A comment line rather than a column because it is a per-FILE constant, and rather than a
+        # separate manifest because the link record is exactly where a link fact belongs. Readers that
+        # split on ';' are unaffected: the line starts with '#' and every existing parser skips the
+        # header row anyway. `adapter` is the BD_ADDR the operator pinned; `hci` is what it resolved
+        # to, and both are kept because indices re-enumerate (a controller power-cycle swapped
+        # hci0/hci2 on 2026-07-18) so neither alone identifies the radio after the fact.
         self.path = path
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        if adapter or hci:
+            self._fh.write(f"# adapter={adapter or 'default'} hci={hci or 'unknown'}\n")
         self._fh.write("Phone timestamp;device;connected;rssi_dbm;battery_pct;"
                        "frames_dropped;frames_duplicated;link_epoch;address\n")
         self.rows = 0
