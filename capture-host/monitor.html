@@ -1174,7 +1174,12 @@ function guessDevice(d){
   // vendor name appears nowhere, so the model number has to carry the match.
   else if(n.match(/coospo|hrm ?808|^808s?\b/)){ vendor='Coospo'; model='HRM808S'; streams=['hr']; }
   else if(n.match(/magene|wahoo tickr|scosche|decathlon|\bhrm\b/)){ vendor='Generic'; model='HR-Strap'; streams=['hr']; }
-  const m = (d.name||'').match(/(\d{6,})/); if(m) device_id = m[1];
+  // Polar puts the device's serial LAST in its advertised name, and it is HEX — 'Polar Sense
+  // 0C301E3F'. The old pattern asked for six or more consecutive DIGITS, which the H10's
+  // all-numeric '02849638' happens to satisfy and every hex serial does not, so the Verity fell
+  // through to the MAC slice above and was bonded as AC0C301E. Correcting that by hand later is
+  // what split one armband's corpus across two ids on 2026-07-26.
+  const m = (d.name||'').match(/([0-9A-Fa-f]{6,})$/); if(m) device_id = m[1].toUpperCase();
   return { name:d.name, vendor, model, device_id, address:d.address, streams };
 }
 

@@ -37,7 +37,7 @@
 #   parseDeviceACC, whose worst 175 ms slip never crosses its 30 s epoch boundary.
 
 from __future__ import annotations
-import os, datetime as _dt, time as _time
+import os, re as _re, datetime as _dt, time as _time
 from typing import Iterable
 
 # The writers use big OS buffers for throughput (StreamWriter 1 MB, Spo2CsvWriter 64 KB) and would
@@ -66,6 +66,64 @@ def capture_filename(vendor: str, model: str, device_id: str, started: _dt.datet
                      stream: str, ext: str = "txt") -> str:
     stamp = started.strftime("%Y%m%d%H%M%S")
     return f"{vendor}_{model}_{device_id}_{stamp}_{stream.upper()}.{ext}"
+
+
+# THE ID IS THE TOKEN IMMEDIATELY BEFORE THE STAMP — parsed from the RIGHT, because neither the id nor
+# the vendor/model prefix has a fixed field count (both may contain underscores, and a serial may be
+# all digits). Three stamp shapes occur in a real corpus and all three must read:
+#
+#   ..._<id>_YYYYMMDDHHMMSS_TAG.ext   this host (capture_filename, contiguous)
+#   ..._<id>_YYYYMMDD_HHMMSS_TAG.ext  Polar Sensor Logger (split) — see the note above capture_filename
+#   ..._<id>_YYYYMMDD_TAG.ext         date-only, as older fixtures and hand-named files carry
+#
+# A left-to-right search cannot do this: in `Polar_H10_02849638_20260719_ECG` the pair ("H10",
+# "02849638") is just as well-formed as ("02849638", "20260719"), and the leftmost match picks the
+# model as the device id. Anchoring the stamp to a plausible YEAR (19xx/20xx) is what makes it
+# decidable — an 8-digit serial like 02849638 is not a date, and a device id is never mistaken for one.
+_DATE14 = _re.compile(r"^(?:19|20)\d{12}$")
+_DATE8 = _re.compile(r"^(?:19|20)\d{6}$")
+_TIME6 = _re.compile(r"^\d{6}$")
+
+
+def file_device_id(fname: str) -> str | None:
+    """The device_id FIELD of a capture filename — the exact inverse of capture_filename's id slot.
+
+    Readers used to ask `device_id in filename`, a bare substring test. Two ways that lies: a shorter
+    serial sits inside a longer one ('2849638' inside '02849638') so one device claims another's
+    files, and a vendor or model string containing the id matches too. Attribution has to be a field
+    comparison, not a search."""
+    base = fname.rpartition(".")[0] or fname
+    parts = base.split("_")
+    if len(parts) < 3:
+        return None
+    i = len(parts) - 2                      # parts[-1] is the stream tag
+    if _TIME6.match(parts[i]) and i - 1 >= 0 and _DATE8.match(parts[i - 1]):
+        i -= 1                              # PSL's split stamp: step over HHMMSS onto YYYYMMDD
+    elif not (_DATE14.match(parts[i]) or _DATE8.match(parts[i])):
+        return None
+    # capture_filename ALWAYS emits vendor_model_id_stamp_tag, so a device id is never the first
+    # token. That rules out the sidecars — `Tepna_<stamp>_LINK.csv` has no id field at all, and
+    # reporting 'Tepna' as one would let a device named Tepna claim every night's link log.
+    return parts[i - 1] if i - 1 >= 2 and parts[i - 1] else None
+
+
+def device_ids(dev: dict) -> tuple[str, ...]:
+    """Every device_id this device's files may legitimately carry: the current one first, then any
+    `device_id_aliases`, de-duplicated and blank-free.
+
+    A device_id is interpolated into every filename AND is an editable config field, so correcting one
+    orphans everything recorded before the correction. That happened on 2026-07-26 at 06:51: the
+    Verity's id went from the MAC-derived `AC0C301E` to its real Polar serial `0C301E3F`, and nightqc
+    immediately reported 795 ACC rows for an armband that had written 85 MB over seven sessions —
+    `ppg 0%, acc 0%, gyro 0%, mag 0%` on a night that was fine. Nothing was lost and nothing was
+    logged; the files simply stopped being attributable.
+
+    Aliases make a correction ADDITIVE instead of destructive. The on-disk record is never rewritten —
+    a filename keeps saying what the daemon actually wrote at the time, which is the honest artefact —
+    and the config carries the history needed to read it."""
+    ids = [str(dev.get("device_id") or "").strip()]
+    ids += [str(a or "").strip() for a in (dev.get("device_id_aliases") or [])]
+    return tuple(dict.fromkeys(i for i in ids if i))
 
 
 # What a device must carry before it is worth opening a file for. `vendor`/`model`/`device_id` are the

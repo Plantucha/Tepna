@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import os
 import re
+
+import writers
 from datetime import datetime, timedelta
 
 # Sidecars the box writes that are NOT a device capture stream — excluded from the per-device rollup so a
@@ -209,6 +211,10 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     optional_absent = []
     for d in devices:
         did = d.get("device_id")
+        # Every id this device's files may carry — the current one plus any corrected-away
+        # predecessors. Matching on the current id ALONE is what reported the Verity at 0 %
+        # on 2026-07-26 after its id was fixed at 06:51; see writers.device_ids.
+        dids = writers.device_ids(d)
         name = d.get("name") or did
         opt = bool(d.get("optional"))          # a known-but-not-expected backup — its absence is not a fault
         streams: dict[str, int] = {}
@@ -219,7 +225,7 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             # is `missing` only if it produced nothing THIS session, and its row count + coverage reflect
             # the session, never an earlier daytime or previous-night one.
             rows = sum(f["rows"] for f in current
-                       if did and did in f["file"] and f["stream"] == tag)
+                       if writers.file_device_id(f["file"]) in dids and f["stream"] == tag)
             streams[s] = rows
             if rows == 0:
                 # An OPTIONAL backup device that did not join is EXPECTED, not a gap — it stays out of
