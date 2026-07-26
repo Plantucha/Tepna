@@ -206,6 +206,7 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         span = cur[1] - cur[0]
         span = span if span >= _MIN_SPAN_SEC else None
     per_device = []
+    newest = max((f["mtime"] for f in current), default=None)
     missing = []
     degraded = []
     optional_absent = []
@@ -239,7 +240,15 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
                 coverage[s] = cov
                 if cov < _DEGRADED_BELOW:
                     degraded.append(f"{name}:{s} {int(cov * 100)}%")
-        per_device.append({"name": name, "streams": streams, "coverage": coverage})
+        # SECONDS SINCE THIS DEVICE LAST WROTE, measured against the night's NEWEST write rather
+        # than wall-clock now(). Two reasons: reading an old night back must not report every
+        # device as frozen, and the question that matters is always "silent while the others were
+        # still recording". None when the device wrote nothing at all — that is `missing`, which
+        # has its own alert.
+        _mine = [f["mtime"] for f in current if writers.file_device_id(f["file"]) in dids]
+        silent = round(newest - max(_mine)) if _mine and newest else None
+        per_device.append({"name": name, "streams": streams, "coverage": coverage,
+                           "silent_sec": silent})
     return {
         "night": os.path.basename(night_dir.rstrip("/")),
         "devices": per_device,
