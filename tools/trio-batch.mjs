@@ -28,8 +28,22 @@
  * NIGHT BOUNDARY. Filename date ≠ night: a Verity PPG starting 2026-06-27T23:58 belongs to the
  * same night as an O2Ring stamped 2026-06-28T00:0x. A recording is assigned to the night of
  * (start − 12 h), so an evening start and the post-midnight hours of the same sleep both land on
- * the evening's date. Daytime (non-nocturnal) captures therefore land on the PREVIOUS night's key
- * and are filtered out by --min-hours unless --keep-daytime is passed.
+ * the evening's date. Daytime (non-nocturnal) captures therefore land on the PREVIOUS night's key.
+ *
+ * WHAT MAKES A WINDOW A NIGHT — CLOCK TIME, NOT DURATION. This used to be a pure duration test
+ * (`--min-hours`), resting on the comment below that "the O2Ring is always the sleep session". That
+ * stopped being true the moment the capture box started recording continuously: on 2026-07-26 an
+ * AWAKE 14:33→18:15 afternoon block cleared 3 h with all three sensors worn, entered the corpus as
+ * night `2026-07-26`, and posted the worst sigma in it (PpgDex 8.31, OxyDex 5.16 bpm — sitting up
+ * and moving is exactly what wrecks armband PPG and finger pulse-ox). Nothing was wrong with the
+ * data; it simply was not a night, and it dragged the corpus median from 4.24 to 6.21 bpm.
+ *
+ * So a window must now be MOSTLY NOCTURNAL: more than half of the three-way overlap has to fall
+ * inside `--night-band` (default 21:00–09:00 floating wall clock). A MAJORITY test, not an absolute
+ * one — an absolute floor either rejects a genuine short night (2026-07-23 is 2.6 h at 03:00) or
+ * admits a 19:00→22:30 evening block on the 1.5 h of it that happens to land after 21:00. The
+ * fraction does not care how long the window is, only where it sits. `--keep-daytime` bypasses it,
+ * which is what that flag always claimed to do and now actually does.
  *
  * USAGE
  *   node tools/trio-batch.mjs --src "<capture dir>" [options]
@@ -41,9 +55,11 @@
  *     --limit <n>        process at most n nights
  *     --min-hours <h>    skip a recording shorter than h hours (default 3)
  *     --min-overlap <h>  required three-way overlap (default 1 — tch-multinight needs ≥12 5-min epochs)
+ *     --night-band <a-b> nocturnal hours, local wall clock (default 21-9); may wrap midnight
  *     --keep-daytime     do not filter non-nocturnal captures
  *     --jobs <n>         nights to compute in parallel (default: AUTO — probed from the host)
  *     --dry-run          plan only: print the night/file plan, compute nothing, write nothing
+ *     --selftest         known-answer checks for the nocturnal gate (no corpus, no I/O)
  *
  * PARALLELISM + MEMORY. Nights run as CHILD PROCESSES, pool-capped. The cap is PROBED, not assumed:
  * a night peaks at ~0.9 GB (a ~330 MB PPG text held while it parses into Float32 channels, plus a
@@ -92,6 +108,82 @@ const MIN_HOURS = parseFloat(opt('--min-hours', '3'));
 // reason — a stricter floor silently discards eligible nights.
 const MIN_OVERLAP = parseFloat(opt('--min-overlap', '1'));
 const KEEP_DAYTIME = flag('--keep-daytime');
+// Nocturnal band, floating wall clock. Wraps midnight when start > end, which is the normal case.
+const [BAND_A, BAND_B] = (() => {
+  const raw = opt('--night-band', '21-9');
+  const m = /^(\d{1,2})\s*-\s*(\d{1,2})$/.exec(String(raw).trim());
+  if (!m || +m[1] > 23 || +m[2] > 23) {
+    console.error(`trio-batch: --night-band must be H-H with both hours 0-23 (got ${raw})`);
+    process.exit(2);
+  }
+  return [+m[1], +m[2]];
+})();
+
+/* Milliseconds of an interval set that fall inside the nocturnal band.
+   Read with getUTC* on floating wall-clock ms per the Clock Contract §5: `tMs` already encodes the
+   recording's LOCAL civil time, so a UTC getter returns the hour the sleeper actually saw, on any
+   machine. Using getHours() here would make "is this a night" depend on the analyst's timezone.
+   Bands are laid down per calendar day and, when the band wraps midnight, run into the next day —
+   consecutive bands cannot overlap (21:00+12 h ends at 09:00, the next starts 12 h later), so a
+   plain sum double-counts nothing. Iteration starts one day early because the band covering a
+   00:30 sample opened at 21:00 the PREVIOUS day. */
+const DAY = 86400e3;
+const nocturnalMs = (A, a = BAND_A, b = BAND_B) => {
+  if (!A.length) return 0;
+  const span = b > a ? (b - a) * 3600e3 : (24 - a + b) * 3600e3;
+  let total = 0;
+  for (const [s, e] of A) {
+    for (let d = Math.floor(s / DAY) * DAY - DAY; d < e; d += DAY) {
+      const bs = d + a * 3600e3;
+      const be = bs + span;
+      const lo = Math.max(s, bs),
+        hi = Math.min(e, be);
+      if (hi > lo) total += hi - lo;
+    }
+  }
+  return total;
+};
+
+/* ── --selftest ───────────────────────────────────────────────────────────────────────────────────
+ * Known answers for the nocturnal gate, on hand-built windows — no corpus, no I/O, CI-safe. The gate
+ * decides whether a window is a night, and it got that wrong on real data once (2026-07-26); every
+ * case below is either that bug or a window it must NOT reject. */
+if (flag('--selftest')) {
+  const D = Date.UTC(2026, 6, 25); // floating wall-clock midnight, per the Clock Contract
+  const at = (day, h, m = 0) => D + day * 86400e3 + h * 3600e3 + m * 60e3;
+  const H = (ms) => +(ms / 3600e3).toFixed(3);
+  const ivS = (A) => A.reduce((t, [a, b]) => t + (b - a), 0);
+  const frac = (A) => (ivS(A) ? nocturnalMs(A) / ivS(A) : 0);
+  let fail = 0;
+  const ok = (name, got, want) => {
+    const good = Math.abs(got - want) < 1e-6;
+    if (!good) fail++;
+    console.log(`  ${good ? '\u2713' : '\u2717'} ${name}  got=${got} want=${want}`);
+  };
+
+  // THE REGRESSION: 2026-07-26 14:33 -> 18:15, awake, all three sensors worn, 3.7 h.
+  ok('afternoon block is 0 % nocturnal', frac([[at(1, 14, 33), at(1, 18, 15)]]), 0);
+  // A full night, evening start through the small hours -> entirely in band.
+  ok('22:34 -> 07:00 is 100 % nocturnal', frac([[at(0, 22, 34), at(1, 7)]]), 1);
+  ok('...and counts every hour of it', H(nocturnalMs([[at(0, 22, 34), at(1, 7)]])), H(at(1, 7) - at(0, 22, 34)));
+  // 2026-07-23 was a real 2.6 h night at 03:00. An ABSOLUTE floor of --min-hours would have killed
+  // it; the majority test keeps it. This case is why the gate is a fraction.
+  ok('short 03:00 night survives', frac([[at(1, 3), at(1, 5, 36)]]), 1);
+  // The case an absolute floor would have WRONGLY admitted: awake evening, 1.5 h of it after 21:00.
+  ok('19:00 -> 22:30 evening is a minority', frac([[at(0, 19), at(0, 22, 30)]]) <= 0.5 ? 1 : 0, 1);
+  // Midnight wrap: the band covering 00:30 opened at 21:00 the PREVIOUS calendar day.
+  ok('00:00 -> 02:00 is fully in band', frac([[at(1, 0), at(1, 2)]]), 1);
+  // Straddling the 09:00 edge: 07:00-11:00 -> 2 h of 4 h. Exactly at the boundary, and `<= 0.5`
+  // rejects it, which is the intended reading of "MORE than half".
+  ok('07:00 -> 11:00 is exactly half', frac([[at(1, 7), at(1, 11)]]), 0.5);
+  // Two nights of band in one interval must both count (multi-day sum, no double counting).
+  ok('48 h window sees exactly 24 h of band', H(nocturnalMs([[at(0, 9), at(2, 9)]])), 24);
+  // A non-wrapping band must work too (--night-band 1-5), or the wrap branch is load-bearing by luck.
+  ok('non-wrapping band 1-5', H(nocturnalMs([[at(1, 0), at(1, 8)]], 1, 5)), 4);
+
+  console.log(fail ? `\n  ${fail} FAILED` : '\n  all green');
+  process.exit(fail ? 1 : 0);
+}
 const DRY = flag('--dry-run');
 const CHILD = flag('--child'); // internal: this process computes ONE night and exits
 
@@ -444,7 +536,9 @@ if (ONLY.length) plan = plan.filter((n) => ONLY.includes(n.key));
 // MIN_HOURS of genuine three-way overlap here so a night that cannot make that floor never ships.
 const trio = [];
 for (const n of plan) {
-  // Anchor on the O2Ring: it is always the sleep session (the Polar streams include daytime captures).
+  // Anchor on the O2Ring. It used to be true that the ring "is always the sleep session" — it is not
+  // any more (the box records through the day and the ring is worn for it), which is why the
+  // nocturnal gate below exists rather than relying on the anchor to mean night.
   // Rank by recorded DURATION, not bytes: bytes stopped being comparable once .dat joined CSV as an
   // oxy candidate (a binary .dat is ~10× denser than the same session's CSV, so a short daytime CSV
   // would outweigh a full night's .dat). Duration is what "the sleep session" actually means.
@@ -495,10 +589,31 @@ for (const n of plan) {
     if (last && b[0] - last[last.length - 1][1] <= SLEEP_GAP_H * 3600e3) last.push(b);
     else clusters.push([b]);
   }
-  const threeIv = clusters.sort((a, b) => ivSpan(b) - ivSpan(a))[0] || [];
+  // Rank by NOCTURNAL span first, total span only as the tie-break. "Longest" alone picks wrong the
+  // day a 5 h awake stretch outlasts a 4 h sleep — and the whole point of clustering is to separate
+  // day from night, so the ranking should be about time-of-day, not size.
+  const threeIv = clusters.sort((x, y) => (KEEP_DAYTIME ? ivSpan(y) - ivSpan(x) : nocturnalMs(y) - nocturnalMs(x) || ivSpan(y) - ivSpan(x)))[0] || [];
   const ov = ivSpan(threeIv) / 3600e3;
   if (ov < MIN_OVERLAP) {
     console.log(`  ⊘ ${n.key} — three-way merged overlap ${ov.toFixed(1)} h < ${MIN_OVERLAP} h`);
+    continue;
+  }
+  // MOSTLY NOCTURNAL, or it is not this night's sleep. See the header for the 2026-07-26 afternoon
+  // that this rejects and why the test is a fraction rather than a floor.
+  const noctH = nocturnalMs(threeIv) / 3600e3;
+  const noctFrac = ov > 0 ? noctH / ov : 0;
+  if (!KEEP_DAYTIME && noctFrac <= 0.5) {
+    const bh = (h) => `${String(h).padStart(2, '0')}:00`;
+    const w = threeIv.length ? [threeIv[0][0], threeIv[threeIv.length - 1][1]] : null;
+    const at = (ms) => {
+      const d = new Date(ms);
+      return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+    };
+    console.log(
+      `  ⊘ ${n.key} — NOT NOCTURNAL: ${w ? `${at(w[0])}→${at(w[1])}, ` : ''}only ${noctH.toFixed(1)} h of ` +
+        `${ov.toFixed(1)} h (${(noctFrac * 100).toFixed(0)}%) inside ${bh(BAND_A)}–${bh(BAND_B)} — ` +
+        `a daytime capture is not a night (pass --keep-daytime to fold it anyway)`
+    );
     continue;
   }
   if (clusters.length > 1) {
@@ -515,7 +630,7 @@ for (const n of plan) {
   pick.accVer = inSleep(pick.accVer);
   pick.gyro = inSleep(pick.gyro);
   pick.magn = inSleep(pick.magn);
-  console.log(`  ✓ ${n.key} — concurrent trio, ${ov.toFixed(1)} h three-way overlap (merged sessions)`);
+  console.log(`  ✓ ${n.key} — concurrent trio, ${ov.toFixed(1)} h three-way overlap (merged sessions)` + (KEEP_DAYTIME ? '' : `, ${(noctFrac * 100).toFixed(0)}% nocturnal`));
   trio.push(pick);
 }
 
