@@ -37,7 +37,6 @@ import datetime as _dt
 import os
 import re
 
-import diskguard
 import nightqc
 
 # One bucket per ~2 minutes over an 8 h night gives ~240 columns — about one per pixel on a phone-width
