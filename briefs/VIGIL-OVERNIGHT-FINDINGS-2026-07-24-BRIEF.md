@@ -115,9 +115,16 @@ both a de-suspended dongle and the internal radio fail you.*
 ## 4. Prioritised fix plan
 
 ### P0 — stop the wedge (do tonight; free; prevention)
+> **⚠️ CORRECTION 2026-07-26 — P0.1 as originally written NEVER TOOK EFFECT.** The rule shipped as
+> `50-tepna-btdongle.rules`, and udev applies rules in lexical order: Ubuntu's own
+> `/usr/lib/udev/rules.d/60-autosuspend.rules` runs *after* a `50-` file and sets `power/control` back
+> to `auto`. Verified on a fresh Ubuntu 26.04 box — rule installed, attributes matching, `udevadm test`
+> showing it apply — and `power/control=auto` on every boot regardless. So the "root-cause fix" this
+> section claims was in force was silently losing, and both wedges below happened with autosuspend
+> effectively ENABLED. Only the daemon's own startup self-test (§P1.4) surfaced it. Renamed to `99-`.
 - **P0.1 Disable USB autosuspend on the dongle.** Persistent udev rule:
   ```
-  # /etc/udev/rules.d/50-tepna-btdongle.rules
+  # /etc/udev/rules.d/99-tepna-btdongle.rules   ← 99, NOT 50 (corrected 2026-07-26)
   ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="2357", ATTR{idProduct}=="0604", ATTR{power/control}="on"
   ```
   Immediate (until reboot): `echo on | sudo tee /sys/devices/…/11-1.2/power/control`.
