@@ -374,31 +374,66 @@ const windowOf = (rec) => {
   rec._win = { t0: rec.t0, tEnd: tEnd != null && tEnd > rec.t0 ? tEnd : rec.t0 };
   return rec._win;
 };
-const overlapMs = (a, b) => {
-  const A = windowOf(a),
-    B = windowOf(b);
-  return Math.max(0, Math.min(A.tEnd, B.tEnd) - Math.max(A.t0, B.t0));
-};
 
-/* PRIMARY PICK — by TEMPORAL OVERLAP with the night's anchor, NOT by file size.
-   The corners of a three-cornered hat must be CONCURRENT: they must observe the same wall-clock
-   window, or the estimator is comparing different recordings and the σ it prints is meaningless.
-   Picking the biggest file per stream independently silently paired a 12:14 daytime ECG with an
-   overnight PPG/SpO2 on 2026-06-13 (ECG 72 bpm awake vs PPG/Oxy 59 bpm asleep). Anchor = the
-   O2Ring recording (always the sleep session); every other stream is the candidate with the most
-   overlap against it, and a candidate with < MIN_OVERLAP_H of overlap is REJECTED outright. */
-const primaryBy = (arr, anchor, label, key, minOverlapH) => {
-  if (!arr.length) return null;
-  if (!anchor) return null;
-  const scored = arr.map((r) => ({ r, ov: overlapMs(r, anchor) })).sort((a, b) => b.ov - a.ov || b.r.bytes - a.r.bytes);
-  const best = scored[0];
+/* ── MERGED SESSION INTERVALS ────────────────────────────────────────────────────────────────
+   A night is not one file per stream. This box reconnects constantly — 07-24 wrote 8 ECG, 164 PPG
+   and 153 SpO2 session files for a single night — so asking "which ONE file overlaps the anchor"
+   measures the wrong thing entirely. Measured over the 2026-07-16..25 corpus, the best single-file
+   three-way overlap versus the union of merged sessions:
+
+     07-16  0.66 h vs  1.76 h      07-21  2.35 h vs  3.92 h
+     07-17  1.00 h vs  3.59 h      07-22  1.07 h vs  4.75 h
+     07-18  1.47 h vs 11.38 h      07-23  0.58 h vs  2.57 h   <- rejected, had 2.6 h
+     07-19  3.35 h vs  8.54 h      07-24  0.45 h vs  2.91 h   <- rejected, had 2.9 h
+     07-20  1.06 h vs  5.53 h      07-25  0.58 h vs  2.71 h   <- rejected, had 2.7 h
+
+   Three of ten nights were discarded despite having ~3 h of genuine simultaneous tri-device
+   recording, and 07-18 folded 1.47 h of the 11.38 h it actually had. Worse than the waste: the
+   single-file rule always keeps the LONGEST CONTINUOUS session, which is by construction the
+   calmest, least-interrupted stretch of the night. Every statistic downstream — the sigma
+   distributions, the three-cornered hat — was therefore computed on a subsample selected for being
+   artifact-free. That is a bias, not a sampling choice, and it gets worse the churnier the box gets.
+   */
+const mergeIv = (recs) => {
+  const out = [];
+  for (const r of recs.map(windowOf).sort((a, b) => a.t0 - b.t0)) {
+    if (out.length && r.t0 <= out[out.length - 1][1]) out[out.length - 1][1] = Math.max(out[out.length - 1][1], r.tEnd);
+    else out.push([r.t0, r.tEnd]);
+  }
+  return out;
+};
+const ivIntersect = (A, B) => {
+  const out = [];
+  let i = 0,
+    j = 0;
+  while (i < A.length && j < B.length) {
+    const s = Math.max(A[i][0], B[j][0]),
+      e = Math.min(A[i][1], B[j][1]);
+    if (e > s) out.push([s, e]);
+    if (A[i][1] < B[j][1]) i++;
+    else j++;
+  }
+  return out;
+};
+const ivSpan = (A) => A.reduce((t, [s, e]) => t + (e - s), 0);
+
+/* Every record of a stream that touches the night's merged anchor window — not the single best one.
+   A record contributing zero overlap is still dropped (a daytime capture is not this night's sleep),
+   so the concurrency guarantee the original comment insists on is preserved: what changes is that
+   concurrency is now judged against the whole anchor, and ALL concurrent sessions are kept. */
+const concurrentSet = (arr, anchorIv, label, key, minOverlapH) => {
+  if (!arr.length || !anchorIv.length) return null;
+  const kept = arr.filter((r) => ivSpan(ivIntersect(mergeIv([r]), anchorIv)) > 0);
+  const ovMs = ivSpan(ivIntersect(mergeIv(kept), anchorIv));
   const H = (ms) => (ms / 3600e3).toFixed(1);
-  if (best.ov < minOverlapH * 3600e3) {
-    console.log(`    ✗ ${key}: ${label} — NO concurrent recording (best overlap ${H(best.ov)} h < ${minOverlapH} h) — night rejected`);
+  if (ovMs < minOverlapH * 3600e3) {
+    console.log(`    \u2717 ${key}: ${label} — NO concurrent recording (merged overlap ${H(ovMs)} h < ${minOverlapH} h) — night rejected`);
     return null;
   }
-  for (const d of scored.slice(1)) if (d.ov > 0 || d.r.bytes > 1e6) console.log(`    · ${key}: ${label} — not concurrent, skipping ${d.r.name} (overlap ${H(d.ov)} h)`);
-  return best.r;
+  const dropped = arr.length - kept.length;
+  if (dropped) console.log(`    \u00b7 ${key}: ${label} — ${kept.length} concurrent session(s), ${H(ovMs)} h merged; skipped ${dropped} non-concurrent`);
+  else console.log(`    \u00b7 ${key}: ${label} — ${kept.length} concurrent session(s), ${H(ovMs)} h merged`);
+  return kept.sort((a, b) => windowOf(a).t0 - windowOf(b).t0);
 };
 
 /* ── 3 · plan ────────────────────────────────────────────────────────────── */
@@ -413,32 +448,74 @@ for (const n of plan) {
   // Rank by recorded DURATION, not bytes: bytes stopped being comparable once .dat joined CSV as an
   // oxy candidate (a binary .dat is ~10× denser than the same session's CSV, so a short daytime CSV
   // would outweigh a full night's .dat). Duration is what "the sleep session" actually means.
-  const durOf = (r) => {
-    const w = windowOf(r);
-    return w.tEnd - w.t0;
-  };
-  const anchor = n.oxy.slice().sort((a, b) => durOf(b) - durOf(a) || b.bytes - a.bytes)[0] || null;
-  if (!anchor) {
+  // ANCHOR = every O2Ring session of the night, merged. The ring is still the anchor for the same
+  // reason as before (it is always the sleep session, never a daytime capture) — but it is also the
+  // most fragmented stream on this box (153-324 SpO2 files a night, longest single 0.57 h), so
+  // anchoring on its longest SINGLE file capped the entire fold at that file's length. That is why
+  // OxyDex contributed 14 epochs to a night where ECGDex contributed 78.
+  const anchorIv = mergeIv(n.oxy);
+  if (!anchorIv.length) {
     console.log(`  ⊘ ${n.key} — not a trio night (no O2Ring anchor)`);
     continue;
   }
   const pick = {
     key: n.key,
-    oxy: anchor,
-    ecg: primaryBy(n.ecg, anchor, 'ECG', n.key, MIN_OVERLAP),
-    accH10: primaryBy(n.acc_h10, anchor, 'H10 ACC', n.key, 0),
-    ppg: primaryBy(n.ppg, anchor, 'PPG', n.key, MIN_OVERLAP),
-    accVer: primaryBy(n.acc_ver, anchor, 'Verity ACC', n.key, 0),
-    gyro: primaryBy(n.gyro, anchor, 'GYRO', n.key, 0),
-    magn: primaryBy(n.magn, anchor, 'MAGN', n.key, 0)
+    oxy: n.oxy.slice().sort((a, b) => windowOf(a).t0 - windowOf(b).t0),
+    ecg: concurrentSet(n.ecg, anchorIv, 'ECG', n.key, MIN_OVERLAP),
+    accH10: concurrentSet(n.acc_h10, anchorIv, 'H10 ACC', n.key, 0),
+    ppg: concurrentSet(n.ppg, anchorIv, 'PPG', n.key, MIN_OVERLAP),
+    accVer: concurrentSet(n.acc_ver, anchorIv, 'Verity ACC', n.key, 0),
+    gyro: concurrentSet(n.gyro, anchorIv, 'GYRO', n.key, 0),
+    magn: concurrentSet(n.magn, anchorIv, 'MAGN', n.key, 0)
   };
-  const have = [pick.ecg && 'ECG', pick.ppg && 'PPG', pick.oxy && 'SpO2'].filter(Boolean);
+  const have = [pick.ecg && 'ECG', pick.ppg && 'PPG', pick.oxy.length && 'SpO2'].filter(Boolean);
   if (have.length < 3) {
     console.log(`  ⊘ ${n.key} — not a concurrent trio night (have: ${have.join('+') || 'none'})`);
     continue;
   }
-  const ov = Math.min(overlapMs(pick.ecg, anchor), overlapMs(pick.ppg, anchor)) / 3600e3;
-  console.log(`  ✓ ${n.key} — concurrent trio, ${ov.toFixed(1)} h three-way overlap`);
+  // The gate is the genuine THREE-WAY intersection of the merged sets, not the smaller of two
+  // pairwise overlaps — the previous form could pass a night where ECG and PPG each overlapped the
+  // ring but at different times.
+  const threeIvAll = ivIntersect(ivIntersect(mergeIv(pick.ecg), mergeIv(pick.ppg)), anchorIv);
+  // ONE NIGHT IS ONE SLEEP, NOT EVERYTHING THAT SHARES A DATE KEY. Merging every session of the
+  // night restored the data the single-file rule threw away — but it also let a DAYTIME ring
+  // capture into the anchor, and the ECG/PPG sets are chosen against the anchor, so the daytime
+  // hours came with it: OxyDex records came out 21.6 h and 14.6 h long, spanning an 8 h hole. That
+  // is precisely the "12:14 daytime ECG paired with an overnight PPG" failure the original
+  // single-file rule existed to prevent, reintroduced from the other side.
+  //
+  // So: cluster the three-way blocks, split wherever they are separated by more than SLEEP_GAP_H of
+  // no concurrent recording, and keep the LONGEST cluster. Within it every session still merges —
+  // reconnect churn is minutes, never hours, so this splits day from night without ever splitting a
+  // night from itself.
+  const SLEEP_GAP_H = 4;
+  const clusters = [];
+  for (const b of threeIvAll) {
+    const last = clusters[clusters.length - 1];
+    if (last && b[0] - last[last.length - 1][1] <= SLEEP_GAP_H * 3600e3) last.push(b);
+    else clusters.push([b]);
+  }
+  const threeIv = clusters.sort((a, b) => ivSpan(b) - ivSpan(a))[0] || [];
+  const ov = ivSpan(threeIv) / 3600e3;
+  if (ov < MIN_OVERLAP) {
+    console.log(`  ⊘ ${n.key} — three-way merged overlap ${ov.toFixed(1)} h < ${MIN_OVERLAP} h`);
+    continue;
+  }
+  if (clusters.length > 1) {
+    const shed = (ivSpan(threeIvAll) - ivSpan(threeIv)) / 3600e3;
+    console.log(`    · ${n.key}: ${clusters.length} concurrent blocks >${SLEEP_GAP_H} h apart — keeping the longest, shedding ${shed.toFixed(1)} h (daytime)`);
+  }
+  // Every stream is now clipped to the sleep window: a session that does not touch it is not part of
+  // this night, whatever its date key says.
+  const inSleep = (l) => (l ? l.filter((r) => ivSpan(ivIntersect(mergeIv([r]), threeIv)) > 0) : l);
+  pick.oxy = inSleep(pick.oxy);
+  pick.ecg = inSleep(pick.ecg);
+  pick.ppg = inSleep(pick.ppg);
+  pick.accH10 = inSleep(pick.accH10);
+  pick.accVer = inSleep(pick.accVer);
+  pick.gyro = inSleep(pick.gyro);
+  pick.magn = inSleep(pick.magn);
+  console.log(`  ✓ ${n.key} — concurrent trio, ${ov.toFixed(1)} h three-way overlap (merged sessions)`);
   trio.push(pick);
 }
 
@@ -448,7 +525,14 @@ const work = LIMIT ? trio.slice(0, LIMIT) : trio;
 if (DRY) {
   for (const p of work) {
     console.log(`\n  ${p.key}`);
-    for (const [k, f] of Object.entries(p)) if (f && f.name) console.log(`    ${k.padEnd(7)} ${f.name}  (${(f.bytes / 1e6).toFixed(1)} MB)`);
+    for (const [k, v] of Object.entries(p)) {
+      const list = Array.isArray(v) ? v : v && v.name ? [v] : [];
+      if (!list.length) continue;
+      const mb = list.reduce((t, f) => t + f.bytes, 0) / 1e6;
+      console.log(`    ${k.padEnd(7)} ${list.length} session(s), ${mb.toFixed(1)} MB total`);
+      for (const f of list.slice(0, 3)) console.log(`            ${f.name}  (${(f.bytes / 1e6).toFixed(1)} MB)`);
+      if (list.length > 3) console.log(`            … +${list.length - 3} more`);
+    }
   }
   console.log('\n--dry-run: nothing computed, nothing written.');
   process.exit(0);
@@ -563,12 +647,87 @@ for (const p of work) {
   mkdirSync(dir, { recursive: true });
   const row = { key: p.key, nodes: [] };
 
+  /* ── MERGING SESSIONS, AND WHY IT IS DONE ON PARSED RECORDS ────────────────────────────────
+     Concatenating the raw TEXT is not an option: the worst per-stream union in this corpus is
+     775 MB (07-20 Verity ACC) and 559 MB (07-18 ECG), both past V8's ~537 MB maximum string, so a
+     text merge would throw `Invalid string length` on exactly the nights with the most data.
+     Parsed samples are ~10x denser than their text, so merging there is both safe and exact.
+
+     NO TIME IS EVER FABRICATED. The silence between two sessions is real — the sensor was off-link
+     — and each parser already has a way to say so, which is the way used here:
+       ECG carries `gaps:[{idx,ms}]`, so the inter-session silence becomes one more gap entry at
+       the join, and every carried-over gap has its index shifted by the join offset.
+       PPG carries per-sample `relSec`, so a later session's samples simply land at their true
+       offset from the first session's t0 and the hole appears as a jump in relSec.
+     A merge that closed those holes instead would be inventing signal. */
+  const mergeEcg = (recs) => {
+    recs = recs.filter((r) => r && r.int16 && r.int16.length && r.t0Ms != null).sort((a, b) => a.t0Ms - b.t0Ms);
+    if (recs.length <= 1) return recs[0] || null;
+    const fs = recs[0].fs;
+    // A rate change mid-night would make one sample index mean two different durations. It does not
+    // happen on an H10 (130 Hz fixed), but assuming it cannot is how a silent corruption starts.
+    const odd = recs.find((r) => Math.abs((r.fs || fs) - fs) > 0.5);
+    if (odd) throw new Error(`ECG sessions disagree on fs (${fs} vs ${odd.fs}) — refusing to merge`);
+    let n = 0;
+    for (const r of recs) n += r.int16.length;
+    const out = new Int16Array(n);
+    const gaps = [];
+    let idx = 0,
+      prevEndMs = null;
+    for (const r of recs) {
+      if (prevEndMs != null) {
+        const d = r.t0Ms - prevEndMs;
+        if (d > 0) gaps.push({ idx: idx - 1, ms: d }); // the real off-link silence
+      }
+      for (const g of r.gaps || []) gaps.push({ idx: g.idx + idx, ms: g.ms });
+      out.set(r.int16, idx);
+      idx += r.int16.length;
+      prevEndMs = r.t0Ms + (r.int16.length / fs) * 1000;
+    }
+    return { int16: out, fs, gaps, t0Ms: recs[0].t0Ms, offsetMin: recs[0].offsetMin, source: 'file', durSec: n / fs };
+  };
+  const mergePpg = (recs) => {
+    recs = recs.filter((r) => r && r.n && r.t0Ms != null).sort((a, b) => a.t0Ms - b.t0Ms);
+    if (recs.length <= 1) return recs[0] || null;
+    const base = recs[0];
+    const nch = base.ch.length;
+    const bad = recs.find((r) => r.ch.length !== nch || r.site !== base.site);
+    if (bad) throw new Error('PPG sessions disagree on channel count or site — refusing to merge');
+    let n = 0;
+    for (const r of recs) n += r.n;
+    const ch = Array.from({ length: nch }, () => new Float32Array(n));
+    const amb = new Float32Array(n);
+    const relSec = new Float64Array(n);
+    let idx = 0;
+    for (const r of recs) {
+      const off = (r.t0Ms - base.t0Ms) / 1000; // true offset — the gap shows up here
+      for (let c = 0; c < nch; c++) ch[c].set(r.ch[c].subarray(0, r.n), idx);
+      if (r.amb) amb.set(r.amb.subarray(0, r.n), idx);
+      for (let i = 0; i < r.n; i++) relSec[idx + i] = off + r.relSec[i];
+      idx += r.n;
+    }
+    return {
+      ch,
+      amb,
+      relSec,
+      fs: base.fs,
+      n,
+      t0Ms: base.t0Ms,
+      offsetMin: base.offsetMin,
+      durSec: relSec[n - 1],
+      site: base.site,
+      gap: null,
+      sentinelRejected: recs.reduce((t, r) => t + (r.sentinelRejected || 0), 0),
+      sentinelKept: recs.reduce((t, r) => t + (r.sentinelKept || 0), 0)
+    };
+  };
+
   /* ECGDex — raw H10 _ECG is the HONEST H10 leg (device _HR.txt is smoothed; CLAUDE.md).
      Build the parsed rec, then attach the _ACC companion so posture/accExtras run. */
   try {
-    const rec = ECGDex.parseECG(readFileSync(p.ecg.full, 'utf8'));
-    if (p.accH10) {
-      const a = ECGDex.parseDeviceACC(readFileSync(p.accH10.full, 'utf8'));
+    const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECG(readFileSync(f.full, 'utf8'))));
+    if (p.accH10 && p.accH10.length) {
+      const a = ECGDex.parseDeviceACC(readFileSync(p.accH10[0].full, 'utf8'));
       rec.deviceACC = a.acc;
       rec.accFs = a.accFs;
     }
@@ -583,8 +742,10 @@ for (const p of work) {
   /* PpgDex — Verity HR MUST come from raw _PPG (device _HR.txt is all-zero; _PPI is header-only).
      ACC+GYRO drive the per-epoch motionIndex. */
   try {
-    const rec = PpgDex.parsePPG(readFileSync(p.ppg.full, 'utf8'));
-    const xyz = (f) => (f ? ctx.PPGDSP.parseSensorXYZ(readFileSync(f.full, 'utf8')) : null);
+    const rec = mergePpg(p.ppg.map((f) => PpgDex.parsePPG(readFileSync(f.full, 'utf8'))));
+    // The IMU companions stay single-session: they only drive the per-epoch motionIndex, and the
+    // 775 MB ACC union is the one that would blow the string limit. Documented, not silent.
+    const xyz = (l) => (l && l.length ? ctx.PPGDSP.parseSensorXYZ(readFileSync(l[0].full, 'utf8')) : null);
     rec.acc = xyz(p.accVer);
     rec.gyro = xyz(p.gyro);
     rec.magn = xyz(p.magn);
@@ -603,16 +764,34 @@ for (const p of work) {
        compute() takes {samples|rows|text} and never bytes. Not a second implementation: the 3-byte
        layout, the 0xFF 0xFF trailer, the motion×2 scale and the filename→t0 rule live in exactly one
        place. Verified equivalent on 2026-07-06, the night that has both files. */
-    const isDat = p.oxy.kind === 'dat';
-    let text;
-    if (isDat) {
-      const bytes = new Uint8Array(readFileSync(p.oxy.full));
-      if (!OxyDex.isO2RingBin(bytes)) throw new Error(`not an O2Ring native binary: ${p.oxy.name}`);
-      text = OxyDex.decodeO2RingBinToCSV(bytes, p.oxy.name);
-    } else {
-      text = readFileSync(p.oxy.full, 'utf8');
-    }
-    const ex = OxyDex.compute({ text, fileMeta: { name: p.oxy.name } }, { ...COMMON, source: isDat ? 'o2ring-dat' : 'o2ring-csv' });
+    // SpO2 merges as TEXT: the whole-night union is at most 1.4 MB in this corpus, nowhere near the
+    // string limit, and every row carries its own absolute stamp so concatenation in time order is
+    // exactly the same record the ring would have written had it never dropped. Header kept once.
+    const oxyText = (f) => {
+      if (f.kind === 'dat') {
+        const bytes = new Uint8Array(readFileSync(f.full));
+        if (!OxyDex.isO2RingBin(bytes)) throw new Error(`not an O2Ring native binary: ${f.name}`);
+        return OxyDex.decodeO2RingBinToCSV(bytes, f.name);
+      }
+      return readFileSync(f.full, 'utf8');
+    };
+    const parts = p.oxy.map(oxyText).filter((t) => t && t.trim());
+    if (!parts.length) throw new Error('no readable O2Ring session');
+    const head = parts[0].split('\n')[0];
+    const text =
+      [parts[0].trimEnd()]
+        .concat(
+          parts
+            .slice(1)
+            .map((t) => {
+              const lines = t.split('\n');
+              return (lines[0].trim() === head.trim() ? lines.slice(1) : lines).join('\n').trimEnd();
+            })
+            .filter(Boolean)
+        )
+        .join('\n') + '\n';
+    const isDat = p.oxy.some((f) => f.kind === 'dat');
+    const ex = OxyDex.compute({ text, fileMeta: { name: p.oxy[0].name } }, { ...COMMON, source: isDat ? 'o2ring-dat' : 'o2ring-csv' });
     const h = hoursOf(ex);
     if (!KEEP_DAYTIME && h != null && h < MIN_HOURS) console.log(`    ⊘ OxyDex  ${h.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);
     else row.nodes.push(writeExport(dir, 'OxyDex', p.key, ex));
