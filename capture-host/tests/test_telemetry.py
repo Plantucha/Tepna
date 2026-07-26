@@ -12,7 +12,11 @@ import telemetry
 def test_default_meta_present_and_inactive_before_data():
     bus = telemetry.TelemetryBus()
     keys = {m["key"] for m in bus.meta()}
-    assert {"ecg", "ppg", "spo2", "pr"} <= keys
+    # `ppg` deliberately absent since issue #410 — it is not device-unique (the O2Ring streams a
+    # finger pleth too), so it is registered per-device as `ppg_vs` and a placeholder here would paint
+    # an idle card no device ever fills.
+    assert {"ecg", "spo2", "pr"} <= keys
+    assert "ppg" not in keys
     assert all(m["active"] is False for m in bus.meta())  # nothing has produced data yet
 
 
@@ -32,9 +36,13 @@ def test_push_scalar_marks_active_and_snapshots():
 
 
 def test_push_multichannel_syncs_channel_count():
+    # Registers explicitly rather than leaning on a DEFAULT_META entry: `ppg` left that table with
+    # issue #410, and the Verity's pleth is now the device-qualified `ppg_vs`. The property under test
+    # (a multi-channel frame is ringed as rows of the declared width) is unchanged.
     bus = telemetry.TelemetryBus()
-    bus.push("ppg", [[1, 2, 3, 4], [5, 6, 7, 8]])
-    snap = bus.snapshot("ppg")
+    bus.register("ppg_vs", "PPG (Verity)", "raw", 55, chans=4)
+    bus.push("ppg_vs", [[1, 2, 3, 4], [5, 6, 7, 8]])
+    snap = bus.snapshot("ppg_vs")
     assert snap["chans"] == 4
     assert snap["v"] == [(1.0, 2.0, 3.0, 4.0), (5.0, 6.0, 7.0, 8.0)]
 
@@ -193,3 +201,30 @@ def test_shape_error_survives_an_unregister_reregister_cycle():
     bus.unregister("ppg_vs")
     bus.register("ppg_vs", "PPG", "raw", 55, chans=4)
     assert bus.shape_errors(), "a breach recorded against this night must not be clearable"
+
+
+# ── `ppg` IS NOT A DEVICE-UNIQUE KEY (issue #410) ──────────────────────────────────────────────
+# The O2Ring streams a finger pleth, so two devices declare `ppg`. While the Verity kept the bare key,
+# monitor.html's deviceForStream() — "first device whose stream list contains this name" — resolved it
+# to whichever sensor sorted first, and the Verity's PPG card showed the RING's battery and RSSI.
+
+def test_default_meta_no_longer_claims_a_bare_ppg():
+    """A placeholder here would paint a permanently idle PPG card that no device ever fills."""
+    assert "ppg" not in telemetry.DEFAULT_META
+    assert "ecg" in telemetry.DEFAULT_META, "ECG really is device-unique (only the H10)"
+
+
+def test_capture_qualifies_ppg_but_not_ecg():
+    import importlib
+    cap = importlib.import_module("capture")
+    assert cap._live_key("ppg", "vs") == "ppg_vs", "two devices stream ppg — it must be qualified"
+    assert cap._live_key("ecg", "h10") == "ecg", "only the H10 streams ecg"
+    assert cap._live_key("acc", "vs") == "acc_vs"
+    assert cap._live_key("acc", "h10") == "acc_h10"
+
+
+def test_the_two_ppg_streams_get_distinct_keys():
+    """The Verity's and the O2Ring's pleth must never collide on one bus key."""
+    import importlib
+    cap = importlib.import_module("capture")
+    assert cap._live_key("ppg", "vs") != "o2ppg"

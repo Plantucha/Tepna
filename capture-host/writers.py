@@ -397,20 +397,28 @@ class LinkLogWriter:
         self.path = path
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
         self._fh.write("Phone timestamp;device;connected;rssi_dbm;battery_pct;"
-                       "frames_dropped;frames_duplicated;link_epoch\n")
+                       "frames_dropped;frames_duplicated;link_epoch;address\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
 
     def write(self, when: _dt.datetime, device: str, connected: bool, rssi, battery,
-              dropped=None, duplicated=None, link_epoch=None) -> None:
+              dropped=None, duplicated=None, link_epoch=None, address=None) -> None:
         def _f(v):
             return "" if v is None else str(v)          # blank, never a fabricated 0
-        # link_epoch (E5) is APPENDED last so a positional reader of the first seven columns is unaffected —
-        # the same "never shift an existing column" discipline the class docstring keeps for the sidecar.
+        # link_epoch (E5) and `address` are APPENDED last so a positional reader of the earlier columns is
+        # unaffected — the same "never shift an existing column" discipline the class docstring keeps.
+        #
+        # WHY `address` (2026-07-26). `device` is the human NAME, and a name is not an identity: it can be
+        # edited in the monitor, and on 2026-07-25 one re-pair rewrote the Verity's from "Polar Verity
+        # Sense" to "Polar Sense 0C301E3F" mid-night. The sidecar then recorded ONE physical sensor under
+        # TWO keys (3 samples under the old name, 1123 under the new), so any per-device aggregate over
+        # that night silently splits in half. The MAC cannot be edited and cannot collide, so it is the
+        # key an analysis should group on; the name stays for human reading.
         self._fh.write(f"{_phone_ts(when)};{device};{1 if connected else 0};"
-                       f"{_f(rssi)};{_f(battery)};{_f(dropped)};{_f(duplicated)};{_f(link_epoch)}\n")
+                       f"{_f(rssi)};{_f(battery)};{_f(dropped)};{_f(duplicated)};{_f(link_epoch)};"
+                       f"{_f(address)}\n")
         self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
