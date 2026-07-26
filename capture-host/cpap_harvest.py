@@ -216,7 +216,12 @@ def backend() -> str:
 # nmcli path's `ipv4.never-default` — there is no route to suppress, and no DHCP client to talk us into
 # one. `ip addr add` alone creates only the on-link /24, which is exactly enough to reach 192.168.4.1.
 WPA_IFACE, WPA_ADDR = "wlp1s0", "192.168.4.2/24"
-_WPA_CONF = 'network={{\n\tssid="{ssid}"\n\tpsk="{psk}"\n\tkey_mgmt=WPA-PSK\n\tscan_ssid=1\n}}\n'
+# ctrl_interface is NOT optional: without it wpa_supplicant starts, associates or not, and creates no
+# control socket — so `wpa_cli status` can never reach it and the association can never be confirmed.
+# Found on real hardware 2026-07-26; mocked subprocesses cannot catch it, because the bug is in the
+# CONFIG we hand the daemon, not in how we call it. Bounded-wait then teardown handled it correctly.
+_WPA_CONF = ('ctrl_interface=/run/wpa_supplicant\nctrl_interface_group=0\n'
+             'network={{\n\tssid="{ssid}"\n\tpsk="{psk}"\n\tkey_mgmt=WPA-PSK\n\tscan_ssid=1\n}}\n')
 
 
 def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float) -> bool:
