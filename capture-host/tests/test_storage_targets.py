@@ -257,3 +257,19 @@ def test_dest_status_still_works_for_an_allowed_root(monkeypatch, tmp_path):
     mp.mkdir()
     monkeypatch.setattr(st.os.path, "ismount", lambda p: str(p) == str(mp))
     assert st.dest_status({"kind": "mount", "protocol": "nfs", "mountpoint": str(mp)})["ready"] is True
+
+
+def test_a_symlinked_mountpoint_cannot_escape_the_allowed_root(tmp_path, monkeypatch):
+    """A textual prefix check never follows a symlink: /srv/tepna/archive -> /etc passes normpath and
+    is then written to. realpath judges containment on the path the filesystem will actually use."""
+    root = tmp_path / "srv"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    link = root / "archive"
+    link.symlink_to(outside)
+    monkeypatch.setattr(st, "MOUNT_ROOTS", (str(root),))
+    assert st._under_allowed_root(str(root / "real")) is True
+    assert st._under_allowed_root(str(link)) is False, "the symlink resolves outside the root"
+    with pytest.raises(st.StorageError, match="must live under"):
+        st.validate({**NFS, "mountpoint": str(link)})

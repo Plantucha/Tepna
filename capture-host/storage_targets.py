@@ -76,10 +76,28 @@ MOUNT_ROOTS = ("/srv", "/mnt", "/media", "/opt/tepna", "/var/lib/tepna")
 
 
 def _under_allowed_root(p: str) -> bool:
-    """True when `p` resolves inside one of MOUNT_ROOTS. The trailing-separator comparison is the point:
-    a bare prefix test would accept `/srvmalicious` as living under `/srv`."""
-    n = os.path.normpath(p)
-    return any(n == r or n.startswith(r + os.sep) for r in MOUNT_ROOTS)
+    """True when `p` RESOLVES inside one of MOUNT_ROOTS.
+
+    `realpath` + `commonpath`, not `startswith`. Two distinct reasons, both real:
+      • A bare prefix test accepts `/srvmalicious` as living under `/srv`; `commonpath` compares whole
+        path components, so it cannot.
+      • `normpath` is textual — it never follows a symlink. A mountpoint like `/srv/tepna/archive`
+        where `archive` (or any parent) is a symlink to `/etc` passes a textual check and then gets
+        written to. `realpath` resolves the link first, so containment is judged on the path the
+        filesystem will actually use.
+    Non-existent paths are fine: realpath still normalises them and resolves any existing parents."""
+    try:
+        n = os.path.realpath(p)
+    except (OSError, ValueError):
+        return False
+    for r in MOUNT_ROOTS:
+        try:
+            rr = os.path.realpath(r)
+            if os.path.commonpath([n, rr]) == rr:
+                return True
+        except (OSError, ValueError):
+            continue          # commonpath raises on a relative-vs-absolute mix; that is simply no match
+    return False
 
 
 class StorageError(ValueError):
