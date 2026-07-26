@@ -1418,7 +1418,14 @@ function tlForStream(key){
   const d = TL.devices.find(x => x.address === dev.address);
   if(!d) return null;
   // The card is per-STREAM; strip the device tag the bus adds (acc_vs -> acc) to find its entry.
-  const base = key.replace(/_(vs|h10|o2)$/,'').replace(/^o2ppg$/,'ppg').replace(/^bpm$/,'hr');
+  // Then map the cards that have no file of their own onto the file that CARRIES them. `pr` and
+  // `motion` are columns of the O2Ring's SpO2 sidecar (header: Time,Oxygen Level,Pulse Rate,
+  // Motion) and no _PR or _MOTION file is ever written — so they were looking up a stream that
+  // cannot exist, and both cards showed an empty strip with no percentage. An empty strip reads
+  // as 'not captured', which is the exact false reading this feature exists to prevent; they
+  // share the SpO2 file, therefore its intervals and its coverage, exactly.
+  const base = key.replace(/_(vs|h10|o2)$/,'').replace(/^o2ppg$/,'ppg').replace(/^bpm$/,'hr')
+                  .replace(/^(pr|motion)$/,'spo2');
   return { dev:d, st:d.streams[base] || null };
 }
 

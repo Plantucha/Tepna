@@ -245,3 +245,144 @@ def test_a_sample_exactly_at_t0_still_lands_in_bucket_zero():
     t0, t1 = _ts(22, 0), _ts(23, 0)
     conn, _ = timeline.bucket_link([(t0, 1, -55.0)], t0, t1, 60)
     assert conn[0] == 1
+
+
+# ══ LINK IDENTITY — the sidecar half of the same split (2026-07-26) ═══════════════════════════
+# The signal trace covered one hour of an eleven-hour night and nobody could tell, because a short
+# flat trace looks like a quiet night rather than a missing one.
+#
+# The LINK sidecar gained an `address` column mid-corpus (#413, deployed 08:44), so one night's file
+# is half name-keyed and half address-keyed: 1238 name rows and 158 address rows for the same H10.
+# build() asked `link.get(addr) or link.get(name)` — `or`, so the first non-empty bucket WON and the
+# other 87 % was discarded. Whichever key you look up, you lose the rest.
+
+def _link_csv(tmp_path, rows, with_address=True):
+    p = tmp_path / f"Tepna_2026072600000{len(list(tmp_path.iterdir()))}_LINK.csv"
+    head = ("Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;"
+            "link_epoch" + (";address\n" if with_address else "\n"))
+    p.write_text(head + "".join(rows))
+    return p
+
+
+def test_a_name_keyed_row_folds_onto_the_address_when_the_night_shows_the_mapping(tmp_path):
+    """Rows written after the address column arrived carry BOTH name and address, which is enough to
+    place the earlier name-only rows on the same device — no config, no guessing."""
+    _link_csv(tmp_path, ["2026-07-26T01:00:00.000;Polar H10 02849638;1;-70;80;;;1\n"],
+              with_address=False)
+    _link_csv(tmp_path, ["2026-07-26T09:00:00.000;Polar H10 02849638;1;-72;80;;;1;24:AC:AC:02:84:96\n"])
+    got = timeline.read_link_samples(str(tmp_path))
+    assert list(got) == ["24:AC:AC:02:84:96"], f"expected one device, got {list(got)}"
+    assert len(got["24:AC:AC:02:84:96"]) == 2, "the pre-address row must fold onto the address"
+
+
+def test_an_unmappable_name_is_left_under_its_name_and_not_guessed_at(tmp_path):
+    """If the night never shows that name beside an address, inventing a mapping would be fabrication.
+    It stays addressable by name so an explicit alias can still claim it."""
+    _link_csv(tmp_path, ["2026-07-26T01:00:00.000;Polar Sense 0C301E3F;1;-61;94;;;3\n"],
+              with_address=False)
+    got = timeline.read_link_samples(str(tmp_path))
+    assert list(got) == ["Polar Sense 0C301E3F"]
+
+
+def test_merge_link_samples_takes_every_key_not_the_first_that_answers(tmp_path):
+    """THE bug: `or` picked one bucket. A device's history can be spread over its address, its current
+    name and the name it had before a rename — all of it is the same radio."""
+    link = {"24:AC:AC:0C:30:1E": [(200.0, 1, -60.0)],
+            "Polar Verity Sense": [(300.0, 1, -61.0)],
+            "Polar Sense 0C301E3F": [(100.0, 1, -62.0)]}
+    got = timeline.merge_link_samples(
+        link, ["24:AC:AC:0C:30:1E", "Polar Verity Sense", "Polar Sense 0C301E3F"])
+    assert [t for t, _, _ in got] == [100.0, 200.0, 300.0], "merged AND time-ordered"
+
+
+def test_merge_link_samples_ignores_blanks_and_repeats_a_key_once(tmp_path):
+    link = {"AA": [(1.0, 1, -50.0)]}
+    assert len(timeline.merge_link_samples(link, ["AA", "AA", None, "", "missing"])) == 1
+
+
+def test_build_gathers_a_renamed_device_via_its_name_alias(tmp_path):
+    """End to end, on the shape the box actually has: pre-rename name rows, plus address rows written
+    after both the rename and the address column landed."""
+    _link_csv(tmp_path, [f"2026-07-26T0{h}:00:00.000;Polar Sense 0C301E3F;1;-6{h};94;;;3\n"
+                         for h in range(1, 6)], with_address=False)
+    _link_csv(tmp_path, ["2026-07-26T09:00:00.000;Polar Verity Sense;1;-60;94;;;3;24:AC:AC:0C:30:1E\n"])
+    out = timeline.build(str(tmp_path), [{
+        "name": "Polar Verity Sense", "device_id": "0C301E3F",
+        "name_aliases": ["Polar Sense 0C301E3F"],
+        "address": "24:AC:AC:0C:30:1E", "streams": []}], buckets=12)
+    pts = [r for r in out["devices"][0]["rssi"] if r is not None]
+    assert len(pts) >= 5, f"the pre-rename hours must appear in the trace, got {len(pts)} points"
+
+
+def test_build_without_an_alias_still_gets_the_address_and_current_name(tmp_path):
+    """The common case needs no configuration at all — that is what the auto-fold is for."""
+    _link_csv(tmp_path, ["2026-07-26T01:00:00.000;Polar H10 02849638;1;-70;80;;;1\n"],
+              with_address=False)
+    _link_csv(tmp_path, ["2026-07-26T09:00:00.000;Polar H10 02849638;1;-72;80;;;1;24:AC:AC:02:84:96\n"])
+    out = timeline.build(str(tmp_path), [{"name": "Polar H10 02849638", "device_id": "02849638",
+                                          "address": "24:AC:AC:02:84:96", "streams": []}], buckets=12)
+    pts = [r for r in out["devices"][0]["rssi"] if r is not None]
+    assert len(pts) == 2, f"both halves of the night must show, got {len(pts)}"
+
+
+def test_the_final_sample_sits_on_t1_and_must_still_be_counted():
+    """build() derives t1 from the samples, so the newest reading is ALWAYS exactly on the boundary.
+    Excluding it drops the current RSSI from every live card."""
+    t0, t1 = _ts(22, 0), _ts(23, 0)
+    conn, rssi = timeline.bucket_link([(t0, 1, -55.0), (t1, 1, -80.0)], t0, t1, 10)
+    assert conn[0] == 1 and rssi[0] == -55.0
+    assert conn[-1] == 1 and rssi[-1] == -80.0, "the sample on t1 belongs in the last bucket"
+
+
+def test_a_sample_beyond_t1_is_still_rejected():
+    """Clamping the boundary must not turn into accepting anything after it."""
+    t0, t1 = _ts(22, 0), _ts(23, 0)
+    conn, _ = timeline.bucket_link([(t1 + 60, 0, -99.0)], t0, t1, 10)
+    assert all(c is None for c in conn)
+
+
+# ── the card→stream mapping in the monitor ────────────────────────────────────────────────────
+def _tl_base_mapper():
+    """Apply monitor.html's OWN `base` rewrite chain, extracted from the file.
+
+    Re-typing the chain here would only prove the test agrees with the test; this runs the shipped
+    one. JS and Python regex agree on everything it uses (anchors, alternation, groups)."""
+    import re as _re
+    html = open(__file__.replace("tests/test_timeline.py", "monitor.html"), encoding="utf-8").read()
+    # There are two `const base = key…` lines — deviceForStream has its own. Anchor on the one inside
+    # tlForStream, or the test silently measures the wrong function.
+    body = html.split("function tlForStream(")[1]
+    # Read the whole STATEMENT, not one line: the chain is long enough to wrap, and a line-based
+    # reader silently drops whatever sits past the newline — which is how this test first passed
+    # against a mapping it could not see.
+    stmt = body[body.index("const base = key"):]
+    stmt = stmt[:stmt.index(";")]
+    pairs = _re.findall(r"\.replace\(/(.+?)/\s*,\s*'([^']*)'\)", stmt)
+    assert pairs, f"could not read the rewrite chain from: {stmt.strip()}"
+
+    def base(key):
+        for pat, repl in pairs:
+            key = _re.sub(pat, repl, key)
+        return key
+    return base
+
+
+def test_pulse_rate_and_motion_resolve_to_the_file_that_actually_carries_them():
+    """`pr` and `motion` are COLUMNS of the O2Ring's SpO2 sidecar — its header is
+    `Time,Oxygen Level,Pulse Rate,Motion` — and no _PR or _MOTION file is ever written. Looking up a
+    stream that cannot exist left both cards with an empty strip and no percentage, which reads as
+    'not captured' for data captured continuously. They share the SpO2 file, so they share its
+    intervals exactly."""
+    base = _tl_base_mapper()
+    assert base("pr") == "spo2"
+    assert base("motion_o2") == "spo2"
+
+
+def test_the_mappings_that_already_worked_are_unchanged():
+    base = _tl_base_mapper()
+    assert base("o2ppg") == "ppg"      # the finger pleth is the ring's PPG file
+    assert base("bpm_h10") == "hr"
+    assert base("acc_vs") == "acc"
+    assert base("gyro_vs") == "gyro"
+    assert base("ecg") == "ecg"
+    assert base("spo2") == "spo2"
