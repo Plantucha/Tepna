@@ -73,8 +73,15 @@ def active_nights(captures_dir: str, settle_sec: float, _now=time.time) -> set[s
                 if os.path.isfile(p) and (now - os.path.getmtime(p)) < settle_sec:
                     out.add(n)
                     break
+        except FileNotFoundError:
+            continue                              # a night that vanished mid-scan is genuinely not active
         except OSError:
-            continue                              # a night that vanished mid-scan is simply not active
+            # ANY OTHER failure to read the night means we do not KNOW whether it is being written —
+            # EACCES, EIO on a failing disk, EMFILE on a busy daemon. This set's only consumer is a
+            # protect-list for destructive work, so unknown must mean PROTECTED. Skipping (the old
+            # behaviour) made an unreadable night look settled and therefore prunable, i.e. the doubt
+            # licensed the delete. Fail safe in the direction that keeps data.
+            out.add(n)
     return out
 
 

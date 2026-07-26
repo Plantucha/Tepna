@@ -16,7 +16,7 @@
 #   GET  /api/stream/{key}     -> Server-Sent-Events live waveform (one stream)
 
 from __future__ import annotations
-import asyncio, hmac, json, logging, os, re
+import asyncio, hmac, json, logging, os, re, tempfile
 from aiohttp import web
 import yaml
 import bonding
@@ -235,13 +235,51 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "detail": repr(e)}, status=500)
 
     def _save() -> bool:
+        """Persist config.yaml ATOMICALLY — write a sibling temp, fsync, then os.replace.
+
+        This used to be `open(cfg_path, "w")`, which TRUNCATES before it writes. A failure partway —
+        a full disk (the box was at 13.2 % free on 2026-07-25), a power cut, a kill — left config.yaml
+        truncated or empty, and the `except` below could not undo it: by the time it ran, the only copy
+        was already destroyed. Returning ok:false does not restore a file.
+
+        The blast radius is the whole appliance and it is SILENT: capture.py reads the config exactly
+        once, at startup, so a corrupted file changes nothing until the next restart — and then the
+        daemon either fails to parse it or comes up with an empty device list and records nothing, all
+        night, with no error at the time of the damage.
+
+        os.replace() is atomic on POSIX, so a reader sees either the whole old file or the whole new
+        one. The directory fsync is what makes the rename itself survive a power loss (fsyncing the
+        file alone leaves the directory entry unflushed). Failure at ANY step leaves the original
+        untouched and reports false. (VIGIL-DEEP-ANALYSIS §2A kept the honest return value; this fixes
+        the thing it was reporting on.)"""
+        d = os.path.dirname(os.path.abspath(cfg_path)) or "."
+        tmp = None
         try:
-            with open(cfg_path, "w") as f:
+            fd, tmp = tempfile.mkstemp(prefix=".config.", suffix=".yaml.tmp", dir=d)
+            with os.fdopen(fd, "w") as f:
                 yaml.safe_dump(cfg, f, sort_keys=False, default_flow_style=False)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, cfg_path)          # atomic: readers see old-or-new, never a partial file
+            tmp = None
+            try:                               # make the RENAME durable, not just the bytes
+                dfd = os.open(d, os.O_RDONLY)
+                try:
+                    os.fsync(dfd)
+                finally:
+                    os.close(dfd)
+            except OSError:                    # some filesystems refuse a directory fsync; the replace
+                pass                           # already happened and is still atomic
             return True
         except Exception as e:   # a full/read-only disk must NOT report ok:true (VIGIL-DEEP-ANALYSIS §2A)
             _log.warning("config write failed: %r", e)
             return False
+        finally:
+            if tmp and os.path.exists(tmp):
+                try:
+                    os.unlink(tmp)             # never leave a stray .config.*.yaml.tmp behind
+                except OSError:
+                    pass
 
     # ── Clock / NTP / timezone (Clock Contract §🔒 — the box's wall clock stamps every capture) ──
     _clock_sudo = (cfg.get("clock") or {}).get("sudo", True)

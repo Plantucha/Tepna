@@ -467,7 +467,12 @@ def test_forget_surfaces_a_failed_config_write_as_500(tmp_path, monkeypatch):
     monkeypatch.setattr(webmon.bonding, "forget", fake_forget)
     app, cfg, cfg_path, *_ = _mk(tmp_path, devices=[dict(H10, address="11:22:33:44:55:66")])
     def boom(*a, **k): raise OSError("No space left on device")
-    monkeypatch.setattr(webmon, "open", boom, raising=False)   # make yaml.safe_dump's open() fail
+    # Patches yaml.safe_dump, not `open`. The intent is unchanged — a disk failure during the config
+    # write must surface as 500 — but the MECHANISM moved: _save is now an atomic
+    # mkstemp/fsync/os.replace (VIGIL-HARDENING-II §2) and never calls the module-level `open`, so the
+    # old patch silently stopped intercepting anything and the test would have passed on a write that
+    # actually succeeded. safe_dump is the serialization step the atomic path genuinely goes through.
+    monkeypatch.setattr(webmon.yaml, "safe_dump", boom)
     async def go(c):
         r = await c.post("/api/forget", json={"address": "11:22:33:44:55:66"})
         return r.status
