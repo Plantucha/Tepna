@@ -2739,7 +2739,6 @@ async def cpap_poller(cfg: dict, root: str):
     max_run = float(ccfg.get("max_run_sec", 5400))
     timeout = float(ccfg.get("timeout_sec", 20))
     retries = int(ccfg.get("retries", 5))
-    last_run_date = None
 
     STATUS["cpap"] = {"enabled": True, "state": "idle", "at_hour": at_hour, "dest": dest}
     log.info("cpap: harvest enabled — daily at %02d:00 into %s (only while nothing is streaming)",

@@ -4,7 +4,6 @@ Every case here is a real failure mode the module already guards against but not
 absent BlueZ, an unmounted backup volume, a filename shape that must be REFUSED, and the CLI's
 nothing-found exit. Grouped in one file because each is a one-branch fill, not a module's worth of work.
 """
-import datetime as dt
 import os
 import sys
 
