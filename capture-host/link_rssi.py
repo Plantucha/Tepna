@@ -55,6 +55,41 @@ def parse_hci_dev(text: str) -> dict[str, str]:
     return out
 
 
+ZERO_ADDR = "00:00:00:00:00:00"
+
+
+async def dbus_hci() -> dict[str, str]:
+    """Map controller BD_ADDR → hciN from BlueZ over D-Bus — {BD_ADDR_upper: hciN}.
+
+    THE ONLY SOURCE THAT KNOWS A CONTROLLER WITH NO PUBLIC ADDRESS. sysfs and `hcitool dev` both read
+    the controller's PUBLIC address, and an LE-only controller is entitled not to have one: a Raytac
+    MDBT50Q running Zephyr's USB HCI reports 00:00:00:00:00:00 to both while BlueZ has given it the
+    static-random identity C6:CF:3C:4E:75:F0 (top two bits set — that is what makes it static random).
+
+    That identity is not cosmetic. It is the address BlueZ bonds with, the one `bluetoothctl` prints,
+    and the one an operator would put in `adapter:`. Without this source resolve_hci returned None for
+    it, capture logged "configured adapter not found — falling back to the BlueZ default", and dropped
+    the pin — and on 2026-07-26 the BlueZ default WAS that same untested controller. A pin that fails
+    open onto a different radio is worse than no pin, because the log says it fell back while the
+    night's data says nothing at all.
+
+    {} when busctl is absent or BlueZ is not up; the caller keeps whatever hcitool/sysfs gave it."""
+    out: dict[str, str] = {}
+    try:
+        names = sorted(n for n in os.listdir("/sys/class/bluetooth") if re.fullmatch(r"hci\d+", n))
+    except OSError:
+        return out
+    for name in names:
+        txt = await _run(["busctl", "get-property", "org.bluez", f"/org/bluez/{name}",
+                          "org.bluez.Adapter1", "Address"])
+        if not txt:
+            continue
+        m = re.search(r"([0-9A-Fa-f:]{17})", txt)
+        if m and m.group(1).upper() != ZERO_ADDR:
+            out[m.group(1).upper()] = name
+    return out
+
+
 def sysfs_hci(base: str = "/sys/class/bluetooth") -> dict[str, str]:
     """Map controller BD_ADDR → hciN from sysfs — {BD_ADDR_upper: hciN}. Each
     /sys/class/bluetooth/hciN/address holds that controller's MAC. This is the DEPENDENCY-FREE resolver
@@ -101,6 +136,12 @@ async def resolve_hci(adapter_mac: str | None, refresh: bool = False) -> str | N
     # sysfs FIRST (dependency-free, present on the Pi 5 where hcitool is absent); hcitool only as a
     # fallback (VIGIL-DEEP-ANALYSIS §1.3). Both yield {BD_ADDR_upper: hciN}.
     devs = sysfs_hci() or parse_hci_dev(await _run(["hcitool", "dev"]) or "")
+    # OVERLAY BlueZ's own view. sysfs/hcitool report the PUBLIC address, so a controller that has only
+    # a static-random identity is invisible to them — it shows up as 00:00:00:00:00:00 and cannot be
+    # pinned. D-Bus is asked only when the cheap sources did not already answer for this key, so the
+    # common case still costs one subprocess and the mapping stays authoritative where it exists.
+    if key and key not in devs:
+        devs = {**devs, **(await dbus_hci())}
     if not devs:
         return None
     hci = devs.get(key) if key else next(iter(devs.values()))
