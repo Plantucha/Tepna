@@ -127,8 +127,10 @@ done
 echo
 echo "  live SSE, as a browser sees it:"
 for s in _all ecg; do
-  N=$(timeout 9 curl -sN --compressed --max-time 9 $A -H 'Host: vigil.local' \
-        "http://127.0.0.1/api/stream/$s" 2>/dev/null | grep -c '^data:') || N=0
+  # Counting is delegated to sse-frames.sh, which is tested. Doing it inline here is what produced a
+  # permanent false "0 frames": pipefail plus a deliberately timed-out curl makes the pipeline
+  # non-zero every run, so an `|| N=0` fallback clobbers the real count. See that script's header.
+  N=$(bash "$(dirname "$0")/sse-frames.sh" "http://127.0.0.1/api/stream/$s" 9 $A -H 'Host: vigil.local')
   if [ "${N:-0}" -ge 3 ]; then
     printf "    ✓ /api/stream/%-5s %s frames in 9 s\n" "$s" "$N"
   else
