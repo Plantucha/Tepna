@@ -3391,3 +3391,103 @@ def test_a_charging_polar_releases_the_held_link_promptly_when_a_pull_asks_for_i
     assert held <= 2, (
         f"held the link for {held} tick(s) after the pull asked for it — a pull that cannot get the "
         "link fails with InProgress, so the charging wait must check the pause every tick")
+
+
+# ══ UNBOUNDED GATT AWAITS — the 4h25m Verity freeze of 2026-07-25 ═════════════════════════════
+# 23:51:20  Polar Sense 0C301E3F connected
+# 23:51:21  START ppg  (negotiated) -> ok
+# 23:51:22  START acc  (negotiated) -> ok
+# 23:51:22  START gyro (negotiated) -> ok
+# 23:51:23  START mag  (negotiated) -> ok
+#           ... nothing whatsoever ...
+# 04:16:01  Polar Sense 0C301E3F connected
+#
+# Four streams acknowledged `ok`, the link held (680 of 682 poll samples connected), and ZERO bytes for
+# four and a half hours. The 90 s stall watchdog never fired because it lives in the hold loop, and the
+# task never reached the hold loop: it was parked on an unbounded GATT read.
+#
+# `_bounded_setup` exists for exactly this and says so — "never a silent all-night freeze at
+# connected=True" — but it was applied only to the PMD data subscribe. The battery read sits between
+# the last successful START and the hold loop, so a hang there is invisible in the worst possible way:
+# every stream reports `started`, `connected` stays True, and the watchdog that would notice is
+# downstream of the thing that is stuck. QC logged `missing stream(s)` at 00:02 and 00:12 and nothing
+# consumed it.
+
+class HangingPolarClient(FakePolarClient):
+    """A Polar whose battery characteristic never answers — a flaky link BlueZ never fails."""
+    def __init__(self, hang_uuid, **kw):
+        super().__init__(**kw)
+        self.hang_uuid = hang_uuid
+
+    async def read_gatt_char(self, uuid):
+        if uuid == self.hang_uuid:
+            await asyncio.Event().wait()          # never returns, never raises
+        return await super().read_gatt_char(uuid)
+
+
+def _run_bounded(coro, seconds=5.0):
+    """Run with a hard wall-clock cap so a regression FAILS instead of hanging the suite forever."""
+    async def go():
+        return await asyncio.wait_for(coro, seconds)
+    return asyncio.run(go())
+
+
+def test_a_battery_read_that_never_answers_cannot_freeze_the_device_task(tmp_path, monkeypatch):
+    """THE bug. Without a bound this awaits forever and the session never reaches its stall watchdog."""
+    _polar_common(monkeypatch)
+    monkeypatch.setattr(capture, "_BLE_SETUP_TIMEOUT_S", 0.05)
+    c = HangingPolarClient(capture.BATTERY_UUID, start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 3)
+    _run_bounded(capture.run_polar(_pdev(), str(tmp_path)))
+    assert capture.STATUS["devices"]["H10"]["connected"] is True
+
+
+def test_a_battery_read_that_hangs_does_not_lose_the_session(tmp_path, monkeypatch):
+    """Battery level is cosmetic. A timeout reading it must skip the reading, not tear down capture —
+    otherwise the fix trades an all-night freeze for an all-night reconnect loop."""
+    _polar_common(monkeypatch)
+    monkeypatch.setattr(capture, "_BLE_SETUP_TIMEOUT_S", 0.05)
+    c = HangingPolarClient(capture.BATTERY_UUID, start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 3)
+    _run_bounded(capture.run_polar(_pdev(), str(tmp_path)))
+    ecgs = list((tmp_path / "captures").rglob("*_ECG.txt"))
+    assert ecgs and ecgs[0].stat().st_size > 60, "the ECG stream must still have been captured"
+
+
+def test_a_control_point_read_that_never_answers_cannot_freeze_the_device_task(tmp_path, monkeypatch):
+    """The PMD feature read is on the same path and equally unbounded."""
+    _polar_common(monkeypatch)
+    monkeypatch.setattr(capture, "_BLE_SETUP_TIMEOUT_S", 0.05)
+    c = HangingPolarClient(pmd.PMD_CONTROL, start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 3)
+    _run_bounded(capture.run_polar(_pdev(), str(tmp_path)))
+
+
+def test_an_hr_subscribe_that_never_answers_cannot_freeze_the_device_task(tmp_path, monkeypatch):
+    """start_notify on the HR characteristic was bare too."""
+    _polar_common(monkeypatch)
+    monkeypatch.setattr(capture, "_BLE_SETUP_TIMEOUT_S", 0.05)
+    c = FakePolarClient(start_status=0x00)
+    orig = c.start_notify
+    async def hang(uuid, cb):
+        if getattr(uuid, "uuid", uuid) == capture.HR_UUID:
+            await asyncio.Event().wait()
+        return await orig(uuid, cb)
+    c.start_notify = hang
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 3)
+    _run_bounded(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
+
+
+def test_no_post_connect_gatt_await_in_run_polar_is_left_unbounded():
+    """A source check, because the next one added will be bare too unless something says otherwise.
+    Every start_notify / read_gatt_char inside run_polar must carry a bound."""
+    src = open(__file__.replace("tests/test_capture_runners.py", "capture.py"), encoding="utf-8").read()
+    body = src.split("async def run_polar")[1].split("\nasync def ")[0]
+    bare = [ln.strip() for ln in body.splitlines()
+            if ("client.start_notify(" in ln or "client.read_gatt_char(" in ln)
+            and "_bounded_setup" not in ln and "wait_for" not in ln]
+    assert not bare, "unbounded post-connect GATT await(s) in run_polar:\n  " + "\n  ".join(bare)
