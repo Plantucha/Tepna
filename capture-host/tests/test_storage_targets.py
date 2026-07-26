@@ -236,3 +236,24 @@ def test_traversal_cannot_escape_the_allowed_root(monkeypatch):
     with pytest.raises(st.StorageError):
         st.validate({**NFS, "mountpoint": "/srv/../etc"})
     assert st._under_allowed_root("/srv/a/../../etc") is False
+
+
+def test_dest_status_defends_itself_against_an_unvalidated_target(monkeypatch):
+    """dest_status takes a plain dict; nothing guarantees it came through validate(). It must refuse a
+    path outside the allowed roots on its own rather than stat'ing it (CodeQL py/path-injection)."""
+    monkeypatch.setattr(st, "MOUNT_ROOTS", ("/srv", "/mnt"))
+    called = []
+    monkeypatch.setattr(st.os.path, "isdir", lambda p: called.append(p) or True)
+    monkeypatch.setattr(st.os.path, "ismount", lambda p: called.append(p) or True)
+    for bad in ("/etc", "/home/vigil/.ssh", "/boot", ""):
+        s = st.dest_status({"kind": "mount", "protocol": "nfs", "mountpoint": bad})
+        assert s["ready"] is False
+    assert called == [], "an out-of-root path must never reach a filesystem call"
+
+
+def test_dest_status_still_works_for_an_allowed_root(monkeypatch, tmp_path):
+    monkeypatch.setattr(st, "MOUNT_ROOTS", (str(tmp_path),))
+    mp = tmp_path / "archive"
+    mp.mkdir()
+    monkeypatch.setattr(st.os.path, "ismount", lambda p: str(p) == str(mp))
+    assert st.dest_status({"kind": "mount", "protocol": "nfs", "mountpoint": str(mp)})["ready"] is True

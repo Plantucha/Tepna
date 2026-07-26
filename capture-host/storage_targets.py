@@ -248,6 +248,16 @@ def dest_status(target: dict) -> dict:
     kind = target.get("kind") or PROTOCOLS.get(target.get("protocol", ""), ("transfer",))[0]
     if kind == "mount":
         mp = target.get("mountpoint") or ""
+        # SELF-DEFENDING, not caller-trusting. `validate()` already constrains the mountpoint, but this
+        # function takes a plain dict and nothing stops a future caller handing it one that never went
+        # through validation — which is exactly what CodeQL's py/path-injection flow reported. Re-check
+        # here so the guarantee lives with the filesystem access instead of in another function's
+        # discipline; it is the same lesson as diskguard.active_nights failing open on an unreadable
+        # night (VIGIL-HARDENING-II §1.2). Cheap: two string ops before a stat.
+        if not (mp and _under_allowed_root(mp)):
+            return {"ready": False, "path": mp,
+                    "reason": (f"{mp!r} is not under an allowed mount root "
+                               f"({', '.join(MOUNT_ROOTS)})" if mp else "no mountpoint configured")}
         if target.get("protocol") == "local":
             ok = bool(mp) and os.path.isdir(mp)
             return {"ready": ok, "path": mp,
