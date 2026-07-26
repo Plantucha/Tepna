@@ -151,9 +151,12 @@ def bucket_link(samples: list[tuple[float, int, float | None]], t0: float, t1: f
         # int() truncates TOWARD ZERO, so a sample up to one bucket before t0 gives i == 0 and
         # slips past the `0 <= i` guard — a stale disconnected reading then paints the first
         # bucket nosignal. Reject out-of-window samples explicitly instead.
-        if ts < t0 or ts >= t1:
+        if ts < t0 or ts > t1:
             continue
-        i = int((ts - t0) / width)
+        # Clamp the right edge rather than excluding it. build() derives t1 from the samples, so the
+        # LAST sample always sits exactly on t1 — and that is the most recent reading, the one a live
+        # card is showing. `ts >= t1` silently dropped it every time.
+        i = min(int((ts - t0) / width), n - 1)
         if 0 <= i < n:
             buckets[i].append((c, r))
     for i, b in enumerate(buckets):
@@ -184,17 +187,43 @@ def apply_link_states(states: list[str], conn: list[int | None], wedged: list[bo
     return out
 
 
-def read_link_samples(night_dir: str) -> dict[str, list[tuple[float, int, float | None]]]:
-    """LINK sidecar → {address: [(ts, connected, rssi)]}.
+def merge_link_samples(link: dict, keys) -> list[tuple[float, int, float | None]]:
+    """Every sample belonging to one device, gathered from ALL of its keys and time-ordered.
 
-    Keyed on ADDRESS, not name: a device can be renamed from the monitor and one was, mid-night, on
-    2026-07-25 — which split a single sensor's history across two keys. Falls back to the name column
-    only for sidecars written before the address column existed."""
-    out: dict[str, list[tuple[float, int, float | None]]] = {}
+    This used to be `link.get(addr) or link.get(name)`. The `or` is the bug: the first non-empty
+    bucket won and every other key's history was silently dropped. On the real 2026-07-26 night the
+    sidecar held 1238 name-keyed rows and 158 address-keyed rows for the same H10 — the address won,
+    so the signal trace showed one hour of an eleven-hour night. A short flat trace reads as a quiet
+    night, not a missing one, which is why nothing looked wrong."""
+    out: list[tuple[float, int, float | None]] = []
+    seen = set()
+    for k in keys:
+        if not k or k in seen:
+            continue
+        seen.add(k)
+        out.extend(link.get(k) or [])
+    out.sort()
+    return out
+
+
+def read_link_samples(night_dir: str) -> dict[str, list[tuple[float, int, float | None]]]:
+    """LINK sidecar → {device key: [(ts, connected, rssi)]}, one bucket per PHYSICAL device.
+
+    Keyed on ADDRESS wherever the file gives one, because a device can be renamed from the monitor and
+    one was, mid-night, on 2026-07-25.
+
+    The address column itself arrived mid-corpus, so a single night's sidecar is routinely half
+    name-keyed and half address-keyed for the same sensor. Rows written after the column landed carry
+    BOTH, and that is enough to place the earlier name-only rows: the mapping is learned from the file
+    and the older rows fold onto the address. A name never seen beside an address is LEFT UNDER ITS
+    NAME rather than guessed at — inventing that mapping would be fabrication, and an explicit
+    `name_aliases` entry can still claim it."""
+    rows: list[tuple[str, str | None, float, int, float | None]] = []
+    name_to_addr: dict[str, str] = {}
     try:
         names = [n for n in os.listdir(night_dir) if n.endswith("_LINK.csv")]
     except OSError:
-        return out
+        return {}
     for n in sorted(names):
         try:
             with open(os.path.join(night_dir, n), errors="replace") as fh:
@@ -207,8 +236,8 @@ def read_link_samples(night_dir: str) -> dict[str, list[tuple[float, int, float 
                     p = line.rstrip("\n").split(";")
                     if len(p) <= i_c:
                         continue
-                    key = (p[i_a].strip() if i_a is not None and len(p) > i_a and p[i_a].strip()
-                           else p[i_dev].strip())
+                    dev = p[i_dev].strip() if len(p) > i_dev else ""
+                    addr = (p[i_a].strip() if i_a is not None and len(p) > i_a else "") or None
                     try:
                         ts = _dt.datetime.fromisoformat(p[i_ts]).timestamp()
                     except ValueError:
@@ -219,9 +248,16 @@ def read_link_samples(night_dir: str) -> dict[str, list[tuple[float, int, float 
                             r = float(p[i_r])
                         except ValueError:
                             r = None
-                    out.setdefault(key, []).append((ts, 1 if p[i_c] == "1" else 0, r))
+                    if addr and dev:
+                        name_to_addr.setdefault(dev, addr)
+                    rows.append((dev, addr, ts, 1 if p[i_c] == "1" else 0, r))
         except OSError:
             continue
+    out: dict[str, list[tuple[float, int, float | None]]] = {}
+    for dev, addr, ts, c, r in rows:
+        key = addr or name_to_addr.get(dev) or dev
+        if key:
+            out.setdefault(key, []).append((ts, c, r))
     for v in out.values():
         v.sort()
     return out
@@ -303,7 +339,10 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
     out_devs = []
     for d in devices:
         did, addr = d.get("device_id"), d.get("address")
-        samples = link.get(addr) or link.get(d.get("name")) or []
+        # Address, current name, and any name the device has been called before — a rename does
+        # not make the earlier half of the night somebody else's radio.
+        samples = merge_link_samples(
+            link, [addr, d.get("name"), *(d.get("name_aliases") or [])])
         conn, rssi = bucket_link(samples, t0, t1, buckets)
         streams = {}
         for s in d.get("streams") or []:

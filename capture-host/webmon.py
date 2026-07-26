@@ -103,7 +103,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         for d in cfg.get("devices", []):
             st = status.get("devices", {}).get(d["name"], {})
             out.append({**{k: d.get(k) for k in
-                           ("name", "vendor", "model", "device_id", "device_id_aliases", "address", "streams")},
+                           ("name", "vendor", "model", "device_id", "device_id_aliases", "name_aliases", "address", "streams")},
                         "connected": bool(st.get("connected")),
                         "battery": st.get("battery"),
                         "rssi": st.get("rssi"),
@@ -190,7 +190,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         # A re-remember is how the UI handles an ordinary re-scan, so it must be IDEMPOTENT on
         # everything the caller did not explicitly send.
         cfg.setdefault("devices", [])
-        _KEYS = ("name", "vendor", "model", "device_id", "device_id_aliases", "address", "streams")
+        _KEYS = ("name", "vendor", "model", "device_id", "device_id_aliases", "name_aliases", "address", "streams")
         incoming = {k: dev[k] for k in _KEYS if k in dev}
         existing = next((d for d in cfg["devices"] if d.get("address") == dev.get("address")), None)
         if existing:
