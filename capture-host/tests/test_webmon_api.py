@@ -504,3 +504,99 @@ def test_remember_refuses_an_address_with_a_trailing_newline(tmp_path):
         return r.status
     assert _serve(app, go) == 400
     assert len(cfg["devices"]) == before, "config must not gain an uncapturable device"
+
+
+# ── STORAGE / OFFLOAD TARGET API (STORAGE-OFFLOAD-TARGETS) ─────────────────────────────────────
+# The box has a small SSD, so nights must leave. This surface owns where they go and when — and it
+# must never become a place a password comes to rest (config.yaml is world-readable on the box and
+# this API is LAN-reachable through Caddy).
+
+_RSYNC_T = {"protocol": "rsync", "host": "192.168.0.142", "user": "tepna",
+            "share": "/mnt/tank/tepna", "identity": "/home/tepna/.ssh/id_ed25519"}
+
+
+def test_storage_get_lists_the_protocol_catalogue(tmp_path):
+    app, *_ = _mk(tmp_path)
+
+    async def go(c):
+        return await (await c.get("/api/storage")).json()
+    body = _serve(app, go)
+    by = {p["protocol"]: p for p in body["protocols"]}
+    assert {"rsync", "nfs", "smb", "iscsi", "nvmeof", "webdav", "ftp", "local"} <= set(by)
+    assert by["nfs"]["privileged"] is True, "the UI must know this one needs a root step"
+    assert by["rsync"]["privileged"] is False
+
+
+def test_storage_post_persists_the_target_and_schedule(tmp_path):
+    app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
+
+    async def go(c):
+        return await (await c.post("/api/storage", json={
+            "enabled": True, "target": _RSYNC_T,
+            "schedule": {"mode": "daily", "at": "09:30", "window_min": 60}})).json()
+    body = _serve(app, go)
+    assert body["ok"] is True
+    saved = yaml.safe_load(open(cfg_path))["archive"]
+    assert saved["target"]["host"] == "192.168.0.142"
+    assert saved["schedule"] == {"mode": "daily", "at": "09:30", "window_min": 60}
+    assert saved["enabled"] is True
+
+
+def test_a_mount_target_sets_dest_to_its_mountpoint(tmp_path):
+    """nightarchive + the retention gate both key off `dest`, so a mount target must populate it."""
+    app, _cfg, _st, cfg_path, _bus = _mk(tmp_path)
+
+    async def go(c):
+        return await (await c.post("/api/storage", json={"target": {
+            "protocol": "nfs", "host": "nas.local", "share": "/mnt/tank/tepna",
+            "mountpoint": "/srv/tepna/archive"}})).json()
+    body = _serve(app, go)
+    assert body["ok"] is True
+    assert yaml.safe_load(open(cfg_path))["archive"]["dest"] == "/srv/tepna/archive"
+    assert body["mount_unit"]["unit_name"] == "srv-tepna-archive.mount"
+
+
+def test_a_transfer_target_clears_dest(tmp_path):
+    """rsync pushes straight off the box — a stale local `dest` would make the retention gate confirm
+    against a directory nothing writes to."""
+    app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    cfg.setdefault("archive", {})["dest"] = "/srv/tepna/old"
+
+    async def go(c):
+        return await (await c.post("/api/storage", json={"target": _RSYNC_T})).json()
+    assert _serve(app, go)["ok"] is True
+    assert "dest" not in yaml.safe_load(open(cfg_path))["archive"]
+
+
+def test_storage_post_refuses_a_password_and_writes_nothing(tmp_path):
+    app, _cfg, _st, cfg_path, _bus = _mk(tmp_path)
+
+    async def go(c):
+        r = await c.post("/api/storage", json={"target": {**_RSYNC_T, "password": "hunter2"}})
+        return r.status, await r.json()
+    status, body = _serve(app, go)
+    assert status == 400 and "never stores a password" in body["error"]
+    assert not os.path.exists(cfg_path), "a rejected target must not touch config.yaml"
+
+
+def test_storage_post_rejects_an_argv_hostile_host(tmp_path):
+    app, *_ = _mk(tmp_path)
+
+    async def go(c):
+        r = await c.post("/api/storage", json={"target": {**_RSYNC_T, "host": "-e/bin/sh"}})
+        return r.status, await r.json()
+    status, body = _serve(app, go)
+    assert status == 400 and "invalid host" in body["error"]
+
+
+def test_storage_test_reports_an_unmounted_mountpoint_as_not_ready(tmp_path):
+    app, *_ = _mk(tmp_path)
+    mp = tmp_path / "archive"
+    mp.mkdir()
+
+    async def go(c):
+        return await (await c.post("/api/storage/test", json={"target": {
+            "protocol": "nfs", "host": "nas.local", "share": "/mnt/tank/tepna",
+            "mountpoint": str(mp)}})).json()
+    body = _serve(app, go)
+    assert body["ok"] is False and "nothing is mounted" in body["detail"]
