@@ -2897,6 +2897,18 @@
             ? SignalFrame.computeContentId({ signalType: 'ppg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
             : null,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
+        // Declare the recording LENGTH so the Integrator can place a real window on this leg. The
+        // identical key and the identical reason already sit in ecgdex-dsp.js — the fix was applied
+        // to ECG and never to PPG, and the two build their `recording` block the same way.
+        // Without a duration key, integrator-dsp adaptEnvelopeNode derives endMs from the LAST EVENT
+        // only, so an event-sparse PPG segment collapses to a zero-length window at t0Ms and is
+        // excluded from the fold's overlap intersection — the leg is dropped even though its raw PPG
+        // genuinely overlapped the other nodes. Measured over the 2026-07-16..24 fold, PpgDex was the
+        // one node of three carrying NO duration at all (ECGDex durSec, OxyDex durationMin, PpgDex
+        // neither), so its window depended entirely on having events to bound it.
+        // `durSec` is the key the adapter already honors generically (DEEP-AUDIT-II §7.6) — additive
+        // and back-compat, exactly as it was for ECGDex.
+        durSec: r.durSec != null && isFinite(r.durSec) ? r.durSec : null,
         sessions: 1,
         events: events.length,
         // Optical site (OXYDEX-PULSE-RESOURCING §Phase 2): 'finger' = O2Ring single-channel pleth,

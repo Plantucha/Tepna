@@ -14,6 +14,7 @@
     "source": "ppg",
     "contentId": "47f59e23cb68",
     "startEpochMs": 1782021923891,
+    "durSec": 39.992592592592594,
     "sessions": 1,
     "events": 0,
     "site": "wrist"
