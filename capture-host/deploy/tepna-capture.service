@@ -1,0 +1,42 @@
+[Unit]
+Description=Tepna capture daemon (BLE -> vendor-layout files)
+# Needs the Bluetooth stack and a synced clock (arrival stamps depend on the clock).
+After=bluetooth.target network-online.target time-sync.target
+Wants=bluetooth.target network-online.target
+# Capture is unattended overnight — never rate-limit restarts (keep retrying across transient BLE drops).
+# StartLimitIntervalSec lives in [Unit], not [Service], since systemd v230.
+StartLimitIntervalSec=0
+
+[Service]
+# notify (not simple): the daemon sends READY=1 once capture is actually up, and heartbeats WATCHDOG=1
+# from a live-event-loop task. WatchdogSec turns the box's signature HUNG-BUT-ALIVE failure (a wedged BLE
+# stack that captures nothing while the process keeps running) into an automatic kill+restart.
+Type=notify
+WatchdogSec=120
+# This box's operator account. The upstream unit says `tepna`; no such user exists here, and everything
+# under /opt/tepna and /srv/tepna is owned by vigil.
+User=vigil
+Group=vigil
+WorkingDirectory=/opt/tepna/capture-host
+ExecStart=/opt/tepna/capture-host/.venv/bin/python capture.py --config /opt/tepna/capture-host/config.yaml
+Restart=always
+RestartSec=5
+
+# ── Writable paths ────────────────────────────────────────────────────────────────────────────────
+# /srv/tepna              — the captures themselves.
+# /opt/tepna/capture-host — config.yaml. The monitor PERSISTS here (/api/remember, /api/settings and the
+#   Storage card all call webmon._save), and under ProtectSystem=strict the code tree is read-only, so
+#   without this every save would 500. It must be the DIRECTORY, not the file: _save is an atomic
+#   mkstemp+fsync+os.replace, so it creates a sibling temp file — that is the cost of the atomic write,
+#   and it is worth paying (the old truncating write needed only the file, but could destroy it).
+ReadWritePaths=/srv/tepna /opt/tepna/capture-host
+
+NoNewPrivileges=true
+ProtectSystem=strict
+# ProtectHome stays TRUE, so /home/vigil is invisible to the daemon. Consequence for the offload: the
+# rsync SSH key must NOT live in ~/.ssh — put it under /srv/tepna/.ssh/ (mode 600) or the archive push
+# will fail with a key it cannot see.
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
