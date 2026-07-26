@@ -147,3 +147,50 @@ def test_the_script_path_in_execstart_is_the_one_that_exists():
     path = [t for t in m.group(1).split() if t.endswith(".sh")]
     assert path and path[0].endswith("/capture-host/systemd/tepna-usb-autosuspend.sh"), \
         f"ExecStart script path does not match the repo layout: {m.group(1)}"
+
+
+# ── the HOTPLUG path (2026-07-26) ─────────────────────────────────────────────────────────────
+# The unit is a boot-time oneshot with RemainAfterExit, so it does not re-fire when a dongle is
+# plugged into a running box. That path belongs to udev — and udev was matching a VENDOR ALLOWLIST,
+# so a Raytac MDBT50Q plugged in mid-session came up with control=auto delay=2000 while every other
+# adapter was armed. An allowlist is always one dongle behind.
+def _rule():
+    return open(RULE, encoding="utf-8").read()
+
+
+def test_the_hotplug_rule_has_a_vendor_independent_catch_all():
+    r = _rule()
+    assert "bInterfaceClass" in r and 'ATTR{bInterfaceClass}=="e0"' in r, \
+        "udev must catch any Bluetooth adapter, not only the vendors already listed"
+    assert 'ATTR{bInterfaceSubClass}=="01"' in r and 'ATTR{bInterfaceProtocol}=="01"' in r
+
+
+def test_the_catch_all_matches_the_interface_not_the_device():
+    """Measured on the box: TP-Link and Intel report e0/01/01 at DEVICE level, the Raytac reports
+    00/00/00 — Zephyr declares the class per-interface only. A device-level rule misses the exact
+    dongle this exists to catch."""
+    r = _rule()
+    assert 'ENV{DEVTYPE}=="usb_interface"' in r, "must match the interface, not the usb_device"
+    assert 'ATTR{bDeviceClass}' not in r, "device-level class is unusable — the Raytac reports 00"
+
+
+def test_the_catch_all_delegates_to_the_tested_script():
+    """Reimplementing the parent-walk in udev syntax would put one behaviour in two places — exactly
+    how install-services.sh and expose-monitor.sh drifted into two different Caddyfiles."""
+    r = _rule()
+    assert "RUN+=" in r and "tepna-usb-autosuspend.sh" in r
+    assert "power/control" in r, "the vendor fast-path lines must remain"
+
+
+def test_the_catch_all_fires_once_per_device_not_once_per_interface():
+    """A Bluetooth device exposes TWO matching interfaces (0 = HCI, 1 = SCO)."""
+    assert 'ATTR{bInterfaceNumber}=="00"' in _rule()
+
+
+def test_the_catch_all_does_not_fire_when_the_script_is_absent():
+    """A box mid-deploy, or without the checkout, must not have udev invoke a missing path on every
+    plug — the vendor fast-path still covers the shipped adapters."""
+    r = _rule()
+    line = next(l for l in r.splitlines() if "RUN+=" in l)
+    assert 'TEST=="/opt/tepna/capture-host/systemd/tepna-usb-autosuspend.sh"' in line, \
+        "guard the RUN on the script existing"

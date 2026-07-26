@@ -54,3 +54,29 @@ ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", TEST=="power/autos
 # Included so a dongle-vs-internal comparison is not decided by one of them running with autosuspend on.
 ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="8087", TEST=="power/control", ATTR{power/control}="on"
 ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="8087", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}="-1"
+
+# --- CATCH-ALL: any Bluetooth adapter, whatever its vendor ------------------------------------------
+# Everything above is a vendor allowlist, and an allowlist only protects the adapters someone already
+# thought of. On 2026-07-26 a Raytac MDBT50Q (2fe3) was plugged into a running box and came up with
+# `control=auto delay=2000` because its vendor was not yet listed — the line for it was added the same
+# day, which is the point: the list is always one dongle behind.
+#
+# WHY IT MATCHES THE INTERFACE AND NOT THE DEVICE. USB gives Bluetooth its own class triple —
+# bInterfaceClass=e0 (Wireless Controller), SubClass=01 (RF Controller), Protocol=01 (Bluetooth) — and
+# every conformant adapter reports it. The DEVICE-level class cannot be used: measured on the box, the
+# TP-Link and the Intel report e0/01/01 at device level but the Raytac reports 00/00/00, because
+# Zephyr's composite USB descriptor declares the class per-interface only. A device-level rule would
+# therefore miss the exact dongle this exists to catch.
+#
+# WHY IT CALLS THE SCRIPT INSTEAD OF SETTING THE ATTRIBUTES HERE. A rule matching the INTERFACE cannot
+# write the parent DEVICE's power/ attributes with ATTR{}, and reimplementing the walk in udev syntax
+# would put the same logic in two places — which is exactly how install-services.sh and
+# expose-monitor.sh drifted into writing two different Caddyfiles. tepna-usb-autosuspend.sh already
+# owns this logic, is idempotent, reports its read-back, and is tested; udev just triggers it.
+#
+# bInterfaceNumber=="00" because a Bluetooth device exposes TWO matching interfaces (0 = HCI, 1 = SCO)
+# and without it the script runs twice per plug for no benefit.
+#
+# The vendor lines above are KEPT as a declarative fast path: they need no script on disk, so a box
+# whose /opt/tepna checkout is missing or mid-deploy still arms the two adapters we ship with.
+ACTION=="add|bind", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_interface", ATTR{bInterfaceClass}=="e0", ATTR{bInterfaceSubClass}=="01", ATTR{bInterfaceProtocol}=="01", ATTR{bInterfaceNumber}=="00", TEST=="/opt/tepna/capture-host/systemd/tepna-usb-autosuspend.sh", RUN+="/bin/bash /opt/tepna/capture-host/systemd/tepna-usb-autosuspend.sh"
