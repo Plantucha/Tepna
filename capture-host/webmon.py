@@ -36,7 +36,14 @@ _MAC_RE = re.compile(r'^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$')
 
 
 def _valid_mac(a) -> bool:
-    return isinstance(a, str) and bool(_MAC_RE.match(a))
+    # fullmatch, NOT match: Python's `$` also matches just BEFORE a trailing newline, so
+    # "AA:BB:CC:DD:EE:FF\n" passed the anchored pattern. Not a command injection — `$` permits only a
+    # LONE trailing newline with nothing after it, so the worst it put into bonding's bluetoothctl
+    # script was a blank line — but /api/remember persists the address to config.yaml, and an address
+    # with a trailing newline never matches a real BLE address again. That is precisely the failure
+    # writers.IDENTITY_FIELDS exists to stop: "remembered ✓", then silently never captured, for the
+    # rest of the box's life (VIGIL-HARDENING-III §2).
+    return isinstance(a, str) and bool(_MAC_RE.fullmatch(a))
 
 
 async def _body(req) -> dict:

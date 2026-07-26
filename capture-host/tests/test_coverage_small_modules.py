@@ -113,22 +113,34 @@ def test_delta_decodes_for_ecg_gyro_and_mag_paths():
         assert m == meas and len(s) >= 1
 
 
+# These two asserted `len(s) == 1` — "only the reference sample survived" — which pinned the VALUE
+# protection (no fabricated deltas) but blessed a TIME fabrication: decode_frame back-times from
+# `last_ns`, the stamp of the frame's LAST sample, so a lone surviving reference sample (the frame's
+# FIRST) was stamped at the frame's END — the worst case of the mis-placement, a whole frame's span.
+# The frame is now dropped instead (VIGIL-HARDENING-III §1). Changed deliberately; the decode-level
+# guarantee they existed for is asserted directly on _decode_delta_ex, where it belongs.
+def _gyro_delta_frame(payload_tail):
+    ref = (0).to_bytes(2, "little", signed=True) * 3
+    return (bytes([pmd.GYRO]) + (1_000_000_000).to_bytes(8, "little") + bytes([0x80])
+            + ref + payload_tail)
+
+
 def test_decode_delta_stops_on_a_zero_size_block():
     """A block header of deltaSize 0 (or count 0) ends the frame — it cannot make progress."""
-    ref = (0).to_bytes(2, "little", signed=True) * 3
-    payload = ref + bytes([0, 5])                       # deltaSize 0 -> break
-    m, s = pmd.decode_frame(bytes([pmd.GYRO]) + (1_000_000_000).to_bytes(8, "little") + bytes([0x80]) + payload,
-                            dt.datetime(2026, 7, 19), fs=52)
-    assert len(s) == 1, "only the reference sample, no fabricated deltas"
+    frame = _gyro_delta_frame(bytes([0, 5]))            # deltaSize 0
+    out, truncated = pmd._decode_delta_ex(frame[10:], channels=3, ref_bits=16)
+    assert len(out) == 1 and truncated is True, "reference only, and the frame is flagged short"
+    with pytest.raises(ValueError, match="truncated"):
+        pmd.decode_frame(frame, dt.datetime(2026, 7, 19), fs=52)
 
 
 def test_decode_delta_stops_on_a_truncated_block():
     """A block that declares more delta bits than remain in the payload stops rather than over-read."""
-    ref = (0).to_bytes(2, "little", signed=True) * 3
-    payload = ref + bytes([8, 100])                     # 100 samples of 8-bit x3 declared, none present
-    m, s = pmd.decode_frame(bytes([pmd.GYRO]) + (1_000_000_000).to_bytes(8, "little") + bytes([0x80]) + payload,
-                            dt.datetime(2026, 7, 19), fs=52)
-    assert len(s) == 1, "truncated block must not fabricate the 100 declared samples"
+    frame = _gyro_delta_frame(bytes([8, 100]))          # 100 samples of 8-bit x3 declared, none present
+    out, truncated = pmd._decode_delta_ex(frame[10:], channels=3, ref_bits=16)
+    assert len(out) == 1 and truncated is True, "must not fabricate the 100 declared samples"
+    with pytest.raises(ValueError, match="truncated"):
+        pmd.decode_frame(frame, dt.datetime(2026, 7, 19), fs=52)
 
 
 # ── telemetry: aged-out window + slow-subscriber queue ──────────────────────────────────────────────
