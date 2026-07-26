@@ -572,6 +572,18 @@ CLOCK_ADRIFT_GIVEUP = 3
 CHARGE_RETRY_S = 60          # how often to re-attempt PMD START while a device sits on the charger
 _CHARGING: set[str] = set()  # devices currently refusing PMD with in_charger (log-once bookkeeping)
 
+
+def charging_retry_in_place(connected, stopped, paused, recovering) -> bool:
+    """PURE: may the next charging START retry run on the link we already hold?
+
+    False means release the link and let the outer reconnect loop own the retry — because the link is
+    gone, we are shutting down, an offline pull needs exclusive access to this device, or the adapter
+    watchdog is resetting the controller. `paused` matters most: a pull that cannot get the link
+    fails with org.bluez.Error.InProgress, so holding one through a pause request would trade this
+    bug for a worse one.
+    """
+    return bool(connected and not stopped and not paused and not recovering)
+
 # POWER: drop a not-worn Polar so it stops draining. A chest strap off the body does not go quiet — it
 # streams electrode noise at the full rate (130 Hz ECG), which records nothing real AND flattens the
 # strap's battery over a day. So after a generous grace of CONTINUOUS not-worn contact we drop the link,
@@ -894,6 +906,30 @@ async def run_polar(dev: dict, root: str):
                     if bpm:
                         BUS.push(_live_key("bpm", tag), [float(bpm)], 0)
 
+                if hr_writer:
+                    await client.start_notify(HR_UUID, on_hr)
+
+                # Battery level via the standard Battery Service (0x2A19). Polar H10 + Verity both expose
+                # it; read once now and refresh every ~2 min. Silent no-op if a firmware lacks the char.
+                async def _read_batt():
+                    try:
+                        b = await client.read_gatt_char(BATTERY_UUID)
+                        if b:
+                            lvl = int(b[0])
+                            # CHARGING, INFERRED. A Polar exposes no charge flag mid-session: the
+                            # in_charger status only appears when a PMD START is REFUSED, which cannot
+                            # happen to a device that was already streaming when it went on the dock. So
+                            # a device put on charge mid-session reported charging=False forever while
+                            # its battery visibly climbed — measured 2026-07-19, Verity 35 -> 61 %.
+                            # A battery that RISES is unambiguous: these cells do not self-charge.
+                            prev = STATUS["devices"].get(name, {}).get("battery")
+                            if isinstance(prev, int) and lvl > prev:
+                                _set(name, charging=True)
+                            elif isinstance(prev, int) and lvl < prev:
+                                _set(name, charging=False)   # discharging again -> off the dock
+                            _set(name, battery=lvl)
+                    except Exception:
+                        pass
                 if writers:
                     # Log which PMD measurement types the device actually supports (feature bitmask).
                     try:
@@ -933,133 +969,148 @@ async def run_polar(dev: dict, root: str):
                             return b""
 
                     await _bounded_setup(client.start_notify(pmd.PMD_DATA, on_pmd))
-                    for meas in list(writers):
-                        await _ctrl(pmd.stop_cmd(meas))   # clear any stale stream from a prior session
-                        # Ask the device what settings it offers, then START from THOSE (fixed table is a
-                        # fallback). Devices differ: Verity ACC isn't 200 Hz, MAG needs a range, etc.
-                        settings = pmd.parse_settings_response(await _ctrl(pmd.get_settings_cmd(meas)))
-                        # Log the device's OWN menu of options — the same list Polar Sensor Logger shows
-                        # in its per-stream dialog. This is authoritative (read off the hardware) and it
-                        # is what makes a rate CHOICE possible: H10 ACC defaults to 200 Hz = 369 MB/night,
-                        # 30 % of everything the box writes.
-                        if settings:
-                            log.info("%s %s options: %s", name, pmd.MEAS_NAME.get(meas, meas),
-                                     " ".join(f"{pmd.SETTING_NAME.get(k, hex(k))}={v}"
-                                              for k, v in sorted(settings.items())))
-                        _rates_cfg = (dev.get("rates") or {})
-                        _prefer = _rates_cfg.get(pmd.MEAS_NAME.get(meas, ""))
-                        used_fs = pmd.chosen_rate(meas, settings, _prefer)
-                        # publish the device's own menu so Settings can offer exactly the legal values
-                        _set(name, **{"pmd_options": {**(STATUS["devices"].get(name, {}).get("pmd_options") or {}),
-                                                      pmd.MEAS_NAME.get(meas, str(meas)): settings.get(0x00) or []}})
-                        started = False
-                        transient = False
-                        for cmd, how in ((pmd.build_start(meas, settings, _prefer), "negotiated"),
-                                         (pmd.START.get(meas), "fixed")):
-                            if not cmd:  # pragma: no cover — every requested stream is a known measurement,
-                                continue  # for which build_start() and START[meas] both return a command.
-                            ack = await _ctrl(cmd)
-                            st = ack[3] if len(ack) >= 4 else pmd.NO_ACK
-                            # `already_streaming` is NOT proof that the data will reach US. The H10 serves
-                            # ONE PMD stream and does not release it when a client dies without a clean
-                            # disconnect (polar-ble-sdk#287), so this is exactly the ACK a stream still
-                            # owned by a DEAD subscriber returns — and every notification keeps going to
-                            # that corpse. It cost 2026-07-19's ECG + ACC: acknowledged, registered, zero
-                            # rows for ten minutes. The unconditional STOP above did not clear it (its ack
-                            # was never even read), so force the issue and demand OUR stream.
-                            if st == pmd.ALREADY_STREAMING:
-                                log.warning("%s %s: device reports already-streaming — the stream may "
-                                            "belong to a dead subscriber; forcing STOP + re-START",
-                                            name, pmd.MEAS_NAME.get(meas, meas))
-                                stop_ack = await _ctrl(pmd.stop_cmd(meas))
-                                stop_st = stop_ack[3] if len(stop_ack) >= 4 else pmd.NO_ACK
-                                log.info("%s %s STOP → %s", name, pmd.MEAS_NAME.get(meas, meas),
-                                         pmd.CTRL_STATUS.get(stop_st, hex(stop_st)))
-                                await asyncio.sleep(0.3)
+                    # ── CHARGING RETRY RUNS ON THE LINK WE ALREADY HOLD ─────────────────────────
+                    # A Polar on its dock refuses PMD START with 0x0D in_charger, and we re-attempt on a
+                    # cadence so capture resumes within a minute of it coming off. That retry used to end
+                    # the session, which made every attempt a full BLE reconnect. Measured on the box
+                    # 2026-07-26: the Verity on its charger reconnected every ~67 s — 17 connects in 19
+                    # minutes, writing nothing. Every one of them logged as a successful INFO "connected",
+                    # so no alert could see it; only link_epoch climbing 35 -> 54 gave it away. This adapter
+                    # has a documented firmware wedge under load (~110 min lost on 2026-07-23), so an
+                    # indefinite connect/disconnect cycle per charging device is exactly the load not worth
+                    # generating.
+                    #
+                    # The link SURVIVES on the charger — that is why the transient branch below keeps the
+                    # writers instead of tearing them down — so re-run the negotiation in place. Same
+                    # cadence, same responsiveness, one connect instead of one a minute.
+                    while True:
+                        charging_hold = False
+                        for meas in list(writers):
+                            await _ctrl(pmd.stop_cmd(meas))   # clear any stale stream from a prior session
+                            # Ask the device what settings it offers, then START from THOSE (fixed table is a
+                            # fallback). Devices differ: Verity ACC isn't 200 Hz, MAG needs a range, etc.
+                            settings = pmd.parse_settings_response(await _ctrl(pmd.get_settings_cmd(meas)))
+                            # Log the device's OWN menu of options — the same list Polar Sensor Logger shows
+                            # in its per-stream dialog. This is authoritative (read off the hardware) and it
+                            # is what makes a rate CHOICE possible: H10 ACC defaults to 200 Hz = 369 MB/night,
+                            # 30 % of everything the box writes.
+                            if settings:
+                                log.info("%s %s options: %s", name, pmd.MEAS_NAME.get(meas, meas),
+                                         " ".join(f"{pmd.SETTING_NAME.get(k, hex(k))}={v}"
+                                                  for k, v in sorted(settings.items())))
+                            _rates_cfg = (dev.get("rates") or {})
+                            _prefer = _rates_cfg.get(pmd.MEAS_NAME.get(meas, ""))
+                            used_fs = pmd.chosen_rate(meas, settings, _prefer)
+                            # publish the device's own menu so Settings can offer exactly the legal values
+                            _set(name, **{"pmd_options": {**(STATUS["devices"].get(name, {}).get("pmd_options") or {}),
+                                                          pmd.MEAS_NAME.get(meas, str(meas)): settings.get(0x00) or []}})
+                            started = False
+                            transient = False
+                            for cmd, how in ((pmd.build_start(meas, settings, _prefer), "negotiated"),
+                                             (pmd.START.get(meas), "fixed")):
+                                if not cmd:  # pragma: no cover — every requested stream is a known measurement,
+                                    continue  # for which build_start() and START[meas] both return a command.
                                 ack = await _ctrl(cmd)
                                 st = ack[3] if len(ack) >= 4 else pmd.NO_ACK
-                            # 0x0D in_charger / 0x0C invalid_state are TRANSIENT DEVICE STATES, not bad
-                            # settings. A Polar refuses PMD while charging; that is expected, not a fault.
-                            transient = pmd.is_transient(st)
-                            # Charging is rechecked on a cadence; log the state ONCE per transition so a
-                            # device left on the dock overnight doesn't emit 3 lines a minute until dawn.
-                            _lvl = (log.warning if not (pmd.is_started(st) or transient)
-                                    else log.debug if transient and name in _CHARGING else log.info)
-                            _lvl(
-                                "%s START %s (%s) → %s", name, pmd.MEAS_NAME.get(meas, meas), how,
-                                pmd.CTRL_STATUS.get(st, hex(st)))
-                            if pmd.is_started(st):    # ok, or already-streaming
-                                started = True
+                                # `already_streaming` is NOT proof that the data will reach US. The H10 serves
+                                # ONE PMD stream and does not release it when a client dies without a clean
+                                # disconnect (polar-ble-sdk#287), so this is exactly the ACK a stream still
+                                # owned by a DEAD subscriber returns — and every notification keeps going to
+                                # that corpse. It cost 2026-07-19's ECG + ACC: acknowledged, registered, zero
+                                # rows for ten minutes. The unconditional STOP above did not clear it (its ack
+                                # was never even read), so force the issue and demand OUR stream.
+                                if st == pmd.ALREADY_STREAMING:
+                                    log.warning("%s %s: device reports already-streaming — the stream may "
+                                                "belong to a dead subscriber; forcing STOP + re-START",
+                                                name, pmd.MEAS_NAME.get(meas, meas))
+                                    stop_ack = await _ctrl(pmd.stop_cmd(meas))
+                                    stop_st = stop_ack[3] if len(stop_ack) >= 4 else pmd.NO_ACK
+                                    log.info("%s %s STOP → %s", name, pmd.MEAS_NAME.get(meas, meas),
+                                             pmd.CTRL_STATUS.get(stop_st, hex(stop_st)))
+                                    await asyncio.sleep(0.3)
+                                    ack = await _ctrl(cmd)
+                                    st = ack[3] if len(ack) >= 4 else pmd.NO_ACK
+                                # 0x0D in_charger / 0x0C invalid_state are TRANSIENT DEVICE STATES, not bad
+                                # settings. A Polar refuses PMD while charging; that is expected, not a fault.
+                                transient = pmd.is_transient(st)
+                                # Charging is rechecked on a cadence; log the state ONCE per transition so a
+                                # device left on the dock overnight doesn't emit 3 lines a minute until dawn.
+                                _lvl = (log.warning if not (pmd.is_started(st) or transient)
+                                        else log.debug if transient and name in _CHARGING else log.info)
+                                _lvl(
+                                    "%s START %s (%s) → %s", name, pmd.MEAS_NAME.get(meas, meas), how,
+                                    pmd.CTRL_STATUS.get(st, hex(st)))
+                                if pmd.is_started(st):    # ok, or already-streaming
+                                    started = True
+                                    break
+                                if transient:
+                                    break                 # retrying the fixed cmd cannot help while charging
+                            if started:                  # record + re-register at the ACTUAL negotiated rate
+                                stream_fs[meas] = used_fs
+                                stream_scale[meas] = pmd.axis_scale(meas, settings)   # device-reported range/resolution
+                                _register(meas, used_fs)
+                                _set(name, charging=False)
+                                _CHARGING.discard(name)
+                            elif transient:
+                                # Do NOT tear the stream down: the settings are fine, the device is simply
+                                # charging. Destroying the writer here deleted the file AND unregistered the
+                                # card, and since the link SURVIVES on the charger the START loop would not
+                                # re-run — so the stream stayed dead even after the device came off charge,
+                                # until something forced a reconnect. Keep it and let the session end so the
+                                # reconnect loop retries the whole negotiation.
+                                _set(name, charging=True,
+                                     last_error="charging — PMD streams unavailable until off the charger")
+                                _CHARGING.add(name)
+                                charging_hold = True
                                 break
-                            if transient:
-                                break                 # retrying the fixed cmd cannot help while charging
-                        if started:                  # record + re-register at the ACTUAL negotiated rate
-                            stream_fs[meas] = used_fs
-                            stream_scale[meas] = pmd.axis_scale(meas, settings)   # device-reported range/resolution
-                            _register(meas, used_fs)
-                            _set(name, charging=False)
-                            _CHARGING.discard(name)
-                        elif transient:
-                            # Do NOT tear the stream down: the settings are fine, the device is simply
-                            # charging. Destroying the writer here deleted the file AND unregistered the
-                            # card, and since the link SURVIVES on the charger the START loop would not
-                            # re-run — so the stream stayed dead even after the device came off charge,
-                            # until something forced a reconnect. Keep it and let the session end so the
-                            # reconnect loop retries the whole negotiation.
-                            _set(name, charging=True,
-                                 last_error="charging — PMD streams unavailable until off the charger")
-                            _CHARGING.add(name)
-                            charging_hold = True
+                            elif st == pmd.NO_ACK:
+                                # NO REPLY IS NOT A REJECTION. A dropped control indication — or a control
+                                # channel we never managed to subscribe to at all (see the start_notify guard
+                                # above, which makes EVERY _ctrl time out) — leaves us with no verdict. The
+                                # old code filed that under "unsupported settings" and deleted the writer, so
+                                # one lost indication cost that stream the entire session, and a failed
+                                # control subscribe silently cost ALL of them while HR carried on regardless.
+                                # Keep the stream: if it really is dead, no rows arrive and the stall watchdog
+                                # re-negotiates on a fresh link within _STREAM_STALL_S.
+                                _set(name, last_error=f"{pmd.MEAS_NAME.get(meas, meas)} START unacknowledged "
+                                                      f"— will re-negotiate")
+                                log.warning("%s %s START got no control response — keeping the stream; the "
+                                            "stall watchdog will re-negotiate if no data arrives",
+                                            name, pmd.MEAS_NAME.get(meas, meas))
+                            else:                        # truly unsupported settings — drop it, don't leave an empty file / idle card
+                                _set(name, last_error=f"{pmd.MEAS_NAME.get(meas, meas)} START rejected")
+                                try:
+                                    p = writers[meas].path; writers[meas].close(); os.remove(p)
+                                except OSError:
+                                    pass
+                                del writers[meas]
+                                BUS.unregister(_live_key(pmd.MEAS_NAME.get(meas, str(meas)), tag))
+                            await asyncio.sleep(0.2)
+                        if not charging_hold:
                             break
-                        elif st == pmd.NO_ACK:
-                            # NO REPLY IS NOT A REJECTION. A dropped control indication — or a control
-                            # channel we never managed to subscribe to at all (see the start_notify guard
-                            # above, which makes EVERY _ctrl time out) — leaves us with no verdict. The
-                            # old code filed that under "unsupported settings" and deleted the writer, so
-                            # one lost indication cost that stream the entire session, and a failed
-                            # control subscribe silently cost ALL of them while HR carried on regardless.
-                            # Keep the stream: if it really is dead, no rows arrive and the stall watchdog
-                            # re-negotiates on a fresh link within _STREAM_STALL_S.
-                            _set(name, last_error=f"{pmd.MEAS_NAME.get(meas, meas)} START unacknowledged "
-                                                  f"— will re-negotiate")
-                            log.warning("%s %s START got no control response — keeping the stream; the "
-                                        "stall watchdog will re-negotiate if no data arrives",
-                                        name, pmd.MEAS_NAME.get(meas, meas))
-                        else:                        # truly unsupported settings — drop it, don't leave an empty file / idle card
-                            _set(name, last_error=f"{pmd.MEAS_NAME.get(meas, meas)} START rejected")
-                            try:
-                                p = writers[meas].path; writers[meas].close(); os.remove(p)
-                            except OSError:
-                                pass
-                            del writers[meas]
-                            BUS.unregister(_live_key(pmd.MEAS_NAME.get(meas, str(meas)), tag))
-                        await asyncio.sleep(0.2)
-                if hr_writer:
-                    await client.start_notify(HR_UUID, on_hr)
+                        # Give the link up the moment anything else wants it — above all an offline pull,
+                        # which fails with org.bluez.Error.InProgress if we are still holding it. Ticking
+                        # instead of one long sleep is what makes that release prompt; the outer loop's
+                        # charging branch then owns the retry exactly as it did before.
+                        _waited = 0.0
+                        while _waited < CHARGE_RETRY_S:
+                            if not charging_retry_in_place(client.is_connected, _STOP.is_set(),
+                                                           addr in _POLAR_PAUSED, _RECOVER.is_set()):
+                                break
+                            await asyncio.sleep(1)
+                            _waited += 1
+                        if not charging_retry_in_place(client.is_connected, _STOP.is_set(),
+                                                       addr in _POLAR_PAUSED, _RECOVER.is_set()):
+                            break
+                        # Keep the battery fresh while docked: the card shows charge progress, and the
+                        # rising-battery rule in _read_batt is the only mid-session charging signal there is.
+                        await _read_batt()
 
-                # Battery level via the standard Battery Service (0x2A19). Polar H10 + Verity both expose
-                # it; read once now and refresh every ~2 min. Silent no-op if a firmware lacks the char.
-                async def _read_batt():
-                    try:
-                        b = await client.read_gatt_char(BATTERY_UUID)
-                        if b:
-                            lvl = int(b[0])
-                            # CHARGING, INFERRED. A Polar exposes no charge flag mid-session: the
-                            # in_charger status only appears when a PMD START is REFUSED, which cannot
-                            # happen to a device that was already streaming when it went on the dock. So
-                            # a device put on charge mid-session reported charging=False forever while
-                            # its battery visibly climbed — measured 2026-07-19, Verity 35 -> 61 %.
-                            # A battery that RISES is unambiguous: these cells do not self-charge.
-                            prev = STATUS["devices"].get(name, {}).get("battery")
-                            if isinstance(prev, int) and lvl > prev:
-                                _set(name, charging=True)
-                            elif isinstance(prev, int) and lvl < prev:
-                                _set(name, charging=False)   # discharging again -> off the dock
-                            _set(name, battery=lvl)
-                    except Exception:
-                        pass
+                # First battery read comes AFTER the PMD negotiation, deliberately. A successful
+                # START sets charging=False, so reading earlier would let it clobber the
+                # rising-battery inference above — the only signal a device put on charge
+                # MID-SESSION ever gives us.
                 await _read_batt()
-
                 # Hold the link until disconnect, shutdown, or an offline-pull pause request.
                 secs = 0
                 # Stall watchdog state. `watched` is every stream we believe is live — the PMD writers

@@ -812,14 +812,36 @@ def _stop_on_big_sleep(monkeypatch, threshold=5.0):
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
 
 
-def test_run_polar_charging_hold_recheck_sleep(tmp_path, monkeypatch):
-    """START 0x0D → charging_hold → teardown takes the CHARGE_RETRY_S recheck sleep, not the backoff."""
+def _stop_after_slept(monkeypatch, seconds):
+    """Patch capture's sleep to accumulate simulated time and trip _STOP once `seconds` have passed.
+
+    Structure-agnostic on purpose. The charging wait is ticked rather than taken as one long sleep
+    (so the link can be released promptly when an offline pull needs it), so a helper that watches
+    for a single big sleep can no longer see it — and would hang forever waiting.
+    """
+    t = {"s": 0.0}
+    async def fake_sleep(secs):
+        t["s"] += secs
+        if t["s"] >= seconds:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    return t
+
+
+def test_run_polar_charging_recheck_uses_the_charge_cadence_not_the_error_backoff(tmp_path, monkeypatch):
+    """START 0x0D → charging → re-attempt every CHARGE_RETRY_S, because this is a device state and
+    not a fault. Asserted as a RATE: let ~2.5 recheck periods of simulated time pass and count the
+    STARTs. The error backoff (5 s, doubling) would produce far more; a longer cadence, far fewer."""
     _polar_common(monkeypatch)
     c = FakePolarClient(start_status=0x0D)
     _inject_connect(monkeypatch, c)
-    _stop_on_big_sleep(monkeypatch, threshold=10)     # CHARGE_RETRY_S (60) trips it; poll sleeps don't
+    _stop_after_slept(monkeypatch, capture.CHARGE_RETRY_S * 2.5)
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     assert capture.STATUS["devices"]["H10"]["charging"] is True
+    starts = [w for w in c.writes if w and w[0] == 0x02]
+    assert 3 <= len(starts) <= 5, (
+        f"{len(starts)} STARTs in 2.5x CHARGE_RETRY_S — expected one per recheck period; the error "
+        "backoff would be far more frequent")
 
 
 def test_run_polar_reconnect_backoff(tmp_path, monkeypatch):
@@ -3273,3 +3295,99 @@ def test_bounded_setup_passes_a_prompt_await_through(monkeypatch):
         async def ok(): return "done"
         assert await capture._bounded_setup(ok()) == "done"
     asyncio.run(go())
+
+
+# ── a charging Polar must not churn the adapter ─────────────────────────────────────────────────────
+def _count_connects(monkeypatch, client):
+    """Inject the fake client and count how many BLE sessions run_polar opens."""
+    n = {"connects": 0}
+    def _mk(addr, *a, **k):
+        n["connects"] += 1
+        return _fake_scan_ctx(client)
+    monkeypatch.setattr(capture, "_connect", _mk)
+    return n
+
+
+def test_a_charging_polar_retries_start_on_the_link_it_already_holds(tmp_path, monkeypatch):
+    """A device on its charger refuses PMD START, and we re-attempt on a cadence so capture resumes
+    within a minute of it coming off. That retry must NOT be a full reconnect.
+
+    Observed on the box 2026-07-26: the Verity, sitting on its charger, reconnected every ~67 s —
+    17 connects in 19 minutes, writing nothing, logged only as INFO 'connected' so no alert could
+    ever see it. Only link_epoch showed it. This dongle has a documented firmware wedge under load,
+    so an indefinite connect/disconnect cycle for every charging device is the one load profile
+    worth not generating. The link SURVIVES on the charger (see the transient branch in run_polar),
+    so the retry can happen in place.
+    """
+    _polar_common(monkeypatch)
+    c = FakePolarClient(start_status=0x0D)          # in_charger, for the whole test
+    n = _count_connects(monkeypatch, c)
+    _stop_after_slept(monkeypatch, capture.CHARGE_RETRY_S * 3.5)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+
+    starts = [w for w in c.writes if w and w[0] == 0x02]
+    assert len(starts) >= 3, f"the charging retry must keep re-attempting START; saw {len(starts)}"
+    assert n["connects"] == 1, (
+        f"{n['connects']} BLE connects for {len(starts)} START retries — a charging device must be "
+        "polled over the link it already holds, not re-connected every cycle")
+
+
+# ── charging_retry_in_place: when the held link must be given back ───────────────────────────────────
+def test_charging_retry_in_place_holds_the_link_when_nothing_else_needs_it():
+    assert capture.charging_retry_in_place(True, False, False, False) is True
+
+
+def test_charging_retry_in_place_yields_to_an_offline_pull():
+    """THE hazard this fix could have created. A pull needs exclusive access; if the charging retry
+    kept holding the link through a pause request the pull would fail with org.bluez.Error.InProgress
+    — trading a churn bug for a data-loss bug. Releasing beats polling."""
+    assert capture.charging_retry_in_place(True, False, True, False) is False
+
+
+def test_charging_retry_in_place_yields_to_shutdown_and_to_adapter_recovery():
+    assert capture.charging_retry_in_place(True, True, False, False) is False
+    assert capture.charging_retry_in_place(True, False, False, True) is False
+
+
+def test_charging_retry_in_place_needs_a_live_link():
+    """A dropped link cannot be retried in place; the outer reconnect loop owns that case."""
+    assert capture.charging_retry_in_place(False, False, False, False) is False
+
+
+def test_a_charging_polar_releases_the_held_link_promptly_when_a_pull_asks_for_it(tmp_path, monkeypatch):
+    """The hazard, end to end and measured in simulated seconds.
+
+    The pause must arrive DURING the charging wait — the outer loop skips a device that is already
+    paused, so pausing up front would prove nothing. What matters is how long we sit on the link
+    after the request: the wait is ticked precisely so this is ~1 s and not up to CHARGE_RETRY_S.
+    """
+    _polar_common(monkeypatch)
+    addr = _pdev()["address"]
+    c = FakePolarClient(start_status=0x0D)
+    _count_connects(monkeypatch, c)
+
+    sleeps, mark = [], {}
+    async def fake_sleep(secs):
+        sleeps.append(secs)
+        if sum(sleeps) >= capture.CHARGE_RETRY_S * 3:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+
+    orig_write = c.write_gatt_char
+    async def hooked(uuid, cmd, response=False):
+        await orig_write(uuid, cmd, response=response)
+        if cmd and cmd[0] == 0x02 and "at" not in mark:      # the first START refusal
+            capture._POLAR_PAUSED.add(addr)
+            mark["at"] = len(sleeps)
+    c.write_gatt_char = hooked
+
+    try:
+        _run(capture.run_polar(_pdev(), str(tmp_path)))
+    finally:
+        capture._POLAR_PAUSED.clear()
+
+    assert "at" in mark, "the START refusal never happened — the test set nothing up"
+    held = sum(s for s in sleeps[mark["at"]:] if s == 1)     # ticks spent still holding the link
+    assert held <= 2, (
+        f"held the link for {held} tick(s) after the pull asked for it — a pull that cannot get the "
+        "link fails with InProgress, so the charging wait must check the pause every tick")
