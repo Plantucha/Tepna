@@ -69,9 +69,13 @@ case "$verb" in
         for s in "$@"; do echo "server $s iburst prefer maxpoll $mp"; done
       } > "$CHRONY_SOURCES"
       timedatectl set-ntp true 2>/dev/null || true
-      # Reload sources in place; only fall back to a restart if the running chronyd refuses.
-      chronyc reload sources >/dev/null 2>&1 || systemctl restart chrony 2>/dev/null || systemctl restart chronyd
-      echo "ok: NTP=$* maxpoll=2^${mp}s (chrony, $CHRONY_SOURCES)"
+      # Reload in place. NOT a restart — see the `sync` verb: a restart unsynchronises the box for ~60 s.
+      if chronyc reload sources >/dev/null 2>&1; then
+        echo "ok: NTP=$* maxpoll=2^${mp}s (chrony, $CHRONY_SOURCES)"
+      else
+        echo "wrote $CHRONY_SOURCES but 'chronyc reload sources' failed — chronyd may need a restart" >&2
+        exit 1
+      fi
     else
       mkdir -p "$(dirname "$DROPIN")"
       {
@@ -88,10 +92,17 @@ case "$verb" in
     ;;
   sync)
     if [ "$DAEMON" = chrony ]; then
-      # `makestep` steps the clock immediately instead of slewing — the honest analogue of "sync now",
-      # and the only one that visibly moves a clock that is far out.
-      chronyc makestep >/dev/null 2>&1 || { systemctl restart chrony 2>/dev/null || systemctl restart chronyd; }
-      echo "ok: resync triggered (chrony makestep)"
+      # `burst` forces immediate measurements WITHOUT discarding discipline; `makestep 0.1 3` then permits
+      # a step only if the next few updates show us >0.1 s out. Deliberately NOT a bare `makestep`, and
+      # deliberately NOT a service restart: measured on the real box, restarting chrony resets every
+      # source to reach 0 and leaves the host UNSYNCHRONISED for ~60 s. On a box whose whole purpose is
+      # stamping captures, briefly destroying the clock to "sync" it is worse than reporting a failure.
+      # And the old code echoed "makestep" whichever branch ran, so the message could not be trusted.
+      if chronyc burst 4/4 >/dev/null 2>&1 && chronyc makestep 0.1 3 >/dev/null 2>&1; then
+        echo "ok: resync triggered (chrony burst + conditional step)"
+      else
+        echo "chronyc could not be reached — is chronyd running?" >&2; exit 1
+      fi
     else
       timedatectl set-ntp false
       timedatectl set-ntp true

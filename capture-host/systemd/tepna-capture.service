@@ -25,6 +25,25 @@ RestartSec=5
 # Let it write under /srv/tepna; otherwise lock it down.
 ReadWritePaths=/srv/tepna
 NoNewPrivileges=true
+# ⚠️ THE MONITOR'S CLOCK CONTROLS NEED THIS RELAXED, AND THREE PATHS OPENED. NoNewPrivileges makes sudo
+# structurally impossible, so Save&apply / Sync now / Set timezone all fail with "the no new privileges
+# flag is set". If you want them, add a DROP-IN (never edit this file, or a redeploy reverts it):
+#
+#   /etc/systemd/system/tepna-capture.service.d/clock-control.conf
+#     [Service]
+#     NoNewPrivileges=no
+#     ReadWritePaths=-/etc/chrony -/etc/systemd/timesyncd.conf.d -/run/chrony
+#
+# and grant sudoers on the ROOT-OWNED helper only (see helper_path.py — never the in-repo copy):
+#   sudo install -D -o root -g root -m 0755 tepna-clock.sh /usr/local/lib/tepna/tepna-clock.sh
+#   vigil ALL=(root) NOPASSWD: /usr/local/lib/tepna/tepna-clock.sh
+#
+# All three ReadWritePaths were established by an actual failure on a real box (2026-07-25), not guessed:
+# ProtectSystem=strict mounts the WHOLE hierarchy read-only except /dev, /proc and /sys — inherited by
+# sudo'd children — so /etc/chrony blocks writing the servers and /run/chrony blocks chronyc from
+# creating the reply socket it needs to talk to chronyd at all.
+# Leaving it as-is is a legitimate choice: timezone and NTP are set-once values, and NoNewPrivileges is
+# worth keeping on a box whose control API is unauthenticated by default.
 ProtectSystem=strict
 ProtectHome=true
 
