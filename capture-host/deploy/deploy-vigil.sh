@@ -26,6 +26,14 @@ say "2b/8  serve the CURRENT bundles"
 # loading an app that opens, renders and computes with last week's DSP.
 bash "$DEST/capture-host/deploy/sync-apps.sh" || echo "   ✗ bundle sync failed (see above)"
 
+say "2c/8  /etc must match the repo"
+# Three files are copied by hand into system directories and nothing compared them again. On
+# 2026-07-26 the installed udev rule was TWO fixes behind and a hot-plugged adapter spent the evening
+# unprotected — with `systemctl status` green the whole time, because the file was present and only
+# its CONTENT was old. MANAGED files are installed; the site-templated unit is only reported, because
+# the repo's copy names a user this box does not have and installing it would stop capture.
+sudo bash "$DEST/capture-host/deploy/check-system-files.sh" --install || true
+
 say "3/8  python venv"
 cd "$DEST/capture-host"
 [ -d .venv ] || python3 -m venv .venv
