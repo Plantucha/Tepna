@@ -589,10 +589,15 @@ def test_storage_post_rejects_an_argv_hostile_host(tmp_path):
     assert status == 400 and "invalid host" in body["error"]
 
 
-def test_storage_test_reports_an_unmounted_mountpoint_as_not_ready(tmp_path):
+def test_storage_test_reports_an_unmounted_mountpoint_as_not_ready(tmp_path, monkeypatch):
     app, *_ = _mk(tmp_path)
     mp = tmp_path / "archive"
     mp.mkdir()
+    # A mountpoint is constrained to MOUNT_ROOTS because it is WRITTEN to; tmp_path is none of them.
+    # Widen it here so this test exercises the readiness check rather than the location check (which
+    # has its own tests in test_storage_targets.py).
+    monkeypatch.setattr(webmon.storage_targets, "MOUNT_ROOTS",
+                        tuple(webmon.storage_targets.MOUNT_ROOTS) + (str(tmp_path),))
 
     async def go(c):
         return await (await c.post("/api/storage/test", json={"target": {

@@ -15,6 +15,14 @@ import pytest
 import storage_targets as st
 
 
+@pytest.fixture(autouse=True)
+def _allow_tmp_mountpoints(monkeypatch, tmp_path):
+    """Mountpoints are constrained to MOUNT_ROOTS (/srv, /mnt, …) because that path is WRITTEN to.
+    pytest's tmp_path is none of those, so widen the allowlist for the duration of each test — the
+    constraint itself is asserted directly in the tests below."""
+    monkeypatch.setattr(st, "MOUNT_ROOTS", tuple(st.MOUNT_ROOTS) + (str(tmp_path),))
+
+
 RSYNC = {"protocol": "rsync", "host": "192.168.0.142", "user": "tepna",
          "share": "/mnt/tank/tepna", "identity": "/home/tepna/.ssh/id_ed25519"}
 NFS = {"protocol": "nfs", "host": "192.168.0.142", "share": "/mnt/tank/tepna",
@@ -192,3 +200,39 @@ def test_a_local_path_is_not_advertised_as_needing_root():
     by = {p["protocol"]: p for p in st.describe()}
     assert by["local"]["kind"] == "mount" and by["local"]["privileged"] is False
     assert all(by[p]["privileged"] for p in ("nfs", "smb", "iscsi", "nvmeof"))
+
+
+# ── A MOUNTPOINT IS A WRITE TARGET, SO ITS LOCATION IS CONSTRAINED (CodeQL py/path-injection) ──
+# The mountpoint becomes archive.dest and the mirror writes ~350 MB/night into it. /api/storage is
+# token-gated only when web.token is set (the documented default is a trusted LAN with no token), so
+# "absolute and free of .." was never a location check — it would happily accept /etc or a home dir.
+
+@pytest.mark.parametrize("bad", ["/etc", "/etc/systemd/system", "/boot", "/home/vigil/.ssh",
+                                 "/", "/root", "/srvmalicious", "/mntevil"])
+def test_a_mountpoint_outside_the_allowed_roots_is_refused(bad, monkeypatch):
+    monkeypatch.setattr(st, "MOUNT_ROOTS", ("/srv", "/mnt", "/media", "/opt/tepna", "/var/lib/tepna"))
+    with pytest.raises(st.StorageError, match="must live under"):
+        st.validate({**NFS, "mountpoint": bad})
+
+
+@pytest.mark.parametrize("good", ["/srv/tepna/archive", "/mnt/tank", "/media/usb",
+                                  "/opt/tepna/archive", "/var/lib/tepna/archive"])
+def test_a_conventional_mount_root_is_accepted(good, monkeypatch):
+    monkeypatch.setattr(st, "MOUNT_ROOTS", ("/srv", "/mnt", "/media", "/opt/tepna", "/var/lib/tepna"))
+    assert st.validate({**NFS, "mountpoint": good})["mountpoint"] == good
+
+
+def test_the_root_check_is_not_a_bare_prefix_match(monkeypatch):
+    """/srvmalicious must not pass as "under /srv"."""
+    monkeypatch.setattr(st, "MOUNT_ROOTS", ("/srv",))
+    assert st._under_allowed_root("/srv/tepna") is True
+    assert st._under_allowed_root("/srv") is True
+    assert st._under_allowed_root("/srvmalicious") is False
+
+
+def test_traversal_cannot_escape_the_allowed_root(monkeypatch):
+    """'..' is rejected outright, but normpath is what stops a survivor sneaking out."""
+    monkeypatch.setattr(st, "MOUNT_ROOTS", ("/srv",))
+    with pytest.raises(st.StorageError):
+        st.validate({**NFS, "mountpoint": "/srv/../etc"})
+    assert st._under_allowed_root("/srv/a/../../etc") is False

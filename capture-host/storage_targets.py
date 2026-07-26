@@ -64,6 +64,23 @@ _HOST_RE = re.compile(r"^(?:\[[0-9A-Fa-f:]+\]|[A-Za-z0-9]([A-Za-z0-9._-]{0,253}[
 _USER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,31}$")
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
+# WHERE A MOUNTPOINT MAY LIVE. Not cosmetic: the mountpoint becomes `archive.dest`, and the mirror then
+# creates directories and writes ~350 MB/night into it. `/api/storage` is token-gated only when
+# `web.token` is configured — the documented default is a trusted home LAN with no token — so an
+# unconstrained absolute path would let anyone who can reach the monitor aim the night mirror at /etc,
+# /boot, or a home directory. "Absolute and free of '..'" was never a location check.
+#
+# These are the conventional mount roots plus the box's own storage; a target outside them is refused
+# with a message naming the allowed set rather than silently rewritten.
+MOUNT_ROOTS = ("/srv", "/mnt", "/media", "/opt/tepna", "/var/lib/tepna")
+
+
+def _under_allowed_root(p: str) -> bool:
+    """True when `p` resolves inside one of MOUNT_ROOTS. The trailing-separator comparison is the point:
+    a bare prefix test would accept `/srvmalicious` as living under `/srv`."""
+    n = os.path.normpath(p)
+    return any(n == r or n.startswith(r + os.sep) for r in MOUNT_ROOTS)
+
 
 class StorageError(ValueError):
     """A target the box refuses to store — bad protocol/host/path, or a secret it will not hold."""
@@ -135,6 +152,11 @@ def validate(t: dict) -> dict:
 
     if kind == "mount":
         out["mountpoint"] = _abs_path(t.get("mountpoint"), "mountpoint")
+        if not _under_allowed_root(out["mountpoint"]):
+            raise StorageError(
+                f"mountpoint must live under one of {', '.join(MOUNT_ROOTS)} — refusing "
+                f"{out['mountpoint']!r}. This path is written to (~350 MB/night), so it is constrained "
+                f"to the conventional mount roots rather than anywhere on the filesystem.")
         if proto in ("nfs", "smb"):
             out["share"] = _abs_path(t.get("share"), "share") if proto == "nfs" else \
                 str(t.get("share") or "").strip().strip("/")
