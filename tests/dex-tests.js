@@ -4277,6 +4277,33 @@
       T.eq('the wrist layout runs no sentinel pass', wrist.sentinelRejected, 0);
     }
 
+    // ── THE COLUMN COUNT IS NOT THE LAYOUT (2026-07-26) ───────────────────────────────────────
+    // The O2Ring emits BOTH a 1-column pleth and a 3-column file whose three columns are the SAME
+    // reading replicated ("124;124;124;0"). Classifying on column count alone therefore tagged the
+    // ring as a Verity on every 3-column night it ever wrote — three of five audited nights — so
+    // finger morphology was graded on the wrist's evidence tier and the 156-sentinel pass was
+    // skipped on 526 files in the 2026-07 corpus. Measured over that corpus, reading channels by
+    // header name (both `channel 0..2` and `ppg0..2` namings occur):
+    //     O2Ring 526 three-column files → 100.0 % of rows identical across channels (min = max)
+    //     Verity 261 three-column files →   0.0 % of rows identical across channels (min = max)
+    // Perfect separation, so replication is the discriminator — decided on the DATA, which means a
+    // vendor renaming its columns changes nothing.
+    var hdr = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient\n';
+    var repl = hdr, div = hdr;
+    for (var i = 0; i < 400; i++) {
+      var t = new Date(Date.UTC(2026, 6, 26, 0, 0, 0) + i * 8).toISOString().replace('Z', '').slice(0, 23);
+      var v = 120 + (i % 17);
+      repl += t + ';' + i * 8000000 + ';' + v + ';' + v + ';' + v + ';0\n';           // ring: replicated
+      div += t + ';' + i * 8000000 + ';' + v + ';' + (v + 1) + ';' + (v + 2) + ';3\n'; // arm: diverse
+    }
+    var r3 = D.parsePPG(repl), d3 = D.parsePPG(div);
+    T.eq('a 3-column file with IDENTICAL channels is the O2Ring finger, not a Verity', r3.site, 'finger');
+    T.eq('a 3-column file with DIVERGING channels is still the wrist', d3.site, 'wrist');
+    T.ok('the replicated file still parses all three columns', r3.ch.length === 3, 'ch=' + r3.ch.length);
+    T.ok('one differing sample is enough to rule out replication',
+         D.parsePPG(repl.replace(';120;120;120;0', ';120;121;120;0')).site === 'wrist',
+         'a single mismatch must flip it back to wrist');
+
     // ── the in-band sentinel: isolation, not value (§2.4) ──────────────────────────────────────
     // 156 is a LEGAL amplitude. The twin plants 4 isolated markers on systolic extrema AND leaves
     // the waveform's own peak sitting exactly on 156. A value-only rejector would gap that peak too

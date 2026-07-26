@@ -389,14 +389,38 @@
     } else {
       for (let i = 0; i < n; i++) relSec[i] = i / fs;
     }
-    // SITE is a layout fact, not a guess: three optical columns is the Verity armband, one is the
-    // O2Ring finger. It rides the parse result so the registry can grade finger morphology on its
-    // OWN evidence tier rather than inheriting the wrist's (PPGDEX-O2RING-FINGER-SITE §5).
-    const site = nCh === 1 ? 'finger' : 'wrist';
     const chArr = nCh === 1 ? [Float32Array.from(ch0)] : [Float32Array.from(ch0), Float32Array.from(ch1), Float32Array.from(ch2)];
+    // SITE is a layout fact, not a guess — but COLUMN COUNT ALONE IS NOT THE LAYOUT. The O2Ring emits
+    // BOTH a 1-column pleth and a 3-column file whose three columns are the SAME reading replicated
+    // (`124;124;124;0`), and column-count-only classification therefore called the ring a Verity on
+    // every 3-column night. Measured over the 2026-07-16..25 corpus, with channels read BY HEADER NAME
+    // (two namings exist: `channel 0..2` and `ppg0..2`):
+    //
+    //     O2Ring   526 three-column files   100.0 % of rows identical across channels   (min = max)
+    //     Verity   261 three-column files     0.0 % of rows identical across channels   (min = max)
+    //
+    // Perfect separation, no overlap. Replication is therefore the discriminator, and it is decided on
+    // the DATA rather than the header, so a future vendor renaming its columns changes nothing.
+    //
+    // Why it matters: site drives the morphology evidence tier (PPGDEX-O2RING-FINGER-SITE §5) and the
+    // O2Ring sentinel pass below. Three of five audited nights were graded under the wrong site, and
+    // the ring's 156-sentinel handling was skipped on every 3-column file it ever wrote.
+    //
+    // The scan is exact and stops at the first mismatch — with 0 % of Verity rows identical that is
+    // the first sample, so the common case costs one comparison.
+    let replicated = nCh > 1;
+    for (let c = 1; replicated && c < nCh; c++) {
+      const a = chArr[0], b = chArr[c];
+      for (let i = 0; i < n; i++) {
+        if (a[i] !== b[i]) { replicated = false; break; }
+      }
+    }
+    const site = nCh === 1 || replicated ? 'finger' : 'wrist';
     // Sentinel pass runs ONLY on the finger layout — 156 is the O2Ring's marker and carries no meaning
     // in a Verity count stream (where it would be an ordinary, and astronomically rare, raw ADC value).
-    const sent = nCh === 1 ? markO2Sentinels(chArr[0]) : null;
+    // Keyed on SITE, not on nCh: a replicated 3-column O2Ring file is still an O2Ring, and keying on
+    // the column count skipped the sentinel pass on 526 of its files in this corpus alone.
+    const sent = site === 'finger' ? markO2Sentinels(chArr[0]) : null;
     return {
       ch: chArr,
       amb: Float32Array.from(amb),
