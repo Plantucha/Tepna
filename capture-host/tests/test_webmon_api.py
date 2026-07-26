@@ -472,3 +472,35 @@ def test_a_successful_write_still_lands_the_whole_config(tmp_path):
     addrs = [d["address"] for d in saved["devices"]]
     assert addrs[-1] == "11:22:33:44:55:66", "the new device landed"
     assert all(a in addrs for a in pre), f"pre-existing devices must survive: {pre} vs {addrs}"
+
+
+# ── A MAC MUST BE A MAC, WHOLE (VIGIL-HARDENING-III §2) ────────────────────────────────────────
+# _valid_mac used `.match()` on an anchored pattern, but Python's `$` also matches just BEFORE a
+# trailing newline. Not a command injection (only a LONE trailing newline gets through, so nothing
+# can follow it), but /api/remember persists the address — and an address carrying a newline never
+# matches a real BLE address again: "remembered ✓", then silently never captured.
+
+def test_a_trailing_newline_is_not_a_valid_mac():
+    assert webmon._valid_mac("AA:BB:CC:DD:EE:FF") is True
+    assert webmon._valid_mac("aa:bb:cc:dd:ee:ff") is True
+    assert webmon._valid_mac("AA:BB:CC:DD:EE:FF\n") is False, "Python's `$` gotcha"
+    assert webmon._valid_mac("AA:BB:CC:DD:EE:FF\r") is False
+
+
+def test_no_embedded_control_character_survives_validation():
+    """Belt to the brace: the value is f-string-interpolated into a bluetoothctl script."""
+    for bad in ("AA:BB:CC:DD:EE:FF\nquit", "AA:BB:CC:DD:EE:FF\n\n", "AA:BB:CC:DD:EE:FF remove x",
+                " AA:BB:CC:DD:EE:FF", "AA:BB:CC:DD:EE:FFF", "AA:BB:CC:DD:EE", "", None, 42):
+        assert webmon._valid_mac(bad) is False, f"{bad!r} must be rejected"
+
+
+def test_remember_refuses_an_address_with_a_trailing_newline(tmp_path):
+    """The end-to-end consequence: such a device would be persisted and then never captured."""
+    app, cfg, _st, cfg_path, _bus = _mk(tmp_path)
+    before = len(cfg["devices"])
+
+    async def go(c):
+        r = await c.post("/api/remember", json={**RING, "address": "11:22:33:44:55:66\n"})
+        return r.status
+    assert _serve(app, go) == 400
+    assert len(cfg["devices"]) == before, "config must not gain an uncapturable device"
