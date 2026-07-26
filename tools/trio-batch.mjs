@@ -374,11 +374,6 @@ const windowOf = (rec) => {
   rec._win = { t0: rec.t0, tEnd: tEnd != null && tEnd > rec.t0 ? tEnd : rec.t0 };
   return rec._win;
 };
-const overlapMs = (a, b) => {
-  const A = windowOf(a),
-    B = windowOf(b);
-  return Math.max(0, Math.min(A.tEnd, B.tEnd) - Math.max(A.t0, B.t0));
-};
 
 /* ── MERGED SESSION INTERVALS ────────────────────────────────────────────────────────────────
    A night is not one file per stream. This box reconnects constantly — 07-24 wrote 8 ECG, 164 PPG
@@ -409,11 +404,14 @@ const mergeIv = (recs) => {
 };
 const ivIntersect = (A, B) => {
   const out = [];
-  let i = 0, j = 0;
+  let i = 0,
+    j = 0;
   while (i < A.length && j < B.length) {
-    const s = Math.max(A[i][0], B[j][0]), e = Math.min(A[i][1], B[j][1]);
+    const s = Math.max(A[i][0], B[j][0]),
+      e = Math.min(A[i][1], B[j][1]);
     if (e > s) out.push([s, e]);
-    if (A[i][1] < B[j][1]) i++; else j++;
+    if (A[i][1] < B[j][1]) i++;
+    else j++;
   }
   return out;
 };
@@ -450,10 +448,6 @@ for (const n of plan) {
   // Rank by recorded DURATION, not bytes: bytes stopped being comparable once .dat joined CSV as an
   // oxy candidate (a binary .dat is ~10× denser than the same session's CSV, so a short daytime CSV
   // would outweigh a full night's .dat). Duration is what "the sleep session" actually means.
-  const durOf = (r) => {
-    const w = windowOf(r);
-    return w.tEnd - w.t0;
-  };
   // ANCHOR = every O2Ring session of the night, merged. The ring is still the anchor for the same
   // reason as before (it is always the sleep session, never a daytime capture) — but it is also the
   // most fragmented stream on this box (153-324 SpO2 files a night, longest single 0.57 h), so
@@ -678,11 +672,12 @@ for (const p of work) {
     for (const r of recs) n += r.int16.length;
     const out = new Int16Array(n);
     const gaps = [];
-    let idx = 0, prevEndMs = null;
+    let idx = 0,
+      prevEndMs = null;
     for (const r of recs) {
       if (prevEndMs != null) {
         const d = r.t0Ms - prevEndMs;
-        if (d > 0) gaps.push({ idx: idx - 1, ms: d });   // the real off-link silence
+        if (d > 0) gaps.push({ idx: idx - 1, ms: d }); // the real off-link silence
       }
       for (const g of r.gaps || []) gaps.push({ idx: g.idx + idx, ms: g.ms });
       out.set(r.int16, idx);
@@ -705,15 +700,23 @@ for (const p of work) {
     const relSec = new Float64Array(n);
     let idx = 0;
     for (const r of recs) {
-      const off = (r.t0Ms - base.t0Ms) / 1000;          // true offset — the gap shows up here
+      const off = (r.t0Ms - base.t0Ms) / 1000; // true offset — the gap shows up here
       for (let c = 0; c < nch; c++) ch[c].set(r.ch[c].subarray(0, r.n), idx);
       if (r.amb) amb.set(r.amb.subarray(0, r.n), idx);
       for (let i = 0; i < r.n; i++) relSec[idx + i] = off + r.relSec[i];
       idx += r.n;
     }
     return {
-      ch, amb, relSec, fs: base.fs, n, t0Ms: base.t0Ms, offsetMin: base.offsetMin,
-      durSec: relSec[n - 1], site: base.site, gap: null,
+      ch,
+      amb,
+      relSec,
+      fs: base.fs,
+      n,
+      t0Ms: base.t0Ms,
+      offsetMin: base.offsetMin,
+      durSec: relSec[n - 1],
+      site: base.site,
+      gap: null,
       sentinelRejected: recs.reduce((t, r) => t + (r.sentinelRejected || 0), 0),
       sentinelKept: recs.reduce((t, r) => t + (r.sentinelKept || 0), 0)
     };
@@ -775,12 +778,18 @@ for (const p of work) {
     const parts = p.oxy.map(oxyText).filter((t) => t && t.trim());
     if (!parts.length) throw new Error('no readable O2Ring session');
     const head = parts[0].split('\n')[0];
-    const text = [parts[0].trimEnd()]
-      .concat(parts.slice(1).map((t) => {
-        const lines = t.split('\n');
-        return (lines[0].trim() === head.trim() ? lines.slice(1) : lines).join('\n').trimEnd();
-      }).filter(Boolean))
-      .join('\n') + '\n';
+    const text =
+      [parts[0].trimEnd()]
+        .concat(
+          parts
+            .slice(1)
+            .map((t) => {
+              const lines = t.split('\n');
+              return (lines[0].trim() === head.trim() ? lines.slice(1) : lines).join('\n').trimEnd();
+            })
+            .filter(Boolean)
+        )
+        .join('\n') + '\n';
     const isDat = p.oxy.some((f) => f.kind === 'dat');
     const ex = OxyDex.compute({ text, fileMeta: { name: p.oxy[0].name } }, { ...COMMON, source: isDat ? 'o2ring-dat' : 'o2ring-csv' });
     const h = hoursOf(ex);
