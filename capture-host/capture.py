@@ -2417,10 +2417,17 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
     qcfg = cfg.get("qc") or {}
     interval = float(qcfg.get("poll_sec", 600))
     alert_after = float(qcfg.get("alert_after_sec", 3600))
+    # A CONNECTED SENSOR THAT HAS STOPPED SENDING. Much shorter grace than alert_after: this is not
+    # "the night has not started yet", it is "the link is up and the bytes are not coming". Every PMD
+    # stream we start delivers many rows a second, so ten minutes of nothing behind a live link is
+    # never slow — it is dead. Same reasoning as the 90 s in-session stall watchdog, at the coarser
+    # cadence QC polls on, and it catches the case the watchdog cannot: a task stuck BEFORE it.
+    frozen_after = float(qcfg.get("frozen_after_sec", 600))
     settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
     first_seen: dict[str, float] = {}      # night → monotonic ts we first saw it with data
     alerted: set[str] = set()              # nights already alerted (edge-trigger, one per night)
+    frozen_alerted: set[str] = set()       # night:device — one warning per frozen sensor per night
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
@@ -2447,6 +2454,26 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             os.replace(_qc + ".tmp", _qc)   # atomic
             n = summ["night"]
             first_seen.setdefault(n, _time.monotonic())
+            # A SENSOR THAT IS CONNECTED AND SENDING NOTHING. Distinct from `missing` (which means
+            # "produced nothing all night" and therefore cannot see a mid-night freeze) and from the
+            # offline alert (which needs the link to actually drop). This is the 2026-07-25 Verity:
+            # four streams acknowledged `ok`, link up for 4 h 25 m, zero bytes, nothing said a word.
+            for _name in alerts.frozen_devices(summ, STATUS.get("devices") or {}, frozen_after):
+                _key = f"{n}:{_name}"
+                if _key in frozen_alerted:
+                    continue
+                frozen_alerted.add(_key)
+                _sil = next((d.get("silent_sec") for d in summ["devices"]
+                             if d.get("name") == _name), 0) or 0
+                # WARNING even with no webhook configured. The journal is the only alerting surface a
+                # box without one has, and this failure previously left no trace at all in it.
+                log.warning("qc: %s is CONNECTED but has written nothing for %d min — the link is up "
+                            "and the data is not arriving", _name, int(_sil / 60))
+                if notifier:
+                    await notifier.send(
+                        "Tepna: sensor connected but silent",
+                        f"{_name} has sent no data for ~{int(_sil / 60)} min while the night is still "
+                        f"recording. The link is up, so this is not a dropout.")
             if summ["missing"]:
                 log.info("qc: %s missing stream(s): %s", n, ", ".join(summ["missing"]))
                 waited = _time.monotonic() - first_seen[n]

@@ -61,3 +61,42 @@ def offline_alert_due(down_since: float | None, now: float, threshold_sec: float
     """True when a device has been continuously offline for at least `threshold_sec`. `down_since` is the
     monotonic time it first went offline (None = currently connected → never due)."""
     return down_since is not None and (now - down_since) >= threshold_sec
+
+
+# WHY THIS EXISTS, AND WHY IT IS NOT `missing`.
+#
+# On 2026-07-25 the Verity acknowledged four PMD streams `ok` at 23:51:23 and wrote nothing until
+# 04:16:01 — 4 h 25 m — with the link up throughout (680 of 682 poll samples connected). The cause was
+# an unbounded GATT read and is fixed; what was missing is anyone being TOLD.
+#
+# QC's `missing` cannot see it. `missing` means "this stream produced nothing all night", and the
+# moment 04:16 arrived those streams had rows and stopped qualifying. The detectable signature of a
+# frozen sensor is different and much sharper — and every clause below exists to exclude a false
+# positive that would otherwise fire nightly:
+#
+#   silent while the night is still being written  — at dawn everything goes quiet; that is the night
+#                                                    ending, not a fault (silence is measured against
+#                                                    the night's newest write, so this is inherent).
+#   connected                                      — out of range or switched off is a DIFFERENT fault
+#                                                    and already has offline_alert_due.
+#   not charging                                   — a docked ring is silent by design, every morning.
+#                                                    Alerting on it teaches you to ignore alerts.
+#   has written something                          — a device that produced nothing all night is
+#                                                    `missing`, which already alerts. Two names for
+#                                                    one fault is noise.
+def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
+    """Devices that are connected and awake but have stopped producing data.
+
+    `qc` is a nightqc.summarize() result (each device carries `silent_sec`, seconds since its last
+    write measured against the night's newest write). `live` is STATUS["devices"]. A device missing
+    from `live` is never reported — an unknown state is not evidence of a fault."""
+    out = []
+    for d in qc.get("devices") or []:
+        name, silent = d.get("name"), d.get("silent_sec")
+        if not name or silent is None or silent < threshold_sec:
+            continue
+        st = live.get(name)
+        if not st or not st.get("connected") or st.get("charging"):
+            continue
+        out.append(name)
+    return out
