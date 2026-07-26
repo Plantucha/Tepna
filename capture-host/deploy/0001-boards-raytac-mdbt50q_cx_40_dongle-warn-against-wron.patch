@@ -1,0 +1,82 @@
+From 5bfb8cef6de92a1526560ca02305780bc54ffbbe Mon Sep 17 00:00:00 2001
+From: Plantucha <plantucha@gmail.com>
+Date: Sun, 26 Jul 2026 14:07:16 -0400
+Subject: [PATCH] boards: raytac: mdbt50q_cx_40_dongle: warn against wrong
+ board target
+
+Building this board's applications for nrf52840dongle/nrf52840 produces an
+image that flashes successfully and then hangs the SoC, with no diagnostic
+output on any interface.
+
+Both boards are nRF52840 dongles carrying the same Nordic Open bootloader and
+using an identical nrfutil DFU procedure, so substituting one board target for
+the other looks harmless. It is not: the Nordic nRF52840 Dongle (PCA10059)
+populates DC/DC inductors and enables the DC/DC regulator, while this board
+disables reg0 and runs reg1 in LDO mode. An image built for the Nordic board
+switches the regulator to DC/DC on hardware that cannot supply it, and the SoC
+dies before it can initialise any peripheral.
+
+The failure is easy to misdiagnose because nrfutil reports "Device programmed"
+and the dongle then goes completely silent on USB, including the bootloader.
+That silence is itself the diagnostic: a bootloader that rejected an image
+would stay in DFU mode and re-enumerate, so total silence means the
+application was entered and then died.
+
+Document the required board target, the regulator difference that causes it,
+the symptom, and the fact that the board is recoverable, since DFU never
+overwrites the bootloader.
+
+Signed-off-by: Plantucha <plantucha@gmail.com>
+---
+ .../raytac/mdbt50q_cx_40_dongle/doc/index.rst | 35 +++++++++++++++++++
+ 1 file changed, 35 insertions(+)
+
+diff --git a/boards/raytac/mdbt50q_cx_40_dongle/doc/index.rst b/boards/raytac/mdbt50q_cx_40_dongle/doc/index.rst
+index b1fb298d76e..57649eea085 100644
+--- a/boards/raytac/mdbt50q_cx_40_dongle/doc/index.rst
++++ b/boards/raytac/mdbt50q_cx_40_dongle/doc/index.rst
+@@ -57,6 +57,41 @@ built in the usual way (see :ref:`build_an_application` for more details).
+ Flashing
+ ========
+ 
++.. warning::
++
++   Always build for ``raytac_mdbt50q_cx_40_dongle/nrf52840``. Do not substitute
++   ``nrf52840dongle/nrf52840``, even though both boards are nRF52840 dongles with
++   the same Nordic Open bootloader and the same DFU procedure.
++
++   The two boards configure the nRF52840 power regulator differently. The Nordic
++   nRF52840 Dongle (PCA10059) populates DC/DC inductors and enables the DC/DC
++   regulator; this board does not have them and runs the regulator in LDO mode:
++
++   .. code-block:: devicetree
++
++      /* nordic/nrf52840dongle */        /* raytac/mdbt50q_cx_40_dongle */
++      &reg0 { status = "okay"; };        &reg0 { status = "disabled"; };
++      &reg1 {                            &reg1 {
++        regulator-initial-mode =           regulator-initial-mode = <0>;
++          <NRF5X_REG_MODE_DCDC>;         };
++      };
++
++   An image built for the Nordic board therefore switches this board's regulator
++   to DC/DC on hardware that cannot supply it. The result is easy to misread as a
++   bricked device: ``nrfutil`` reports ``Device programmed``, and the dongle then
++   goes **completely silent on USB** -- no application, no LED, and no bootloader
++   either. No error is printed anywhere.
++
++   The distinguishing symptom is that the *bootloader* is silent too. A bootloader
++   that rejected an image stays in DFU mode and re-enumerates as ``1915:521f``;
++   total silence instead means control was handed to the application, which then
++   died before it could initialise any peripheral. If you see this, suspect the
++   board target rather than the packaging or the flash offset.
++
++   The board is not bricked, and cannot be bricked this way -- DFU does not touch
++   the bootloader. Press the button as described below to return to DFU mode and
++   reflash with the correct board target.
++
+ The board supports the following programming options:
+ 
+ 1. Using the built-in bootloader only
+-- 
+2.53.0
+

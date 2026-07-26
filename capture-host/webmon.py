@@ -139,6 +139,11 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             "host": status.get("host"),
             # Offload result, so the sidebar pill can say whether anything actually left the box.
             "archive": status.get("archive"),
+            # CPAP harvest (CPAP-AUTOHARVEST-2026-07-26-BRIEF). Its OWN block, deliberately not a
+            # pseudo-device under `devices`: the CPAP arrives as FILES on a daily timer with no BLE
+            # link, so it has no connected/RSSI/worn state and would render as a permanently-dead
+            # sensor if it sat in that list. Null until the poller has run once.
+            "cpap": status.get("cpap"),
         })
 
     async def scan(_req):

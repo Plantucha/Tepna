@@ -156,3 +156,16 @@ pull:                     # AUTO-PULL the O2Ring's onboard .dat off flash — th
   on_charger: true        #   FAST event trigger: pull a device's onboard sessions `charger_settle_sec`
   charger_settle_sec: 15  #   after it goes ON THE CHARGER (a night ends → device docked). Applies to the
                           #   O2Ring (.dat) AND Polar Verity/H10 (PS-FTP), not just the hourly cadence above.
+cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD adapter.
+  enabled: false         # opt-in; see briefs/CPAP-AUTOHARVEST-2026-07-26-BRIEF.md
+  at_hour: 13            # local hour, ONCE daily. NOT 09:00 — measured on the real card, 6 of the 14
+                         # most recent nights were still being written after 09:00 (last-write
+                         # 08:35→12:02, median 08:56), and the LATE files are the big ones: on
+                         # 20260725 CSL/EVE landed 03:50/06:42 but PLD, SA2 and BRP (the 25 Hz flow
+                         # waveform CPAPDex reads) all landed 10:10. 13:00 clears the latest by ~1 h.
+  wifi_profile: ezshare  # NetworkManager profile for the card's AP; MUST carry ipv4.never-default yes
+  base_url: http://192.168.4.1
+  dest_subdir: captures/cpap   # native ResMed layout mirrored verbatim (§7: no new parser branch)
+  max_run_sec: 5400      # hard cap. First backfill ~492 MB @ ~130 KB/s ≈ 65 min; a night ≈ 20 s.
+  timeout_sec: 20        # per request — the card drops requests under sustained load
+  retries: 5
