@@ -100,6 +100,14 @@ body.light .sidebar-logo-rule{border-top-color:rgba(0,0,0,.08);}
 .side-stat .val{font-size:17px;font-weight:700;line-height:1.15;font-family:ui-monospace,monospace;margin-top:2px;}
 .side-stat .sub{font-size:10px;color:var(--text3);margin-top:2px;line-height:1.35;word-break:break-word;}
 .side-stat .sub.addr{font-family:ui-monospace,monospace;word-break:break-all;}
+/* Capture timeline. Two strips on ONE time axis: state above, dBm below, so a drop can be read
+   against the signal that preceded it. State is encoded by HEIGHT as well as hue — the suite's badge
+   convention is deliberately "shape, never hue alone", and a colour-only strip fails the same reader. */
+.ov-tl{margin:6px 0 2px;}
+.ov-tl-state{width:100%;height:10px;display:block;border-radius:2px;}
+.ov-tl-rssi{width:100%;height:16px;display:block;margin-top:2px;opacity:.9;}
+.ov-tl-legend{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);
+  font-family:ui-monospace,monospace;margin-top:2px;}
 .sidebar-bottom{margin-top:auto;padding-top:22px;}
 .sidebar-data-card{background:var(--surface);border:var(--b);border-radius:var(--r-sm);padding:12px 14px;}
 .sidebar-data-info{margin-top:8px;font-size:11px;color:var(--text3);line-height:1.55;font-family:ui-monospace,monospace;}
@@ -1323,6 +1331,11 @@ function ovRender(){                             // (re)build the cards to match
         <div class="ov-value" id="ovval-${s.key}"></div>
         <div class="ov-mini"><canvas id="ovcv-${s.key}"></canvas></div>
         <div class="ov-foot"><span>${KIND_FOOT[streamKind(s)]}</span><span>${foot}</span></div>
+        <div class="ov-tl" title="Tonight's capture — state above, signal below, same time axis">
+          <canvas class="ov-tl-state" id="ovtl-${s.key}"></canvas>
+          <canvas class="ov-tl-rssi" id="ovrs-${s.key}"></canvas>
+          <div class="ov-tl-legend"><span id="ovcov-${s.key}">—</span><span id="ovdbm-${s.key}"></span></div>
+        </div>
         <div class="ov-pills">
           <span class="ov-chg" id="ovchg-${s.key}">${chargeChip(dev)}</span>
           <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
@@ -1370,15 +1383,105 @@ function ovSubscribe(){                          // ONE multiplexed SSE for all 
   es.addEventListener('snapshot', on); es.onmessage = on;
   OV._all = es;
 }
+
+// ── Capture timeline ─────────────────────────────────────────────────────────────────────────────
+// Fetched from /api/timeline (server-side; it walks the night's files) rather than accumulated in the
+// page, so the history survives a reload and is identical on every device looking at the box.
+let TL = null, _tlBusy = false;
+
+// State colours. Paired with a HEIGHT so hue is never the only encoding — the suite's badge rule is
+// "shape, never hue", and a colour-only strip fails exactly the readers that rule exists for.
+const TL_STATE = {
+  captured: {c:'#22c55e', h:1.00, t:'capturing'},
+  degraded: {c:'#eab308', h:0.62, t:'below rate — weak link'},
+  nosignal: {c:'#f97316', h:0.38, t:'this device disconnected'},
+  wedged:   {c:'#ef4444', h:1.00, t:'ADAPTER down — every device stopped'},
+  idle:     {c:'#334155', h:0.22, t:'not recording'},
+};
+
+async function loadTimeline(){
+  if(_tlBusy) return; _tlBusy = true;
+  try{ TL = await api('/api/timeline?buckets=240'); drawTimelines(); }
+  catch(_){ /* a display aid must never break the page */ }
+  finally{ _tlBusy = false; }
+}
+
+function tlForStream(key){
+  if(!TL || !TL.devices) return null;
+  const dev = deviceForStream(key);
+  if(!dev) return null;
+  const d = TL.devices.find(x => x.address === dev.address);
+  if(!d) return null;
+  // The card is per-STREAM; strip the device tag the bus adds (acc_vs -> acc) to find its entry.
+  const base = key.replace(/_(vs|h10|o2)$/,'').replace(/^o2ppg$/,'ppg').replace(/^bpm$/,'hr');
+  return { dev:d, st:d.streams[base] || null };
+}
+
+function drawTimelines(){
+  for(const s of STREAMS){
+    const got = tlForStream(s.key); if(!got) continue;
+    const cv = document.getElementById('ovtl-'+s.key), rv = document.getElementById('ovrs-'+s.key);
+    const cov = document.getElementById('ovcov-'+s.key), dbm = document.getElementById('ovdbm-'+s.key);
+    if(got.st && cv) drawStateStrip(cv, got.st.states);
+    if(rv) drawRssiStrip(rv, got.dev.rssi);
+    if(cov && got.st) cov.textContent = got.st.coverage_pct.toFixed(1)+'% captured';
+    if(dbm){
+      const r = (got.dev.rssi||[]).filter(x=>x!=null);
+      dbm.textContent = r.length ? `${Math.min(...r)}…${Math.max(...r)} dBm` : '';
+    }
+  }
+}
+
+function _fit(cv){
+  const w = cv.clientWidth || 240, h = cv.clientHeight || 10, dpr = window.devicePixelRatio||1;
+  if(cv.width !== Math.round(w*dpr)){ cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr); }
+  const g = cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,w,h);
+  return {g,w,h};
+}
+
+function drawStateStrip(cv, states){
+  const {g,w,h} = _fit(cv); if(!states||!states.length) return;
+  const bw = w/states.length;
+  for(let i=0;i<states.length;i++){
+    const st = TL_STATE[states[i]] || TL_STATE.idle;
+    g.fillStyle = st.c;
+    const bh = Math.max(1, h*st.h);
+    g.fillRect(i*bw, (h-bh)/2, Math.ceil(bw)+0.5, bh);   // +0.5 so sub-pixel buckets leave no gaps
+  }
+}
+
+function drawRssiStrip(cv, rssi){
+  const {g,w,h} = _fit(cv);
+  const vals = (rssi||[]).filter(x=>x!=null);
+  if(!vals.length) return;
+  // Fixed -100..-40 dBm scale, NOT auto-ranged: a per-card autoscale makes a rock-solid -55 link look
+  // as ragged as a failing -95 one, which is the opposite of what this strip is for. Clamped so an
+  // out-of-range sample stays visible at the edge rather than vanishing.
+  const LO=-100, HI=-40, span=HI-LO;
+  g.strokeStyle = 'rgba(148,163,184,.35)'; g.lineWidth = 1;
+  [-90,-70,-50].forEach(v=>{ const y=h-((v-LO)/span)*h; g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke(); });
+  const bw = w/(rssi.length||1);
+  g.beginPath(); let started=false;
+  for(let i=0;i<rssi.length;i++){
+    if(rssi[i]==null){ started=false; continue; }              // a gap is a BREAK, never interpolated
+    const x = i*bw+bw/2, y = h - (Math.min(HI,Math.max(LO,rssi[i]))-LO)/span*h;
+    if(!started){ g.moveTo(x,y); started=true; } else g.lineTo(x,y);
+  }
+  g.strokeStyle = '#38bdf8'; g.lineWidth = 1.2; g.stroke();
+}
+
 function ovStart(){
   if(ovOn) return; ovOn = true;
   ovRender();
   ovSubscribe();
   if(!ovRaf) ovLoop();
   if(!OV._rate){ OV._rate = setInterval(ovRates, 1000); }
+  loadTimeline();                                  // history is cheap to fetch and cached server-side
+  if(!OV._tl){ OV._tl = setInterval(loadTimeline, 60000); }
   if(!OV._val){ OV._val = setInterval(ovValues, 250); }
 }
 function ovStop(){
+  if(OV._tl){ clearInterval(OV._tl); OV._tl = null; }
   ovOn = false;
   OV._gridSig = null;                            // force a fresh grid build when the view is next shown
   if(OV._all){ try{OV._all.close();}catch(_){} OV._all=null; }

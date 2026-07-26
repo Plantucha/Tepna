@@ -24,6 +24,7 @@ import clockcfg
 import offline_lock
 import polar_psftp
 import storage_targets
+import timeline as _timeline
 import settings_schema
 from writers import missing_identity
 
@@ -553,6 +554,47 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         except Exception as e:      # a probe must never 500 the monitor
             return web.json_response({"ok": False, "detail": f"{type(e).__name__}: {e}"})
 
+    # ── Capture timeline (per-stream state strip + per-device dBm trace) ────────────────────────
+    # Deliberately NOT folded into /api/state: state is polled every 5 s by every open tab, while this
+    # walks the night's files. Cached per (night, buckets) and recomputed at most every 60 s — a night
+    # is ~1500 files and re-counting rows on every poll is the stall #292 moved off the event loop.
+    _tl_cache: dict = {}
+
+    async def timeline_get(req):
+        night = req.query.get("night") or ""
+        try:
+            buckets = max(20, min(600, int(req.query.get("buckets", _timeline.DEFAULT_BUCKETS))))
+        except (TypeError, ValueError):
+            buckets = _timeline.DEFAULT_BUCKETS
+        captures = os.path.join(cfg.get("root", "/srv/tepna"), "captures")
+        if not night:
+            # Default to the night being WRITTEN, which is the folder with the newest activity — not
+            # the newest NAME. After midnight the sensor writers stay in their session's start-date
+            # folder while only the sidecars roll, so the newest name holds two files and no data.
+            try:
+                nights = sorted(n for n in os.listdir(captures)
+                                if _timeline._STAMP_RE.search(n + "_00000000000000_") or True)
+                nights = [n for n in nights if os.path.isdir(os.path.join(captures, n))]
+                night = max(nights, key=lambda n: os.path.getmtime(os.path.join(captures, n)),
+                            default="")
+            except OSError:
+                night = ""
+        if not night or "/" in night or ".." in night:
+            return web.json_response({"error": "no night"}, status=400)
+        key = (night, buckets)
+        now = asyncio.get_event_loop().time()
+        hit = _tl_cache.get(key)
+        if hit and now - hit[0] < 60:
+            return web.json_response(hit[1])
+        try:
+            out = await asyncio.to_thread(_timeline.build,
+                                          os.path.join(captures, night), cfg.get("devices", []), buckets)
+        except Exception as e:      # a display aid must never 500 the monitor
+            return web.json_response({"error": f"{type(e).__name__}: {e}"}, status=500)
+        _tl_cache.clear()
+        _tl_cache[key] = (now, out)
+        return web.json_response(out)
+
     async def timesync(req):
         """Set ONE device's internal clock from the host. Polar only — the O2Ring already re-syncs its
         RTC on every connect (oxyii 0xC0), so there is nothing manual to do there and we say so rather
@@ -644,6 +686,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/pull", pull_stored_h),
         web.get("/api/settings", settings_get),
         web.post("/api/settings", settings_post),
+        web.get("/api/timeline", timeline_get),
         web.get("/api/storage", storage_get),
         web.post("/api/storage", storage_post),
         web.post("/api/storage/test", storage_test),
