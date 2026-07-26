@@ -1,0 +1,32 @@
+[Unit]
+# Re-assert USB autosuspend-off on every Bluetooth adapter AFTER udev has settled.
+#
+# The companion udev rule (99-tepna-btdongle.rules) owns HOTPLUG. This unit owns COLD BOOT, where the
+# rule cannot help: on 2026-07-26 the adapters enumerated at 13:55:34 and systemd-udevd only started
+# at 13:55:38, so the kernel's `usbcore.autosuspend=2` default stood and the rule never got its turn.
+# Both mechanisms are kept because they cover different moments, and the failure they prevent — an
+# RTL8761B firmware-wedge under load — cost ~110 minutes of capture on 2026-07-23.
+Description=Tepna — disable USB autosuspend on Bluetooth adapters (cold-boot re-assert)
+Documentation=file:/opt/tepna/capture-host/systemd/tepna-usb-autosuspend.sh
+DefaultDependencies=no
+# udev-settle is deprecated for general use and rightly so, but this is the one job it is correct
+# for: acting on hardware that is ALREADY present, exactly once, before anything opens it.
+After=sysinit.target systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+Before=bluetooth.service tepna-capture.service shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/tepna/capture-host/systemd/tepna-usb-autosuspend.sh
+# Writing sysfs power attributes needs root, and nothing else here does — so the unit is root and
+# capture.py stays unprivileged. That split is deliberate: capture has no CAP_NET_ADMIN by design,
+# which is why PREVENTION (this) is the primary defence and the watchdog's recovery ladder is not.
+User=root
+# A missing adapter is not a boot failure — the box may power on before a dongle is plugged, and the
+# udev rule covers that case the moment it appears.
+SuccessExitStatus=0
+
+[Install]
+WantedBy=sysinit.target
