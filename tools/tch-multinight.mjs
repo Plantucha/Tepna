@@ -312,10 +312,46 @@ function report(rows, { json } = {}) {
         (row.withRho.culprit || row.classic.culprit || '?')
     );
   }
-  // distribution summary
-  const solved = rows.filter((x) => x.ok && x.withRho.ok);
+  /* DISTRIBUTION — A BOUNDARY SOLUTION IS NOT A MEASUREMENT.
+     When the classic split goes negative the kernel sets `negative` and falls to the correlated
+     solve, which searches for the MINIMUM |rho| that restores a non-negative fit. At that minimum
+     the member which drove the negativity sits exactly ON the non-negativity boundary — so its σ
+     comes out at ~0 BY CONSTRUCTION, not by measurement. On this corpus that printed
+     σ[OxyDex]=0.02 bpm (07-23) and σ[PpgDex]=0.01 bpm (07-24): read plainly, "this sensor is
+     essentially perfect", which is the precise opposite of what happened. What happened is that the
+     three-cornered hat's uncorrelated-error assumption failed for that night and the member's error
+     cannot be separated at all.
+     Folding those into a median mixes a modelling failure in with real estimates and drags the
+     median toward zero. They are reported, and counted, but they do not vote. */
+  // The test is the METHOD, not the `negative` flag. Both rescue paths set `negative` — it only
+  // records that the CLASSIC split went negative — but they are not the same kind of answer:
+  //   correlated-external  rho came from an independent estimate (co-motion), and the solve lands
+  //                        INTERIOR. A real rescue; its sigmas are measurements. The synthetic
+  //                        known-answer corpus is built on exactly this path, and an earlier cut of
+  //                        this filter keyed on `negative` and threw away 3 of its 6 nights whose
+  //                        sigmas (1.09/3.06/0.43) are nowhere near a boundary.
+  //   correlated           the auto search for the MINIMUM |rho| restoring non-negativity, so by
+  //                        construction one member lands exactly ON zero. That member's sigma is a
+  //                        property of where the search stopped, not of the sensor.
+  const isBoundary = (x) => x.withRho.method === 'correlated' || x.withRho.method === 'classic-clamped';
+  const solvedAll = rows.filter((x) => x.ok && x.withRho.ok);
+  const degenerate = solvedAll.filter(isBoundary);
+  const solved = solvedAll.filter((x) => !isBoundary(x));
   const culpritSig = solved.map((x) => (x.sigmaRho ? x.sigmaRho[x.withRho.culprit] : null));
-  console.log('\n  distribution (' + solved.length + ' solved / ' + rows.length + ' nights):');
+  console.log('\n  distribution (' + solved.length + ' estimated / ' + rows.length + ' nights):');
+  if (degenerate.length) {
+    console.log(
+      '    ' +
+        degenerate.length +
+        ' night(s) EXCLUDED — negative classic variance, so the correlated fit sits on the\n' +
+        '    non-negativity boundary and the boundary member\u2019s \u03c3 is ~0 by construction, not by measurement:\n' +
+        degenerate.map((d) => '      ' + d.label + '  \u03c3 ' + LABELS.map((L) => fmt(d.sigmaRho && d.sigmaRho[L])).join('/') + '  (method ' + d.withRho.method + ')').join('\n')
+    );
+  }
+  if (!solved.length) {
+    console.log('    no night produced a non-degenerate solution — nothing to summarise.');
+    return;
+  }
   console.log('    median culprit σ (ρ-on)  = ' + fmt(median(culpritSig)) + ' bpm');
   LABELS.forEach((L) => {
     console.log(
