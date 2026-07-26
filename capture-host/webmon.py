@@ -176,15 +176,48 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response(
                 {"ok": False, "missing": missing,
                  "error": "unidentified device — missing " + ", ".join(missing)}, status=400)
-        # de-dupe by address; last write wins
+        # MERGE ONTO THE EXISTING ENTRY — never "last write wins" (2026-07-26).
+        #
+        # This used to drop the stored device and rebuild it from the 6-key allowlist below, so
+        # re-remembering an ALREADY-KNOWN sensor silently destroyed every tuned key that is not in that
+        # list. Observed on the real box: one pass through the pairing screen erased `rates:` from the
+        # H10 (acc 50) and the Verity (acc 52, mag 20) — the E4 decision that cut 71 % of the box's
+        # bytes — leaving the daemon to negotiate defaults and nightqc to grade coverage against a
+        # nominal the operator never chose (it reported acc 24 % / mag 39 % on a night where both
+        # streams were complete). `optional: true` on a backup device would go the same way.
+        #
+        # A re-remember is how the UI handles an ordinary re-scan, so it must be IDEMPOTENT on
+        # everything the caller did not explicitly send.
         cfg.setdefault("devices", [])
-        cfg["devices"] = [d for d in cfg["devices"] if d.get("address") != dev.get("address")]
-        cfg["devices"].append({k: dev[k] for k in
-                               ("name", "vendor", "model", "device_id", "address", "streams") if k in dev})
+        _KEYS = ("name", "vendor", "model", "device_id", "address", "streams")
+        incoming = {k: dev[k] for k in _KEYS if k in dev}
+        existing = next((d for d in cfg["devices"] if d.get("address") == dev.get("address")), None)
+        if existing:
+            merged = {**existing, **incoming}
+            # DEVICE_ID IS AN IDENTITY, NOT A FIELD TO REFRESH. It is interpolated into every capture
+            # filename (`<Vendor>_<Model>_<DeviceId>_<stamp>_<STREAM>.txt`), so changing it renames the
+            # sensor's whole future output and orphans it from its own history. The browser's
+            # guessDevice() derives one from the MAC when it cannot read the real serial — on this box
+            # that turned the Verity's Polar serial `0C301E3F` into `AC0C301E` (MAC bytes 2-5) and split
+            # one night's files across two identities. An established id therefore wins over an
+            # incoming guess; correcting it is a deliberate config edit, not a side effect of scanning.
+            if existing.get("device_id"):
+                if incoming.get("device_id") and incoming["device_id"] != existing["device_id"]:
+                    _log.warning("remember: keeping established device_id %r for %s (ignoring incoming "
+                                 "%r — changing it would rename every future capture file)",
+                                 existing["device_id"], dev.get("address"), incoming["device_id"])
+                merged["device_id"] = existing["device_id"]
+            cfg["devices"] = [merged if d is existing else d for d in cfg["devices"]]
+            saved = merged
+        else:
+            cfg["devices"].append(incoming)
+            saved = incoming
         if not _save():
             return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
         if spawn_device:                      # hot-start capture without a restart
-            spawn_device(cfg["devices"][-1])
+            # `saved`, not cfg["devices"][-1] — a MERGED device keeps its original position in the
+            # list, so the old index-based lookup would hot-start whichever sensor happened to be last.
+            spawn_device(saved)
         return web.json_response({"ok": True, "remembered": len(cfg["devices"])})
 
     async def stream(req):

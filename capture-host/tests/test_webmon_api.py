@@ -605,3 +605,106 @@ def test_storage_test_reports_an_unmounted_mountpoint_as_not_ready(tmp_path, mon
             "mountpoint": str(mp)}})).json()
     body = _serve(app, go)
     assert body["ok"] is False and "nothing is mounted" in body["detail"]
+
+
+# ── RE-REMEMBERING A KNOWN DEVICE MUST NOT DESTROY ITS TUNING (VIGIL-REMEMBER-MERGE) ───────────
+# `remember` dropped the stored entry and rebuilt it from a 6-key allowlist, so one pass through the
+# pairing screen erased every tuned key outside that list. Observed on the real box: `rates:` vanished
+# from the H10 (acc 50) and Verity (acc 52, mag 20) — the E4 decision that cut 71% of the box's bytes —
+# and nightqc then graded a COMPLETE night against nominals the operator never chose (acc 24%, mag 39%).
+
+def _dev_in(cfg, addr):
+    return next((d for d in cfg["devices"] if d.get("address") == addr), None)
+
+
+def test_re_remember_preserves_configured_rates(tmp_path):
+    app, cfg, _st, _p, _b = _mk(tmp_path)
+    addr = "24:AC:AC:0C:30:1E"
+    cfg["devices"].append({"name": "Polar Verity Sense", "vendor": "Polar", "model": "VeritySense",
+                           "device_id": "0C301E3F", "address": addr,
+                           "streams": ["ppg", "acc"], "rates": {"acc": 52, "mag": 20}})
+
+    async def go(c):
+        return await (await c.post("/api/remember", json={
+            "name": "Polar Sense 0C301E3F", "vendor": "Polar", "model": "VeritySense",
+            "device_id": "AC0C301E", "address": addr, "streams": ["ppg", "acc", "gyro", "mag"]})).json()
+    assert _serve(app, go)["ok"] is True
+    d = _dev_in(cfg, addr)
+    assert d["rates"] == {"acc": 52, "mag": 20}, "tuned rates must survive a re-scan"
+
+
+def test_re_remember_keeps_the_established_device_id(tmp_path):
+    """device_id is interpolated into every capture filename. Changing it renames the sensor's whole
+    future output and orphans it from its own history — the browser guessed AC0C301E from the MAC."""
+    app, cfg, _st, _p, _b = _mk(tmp_path)
+    addr = "24:AC:AC:0C:30:1E"
+    cfg["devices"].append({"name": "Polar Verity Sense", "vendor": "Polar", "model": "VeritySense",
+                           "device_id": "0C301E3F", "address": addr, "streams": ["ppg"]})
+
+    async def go(c):
+        return await (await c.post("/api/remember", json={
+            "name": "Polar Sense", "vendor": "Polar", "model": "VeritySense",
+            "device_id": "AC0C301E", "address": addr, "streams": ["ppg"]})).json()
+    _serve(app, go)
+    assert _dev_in(cfg, addr)["device_id"] == "0C301E3F"
+
+
+def test_re_remember_preserves_the_optional_flag(tmp_path):
+    """An optional backup that loses `optional: true` starts counting as a missing device and reds QC."""
+    app, cfg, _st, _p, _b = _mk(tmp_path)
+    addr = "F7:33:8E:CF:E6:BE"
+    cfg["devices"].append({"name": "COOSPO", "vendor": "Coospo", "model": "HRM808S",
+                           "device_id": "0022265", "address": addr, "streams": ["hr"], "optional": True})
+
+    async def go(c):
+        return await (await c.post("/api/remember", json={
+            "name": "COOSPO", "vendor": "Coospo", "model": "HRM808S",
+            "device_id": "0022265", "address": addr, "streams": ["hr"]})).json()
+    _serve(app, go)
+    assert _dev_in(cfg, addr).get("optional") is True
+
+
+def test_re_remember_still_applies_what_the_caller_DID_send(tmp_path):
+    """Merging must not make the endpoint inert — an updated stream list has to land."""
+    app, cfg, _st, _p, _b = _mk(tmp_path)
+    addr = "24:AC:AC:0C:30:1E"
+    cfg["devices"].append({"name": "old", "vendor": "Polar", "model": "VeritySense",
+                           "device_id": "0C301E3F", "address": addr, "streams": ["ppg"],
+                           "rates": {"mag": 20}})
+
+    async def go(c):
+        return await (await c.post("/api/remember", json={
+            "name": "new name", "vendor": "Polar", "model": "VeritySense",
+            "device_id": "0C301E3F", "address": addr, "streams": ["ppg", "mag"]})).json()
+    _serve(app, go)
+    d = _dev_in(cfg, addr)
+    assert d["name"] == "new name" and d["streams"] == ["ppg", "mag"]
+    assert d["rates"] == {"mag": 20}
+
+
+def test_re_remember_does_not_duplicate_or_reorder(tmp_path):
+    app, cfg, _st, _p, _b = _mk(tmp_path)
+    addr = "24:AC:AC:0C:30:1E"
+    cfg["devices"].append({"name": "V", "vendor": "Polar", "model": "VeritySense",
+                           "device_id": "0C301E3F", "address": addr, "streams": ["ppg"]})
+    cfg["devices"].append({"name": "Z-last", "vendor": "X", "model": "Y",
+                           "device_id": "ZZ", "address": "11:22:33:44:55:66", "streams": ["hr"]})
+    before = len(cfg["devices"])
+
+    async def go(c):
+        return await (await c.post("/api/remember", json={
+            "name": "V", "vendor": "Polar", "model": "VeritySense",
+            "device_id": "0C301E3F", "address": addr, "streams": ["ppg"]})).json()
+    _serve(app, go)
+    assert len(cfg["devices"]) == before, "a re-remember must not append a duplicate"
+    assert cfg["devices"][-1]["name"] == "Z-last", "position must be stable, not shuffled to the end"
+
+
+def test_a_genuinely_new_device_is_still_appended(tmp_path):
+    app, cfg, _st, _p, _b = _mk(tmp_path)
+    before = len(cfg["devices"])
+
+    async def go(c):
+        return await (await c.post("/api/remember", json={**RING, "address": "11:22:33:44:55:66"})).json()
+    assert _serve(app, go)["ok"] is True
+    assert len(cfg["devices"]) == before + 1
