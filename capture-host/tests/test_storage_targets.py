@@ -273,3 +273,86 @@ def test_a_symlinked_mountpoint_cannot_escape_the_allowed_root(tmp_path, monkeyp
     assert st._under_allowed_root(str(link)) is False, "the symlink resolves outside the root"
     with pytest.raises(st.StorageError, match="must live under"):
         st.validate({**NFS, "mountpoint": str(link)})
+
+
+# ══ ADVERSARIAL PASS 2026-07-26 ═══════════════════════════════════════════════════════════════
+# validate() constrained the SHAPE of a path (absolute, no `..`) but never its CHARACTER SET, while
+# three different sinks consume those strings: a shell command the operator pastes as root, a systemd
+# unit body, and a unit FILENAME. Each needs stricter rules than "starts with /".
+#
+# This matters because /api/storage is token-gated only when web.token is set, and the documented
+# default — the one running on the box — is a trusted LAN with no token. So the untrusted input is
+# "anyone who can reach the monitor", and the payload lands in something run as root.
+
+def _nfs(**kw):
+    t = {"protocol": "nfs", "host": "nas.local", "share": "/vol/tepna", "mountpoint": "/srv/arch"}
+    t.update(kw)
+    return t
+
+
+def test_a_mountpoint_cannot_smuggle_shell_metacharacters_into_the_root_steps():
+    """S1. `unit_name` was interpolated into `sudo tee /etc/systemd/system/{unit_name}` UNQUOTED —
+    while `mkdir` and `systemctl enable` beside it were quoted. A `;` in the mountpoint therefore
+    produced a root command with an extra statement in it, which the operator is told to paste."""
+    with pytest.raises(st.StorageError):
+        st.validate(_nfs(mountpoint="/srv/a;id>/tmp/pwned;x"))
+
+
+def test_the_unit_name_is_shell_quoted_even_when_validate_is_bypassed():
+    """Defence in depth, tested where it can actually be observed.
+
+    validate() now rejects the metacharacter upstream, but mount_unit() takes a plain dict and is one
+    refactor away from being reachable with an unvalidated one — so both layers must hold. Asserting
+    on a benign name proves nothing, because shlex.quote leaves a safe string bare; the property only
+    becomes visible with a hostile one.
+    """
+    t = {"protocol": "nfs", "kind": "mount", "host": "nas.local", "share": "/vol",
+         "mountpoint": "/srv/a;id>/tmp/pwned;x"}
+    tee = [s for s in st.mount_unit(t)["steps"] if "tee" in s][0]
+    name = tee.split("/etc/systemd/system/")[1].split(" ")[0]
+    assert name.startswith("'") and name.endswith("'"), \
+        f"the unit name reaches a root shell unquoted: {tee}"
+
+
+def test_a_newline_in_a_path_cannot_inject_systemd_directives():
+    """S2. `Where=` took the value raw, so a newline let a client append its own unit directives to a
+    file the operator installs into /etc/systemd/system."""
+    with pytest.raises(st.StorageError):
+        st.validate(_nfs(mountpoint="/srv/ok\nOptions=x,exec\n[Install]\nWantedBy=x"))
+
+
+def test_an_smb_share_is_charset_checked_like_everything_else():
+    """S3. The SMB share went through `str(...).strip().strip('/')` and nothing else."""
+    with pytest.raises(st.StorageError):
+        st.validate({"protocol": "smb", "host": "nas.local", "mountpoint": "/srv/arch",
+                                  "share": "pub\nOptions=_netdev,uid=0,gid=0,file_mode=0777"})
+
+
+def test_an_iqn_is_charset_checked():
+    with pytest.raises(st.StorageError):
+        st.validate({"protocol": "iscsi", "host": "nas.local", "mountpoint": "/srv/arch",
+                                  "share": "iqn.2003-01.com.x:disk1\nOptions=exec"})
+
+
+def test_a_comma_in_the_credentials_path_cannot_append_a_mount_option():
+    """`credentials={cred}` is appended to a COMMA-SEPARATED option list, so a comma in the path is an
+    option injection — `/srv/c,uid=0` mounts the share as root."""
+    with pytest.raises(st.StorageError):
+        st.validate({"protocol": "smb", "host": "nas.local", "mountpoint": "/srv/arch",
+                                  "share": "pub", "credentials_file": "/srv/cred,uid=0,gid=0"})
+
+
+# ── the fixes must not reject anything legitimate ─────────────────────────────────────────────
+def test_ordinary_targets_still_validate():
+    """A charset that rejects real configuration is a worse bug than the one being fixed."""
+    ok = st.validate(_nfs(mountpoint="/srv/tepna/archive", share="/volume1/tepna-backup"))
+    assert ok["mountpoint"] == "/srv/tepna/archive"
+    smb = st.validate({"protocol": "smb", "host": "192.168.0.10", "mountpoint": "/mnt/nas",
+                                    "share": "tepna$", "credentials_file": "/srv/tepna/.smbcred"})
+    assert smb["share"] == "tepna$"
+    iscsi = st.validate({"protocol": "iscsi", "host": "nas.local", "mountpoint": "/srv/a",
+                                      "share": "iqn.2003-01.com.example:storage.disk1"})
+    assert iscsi["share"] == "iqn.2003-01.com.example:storage.disk1"
+    rs = st.validate({"protocol": "rsync", "host": "nas.local", "user": "tepna",
+                                   "share": "/volume1/tepna", "identity": "/srv/tepna/.ssh/id_ed25519"})
+    assert rs["identity"].endswith("id_ed25519")

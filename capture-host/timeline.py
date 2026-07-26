@@ -49,6 +49,40 @@ DEFAULT_BUCKETS = 240
 DEGRADED_BELOW = 0.6
 
 _STAMP_RE = re.compile(r"_(\d{14})_")
+# capture_filename writes `{vendor}_{model}_{device_id}_{stamp}_{TAG}.{ext}`. Vendor and model may
+# themselves contain underscores ("O2Ring-S", and a model could be renamed to anything), so the id is
+# not a fixed field index — but it is ALWAYS the token immediately before the 14-digit stamp.
+_DEVID_RE = re.compile(r"_([^_]+)_\d{14}_")
+
+
+def _file_device_id(name: str) -> str | None:
+    """The device_id FIELD of a capture filename, or None if the name is not one.
+
+    Matching used to be `device_id in filename`, a bare substring test. Polar ids are zero-padded
+    serials, so one is readily contained in another ('2849638' inside '02849638') and the shorter
+    device silently claimed the longer one's files — the strip would show one sensor's capture on the
+    other's card, which is not a gap you would ever notice by eye. A model or vendor string that
+    happened to contain the id matched too.
+    """
+    m = _DEVID_RE.search(name)
+    return m.group(1) if m else None
+
+
+def covered_seconds(intervals: list[tuple[float, float]]) -> float:
+    """Total wall time the intervals cover, counting OVERLAP ONCE.
+
+    Summing raw lengths let coverage exceed 100 %. Sessions overlap whenever `rows / fs` over-states a
+    session's duration, which happens as soon as the configured rate is below the rate the device
+    actually ran at — and it also happens whenever two session files for one stream genuinely overlap.
+    A '104.8 % captured' badge is not a number anyone can act on.
+    """
+    merged: list[list[float]] = []
+    for s, e in sorted(intervals):
+        if merged and s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    return sum(e - s for s, e in merged)
 
 
 def _stamp_ms(name: str) -> float | None:
@@ -72,7 +106,7 @@ def stream_intervals(files: list[dict], device_id: str, tag: str, fs: float) -> 
     which for a killed or still-open session is not when the data ends. Rows are the data."""
     out = []
     for f in files:
-        if f["stream"] != tag or not device_id or device_id not in f["file"]:
+        if f["stream"] != tag or not device_id or _file_device_id(f["file"]) != device_id:
             continue
         t0 = _stamp_ms(f["file"])
         if t0 is None or not f["rows"] or fs <= 0:
@@ -121,6 +155,11 @@ def bucket_link(samples: list[tuple[float, int, float | None]], t0: float, t1: f
     rssi: list[float | None] = [None] * n
     buckets: list[list[tuple[int, float | None]]] = [[] for _ in range(n)]
     for ts, c, r in samples:
+        # int() truncates TOWARD ZERO, so a sample up to one bucket before t0 gives i == 0 and
+        # slips past the `0 <= i` guard — a stale disconnected reading then paints the first
+        # bucket nosignal. Reject out-of-window samples explicitly instead.
+        if ts < t0 or ts >= t1:
+            continue
         i = int((ts - t0) / width)
         if 0 <= i < n:
             buckets[i].append((c, r))
@@ -225,9 +264,17 @@ def wedge_buckets(link: dict[str, list[tuple[float, int, float | None]]], t0: fl
     first_up = next((i for i in range(n) if any(c[i] == 1 for c in per.values())), None)
     if first_up is None:
         return [False] * n
+    # ...AND A DROPOUT YOU NEVER CAME BACK FROM IS THE NIGHT ENDING. The mirror of the rule above, and
+    # the third false positive found in this function. At the end of a night you take the strap off and
+    # dock the armband; both links drop within a bucket or two of each other, which is precisely the
+    # adapter's signature — every device down at once. Firing there would paint a red "adapter fault"
+    # on the tail of essentially every night. A wedge is a dropout the radio RECOVERED from, so only
+    # buckets before the last successful connection can be one. A terminal silence is reported as
+    # `nosignal`, which is the honest reading: the devices went away and we cannot say why.
+    last_up = next((i for i in range(n - 1, -1, -1) if any(c[i] == 1 for c in per.values())), None)
     out = []
     for i in range(n):
-        if i <= first_up:
+        if i <= first_up or last_up is None or i >= last_up:
             out.append(False)
             continue
         seen = [c[i] for c in per.values() if c[i] is not None]
@@ -270,7 +317,7 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
             fs = nightqc._expected_hz(d, s) or 0
             iv = stream_intervals(data, did, s.upper(), fs)
             st = apply_link_states(bucket_stream(iv, t0, t1, buckets, fs), conn, wedged)
-            covered = sum(e - s2 for s2, e in iv)
+            covered = covered_seconds(iv)
             streams[s] = {
                 "states": st,
                 "covered_sec": round(covered),
