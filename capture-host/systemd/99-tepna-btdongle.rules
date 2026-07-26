@@ -13,19 +13,44 @@
 # showing it apply — and `power/control=auto` on every boot regardless. So the P0.1 "root-cause fix"
 # was never actually in force; only the daemon's startup self-test revealed it. 99- runs last.
 #
-# Install (one time, needs root):
+# Install (one time, needs root) — and DELETE any older 50- copy, which loses to 60-autosuspend:
+#     sudo rm -f /etc/udev/rules.d/50-tepna-btdongle.rules
 #     sudo cp capture-host/systemd/99-tepna-btdongle.rules /etc/udev/rules.d/
 #     sudo udevadm control --reload
-#     sudo udevadm trigger --action=add --attr-match=idVendor=2357   # apply now, no replug
+#     sudo udevadm trigger --action=add --subsystem-match=usb    # apply now, no replug
 #
-# Verify:  cat /sys/bus/usb/devices/*/power/control | grep -c on   # the dongle should read "on"
+# Verify (per radio, not a global count — a `grep -c on` over every USB device proves nothing):
+#     for d in /sys/bus/usb/devices/*; do \
+#       printf '%s %s:%s %s\n' "$(basename $d)" "$(cat $d/idVendor 2>/dev/null)" \
+#         "$(cat $d/idProduct 2>/dev/null)" "$(cat $d/power/control 2>/dev/null)"; done | grep -E '2357|0bda:b850|1915|2fe3'
 #
-# If you swap dongles, update idVendor/idProduct to the new part (lsusb) — and disable autosuspend on it
-# too; the RTL8761B is not unique in disliking it.
+# If you swap dongles, add the new idVendor/idProduct (lsusb) — and disable autosuspend on it too; the
+# RTL8761B is not unique in disliking it.
+
+# --- TP-Link UB500 (RTL8761B) — the original bedside dongle -----------------------------------------
 ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="2357", ATTR{idProduct}=="0604", TEST=="power/control", ATTR{power/control}="on"
 ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="2357", ATTR{idProduct}=="0604", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}="-1"
 
-# The M900's internal Intel radio (8260/8265/AX200 — the BT half of a combo Wi-Fi card). Included so a
-# dongle-vs-internal comparison is not decided by one of them running with autosuspend still enabled.
+# --- rig-x870 internal Realtek RTL8851BU (BT half of the RTL8851BE combo card) ----------------------
+# Added 2026-07-26: this is now the PINNED adapter (config `adapter: 58:10:31:F3:2C:30`) for the
+# dongle-vs-internal A/B the 07-24 brief §3.3 prescribes. It shipped `power/control=auto delay=2000` —
+# the EXACT setting that wedged the UB500 — so without this the A/B would compare a de-suspended dongle
+# against a suspending internal radio and prove nothing. Product-pinned, NOT vendor-wide: 0bda is
+# Realtek at large and this box also carries an 0bda:5411 hub and an 0bda:1100 HID.
+ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="0bda", ATTR{idProduct}=="b850", TEST=="power/control", ATTR{power/control}="on"
+ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="0bda", ATTR{idProduct}=="b850", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}="-1"
+
+# --- nRF52840 dongle (the multi-link upgrade path, CAPTURE-HOST §5) ---------------------------------
+# Vendor-wide on purpose — this device changes USB ID with its firmware and we must cover every state:
+#   1915:* = Nordic — stock app fw AND the Open bootloader's DFU mode (PID differs per mode)
+#   2fe3:* = the Zephyr project VID it enumerates under ONCE FLASHED with `hci_usb` (see flash-nrf52840-hci.sh)
+# Both VIDs are single-purpose here, so vendor-wide matching cannot catch an unrelated device.
+ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="1915", TEST=="power/control", ATTR{power/control}="on"
+ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="1915", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}="-1"
+ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", TEST=="power/control", ATTR{power/control}="on"
+ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}="-1"
+
+# --- The M900's internal Intel radio (8260/8265/AX200 — BT half of a combo Wi-Fi card) --------------
+# Included so a dongle-vs-internal comparison is not decided by one of them running with autosuspend on.
 ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="8087", TEST=="power/control", ATTR{power/control}="on"
 ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="8087", TEST=="power/autosuspend_delay_ms", ATTR{power/autosuspend_delay_ms}="-1"

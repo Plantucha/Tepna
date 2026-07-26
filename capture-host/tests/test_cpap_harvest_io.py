@@ -1,0 +1,309 @@
+"""IO-path tests for cpap_harvest — the HTTP client, the nmcli shell-outs, and the harvest walk.
+
+Everything here is mocked: no card, no NetworkManager, no network. These paths carry the failures that
+actually hurt — a truncated download accepted as valid, a `.part` stub left behind, an association that
+outlives its transfer, and the default route wandering onto a card that routes nowhere.
+"""
+import io
+import os
+import subprocess
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import cpap_harvest as ch  # noqa: E402
+
+
+# ── helpers ─────────────────────────────────────────────────────────────────────────────────────────
+class _Resp(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _urlopen(mapping, calls=None):
+    """Fake urlopen driven by a {substring: bytes|Exception} map."""
+    def open_(url, timeout=None):
+        if calls is not None:
+            calls.append(url)
+        for frag, val in mapping.items():
+            if frag in url:
+                if isinstance(val, Exception):
+                    raise val
+                return _Resp(val)
+        raise AssertionError(f"unexpected URL {url}")
+    return open_
+
+
+class _Proc:
+    def __init__(self, rc=0, out="", err=""):
+        self.returncode, self.stdout, self.stderr = rc, out, err
+
+
+# ── EzShare._get ────────────────────────────────────────────────────────────────────────────────────
+def test_get_retries_then_succeeds(monkeypatch):
+    """The card drops requests under sustained load — a single failure must not end a 197-night run."""
+    state = {"n": 0}
+
+    def flaky(url, timeout=None):
+        state["n"] += 1
+        if state["n"] < 3:
+            raise OSError("connection reset")
+        return _Resp(b"ok")
+
+    monkeypatch.setattr(ch.urllib.request, "urlopen", flaky)
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    assert ch.EzShare(retries=5)._get("http://x") == b"ok"
+    assert state["n"] == 3
+
+
+def test_get_gives_up_after_capped_retries(monkeypatch):
+    """Bounded, always. An unbounded retry loop is a task that silently never returns."""
+    monkeypatch.setattr(ch.urllib.request, "urlopen", _urlopen({"x": OSError("down")}))
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    with pytest.raises(RuntimeError, match="down"):
+        ch.EzShare(retries=2)._get("http://x")
+
+
+def test_retries_floor_is_one(monkeypatch):
+    calls = []
+    monkeypatch.setattr(ch.urllib.request, "urlopen", _urlopen({"x": OSError("no")}, calls))
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    with pytest.raises(RuntimeError):
+        ch.EzShare(retries=0)._get("http://x")
+    assert len(calls) == 1                              # 0 -> 1, never zero attempts
+
+
+def test_listing_decodes_and_filters(monkeypatch):
+    html = ('   2026- 7-26    6:42:26         105KB  <a href="download?file=STR.EDF"> STR.EDF</a>\n'
+            '   2026- 7-26    6:42:26           1KB  <a href="download?file=EZSHARE.CFG"> ezshare.cfg</a>')
+    monkeypatch.setattr(ch.urllib.request, "urlopen", _urlopen({"dir": html.encode()}))
+    rows = ch.EzShare().listing()
+    assert [r["name"] for r in rows] == ["STR.EDF"]     # ignore list applied
+
+
+# ── EzShare.fetch ───────────────────────────────────────────────────────────────────────────────────
+def test_fetch_writes_via_part_and_renames(tmp_path, monkeypatch):
+    """A crash mid-write must not leave a truncated file that skip-if-present would later accept."""
+    monkeypatch.setattr(ch.urllib.request, "urlopen", _urlopen({"download": b"A" * 2048}))
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    e = {"name": "STR.EDF", "size": "2KB", "href": "download?file=STR.EDF"}
+    path, n, short = ch.EzShare().fetch(e, str(tmp_path))
+    assert os.path.basename(path) == "STR.edf"          # lowercased on the way to disk
+    assert n == 2048 and not short
+    assert not list(tmp_path.glob("*.part"))            # temp cleaned up by the rename
+
+
+def test_fetch_flags_a_short_read(tmp_path, monkeypatch):
+    monkeypatch.setattr(ch.urllib.request, "urlopen", _urlopen({"download": b"A" * 1024}))
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    e = {"name": "BRP.edf", "size": "2229KB", "href": "download?file=B"}
+    _p, _n, short = ch.EzShare().fetch(e, str(tmp_path))
+    assert short is True
+
+
+# ── nmcli shell-outs ────────────────────────────────────────────────────────────────────────────────
+def test_nmcli_success_and_failure(monkeypatch):
+    monkeypatch.setattr(ch.subprocess, "run", lambda *a, **k: _Proc(0))
+    assert ch._nmcli(["connection", "up", "p"], 5) is True
+    monkeypatch.setattr(ch.subprocess, "run", lambda *a, **k: _Proc(4, err="not an active connection"))
+    assert ch._nmcli(["connection", "down", "p"], 5) is False
+
+
+@pytest.mark.parametrize("exc", [
+    FileNotFoundError("nmcli"),
+    subprocess.TimeoutExpired(cmd="nmcli", timeout=5),
+    RuntimeError("dbus went away"),
+])
+def test_nmcli_never_raises(monkeypatch, exc):
+    """Association is best-effort. It must never be the thing that kills the harvest task."""
+    def boom(*a, **k):
+        raise exc
+    monkeypatch.setattr(ch.subprocess, "run", boom)
+    assert ch._nmcli(["connection", "up", "p"], 5) is False
+
+
+def test_wifi_down_delegates(monkeypatch):
+    seen = []
+    monkeypatch.setattr(ch, "_nmcli", lambda a, t: seen.append(a) or True)
+    assert ch.wifi_down("ezshare") is True
+    assert seen[0][:2] == ["connection", "down"]
+
+
+def test_harden_profile_sets_every_safety_key(monkeypatch):
+    """These four keys ARE the ethernet guarantee. Losing ipv4.never-default blackholes the box's
+    routing; losing ignore-auto-dns breaks name resolution with routing untouched."""
+    seen = []
+    monkeypatch.setattr(ch, "_nmcli", lambda a, t: seen.append(a) or True)
+    assert ch.harden_profile("ezshare") is True
+    flat = " ".join(seen[0])
+    for k, v in (("ipv4.never-default", "yes"), ("ipv4.ignore-auto-dns", "yes"),
+                 ("ipv6.method", "disabled"), ("connection.autoconnect", "no")):
+        assert f"{k} {v}" in flat
+
+
+# ── default route guard ─────────────────────────────────────────────────────────────────────────────
+def test_default_route_dev_parses(monkeypatch):
+    monkeypatch.setattr(ch.subprocess, "run", lambda *a, **k: _Proc(
+        0, "default via 192.168.0.1 dev enp9s0 proto dhcp src 192.168.0.57 metric 100\n"))
+    assert ch.default_route_dev() == "enp9s0"
+
+
+def test_default_route_dev_none_when_absent_or_broken(monkeypatch):
+    monkeypatch.setattr(ch.subprocess, "run", lambda *a, **k: _Proc(0, ""))
+    assert ch.default_route_dev() is None
+
+    def boom(*a, **k):
+        raise OSError("no ip(8)")
+    monkeypatch.setattr(ch.subprocess, "run", boom)
+    assert ch.default_route_dev() is None               # a probe failure is never fatal
+
+
+def test_wifi_up_succeeds_when_route_unchanged(monkeypatch):
+    monkeypatch.setattr(ch, "harden_profile", lambda p: True)
+    monkeypatch.setattr(ch, "_nmcli", lambda a, t: True)
+    monkeypatch.setattr(ch, "default_route_dev", lambda: "enp9s0")
+    assert ch.wifi_up("ezshare", guard_dev="enp9s0") is True
+
+
+def test_wifi_up_tears_down_if_the_card_steals_the_default_route(monkeypatch):
+    """THE ethernet guarantee. If the card takes the default route it is torn down immediately and the
+    day is skipped — a routeless default blackholes SSH, the served monitor and the NAS pull."""
+    downs = []
+    monkeypatch.setattr(ch, "harden_profile", lambda p: True)
+    monkeypatch.setattr(ch, "_nmcli", lambda a, t: True)
+    monkeypatch.setattr(ch, "default_route_dev", lambda: "wlp10s0")     # moved onto the card
+    monkeypatch.setattr(ch, "wifi_down", lambda p, timeout=30.0: downs.append(p) or True)
+    assert ch.wifi_up("ezshare", guard_dev="enp9s0") is False
+    assert downs == ["ezshare"]                          # and it did not leave it associated
+
+
+def test_wifi_up_also_fails_if_the_route_vanishes(monkeypatch):
+    downs = []
+    monkeypatch.setattr(ch, "harden_profile", lambda p: True)
+    monkeypatch.setattr(ch, "_nmcli", lambda a, t: True)
+    monkeypatch.setattr(ch, "default_route_dev", lambda: None)
+    monkeypatch.setattr(ch, "wifi_down", lambda p, timeout=30.0: downs.append(p) or True)
+    assert ch.wifi_up("ezshare", guard_dev="enp9s0") is False
+    assert downs == ["ezshare"]
+
+
+def test_wifi_up_without_a_guard_skips_the_check(monkeypatch):
+    monkeypatch.setattr(ch, "harden_profile", lambda p: True)
+    monkeypatch.setattr(ch, "_nmcli", lambda a, t: True)
+    monkeypatch.setattr(ch, "default_route_dev", lambda: (_ for _ in ()).throw(AssertionError("probed")))
+    assert ch.wifi_up("ezshare", guard_dev=None) is True
+
+
+def test_wifi_up_false_when_the_profile_will_not_come_up(monkeypatch):
+    monkeypatch.setattr(ch, "harden_profile", lambda p: True)
+    monkeypatch.setattr(ch, "_nmcli", lambda a, t: False)
+    assert ch.wifi_up("ezshare", guard_dev="enp9s0") is False
+
+
+# ── harvest walk ────────────────────────────────────────────────────────────────────────────────────
+ROOT = ('   2026- 7-26    6:42:26         105KB  <a href="download?file=STR.EDF"> STR.EDF</a>\n'
+        '   2026- 7-26   17: 0: 0         &lt;DIR&gt;   <a href="dir?dir=A:%5CSETTINGS"> SETTINGS</a>\n'
+        '   2026- 7-26   17: 0: 0         &lt;DIR&gt;   <a href="dir?dir=A:%5CDATALOG"> DATALOG</a>\n')
+SETTINGS = '   2026- 7-26    6:42:26           1KB  <a href="download?file=CS.JSON"> CurrentSettings.json</a>\n'
+DATALOG = ('   2026- 7-26   17: 0: 0         &lt;DIR&gt;   <a href="dir?dir=A:%5CD%5C20260725"> 20260725</a>\n'
+           '   2026- 7-26   17: 0: 0         &lt;DIR&gt;   <a href="dir?dir=A:%5CD%5C20260724"> 20260724</a>\n'
+           '   2026- 7-26   17: 0: 0         &lt;DIR&gt;   <a href="dir?dir=A:%5CD%5CSYS"> NOTANIGHT</a>\n')
+NIGHT = '   2026- 7-26   10:10:58        2229KB  <a href="download?file=BRP.EDF"> 20260725_BRP.edf</a>\n'
+
+
+def _card(monkeypatch, night_body=NIGHT, brp=b"B" * (2229 * 1024)):
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(ch.urllib.request, "urlopen", _urlopen({
+        "dir?dir=A:%5CSETTINGS": SETTINGS.encode(),
+        "dir?dir=A:%5CDATALOG": DATALOG.encode(),
+        "20260725": night_body.encode(),
+        "20260724": night_body.encode(),
+        "dir?dir=A:": ROOT.encode(),
+        "download?file=STR.EDF": b"S" * (105 * 1024),
+        "download?file=CS.JSON": b"C" * 1024,
+        "download?file=BRP.EDF": brp,
+    }))
+
+
+def test_harvest_mirrors_the_native_layout(tmp_path, monkeypatch):
+    _card(monkeypatch)
+    st = ch.harvest(str(tmp_path), nights={"20260725"})
+    assert (tmp_path / "STR.edf").exists()                          # lowercased
+    assert (tmp_path / "SETTINGS" / "CurrentSettings.json").exists()
+    assert (tmp_path / "DATALOG" / "20260725" / "20260725_BRP.edf").exists()
+    assert not (tmp_path / "DATALOG" / "20260724").exists()          # night filter honoured
+    assert not (tmp_path / "DATALOG" / "NOTANIGHT").exists()         # non-YYYYMMDD dir ignored
+    assert st["nights"] == 1 and st["nights_on_card"] == 2
+    assert st["files"] == 3 and not st["short"] and not st["errors"]
+
+
+def test_harvest_skips_what_is_already_on_disk(tmp_path, monkeypatch):
+    _card(monkeypatch)
+    ch.harvest(str(tmp_path), nights={"20260725"})
+    st = ch.harvest(str(tmp_path), nights={"20260725"})               # steady state
+    assert st["files"] == 0 and st["skipped"] == 3
+
+
+def test_harvest_records_short_reads_without_aborting(tmp_path, monkeypatch):
+    _card(monkeypatch, brp=b"B" * 1024)                               # listing says 2229KB
+    st = ch.harvest(str(tmp_path), nights={"20260725"})
+    assert len(st["short"]) == 1 and "BRP" in st["short"][0]
+    assert st["files"] == 3                                          # the others still landed
+
+
+def test_harvest_one_bad_file_does_not_end_the_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(ch.urllib.request, "urlopen", _urlopen({
+        "dir?dir=A:%5CSETTINGS": SETTINGS.encode(),
+        "dir?dir=A:%5CDATALOG": DATALOG.encode(),
+        "20260725": NIGHT.encode(),
+        "dir?dir=A:": ROOT.encode(),
+        "download?file=STR.EDF": OSError("card hiccup"),
+        "download?file=CS.JSON": b"C" * 1024,
+        "download?file=BRP.EDF": b"B" * (2229 * 1024),
+    }))
+    st = ch.harvest(str(tmp_path), nights={"20260725"}, retries=1)
+    assert len(st["errors"]) == 1 and "STR.EDF" in st["errors"][0]
+    assert (tmp_path / "DATALOG" / "20260725" / "20260725_BRP.edf").exists()
+
+
+def test_harvest_stops_cleanly_at_the_deadline(tmp_path, monkeypatch):
+    """A truncated run is fine — tomorrow's skip-if-present resumes it. A run that never returns is not."""
+    _card(monkeypatch)
+    monkeypatch.setattr(ch.time, "monotonic", lambda: 1e9)           # already past any deadline
+    st = ch.harvest(str(tmp_path), deadline=0.0)
+    assert st["partial"] is True and st["files"] == 0
+
+
+def test_harvest_pulls_every_night_when_none_specified(tmp_path, monkeypatch):
+    _card(monkeypatch)
+    st = ch.harvest(str(tmp_path))
+    assert st["nights"] == 2
+
+
+def test_should_fetch_keeps_a_present_file_of_unknown_size(tmp_path):
+    """The listing occasionally reports no size. Re-downloading a file we already hold on that basis
+    would make every run a full 492 MB backfill, so an unknown size means keep what is on disk."""
+    p = tmp_path / "x.edf"
+    p.write_bytes(b"abc")
+    assert ch.should_fetch({"name": "x.edf", "size": ""}, str(p)) is False
+
+
+def test_harvest_stops_between_nights_when_the_deadline_lands_mid_walk(tmp_path, monkeypatch):
+    """The deadline is checked per night as well as per file, so a long backfill gives up cleanly at a
+    night boundary instead of running past its cap."""
+    _card(monkeypatch)
+    calls = {"n": 0}
+
+    def clock():                                        # trip only after the walk reaches the nights
+        calls["n"] += 1
+        return 0.0 if calls["n"] <= 8 else 1e9
+
+    monkeypatch.setattr(ch.time, "monotonic", clock)
+    st = ch.harvest(str(tmp_path), deadline=1.0)
+    assert st["partial"] is True
+    assert st["nights"] < 2                             # gave up at a night boundary, not mid-file

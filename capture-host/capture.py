@@ -2703,6 +2703,127 @@ async def charger_pull_poller(cfg: dict, root: str):
                          dev.get("name"), type(e).__name__)   # autopull_poller is the backstop, no spam
 
 
+async def cpap_poller(cfg: dict, root: str):
+    """Harvest the ResMed card off its ez Share Wi-Fi SD adapter, once a day, while nothing is streaming.
+    Executes `CPAP-AUTOHARVEST-2026-07-26-BRIEF.md`. Opt-in (`cpap.enabled`).
+
+    NOT a device runner. CPAP joins Tepna as FILES, not a BLE stream (`CPAPDEX-PHASE9-FOLLOWUPS §2`), so
+    this touches no adapter, takes no connect lock, and adds nothing to `STATUS["devices"]`.
+
+    SAFE BY CONSTRUCTION — the ordering here is the whole design:
+      • ONE fixed daily window (`cpap.at_hour`, default 13), never a poll loop. The card is 2.4 GHz-only
+        and `CAPTURE-HOST §5` names 2.4 GHz contention a first-order risk against the four BLE links this
+        box holds all night; the upstream ez Share projects poll every 65 s–15 min, which would put a
+        Wi-Fi transmitter beside the bed competing with exactly the links whose margin already cost
+        ~110 min on 2026-07-23.
+      • 13:00, not the 09:00 first proposed — measured on the real card, 6 of the 14 most recent nights
+        were STILL BEING WRITTEN after 09:00 (last-write 08:35→12:02, median 08:56), and the late files
+        are the big ones. A 09:00 pull would routinely take the two small files, miss the flow waveform,
+        and report success.
+      • Refuses while ANY sensor is connected, and while `_RECOVER` is set — same rule as
+        `autopull_poller`. A CPAP file is never worth a scratch on a live night.
+      • Whole run is deadline-capped, and the association is torn down in `finally` so a failure can
+        never strand the box's Wi-Fi on a card with no route.
+      • Zero files on a day the machine ran is an ALERT, not a silent no-op: the
+        `writers.IDENTITY_FIELDS` lesson — "remembered ✓", then silently never captured.
+    """
+    ccfg = cfg.get("cpap") or {}
+    if not ccfg.get("enabled"):
+        return
+    import cpap_harvest
+
+    at_hour = int(ccfg.get("at_hour", 13))
+    profile = str(ccfg.get("wifi_profile", "ezshare"))
+    base = str(ccfg.get("base_url", cpap_harvest.DEFAULT_BASE))
+    dest = os.path.join(root, str(ccfg.get("dest_subdir", "captures/cpap")))
+    max_run = float(ccfg.get("max_run_sec", 5400))
+    timeout = float(ccfg.get("timeout_sec", 20))
+    retries = int(ccfg.get("retries", 5))
+    last_run_date = None
+
+    STATUS["cpap"] = {"enabled": True, "state": "idle", "at_hour": at_hour, "dest": dest}
+    log.info("cpap: harvest enabled — daily at %02d:00 into %s (only while nothing is streaming)",
+             at_hour, dest)
+
+    def _st(**kv):
+        STATUS.setdefault("cpap", {}).update(kv)
+
+    # Release any association left over from a run that died mid-transfer (SIGKILL, OOM, power cut).
+    # `keep_running` restarts this task on any escaping exception, so without this the box could sit
+    # associated to a routeless card indefinitely with nothing to explain why Wi-Fi looked occupied.
+    await asyncio.to_thread(cpap_harvest.wifi_down, profile)
+    try:
+        await _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st)
+    finally:
+        # Whatever ends this task — shutdown, cancellation, an escaping error — the card is released.
+        # shield() because at shutdown this task is already being cancelled and a bare await here would
+        # be cancelled with it, leaving exactly the stranded association this block exists to prevent.
+        with contextlib.suppress(Exception):
+            await asyncio.shield(asyncio.to_thread(cpap_harvest.wifi_down, profile))
+
+
+async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st):
+    """The daily loop, split out so `cpap_poller` can wrap it in a teardown-guaranteeing `finally`."""
+    import cpap_harvest
+    last_run_date = None
+    while not _STOP.is_set():
+        await asyncio.sleep(60)
+        if _STOP.is_set():
+            break
+        now = _dt.datetime.now()
+        if not cpap_harvest.due_now(now, at_hour, last_run_date):
+            continue
+        if _RECOVER.is_set():
+            continue                                    # adapter mid-recovery — do not add radio traffic
+        busy = cpap_harvest.blocking_devices(STATUS["devices"])
+        if busy:
+            # Do NOT consume today's slot: leave last_run_date unchanged so it retries next minute once
+            # the sensor comes off. A daily job that burns its one chance on a late-sleeping user is a
+            # job that silently skips days.
+            _st(state="waiting", detail="streaming: " + ", ".join(busy[:3]))
+            continue
+
+        last_run_date = now.date()
+        started = _time.monotonic()
+        _st(state="running", detail=None, last_run=now.isoformat(timespec="seconds"))
+        # Note the box's lifeline BEFORE associating, and hand it to wifi_up as a guard. If the default
+        # route moves to the card — a routeless dead end — wifi_up tears the association down and fails,
+        # and we skip the day. A day of CPAP files is never worth making the box unreachable.
+        guard = await asyncio.to_thread(cpap_harvest.default_route_dev)
+        ok = await asyncio.to_thread(cpap_harvest.wifi_up, profile, 45.0, guard)
+        if not ok:
+            _st(state="error", detail=f"Wi-Fi profile {profile!r} would not come up safely")
+            log.warning("cpap: profile %r would not come up, or it moved the default route off %r "
+                        "— skipping today", profile, guard)
+            continue
+        try:
+            res = await asyncio.to_thread(
+                cpap_harvest.harvest, dest, base, None, started + max_run, cpap_harvest.DEFAULT_IGNORE,
+                timeout, retries)
+        except Exception as e:                          # noqa: BLE001 — a harvest must never kill the task
+            _st(state="error", detail=repr(e)[:200])
+            log.warning("cpap: harvest failed: %r", e)
+            continue
+        finally:
+            await asyncio.to_thread(cpap_harvest.wifi_down, profile)
+
+        dur = _time.monotonic() - started
+        bad = bool(res["short"] or res["errors"])
+        _st(state="error" if bad else ("partial" if res["partial"] else "ok"),
+            last_ok=None if bad else now.isoformat(timespec="seconds"),
+            files=res["files"], bytes=res["bytes"], nights=res["nights"], skipped=res["skipped"],
+            nights_on_card=res["nights_on_card"], duration_sec=round(dur, 1),
+            partial=res["partial"], short=res["short"][:5], errors=res["errors"][:5],
+            detail=None if not bad else f"{len(res['short'])} short read(s), {len(res['errors'])} error(s)")
+        log.info("cpap: %d file(s) (%.1f MB) over %d night(s), %d skipped, %.0fs%s",
+                 res["files"], res["bytes"] / 1048576, res["nights"], res["skipped"], dur,
+                 " [PARTIAL — deadline]" if res["partial"] else "")
+        for s in res["short"]:
+            log.warning("cpap: SHORT READ %s", s)       # a truncated EDF parses far enough to look real
+        if res["files"] == 0 and res["skipped"] == 0:
+            log.warning("cpap: pulled NOTHING and skipped nothing — card unreachable or empty")
+
+
 async def autopull_poller(cfg: dict, root: str):
     """Auto-pull the O2Ring's ONBOARD-recorded `.dat` sessions off flash so a night's SpO2 lands on disk
     with no manual step — the belt-and-suspenders backup for a lossy live BLE link (weak signal / a dongle
@@ -2911,6 +3032,7 @@ async def main():
                    ("qc_poller", lambda: qc_poller(cfg, root, notifier)),
                    ("archive_poller", lambda: archive_poller(cfg, root)),
                    ("autopull_poller", lambda: autopull_poller(cfg, root)),
+                   ("cpap_poller", lambda: cpap_poller(cfg, root)),
                    ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),
                    ("sd_watchdog", sd_watchdog)]
     tasks = []

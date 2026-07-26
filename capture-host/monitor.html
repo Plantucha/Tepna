@@ -467,6 +467,16 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
           “Remember” adds it to auto-connect on boot.</p>
       </div>
 
+      <!-- CPAP gets its OWN card and is deliberately NOT in the device roster above: it arrives as
+           FILES on a daily timer with no BLE link, so it has no connected/RSSI/worn state and would
+           render as a permanently-dead sensor in that list. Hidden until `cpap.enabled` puts a block
+           in /api/state. See briefs/CPAP-AUTOHARVEST-2026-07-26-BRIEF.md. -->
+      <div class="card" id="cpapCard" style="display:none">
+        <h3>CPAP <span style="font-weight:400;color:var(--text3);font-size:11px">· ResMed card harvested over Wi-Fi — files, not a stream</span></h3>
+        <div class="clk-status" id="cpapStatus"><span class="spin">waiting for first run…</span></div>
+        <p class="hint" id="cpapHint"></p>
+      </div>
+
       <div class="card" id="clockCard">
         <h3>Clock &amp; NTP <span style="font-weight:400;color:var(--text3);font-size:11px">· the Clock Contract stamps every capture with this box's wall clock</span></h3>
         <div class="clk-status" id="clkStatus"><span class="spin">reading clock…</span></div>
@@ -855,6 +865,37 @@ function renderStoragePill(st){
   const b = $('#navStoreN');
   if(b){ b.style.display = held ? '' : 'none'; b.textContent = held; }
 }
+// CPAP harvest card. Hidden entirely unless the poller is enabled — an always-visible "—" invites the
+// reading that the harvest ran and found nothing, which is the exact failure this card exists to expose.
+function renderCpap(c){
+  const card = $('#cpapCard'); if(!card) return;
+  if(!c || !c.enabled){ card.style.display='none'; return; }
+  card.style.display='';
+  const mb = c.bytes!=null ? (c.bytes/1048576).toFixed(1)+' MB' : '';
+  // A short read or a fetch error is RED, not amber: a truncated EDF parses far enough to look real,
+  // so a night that silently half-arrived is worse than one that obviously did not.
+  const map = {
+    ok:      ['ok',   `✓ ${c.files||0} file${c.files===1?'':'s'}${mb?' · '+mb:''}${c.nights?' · '+c.nights+' night'+(c.nights===1?'':'s'):''}`],
+    partial: ['warn', `⏱ partial — hit the ${Math.round((c.duration_sec||0)/60)} min cap; resumes tomorrow`],
+    running: ['idle', '⟳ harvesting…'],
+    waiting: ['idle', `⏸ waiting — ${c.detail||'a sensor is streaming'}`],
+    error:   ['bad',  `✗ ${c.detail||'harvest failed'}`],
+    idle:    ['idle', `idle · next run ${String(c.at_hour??13).padStart(2,'0')}:00`],
+  };
+  const [cls, label] = map[c.state] || map.idle;
+  $('#cpapStatus').innerHTML = `<span class="data-pill ${cls}"></span> ${label}`;
+  const bits = [];
+  if(c.last_ok) bits.push('last good: '+c.last_ok.replace('T',' '));
+  else if(c.last_run) bits.push('last attempt: '+c.last_run.replace('T',' '));
+  if(c.nights_on_card) bits.push(c.nights_on_card+' nights on card');
+  if(c.skipped) bits.push(c.skipped+' already on disk');
+  if(c.duration_sec!=null && c.state!=='running') bits.push(c.duration_sec+'s');
+  // Name the offending files — "3 short reads" is not actionable, a filename is.
+  (c.short||[]).forEach(s=>bits.push('SHORT READ '+s));
+  (c.errors||[]).forEach(s=>bits.push('error '+s));
+  $('#cpapHint').textContent = bits.join(' · ');
+}
+
 // Refresh the clock/NTP readout only while the Devices view is open.
 let _clkTimer = null;
 function clkStart(){ loadClock(); if(!_clkTimer) _clkTimer = setInterval(loadClock, 5000); }
@@ -889,6 +930,7 @@ async function loadState(){
   renderSideStats();          // sidebar counters: every view, not just Overview
   renderBoxHealth(s.storage, s.qc, s.host);
   renderStoragePill(s.storage);   // sidebar: visible in every view
+  renderCpap(s.cpap);
   renderDownload(DEVICES);
   renderRemembered(DEVICES);
   renderStreamSel();
