@@ -152,3 +152,96 @@ def test_build_on_an_empty_night_is_not_an_error(tmp_path):
     out = timeline.build(str(tmp_path), [{"name": "X", "device_id": "1", "address": "AA",
                                           "streams": ["ecg"]}])
     assert out["buckets"] == 0 and out["devices"] == []
+
+
+# ══ ADVERSARIAL PASS 2026-07-26 ═══════════════════════════════════════════════════════════════
+# Four findings, each reproduced against real box conditions before being fixed. The bug class hunted
+# here is the one that survives review: output that is WRONG but PLAUSIBLE. A strip that says a
+# sensor recorded nothing, or blames the adapter, is believed — nobody cross-checks it against the
+# files, which is the entire reason the strip exists.
+
+# ── F1 · device_id matched as a bare substring ────────────────────────────────────────────────
+def test_a_device_id_that_is_a_substring_of_another_does_not_steal_its_files():
+    """`device_id in filename` is a substring test, so a shorter id inside a longer one claims the
+    other device's data. Polar ids are zero-padded serials, which is exactly how you get one id
+    contained in another."""
+    files = [_f("Polar_H10_02849638_20260725223000_ECG.txt", "ECG", 130 * 600),
+             _f("Polar_H10_2849638_20260725223000_ECG.txt", "ECG", 130 * 600)]
+    assert len(timeline.stream_intervals(files, "2849638", "ECG", 130)) == 1, \
+        "'2849638' must not also match the device whose id is '02849638'"
+    assert len(timeline.stream_intervals(files, "02849638", "ECG", 130)) == 1
+
+
+def test_the_device_id_is_read_as_a_field_not_found_anywhere_in_the_name():
+    """The id is the token before the 14-digit stamp. A vendor or model containing the id's text
+    must not create a match — and vendor/model may themselves contain underscores."""
+    files = [_f("Polar_VeritySense_AC0C301E_20260725223000_PPG.txt", "PPG", 55 * 600)]
+    assert timeline.stream_intervals(files, "AC0C301E", "PPG", 55), "its own id must match"
+    assert not timeline.stream_intervals(files, "VeritySense", "PPG", 55), \
+        "a model name is not a device id"
+    assert not timeline.stream_intervals(files, "0C301E3F", "PPG", 55), \
+        "a DIFFERENT id must not match, even one that overlaps textually"
+
+
+# ── F2 · coverage over 100 % ──────────────────────────────────────────────────────────────────
+def test_overlapping_sessions_cannot_report_more_than_100_percent_coverage():
+    """`covered` summed interval lengths without merging them. Sessions overlap whenever rows/fs
+    over-estimates a session's duration — which happens as soon as the configured rate is below the
+    rate the device actually ran at. '104.8% captured' is not a number anyone can act on."""
+    t0 = _ts(22, 0)
+    hour = 3600.0
+    iv = [(t0, t0 + hour * 1.1), (t0 + hour, t0 + hour * 2.1)]
+    covered = timeline.covered_seconds(iv)
+    span = (t0 + hour * 2.1) - t0
+    assert covered <= span, f"covered {covered:.0f}s exceeds the {span:.0f}s span it sits in"
+    assert round(100 * covered / span, 1) <= 100.0
+
+
+def test_covered_seconds_still_counts_disjoint_sessions_in_full():
+    """Merging overlaps must not quietly swallow real, separate capture."""
+    t0 = _ts(22, 0)
+    assert timeline.covered_seconds([(t0, t0 + 600), (t0 + 1200, t0 + 1800)]) == 1200
+
+
+# ── F3 · the third wedge false positive ───────────────────────────────────────────────────────
+def test_taking_every_sensor_off_at_the_end_of_the_night_is_not_an_adapter_fault():
+    """THE third false positive, and the one that would fire on essentially every night. When the
+    night ends you take the strap off and dock the armband; both links drop within a bucket or two of
+    each other, and 'every device down at once' is the adapter's signature. It is not — it is you
+    going about your morning. The leading edge already had this guard ('you cannot lose an adapter
+    you never had'); the trailing edge needs the mirror of it."""
+    t0, t1 = _ts(22, 0), _ts(23, 0)
+    off = _ts(22, 50)
+    link = {"AA": [(t0 + i * 60, 1 if t0 + i * 60 < off else 0, -60.0) for i in range(60)],
+            "BB": [(t0 + i * 60, 1 if t0 + i * 60 < off else 0, -70.0) for i in range(60)]}
+    assert not any(timeline.wedge_buckets(link, t0, t1, 12)), \
+        "a dropout the devices never come back from is the night ending, not a wedge"
+
+
+def test_a_dropout_the_devices_RECOVER_from_is_still_a_wedge():
+    """The trailing guard must not disarm the detector. An adapter that died and came back is the
+    real thing, and it is the case that actually cost 110 minutes on 2026-07-23."""
+    t0, t1 = _ts(22, 0), _ts(23, 0)
+    def conn(t):
+        return 0 if _ts(22, 20) <= t < _ts(22, 35) else 1
+    link = {"AA": [(t0 + i * 60, conn(t0 + i * 60), -60.0) for i in range(60)],
+            "BB": [(t0 + i * 60, conn(t0 + i * 60), -70.0) for i in range(60)]}
+    assert any(timeline.wedge_buckets(link, t0, t1, 12)), \
+        "a joint dropout followed by recovery is exactly what a wedge looks like"
+
+
+# ── F4 · a sample just before the window ──────────────────────────────────────────────────────
+def test_a_link_sample_before_the_window_is_not_folded_into_bucket_zero():
+    """`int((ts-t0)/width)` truncates toward zero, so a sample up to one bucket BEFORE t0 yields
+    index 0 and passes the `0 <= i` guard. A stale disconnected sample then paints the first bucket
+    nosignal."""
+    t0, t1 = _ts(22, 0), _ts(23, 0)
+    conn, rssi = timeline.bucket_link([(t0 - 1.0, 0, -99.0)], t0, t1, 60)
+    assert conn[0] is None and rssi[0] is None, "a sample outside [t0,t1) must not be bucketed"
+
+
+def test_a_sample_exactly_at_t0_still_lands_in_bucket_zero():
+    """The boundary must stay inclusive at the start — fixing the underflow must not drop real data."""
+    t0, t1 = _ts(22, 0), _ts(23, 0)
+    conn, _ = timeline.bucket_link([(t0, 1, -55.0)], t0, t1, 60)
+    assert conn[0] == 1

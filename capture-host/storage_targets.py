@@ -116,6 +116,21 @@ def describe() -> list[dict]:
             for p, (k, lbl, port, tr) in PROTOCOLS.items()]
 
 
+# WHAT A PATH MAY CONTAIN. Shape alone (absolute, no `..`) is not enough, because these strings do not
+# stay data — three different sinks consume them:
+#   • a systemd .mount BODY (`Where=`, `What=`), where a newline appends directives of the client's
+#     choosing to a file the operator installs into /etc/systemd/system;
+#   • the unit FILENAME, which lands in a `sudo tee …` line the operator pastes into a root shell;
+#   • the comma-separated cifs option list, where `credentials=/srv/c,uid=0` mounts the share as root.
+# `/api/storage` is token-gated only when web.token is set, and the documented default is a trusted LAN
+# with no token — so "anyone who can reach the monitor" writes these. Deliberately narrow: a comma, a
+# space, a newline and every shell metacharacter are out. Real mountpoints and key paths on this box
+# are /srv/tepna/archive-shaped, so nothing legitimate is lost, and the error says what is allowed.
+_PATH_OK = re.compile(r"^[A-Za-z0-9_./@%+:~-]+$")
+# Share names: an SMB share may carry a `$` (hidden shares), an IQN/NQN needs `.`, `:` and `-`.
+_SHARE_OK = re.compile(r"^[A-Za-z0-9_.$@%+:~-]+$")
+
+
 def _abs_path(v: str, field: str) -> str:
     if not isinstance(v, str) or not v.strip():
         raise StorageError(f"{field} is required")
@@ -124,7 +139,24 @@ def _abs_path(v: str, field: str) -> str:
         raise StorageError(f"{field} must be an absolute path (got {v!r})")
     if ".." in v.split("/"):
         raise StorageError(f"{field} must not contain '..'")
+    if not _PATH_OK.fullmatch(v):
+        raise StorageError(
+            f"{field} may only contain [A-Za-z0-9_./@%+:~-] — refusing {v!r}. This value is written "
+            f"into a systemd unit and into a command you are asked to run as root, so a newline, a "
+            f"comma or a shell metacharacter in it is not a path, it is an injection.")
     return v.rstrip("/") or "/"
+
+
+def _share_name(v, field: str) -> str:
+    """A share / IQN / NQN. Same reasoning as _PATH_OK — it reaches `What=` in the generated unit."""
+    s = str(v or "").strip().strip("/")
+    if not s:
+        raise StorageError(f"{field} is required")
+    if not _SHARE_OK.fullmatch(s):
+        raise StorageError(
+            f"{field} may only contain [A-Za-z0-9_.$@%+:~-] — refusing {s!r}. It is interpolated into "
+            f"a systemd unit, so a newline in it appends directives of the caller's choosing.")
+    return s
 
 
 def validate(t: dict) -> dict:
@@ -177,20 +209,14 @@ def validate(t: dict) -> dict:
                 f"to the conventional mount roots rather than anywhere on the filesystem.")
         if proto in ("nfs", "smb"):
             out["share"] = _abs_path(t.get("share"), "share") if proto == "nfs" else \
-                str(t.get("share") or "").strip().strip("/")
-            if proto == "smb" and not out["share"]:
-                raise StorageError("share is required for SMB")
+                _share_name(t.get("share"), "share")
         elif proto in ("iscsi", "nvmeof"):
             # The IQN/NQN identifies the target; the block device it exposes still has to be formatted
             # and mounted by the operator, which is exactly why this kind is unit-generated, not driven.
-            out["share"] = str(t.get("share") or "").strip()
-            if not out["share"]:
-                raise StorageError("target IQN/NQN is required")
+            out["share"] = _share_name(t.get("share"), "target IQN/NQN")
     else:
         out["share"] = _abs_path(t.get("share"), "remote path") if proto == "rsync" else \
-            str(t.get("share") or "").strip()
-        if not out["share"]:
-            raise StorageError("remote path is required")
+            _share_name(t.get("share"), "remote path")
 
     ident = t.get("identity")
     if ident not in (None, ""):
@@ -330,7 +356,11 @@ def mount_unit(target: dict) -> dict:
             f"[Mount]\nWhat={what}\nWhere={mp}\nType={ftype}\n"
             f"Options={opts or default_opts}\n\n[Install]\nWantedBy=multi-user.target\n")
     steps = [f"sudo mkdir -p {shlex.quote(mp)}",
-             f"sudo tee /etc/systemd/system/{unit_name} > /dev/null  # paste the unit below",
+             # QUOTED like the steps around it. This one was not, so a metacharacter in the
+             # mountpoint reached a command the operator pastes into a root shell. The charset
+             # check in _abs_path now stops it upstream too; both, because either alone is one
+             # edit away from being the only one.
+             f"sudo tee /etc/systemd/system/{shlex.quote(unit_name)} > /dev/null  # paste the unit below",
              "sudo systemctl daemon-reload",
              f"sudo systemctl enable --now {shlex.quote(unit_name)}"]
     if proto == "iscsi":
