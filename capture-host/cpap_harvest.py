@@ -181,18 +181,98 @@ def default_route_dev() -> str | None:
         return None
 
 
-def harden_profile(profile: str) -> bool:
-    """Force the safety settings onto the profile every time, rather than trusting that whoever created
-    it got them right. Cheap, idempotent, and the failure it prevents is losing the box.
+def _sh(argv: list[str], timeout: float, sudo: bool = False) -> tuple[int, str]:
+    """Run one command, bounded, never raising. `sudo -n` (non-interactive) because this runs from a
+    daemon with nobody to answer a password prompt — a missing sudoers rule must fail fast and loudly,
+    not hang until the run deadline."""
+    cmd = (["sudo", "-n", *argv] if sudo else argv)
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        out = ((p.stdout or "") + (p.stderr or "")).strip()
+        if p.returncode:
+            log.warning("cpap: %s -> rc=%d %s", " ".join(cmd[:4]), p.returncode, out[:160])
+        return p.returncode, out
+    except FileNotFoundError:
+        return 127, f"{cmd[0]}: not installed"
+    except subprocess.TimeoutExpired:
+        return 124, f"timed out after {timeout:.0f}s"
+    except Exception as e:                             # noqa: BLE001 — association is best-effort
+        return 1, repr(e)
 
-      ipv4.never-default yes    the card must NEVER become the default gateway — it routes nowhere, so
-                                a default via it blackholes SSH, the monitor and the NAS pull
-      ipv4.ignore-auto-dns yes  a default route is not the only way to break the box: NM would otherwise
-                                install the card's DHCP-offered resolvers system-wide and name
-                                resolution dies while the association is up, with routing untouched
+
+# ── association backends ────────────────────────────────────────────────────────────────────────────
+# Two, chosen at runtime. NetworkManager is what a desktop has; a server appliance does not — vigil runs
+# netplan/systemd-networkd with no `nmcli` at all, which the nmcli-only first cut discovered the hard way
+# (it would have logged "nmcli not installed" nightly and shown a permanently red card).
+
+def backend() -> str:
+    """'nmcli' when NetworkManager is present, else 'wpa' (wpa_supplicant). Probed, never assumed."""
+    import shutil
+    return "nmcli" if shutil.which("nmcli") else "wpa"
+
+
+# The card's AP is a dead end: it routes nowhere and serves no DNS worth having. So the wpa backend
+# assigns a STATIC address and installs NO ROUTE OF ANY KIND. That is a stronger guarantee than the
+# nmcli path's `ipv4.never-default` — there is no route to suppress, and no DHCP client to talk us into
+# one. `ip addr add` alone creates only the on-link /24, which is exactly enough to reach 192.168.4.1.
+WPA_IFACE, WPA_ADDR = "wlp1s0", "192.168.4.2/24"
+_WPA_CONF = 'network={{\n\tssid="{ssid}"\n\tpsk="{psk}"\n\tkey_mgmt=WPA-PSK\n\tscan_ssid=1\n}}\n'
+
+
+def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float) -> bool:
+    import tempfile
+    fd, conf = tempfile.mkstemp(prefix="tepna-ezshare-", suffix=".conf")
+    try:
+        os.write(fd, _WPA_CONF.format(ssid=ssid, psk=psk).encode())
+        os.close(fd)
+        os.chmod(conf, 0o600)                          # the PSK is in here; never world-readable
+        _sh(["ip", "link", "set", iface, "up"], 10, sudo=True)
+        # -B daemonises. Bound to OUR conf and OUR interface: the packaged wpa_supplicant.service may
+        # also be enabled, and two supplicants driving one interface fight over the association.
+        rc, out = _sh(["wpa_supplicant", "-B", "-i", iface, "-c", conf], 20, sudo=True)
+        if rc:
+            return False
+        deadline = time.monotonic() + max(5.0, timeout)
+        while time.monotonic() < deadline:             # bounded wait for association
+            rc, out = _sh(["wpa_cli", "-i", iface, "status"], 8, sudo=True)
+            if rc == 0 and "wpa_state=COMPLETED" in out:
+                _sh(["ip", "addr", "add", addr, "dev", iface], 10, sudo=True)   # NO route, ever
+                return True
+            time.sleep(1.0)
+        log.warning("cpap: wpa_supplicant did not associate to %r within %.0fs", ssid, timeout)
+        _wpa_down(iface)
+        return False
+    finally:
+        try:
+            os.unlink(conf)                            # the PSK does not outlive the association
+        except OSError:
+            pass
+
+
+def _wpa_down(iface: str) -> bool:
+    # Order matters: drop the address first so nothing can route over a half-torn link, then kill the
+    # supplicant, then down the interface. Every step is best-effort — a box that cannot tear down
+    # cleanly must still not raise into the harvest task.
+    _sh(["ip", "addr", "flush", "dev", iface], 10, sudo=True)
+    _sh(["wpa_cli", "-i", iface, "terminate"], 10, sudo=True)
+    _sh(["ip", "link", "set", iface, "down"], 10, sudo=True)
+    return True
+
+
+def harden_profile(profile: str) -> bool:
+    """nmcli backend only. Force the safety settings on every run rather than trusting whoever created
+    the profile; the failure it prevents is losing the box.
+
+      ipv4.never-default yes    the card must NEVER become the default gateway — it routes nowhere
+      ipv4.ignore-auto-dns yes  a default route is not the only way to break the box: NM would install
+                                the card's DHCP resolvers system-wide and name resolution dies
       ipv6.method disabled      no v6 default from the card either
       autoconnect no            it may only ever come up because this poller asked
+
+    The wpa backend needs none of this — it installs no route and runs no DHCP client, so returns True.
     """
+    if backend() != "nmcli":
+        return True
     return _nmcli(["connection", "modify", profile,
                    "ipv4.never-default", "yes",
                    "ipv4.ignore-auto-dns", "yes",
@@ -200,48 +280,44 @@ def harden_profile(profile: str) -> bool:
                    "connection.autoconnect", "no"], 20.0)
 
 
-def wifi_up(profile: str, timeout: float = 45.0, guard_dev: str | None = None) -> bool:
+def wifi_up(profile: str, timeout: float = 45.0, guard_dev: str | None = None,
+            ssid: str = "ez Share", psk: str = "88888888",
+            iface: str = WPA_IFACE, addr: str = WPA_ADDR) -> bool:
     """Associate to the card, then PROVE the box's lifeline survived it.
 
     `guard_dev` is the default-route interface observed before associating. If the default route moves
-    (or disappears) once the card is up, the association is torn down immediately and this returns False
-    — we would rather skip a day of CPAP files than strand the box on a network with no route out.
-    Verifying beats trusting the profile: a hand-edited or re-created profile silently loses
-    `never-default`, and the symptom would be a box that goes unreachable at 13:00 every day."""
-    harden_profile(profile)
-    if not _nmcli(["connection", "up", profile], timeout):
-        return False
+    (or disappears), the association is torn down and this returns False — we would rather skip a day of
+    CPAP files than strand the box on a network with no route out. The guard runs for BOTH backends:
+    the wpa path cannot install a route by construction, but verifying beats reasoning about it."""
+    if backend() == "nmcli":
+        harden_profile(profile)
+        if not _nmcli(["connection", "up", profile], timeout):
+            return False
+    else:
+        if not _wpa_up(iface, ssid, psk, addr, timeout):
+            return False
     if guard_dev is None:
         return True
     now = default_route_dev()
     if now != guard_dev:
-        log.error("cpap: default route moved %r -> %r after associating to %r — tearing down, "
-                  "the card must never carry the default route", guard_dev, now, profile)
-        wifi_down(profile)
+        log.error("cpap: default route moved %r -> %r after associating — tearing down, the card must "
+                  "never carry the default route", guard_dev, now)
+        wifi_down(profile, iface=iface)
         return False
     return True
 
 
-def wifi_down(profile: str, timeout: float = 30.0) -> bool:
-    """Drop the association. Safe to call when it is already down (nmcli says 'not an active connection'
-    and returns non-zero, which is not a failure worth surfacing) — the poller calls this on the way in
-    as well as the way out, so a run killed mid-transfer cannot leave the card associated indefinitely."""
-    return _nmcli(["connection", "down", profile], timeout)
+def wifi_down(profile: str, timeout: float = 30.0, iface: str = WPA_IFACE) -> bool:
+    """Drop the association. Safe to call when already down — the poller calls this on the way in as
+    well as the way out, so a run killed mid-transfer cannot leave the card associated indefinitely."""
+    if backend() == "nmcli":
+        return _nmcli(["connection", "down", profile], timeout)
+    return _wpa_down(iface)
 
 
 def _nmcli(args: list[str], timeout: float) -> bool:
-    try:
-        p = subprocess.run(["nmcli", *args], capture_output=True, text=True, timeout=timeout)
-        if p.returncode:
-            log.warning("nmcli %s failed: %s", " ".join(args), (p.stderr or p.stdout).strip()[:200])
-        return p.returncode == 0
-    except FileNotFoundError:
-        log.warning("nmcli not installed — cannot manage the ez Share association")
-    except subprocess.TimeoutExpired:
-        log.warning("nmcli %s timed out after %.0fs", " ".join(args), timeout)
-    except Exception as e:                             # noqa: BLE001 — never let association kill the task
-        log.warning("nmcli %s error: %r", " ".join(args), e)
-    return False
+    rc, _out = _sh(["nmcli", *args], timeout)
+    return rc == 0
 
 
 def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = None,
