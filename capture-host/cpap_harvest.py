@@ -112,12 +112,33 @@ def short_read(entry: dict, got_bytes: int) -> bool:
     return abs(got_bytes / 1024.0 - want) > max(2.0, want * 0.05)
 
 
-def due_now(now: _dt.datetime, at_hour: int, last_run_date) -> bool:
-    """Fire once per calendar day, at or after `at_hour` local. Deliberately a wall clock rather than an
-    event trigger off night completion: a fixed hour well clear of both therapy and capture is simpler to
-    reason about and to audit after the fact. A missed day self-heals — the next run's skip-if-present
-    backfill picks up whatever was not pulled, with no catch-up special case."""
-    return now.hour >= int(at_hour) and last_run_date != now.date()
+def due_now(now: _dt.datetime, at_hour: int, last_run_date, window_h: int = 2) -> bool:
+    """Fire once per calendar day, inside a BOUNDED WINDOW [at_hour, at_hour+window_h).
+
+    A floor (`now.hour >= at_hour`) was wrong and shipped once. It made every restart after the hour
+    consider itself due — observed live 2026-07-26: a 19:25 restart re-armed a 13:00 job, and because a
+    deferral deliberately does not consume the day, it then retried every 60 s. The only thing holding
+    it was the streaming interlock, so it would have fired the moment the sensors came off at bedtime —
+    starting a 2.4 GHz transfer at the START of a night, which is the exact contention this schedule
+    exists to avoid (measured cost: 5-7 dB and 17 reconnects across three sensors).
+
+    A window makes "a missed day self-heals" honest: it heals TOMORROW, in the window, rather than at
+    whatever hour the box happened to restart."""
+    h = now.hour
+    return int(at_hour) <= h < int(at_hour) + int(window_h) and last_run_date != now.date()
+
+
+def nights_for(scope: str, now: _dt.datetime) -> "set[str] | None":
+    """Night folders (YYYYMMDD) for a manual pull. None means "every night on the card", which combined
+    with skip-if-present IS "all missing" — the harvester never re-fetches what it already holds.
+
+    Dated from `now` rather than read off the card: a night folder is stamped with its START date, so
+    last night is yesterday's folder — and today's exists too once a nap or an early session is written.
+    Both are included so "last night" cannot miss a session that straddles the boundary."""
+    if scope == "missing":
+        return None
+    days = 2 if scope == "last" else 8            # 'last' = yesterday+today; 'week' = 7 nights + today
+    return {(now.date() - _dt.timedelta(days=i)).strftime("%Y%m%d") for i in range(days)}
 
 
 def is_night_dir(entry: dict) -> bool:

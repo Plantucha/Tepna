@@ -474,6 +474,12 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       <div class="card" id="cpapCard" style="display:none">
         <h3>CPAP <span style="font-weight:400;color:var(--text3);font-size:11px">· ResMed card harvested over Wi-Fi — files, not a stream</span></h3>
         <div class="clk-status" id="cpapStatus"><span class="spin">waiting for first run…</span></div>
+        <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 4px;flex-wrap:wrap">
+          <button class="btn-primary" data-cpap="last">Download last night</button>
+          <button class="btn-primary" data-cpap="week">Download last 7 nights</button>
+          <button class="btn-primary" data-cpap="missing">Download all missing</button>
+          <span class="spin" id="cpapPullState"></span>
+        </div>
         <p class="hint" id="cpapHint"></p>
       </div>
 
@@ -895,6 +901,31 @@ function renderCpap(c){
   (c.errors||[]).forEach(s=>bits.push('error '+s));
   $('#cpapHint').textContent = bits.join(' · ');
 }
+
+// Manual CPAP pulls. The 13:00 poller owns the routine case; these are for a missed night or a
+// swapped card. "All missing" is not a full re-download — skip-if-present means it fetches only what
+// is not already on disk, so it is safe to press at any time.
+// A 409 is EXPECTED and not an error: the server enforces the same streaming interlock as the poller,
+// because a button is not a reason to put a 2.4 GHz transmitter beside a recording sensor.
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-cpap]'); if(!b) return;
+  const scope = b.dataset.cpap, st = $('#cpapPullState');
+  const btns = [...document.querySelectorAll('[data-cpap]')];
+  btns.forEach(x => x.disabled = true);
+  st.textContent = scope==='missing' ? 'pulling everything missing… (first run can take ~an hour)' : 'pulling…';
+  try{
+    const r = await fetch('/api/cpap/pull', {method:'POST', headers:{'Content-Type':'application/json'},
+                                             body: JSON.stringify({scope})});
+    const j = await r.json();
+    if(r.status===409 && j.busy) st.textContent = '⏸ not now — streaming: ' + j.busy.join(', ');
+    else if(!j.ok)               st.textContent = '✗ ' + (j.error || 'failed');
+    else st.textContent = `✓ ${j.files} file(s)${j.bytes?' · '+(j.bytes/1048576).toFixed(1)+' MB':''}`
+                        + `${j.nights?' · '+j.nights+' night'+(j.nights===1?'':'s'):''}`
+                        + `${j.skipped?' · '+j.skipped+' already on disk':''}`;
+  }catch(err){ st.textContent = '✗ ' + err; }
+  btns.forEach(x => x.disabled = false);
+  loadState();
+});
 
 // Refresh the clock/NTP readout only while the Devices view is open.
 let _clkTimer = null;

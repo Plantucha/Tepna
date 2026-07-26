@@ -146,6 +146,59 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             "cpap": status.get("cpap"),
         })
 
+    # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────
+    # The scheduled poller owns the 13:00 window; this is the operator's "do it now" for a night that
+    # was missed or a card that was swapped. It enforces the SAME streaming interlock as the poller —
+    # a manual button is not a reason to put a 2.4 GHz transmitter next to a recording sensor
+    # (measured 2026-07-26: 5-7 dB and 17 reconnects across three sensors during a pull).
+    _cpap_busy = {"running": False}
+
+    async def cpap_pull(req):
+        import cpap_harvest
+        ccfg = cfg.get("cpap") or {}
+        if not ccfg.get("enabled"):
+            return web.json_response({"ok": False, "error": "cpap harvest is disabled in config"}, status=400)
+        if _cpap_busy["running"]:
+            return web.json_response({"ok": False, "error": "a pull is already running"}, status=409)
+        scope = (await _body(req)).get("scope") or "missing"
+        if scope not in ("last", "week", "missing"):
+            return web.json_response({"ok": False, "error": f"unknown scope {scope!r}"}, status=400)
+        busy = cpap_harvest.blocking_devices(status.get("devices"))
+        if busy:
+            # 409, not 500: the box is working exactly as intended and the operator can retry later.
+            return web.json_response({"ok": False, "busy": busy,
+                                      "error": "sensors are streaming: " + ", ".join(busy)}, status=409)
+
+        import datetime as _d
+        nights = cpap_harvest.nights_for(scope, _d.datetime.now())
+        dest = os.path.join(cfg.get("root", "/srv/tepna"), ccfg.get("dest_subdir", "captures/cpap"))
+        profile = str(ccfg.get("wifi_profile", "ezshare"))
+        max_run = float(ccfg.get("max_run_sec", 5400))
+
+        def _work():
+            guard = cpap_harvest.default_route_dev()
+            if not cpap_harvest.wifi_up(profile, 45.0, guard):
+                return {"ok": False, "error": "could not associate to the card"}
+            try:
+                r = cpap_harvest.harvest(dest, ccfg.get("base_url", cpap_harvest.DEFAULT_BASE), nights,
+                                         __import__("time").monotonic() + max_run)
+            finally:
+                cpap_harvest.wifi_down(profile)
+            r["ok"] = not (r["short"] or r["errors"])
+            return r
+
+        _cpap_busy["running"] = True
+        try:
+            res = await asyncio.to_thread(_work)
+        except Exception as e:            # noqa: BLE001 — a manual pull must never 500 the monitor
+            return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+        finally:
+            _cpap_busy["running"] = False
+        st = status.setdefault("cpap", {})
+        st.update(state="ok" if res.get("ok") else "error", **{k: v for k, v in res.items()
+                  if k in ("files", "bytes", "nights", "skipped", "short", "errors", "nights_on_card")})
+        return web.json_response({"scope": scope, **res})
+
     async def scan(_req):
         found = await bonding.scan(adapter_mac)
         return web.json_response([f.__dict__ for f in found])
@@ -685,6 +738,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.get("/", index),
         web.get("/api/state", state),
         web.post("/api/scan", scan),
+        web.post("/api/cpap/pull", cpap_pull),
         web.post("/api/bond", bond),
         web.post("/api/forget", forget),
         web.post("/api/remember", remember),
