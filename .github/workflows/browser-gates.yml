@@ -18,12 +18,19 @@ name: browser-gates
 # README/ORIENTATION/ARCHITECTURE-PRINCIPLES/docs-LEXICON/docs-WHY-THIS-EXISTS, and no-network.html
 # scans capture-host/*.py + the analysis surfaces — none of which live under briefs/ audits/ changes/.
 # Do NOT add `**/*.md` here: README.md IS concatenated into the served llms-full.txt.
+#
+# ── Why the denylist moved OFF the trigger and INTO a job (2026-07-27) ──────────────────────────
+# `browser-gates` is now a REQUIRED status check, and a required check must actually REPORT. The two
+# ways to skip a workflow are NOT equivalent:
+#   * workflow-level `paths-ignore:` → the workflow never runs → NO check run is ever created → the
+#     required check sits in "Expected — waiting for status" and the PR is blocked FOREVER;
+#   * job-level `if:` → the workflow runs, the job reports conclusion `skipped`, and GitHub counts a
+#     skipped job as satisfying the requirement.
+# So the denylist below is unchanged in MEANING — briefs/ audits/ changes/ still do not pay the two
+# minutes — it just had to move somewhere that still files a report. This is the same trap that let
+# capture-host-ci sit unrequired while its coverage floor merged red (#469 → #472).
 on:
   pull_request:
-    paths-ignore:
-      - 'briefs/**'
-      - 'audits/**'
-      - 'changes/**'
   workflow_dispatch:
 
 # A 2-minute gate on a busy PR: keep only the newest run per ref.
@@ -32,7 +39,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The denylist, evaluated as a job so the gate below can be SKIPPED rather than never scheduled.
+  # Deliberately the same denylist semantics as the retired `paths-ignore:`: the gate runs unless
+  # EVERY changed file is under briefs/ audits/ changes/. Forgetting a path here therefore runs the
+  # gate unnecessarily; it can never silently disable it (CLAUDE.md §🔒's fail-closed rule).
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # both endpoints of the PR diff must be present
+      - id: filter
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"   # a manual dispatch always means "run it"
+            exit 0
+          fi
+          changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" \
+                                          "${{ github.event.pull_request.head.sha }}")
+          echo "changed files:"; echo "$changed"
+          # Pure-shell `case`, NOT grep. `grep -qv` is not portable enough to gate a required check on:
+          # it returns the wrong exit status under ugrep (which is what `grep` resolves to on at least
+          # one dev machine here), and a filter that mis-answers in the SKIP direction is a blind gate —
+          # the one outcome this file's header refuses. `case` is POSIX and behaves identically everywhere.
+          run=false
+          if [ -z "$changed" ]; then
+            run=true                      # no diff to judge ⇒ run, never silently skip
+          else
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              case "$f" in
+                briefs/*|audits/*|changes/*) ;;   # ignored, per the denylist above
+                *) run=true ;;                    # anything else ⇒ the gate is relevant
+              esac
+            done <<< "$changed"
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"     # false ⇒ job skipped, which SATISFIES the requirement
+          echo "decision: run=$run"
+
   browser-gates:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
