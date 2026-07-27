@@ -23,8 +23,14 @@ User=tepna
 # monitor filtered on syslog priority and capture logs WARNINGs at PRIORITY=6.
 # Ambient (not just Bounding): the unit runs as an unprivileged User=, and ambient caps are the only
 # ones an unprivileged process actually keeps across exec.
+# ⚠️ DO NOT narrow CapabilityBoundingSet here, and do not set NoNewPrivileges=true. Both look like
+# hardening and both DISABLE the daemon's sudo calls (tepna-rssi.sh, and the CPAP harvest's
+# wpa_supplicant/ip). sudo must gain uid 0, which needs CAP_SETUID/CAP_SETGID in the BOUNDING set and
+# is forbidden outright by NoNewPrivileges. Shipped 2026-07-26 and broke the CPAP association four
+# commits after enabling it: sudo-rs panics with rc=101 ("panicked at src/system/audit"), which reads
+# like a sudo bug rather than a unit-file mistake. AmbientCapabilities alone is what arms the watchdog
+# ladder; the bounding-set narrowing added nothing but breakage.
 AmbientCapabilities=CAP_NET_ADMIN
-CapabilityBoundingSet=CAP_NET_ADMIN
 
 Group=tepna
 WorkingDirectory=/opt/tepna/capture-host
@@ -34,7 +40,7 @@ Restart=always
 RestartSec=5
 # Let it write under /srv/tepna; otherwise lock it down.
 ReadWritePaths=/srv/tepna
-NoNewPrivileges=true
+NoNewPrivileges=no
 # ⚠️ THE MONITOR'S CLOCK CONTROLS NEED THIS RELAXED, AND THREE PATHS OPENED. NoNewPrivileges makes sudo
 # structurally impossible, so Save&apply / Sync now / Set timezone all fail with "the no new privileges
 # flag is set". If you want them, add a DROP-IN (never edit this file, or a redeploy reverts it):
