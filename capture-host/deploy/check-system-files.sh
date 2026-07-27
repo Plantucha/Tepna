@@ -14,23 +14,27 @@
 # evening with a hot-plugged adapter unprotected because of it. Nothing said so — `systemctl status`
 # was green, the file was present, and its content was a day old.
 #
-# ── WHY IT IS A CHECKER AND NOT A FIXER ────────────────────────────────────────────────────────────
-# Because syncing one of these files would BREAK THE BOX, and that is not hypothetical:
+# ── WHY IT ONLY INSTALLS WHAT THE REPO OWNS ────────────────────────────────────────────────────────
+# This started life with two classes, MANAGED and TEMPLATED, on the belief that `tepna-capture.service`
+# could not be installed from the repo because the repo's copy said `User=tepna` and no such user
+# exists on this box. That belief was WRONG, and the way it was wrong is the lesson:
 #
-#     repo  tepna-capture.service :  User=tepna  Group=tepna  ReadWritePaths=/srv/tepna
-#     box   /etc/systemd/system/  :  User=vigil  Group=vigil  ReadWritePaths=/srv/tepna /opt/tepna/capture-host
+#     capture-host/systemd/tepna-capture.service   User=tepna    <- what this script was comparing
+#     capture-host/deploy/tepna-capture.service    User=vigil    <- what is actually installed
+#     /home/vigil/tepna-capture.service            (a day stale) <- what install-services.sh installed
 #
-# `id tepna` on this box: no such user. Installing the repo copy would leave capture unable to start,
-# and would revoke the write access webmon needs to save config.yaml. install-services.sh does not even
-# read the repo copy — it installs from $HOME, which is where the working version was hand-edited.
+# THREE files, one unit. The repo already carried a correct, committed site copy under deploy/, so
+# nothing needed templating — and the TEMPLATED comparison, which normalises User/Group/ReadWritePaths
+# away, papered over the difference between two SOURCES and reported "same but for site keys" about a
+# file nobody installs. A checker watching the wrong source is worse than no checker.
 #
-# So the files are classified, and the classification is the whole value of this script:
+# So TEMPLATED is GONE. Every file here is MANAGED: byte-compared against the copy that is actually
+# installed, and installable with --install. If a future site genuinely needs different content, it
+# edits the deploy/ copy — which is still just a managed file, in version control, byte-checked.
 #
-#   MANAGED    identical everywhere, no site-specific content. Drift is a BUG. --install copies them.
-#   TEMPLATED  deliberately site-specific (user, group, writable paths). Byte-equality is the WRONG
-#              test; it is compared with those keys normalised away, so a genuine change to the rest
-#              of the unit is still caught while the intended customisation is not reported as rot.
-#              NEVER written by this script.
+# What replaces it is `ambiguous()`: a managed file with a second, DIFFERENT copy anywhere in the repo
+# is reported LOUD and exits non-zero, whether or not /etc currently matches. Two files with one name
+# is the condition that produced this bug, and it must never be silent again.
 set -uo pipefail
 
 SRC="${TEPNA_SRC:-$(cd "$(dirname "$0")/.." && pwd)}"          # …/capture-host
@@ -43,17 +47,27 @@ INSTALL=0
 MANIFEST="
 systemd/99-tepna-btdongle.rules|$ETC_UDEV/99-tepna-btdongle.rules|MANAGED
 systemd/tepna-usb-autosuspend.service|$ETC_SYSTEMD/tepna-usb-autosuspend.service|MANAGED
-systemd/tepna-capture.service|$ETC_SYSTEMD/tepna-capture.service|TEMPLATED
+deploy/tepna-capture.service|$ETC_SYSTEMD/tepna-capture.service|MANAGED
 "
 
-# Keys a site is EXPECTED to set for itself. Normalised before comparing a TEMPLATED file so the
-# intended customisation is invisible and everything else still shows.
-norm() {
-  sed -E 's/^(User|Group|ReadWritePaths|ExecStart|WorkingDirectory|Environment)=.*/\1=<site>/' "$1" \
-    | sed -E '/^\s*#/d; /^\s*$/d'
+# A managed file with a second, DIFFERENT copy somewhere else in the repo means "which one is the
+# source?" has more than one answer — exactly the condition that made this script's first green a lie
+# (see the header). Reported per file, always, whether or not /etc currently matches.
+ambiguous() {
+  local rel="$1" name twin found=""
+  name="$(basename "$rel")"
+  while IFS= read -r twin; do
+    [ "$twin" = "$SRC/$rel" ] && continue
+    cmp -s "$SRC/$rel" "$twin" || found="$found $twin"
+  done < <(find "$SRC" -type f -name "$name" 2>/dev/null)
+  if [ -n "$found" ]; then
+    printf '      \u26a0 AMBIGUOUS SOURCE — a different copy of %s also exists:%s\n' "$name" "$found"
+    return 1
+  fi
+  return 0
 }
 
-drift=0 managed=0 templated=0 missing=0 installed=0
+drift=0 managed=0 missing=0 installed=0 ambig=0
 printf '  %-38s %-10s %s\n' "file" "class" "state"
 while IFS='|' read -r rel dest cls; do
   [ -n "$rel" ] || continue
@@ -72,19 +86,8 @@ while IFS='|' read -r rel dest cls; do
     continue
   fi
 
-  if [ "$cls" = "TEMPLATED" ]; then
-    templated=$((templated + 1))
-    if diff -q <(norm "$src") <(norm "$dest") >/dev/null 2>&1; then
-      printf '  %-38s %-10s %s\n' "$name" "$cls" "✓ same but for site keys"
-    else
-      printf '  %-38s %-10s %s\n' "$name" "$cls" "✗ DRIFTED beyond the site keys"
-      diff <(norm "$src") <(norm "$dest") 2>/dev/null | head -8 | sed 's/^/        /'
-      drift=$((drift + 1))
-    fi
-    continue
-  fi
-
   managed=$((managed + 1))
+  ambiguous "$rel" || { ambig=$((ambig + 1)); drift=$((drift + 1)); }
   if cmp -s "$src" "$dest"; then
     printf '  %-38s %-10s %s\n' "$name" "$cls" "✓ in sync"
   else
@@ -109,6 +112,6 @@ if [ "$INSTALL" = "1" ] && [ "$installed" -gt 0 ]; then
   systemctl daemon-reload 2>/dev/null && echo "  systemd units reloaded"
   echo "  $installed file(s) installed — nothing restarted, so a running capture is untouched"
 fi
-echo "  $managed managed, $templated templated, $drift drifted"
+echo "  $managed managed, $drift drifted$([ "$ambig" -gt 0 ] && echo ", $ambig AMBIGUOUS")"
 [ "$drift" -eq 0 ] || exit 1
 exit 0

@@ -8,7 +8,14 @@ OWNER=vigil
 say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 
 say "1/5  capture unit"
-install -m644 /home/$OWNER/tepna-capture.service /etc/systemd/system/tepna-capture.service
+# SOURCE OF TRUTH: the repo's deploy/ copy, NOT $HOME. Until 2026-07-26 this line installed
+# /home/vigil/tepna-capture.service — a hand-edited file outside version control that nothing kept in
+# step with the repo. By the time it was noticed it was a day stale and differed from what was running,
+# so a deploy would have SILENTLY REVERTED that day's CAP_NET_ADMIN grant and re-disarmed the
+# watchdog's recovery ladder — a fix undone by the tool meant to ship it, with every gate still green.
+UNIT_SRC="$(cd "$(dirname "$0")" && pwd)/tepna-capture.service"
+[ -f "$UNIT_SRC" ] || { echo "  ✗ unit source missing: $UNIT_SRC"; exit 1; }
+install -m644 "$UNIT_SRC" /etc/systemd/system/tepna-capture.service
 systemctl daemon-reload
 systemctl enable --now tepna-capture
 sleep 5
