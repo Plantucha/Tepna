@@ -22,7 +22,10 @@ const NODES = {
   OxyDex: './regen-oxydex-goldens.mjs',
   PpgDex: './regen-ppgdex-goldens.mjs',
   HRVDex: './regen-hrvdex-goldens.mjs',
-  ECGDex: './regen-ecgdex-goldens.mjs'
+  ECGDex: './regen-ecgdex-goldens.mjs',
+  // §F1.5 — the Integrator is a consumer-on-top rather than a node, which is why it was missed; but it
+  // carries a code-gated fixture with a live equiv leg, so it needs a sanctioned regen path like any node.
+  Integrator: './regen-integrator-goldens.mjs'
 };
 
 const i = process.argv.indexOf('--node');

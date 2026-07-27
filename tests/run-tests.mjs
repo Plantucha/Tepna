@@ -214,6 +214,8 @@ function loadInto(ctx, file) {
 const SHIPPED_INLINED = new Set(); // every .js the owned bundles inline — the lint's scope floor
 function readSources() {
   const wanted = [
+    'tools/regen-goldens.mjs', // §F1.5 — the dispatcher must keep naming every node with a regen path
+    'tools/regen-integrator-goldens.mjs',
     'clock.js',
     'oxydex-util.js',
     'pulsedex-dsp.js',
@@ -1133,6 +1135,14 @@ async function main() {
     docs: readDocs(),
     docsLedger: readDocsLedger(),
     sources: readSources(),
+    // §F1.5 — the TCH golden's input builder, shared with tools/regen-integrator-goldens.mjs
+    tchGoldenInputs: (() => {
+      try {
+        return require(join(ROOT, 'tests', 'tch-golden-inputs.js')).tchGoldenInputs;
+      } catch {
+        return null;
+      }
+    })(),
     // §1.4 — the scope FLOOR: every .js the owned bundles inline. The lint asserts its scanned set
     // covers this, so the coverage can never silently shrink back to a hand-maintained list again.
     shippedInlined: Array.from(SHIPPED_INLINED).sort(),
