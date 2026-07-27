@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-24 · **Created:** 2026-07-24 · **Follows:** `CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md` (§4, the ECGDex instance) · **Related:** `INTEGRATOR-BUILD-BRIEF.md`
+**Status:** DONE — 2026-07-27 · **Created:** 2026-07-24 · **Followed-by:** `NODE-EXPORT-DURATION-SEMANTICS-2026-07-27-BRIEF.md` (what the declared length MEANS) · **Follows:** `CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md` (§4, the ECGDex instance) · **Related:** `INTEGRATOR-BUILD-BRIEF.md`
 
 # A node's export must DECLARE its recording length — or the Integrator drops it on an event-sparse night
 
@@ -58,3 +58,38 @@ the 5 CPAP goldens (`tools/regen-goldens.mjs --node CPAPDex`), run the gates, dr
    `parseRRInput`, leaving the node un-anchored on the clock — a separate anchoring bug worth its own check).
 3. **Gate the class** — consider an Integrator test that asserts every KNOWN_NODES export carries a
    duration key the adapter reads, so a fourth instance can't ship silently.
+
+---
+
+## 5 · Execution — 2026-07-27
+
+All three §4 follow-ups are closed. Verified, not assumed:
+
+1. **PpgDex** — declares `recording.durSec`. ✅
+2. **PulseDex** — declares `recording.durationMin`, which `adaptEnvelopeNode` reads (§4 asked for `durSec`
+   specifically; the adapter's contract is *a key it reads*, and `durationMin` is one, so the node is
+   anchored). The second half of that item — the suspicion that *"the Polar RR export's timestamp column
+   may not be parsed by `parseRRInput`, leaving the node un-anchored"* — is **REFUTED**. Run against a real
+   capture-host `Polar_H10_02849638_20260726005143_RR.txt` (`Phone timestamp;RR-interval [ms]`, 672 KB):
+
+   ```
+   t0Ms      1785027114806  → 2026-07-26T00:51:54   (row 1 is 2026-07-26T00:51:54.806 — exact)
+   nRaw 23655 · nUsable 23654 · usable true · sourceFormat rr · 23655 stamps anchored
+   ```
+
+   `parseRRInput` parses the stamp column through the Clock-Contract `parseTimestamp`, anchors `t0Ms` and
+   captures `offsetMin`. The observed `startEpochMs: null` therefore came from an input whose stamps did not
+   parse (`tsValid` false) — which is the contract behaving correctly (§2.6: null, never fabricate), not an
+   anchoring bug. **No fix was needed; the hypothesis was wrong.** Recorded so it is not re-investigated.
+3. **Gate the class** — built. `tests/dex-tests.js` group **“Every node declares a recording length the
+   Integrator can read”** (13 assertions, both lanes): all 8 node-export builders are brace-matched for a
+   duration key, AND the five keys are pinned against `integrator-dsp.js` itself so the gate cannot silently
+   under-test if a sixth is added. Structural on purpose — every instance of this class was invisible until a
+   real night happened to be event-sparse.
+
+   Mutation-checked: deleting `durSec` from `motiondex-dsp.js`'s `recording` block reds it with
+   *“NONE — this node collapses to a point at t0Ms on an event-sparse night”*.
+
+Fleet state at close — `ECGDex endEpochMs+durSec · PpgDex durSec · OxyDex durationMin · PulseDex durationMin ·
+HRVDex durSec · GlucoDex durSec · MotionDex durSec · CPAPDex durMin+durSec`.
+`run-tests.mjs` 4098 green.
