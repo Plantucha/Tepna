@@ -19,7 +19,7 @@
 
 ## 1 · Open work
 
-### 1.1 GlucoDex declares no duration key and no `timeseries` — the sibling of the coverage fix
+### 1.1 GlucoDex declares no duration key and no `timeseries` — the sibling of the coverage fix — **FIXED 2026-07-27**
 
 `§6.2` landed the `recording.coverage` contract on HRVDex; GlucoDex has the identical defect
 (`glucodex-dsp.js:1946`) and was deliberately left out because it needs a second, independent change:
@@ -28,9 +28,22 @@
 autonomic-glycemic path and forces the `directional` fallback (`§3.6`), so the two land together or not
 at all.
 
-**Shape is already decided** — `kind: 'continuous'` with one segment. **Gate cost:** GlucoDex + Integrator
-re-bundle; GlucoDex fixtures will move (an additive export field), so regenerate through
-`tools/regen-glucodex-goldens.mjs`, never by hand.
+**FIXED 2026-07-27.** Both halves landed together, as this section required. `coverage` is
+`kind: 'continuous'` — a CGM wear *is* continuous, so one segment states it honestly and `spanSec`
+equals `recordedSec` **by measurement**, which is precisely what the sparse HRVDex case could not claim.
+`timeseries.cells` is emitted from the canonical `compute()` path, so `hasCells` is finally true and the
+Integrator can window a wear instead of stamping one whole-wear CV on every night.
+
+**The cell builder is single-sourced** as `GLUDSP.glucoCells`. `glucodex-app.js` already had its own copy;
+shipping a second one in the DSP would have been the sibling-divergence class this audit exists to fix, so
+the app now calls the shared helper.
+
+**One assertion was deliberately INVERTED** — `'degrades on the absent cell series — empty cells trace'`
+*pinned the defect*. Per `CLAUDE.md`, changing it **is** part of the fix and is called out rather than
+quietly flipped. The real committed export now adapts to **8167 cells over 681 h** instead of a point.
+
+**Gate:** 4070 assertions green with `DEX_UPLOADS` (0 skipped) · GATE A 9/9 (`GlucoDex` `345d8a6aa42e` →
+`5bf582e0abaf`) · **3 GlucoDex fixtures regenerated** through `tools/regen-glucodex-goldens.mjs`.
 
 ### 1.2 The surge-side twin of the desat double-count — **found by mutation-checking the fix for §3.1** — **FIXED 2026-07-27**
 

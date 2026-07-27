@@ -6869,7 +6869,14 @@
               return e.clampFloor;
             }).length + ' clip-floor event(s)'
           );
-          T.ok('degrades on the absent cell series — no throw, empty cells trace', !r.series || !r.series.cells || r.series.cells.length === 0);
+          /* ASSERTION DELIBERATELY INVERTED (DEEP-AUDIT-III-FOLLOWUPS §F1.1). This used to pin the
+             DEFECT: "empty cells trace" documented that the canonical `compute()` export carried no
+             `timeseries`, which is exactly why `integrator-dsp.js hasCells` was always false and
+             `fuseAutonomicGlycemic` fell back to a whole-wear CV stamped on every night (§3.6). The
+             export now emits the trace, so the honest assertion is that the Integrator RECEIVES it.
+             Changing this line IS the fix, per CLAUDE.md's rule about tests that pin a defect. */
+          T.ok('§F1.1 · the canonical export now carries a sliceable cell trace', !!(r.series && r.series.cells && r.series.cells.length > 0), 'cells=' + ((r.series && r.series.cells && r.series.cells.length) || 0));
+          T.ok('§F1.1 · …and the record no longer collapses to a point', r.endMs != null && r.t0Ms != null && r.endMs > r.t0Ms, 'span=' + (r.endMs != null && r.t0Ms != null ? Math.round((r.endMs - r.t0Ms) / 3600000) + 'h' : 'none'));
         }
       }
       // clamp-DETECTED light export → the Integrator down-weights clip-floor hypos (the consume side of §2).
