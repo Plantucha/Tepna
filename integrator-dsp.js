@@ -2629,7 +2629,7 @@ function fuseRespirationRate(recs) {
   if (cand.length < 2) return null;
   // (a) Largest mutually-overlapping group: seed on each candidate and keep everything that overlaps
   // it, then take the biggest. Cheap (n is a handful) and deterministic.
-  var best = null;
+  var best = /** @type {any[]} */ (cand.slice(0, 1)); // seeded non-null: cand.length >= 2 here
   for (var i = 0; i < cand.length; i++) {
     var grp = [cand[i]];
     for (var j = 0; j < cand.length; j++) {
