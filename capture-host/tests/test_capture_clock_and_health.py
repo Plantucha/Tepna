@@ -341,3 +341,55 @@ def test_unknown_values_warn_nothing():
     assert capture.defense_warnings(None, None) == []
     assert capture.defense_warnings("on", "notahexnumber") == []
 
+
+
+# ── connected is not streaming (CAPTURE-HOST-DEEP-AUDIT §C3) ────────────────────────────────────
+def test_a_docked_sensor_does_not_make_a_dead_adapter_look_healthy():
+    """THE §C3 regression. Both suppression guards turned on `connected`, and a sensor on its charger
+    reports connected=True while producing nothing — the Verity literally sets
+    `last_error="charging — PMD streams unavailable"`. So ONE DOCKED SENSOR made a genuinely DOWN
+    adapter classify as healthy.
+
+    Same confusion, and the correct sibling was fixed the SAME DAY one module over:
+    `cpap_harvest.blocking_devices` (commit 1f6bcdf, the CPAP interlock) computes actually-streaming as
+    connected AND not charging AND worn is not False. `adapter_watchdog`'s own docstring already said
+    the reset requires "a single connected+STREAMING device"; the classifier was never passed
+    charging/worn, so it could not make the distinction it documented.
+
+    Suppression-only: this can never cause a spurious power-cycle, only miss a real wedge."""
+    docked = [{"name": "Verity", "address": "AA", "connected": True, "charging": True,
+               "last_error": "charging — PMD streams unavailable"}]
+    h = capture.classify_adapter_health(docked, adapter_up=False)
+    assert h["wedged"] is True, "a charging device is not evidence the radio works"
+    assert "pinned adapter DOWN/not-found" in h["reasons"]
+
+
+def test_an_off_body_sensor_does_not_suppress_the_wedge_either():
+    """`worn is False` is the ring's own report that it is off the finger. Explicitly False, not
+    falsy — an absent `worn` (a device that cannot report it) must NOT be read as off-body."""
+    off = [{"name": "Ring", "address": "AA", "connected": True, "worn": False}]
+    assert capture.classify_adapter_health(off, adapter_up=False)["wedged"] is True
+    unknown = [{"name": "H10", "address": "AA", "connected": True}]      # no `worn` key at all
+    assert capture.classify_adapter_health(unknown, adapter_up=False)["wedged"] is False, \
+        "a device that cannot report wear is assumed worn — absence is not evidence"
+
+
+def test_a_genuinely_streaming_device_still_suppresses_the_wedge():
+    """The control, and the reason the guard exists at all: a live STREAM is proof the radio works, so a
+    probe misread must never power-cycle a demonstrably-working adapter. Removing the guard instead of
+    correcting it would re-create the 2026-07-20 self-inflicted 25 min outage."""
+    live = [{"name": "H10", "address": "AA", "connected": True, "charging": False, "worn": True}]
+    assert capture.classify_adapter_health(live, adapter_up=False)["wedged"] is False
+    # ...and the InProgress inference stays suppressed too
+    mixed = live + [{"name": "Ring", "address": "BB", "connected": False,
+                     "last_error": "org.bluez.Error.InProgress"}]
+    assert capture.classify_adapter_health(mixed, adapter_up=None)["wedged"] is False
+
+
+def test_a_phantom_link_is_still_a_wedge_while_another_device_streams():
+    """The phantom branch is per-device and deliberately untouched: a stale BlueZ link nobody can
+    re-grab is a wedge whether or not anything else is streaming."""
+    devs = [{"name": "H10", "address": "AA", "connected": True, "charging": False, "worn": True},
+            {"name": "Ring", "address": "BB", "connected": False, "bluez_connected": True}]
+    h = capture.classify_adapter_health(devs, adapter_up=True)
+    assert h["wedged"] is True and h["phantom"] == ["BB"]

@@ -445,16 +445,34 @@ def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = Non
     """
     reasons: list[str] = []
     phantom: list[str] = []
-    any_connected = any(d.get("connected") for d in devices)   # is the radio serving ANY live link?
+    # A LIVE LINK IS NOT PROOF THE RADIO IS WORKING — A STREAMING ONE IS (CAPTURE-HOST-DEEP-AUDIT §C3).
+    # Both suppression guards below turn on "is the radio serving anyone?", and both used to read
+    # `connected`. A sensor on its charger reports connected=True while producing nothing — the Verity
+    # literally sets `last_error="charging — PMD streams unavailable"` — so ONE DOCKED SENSOR made a
+    # genuinely DOWN adapter classify as healthy. Suppression-only: this can never cause a spurious
+    # power-cycle, only miss a real wedge.
+    #
+    # The predicate is `cpap_harvest.blocking_devices` verbatim (connected AND not charging AND worn is
+    # not False) — the same confusion, fixed in the CPAP interlock the same day in commit 1f6bcdf, one
+    # module over. `adapter_watchdog`'s own docstring already said the reset requires "a single
+    # connected+STREAMING device"; the classifier was not even PASSED charging/worn, so it could not
+    # make the distinction it documented.
+    #
+    # The PHANTOM branch below is untouched: it genuinely wants link EXISTENCE (`bluez_connected` while
+    # our own `connected` is False), it is per-device, and a stale link is a wedge whether or not
+    # anything is streaming.
+    any_streaming = any(d.get("connected") and not d.get("charging") and d.get("worn") is not False
+                        for d in devices)
     # A DOWN/absent pinned adapter while it is serving NOBODY is the most direct wedge signal there is —
-    # and the one the per-device errors below cannot express. Guarded by `not any_connected` (identical to
-    # the InProgress guard): a live link is proof the radio works, so a probe misread can never power-cycle
-    # a demonstrably-working adapter. adapter_up=None (unknown) leaves the device heuristics to stand alone.
-    if adapter_up is False and not any_connected:
+    # and the one the per-device errors below cannot express. Guarded by `not any_streaming` (identical to
+    # the InProgress guard): a live STREAM is proof the radio works, so a probe misread can never
+    # power-cycle a demonstrably-working adapter. adapter_up=None (unknown) leaves the device heuristics
+    # to stand alone.
+    if adapter_up is False and not any_streaming:
         reasons.append("pinned adapter DOWN/not-found")
     for d in devices:
         err = d.get("last_error") or ""
-        if "InProgress" in err and not any_connected and adapter_up is not True:
+        if "InProgress" in err and not any_streaming and adapter_up is not True:
             # No device is connected AND a connect is stuck in-progress → INFER the radio is wedged... but
             # ONLY when the adapter is not CONFIRMED up. If _adapter_is_up() says the pinned adapter is
             # UP RUNNING (adapter_up is True), the radio is demonstrably working and this InProgress is
@@ -2144,7 +2162,12 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 pass
             devs.append({"name": d["name"], "address": d["address"],
                          "connected": bool(st.get("connected")), "last_error": st.get("last_error"),
-                         "bluez_connected": bluez})
+                         "bluez_connected": bluez,
+                         # STREAMING, not merely linked (CAPTURE-HOST-DEEP-AUDIT §C3). Without these two
+                         # the classifier could not tell a worn sensor from a docked one, so a single
+                         # charging device — connected, producing nothing — suppressed the wedge signal
+                         # for a genuinely DOWN adapter. Same pair `cpap_harvest.blocking_devices` reads.
+                         "charging": st.get("charging"), "worn": st.get("worn")})
         # Probe the PINNED adapter's REAL state so a DOWN dongle is caught directly, not inferred from
         # device errors a plain connect-timeout never carries. adapter_hci() returns None when the
         # configured adapter isn't resolvable — itself the wedge signature — so that maps to False; a
