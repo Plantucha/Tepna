@@ -2521,16 +2521,27 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
             STATUS["storage"] = rep
             if rep["low"] and not low_alerted:             # edge-triggered: one alert per low episode
                 low_alerted = True
+                # Ship the CAUSE with the symptom. A "disk low" alert on a box whose pruning is held
+                # by a dead backup volume is otherwise actively misleading — it reads as "raise
+                # keep_nights", which is the one action that would not help.
+                extra = (f" Retention is HELD on {len(held)} unmirrored night(s) — fix the backup "
+                         f"volume ({archive_dest}); raising keep_nights will NOT free space.") if held else \
+                        " Captures may soon fail — free space or raise keep_nights."
+                # THE JOURNAL LINE IS OUTSIDE THE NOTIFIER BRANCH (CAPTURE-HOST-DEEP-AUDIT §C2). There
+                # was NO log call for the low-free-space condition anywhere in this file, so on a box
+                # with no webhook the edge was recorded only in `status.json` and `/api/storage` — both
+                # PULL surfaces, visible if you go and look. diskguard's own header states the intent
+                # ("a full filesystem turned every subsequent night into a silent loss … so the
+                # emergency signal is loud"); it was loud only where a webhook existed. Same shape as
+                # the retention-held warning ten lines up, which always did log.
+                log.warning("storage: LOW — only %s GB free (%s%%).%s",
+                            rep["free_gb"], rep["free_pct"], extra)
                 if notifier:
-                    # Ship the CAUSE with the symptom. A "disk low" alert on a box whose pruning is held
-                    # by a dead backup volume is otherwise actively misleading — it reads as "raise
-                    # keep_nights", which is the one action that would not help.
-                    extra = (f" Retention is HELD on {len(held)} unmirrored night(s) — fix the backup "
-                             f"volume ({archive_dest}); raising keep_nights will NOT free space.") if held else \
-                            " Captures may soon fail — free space or raise keep_nights."
                     await notifier.send("Tepna: disk low",
                                         f"Only {rep['free_gb']} GB free ({rep['free_pct']}%)." + extra)
             elif not rep["low"]:
+                if low_alerted:
+                    log.info("storage: recovered — %s GB free (%s%%)", rep["free_gb"], rep["free_pct"])
                 low_alerted = False
         except Exception as e:                             # storage bookkeeping must never take capture down
             log.warning("storage poll failed: %r", e)
@@ -2541,7 +2552,17 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     """Push a webhook alert when a configured sensor goes OFFLINE and stays offline past `offline_sec`
     (edge-triggered, so a flapping link cannot spam), and a 'recovered' note when it returns. A lost night
     is unrecoverable, so this is the difference between fixing a dead battery at 1am and finding out at
-    breakfast. No-op when alerting is disabled."""
+    breakfast.
+
+    THE CONDITION IS LOGGED BEFORE IT IS DELIVERED, AND THE LATCH FOLLOWS THE DELIVERY
+    (CAPTURE-HOST-DEEP-AUDIT §C1). This used to `alerted.add(name)` FIRST and discard `send()`'s return
+    value, while `Notifier.send` swallowed every exception without a log — so one failed webhook POST
+    silenced the alert for the whole offline episode, which for the dead-battery case this exists to
+    catch is the whole night. Measured: 40 poll iterations, ONE attempt, zero journal lines at DEBUG or
+    above. `qc_poller`'s frozen-device path already had the right shape one function down — "WARNING even
+    with no webhook configured. The journal is the only alerting surface a box without one has."
+
+    The latch is per EPISODE, not per process: `alerted.discard(name)` on reconnect."""
     acfg = cfg.get("alerts") or {}
     interval = float(acfg.get("poll_sec", 60))
     threshold = float(acfg.get("offline_sec", 300))
@@ -2559,14 +2580,24 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 down_since.pop(name, None)
                 if name in alerted:                        # it had alerted → tell the operator it is back
                     alerted.discard(name)
+                    log.info("alert: %s reconnected", name)
                     await notifier.send("Tepna: sensor recovered", f"{name} reconnected.")
             else:
                 down_since.setdefault(name, now)
                 if name not in alerted and alerts.offline_alert_due(down_since[name], now, threshold):
-                    alerted.add(name)
                     mins = int((now - down_since[name]) / 60)
-                    await notifier.send("Tepna: sensor offline",
-                                        f"{name} has been offline for ~{mins} min — capture is missing it.")
+                    # The journal FIRST, unconditionally — a box with no webhook has no other surface,
+                    # and a box whose webhook is broken must still leave the event behind.
+                    log.warning("alert: %s has been offline for ~%d min — capture is missing it",
+                                name, mins)
+                    delivered = await notifier.send(
+                        "Tepna: sensor offline",
+                        f"{name} has been offline for ~{mins} min — capture is missing it.")
+                    # Latch on the OUTCOME. A failed POST must be retried next poll, not treated as
+                    # "the operator has been told". `not notifier.enabled` still latches: with alerting
+                    # off there is nothing to retry, and re-logging every 60 s all night is noise.
+                    if delivered or not notifier.enabled:
+                        alerted.add(name)
 
 
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):

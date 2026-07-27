@@ -2079,7 +2079,11 @@ def test_alert_poller_fires_on_a_sustained_offline_then_recovers(monkeypatch):
     """A device offline past the threshold alerts once; when it reconnects, a recovery alert fires."""
     sent = []
     class _N:
-        async def send(self, title, message, **kw): sent.append(title)
+        # `enabled` and a truthy return are part of Notifier's interface, and the poller now reads
+        # BOTH — it latches on the delivery outcome (CAPTURE-HOST-DEEP-AUDIT §C1). A double that
+        # omits them is not standing in for the real thing.
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return True
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="H10")]}
     st = {"connected": False}
     capture.STATUS["devices"]["H10"] = st
@@ -2099,7 +2103,8 @@ def test_alert_poller_fires_on_a_sustained_offline_then_recovers(monkeypatch):
 def test_alert_poller_skips_a_nameless_device_and_a_connected_one(monkeypatch):
     sent = []
     class _N:
-        async def send(self, title, message, **kw): sent.append(title)
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return True
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 300},
            "devices": [{"streams": ["ecg"]}, _dev(name="H10")]}   # first is nameless → skipped
     capture.STATUS["devices"]["H10"] = {"connected": True}         # connected → never alerts
@@ -3491,3 +3496,78 @@ def test_no_post_connect_gatt_await_in_run_polar_is_left_unbounded():
             if ("client.start_notify(" in ln or "client.read_gatt_char(" in ln)
             and "_bounded_setup" not in ln and "wait_for" not in ln]
     assert not bare, "unbounded post-connect GATT await(s) in run_polar:\n  " + "\n  ".join(bare)
+
+
+# ── the alerting path must leave a trace (CAPTURE-HOST-DEEP-AUDIT §C1 / §C2) ────────────────────
+def test_a_failed_webhook_does_not_silence_the_offline_alert_for_the_episode(monkeypatch, caplog):
+    """THE §C1 regression. `alerted.add(name)` ran BEFORE `await notifier.send(...)` and the return
+    value was discarded, while `Notifier.send` swallowed every exception with no log at any level. So
+    ONE failed POST silenced the alert for the whole offline episode — which, for the dead-battery case
+    the alert exists for, is the whole night. Measured pre-fix: 40 poll iterations, ONE attempt."""
+    attempts = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw):
+            attempts.append(title)
+            return False                       # the webhook is down
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="H10")]}
+    capture.STATUS["devices"]["H10"] = {"connected": False}
+    _stop_after(monkeypatch, 4)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    with caplog.at_level("WARNING"):
+        _run(capture.alert_poller(cfg, _N()))
+    assert len(attempts) >= 3, f"a failed delivery must be retried, got {len(attempts)} attempt(s)"
+    assert any("offline" in r.message for r in caplog.records), \
+        "the condition must reach the journal even when delivery fails"
+
+
+def test_the_offline_condition_reaches_the_journal_with_no_webhook_configured(monkeypatch, caplog):
+    """A box without a webhook has exactly one alerting surface, and it is the journal. `qc_poller`'s
+    frozen-device path already said so in a comment one function down; this path did not."""
+    class _N:
+        enabled = False
+        async def send(self, title, message, **kw): return False
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="H10")]}
+    capture.STATUS["devices"]["H10"] = {"connected": False}
+    _stop_after(monkeypatch, 3)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    with caplog.at_level("WARNING"):
+        _run(capture.alert_poller(cfg, _N()))
+    hits = [r for r in caplog.records if "offline" in r.message]
+    assert len(hits) == 1, f"once per episode, not once per poll — got {len(hits)}"
+
+
+def test_the_low_disk_edge_reaches_the_journal_without_a_webhook(tmp_path, monkeypatch, caplog):
+    """§C2. `storage_poller` set `low_alerted` and sent ONLY `if notifier`; there was no log call for
+    the low-free-space condition anywhere in capture.py. On a webhook-less box the edge existed solely
+    in status.json and /api/storage — both PULL surfaces. diskguard's own header says the emergency
+    signal is meant to be loud."""
+    cfg = {"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}}   # always "low"
+    _stop_after(monkeypatch, 2)
+    with caplog.at_level("WARNING"):
+        _run(capture.storage_poller(cfg, str(tmp_path), None))                # NO notifier
+    lows = [r for r in caplog.records if "LOW" in r.message]
+    assert len(lows) == 1, f"edge-triggered: one line per low episode, got {len(lows)}"
+    assert "GB free" in lows[0].message
+
+
+def test_notifier_logs_a_swallowed_delivery_failure(caplog):
+    """Swallowing the exception must not also swallow the evidence. The webhook must never crash
+    capture — that stays — but a delivery that never happened has to be findable afterwards."""
+    import alerts as _alerts
+    async def _boom(url, payload):
+        raise OSError("connection refused")
+    n = _alerts.Notifier(url="http://x/", enabled=True, _post=_boom)
+    with caplog.at_level("WARNING"):
+        assert _run(n.send("Tepna: sensor offline", "body")) is False
+    assert any("not delivered" in r.message for r in caplog.records)
+
+
+def test_notifier_logs_a_non_2xx_rejection(caplog):
+    import alerts as _alerts
+    async def _rejects(url, payload):
+        return False
+    n = _alerts.Notifier(url="http://x/", enabled=True, _post=_rejects)
+    with caplog.at_level("WARNING"):
+        assert _run(n.send("Tepna: disk low", "body")) is False
+    assert any("rejected" in r.message for r in caplog.records)
