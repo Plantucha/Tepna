@@ -175,3 +175,5 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   }
   return bl;
 }
+
+// scratch: verifying JS-only PRs skip capture-host-ci; deleted immediately
