@@ -1232,7 +1232,7 @@ self.onmessage = async (e) => {
         : `<div class="q-note" style="margin-top:6px">No epochs where the motion vote contradicts the HRV stage.</div>`;
       body = `<div class="acc-consensus-hero">
         <div class="acc-consensus-val">${co.rate}%</div>
-        <div><div class="acc-consensus-lbl">staging consensus</div><div class="acc-consensus-sub">${co.n} stage epochs · ${co.nConflict} conflict${co.nConflict === 1 ? '' : 's'}</div></div>
+        <div><div class="acc-consensus-lbl">staging consensus</div><div class="acc-consensus-sub">${co.nVoted != null ? co.nVoted : co.n} epochs where the ACC voted${co.nAbstained ? ` · ${co.nAbstained} ambiguous (abstained)` : ''} · ${co.nConflict} conflict${co.nConflict === 1 ? '' : 's'}</div></div>
         ${pill}
       </div>${conflictBlock}`;
     }
@@ -2605,9 +2605,14 @@ self.onmessage = async (e) => {
               ? {
                   consensusRatePct: accEx.consensus.rate,
                   epochs: accEx.consensus.n,
+                  // §6.1 — the rate's denominator is epochs where the ACC actually voted; an
+                  // Ambiguous vote is an ABSTENTION and leaves both sides of the ratio.
+                  epochsVoted: accEx.consensus.nVoted,
+                  epochsAbstained: accEx.consensus.nAbstained,
                   conflicts: accEx.consensus.nConflict,
                   conflictEpochs: accEx.consensus.conflicts.map((c) => ({ tMin: c.tMin, hrvStage: c.hrv, accVote: c.vote, direction: c.dir })),
-                  method: 'gross-motion vote (jerk mean|ΔVM|, normalised 0–100): Wake>20 / Ambiguous 5–20 / Sleep<5, cross-checked vs the HRV+EDR stage',
+                  method:
+                    'gross-motion vote (jerk mean|ΔVM|, normalised 0–100): Wake>20 / Ambiguous 5–20 / Sleep<5, cross-checked vs the HRV+EDR stage. Ambiguous is an ABSTENTION: it is excluded from both sides of consensusRatePct.',
                   note: 'Conflicts may indicate PLMS, brief arousals without a sustained HR change, or sensor shift.'
                 }
               : null,

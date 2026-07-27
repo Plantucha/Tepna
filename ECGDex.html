@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-J8+a6id6lzsU3GPI7c2D8kA/HhbyteWGzjkzjdlvUO0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-aoO0MBKkGuLHroVMhozxI9BffHF+2hXrnINVgvnS0Kw=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-pSB6FZMxZ/1pOfHvAXwnXAVW8Mv6rg+JQaoMIttkxAs='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-J8+a6id6lzsU3GPI7c2D8kA/HhbyteWGzjkzjdlvUO0=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-NTfInRCKoVSx7MagTPYHTjIWMVSCgae+g8Fxvjm2rRQ=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-zzSJRKL0zjzynyMUyIEdLySnS7uq/+MYYjrKsGQomCI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -9585,7 +9585,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         top = qOf(0.95),
         span = Math.max(top - floor, 1e-6); // typical-sleep median → 0, p95 → 100
       let agreed = 0,
-        total = 0;
+        total = 0,
+        abstained = 0;
       const conflicts = [],
         voteRows = [];
       for (const m of rawMot) {
@@ -9598,7 +9599,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         total++;
         let status;
         if (vote === 'Ambiguous') {
-          agreed++;
+          /* AN ABSTENTION IS NOT AN AGREEMENT (DEEP-AUDIT-III §6.1). The ACC vote is explicitly
+             tri-state — the exported method string says "Wake>20 / Ambiguous 5–20 / Sleep<5" — and
+             the middle state is the accelerometer DECLINING TO VOTE. Counting it as `agreed++` put
+             it in the numerator while it also sat in the denominator, inflating the surfaced staging
+             consensus % and its Strong/Moderate/Weak pill. It now leaves BOTH, which is what class
+             3a requires of an epoch that carries no observation. */
+          abstained++;
           status = 'ambiguous';
         } else if (hrvWake && vote === 'Wake (motion)') {
           agreed++;
@@ -9612,7 +9619,11 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         }
         voteRows.push({ tMin: m.tMin, idx: Math.round(idx), vote, hrv, status });
       }
-      if (total >= 3) consensus = { rate: Math.round((agreed / total) * 100), n: total, nConflict: conflicts.length, conflicts: conflicts.slice(0, 40), voteRows };
+      // Denominator = epochs where the ACC actually VOTED. `n` stays the epochs examined so the two
+      // can never be confused, and `nAbstained` is published so a mostly-ambiguous night is visible
+      // as thin evidence rather than as a confident score.
+      const nVoted = total - abstained;
+      if (nVoted >= 3) consensus = { rate: Math.round((agreed / nVoted) * 100), n: total, nVoted, nAbstained: abstained, nConflict: conflicts.length, conflicts: conflicts.slice(0, 40), voteRows };
     }
 
     // ── Feature 4: step count & gait ──
@@ -14495,7 +14506,7 @@ self.onmessage = async (e) => {
         : `<div class="q-note" style="margin-top:6px">No epochs where the motion vote contradicts the HRV stage.</div>`;
       body = `<div class="acc-consensus-hero">
         <div class="acc-consensus-val">${co.rate}%</div>
-        <div><div class="acc-consensus-lbl">staging consensus</div><div class="acc-consensus-sub">${co.n} stage epochs · ${co.nConflict} conflict${co.nConflict === 1 ? '' : 's'}</div></div>
+        <div><div class="acc-consensus-lbl">staging consensus</div><div class="acc-consensus-sub">${co.nVoted != null ? co.nVoted : co.n} epochs where the ACC voted${co.nAbstained ? ` · ${co.nAbstained} ambiguous (abstained)` : ''} · ${co.nConflict} conflict${co.nConflict === 1 ? '' : 's'}</div></div>
         ${pill}
       </div>${conflictBlock}`;
     }
@@ -15868,9 +15879,14 @@ self.onmessage = async (e) => {
               ? {
                   consensusRatePct: accEx.consensus.rate,
                   epochs: accEx.consensus.n,
+                  // §6.1 — the rate's denominator is epochs where the ACC actually voted; an
+                  // Ambiguous vote is an ABSTENTION and leaves both sides of the ratio.
+                  epochsVoted: accEx.consensus.nVoted,
+                  epochsAbstained: accEx.consensus.nAbstained,
                   conflicts: accEx.consensus.nConflict,
                   conflictEpochs: accEx.consensus.conflicts.map((c) => ({ tMin: c.tMin, hrvStage: c.hrv, accVote: c.vote, direction: c.dir })),
-                  method: 'gross-motion vote (jerk mean|ΔVM|, normalised 0–100): Wake>20 / Ambiguous 5–20 / Sleep<5, cross-checked vs the HRV+EDR stage',
+                  method:
+                    'gross-motion vote (jerk mean|ΔVM|, normalised 0–100): Wake>20 / Ambiguous 5–20 / Sleep<5, cross-checked vs the HRV+EDR stage. Ambiguous is an ABSTENTION: it is excluded from both sides of consensusRatePct.',
                   note: 'Conflicts may indicate PLMS, brief arousals without a sustained HR change, or sensor shift.'
                 }
               : null,
