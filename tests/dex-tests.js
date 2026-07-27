@@ -8919,7 +8919,14 @@
       var unscanned = shipped.filter(function (f) {
         return !src[f];
       });
-      T.ok('A1 · the scan covers every .js the owned bundles INLINE (the gate cannot silently shrink)', shipped.length > 0 && unscanned.length === 0, shipped.length ? (unscanned.length ? 'NOT scanned: ' + unscanned.join(', ') : shipped.length + ' shipped modules all scanned') : 'no shippedInlined wired (browser lane) — scope check skipped');
+      if (!shipped.length) {
+        // The browser lane cannot list a directory, so the inlined-asset set is a NODE-lane fact —
+        // same split as docs-ledger/release-ledger. Skip honestly; do not assert a vacuous pass, and
+        // do not FAIL a lane that structurally cannot know the answer.
+        T.skip('A1 · the scan covers every .js the owned bundles INLINE', 'browser lane has no filesystem — the Node lane owns this check');
+      } else {
+        T.ok('A1 · the scan covers every .js the owned bundles INLINE (the gate cannot silently shrink)', unscanned.length === 0, unscanned.length ? 'NOT scanned: ' + unscanned.join(', ') : shipped.length + ' shipped modules all scanned');
+      }
       T.ok(
         'A1 · no non-UTC civil getter on a tMs (display must use getUTC*)',
         getterHits.length === 0,
