@@ -88,13 +88,33 @@ real number. Flag when `rawDurMs` exceeds the span implied by row count × caden
 > exists to fix. The tool must therefore be preceded by **extracting the builder to a shared module both
 > the gate and the tool import**. That is a structural change and is why §1.5 is still open.
 
-### 1.5 The Integrator has no regen tool — the one empty cell in the coverage matrix
+### 1.5 The Integrator has no regen tool — the one empty cell in the coverage matrix — **FIXED 2026-07-27**
 
 `§6.6`. `tools/regen-goldens.mjs`'s `NODES` map covers all 8 nodes but not the Integrator, whose fragment
 carries a code-gated fixture with a real `verifiedUnder` stamp and a live equiv leg. If a TCH-fusion change
 legitimately moves that output there is **no sanctioned way to re-record it** — and `CLAUDE.md` §🔏 forbids
 hand-editing. Copy the `regen-hrvdex-goldens.mjs` pattern. (Note its ledger claims regeneration is
 "byte-identical to `_diag/tch-golden-gen.html`" — **that file is not in the repo**.)
+
+**FIXED 2026-07-27 — and the blocker resolved the way §1.5's own note demanded.** The golden's inputs are
+extracted to **`tests/tch-golden-inputs.js`**, consumed by BOTH the equivalence gate and the new
+`tools/regen-integrator-goldens.mjs`. A private copy in the tool would have drifted from the gate — the
+sibling-divergence class the parent audit exists to fix — so there is exactly one builder.
+
+**Dual-mode on purpose:** `dex-tests.js` runs in both lanes, so an `.mjs` module would have served the
+tool and broken the browser gate. The file attaches to the global AND sets `module.exports`, exactly as
+`clock.js` does, and `Dex-Test-Suite.html` gains one `<script src>` — that page loads by reference, so
+**no bundle moved**.
+
+**The extraction is proved faithful by the gate itself.** The builder is deterministic (seeded
+`mulberry32`, no clock, no RNG), so a single byte of drift would red
+`Integrator TCH-HR consensus ≡ committed golden`. It still reads **byte-identical**, and the new tool
+independently reports **content unchanged** against the committed fixture.
+
+The ledger note claiming byte-identity with `_diag/tch-golden-gen.html` is corrected — that file has
+never existed in the repo, which is how the gap survived: the ledger *described* a regeneration path
+that did not exist. **Gate:** 4075 assertions green with `DEX_UPLOADS` · GATE A 9/9 · typecheck clean ·
+`regen-integrator-goldens.mjs --check` reproduces the golden.
 
 ---
 

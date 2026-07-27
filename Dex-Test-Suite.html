@@ -173,6 +173,9 @@
 <!-- shared node orchestration (live object for the generic emit gate) + the co-load manifest (§10/§5) -->
 <script src="signal-orchestrate.js"></script>
 <script src="dex-coload.js"></script>
+<!-- §F1.5 — the TCH golden's input builder, shared with tools/regen-integrator-goldens.mjs. MUST load
+     BEFORE dex-tests.js: the equivalence gate reads it as a global in this lane. -->
+<script src="tests/tch-golden-inputs.js"></script>
 <script src="tests/dex-tests.js"></script>
 
 <script>

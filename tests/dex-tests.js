@@ -15875,57 +15875,14 @@
         if (!wiredT) return;
         // DETERMINISTIC three-node co-recorded night (staggered starts) — byte-identical to the builder in
         // _diag/tch-golden-gen.html that produced the committed golden (seeded mulberry32; no external RNG).
-        function _tchGoldenInputs() {
-          function mb32(a) {
-            return function () {
-              a |= 0;
-              a = (a + 0x6d2b79f5) | 0;
-              var t = Math.imul(a ^ (a >>> 15), 1 | a);
-              t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-              return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-            };
-          }
-          function gauss(rng) {
-            var u = 0,
-              v = 0;
-            while (u === 0) u = rng();
-            while (v === 0) v = rng();
-            return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-          }
-          var baseT0 = Date.UTC(2026, 5, 15, 23, 0, 0); // ECG anchor 2026-06-15 23:00 (floating wall-clock)
-          var NE = 24; // 24 epochs = 120 min per node
-          function latentHR(a) {
-            return 58 + 4 * Math.sin(a / 5) - 0.05 * a;
-          } // shared latent HR on the ABSOLUTE 5-min grid
-          function latentMot(a) {
-            return 30 + 20 * Math.sin(a / 3 + 1);
-          } // shared motion driver (→ cross-node ρ)
-          var CFG = [
-            { node: 'ECGDex', offMin: 0, sHR: 1.0, rmssd: 42, sdnn: 60, seed: 11 },
-            { node: 'PpgDex', offMin: 5, sHR: 2.2, rmssd: 38, sdnn: 57, seed: 22 },
-            { node: 'OxyDex', offMin: 10, sHR: 4.5, rmssd: null, sdnn: null, seed: 33 }
-          ];
-          return CFG.map(function (c) {
-            var rng = mb32(c.seed),
-              rngM = mb32(c.seed + 7);
-            var t0 = baseT0 + c.offMin * 60000;
-            var eps = [];
-            for (var i = 0; i < NE; i++) {
-              var absA = c.offMin / 5 + i; // shared absolute-grid index (5-min units from baseT0)
-              var e = { tMin: i * 5, hr: +(latentHR(absA) + c.sHR * gauss(rng)).toFixed(1), motionIndex: +(latentMot(absA) + 18 * gauss(rngM)).toFixed(2) };
-              if (c.rmssd != null) e.rmssd = +(c.rmssd + 3 * gauss(rng)).toFixed(1);
-              eps.push(e);
-            }
-            var json = {
-              schema: { name: 'ganglior.node-export', node: c.node, version: '2.0' },
-              recording: { startEpochMs: t0, durationMin: NE * 5 },
-              quality: { analyzablePct: 95 },
-              timeseries: { epochs: eps },
-              ganglior_events: []
-            };
-            if (c.rmssd != null) json.hrv = { time: { rmssd: c.rmssd, sdnn: c.sdnn } };
-            return { node: c.node, json: json };
-          });
+        /* §F1.5 — the builder now lives in tests/tch-golden-inputs.js so the regen tool and this gate
+           share ONE source (a copy in the tool could drift from the gate — the sibling-divergence class
+           the parent audit exists to fix). Deterministic, so this extraction is proved faithful by the
+           very assertion below: a single byte of drift reds the golden diff. */
+        var _tchGoldenInputs = (env.tchGoldenInputs || (typeof TchGoldenInputs !== 'undefined' && TchGoldenInputs.tchGoldenInputs)) || null;
+        if (!_tchGoldenInputs) {
+          T.skip('tch-golden-inputs.js wired', 'the shared TCH input builder is not loaded in this lane');
+          return;
         }
         var gInputs = _tchGoldenInputs();
         var gRecs = gInputs.map(function (x) {
@@ -21577,6 +21534,32 @@
       });
       var cp2 = (RF([rec('OxyDex', desats), rec('ECGDex', far)], {}).apnea || {}).coupling;
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
+    });
+
+    /* DEEP-AUDIT-III-FOLLOWUPS §1.5 — the Integrator's regen path exists, and shares ONE input builder.
+       §6.6 found the Integrator was the only code-gated fixture in the ledger with no regen tool, so a
+       TCH-fusion change that legitimately moved its output had no sanctioned way to be re-recorded and
+       hand-editing is forbidden — the only legal move was blocked. Writing the tool meant getting the
+       inputs out of a test-group CLOSURE; a private copy in the tool would drift from the gate, which is
+       the sibling-divergence class the parent audit exists to fix. Hence one shared builder, and these
+       assertions pin that it stays one. */
+    group('The Integrator golden has a regen path, single-sourced — §F1.5', 'provenance · tooling · coverage-matrix', function (T) {
+      var srcs = env.sources || {};
+      T.ok('§F1.5 · the shared TCH input builder is wired into this lane', typeof env.tchGoldenInputs === 'function' || typeof TchGoldenInputs !== 'undefined', 'neither env.tchGoldenInputs nor the global is present');
+      var b = env.tchGoldenInputs || (typeof TchGoldenInputs !== 'undefined' ? TchGoldenInputs.tchGoldenInputs : null);
+      if (typeof b === 'function') {
+        var a1 = b(),
+          a2 = b();
+        T.ok('§F1.5 · it builds the three-node co-recorded night', a1.length === 3 && a1.map(function (x) { return x.node; }).join(',') === 'ECGDex,PpgDex,OxyDex', a1.map(function (x) { return x.node; }).join(','));
+        // DETERMINISM is what lets the equivalence gate prove the extraction was faithful, and what lets
+        // the tool and the gate agree without ever comparing notes.
+        T.eq('§F1.5 · …deterministically (identical inputs ⇒ identical bytes)', JSON.stringify(a1), JSON.stringify(a2));
+      }
+      // the tool exists and is registered — a regen path nobody can find is not a path
+      var toolSrc = srcs['tools/regen-integrator-goldens.mjs'];
+      var dispatch = srcs['tools/regen-goldens.mjs'];
+      if (dispatch) T.ok('§F1.5 · the Integrator is registered in the regen dispatcher', /Integrator:\s*'\.\/regen-integrator-goldens\.mjs'/.test(dispatch), 'NODES map still omits the Integrator');
+      if (toolSrc) T.ok('§F1.5 · the tool consumes the SHARED builder, not a private copy', /tests[\/'"]+tch-golden-inputs/.test(toolSrc) && !/function tchGoldenInputs\(/.test(toolSrc), 'the tool carries its own copy of the builder');
     });
 
     /* DEEP-AUDIT-III-FOLLOWUPS §F2 / §1.4 — two OxyDex guards that failed toward a fabricated number.
