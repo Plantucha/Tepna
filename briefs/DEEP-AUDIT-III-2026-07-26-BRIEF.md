@@ -545,7 +545,7 @@ fourth median remains. Mutation-checked: both scan assertions fail against pre-f
 assertions green with `DEX_UPLOADS` (0 skipped) · GATE A 9/9 (`PulseDex.html` `4d6485385a57` →
 `08c328eca4f9`) · typecheck clean · `verify-fixtures` all 14 current.
 
-### 5.2 LF/HF is ratio-of-medians in PulseDex, median-of-ratios in ECGDex and PpgDex — `pulsedex-dsp.js:1258`
+### 5.2 LF/HF is ratio-of-medians in PulseDex, median-of-ratios in ECGDex and PpgDex — `pulsedex-dsp.js:1258` — **FIXED 2026-07-27**
 
 ```
 file                      nWin  ratioOfMedians  medianOfRatios  Δ
@@ -559,6 +559,27 @@ The Integrator reads both into one `summary.lfhf` and publishes a cross-node `hr
 > **Verifier correction — the proposed fix would ship a NEW inconsistency.** The "PpgDex is the honest
 > sibling" framing is wrong: ECGDex does the same `hf || 1` fabrication per-epoch. Pick the convention
 > deliberately and apply it to all three, rather than porting one sibling's half-fix.
+
+**Fix AS LANDED (2026-07-27) — convention chosen: MEDIAN OF THE RATIOS.** The Task Force defines LF/HF
+within one stationary ~5-min spectrum, so a night is a summary of per-segment ratios; the quantity is
+right-skewed, which makes the median the appropriate summary; and 2 of 3 nodes already agreed, so this is
+a port. PulseDex (both the DSP and the app twin) now collects the per-window ratio and medians it.
+
+The verifier's correction was honoured: **the `hf || 1` fabrication is fixed in ECGDex too**, and ECGDex's
+night-level median now **drops** null epochs rather than counting them (an epoch with no HF power leaves
+the denominator — class 3a).
+
+**One fixture moved, and how it moved is instructive.** `PulseDex_2026-06-25_events` went
+`hrv.frequency.lfhf: 0 → 0.207`, re-recorded through `tools/regen-pulsedex-goldens.mjs` (never
+hand-edited). The old **zero** came from rounding the bands to integers *before* dividing — a small LF
+median collapsed the whole ratio — which is a second, independent argument for taking the ratio per
+window.
+
+**Deliberately NOT changed:** `ansBalance()` carries the same `lf / (hf || 1)`, but it feeds the
+logistic-squashed SNS/PSNS balance score, so what that KPI reads when HF is zero is a separate product
+decision. Filed for the follow-up; the new gate is scoped to the `lfhf` assignment so it cannot be
+misread as covering the score. **Gate:** 4014 assertions green with `DEX_UPLOADS` (0 skipped) · GATE A
+9/9 (`PulseDex` `f360379a2526` → `f1c741608c24`, `ECGDex` `f45f6969b050` → `2195e71841e4`).
 
 ---
 

@@ -697,12 +697,14 @@ function calculate() {
       const sh = [],
         sl = [],
         sv = [],
-        srr = [];
+        srr = [],
+        slh = [];
       for (const seg of win.segs) {
         const w = lombScargle(seg, 256);
         sh.push(w.hf);
         sl.push(w.lf);
         sv.push(w.vlf);
+        if (w.lfhf != null && isFinite(w.lfhf)) slh.push(w.lfhf); // §5.2 — per-segment RATIO
         if (w.respRate > 0) srr.push(w.respRate);
       }
       /* TOTAL POWER IS THE SUM OF THE BANDS IT RENDERS (DEEP-AUDIT-III §5.1). This took a FOURTH
@@ -716,7 +718,16 @@ function calculate() {
       const _wh = Math.round(medianOf(sh)),
         _wl = Math.round(medianOf(sl)),
         _wv = Math.round(medianOf(sv));
-      winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
+      /* §5.2 — LF/HF IS A PER-SEGMENT QUANTITY, so a night is the MEDIAN OF THE RATIOS, never the
+         ratio of the band medians. The Task Force defines LF/HF within one stationary ~5-min spectrum;
+         aggregating a night therefore means summarising per-segment ratios, and by Jensen a
+         ratio-of-medians differs from a median-of-ratios whenever the per-epoch distribution is skewed
+         — which it is on every overnight (measured 4.7 %–18.7 % apart across 13 real nights). It is
+         also right-skewed, so the median of the ratios is the appropriate summary.
+         ECGDex (`median(epochs.map(e => e.lfhf))`) and PpgDex (`median(lhA)`) already do this; PulseDex
+         was the 1-of-3 outlier, and the Integrator read all three into ONE `hrvConsensus.lfhf` spread —
+         publishing a purely DEFINITIONAL gap as sensor disagreement on identical beat truth. */
+      winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, lfhf: slh.length ? +medianOf(slh).toFixed(3) : null, respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
     }
   }
 
@@ -754,7 +765,7 @@ function calculate() {
   const sd1v = +sd1(rm).toFixed(2),
     sd2v = +sd2(sdnn, rm).toFixed(2);
   const lnrm = +lnR(cRm).toFixed(3);
-  const lfhfv = winSpec ? +(winSpec.lf / (winSpec.hf || 1)).toFixed(3) : ls.lfhf;
+  const lfhfv = winSpec ? winSpec.lfhf : ls.lfhf;
   const hfnu = +nu(sp.hf, sp.hf + sp.lf).toFixed(1),
     lfnu = +nu(sp.lf, sp.hf + sp.lf).toFixed(1);
   const ell = +(Math.PI * sd1v * sd2v).toFixed(1);
