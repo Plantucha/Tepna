@@ -382,6 +382,48 @@ def test_wpa_up_false_when_the_supplicant_will_not_start(monkeypatch):
     assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 5) is False
 
 
+def test_our_supplicant_never_shares_the_system_daemons_control_directory():
+    """/run/wpa_supplicant belongs to the packaged wpa_supplicant.service, which is ACTIVE on the vigil
+    box (systemd-networkd, no NetworkManager — the branch backend() selects). Sharing it made our
+    `wpa_supplicant -B` exit 255 the instant it tried to own a socket there: "Successfully initialized
+    wpa_supplicant", then gone. Observed on real hardware 2026-07-27; the harvest could never bring the
+    card up on a stock box and blamed the PROFILE for it."""
+    assert ch._WPA_DIR != "/run/wpa_supplicant"
+    assert f"ctrl_interface={ch._WPA_DIR}" in ch._WPA_CONF
+    assert "/run/wpa_supplicant" not in ch._WPA_CONF
+
+
+def test_every_wpa_cli_call_is_pinned_to_our_own_control_directory(monkeypatch):
+    """A bare `wpa_cli -i <iface>` resolves through /run/wpa_supplicant — the SYSTEM daemon's sockets.
+    The status poll therefore interrogated the wrong supplicant, and `_wpa_down`'s `terminate` would
+    have KILLED the box's own wpa_supplicant. Harmless on this box only because its uplink is wired;
+    on a Wi-Fi box the CPAP teardown would have taken the network down with it."""
+    calls = _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=COMPLETED\n")})
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    ch._wpa_up("wlp1s0", "ez Share", "88888888", "192.168.4.2/24", 10)
+    ch._wpa_down("wlp1s0")
+    cli = [c for c, _ in calls if c.startswith("wpa_cli")]
+    assert cli, "expected wpa_cli calls"
+    for c in cli:
+        assert f"-p {ch._WPA_DIR}" in c, f"unpinned wpa_cli would hit the system daemon: {c}"
+    # the destructive one specifically
+    assert any("terminate" in c and f"-p {ch._WPA_DIR}" in c for c in cli)
+
+
+def test_a_supplicant_that_will_not_start_tears_down_and_says_why(monkeypatch, caplog):
+    """The surfaced reason used to name the profile — the one thing that was never wrong. Same
+    mis-aimed-reason defect CAPTURE-HOST-DEEP-AUDIT §E5 fixed once, arriving by another route."""
+    import logging
+    _sh_spy(monkeypatch, {"wpa_supplicant": (255, "Successfully initialized wpa_supplicant")})
+    downs = []
+    monkeypatch.setattr(ch, "_wpa_down", lambda i: downs.append(i) or True)
+    with caplog.at_level(logging.WARNING):
+        assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 5) is False
+    assert downs == ["wlp1s0"], "a supplicant that half-started must still be torn down"
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "rc=255" in msg and "wlp1s0" in msg
+
+
 def test_wpa_down_flushes_before_killing_the_supplicant(monkeypatch):
     """Address first, so nothing can route over a half-torn link."""
     calls = _sh_spy(monkeypatch)
