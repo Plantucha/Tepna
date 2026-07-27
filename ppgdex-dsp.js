@@ -2682,6 +2682,16 @@
         }
       }
     }
+    // CHRONOLOGICAL ORDER IS PART OF THE EXPORT CONTRACT — sort before returning.
+    // The blocks above are each internally ordered but are appended per KIND, so the
+    // motion_artifact_segment run (which restarts at t0) landed AFTER the last hrv_drop.
+    // Clock Contract §6 has a `t`-only consumer rebuild absolute tMs by rolling the
+    // wall-clock string forward past midnight, MONOTONICALLY: one backwards step makes it
+    // roll a whole day, and every event after it inherits the +24 h. Measured on the real
+    // capture corpus that was 393 of 404 events on 2026-07-17. Our own exports carry tMs so
+    // the Integrator is unaffected, but §6 says the t-only path must stay tolerable.
+    // Stable sort, nulls last (a stampless export keeps its emission order).
+    ev.sort((a, b) => (a.tMs == null ? 1 : b.tMs == null ? -1 : a.tMs - b.tMs));
     return ev;
   }
 
@@ -2903,6 +2913,14 @@
     // REAL and fleet-consistent. 0-event exports (e.g. the equiv fixture) are byte-identical (empty array).
     var events = (r.events || []).map(function (e) {
       return { t: e.t, tMs: e.tMs, impulse: e.impulse, node: e.node, conf: e.conf, sqi: e.sqi !== undefined ? e.sqi : null, meta: e.meta };
+    });
+    // Chronological order is part of the export contract, enforced at the boundary where the
+    // contract applies — buildEvents already sorts, but an app-supplied r.events reaches here too.
+    // Clock Contract §6: a `t`-only consumer rebuilds tMs by rolling the wall-clock string forward
+    // MONOTONICALLY, so one backwards step costs a full day for that event and every one after it.
+    // Stable, nulls last (a stampless export keeps its emission order).
+    events.sort(function (a, b) {
+      return a.tMs == null ? 1 : b.tMs == null ? -1 : a.tMs - b.tMs;
     });
     var out = {
       // DEEP-AUDIT-2026-07-11 §16: NORMALIZE the stamp to the contract shape {version, hash}. Passing

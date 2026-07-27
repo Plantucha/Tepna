@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-46boG2Zei2KUTqqL3no38xx2xgHnFR/QxIJLutVxSyg=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QQ0KacKH/GQMvONOobfclwjWfwAHFkmG41i5GZK6pR0=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UM6igO6Zeqb2NF+J331HHcOwrLkoro1iPDePcD69YEk=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-jAIBSLGggaPq1y7DfUch6J9nYLf0Pk20xw/5AM1sJmU=' 'sha256-ny+9QsHxaHVyaSmFUnXWP8dZDJGp+l7uuEzI8mNPtH8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-46boG2Zei2KUTqqL3no38xx2xgHnFR/QxIJLutVxSyg=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QJmpjWDlpbIiDYkV79kKDuftqVSCp3mG9WWwC4ZEiTQ=' 'sha256-QQ0KacKH/GQMvONOobfclwjWfwAHFkmG41i5GZK6pR0=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UM6igO6Zeqb2NF+J331HHcOwrLkoro1iPDePcD69YEk=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-jAIBSLGggaPq1y7DfUch6J9nYLf0Pk20xw/5AM1sJmU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -16793,6 +16793,16 @@ __exports.GlucoDex = window.GlucoDex;
         }
       }
     }
+    // CHRONOLOGICAL ORDER IS PART OF THE EXPORT CONTRACT — sort before returning.
+    // The blocks above are each internally ordered but are appended per KIND, so the
+    // motion_artifact_segment run (which restarts at t0) landed AFTER the last hrv_drop.
+    // Clock Contract §6 has a `t`-only consumer rebuild absolute tMs by rolling the
+    // wall-clock string forward past midnight, MONOTONICALLY: one backwards step makes it
+    // roll a whole day, and every event after it inherits the +24 h. Measured on the real
+    // capture corpus that was 393 of 404 events on 2026-07-17. Our own exports carry tMs so
+    // the Integrator is unaffected, but §6 says the t-only path must stay tolerable.
+    // Stable sort, nulls last (a stampless export keeps its emission order).
+    ev.sort((a, b) => (a.tMs == null ? 1 : b.tMs == null ? -1 : a.tMs - b.tMs));
     return ev;
   }
 
@@ -17014,6 +17024,14 @@ __exports.GlucoDex = window.GlucoDex;
     // REAL and fleet-consistent. 0-event exports (e.g. the equiv fixture) are byte-identical (empty array).
     var events = (r.events || []).map(function (e) {
       return { t: e.t, tMs: e.tMs, impulse: e.impulse, node: e.node, conf: e.conf, sqi: e.sqi !== undefined ? e.sqi : null, meta: e.meta };
+    });
+    // Chronological order is part of the export contract, enforced at the boundary where the
+    // contract applies — buildEvents already sorts, but an app-supplied r.events reaches here too.
+    // Clock Contract §6: a `t`-only consumer rebuilds tMs by rolling the wall-clock string forward
+    // MONOTONICALLY, so one backwards step costs a full day for that event and every one after it.
+    // Stable, nulls last (a stampless export keeps its emission order).
+    events.sort(function (a, b) {
+      return a.tMs == null ? 1 : b.tMs == null ? -1 : a.tMs - b.tMs;
     });
     var out = {
       // DEEP-AUDIT-2026-07-11 §16: NORMALIZE the stamp to the contract shape {version, hash}. Passing
