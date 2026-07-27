@@ -144,6 +144,18 @@ const nocturnalMs = (A, a = BAND_A, b = BAND_B) => {
   return total;
 };
 
+/* THE GATE IS A TRIMMER, NOT A DOORMAN. Applying the majority-nocturnal test to a whole window can
+   only ADMIT or REJECT it — and a window is a cluster of blocks, so a cluster that is 61 % nocturnal
+   passes *carrying its daytime block inside it*. That is what happened on 2026-07-26: an awake
+   14:31→20:01 block sat only 1.7 h from the 21:40→05:10 sleep, under SLEEP_GAP_H, so the two never
+   split into separate clusters; the merged 11.8 h window scored 61 % and sailed through. The night
+   folded as 14.3 h with the armband's SDNN divergence at 83 % — the same night folded from its sleep
+   blocks alone is 7.0 h at 2 %. So apply the SAME majority test PER BLOCK and drop the ones that
+   fail: a cluster now contributes exactly its nocturnal blocks instead of all-or-nothing.
+   Still a fraction, never an absolute clip — a 19:00→02:00 sleep is 71 % nocturnal and survives
+   WHOLE; we do not cut it at 21:00, because sleep onset is not a band edge. */
+const nocturnalBlocks = (A, a = BAND_A, b = BAND_B) => A.filter(([s, e]) => e > s && nocturnalMs([[s, e]], a, b) / (e - s) > 0.5);
+
 /* ── --selftest ───────────────────────────────────────────────────────────────────────────────────
  * Known answers for the nocturnal gate, on hand-built windows — no corpus, no I/O, CI-safe. The gate
  * decides whether a window is a night, and it got that wrong on real data once (2026-07-26); every
@@ -180,6 +192,27 @@ if (flag('--selftest')) {
   ok('48 h window sees exactly 24 h of band', H(nocturnalMs([[at(0, 9), at(2, 9)]])), 24);
   // A non-wrapping band must work too (--night-band 1-5), or the wrap branch is load-bearing by luck.
   ok('non-wrapping band 1-5', H(nocturnalMs([[at(1, 0), at(1, 8)]], 1, 5)), 4);
+
+  // ── THE TRIMMER (the 2026-07-26 cluster, to scale) ────────────────────────────────────────────
+  // Awake 14:31→20:01 and sleep 21:40→05:10, 1.7 h apart — under SLEEP_GAP_H, so they arrive as ONE
+  // cluster of two blocks. Whole-window: 11.8 h at 61 % nocturnal → ADMITTED with the daytime inside.
+  // Per-block: the awake block is 0 % and goes, the sleep block is 100 % and stays.
+  const awake = [at(1, 14, 31), at(1, 20, 1)];
+  const sleep = [at(1, 21, 40), at(2, 5, 10)];
+  const cluster = [awake, sleep];
+  ok('the merged cluster WOULD have passed the whole-window test', frac(cluster) > 0.5 ? 1 : 0, 1);
+  ok('...and it is 13.0 h of which 5.5 h is awake', H(ivS(cluster)), 13);
+  ok('trimmer keeps exactly one block', nocturnalBlocks(cluster).length, 1);
+  ok('trimmer keeps THE SLEEP block', H(ivS(nocturnalBlocks(cluster))), H(sleep[1] - sleep[0]));
+  ok('trimmed cluster is 100 % nocturnal', frac(nocturnalBlocks(cluster)), 1);
+  // A sleep that straddles the band edge must survive WHOLE — the trimmer drops blocks, never clips
+  // them. 19:00→02:00 is 5 h of 7 h in band (71 %), so it is a night and stays intact.
+  const straddle = [at(0, 19), at(1, 2)];
+  ok('19:00 -> 02:00 sleep survives the trimmer whole', H(ivS(nocturnalBlocks([straddle]))), H(straddle[1] - straddle[0]));
+  // An all-daytime cluster trims to nothing — the night is then rejected, not silently emptied.
+  ok('all-daytime cluster trims to zero blocks', nocturnalBlocks([awake]).length, 0);
+  // Boundary: exactly half is NOT a majority, matching the whole-window reading of `> 0.5`.
+  ok('07:00 -> 11:00 (exactly half) is trimmed out', nocturnalBlocks([[at(1, 7), at(1, 11)]]).length, 0);
 
   console.log(fail ? `\n  ${fail} FAILED` : '\n  all green');
   process.exit(fail ? 1 : 0);
@@ -592,32 +625,48 @@ for (const n of plan) {
   // Rank by NOCTURNAL span first, total span only as the tie-break. "Longest" alone picks wrong the
   // day a 5 h awake stretch outlasts a 4 h sleep — and the whole point of clustering is to separate
   // day from night, so the ranking should be about time-of-day, not size.
-  const threeIv = clusters.sort((x, y) => (KEEP_DAYTIME ? ivSpan(y) - ivSpan(x) : nocturnalMs(y) - nocturnalMs(x) || ivSpan(y) - ivSpan(x)))[0] || [];
-  const ov = ivSpan(threeIv) / 3600e3;
-  if (ov < MIN_OVERLAP) {
-    console.log(`  ⊘ ${n.key} — three-way merged overlap ${ov.toFixed(1)} h < ${MIN_OVERLAP} h`);
-    continue;
-  }
-  // MOSTLY NOCTURNAL, or it is not this night's sleep. See the header for the 2026-07-26 afternoon
-  // that this rejects and why the test is a fraction rather than a floor.
-  const noctH = nocturnalMs(threeIv) / 3600e3;
-  const noctFrac = ov > 0 ? noctH / ov : 0;
-  if (!KEEP_DAYTIME && noctFrac <= 0.5) {
-    const bh = (h) => `${String(h).padStart(2, '0')}:00`;
-    const w = threeIv.length ? [threeIv[0][0], threeIv[threeIv.length - 1][1]] : null;
-    const at = (ms) => {
-      const d = new Date(ms);
-      return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
-    };
+  const chosen = clusters.sort((x, y) => (KEEP_DAYTIME ? ivSpan(y) - ivSpan(x) : nocturnalMs(y) - nocturnalMs(x) || ivSpan(y) - ivSpan(x)))[0] || [];
+  // MOSTLY NOCTURNAL, or it is not this night's sleep — applied PER BLOCK, so the gate TRIMS the
+  // daytime out of a mixed cluster instead of admitting or rejecting the whole thing. See
+  // `nocturnalBlocks` for the 2026-07-26 cluster that motivated it.
+  const threeIv = KEEP_DAYTIME ? chosen : nocturnalBlocks(chosen);
+  const bh = (h) => `${String(h).padStart(2, '0')}:00`;
+  const hhmm = (ms) => {
+    const d = new Date(ms);
+    return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+  };
+  if (!threeIv.length) {
+    // Nothing survived the trim: this date key holds daytime captures only. Report it as the whole
+    // window it was, so the message still names what got rejected.
+    const chosenH = ivSpan(chosen) / 3600e3;
+    const chosenNoct = nocturnalMs(chosen) / 3600e3;
+    const w = chosen.length ? [chosen[0][0], chosen[chosen.length - 1][1]] : null;
     console.log(
-      `  ⊘ ${n.key} — NOT NOCTURNAL: ${w ? `${at(w[0])}→${at(w[1])}, ` : ''}only ${noctH.toFixed(1)} h of ` +
-        `${ov.toFixed(1)} h (${(noctFrac * 100).toFixed(0)}%) inside ${bh(BAND_A)}–${bh(BAND_B)} — ` +
-        `a daytime capture is not a night (pass --keep-daytime to fold it anyway)`
+      `  ⊘ ${n.key} — NOT NOCTURNAL: ${w ? `${hhmm(w[0])}→${hhmm(w[1])}, ` : ''}only ${chosenNoct.toFixed(1)} h of ` +
+        `${chosenH.toFixed(1)} h (${chosenH > 0 ? ((chosenNoct / chosenH) * 100).toFixed(0) : 0}%) inside ${bh(BAND_A)}–${bh(BAND_B)} — ` +
+        `no block is majority-nocturnal (pass --keep-daytime to fold it anyway)`
     );
     continue;
   }
+  const ov = ivSpan(threeIv) / 3600e3;
+  const noctH = nocturnalMs(threeIv) / 3600e3;
+  const noctFrac = ov > 0 ? noctH / ov : 0;
+  // NO SILENT CAPS (CLAUDE.md): say what the trim dropped, block by block, before the overlap gate —
+  // a night that fails MIN_OVERLAP *because* of the trim must show why, not just report a small number.
+  const trimmed = chosen.filter((b) => !threeIv.includes(b));
+  if (trimmed.length) {
+    const shed = ivSpan(trimmed) / 3600e3;
+    console.log(
+      `    · ${n.key}: trimmed ${trimmed.length} non-nocturnal block(s), ${shed.toFixed(1)} h ` +
+        `(${trimmed.map((b) => `${hhmm(b[0])}→${hhmm(b[1])}`).join(', ')}) — daytime is not this night's sleep`
+    );
+  }
+  if (ov < MIN_OVERLAP) {
+    console.log(`  ⊘ ${n.key} — three-way merged overlap ${ov.toFixed(1)} h < ${MIN_OVERLAP} h${trimmed.length ? ' (after the nocturnal trim above)' : ''}`);
+    continue;
+  }
   if (clusters.length > 1) {
-    const shed = (ivSpan(threeIvAll) - ivSpan(threeIv)) / 3600e3;
+    const shed = (ivSpan(threeIvAll) - ivSpan(chosen)) / 3600e3;
     console.log(`    · ${n.key}: ${clusters.length} concurrent blocks >${SLEEP_GAP_H} h apart — keeping the longest, shedding ${shed.toFixed(1)} h (daytime)`);
   }
   // Every stream is now clipped to the sleep window: a session that does not touch it is not part of
