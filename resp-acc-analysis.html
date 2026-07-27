@@ -433,12 +433,29 @@
     if (nums.length < 3) return null;
     return { x: nums[nums.length - 3], y: nums[nums.length - 2], z: nums[nums.length - 1], ns: 1, phone: 0 };
   }
+  /* Full-scale bounds per stream kind — the widest range the hardware can express, so a real reading
+     is never rejected and a decode artifact never survives. ACC 16 g (the widest Polar/Verity ACC
+     range), GYRO 2000 dps, MAG 4900 µT (and 49 G before the Gauss→µT normalisation below).
+     UNKNOWN KIND ⇒ a deliberately generous absolute bound: this must fail toward accepting real data,
+     never toward silently dropping a stream we simply did not label. */
+  function xyzPlausible(x, y, z, headerKind) {
+    var kind = headerKind && headerKind.kind,
+      unit = (headerKind && headerKind.unit) || '';
+    var lim;
+    if (kind === 'acc')
+      lim = /^mg$/i.test(unit) ? 16000 : 16; // mg vs g
+    else if (kind === 'gyro') lim = 2000;
+    else if (kind === 'mag') lim = /^G$/.test(unit) ? 49 : 4900;
+    else lim = 1e7; // unlabelled stream: bound only the physically absurd
+    return Math.abs(x) <= lim && Math.abs(y) <= lim && Math.abs(z) <= lim;
+  }
   function parseSensorXYZ(text) {
     var lines = String(text || '').split(/\r?\n/);
     var out = [];
     var ns0 = null;
     var headerKind = null;
     var cols = null;
+    var nImplausible = 0;
     for (var li = 0; li < lines.length; li++) {
       var t = lines[li].trim();
       if (!t) continue;
@@ -453,6 +470,23 @@
       if (!c) continue;
       var x = parseFloat(p[c.x]);
       if (!isFinite(x)) continue; // skips a stray header row too
+      var y = parseFloat(p[c.y]),
+        z = parseFloat(p[c.z]);
+      /* PHYSICAL PLAUSIBILITY (DEEP-AUDIT-III §4.3). Only X was finite-checked and NOTHING was
+         range-checked, so a real capture-host Verity file carrying 136 corrupt samples up to
+         1.6e38 mg (~1.6e35 g) was ingested verbatim: `movementIndex` rendered 1.03e34 and
+         `Effort amplitude` 5.02e32, while `motionSQI`'s only guard — a clipFrac FRACTION test —
+         cannot fire on 0.13 % of rows, so Signal quality still read 0.96 with no flags. The
+         plausible-but-wrong sibling on the same card is worse than the absurd one: `Immobile time`
+         read 20 % for a night that is 96 % immobile, because one saturated sample dominates every
+         epoch's activity count.
+         DROP AND COUNT — the PpgDex precedent — never clamp: a clamped sample is a fabricated
+         reading at the bound, which is the class this suite fears most. The count is published so
+         a corrupt stream is visible rather than merely absent. */
+      if (!isFinite(y) || !isFinite(z) || !xyzPlausible(x, y, z, headerKind)) {
+        nImplausible++;
+        continue;
+      }
       var relNs = NaN;
       try {
         var b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());
@@ -460,8 +494,9 @@
         relNs = Number(b - ns0);
       } catch {}
       var ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
-      out.push({ relNs: relNs, tMs: ts ? ts.tMs : null, x: x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
+      out.push({ relNs: relNs, tMs: ts ? ts.tMs : null, x: x, y: y, z: z });
     }
+    out._implausibleDropped = nImplausible;
     out._kind = headerKind ? headerKind.kind : null;
     out._unit = headerKind ? headerKind.unit : null;
     // DEEP-AUDIT-II §7.9 — normalize a Gauss magnetometer stream to SI µT at the parse boundary (1 G = 100 µT,
@@ -500,9 +535,30 @@
     // (routed to mag + converted to µT at the parse boundary); a plain 'g' that does is already in g.
     return /^mg$/i.test(unit) ? v / 1000 : v;
   }
+  /* NATIVE sample rate = MEDIAN inter-sample interval, never count ÷ span (DEEP-AUDIT-III §4.1).
+     `(n-1)/(tLast-tFirst)` is the AVERAGE over the span, so it is depressed by exactly the coverage
+     fraction: a dropout inflates the span without adding samples. On a real packet-lossy Verity ACC
+     file it returned 18.68 Hz for a stream whose median delta is exactly 1/52 s — 64 % low. Every
+     consumer treats the result as the NATIVE rate and sizes a window with it (actigraphy's ~1 s
+     gravity baseline, respiratoryEffort's 10 s drift and 1.5 s cardiac moving averages, the 1.2 s
+     breath refractory), so an under-stated rate makes each window too SHORT in real time and moves
+     the surfaced Effort amplitude, Movement index and Immobile time.
+     `respResample` in this same file already measured it correctly; this is that, hoisted. */
   function sampleHz(rows, t0Ms) {
     if (rows.length < 3) return NaN;
     var baseMs = streamBaseMs(rows);
+    var d = [],
+      prev = null;
+    for (var i = 0; i < Math.min(rows.length, 4000); i++) {
+      var t = relSecOf(rows[i], t0Ms, baseMs);
+      if (t == null) continue;
+      if (prev != null && t > prev) d.push(t - prev);
+      prev = t;
+    }
+    var dm = median(d);
+    if (isFinite(dm) && dm > 0) return 1 / dm;
+    // LAST RESORT — no usable inter-sample deltas at all (unstamped rows). Span-based IS the defect
+    // above, so it is reached only where the honest measurement is impossible.
     var a = relSecOf(rows[0], t0Ms, baseMs),
       b = relSecOf(rows[rows.length - 1], t0Ms, baseMs);
     if (a == null || b == null || b <= a) return NaN;
@@ -679,6 +735,12 @@
      ⚠ POSTURE ROBUSTNESS IS UNTESTED. The validation corpus has gravity-roll IQR
      13.1-17.9 deg — one posture. Do not claim posture robustness anywhere.
      ════════════════════════════════════════════════════════════════════════ */
+  // §4.2 — a gap wider than this many NATIVE sample periods is a dropout, not jitter, so every grid
+  // point interpolated across it is marked uncovered; a window leaning on more than (1 − MIN) of them
+  // is not measured at all. A rate is a measurement of a recording, not of a straight line drawn
+  // through the place a recording should have been.
+  var RR_GAP_NATIVE_PERIODS = 4,
+    RR_MIN_WIN_COVERAGE = 0.8;
   var RR_FS = 5.0; // Hz — analysis rate after decimation
   var RR_BAND_LO = 0.13,
     RR_BAND_HI = 0.5; // respiratory band-pass (Hz)
@@ -847,6 +909,22 @@
     var dur = tSec[n - 1] - tSec[0];
     var nOut = Math.floor(dur * RR_FS) + 1;
     if (nOut < 64) return null;
+    /* COVERAGE MASK (DEEP-AUDIT-III §4.2). The interpolation below fills every grid point from the
+       two nearest real samples, so a multi-minute sensor-off hole becomes a smooth synthetic LINE
+       rather than a hole — and `respWindowSpectrum` normalises in-band power to sum 1, discarding
+       amplitude, the only cue that separates "no signal" from "signal". The result was a confident
+       breathing rate measured across epochs where the strap was not recording (73 of 80 sensor-off
+       windows returned a brpm at conf up to 0.882). Mark any grid point whose bracketing real
+       samples are further apart than a few native periods as NOT covered; `respiratoryRate` then
+       refuses to measure a window that leans on them. */
+    var covered = new Uint8Array(nOut);
+    var gapMaxSec = RR_GAP_NATIVE_PERIODS * dm;
+    var pc = 0;
+    for (var kc = 0; kc < nOut; kc++) {
+      var tc = tSec[0] + kc / RR_FS;
+      while (pc < n - 2 && tSec[pc + 1] < tc) pc++;
+      covered[kc] = tSec[pc + 1] - tSec[pc] <= gapMaxSec ? 1 : 0;
+    }
     var aa = butterSOS(6, 0.8 * (RR_FS / 2), fsNative, 'low');
     var axes = ['x', 'y', 'z'],
       out = [];
@@ -867,7 +945,7 @@
       }
       out.push(col);
     }
-    return { xyz: out, fsNative: fsNative, t0Sec: tSec[0] };
+    return { xyz: out, fsNative: fsNative, t0Sec: tSec[0], covered: covered };
   }
 
   function respBandpass(x) {
@@ -1055,24 +1133,49 @@
     var hann = new Float64Array(nWin);
     for (var i = 0; i < nWin; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (nWin - 1));
     var specs = [],
-      starts = [];
+      starts = [],
+      winCov = [];
+    var covMask = rs.covered;
     for (var s = 0; s + nWin <= N; s += hop) {
-      specs.push(respWindowSpectrum(chans, s, nWin, grid, hann));
+      var cov = 1;
+      if (covMask) {
+        var c1 = 0;
+        for (var q = 0; q < nWin; q++) c1 += covMask[s + q];
+        cov = c1 / nWin;
+      }
+      winCov.push(cov);
+      if (cov < RR_MIN_WIN_COVERAGE) {
+        /* NO EVIDENCE — a UNIFORM likelihood, not the spectrum of the interpolated line. `respViterbi`
+           is a GLOBAL ridge track, so a fabricated ridge does not merely mis-measure its own window,
+           it steers the track through CLEAN ones too. A flat likelihood contributes nothing and lets
+           the transition prior carry the state across the hole, which is what "we did not observe
+           this" should look like to a tracker. */
+        var flat = new Float64Array(grid.length),
+          fv = 1 / grid.length;
+        for (var q2 = 0; q2 < grid.length; q2++) flat[q2] = fv;
+        specs.push(flat);
+      } else specs.push(respWindowSpectrum(chans, s, nWin, grid, hann));
       starts.push(s);
     }
     if (!specs.length) return { hasData: false };
     var v = respViterbi(specs, grid, bias);
     var series = [],
-      kept = [];
+      kept = [],
+      nUncovered = 0;
     for (i = 0; i < v.rr.length; i++) {
       var tEp = null;
       if (t0Ms != null) tEp = t0Ms + Math.round((rs.t0Sec + starts[i] / RR_FS) * 1000);
       var brpm = null;
-      if (v.conf[i] >= confMin) {
+      // TRI-STATE: a rate, no-rate-but-recording, or NOT RECORDING. The third is `covered:false`,
+      // and it leaves the coverage DENOMINATOR below — a sensor that was off is not a sensor that
+      // failed to produce a rate.
+      var covOk = winCov[i] >= RR_MIN_WIN_COVERAGE;
+      if (!covOk) nUncovered++;
+      if (covOk && v.conf[i] >= confMin) {
         brpm = Math.round(v.rr[i] * 10) / 10;
         kept.push(brpm);
       }
-      series.push({ tMs: tEp, brpm: brpm, conf: Math.round(v.conf[i] * 1e3) / 1e3 });
+      series.push({ tMs: tEp, brpm: brpm, conf: covOk ? Math.round(v.conf[i] * 1e3) / 1e3 : 0, covered: covOk });
     }
     var med = null;
     if (kept.length) med = median(kept);
@@ -1081,7 +1184,11 @@
       epochSec: RR_HOP_SEC,
       series: series,
       medianBrpm: med == null ? null : Math.round(med * 10) / 10,
-      coverage: series.length ? kept.length / series.length : 0,
+      // Denominator = windows the sensor was actually RECORDING for. Counting sensor-off windows here
+      // would let a strap that came off improve the score it is supposed to lower (class 3a).
+      coverage: series.length - nUncovered > 0 ? kept.length / (series.length - nUncovered) : 0,
+      windowsUncovered: nUncovered,
+      windowsTotal: series.length,
       biasApplied: bias,
       method: 'acc-spectral-viterbi'
     };
