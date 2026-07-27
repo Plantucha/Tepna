@@ -48,13 +48,40 @@ def _valid_mac(a) -> bool:
     return isinstance(a, str) and bool(_MAC_RE.fullmatch(a))
 
 
-async def _body(req) -> dict:
-    """A malformed/empty JSON body is a 400-worthy client error, never a 500 traceback
-    (VIGIL-DEEP-ANALYSIS §2A). Returns {} on absent/undecodable body."""
-    try:
-        return await req.json() if req.body_exists else {}
-    except Exception:
+# A body that is not a JSON OBJECT. Distinct from `{}` on purpose (CAPTURE-HOST-DEEP-AUDIT §D1/§D3):
+# `{}` is a caller who sent an object and omitted the keys, which several endpoints treat as a
+# deliberate instruction; this is a caller whose request never arrived intact, which is never an
+# instruction to do anything.
+BAD_BODY = object()
+
+
+async def _body(req):
+    """The request's JSON object, `{}` when there is no body, or `BAD_BODY`.
+
+    `BAD_BODY` covers two things that used to be collapsed into `{}` or to raise 500:
+
+      * a body that does not decode as JSON (CAPTURE-HOST-DEEP-AUDIT §D1) — returning `{}` for it is
+        what let `POST /api/storage` answer 200 and PERSIST the deletion of the configured offload
+        target. The handler's own docstring promised the opposite ("a rejected target leaves the
+        previous one running rather than half-applying"): an unparseable body was never *rejected*, it
+        was applied as a clear;
+      * valid JSON that is not an object — `null`, `[]`, `"x"`, `3` (§D3). `_body` guarded only a
+        DECODE error, so these reached handlers as non-dicts and 500'd on `.get`.
+
+    An ABSENT body still maps to `{}`: several endpoints legitimately mean "use the defaults" by
+    posting nothing. A handler for which that is not true says so itself — see `storage_post`."""
+    if not req.body_exists:
         return {}
+    try:
+        d = await req.json()
+    except Exception:
+        return BAD_BODY
+    return d if isinstance(d, dict) else BAD_BODY
+
+
+def _bad_body_response():
+    return web.json_response(
+        {"ok": False, "error": "request body must be a JSON object"}, status=400)
 
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
@@ -161,7 +188,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "error": "cpap harvest is disabled in config"}, status=400)
         if _cpap_busy["running"]:
             return web.json_response({"ok": False, "error": "a pull is already running"}, status=409)
-        scope = (await _body(req)).get("scope") or "missing"
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        scope = body.get("scope") or "missing"
         if scope not in ("last", "week", "missing"):
             return web.json_response({"ok": False, "error": f"unknown scope {scope!r}"}, status=400)
         busy = cpap_harvest.blocking_devices(status.get("devices"))
@@ -206,12 +236,16 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     async def bond(req):
         body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         if not _valid_mac(body.get("address")):
             return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
         return web.json_response(await bonding.bond(body["address"], adapter_mac))
 
     async def forget(req):
         body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         if not _valid_mac(body.get("address")):
             return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
         res = await bonding.forget(body["address"], adapter_mac)
@@ -224,6 +258,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     async def remember(req):
         dev = await _body(req)
+        if dev is BAD_BODY:
+            return _bad_body_response()
         if not _valid_mac(dev.get("address")):
             return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
         # Refuse an unidentifiable device INSTEAD of persisting it. The browser's guessDevice() leaves
@@ -320,9 +356,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         # (one BLE link). Synchronous: returns when the pull completes (a night file is small, ~a minute).
         if not pull_stored:
             return web.json_response({"ok": False, "detail": "stored-session pull not available"}, status=400)
-        try:
-            body = await req.json() if req.body_exists else {}
-        except Exception:
+        # DELIBERATELY TOLERANT, unlike the other POSTs. This body carries only which/ftype DEFAULTS —
+        # there is no state to half-apply and nothing to destroy — and two tests pin the tolerance as
+        # the intended behaviour. Contrast `storage_post`, where the same leniency deleted the
+        # configured offload target (CAPTURE-HOST-DEEP-AUDIT §D1). Non-object bodies are folded to the
+        # defaults here rather than 500'ing on `.get`, which is §D3's half of the fix.
+        body = await _body(req)
+        if body is BAD_BODY:
             body = {}
         which = body.get("which", "latest")
         try:
@@ -391,7 +431,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         return web.json_response(await clockcfg.status())
 
     async def clock_set(req):
-        body = await req.json()
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         servers = body.get("servers") or []
         if isinstance(servers, str):
             servers = servers.replace(",", " ").split()
@@ -402,7 +444,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         return web.json_response(await clockcfg.sync_now(sudo=_clock_sudo))
 
     async def clock_tz(req):
-        body = await req.json()
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         r = await clockcfg.set_tz(body.get("timezone"), sudo=_clock_sudo)
         # A deliberate zone change must RE-ANCHOR the capture clock, not be absorbed by it
         # (CAPTURE-HOST-DEEP-AUDIT §A1). `_now()` sees a zone move as a DST relabelling — offset delta
@@ -497,7 +541,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         """Apply allowlisted settings and/or per-device stream selections. Validates EVERYTHING before
         touching config.yaml, and backs the file up first — a corrupt config on a headless box means no
         capture and no web surface to fix it from."""
-        body = await req.json()
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         changed, restart_needed = [], False
         try:
             for key, val in (body.get("settings") or {}).items():
@@ -584,8 +630,19 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     async def storage_post(req):
         """Persist the offload target + schedule. Validated BEFORE anything is written, so a rejected
-        target leaves the previous one running rather than half-applying."""
+        target leaves the previous one running rather than half-applying.
+
+        A body that did not arrive as a JSON object is a 400, NOT a clear (CAPTURE-HOST-DEEP-AUDIT
+        §D1). An empty POST is included: `{}` reaches this handler from a caller who deliberately sent
+        an object with no `target` — the designed disable path, which monitor.html and four tests use —
+        whereas no body at all is a client that failed to send its request. Treating the second as the
+        first is how an empty POST returned 200 and persisted `{"enabled": false}` with the target gone,
+        which at the next daemon start also un-gates retention's second-copy protection."""
+        if not req.body_exists:
+            return _bad_body_response()
         body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         try:
             tgt = storage_targets.validate(body["target"]) if body.get("target") else None
             sched = storage_targets.validate_schedule(body.get("schedule"))
@@ -615,6 +672,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         """Probe a target WITHOUT saving it, so the operator finds a wrong key or path here rather than
         at 03:00 when a night is waiting to leave."""
         body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         try:
             tgt = storage_targets.validate(body.get("target") or (cfg.get("archive") or {}).get("target"))
         except storage_targets.StorageError as e:
@@ -669,7 +728,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         """Set ONE device's internal clock from the host. Polar only — the O2Ring already re-syncs its
         RTC on every connect (oxyii 0xC0), so there is nothing manual to do there and we say so rather
         than shipping a button that silently no-ops."""
-        body = await req.json() if req.body_exists else {}
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         address = body.get("address", "")
         dev = next((d for d in cfg.get("devices", []) if d.get("address") == address), None)
         if not dev:
@@ -721,7 +782,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
 
     async def polar_pull(req):
-        body = await req.json()
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         address, session = body.get("address", ""), body.get("session", "")
         dev = _polar_dev(address)
         if not dev or not session.startswith("/"):
