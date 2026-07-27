@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-26 · **Method-parent:** `AUDIT-PROMPT.md` · **Sibling:** `CAPTURE-HOST-DEEP-AUDIT-2026-07-26-BRIEF.md` (same day, the producer half) · **Relates:** `DEEP-AUDIT-II-2026-07-18-BRIEF.md`, `DEEP-AUDIT-2026-07-22-BRIEF.md` (§1.1 amends its REFUTED row), `DEEP-AUDIT-2026-07-11-BRIEF.md` (§1.2 and §3.1 amend its punch-list #1 and §15), `DEEP-AUDIT-2026-07-14-BRIEF.md` (§5.1 completes its §3), `MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS-2026-07-22-BRIEF.md` (§4.2 executes its §2)
+**Status:** PROPOSED (24 of 28 executed 2026-07-27 — punch-list not closed) · **Created:** 2026-07-26 · **Followed-by:** `DEEP-AUDIT-III-FOLLOWUPS-2026-07-27-BRIEF.md` · **Method-parent:** `AUDIT-PROMPT.md` · **Sibling:** `CAPTURE-HOST-DEEP-AUDIT-2026-07-26-BRIEF.md` (same day, the producer half) · **Relates:** `DEEP-AUDIT-II-2026-07-18-BRIEF.md`, `DEEP-AUDIT-2026-07-22-BRIEF.md` (§1.1 amends its REFUTED row), `DEEP-AUDIT-2026-07-11-BRIEF.md` (§1.2 and §3.1 amend its punch-list #1 and §15), `DEEP-AUDIT-2026-07-14-BRIEF.md` (§5.1 completes its §3), `MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS-2026-07-22-BRIEF.md` (§4.2 executes its §2)
 
 # Deep audit III — the Integrator's arithmetic, opened for the first time
 
