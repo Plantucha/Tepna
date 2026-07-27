@@ -1124,7 +1124,44 @@
         measurements: dated.length,
         firstTMs: t0,
         lastTMs: last ? last._tMs : null,
-        spanDays: t0 != null && last ? Math.round((last._tMs - t0) / 864e5) + 1 : null
+        spanDays: t0 != null && last ? Math.round((last._tMs - t0) / 864e5) + 1 : null,
+        /* SPARSE COVERAGE (DEEP-AUDIT-III §6.2). HRVDex declared no key `adaptEnvelopeNode` reads
+           (`endEpochMs`/`durationMin`/`durationMs`/`durationSec`/`durSec`), so its window collapsed to a
+           POINT at t0Ms: a 29-day export overlapped nothing, rendered "Excluded (no temporal overlap)",
+           and dragged the fold's surfaced `intersectionMin` to 0 for every other node.
+           The obvious fix — stamp `durSec = lastTMs − firstTMs` — would FABRICATE COVERAGE: it declares
+           29 CONTINUOUS DAYS of recording for what is a handful of spot measurements. `spanSec` is the
+           ENVELOPE and `recordedSec` is the COVERAGE; they are different fields with different names so
+           nothing can read one as the other. A row whose own duration is unknown contributes `durSec:
+           null` — a point, which is honest. */
+        coverage: {
+          kind: 'sparse',
+          spanSec: t0 != null && last && last._tMs != null ? Math.round((last._tMs - t0) / 1000) : null,
+          segments: dated.map(function (r) {
+            var d = r._spanMin != null && isFinite(r._spanMin) ? Math.round(r._spanMin * 60) : null;
+            return { startMs: r._tMs, durSec: d };
+          }),
+          /* recordedSec is NULL, not 0, when no row states its own length. Summing to zero would
+             assert "nothing was recorded" from "no row said how long it recorded for" — the same
+             absent-vs-zero confusion this audit is about. `nWithDuration` says how much of the
+             coverage is actually known. */
+          recordedSec: (function () {
+            var known = dated.filter(function (r) {
+              return r._spanMin != null && isFinite(r._spanMin);
+            });
+            return known.length
+              ? Math.round(
+                  known.reduce(function (a, r) {
+                    return a + r._spanMin * 60;
+                  }, 0)
+                )
+              : null;
+          })(),
+          nWithDuration: dated.filter(function (r) {
+            return r._spanMin != null && isFinite(r._spanMin);
+          }).length,
+          n: dated.length
+        }
       },
       // SELF-INGEST enrich (D2 path b, 2026-07-04): the per-measurement table — the whole HRVDex clinical
       // value — now travels so a reloaded export renders the HRV dashboard. Transparent fields stay null when

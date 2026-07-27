@@ -611,7 +611,7 @@ have been a new small dishonesty introduced by the fix itself. Committed synthet
 OverDex re-bundled) · analysis + docs re-bundled · `verify-fixtures` re-stamped after a green corpus run.
 **Mutation-checked:** 4 of the group's 7 assertions fail against pre-fix code.
 
-### 6.2 Two nodes declare no duration key, so their records collapse to a point — `hrvdex-dsp.js:1098`, `glucodex-dsp.js:1946`
+### 6.2 Two nodes declare no duration key, so their records collapse to a point — `hrvdex-dsp.js:1098`, `glucodex-dsp.js:1946` — **HRVDex FIXED 2026-07-27**
 
 ```
 OxyDex + CPAPDex only      : intersectionMin = 420
@@ -625,6 +625,32 @@ healthiest CGM record — zero events because everything was in range — is the
 > **Verifier correction — the proposed fix would FABRICATE coverage.** Stamping
 > `durSec = (lastTMs − t0)/1000` on HRVDex would declare a **29-day** window as continuous recording, turning
 > an honest exclusion into a false 29-day overlap. The fix must express *sparse* coverage, not a span.
+
+**Fix AS LANDED (2026-07-27) — a new `recording.coverage` block.**
+
+```jsonc
+coverage: {
+  kind: "sparse",            // "continuous" | "sparse"
+  spanSec, segments: [ { startMs, durSec } ],
+  recordedSec, nWithDuration, n
+}
+```
+
+Three properties, each answering a way the naive fix went wrong: **`spanSec` and `recordedSec` are
+separate fields** so neither can be read as the other; **overlap is judged on SEGMENTS**
+(`segmentsOverlap`), so two records whose envelopes overlap entirely can still share no recorded minute;
+and a segment with `durSec: null` is a **POINT** — the measurement happened, its length is unknown, and a
+point cannot manufacture overlap.
+
+**Building it exposed one more absent-vs-zero bug in my own shape:** `recordedSec` first summed to **0**
+when no row stated its length, which asserts "nothing was recorded" from "no row said how long". It is
+now **null**, with `nWithDuration` saying how much of the coverage is actually known.
+
+Additive and back-compat — a continuous node emits no block and is judged exactly as before. **GlucoDex
+(§3.6) is NOT done here**; the shape generalises to it with `kind: 'continuous'`, and that node also needs
+its `timeseries` block, which is a separate change. **Gate:** 4044 assertions green with `DEX_UPLOADS`
+(0 skipped) · GATE A 9/9 (`HRVDex` `44b331c854ce` → `faf5e29bda1d`, `Integrator` `f006ed81fee7` →
+`32e5e3227bb7`) · **3 HRVDex fixtures regenerated** through `tools/regen-hrvdex-goldens.mjs`.
 
 ### 6.3 `parseDeviceHR` reads the last column — which is HRV in ms — `ecgdex-dsp.js:3274` — **FIXED 2026-07-27**
 

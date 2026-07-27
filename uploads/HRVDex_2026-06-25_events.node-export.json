@@ -20,7 +20,32 @@
     "measurements": 4,
     "firstTMs": 1780297200000,
     "lastTMs": 1780556400000,
-    "spanDays": 4
+    "spanDays": 4,
+    "coverage": {
+      "kind": "sparse",
+      "spanSec": 259200,
+      "segments": [
+        {
+          "startMs": 1780297200000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780383600000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780470000000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780556400000,
+          "durSec": null
+        }
+      ],
+      "recordedSec": null,
+      "nWithDuration": 0,
+      "n": 4
+    }
   },
   "measurements": [
     {

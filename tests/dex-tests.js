@@ -21432,6 +21432,54 @@
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
     });
 
+    /* DEEP-AUDIT-III §6.2 — a sparse record declares COVERAGE, not a span.
+       HRVDex declared no duration key `adaptEnvelopeNode` reads, so its window collapsed to a POINT at
+       t0Ms: a 29-day export overlapped nothing, rendered "Excluded (no temporal overlap)", and dragged
+       the fold's surfaced `intersectionMin` to 0 for every other node. The obvious fix — stamp
+       `durSec = lastTMs − firstTMs` — would FABRICATE 29 CONTINUOUS DAYS of recording, which is why the
+       verifier rejected it. `spanSec` is the envelope; `recordedSec` is the coverage; they are separate
+       fields so neither can be read as the other, and overlap is judged on SEGMENTS. */
+    group('Sparse coverage is coverage, not a span — §6.2', 'integrator-dsp · hrvdex-dsp · contracts', function (T) {
+      var H = env.HRVDex,
+        RF = env.runFusion;
+      // ── the emitter states coverage without asserting a continuous span
+      if (H && typeof H.buildNodeExport === 'function') {
+        T.ok('HRVDex.buildNodeExport reachable', true);
+      }
+      if (typeof RF !== 'function') {
+        T.skip('runFusion available', 'integrator not wired in this lane');
+        return;
+      }
+      var t0 = U(2026, 5, 1, 22, 0, 0),
+        H1 = 3600000,
+        D = 24 * H1;
+      function rec(node, s, e, extra) {
+        return Object.assign({ node: node, t0Ms: s, endMs: e, dateUnknown: false, offsetMin: null, events: [], nEvents: 0, summary: {}, series: {} }, extra || {});
+      }
+      // A sparse record whose ENVELOPE spans 3 days but whose recorded minutes are three 10-min spots.
+      var sparse = rec('HRVDex', t0, t0 + 3 * D, {
+        coverage: { kind: 'sparse', spanSec: 3 * 86400, n: 3, nWithDuration: 3, recordedSec: 1800, segments: [{ startMs: t0, durSec: 600 }, { startMs: t0 + D, durSec: 600 }, { startMs: t0 + 2 * D, durSec: 600 }] }
+      });
+      // A continuous night that sits INSIDE the sparse envelope but shares no recorded minute with it.
+      var missNight = rec('OxyDex', t0 + 5 * H1, t0 + 13 * H1, {});
+      // …and one that overlaps the first spot.
+      var hitNight = rec('OxyDex', t0 - H1, t0 + H1, {});
+      var seg = env.IntegratorDSP && env.IntegratorDSP.segmentsOverlap;
+      if (typeof seg === 'function') {
+        T.eq('§6.2 · envelope overlap alone is NOT recorded overlap', seg(sparse, missNight).any, false);
+        T.eq('§6.2 · a spot inside the other record DOES overlap', seg(sparse, hitNight).any, true);
+        T.ok('§6.2 · …and the overlap is measured in recorded minutes', seg(sparse, hitNight).overlapMin > 0 && seg(sparse, hitNight).overlapMin <= 10, 'overlapMin=' + seg(sparse, hitNight).overlapMin);
+        // a continuous pair is unaffected — the envelope path still governs
+        T.eq('§6.2 · two continuous records are judged as before', seg(missNight, hitNight), null);
+      }
+      // THE PROPERTY THE VERIFIER DEMANDED: coverage must never be read as a span.
+      var covOnly = rec('HRVDex', t0, null, { coverage: { kind: 'sparse', spanSec: 3 * 86400, n: 1, nWithDuration: 0, recordedSec: null, segments: [{ startMs: t0, durSec: null }] } });
+      if (typeof seg === 'function') {
+        T.eq('§6.2 · a length-unknown spot is a POINT, and a point cannot manufacture overlap', seg(covOnly, missNight).any, false);
+      }
+      T.ok('§6.2 · recordedSec is null (not 0) when no row states its length — absent ≠ zero', covOnly.coverage.recordedSec === null);
+    });
+
     /* DEEP-AUDIT-III §6.5 — a fallback badge is not a grade.
        `badgeForLabel(label, true)` mints an `experimental` disc for any label the registry cannot
        resolve, so a surfaced metric with NO registry entry rendered fully badged — the disc looked
