@@ -1541,6 +1541,58 @@
       }
     });
 
+    /* DEEP-AUDIT-III §6.1 — an ABSTENTION IS NOT AN AGREEMENT.
+       ECGDex's ACC motion vote is explicitly tri-state (the exported method string says
+       "Wake>20 / Ambiguous 5–20 / Sleep<5"): the middle state is the accelerometer DECLINING to
+       vote. It was scored `agreed++` — counted in the NUMERATOR while it also sat in the
+       denominator — which inflated the surfaced staging-consensus hero % and its
+       Strong/Moderate/Weak pill. Class 3a: an epoch carrying no observation must leave BOTH sides.
+       The synthetic below is built so the two rules DISAGREE: 4 agreements, 4 abstentions and
+       3 conflicts ⇒ old (4+4)/12 = 75 %, honest 4+1/8 = 63 %. */
+    group('ECGDex staging consensus — an abstention is not an agreement (§6.1)', 'ecgdex-dsp · consensus · fabricated-absence', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.accExtras === 'function')) {
+        T.skip('ECGDSP.accExtras available', 'ecgdex-dsp not wired in this lane');
+        return;
+      }
+      var FS = 4,
+        MIN = 60,
+        N = FS * 60 * MIN;
+      var acc = [];
+      for (var i = 0; i < N; i++) {
+        var tMin = i / (FS * 60);
+        var amp = 0.002; // still
+        if (tMin >= 20 && tMin < 40) amp = 0.036; // lands inside the 5–20 "Ambiguous" band
+        if (tMin >= 55) amp = 0.5; // clear motion — sets the p95 the index normalises against
+        var j = Math.sin(i * 0.7) * amp;
+        acc.push({ x: 1 + j, y: j * 0.5, z: j * 0.25 });
+      }
+      var epochs = [],
+        stages = [];
+      for (var m = 0; m < MIN; m += 5) {
+        epochs.push({ tMin: m });
+        // 0–15 still+N2 → agree · 20–35 ambiguous → ABSTAIN · 40–50 still+Wake → conflict · 55 motion+Wake → agree
+        stages.push({ tMin: m, stage: m >= 40 ? 'Wake' : 'N2' });
+      }
+      var r = D.accExtras(acc, FS, Date.UTC(2026, 5, 10, 22, 0, 0), MIN * 60, epochs, stages);
+      var c = r && r.consensus;
+      T.ok('the synthetic produces a consensus block', !!c, c ? JSON.stringify({ rate: c.rate, n: c.n }) : 'null');
+      if (!c) return;
+      var st = c.voteRows.reduce(function (a, v) {
+        a[v.status] = (a[v.status] || 0) + 1;
+        return a;
+      }, {});
+      T.ok('the synthetic really contains abstentions AND conflicts', st.ambiguous > 0 && st.conflict > 0, JSON.stringify(st));
+      T.eq('abstentions are counted as abstentions', c.nAbstained, st.ambiguous);
+      T.eq('…and leave the DENOMINATOR', c.nVoted, c.n - c.nAbstained);
+      // THE INVARIANT — the rate is agreements ÷ epochs where the ACC actually voted. Pre-fix this
+      // read 75 (the 4 abstentions counted as agreement over all 12 epochs).
+      var agreed = (st['confirm-sleep'] || 0) + (st['confirm-wake'] || 0);
+      T.eq('rate = agreements ÷ VOTED epochs, not ÷ all epochs', c.rate, Math.round((agreed / c.nVoted) * 100));
+      T.ok('…which is strictly lower than the pre-fix rule here', c.rate < Math.round(((agreed + c.nAbstained) / c.n) * 100), 'honest=' + c.rate + '% vs pre-fix=' + Math.round(((agreed + c.nAbstained) / c.n) * 100) + '%');
+      T.ok('`n` still reports every epoch examined, so the two can never be confused', c.n === st['confirm-sleep'] + st['confirm-wake'] + st.ambiguous + st.conflict, 'n=' + c.n);
+    });
+
     /* ════ 5g · INTEGRATOR staging consensus — REM-disagreement threshold (#2 pin) ════
      fuseStagingConsensus (integrator-dsp.js:~2015) surfaces disagreement:true when two single-signal
      stagers' REM fractions differ by more than remGapThresh (default 0.2). Reached through the public

@@ -3056,7 +3056,8 @@
         top = qOf(0.95),
         span = Math.max(top - floor, 1e-6); // typical-sleep median → 0, p95 → 100
       let agreed = 0,
-        total = 0;
+        total = 0,
+        abstained = 0;
       const conflicts = [],
         voteRows = [];
       for (const m of rawMot) {
@@ -3069,7 +3070,13 @@
         total++;
         let status;
         if (vote === 'Ambiguous') {
-          agreed++;
+          /* AN ABSTENTION IS NOT AN AGREEMENT (DEEP-AUDIT-III §6.1). The ACC vote is explicitly
+             tri-state — the exported method string says "Wake>20 / Ambiguous 5–20 / Sleep<5" — and
+             the middle state is the accelerometer DECLINING TO VOTE. Counting it as `agreed++` put
+             it in the numerator while it also sat in the denominator, inflating the surfaced staging
+             consensus % and its Strong/Moderate/Weak pill. It now leaves BOTH, which is what class
+             3a requires of an epoch that carries no observation. */
+          abstained++;
           status = 'ambiguous';
         } else if (hrvWake && vote === 'Wake (motion)') {
           agreed++;
@@ -3083,7 +3090,11 @@
         }
         voteRows.push({ tMin: m.tMin, idx: Math.round(idx), vote, hrv, status });
       }
-      if (total >= 3) consensus = { rate: Math.round((agreed / total) * 100), n: total, nConflict: conflicts.length, conflicts: conflicts.slice(0, 40), voteRows };
+      // Denominator = epochs where the ACC actually VOTED. `n` stays the epochs examined so the two
+      // can never be confused, and `nAbstained` is published so a mostly-ambiguous night is visible
+      // as thin evidence rather than as a confident score.
+      const nVoted = total - abstained;
+      if (nVoted >= 3) consensus = { rate: Math.round((agreed / nVoted) * 100), n: total, nVoted, nAbstained: abstained, nConflict: conflicts.length, conflicts: conflicts.slice(0, 40), voteRows };
     }
 
     // ── Feature 4: step count & gait ──

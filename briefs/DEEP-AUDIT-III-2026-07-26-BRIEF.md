@@ -499,7 +499,7 @@ The Integrator reads both into one `summary.lfhf` and publishes a cross-node `hr
 
 ## 6 · Evidence honesty, contracts, ingest and gates
 
-### 6.1 ECGDex counts an **abstaining** ACC vote as agreement — `ecgdex-dsp.js:3072`
+### 6.1 ECGDex counts an **abstaining** ACC vote as agreement — `ecgdex-dsp.js:3072` — **FIXED 2026-07-27**
 
 `if (vote === 'Ambiguous') { agreed++; }` — the vote is explicitly tri-state (*"Wake>20 / Ambiguous 5–20 /
 Sleep<5"*) and the third state is folded into the **numerator** instead of leaving both numerator and
@@ -515,6 +515,15 @@ honest rate, abstentions out of BOTH = 7 %
 > **Verifier correction.** Magnitude was overstated: 16.9 % is the *abstention share*, not the inflation. The
 > measured surfaced-vs-honest gap on four real H10 nights is **2, 3, 4 and 6 points** — but the pill-boundary
 > crossing was independently verified.
+
+**Fix AS LANDED (2026-07-27).** An abstention leaves BOTH sides: `rate = agreed / (n − nAbstained)`,
+with `nVoted` and `nAbstained` published in the block and in `sleepStageConsensus`. The card's sub-line
+changed with it — it read "N stage epochs" beside a rate whose denominator is no longer N, which would
+have been a new small dishonesty introduced by the fix itself. Committed synthetic (4 agreements,
+4 abstentions, 3 conflicts): **pre-fix 75 % vs honest 63 %**. **Gate:** 3943 assertions green with
+`DEX_UPLOADS` (0 skipped) · GATE A 9/9 (`ECGDex.html` `b89f59803103` → `9f98493f904c`; Data Unifier +
+OverDex re-bundled) · analysis + docs re-bundled · `verify-fixtures` re-stamped after a green corpus run.
+**Mutation-checked:** 4 of the group's 7 assertions fail against pre-fix code.
 
 ### 6.2 Two nodes declare no duration key, so their records collapse to a point — `hrvdex-dsp.js:1098`, `glucodex-dsp.js:1946`
 
