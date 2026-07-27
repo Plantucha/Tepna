@@ -21398,6 +21398,64 @@
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
     });
 
+    /* DEEP-AUDIT-III §3.3/§3.4/§3.5 — the Integrator published agreement it did not measure.
+       §3.3 every confirmed_apnea_event hardcoded 'OxyDex' as the desat observer — correct while the
+            pool was node-keyed, wrong ever since DEEP-AUDIT-2026-07-11 §15 made it IMPULSE-keyed, so
+            findings credited OxyDex on a bus that had none.
+       §3.4 fuseRespirationRate collected every rec with a respRateBrpm from the WHOLE bus, so two
+            ECGDex exports from two different NIGHTS were published as "2 independent estimates
+            (ECGDex + ECGDex) … agreement within the ±2 br/min chest-ACC validation band".
+       §3.5 fusePulseCrossCheck took the first candidate of each kind, comparing recordings nights
+            apart while its own comment claimed "one session".
+       The guard is deliberately NOT "reject anything that does not provably overlap": §6.2 shows
+       HRVDex and GlucoDex declare no duration key at all, so their window is UNKNOWN, not disjoint —
+       rejecting them would trade a wrong number for a missing one. Proven-disjoint is rejected;
+       unknown is fused and flagged `overlapVerified:false`. */
+    group('Integrator publishes only agreement it measured — §3.3/§3.4/§3.5', 'integrator-dsp · fabricated-redundancy', function (T) {
+      var RF = env.runFusion;
+      T.ok('runFusion available', typeof RF === 'function');
+      if (typeof RF !== 'function') return;
+      var t0 = U(2026, 6, 1, 22, 0, 0),
+        H = 3600000;
+      function rec(node, evs, s, e, summary) {
+        return { node: node, t0Ms: s, endMs: e, dateUnknown: false, offsetMin: null, events: evs || [], nEvents: (evs || []).length, summary: summary || {}, series: {} };
+      }
+      // ── §3.3 · desats from CPAPDex, surges from ECGDex, NO OxyDex anywhere on the bus.
+      var ds = [],
+        sg = [];
+      for (var i = 0; i < 30; i++) {
+        var dt = i * 470000;
+        ds.push({ tMs: t0 + dt, t: 'x', impulse: 'desat_event', node: 'CPAPDex', conf: 0.9, meta: { depth: 5, durSec: 20 } });
+        sg.push({ tMs: t0 + dt + 3000, t: 'x', impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.9 });
+      }
+      var ap = RF([rec('CPAPDex', ds, t0, t0 + 8 * H), rec('ECGDex', sg, t0, t0 + 8 * H)], {}).apnea || {};
+      var f0 = (ap.findings || [])[0];
+      T.ok('the bus with no OxyDex still produces findings', !!f0, 'findings=' + (ap.findings || []).length);
+      if (f0) {
+        T.ok('§3.3 · the desat is credited to the node that OBSERVED it', f0.nodes.indexOf('OxyDex') < 0 && f0.nodes.indexOf('CPAPDex') >= 0, JSON.stringify(f0.nodes));
+        T.eq('…and sources[0] names it too', f0.sources[0].node, 'CPAPDex');
+        T.eq('…and meta records both observers', f0.meta.desatNode, 'CPAPDex');
+      }
+      // ── §3.4 · one node, two DIFFERENT nights ⇒ not two independent estimates.
+      var n1 = rec('ECGDex', [], t0, t0 + 8 * H, { respRateBrpm: 14.4, respRateMethod: 'RSA (ECG)' });
+      var n2 = rec('ECGDex', [], t0 + 24 * H, t0 + 32 * H, { respRateBrpm: 15.2, respRateMethod: 'RSA (ECG)' });
+      var rr2 = RF([n1, n2], {}).respiration;
+      T.ok('§3.4 · the same node on two nights is NOT a consensus', rr2 == null, JSON.stringify(rr2 && { n: rr2.n, note: rr2.note }));
+      // a genuinely different node, overlapping ⇒ a real consensus of 2
+      var mo = rec('MotionDex', [], t0, t0 + 8 * H, { respRateBrpm: 15.0, respRateMethod: 'chest ACC' });
+      var rrOk = RF([n1, mo], {}).respiration;
+      T.ok('…while two DIFFERENT overlapping nodes still fuse', !!rrOk && rrOk.n === 2, JSON.stringify(rrOk && { n: rrOk.n, verified: rrOk.overlapVerified }));
+      T.ok('…and the simultaneity is reported as VERIFIED when both windows are known', !!rrOk && rrOk.overlapVerified === true);
+      // ── §3.5 · a finger waveform and a ring summary nights apart must not be cross-checked.
+      var wave = rec('PpgDex', [], t0, t0 + 8 * H, { site: 'finger', pulseHr: 58 });
+      var ringFar = rec('OxyDex', [], t0 + 72 * H, t0 + 80 * H, { pulseHr1Hz: 60.5 });
+      var ringNear = rec('OxyDex', [], t0, t0 + 8 * H, { pulseHr1Hz: 60.5 });
+      T.ok('§3.5 · records nights apart are not cross-checked', RF([wave, ringFar], {}).pulseCrossCheck == null);
+      var pcOk = RF([wave, ringNear], {}).pulseCrossCheck;
+      T.ok('…while an overlapping pair still is', !!pcOk && pcOk.biasBpm === 2.5, JSON.stringify(pcOk && { bias: pcOk.biasBpm, verified: pcOk.overlapVerified }));
+      T.ok('…and reports its overlap as verified', !!pcOk && pcOk.overlapVerified === true);
+    });
+
     /* DEEP-AUDIT-III §3.2 — `apneaCoupling.real` must be a TEST, not a coin flip.
        It was `usable && lift > 1 && observedPct > chancePct`. `chancePct` IS the mean of the
        surrogate distribution, so under the null "observed > chance" is a fair coin by construction:

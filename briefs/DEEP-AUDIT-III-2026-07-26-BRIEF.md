@@ -320,7 +320,7 @@ The right-hand column is the point: a verdict that is merely *stricter* is a mut
 `real` is a permutation test, not a coin flip — §3.2"* (11 assertions), **mutation-checked**: 4 fail
 against pre-fix code, the load-bearing one reporting the 47.5 % false-positive rate.
 
-### 3.3 Every confirmed apnea attributes its desat to OxyDex — even with OxyDex absent — `integrator-dsp.js:1459`
+### 3.3 Every confirmed apnea attributes its desat to OxyDex — even with OxyDex absent — `integrator-dsp.js:1459` — **FIXED 2026-07-27**
 
 ```
 nodes on the bus  : CPAPDex, ECGDex
@@ -335,7 +335,7 @@ was done correctly** (`s.node || 'ECGDex'` + `meta.surgeNode`) — the sibling i
 > **Verifier correction.** One sub-claim is refuted and must be struck: the speculation about a PpgDex record
 > supplying *both* sides sends the fixer after a guard that guards nothing.
 
-### 3.4 Respiration "consensus" fuses one node with itself across nights — `integrator-dsp.js:2474`
+### 3.4 Respiration "consensus" fuses one node with itself across nights — `integrator-dsp.js:2474` — **FIXED 2026-07-27**
 
 ```
 sources: [ {node: ECGDex, method: "RSA (ECG)", brpm: 14.4},      ← 2026-07-01
@@ -348,7 +348,7 @@ No temporal-overlap grouping, no collapse to one observer per node, and `runFusi
 loaded bus**. This is `AUDIT-PROMPT` **class 11** in its purest form — and the sibling `fusePeriodicBreathing`
 already implements both missing guards.
 
-### 3.5 `fusePulseCrossCheck` compares recordings nights apart — `integrator-dsp.js:2282`
+### 3.5 `fusePulseCrossCheck` compares recordings nights apart — `integrator-dsp.js:2282` — **FIXED 2026-07-27**
 
 A finger PpgDex export and an O2Ring OxyDex export **three nights apart** yield `biasBpm: 2.5`, `agree: true`
 and a human-readable note about vendor smoothing that measures nothing. The doc comment at `:2280` states the
@@ -376,6 +376,21 @@ cross-signal coupling, while the note claims one overlapping night over four.
 and make the note reflect the actual `n`.
 
 ---
+
+**§3.3/§3.4/§3.5 FIXED 2026-07-27 — one file, one edit.** The desat side now carries `d.node` exactly as
+the surge side already carried `s.node` (plus `meta.desatNode`); `fuseRespirationRate` fuses only within a
+temporally overlapping group and collapses to **one observer per node** before its `<2` check; and
+`fusePulseCrossCheck` selects an **overlapping pair** instead of the first of each kind.
+
+**The guard deliberately rejects only PROVEN-disjoint records, and that is a decision worth recording.**
+§6.2 of this same brief shows HRVDex and GlucoDex declare **no duration key at all**, so `recWindow`
+returns null for them — their window is *unknown*, not disjoint. A strict "must provably overlap" rule
+would have silently dropped whole nodes out of fusion, trading a wrong number for a **missing** one, which
+is the mirror-image defect. So `_mayOverlap` fuses when the windows overlap **or when either is unknown**,
+and both blocks now publish **`overlapVerified`** so a "one session" claim can be read for exactly what it
+is. **Gate:** 3954 assertions green with `DEX_UPLOADS` (0 skipped) · GATE A 9/9 (`Integrator.html`
+`6e6a28ffcee7` → `732cc553e00f`, `OverDex.html` re-bundled) · **mutation-checked: 7 of the group's 11
+assertions fail against pre-fix code**, one of them printing the fabricated claim verbatim.
 
 ## 4 · MotionDex — a sample rate derived from wall-clock, and a rate measured across a gap
 

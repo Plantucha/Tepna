@@ -1161,6 +1161,21 @@ function overlapInterval(a, b) {
   return { startMs: Math.max(wa.startMs, wb.startMs), endMs: Math.min(wa.endMs, wb.endMs), overlapMin: +((e - s) / 60000).toFixed(1), basis: basis };
 }
 
+/* "Could these two have been recorded together?" — for the fusion rules that publish a ONE-SESSION
+   claim (§3.4, §3.5). A proven-disjoint pair must never be fused. But a record whose WINDOW IS
+   UNKNOWN is not a disjoint record: §6.2 of the same audit shows HRVDex and GlucoDex declare no
+   duration key at all, so `recWindow` returns null for them. Rejecting those would trade a wrong
+   number for a MISSING one and silently drop whole nodes out of fusion — the mirror-image defect.
+   So: fuse when the windows overlap, or when at least one window is unknown; and publish whether
+   the overlap was actually VERIFIED so the "one session" claim can be read for what it is. */
+function _mayOverlap(a, b) {
+  if (!recWindow(a) || !recWindow(b)) return true; // unknown ⇒ cannot disprove
+  return !!overlapInterval(a, b);
+}
+function _overlapVerified(a, b) {
+  return !!(recWindow(a) && recWindow(b) && overlapInterval(a, b));
+}
+
 /* ════════════════════════════════════════════════════════════════════════
    §5 FUSION RULES — each independently skippable; evidence-based.
    ════════════════════════════════════════════════════════════════════════ */
@@ -1537,12 +1552,18 @@ function fuseApneaEvents(recs, dtMs, gate) {
         durSec: (d.meta && d.meta.durSec) || null,
         type: 'confirmed_apnea_event',
         conf: combineConf([effConf(d), effConf(s)]),
-        nodes: ['OxyDex', s.node || 'ECGDex'],
+        /* §3.3 — CARRY THE OBSERVING NODE. This hardcoded 'OxyDex' on the desat side, which was
+           correct while the pool was `_byNode(recs,'OxyDex')`; DEEP-AUDIT-2026-07-11 §15 made the
+           pool IMPULSE-keyed so any observer's desat_event can fuse, and the attribution was never
+           updated with it. Result: every confirmed_apnea_event credited OxyDex even when OxyDex was
+           not on the bus at all. The surge side was already done right (`s.node || 'ECGDex'`) — this
+           is that, mirrored. */
+        nodes: [d.node || 'OxyDex', s.node || 'ECGDex'],
         sources: [
-          { node: 'OxyDex', impulse: d.impulse, tMs: d.tMs, conf: d.conf, sqi: d.sqi != null ? d.sqi : null, effConf: +(effConf(d) || 0).toFixed(3) },
+          { node: d.node || 'OxyDex', impulse: d.impulse, tMs: d.tMs, conf: d.conf, sqi: d.sqi != null ? d.sqi : null, effConf: +(effConf(d) || 0).toFixed(3) },
           { node: s.node || 'ECGDex', impulse: s.impulse, tMs: s.tMs, conf: s.conf, sqi: s.sqi != null ? s.sqi : null, effConf: +(effConf(s) || 0).toFixed(3) }
         ],
-        meta: { desatDepth: d.meta && d.meta.depth, nadir: d.meta && d.meta.nadir, latencySec: +((s.tMs - d.tMs) / 1000).toFixed(0), surgeNode: s.node || 'ECGDex' },
+        meta: { desatDepth: d.meta && d.meta.depth, nadir: d.meta && d.meta.nadir, latencySec: +((s.tMs - d.tMs) / 1000).toFixed(0), desatNode: d.node || 'OxyDex', surgeNode: s.node || 'ECGDex' },
         note: 'O₂ desaturation confirmed by a directionally-consistent autonomic surge (' + '−' + leadMaxSec + 's…+' + trailMaxSec + 's). Neither node alone can assert this.'
       });
     } else unmatchedDesat.push(d);
@@ -2375,18 +2396,35 @@ var HRV_CONCORDANCE_FACTOR = 3.0;
 // no existing metric. The DISAGREEMENT is reported, never averaged away (integrator-dsp.js precedent:
 // fuseRespirationRate / "report the SPREAD"). Returns null unless BOTH a `site:'finger'` PpgDex export
 // and an O2Ring OxyDex export are on the bus (the ring's own waveform + its own summary, one session).
+/* §3.5 — the doc comment states a contract the code did not enforce: "the ring's own waveform + its
+   own summary, ONE SESSION". It took the FIRST candidate of each kind from the whole bus, so a finger
+   PpgDex export and an O2Ring OxyDex export from nights apart were compared as if simultaneous,
+   yielding a signed biasBpm and an `agree: true` verdict about vendor smoothing that measures nothing.
+   Now the pair must TEMPORALLY OVERLAP; when several candidates exist, the overlapping pair is chosen
+   rather than the first of each. No overlapping pair ⇒ null, which is the honest answer. */
 function fusePulseCrossCheck(recs) {
-  var wave = /** @type {any} */ (null),
-    dev = /** @type {any} */ (null);
+  var waves = [],
+    devs = [];
   recs.forEach(function (r) {
     if (!r || r.dateUnknown || !r.summary) return;
-    if (r.node === 'PpgDex' && r.summary.site === 'finger' && r.summary.pulseHr != null && isFinite(r.summary.pulseHr) && r.summary.pulseHr > 0 && !wave) {
-      wave = { node: r.node, hr: +Number(r.summary.pulseHr).toFixed(1) };
+    if (r.node === 'PpgDex' && r.summary.site === 'finger' && r.summary.pulseHr != null && isFinite(r.summary.pulseHr) && r.summary.pulseHr > 0) {
+      waves.push({ rec: r, node: r.node, hr: +Number(r.summary.pulseHr).toFixed(1) });
     }
-    if (r.node === 'OxyDex' && r.summary.pulseHr1Hz != null && isFinite(r.summary.pulseHr1Hz) && r.summary.pulseHr1Hz > 0 && !dev) {
-      dev = { node: r.node, hr: +Number(r.summary.pulseHr1Hz).toFixed(1) };
+    if (r.node === 'OxyDex' && r.summary.pulseHr1Hz != null && isFinite(r.summary.pulseHr1Hz) && r.summary.pulseHr1Hz > 0) {
+      devs.push({ rec: r, node: r.node, hr: +Number(r.summary.pulseHr1Hz).toFixed(1) });
     }
   });
+  var wave = null,
+    dev = null;
+  for (var wi = 0; wi < waves.length && !wave; wi++) {
+    for (var di = 0; di < devs.length; di++) {
+      if (_mayOverlap(waves[wi].rec, devs[di].rec)) {
+        wave = waves[wi];
+        dev = devs[di];
+        break;
+      }
+    }
+  }
   if (!wave || !dev) return null;
   // signed bias = device − waveform: > 0 means the ring's 1 Hz field reads HIGH vs the honest waveform.
   var biasBpm = +(dev.hr - wave.hr).toFixed(1);
@@ -2394,9 +2432,12 @@ function fusePulseCrossCheck(recs) {
   // percent relative to the WAVEFORM (the reference leg), not the device — the honest denominator.
   var pctOfWaveform = +((absBpm / wave.hr) * 100).toFixed(2);
   var agree = absBpm <= PULSE_AGREE_BPM;
+  var ovVerified = _overlapVerified(wave.rec, dev.rec);
   return {
     waveformHr: wave.hr,
     deviceHr: dev.hr,
+    // §3.5 — false ⇒ at least one record declares no window, so "one session" is UNVERIFIED, not proven.
+    overlapVerified: ovVerified,
     reference: 'waveform', // the finger pleth is the honest leg; the 1 Hz field is the smoothed one
     biasBpm: biasBpm,
     absBpm: +absBpm.toFixed(1),
@@ -2567,13 +2608,43 @@ function fuseCvhrCorroboration(recs) {
   };
 }
 
+/* §3.4 — "N INDEPENDENT ESTIMATES" MUST BE N INDEPENDENT OBSERVERS, ON ONE NIGHT.
+   This collected every rec carrying a respRateBrpm with only a `dateUnknown` filter and gated on
+   `sources.length < 2`, and runFusion is called with the WHOLE loaded bus. Two ECGDex exports from two
+   DIFFERENT NIGHTS were therefore fused into one "consensus" and published as
+   "2 independent estimates (ECGDex + ECGDex) … agreement within the ±2 br/min chest-ACC validation
+   band" — same device, same RSA method, no chest-ACC leg present, no temporal overlap. That is
+   AUDIT-PROMPT class 11 (a consensus statistic over inputs that are not independent) in its purest
+   form. The sibling `fusePeriodicBreathing` already implements both missing guards; this ports them:
+     (a) fuse only within a TEMPORALLY OVERLAPPING group, and
+     (b) collapse to ONE observer per node before the <2 check, so `n` counts DISTINCT sources. */
 function fuseRespirationRate(recs) {
-  var sources = [];
+  var cand = [];
   recs.forEach(function (r) {
     if (r.dateUnknown || !r.summary) return;
     var v = r.summary.respRateBrpm;
     if (v == null || !isFinite(v) || v <= 0) return;
-    sources.push({ node: r.node, method: r.summary.respRateMethod || null, brpm: +Number(v).toFixed(1) });
+    cand.push({ rec: r, node: r.node, method: r.summary.respRateMethod || null, brpm: +Number(v).toFixed(1) });
+  });
+  if (cand.length < 2) return null;
+  // (a) Largest mutually-overlapping group: seed on each candidate and keep everything that overlaps
+  // it, then take the biggest. Cheap (n is a handful) and deterministic.
+  var best = /** @type {any[]} */ (cand.slice(0, 1)); // seeded non-null: cand.length >= 2 here
+  for (var i = 0; i < cand.length; i++) {
+    var grp = [cand[i]];
+    for (var j = 0; j < cand.length; j++) {
+      if (j === i) continue;
+      if (_mayOverlap(cand[i].rec, cand[j].rec)) grp.push(cand[j]);
+    }
+    if (!best || grp.length > best.length) best = grp;
+  }
+  // (b) One observer per node — a second export from the same device is not a second opinion.
+  var seenNode = {},
+    sources = [];
+  best.forEach(function (c) {
+    if (seenNode[c.node]) return;
+    seenNode[c.node] = 1;
+    sources.push({ node: c.node, method: c.method, brpm: c.brpm });
   });
   if (sources.length < 2) return null;
   var vals = sources.map(function (s) {
@@ -2584,9 +2655,13 @@ function fuseRespirationRate(recs) {
     md = median(vals);
   var spread = +(mx - mn).toFixed(1);
   var agree = spread <= RR_AGREE_BRPM;
+  var ovAllVerified = sources.length > 1 && best.length > 1 && _overlapVerified(best[0].rec, best[1].rec);
   return {
     sources: sources,
     n: sources.length,
+    // §3.4 — n is DISTINCT observers on one overlapping group; false ⇒ a window was unknown, so the
+    // simultaneity is unverified rather than proven.
+    overlapVerified: ovAllVerified,
     consensusBrpm: +Number(md).toFixed(1),
     minBrpm: mn,
     maxBrpm: mx,
