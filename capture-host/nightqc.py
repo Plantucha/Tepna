@@ -62,6 +62,12 @@ def _prev_day_dir(night_dir: str):
     return os.path.join(os.path.dirname(night_dir.rstrip("/")), (d - timedelta(days=1)).isoformat())
 
 
+def _hhmm(epoch: float) -> str:
+    """`HH:MM` local civil, for a human-readable gap description. Clock Contract: the stamps these
+    epochs come from were written as naive LOCAL time, so they are read back the same way."""
+    return datetime.fromtimestamp(epoch).strftime("%H:%M")
+
+
 def _midnight_of(night_dir: str):
     """Epoch of this folder's date at 00:00 local, or None. Used to decide whether the folder's earliest
     session began just after midnight (⇒ possibly the tail of the previous night's session)."""
@@ -237,8 +243,14 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     vs the rows its (configured or nominal) rate would produce over the session's span, so a stream that
     merely TRICKLES (the Verity IMU at ~40% of nominal, a stream that died at hour one) shows up `degraded`
     instead of hiding behind a green `ok`. Coverage is an estimate, unknown until _MIN_SPAN_SEC has
-    elapsed. `files`/`total_*` describe the night FOLDER on disk. `ok` is true only when every declared
-    stream produced data AND none is degraded."""
+    elapsed. `files`/`total_*` describe the night FOLDER on disk.
+
+    THE SESSION SCOPING IS REPORTED, NOT ASSUMED (§A2). `span_sec`, `coverage`, `missing` and
+    `silent_sec` describe the CURRENT session only. Any earlier session on this night is listed in
+    `sessions` with the hole between them in `prior_gap_sec` and a human-readable line in `gaps`.
+    `ok` is true only when every declared stream produced data, none is degraded, AND no session was
+    excluded — because `ok` is a claim about the night, and it cannot be made about a night half of
+    which was left out of the judgement."""
     scanned = scan_night(night_dir)
     data = [f for f in scanned if f["stream"] not in _SIDECAR_TAGS]
     # CROSS-MIDNIGHT: an overnight begun before midnight is split into TWO date folders, because night_dir
@@ -259,14 +271,34 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     # unknown) until a judge-able span has accrued.
     current = data
     span = None
-    prior = []                                         # sessions this scoping DISCARDED — see below
+    sessions: list[list] = []
+    prior_gap = None
+    # SESSIONS THIS SCOPING DISCARDS, AND THE HOLE THAT MADE THEM (CAPTURE-HOST-DEEP-AUDIT §A2).
+    # The scoping is deliberate — it stops a daytime sitting diluting tonight's coverage — but the
+    # file-activity signature of "an earlier unrelated session" and "this same night, interrupted for
+    # more than _SESSION_GAP_SEC" is IDENTICAL, and nothing here can tell them apart. So a box-wide
+    # outage longer than the gap threshold made `summarize` discard the whole pre-outage half of the
+    # night and grade the remainder `coverage: 1.0, ok: true` — with no field saying a word about it.
+    # (Measured: the 2026-07-24 03:33->04:32 box-wide silence ran 58.6 min, 85 s under the threshold.
+    # This has already come within a minute and a half of firing on the real box.)
+    #
+    # Since the two cases cannot be distinguished, they are not guessed between: everything is reported
+    # and `ok` goes false, so a human looks. A benign daytime sitting shows up in `gaps` as exactly what
+    # it is. Silently keeping the green was the defect.
+    gaps: list[str] = []
     if data:
         sessions = merge_sessions(data)
         cur = max(sessions, key=lambda sess: sess[1])  # the session reaching the latest write == "now"
         current = cur[2]
         span = cur[1] - cur[0]
         span = span if span >= _MIN_SPAN_SEC else None
-        prior = [s for s in sessions if s is not cur]
+        prior = [s for s in sessions if s is not cur and s[1] <= cur[0]]
+        if prior:
+            prev = max(prior, key=lambda s: s[1])
+            prior_gap = cur[0] - prev[1]
+            excluded = sum(f["rows"] for s in prior for f in s[2])
+            gaps.append(f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
+                        f"{len(prior)} earlier session(s), {excluded} rows, excluded from coverage")
     per_device = []
     newest = max((f["mtime"] for f in current), default=None)
     missing = []
@@ -316,11 +348,19 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         "devices": per_device,
         "missing": missing,
         "degraded": degraded,
+        "gaps": gaps,
         "optional_absent": optional_absent,
+        # Every session on this night, oldest first — so `span_sec`/`coverage`/`missing`/`silent_sec`
+        # being CURRENT-session-scoped is visible rather than implied.
+        "sessions": [{"start": round(s[0]), "end": round(s[1]),
+                      "rows": sum(f["rows"] for f in s[2])} for s in sessions],
+        "prior_gap_sec": round(prior_gap) if prior_gap is not None else None,
         "span_sec": round(span) if span else None,
         "files": len(scanned),
         "total_rows": sum(f["rows"] for f in scanned),
         "total_bytes": sum(f["bytes"] for f in scanned),
         "sidecars": sorted({f["stream"] for f in scanned if f["stream"] in _SIDECAR_TAGS}),
-        "ok": not missing and not degraded,
+        # A hole in the night is a reason to look, exactly like a missing or degraded stream. `ok` is a
+        # claim about THE NIGHT; if half of it was excluded from the judgement, the claim is unsupported.
+        "ok": not missing and not degraded and not gaps,
     }

@@ -1372,8 +1372,8 @@ function renderBoxHealth(storage, qc, host){
       <div class="sub">${esc(storage.free_pct)}% free · ${esc(keep)}${warn?' · LOW':''}</div></div>`);
   }
   if(qc){
-    const miss = qc.missing||[], degr = qc.degraded||[];
-    const ok = !!qc.ok;                              // ok now means: no gap AND no trickle
+    const miss = qc.missing||[], degr = qc.degraded||[], holes = qc.gaps||[];
+    const ok = !!qc.ok;                    // ok now means: no gap AND no trickle AND the whole night
     // A gap (a stream with no data) is worse than a trickle (a stream well below its rate), but neither
     // is "Complete". Report whichever is present so a night that merely under-delivered can't read green.
     let val, sub;
@@ -1383,9 +1383,17 @@ function renderBoxHealth(storage, qc, host){
     } else if(miss.length){
       val = miss.length+' gap'+(miss.length===1?'':'s');
       sub = 'no data: '+esc(miss.join(', '))+(degr.length?(' · low: '+esc(degr.join(', '))):'');
-    } else {
+    } else if(degr.length){
       val = degr.length+' low';                      // data present but under-rate — the honesty case
       sub = 'below rate: '+esc(degr.join(', '));
+    } else {
+      // EVERY DECLARED STREAM DELIVERED — BUT NOT ACROSS THE WHOLE NIGHT. The numbers above describe
+      // the CURRENT session only, because a hole longer than the session threshold sits between it and
+      // an earlier one. This branch is what stops such a night reading 'Complete': a >1 h box-wide
+      // outage used to make QC discard the pre-outage half and grade the remainder green
+      // (CAPTURE-HOST-DEEP-AUDIT §A2).
+      val = 'Partial night';
+      sub = esc(holes.join(' · ')) || 'an earlier session is excluded from these numbers';
     }
     cards.push(`<div class="ov-stat" style="border-left-color:${ok?'var(--status-ok)':'var(--status-caution)'}">
       <div class="lab">Tonight (QC)</div>
