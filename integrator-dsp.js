@@ -281,6 +281,17 @@ function adaptEnvelopeNode(json, node, filename) {
     else if (_durMs != null) _declEnd = t0Ms + _durMs;
     else if (_durSec != null) _declEnd = t0Ms + _durSec * 1000;
     if (_declEnd != null) endMs = endMs != null ? Math.max(endMs, _declEnd) : _declEnd;
+    /* §6.2 — SPARSE coverage extends the ENVELOPE (so the record is no longer a point and stops being
+       "excluded — no temporal overlap") WITHOUT claiming the span was recorded. The segments travel
+       separately and are what overlap is actually judged on; `spanSec` is never treated as a duration. */
+    if (_rec.coverage && Array.isArray(_rec.coverage.segments) && _rec.coverage.segments.length) {
+      var _cs = _rec.coverage.segments;
+      var _last = _cs[_cs.length - 1];
+      if (_last && _last.startMs != null && isFinite(_last.startMs)) {
+        var _cEnd = _last.startMs + (_last.durSec != null && isFinite(_last.durSec) ? _last.durSec * 1000 : 0);
+        endMs = endMs != null ? Math.max(endMs, _cEnd) : _cEnd;
+      }
+    }
   }
   // include series end if present
   var offsetMin = null;
@@ -634,6 +645,10 @@ function adaptEnvelopeNode(json, node, filename) {
       // EXPORT-IDENTITY-FOLLOWUPS-II §1: carry the identity-free recording.contentId so dedupeRecs can
       // dedup on exact content identity (strongest signal) when the emitter stamped one; null = legacy export.
       contentId: (json.recording && json.recording.contentId) || null,
+      /* §6.2 — SPARSE coverage travels so overlap can be judged on RECORDED time (recSegments /
+         segmentsOverlap). Null for every node that records continuously, which is all of them today
+         except HRVDex — the envelope path is unchanged for those. */
+      coverage: (json.recording && json.recording.coverage) || null,
       raw: { ganglior_events: json.ganglior_events || json.events || null },
       _src: filename
     }
@@ -1138,6 +1153,49 @@ function recWindow(r) {
   var end = r.endMs != null ? r.endMs : r.events.length ? r.events[r.events.length - 1].tMs : r.t0Ms;
   return { startMs: r.t0Ms, endMs: Math.max(end, r.t0Ms) };
 }
+
+/* SPARSE COVERAGE (DEEP-AUDIT-III §6.2). A node may declare `recording.coverage.segments` — the
+   intervals it ACTUALLY recorded — instead of a single span. HRVDex's 29-day export is the motivating
+   case: its envelope is 29 days, its coverage is a handful of spot measurements, and collapsing the two
+   into one `durSec` would declare 29 continuous days of recording. Read the segments when they are
+   there; fall back to the envelope when they are not, so nothing regresses for a continuous node. */
+function recSegments(r) {
+  var cov = r && r.coverage;
+  if (!cov || !Array.isArray(cov.segments) || !cov.segments.length) return null;
+  var out = [];
+  for (var i = 0; i < cov.segments.length; i++) {
+    var sg = cov.segments[i];
+    if (!sg || sg.startMs == null || !isFinite(sg.startMs)) continue;
+    // durSec null ⇒ a POINT: the measurement happened, its length is unknown. A point cannot create
+    // overlap on its own, which is the honest consequence of not knowing.
+    var dur = sg.durSec != null && isFinite(sg.durSec) && sg.durSec > 0 ? sg.durSec * 1000 : 0;
+    out.push([sg.startMs, sg.startMs + dur]);
+  }
+  return out.length ? out : null;
+}
+
+/* Do two records share any RECORDED time? Segment-aware: with sparse coverage on either side, the
+   answer is whether any pair of segments intersects — not whether the envelopes do. Two 29-day HRVDex
+   exports whose envelopes overlap entirely can still share no recorded minute. */
+function segmentsOverlap(a, b) {
+  var sa = recSegments(a),
+    sb = recSegments(b);
+  if (!sa && !sb) return null; // neither is sparse — caller uses the envelope
+  var wa = recWindow(a),
+    wb = recWindow(b);
+  if (!sa) sa = wa ? [[wa.startMs, wa.endMs]] : null;
+  if (!sb) sb = wb ? [[wb.startMs, wb.endMs]] : null;
+  if (!sa || !sb) return null;
+  var totalMs = 0;
+  for (var i = 0; i < sa.length; i++) {
+    for (var j = 0; j < sb.length; j++) {
+      var s = Math.max(sa[i][0], sb[j][0]),
+        e = Math.min(sa[i][1], sb[j][1]);
+      if (e > s) totalMs += e - s;
+    }
+  }
+  return { overlapMin: +(totalMs / 60000).toFixed(1), any: totalMs > 0 };
+}
 function overlapInterval(a, b) {
   var wa = recWindow(a),
     wb = recWindow(b);
@@ -1170,6 +1228,10 @@ function overlapInterval(a, b) {
    the overlap was actually VERIFIED so the "one session" claim can be read for what it is. */
 function _mayOverlap(a, b) {
   if (!recWindow(a) || !recWindow(b)) return true; // unknown ⇒ cannot disprove
+  // §6.2 — when either side declares sparse coverage, "did they overlap" is a question about RECORDED
+  // time, not about envelopes. An envelope overlap between two sparse records proves nothing.
+  var seg = segmentsOverlap(a, b);
+  if (seg) return seg.any;
   return !!overlapInterval(a, b);
 }
 function _overlapVerified(a, b) {
@@ -1426,6 +1488,7 @@ function pickDesatObserver(oxyRecs, cardiacRecs) {
     if (ra !== rb) return ra - rb;
     return a.node < b.node ? -1 : a.node > b.node ? 1 : 0;
   });
+
   return {
     node: scored[0].node,
     recs: scored[0].recs,
@@ -3498,6 +3561,8 @@ function gradeFor(node, id) {
 
 /* expose to other page scripts (plain global scope, but be explicit) */
 window.IntegratorDSP = {
+  segmentsOverlap: segmentsOverlap, // §6.2 — recorded-time overlap (sparse-aware); gate-visible
+  recSegments: recSegments,
   BUS: BUS,
   parseTimestamp,
   reconstructEventTMs,

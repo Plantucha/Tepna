@@ -20,7 +20,136 @@
     "measurements": 30,
     "firstTMs": 1779254174000,
     "lastTMs": 1781674922000,
-    "spanDays": 29
+    "spanDays": 29,
+    "coverage": {
+      "kind": "sparse",
+      "spanSec": 2420748,
+      "segments": [
+        {
+          "startMs": 1779254174000,
+          "durSec": null
+        },
+        {
+          "startMs": 1779342649000,
+          "durSec": null
+        },
+        {
+          "startMs": 1779428166000,
+          "durSec": null
+        },
+        {
+          "startMs": 1779514445000,
+          "durSec": null
+        },
+        {
+          "startMs": 1779605290000,
+          "durSec": null
+        },
+        {
+          "startMs": 1779687229000,
+          "durSec": null
+        },
+        {
+          "startMs": 1779691727000,
+          "durSec": null
+        },
+        {
+          "startMs": 1779861307000,
+          "durSec": null
+        },
+        {
+          "startMs": 1779946690000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780033186000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780130108000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780210306000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780291956000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780378855000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780551220000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780648104000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780725520000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780732532000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780865804000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780896483000,
+          "durSec": null
+        },
+        {
+          "startMs": 1780983836000,
+          "durSec": null
+        },
+        {
+          "startMs": 1781069148000,
+          "durSec": null
+        },
+        {
+          "startMs": 1781157120000,
+          "durSec": null
+        },
+        {
+          "startMs": 1781249137000,
+          "durSec": null
+        },
+        {
+          "startMs": 1781252742000,
+          "durSec": null
+        },
+        {
+          "startMs": 1781338660000,
+          "durSec": null
+        },
+        {
+          "startMs": 1781425695000,
+          "durSec": null
+        },
+        {
+          "startMs": 1781503037000,
+          "durSec": null
+        },
+        {
+          "startMs": 1781589059000,
+          "durSec": null
+        },
+        {
+          "startMs": 1781674922000,
+          "durSec": null
+        }
+      ],
+      "recordedSec": null,
+      "nWithDuration": 0,
+      "n": 30
+    }
   },
   "measurements": [
     {
