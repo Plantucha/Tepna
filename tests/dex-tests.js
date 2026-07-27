@@ -10818,6 +10818,81 @@
       }
     });
 
+    /* ════ PpgDex EVENT ORDER — ganglior_events must be CHRONOLOGICAL (Clock Contract §6).
+     ECGDex's byte-shape group below already locks monotonic tMs; PpgDex had no equivalent, and it
+     was broken: buildEvents emits per KIND (hrv_drop/autonomic_surge from the epoch loop, THEN a
+     motion_artifact_segment run that restarts at t0), appended with no final sort — so every real
+     export ended with events stamped back at the recording start. Found on the 2026-07-16..26
+     capture corpus: 11 of 11 nights out of order.
+
+     Why it matters even though our exports carry tMs: §6 says a consumer may rebuild absolute time
+     from the `t` wall-clock string alone, "rolling past midnight, monotonic". ONE backwards step
+     reads as a midnight wrap, so that event AND EVERY EVENT AFTER IT gain +24 h — 393 of 404 events
+     on the real 2026-07-17 night. This group drives the failing shape through the shared builder and
+     asserts BOTH the order and the §6 t-only reconstruction it protects. ════ */
+    group('PpgDex event order — chronological ganglior_events + t-only §6 reconstruction', 'ppgdex-dsp', function (T) {
+      var P = env.PpgDex || env.PPGDSP;
+      var build = P && (P.buildNodeExport || P._build);
+      if (typeof build !== 'function') {
+        T.ok('PpgDex.buildNodeExport available', false, 'not loaded');
+        return;
+      }
+      var t0 = U(2026, 6, 17, 21, 33, 0);
+      var at = function (sec) {
+        return t0 + sec * 1000;
+      };
+      // The EXACT pre-fix shape: two chronological hrv/surge events, then the motion run restarting
+      // at t0 (buildEvents' second loop). Pre-fix this array survived to the export verbatim.
+      var r = {
+        t0Ms: t0,
+        nn: [820, 835, 810],
+        events: [
+          { t: '23:03:00', tMs: at(5400), impulse: 'autonomic_surge', node: 'PpgDex', conf: 0.7, sqi: null, meta: { ampBpm: 12 } },
+          { t: '07:33:00', tMs: at(36000), impulse: 'hrv_drop', node: 'PpgDex', conf: 0.7, sqi: null, meta: { rmssdFrom: 44, rmssdTo: 26 } },
+          { t: '21:33:26', tMs: at(26), impulse: 'motion_artifact_segment', node: 'PpgDex', conf: 0.3, sqi: 0.41, meta: {} },
+          { t: '21:34:01', tMs: at(61), impulse: 'motion_artifact_segment', node: 'PpgDex', conf: 0.3, sqi: 0.38, meta: {} }
+        ]
+      };
+      var ev = (build(r, {}) || {}).ganglior_events || [];
+      T.ok('all 4 events exported (sort reorders, never drops)', ev.length === 4, ev.length + '');
+      var mono = true;
+      for (var i = 1; i < ev.length; i++) {
+        if (ev[i].tMs != null && ev[i - 1].tMs != null && ev[i].tMs < ev[i - 1].tMs) mono = false;
+      }
+      T.ok(
+        'ganglior_events are non-decreasing in tMs',
+        mono,
+        ev
+          .map(function (e) {
+            return e.impulse + '@' + e.t;
+          })
+          .join(' ')
+      );
+      T.ok('the earliest event sorts FIRST (the motion run no longer trails)', ev[0] && ev[0].impulse === 'motion_artifact_segment' && ev[0].tMs === at(26), ev[0] && ev[0].t);
+      // ── §6 t-only reconstruction: rebuild tMs from `t` + t0's date, rolling forward monotonically.
+      //    This is the consumer the contract mandates; pre-fix it put 2 of 4 events a day late.
+      var prev = t0,
+        dayMs = 86400000,
+        maxDrift = 0;
+      for (var k = 0; k < ev.length; k++) {
+        var p = String(ev[k].t).split(':');
+        var d = new Date(prev);
+        var cand = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), +p[0], +p[1], +p[2] || 0);
+        while (cand < prev) cand += dayMs; // the monotonic midnight roll
+        prev = cand;
+        if (ev[k].tMs != null) maxDrift = Math.max(maxDrift, Math.abs(cand - ev[k].tMs));
+      }
+      T.ok('§6 t-only reconstruction reproduces every tMs exactly (no +24 h roll)', maxDrift === 0, 'max drift ' + maxDrift / 3600000 + ' h');
+      // source-mirror: BOTH sort sites present (the event source and the export boundary).
+      var psrc = (env.sources || {})['ppgdex-dsp.js'];
+      if (psrc) {
+        T.ok('buildEvents sorts its event list before returning', /ev\.sort\(\s*\(a,\s*b\)\s*=>\s*\(a\.tMs\s*==\s*null/.test(psrc));
+        T.ok('ppgBuildNodeExport sorts at the export boundary', /events\.sort\(function\s*\(a,\s*b\)\s*\{[\s\S]{0,120}a\.tMs\s*==\s*null/.test(psrc));
+      } else {
+        T.ok('ppgdex-dsp.js source available (env.sources)', false, 'add it to both runners');
+      }
+    });
+
     /* ════ 12e · ECGDex EVENT BYTE-SHAPE — the surge/stage impulse stream incl. the sqi axis
      + meta (ECGDEX-FOLLOWUPS-2026-06-27 §4). The equiv fixture is 0-event, so the byte-shape
      of ECGDex's emitted impulses went untested. Drive a deterministic overnight synthetic
