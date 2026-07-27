@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1sL+ThT5kvkwIi+V1RSw5GIl1D7dXNtPtdUPwg8HVKo=' 'sha256-46boG2Zei2KUTqqL3no38xx2xgHnFR/QxIJLutVxSyg=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6aXGOdFWEjOFEkW0BBD/kpdrK+ThElz7ua4Jvm0lBNY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-G+Gx0cHz1USZIU8qM29S72oc1FgE7XTJ6Eye4K+WLdA=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-b4QFb+4gvTY8jO9wXMO/M4P0KpFQo8v/GbOezDPoNng=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hBs4G9ijy/HbbGpjr4Q/qwyaJl3xnVpIYXpZqv9Z51o=' 'sha256-hVtiK8Jgb2BbTTOk7HazQNXQ9phQb3LSTiH0BTyLvUg=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pul+Tja4NTa9xanImZbWRlt3Q01FGfxx0kvlu8Zx8UQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1sL+ThT5kvkwIi+V1RSw5GIl1D7dXNtPtdUPwg8HVKo=' 'sha256-46boG2Zei2KUTqqL3no38xx2xgHnFR/QxIJLutVxSyg=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6aXGOdFWEjOFEkW0BBD/kpdrK+ThElz7ua4Jvm0lBNY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-G+Gx0cHz1USZIU8qM29S72oc1FgE7XTJ6Eye4K+WLdA=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hBs4G9ijy/HbbGpjr4Q/qwyaJl3xnVpIYXpZqv9Z51o=' 'sha256-hVtiK8Jgb2BbTTOk7HazQNXQ9phQb3LSTiH0BTyLvUg=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -21056,7 +21056,27 @@ __exports.ECGDex = window.ECGDex;
     var u = String(name == null ? '' : name).toUpperCase();
     if (/^O2RING|WELLUE|CHECKME|VIATOM|OXYLINK|_SPO2\b|_SPO2\./.test(u)) return 'spo2';
     if (/^LIBRE|FREESTYLE|^DEXCOM|_CGM\b|_CGM\./.test(u)) return 'cgm';
+    /* §6.4 — a competing HR/RR chest strap is FOREIGN, not "a bare non-Polar file". `_isDeviceEligible`
+       admits anything whose deviceKey is null on the reasoning that non-Polar meant unstamped; the
+       corpus now contains fully-named rival straps, and SignalAdapters.route() already sends the same
+       bytes to `coospo-rr`. Two routing layers gave one file two answers; this teaches the ingest layer
+       the vendors the adapter registry already knows. */
+    if (/^COOSPO|^WAHOO|^GARMIN|^SUUNTO|^MAGENE|^DECATHLON|^SIGMA_/.test(u)) return 'hr-strap';
     return null;
+  }
+
+  /* §6.4 — a NON-SIGNAL file must never default into a primary waveform lane. `ecgKind`/`ppgKind`
+     end with "anything unrecognised is this node's waveform", which is fail-OPEN: on a real
+     capture-host night folder that admitted 40 of 67 "ECG recordings" — the host's own NTP/BLE
+     telemetry (`Tepna_*_CLOCK.csv`, `_LINK.csv`), `QC-SUMMARY.json` and `.archived` — each queued as
+     a recording and dying later inside analyze(). The bare-name default is still wanted (a
+     suffix-less `.dat`/`.txt` waveform legitimately needs it); what is added is an explicit
+     set-aside for names that ANNOUNCE they are not signal. */
+  function nonSignalName(name) {
+    var u = String(name == null ? '' : name).toUpperCase();
+    if (/_(CLOCK|LINK|OXYFRAME|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
+    if (/^QC-|^\.|\.(JSON|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
+    return false;
   }
 
   // ECGDex ingest routing. The Polar H10 `*_ECG.txt` waveform is the PRIMARY; `*_RR/_HR/_ACC` are
@@ -21065,12 +21085,18 @@ __exports.ECGDex = window.ECGDex;
   // A bare, suffix-less file defaults to ECG (a content-sniff in the app then guards a misnamed one).
   function ecgKind(name) {
     var u = String(name == null ? '' : name).toUpperCase();
+    /* §6.4 — the vendor test comes FIRST here. It used to sit after the companion-suffix checks, so a
+       rival chest strap's `_HR.txt` matched `_HR` and was admitted to the H10's device-HR lane before
+       anything asked whose device it was. (Hoisting it is safe for ECG and would NOT be for `ppgKind`:
+       the O2Ring's own `Wellue_*_PPG.txt` matches the spo2 vendor pattern and is PpgDex's legitimate
+       finger PRIMARY — so that one keeps suffix-first ordering, deliberately.) */
+    if (foreignVendor(name)) return 'skip';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_RR\b|_RR\.|_PPI\b|_PPI\./.test(u)) return 'rr';
     if (/_HR\b|_HR\./.test(u)) return 'hr';
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
     if (/_(MAGN|GYRO|PPG|TEMP|SKINTEMP|BARO|PRESSURE|ALTITUDE|SDKMODE|FEATURE)\b|_(MAGN|GYRO|PPG|TEMP|SKINTEMP|BARO|PRESSURE|ALTITUDE|SDKMODE|FEATURE)\.|^MARKER[_.]/.test(u)) return 'skip';
-    if (foreignVendor(name)) return 'skip';
+    if (nonSignalName(name)) return 'skip'; // §6.4 — telemetry/sidecar/JSON is not a waveform
     return 'ecg'; // default — a bare waveform is the ECG
   }
 
@@ -21083,12 +21109,13 @@ __exports.ECGDex = window.ECGDex;
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
-    if (/_MAGN\b|_MAGN\./.test(u)) return 'magn';
+    if (/_MAGN?\b|_MAGN?\./.test(u)) return 'magn'; // §6.4 — capture-host writes _MAG.txt, PSL writes _MAGN.txt; motiondex-dsp.js knew both, these did not
     if (/_PPI\b|_PPI\./.test(u)) return 'ppi';
     if (/_HR\b|_HR\./.test(u)) return 'hr';
     if (/MARKER/.test(u)) return 'marker';
     if (/_ECG\b|_ECG\./.test(u)) return 'skip';
     if (foreignVendor(name)) return 'skip';
+    if (nonSignalName(name)) return 'skip'; // §6.4 — telemetry/sidecar/JSON is not a waveform
     return 'ppg'; // default — assume a bare waveform
   }
 
@@ -21096,7 +21123,7 @@ __exports.ECGDex = window.ECGDex;
   function foreignKind(name) {
     var u = String(name == null ? '' : name).toUpperCase();
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
-    if (/_MAGN\b|_MAGN\./.test(u)) return 'magn';
+    if (/_MAGN?\b|_MAGN?\./.test(u)) return 'magn'; // §6.4 — capture-host writes _MAG.txt, PSL writes _MAGN.txt; motiondex-dsp.js knew both, these did not
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
     var fv = foreignVendor(name);
@@ -21823,7 +21850,7 @@ __exports.ECGDex = window.ECGDex;
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
-    if (/_MAGN\b|_MAGN\./.test(u)) return 'magn';
+    if (/_MAGN?\b|_MAGN?\./.test(u)) return 'magn'; // §6.4 — capture-host writes _MAG.txt, PSL writes _MAGN.txt; motiondex-dsp.js knew both, these did not
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_PPI\b|_PPI\./.test(u)) return 'ppi';
     if (/_HR\b|_HR\./.test(u)) return 'hr';

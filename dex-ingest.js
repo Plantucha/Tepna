@@ -62,7 +62,27 @@
     var u = String(name == null ? '' : name).toUpperCase();
     if (/^O2RING|WELLUE|CHECKME|VIATOM|OXYLINK|_SPO2\b|_SPO2\./.test(u)) return 'spo2';
     if (/^LIBRE|FREESTYLE|^DEXCOM|_CGM\b|_CGM\./.test(u)) return 'cgm';
+    /* §6.4 — a competing HR/RR chest strap is FOREIGN, not "a bare non-Polar file". `_isDeviceEligible`
+       admits anything whose deviceKey is null on the reasoning that non-Polar meant unstamped; the
+       corpus now contains fully-named rival straps, and SignalAdapters.route() already sends the same
+       bytes to `coospo-rr`. Two routing layers gave one file two answers; this teaches the ingest layer
+       the vendors the adapter registry already knows. */
+    if (/^COOSPO|^WAHOO|^GARMIN|^SUUNTO|^MAGENE|^DECATHLON|^SIGMA_/.test(u)) return 'hr-strap';
     return null;
+  }
+
+  /* §6.4 — a NON-SIGNAL file must never default into a primary waveform lane. `ecgKind`/`ppgKind`
+     end with "anything unrecognised is this node's waveform", which is fail-OPEN: on a real
+     capture-host night folder that admitted 40 of 67 "ECG recordings" — the host's own NTP/BLE
+     telemetry (`Tepna_*_CLOCK.csv`, `_LINK.csv`), `QC-SUMMARY.json` and `.archived` — each queued as
+     a recording and dying later inside analyze(). The bare-name default is still wanted (a
+     suffix-less `.dat`/`.txt` waveform legitimately needs it); what is added is an explicit
+     set-aside for names that ANNOUNCE they are not signal. */
+  function nonSignalName(name) {
+    var u = String(name == null ? '' : name).toUpperCase();
+    if (/_(CLOCK|LINK|OXYFRAME|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
+    if (/^QC-|^\.|\.(JSON|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
+    return false;
   }
 
   // ECGDex ingest routing. The Polar H10 `*_ECG.txt` waveform is the PRIMARY; `*_RR/_HR/_ACC` are
@@ -71,12 +91,18 @@
   // A bare, suffix-less file defaults to ECG (a content-sniff in the app then guards a misnamed one).
   function ecgKind(name) {
     var u = String(name == null ? '' : name).toUpperCase();
+    /* §6.4 — the vendor test comes FIRST here. It used to sit after the companion-suffix checks, so a
+       rival chest strap's `_HR.txt` matched `_HR` and was admitted to the H10's device-HR lane before
+       anything asked whose device it was. (Hoisting it is safe for ECG and would NOT be for `ppgKind`:
+       the O2Ring's own `Wellue_*_PPG.txt` matches the spo2 vendor pattern and is PpgDex's legitimate
+       finger PRIMARY — so that one keeps suffix-first ordering, deliberately.) */
+    if (foreignVendor(name)) return 'skip';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_RR\b|_RR\.|_PPI\b|_PPI\./.test(u)) return 'rr';
     if (/_HR\b|_HR\./.test(u)) return 'hr';
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
     if (/_(MAGN|GYRO|PPG|TEMP|SKINTEMP|BARO|PRESSURE|ALTITUDE|SDKMODE|FEATURE)\b|_(MAGN|GYRO|PPG|TEMP|SKINTEMP|BARO|PRESSURE|ALTITUDE|SDKMODE|FEATURE)\.|^MARKER[_.]/.test(u)) return 'skip';
-    if (foreignVendor(name)) return 'skip';
+    if (nonSignalName(name)) return 'skip'; // §6.4 — telemetry/sidecar/JSON is not a waveform
     return 'ecg'; // default — a bare waveform is the ECG
   }
 
@@ -89,12 +115,13 @@
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
-    if (/_MAGN\b|_MAGN\./.test(u)) return 'magn';
+    if (/_MAGN?\b|_MAGN?\./.test(u)) return 'magn'; // §6.4 — capture-host writes _MAG.txt, PSL writes _MAGN.txt; motiondex-dsp.js knew both, these did not
     if (/_PPI\b|_PPI\./.test(u)) return 'ppi';
     if (/_HR\b|_HR\./.test(u)) return 'hr';
     if (/MARKER/.test(u)) return 'marker';
     if (/_ECG\b|_ECG\./.test(u)) return 'skip';
     if (foreignVendor(name)) return 'skip';
+    if (nonSignalName(name)) return 'skip'; // §6.4 — telemetry/sidecar/JSON is not a waveform
     return 'ppg'; // default — assume a bare waveform
   }
 
@@ -102,7 +129,7 @@
   function foreignKind(name) {
     var u = String(name == null ? '' : name).toUpperCase();
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
-    if (/_MAGN\b|_MAGN\./.test(u)) return 'magn';
+    if (/_MAGN?\b|_MAGN?\./.test(u)) return 'magn'; // §6.4 — capture-host writes _MAG.txt, PSL writes _MAGN.txt; motiondex-dsp.js knew both, these did not
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
     var fv = foreignVendor(name);
