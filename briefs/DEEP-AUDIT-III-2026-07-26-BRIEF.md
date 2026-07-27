@@ -477,7 +477,7 @@ findings are one `motiondex-dsp.js` edit: **land them together**.
 
 ## 5 · HRV differential and spectral honesty
 
-### 5.1 PulseDex's **surfaced** Total Power still breaks the Task-Force identity — `pulsedex-app.js:710`
+### 5.1 PulseDex's **surfaced** Total Power still breaks the Task-Force identity — `pulsedex-app.js:710` — **FIXED 2026-07-27**
 
 ```
 APP lastResult : tp=2069  vlf=870 lf=648 hf=243   vlf+lf+hf=1761
@@ -492,8 +492,14 @@ takes a 4th independent median while the DSP sums the bands.
 > **Verifier correction.** *"the node-export carries the correct band sum"* is **false** — the export omits
 > `totalPower` entirely.
 
-**Fix.** Mirror the DSP (`tp = _wv + _wl + _wh`), drop the dead accumulator, and close the hollow gate: the
-existing PulseDex §3 group must drive the **app** path, not only the DSP.
+**Fix AS LANDED (2026-07-27).** The app mirrors the DSP line (`tp = _wv + _wl + _wh`) and the dead
+per-window accumulator is gone. **The hollow half of the gate is closed too** — and how it is closed is
+the point: the app's windowing function is **not exported**, so it cannot be driven from the node lane,
+which is precisely why the 2026-07-14 fix could declare "BOTH PulseDex spectral paths" and be wrong. The
+§3 group now carries a **source scan** over `pulsedex-app.js` asserting the sum form is present and no
+fourth median remains. Mutation-checked: both scan assertions fail against pre-fix code. **Gate:** 3956
+assertions green with `DEX_UPLOADS` (0 skipped) · GATE A 9/9 (`PulseDex.html` `4d6485385a57` →
+`08c328eca4f9`) · typecheck clean · `verify-fixtures` all 14 current.
 
 ### 5.2 LF/HF is ratio-of-medians in PulseDex, median-of-ratios in ECGDex and PpgDex — `pulsedex-dsp.js:1258`
 

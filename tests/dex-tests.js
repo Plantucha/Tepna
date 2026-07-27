@@ -3295,6 +3295,18 @@
       );
       if (!(r && r.longRec)) return;
       T.eq('§3 · TASK-FORCE IDENTITY: vlf + lf + hf == totalPower (one definition, like ECGDex/PpgDex)', r.vlf + r.lf + r.hf, r.tp);
+      /* DEEP-AUDIT-III §5.1 — CLOSE THE HOLLOW HALF OF THIS GATE. Everything above drives
+         `pulsedex-dsp.js`. The number a user actually reads is assembled a second time in
+         `pulsedex-app.js`, and THAT copy kept the four-median form for two weeks after
+         DEEP-AUDIT-2026-07-14 §3 declared the identity fixed on "BOTH PulseDex spectral paths" —
+         both of the paths it named were inside the DSP. The app's windowing function is not
+         exported, so it cannot be driven from this lane; a source scan is what is available, and it
+         is enough to stop the same two-copies trap from shipping twice. */
+      var appSrc = env.sources && env.sources['pulsedex-app.js'];
+      if (appSrc) {
+        T.ok('§5.1 · the APP assembles tp as the SUM of the bands it renders', /tp:\s*_wv \+ _wl \+ _wh/.test(appSrc), 'winSpec tp expression not found in pulsedex-app.js');
+        T.ok('§5.1 · …and no longer takes a fourth independent median of per-window tp', !/stp\.push\(/.test(appSrc) && !/medianOf\(stp\)/.test(appSrc), 'a per-window tp accumulator is still present');
+      }
       // and the surfaced HF fraction reconciles with the bands it sits beside (the render bar reads hf/(tp||1))
       var hfFrac = r.hf / (r.tp || 1),
         hfFracTrue = r.hf / (r.vlf + r.lf + r.hf || 1);
