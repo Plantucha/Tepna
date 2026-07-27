@@ -1329,57 +1329,45 @@ function typeApneaByEffort(recs) {
   return out;
 }
 
-function fuseApneaEvents(recs, dtMs, gate) {
-  // CARDIAC surge sources: ECGDex (primary) + PpgDex (PPG-derived). A desat is
-  // confirmable by an autonomic surge from EITHER — PpgDex is a first-class node
-  // here, not silently dropped (R2). OxyDex anchors the desaturation.
-  /* DEEP-AUDIT-2026-07-11 §15: the desaturation pool was keyed by NODE (`_byNode(recs,'OxyDex')`), not by
-     IMPULSE. EVENT-LEXICON.md is explicit that impulses are keyed by the EVENT, not the signal that
-     observed it, and it lists CPAPDex as a first-class `desat_event` emitter (it was deliberately migrated
-     desat → desat_event to join this very pool). It could not: a CPAP+ECG night produced fusion.apnea =
-     null. Metamorphic proof: a byte-identical desat_event stream changes only its `node` label and the
-     whole rule vanishes. Pool by the events a record actually CARRIES — any node that observes a
-     desaturation can corroborate one. (The per-node confidence tiering downstream is unchanged.) */
-  var DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
-  var oxy = recs.filter(function (r) {
-    return !r.dateUnknown && _eventsOfType(r, DESAT_TYPES).length;
-  });
-  var ecg = _byNode(recs, 'ECGDex'),
-    ppg = _byNode(recs, 'PpgDex');
-  var cardiac = ecg.concat(ppg);
-  if (!oxy.length || !cardiac.length) return null;
-  // ── R5 DIRECTIONALITY GATE ───────────────────────────────────────────────
-  // An obstructive event's autonomic surge should COINCIDE-OR-TRAIL the SpO₂
-  // nadir (it may lead only slightly as effort ramps). Asymmetric window, in
-  // SECONDS: latencySec = (surge − desat)/1000 must satisfy −lead ≤ lat ≤ +trail.
-  gate = gate || {};
-  var leadMaxSec = gate.leadMaxSec != null ? gate.leadMaxSec : 15;
-  var trailMaxSec = gate.trailMaxSec != null ? gate.trailMaxSec : 60;
+/* ── ONE OBSERVER OWNS THE DESAT SPINE (DEEP-AUDIT-III §3.1) ─────────────────
+   `gather()` below dedupes the desat pool by `impulse@round(tMs/1000)`. That key
+   only ever collapses events whose stamps round to the SAME SECOND — i.e. the
+   same record loaded twice. Two DIFFERENT oximeters watching one night run on two
+   clocks and never round together, so every apnea entered the pool twice and the
+   surfaced index DOUBLED: 7.5/h (mild) became 15/h (moderate) by adding a device,
+   not a symptom. DEEP-AUDIT-2026-07-11 §15 opened this door for a good reason
+   (impulse-keyed pooling, so CPAPDex's desat_event can fuse) and the double-count
+   rode in with it.
 
-  // ── Build the MERGED UNION of every OxyDex × (ECGDex|PpgDex) overlap interval.
-  //    Using a union (not the sum of pairwise overlaps) means a single OxyDex
-  //    night overlapping two cardiac recordings is counted ONCE — no
-  //    double-counting of events and no inflated AHI denominator. ────────────
+   Why an AUTHORITY SPINE and not a time-window merge: the only tolerance in scope
+   is `dtMs`, which defaults to 120 s. Apneas recur every 20–60 s in severe OSA, so
+   merging "desats within dtMs from different nodes" would collapse genuinely
+   distinct events and UNDER-count exactly where the count matters most. Any
+   tighter tolerance would be a guess about inter-device clock skew AND about
+   device-specific nadir averaging. So we do what `pickHRAuthority` already does
+   for the HR witness: ONE observer supplies the events, the rest are recorded as
+   corroboration.
+
+   The choice is COVERAGE-first — the observer that actually witnessed more of the
+   night (its own union with the cardiac nodes) — because coverage is measured, not
+   claimed, and counts hours rather than events, so it cannot bias toward a noisier
+   device. Only ties fall through to a node ladder, which encodes one physical
+   fact: a wired oximeter cannot drop a BLE link. Events AND the AHI denominator
+   both come from the chosen observer, so the index stays self-consistent. */
+var DESAT_OBSERVER_AUTHORITY = { CPAPDex: 1, OxyDex: 2, PpgDex: 3 };
+
+/* Merged union of every (oxy × cardiac) overlap. A union — not the sum of pairwise
+   overlaps — so one oximeter night overlapping two cardiac recordings is counted
+   ONCE (no inflated AHI denominator). */
+function _desatUnion(oxyRecs, cardiacRecs) {
   var raw = [];
-  oxy.forEach(function (o) {
-    cardiac.forEach(function (g) {
+  oxyRecs.forEach(function (o) {
+    cardiacRecs.forEach(function (g) {
       var w = overlapInterval(o, g);
       if (w) raw.push([w.startMs, w.endMs]);
     });
   });
-  if (!raw.length)
-    return {
-      findings: [],
-      confirmedAHI: null,
-      confirmedAHIReportable: false,
-      overlapHours: 0,
-      apneaAuthority: _deviceScoredAuthority(recs, null),
-      matched: { desat: 0, surge: 0 },
-      total: { desat: 0, surge: 0 },
-      unmatched: { desat: [], surge: [] },
-      nullModel: { expectedConfirmed: 0, pAtLeastObserved: 1, belowChance: true, surgeRatePerHr: 0, directionalWindowSec: leadMaxSec + trailMaxSec },
-      coupling: null
-    };
+  if (!raw.length) return { merged: [], hours: 0 };
   raw.sort(function (a, b) {
     return a[0] - b[0];
   });
@@ -1395,6 +1383,97 @@ function fuseApneaEvents(recs, dtMs, gate) {
   merged.forEach(function (iv) {
     totHrs += (iv[1] - iv[0]) / 3600000;
   });
+  return { merged: merged, hours: totHrs };
+}
+
+/* Pick the observer whose own union with the cardiac nodes covers the most of the
+   night; ties → the authority ladder; still tied → node name, so the choice is
+   deterministic. Returns null when nothing observed a desaturation. */
+function pickDesatObserver(oxyRecs, cardiacRecs) {
+  var byNode = {};
+  (oxyRecs || []).forEach(function (r) {
+    var n = r.node || 'unknown';
+    (byNode[n] = byNode[n] || []).push(r);
+  });
+  var names = Object.keys(byNode);
+  if (!names.length) return null;
+  var scored = names.map(function (n) {
+    return { node: n, recs: byNode[n], hours: _desatUnion(byNode[n], cardiacRecs).hours };
+  });
+  scored.sort(function (a, b) {
+    if (b.hours !== a.hours) return b.hours - a.hours; // more of the night witnessed wins
+    var ra = DESAT_OBSERVER_AUTHORITY[a.node] != null ? DESAT_OBSERVER_AUTHORITY[a.node] : 99;
+    var rb = DESAT_OBSERVER_AUTHORITY[b.node] != null ? DESAT_OBSERVER_AUTHORITY[b.node] : 99;
+    if (ra !== rb) return ra - rb;
+    return a.node < b.node ? -1 : a.node > b.node ? 1 : 0;
+  });
+  return {
+    node: scored[0].node,
+    recs: scored[0].recs,
+    alsoObservedBy: scored.slice(1).map(function (s) {
+      return s.node;
+    }),
+    candidates: scored.map(function (s) {
+      return { node: s.node, overlapHours: +s.hours.toFixed(2) };
+    })
+  };
+}
+
+function fuseApneaEvents(recs, dtMs, gate) {
+  // CARDIAC surge sources: ECGDex (primary) + PpgDex (PPG-derived). A desat is
+  // confirmable by an autonomic surge from EITHER — PpgDex is a first-class node
+  // here, not silently dropped (R2). OxyDex anchors the desaturation.
+  /* DEEP-AUDIT-2026-07-11 §15: the desaturation pool was keyed by NODE (`_byNode(recs,'OxyDex')`), not by
+     IMPULSE. EVENT-LEXICON.md is explicit that impulses are keyed by the EVENT, not the signal that
+     observed it, and it lists CPAPDex as a first-class `desat_event` emitter (it was deliberately migrated
+     desat → desat_event to join this very pool). It could not: a CPAP+ECG night produced fusion.apnea =
+     null. Metamorphic proof: a byte-identical desat_event stream changes only its `node` label and the
+     whole rule vanishes. Pool by the events a record actually CARRIES — any node that observes a
+     desaturation can corroborate one. (The per-node confidence tiering downstream is unchanged.) */
+  var DESAT_TYPES = ['spo2_desaturation', 'desat_event'];
+  var oxyAll = recs.filter(function (r) {
+    return !r.dateUnknown && _eventsOfType(r, DESAT_TYPES).length;
+  });
+  var ecg = _byNode(recs, 'ECGDex'),
+    ppg = _byNode(recs, 'PpgDex');
+  var cardiac = ecg.concat(ppg);
+  if (!oxyAll.length || !cardiac.length) return null;
+  // ONE observer supplies the desat spine (§3.1). With a single oximeter on the
+  // bus — every night in the corpus today — this is a no-op.
+  var observer = pickDesatObserver(oxyAll, cardiac);
+  var oxy = observer ? observer.recs : oxyAll;
+  var desatObserver = observer
+    ? { node: observer.node, alsoObservedBy: observer.alsoObservedBy, candidates: observer.candidates }
+    : null;
+  // ── R5 DIRECTIONALITY GATE ───────────────────────────────────────────────
+  // An obstructive event's autonomic surge should COINCIDE-OR-TRAIL the SpO₂
+  // nadir (it may lead only slightly as effort ramps). Asymmetric window, in
+  // SECONDS: latencySec = (surge − desat)/1000 must satisfy −lead ≤ lat ≤ +trail.
+  gate = gate || {};
+  var leadMaxSec = gate.leadMaxSec != null ? gate.leadMaxSec : 15;
+  var trailMaxSec = gate.trailMaxSec != null ? gate.trailMaxSec : 60;
+
+  // ── Build the MERGED UNION of every OxyDex × (ECGDex|PpgDex) overlap interval.
+  //    Using a union (not the sum of pairwise overlaps) means a single OxyDex
+  //    night overlapping two cardiac recordings is counted ONCE — no
+  //    double-counting of events and no inflated AHI denominator. ────────────
+  var _u = _desatUnion(oxy, cardiac);
+  if (!_u.merged.length)
+    return {
+      findings: [],
+      confirmedAHI: null,
+      confirmedAHIReportable: false,
+      overlapHours: 0,
+      apneaAuthority: _deviceScoredAuthority(recs, null),
+      desatObserver: desatObserver,
+      matched: { desat: 0, surge: 0 },
+      total: { desat: 0, surge: 0 },
+      unmatched: { desat: [], surge: [] },
+      nullModel: { expectedConfirmed: 0, pAtLeastObserved: 1, belowChance: true, surgeRatePerHr: 0, directionalWindowSec: leadMaxSec + trailMaxSec },
+      coupling: null
+    };
+  var merged = _u.merged,
+    totHrs = _u.hours;
   function inUnion(tMs) {
     for (var i = 0; i < merged.length; i++) {
       if (tMs >= merged[i][0] - dtMs && tMs <= merged[i][1] + dtMs) return true;
@@ -1571,6 +1650,7 @@ function fuseApneaEvents(recs, dtMs, gate) {
     confirmedAHIReportable: !belowChance && nConf > 0,
     overlapHours: +totHrs.toFixed(2),
     apneaAuthority: _deviceScoredAuthority(recs, ahi),
+    desatObserver: desatObserver,
     matched: { desat: nConf, surge: nConf },
     total: { desat: desats.length, surge: surges.length },
     unmatched: { desat: unmatchedDesat, surge: unmatchedSurge },

@@ -21248,6 +21248,61 @@
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
     });
 
+    /* DEEP-AUDIT-III §3.1 — a SECOND oximeter that watched the SAME night must not change the index.
+       The desat pool is impulse-keyed (DEEP-AUDIT-2026-07-11 §15) so CPAPDex's desat_event can fuse;
+       its dedupe key was `impulse@round(tMs/1000)`, which only collapses stamps landing in the SAME
+       second. Two devices run two clocks and never round together, so every apnea entered the pool
+       twice and the surfaced index DOUBLED — 7.5/h (mild) → 15/h (moderate) — by adding a DEVICE, not
+       a symptom. Metamorphic invariant: a redundant observer of the same events may change WHO is
+       credited, never HOW MANY events there were. */
+    group('A second oximeter cannot double the apnea index — §3.1', 'integrator-dsp · apnea · fabricated-redundancy', function (T) {
+      var RF = env.runFusion;
+      T.ok('runFusion available', typeof RF === 'function');
+      if (typeof RF !== 'function') return;
+      var t0 = U(2026, 5, 7, 22, 0, 0),
+        H = 3600000;
+      function recAt(node, evs, s, e) {
+        return { node: node, t0Ms: s, endMs: e, dateUnknown: false, offsetMin: null, events: evs, nEvents: evs.length, summary: {}, series: {} };
+      }
+      function rec(node, evs) {
+        return recAt(node, evs, t0, t0 + 8 * H);
+      }
+      // 60 apneas over 8 h, each with its confirming surge +3 s.
+      var desatsA = [],
+        desatsB = [],
+        surges = [];
+      for (var i = 0; i < 60; i++) {
+        var dt = t0 + i * 470000;
+        desatsA.push({ tMs: dt, t: 'x', impulse: 'spo2_desaturation', node: 'OxyDex', conf: 0.9, meta: { depth: 5, durSec: 20 } });
+        // the SAME physical events via a second oximeter on its own clock (+1.4 s skew, so the
+        // 1-second dedupe key can never collapse them)
+        desatsB.push({ tMs: dt + 1400, t: 'x', impulse: 'desat_event', node: 'CPAPDex', conf: 0.9, meta: { depth: 5, durSec: 20 } });
+        surges.push({ tMs: dt + 3000, t: 'x', impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.9 });
+      }
+      var one = RF([rec('OxyDex', desatsA), rec('ECGDex', surges)], {}).apnea || {};
+      var two = RF([rec('OxyDex', desatsA), rec('CPAPDex', desatsB), rec('ECGDex', surges)], {}).apnea || {};
+      T.ok('baseline · one oximeter + ECG produces a confirmed index', one.confirmedAHI > 0, 'AHI=' + one.confirmedAHI + ' desats=' + (one.total && one.total.desat));
+      T.eq('THE INVARIANT · a redundant second oximeter does NOT change the index', two.confirmedAHI, one.confirmedAHI);
+      T.eq('the desat pool is not doubled either', two.total && two.total.desat, one.total && one.total.desat);
+      T.eq('findings are not doubled', (two.findings || []).length, (one.findings || []).length);
+      // the redundancy is REPORTED, not silently discarded — a reader must be able to see that a
+      // second observer was present, and which one supplied the events.
+      T.ok('the second observer is recorded, not dropped', !!two.desatObserver && (two.desatObserver.alsoObservedBy || []).length === 1, JSON.stringify(two.desatObserver));
+      T.ok('the crediting observer is named', !!two.desatObserver && !!two.desatObserver.node, two.desatObserver && two.desatObserver.node);
+      // The fix must not silence an observer that saw events the first one MISSED. Here the second
+      // oximeter covers a later, longer stretch, so it wins on coverage and supplies its own events.
+      var lateDesats = [],
+        lateSurges = [];
+      for (var j = 0; j < 60; j++) {
+        var lt = t0 + 9 * H + j * 470000;
+        lateDesats.push({ tMs: lt, t: 'x', impulse: 'desat_event', node: 'CPAPDex', conf: 0.9, meta: { depth: 5, durSec: 20 } });
+        lateSurges.push({ tMs: lt + 3000, t: 'x', impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.9 });
+      }
+      var disjoint =
+        RF([recAt('OxyDex', desatsA, t0, t0 + 8 * H), recAt('CPAPDex', lateDesats, t0 + 9 * H, t0 + 18 * H), recAt('ECGDex', surges.concat(lateSurges), t0, t0 + 18 * H)], {}).apnea || {};
+      T.ok('a non-redundant observer is still counted (no silent loss)', (disjoint.total && disjoint.total.desat) === 60, 'desat=' + (disjoint.total && disjoint.total.desat));
+    });
+
     /* Selection already happened at declaration time (see group() above) — a group that
        was not selected never RAN, so here we only drop its placeholder from the report.
        `totalGroups` stays the full declaration count, so "N of 134" is still honest. */
