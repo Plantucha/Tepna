@@ -42,6 +42,7 @@ name: capture-host-ci
 # the moment CI is green rather than rebasing, so anything on the critical path is paid by every PR.
 on:
   push:
+    branches: [main]      # feature-branch pushes are covered by the PR run; this is the post-merge run
   pull_request:
   workflow_dispatch:
 
@@ -130,3 +131,37 @@ jobs:
         # explicit `--cov=.` OVERRIDES that list and silently drops deploy/ back out of the denominator,
         # which is how deploy/ezparse.py sat untested and invisible.
         run: pytest -q --cov --cov-branch --cov-report=term-missing --cov-fail-under=100
+
+  # ── one aggregated status ──────────────────────────────────────────────────────────
+  # THE required check. Same pattern as tests.yml's `test` job, and here it is not merely tidiness —
+  # it is what makes the relevance skip above SAFE.
+  #
+  # A skipped MATRIX job reports its name UNEXPANDED — literally `test (py${{ matrix.python-version }})`
+  # — so `test (py3.12)` / `test (py3.13)` simply do not exist as check runs when the job skips. Requiring
+  # those names while allowing the job to skip deadlocks every PR that does not touch capture-host/. That
+  # was measured on PR #478, where they were satisfied only by an incidental push-event run; filtering
+  # `push` as well (done above) would have exposed it immediately.
+  #
+  # This job is NOT a matrix, so its name is stable whether the tests ran or were skipped. `skipped` is
+  # an ALLOWED result here — it means the PR provably cannot affect the Python suite — while `failure`
+  # or `cancelled` reds the gate. Requiring THIS context instead of the matrix names is what lets both
+  # properties hold at once: always reports, and only actually runs when relevant.
+  capture-host:
+    name: capture-host
+    if: always()
+    needs: [changes, test]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Gate on the python matrix
+        run: |
+          echo "relevance: ${{ needs.changes.outputs.run }}"
+          echo "tests:     ${{ needs.test.result }}"
+          case "${{ needs.test.result }}" in
+            success) echo "✓ python suite green (100% floor held)" ;;
+            skipped) echo "✓ nothing under capture-host/ changed — suite not relevant to this PR" ;;
+            *)       echo "::error::capture-host python suite did not succeed (${{ needs.test.result }})"
+                     exit 1 ;;
+          esac
