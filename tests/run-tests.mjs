@@ -211,6 +211,7 @@ function loadInto(ctx, file) {
 }
 
 /* ── 2 · gather sources (static checks) and fixtures (export completeness) ── */
+const SHIPPED_INLINED = new Set(); // every .js the owned bundles inline — the lint's scope floor
 function readSources() {
   const wanted = [
     'clock.js',
@@ -299,6 +300,26 @@ function readSources() {
   for (const f of wanted) {
     const p = join(ROOT, f);
     if (existsSync(p)) out[f] = readFileSync(p, 'utf8');
+  }
+  /* DEEP-AUDIT-III §1.4 — the scope must be DERIVED, not hand-maintained. The list above is curated,
+     and nothing kept it in sync with what the bundler actually inlines, so the house-invariant Clock
+     lint printed "clean across 70 files" while 44 SHIPPED files sat outside its scope — a gate
+     failing OPEN by omission, and one of them (integrator-longitudinal.js) carried a live Date.parse.
+     Take the union of every `data-inline-src` in the owned bundles: "any source" now means "any code
+     we ship". Files are ADDED to the curated set, never removed, so no assertion that names a file
+     can lose its input. */
+  for (const b of ManifestGate.MANIFEST_BUNDLES.concat(['Data Unifier.html', 'OverDex.html'])) {
+    const bp = join(ROOT, b);
+    if (!existsSync(bp)) continue;
+    const html = readFileSync(bp, 'utf8');
+    for (const m of html.matchAll(/data-inline-src="([^"]+)"/g)) {
+      const f = m[1];
+      if (!/\.(?:js|mjs)$/.test(f)) continue;
+      SHIPPED_INLINED.add(f);
+      if (out[f]) continue;
+      const fp = join(ROOT, f);
+      if (existsSync(fp)) out[f] = readFileSync(fp, 'utf8');
+    }
   }
   return out;
 }
@@ -1112,6 +1133,9 @@ async function main() {
     docs: readDocs(),
     docsLedger: readDocsLedger(),
     sources: readSources(),
+    // §1.4 — the scope FLOOR: every .js the owned bundles inline. The lint asserts its scanned set
+    // covers this, so the coverage can never silently shrink back to a hand-maintained list again.
+    shippedInlined: Array.from(SHIPPED_INLINED).sort(),
     trackedFiles: readTrackedFiles(),
     // FIXTURE-VERIFICATION-GATE §1 — computeHash is async (crypto.subtle) and the assertion harness is
     // synchronous, so the discrimination probe is computed HERE and asserted there. ManifestGate itself

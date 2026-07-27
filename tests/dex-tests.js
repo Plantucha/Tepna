@@ -8783,7 +8783,11 @@
       // the ratchet is ACCOUNTING, not coverage: every render surface must be classified one way or the
       // other, and a NEW one is unclassified until someone decides. Unmigrated files are named, so the
       // debt is a list you can read rather than an absence you have to notice.
-      var BADGE_UNMIGRATED = ['glucodex-render.js']; // carries bare value tiles; joins on its next on-touch re-bundle
+      // DEEP-AUDIT-III §1.4 — ecgdex/ppgdex-render.js were not "classified", they were INVISIBLE: both
+      // ship in bundles but sat outside the curated env.sources list, so this gate could not see them
+      // to complain. Widening the scope to every inlined asset surfaced them; they are named here as
+      // unmigrated (the honest state) rather than silently enforced.
+      var BADGE_UNMIGRATED = ['glucodex-render.js', 'ecgdex-render.js', 'ppgdex-render.js']; // carry bare value tiles; join on their next on-touch re-bundle
       var _renderSurfaces = Object.keys(src).filter(function (f) {
         return /-(?:render|overview)\.js$/.test(f);
       });
@@ -8905,6 +8909,24 @@
         parseHits.length ? 'in: ' + parseHits.join(', ') : 'clean across ' + jsFiles.length + ' files'
       );
       T.ok('A1 · no new Date("…") string construction (locale-parse footgun)', newdateHits.length === 0, newdateHits.length ? 'in: ' + newdateHits.join(', ') : 'clean');
+      /* DEEP-AUDIT-III §1.4 — THE SCOPE ITSELF IS NOW GATED. This lint's message reads as a
+         fleet-wide guarantee ("no Date.parse on ANY source", "clean across N files") but its scope
+         was a hand-curated list that nothing kept in sync with the bundler, so it silently shrank to
+         70 of 124 shipped files and went blind to a live `Date.parse` in integrator-longitudinal.js.
+         Assert the scanned set COVERS every .js the owned bundles inline: the wording and the
+         coverage are now the same fact, and a newly-inlined module joins the scan by construction. */
+      var shipped = env.shippedInlined || [];
+      var unscanned = shipped.filter(function (f) {
+        return !src[f];
+      });
+      if (!shipped.length) {
+        // The browser lane cannot list a directory, so the inlined-asset set is a NODE-lane fact —
+        // same split as docs-ledger/release-ledger. Skip honestly; do not assert a vacuous pass, and
+        // do not FAIL a lane that structurally cannot know the answer.
+        T.skip('A1 · the scan covers every .js the owned bundles INLINE', 'browser lane has no filesystem — the Node lane owns this check');
+      } else {
+        T.ok('A1 · the scan covers every .js the owned bundles INLINE (the gate cannot silently shrink)', unscanned.length === 0, unscanned.length ? 'NOT scanned: ' + unscanned.join(', ') : shipped.length + ' shipped modules all scanned');
+      }
       T.ok(
         'A1 · no non-UTC civil getter on a tMs (display must use getUTC*)',
         getterHits.length === 0,

@@ -131,7 +131,7 @@ Latent: every real producer writes exactly 3 fractional digits.
 
 **Fix.** One token: truncate, never round. **Gate: re-bundle PpgDex only.**
 
-### 1.4 The Clock-Contract lint says "clean across 70 files" while 44 shipped files are outside its scope — `tests/dex-tests.js:8808`
+### 1.4 The Clock-Contract lint says "clean across 70 files" while 44 shipped files are outside its scope — `tests/dex-tests.js:8808` — **FIXED 2026-07-27**
 
 The A1 house-invariant lint is scoped to `Object.keys(env.sources)` — a hand-curated array in
 `tests/run-tests.mjs:214-297`. Nothing keeps it in sync with what the bundler actually inlines, so **the gate's
@@ -149,8 +149,22 @@ integrator-longitudinal.js:343:  return r.t0Ms != null ? r.t0Ms : r.date ? Date.
 > (an entire node's DSP), `cpapdex-coimport.js` (itself the subject of §1.2's sibling comparison),
 > `nsrr-adapter.js`, and all 9 `adapters/*.js`.
 
-**Fix.** Derive the lint's file set from the tree — the union of every `data-inline-src` in the 10 owned
-bundles — so *"any source"* means *"any code we ship"*. **Gate: `tests/` only.**
+**Fix AS LANDED (2026-07-27).** The scope is derived from every `data-inline-src` in the owned bundles
+(**70 → 108 files scanned**, 89 of them shipped modules), and the scan set is **itself gated** — a new
+assertion requires the scanned set to cover every inlined `.js`, so the coverage and the wording are now
+the same fact and a newly-inlined module joins by construction.
+
+**Widening it immediately caught a second blind gate, which is the real lesson.** Besides the known
+`Date.parse` in `integrator-longitudinal.js` (fixed here with an explicit regex + `Date.UTC`; it was
+benign in practice because `date` is always a `fmtDate()` `YYYY-MM-DD` string, which the spec parses as
+UTC — but "benign today" is how a footgun waits), the **badge-by-construction classifier** turned out to
+be blind in exactly the same way: `ecgdex-render.js` and `ppgdex-render.js` ship in bundles but sat
+outside the curated list, so that gate could not see them to complain. They were not *classified*, they
+were *invisible*. Both are now named as unmigrated — the honest state.
+
+**Gate cost was NOT tests-only after all:** `integrator-longitudinal.js` is inlined, so `Integrator.html`
+`4dded13192b1` → `f58f4873b5de` and `OverDex.html` re-bundled. 3961 assertions green with `DEX_UPLOADS`
+(0 skipped) · GATE A 9/9 · typecheck clean · `verify-fixtures` re-stamped after a green corpus run.
 
 ---
 
