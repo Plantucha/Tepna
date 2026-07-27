@@ -23,8 +23,14 @@ User=vigil
 # monitor filtered on syslog priority and capture logs WARNINGs at PRIORITY=6.
 # Ambient (not just Bounding): the unit runs as an unprivileged User=, and ambient caps are the only
 # ones an unprivileged process actually keeps across exec.
+# ⚠️ DO NOT narrow CapabilityBoundingSet here, and do not set NoNewPrivileges=true. Both look like
+# hardening and both DISABLE the daemon's sudo calls (tepna-rssi.sh, and the CPAP harvest's
+# wpa_supplicant/ip). sudo must gain uid 0, which needs CAP_SETUID/CAP_SETGID in the BOUNDING set and
+# is forbidden outright by NoNewPrivileges. Shipped 2026-07-26 and broke the CPAP association four
+# commits after enabling it: sudo-rs panics with rc=101 ("panicked at src/system/audit"), which reads
+# like a sudo bug rather than a unit-file mistake. AmbientCapabilities alone is what arms the watchdog
+# ladder; the bounding-set narrowing added nothing but breakage.
 AmbientCapabilities=CAP_NET_ADMIN
-CapabilityBoundingSet=CAP_NET_ADMIN
 
 Group=vigil
 WorkingDirectory=/opt/tepna/capture-host
@@ -41,7 +47,7 @@ RestartSec=5
 #   and it is worth paying (the old truncating write needed only the file, but could destroy it).
 ReadWritePaths=/srv/tepna /opt/tepna/capture-host
 
-NoNewPrivileges=true
+NoNewPrivileges=no
 ProtectSystem=strict
 # ProtectHome stays TRUE, so /home/vigil is invisible to the daemon. Consequence for the offload: the
 # rsync SSH key must NOT live in ~/.ssh — put it under /srv/tepna/.ssh/ (mode 600) or the archive push
