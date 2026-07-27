@@ -19,6 +19,7 @@ class _Clock:
         self.wall = wall
         self.mono = 1000.0
         self.offset = dt.timedelta(hours=offset_h)
+        self.writers_open = 1        # set by _install; see its note
 
     def tick(self, secs: float, wall_secs: float | None = None) -> None:
         self.mono += secs
@@ -31,7 +32,7 @@ class _Clock:
             self.offset = dt.timedelta(hours=offset_h)
 
 
-def _install(monkeypatch, clk: _Clock) -> None:
+def _install(monkeypatch, clk: _Clock, writers_open: int = 1) -> None:
     monkeypatch.setattr(capture, "_time", types.SimpleNamespace(monotonic=lambda: clk.mono))
     monkeypatch.setattr(capture, "_dt", types.SimpleNamespace(
         datetime=types.SimpleNamespace(now=lambda: clk.wall), timedelta=dt.timedelta))
@@ -42,6 +43,13 @@ def _install(monkeypatch, clk: _Clock) -> None:
     monkeypatch.setattr(capture, "_anchor_mono", 0.0)
     monkeypatch.setattr(capture, "_anchor_utcoff", dt.timedelta(0))
     monkeypatch.setattr(capture, "_civil_shift", 0.0)
+    # A RECORDING IS IN PROGRESS. Every test below the transition group is about a file that must not
+    # rewind, and "a file is open" is the precondition that entitles `_now()` to absorb a civil
+    # relabelling at all (CAPTURE-HOST-DEEP-AUDIT §A1). It used to be implicit — which is exactly how
+    # the absorbed hour came to outlive the file and stamp every later night an hour off — so it is
+    # now stated. Pass 0 to model an IDLE box.
+    clk.writers_open = writers_open
+    monkeypatch.setattr(capture, "open_sample_writers", lambda: clk.writers_open)
 
 
 def test_normal_advance_is_monotonic(monkeypatch):
@@ -158,6 +166,149 @@ def test_a_step_that_merely_looks_like_an_hour_is_not_excused(monkeypatch):
     clk.tick(10.0)
     clk.step(-3600.0)                  # no offset change
     assert capture._now() == dt.datetime(2026, 7, 1, 21, 0, 10)
+
+
+# ── §A1 · the absorbed shift has a LIFETIME ───────────────────────────────────────────────────────
+# Every test above holds ONE file open across ONE transition, which is the whole of what the original
+# implementation was ever driven through — and it passes with the defect live. What follows drives the
+# thing the unit actually does: run for months under `Restart=always`, across a transition, into
+# LATER nights. A fold-correct epoch clock is required to state that honestly, because the question
+# "what is the civil time a week after the fall-back?" cannot be answered by a hand-nudged wall clock.
+
+
+class _ZonedClock:
+    """A real UTC instant + a real IANA zone. `wall` is derived, never set — so the autumn fold, the
+    spring gap and the post-transition offset are the zone database's answers, not the test's.
+
+    Also carries `writers_open`, because in this suite "is a file open?" is a clock input."""
+
+    def __init__(self, epoch: float, zone: str, writers_open: int = 1):
+        from zoneinfo import ZoneInfo
+        self._ZoneInfo = ZoneInfo
+        self.epoch = epoch
+        self.zone = ZoneInfo(zone)
+        self.mono = 1000.0
+        self.writers_open = writers_open
+
+    @property
+    def wall(self) -> dt.datetime:
+        """Local civil time as `datetime.now()` returns it: naive, fold-correct."""
+        return dt.datetime.fromtimestamp(self.epoch, tz=self.zone).replace(tzinfo=None)
+
+    @property
+    def offset(self) -> dt.timedelta:
+        return dt.datetime.fromtimestamp(self.epoch, tz=self.zone).utcoffset()
+
+    def advance(self, secs: float) -> None:
+        """Real time passing: the instant and the monotonic counter move together."""
+        self.epoch += secs
+        self.mono += secs
+
+    def set_zone(self, zone: str) -> None:
+        """`timedatectl set-timezone` — the instant is unchanged, its civil label is not."""
+        self.zone = self._ZoneInfo(zone)
+
+
+def _install_zoned(monkeypatch, clk: _ZonedClock) -> None:
+    monkeypatch.setattr(capture, "_time", types.SimpleNamespace(monotonic=lambda: clk.mono))
+    monkeypatch.setattr(capture, "_dt", types.SimpleNamespace(
+        datetime=types.SimpleNamespace(now=lambda: clk.wall), timedelta=dt.timedelta))
+    monkeypatch.setattr(capture, "_utcoffset", lambda when: clk.offset)
+    monkeypatch.setattr(capture, "_anchor_wall", None)
+    monkeypatch.setattr(capture, "_anchor_mono", 0.0)
+    monkeypatch.setattr(capture, "_anchor_utcoff", dt.timedelta(0))
+    monkeypatch.setattr(capture, "_civil_shift", 0.0)
+    monkeypatch.setattr(capture, "open_sample_writers", lambda: clk.writers_open)
+
+
+# 2026-11-01 01:30 EDT — half an hour before America/New_York falls back to EST.
+_NY_FALLBACK_EVE = dt.datetime(2026, 11, 1, 5, 30, tzinfo=dt.timezone.utc).timestamp()
+
+
+def test_a_later_night_is_stamped_in_civil_time_after_a_transition(monkeypatch):
+    """THE §A1 regression. One autumn fall-back used to shift EVERY subsequent night by an hour —
+    the Phone column, the filename stamp and night_dir() alike — because the absorbed shift lived in a
+    module global and the unit never restarts. Fails against the pre-fix code at +3600 s on day 1."""
+    clk = _ZonedClock(_NY_FALLBACK_EVE, "America/New_York")
+    _install_zoned(monkeypatch, clk)
+    capture._now()
+    clk.advance(3600)                       # through the fall-back, file still open
+    absorbed = capture._now()
+    assert absorbed == dt.datetime(2026, 11, 1, 2, 30), "the open recording must not rewind"
+    assert clk.wall == dt.datetime(2026, 11, 1, 1, 30), "the zone did fall back"
+
+    clk.writers_open = 0                    # the session ends at dawn
+    capture._now()                          # the absorbed frame expires here
+
+    elapsed = 0
+    for days in (1, 7, 30, 120):            # every later night, out past the spring transition
+        clk.advance(86400 * (days - elapsed))
+        elapsed = days
+        clk.writers_open = 1                # the next night starts recording
+        stamp = capture._now()
+        assert stamp == clk.wall, f"+{days}d: stamp {stamp} != civil {clk.wall}"
+        clk.writers_open = 0                # and ends
+        capture._now()
+
+
+def test_a_deliberate_zone_change_reanchors_instead_of_being_absorbed(monkeypatch):
+    """The second, worse trigger: a zone move is indistinguishable from a DST relabelling by offset
+    alone, so `_now()` absorbed it while /api/clock/tz answered ok and reported the NEW zone."""
+    clk = _ZonedClock(_NY_FALLBACK_EVE, "America/New_York")
+    _install_zoned(monkeypatch, clk)
+    capture._now()
+    clk.advance(60)
+    clk.set_zone("America/Chicago")         # what /api/clock/tz performs
+    capture.reset_clock_anchor("timezone set to America/Chicago")
+    assert capture._now() == clk.wall
+    # And it stays right. The box idles between nights, so Chicago's OWN fall-back (02:00 CDT on the
+    # same date) is followed rather than absorbed — had the file stayed open across it, absorbing it
+    # would be correct, which is why this leg models the real duty cycle instead of a 10-day recording.
+    clk.writers_open = 0
+    for _ in range(10):
+        clk.advance(86400)
+        assert capture._now() == clk.wall
+
+
+def test_a_relabelling_with_no_file_open_is_followed_not_absorbed(monkeypatch):
+    """Rule 1. With nothing being recorded there is no artefact to protect, so absorbing would bank an
+    hour of error for free. (An idle box across a transition is the common case — most nights the box
+    is awake and not capturing at 02:00.)"""
+    clk = _ZonedClock(_NY_FALLBACK_EVE, "America/New_York", writers_open=0)
+    _install_zoned(monkeypatch, clk)
+    capture._now()
+    clk.advance(3600)
+    assert capture._now() == clk.wall == dt.datetime(2026, 11, 1, 1, 30)
+    assert capture._civil_shift == 0.0, "nothing was open — nothing should have been absorbed"
+
+
+def test_the_absorbed_shift_expires_when_the_last_file_closes(monkeypatch):
+    """Rule 2, in isolation: the shift survives exactly as long as a file is open, and no longer."""
+    clk = _ZonedClock(_NY_FALLBACK_EVE, "America/New_York")
+    _install_zoned(monkeypatch, clk)
+    capture._now()
+    clk.advance(3600)
+    capture._now()
+    assert capture._civil_shift == -3600.0, "an open recording must still absorb the relabelling"
+    clk.writers_open = 0
+    assert capture._now() == clk.wall
+    assert capture._civil_shift == 0.0
+
+
+def test_expiry_does_not_fire_while_any_file_is_still_open(monkeypatch):
+    """The control. If the expiry keyed on something looser than the open count — a night roll, a
+    timer — it would rewind a still-open recording, which is the failure the absorption exists to
+    prevent. Two devices, one ending early: the survivor's file must not move."""
+    clk = _ZonedClock(_NY_FALLBACK_EVE, "America/New_York", writers_open=2)
+    _install_zoned(monkeypatch, clk)
+    capture._now()
+    clk.advance(3600)
+    before = capture._now()
+    clk.writers_open = 1                    # one device drops; the other is still writing
+    clk.advance(30)
+    after = capture._now()
+    assert after == before + dt.timedelta(seconds=30), "a still-open recording rewound"
+    assert capture._civil_shift == -3600.0
 
 
 def test_utcoffset_tracks_a_real_dst_transition(monkeypatch):

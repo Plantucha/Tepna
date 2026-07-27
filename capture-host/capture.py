@@ -11,7 +11,9 @@
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, os, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter,
-                     HostClockLogWriter, capture_filename, missing_identity, night_dir)
+                     HostClockLogWriter, capture_filename, missing_identity, night_dir,
+                     open_sample_writers)
+import proc_util
 import polar_pmd as pmd
 import viatom
 import oxyii
@@ -85,6 +87,21 @@ def _live_key(stream: str, tag: str) -> str:
 # the offset unchanged. So we absorb the civil relabelling and keep counting in the session's ORIGINAL
 # offset. The recording then stays in ONE offset frame end-to-end, which is what §1's floating `tMs` +
 # per-recording anchor already assume; monotonic beats civil-correct for a signal file.
+#
+# ⚠️ THE ABSORBED SHIFT HAS A LIFETIME, AND IT IS THE OPEN FILE (CAPTURE-HOST-DEEP-AUDIT §A1).
+# The paragraph above justifies the absorption entirely in terms of a RECORDING that must not rewind —
+# but the state implementing it is a module global, and the unit is `Restart=always` with no
+# `RuntimeMaxSec` and no `.timer`, i.e. it is meant to run for months. So the absorbed hour used to
+# outlive the file it protected and every LATER night was stamped an hour off civil time — in the
+# per-sample Phone column, in the FILENAME, and in `night_dir()` — indefinitely, with no gate able to
+# see it. Two rules bound it, and both key on the same fact (`open_sample_writers()`):
+#   1. ABSORB only while a sample file is open. With nothing being recorded there is no artefact to
+#      protect, so the honest response to a civil relabelling is to follow it.
+#   2. EXPIRE an absorbed shift as soon as the last sample file closes. A discontinuity BETWEEN
+#      sessions is free — the next sample opens a new file anyway.
+# A deliberate `timedatectl set-timezone` is indistinguishable from a DST relabelling by offset alone
+# (that is the whole trick above), so it cannot be told apart here and gets an explicit door instead:
+# `reset_clock_anchor()`, called by the /api/clock/tz handler that performed it.
 _STEP_THRESH_S = 2.0
 _anchor_wall: _dt.datetime | None = None
 _anchor_mono: float = 0.0
@@ -110,6 +127,26 @@ def _reanchor(shift: float = 0.0) -> None:
     _civil_shift = shift
 
 
+def reset_clock_anchor(reason: str = "") -> None:
+    """Drop any absorbed civil shift and re-pin the capture clock to civil time.
+
+    The explicit door for a civil-time change the box was TOLD to make — `timedatectl set-timezone` via
+    /api/clock/tz. By offset alone that is indistinguishable from a DST relabelling (both move the zone's
+    UTC offset by exactly the apparent drift), so `_now()` cannot tell them apart and used to absorb it:
+    `clockcfg.status()` then reported the new zone with `tz_set: true` while every stamp stayed in the
+    old one, forever. Intent is the only thing that separates the two cases, and only the caller has it.
+
+    If a recording is open it takes a one-time step at this instant. That is the operator's explicit
+    instruction, it is logged, and it is strictly better than the alternative the audit measured — every
+    subsequent night silently an hour off."""
+    if _anchor_wall is not None and _civil_shift:
+        log.warning("capture clock re-anchored to civil time (%s) — discarding the %+.0fs civil shift "
+                    "absorbed since the last anchor", reason or "requested", _civil_shift)
+    else:
+        log.info("capture clock re-anchored to civil time (%s)", reason or "requested")
+    _reanchor(0.0)
+
+
 def _now() -> _dt.datetime:
     global _civil_shift
     if _anchor_wall is None:
@@ -120,9 +157,24 @@ def _now() -> _dt.datetime:
     # Fast path, and the steady state after a transition has been absorbed. Deliberately avoids the
     # tz lookup below: _now() runs per sample (ECG is 130 Hz), astimezone() is not free.
     if abs(drift - _civil_shift) <= _STEP_THRESH_S:
+        # §A1 rule 2 — the absorbed shift expires with the artefact it protects. `_civil_shift` is 0.0
+        # in the steady state, so this costs one float truth-test per sample and never reaches the
+        # (cheap, but not free) writer count on the hot path.
+        if _civil_shift and open_sample_writers() == 0:
+            log.warning("absorbed civil shift %+.0fs expired — no capture file is open, so re-anchoring "
+                        "to civil time; the next recording starts in the CURRENT offset frame", _civil_shift)
+            _reanchor(0.0)
+            return _dt.datetime.now()
         return predicted
     off_delta = (_utcoffset(actual) - _anchor_utcoff).total_seconds()
     if off_delta != _civil_shift and abs(drift - off_delta) <= _STEP_THRESH_S:
+        # §A1 rule 1 — absorb ONLY to protect an open recording. With nothing being written there is
+        # no file to rewind, so following civil time is both free and correct.
+        if open_sample_writers() == 0:
+            log.info("civil clock relabelled %+.0fs with no capture file open — following it rather "
+                     "than absorbing it", off_delta - _civil_shift)
+            _reanchor(0.0)
+            return _dt.datetime.now()
         log.warning("DST transition %+.0fs — civil clock relabelled, NOT stepped; capture stamps keep "
                     "counting monotonically in the session's original UTC offset", off_delta - _civil_shift)
         _civil_shift = off_delta
@@ -235,6 +287,123 @@ O2PPG_NS_STEP = int(1e9 / O2PPG_FS)   # 7_953_041 ns → relative-ms steps of ~7
 # still catches them. Overridable per unit via `o2ring.ppg_gap_min_ms`.
 O2PPG_GAP_MIN_S = 0.040
 
+# The configured rate is a STARTING GUESS, not the sample clock (CAPTURE-HOST-DEEP-AUDIT §A3).
+# `O2PPG_FS_DEFAULT` was calibrated once, and it was calibrated LOW: `rows/wall` is bounded ABOVE by the
+# true ADC rate (link loss can only lower it), so each day's MAXIMUM `rows/wall` is a lower bound on the
+# ring's real rate — and it exceeds 125.738 on EVERY day of the corpus (07-18 125.826 … 07-26 126.045).
+# That direction is the one the old grid could not survive: the session-anchored correction only ever
+# ADVANCED (`if target - idx > …`), which is safe while the ring runs SLOWER than configured but means a
+# FASTER ring banks error without bound — +0.2519 % inflation, ~+9.1 s/h of elapsed time that never
+# happened, on the finger-PPG leg PpgDex derives HRV from.
+#
+# So the step is MEASURED instead of assumed. Re-calibrating the constant would just repeat the 2026-07-18
+# fix with a new number and leave the asymmetry in place.
+_O2PPG_EST_MIN_S = 30.0     # don't trust the estimate before this much has elapsed: the estimator is a
+                            # CUMULATIVE mean, so its noise falls as 1/elapsed — at the documented ±16.4 ms
+                            # arrival jitter that is ±0.055 % here, an order below the defect it replaces.
+_O2PPG_EST_BAND = 0.05      # hard clamp: the estimate may not claim a rate more than ±5 % off nominal.
+                            # A ring really running outside that band is a different unit, not drift, and
+                            # belongs in `o2ring.ppg_fs` where a human can see it.
+_O2PPG_EST_SLEW = 0.002     # and it may not move more than 0.2 % per frame, so no single pathological
+                            # arrival can step the grid's rate.
+
+
+class O2PpgGrid:
+    """The O2Ring's synthesized PPG sample clock.
+
+    The ring has NO device clock, so the host lays its samples on a grid and writes that grid as the
+    `sensor timestamp [ns]` column. Two things can go wrong and they are DIFFERENT:
+
+      * REAL LOSS — the link dropped frames, so time passed that carries no samples. Handled by advancing
+        the grid (an honest gap), because writing the survivors back-to-back would compress the record and
+        fabricate beat-to-beat variability at every hole.
+      * RATE ERROR — every sample arrived, but the grid's step does not match the rate the ring actually
+        runs at. Handled here, by measuring the step instead of assuming it.
+
+    Conflating them is what made `ppg_grid_check` call a file with ZERO inserted gaps "TIMELINE INFLATED …
+    cannot be repaired": a uniform rate error and discrete gap insertion produce the same ratio, and the
+    file distinguishes them for free (a gap is a non-modal `sensor_ns` delta; a pure rate error leaves the
+    delta set a SINGLETON).
+
+    The emitted ns is ACCUMULATED, never `idx * step`, so shortening the step cannot retroactively move a
+    sample already written — the column is strictly increasing by construction, which parsing depends on.
+    """
+
+    def __init__(self, fs: float | None = None, gap_min_s: float | None = None):
+        self.nominal_fs = float(fs or O2PPG_FS)
+        self.gap_min_s = float(O2PPG_GAP_MIN_S if gap_min_s is None else gap_min_s)
+        self.step_s = 1.0 / self.nominal_fs
+        self.idx = 0        # grid position of the NEXT sample — counts inserted gaps, not just arrivals
+        self.ns = 0         # sensor_ns of the NEXT sample
+        self.t0 = None      # host arrival mapped to grid index 0 (the session anchor)
+        self.gaps = 0
+        self.lost = 0
+        # A SEPARATE anchor for the rate estimate, reset by every inserted gap. The two mechanisms must
+        # not share one: an inserted gap raises `idx` while elapsed is unchanged, so estimating across it
+        # lowers the apparent period, which raises the rate, which makes `target` outrun `idx` and inserts
+        # MORE gaps — a runaway that measured +1.04 % inflation and 118 phantom gaps on a ZERO-LOSS
+        # jitter stream. Measuring only loss-free stretches removes the feedback path entirely: within
+        # one, `idx` advances solely by arrivals, so the estimate is the ring's true rate and nothing the
+        # gap branch does can bias it. A link too lossy to hold a clean stretch simply keeps the
+        # configured step — the status quo, which is the right thing to degrade to.
+        self.est_t0 = None
+        self.est_idx0 = 0
+
+    @property
+    def fs(self) -> float:
+        """The rate currently being written — measured once the session is long enough to measure."""
+        return 1.0 / self.step_s
+
+    def frame(self, arr: _dt.datetime, nps: int) -> list[int]:
+        """Absorb one frame of `nps` samples that arrived at `arr`; return their sensor_ns, in order.
+
+        The frame's samples are back-timed to END at `arr`, so it covers [arr - (nps-1)*step, arr]."""
+        if self.t0 is None:
+            self.t0 = arr - _dt.timedelta(seconds=(nps - 1) * self.step_s)
+            self.est_t0, self.est_idx0 = self.t0, 0
+        elapsed = (arr - self.t0).total_seconds()
+        # Where this frame's FIRST sample should sit, per the host clock. Measured against the SESSION
+        # anchor, not the previous frame: the advance is one-sided, so comparing consecutive arrivals
+        # RECTIFIED symmetric BLE jitter into monotonic inflation (+210 s over 11.18 h of real corpus,
+        # with rows/wall at nominal — i.e. nothing was actually lost). Anchored, jitter cancels.
+        target = int(round(elapsed / self.step_s - (nps - 1)))
+        step_ns = int(round(self.step_s * 1e9))
+        if target - self.idx > self.gap_min_s / self.step_s:
+            n = target - self.idx
+            self.idx += n
+            self.ns += n * step_ns
+            self.gaps += 1
+            self.lost += n
+            # Time was lost, so the stretch we were measuring the rate over is no longer loss-free.
+            # Start a new one HERE: this frame's first sample now sits at `arr - (nps-1)*step`.
+            self.est_t0 = arr - _dt.timedelta(seconds=(nps - 1) * self.step_s)
+            self.est_idx0 = self.idx
+        out = []
+        for _ in range(nps):
+            out.append(self.ns)
+            self.ns += step_ns
+            self.idx += 1
+        self._re_estimate(arr)
+        return out
+
+    def _re_estimate(self, arr: _dt.datetime) -> None:
+        """Pull the step toward the rate the ring is ACTUALLY running at, over the current loss-free
+        stretch. `est_idx0` sits at `est_t0` and the sample just written sits at `arr`, and no gap has
+        been inserted in between — so `idx` advanced by arrivals alone and the ratio is the true period."""
+        n = self.idx - 1 - self.est_idx0
+        if n < 1 or self.est_t0 is None:
+            return
+        span = (arr - self.est_t0).total_seconds()
+        if span < _O2PPG_EST_MIN_S:
+            return
+        obs = span / n
+        lo = 1.0 / (self.nominal_fs * (1 + _O2PPG_EST_BAND))
+        hi = 1.0 / (self.nominal_fs * (1 - _O2PPG_EST_BAND))
+        obs = min(max(obs, lo), hi)
+        slew = self.step_s * _O2PPG_EST_SLEW
+        self.step_s = min(max(obs, self.step_s - slew), self.step_s + slew)
+
+
 # Same one-link constraint for Polar (H10 / Verity) offline-recording pulls over PS-FTP: a device address
 # in this set tells its run_polar task to drop the link and idle, so polar_offline_op can own it for the
 # download, then resume live capture. Per-address (not a single event) so pulling the Verity doesn't pause
@@ -277,16 +446,34 @@ def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = Non
     """
     reasons: list[str] = []
     phantom: list[str] = []
-    any_connected = any(d.get("connected") for d in devices)   # is the radio serving ANY live link?
+    # A LIVE LINK IS NOT PROOF THE RADIO IS WORKING — A STREAMING ONE IS (CAPTURE-HOST-DEEP-AUDIT §C3).
+    # Both suppression guards below turn on "is the radio serving anyone?", and both used to read
+    # `connected`. A sensor on its charger reports connected=True while producing nothing — the Verity
+    # literally sets `last_error="charging — PMD streams unavailable"` — so ONE DOCKED SENSOR made a
+    # genuinely DOWN adapter classify as healthy. Suppression-only: this can never cause a spurious
+    # power-cycle, only miss a real wedge.
+    #
+    # The predicate is `cpap_harvest.blocking_devices` verbatim (connected AND not charging AND worn is
+    # not False) — the same confusion, fixed in the CPAP interlock the same day in commit 1f6bcdf, one
+    # module over. `adapter_watchdog`'s own docstring already said the reset requires "a single
+    # connected+STREAMING device"; the classifier was not even PASSED charging/worn, so it could not
+    # make the distinction it documented.
+    #
+    # The PHANTOM branch below is untouched: it genuinely wants link EXISTENCE (`bluez_connected` while
+    # our own `connected` is False), it is per-device, and a stale link is a wedge whether or not
+    # anything is streaming.
+    any_streaming = any(d.get("connected") and not d.get("charging") and d.get("worn") is not False
+                        for d in devices)
     # A DOWN/absent pinned adapter while it is serving NOBODY is the most direct wedge signal there is —
-    # and the one the per-device errors below cannot express. Guarded by `not any_connected` (identical to
-    # the InProgress guard): a live link is proof the radio works, so a probe misread can never power-cycle
-    # a demonstrably-working adapter. adapter_up=None (unknown) leaves the device heuristics to stand alone.
-    if adapter_up is False and not any_connected:
+    # and the one the per-device errors below cannot express. Guarded by `not any_streaming` (identical to
+    # the InProgress guard): a live STREAM is proof the radio works, so a probe misread can never
+    # power-cycle a demonstrably-working adapter. adapter_up=None (unknown) leaves the device heuristics
+    # to stand alone.
+    if adapter_up is False and not any_streaming:
         reasons.append("pinned adapter DOWN/not-found")
     for d in devices:
         err = d.get("last_error") or ""
-        if "InProgress" in err and not any_connected and adapter_up is not True:
+        if "InProgress" in err and not any_streaming and adapter_up is not True:
             # No device is connected AND a connect is stuck in-progress → INFER the radio is wedged... but
             # ONLY when the adapter is not CONFIRMED up. If _adapter_is_up() says the pinned adapter is
             # UP RUNNING (adapter_up is True), the radio is demonstrably working and this InProgress is
@@ -1093,10 +1280,9 @@ async def run_polar(dev: dict, root: str):
                                             name, pmd.MEAS_NAME.get(meas, meas))
                             else:                        # truly unsupported settings — drop it, don't leave an empty file / idle card
                                 _set(name, last_error=f"{pmd.MEAS_NAME.get(meas, meas)} START rejected")
-                                try:
-                                    p = writers[meas].path; writers[meas].close(); os.remove(p)
-                                except OSError:
-                                    pass
+                                # discard(), not `os.remove(wr.path)` — the writer knows every file it
+                                # owns and `path` names only the primary (CAPTURE-HOST-DEEP-AUDIT §C8).
+                                writers[meas].discard()
                                 del writers[meas]
                                 BUS.unregister(_live_key(pmd.MEAS_NAME.get(meas, str(meas)), tag))
                             await asyncio.sleep(0.2)
@@ -1213,16 +1399,15 @@ async def run_polar(dev: dict, root: str):
             # Those files are indistinguishable from a real capture until something opens them, and they
             # pollute the night directory the Dex ingest walks. The START-rejected path already deleted
             # its file for exactly this reason; this generalises it to every way a session can end.
+            # discard(), never os.remove(wr.path): the writer knows every file it owns and `path` names
+            # only the primary — see StreamWriter.paths (CAPTURE-HOST-DEEP-AUDIT §C8).
             for wr in list(writers.values()) + ([hr_writer] if hr_writer else []):
-                empty = not wr.rows
-                path = wr.path
-                wr.close()
-                if empty:
-                    try:
-                        os.remove(path)
-                        log.debug("%s: discarded header-only %s", name, os.path.basename(path))
-                    except OSError:
-                        pass
+                if not wr.rows:
+                    names = ", ".join(os.path.basename(p) for p in wr.paths)
+                    wr.discard()
+                    log.debug("%s: discarded header-only %s", name, names)
+                else:
+                    wr.close()
         if not _STOP.is_set():
             if charging_hold:
                 # Not a fault, so it must not ride the error backoff: recheck on a steady cadence so the
@@ -1361,7 +1546,17 @@ async def run_viatom(dev: dict, root: str):
                         return
                     now = _now()
                     if pkt["spo2"] is not None:
-                        wr.write(now, pkt["spo2"], pkt["pr"] or 0, pkt["motion"])
+                        # `pkt["pr"]` passed through AS-IS, including None (CAPTURE-HOST-DEEP-AUDIT §B2).
+                        # VIGIL-PPG-GRID-AUDIT §5.2 removed `or 0` from the OXYII call site and left a
+                        # comment there plus a past-tense docstring on Spo2CsvWriter.write — and never
+                        # touched this one, the SECOND producer of the identical CSV one screen up.
+                        # Reachable by configuration (`protocol: legacy`, config.example.yaml:83), not
+                        # dead. Impact is bounded and worth stating plainly: the shipped oxydex-dsp.js
+                        # rejects `0` and blank IDENTICALLY (`parseInt('')` → NaN and `0 < 20` hit the
+                        # same `continue`), 0 occurrences across 110k real rows on the sibling path — so
+                        # NO downstream number moves. What changes is that the file stops asserting a
+                        # pulse the ring never measured.
+                        wr.write(now, pkt["spo2"], pkt["pr"], pkt["motion"])
                         BUS.push("spo2", [pkt["spo2"]])
                         if pkt["pr"]:
                             BUS.push("pr", [pkt["pr"]])
@@ -1442,12 +1637,10 @@ async def run_oxyii(dev: dict, root: str):
         path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
         ppg_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg", "txt"))
         wr = ppgwr = oxyflagwr = None
-        ppg_idx = [0]                                 # running sample index → synthesized sensor_ns
-        # Honest-gap state (O2RING-PPG-GAP §1), per SESSION — a reconnect opens a new file and a new
-        # grid, so these reset with ppg_idx rather than persisting across links.
-        ppg_t0 = [None]                               # host arrival mapped to grid index 0 (session anchor)
-        ppg_gaps = [0]                                # gaps inserted this session
-        ppg_lost = [0]                                # samples' worth of real time skipped
+        # The synthesized PPG sample clock (O2RING-PPG-GAP §1 + CAPTURE-HOST-DEEP-AUDIT §A3), per
+        # SESSION — a reconnect opens a new file and a new grid, so it is rebuilt with the writers
+        # rather than persisting across links. Boxed so the BLE callback can reach it.
+        ppg_grid = [O2PpgGrid()]
         stalled = False                               # link held but no frames decoded — reconnect
         try:
             _set(name, connected=False, address=addr, last_error=None)
@@ -1541,47 +1734,15 @@ async def run_oxyii(dev: dict, root: str):
                             # [arr - nps/fs, arr]. Real time the ring measured but the link lost must
                             # ADVANCE the grid instead of being pretended away.
                             #
-                            # ⚠️ MEASURED AGAINST A SESSION ANCHOR, NOT THE PREVIOUS FRAME (2026-07-25).
-                            # This used to compare `arr` against the PREVIOUS frame's arrival and advance
-                            # whenever that one delta exceeded the threshold. Because the advance is
-                            # one-sided (we never rewind — see below), that RECTIFIED symmetric BLE arrival
-                            # jitter into monotonic time inflation: every positive excursion past the
-                            # threshold was banked permanently while the compensating negative ones were
-                            # discarded, so the grid drifted ahead of real time even when NOTHING was lost.
-                            # Measured on the real corpus: +210 s of elapsed time that never happened over
-                            # 11.18 h, while rows/wall sat at nominal on every file (i.e. no samples were
-                            # actually missing). A synthetic replay at this code's own documented jitter
-                            # (sd 16.4 ms) inflated a ZERO-LOSS stream by +3.2 % and minted 1264 phantom
-                            # gaps. Downstream that lands in PpgDex's `relSec` beat timeline (its `fs`
-                            # survives — it takes the MEDIAN ns delta), inflating the intervals that cross
-                            # a phantom gap, which is exactly the successive-difference quantity RMSSD is.
-                            #
-                            # Anchoring to the session start makes symmetric jitter CANCEL instead of
-                            # accumulate: a late frame does not advance the grid while the cumulative
-                            # position is still on track, so only a PERSISTENT deficit — a real dropout —
-                            # moves it. Replayed over the same real corpus this cuts the inflation from
-                            # +1.05 % to +0.05 % and the gap count from hundreds per file to single digits.
-                            # (O2RING-PPG-GAP §1; VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §1.)
-                            if ppg_t0[0] is None:
-                                # Map this frame's FIRST sample to grid index 0 — the anchor every later
-                                # frame is measured against.
-                                ppg_t0[0] = arr - _dt.timedelta(seconds=(nps - 1) / O2PPG_FS)
-                            # Where this frame's first sample SHOULD sit on the grid, per the host clock.
-                            target = int(round(
-                                ((arr - ppg_t0[0]).total_seconds() - (nps - 1) / O2PPG_FS) * O2PPG_FS))
-                            # Only ever advance. A target BEHIND the cursor means the ring is running a
-                            # touch slower than the configured `ppg_fs`, or a frame arrived early; rewinding
-                            # would emit non-monotonic sensor_ns and break parsing. Holding still is also
-                            # the SAFE direction — it under-reports a gap rather than inventing one.
-                            if target - ppg_idx[0] > O2PPG_GAP_MIN_S * O2PPG_FS:
-                                lost = target - ppg_idx[0]
-                                ppg_idx[0] += lost
-                                ppg_gaps[0] += 1
-                                ppg_lost[0] += lost
+                            # The whole grid — the session anchor, the honest-gap advance and the MEASURED
+                            # step that CAPTURE-HOST-DEEP-AUDIT §A3 added — lives in O2PpgGrid, where it
+                            # can be driven directly by a test. It used to live here, inline in a BLE
+                            # callback, and the test file re-implemented it: two copies of the rule, with
+                            # the assertions pointed at the copy that ships to nobody.
+                            ns_of = ppg_grid[0].frame(arr, nps)
                             for i, v in enumerate(ppg):
-                                ph = arr - _dt.timedelta(seconds=(nps - 1 - i) / O2PPG_FS)
-                                ppgwr.write_ppg(ph, ppg_idx[0] * O2PPG_NS_STEP, 0.0, (v,), 0)
-                                ppg_idx[0] += 1
+                                ph = arr - _dt.timedelta(seconds=(nps - 1 - i) * ppg_grid[0].step_s)
+                                ppgwr.write_ppg(ph, ns_of[i], 0.0, (v,), 0)
                             BUS.push("o2ppg", ppg)
                         live = oxyii.parse_live(r[1])
                         if not live:
@@ -1697,15 +1858,20 @@ async def run_oxyii(dev: dict, root: str):
             # Report the honest gaps this session inserted. Silence here would re-create the very problem
             # the gap insertion fixes — a lossy link that LOOKS clean. Logged even at zero, so "no gaps"
             # is an observation rather than an absence of evidence.
-            if ppgwr and ppg_idx[0]:
+            if ppgwr and ppg_grid[0].idx:
                 # Phrased as what was MEASURED (a grid advance), not as a conclusion about the link. The
                 # old wording asserted "%% of the session's real time was lost by the link" — which the
                 # frame-anchored inflation made false: most of what it reported as loss was rectified
                 # arrival jitter, not lost time. A log line is evidence only if it says what it saw.
+                # The MEASURED rate is reported alongside (§A3): the configured `ppg_fs` is a starting
+                # guess, and the difference between it and this number is what used to be written into
+                # the file as fabricated elapsed time.
+                _g = ppg_grid[0]
                 log.info("%s: PPG grid — %d sample(s) written, %d gap(s) inserted totalling %.1f s "
-                         "(%.2f%% of the grid, host-clock deficit vs the session anchor)",
-                         name, ppg_idx[0] - ppg_lost[0], ppg_gaps[0], ppg_lost[0] / O2PPG_FS,
-                         100.0 * ppg_lost[0] / max(ppg_idx[0], 1))
+                         "(%.2f%% of the grid, host-clock deficit vs the session anchor); measured "
+                         "%.3f Hz vs configured %.3f Hz",
+                         name, _g.idx - _g.lost, _g.gaps, _g.lost * _g.step_s,
+                         100.0 * _g.lost / max(_g.idx, 1), _g.fs, _g.nominal_fs)
             # DISCARD HEADER-ONLY FILES, exactly as run_polar does. Writers are opened before the ring is
             # known to be streaming, so every session that ends without data leaves a file containing
             # nothing but its header — indistinguishable from a real capture until something opens it,
@@ -1959,7 +2125,7 @@ async def _adapter_is_up(hci: str) -> "bool | None":
     try:
         p = await asyncio.create_subprocess_exec(
             "hciconfig", hci, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-        out, _ = await asyncio.wait_for(p.communicate(), timeout=6)
+        out, _ = await proc_util.communicate(p, 6)
         if p.returncode != 0:
             return None
         return "UP RUNNING" in out.decode("utf-8", "replace")
@@ -2005,7 +2171,12 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 pass
             devs.append({"name": d["name"], "address": d["address"],
                          "connected": bool(st.get("connected")), "last_error": st.get("last_error"),
-                         "bluez_connected": bluez})
+                         "bluez_connected": bluez,
+                         # STREAMING, not merely linked (CAPTURE-HOST-DEEP-AUDIT §C3). Without these two
+                         # the classifier could not tell a worn sensor from a docked one, so a single
+                         # charging device — connected, producing nothing — suppressed the wedge signal
+                         # for a genuinely DOWN adapter. Same pair `cpap_harvest.blocking_devices` reads.
+                         "charging": st.get("charging"), "worn": st.get("worn")})
         # Probe the PINNED adapter's REAL state so a DOWN dongle is caught directly, not inferred from
         # device errors a plain connect-timeout never carries. adapter_hci() returns None when the
         # configured adapter isn't resolvable — itself the wedge signature — so that maps to False; a
@@ -2276,6 +2447,20 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
                     continue
                 st = STATUS["devices"].get(name, {})
                 connected = bool(st.get("connected"))
+                # THE READ IS AUTHORITATIVE, INCLUDING ITS FAILURE (CAPTURE-HOST-DEEP-AUDIT §B1).
+                # `_set(name, rssi=...)` used to run only when the read SUCCEEDED, while the row below
+                # unconditionally wrote `st.get("rssi")` — so every unreadable poll re-recorded the last
+                # good dBm at a NEW timestamp, indistinguishable from a real measurement. After three
+                # consecutive failures the poller goes idle and suppresses reads for `rssi_retry_sec`
+                # (600 s), which at a 25 s cadence is 24 further rows all carrying the same stale value.
+                # `timeline.bucket_link` then medians the column and the monitor renders it as the
+                # night's signal trace.
+                #
+                # This got WORSE with the fix that preceded it: VIGIL-PPG-GRID-AUDIT §4 tightened
+                # `parse_rssi` to -127..-1 so BlueZ's sentinels return None — "Recording 'unknown' is the
+                # honest answer" — which strictly increased how often the stale value was logged instead
+                # of a blank. An un-polled row is not a measurement; it is blank.
+                rssi = None
                 if not connected:
                     _set(name, rssi=None)     # a stale reading must not linger on a dropped device
                 elif do_rssi:
@@ -2283,10 +2468,12 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
                     rssi = await link_rssi.read_rssi(adapter_mac, addr)
                     if rssi is not None:
                         got_any = True
-                        _set(name, rssi=rssi)
+                    _set(name, rssi=rssi)     # None included — an unreadable poll is not a reading
                 if writer:
                     st = STATUS["devices"].get(name, {})
-                    writer.write(_now(), name, connected, st.get("rssi"), st.get("battery"),
+                    # `rssi` from THIS poll, not STATUS: while idle we do not read at all, and carrying
+                    # STATUS's value forward is what fabricated the run of identical readings.
+                    writer.write(_now(), name, connected, rssi, st.get("battery"),
                                  st.get("frames_dropped"), st.get("frames_duplicated"),
                                  st.get("link_epoch"),    # E5: the reconnect count the 25 s sampling can't miss
                                  addr)                    # the identity a rename cannot break
@@ -2382,16 +2569,27 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
             STATUS["storage"] = rep
             if rep["low"] and not low_alerted:             # edge-triggered: one alert per low episode
                 low_alerted = True
+                # Ship the CAUSE with the symptom. A "disk low" alert on a box whose pruning is held
+                # by a dead backup volume is otherwise actively misleading — it reads as "raise
+                # keep_nights", which is the one action that would not help.
+                extra = (f" Retention is HELD on {len(held)} unmirrored night(s) — fix the backup "
+                         f"volume ({archive_dest}); raising keep_nights will NOT free space.") if held else \
+                        " Captures may soon fail — free space or raise keep_nights."
+                # THE JOURNAL LINE IS OUTSIDE THE NOTIFIER BRANCH (CAPTURE-HOST-DEEP-AUDIT §C2). There
+                # was NO log call for the low-free-space condition anywhere in this file, so on a box
+                # with no webhook the edge was recorded only in `status.json` and `/api/storage` — both
+                # PULL surfaces, visible if you go and look. diskguard's own header states the intent
+                # ("a full filesystem turned every subsequent night into a silent loss … so the
+                # emergency signal is loud"); it was loud only where a webhook existed. Same shape as
+                # the retention-held warning ten lines up, which always did log.
+                log.warning("storage: LOW — only %s GB free (%s%%).%s",
+                            rep["free_gb"], rep["free_pct"], extra)
                 if notifier:
-                    # Ship the CAUSE with the symptom. A "disk low" alert on a box whose pruning is held
-                    # by a dead backup volume is otherwise actively misleading — it reads as "raise
-                    # keep_nights", which is the one action that would not help.
-                    extra = (f" Retention is HELD on {len(held)} unmirrored night(s) — fix the backup "
-                             f"volume ({archive_dest}); raising keep_nights will NOT free space.") if held else \
-                            " Captures may soon fail — free space or raise keep_nights."
                     await notifier.send("Tepna: disk low",
                                         f"Only {rep['free_gb']} GB free ({rep['free_pct']}%)." + extra)
             elif not rep["low"]:
+                if low_alerted:
+                    log.info("storage: recovered — %s GB free (%s%%)", rep["free_gb"], rep["free_pct"])
                 low_alerted = False
         except Exception as e:                             # storage bookkeeping must never take capture down
             log.warning("storage poll failed: %r", e)
@@ -2402,7 +2600,17 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     """Push a webhook alert when a configured sensor goes OFFLINE and stays offline past `offline_sec`
     (edge-triggered, so a flapping link cannot spam), and a 'recovered' note when it returns. A lost night
     is unrecoverable, so this is the difference between fixing a dead battery at 1am and finding out at
-    breakfast. No-op when alerting is disabled."""
+    breakfast.
+
+    THE CONDITION IS LOGGED BEFORE IT IS DELIVERED, AND THE LATCH FOLLOWS THE DELIVERY
+    (CAPTURE-HOST-DEEP-AUDIT §C1). This used to `alerted.add(name)` FIRST and discard `send()`'s return
+    value, while `Notifier.send` swallowed every exception without a log — so one failed webhook POST
+    silenced the alert for the whole offline episode, which for the dead-battery case this exists to
+    catch is the whole night. Measured: 40 poll iterations, ONE attempt, zero journal lines at DEBUG or
+    above. `qc_poller`'s frozen-device path already had the right shape one function down — "WARNING even
+    with no webhook configured. The journal is the only alerting surface a box without one has."
+
+    The latch is per EPISODE, not per process: `alerted.discard(name)` on reconnect."""
     acfg = cfg.get("alerts") or {}
     interval = float(acfg.get("poll_sec", 60))
     threshold = float(acfg.get("offline_sec", 300))
@@ -2420,14 +2628,24 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 down_since.pop(name, None)
                 if name in alerted:                        # it had alerted → tell the operator it is back
                     alerted.discard(name)
+                    log.info("alert: %s reconnected", name)
                     await notifier.send("Tepna: sensor recovered", f"{name} reconnected.")
             else:
                 down_since.setdefault(name, now)
                 if name not in alerted and alerts.offline_alert_due(down_since[name], now, threshold):
-                    alerted.add(name)
                     mins = int((now - down_since[name]) / 60)
-                    await notifier.send("Tepna: sensor offline",
-                                        f"{name} has been offline for ~{mins} min — capture is missing it.")
+                    # The journal FIRST, unconditionally — a box with no webhook has no other surface,
+                    # and a box whose webhook is broken must still leave the event behind.
+                    log.warning("alert: %s has been offline for ~%d min — capture is missing it",
+                                name, mins)
+                    delivered = await notifier.send(
+                        "Tepna: sensor offline",
+                        f"{name} has been offline for ~{mins} min — capture is missing it.")
+                    # Latch on the OUTCOME. A failed POST must be retried next poll, not treated as
+                    # "the operator has been told". `not notifier.enabled` still latches: with alerting
+                    # off there is nothing to retry, and re-logging every 60 s all night is noise.
+                    if delivered or not notifier.enabled:
+                        alerted.add(name)
 
 
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
@@ -2734,6 +2952,10 @@ async def cpap_poller(cfg: dict, root: str):
 
     at_hour = int(ccfg.get("at_hour", 13))
     profile = str(ccfg.get("wifi_profile", "ezshare"))
+    # The wpa backend (no NetworkManager — precisely the vigil box) does not read `wifi_profile` at
+    # all; it needs an INTERFACE, which used to be the module constant `wlp1s0` with no config key
+    # (CAPTURE-HOST-DEEP-AUDIT §E5). Default is discovered, not a literal.
+    wifi_iface = str(ccfg.get("wifi_iface") or cpap_harvest.default_wifi_iface())
     base = str(ccfg.get("base_url", cpap_harvest.DEFAULT_BASE))
     dest = os.path.join(root, str(ccfg.get("dest_subdir", "captures/cpap")))
     max_run = float(ccfg.get("max_run_sec", 5400))
@@ -2750,18 +2972,18 @@ async def cpap_poller(cfg: dict, root: str):
     # Release any association left over from a run that died mid-transfer (SIGKILL, OOM, power cut).
     # `keep_running` restarts this task on any escaping exception, so without this the box could sit
     # associated to a routeless card indefinitely with nothing to explain why Wi-Fi looked occupied.
-    await asyncio.to_thread(cpap_harvest.wifi_down, profile)
+    await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface)
     try:
-        await _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st)
+        await _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface)
     finally:
         # Whatever ends this task — shutdown, cancellation, an escaping error — the card is released.
         # shield() because at shutdown this task is already being cancelled and a bare await here would
         # be cancelled with it, leaving exactly the stranded association this block exists to prevent.
         with contextlib.suppress(Exception):
-            await asyncio.shield(asyncio.to_thread(cpap_harvest.wifi_down, profile))
+            await asyncio.shield(asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface))
 
 
-async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st):
+async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface=None):
     """The daily loop, split out so `cpap_poller` can wrap it in a teardown-guaranteeing `finally`."""
     import cpap_harvest
     last_run_date = None
@@ -2782,14 +3004,18 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             _st(state="waiting", detail="streaming: " + ", ".join(busy[:3]))
             continue
 
-        last_run_date = now.date()
+        # The WINDOW's start date, not today's (CAPTURE-HOST-DEEP-AUDIT §E4): for a window that wraps
+        # midnight these differ, and stamping today would leave `due_now` still asking about yesterday
+        # — due again a minute later, forever.
+        last_run_date = cpap_harvest.window_start_date(now, at_hour) or now.date()
         started = _time.monotonic()
         _st(state="running", detail=None, last_run=now.isoformat(timespec="seconds"))
         # Note the box's lifeline BEFORE associating, and hand it to wifi_up as a guard. If the default
         # route moves to the card — a routeless dead end — wifi_up tears the association down and fails,
         # and we skip the day. A day of CPAP files is never worth making the box unreachable.
         guard = await asyncio.to_thread(cpap_harvest.default_route_dev)
-        ok = await asyncio.to_thread(cpap_harvest.wifi_up, profile, 45.0, guard)
+        ok = await asyncio.to_thread(cpap_harvest.wifi_up, profile, 45.0, guard,
+                                     "ez Share", "88888888", wifi_iface)
         if not ok:
             _st(state="error", detail=f"Wi-Fi profile {profile!r} would not come up safely")
             log.warning("cpap: profile %r would not come up, or it moved the default route off %r "
@@ -2804,7 +3030,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             log.warning("cpap: harvest failed: %r", e)
             continue
         finally:
-            await asyncio.to_thread(cpap_harvest.wifi_down, profile)
+            await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface)
 
         dur = _time.monotonic() - started
         bad = bool(res["short"] or res["errors"])
@@ -3092,7 +3318,8 @@ async def main():
         web_runner = await webmon.start(
             webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn,
                             pull_stored=_pull, polar_pause=polar_offline_op,
-                            sync_time=sync_device_time, forget_device=_forget), host, port)
+                            sync_time=sync_device_time, forget_device=_forget,
+                            on_tz_change=reset_clock_anchor), host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
     # Surface the resolved adapter at boot: a silent mis-pin (hci re-enumeration) is exactly the failure

@@ -37,8 +37,51 @@ if [ ! -d "$DEST" ]; then
 fi
 
 shopt -s nullglob
-bundles=("$SRC"/*.html)
-[ ${#bundles[@]} -gt 0 ] || { echo "  ✗ no *.html bundles in $SRC — wrong source directory?"; exit 1; }
+
+# ── WHAT GETS SERVED (CAPTURE-HOST-DEEP-AUDIT §C7) ────────────────────────────────────────────────
+# This selected on EXTENSION — `bundles=("$SRC"/*.html)` — not on "is a self-contained bundle". `$SRC`
+# is the repo root, where `*.html` matches 65 files: the owned bundles, but also 11 `*.src.html`
+# EDITING SOURCES, the gate pages and ~30 analysis harnesses. None of their `.js`/`.css`/`adapters/`
+# siblings were ever copied, so 34 served pages had 100 % of their references missing:
+#
+#   CPAPDex.src.html      19/19 refs MISSING   e.g. cpapdex-app.js, ans-design.css
+#   Data Unifier.src.html 27/27 refs MISSING   e.g. adapters/coospo-rr.js
+#   Dex-Test-Suite.html   57/57 refs MISSING
+#
+# And `--check` compared `*.html` only, so it reported GREEN on exactly that state.
+#
+# The served set is now the OWNED bundle set — the provenance-gated apps (one `provenance/<App>.json`
+# fragment each, so this cannot drift from the gate) plus the two orchestrators — together with an
+# explicit whitelist of the pages index.html links to AND the assets they need. Anything else in the
+# repo root is deliberately not served.
+apps=()
+for pf in "$SRC"/provenance/*.json; do
+  a="$(basename "$pf" .json)"
+  case "$a" in _*|index) continue;; esac
+  apps+=("$a.html")
+done
+[ ${#apps[@]} -gt 0 ] || { echo "  ✗ no provenance/<App>.json fragments in $SRC — wrong source directory?"; exit 1; }
+
+# Owned but NON-provenance (build.mjs ORCHESTRATORS), plus the doc pages index.html links to.
+PAGES=("Data Unifier.html" "OverDex.html" "index.html" "Architecture.html" "How to Collect Data.html"
+       "Science.html" "Why This Exists.html"
+       "CPAPDex Reference.html" "ECGDex Reference.html" "GlucoDex Reference.html"
+       "HRVDex Reference.html" "OxyDex Reference.html" "PpgDex Reference.html"
+       "PulseDex Reference.html")
+# Sibling files those pages actually reference. A page without its assets is not a served page — it is
+# a blank screen that looks like a deployed one, which is the failure this section exists to stop.
+ASSETS=("dex-badges.css" "manifest.json" "licensing/dex-license.css")
+ASSET_DIRS=("assets" "how-to-collect" "papers")
+
+bundles=()
+for b in "${apps[@]}" "${PAGES[@]}"; do
+  if [ -e "$SRC/$b" ]; then
+    bundles+=("$SRC/$b")
+  else
+    echo "  · not in this checkout, skipped: $b"
+  fi
+done
+[ ${#bundles[@]} -gt 0 ] || { echo "  ✗ nothing to serve from $SRC — wrong source directory?"; exit 1; }
 
 changed=0 added=0 same=0 failed=0
 for f in "${bundles[@]}"; do
@@ -54,6 +97,37 @@ for f in "${bundles[@]}"; do
     [ "$CHECK" = "1" ] && { echo "  ✗ MISSING $b"; added=$((added + 1)); continue; }
     cp -p "$f" "$DEST/$b" && added=$((added + 1)) || { echo "  ✗ failed to add $b"; failed=$((failed + 1)); }
   fi
+done
+
+# ASSETS. `--check` covers them too: it compared `*.html` ONLY, which is why it reported green while
+# every served page was missing its stylesheet (§C7).
+for a in "${ASSETS[@]}"; do
+  [ -e "$SRC/$a" ] || continue
+  d="$DEST/$a"
+  mkdir -p "$(dirname "$d")" 2>/dev/null
+  if [ -e "$d" ] && cmp -s "$SRC/$a" "$d"; then
+    same=$((same + 1))
+    continue
+  fi
+  if [ "$CHECK" = "1" ]; then
+    [ -e "$d" ] && { echo "  ✗ STALE  $a"; changed=$((changed + 1)); } \
+                || { echo "  ✗ MISSING $a"; added=$((added + 1)); }
+    continue
+  fi
+  cp -p "$SRC/$a" "$d" && changed=$((changed + 1)) || { echo "  ✗ failed to copy $a"; failed=$((failed + 1)); }
+done
+for a in "${ASSET_DIRS[@]}"; do
+  [ -d "$SRC/$a" ] || continue
+  if [ "$CHECK" = "1" ]; then
+    if diff -rq "$SRC/$a" "$DEST/$a" >/dev/null 2>&1; then
+      same=$((same + 1))
+    else
+      echo "  ✗ STALE/MISSING $a/"; changed=$((changed + 1))
+    fi
+    continue
+  fi
+  mkdir -p "$DEST/$a" && cp -pr "$SRC/$a/." "$DEST/$a/" \
+    && changed=$((changed + 1)) || { echo "  ✗ failed to copy $a/"; failed=$((failed + 1)); }
 done
 
 # Present in the served set, absent from the repo — reported, never removed (see the header).

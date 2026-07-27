@@ -445,3 +445,127 @@ def test_read_link_samples_still_accepts_a_single_directory(tmp_path):
         "Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;"
         "link_epoch\n2026-07-26T01:00:00.000;Polar H10;1;-70;80;;;1\n")
     assert list(timeline.read_link_samples(str(tmp_path))) == ["Polar H10"]
+
+
+# ── the coverage denominator (CAPTURE-HOST-DEEP-AUDIT §A4) ─────────────────────────────────────
+# Three independent defects on one expression, all reaching the operator-facing "% captured" badge,
+# and wrong in BOTH directions on real corpus: 16.7 % on a flawless night, 196.7 % on a real H10 ACC.
+import os as _os
+
+import nightqc as _nightqc
+import writers as _writers
+
+
+def _capture_file(tmp_path, stamp: str, stream: str, rows: int, fs: float,
+                  vendor="Polar", model="H10", did="02849638"):
+    """A real capture file, in the layout the box actually writes — including the device-clock column,
+    which is what lets the file state its OWN duration instead of borrowing today's configured rate."""
+    head = _writers.StreamWriter.HEADERS[stream.lower()]
+    ncol = len(head.split(";"))
+    ns_at = head.split(";").index("sensor timestamp [ns]")
+    step = 1e9 / fs
+    start = dt.datetime.strptime(stamp, "%Y%m%d%H%M%S")
+    lines = [head]
+    for i in range(rows):
+        cells = ["0"] * ncol
+        cells[0] = (start + dt.timedelta(seconds=i / fs)).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+        cells[ns_at] = str(int(i * step))
+        lines.append(";".join(cells))
+    p = tmp_path / f"{vendor}_{model}_{did}_{stamp}_{stream.upper()}.txt"
+    p.write_text("\n".join(lines) + "\n")
+    # mtime = the last flush, i.e. the end of the data — what session merging reads.
+    end = start.timestamp() + rows / fs
+    _os.utime(p, (end, end))
+    return p
+
+
+def _dev(streams, rates=None, did="02849638"):
+    d = {"name": "H10", "device_id": did, "address": "AA", "vendor": "Polar", "model": "H10",
+         "streams": streams}
+    if rates:
+        d["rates"] = rates
+    return d
+
+
+def test_a_flawless_night_is_not_diluted_by_the_link_sidecars_calendar_day(tmp_path):
+    """§A4a. The LINK sidecar rolls PER CALENDAR DAY, so a continuously running box always has one
+    spanning 00:00→23:59 — and seeding the window with it made that the denominator. Measured on the
+    real shape: a zero-loss 4 h night rendered as 16.7 % captured. Line 408's own comment promises the
+    opposite ("Against the SESSION span, not the wall-clock night")."""
+    _capture_file(tmp_path, "20260710020000", "ecg", 130 * 60, 130)
+    _link_csv(tmp_path, ["2026-07-10T00:00:05.000;H10;1;-60;80;;;1;AA\n",
+                         "2026-07-10T23:59:25.000;H10;1;-60;80;;;1;AA\n"])
+    out = timeline.build(str(tmp_path), [_dev(["ecg"])], buckets=12)
+    pct = out["devices"][0]["streams"]["ecg"]["coverage_pct"]
+    assert pct == 100.0, f"a zero-loss recording must read 100 %, got {pct} %"
+    assert round(out["t1"] - out["t0"]) == 60, "the window is the RECORDING, not the sidecar's day"
+
+
+def test_the_window_includes_the_last_sessions_own_duration(tmp_path):
+    """§A4b. `spans` collected file START stamps only, so the window stopped where the last session
+    BEGAN while `covered` counted its whole length — the brief's 1 h-then-6 h pair reads 466.7 %."""
+    _capture_file(tmp_path, "20260710220000", "ecg", 130 * 3600, 130)      # 22:00, 1 h
+    _capture_file(tmp_path, "20260710233000", "ecg", 130 * 21600, 130)     # 23:30, 6 h
+    out = timeline.build(str(tmp_path), [_dev(["ecg"])], buckets=12)
+    pct = out["devices"][0]["streams"]["ecg"]["coverage_pct"]
+    assert pct <= 100.0, f"coverage exceeded 100 % ({pct} %) — the window lost the last session"
+    assert round(out["t1"] - out["t0"]) == 27000, "22:00 -> 23:30 + 6 h"
+    assert pct == 93.3, "25200 s covered of a 27000 s window"
+
+
+def test_an_old_night_is_measured_by_its_own_clock_not_todays_configured_rate(tmp_path):
+    """§A4c, the mechanism the original filing missed and the verifier measured: `covered_seconds`
+    built each interval as `rows / fs` with `fs` = the CURRENTLY configured rate. Rates get
+    re-negotiated and corrected, so an older night is measured against a number it never ran at —
+    196.7 % on the real 2026-07-16 H10 ACC, 134.6 % on the 2026-07-20 Verity ACC."""
+    _capture_file(tmp_path, "20260716220000", "acc", 208 * 100, 208)       # the night ran at 208 Hz
+    out = timeline.build(str(tmp_path), [_dev(["acc"], rates={"acc": 104})], buckets=12)
+    pct = out["devices"][0]["streams"]["acc"]["coverage_pct"]
+    assert pct == 100.0, f"config says 104 Hz, the file says 208 Hz — the FILE is the era-correct one ({pct} %)"
+
+
+def test_stream_intervals_prefers_the_files_own_span_over_the_configured_rate():
+    """The unit under §A4c, isolated: a record that knows its own duration must not be re-derived."""
+    f = _f("Polar_H10_02849638_20260716220000_ACC.txt", "ACC", 20800)
+    f["span_sec"] = 100.0
+    iv = timeline.stream_intervals([f], "02849638", "ACC", 104)   # 20800/104 would say 200 s
+    assert round(iv[0][1] - iv[0][0]) == 100
+
+
+def test_a_file_with_no_device_clock_still_falls_back_to_rows_over_rate():
+    """HR/RR/PPI carry no `sensor timestamp [ns]`, so `span_sec` is None — 'unknown', never zero.
+    Dropping those intervals would render a whole worn night as idle."""
+    f = _f("Polar_H10_02849638_20260716220000_HR.txt", "HR", 600)
+    f["span_sec"] = None
+    iv = timeline.stream_intervals([f], "02849638", "HR", 1)
+    assert round(iv[0][1] - iv[0][0]) == 600
+
+
+def test_a_night_that_recorded_nothing_still_renders_from_the_sidecar(tmp_path):
+    """The fallback must survive: a device that connected and never streamed has no recording to
+    derive a window from, and dropping the sidecar would take the 'connected but silent' view with it."""
+    _link_csv(tmp_path, ["2026-07-10T01:00:00.000;H10;1;-70;80;;;1;AA\n",
+                         "2026-07-10T05:00:00.000;H10;1;-72;80;;;1;AA\n"])
+    out = timeline.build(str(tmp_path), [_dev([])], buckets=12)
+    assert round(out["t1"] - out["t0"]) == 4 * 3600
+    assert [r for r in out["devices"][0]["rssi"] if r is not None]
+
+
+def test_file_span_sec_reads_the_files_own_clock(tmp_path):
+    p = _capture_file(tmp_path, "20260716220000", "ecg", 1300, 130)
+    assert round(_nightqc.file_span_sec(str(p)), 1) == 10.0
+
+
+def test_file_span_sec_is_none_when_the_layout_carries_no_device_clock(tmp_path):
+    p = tmp_path / "Polar_H10_02849638_20260716220000_HR.txt"
+    p.write_text(_writers.StreamWriter.HEADERS["hr"] + "\n2026-07-16T22:00:00.000;60;;;\n")
+    assert _nightqc.file_span_sec(str(p)) is None
+
+
+def test_file_span_sec_survives_a_partial_trailing_write(tmp_path):
+    """A still-open file's last line can be half-written. Trusting it blindly would return None (or a
+    parse error) for every live night — the one the monitor is actually looking at."""
+    p = _capture_file(tmp_path, "20260716220000", "ecg", 1300, 130)
+    with open(p, "a") as fh:
+        fh.write("2026-07-16T22:00:10.0")     # torn mid-row
+    assert round(_nightqc.file_span_sec(str(p)), 1) == 10.0

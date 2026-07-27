@@ -27,42 +27,31 @@ below: with zero loss by construction, grid duration must equal wall duration re
 """
 import datetime as _dt
 
+import capture
+
 FS = 125.738
 NS_STEP = int(1e9 / FS)
 GAP_MIN_S = 0.040
 
 
 def _grid(frames, gap_min_s=GAP_MIN_S, fs=FS):
-    """Re-implementation of the capture-loop grid logic under test.
+    """Drive THE REAL grid — `capture.O2PpgGrid` — over a frame-arrival sequence.
 
     frames: [(arrival_datetime, n_samples), ...]
     -> (list of sensor_ns per written sample, gaps_inserted, samples_of_time_skipped)
 
-    Kept deliberately in step with the block in capture.py's run_oxyii PPG handler; the
-    assertions below are about the CONTRACT (monotonic, gap-on-loss, no-gap-on-jitter),
-    so a faithful port is what is being pinned.
+    ⚠️ This used to be a RE-IMPLEMENTATION of the block inside `run_oxyii`'s BLE callback, carrying a
+    note that it was "kept deliberately in step" with it. It was not, and could not be: two copies of a
+    rule drift, and the assertions were pointed at the copy that ships to nobody. That is how the
+    one-sided correction in CAPTURE-HOST-DEEP-AUDIT §A3 stayed green — the port and the shipped code
+    agreed about the SAFE direction and neither was ever driven through the other one. The logic now
+    lives in one place, and this file drives it.
     """
-    idx = 0
-    t0 = None
-    gaps = 0
-    lost = 0
+    g = capture.O2PpgGrid(fs=fs, gap_min_s=gap_min_s)
     out = []
-    ns_step = int(1e9 / fs)
     for arr, nps in frames:
-        if t0 is None:
-            # Map this frame's FIRST sample to grid index 0 — the anchor every later frame is
-            # measured against, so jitter cancels instead of accumulating.
-            t0 = arr - _dt.timedelta(seconds=(nps - 1) / fs)
-        target = int(round(((arr - t0).total_seconds() - (nps - 1) / fs) * fs))
-        if target - idx > gap_min_s * fs:
-            n = target - idx
-            idx += n
-            gaps += 1
-            lost += n
-        for _ in range(nps):
-            out.append(idx * ns_step)
-            idx += 1
-    return out, gaps, lost
+        out.extend(g.frame(arr, nps))
+    return out, g.gaps, g.lost
 
 
 def _steady(n_frames, nps=21, t0=None, fs=FS):
@@ -188,3 +177,113 @@ def test_capture_module_exposes_the_threshold_and_default_matches():
     cap = importlib.import_module("capture")
     assert hasattr(cap, "O2PPG_GAP_MIN_S")
     assert abs(cap.O2PPG_GAP_MIN_S - GAP_MIN_S) < 1e-9
+
+
+# ── the ring runs FASTER than configured (CAPTURE-HOST-DEEP-AUDIT §A3) ─────────────────────────
+def test_fast_clock_drift_corrects_toward_the_host_clock():
+    """THE §A3 regression, and the direction the old grid could not survive.
+
+    The session-anchored correction only ever ADVANCED (`if target - idx > threshold`). That is safe
+    while the ring runs SLOWER than the configured rate — the branch fires and pulls the grid forward.
+    When it runs FASTER the difference is monotonically NEGATIVE, the branch can never fire, and the
+    grid runs ahead of real time without bound.
+
+    And faster is the real case, not the hypothetical one: `rows/wall` is bounded ABOVE by the true ADC
+    rate (link loss can only lower it), so each day's MAXIMUM `rows/wall` is a LOWER BOUND on the ring's
+    rate — and it exceeds the configured 125.738 on every day of the corpus (07-18 125.826 … 07-26
+    126.045). The constant was mis-calibrated low from the start.
+
+    Measured against the pre-fix grid (the step held at the configured constant): +0.2561 %, i.e. +9.2 s
+    of fabricated elapsed time per hour, on the finger-PPG leg PpgDex derives HRV from."""
+    true_fs = 126.02
+    t0 = _dt.datetime(2026, 7, 26, 2, 0, 0)
+    fr = [(t0 + _dt.timedelta(seconds=(i + 1) * 21 / true_fs), 21) for i in range(20000)]   # ~55 min
+    ns, gaps, lost = _grid(fr, fs=FS)
+    assert all(b > a for a, b in zip(ns, ns[1:])), "sensor_ns must stay strictly increasing"
+    infl = _inflation(fr, ns)
+    assert abs(infl) < 0.0005, f"a ring running fast inflated the grid by {infl:+.4%}"
+    assert gaps == 0, "a fast ring loses nothing — inventing gaps for it would be the opposite error"
+
+
+def test_the_warm_up_error_is_bounded_and_does_not_accumulate():
+    """The step cannot be measured before there is enough elapsed time to measure it, so the first
+    `_O2PPG_EST_MIN_S` runs at the configured rate and freezes that error into the accumulated column —
+    it cannot be corrected retroactively without rewinding samples already written.
+
+    What matters is that it is a ONE-OFF, not a rate: a fixed ~0.07 s that shrinks as a fraction of the
+    night, where the defect it replaces accumulated +9.2 s every hour forever. Stated as a test so the
+    residual is documented rather than discovered.
+
+    Measured against the TRUE rate over the same sample span, not via `_inflation` — that helper divides
+    a sample span by a frame-ARRIVAL span, which carries a constant ~0.16 s offset of its own (the 20
+    samples the first frame back-times before its arrival). Harmless where it is used to bound a
+    percentage; it would be three quarters of the quantity under test here."""
+    true_fs = 126.02
+    t0 = _dt.datetime(2026, 7, 26, 2, 0, 0)
+
+    def warm_up_seconds(minutes):
+        n = int(minutes * 60 * true_fs / 21)
+        fr = [(t0 + _dt.timedelta(seconds=(i + 1) * 21 / true_fs), 21) for i in range(n)]
+        ns, _, _ = _grid(fr, fs=FS)
+        return (ns[-1] - ns[0]) / 1e9 - (len(ns) - 1) / true_fs
+
+    short, long = warm_up_seconds(5), warm_up_seconds(60)
+    assert 0 <= short < 0.1, f"the warm-up error must be bounded: {short:.3f} s"
+    assert abs(long - short) < 0.01, (
+        f"the residual must not GROW with session length ({short:.4f} s over 5 min vs {long:.4f} s "
+        f"over 60 min) — a residual that grows with time is a rate error, which is the defect")
+
+
+def test_the_measured_rate_converges_on_the_rings_true_rate():
+    """The step is MEASURED, not assumed. Re-calibrating the constant would repeat the 2026-07-18 fix
+    with a new number and leave the asymmetry in place; measuring removes the asymmetry."""
+    true_fs = 126.02
+    t0 = _dt.datetime(2026, 7, 26, 2, 0, 0)
+    g = capture.O2PpgGrid(fs=FS)
+    assert abs(g.fs - FS) < 1e-9, "it starts at the configured rate"
+    for i in range(3000):
+        g.frame(t0 + _dt.timedelta(seconds=(i + 1) * 21 / true_fs), 21)
+    assert abs(g.fs - true_fs) < 0.02, f"measured {g.fs:.3f} Hz, ring runs at {true_fs}"
+
+
+def test_a_lossy_link_does_not_drag_the_rate_estimate():
+    """The two mechanisms must stay separated. An inserted gap raises `idx` while elapsed does not
+    move, so an estimator that spans a gap sees a shorter apparent period, raises the rate, makes
+    `target` outrun `idx` and inserts MORE gaps. That runaway measured +1.04 % inflation and 118
+    phantom gaps on a ZERO-LOSS stream while this was being written — it is a real failure mode of the
+    obvious implementation, not a hypothetical one."""
+    true_fs = 125.738
+    t0 = _dt.datetime(2026, 7, 26, 2, 0, 0)
+    fr = []
+    for i in range(3000):
+        if i % 200 == 100:
+            continue                      # drop a whole frame every ~33 s: genuine, repeated loss
+        fr.append((t0 + _dt.timedelta(seconds=(i + 1) * 21 / true_fs), 21))
+    ns, gaps, lost = _grid(fr, fs=FS)
+    assert gaps >= 10, "the dropped frames must still be seen as real loss"
+    assert all(b > a for a, b in zip(ns, ns[1:]))
+    infl = _inflation(fr, ns)
+    assert abs(infl) < 0.001, f"loss dragged the rate estimate: {infl:+.3%} inflation"
+
+
+def test_the_rate_estimate_cannot_claim_an_absurd_rate():
+    """A clamp, because an estimate is only as good as its anchor. A ring genuinely outside ±5 % is a
+    different unit rather than drift, and belongs in `o2ring.ppg_fs` where a human can see it."""
+    t0 = _dt.datetime(2026, 7, 26, 2, 0, 0)
+    g = capture.O2PpgGrid(fs=FS)
+    for i in range(3000):                 # a "ring" at 200 Hz — far outside anything real
+        g.frame(t0 + _dt.timedelta(seconds=(i + 1) * 21 / 200.0), 21)
+    assert g.fs <= FS * 1.05 + 1e-9, f"estimate escaped the band: {g.fs:.3f} Hz"
+
+
+def test_the_step_shrinks_without_ever_rewinding_the_ns_column():
+    """The emitted ns is ACCUMULATED, never `idx * step`. Recomputing it from a shrinking step would
+    move samples already written and emit a non-monotonic column, which every parser depends on not
+    happening."""
+    t0 = _dt.datetime(2026, 7, 26, 2, 0, 0)
+    g = capture.O2PpgGrid(fs=FS)
+    ns = []
+    for i in range(3000):
+        ns.extend(g.frame(t0 + _dt.timedelta(seconds=(i + 1) * 21 / 126.02), 21))
+    assert g.step_s < 1.0 / FS, "the step must actually have shortened"
+    assert all(b > a for a, b in zip(ns, ns[1:])), "sensor_ns must be strictly increasing"

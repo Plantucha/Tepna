@@ -162,8 +162,18 @@ def test_summarize_scopes_coverage_to_the_current_session(tmp_path):
     assert s["span_sec"] == 2000                        # the EVENING session, NOT ~71000 s (19.7 h)
     h10 = s["devices"][0]
     assert h10["coverage"]["hr"] == 1.0                 # live stream reads full — not diluted to ~0 by daytime
-    assert s["degraded"] == [] and s["ok"] is True
+    assert s["degraded"] == []
     assert h10["streams"]["hr"] == 2000                 # the CURRENT session's rows (the 500 daytime excluded)
+    # ...AND THE EXCLUSION IS REPORTED (CAPTURE-HOST-DEEP-AUDIT §A2). `ok is True` here was the
+    # assertion pinning the defect green: this test's scenario is a benign daytime sitting, but the
+    # file-activity signature is IDENTICAL to a night interrupted by a >1 h box-wide outage — in which
+    # case the same code path discarded the whole pre-outage half and graded the remainder green.
+    # Nothing here can tell the two apart, so the exclusion is surfaced instead of guessed about, and
+    # the benign case is visible in `gaps` as exactly what it is.
+    assert s["ok"] is False, "a session was excluded from the judgement — `ok` cannot claim the night"
+    assert len(s["sessions"]) == 2
+    assert s["prior_gap_sec"] == round(eve_start - (day_start + 900))
+    assert "excluded from coverage" in s["gaps"][0] and "500 rows" in s["gaps"][0]
 
 
 def test_summarize_flags_a_degraded_trickle(tmp_path):
@@ -235,3 +245,47 @@ def test_summarize_a_NON_optional_absence_still_fails(tmp_path):
                {"name": "Belt", "device_id": "BELT01", "streams": ["hr"]}]    # NOT optional
     s = nightqc.summarize(night, devices)
     assert s["ok"] is False and "Belt:hr" in s["missing"] and s["optional_absent"] == []
+
+
+# ── the box-wide outage that graded itself green (CAPTURE-HOST-DEEP-AUDIT §A2) ──────────────────
+def test_a_box_wide_outage_does_not_get_the_night_graded_green(tmp_path):
+    """THE §A2 regression. `summarize` keeps only the session reaching the newest write, so an outage
+    longer than _SESSION_GAP_SEC made it discard the whole pre-outage half of the night — and then
+    report `coverage: 1.0, silent_sec: 0, ok: true` over the remainder, with no field saying a word.
+
+    Reachability is not hypothetical: the measured 2026-07-24 box-wide silence ran 03:33->04:32, i.e.
+    58.6 min — 85 s under the threshold. This has already come within a minute and a half of firing."""
+    from datetime import datetime as _dt
+    night = str(tmp_path / "2026-07-24"); os.makedirs(night)
+    first = _dt.strptime("20260723220000", "%Y%m%d%H%M%S").timestamp()   # 22:00, ran 3 h -> 01:00
+    after = _dt.strptime("20260724023000", "%Y%m%d%H%M%S").timestamp()   # resumed 02:30 — a 90 min hole
+    _utime(_cap(night, "Polar_H10_02849638_20260723220000_HR.txt", 10800), first + 10800)
+    _utime(_cap(night, "Polar_H10_02849638_20260724023000_HR.txt", 7200), after + 7200)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = nightqc.summarize(night, devs)
+
+    # The scoping itself is KEPT — that part was deliberate and is not the defect.
+    assert s["span_sec"] == 7200, "still scoped to the current session"
+    assert s["devices"][0]["coverage"]["hr"] == 1.0
+    assert s["missing"] == [] and s["degraded"] == []
+    # What changes is that it can no longer claim the night on that basis.
+    assert s["ok"] is False, "half the night was discarded and it still graded green"
+    assert s["prior_gap_sec"] == round(after - (first + 10800))
+    assert [x["rows"] for x in s["sessions"]] == [10800, 7200], "both halves are reported"
+    assert s["gaps"] and "10800 rows" in s["gaps"][0]
+
+
+def test_an_uninterrupted_night_reports_no_gap_and_stays_green(tmp_path):
+    """The control. If `gaps` fired on an ordinary night — one session, or a reconnect inside the gap
+    threshold — `ok` would be false every night and the signal would be worthless."""
+    from datetime import datetime as _dt
+    night = str(tmp_path / "2026-07-24"); os.makedirs(night)
+    t = _dt.strptime("20260724220000", "%Y%m%d%H%M%S").timestamp()
+    _utime(_cap(night, "Polar_H10_02849638_20260724220000_HR.txt", 3600), t + 3600)
+    # a reconnect 10 min later — well inside _SESSION_GAP_SEC, so it is the SAME session
+    t2 = t + 4200
+    _utime(_cap(night, "Polar_H10_02849638_20260724231000_HR.txt", 3600), t2 + 3600)
+    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["gaps"] == [] and s["prior_gap_sec"] is None
+    assert len(s["sessions"]) == 1, "a reconnect inside the threshold is one session, not two"
+    assert s["ok"] is True
