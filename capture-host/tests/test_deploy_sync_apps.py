@@ -286,3 +286,78 @@ def test_install_services_installs_from_the_repo_not_HOME(tmp_path):
     body = open(os.path.join(HERE, "deploy", "install-services.sh"), encoding="utf-8").read()
     assert "/home/$OWNER/tepna-capture.service" not in body
     assert "UNIT_SRC=" in body and "tepna-capture.service" in body
+
+
+# ── a test must not reach past its sandbox into real host state (CAPTURE-HOST-DEEP-AUDIT §E6) ───
+def test_a_redirected_install_does_not_reload_the_real_host(tmp_path):
+    """THE §E6 regression, and it was being triggered BY THIS FILE. `check-system-files.sh` ran
+    `udevadm control --reload-rules` and `systemctl daemon-reload` unconditionally whenever it
+    installed >0 files — while `TEPNA_ETC_SYSTEMD`/`TEPNA_ETC_UDEV` exist precisely so a caller can
+    install somewhere else. The tests below drive it with `--install` and both vars pointed at a
+    tmpdir, so they installed into the tmpdir and reloaded the DEVELOPER'S OWN systemd.
+
+    On a desktop that is a blocking polkit password dialog, and `2>/dev/null` hid it from pytest
+    output: 14 prompts in 20 minutes, the suite blocked on each until cancelled.
+
+        polkitd: Operator of unix-session:3 FAILED to authenticate to gain authorization for action
+        org.freedesktop.systemd1.reload-daemon ... [systemctl daemon-reload]
+    """
+    src, sd, ud = _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="vigil")
+    r = _chk(src, sd, ud, "--install")
+    assert "installed" in r.stdout, "the fixture must actually install something, or this proves nothing"
+    assert "systemd NOT reloaded" in r.stdout
+    assert "udev NOT reloaded" in r.stdout
+    assert "systemd units reloaded" not in r.stdout
+    assert "udev rules reloaded" not in r.stdout
+
+
+def test_the_reload_guard_names_the_real_host_paths():
+    """The guard has to compare against the paths the script itself defaults to, or a rename would
+    silently disarm it — the failure would be invisible again (a passing suite that prompts for a
+    password)."""
+    body = open(CHK).read()
+    assert 'ETC_SYSTEMD="${TEPNA_ETC_SYSTEMD:-/etc/systemd/system}"' in body
+    assert 'ETC_UDEV="${TEPNA_ETC_UDEV:-/etc/udev/rules.d}"' in body
+    assert '[ "$ETC_SYSTEMD" = "/etc/systemd/system" ]' in body
+    assert '[ "$ETC_UDEV" = "/etc/udev/rules.d" ]' in body
+
+
+def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
+    """The CLASS, not just the instance. Any test that SHELLS OUT to a deploy script can reach past its
+    sandbox into real host state; the only ones safe to execute are those whose host-mutating commands
+    are gated on a real-path check, or that touch nothing but files and HTTP.
+
+    Parsed rather than grepped: a plain text match counts `open(.../install-services.sh)` — a
+    source-inspection test that executes nothing — as if it ran the script, which is how this check
+    first reported four false positives. It walks `subprocess.*` calls and resolves the module-level
+    constants they are given.
+
+    Enumerated so that a test which STARTS executing a new deploy script has to come here and say so."""
+    import ast
+    import glob
+    executed = set()
+    for t in sorted(glob.glob(os.path.join(HERE, "tests", "*.py"))):
+        tree = ast.parse(open(t, encoding="utf-8").read())
+        # module-level `CHK = os.path.join(HERE, "deploy", "check-system-files.sh")`
+        names = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+                lits = [a.value for a in node.value.args
+                        if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+                sh = [v for v in lits if v.endswith(".sh")]
+                if sh and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                    names[node.targets[0].id] = sh[0]
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name) and node.func.value.id == "subprocess"):
+                continue
+            for a in ast.walk(node):
+                if isinstance(a, ast.Constant) and isinstance(a.value, str) and a.value.endswith(".sh"):
+                    executed.add(os.path.basename(a.value))
+                elif isinstance(a, ast.Name) and a.id in names:
+                    executed.add(os.path.basename(names[a.id]))
+    assert executed, "the scan found no executed deploy scripts — it has stopped working"
+    # check-system-files.sh: guarded above. sync-apps.sh / sse-frames.sh: files and HTTP only.
+    assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh"}, (
+        f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
+        f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")

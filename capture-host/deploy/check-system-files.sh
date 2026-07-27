@@ -108,8 +108,29 @@ echo
 if [ "$INSTALL" = "1" ] && [ "$installed" -gt 0 ]; then
   # Reload only what was actually replaced. Both are safe while capture runs: udev rules apply to
   # FUTURE events, and daemon-reload re-reads unit files without restarting anything.
-  udevadm control --reload-rules 2>/dev/null && echo "  udev rules reloaded"
-  systemctl daemon-reload 2>/dev/null && echo "  systemd units reloaded"
+  #
+  # ...AND ONLY WHEN WE INSTALLED INTO THE REAL HOST PATHS (CAPTURE-HOST-DEEP-AUDIT §E6). These ran
+  # unconditionally on any install, while TEPNA_ETC_SYSTEMD/TEPNA_ETC_UDEV exist precisely so a caller
+  # can install SOMEWHERE ELSE — which is exactly what tests/test_deploy_sync_apps.py does. So the test
+  # suite installed into a tmpdir and then reloaded the developer's OWN systemd; on a desktop that is a
+  # blocking polkit password dialog, hidden from pytest output by the `2>/dev/null` below. Measured: 14
+  # prompts in 20 minutes, pytest blocked on each until cancelled.
+  #
+  #   polkitd: Operator of unix-session:3 FAILED to authenticate to gain authorization for action
+  #   org.freedesktop.systemd1.reload-daemon ... [systemctl daemon-reload] (owned by unix-user:michal)
+  #
+  # A redirected install has no business touching host state. Each reload is gated on ITS OWN path so a
+  # partial redirect cannot leak either.
+  if [ "$ETC_UDEV" = "/etc/udev/rules.d" ]; then
+    udevadm control --reload-rules 2>/dev/null && echo "  udev rules reloaded"
+  else
+    echo "  udev NOT reloaded — installed to $ETC_UDEV, not the host path"
+  fi
+  if [ "$ETC_SYSTEMD" = "/etc/systemd/system" ]; then
+    systemctl daemon-reload 2>/dev/null && echo "  systemd units reloaded"
+  else
+    echo "  systemd NOT reloaded — installed to $ETC_SYSTEMD, not the host path"
+  fi
   echo "  $installed file(s) installed — nothing restarted, so a running capture is untouched"
 fi
 echo "  $managed managed, $drift drifted$([ "$ambig" -gt 0 ] && echo ", $ambig AMBIGUOUS")"
