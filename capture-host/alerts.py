@@ -13,6 +13,9 @@
 # this module never invents a destination. Alerting must NEVER take capture down, so every failure here is
 # swallowed; the worst case is a missed notification, never a missed night.
 from __future__ import annotations
+import logging
+
+_log = logging.getLogger("tepna-capture")
 
 
 async def _http_post(url: str, payload: dict) -> bool:
@@ -48,9 +51,19 @@ class Notifier:
                 return False                   # too soon — suppress the repeat
             self._last[key] = now
         try:
-            return bool(await self._post(self.url, {"title": title, "message": message}))
-        except Exception:
-            return False                       # a webhook must never crash capture
+            ok = bool(await self._post(self.url, {"title": title, "message": message}))
+        except Exception as e:
+            # SWALLOWING THE EXCEPTION MUST NOT ALSO SWALLOW THE EVIDENCE (CAPTURE-HOST-DEEP-AUDIT §C1).
+            # A webhook must never crash capture — that part is right and stays. But this used to return
+            # False with no log at ANY level, so a delivery that never happened was indistinguishable
+            # from one that did: the caller latched, the operator was never told, and the journal held
+            # nothing to find afterwards either. The alert is lost either way; the RECORD of losing it
+            # need not be.
+            _log.warning("alert %r not delivered: %r", title, e)
+            return False
+        if not ok:
+            _log.warning("alert %r rejected by the webhook (non-2xx)", title)
+        return ok
 
     def reset(self, key: str) -> None:
         """Forget a dedupe key so the NEXT occurrence alerts immediately (call when a sensor recovers)."""

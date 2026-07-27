@@ -128,7 +128,39 @@ def test_a_writer_with_data_is_kept(tmp_path):
 
 def test_the_teardown_deletes_only_empty_writers():
     src = open(os.path.join(os.path.dirname(__file__), "..", "capture.py"), encoding="utf-8").read()
-    tail = src.split("DISCARD HEADER-ONLY FILES")[1][:1200]
+    # 2000, not 1200: the explanatory comment above the loop grew, and a fixed character window that
+    # happens to end mid-comment turns a source scan into a test of comment length.
+    tail = src.split("DISCARD HEADER-ONLY FILES")[1][:2000]
     assert "not wr.rows" in tail, "emptiness must be judged by rows, not file size"
-    assert "os.remove(path)" in tail
+    # `os.remove(path)` USED TO BE ASSERTED HERE, and asserting it is what kept CAPTURE-HOST-DEEP-AUDIT
+    # §C8 alive: `wr.path` names only the writer's PRIMARY file, so removing it left the `hr` writer's
+    # `_RR` sibling behind as an orphan. `discard()` unlinks everything the writer owns; the behaviour
+    # is pinned properly by the two tests below, which this source scan cannot express.
+    assert "wr.discard()" in tail
     assert "hr_writer" in tail, "the HR writer opens the same way and must be covered too"
+
+
+def test_discarding_an_hr_writer_removes_its_RR_sibling(tmp_path):
+    """§C8, behaviourally. `StreamWriter(stream='hr')` silently opens a second handle (`_RR.<ext>`) and
+    exposed only `self.path`, so the header-only pruner deleted the HR file and left a 33-byte RR file
+    with no partner — 4 of them in the real 2026-07-25 directory alone. The existing gate was
+    mutation-blind because it exercised the `ppg` stream, which has no sibling."""
+    from writers import StreamWriter
+    hr = tmp_path / "Polar_H10_02849638_20260725001214_HR.txt"
+    w = StreamWriter(str(hr), "hr", fsync=False)
+    rr = tmp_path / "Polar_H10_02849638_20260725001214_RR.txt"
+    assert hr.exists() and rr.exists(), "the writer owns two files"
+    assert set(w.paths) == {str(hr), str(rr)}, "and it must be able to say so"
+    w.discard()
+    assert not hr.exists() and not rr.exists(), "an orphan RR file is what this fixes"
+
+
+def test_discarding_a_single_file_writer_is_unchanged(tmp_path):
+    """The control: `paths`/`discard` must not invent a sibling for a stream that has none."""
+    from writers import StreamWriter
+    p = tmp_path / "Polar_H10_02849638_20260725001214_ECG.txt"
+    w = StreamWriter(str(p), "ecg", fsync=False)
+    assert w.paths == [str(p)]
+    w.discard()
+    assert not p.exists()
+    assert list(tmp_path.iterdir()) == []

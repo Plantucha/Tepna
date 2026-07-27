@@ -142,7 +142,11 @@ def test_a_marked_night_whose_mirror_vanished_is_treated_as_unarchived(tmp_path)
     os.makedirs(dest)
     _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
     _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
-    os.makedirs(os.path.join(dest, "2026-07-17"))          # only THIS one still exists at the dest
+    # A REAL mirror, not just a directory: since CAPTURE-HOST-DEEP-AUDIT §C4 the gate confirms every
+    # source file is present at the destination at the same size. An empty `dest/<night>/` is exactly
+    # the premature-archive shape the audit found — it satisfied the old "isdir" test while holding
+    # none of the night.
+    _night(dest, "2026-07-17", {"a_b_c_ECG.txt": "x"})     # only THIS one still exists at the dest
     assert nightarchive.unarchived_nights(cap, dest) == {"2026-07-18"}
 
 
@@ -156,11 +160,13 @@ def test_an_absent_backup_volume_protects_every_night(tmp_path):
 
 
 def test_a_confirmed_mirror_still_allows_the_prune(tmp_path):
+    """The control on §C4: a mirror that really holds the night must still release it, or retention
+    stalls forever and the disk fills — the failure VIGIL-HARDENING-II §1 deliberately traded for."""
     cap = str(tmp_path / "captures")
     dest = str(tmp_path / "backup")
     for n in ("2026-07-17", "2026-07-18"):
         _night(cap, n, {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
-        os.makedirs(os.path.join(dest, n))
+        _night(dest, n, {"a_b_c_ECG.txt": "x"})
     assert nightarchive.unarchived_nights(cap, dest) == set()
 
 
@@ -170,3 +176,71 @@ def test_marker_only_mode_is_still_available(tmp_path):
     _night(cap, "2026-07-17", {"a_b_c_ECG.txt": "x", nightarchive._MARKER: ""})
     _night(cap, "2026-07-18", {"a_b_c_ECG.txt": "x"})
     assert nightarchive.unarchived_nights(cap) == {"2026-07-18"}
+
+
+# ── the premature-archive window (CAPTURE-HOST-DEEP-AUDIT §C4) ──────────────────────────────────
+def _touch(path, when):
+    os.utime(path, (when, when))
+
+
+def test_a_night_that_grew_after_the_marker_is_offered_again(tmp_path):
+    """THE §C4 regression, and the only finding in the audit that DELETES data rather than mis-stating
+    it. `writers.night_dir` keys a folder on the SESSION'S START DATE, so an early-morning session and
+    that evening's session share one YYYY-MM-DD dir with a multi-hour daytime lull between them. During
+    the lull the night looks finished, gets mirrored, and is marked done — and nothing anywhere removes
+    the marker, so everything written that evening never reached the mirror.
+
+    Measured on the real box: 7 of 11 nights have a genuine premature-archive window (2026-07-20 quiet
+    for 5.08 h with 828.8 MB written afterwards; 2026-07-22 quiet 8.33 h, 652.5 MB)."""
+    cap = str(tmp_path / "captures")
+    d = _night(cap, "2026-07-20", {"morning_a_b_ECG.txt": "x", nightarchive._MARKER: ""})
+    _touch(os.path.join(d, "morning_a_b_ECG.txt"), 1000)
+    _touch(os.path.join(d, nightarchive._MARKER), 2000)          # mirrored after the morning session
+    assert nightarchive.pending_nights(cap, set()) == [], "nothing has changed yet"
+
+    # ...and then the evening session writes into the same folder.
+    with open(os.path.join(d, "evening_a_b_ECG.txt"), "w") as f:
+        f.write("y" * 100)
+    _touch(os.path.join(d, "evening_a_b_ECG.txt"), 3000)
+    assert nightarchive.pending_nights(cap, set()) == ["2026-07-20"], \
+        "the night grew after it was marked — the mirror is now incomplete"
+
+
+def test_an_unreadable_night_is_offered_again_rather_than_skipped(tmp_path):
+    """Fails SAFE: a re-offer costs only the files that differ (archive_night is idempotent and
+    size-diffed), while a wrong skip loses them."""
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-07-20", {"a_b_c_ECG.txt": "x"})            # marker absent entirely
+    assert nightarchive.pending_nights(cap, set()) == ["2026-07-20"]
+
+
+def test_a_short_mirror_does_not_release_the_night_to_the_pruner(tmp_path):
+    """The destination half. `unarchived_nights` checked only that `dest/<night>/` EXISTS, which a
+    mirror made mid-night satisfies while holding only part of it — so retention could delete the
+    local, and only complete, copy. Confirmation is now per-file at matching size."""
+    cap = str(tmp_path / "captures")
+    dest = str(tmp_path / "backup")
+    _night(cap, "2026-07-20", {"a_ECG.txt": "xxxx", "b_ACC.txt": "yyyy", nightarchive._MARKER: ""})
+    _night(dest, "2026-07-20", {"a_ECG.txt": "xxxx"})            # the ACC file never made it
+    assert nightarchive.unarchived_nights(cap, dest) == {"2026-07-20"}
+
+
+def test_a_truncated_mirrored_file_does_not_release_the_night(tmp_path):
+    """Present but SHORT — a copy interrupted by a full or unplugged backup volume."""
+    cap = str(tmp_path / "captures")
+    dest = str(tmp_path / "backup")
+    _night(cap, "2026-07-20", {"a_ECG.txt": "x" * 1000, nightarchive._MARKER: ""})
+    _night(dest, "2026-07-20", {"a_ECG.txt": "x" * 10})
+    assert nightarchive.unarchived_nights(cap, dest) == {"2026-07-20"}
+
+
+def test_re_archiving_a_grown_night_copies_only_the_new_files(tmp_path):
+    """The re-offer must be cheap, or it would re-copy gigabytes every poll."""
+    cap = str(tmp_path / "captures")
+    dest = str(tmp_path / "backup")
+    _night(cap, "2026-07-20", {"morning_ECG.txt": "x" * 50})
+    assert nightarchive.archive_night(cap, "2026-07-20", dest) == 1
+    with open(os.path.join(cap, "2026-07-20", "evening_ECG.txt"), "w") as f:
+        f.write("y" * 50)
+    assert nightarchive.archive_night(cap, "2026-07-20", dest) == 1, "only the new file"
+    assert nightarchive.unarchived_nights(cap, dest) == set(), "and now the mirror is complete"

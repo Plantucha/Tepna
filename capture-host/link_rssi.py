@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 import asyncio, os, re
+import proc_util
 
 import helper_path
 
@@ -116,7 +117,7 @@ async def _run(cmd: list[str], timeout: float = 4.0) -> str | None:
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        out, _ = await proc_util.communicate(proc, timeout)
         if proc.returncode != 0:
             return None
         return (out or b"").decode("utf-8", "replace")

@@ -26,7 +26,7 @@ import polar_psftp
 import storage_targets
 import timeline as _timeline
 import settings_schema
-from writers import missing_identity
+from writers import missing_identity, StreamWriter
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _log = logging.getLogger("tepna.webmon")
@@ -48,17 +48,88 @@ def _valid_mac(a) -> bool:
     return isinstance(a, str) and bool(_MAC_RE.fullmatch(a))
 
 
-async def _body(req) -> dict:
-    """A malformed/empty JSON body is a 400-worthy client error, never a 500 traceback
-    (VIGIL-DEEP-ANALYSIS §2A). Returns {} on absent/undecodable body."""
-    try:
-        return await req.json() if req.body_exists else {}
-    except Exception:
+# Every stream name the box can actually write. The floor under the per-device firmware check in
+# settings_post: that check is skipped when the device has never connected since boot, and an
+# allowlist that exists only while a sensor is up is not an allowlist (CAPTURE-HOST-DEEP-AUDIT §D4).
+# Derived from the writer layouts so it cannot drift from what a runner can open, plus the two the
+# non-PMD runners add (`spo2` from the ring, `eeg` from the Muse child tool).
+KNOWN_STREAMS = frozenset(StreamWriter.HEADERS) | {"spo2", "eeg"}
+
+# A body that is not a JSON OBJECT. Distinct from `{}` on purpose (CAPTURE-HOST-DEEP-AUDIT §D1/§D3):
+# `{}` is a caller who sent an object and omitted the keys, which several endpoints treat as a
+# deliberate instruction; this is a caller whose request never arrived intact, which is never an
+# instruction to do anything.
+BAD_BODY = object()
+
+
+async def _body(req):
+    """The request's JSON object, `{}` when there is no body, or `BAD_BODY`.
+
+    `BAD_BODY` covers two things that used to be collapsed into `{}` or to raise 500:
+
+      * a body that does not decode as JSON (CAPTURE-HOST-DEEP-AUDIT §D1) — returning `{}` for it is
+        what let `POST /api/storage` answer 200 and PERSIST the deletion of the configured offload
+        target. The handler's own docstring promised the opposite ("a rejected target leaves the
+        previous one running rather than half-applying"): an unparseable body was never *rejected*, it
+        was applied as a clear;
+      * valid JSON that is not an object — `null`, `[]`, `"x"`, `3` (§D3). `_body` guarded only a
+        DECODE error, so these reached handlers as non-dicts and 500'd on `.get`.
+
+    An ABSENT body still maps to `{}`: several endpoints legitimately mean "use the defaults" by
+    posting nothing. A handler for which that is not true says so itself — see `storage_post`."""
+    if not req.body_exists:
         return {}
+    try:
+        d = await req.json()
+    except Exception:
+        return BAD_BODY
+    return d if isinstance(d, dict) else BAD_BODY
+
+
+def _bad_body_response():
+    return web.json_response(
+        {"ok": False, "error": "request body must be a JSON object"}, status=400)
+
+
+# Written at the top of every machine-emitted config.yaml. The file is UI-owned and `yaml.safe_dump`
+# cannot round-trip comments (CAPTURE-HOST-DEEP-AUDIT §D5), so rather than let an operator discover
+# that by losing 20 lines of their own notes, the file says what it is and where the prose lives.
+_CFG_BANNER = (
+    "# WRITTEN BY THE TEPNA MONITOR — comments in this file are NOT preserved.\n"
+    "# Every save (settings / remember / forget / storage) re-emits it from the in-memory config, and\n"
+    "# the YAML emitter has no comment round-trip. Keep notes in config.example.yaml, which is version\n"
+    "# controlled and never written by the box.\n")
+
+_comment_loss_warned = False
+
+
+def _has_comments(path: str) -> bool:
+    """True when the file on disk carries operator comments this save is about to drop. Cheap, and
+    deliberately ignores the banner we wrote ourselves."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                t = line.strip()
+                if t.startswith("#") and not t.startswith("# WRITTEN BY THE TEPNA MONITOR") \
+                        and "config.example.yaml" not in t and "comment round-trip" not in t \
+                        and "Every save (settings" not in t:
+                    return True
+    except OSError:
+        return False
+    return False
+
+
+def _warn_comment_loss(path: str) -> None:
+    global _comment_loss_warned
+    _comment_loss_warned = True
+    _log.warning("config: %s carries comments that this save will DROP — the monitor owns this file "
+                 "and the YAML emitter cannot round-trip comments. Keep notes in config.example.yaml.",
+                 path)
 
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
-             pull_stored=None, polar_pause=None, sync_time=None, forget_device=None) -> web.Application:
+             pull_stored=None, polar_pause=None, sync_time=None, forget_device=None,
+             on_tz_change=None) -> web.Application:
     # Optional shared-secret gate on the CONTROL surface. When web.token is set, every POST (bond / forget
     # / remember / pull / settings / clock — all the state-changing verbs) needs the token; GET reads stay
     # open so the monitor can still display without it. Default OFF (no token → current wide-open behaviour;
@@ -160,7 +231,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "error": "cpap harvest is disabled in config"}, status=400)
         if _cpap_busy["running"]:
             return web.json_response({"ok": False, "error": "a pull is already running"}, status=409)
-        scope = (await _body(req)).get("scope") or "missing"
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        scope = body.get("scope") or "missing"
         if scope not in ("last", "week", "missing"):
             return web.json_response({"ok": False, "error": f"unknown scope {scope!r}"}, status=400)
         busy = cpap_harvest.blocking_devices(status.get("devices"))
@@ -205,12 +279,16 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     async def bond(req):
         body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         if not _valid_mac(body.get("address")):
             return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
         return web.json_response(await bonding.bond(body["address"], adapter_mac))
 
     async def forget(req):
         body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         if not _valid_mac(body.get("address")):
             return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
         res = await bonding.forget(body["address"], adapter_mac)
@@ -223,6 +301,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     async def remember(req):
         dev = await _body(req)
+        if dev is BAD_BODY:
+            return _bad_body_response()
         if not _valid_mac(dev.get("address")):
             return web.json_response({"ok": False, "error": "invalid device address"}, status=400)
         # Refuse an unidentifiable device INSTEAD of persisting it. The browser's guessDevice() leaves
@@ -319,9 +399,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         # (one BLE link). Synchronous: returns when the pull completes (a night file is small, ~a minute).
         if not pull_stored:
             return web.json_response({"ok": False, "detail": "stored-session pull not available"}, status=400)
-        try:
-            body = await req.json() if req.body_exists else {}
-        except Exception:
+        # DELIBERATELY TOLERANT, unlike the other POSTs. This body carries only which/ftype DEFAULTS —
+        # there is no state to half-apply and nothing to destroy — and two tests pin the tolerance as
+        # the intended behaviour. Contrast `storage_post`, where the same leniency deleted the
+        # configured offload target (CAPTURE-HOST-DEEP-AUDIT §D1). Non-object bodies are folded to the
+        # defaults here rather than 500'ing on `.get`, which is §D3's half of the fix.
+        body = await _body(req)
+        if body is BAD_BODY:
             body = {}
         which = body.get("which", "latest")
         try:
@@ -353,12 +437,31 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         one. The directory fsync is what makes the rename itself survive a power loss (fsyncing the
         file alone leaves the directory entry unflushed). Failure at ANY step leaves the original
         untouched and reports false. (VIGIL-DEEP-ANALYSIS §2A kept the honest return value; this fixes
-        the thing it was reporting on.)"""
+        the thing it was reporting on.)
+
+        ⚠️ THE UI OWNS THIS FILE, AND WRITING IT DESTROYS THE OPERATOR'S COMMENTS
+        (CAPTURE-HOST-DEEP-AUDIT §D5). `yaml.safe_dump` has no comment round-trip, so the emitted
+        document is comment-free BY CONSTRUCTION — 20 comment lines in, 0 out, values identical. That
+        is why four hand-made backups of one file were sitting in the working tree
+        (`config.yaml.bak`, `.pre-acc52`, `.pre-coospo`, `.pre-ppi-1646`): the comment-free ones are
+        machine-emitted and the human re-authored the comments by hand afterwards.
+
+        Not silently accepted, and not fixed by adding `ruamel.yaml` either — a runtime dependency for
+        comment preservation is a SOUP entry on a 62304-aligned appliance, which is a real cost for a
+        cosmetic gain. The honest resolution is to say so: the loss is announced once per process, and
+        `config.example.yaml` (version-controlled, never written by the box) is where the prose that
+        explains each key actually lives.
+
+        The 0664 -> 0600 permission change is NOT a defect and is left alone: narrowing a config the
+        code itself calls world-readable is an improvement, and no consumer reads it as another user."""
         d = os.path.dirname(os.path.abspath(cfg_path)) or "."
         tmp = None
         try:
+            if not _comment_loss_warned and _has_comments(cfg_path):
+                _warn_comment_loss(cfg_path)
             fd, tmp = tempfile.mkstemp(prefix=".config.", suffix=".yaml.tmp", dir=d)
             with os.fdopen(fd, "w") as f:
+                f.write(_CFG_BANNER)
                 yaml.safe_dump(cfg, f, sort_keys=False, default_flow_style=False)
                 f.flush()
                 os.fsync(f.fileno())
@@ -390,7 +493,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         return web.json_response(await clockcfg.status())
 
     async def clock_set(req):
-        body = await req.json()
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         servers = body.get("servers") or []
         if isinstance(servers, str):
             servers = servers.replace(",", " ").split()
@@ -401,8 +506,21 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         return web.json_response(await clockcfg.sync_now(sudo=_clock_sudo))
 
     async def clock_tz(req):
-        body = await req.json()
-        return web.json_response(await clockcfg.set_tz(body.get("timezone"), sudo=_clock_sudo))
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        r = await clockcfg.set_tz(body.get("timezone"), sudo=_clock_sudo)
+        # A deliberate zone change must RE-ANCHOR the capture clock, not be absorbed by it
+        # (CAPTURE-HOST-DEEP-AUDIT §A1). `_now()` sees a zone move as a DST relabelling — offset delta
+        # equals apparent drift, by construction — and keeps counting in the OLD offset, so without this
+        # the box answered ok, reported the new zone with `tz_set: true`, and silently stamped every
+        # subsequent file an hour off. Only this handler knows the change was intended.
+        if r.get("ok") and on_tz_change is not None:
+            try:
+                on_tz_change(f"timezone set to {r.get('timezone')}")
+            except Exception:                     # never fail the tz change over its own bookkeeping
+                _log.exception("clock/tz: re-anchor hook failed")
+        return web.json_response(r)
 
     # ── Polar onboard offline-recording pull (PS-FTP) — PR #153; /api/polar/* to avoid the O2Ring /api/pull ──
     # A Polar device holds ONE BLE link: if it's live-streaming, pause it first (Forget) or the pull fails.
@@ -485,7 +603,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         """Apply allowlisted settings and/or per-device stream selections. Validates EVERYTHING before
         touching config.yaml, and backs the file up first — a corrupt config on a headless box means no
         capture and no web surface to fix it from."""
-        body = await req.json()
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         changed, restart_needed = [], False
         try:
             for key, val in (body.get("settings") or {}).items():
@@ -501,8 +621,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     raise settings_schema.SettingsError(f"unknown device {addr}")
                 if not isinstance(streams, list) or not all(isinstance(x, str) for x in streams):
                     raise settings_schema.SettingsError("streams must be a list of names")
+                # A STATIC FLOOR FIRST, so an unknown stream NAME is refused whatever the device's
+                # connection state (CAPTURE-HOST-DEEP-AUDIT §D4). The firmware check below is skipped
+                # entirely when `pmd_supported` is absent — and it is absent for a device that has
+                # never connected SINCE BOOT (not merely one that is disconnected: `pmd_supported` is
+                # written once at connect and `_set` only ever `update`s, so it survives a drop). The
+                # consequence was bounded — capture.py ignores an unrecognised stream name, so no
+                # writer and no file — but "the guard is absent and nothing downstream happens to care"
+                # is not a guard.
+                bad = [x for x in streams if x not in KNOWN_STREAMS]
+                if bad:
+                    raise settings_schema.SettingsError(
+                        f"unknown stream(s): {', '.join(sorted(bad))} "
+                        f"(known: {', '.join(sorted(KNOWN_STREAMS))})")
                 st = status.get("devices", {}).get(dev.get("name"), {})
+                # REMEMBERED capabilities: what the device advertised the last time it connected,
+                # persisted so a reboot does not disarm the check until the sensor next comes up.
                 sup = st.get("pmd_supported")
+                if sup:
+                    dev["pmd_supported_seen"] = list(sup)
+                else:
+                    sup = dev.get("pmd_supported_seen")
                 if sup:                      # refuse a stream the firmware does not advertise
                     bad = [x for x in streams if x not in sup and x not in ("hr",)]
                     if bad:
@@ -517,12 +656,23 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 if not dev:
                     raise settings_schema.SettingsError(f"unknown device {addr}")
                 opts = (status.get("devices", {}).get(dev.get("name"), {}).get("pmd_options") or {})
+                if opts:
+                    dev["pmd_options_seen"] = {k: list(v) for k, v in opts.items()}
+                else:
+                    opts = dev.get("pmd_options_seen") or {}
                 clean = {}
                 for stream, val in rates.items():
+                    if stream not in KNOWN_STREAMS:
+                        raise settings_schema.SettingsError(f"unknown stream {stream!r}")
                     try:
                         v = int(val)
                     except (TypeError, ValueError):
                         raise settings_schema.SettingsError(f"{stream} rate must be a number") from None
+                    # A FLOOR, independent of the device menu (§D4): a never-connected device offered no
+                    # menu, and `-1` or `0` Hz is not a rate under any firmware.
+                    if not 1 <= v <= 10_000:
+                        raise settings_schema.SettingsError(
+                            f"{stream}: {v} Hz is not a plausible sample rate")
                     allowed = opts.get(stream) or []
                     if allowed and v not in allowed:
                         # Refuse rather than let the device reject the START and leave an idle stream.
@@ -541,7 +691,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 shutil.copyfile(cfg_path, cfg_path + ".bak")
             except Exception:
                 pass
-            _save()
+            # A FAILED WRITE IS NOT A SUCCESS (CAPTURE-HOST-DEEP-AUDIT §D2, closing the last caller of
+            # VIGIL-DEEP-ANALYSIS §2A). `_save()`'s return value was discarded here while its three
+            # siblings — /api/remember, /api/forget, /api/storage — all report 500. The in-memory cfg
+            # keeps the change either way, so the UI showed the new value, the disk kept the old one,
+            # and the setting silently reverted at the next restart.
+            if not _save():
+                return web.json_response(
+                    {"ok": False, "error": "config write failed (disk?)", "changed": changed},
+                    status=500)
         return web.json_response({"ok": True, "changed": changed, "restart_needed": restart_needed})
 
     # ── Storage / offload target (STORAGE-OFFLOAD-TARGETS) ──────────────────────────────────────
@@ -572,8 +730,19 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     async def storage_post(req):
         """Persist the offload target + schedule. Validated BEFORE anything is written, so a rejected
-        target leaves the previous one running rather than half-applying."""
+        target leaves the previous one running rather than half-applying.
+
+        A body that did not arrive as a JSON object is a 400, NOT a clear (CAPTURE-HOST-DEEP-AUDIT
+        §D1). An empty POST is included: `{}` reaches this handler from a caller who deliberately sent
+        an object with no `target` — the designed disable path, which monitor.html and four tests use —
+        whereas no body at all is a client that failed to send its request. Treating the second as the
+        first is how an empty POST returned 200 and persisted `{"enabled": false}` with the target gone,
+        which at the next daemon start also un-gates retention's second-copy protection."""
+        if not req.body_exists:
+            return _bad_body_response()
         body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         try:
             tgt = storage_targets.validate(body["target"]) if body.get("target") else None
             sched = storage_targets.validate_schedule(body.get("schedule"))
@@ -603,6 +772,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         """Probe a target WITHOUT saving it, so the operator finds a wrong key or path here rather than
         at 03:00 when a night is waiting to leave."""
         body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         try:
             tgt = storage_targets.validate(body.get("target") or (cfg.get("archive") or {}).get("target"))
         except storage_targets.StorageError as e:
@@ -657,7 +828,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         """Set ONE device's internal clock from the host. Polar only — the O2Ring already re-syncs its
         RTC on every connect (oxyii 0xC0), so there is nothing manual to do there and we say so rather
         than shipping a button that silently no-ops."""
-        body = await req.json() if req.body_exists else {}
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         address = body.get("address", "")
         dev = next((d for d in cfg.get("devices", []) if d.get("address") == address), None)
         if not dev:
@@ -709,7 +882,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
 
     async def polar_pull(req):
-        body = await req.json()
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
         address, session = body.get("address", ""), body.get("session", "")
         dev = _polar_dev(address)
         if not dev or not session.startswith("/"):

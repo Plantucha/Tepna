@@ -38,17 +38,24 @@ class _Spy:
 
     def __init__(self):
         self.up, self.down, self.guards = 0, 0, []
+        self.ifaces = []
 
     def install(self, monkeypatch, up_ok=True, harvest=None, route="enp9s0"):
         monkeypatch.setattr(cpap_harvest, "default_route_dev", lambda: route)
 
-        def _up(profile, timeout=45.0, guard_dev=None):
+        # The signatures mirror the real ones, INCLUDING `iface` — the poller now threads
+        # `cpap.wifi_iface` through both (CAPTURE-HOST-DEEP-AUDIT §E5), and a double that cannot
+        # accept what the caller passes tests the double, not the caller.
+        def _up(profile, timeout=45.0, guard_dev=None, ssid="ez Share", psk="88888888",
+                iface=None, addr=None):
             self.up += 1
             self.guards.append(guard_dev)
+            self.ifaces.append(iface)
             return up_ok
 
-        def _down(profile, timeout=30.0):
+        def _down(profile, timeout=30.0, iface=None):
             self.down += 1
+            self.ifaces.append(iface)
             return True
 
         monkeypatch.setattr(cpap_harvest, "wifi_up", _up)

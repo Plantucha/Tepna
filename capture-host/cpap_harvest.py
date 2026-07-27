@@ -70,11 +70,19 @@ def parse_listing(text: str, ignore=DEFAULT_IGNORE) -> list[dict]:
 
 
 def size_kb(s: str) -> float:
-    """The listing's human size as KB. Tolerates '2229KB', '1.5MB', '832B', ''."""
+    """The listing's human size as KB. Tolerates '2229KB', '1.5MB', '2.5GB', '832B', ''.
+
+    `G` used to be missing here while `_ROW`'s own regex ACCEPTS `[KMG]?B` — producer and consumer
+    disagreeing inside one file (CAPTURE-HOST-DEEP-AUDIT §E3). A `2.5GB` row fell through to the
+    bytes branch and became 0.0024 KB, so a complete download read as an enormous over-read and the
+    file was re-fetched forever. Latent on the real ResMed card, whose listing is integer-KB throughout
+    (largest observed 2613 KB) — but the card is not the only thing this parser will ever meet."""
     digits = "".join(c for c in (s or "") if c.isdigit() or c == ".")
     if not digits:
         return 0.0
     v, u = float(digits), (s or "").upper()
+    if "G" in u:
+        return v * 1024 * 1024
     if "M" in u:
         return v * 1024
     if "K" in u:
@@ -89,27 +97,68 @@ def local_name(name: str) -> str:
     return "STR.edf" if name.upper() == "STR.EDF" else name
 
 
+def size_tolerance_kb(s: str) -> float:
+    """How far a file may legitimately differ from the size the listing PRINTED, in KB.
+
+    ONE tolerance, shared by `should_fetch` and `short_read` — they used to carry different ones and the
+    gap between them was a hole (CAPTURE-HOST-DEEP-AUDIT §C5). The skip test allowed
+    `max(1.0, want*0.02)`; the truncation detector flagged only `> max(2.0, want*0.05)`. Since 5 % > 2 %,
+    every truncation the detector could SEE was one the resume logic would re-fetch anyway, and the
+    whole 0-2 % band was invisible to both: a truncated EDF was accepted, reported ok, and skipped
+    forever.
+
+    The percentage was the mistake. It was justified as "the listing reports rounded KB", but that error
+    is bounded by the QUANTIZATION OF THE PRINTED NUMBER, not by the file's size — a value shown as
+    `2229KB` is exact to ±0.5 KB whether the file is 2 KB or 2 GB. Scaling it with the file is what
+    opened the hole: 44.6 KB of slack on a 2229 KB BRP.edf. So the tolerance is read off the string's own
+    precision, half its last displayed digit. For the real ResMed card (integer KB throughout) that is
+    0.5 KB; a `1.5MB` row would get the 51.2 KB it genuinely deserves.
+
+    The correct sibling was already one module over: `pull_session.py:145` gates its skip on EXACT
+    equality."""
+    txt = (s or "").strip()
+    digits = "".join(c for c in txt if c.isdigit() or c == ".")
+    if not digits:
+        return 0.0
+    dec = len(digits.split(".", 1)[1]) if "." in digits else 0
+    quantum = 10.0 ** (-dec)                       # in whatever unit the listing used
+    u = txt.upper()
+    if "M" in u:
+        quantum *= 1024.0
+    elif "G" in u:
+        quantum *= 1024.0 * 1024.0
+    elif "K" not in u and "B" in u:
+        quantum /= 1024.0
+    return max(quantum / 2.0, 1e-3)                # a byte of float slack, never a percentage
+
+
 def should_fetch(entry: dict, dest_path: str) -> bool:
-    """Skip-if-present on name + approximate size. Makes the steady state nearly free (one night ≈ 2.5 MB
-    ≈ 20 s) and lets an interrupted backfill resume. Size is compared loosely because the listing reports
-    rounded KB. A file that is present but the WRONG size is re-fetched, not trusted."""
+    """Skip-if-present on name + size. Makes the steady state nearly free (one night ≈ 2.5 MB ≈ 20 s) and
+    lets an interrupted backfill resume. A file that is present but the WRONG size is re-fetched, not
+    trusted — see `size_tolerance_kb` for what "wrong" means and why it is not a percentage."""
     want = size_kb(entry.get("size", ""))
     if not os.path.exists(dest_path):
         return True
     if want <= 0:
         return False
     have = os.path.getsize(dest_path) / 1024.0
-    return abs(have - want) > max(1.0, want * 0.02)
+    return abs(have - want) > size_tolerance_kb(entry.get("size", ""))
 
 
 def short_read(entry: dict, got_bytes: int) -> bool:
-    """True when a download is materially smaller than the listing promised — i.e. the card truncated
-    under load. A short read is NOT a valid file; accepting one writes a corrupt EDF that parses far
-    enough to look real. Same class as the part-decoded PMD frame in `VIGIL-HARDENING-III §1`."""
+    """True when a download is smaller than the listing promised — i.e. the card truncated under load. A
+    short read is NOT a valid file; accepting one writes a corrupt EDF that parses far enough to look
+    real. Same class as the part-decoded PMD frame in `VIGIL-HARDENING-III §1`.
+
+    Shares `size_tolerance_kb` with `should_fetch` by construction, so the two can no longer disagree
+    about what counts as complete. Scope of the silent path this closes: it exists only where the card
+    frames the body by connection-close. With a declared `Content-Length`, urllib raises
+    `IncompleteRead`, `_get` retries, and the failure already lands in `st['errors']` with the file
+    absent."""
     want = size_kb(entry.get("size", ""))
     if want <= 0:
         return False
-    return abs(got_bytes / 1024.0 - want) > max(2.0, want * 0.05)
+    return abs(got_bytes / 1024.0 - want) > size_tolerance_kb(entry.get("size", ""))
 
 
 def due_now(now: _dt.datetime, at_hour: int, last_run_date, window_h: int = 2) -> bool:
@@ -123,9 +172,28 @@ def due_now(now: _dt.datetime, at_hour: int, last_run_date, window_h: int = 2) -
     exists to avoid (measured cost: 5-7 dB and 17 reconnects across three sensors).
 
     A window makes "a missed day self-heals" honest: it heals TOMORROW, in the window, rather than at
-    whatever hour the box happened to restart."""
-    h = now.hour
-    return int(at_hour) <= h < int(at_hour) + int(window_h) and last_run_date != now.date()
+    whatever hour the box happened to restart.
+
+    THE WINDOW WRAPS MIDNIGHT (CAPTURE-HOST-DEEP-AUDIT §E4). `at_hour <= h < at_hour + window_h` is
+    arithmetic on a value that is modulo 24, so a window starting late in the day was silently clipped
+    at 23:59. With the shipped `window_h=2` the only reachable clip is `at_hour: 23`, which got a
+    1-hour window instead of two; the default 13 is unaffected. The once-per-day key stays the
+    window's START date, so an 00:30 firing of a 23:00 window still consumes the 23rd, not the 24th —
+    otherwise a wrapped window could fire twice."""
+    d = window_start_date(now, at_hour, window_h)
+    return d is not None and last_run_date != d
+
+
+def window_start_date(now: _dt.datetime, at_hour: int, window_h: int = 2):
+    """The DATE of the window `now` falls in, or None if it falls in none.
+
+    Exposed because the caller has to record the same thing `due_now` compares against. Recording
+    `now.date()` would be wrong for a wrapped window: a 23:00 window firing at 00:30 would stamp the
+    24th while `due_now` asks about the 23rd, so it would be due again a minute later, forever."""
+    delta = (now.hour - int(at_hour)) % 24
+    if delta >= int(window_h):
+        return None
+    return (now - _dt.timedelta(hours=delta)).date()
 
 
 def nights_for(scope: str, now: _dt.datetime) -> "set[str] | None":
@@ -171,6 +239,11 @@ def blocking_devices(status_devices: dict) -> list[str]:
 
 
 # ── IO ──────────────────────────────────────────────────────────────────────────────────────────────
+class ShortRead(RuntimeError):
+    """A download smaller than the listing promised. Its own type so the harvester can tell a truncated
+    body (retry next run; the `.part` is still on disk) from a transport failure."""
+
+
 class EzShare:
     """Thin bounded HTTP client for the card. Every request has a timeout and capped retries."""
 
@@ -196,13 +269,23 @@ class EzShare:
 
     def fetch(self, entry: dict, dest_dir: str) -> tuple[str, int, bool]:
         """Download one entry. Returns (path, bytes, was_short). Writes via a .part temp then renames, so
-        an interrupted run can never leave a truncated file that skip-if-present would later accept."""
+        an interrupted run can never leave a truncated file that skip-if-present would later accept.
+
+        Raises `ShortRead` when the body is smaller than the listing promised — WITHOUT renaming. The
+        `.part` guard was already here and did not cover this case: `short_read` was consulted only
+        AFTER `os.replace` had already promoted the truncated body to its final name, at which point
+        skip-if-present saw a plausible file and never came back for it (CAPTURE-HOST-DEEP-AUDIT §C5).
+        Leaving the `.part` behind means the destination stays absent, so the next run re-fetches."""
         dest = os.path.join(dest_dir, local_name(entry["name"]))
         os.makedirs(dest_dir, exist_ok=True)
         data = self._get(urllib.parse.urljoin(self.base + "/", entry["href"]))
         tmp = dest + ".part"
         with open(tmp, "wb") as fh:
             fh.write(data)
+        if short_read(entry, len(data)):
+            time.sleep(self.delay)
+            raise ShortRead(f"{entry['name']}: listing {entry.get('size', '?')}, "
+                            f"got {len(data) / 1024:.1f}KB — left as {os.path.basename(tmp)}")
         os.replace(tmp, dest)
         time.sleep(self.delay)
         return dest, len(data), short_read(entry, len(data))
@@ -256,6 +339,34 @@ def backend() -> str:
 # nmcli path's `ipv4.never-default` — there is no route to suppress, and no DHCP client to talk us into
 # one. `ip addr add` alone creates only the on-link /24, which is exactly enough to reach 192.168.4.1.
 WPA_IFACE, WPA_ADDR = "wlp1s0", "192.168.4.2/24"
+
+
+# Where the box's network interfaces are enumerated. A module constant so the existence check below is
+# reachable from a test without a real radio.
+SYS_NET = "/sys/class/net"
+
+
+def default_wifi_iface(_sys: str | None = None) -> str:
+    """The box's first `wl*` interface, or `WPA_IFACE` if none can be read.
+
+    `WPA_IFACE` was a module constant with NO config key while `backend()` returns `wpa` whenever
+    `nmcli` is absent — which this module's own comment says is precisely the vigil box. On that branch
+    `profile` is DEAD, yet the failure was reported as `Wi-Fi profile 'ezshare' would not come up
+    safely`, naming the one setting that branch never reads, and `config.example.yaml` documents
+    `wifi_profile` as the only Wi-Fi knob (CAPTURE-HOST-DEEP-AUDIT §E5):
+
+        nmcli on PATH? None -> backend() = wpa ; WPA_IFACE = wlp1s0 ; host has wlp10s0
+        LOG WARNING: cpap: sudo -n ip link -> rc=1 Cannot find device "wlp1s0"
+
+    Not silent — `STATUS['cpap']` goes to `state='error'` with a detail and each failed command logs a
+    warning — so this is a robustness defect, not a hidden one. What was wrong is that the surfaced
+    REASON pointed at the wrong knob. A discovered default plus a real `cpap.wifi_iface` key fixes
+    both halves."""
+    try:
+        names = sorted(n for n in os.listdir(_sys or SYS_NET) if n.startswith("wl"))
+    except OSError:
+        return WPA_IFACE
+    return names[0] if names else WPA_IFACE
 # ctrl_interface is NOT optional: without it wpa_supplicant starts, associates or not, and creates no
 # control socket — so `wpa_cli status` can never reach it and the association can never be confirmed.
 # Found on real hardware 2026-07-26; mocked subprocesses cannot catch it, because the bug is in the
@@ -327,18 +438,28 @@ def harden_profile(profile: str) -> bool:
 
 def wifi_up(profile: str, timeout: float = 45.0, guard_dev: str | None = None,
             ssid: str = "ez Share", psk: str = "88888888",
-            iface: str = WPA_IFACE, addr: str = WPA_ADDR) -> bool:
+            iface: str | None = None, addr: str = WPA_ADDR) -> bool:
     """Associate to the card, then PROVE the box's lifeline survived it.
 
     `guard_dev` is the default-route interface observed before associating. If the default route moves
     (or disappears), the association is torn down and this returns False — we would rather skip a day of
     CPAP files than strand the box on a network with no route out. The guard runs for BOTH backends:
-    the wpa path cannot install a route by construction, but verifying beats reasoning about it."""
+    the wpa path cannot install a route by construction, but verifying beats reasoning about it.
+
+    `iface` defaults to the box's first `wl*` rather than a literal (§E5); pass `cpap.wifi_iface` to
+    override. It FAILS FAST with a reason naming the interface, because the previous behaviour was to
+    fail deep inside `ip link` and be reported as a `wifi_profile` problem — a setting the wpa branch
+    never reads."""
+    iface = iface or default_wifi_iface()
     if backend() == "nmcli":
         harden_profile(profile)
         if not _nmcli(["connection", "up", profile], timeout):
             return False
     else:
+        if not os.path.isdir(os.path.join(SYS_NET, iface)):
+            log.error("cpap: Wi-Fi interface %r does not exist on this box (wpa backend, so "
+                      "`wifi_profile` is not consulted) — set `cpap.wifi_iface`", iface)
+            return False
         if not _wpa_up(iface, ssid, psk, addr, timeout):
             return False
     if guard_dev is None:
@@ -352,12 +473,12 @@ def wifi_up(profile: str, timeout: float = 45.0, guard_dev: str | None = None,
     return True
 
 
-def wifi_down(profile: str, timeout: float = 30.0, iface: str = WPA_IFACE) -> bool:
+def wifi_down(profile: str, timeout: float = 30.0, iface: str | None = None) -> bool:
     """Drop the association. Safe to call when already down — the poller calls this on the way in as
     well as the way out, so a run killed mid-transfer cannot leave the card associated indefinitely."""
     if backend() == "nmcli":
         return _nmcli(["connection", "down", profile], timeout)
-    return _wpa_down(iface)
+    return _wpa_down(iface or default_wifi_iface())
 
 
 def _nmcli(args: list[str], timeout: float) -> bool:
@@ -398,6 +519,12 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
                 continue
             try:
                 _p, n, was_short = ez.fetch(e, subdir)
+            except ShortRead as ex:
+                # A truncated body is NOT a fetched file: it is left as a `.part`, so the destination
+                # stays absent and the next run re-fetches it. Reported under `short` (the diagnostic
+                # this list has always been for) rather than only as a transport error.
+                st["short"].append(str(ex))
+                continue
             except Exception as ex:                    # noqa: BLE001 — one bad file must not end the run
                 st["errors"].append(f"{e['name']}: {ex}")
                 continue

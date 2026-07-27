@@ -62,6 +62,12 @@ def _prev_day_dir(night_dir: str):
     return os.path.join(os.path.dirname(night_dir.rstrip("/")), (d - timedelta(days=1)).isoformat())
 
 
+def _hhmm(epoch: float) -> str:
+    """`HH:MM` local civil, for a human-readable gap description. Clock Contract: the stamps these
+    epochs come from were written as naive LOCAL time, so they are read back the same way."""
+    return datetime.fromtimestamp(epoch).strftime("%H:%M")
+
+
 def _midnight_of(night_dir: str):
     """Epoch of this folder's date at 00:00 local, or None. Used to decide whether the folder's earliest
     session began just after midnight (⇒ possibly the tail of the previous night's session)."""
@@ -130,6 +136,76 @@ def count_rows(path: str) -> int:
     return max(0, newlines - 1)
 
 
+def file_span_sec(path: str) -> float | None:
+    """Elapsed time THE FILE ITSELF records, from its own device-clock column. None when it cannot say.
+
+    The honest per-file duration, and the reason it exists: `rows / fs` needs an `fs`, and the only one
+    available at read time is the rate configured TODAY. Rates change — re-negotiated ranges, a corrected
+    `rates:` entry — so an old night measured against today's number over-states its own duration, which
+    is one of the three mechanisms that put `coverage_pct` at 196.7 % on the real 2026-07-16 H10 ACC
+    (CAPTURE-HOST-DEEP-AUDIT §A4c). The device clock in the file is era-correct by construction: it was
+    written by the device that recorded it.
+
+    O(1) — header + first row + a tail read, never the whole file (an ECG night is ~500 MB). The last
+    line may be a partial write on a still-open file, so parsing walks backwards to the newest line that
+    actually parses instead of trusting the final one."""
+    try:
+        with open(path, "rb") as fh:
+            header = fh.readline().decode("utf-8", "replace").rstrip("\r\n")
+            cols = [c.strip().lower() for c in header.split(";")]
+            try:
+                idx = cols.index("sensor timestamp [ns]")
+            except ValueError:
+                return None          # HR/RR/PPI and the CSV layouts carry no device clock — say so
+            first = _ns_at(fh.readline().decode("utf-8", "replace"), idx)
+            if first is None:
+                return None
+            size = fh.seek(0, os.SEEK_END)
+            fh.seek(max(0, size - (1 << 13)))
+            tail = fh.read().decode("utf-8", "replace").split("\n")
+    except OSError:
+        return None
+    for line in reversed(tail):
+        last = _ns_at(line, idx)
+        if last is not None and last >= first:
+            return (last - first) / 1e9
+    return None
+
+
+def _ns_at(line: str, idx: int) -> int | None:
+    parts = line.rstrip("\r\n").split(";")
+    if len(parts) <= idx:
+        return None
+    try:
+        return int(parts[idx])
+    except ValueError:
+        return None
+
+
+def merge_sessions(files: list[dict], gap_sec: float = _SESSION_GAP_SEC) -> list[list]:
+    """[[start, end, [files]], …] — the night's capture sessions, by MERGED ACTIVE INTERVAL, oldest first.
+
+    Each file was live from when its connection opened (its start stamp) until its last write (mtime), so
+    a device that held ONE long connection streaming for hours is a single wide interval, not an isolated
+    point. A file extends the running session when it opens within `gap_sec` of the coverage so far;
+    clustering by start-STAMP alone wrongly split such a stream off (a 7-h H10 connection has one 19:46
+    stamp, so a stamp-gap looked like silence though it streamed the whole time).
+
+    Shared by `summarize` and `timeline.build` so the two cannot disagree about what "the session" is —
+    they did: timeline derived its coverage denominator from the LINK sidecar's CALENDAR DAY and rendered
+    a flawless zero-loss 4 h night as 16.7 % captured, while this module computed the honest 14 400 s span
+    one import away (CAPTURE-HOST-DEEP-AUDIT §A4a)."""
+    sessions: list[list] = []
+    for st, en, f in sorted(((f["session"], max(f["session"], f["mtime"]), f) for f in files),
+                            key=lambda iv: iv[0]):
+        if sessions and st <= sessions[-1][1] + gap_sec:
+            sessions[-1][1] = max(sessions[-1][1], en)
+            sessions[-1][2].append(f)
+        else:
+            sessions.append([st, en, [f]])
+    return sessions
+
+
 def scan_night(night_dir: str) -> list[dict]:
     """One record per capture file under `night_dir`: {file, stream, rows, bytes}. [] if the dir is
     absent. The QC summary itself and any sidecar are tagged but included, so callers can tell them apart."""
@@ -151,7 +227,10 @@ def scan_night(night_dir: str) -> list[dict]:
         st = os.stat(path)
         out.append({"file": n, "stream": tag, "rows": count_rows(path),
                     "bytes": st.st_size, "mtime": st.st_mtime,
-                    "session": _session_of(n, st.st_mtime)})
+                    "session": _session_of(n, st.st_mtime),
+                    # What the file says about its OWN duration; None when it carries no device clock.
+                    # Callers must treat None as "unknown", never as zero — see file_span_sec.
+                    "span_sec": file_span_sec(path)})
     return out
 
 
@@ -164,8 +243,14 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     vs the rows its (configured or nominal) rate would produce over the session's span, so a stream that
     merely TRICKLES (the Verity IMU at ~40% of nominal, a stream that died at hour one) shows up `degraded`
     instead of hiding behind a green `ok`. Coverage is an estimate, unknown until _MIN_SPAN_SEC has
-    elapsed. `files`/`total_*` describe the night FOLDER on disk. `ok` is true only when every declared
-    stream produced data AND none is degraded."""
+    elapsed. `files`/`total_*` describe the night FOLDER on disk.
+
+    THE SESSION SCOPING IS REPORTED, NOT ASSUMED (§A2). `span_sec`, `coverage`, `missing` and
+    `silent_sec` describe the CURRENT session only. Any earlier session on this night is listed in
+    `sessions` with the hole between them in `prior_gap_sec` and a human-readable line in `gaps`.
+    `ok` is true only when every declared stream produced data, none is degraded, AND no session was
+    excluded — because `ok` is a claim about the night, and it cannot be made about a night half of
+    which was left out of the judgement."""
     scanned = scan_night(night_dir)
     data = [f for f in scanned if f["stream"] not in _SIDECAR_TAGS]
     # CROSS-MIDNIGHT: an overnight begun before midnight is split into TWO date folders, because night_dir
@@ -181,30 +266,39 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             prev = _prev_day_dir(night_dir)
             if prev:
                 data = [f for f in scan_night(prev) if f["stream"] not in _SIDECAR_TAGS] + data
-    # Isolate the CURRENT capture session by MERGING ACTIVE INTERVALS. Each file was live from when its
-    # connection opened (its start stamp) until its last write (mtime) — so a device that held ONE long
-    # connection streaming for hours is a single wide interval, not an isolated point. Merging by interval
-    # (a file extends the running session when it opens within _SESSION_GAP_SEC of the coverage so far)
-    # keeps such a stable stream inside the session; clustering by start-STAMP alone wrongly split it off
-    # (a 7-h H10 connection has one 19:46 stamp, so a stamp-gap looked like silence though it streamed the
-    # whole time). The current session is the merged interval reaching the newest write (~now); `span` is
-    # its elapsed time. None (coverage unknown) until a judge-able span has accrued.
+    # Isolate the CURRENT capture session (merge_sessions holds the reasoning). The current session is
+    # the merged interval reaching the newest write (~now); `span` is its elapsed time. None (coverage
+    # unknown) until a judge-able span has accrued.
     current = data
     span = None
+    sessions: list[list] = []
+    prior_gap = None
+    # SESSIONS THIS SCOPING DISCARDS, AND THE HOLE THAT MADE THEM (CAPTURE-HOST-DEEP-AUDIT §A2).
+    # The scoping is deliberate — it stops a daytime sitting diluting tonight's coverage — but the
+    # file-activity signature of "an earlier unrelated session" and "this same night, interrupted for
+    # more than _SESSION_GAP_SEC" is IDENTICAL, and nothing here can tell them apart. So a box-wide
+    # outage longer than the gap threshold made `summarize` discard the whole pre-outage half of the
+    # night and grade the remainder `coverage: 1.0, ok: true` — with no field saying a word about it.
+    # (Measured: the 2026-07-24 03:33->04:32 box-wide silence ran 58.6 min, 85 s under the threshold.
+    # This has already come within a minute and a half of firing on the real box.)
+    #
+    # Since the two cases cannot be distinguished, they are not guessed between: everything is reported
+    # and `ok` goes false, so a human looks. A benign daytime sitting shows up in `gaps` as exactly what
+    # it is. Silently keeping the green was the defect.
+    gaps: list[str] = []
     if data:
-        intervals = sorted(((f["session"], max(f["session"], f["mtime"]), f) for f in data),
-                           key=lambda iv: iv[0])
-        sessions: list[list] = []                      # each: [start, end, [files]]
-        for st, en, f in intervals:
-            if sessions and st <= sessions[-1][1] + _SESSION_GAP_SEC:
-                sessions[-1][1] = max(sessions[-1][1], en)
-                sessions[-1][2].append(f)
-            else:
-                sessions.append([st, en, [f]])
+        sessions = merge_sessions(data)
         cur = max(sessions, key=lambda sess: sess[1])  # the session reaching the latest write == "now"
         current = cur[2]
         span = cur[1] - cur[0]
         span = span if span >= _MIN_SPAN_SEC else None
+        prior = [s for s in sessions if s is not cur and s[1] <= cur[0]]
+        if prior:
+            prev = max(prior, key=lambda s: s[1])
+            prior_gap = cur[0] - prev[1]
+            excluded = sum(f["rows"] for s in prior for f in s[2])
+            gaps.append(f"{_hhmm(prev[1])}->{_hhmm(cur[0])} {round(prior_gap / 60)}min gap; "
+                        f"{len(prior)} earlier session(s), {excluded} rows, excluded from coverage")
     per_device = []
     newest = max((f["mtime"] for f in current), default=None)
     missing = []
@@ -254,11 +348,19 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         "devices": per_device,
         "missing": missing,
         "degraded": degraded,
+        "gaps": gaps,
         "optional_absent": optional_absent,
+        # Every session on this night, oldest first — so `span_sec`/`coverage`/`missing`/`silent_sec`
+        # being CURRENT-session-scoped is visible rather than implied.
+        "sessions": [{"start": round(s[0]), "end": round(s[1]),
+                      "rows": sum(f["rows"] for f in s[2])} for s in sessions],
+        "prior_gap_sec": round(prior_gap) if prior_gap is not None else None,
         "span_sec": round(span) if span else None,
         "files": len(scanned),
         "total_rows": sum(f["rows"] for f in scanned),
         "total_bytes": sum(f["bytes"] for f in scanned),
         "sidecars": sorted({f["stream"] for f in scanned if f["stream"] in _SIDECAR_TAGS}),
-        "ok": not missing and not degraded,
+        # A hole in the night is a reason to look, exactly like a missing or degraded stream. `ok` is a
+        # claim about THE NIGHT; if half of it was excluded from the judgement, the claim is unsupported.
+        "ok": not missing and not degraded and not gaps,
     }
