@@ -2179,6 +2179,11 @@
       source: rec.source,
       fs,
       durSec,
+      // Carry the parsed clock end through analyze — like `offsetMin`, it is a property of the
+      // RECORDING, not of the analysis, so analyze must pass it rather than re-derive it. Note the
+      // `durSec` above is analyze's ACTIVE seconds (nnRes.activeSec), which is data-seconds by an even
+      // stricter reading than the parser's n/fs — all the more reason the clock end must travel too.
+      endEpochMs: rec.endEpochMs != null ? rec.endEpochMs : null,
       durMin: +durMin.toFixed(1),
       longRec,
       tier,
@@ -3208,6 +3213,7 @@
       stepSum = 0,
       stepN = 0;
     var gaps = [];
+    var lastTs = null; // phone stamp of the last valid row → the recording's clock end
     function push(v) {
       if (n >= cap) {
         cap *= 2;
@@ -3224,6 +3230,13 @@
       var v = parseFloat(p[p.length - 1]);
       if (!isFinite(v)) continue; // header / junk row (non-numeric last column)
       push(Math.max(-32768, Math.min(32767, Math.round(v))));
+      // The LAST valid row's phone stamp is the recording's clock END. Keep the reference (p is
+      // already allocated by the split, so this costs nothing) and parse it ONCE after the loop —
+      // READING the end is honest where reconstructing it from `durSec` + `gaps` is not: durSec is
+      // DATA seconds, so t0+durSec lands short of the truth by exactly the dropout time. Measured on
+      // the 2026-07-16..26 capture corpus, that shortfall put ECGDex's own events outside its declared
+      // window on 11 of 11 nights, by +8 min to +326 min.
+      lastTs = p[0];
       if (t0Ms === null) {
         var pt = parseTimestamp(p[0]);
         if (pt && pt.tMs != null) {
@@ -3257,7 +3270,13 @@
     // jitter back to ~7.69 ms → 130, and gap dropouts are excluded. Falls back to the provisional step.
     if (stepN > 0) fs = Math.round((1000 * stepN) / stepSum);
     else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
-    return { int16: arr.slice(0, n), fs: fs, gaps: gaps, t0Ms: t0Ms, offsetMin: offsetMin, source: 'file', durSec: n / fs };
+    // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
+    // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
+    // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
+    // answers "where does this recording end on the clock" — two questions one scalar cannot both answer.
+    var endTs = lastTs != null ? parseTimestamp(lastTs) : null;
+    var endEpochMs = endTs && endTs.tMs != null ? endTs.tMs : null;
+    return { int16: arr.slice(0, n), fs: fs, gaps: gaps, t0Ms: t0Ms, offsetMin: offsetMin, source: 'file', durSec: n / fs, endEpochMs: endEpochMs };
   }
 
   // COMPANION device-stream parsers (ECG-PPG-FOLLOWUPS-HANDOFF §2(b)) — the Polar Sensor
@@ -3519,6 +3538,11 @@
         // though its raw ECG genuinely overlapped the other nodes. `durSec` is the key the adapter
         // already honors generically (DEEP-AUDIT-II §7.6, added for MotionDex) — additive + back-compat.
         durSec: r.durSec != null ? r.durSec : null,
+        // …and the CLOCK end alongside it (the duration-semantics ruling, option (c)). `durSec` is DATA
+        // seconds here (`n / fs`), so `t0 + durSec` is NOT where the recording ends whenever the link
+        // dropped — it lands short by exactly the dropout time. `integrator-dsp normalizeFile` already
+        // prefers `endEpochMs` over every duration key, so this is additive: absent ⇒ today's behaviour.
+        endEpochMs: r.endEpochMs != null ? r.endEpochMs : null,
         offsetMin: r.offsetMin != null ? r.offsetMin : opts.offsetMin != null ? opts.offsetMin : null,
         events: events.length
       },

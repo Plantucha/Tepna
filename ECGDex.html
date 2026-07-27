@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-N+93HW6ia2lu+tHYRA1JK6fyqIwGn3e1/0wcxUoY3Us=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-ZAzb5Otasm++nQdBl90HnemzB7xsFHZtTUZG6ZJL1QE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-zzSJRKL0zjzynyMUyIEdLySnS7uq/+MYYjrKsGQomCI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-ZAzb5Otasm++nQdBl90HnemzB7xsFHZtTUZG6ZJL1QE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-iww3KmHIkM9xYmLAWxSyeXrOV75tMK4FMWNQvFmhLy8=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-zzSJRKL0zjzynyMUyIEdLySnS7uq/+MYYjrKsGQomCI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8740,6 +8740,11 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       source: rec.source,
       fs,
       durSec,
+      // Carry the parsed clock end through analyze — like `offsetMin`, it is a property of the
+      // RECORDING, not of the analysis, so analyze must pass it rather than re-derive it. Note the
+      // `durSec` above is analyze's ACTIVE seconds (nnRes.activeSec), which is data-seconds by an even
+      // stricter reading than the parser's n/fs — all the more reason the clock end must travel too.
+      endEpochMs: rec.endEpochMs != null ? rec.endEpochMs : null,
       durMin: +durMin.toFixed(1),
       longRec,
       tier,
@@ -9769,6 +9774,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       stepSum = 0,
       stepN = 0;
     var gaps = [];
+    var lastTs = null; // phone stamp of the last valid row → the recording's clock end
     function push(v) {
       if (n >= cap) {
         cap *= 2;
@@ -9785,6 +9791,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       var v = parseFloat(p[p.length - 1]);
       if (!isFinite(v)) continue; // header / junk row (non-numeric last column)
       push(Math.max(-32768, Math.min(32767, Math.round(v))));
+      // The LAST valid row's phone stamp is the recording's clock END. Keep the reference (p is
+      // already allocated by the split, so this costs nothing) and parse it ONCE after the loop —
+      // READING the end is honest where reconstructing it from `durSec` + `gaps` is not: durSec is
+      // DATA seconds, so t0+durSec lands short of the truth by exactly the dropout time. Measured on
+      // the 2026-07-16..26 capture corpus, that shortfall put ECGDex's own events outside its declared
+      // window on 11 of 11 nights, by +8 min to +326 min.
+      lastTs = p[0];
       if (t0Ms === null) {
         var pt = parseTimestamp(p[0]);
         if (pt && pt.tMs != null) {
@@ -9818,7 +9831,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // jitter back to ~7.69 ms → 130, and gap dropouts are excluded. Falls back to the provisional step.
     if (stepN > 0) fs = Math.round((1000 * stepN) / stepSum);
     else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
-    return { int16: arr.slice(0, n), fs: fs, gaps: gaps, t0Ms: t0Ms, offsetMin: offsetMin, source: 'file', durSec: n / fs };
+    // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
+    // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
+    // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
+    // answers "where does this recording end on the clock" — two questions one scalar cannot both answer.
+    var endTs = lastTs != null ? parseTimestamp(lastTs) : null;
+    var endEpochMs = endTs && endTs.tMs != null ? endTs.tMs : null;
+    return { int16: arr.slice(0, n), fs: fs, gaps: gaps, t0Ms: t0Ms, offsetMin: offsetMin, source: 'file', durSec: n / fs, endEpochMs: endEpochMs };
   }
 
   // COMPANION device-stream parsers (ECG-PPG-FOLLOWUPS-HANDOFF §2(b)) — the Polar Sensor
@@ -10080,6 +10099,11 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         // though its raw ECG genuinely overlapped the other nodes. `durSec` is the key the adapter
         // already honors generically (DEEP-AUDIT-II §7.6, added for MotionDex) — additive + back-compat.
         durSec: r.durSec != null ? r.durSec : null,
+        // …and the CLOCK end alongside it (the duration-semantics ruling, option (c)). `durSec` is DATA
+        // seconds here (`n / fs`), so `t0 + durSec` is NOT where the recording ends whenever the link
+        // dropped — it lands short by exactly the dropout time. `integrator-dsp normalizeFile` already
+        // prefers `endEpochMs` over every duration key, so this is additive: absent ⇒ today's behaviour.
+        endEpochMs: r.endEpochMs != null ? r.endEpochMs : null,
         offsetMin: r.offsetMin != null ? r.offsetMin : opts.offsetMin != null ? opts.offsetMin : null,
         events: events.length
       },
