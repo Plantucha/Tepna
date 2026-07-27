@@ -43,6 +43,13 @@ def test_scan_ignores_an_rssi_line_for_a_device_it_never_saw_announce(monkeypatc
     async def fake_script(_lines):
         return out
     monkeypatch.setattr(bonding, "_delayed_script", fake_script)
+
+    # `scan` ALSO runs a per-device `info` after the RSSI pass. Left unpatched that spawns a real
+    # bluetoothctl, which a dev box has and CI does not — the test then passes locally and dies with
+    # FileNotFoundError in CI. Nothing in this suite may depend on a binary being installed.
+    async def fake_btctl(_script, timeout=8):
+        return "Bonded: yes\nConnected: no\n"
+    monkeypatch.setattr(bonding, "_btctl", fake_btctl)
     found = _run(bonding.scan())
     assert [f.address for f in found] == ["AA:BB:CC:DD:EE:01"]
     assert found[0].rssi == -78
