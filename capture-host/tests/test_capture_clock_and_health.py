@@ -32,6 +32,10 @@ class _Clock:
     def __init__(self, wall: dt.datetime, mono: float = 1000.0, offset_hours: float = -4):
         self.wall, self.mono = wall, mono
         self.offset = dt.timedelta(hours=offset_hours)
+        # A RECORDING IS IN PROGRESS. `_now()` may absorb a civil relabelling only to stop an OPEN file
+        # rewinding (CAPTURE-HOST-DEEP-AUDIT §A1) — the transition tests below are all about such a
+        # file, so they must say so. Set to 0 to model an idle box, which now follows civil time.
+        self.writers_open = 1
 
     def advance(self, seconds: float):
         """Time passes normally — both clocks move together."""
@@ -66,6 +70,7 @@ def clock(monkeypatch):
     monkeypatch.setattr(capture, "_anchor_mono", 0.0)
     monkeypatch.setattr(capture, "_anchor_utcoff", dt.timedelta(0))
     monkeypatch.setattr(capture, "_civil_shift", 0.0)
+    monkeypatch.setattr(capture, "open_sample_writers", lambda: c.writers_open)
     return c
 
 

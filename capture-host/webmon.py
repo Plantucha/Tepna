@@ -58,7 +58,8 @@ async def _body(req) -> dict:
 
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
-             pull_stored=None, polar_pause=None, sync_time=None, forget_device=None) -> web.Application:
+             pull_stored=None, polar_pause=None, sync_time=None, forget_device=None,
+             on_tz_change=None) -> web.Application:
     # Optional shared-secret gate on the CONTROL surface. When web.token is set, every POST (bond / forget
     # / remember / pull / settings / clock — all the state-changing verbs) needs the token; GET reads stay
     # open so the monitor can still display without it. Default OFF (no token → current wide-open behaviour;
@@ -402,7 +403,18 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     async def clock_tz(req):
         body = await req.json()
-        return web.json_response(await clockcfg.set_tz(body.get("timezone"), sudo=_clock_sudo))
+        r = await clockcfg.set_tz(body.get("timezone"), sudo=_clock_sudo)
+        # A deliberate zone change must RE-ANCHOR the capture clock, not be absorbed by it
+        # (CAPTURE-HOST-DEEP-AUDIT §A1). `_now()` sees a zone move as a DST relabelling — offset delta
+        # equals apparent drift, by construction — and keeps counting in the OLD offset, so without this
+        # the box answered ok, reported the new zone with `tz_set: true`, and silently stamped every
+        # subsequent file an hour off. Only this handler knows the change was intended.
+        if r.get("ok") and on_tz_change is not None:
+            try:
+                on_tz_change(f"timezone set to {r.get('timezone')}")
+            except Exception:                     # never fail the tz change over its own bookkeeping
+                _log.exception("clock/tz: re-anchor hook failed")
+        return web.json_response(r)
 
     # ── Polar onboard offline-recording pull (PS-FTP) — PR #153; /api/polar/* to avoid the O2Ring /api/pull ──
     # A Polar device holds ONE BLE link: if it's live-streaming, pause it first (Forget) or the pull fails.

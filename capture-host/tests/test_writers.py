@@ -202,3 +202,67 @@ def test_the_remember_api_gates_on_identity_before_it_persists():
     assert body.index("missing_identity(") < body.index("_save()"), \
         "identity is checked AFTER the config write — the bad entry is already persisted"
     assert "status=400" in body, "a rejected device must fail loudly, not return a success shape"
+
+
+# ── the open-sample-writer count (CAPTURE-HOST-DEEP-AUDIT §A1) ─────────────────────────────────────
+# This count is the LIFETIME of `capture._now()`'s absorbed DST shift: while it is non-zero a civil
+# relabelling is absorbed so the open recording cannot rewind; the instant it hits zero the shift
+# expires and stamps return to civil time. So an over-count pins the box an hour off forever (the
+# original defect, re-armed) and an under-count rewinds a live file. Both directions are pinned here.
+
+def test_a_stream_writer_is_counted_while_open_and_released_on_close(tmp_path):
+    base = writers.open_sample_writers()
+    w = writers.StreamWriter(str(tmp_path / "a_ECG.txt"), "ecg")
+    assert writers.open_sample_writers() == base + 1
+    w.close()
+    assert writers.open_sample_writers() == base
+
+
+def test_the_hr_writer_and_its_rr_sibling_count_as_ONE_open_writer(tmp_path):
+    # `hr` silently owns a second handle. The count is of WRITERS, not file descriptors — one close()
+    # must return the count to where it started, not leave it one high forever.
+    base = writers.open_sample_writers()
+    w = writers.StreamWriter(str(tmp_path / "a_HR.txt"), "hr")
+    assert writers.open_sample_writers() == base + 1
+    w.close()
+    assert writers.open_sample_writers() == base
+
+
+def test_closing_twice_does_not_double_release(tmp_path):
+    # The teardown paths in capture.py are not all idempotent-by-construction (a `finally` can run
+    # after an explicit close). A double release would drive the count negative and expire the clock
+    # anchor while a sibling file is still being written.
+    base = writers.open_sample_writers()
+    w = writers.Spo2CsvWriter(str(tmp_path / "o.csv"))
+    w.close()
+    w.close()
+    assert writers.open_sample_writers() == base
+
+
+def test_a_writer_whose_flush_raises_is_still_released(tmp_path):
+    # close() swallows I/O errors by design (a failed flush must not abort teardown). It must not also
+    # swallow the release — a full disk at dawn would otherwise pin the shift open indefinitely.
+    base = writers.open_sample_writers()
+    w = writers.Spo2CsvWriter(str(tmp_path / "o2.csv"))
+
+    def _boom():
+        raise OSError("disk full")
+    w.flush = _boom
+    w.close()
+    assert writers.open_sample_writers() == base
+
+
+def test_all_three_sample_writers_are_counted_and_the_sidecars_are_not(tmp_path):
+    # The sidecars are EXCLUDED deliberately: a running box holds them open continuously, so counting
+    # them would make the count never reach zero and the expiry could never fire — which is the defect.
+    base = writers.open_sample_writers()
+    ws = [writers.StreamWriter(str(tmp_path / "s_ECG.txt"), "ecg"),
+          writers.Spo2CsvWriter(str(tmp_path / "s.csv")),
+          writers.OxyFrameLogWriter(str(tmp_path / "s_OXY.csv"))]
+    assert writers.open_sample_writers() == base + 3
+    side = [writers.LinkLogWriter(str(tmp_path / "s_LINK.csv")),
+            writers.HostClockLogWriter(str(tmp_path / "s_CLOCK.csv"))]
+    assert writers.open_sample_writers() == base + 3, "a sidecar must not pin the clock anchor open"
+    for w in ws + side:
+        w.close()
+    assert writers.open_sample_writers() == base

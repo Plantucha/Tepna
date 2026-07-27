@@ -11,7 +11,8 @@
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, os, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter,
-                     HostClockLogWriter, capture_filename, missing_identity, night_dir)
+                     HostClockLogWriter, capture_filename, missing_identity, night_dir,
+                     open_sample_writers)
 import polar_pmd as pmd
 import viatom
 import oxyii
@@ -85,6 +86,21 @@ def _live_key(stream: str, tag: str) -> str:
 # the offset unchanged. So we absorb the civil relabelling and keep counting in the session's ORIGINAL
 # offset. The recording then stays in ONE offset frame end-to-end, which is what §1's floating `tMs` +
 # per-recording anchor already assume; monotonic beats civil-correct for a signal file.
+#
+# ⚠️ THE ABSORBED SHIFT HAS A LIFETIME, AND IT IS THE OPEN FILE (CAPTURE-HOST-DEEP-AUDIT §A1).
+# The paragraph above justifies the absorption entirely in terms of a RECORDING that must not rewind —
+# but the state implementing it is a module global, and the unit is `Restart=always` with no
+# `RuntimeMaxSec` and no `.timer`, i.e. it is meant to run for months. So the absorbed hour used to
+# outlive the file it protected and every LATER night was stamped an hour off civil time — in the
+# per-sample Phone column, in the FILENAME, and in `night_dir()` — indefinitely, with no gate able to
+# see it. Two rules bound it, and both key on the same fact (`open_sample_writers()`):
+#   1. ABSORB only while a sample file is open. With nothing being recorded there is no artefact to
+#      protect, so the honest response to a civil relabelling is to follow it.
+#   2. EXPIRE an absorbed shift as soon as the last sample file closes. A discontinuity BETWEEN
+#      sessions is free — the next sample opens a new file anyway.
+# A deliberate `timedatectl set-timezone` is indistinguishable from a DST relabelling by offset alone
+# (that is the whole trick above), so it cannot be told apart here and gets an explicit door instead:
+# `reset_clock_anchor()`, called by the /api/clock/tz handler that performed it.
 _STEP_THRESH_S = 2.0
 _anchor_wall: _dt.datetime | None = None
 _anchor_mono: float = 0.0
@@ -110,6 +126,26 @@ def _reanchor(shift: float = 0.0) -> None:
     _civil_shift = shift
 
 
+def reset_clock_anchor(reason: str = "") -> None:
+    """Drop any absorbed civil shift and re-pin the capture clock to civil time.
+
+    The explicit door for a civil-time change the box was TOLD to make — `timedatectl set-timezone` via
+    /api/clock/tz. By offset alone that is indistinguishable from a DST relabelling (both move the zone's
+    UTC offset by exactly the apparent drift), so `_now()` cannot tell them apart and used to absorb it:
+    `clockcfg.status()` then reported the new zone with `tz_set: true` while every stamp stayed in the
+    old one, forever. Intent is the only thing that separates the two cases, and only the caller has it.
+
+    If a recording is open it takes a one-time step at this instant. That is the operator's explicit
+    instruction, it is logged, and it is strictly better than the alternative the audit measured — every
+    subsequent night silently an hour off."""
+    if _anchor_wall is not None and _civil_shift:
+        log.warning("capture clock re-anchored to civil time (%s) — discarding the %+.0fs civil shift "
+                    "absorbed since the last anchor", reason or "requested", _civil_shift)
+    else:
+        log.info("capture clock re-anchored to civil time (%s)", reason or "requested")
+    _reanchor(0.0)
+
+
 def _now() -> _dt.datetime:
     global _civil_shift
     if _anchor_wall is None:
@@ -120,9 +156,24 @@ def _now() -> _dt.datetime:
     # Fast path, and the steady state after a transition has been absorbed. Deliberately avoids the
     # tz lookup below: _now() runs per sample (ECG is 130 Hz), astimezone() is not free.
     if abs(drift - _civil_shift) <= _STEP_THRESH_S:
+        # §A1 rule 2 — the absorbed shift expires with the artefact it protects. `_civil_shift` is 0.0
+        # in the steady state, so this costs one float truth-test per sample and never reaches the
+        # (cheap, but not free) writer count on the hot path.
+        if _civil_shift and open_sample_writers() == 0:
+            log.warning("absorbed civil shift %+.0fs expired — no capture file is open, so re-anchoring "
+                        "to civil time; the next recording starts in the CURRENT offset frame", _civil_shift)
+            _reanchor(0.0)
+            return _dt.datetime.now()
         return predicted
     off_delta = (_utcoffset(actual) - _anchor_utcoff).total_seconds()
     if off_delta != _civil_shift and abs(drift - off_delta) <= _STEP_THRESH_S:
+        # §A1 rule 1 — absorb ONLY to protect an open recording. With nothing being written there is
+        # no file to rewind, so following civil time is both free and correct.
+        if open_sample_writers() == 0:
+            log.info("civil clock relabelled %+.0fs with no capture file open — following it rather "
+                     "than absorbing it", off_delta - _civil_shift)
+            _reanchor(0.0)
+            return _dt.datetime.now()
         log.warning("DST transition %+.0fs — civil clock relabelled, NOT stepped; capture stamps keep "
                     "counting monotonically in the session's original UTC offset", off_delta - _civil_shift)
         _civil_shift = off_delta
@@ -3092,7 +3143,8 @@ async def main():
         web_runner = await webmon.start(
             webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn,
                             pull_stored=_pull, polar_pause=polar_offline_op,
-                            sync_time=sync_device_time, forget_device=_forget), host, port)
+                            sync_time=sync_device_time, forget_device=_forget,
+                            on_tz_change=reset_clock_anchor), host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
     # Surface the resolved adapter at boot: a silent mis-pin (hci re-enumeration) is exactly the failure

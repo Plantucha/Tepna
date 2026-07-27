@@ -49,6 +49,41 @@ from typing import Iterable
 # drives the cadence — it's internal timing, not a written stamp, so the Clock Contract doesn't apply.
 FLUSH_INTERVAL_S = 5.0
 
+# How many SAMPLE-DATA files are open right now (CAPTURE-HOST-DEEP-AUDIT §A1).
+#
+# `capture._now()` absorbs a DST relabelling so a recording cannot rewind an hour mid-file. That
+# absorbed shift is a property of THE FILE BEING WRITTEN, not of the process — but it used to live in
+# a module global with no lifetime under a `Restart=always` unit with no `RuntimeMaxSec`, so one
+# autumn clock change stamped every subsequent night an hour off civil time, indefinitely. The shift
+# therefore needs an expiry, and the honest one is "when the artefact it protects no longer exists":
+# with nothing open, re-anchoring to civil time costs nothing, because the next sample lands in a new
+# file anyway.
+#
+# Counted here rather than in capture.py because only the writer knows when its handle actually opens
+# and closes. SAMPLE-DATA writers only — StreamWriter / Spo2CsvWriter / OxyFrameLogWriter. The
+# LinkLogWriter and HostClockLogWriter sidecars are DELIBERATELY excluded: they are status logs that a
+# running box holds open continuously (rolling per calendar day), so counting them would make the
+# count never reach zero and the expiry would never fire — which is the whole defect. The cost is that
+# a sidecar can carry one hour of overlapping rows across a transition, once, while nothing is being
+# recorded; the consumer (`timeline.bucket_link`) medians per bucket and is unharmed.
+_open_sample_writers = 0
+
+
+def open_sample_writers() -> int:
+    """Number of sample-data files currently open. See `_open_sample_writers`."""
+    return _open_sample_writers
+
+
+def _writer_opened() -> None:
+    global _open_sample_writers
+    _open_sample_writers += 1
+
+
+def _writer_closed() -> None:
+    global _open_sample_writers
+    _open_sample_writers = max(0, _open_sample_writers - 1)
+
+
 # Filename: <Vendor>_<Model>_<DeviceId>_<YYYYMMDDHHMMSS>_<STREAM>.<ext>
 #
 # ⚠️ This is NOT byte-identical to Polar Sensor Logger. PSL writes the stamp UNDERSCORE-SEPARATED
@@ -202,6 +237,8 @@ class StreamWriter:
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
+        self._counted = True                # last: only a writer that fully opened is an open writer
+        _writer_opened()
 
     # `timestamp [ms]` in a real PSL export is RELATIVE to the recording's first sample and FRACTIONAL:
     #   0.0, 7.692288, 15.384576, …  (= (sensor_ns - first_sensor_ns)/1e6, verified against a real H10
@@ -311,6 +348,12 @@ class StreamWriter:
                 self._rr_fh.close()
         except Exception:
             pass
+        finally:
+            # In the finally: a writer whose flush raised is still CLOSED as far as the open-file
+            # count is concerned, and leaking a count would pin the clock anchor open forever.
+            if self._counted:
+                self._counted = False
+                _writer_closed()
 
 
 class OxyFrameLogWriter:
@@ -339,6 +382,8 @@ class OxyFrameLogWriter:
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
+        self._counted = True
+        _writer_opened()
 
     def write(self, when: _dt.datetime, live: dict) -> None:
         """One row per live frame (~1 Hz). Blank, never 0, for an absent value — a fabricated 0 is
@@ -370,6 +415,10 @@ class OxyFrameLogWriter:
             self._fh.close()
         except (OSError, ValueError):
             pass
+        finally:
+            if self._counted:
+                self._counted = False
+                _writer_closed()
 
 
 class HostClockLogWriter:
@@ -533,6 +582,8 @@ class Spo2CsvWriter:
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
+        self._counted = True
+        _writer_opened()
 
     def write(self, when: _dt.datetime, spo2: int, pr, motion: int) -> None:
         """`pr` may be None — the ring reports a pulse rate outside 20-250 when it cannot read one.
@@ -568,6 +619,10 @@ class Spo2CsvWriter:
             self.flush(); self._fh.close()
         except Exception:
             pass
+        finally:
+            if self._counted:
+                self._counted = False
+                _writer_closed()
 
 
 # Polar's sensor clock is nanoseconds since 2000-01-01T00:00:00Z. Helpers to (a) keep it as the
