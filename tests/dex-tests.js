@@ -21432,6 +21432,42 @@
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
     });
 
+    /* DEEP-AUDIT-III §1.2 — the time-only midnight roll needs REAL slack.
+       `while (t < prevTMs) t += 86400000` treated ANY backwards step as a midnight wrap, so one
+       duplicated row turned a 120-minute night into a claimed 1560 and collapsed SBII 13× — while
+       start/end still read correctly and clockNonMonotonic stayed false, because OxyDex's guard only
+       catches a NEGATIVE span. The audit's own sketch proposed the siblings' 1-second tolerance;
+       executing it DISPROVED it (2 s, 5 s, 60 s and 3600 s all still rolled a whole day). A real wrap
+       is ~23 h backwards, so the threshold is a fraction of a day, not a jitter allowance. */
+    group('Clock: a duplicated row is not midnight — §1.2', 'clock · contract · roll', function (T) {
+      var C = env.DexClock;
+      if (!(C && typeof C.parseTimestamp === 'function')) {
+        T.skip('DexClock.parseTimestamp available', 'clock not wired in this lane');
+        return;
+      }
+      var anchor = Date.UTC(2026, 5, 12);
+      var first = C.parseTimestamp('23:00:16', { dateAnchorMs: anchor });
+      T.ok('baseline time-only stamp parses', !!first && first.tMs === Date.UTC(2026, 5, 12, 23, 0, 16));
+      var prev = first.tMs;
+      // Disorder WITHIN a recording must never advance the date.
+      [
+        ['a duplicated/late row (−1 s)', '23:00:15', Date.UTC(2026, 5, 12, 23, 0, 15)],
+        ['−5 s', '23:00:11', Date.UTC(2026, 5, 12, 23, 0, 11)],
+        ['−60 s', '22:59:16', Date.UTC(2026, 5, 12, 22, 59, 16)],
+        ['−1 h', '22:00:16', Date.UTC(2026, 5, 12, 22, 0, 16)]
+      ].forEach(function (c) {
+        var r = C.parseTimestamp(c[1], { dateAnchorMs: anchor, prevTMs: prev });
+        T.eq('§1.2 · ' + c[0] + ' stays on the same day', r && r.tMs, c[2]);
+      });
+      // …while a GENUINE wrap still rolls: 23:00 → 00:30 is ~22.5 h backwards on the anchor date.
+      var wrapped = C.parseTimestamp('00:30:00', { dateAnchorMs: anchor, prevTMs: prev });
+      T.eq('§1.2 · a real midnight wrap still advances the date', wrapped && wrapped.tMs, Date.UTC(2026, 5, 13, 0, 30, 0));
+      // and the overnight invariant the contract states: 22:00 → 06:00 is ~8 h, never ~24 h
+      var p22 = C.parseTimestamp('22:00:00', { dateAnchorMs: anchor });
+      var p06 = C.parseTimestamp('06:00:00', { dateAnchorMs: anchor, prevTMs: p22.tMs });
+      T.eq('§1.2 · overnight 22:00→06:00 spans 8 h (Clock Contract §Verification)', (p06.tMs - p22.tMs) / 3600000, 8);
+    });
+
     /* DEEP-AUDIT-III §6.4 — three ingest routing defects, one seam.
        (a) Every classifier except MotionDex knew only `_MAGN`; the capture host writes `_MAG.txt`, so
            688 real magnetometer files were never paired and PpgDex told the user "No *_MAGN.txt for

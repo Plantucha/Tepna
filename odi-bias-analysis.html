@@ -329,6 +329,9 @@
   // the time must be 0–23 : 0–59 : 0–59 . 0–999. The ONE legitimate overflow is ISO-8601 `24:00:00`
   // (end-of-day) — normalized to next-day 00:00, NOT rejected (do not add a bare `h>23` guard). Returns
   // a number, or null on any out-of-range component (Clock §2.6 — a bad stamp is visible, never fabricated).
+  // §1.2 — a backwards step smaller than this is DISORDER (duplicate/jittered row), not a midnight
+  // wrap; a genuine wrap is ~23 h backwards. See the roll site in step 5 for why 1 s is not enough.
+  var CK_ROLL_SLACK_MS = 43200000; // 12 h
   function _ckMk(y, mo0, d, h, mi, se, ms) {
     se = se || 0;
     ms = ms || 0;
@@ -403,7 +406,19 @@
       var t = _ckMk(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate(), +m[1], +m[2], m[3] ? +m[3] : 0);
       if (t == null) return null; // §12.3 — an out-of-range time-only stamp (e.g. 25:99) → honest null
       if (opts.prevTMs != null && isFinite(opts.prevTMs)) {
-        while (t < opts.prevTMs) t += 86400000;
+        /* MIDNIGHT ROLL NEEDS REAL SLACK (DEEP-AUDIT-III §1.2). A bare `t < prevTMs` treats ANY
+           backwards step as a midnight wrap, so ONE duplicated row turned a 120-minute night into a
+           claimed 1560 minutes and collapsed SBII 13× — while start/end still read correctly and
+           `clockNonMonotonic` stayed false, because OxyDex's guard only catches a NEGATIVE span.
+           The two in-repo siblings (`oxydex-fusion.js:42`, `cpapdex-coimport.js:49`) use a 1-second
+           tolerance, and the audit's own fix sketch proposed the same — but executing it disproved
+           it: with −1 s only a 1-second blip is absorbed, and 2 s, 5 s, 60 s and 3600 s all still
+           rolled a whole day. A real wrap is ~23 h backwards. The threshold therefore has to be a
+           FRACTION OF A DAY, not a jitter allowance: roll only when the step back is larger than any
+           plausible clock disorder within one recording. 12 h is the natural split — it is the
+           largest backwards step that cannot be a wrap (a wrap is ≥ ~23 h) and the smallest that no
+           duplicated/jittered row can reach. */
+        while (t < opts.prevTMs - CK_ROLL_SLACK_MS) t += 86400000;
       }
       return { tMs: t, offsetMin: null };
     }

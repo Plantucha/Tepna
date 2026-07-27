@@ -86,7 +86,7 @@ One anomalous row moves a proven-MDY O2Ring night **six months**.
 `provenance/<App>.json` fragments, serialized per `CLAUDE.md` §👥.3; `computeHash` moves ⇒
 `DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs` re-verification owed.**
 
-### 1.2 The time-only roll has zero backwards tolerance — `clock.js:184`
+### 1.2 The time-only roll has zero backwards tolerance — `clock.js:184` — **FIXED 2026-07-27**
 
 `while (t < opts.prevTMs) t += 86400000` treats a **1-second** backwards step as a midnight wrap. Both
 in-repo siblings that do this job carry a tolerance — `oxydex-fusion.js:42` and `cpapdex-coimport.js:49` both
@@ -112,8 +112,21 @@ correctly and the non-monotonic flag stays false — because `oxydex-dsp.js:2500
 > when the step back exceeds ~12 h), not a 1 s slack. Severity also drops to **latent** — no vendor in either
 > corpus ships a time-only-stamped CSV today.
 
-**Fix.** Widen the roll condition properly, *and* independently harden OxyDex's guard so an **inflated** span
-is visible (flag when `rawDurMs` exceeds the span implied by row count × cadence). Same spine gate cost as §1.1.
+**Fix AS LANDED (2026-07-27).** `CK_ROLL_SLACK_MS = 12 h`. The verifier's correction is what set the
+number: a 1 s slack absorbs only a 1 s blip, and the same run showed 2 s, 5 s, 60 s and 3600 s all still
+rolling a whole day. 12 h is the natural split — the largest backwards step that **cannot** be a wrap (a
+wrap is ~23 h) and the smallest that no duplicated or jittered row can reach. Mutation-checked: all four
+disorder cases roll a full day against pre-fix code.
+
+**Spine gate cost, paid:** all 11 owned bundles rebuilt, **6 moved** (`OxyDex` `37d4e494bb10` →
+`dfe4af5252f8`, `HRVDex`, `PulseDex`, `ECGDex`, `MotionDex`, `Integrator`; GlucoDex/CPAPDex/PpgDex did
+**not** move — they keep deliberate node-local parsers and do not inline `clock.js`, which is a useful
+confirmation of that documented split). 3985 assertions green with `DEX_UPLOADS` (0 skipped) · GATE A 9/9
+· **8 fixtures re-verified** against the real corpus · typecheck clean.
+
+**Not done here — the OxyDex inflated-span guard.** Hardening `_durBad` to flag a span that exceeds
+row-count × cadence is a second, independent change to a different node; it belongs with §1.1 rather than
+riding a spine re-bundle.
 
 ### 1.3 PpgDex's parser rounds a `.9995` fraction to 1000 ms and then rejects its own stamp — `ppgdex-dsp.js:58`
 
