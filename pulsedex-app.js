@@ -697,17 +697,26 @@ function calculate() {
       const sh = [],
         sl = [],
         sv = [],
-        stp = [],
         srr = [];
       for (const seg of win.segs) {
         const w = lombScargle(seg, 256);
         sh.push(w.hf);
         sl.push(w.lf);
         sv.push(w.vlf);
-        stp.push(w.tp);
         if (w.respRate > 0) srr.push(w.respRate);
       }
-      winSpec = { hf: Math.round(medianOf(sh)), lf: Math.round(medianOf(sl)), vlf: Math.round(medianOf(sv)), tp: Math.round(medianOf(stp)), respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
+      /* TOTAL POWER IS THE SUM OF THE BANDS IT RENDERS (DEEP-AUDIT-III §5.1). This took a FOURTH
+         independent median — `median(tp_i)` — which does not equal `median(vlf_i)+median(lf_i)+
+         median(hf_i)`, so the surfaced "Total Power" contradicted the three numbers printed beside
+         it and the HF/LF fraction bars drawn from them: measured +2.8 % to +17.5 % on real overnight
+         RR. DEEP-AUDIT-2026-07-14 §3 fixed exactly this — but its EXECUTED header claims "BOTH
+         PulseDex spectral paths" and the two paths it names are both inside pulsedex-dsp.js; the app
+         that RENDERS the number was never touched. This is the DSP's line (pulsedex-dsp.js:1237),
+         mirrored, so the identity holds on the surface a user actually reads. */
+      const _wh = Math.round(medianOf(sh)),
+        _wl = Math.round(medianOf(sl)),
+        _wv = Math.round(medianOf(sv));
+      winSpec = { hf: _wh, lf: _wl, vlf: _wv, tp: _wv + _wl + _wh, respRate: srr.length ? +medianOf(srr).toFixed(1) : 0 };
     }
   }
 
