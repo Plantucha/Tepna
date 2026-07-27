@@ -689,7 +689,7 @@ PRIMARY, so that classifier keeps suffix-first ordering and the asymmetry is doc
 `53d81c734820`, `PpgDex` `41efc6b8c803` → `fb32ff3da399`, Data Unifier + OverDex re-bundled) ·
 **mutation-checked: 26 assertions fail against pre-fix code**.
 
-### 6.5 The badge fallback hides surfaced numbers with no registry entry — `oxydex-render.js:321`
+### 6.5 The badge fallback hides surfaced numbers with no registry entry — `oxydex-render.js:321` — **FIXED 2026-07-27**
 
 `badgeForLabel(label, true)` mints an `ev-experimental` disc for any label the registry cannot resolve, so a
 metric with **no registry entry** looks fully badged. 8 such surfaced numbers found; ECGDex's ectopy chart card
@@ -698,6 +698,24 @@ badges `experimental` while its registry grades the metric `measured`.
 > **Verifier correction — one exemplar must be dropped or the fix ships a fabricated citation.** "MOS
 > (McGill Oximetry Score)" as a *published clinical score* is **refuted**; `experimental` is the honest tier
 > for it. Fix the ECGDex alias and add the genuinely-missing entries; do **not** promote MOS.
+
+**Fix AS LANDED (2026-07-27).** Ten OxyDex entries + one ECGDex alias, each with a stated tier and cite:
+**heuristic** MOS · AAI · WtDSI — **emerging** Δ-Index · PB Episodes — **experimental** oscillation index ·
+Episode range · Periodicity pattern · pNN3 · SFI. ECGDex's "PVC burden" is an **alias to `ectopy`**, so the
+chart card inherits the registry's `measured` grade by construction instead of minting `experimental` — the
+opposite failure to the rest, and the only one that was *under*-grading.
+
+**The gate corrected me mid-fix, which is the part worth recording.** I entered MOS/AAI/WtDSI as
+`experimental` (the tier proposed and approved); `cohesion-badges`' doc↔registry parity leg immediately
+red-flagged that the **OxyDex Reference guide already graded all three `heuristic`**. That call predates
+these entries and is the *more conservative* one, so the registry **adopted the doc's grade** rather than
+upgrading three published grades on a new author's say-so — the inverse of `CLAUDE.md`'s "fix the DOC, not
+the registry", and correct here precisely because the registry entry was the newcomer.
+
+Δ-Index and PB Episodes sit at `emerging` because the method has literature behind it; upgrading either to
+`validated` still requires the exact citation checked against what the code computes. **Gate:** 4037
+assertions green with `DEX_UPLOADS` (0 skipped) · GATE A 9/9 (`OxyDex` `dfe4af5252f8` → `af324fa85458`,
+`ECGDex` `2195e71841e4` → `173cfaa4a2e3`).
 
 ### 6.6 The Integrator's code-gated fixture has no regen tool — `tools/regen-goldens.mjs:17`
 

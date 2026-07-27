@@ -21432,6 +21432,57 @@
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
     });
 
+    /* DEEP-AUDIT-III §6.5 — a fallback badge is not a grade.
+       `badgeForLabel(label, true)` mints an `experimental` disc for any label the registry cannot
+       resolve, so a surfaced metric with NO registry entry rendered fully badged — the disc looked
+       like a graded tier and was really a fallback, which is why the coverage mandate could read
+       green while 8 numbers were ungraded. Worse in one direction: ECGDex's ectopy chart card badged
+       `experimental` while the registry grades the metric `measured`.
+       These assertions pin the RESOLUTION, not the fallback: every label must map to a real entry. */
+    group('Every surfaced metric resolves to a real registry entry — §6.5', 'metric-registry · evidence · coverage', function (T) {
+      var O = env.OxyRegistry,
+        E = env.EcgRegistry;
+      if (!(O && typeof O.idForLabel === 'function')) {
+        T.skip('OxyRegistry available', 'registry not wired in this lane');
+        return;
+      }
+      var tierOf = function (reg, label) {
+        var b = reg.badgeForLabel(label, true);
+        var m = /ev-([a-z]+)/.exec(b || '');
+        return m ? m[1] : null;
+      };
+      // label → id it MUST resolve to, and the tier the registry grades it
+      [
+        ['MOS', 'mos', 'heuristic'],
+        ['Δ-Index', 'deltaIndex', 'emerging'],
+        ['PB Episodes', 'pbEpisodes', 'emerging'],
+        ['SpO₂ oscillation index', 'oscIndex', 'experimental'],
+        ['Episode range', 'episodeRange', 'experimental'],
+        ['Periodicity pattern', 'periodicityPattern', 'experimental'],
+        ['pNN3', 'pnn3', 'experimental'],
+        ['AAI', 'aai', 'heuristic'],
+        ['WtDSI', 'wtdsi', 'heuristic'],
+        ['SFI', 'sfi', 'experimental']
+      ].forEach(function (c) {
+        T.eq('§6.5 · "' + c[0] + '" resolves to a real entry (not the fallback)', O.idForLabel(c[0]), c[1]);
+        T.eq('§6.5 · …graded ' + c[2], tierOf(O, c[0]), c[2]);
+      });
+      // MOS specifically: `validated` here would be a fabricated citation — the McGill criteria were
+      // validated in CHILDREN for surgical planning, not adult unattended home oximetry.
+      /* MOS specifically: `validated` would be a fabricated citation — the McGill criteria were
+         validated in CHILDREN for surgical planning, not adult unattended home oximetry. The tier
+         entered here is `heuristic`, NOT the `experimental` first proposed: the OxyDex Reference
+         guide had already graded MOS/AAI/WtDSI `heuristic`, that call predates this registry entry
+         and is the MORE CONSERVATIVE one, and a badge is never upgraded on a new author's say-so.
+         (`cohesion-badges` is what surfaced the disagreement — the doc↔registry parity leg.) */
+      T.ok('§6.5 · MOS is NOT graded validated or measured (its criteria are paediatric)', ['heuristic', 'experimental', 'emerging'].indexOf(tierOf(O, 'MOS')) >= 0, 'tier=' + tierOf(O, 'MOS'));
+      if (E && typeof E.idForLabel === 'function') {
+        // the opposite failure: a card UNDER-grading a metric the registry already grades measured
+        T.eq('§6.5 · ECGDex "PVC burden" resolves to the ectopy entry', E.idForLabel('PVC burden'), 'ectopy');
+        T.eq('§6.5 · …and inherits its MEASURED grade instead of minting experimental', tierOf(E, 'PVC burden'), 'measured');
+      }
+    });
+
     /* DEEP-AUDIT-III §5.2 — LF/HF is a PER-SEGMENT quantity, so a night is the MEDIAN OF THE RATIOS.
        PulseDex took the ratio of the band MEDIANS while ECGDex and PpgDex took the median of the
        per-epoch ratios; by Jensen those differ whenever the per-epoch distribution is skewed — which
