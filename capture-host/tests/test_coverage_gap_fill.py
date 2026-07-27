@@ -115,8 +115,11 @@ def test_first_and_last_row_skips_blank_lines(tmp_path):
     """A trailing newline or a torn write leaves blank lines; they are not rows and must not become the
     'last' sample the inflation ratio is computed from."""
     p = _ppg(tmp_path, "2026-07-25T22:00:00.000;0;1\n\n2026-07-25T22:00:10.000;10000000000;2\n\n")
-    first, last, rows = pgc._first_and_last_row(p)
+    first, last, rows, deltas = pgc._first_and_last_row(p)
     assert rows == 2 and last.startswith("2026-07-25T22:00:10")
+    # The delta histogram (CAPTURE-HOST-DEEP-AUDIT §A3-rider) is built on the same pass and must skip
+    # the blanks too — a blank counted as a row would mint a phantom delta.
+    assert deltas == {10_000_000_000: 1}
 
 
 def test_grid_inflation_returns_none_on_an_unparseable_row(tmp_path):
