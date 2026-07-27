@@ -340,7 +340,14 @@
   // tz offset and only affects t0Ms-less rows — do NOT "fix" it by converting t0Ms to real-UTC
   // (that would break the floating-clock invariant, Clock Contract §1).
   function _sortKey(r) {
-    return r.t0Ms != null ? r.t0Ms : r.date ? Date.parse(r.date) : 0;
+    // DEEP-AUDIT-III §1.4 — `Date.parse(r.date)` is banned by the Clock Contract §2.4 (regex +
+    // Date.UTC, never a locale parse). It happened to be benign here because `date` is always a
+    // fmtDate() 'YYYY-MM-DD' string, which the spec parses as UTC — but "benign today" is how a
+    // footgun waits, and the house lint could not see this file at all until the scan was widened.
+    // Parse the shape explicitly instead.
+    if (r.t0Ms != null) return r.t0Ms;
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(r.date || ''));
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : 0;
   }
   function seriesFor(node, mid, includeSynthetic) {
     return _allRows(includeSynthetic)
