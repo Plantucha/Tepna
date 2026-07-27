@@ -90,8 +90,15 @@ def _stamp_ms(name: str) -> float | None:
 def stream_intervals(files: list[dict], device_id, tag: str, fs: float) -> list[tuple[float, float]]:
     """[(start_s, end_s)] this stream was writing, from session files alone.
 
-    Duration comes from `rows / fs`, NOT from the file's mtime: mtime is when the last flush landed,
-    which for a killed or still-open session is not when the data ends. Rows are the data.
+    Duration is the file's OWN recorded span (`span_sec`, from its device-clock column) when it has one,
+    and `rows / fs` otherwise — never the file's mtime, which for a killed or still-open session is when
+    the last flush landed rather than where the data ends.
+
+    Preferring the file's own clock is what makes an OLD night measurable (CAPTURE-HOST-DEEP-AUDIT §A4c):
+    `fs` is the rate configured TODAY, and a rate that has been re-negotiated or corrected since the night
+    was recorded over-states its duration — measured at 196.7 % coverage on the real 2026-07-16 H10 ACC
+    and 134.6 % on the 2026-07-20 Verity ACC. The device wrote its own clock into the file; that number
+    cannot go stale.
 
     `device_id` may be one id or several — a device that had its id corrected still owns the
     files written under the old one (writers.device_ids)."""
@@ -102,9 +109,14 @@ def stream_intervals(files: list[dict], device_id, tag: str, fs: float) -> list[
         if f["stream"] != tag or not ids or _file_device_id(f["file"]) not in ids:
             continue
         t0 = _stamp_ms(f["file"])
-        if t0 is None or not f["rows"] or fs <= 0:
+        if t0 is None or not f["rows"]:
             continue
-        out.append((t0, t0 + f["rows"] / fs))
+        dur = f.get("span_sec")
+        if not dur:
+            if fs <= 0:
+                continue
+            dur = f["rows"] / fs
+        out.append((t0, t0 + dur))
     return sorted(out)
 
 
@@ -371,14 +383,36 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
                 dirs.insert(0, prev)
     link = read_link_samples(dirs)
 
-    spans = []
-    for f in data:
-        t = _stamp_ms(f["file"])
-        if t is not None:
-            spans.append(t)
-    for v in link.values():
-        if v:
-            spans.append(v[0][0]); spans.append(v[-1][0])
+    # ── THE COVERAGE WINDOW (CAPTURE-HOST-DEEP-AUDIT §A4) ──────────────────────────────────────────
+    # It comes from THE RECORDING, and it used to come from the LINK sidecar. The sidecar rolls per
+    # calendar day, so a continuously running box always has one spanning 00:00→23:59 — and seeding
+    # `spans` with its first/last sample made that the denominator. A flawless zero-loss 4 h night
+    # (02:00→06:00, 1 872 000 rows, no gaps) therefore rendered as 16.7 % captured, against a line
+    # whose own comment promises the opposite. The sidecar is still the fallback for a night that
+    # recorded NOTHING — a device that connected and never streamed has no other window, and dropping
+    # it would take the "connected but silent" view away with it.
+    sessions = nightqc.merge_sessions(data) if data else []
+    spans: list[float] = []
+    if sessions:
+        cur = max(sessions, key=lambda s: s[1])   # same scoping as nightqc.summarize, so they agree
+        data = cur[2]
+        spans = [cur[0], cur[1]]
+        for f in data:
+            s = _stamp_ms(f["file"])
+            if s is None:
+                continue
+            spans.append(s)
+            # ...and its END. `spans` collected file START stamps only, so the window stopped where the
+            # last session BEGAN and `covered` — which does count durations — ran past it: 156.5 % on a
+            # 9 h night with a 50 min outage, 466.7 % on a 1 h + 6 h pair. `span_sec` is the file's own
+            # device clock, so it is also era-correct where `rows / fs` against today's configured rate
+            # is not (the third mechanism, and the one that reaches 196.7 % on real corpus).
+            if f.get("span_sec"):
+                spans.append(s + f["span_sec"])
+    else:
+        for v in link.values():
+            if v:
+                spans.append(v[0][0]); spans.append(v[-1][0])
     if not spans:
         return {"night": os.path.basename(night_dir.rstrip("/")), "buckets": 0, "devices": []}
     t0, t1 = min(spans), max(spans)
