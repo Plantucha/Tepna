@@ -693,7 +693,8 @@
         _stamps.push(parts[0].trim());
       }
       const _order = DexClock.resolveDMY(_stamps, preferDMY);
-      const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
+      // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing
+      const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
 
       for (const parts of rows) {
         if (parts === headerLine) continue;
@@ -703,7 +704,7 @@
         if (!isFinite(v)) continue; // leftover header / label rows fall out here
         vals.push(v);
         const ts = parts[0].trim();
-        const p = parseTimestamp(ts, { dateAnchorMs, prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked }); // floating wall-clock
+        const p = parseTimestamp(ts, { dateAnchorMs, prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked, dmyContradictory: _tsOpts.dmyContradictory }); // floating wall-clock
         if (p) {
           tsMs.push(p.tMs);
           prevTMs = p.tMs;

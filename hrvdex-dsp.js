@@ -143,7 +143,8 @@
       _stamps.push(_st && !/\d{1,2}:\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim() : _sd || _st);
     }
     const _order = typeof DexClock !== 'undefined' && DexClock.resolveDMY ? DexClock.resolveDMY(_stamps, true) : { dmy: true, locked: false };
-    const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
+    // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing
+    const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(',');
       if (cells.length < 5) continue;

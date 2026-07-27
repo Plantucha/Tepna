@@ -588,7 +588,9 @@
       if (_sp.length >= 3 && timeCol < _sp.length) _stamps.push(_sp[timeCol].trim());
     }
     var _order = DexClock.resolveDMY(_stamps, true); // O2Ring default is DMY when genuinely ambiguous
-    var _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
+    // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing.
+    // This is the node the finding's repro used: one anomalous row moved a proven-MDY night 6 months.
+    var _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
     for (var i = firstDataIdx; i < lines.length; i++) {
       var p = lines[i].trim().split(DELIM);
       if (p.length < 3) continue;
@@ -613,7 +615,7 @@
       // CLOCK-UNIFY: floating wall-clock ms is the source of truth. row.t is a derived
       // compat Date, ALWAYS read back with getUTC*. Time-only rows anchor to _anchorMs
       // and roll forward monotonically past midnight (no Jan-2000, no +86400000 hack).
-      var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked });
+      var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked, dmyContradictory: _tsOpts.dmyContradictory });
       if (!_ts) continue;
       _prevTMs = _ts.tMs;
       rows.push({ tMs: _ts.tMs, t: new Date(_ts.tMs), spo2: spo2, hr: hr, motion: motion, pi: pi });
