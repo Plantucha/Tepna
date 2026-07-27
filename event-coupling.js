@@ -247,7 +247,7 @@
      E = eligible events, each carrying its OWN wrap domain (see _eligible). */
   function _measure(E, sortedB, lo, hi, shifts) {
     if (!E.length) {
-      return { n: 0, hits: 0, expectedHits: NaN, underpowered: true, observedPct: NaN, chancePct: NaN, lift: NaN, maxLift: NaN, saturated: false, nullPcts: [] };
+      return { n: 0, hits: 0, expectedHits: NaN, underpowered: true, observedPct: NaN, chancePct: NaN, lift: NaN, maxLift: NaN, saturated: false, nullPcts: [], pPerm: NaN, pFloor: NaN };
     }
     var tA = E.map(function (x) {
       return x.t;
@@ -292,8 +292,59 @@
       // TRUE ⇒ this window cannot demonstrate a coupling however real; its lift is
       // UNINFORMATIVE, not a negative result. See the saturation caveat in the header.
       saturated: isFinite(maxLift) && maxLift < SATURATION_MAX_LIFT,
-      nullPcts: nullPcts
+      nullPcts: nullPcts,
+      // ── SIGNIFICANCE (DEEP-AUDIT-III §3.2) ───────────────────────────────────────────────────
+      // `lift > 1` is NOT a test. Under the null, chancePct is the surrogate distribution's own
+      // MEAN, so "observed > chance" is a fair coin: a consumer using it as a verdict fires on
+      // ~50% of genuinely independent streams (measured: 162 of 300 trials). The honest statistic
+      // is the exact one-sided permutation p-value — the rank of the observation among its own
+      // surrogates, +1 on both sides so the observation counts as one of the arrangements
+      // (Phipson & Smyth 2010; an unadjusted k/m can return p=0, which asserts impossibility).
+      pPerm: _pPerm(obs.pct, nullPcts),
+      // The SMALLEST p this many surrogates can return. With 10 shifts pFloor = 1/11 = 0.091, so a
+      // p<0.05 verdict is UNREACHABLE however strong the coupling — the power to make a claim has
+      // to be bought before the claim can be made. Publish it so "not significant" can never be
+      // confused with "not enough surrogates to tell".
+      pFloor: nullPcts.length ? 1 / (nullPcts.length + 1) : NaN
     };
+  }
+
+  /* Exact one-sided permutation p — P(surrogate ≥ observed), +1/+1 corrected. NaN in ⇒ NaN out. */
+  function _pPerm(observedPct, nullPcts) {
+    if (!isFinite(observedPct) || !nullPcts.length) return NaN;
+    var atLeast = 0;
+    for (var i = 0; i < nullPcts.length; i++) if (nullPcts[i] >= observedPct) atLeast++;
+    return (1 + atLeast) / (1 + nullPcts.length);
+  }
+
+  /* How many surrogates does a verdict at `alpha` need, and which ones?
+
+     Reachability is the floor: p = (1+k)/(1+m), so pFloor = 1/(m+1) must be < alpha. At alpha=0.05
+     that is m ≥ 20 — and the default set (10) deliberately cannot support it, which is the point:
+     a consumer that wants to SAY "significant at alpha" has to buy the power to say it.
+
+     But reachability alone leaves a knife-edge. At m=20, p<0.05 requires k=0 — the observation must
+     beat EVERY surrogate — so a SINGLE extreme surrogate turns a real coupling into a null result.
+     That is not hypothetical here: the resonance caveat in this module's header describes exactly
+     how one shift can re-phase onto stream B's period and score like the observation. So size the
+     set for RESOLUTION too: tolerate up to `tolerate` exceedances and still clear alpha, i.e.
+     (1+tolerate)/(1+m) < alpha. At alpha=0.05, tolerate=3 ⇒ m ≥ 80.
+
+     Magnitudes are PRIME seconds (no common factor with 30/60/120 s, so no round periodicity in B
+     can re-phase them all) and paired ± so the null is symmetric about the observation. */
+  var _PRIME_SEC = [
+    307, 317, 331, 349, 367, 383, 401, 421, 439, 457, 479, 491, 509, 523, 547, 563, 587, 601, 619, 641, 659, 677, 691, 709, 727, 743, 761, 787, 809, 827, 853, 877, 887, 907, 929, 947, 967, 983, 997,
+    1013
+  ];
+  function shiftsForAlpha(alpha, tolerate) {
+    var tol = tolerate == null ? 3 : tolerate;
+    var need = Math.floor((1 + tol) / alpha); // (1+tol)/(1+m) < alpha  ⇒  m > (1+tol)/alpha − 1
+    var out = [];
+    for (var i = 0; i < _PRIME_SEC.length && out.length < need; i++) {
+      out.push(_PRIME_SEC[i] * 1000);
+      if (out.length < need) out.push(-_PRIME_SEC[i] * 1000);
+    }
+    return out;
   }
 
   /**
@@ -628,7 +679,7 @@
     return { pass: pass, fail: fail, log: log };
   }
 
-  var API = { coupling: coupling, selfTest: selfTest, DEFAULT_SHIFTS: DEFAULT_SHIFTS };
+  var API = { coupling: coupling, selfTest: selfTest, DEFAULT_SHIFTS: DEFAULT_SHIFTS, shiftsForAlpha: shiftsForAlpha };
 
   /** @type {any} */ (root).EventCoupling = /** @type {any} */ (root).EventCoupling || API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

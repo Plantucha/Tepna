@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-74nfY4DmisUJUrQamQZuhmpI6Ka9egZEcFlOA0YubyU=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-LS4jnLimaZ44Q2plBvf245YiffrLy4UU/IGGtzyh22U=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-SN1Vzuwjy3Oz2lLf9tPqzpQJXuz2l3Lu7oLRK9cjWDo=' 'sha256-YpBLTPH6rBm7Vlmw7z/w69BHXIabbH51saaTxbfb0bc=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ZUhoyEBe4C4MoqAGyqKHnaNKzEHrVssNMPXsO9oKYY=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-LS4jnLimaZ44Q2plBvf245YiffrLy4UU/IGGtzyh22U=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-SN1Vzuwjy3Oz2lLf9tPqzpQJXuz2l3Lu7oLRK9cjWDo=' 'sha256-TXSNJR6x5HuBcLbKcGq3aCuZg2yYZ/Shx0lRXSHwJ9E=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -4841,7 +4841,7 @@ body.light .cov-grid td.cg-node{ background:#fff; }
      E = eligible events, each carrying its OWN wrap domain (see _eligible). */
   function _measure(E, sortedB, lo, hi, shifts) {
     if (!E.length) {
-      return { n: 0, hits: 0, expectedHits: NaN, underpowered: true, observedPct: NaN, chancePct: NaN, lift: NaN, maxLift: NaN, saturated: false, nullPcts: [] };
+      return { n: 0, hits: 0, expectedHits: NaN, underpowered: true, observedPct: NaN, chancePct: NaN, lift: NaN, maxLift: NaN, saturated: false, nullPcts: [], pPerm: NaN, pFloor: NaN };
     }
     var tA = E.map(function (x) {
       return x.t;
@@ -4886,8 +4886,59 @@ body.light .cov-grid td.cg-node{ background:#fff; }
       // TRUE ⇒ this window cannot demonstrate a coupling however real; its lift is
       // UNINFORMATIVE, not a negative result. See the saturation caveat in the header.
       saturated: isFinite(maxLift) && maxLift < SATURATION_MAX_LIFT,
-      nullPcts: nullPcts
+      nullPcts: nullPcts,
+      // ── SIGNIFICANCE (DEEP-AUDIT-III §3.2) ───────────────────────────────────────────────────
+      // `lift > 1` is NOT a test. Under the null, chancePct is the surrogate distribution's own
+      // MEAN, so "observed > chance" is a fair coin: a consumer using it as a verdict fires on
+      // ~50% of genuinely independent streams (measured: 162 of 300 trials). The honest statistic
+      // is the exact one-sided permutation p-value — the rank of the observation among its own
+      // surrogates, +1 on both sides so the observation counts as one of the arrangements
+      // (Phipson & Smyth 2010; an unadjusted k/m can return p=0, which asserts impossibility).
+      pPerm: _pPerm(obs.pct, nullPcts),
+      // The SMALLEST p this many surrogates can return. With 10 shifts pFloor = 1/11 = 0.091, so a
+      // p<0.05 verdict is UNREACHABLE however strong the coupling — the power to make a claim has
+      // to be bought before the claim can be made. Publish it so "not significant" can never be
+      // confused with "not enough surrogates to tell".
+      pFloor: nullPcts.length ? 1 / (nullPcts.length + 1) : NaN
     };
+  }
+
+  /* Exact one-sided permutation p — P(surrogate ≥ observed), +1/+1 corrected. NaN in ⇒ NaN out. */
+  function _pPerm(observedPct, nullPcts) {
+    if (!isFinite(observedPct) || !nullPcts.length) return NaN;
+    var atLeast = 0;
+    for (var i = 0; i < nullPcts.length; i++) if (nullPcts[i] >= observedPct) atLeast++;
+    return (1 + atLeast) / (1 + nullPcts.length);
+  }
+
+  /* How many surrogates does a verdict at `alpha` need, and which ones?
+
+     Reachability is the floor: p = (1+k)/(1+m), so pFloor = 1/(m+1) must be < alpha. At alpha=0.05
+     that is m ≥ 20 — and the default set (10) deliberately cannot support it, which is the point:
+     a consumer that wants to SAY "significant at alpha" has to buy the power to say it.
+
+     But reachability alone leaves a knife-edge. At m=20, p<0.05 requires k=0 — the observation must
+     beat EVERY surrogate — so a SINGLE extreme surrogate turns a real coupling into a null result.
+     That is not hypothetical here: the resonance caveat in this module's header describes exactly
+     how one shift can re-phase onto stream B's period and score like the observation. So size the
+     set for RESOLUTION too: tolerate up to `tolerate` exceedances and still clear alpha, i.e.
+     (1+tolerate)/(1+m) < alpha. At alpha=0.05, tolerate=3 ⇒ m ≥ 80.
+
+     Magnitudes are PRIME seconds (no common factor with 30/60/120 s, so no round periodicity in B
+     can re-phase them all) and paired ± so the null is symmetric about the observation. */
+  var _PRIME_SEC = [
+    307, 317, 331, 349, 367, 383, 401, 421, 439, 457, 479, 491, 509, 523, 547, 563, 587, 601, 619, 641, 659, 677, 691, 709, 727, 743, 761, 787, 809, 827, 853, 877, 887, 907, 929, 947, 967, 983, 997,
+    1013
+  ];
+  function shiftsForAlpha(alpha, tolerate) {
+    var tol = tolerate == null ? 3 : tolerate;
+    var need = Math.floor((1 + tol) / alpha); // (1+tol)/(1+m) < alpha  ⇒  m > (1+tol)/alpha − 1
+    var out = [];
+    for (var i = 0; i < _PRIME_SEC.length && out.length < need; i++) {
+      out.push(_PRIME_SEC[i] * 1000);
+      if (out.length < need) out.push(-_PRIME_SEC[i] * 1000);
+    }
+    return out;
   }
 
   /**
@@ -5222,7 +5273,7 @@ body.light .cov-grid td.cg-node{ background:#fff; }
     return { pass: pass, fail: fail, log: log };
   }
 
-  var API = { coupling: coupling, selfTest: selfTest, DEFAULT_SHIFTS: DEFAULT_SHIFTS };
+  var API = { coupling: coupling, selfTest: selfTest, DEFAULT_SHIFTS: DEFAULT_SHIFTS, shiftsForAlpha: shiftsForAlpha };
 
   /** @type {any} */ (root).EventCoupling = /** @type {any} */ (root).EventCoupling || API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
@@ -6496,6 +6547,10 @@ function corroborateDesat(desat, hrNodesLive) {
 var APNEA_TYPE_LEAD_MS = 15000; // look this far BEFORE the desat — SpO₂ lags the apnea (circulation + lung O₂ stores)
 var APNEA_TYPE_OBSTRUCTIVE_FRAC = 0.5; // ≥ half the COVERED epochs show effort ⇒ obstructive
 var APNEA_TYPE_MIN_TYPED = 5; // fewer typed events than this ⇒ underpowered (the P7 discipline)
+// Significance level for the desat⟷surge coupling verdict (§3.2). Also sets how many circular-shift
+// surrogates the Integrator must request: p can never fall below 1/(shifts+1), so a verdict at 0.05
+// needs ≥ 20 of them. Conventional α, stated once, read by both the request and the verdict.
+var COUPLING_ALPHA = 0.05;
 
 function typeApneaByEffort(recs) {
   var motion = _byNode(recs, 'MotionDex').filter(function (r) {
@@ -6862,7 +6917,13 @@ function fuseApneaEvents(recs, dtMs, gate) {
   var _EC = (typeof EventCoupling !== 'undefined' && EventCoupling) || (typeof window !== 'undefined' && window.EventCoupling) || null;
   var coupling = null;
   if (_EC && typeof _EC.coupling === 'function' && desats.length && surges.length && merged.length) {
-    var ec = _EC.coupling(desats, surges, { window: [-leadMaxSec * 1000, trailMaxSec * 1000], coverage: merged });
+    // §3.2: buy enough surrogates that a p < ALPHA verdict is REACHABLE. The primitive's default
+    // 10 shifts floor p at 1/11 = 0.091, so "significant at 0.05" would be arithmetically
+    // impossible off them — the power has to be bought before the claim can be made.
+    var _shifts = typeof _EC.shiftsForAlpha === 'function' ? _EC.shiftsForAlpha(COUPLING_ALPHA) : null;
+    var _opts = { window: [-leadMaxSec * 1000, trailMaxSec * 1000], coverage: merged };
+    if (_shifts) _opts.nullShifts = _shifts;
+    var ec = _EC.coupling(desats, surges, _opts);
     var usable = !ec.underpowered && !ec.saturated;
     coupling = {
       lift: ec.lift,
@@ -6878,8 +6939,16 @@ function fuseApneaEvents(recs, dtMs, gate) {
       coverageAssumed: ec.coverageAssumed,
       window: ec.window,
       usable: usable,
-      // a coupling is REAL only on a usable window where observed genuinely exceeds chance.
-      real: usable && isFinite(ec.lift) && ec.lift > 1 && ec.observedPct > ec.chancePct
+      pPerm: ec.pPerm,
+      pFloor: ec.pFloor,
+      alpha: COUPLING_ALPHA,
+      /* THE VERDICT (DEEP-AUDIT-III §3.2). This was `lift > 1 && observedPct > chancePct`, which is
+         not a test: chancePct IS the surrogate distribution's mean, so under the null "observed >
+         chance" is a fair coin — measured at a 54% false-positive rate over 300 independent-stream
+         trials (162 fired, every one of them `usable`). It is now the exact one-sided permutation
+         p-value against this window's own surrogates. `usable` still gates it, because a p-value on
+         an underpowered or saturated window answers a question nobody should be asking. */
+      real: usable && isFinite(ec.pPerm) && ec.pPerm < COUPLING_ALPHA
     };
   }
 

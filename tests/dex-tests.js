@@ -21248,6 +21248,94 @@
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
     });
 
+    /* DEEP-AUDIT-III §3.2 — `apneaCoupling.real` must be a TEST, not a coin flip.
+       It was `usable && lift > 1 && observedPct > chancePct`. `chancePct` IS the mean of the
+       surrogate distribution, so under the null "observed > chance" is a fair coin by construction:
+       over 300 independent-stream trials it fired on 162 of them — a 54% false-positive rate on a
+       field the export documents as "the rigorous verdict". It is now an exact one-sided permutation
+       p-value against the window's own surrogates, at α = 0.05.
+       Two things must hold together, and only together: independent streams must almost never be
+       called real (SPECIFICITY), and a planted coupling must still be called real (SENSITIVITY) — a
+       verdict that is merely stricter is not a fix, it is a mute button. */
+    group('Coupling `real` is a permutation test, not a coin flip — §3.2', 'integrator-dsp · event-coupling · significance', function (T) {
+      var EC = env.EventCoupling;
+      var ALPHA = 0.05;
+      T.ok('EventCoupling co-resident', !!(EC && typeof EC.coupling === 'function'));
+      // NOTE: these API assertions must NOT gate the behavioural one below. A group that bails when
+      // the new helper is missing would report "1 failing" against the old code and never exercise
+      // the coin-flip itself — a mutation check that proves only that a function was renamed.
+      var hasAlpha = !!(EC && typeof EC.shiftsForAlpha === 'function');
+      T.ok('EventCoupling exposes shiftsForAlpha', hasAlpha);
+      if (hasAlpha) {
+        var shifts = EC.shiftsForAlpha(ALPHA);
+        T.ok('α=0.05 buys enough surrogates that p<α is reachable', 1 / (shifts.length + 1) < ALPHA, shifts.length + ' shifts, pFloor=' + (1 / (shifts.length + 1)).toFixed(4));
+        // RESOLUTION, not just reachability: a real coupling must survive a few extreme surrogates.
+        // The module's own resonance caveat says one shift CAN re-phase onto B's period and score
+        // like the observation, so a rule needing k=0 sits one unlucky shift from a false negative.
+        T.ok('and enough that ≥3 extreme surrogates cannot veto a real coupling', 4 / (shifts.length + 1) < ALPHA, 'p with 3 exceedances = ' + (4 / (shifts.length + 1)).toFixed(4));
+        T.ok('the DEFAULT shift set deliberately cannot support α=0.05', 1 / (EC.DEFAULT_SHIFTS.length + 1) >= ALPHA, 'pFloor=' + (1 / (EC.DEFAULT_SHIFTS.length + 1)).toFixed(3));
+      }
+      // deterministic LCG — no Math.random, so the false-positive count is a fixed known answer
+      var seed = 20260727;
+      function rnd() {
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        return seed / 2147483648;
+      }
+      var RF = env.runFusion;
+      T.ok('runFusion available (the verdict is judged through the REAL path)', typeof RF === 'function');
+      if (typeof RF !== 'function') return;
+      var t0 = U(2026, 6, 1, 22, 0, 0),
+        H = 3600000;
+      function rec(node, evs) {
+        return { node: node, t0Ms: t0, endMs: t0 + 8 * H, dateUnknown: false, offsetMin: null, events: evs, nEvents: evs.length, summary: {}, series: {} };
+      }
+      function couplingOf(desatTs, surgeTs) {
+        var ds = desatTs.map(function (t) {
+          return { tMs: t, t: 'x', impulse: 'spo2_desaturation', node: 'OxyDex', conf: 0.9, meta: { depth: 5, durSec: 20 } };
+        });
+        var sg = surgeTs.map(function (t) {
+          return { tMs: t, t: 'x', impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.9 };
+        });
+        return (RF([rec('OxyDex', ds), rec('ECGDex', sg)], {}).apnea || {}).coupling;
+      }
+      // SPECIFICITY — 40 INDEPENDENT trials, judged by the shipped `coupling.real`, NOT by a p-value
+      // this test computes for itself (that would pass against the old rule for the wrong reason).
+      // Desats and surges are jittered around incommensurate cadences, so no coupling exists by
+      // construction: anything `real` here is a false positive.
+      var trials = 40,
+        fired = 0,
+        usableN = 0;
+      for (var k = 0; k < trials; k++) {
+        var A = [],
+          B = [];
+        for (var i = 0; i < 40; i++) A.push(t0 + Math.round((i + rnd()) * 431000));
+        for (var j = 0; j < 40; j++) B.push(t0 + Math.round((j + rnd()) * 397000));
+        var r = couplingOf(A, B);
+        if (!r || !r.usable) continue;
+        usableN++;
+        if (r.real === true) fired++;
+      }
+      var rate = usableN ? fired / usableN : 0;
+      T.ok('trials produced usable windows to judge', usableN >= 20, usableN + ' usable of ' + trials);
+      // THE INVARIANT. The pre-fix rule (`lift > 1 && observed > chance`) returns ~50% here because
+      // chancePct is the surrogates' own mean; a calibrated test returns ~α. The bound is loose (3α)
+      // so this pins the DEFECT, not the sampling noise of 40 trials.
+      T.ok('independent streams are almost never called real (was ~54%)', rate <= 3 * ALPHA, 'false-positive rate ' + (100 * rate).toFixed(1) + '% over ' + usableN + ' usable trials');
+      // SENSITIVITY — the other half, and the reason this is a fix and not a mute button.
+      var pa = [],
+        pb = [];
+      for (var m = 0; m < 40; m++) {
+        var at = t0 + m * 431000;
+        pa.push(at);
+        pb.push(at + 3000); // every desat followed by a surge inside the directional window
+      }
+      var planted = couplingOf(pa, pb);
+      T.ok('a planted coupling is STILL called real', !!planted && planted.real === true, planted && JSON.stringify({ p: planted.pPerm, lift: planted.lift, real: planted.real }));
+      T.ok('the Integrator publishes the p-value its verdict rests on', !!planted && isFinite(planted.pPerm) && isFinite(planted.pFloor) && planted.alpha === ALPHA, planted && JSON.stringify({ p: planted.pPerm, floor: planted.pFloor, a: planted.alpha }));
+      T.ok('pFloor is published so "not significant" ≠ "too few surrogates"', !!planted && planted.pFloor < ALPHA, planted && 'pFloor=' + planted.pFloor);
+      T.ok('invariant preserved · real ⇒ usable', !planted || planted.real === false || planted.usable === true);
+    });
+
     /* DEEP-AUDIT-III §3.1 — a SECOND oximeter that watched the SAME night must not change the index.
        The desat pool is impulse-keyed (DEEP-AUDIT-2026-07-11 §15) so CPAPDex's desat_event can fuse;
        its dedupe key was `impulse@round(tMs/1000)`, which only collapses stamps landing in the SAME
