@@ -1885,6 +1885,24 @@
   //  and self-contained — kernel/provenance arrive via opts (typeof-guarded by the
   //  caller), never reached off window here (CONTRIBUTING.md §6 / brief §1B).
   // ════════════════════════════════════════════════════════════════════════
+  /* §F1.1 — the per-cell trace, SINGLE-SOURCED. `glucoBuildNodeExport` (the canonical compute() /
+     "Export Ganglior" path) omitted `timeseries` entirely, so `integrator-dsp.js:1871 hasCells` was
+     always false: the Integrator stamped the SAME whole-wear glucose CV on every overlapping night,
+     `pearson` over that constant series returned null, and the `directional` fallback published a
+     number computed from the ECG slope alone under a note claiming "Single overlapping night" (§3.6).
+     `glucodex-app.js` already built this block — so the fix is to give both callers ONE builder rather
+     than a second copy, which is the sibling-divergence class this audit exists to fix. */
+  function glucoCells(series) {
+    if (!series || !series.N) return [];
+    var W = series.FLAG ? series.FLAG.WARMUP : 1;
+    var out = [];
+    for (var i = 0; i < series.N; i++) {
+      if (series.gF[i] === W) continue; // warm-up garbage; keep OK/GAP/COMPRESSION/GAP_LONG
+      out.push({ tMs: series.gT[i], v: Math.round(series.gV[i]), f: series.gF[i] });
+    }
+    return out;
+  }
+
   function glucoBuildNodeExport(r, opts) {
     opts = opts || {};
     // CLAMP-SATURATION HONESTY (GLUCODEX-FOLLOWUPS §2). When the CGM export clipped at the floor (Abbott
@@ -1951,6 +1969,17 @@
             : null,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
         events: events.length,
+        /* §F1.1 — CONTINUOUS coverage, the sibling of HRVDex's sparse block (§6.2). GlucoDex declared no
+           duration key `adaptEnvelopeNode` reads, so a well-controlled ZERO-EVENT CGM record collapsed to
+           a point at t0Ms — the healthiest record was the one that dropped out of fusion. A CGM wear IS
+           continuous, so one segment states that honestly; here `spanSec` and `recordedSec` agree BY
+           MEASUREMENT, which is precisely what the sparse case could not claim. */
+        coverage: (function () {
+          var _c = glucoCells(r.series);
+          if (!_c.length || r.t0Ms == null) return null;
+          var _sec = Math.max(0, Math.round((_c[_c.length - 1].tMs - r.t0Ms) / 1000));
+          return { kind: 'continuous', spanSec: _sec, segments: [{ startMs: r.t0Ms, durSec: _sec }], recordedSec: _sec, nWithDuration: 1, n: 1 };
+        })(),
         clamp:
           cs && cs.detected
             ? {
@@ -1982,6 +2011,24 @@
         dawn: r.dawn && r.dawn.present ? { present: true, medianDelta: r.dawn.medianDelta } : { present: false },
         daypart: r.daypart || null
       },
+      /* §F1.1 / §3.6 — the SLICEABLE trace. Without it `integrator-dsp.js hasCells` was always false, so
+         the Integrator stamped the SAME whole-wear glucose CV on every overlapping night, `pearson` over
+         that constant series returned null, and the `directional` fallback published a number computed
+         from the ECG slope ALONE under a note claiming "Single overlapping night". `glucodex-app.js`
+         already emitted this block; both now call `glucoCells` so the two cannot drift. */
+      timeseries: (function () {
+        var _cells = glucoCells(r.series);
+        if (!_cells.length) return null;
+        return {
+          doc: 'Per-cell trace. cells[] makes this continuous node SLICEABLE: a consumer (the Integrator) recomputes glycemic metrics on any sub-window without GlucoDex pre-segmenting into nights.',
+          cadenceMin: r.cadence,
+          t0Ms: r.t0Ms,
+          unit: 'mg/dL',
+          cells: _cells,
+          cellsNote:
+            'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count.'
+        };
+      })(),
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
