@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-17 · **Created:** 2026-07-17
+**Status:** DONE — 2026-07-27 · **Created:** 2026-07-17 · **Followed-by:** `TEST-COVERAGE-FOLLOWUPS-II-2026-07-17-BRIEF.md` (which EXECUTED items 1b/3/4, 2026-07-21)
 
 # TEST-COVERAGE-FOLLOWUPS — modules that ship but are never asserted
 
@@ -130,17 +130,45 @@ GPU` groups). No such leg exists for:
 
 - [x] **(1a)** `ECGProfile`/`GLUProfile`/`PPGProfile` in both `env` blocks; profile known-answer group
       green in both lanes; no bundle re-touched. **DONE (PR #141)** — 40 assertions.
-- [ ] (1b) HRVDex/OxyDex profile pure-surface seam + tests (re-bundle + provenance) — follow-up
+- [x] **(1b)** HRVDex/OxyDex profile pure-surface seam + tests — **DONE in `-II` (2026-07-21)**. The
+      *"needs a seam + re-bundle"* premise here was **WRONG**: both modules already leak their pure cited
+      kernels as bare globals (`Object.assign(window, {…})`) and load headless, so it was test-only after
+      all. Wired: HRVDex `calcVo2Cat`/`getAgeBand`, OxyDex `upKarvonenZone`/`upBMILabel`, both lanes.
 - [x] (2) NSRR parser round-trip — **DONE** — `NSRR PSG ingest adapter` group: channel matching · 1 Hz
       resample (forward-fill/backfill) · Clock-Contract EDF→OxyDex rows · severity bands (both lanes) +
       profusion-XML → AHI scoring (browser lane, `parseNsrrXml` needs `DOMParser`). 27 Node / 36 browser.
-- [ ] (3) analysis kernels — **BLOCKED as test-only**; needs the extract-to-`analysis-stats`-and-delegate
-      refactor (see Item 3 finding). Re-scoped to its own PR.
-- [ ] (4) worker≡serial legs — **BLOCKED as test-only**; no serial twin exists (see Item 4 finding).
-      Do with Item 3's extraction, or as a known-answer real-Worker rig. Own PR.
+- [x] **(3)** analysis kernels — **DONE in `-II` (2026-07-21)**. No extraction refactor was needed:
+      `CohortRegression.olsR2` + `qrs-equiv` `pearson`/`ba`/`sd` are reachable as-is. `qrs-yield` /
+      `pat-feasibility` unique math deliberately left — it is orchestration over already-covered
+      `mean`/`median`, not new kernel math.
+- [x] **(4)** worker≡serial legs — **DONE in `-II` (2026-07-21)** as the known-answer real-Worker rigs
+      (`qrs-equiv` + `qrs-yield` worker-EXECUTES, the two highest-value ECG+PPG off-thread workers).
+      `cohort-worker` + `pat-feasibility-worker` are a **consciously DEFERRED** sub-item in `-II` (the
+      latter needs a committed PPG fixture): 2 of 4 workers gated, up from 0.
 - [x] (5) overdex-walk test **DONE** (8 assertions, both lanes); `support.js` orphan flagged (left in place).
 
 Landing each item needs `Dex-Test-Suite.html?full` all-green + `node tests/run-tests.mjs` green + a
 changeset. **Items 3 & 4 turned out NOT to be test-only** (execution findings above) — they need a
 shared-kernel extraction refactor of the analysis pages, so they are re-scoped to a follow-up
 (`TEST-COVERAGE-FOLLOWUPS-II`, to be spawned when that refactor is picked up). Items 1a/2/5 are landed.
+
+---
+
+## Closed — 2026-07-27
+
+Every item is executed. 1b/3/4 all landed in **`TEST-COVERAGE-FOLLOWUPS-II-2026-07-17-BRIEF.md`** on
+2026-07-21 (verified against the tree there); this parent's checkboxes were simply never flipped back.
+Confirmed green on the current tree — the §1b group asserts `calcVo2Cat`/`getAgeBand` in both lanes and
+passes as part of `run-tests.mjs` 4098.
+
+Two findings worth keeping, because both are *premises this brief got wrong* and re-deriving them costs
+another audit:
+
+- **(1b)** "needs a testability seam + a re-bundle" — **false**. `hrvdex-profile.js` / `oxydex-profile.js`
+  already publish their pure cited kernels as bare globals and load headless; the work was test-wiring only.
+- **(3)/(4)** "BLOCKED, needs the extract-to-`analysis-stats`-and-delegate refactor" — **false**. The
+  kernels were reachable without extraction, and the worker legs were gateable as real-Worker
+  known-answer rigs rather than needing a serial twin.
+
+The only genuinely parked work is `-II`'s own deferral: `cohort-worker` (KIND-parameterized) and
+`pat-feasibility-worker` (needs a committed PPG fixture) — recorded there, not here.
