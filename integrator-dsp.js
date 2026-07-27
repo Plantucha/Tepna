@@ -1442,9 +1442,7 @@ function fuseApneaEvents(recs, dtMs, gate) {
   // bus — every night in the corpus today — this is a no-op.
   var observer = pickDesatObserver(oxyAll, cardiac);
   var oxy = observer ? observer.recs : oxyAll;
-  var desatObserver = observer
-    ? { node: observer.node, alsoObservedBy: observer.alsoObservedBy, candidates: observer.candidates }
-    : null;
+  var desatObserver = observer ? { node: observer.node, alsoObservedBy: observer.alsoObservedBy, candidates: observer.candidates } : null;
   // ── R5 DIRECTIONALITY GATE ───────────────────────────────────────────────
   // An obstructive event's autonomic surge should COINCIDE-OR-TRAIL the SpO₂
   // nadir (it may lead only slightly as effort ramps). Asymmetric window, in
