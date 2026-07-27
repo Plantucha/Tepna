@@ -1681,7 +1681,34 @@ function fuseApneaEvents(recs, dtMs, gate) {
   // exceed chance (P(≥observed) not significant) so a coincidence can't pose as
   // a clinical event. Emit-but-flag — nothing is silently dropped. ────────────
   var unionSec = totHrs * 3600;
-  var surgeRate = unionSec > 0 ? surges.length / unionSec : 0; // surges per second
+  /* SURGE RATE IS PER PERSON, NOT PER DEVICE (DEEP-AUDIT-III-FOLLOWUPS §1.2 — the surge-side twin of
+     §3.1, found by mutation-checking §3.1's own fix). `gather()` dedupes with `impulse@round(tMs/1000)`,
+     which only collapses stamps landing in the SAME second; two cardiac observers run two clocks and
+     never round together, so the pooled surge count DOUBLED. That count feeds
+     `surgeRate → pPerDesat → lambda`, and a doubled lambda pushes `belowChance` true — this defect
+     SUPPRESSES real findings rather than inflating a count, which is the worse direction: a number that
+     is too high eventually gets questioned, a missing one does not.
+     The desat-side remedy (one observer owns the spine) must NOT be copied here. R2 above is a
+     deliberate design decision — "a desat is confirmable by an autonomic surge from EITHER; PpgDex is a
+     first-class node here, not silently dropped" — so MATCHING keeps the whole pool. What is per-person
+     is the RATE: one body has one autonomic surge rate however many devices watch it. So the null model
+     takes its rate from a SINGLE observer, chosen by the HR_AUTHORITY ladder that already exists for
+     exactly this judgement, while every observer remains eligible to confirm. */
+  var _surgeByNode = {};
+  surges.forEach(function (sv) {
+    var n = sv.node || 'ECGDex';
+    _surgeByNode[n] = (_surgeByNode[n] || 0) + 1;
+  });
+  var _surgeNodes = Object.keys(_surgeByNode).sort(function (a, b) {
+    var ra = HR_AUTHORITY[a] != null ? HR_AUTHORITY[a] : 99,
+      rb = HR_AUTHORITY[b] != null ? HR_AUTHORITY[b] : 99;
+    if (ra !== rb) return ra - rb;
+    if (_surgeByNode[b] !== _surgeByNode[a]) return _surgeByNode[b] - _surgeByNode[a];
+    return a < b ? -1 : 1;
+  });
+  var _rateNode = _surgeNodes.length ? _surgeNodes[0] : null;
+  var _rateCount = _rateNode ? _surgeByNode[_rateNode] : surges.length;
+  var surgeRate = unionSec > 0 ? _rateCount / unionSec : 0; // surges per second, from ONE observer
   var winSec = leadMaxSec + trailMaxSec;
   var pPerDesat = Math.min(1, surgeRate * winSec);
   var lambda = desats.length * pPerDesat; // expected confirmations by chance
@@ -1760,6 +1787,10 @@ function fuseApneaEvents(recs, dtMs, gate) {
       pAtLeastObserved: +pAtLeast.toFixed(3),
       belowChance: belowChance,
       surgeRatePerHr: +(surgeRate * 3600).toFixed(1),
+      // which observer the rate came from, and who else saw surges — so a reader can tell a
+      // one-device night from a corroborated one without the count silently changing the null.
+      surgeRateObserver: _rateNode,
+      surgeAlsoObservedBy: _surgeNodes.slice(1),
       directionalWindowSec: winSec
     },
     coupling: coupling
