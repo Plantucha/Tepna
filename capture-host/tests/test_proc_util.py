@@ -11,7 +11,6 @@ These tests assert on the CHILD, not on the return value. A test that only check
 """
 import asyncio
 import os
-import signal
 
 import pytest
 
