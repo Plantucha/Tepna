@@ -10893,6 +10893,71 @@
       }
     });
 
+    /* ════ ECGDex RECORDING BOUNDS — durSec (DATA) and endEpochMs (CLOCK) are two different questions.
+     The duration-semantics ruling, option (c): a node publishes BOTH, because one scalar cannot answer
+     "how much signal do I have" and "where does this recording end on the clock" at the same time.
+     ECGDex's `durSec` is data-seconds (analyze's `nnRes.activeSec`; the parser's is `n / fs`), so
+     `t0 + durSec` lands SHORT of the true end by exactly the dropout time. Measured over the
+     2026-07-16..26 capture corpus that put ECGDex's own events outside its declared window on 11 of 11
+     nights, by +8 min to +326 min — the node under-declared where it stopped.
+
+     `endEpochMs` is READ from the last row's stamp, never reconstructed from durSec + gaps: a
+     reconstruction is a guess, and §2.6 says a value we do not have is null, not fabricated. The
+     Integrator already prefers `endEpochMs` over every duration key (`normalizeFile`), so this is
+     additive — absent ⇒ exactly today's behaviour. ════ */
+    group('ECGDex recording bounds — durSec (data) + endEpochMs (clock), read not derived', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG available', false, 'not loaded');
+        return;
+      }
+      // A 130 Hz stub with an explicit DROPOUT: rows at t+0..3 steps, then a jump of ~2 s, then more.
+      // Data seconds and wall span therefore DISAGREE by the gap — which is the whole point.
+      var hdr = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var rows = [hdr];
+      var step = 1000 / 130;
+      var mk = function (ms, uv) {
+        var d = new Date(U(2026, 5, 17, 1, 0, 0) + Math.round(ms));
+        var p2 = function (x) {
+          return String(x).padStart(2, '0');
+        };
+        var stamp =
+          d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + 'T' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + '.' + String(d.getUTCMilliseconds()).padStart(3, '0');
+        return stamp + ';0;' + ms.toFixed(2) + ';' + uv;
+      };
+      var t = 0,
+        k;
+      for (k = 0; k < 200; k++, t += step) rows.push(mk(t, 100));
+      t += 2000; // ── the dropout: 2 s of no ECG ──
+      for (k = 0; k < 200; k++, t += step) rows.push(mk(t, 100));
+      var rec = D.parseECG(rows.join('\n'));
+      T.ok('parse produced a t0 + a clock end', rec.t0Ms != null && rec.endEpochMs != null, 't0=' + rec.t0Ms + ' end=' + rec.endEpochMs);
+      var wallMs = rec.endEpochMs - rec.t0Ms;
+      var dataMs = rec.durSec * 1000;
+      T.ok('the dropout was detected as a gap, not as sample interval', (rec.gaps || []).length >= 1, (rec.gaps || []).length + ' gap(s)');
+      T.ok('endEpochMs is the LAST row stamp (clock), exact to the ms', Math.abs(rec.endEpochMs - (U(2026, 5, 17, 1, 0, 0) + Math.round(t - step))) <= 1, 'end=' + rec.endEpochMs);
+      T.ok('durSec is DATA seconds — strictly less than the wall span, by ~the gap', dataMs < wallMs - 1500, 'data=' + (dataMs / 1000).toFixed(2) + 's wall=' + (wallMs / 1000).toFixed(2) + 's');
+      T.ok('t0 + durSec would land SHORT of the true end (the defect this closes)', rec.t0Ms + dataMs < rec.endEpochMs, 'short by ' + ((rec.endEpochMs - rec.t0Ms - dataMs) / 1000).toFixed(2) + ' s');
+      // A stampless recording must yield null, never a fabricated end (§2.6).
+      var bare = D.parseECG(['a;b;c;d', ';0;0.00;100', ';0;7.69;100'].join('\n'));
+      T.ok('no parseable stamp ⇒ endEpochMs null, never fabricated', bare.endEpochMs === null, String(bare.endEpochMs));
+      // …and it reaches the export THROUGH analyze() — the property belongs to the RECORDING, not to
+      // the analysis, so analyze must carry it (the same reason `offsetMin` needs an explicit carry).
+      // Driven on the real synthetic waveform, not the stub above: the stub is a flat 100 µV line with
+      // no QRS, and analyze CORRECTLY refuses it ("Too few R-peaks") — a good guard we do not weaken.
+      if (typeof D.compute === 'function' && typeof D.genSynthetic === 'function') {
+        var srec = D.genSynthetic({ durSec: 600 });
+        var END = U(2026, 5, 17, 4, 30, 0);
+        srec.endEpochMs = END;
+        var exp = D.compute(srec);
+        T.ok('recording.endEpochMs survives analyze() into the node-export', exp && exp.recording && exp.recording.endEpochMs === END, exp && exp.recording && String(exp.recording.endEpochMs));
+        T.ok('recording.durSec is still published alongside it (BOTH, not either)', exp && exp.recording && typeof exp.recording.durSec === 'number', exp && exp.recording && String(exp.recording.durSec));
+        var srec2 = D.genSynthetic({ durSec: 600 }); // no endEpochMs → null, and the export still builds
+        var exp2 = D.compute(srec2);
+        T.ok('a recording with no clock end exports null (additive: absent ⇒ today’s behaviour)', exp2 && exp2.recording && exp2.recording.endEpochMs === null, exp2 && exp2.recording && String(exp2.recording.endEpochMs));
+      }
+    });
+
     /* ════ 12e · ECGDex EVENT BYTE-SHAPE — the surge/stage impulse stream incl. the sqi axis
      + meta (ECGDEX-FOLLOWUPS-2026-06-27 §4). The equiv fixture is 0-event, so the byte-shape
      of ECGDex's emitted impulses went untested. Drive a deterministic overnight synthetic
