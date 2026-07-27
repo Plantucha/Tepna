@@ -1253,6 +1253,10 @@ function corroborateDesat(desat, hrNodesLive) {
 var APNEA_TYPE_LEAD_MS = 15000; // look this far BEFORE the desat — SpO₂ lags the apnea (circulation + lung O₂ stores)
 var APNEA_TYPE_OBSTRUCTIVE_FRAC = 0.5; // ≥ half the COVERED epochs show effort ⇒ obstructive
 var APNEA_TYPE_MIN_TYPED = 5; // fewer typed events than this ⇒ underpowered (the P7 discipline)
+// Significance level for the desat⟷surge coupling verdict (§3.2). Also sets how many circular-shift
+// surrogates the Integrator must request: p can never fall below 1/(shifts+1), so a verdict at 0.05
+// needs ≥ 20 of them. Conventional α, stated once, read by both the request and the verdict.
+var COUPLING_ALPHA = 0.05;
 
 function typeApneaByEffort(recs) {
   var motion = _byNode(recs, 'MotionDex').filter(function (r) {
@@ -1619,7 +1623,13 @@ function fuseApneaEvents(recs, dtMs, gate) {
   var _EC = (typeof EventCoupling !== 'undefined' && EventCoupling) || (typeof window !== 'undefined' && window.EventCoupling) || null;
   var coupling = null;
   if (_EC && typeof _EC.coupling === 'function' && desats.length && surges.length && merged.length) {
-    var ec = _EC.coupling(desats, surges, { window: [-leadMaxSec * 1000, trailMaxSec * 1000], coverage: merged });
+    // §3.2: buy enough surrogates that a p < ALPHA verdict is REACHABLE. The primitive's default
+    // 10 shifts floor p at 1/11 = 0.091, so "significant at 0.05" would be arithmetically
+    // impossible off them — the power has to be bought before the claim can be made.
+    var _shifts = typeof _EC.shiftsForAlpha === 'function' ? _EC.shiftsForAlpha(COUPLING_ALPHA) : null;
+    var _opts = { window: [-leadMaxSec * 1000, trailMaxSec * 1000], coverage: merged };
+    if (_shifts) _opts.nullShifts = _shifts;
+    var ec = _EC.coupling(desats, surges, _opts);
     var usable = !ec.underpowered && !ec.saturated;
     coupling = {
       lift: ec.lift,
@@ -1635,8 +1645,16 @@ function fuseApneaEvents(recs, dtMs, gate) {
       coverageAssumed: ec.coverageAssumed,
       window: ec.window,
       usable: usable,
-      // a coupling is REAL only on a usable window where observed genuinely exceeds chance.
-      real: usable && isFinite(ec.lift) && ec.lift > 1 && ec.observedPct > ec.chancePct
+      pPerm: ec.pPerm,
+      pFloor: ec.pFloor,
+      alpha: COUPLING_ALPHA,
+      /* THE VERDICT (DEEP-AUDIT-III §3.2). This was `lift > 1 && observedPct > chancePct`, which is
+         not a test: chancePct IS the surrogate distribution's mean, so under the null "observed >
+         chance" is a fair coin — measured at a 54% false-positive rate over 300 independent-stream
+         trials (162 fired, every one of them `usable`). It is now the exact one-sided permutation
+         p-value against this window's own surrogates. `usable` still gates it, because a p-value on
+         an underpowered or saturated window answers a question nobody should be asking. */
+      real: usable && isFinite(ec.pPerm) && ec.pPerm < COUPLING_ALPHA
     };
   }
 

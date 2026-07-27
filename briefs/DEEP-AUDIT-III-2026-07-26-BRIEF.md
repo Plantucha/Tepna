@@ -267,7 +267,7 @@ re-verification owed.**
 
 </details>
 
-### 3.2 `apneaCoupling.real` is `lift > 1` — a coin flip labelled "the rigorous verdict" — `integrator-dsp.js:1562`
+### 3.2 `apneaCoupling.real` is `lift > 1` — a coin flip labelled "the rigorous verdict" — `integrator-dsp.js:1562` — **FIXED 2026-07-27**
 
 ```
 trials=300  usable=300  real(among usable)=162   => false-positive rate 54.0%
@@ -283,9 +283,42 @@ from chance.**
 > surrogate distribution — the estimator's own expectation under the null — so `observedPct > chancePct` is a
 > fair coin by definition.
 
-**Fix.** Return the surrogate percentages and define `real` as an exact one-sided permutation p-value,
-`p = (1 + #{null ≥ observed}) / (1 + n)`, `real = usable && p < 0.05`; raise the default shift count so the
-minimum attainable p can clear 0.05.
+**Fix AS LANDED (2026-07-27).** `real` is now the exact one-sided permutation p-value against the
+window's own surrogates — `pPerm = (1 + #{null ≥ observed}) / (1 + m)`, `real = usable && pPerm < α`,
+α = 0.05 — with `pPerm`, `pFloor` and `alpha` published beside it. The +1/+1 correction is deliberate
+(Phipson & Smyth 2010): an unadjusted `k/m` can return **p = 0**, which asserts impossibility from a
+finite sample.
+
+Two things the sketch did not anticipate, both found by executing it:
+
+1. **The surrogate count is the consumer's cost, not the primitive's default.** `pPerm` can never fall
+   below `1/(m+1)`, so with the primitive's 10 default shifts the floor is **0.091** and a p < 0.05
+   verdict is *arithmetically unreachable* — the old rule could not have been replaced without also
+   buying power. `EventCoupling.shiftsForAlpha(α)` now sizes the set, and the Integrator calls it: the
+   node that wants to publish a claim pays for it. `pFloor` ships in the block so "not significant" can
+   never be confused with "too few surrogates to tell".
+2. **Reachability alone leaves a knife-edge.** At the minimum m = 20, `p < 0.05` requires the
+   observation to beat **every** surrogate — and this module's own resonance caveat describes how a
+   single shift can re-phase onto stream B's period and score like the observation. One unlucky
+   surrogate would then turn a real coupling into a null result. The set is therefore sized for
+   *resolution* too — tolerate 3 exceedances and still clear α ⇒ **m = 80**.
+
+**Measured through the shipped path** (not through a p-value the test computes for itself — that
+version passed against the old rule for the wrong reason, and was rewritten):
+
+| | independent streams called `real` | planted coupling |
+|---|---|---|
+| pre-fix (`lift > 1`) | **47.5 %** (19 of 40 usable) | real ✓ |
+| permutation test | **2.5 %** (1 of 40) | real ✓ (p = 0.0123) |
+
+The right-hand column is the point: a verdict that is merely *stricter* is a mute button, not a fix.
+
+**Gate:** 3923 assertions green with `DEX_UPLOADS` (0 skipped) · GATE A 9/9 (`Integrator.html`
+`bdc5fc47fed7` → `6e6a28ffcee7`, `OverDex.html` re-bundled — both inline `event-coupling.js`) ·
+`build/--docs/--analysis --check` clean · biome 2.5.3 clean · `verify-fixtures` re-stamped
+`integrator_tch_golden verifiedUnder → 626fee271d66` after a green corpus run. New group *"Coupling
+`real` is a permutation test, not a coin flip — §3.2"* (11 assertions), **mutation-checked**: 4 fail
+against pre-fix code, the load-bearing one reporting the 47.5 % false-positive rate.
 
 ### 3.3 Every confirmed apnea attributes its desat to OxyDex — even with OxyDex absent — `integrator-dsp.js:1459`
 
