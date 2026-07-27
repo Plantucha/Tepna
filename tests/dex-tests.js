@@ -10825,6 +10825,146 @@
       }
     });
 
+    /* ════ PpgDex EVENT ORDER — ganglior_events must be CHRONOLOGICAL (Clock Contract §6).
+     ECGDex's byte-shape group below already locks monotonic tMs; PpgDex had no equivalent, and it
+     was broken: buildEvents emits per KIND (hrv_drop/autonomic_surge from the epoch loop, THEN a
+     motion_artifact_segment run that restarts at t0), appended with no final sort — so every real
+     export ended with events stamped back at the recording start. Found on the 2026-07-16..26
+     capture corpus: 11 of 11 nights out of order.
+
+     Why it matters even though our exports carry tMs: §6 says a consumer may rebuild absolute time
+     from the `t` wall-clock string alone, "rolling past midnight, monotonic". ONE backwards step
+     reads as a midnight wrap, so that event AND EVERY EVENT AFTER IT gain +24 h — 393 of 404 events
+     on the real 2026-07-17 night. This group drives the failing shape through the shared builder and
+     asserts BOTH the order and the §6 t-only reconstruction it protects. ════ */
+    group('PpgDex event order — chronological ganglior_events + t-only §6 reconstruction', 'ppgdex-dsp', function (T) {
+      var P = env.PpgDex || env.PPGDSP;
+      var build = P && (P.buildNodeExport || P._build);
+      if (typeof build !== 'function') {
+        T.ok('PpgDex.buildNodeExport available', false, 'not loaded');
+        return;
+      }
+      var t0 = U(2026, 6, 17, 21, 33, 0);
+      var at = function (sec) {
+        return t0 + sec * 1000;
+      };
+      // The EXACT pre-fix shape: two chronological hrv/surge events, then the motion run restarting
+      // at t0 (buildEvents' second loop). Pre-fix this array survived to the export verbatim.
+      var r = {
+        t0Ms: t0,
+        nn: [820, 835, 810],
+        events: [
+          { t: '23:03:00', tMs: at(5400), impulse: 'autonomic_surge', node: 'PpgDex', conf: 0.7, sqi: null, meta: { ampBpm: 12 } },
+          { t: '07:33:00', tMs: at(36000), impulse: 'hrv_drop', node: 'PpgDex', conf: 0.7, sqi: null, meta: { rmssdFrom: 44, rmssdTo: 26 } },
+          { t: '21:33:26', tMs: at(26), impulse: 'motion_artifact_segment', node: 'PpgDex', conf: 0.3, sqi: 0.41, meta: {} },
+          { t: '21:34:01', tMs: at(61), impulse: 'motion_artifact_segment', node: 'PpgDex', conf: 0.3, sqi: 0.38, meta: {} }
+        ]
+      };
+      var ev = (build(r, {}) || {}).ganglior_events || [];
+      T.ok('all 4 events exported (sort reorders, never drops)', ev.length === 4, ev.length + '');
+      var mono = true;
+      for (var i = 1; i < ev.length; i++) {
+        if (ev[i].tMs != null && ev[i - 1].tMs != null && ev[i].tMs < ev[i - 1].tMs) mono = false;
+      }
+      T.ok(
+        'ganglior_events are non-decreasing in tMs',
+        mono,
+        ev
+          .map(function (e) {
+            return e.impulse + '@' + e.t;
+          })
+          .join(' ')
+      );
+      T.ok('the earliest event sorts FIRST (the motion run no longer trails)', ev[0] && ev[0].impulse === 'motion_artifact_segment' && ev[0].tMs === at(26), ev[0] && ev[0].t);
+      // ── §6 t-only reconstruction: rebuild tMs from `t` + t0's date, rolling forward monotonically.
+      //    This is the consumer the contract mandates; pre-fix it put 2 of 4 events a day late.
+      var prev = t0,
+        dayMs = 86400000,
+        maxDrift = 0;
+      for (var k = 0; k < ev.length; k++) {
+        var p = String(ev[k].t).split(':');
+        var d = new Date(prev);
+        var cand = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), +p[0], +p[1], +p[2] || 0);
+        while (cand < prev) cand += dayMs; // the monotonic midnight roll
+        prev = cand;
+        if (ev[k].tMs != null) maxDrift = Math.max(maxDrift, Math.abs(cand - ev[k].tMs));
+      }
+      T.ok('§6 t-only reconstruction reproduces every tMs exactly (no +24 h roll)', maxDrift === 0, 'max drift ' + maxDrift / 3600000 + ' h');
+      // source-mirror: BOTH sort sites present (the event source and the export boundary).
+      var psrc = (env.sources || {})['ppgdex-dsp.js'];
+      if (psrc) {
+        T.ok('buildEvents sorts its event list before returning', /ev\.sort\(\s*\(a,\s*b\)\s*=>\s*\(a\.tMs\s*==\s*null/.test(psrc));
+        T.ok('ppgBuildNodeExport sorts at the export boundary', /events\.sort\(function\s*\(a,\s*b\)\s*\{[\s\S]{0,120}a\.tMs\s*==\s*null/.test(psrc));
+      } else {
+        T.ok('ppgdex-dsp.js source available (env.sources)', false, 'add it to both runners');
+      }
+    });
+
+    /* ════ ECGDex RECORDING BOUNDS — durSec (DATA) and endEpochMs (CLOCK) are two different questions.
+     The duration-semantics ruling, option (c): a node publishes BOTH, because one scalar cannot answer
+     "how much signal do I have" and "where does this recording end on the clock" at the same time.
+     ECGDex's `durSec` is data-seconds (analyze's `nnRes.activeSec`; the parser's is `n / fs`), so
+     `t0 + durSec` lands SHORT of the true end by exactly the dropout time. Measured over the
+     2026-07-16..26 capture corpus that put ECGDex's own events outside its declared window on 11 of 11
+     nights, by +8 min to +326 min — the node under-declared where it stopped.
+
+     `endEpochMs` is READ from the last row's stamp, never reconstructed from durSec + gaps: a
+     reconstruction is a guess, and §2.6 says a value we do not have is null, not fabricated. The
+     Integrator already prefers `endEpochMs` over every duration key (`normalizeFile`), so this is
+     additive — absent ⇒ exactly today's behaviour. ════ */
+    group('ECGDex recording bounds — durSec (data) + endEpochMs (clock), read not derived', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG available', false, 'not loaded');
+        return;
+      }
+      // A 130 Hz stub with an explicit DROPOUT: rows at t+0..3 steps, then a jump of ~2 s, then more.
+      // Data seconds and wall span therefore DISAGREE by the gap — which is the whole point.
+      var hdr = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var rows = [hdr];
+      var step = 1000 / 130;
+      var mk = function (ms, uv) {
+        var d = new Date(U(2026, 5, 17, 1, 0, 0) + Math.round(ms));
+        var p2 = function (x) {
+          return String(x).padStart(2, '0');
+        };
+        var stamp =
+          d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + 'T' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + '.' + String(d.getUTCMilliseconds()).padStart(3, '0');
+        return stamp + ';0;' + ms.toFixed(2) + ';' + uv;
+      };
+      var t = 0,
+        k;
+      for (k = 0; k < 200; k++, t += step) rows.push(mk(t, 100));
+      t += 2000; // ── the dropout: 2 s of no ECG ──
+      for (k = 0; k < 200; k++, t += step) rows.push(mk(t, 100));
+      var rec = D.parseECG(rows.join('\n'));
+      T.ok('parse produced a t0 + a clock end', rec.t0Ms != null && rec.endEpochMs != null, 't0=' + rec.t0Ms + ' end=' + rec.endEpochMs);
+      var wallMs = rec.endEpochMs - rec.t0Ms;
+      var dataMs = rec.durSec * 1000;
+      T.ok('the dropout was detected as a gap, not as sample interval', (rec.gaps || []).length >= 1, (rec.gaps || []).length + ' gap(s)');
+      T.ok('endEpochMs is the LAST row stamp (clock), exact to the ms', Math.abs(rec.endEpochMs - (U(2026, 5, 17, 1, 0, 0) + Math.round(t - step))) <= 1, 'end=' + rec.endEpochMs);
+      T.ok('durSec is DATA seconds — strictly less than the wall span, by ~the gap', dataMs < wallMs - 1500, 'data=' + (dataMs / 1000).toFixed(2) + 's wall=' + (wallMs / 1000).toFixed(2) + 's');
+      T.ok('t0 + durSec would land SHORT of the true end (the defect this closes)', rec.t0Ms + dataMs < rec.endEpochMs, 'short by ' + ((rec.endEpochMs - rec.t0Ms - dataMs) / 1000).toFixed(2) + ' s');
+      // A stampless recording must yield null, never a fabricated end (§2.6).
+      var bare = D.parseECG(['a;b;c;d', ';0;0.00;100', ';0;7.69;100'].join('\n'));
+      T.ok('no parseable stamp ⇒ endEpochMs null, never fabricated', bare.endEpochMs === null, String(bare.endEpochMs));
+      // …and it reaches the export THROUGH analyze() — the property belongs to the RECORDING, not to
+      // the analysis, so analyze must carry it (the same reason `offsetMin` needs an explicit carry).
+      // Driven on the real synthetic waveform, not the stub above: the stub is a flat 100 µV line with
+      // no QRS, and analyze CORRECTLY refuses it ("Too few R-peaks") — a good guard we do not weaken.
+      if (typeof D.compute === 'function' && typeof D.genSynthetic === 'function') {
+        var srec = D.genSynthetic({ durSec: 600 });
+        var END = U(2026, 5, 17, 4, 30, 0);
+        srec.endEpochMs = END;
+        var exp = D.compute(srec);
+        T.ok('recording.endEpochMs survives analyze() into the node-export', exp && exp.recording && exp.recording.endEpochMs === END, exp && exp.recording && String(exp.recording.endEpochMs));
+        T.ok('recording.durSec is still published alongside it (BOTH, not either)', exp && exp.recording && typeof exp.recording.durSec === 'number', exp && exp.recording && String(exp.recording.durSec));
+        var srec2 = D.genSynthetic({ durSec: 600 }); // no endEpochMs → null, and the export still builds
+        var exp2 = D.compute(srec2);
+        T.ok('a recording with no clock end exports null (additive: absent ⇒ today’s behaviour)', exp2 && exp2.recording && exp2.recording.endEpochMs === null, exp2 && exp2.recording && String(exp2.recording.endEpochMs));
+      }
+    });
+
     /* ════ 12e · ECGDex EVENT BYTE-SHAPE — the surge/stage impulse stream incl. the sqi axis
      + meta (ECGDEX-FOLLOWUPS-2026-06-27 §4). The equiv fixture is 0-event, so the byte-shape
      of ECGDex's emitted impulses went untested. Drive a deterministic overnight synthetic

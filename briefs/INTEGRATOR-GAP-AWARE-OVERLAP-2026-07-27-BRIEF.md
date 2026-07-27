@@ -1,0 +1,104 @@
+<!--
+  INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+-->
+**Status:** PROPOSED · **Created:** 2026-07-27 · **Found-by:** the 11-night capture-host corpus fold (2026-07-16 … 07-26) · **Builds-on:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` §6.2 (`recording.coverage` + `segmentsOverlap`, landed `986d17e`) · **Relates:** `NODE-EXPORT-DURATION-SEMANTICS-2026-07-27-BRIEF.md` (the `durSec`/`endEpochMs` ruling), `CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md`
+
+# The coverage contract exists. Nothing emits it — and the capture nodes are the sparse ones.
+
+> **What changed under this brief.** It was drafted arguing the Integrator needed a coverage model.
+> Between drafting and landing, `986d17e` **shipped one** — `recording.coverage.{kind,segments,recordedSec,spanSec}`
+> plus `segmentsOverlap`. That is the right mechanism and this brief no longer proposes it. What survives
+> is sharper and narrower: **no node emits the block**, the mechanism is wired to a *boolean* rather than
+> to the published *quantities*, and the assumption written into the code — "null for every node that
+> records continuously, **which is all of them today**" — is **false for the three capture nodes**, which
+> is precisely where it costs a published number.
+
+---
+
+## 1 · What already landed (do not rebuild it)
+
+`986d17e` (DEEP-AUDIT-III §6.2) added, for the HRVDex 29-day-spot-measurement case:
+
+```
+recording.coverage = { kind: "continuous"|"sparse", spanSec, segments:[{startMs,durSec}], recordedSec, nWithDuration, n }
+```
+
+- `recCoverageSegments(r)` / `segmentsOverlap(a,b)` in `integrator-dsp.js`;
+- `normalizeFile` carries `coverage` through (`coverage: (json.recording && json.recording.coverage) || null`);
+- sparse coverage **extends the envelope** so a spot-measurement record stops being a point;
+- `spanSec` (envelope) and `recordedSec` (coverage) are deliberately separate so neither reads as the other.
+
+That is option (a) of this brief's original §4, built. The remaining findings are about its **reach**.
+
+## 2 · Finding A — the capture nodes are sparse, and the code assumes they are not
+
+`integrator-dsp.js` §6.2 comment: *"Null for every node that records continuously, which is all of them today."*
+
+On the real capture-host corpus that is not true. A BLE link drops and the daemon opens a **new segment**;
+one night routinely spans **24–47 segments per stream**:
+
+| night | H10 ECG segments | Verity PPG | O2Ring |
+|-------|------------------|------------|--------|
+| 2026-07-26 | 3 | 24 | 7 |
+| 2026-07-23 | 3 | 24 | — |
+
+`ecgdex-dsp.js` and `ppgdex-dsp.js` contain **zero** occurrences of `coverage:`. So the block that exists
+for HRVDex's benefit is not emitted by the three nodes whose recordings actually have holes in them.
+
+## 3 · Finding B — the mechanism gates a boolean, not the published quantities
+
+`segmentsOverlap` is consulted in exactly one place — `_mayOverlap(a,b)`, which answers *did these two
+overlap at all*. Every **quantity** still comes from the envelope:
+
+- `recWindow(r)` still returns a single `[t0Ms, endMs]` interval;
+- `overlapInterval(a,b)` intersects those pairs;
+- `totHrs` sums merged envelope intervals → **`apnea.overlapHours`** → **`confirmedAHI = nConf / totHrs`**, and the Poisson null model's chance expectation.
+
+So even a node that *did* declare sparse coverage would still be divided by envelope hours.
+
+## 4 · The measured cost
+
+`tools/trio-batch.mjs` computes the honest figure — it intersects the three nodes' **actual session
+interval sets** (`ivIntersect(mergeIv(ecg), mergeIv(ppg))`) and prints it:
+
+| night | trio-batch three-way (gap-aware) | Integrator `apnea.overlapHours` | ratio |
+|-------|----------------------------------|----------------------------------|-------|
+| **2026-07-23** | **2.1 h** | **6.86 h** | **3.3×** |
+
+2026-07-23 is the corpus's most fragmented night **and the only one of eleven marked
+`confirmedAHIReportable: true`** (`confirmedAHI 0.29`). On the gap-aware 2.1 h the same 2 confirmed
+events are **0.95/h**.
+
+The error does not simply run conservative: an inflated denominator **understates** `confirmedAHI`, while
+the same coverage **raises** the Poisson chance expectation, pushing toward withholding. The two do not
+cancel and the net sign is night-dependent — so the reportability verdict rests on a coverage figure
+wrong by an unbounded factor.
+
+## 5 · Why no gate saw it
+
+- **GATE B is static** — it pins bytes, and the bytes are self-consistent. A wrong denominator reproduces perfectly.
+- **The equiv/GATE-C fixtures are single-recording and gapless**, so the envelope *is* the coverage there.
+- **The synthetic fusion tests build contiguous windows by hand** — they *encode* the assumption rather than test it.
+- §6.2's own tests exercise the **sparse-spot-measurement** shape (HRVDex), not the **fragmented-continuous** shape (a night of BLE reconnects), so they do not reach this.
+
+Per `CLAUDE.md` §🔒, the fix must ship an **adversarial committed fixture with holes** — a committed twin
+beats a real one because CI re-runs it from committed bytes.
+
+## 6 · Done when
+
+- [ ] ECGDex / PpgDex / OxyDex emit `recording.coverage` with `kind:"sparse"` and real `segments` when their input was multi-session. The session boundaries are already known at parse time (ECGDex tracks `gaps`; the capture layout is one file per segment).
+- [ ] `totHrs` / `apnea.overlapHours` / `confirmedAHI` / the null-model expectation are computed on **recorded** time when coverage is declared, falling back to the envelope when it is not.
+- [ ] The fusion export publishes the coverage it used, so a reader can tell 7 h-of-7 from 2 h-of-7.
+- [ ] **Adversarial committed fixture** — a three-node night with real holes (the 2026-07-23 shape: ~2 h of concurrency inside a ~7 h envelope) in `uploads/` + `FIXTURE-PROVENANCE.json`, with a test asserting the gap-aware overlap, **verified RED against current code**.
+- [ ] Absent coverage ⇒ byte-identical results to today (pin it — that is the back-compat contract §6.2 already established).
+- [ ] Gates: `Dex-Test-Suite.html?full` · `run-tests.mjs` · `verify-manifest.mjs` GATE A+B · `build.mjs --check`. Nodes re-bundled; `computeHash` moves ⇒ corpus re-verification (`DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs`). The `integrator_fusion_*` fixtures are `historical:true` — byte-pinned, **not** to be re-stamped.
+- [ ] Changeset `bump: minor` (exports gain a field). **Published AHI values will move on fragmented nights** — that is the point, and it belongs in the CHANGELOG in those words.
+
+## 7 · What this brief does NOT claim
+
+The 2026-07-23 reportable finding is **not** shown to be false — 2 confirmed desat⟷surge matches happened,
+and on the honest denominator the index is *higher*, not lower. What is wrong is the number published
+next to it, and that the reportability decision was made against a coverage figure 3.3× the truth. No
+other night in the corpus was reportable, so no published index outside 2026-07-23 changes.
