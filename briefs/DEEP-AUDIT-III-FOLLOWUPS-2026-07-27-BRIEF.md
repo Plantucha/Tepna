@@ -32,7 +32,7 @@ at all.
 re-bundle; GlucoDex fixtures will move (an additive export field), so regenerate through
 `tools/regen-glucodex-goldens.mjs`, never by hand.
 
-### 1.2 The surge-side twin of the desat double-count — **found by mutation-checking the fix for §3.1**
+### 1.2 The surge-side twin of the desat double-count — **found by mutation-checking the fix for §3.1** — **FIXED 2026-07-27**
 
 `gather()` applies the same `impulse@round(tMs/1000)` key to the **surge** pool. Two cardiac observers
 (H10 + Verity) therefore double `total.surge`, and with it `lambda` / `surgeRatePerHr` — pushing the
@@ -51,11 +51,29 @@ score, so the real question is *what that KPI reads when HF is zero* — `null` 
 disappears), or a documented floor (survives, but is a heuristic wearing a number's clothes). The `§5.2`
 gate is scoped to the `lfhf` assignment so it cannot be misread as covering the score.
 
-### 1.4 OxyDex's `_durBad` catches a negative span but not an inflated one
+### 1.4 OxyDex's `_durBad` catches a negative span but not an inflated one — **FIXED 2026-07-27**
 
 `oxydex-dsp.js:2500` is `_durBad = !(rawDurMs >= 0)`. `§1.2`'s roll fix removes the *cause* of the 1560-min
 night, but the *guard* is still one-sided: a span inflated by a whole multiple of 24 h still passes as a
 real number. Flag when `rawDurMs` exceeds the span implied by row count × cadence.
+
+> **§1.2 · §1.4 · §F2 LANDED 2026-07-27.** The surge fix is deliberately NOT the desat fix: R2 makes
+> either cardiac node a first-class corroborator, so **matching keeps the whole pool** and only the
+> **rate** is taken from one observer (a body has one autonomic surge rate however many devices watch it),
+> chosen by the existing `HR_AUTHORITY` ladder and named in `nullModel.surgeRateObserver`. Mutation-checked:
+> pre-fix the rate goes **5 → 10 /hr** and expected-by-chance **4.17 → 8.33** purely by adding a device.
+> §F2 (`_o2DateAnchorMs`, the defect that surfaced from a REFUTATION and never reached a punch-list) now
+> round-trips its components like `clock.js:_ckMk` and anchors its capture: `20261332999999` → **null**,
+> not 2027-02-01. §1.4's guard is bounded by row count × observed cadence, with `durationInflated`
+> separating an inflated span from a non-monotonic one. **Gate:** 4069 assertions green with
+> `DEX_UPLOADS` (0 skipped) · GATE A 9/9 (`OxyDex` `e6090be9408c` → `ffc146274682`, `Integrator`
+> `aa804cf9283a` → `f3d273a34cc4`).
+>
+> **§1.5 note discovered while scoping it:** the TCH golden's inputs are built by `_tchGoldenInputs()`
+> **inside a test-group closure** in `tests/dex-tests.js`. Copying that builder into a regen tool would
+> create a second source that can drift from the gate's — the exact sibling-divergence class this audit
+> exists to fix. The tool must therefore be preceded by **extracting the builder to a shared module both
+> the gate and the tool import**. That is a structural change and is why §1.5 is still open.
 
 ### 1.5 The Integrator has no regen tool — the one empty cell in the coverage matrix
 

@@ -200,11 +200,29 @@
     parseTimestamp = DexClock.parseTimestamp;
   // Floating-ms date anchor (00:00) for a recording: filename 14-digit date, else
   // file.lastModified (as floating wall-clock), else null. Used for time-only rows.
+  /* §F2 (DEEP-AUDIT-III-FOLLOWUPS) — VALIDATE THE COMPONENTS, and ANCHOR the regex.
+     This surfaced as the ADJACENT finding when the audit refuted a different claim, so it never reached
+     the punch-list — two audit classes, zero tickets. Both defects are real and measured:
+       · `Date.UTC` SILENTLY ROLLS out-of-range components (Clock Contract §2.7), so a filename run of
+         `20261332999999` (month 13, day 32) produced a night dated 2027-02-01, and `99999999999999`
+         produced 10007-06-07. A fabricated instant, from a filename, with no flag.
+       · the capture is UNANCHORED (class 12), so on a name carrying an 8-digit device serial the first
+         14 consecutive digits found need not be the stamp at all.
+     `clock.js` already solved exactly this in `_ckMk` — a date that does not round-trip is refused —
+     so this validates the same way rather than inventing a second rule. Refusing returns null, which
+     `_o2DateAnchorMs` already treats as "date unknown"; that path is honest and already exercised. */
   function _o2DateAnchorMs(fname, file) {
-    var m = String(fname || '').match(/(\d{14})/);
+    var m = String(fname || '').match(/(?:^|[^0-9])(\d{14})(?:[^0-9]|$)/);
     if (m) {
       var s = m[1];
-      return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8));
+      var _y = +s.slice(0, 4),
+        _mo = +s.slice(4, 6),
+        _d = +s.slice(6, 8);
+      var _t = Date.UTC(_y, _mo - 1, _d);
+      var _rt = new Date(_t);
+      // round-trip: a rolled component (month 13, Feb 30, day 32) cannot survive this
+      if (_rt.getUTCFullYear() === _y && _rt.getUTCMonth() === _mo - 1 && _rt.getUTCDate() === _d) return _t;
+      return null; // out-of-range stamp ⇒ date unknown, never a fabricated night
     }
     if (file && file.lastModified) {
       var fl = _ckNumEpoch(file.lastModified);
@@ -2500,10 +2518,36 @@
     // §3), so rows cannot run backward. If one still does, that is a clock failure — surface it as an
     // absent duration, never as a negative number that would silently divide the ODI/burden denominators.
     var rawDurMs = rows[n - 1].tMs - rows[0].tMs;
-    var _durBad = !(rawDurMs >= 0);
+    /* §F1.4 — the guard was one-SIDED: `!(rawDurMs >= 0)` catches a NEGATIVE span and lets an INFLATED
+       one pass as a real number. That is how a 120-minute night reported 1560 minutes with
+       `clockNonMonotonic` still false. §1.2's roll fix removed the CAUSE; this closes the GUARD, because
+       defence-in-depth is the point of a guard — any future clock disorder that inflates a span should
+       be visible rather than surfaced as a duration.
+       The bound comes from the data, not a constant: with n rows at the observed median cadence, the
+       span cannot honestly exceed n × cadence by much. 1.5× is deliberately generous (real recordings
+       carry genuine gaps), so this fires only on the multiple-of-24 h shape a rolled date produces. */
+    var _cad = null;
+    if (n > 8) {
+      var _d = [];
+      for (var _i = 1; _i < n; _i++) {
+        var _dt = rows[_i].t - rows[_i - 1].t;
+        if (_dt > 0) _d.push(_dt);
+      }
+      if (_d.length > 4) {
+        _d.sort(function (a, b) {
+          return a - b;
+        });
+        _cad = _d[_d.length >> 1];
+      }
+    }
+    var _durInflated = _cad != null && rawDurMs > 1.5 * n * _cad + 3600000;
+    var _durBad = !(rawDurMs >= 0) || _durInflated;
     return {
       durationMin: _durBad ? null : +(rawDurMs / 60000).toFixed(1),
       clockNonMonotonic: _durBad || undefined,
+      // §F1.4 — distinguish the two failures: a span that ran BACKWARDS vs one inflated far past what
+      // the row count and cadence can support. Both null the duration; only one is non-monotonic.
+      durationInflated: _durInflated || undefined,
       start: fmtTime(rows[0].t),
       end: fmtTime(rows[n - 1].t),
       meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : 0,
