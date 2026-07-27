@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1sL+ThT5kvkwIi+V1RSw5GIl1D7dXNtPtdUPwg8HVKo=' 'sha256-46boG2Zei2KUTqqL3no38xx2xgHnFR/QxIJLutVxSyg=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6aXGOdFWEjOFEkW0BBD/kpdrK+ThElz7ua4Jvm0lBNY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-G+Gx0cHz1USZIU8qM29S72oc1FgE7XTJ6Eye4K+WLdA=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-NpCsvdxKqXigodrGZSJ5GM3mz8JrTjtkcrG94iDXqzU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hBs4G9ijy/HbbGpjr4Q/qwyaJl3xnVpIYXpZqv9Z51o=' 'sha256-hVtiK8Jgb2BbTTOk7HazQNXQ9phQb3LSTiH0BTyLvUg=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-jgFCSY4h0MGW7aXWFFOExrtUfz58KsUW0GJnpwdUJgA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-46boG2Zei2KUTqqL3no38xx2xgHnFR/QxIJLutVxSyg=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6aXGOdFWEjOFEkW0BBD/kpdrK+ThElz7ua4Jvm0lBNY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hBs4G9ijy/HbbGpjr4Q/qwyaJl3xnVpIYXpZqv9Z51o=' 'sha256-hVtiK8Jgb2BbTTOk7HazQNXQ9phQb3LSTiH0BTyLvUg=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-jgFCSY4h0MGW7aXWFFOExrtUfz58KsUW0GJnpwdUJgA=' 'sha256-kQS2h/b4ElQF06zAQFdmjKSGr6fmwJC2SFueybObJZ0=' 'sha256-ny+9QsHxaHVyaSmFUnXWP8dZDJGp+l7uuEzI8mNPtH8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -371,7 +371,12 @@
     }, // PpgDex namespace (PPGDSP legacy)
     cgm: {
       kind: 'samples',
-      unit: 'mmol/L',
+      /* §2.3 — mg/dL is what every cgm producer actually emits: `libre-cgm.js` builds samples from
+         `parsed.vMgdl` because `glucodex-dsp.js` normalises mmol/L → mg/dL at parse. Declaring
+         mmol/L made the Data Unifier's routing card label mg/dL data with an 18.018x-wrong unit.
+         CLAUDE.md §📏 permits mg/dL as this signal's clinical metric unit, and the mmol/L display
+         switch already lives in GluDisp at the presentation boundary. */
+      unit: 'mg/dL',
       frameFields: ['samples', 'tsMs', 't0Ms'],
       dsp: function () {
         return g('GLUDSP');
@@ -9599,9 +9604,17 @@ __exports.OxyDex = window.OxyDex;
       // MeanRR through the SAME asSecondsRR detector as MxDMn/Mode above (was a hard /1000 → ~10³× mis-scale
       // on a MeanRR-in-seconds vendor export; latent while both real ingest paths carried MeanRR in ms).
       const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
-      // Toichi CVI: log10(rMSSD_ms × MeanRR_ms) — both in ms for correct units
-      // Typical resting values: 3.5–4.5; threshold thresholds updated accordingly
-      r.d_cvi = r._rmssd > 0 && r._meanRR > 0 ? Math.log10(r._rmssd * r._meanRR) : NaN;
+      /* Toichi CVI: log10(rMSSD_ms × MeanRR_ms) — typical resting 3.5–4.5, and the render colour rule
+         (>4.4 good / >4.1 warn / else bad) is calibrated to that ms×ms band.
+         §2.1 — this read `_meanRR` RAW while its neighbours two lines up and down read it through the
+         asSecondsRR guard: SAME loop, SAME field, SAME row. On a MeanRR-in-seconds vendor row the KPI
+         went 4.58 → 1.58 and painted a red "bad" cardiac-vagal verdict while every guarded neighbour
+         stayed exactly invariant. DEEP-AUDIT-2026-07-22's REFUTED row dismissed this as "internally
+         consistent (both operands from the same vendor)" — ratio-cancellation reasoning, which does
+         NOT hold for a LOG OF A PRODUCT: log10(a_s·b_s) = log10(a_ms·b_ms) − 6. Compute in ONE
+         declared unit (seconds, via the same detector) and restate into the published ms×ms band. */
+      const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._rmssd).valueS : r._rmssd / 1000;
+      r.d_cvi = rmssd_s > 0 && meanRR_s > 0 ? Math.log10(rmssd_s * meanRR_s) + 6 : NaN;
       // CSI: MxDMn in SECONDS / meanRR in seconds. Uses the SAME guard-normalized MxDMn as d_si
       // (was a hard "assumes seconds" → ~10³× mis-scale on a ms-unit file; -III §1). meanRR_s already
       // converts meanRR ms→s above, so both operands are seconds; do NOT re-fork the threshold.
@@ -9674,8 +9687,10 @@ __exports.OxyDex = window.OxyDex;
       r.d_all_night = _hrvIsAllNight(r); // consumers (view filter, band gating) read THIS, not the hour
 
       // ── NN50 estimate ──
-      const meanRR_s_local = r._meanRR > 0 ? r._meanRR / 1000 : NaN; // fix: use per-row value
-      const beats5min = meanRR_s_local > 0 ? 300 / meanRR_s_local : NaN;
+      // §2.1 — this hard `/1000` is the exact idiom the guard replaced 76 lines earlier in the same
+      // function; on a MeanRR-in-seconds row it made the NN50 estimate 60 → 59 999. Reuse the guarded
+      // value rather than re-deriving it (a second derivation is a second place to diverge).
+      const beats5min = meanRR_s > 0 ? 300 / meanRR_s : NaN;
       r.d_nn50 = !isNaN(beats5min) && _all(r._pnn50) ? (r._pnn50 / 100) * beats5min : NaN;
 
       // ── VO2max Estimates ──────────────────────────────────────────
@@ -14084,7 +14099,12 @@ __exports.GlucoDex = window.GlucoDex;
     // 2/3 — ISO-8601 (zone authoritative if present, else components verbatim)
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?\s*(Z|[+-]\d{2}:?\d{2})?$/);
     if (m) {
-      const ms = m[7] ? Math.round(parseFloat('0.' + m[7]) * 1000) : 0;
+      /* §1.3 — TRUNCATE, never round. `Math.round(parseFloat('0.'+frac)*1000)` yields 1000 for any
+         fraction >= .9995, and `_ckMk`'s `ms > 999` guard then returns null: a perfectly valid ISO
+         stamp became an honest-null. The four sibling parsers (clock.js, glucodex-dsp, cpapdex-dsp,
+         ecgdex-dsp) all do `+(m[7]+'00').slice(0,3)`, which cannot overflow. PpgDex is a sanctioned
+         node-local variant, so this is a bug INSIDE the variant, not a call to unify it. */
+      const ms = m[7] ? +(m[7] + '00').slice(0, 3) : 0;
       const tMs = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, ms);
       if (tMs == null) return null; // §2.7 — out-of-range component → honest null, never a rolled instant
       let offsetMin = null;

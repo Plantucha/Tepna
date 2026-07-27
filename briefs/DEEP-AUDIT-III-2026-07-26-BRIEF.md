@@ -128,7 +128,7 @@ confirmation of that documented split). 3985 assertions green with `DEX_UPLOADS`
 row-count × cadence is a second, independent change to a different node; it belongs with §1.1 rather than
 riding a spine re-bundle.
 
-### 1.3 PpgDex's parser rounds a `.9995` fraction to 1000 ms and then rejects its own stamp — `ppgdex-dsp.js:58`
+### 1.3 PpgDex's parser rounds a `.9995` fraction to 1000 ms and then rejects its own stamp — `ppgdex-dsp.js:58` — **FIXED 2026-07-27**
 
 ```
 "2026-06-17T01:02:03.9995"  DexClock=…03.999Z | PPGDSP=null | GLUDSP=…03.999Z | CPAPDSP=…03.999Z
@@ -183,7 +183,7 @@ were *invisible*. Both are now named as unmigrated — the honest state.
 
 ## 2 · Units — three guards that cover only part of their own field
 
-### 2.1 HRVDex: three of six `_meanRR` consumers bypass the unit guard — `hrvdex-dsp.js:636`
+### 2.1 HRVDex: three of six `_meanRR` consumers bypass the unit guard — `hrvdex-dsp.js:636` — **FIXED 2026-07-27**
 
 `DEEP-AUDIT-2026-07-11 §4` and `DEEP-AUDIT-2026-07-22 §E` each installed one instance of the
 `DexUnits.asSecondsRR` guard. Three expressions still read `_meanRR` **raw**, in the same loop, on the same row:
@@ -208,7 +208,7 @@ mirroring the one `d_csi` already has. **Gate: `hrvdex-dsp.js` is inlined by HRV
 OverDex ⇒ three bundles, serialized (the orchestrators are the fleet chokepoint); `computeHash` moves ⇒
 corpus re-verification owed.**
 
-### 2.2 MotionDex assumes `mg` for any unrecognised ACC unit — `motiondex-dsp.js:105`
+### 2.2 MotionDex assumes `mg` for any unrecognised ACC unit — `motiondex-dsp.js:105` — **FIXED 2026-07-27**
 
 The unrecognised-unit path silently returns `'mg'` rather than `null`, so an `m/s²` file would be scaled
 9.8×-wrong with no flag.
@@ -219,7 +219,7 @@ The unrecognised-unit path silently returns `'mg'` rather than `null`, so an `m/
 > `classifyGravity` already implements one. File the fall-through as robustness; file the missing oracle as
 > the real defect.
 
-### 2.3 `SignalSpec.cgm.unit` declares mmol/L for frames that carry mg/dL — `signal-spec.js:69`
+### 2.3 `SignalSpec.cgm.unit` declares mmol/L for frames that carry mg/dL — `signal-spec.js:69` — **FIXED 2026-07-27**
 
 Every `cgm` producer emits mg/dL; `toSignalFrame`'s fixed field list has no `unit` key, so the adapter's
 honest source-unit tag is **discarded** and cannot be recovered downstream.
@@ -231,6 +231,23 @@ honest source-unit tag is **discarded** and cannot be recovered downstream.
 unit) and add `unit` to the frame shape so an adapter's tag survives.
 
 ---
+
+> **§1.3 · §2.1 · §2.2 · §2.3 ALL FIXED 2026-07-27** (one work unit — four mechanical unit/parser
+> defects). §1.3 truncates like its four siblings. §2.1 routes `d_cvi` and `d_nn50` through the same
+> `asSecondsRR` detector their neighbours already used, computing in one declared unit and restating
+> `d_cvi` into its published ms×ms band so the render colour rule stays calibrated — **`d_cv_calc` is
+> deliberately untouched**, the verifier having proved it invariant under any vendor-consistent
+> convention. §2.2 recognises `m/s²`, returns **`null` when it does not know** rather than defaulting to
+> milli-g, and adds the **magnitude oracle** the verifier identified as the real defect: gravity is a
+> measurement, a unit tag is only a claim, so the parse boundary cross-examines one against the other and
+> **reports** a disagreement in `_unitSuspect` instead of silently rescaling. §2.3 declares `mg/dL`.
+>
+> One interaction worth recording: making the unit honestly `null` broke §4.3's plausibility bound, which
+> had assumed **g** and therefore rejected every row of a milli-g file *before* the oracle could see it —
+> an honest "unknown unit" turned into an empty stream. The bound is now unit-aware and only bounds the
+> absurd until the unit is known. **Gate:** 4007 assertions green with `DEX_UPLOADS` (0 skipped) · GATE A
+> 9/9 (`PpgDex` `fb32ff3da399` → `a39b4ced950e`, `HRVDex` `f41fc714a0a7` → `44b331c854ce`, `MotionDex`
+> `96e232c717c5` → `a533ce87340d`) · **mutation-checked: 20 assertions fail against pre-fix code**.
 
 ## 3 · The Integrator's fusion arithmetic — first pass ever
 

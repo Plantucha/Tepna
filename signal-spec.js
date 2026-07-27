@@ -66,7 +66,12 @@
     }, // PpgDex namespace (PPGDSP legacy)
     cgm: {
       kind: 'samples',
-      unit: 'mmol/L',
+      /* §2.3 — mg/dL is what every cgm producer actually emits: `libre-cgm.js` builds samples from
+         `parsed.vMgdl` because `glucodex-dsp.js` normalises mmol/L → mg/dL at parse. Declaring
+         mmol/L made the Data Unifier's routing card label mg/dL data with an 18.018x-wrong unit.
+         CLAUDE.md §📏 permits mg/dL as this signal's clinical metric unit, and the mmol/L display
+         switch already lives in GluDisp at the presentation boundary. */
+      unit: 'mg/dL',
       frameFields: ['samples', 'tsMs', 't0Ms'],
       dsp: function () {
         return g('GLUDSP');
