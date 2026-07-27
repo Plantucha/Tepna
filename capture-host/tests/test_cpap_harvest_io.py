@@ -466,7 +466,24 @@ def test_wpa_up_still_returns_when_the_psk_conf_cannot_be_unlinked(monkeypatch):
     assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 10) is True
 
 
-def test_wifi_up_false_when_the_wpa_backend_cannot_associate(monkeypatch):
+def test_wifi_up_false_when_the_wpa_backend_cannot_associate(tmp_path, monkeypatch):
+    """⚠️ SYS_NET is redirected on purpose. The wpa path first checks that the interface EXISTS under
+    /sys/class/net, so against the real one this test took whichever branch the host happened to
+    provide — reaching `_wpa_up` on a dev box with a wlan device and returning at the
+    interface-missing guard in CI. It passed either way while covering different code, which is how an
+    environment dependency hides inside a green suite."""
+    net = tmp_path / "net" / "wlan0"
+    net.mkdir(parents=True)
+    monkeypatch.setattr(ch, "SYS_NET", str(tmp_path / "net"))
     monkeypatch.setattr(ch, "backend", lambda: "wpa")
     monkeypatch.setattr(ch, "_wpa_up", lambda *a: False)
-    assert ch.wifi_up("ezshare", guard_dev="eno1") is False
+    assert ch.wifi_up("ezshare", guard_dev="eno1", iface="wlan0") is False
+
+
+def test_wifi_up_refuses_an_interface_this_box_does_not_have(tmp_path, monkeypatch):
+    """The other arm, now that the one above cannot drift into it: a `wifi_iface` naming a device that
+    is not present must fail with the message that names the setting, not attempt to associate."""
+    monkeypatch.setattr(ch, "SYS_NET", str(tmp_path / "net"))          # empty — no interfaces at all
+    monkeypatch.setattr(ch, "backend", lambda: "wpa")
+    monkeypatch.setattr(ch, "_wpa_up", lambda *a: pytest.fail("must not associate on a missing iface"))
+    assert ch.wifi_up("ezshare", guard_dev="eno1", iface="wlan0") is False
