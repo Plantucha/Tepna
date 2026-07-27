@@ -135,3 +135,5 @@ characteristic was found (guaranteeing a dead night with a live link and no erro
 - **Audit note:** the "stale `_WORN_SINCE` gives a re-worn strap a zero-length grace" finding was checked
   and is **by design** — the short probe is what the code comment describes, and a `contact=True` frame
   clears it. Not changed.
+
+<!-- scratch: verifying a docs-only PR is not blocked by the required browser-gates; deleted immediately -->
