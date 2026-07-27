@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 import asyncio, os, re, time as _time
+import proc_util
 
 import helper_path
 
@@ -49,7 +50,7 @@ async def _run(*args, timeout=12):
     try:
         p = await asyncio.create_subprocess_exec(
             *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-        out, _ = await asyncio.wait_for(p.communicate(), timeout)
+        out, _ = await proc_util.communicate(p, timeout)
         return p.returncode, out.decode(errors="replace")
     except FileNotFoundError:
         return 127, f"{args[0]} not found"

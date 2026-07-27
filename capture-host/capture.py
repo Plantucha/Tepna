@@ -13,6 +13,7 @@ import argparse, asyncio, contextlib, json, logging, os, signal, time as _time, 
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter,
                      HostClockLogWriter, capture_filename, missing_identity, night_dir,
                      open_sample_writers)
+import proc_util
 import polar_pmd as pmd
 import viatom
 import oxyii
@@ -2124,7 +2125,7 @@ async def _adapter_is_up(hci: str) -> "bool | None":
     try:
         p = await asyncio.create_subprocess_exec(
             "hciconfig", hci, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-        out, _ = await asyncio.wait_for(p.communicate(), timeout=6)
+        out, _ = await proc_util.communicate(p, 6)
         if p.returncode != 0:
             return None
         return "UP RUNNING" in out.decode("utf-8", "replace")

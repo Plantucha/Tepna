@@ -26,7 +26,7 @@ import polar_psftp
 import storage_targets
 import timeline as _timeline
 import settings_schema
-from writers import missing_identity
+from writers import missing_identity, StreamWriter
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _log = logging.getLogger("tepna.webmon")
@@ -47,6 +47,13 @@ def _valid_mac(a) -> bool:
     # rest of the box's life (VIGIL-HARDENING-III §2).
     return isinstance(a, str) and bool(_MAC_RE.fullmatch(a))
 
+
+# Every stream name the box can actually write. The floor under the per-device firmware check in
+# settings_post: that check is skipped when the device has never connected since boot, and an
+# allowlist that exists only while a sensor is up is not an allowlist (CAPTURE-HOST-DEEP-AUDIT §D4).
+# Derived from the writer layouts so it cannot drift from what a runner can open, plus the two the
+# non-PMD runners add (`spo2` from the ring, `eeg` from the Muse child tool).
+KNOWN_STREAMS = frozenset(StreamWriter.HEADERS) | {"spo2", "eeg"}
 
 # A body that is not a JSON OBJECT. Distinct from `{}` on purpose (CAPTURE-HOST-DEEP-AUDIT §D1/§D3):
 # `{}` is a caller who sent an object and omitted the keys, which several endpoints treat as a
@@ -82,6 +89,42 @@ async def _body(req):
 def _bad_body_response():
     return web.json_response(
         {"ok": False, "error": "request body must be a JSON object"}, status=400)
+
+
+# Written at the top of every machine-emitted config.yaml. The file is UI-owned and `yaml.safe_dump`
+# cannot round-trip comments (CAPTURE-HOST-DEEP-AUDIT §D5), so rather than let an operator discover
+# that by losing 20 lines of their own notes, the file says what it is and where the prose lives.
+_CFG_BANNER = (
+    "# WRITTEN BY THE TEPNA MONITOR — comments in this file are NOT preserved.\n"
+    "# Every save (settings / remember / forget / storage) re-emits it from the in-memory config, and\n"
+    "# the YAML emitter has no comment round-trip. Keep notes in config.example.yaml, which is version\n"
+    "# controlled and never written by the box.\n")
+
+_comment_loss_warned = False
+
+
+def _has_comments(path: str) -> bool:
+    """True when the file on disk carries operator comments this save is about to drop. Cheap, and
+    deliberately ignores the banner we wrote ourselves."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                t = line.strip()
+                if t.startswith("#") and not t.startswith("# WRITTEN BY THE TEPNA MONITOR") \
+                        and "config.example.yaml" not in t and "comment round-trip" not in t \
+                        and "Every save (settings" not in t:
+                    return True
+    except OSError:
+        return False
+    return False
+
+
+def _warn_comment_loss(path: str) -> None:
+    global _comment_loss_warned
+    _comment_loss_warned = True
+    _log.warning("config: %s carries comments that this save will DROP — the monitor owns this file "
+                 "and the YAML emitter cannot round-trip comments. Keep notes in config.example.yaml.",
+                 path)
 
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
@@ -394,12 +437,31 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         one. The directory fsync is what makes the rename itself survive a power loss (fsyncing the
         file alone leaves the directory entry unflushed). Failure at ANY step leaves the original
         untouched and reports false. (VIGIL-DEEP-ANALYSIS §2A kept the honest return value; this fixes
-        the thing it was reporting on.)"""
+        the thing it was reporting on.)
+
+        ⚠️ THE UI OWNS THIS FILE, AND WRITING IT DESTROYS THE OPERATOR'S COMMENTS
+        (CAPTURE-HOST-DEEP-AUDIT §D5). `yaml.safe_dump` has no comment round-trip, so the emitted
+        document is comment-free BY CONSTRUCTION — 20 comment lines in, 0 out, values identical. That
+        is why four hand-made backups of one file were sitting in the working tree
+        (`config.yaml.bak`, `.pre-acc52`, `.pre-coospo`, `.pre-ppi-1646`): the comment-free ones are
+        machine-emitted and the human re-authored the comments by hand afterwards.
+
+        Not silently accepted, and not fixed by adding `ruamel.yaml` either — a runtime dependency for
+        comment preservation is a SOUP entry on a 62304-aligned appliance, which is a real cost for a
+        cosmetic gain. The honest resolution is to say so: the loss is announced once per process, and
+        `config.example.yaml` (version-controlled, never written by the box) is where the prose that
+        explains each key actually lives.
+
+        The 0664 -> 0600 permission change is NOT a defect and is left alone: narrowing a config the
+        code itself calls world-readable is an improvement, and no consumer reads it as another user."""
         d = os.path.dirname(os.path.abspath(cfg_path)) or "."
         tmp = None
         try:
+            if not _comment_loss_warned and _has_comments(cfg_path):
+                _warn_comment_loss(cfg_path)
             fd, tmp = tempfile.mkstemp(prefix=".config.", suffix=".yaml.tmp", dir=d)
             with os.fdopen(fd, "w") as f:
+                f.write(_CFG_BANNER)
                 yaml.safe_dump(cfg, f, sort_keys=False, default_flow_style=False)
                 f.flush()
                 os.fsync(f.fileno())
@@ -559,8 +621,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     raise settings_schema.SettingsError(f"unknown device {addr}")
                 if not isinstance(streams, list) or not all(isinstance(x, str) for x in streams):
                     raise settings_schema.SettingsError("streams must be a list of names")
+                # A STATIC FLOOR FIRST, so an unknown stream NAME is refused whatever the device's
+                # connection state (CAPTURE-HOST-DEEP-AUDIT §D4). The firmware check below is skipped
+                # entirely when `pmd_supported` is absent — and it is absent for a device that has
+                # never connected SINCE BOOT (not merely one that is disconnected: `pmd_supported` is
+                # written once at connect and `_set` only ever `update`s, so it survives a drop). The
+                # consequence was bounded — capture.py ignores an unrecognised stream name, so no
+                # writer and no file — but "the guard is absent and nothing downstream happens to care"
+                # is not a guard.
+                bad = [x for x in streams if x not in KNOWN_STREAMS]
+                if bad:
+                    raise settings_schema.SettingsError(
+                        f"unknown stream(s): {', '.join(sorted(bad))} "
+                        f"(known: {', '.join(sorted(KNOWN_STREAMS))})")
                 st = status.get("devices", {}).get(dev.get("name"), {})
+                # REMEMBERED capabilities: what the device advertised the last time it connected,
+                # persisted so a reboot does not disarm the check until the sensor next comes up.
                 sup = st.get("pmd_supported")
+                if sup:
+                    dev["pmd_supported_seen"] = list(sup)
+                else:
+                    sup = dev.get("pmd_supported_seen")
                 if sup:                      # refuse a stream the firmware does not advertise
                     bad = [x for x in streams if x not in sup and x not in ("hr",)]
                     if bad:
@@ -575,12 +656,23 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 if not dev:
                     raise settings_schema.SettingsError(f"unknown device {addr}")
                 opts = (status.get("devices", {}).get(dev.get("name"), {}).get("pmd_options") or {})
+                if opts:
+                    dev["pmd_options_seen"] = {k: list(v) for k, v in opts.items()}
+                else:
+                    opts = dev.get("pmd_options_seen") or {}
                 clean = {}
                 for stream, val in rates.items():
+                    if stream not in KNOWN_STREAMS:
+                        raise settings_schema.SettingsError(f"unknown stream {stream!r}")
                     try:
                         v = int(val)
                     except (TypeError, ValueError):
                         raise settings_schema.SettingsError(f"{stream} rate must be a number") from None
+                    # A FLOOR, independent of the device menu (§D4): a never-connected device offered no
+                    # menu, and `-1` or `0` Hz is not a rate under any firmware.
+                    if not 1 <= v <= 10_000:
+                        raise settings_schema.SettingsError(
+                            f"{stream}: {v} Hz is not a plausible sample rate")
                     allowed = opts.get(stream) or []
                     if allowed and v not in allowed:
                         # Refuse rather than let the device reject the START and leave an idle stream.
@@ -599,7 +691,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 shutil.copyfile(cfg_path, cfg_path + ".bak")
             except Exception:
                 pass
-            _save()
+            # A FAILED WRITE IS NOT A SUCCESS (CAPTURE-HOST-DEEP-AUDIT §D2, closing the last caller of
+            # VIGIL-DEEP-ANALYSIS §2A). `_save()`'s return value was discarded here while its three
+            # siblings — /api/remember, /api/forget, /api/storage — all report 500. The in-memory cfg
+            # keeps the change either way, so the UI showed the new value, the disk kept the old one,
+            # and the setting silently reverted at the next restart.
+            if not _save():
+                return web.json_response(
+                    {"ok": False, "error": "config write failed (disk?)", "changed": changed},
+                    status=500)
         return web.json_response({"ok": True, "changed": changed, "restart_needed": restart_needed})
 
     # ── Storage / offload target (STORAGE-OFFLOAD-TARGETS) ──────────────────────────────────────

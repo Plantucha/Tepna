@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 import asyncio, re
+import proc_util
 from dataclasses import dataclass, asdict
 
 _ADDR_RE = re.compile(r"Device ([0-9A-F:]{17}) (.+)")
@@ -66,9 +67,12 @@ async def _btctl(script: str, timeout: float = 20.0) -> str:
         "bluetoothctl", stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
     try:
-        out, _ = await asyncio.wait_for(proc.communicate(script.encode()), timeout=timeout)
+        # proc_util.communicate KILLS AND REAPS the child on expiry. This was the one sibling that
+        # already called `proc.kill()` — the fix and the proof it was known — but it never reaped,
+        # leaving a zombie for the daemon's lifetime (CAPTURE-HOST-DEEP-AUDIT §E1).
+        out, _ = await proc_util.communicate(proc, timeout, script.encode())
     except asyncio.TimeoutError:
-        proc.kill(); out = b""
+        out = b""
     return out.decode(errors="replace")
 
 

@@ -25,11 +25,27 @@ def _run(src, dest, *args):
                           env={**os.environ, "TEPNA_SRC": str(src), "TEPNA_APP_DIR": str(dest)})
 
 
-def _src(tmp_path, names=("A.html", "B.html")):
+def _src(tmp_path, names=("A.html", "B.html"), clutter=True):
+    """A mini repo in the REAL shape: each served app is an owned bundle with a
+    `provenance/<App>.json` fragment beside it.
+
+    The fixture used to be a directory of arbitrary `*.html`, which is exactly the assumption
+    CAPTURE-HOST-DEEP-AUDIT §C7 is about — `bundles=("$SRC"/*.html)` selected on EXTENSION, so it swept
+    up 11 unbundled `*.src.html` editing sources and ~30 analysis harnesses and served them with none
+    of their `.js`/`.css` siblings. A fixture that contains nothing but valid bundles cannot express
+    that, so it now carries the clutter the real root has."""
     d = tmp_path / "repo"
-    d.mkdir()
+    (d / "provenance").mkdir(parents=True)
     for i, n in enumerate(names):
         (d / n).write_text(f"bundle {n} v1\n" + "x" * (10 + i))
+        (d / "provenance" / (n[:-5] + ".json")).write_text('{"bundle": "%s"}' % n)
+    (d / "provenance" / "_meta.json").write_text("{}")
+    (d / "provenance" / "index.json").write_text('{"apps": []}')
+    if clutter:
+        # Present in the root, MUST NOT be served: an editing source (needs its .js siblings) and an
+        # analysis harness (needs the whole module set).
+        (d / "A.src.html").write_text('<script src="a-dsp.js"></script>\n')
+        (d / "Dex-Test-Suite.html").write_text('<script src="tests/dex-tests.js"></script>\n')
     return d
 
 
@@ -113,7 +129,7 @@ def test_an_empty_or_wrong_source_fails_loudly(tmp_path):
     empty = tmp_path / "empty"; empty.mkdir()
     r = _run(empty, tmp_path / "app")
     assert r.returncode == 1
-    assert "no *.html bundles" in r.stdout
+    assert "no provenance/<App>.json fragments" in r.stdout
 
 
 # ── the wiring ────────────────────────────────────────────────────────────────────────────────
@@ -361,3 +377,44 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
+
+
+# ── the served set is the OWNED set, not everything with a .html suffix (§C7) ────────────────────
+def test_an_unbundled_editing_source_is_never_served(tmp_path):
+    """THE §C7 regression. `bundles=("$SRC"/*.html)` selected on EXTENSION, so the repo root's 11
+    `*.src.html` EDITING SOURCES and ~30 analysis harnesses were copied to the served directory with
+    none of their `.js`/`.css`/`adapters/` siblings — 34 pages with 100 % of their references missing:
+
+        CPAPDex.src.html      19/19 refs MISSING
+        Data Unifier.src.html 27/27 refs MISSING
+        Dex-Test-Suite.html   57/57 refs MISSING
+    """
+    src, dest = _src(tmp_path), tmp_path / "app"
+    assert _run(src, dest).returncode == 0
+    assert (dest / "A.html").exists(), "the owned bundle is served"
+    assert not (dest / "A.src.html").exists(), "its editing source is NOT a self-contained page"
+    assert not (dest / "Dex-Test-Suite.html").exists(), "nor is a harness that needs the module tree"
+
+
+def test_check_is_green_only_when_the_assets_are_there_too(tmp_path):
+    """`--check` compared `*.html` ONLY, which is why it reported green on exactly the broken state:
+    every served page was missing its stylesheet and the check could not see it."""
+    src, dest = _src(tmp_path), tmp_path / "app"
+    (src / "index.html").write_text('<link href="dex-badges.css" rel="stylesheet">\n')
+    (src / "dex-badges.css").write_text(".ev{}\n")
+    assert _run(src, dest).returncode == 0
+    assert (dest / "dex-badges.css").exists(), "a page without its assets is a blank screen"
+    assert _run(src, dest, "--check").returncode == 0
+
+    (dest / "dex-badges.css").unlink()
+    r = _run(src, dest, "--check")
+    assert r.returncode == 1, "a missing asset must fail the check, not be invisible to it"
+    assert "dex-badges.css" in r.stdout
+
+
+def test_a_referenced_asset_directory_is_mirrored(tmp_path):
+    src, dest = _src(tmp_path), tmp_path / "app"
+    (src / "assets" / "icons").mkdir(parents=True)
+    (src / "assets" / "icons" / "apple-touch-icon-180.png").write_bytes(b"\x89PNG")
+    assert _run(src, dest).returncode == 0
+    assert (dest / "assets" / "icons" / "apple-touch-icon-180.png").read_bytes() == b"\x89PNG"

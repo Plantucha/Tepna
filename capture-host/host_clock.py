@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 import asyncio, re
+import proc_util
 
 # Stratum 1 is a reference clock (GPS/PPS/atomic); each hop adds a stratum. Beyond this the chain is
 # too long to call a session's absolute time well-sourced — 15 is "unsynchronised" by RFC 5905.
@@ -172,7 +173,7 @@ async def _run(*args: str, timeout: float = 4.0) -> tuple[int, str]:
     try:
         p = await asyncio.create_subprocess_exec(
             *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-        out, _ = await asyncio.wait_for(p.communicate(), timeout=timeout)
+        out, _ = await proc_util.communicate(p, timeout)
         return p.returncode or 0, (out or b"").decode("utf-8", "replace")
     except (FileNotFoundError, OSError, asyncio.TimeoutError):
         return 127, ""

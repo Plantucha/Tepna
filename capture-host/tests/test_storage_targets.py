@@ -298,20 +298,51 @@ def test_a_mountpoint_cannot_smuggle_shell_metacharacters_into_the_root_steps():
         st.validate(_nfs(mountpoint="/srv/a;id>/tmp/pwned;x"))
 
 
-def test_the_unit_name_is_shell_quoted_even_when_validate_is_bypassed():
+def test_mount_unit_refuses_a_hostile_mountpoint_even_when_validate_is_bypassed():
     """Defence in depth, tested where it can actually be observed.
 
-    validate() now rejects the metacharacter upstream, but mount_unit() takes a plain dict and is one
-    refactor away from being reachable with an unvalidated one — so both layers must hold. Asserting
-    on a benign name proves nothing, because shlex.quote leaves a safe string bare; the property only
-    becomes visible with a hostile one.
-    """
+    `mount_unit()` takes a plain dict and IS reachable with an unvalidated one — not hypothetically:
+    `validate()` gained its charset check only in 46a43f7 (2026-07-26 09:21), so any target persisted
+    before that commit sits in config.yaml today and flows straight through on upgrade
+    (CAPTURE-HOST-DEEP-AUDIT §C6).
+
+    This used to assert only that the unit name reached the root shell QUOTED. Quoting is the last
+    line, not the first: the value also lands in `Where=` in the unit body, where quoting means
+    nothing. `mount_unit` now re-validates its own input — the same self-defence commit f27a586 gave
+    `dest_status()` for the same stated reason."""
     t = {"protocol": "nfs", "kind": "mount", "host": "nas.local", "share": "/vol",
          "mountpoint": "/srv/a;id>/tmp/pwned;x"}
+    with pytest.raises(st.StorageError):
+        st.mount_unit(t)
+
+
+def test_a_legal_mountpoint_still_reaches_the_root_shell_quoted():
+    """...and the quoting layer stays, because the refusal above is a charset check, not a shell
+    parser. Asserting on a benign name proves nothing (shlex.quote leaves a safe string bare), so this
+    uses a legal path whose ESCAPED unit name carries the backslashes systemd's naming rule inserts."""
+    t = {"protocol": "nfs", "kind": "mount", "host": "nas.local", "share": "/vol",
+         "mountpoint": "/srv/tepna-archive"}
     tee = [s for s in st.mount_unit(t)["steps"] if "tee" in s][0]
     name = tee.split("/etc/systemd/system/")[1].split(" ")[0]
     assert name.startswith("'") and name.endswith("'"), \
         f"the unit name reaches a root shell unquoted: {tee}"
+
+
+def test_mount_unit_refuses_a_mountpoint_outside_the_allowed_roots():
+    """The §C6 headline: unvalidated, this emitted a paste-as-ROOT .mount unit for /etc/systemd/system
+    and answered HTTP 200, while `dest_status()` on the same dict already said
+    `{'ready': False, reason: 'not under an allowed mount root'}`."""
+    t = {"protocol": "nfs", "kind": "mount", "host": "nas.local", "share": "/vol",
+         "mountpoint": "/etc/systemd/system"}
+    with pytest.raises(st.StorageError) as e:
+        st.mount_unit(t)
+    assert "allowed" in str(e.value) or "root" in str(e.value)
+
+
+def test_mount_unit_refuses_a_target_with_no_mountpoint():
+    """It raised a bare KeyError, which webmon turned into a 500 rather than a 400 with a reason."""
+    with pytest.raises(st.StorageError):
+        st.mount_unit({"protocol": "nfs", "kind": "mount", "host": "nas.local", "share": "/vol"})
 
 
 def test_a_newline_in_a_path_cannot_inject_systemd_directives():

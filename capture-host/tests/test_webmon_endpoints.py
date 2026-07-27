@@ -276,8 +276,18 @@ def test_polar_pull_reports_progress(tmp_path, monkeypatch):
     assert _serve(app, go) == 200 and seen.get("fired")   # the progress callback executed
 
 
-def test_settings_save_failure_is_swallowed(tmp_path):
-    """_save() must never raise into the handler — an unwritable config path is caught."""
+def test_settings_save_failure_is_reported(tmp_path):
+    """_save() must never RAISE into the handler — and must never be silently ignored either.
+
+    ⚠️ THE ASSERTION CHANGE IS THE FIX (CAPTURE-HOST-DEEP-AUDIT §D2). This test was named
+    `..._is_swallowed` and asserted `== 200  # save failed silently, request still succeeded`, which is
+    what locked the defect in place: `/api/settings` answered `ok:true, changed:[…]` while the config
+    write had failed, so the UI showed the new value, the disk kept the old one, and the setting
+    silently reverted at the next restart. Its three siblings — /api/remember, /api/forget,
+    /api/storage — all report 500 (commits 6a3f981, 12e6a44); this one was left behind.
+
+    Recorded against `VIGIL-DEEP-ANALYSIS §2A` as its last partially-executed caller, not as a new
+    finding — that brief is still PROPOSED and named all three."""
     app, cfg, _st, _p, _bus = _mk(tmp_path)
     # point cfg_path at a directory so open(path,'w') raises -> the _save except
     app2 = webmon.make_app(_bus, cfg, str(tmp_path), "AA", {"devices": {}}, None)  # cfg_path IS a dir
@@ -292,7 +302,7 @@ def test_settings_save_failure_is_swallowed(tmp_path):
             return r.status
         finally:
             await cl.close()
-    assert asyncio.run(serve()) == 200      # save failed silently, request still succeeded
+    assert asyncio.run(serve()) == 500, "a failed config write must not report success"
 
 
 def test_sse_stream_forwards_a_pushed_frame():

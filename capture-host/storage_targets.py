@@ -36,6 +36,7 @@
 from __future__ import annotations
 
 import asyncio
+import proc_util
 import datetime as _dt
 import os
 import re
@@ -323,13 +324,39 @@ def mount_unit(target: dict) -> dict:
     Vigil never writes into /etc and never runs `mount` (see the module header on privilege).
 
     Naming follows systemd's rule: the unit filename IS the escaped mountpoint, so /srv/tepna/archive
-    becomes srv-tepna-archive.mount. Anything else is silently ignored by systemd."""
+    becomes srv-tepna-archive.mount. Anything else is silently ignored by systemd.
+
+    IT DEFENDS ITS OWN OUTPUT, NOT THE CALLER'S GOOD INTENTIONS (CAPTURE-HOST-DEEP-AUDIT §C6).
+    Commit f27a586 added exactly this re-checking to `dest_status()` — "dest_status defends its own
+    filesystem access, not the caller's … nothing stops a future caller handing it one that never went
+    through validation" — and this function, three below, was the same caller-trusting consumer and a
+    MORE dangerous one: its output is a command the operator pastes AS ROOT and the unit body
+    interpolates `Where={mp}` raw. Unvalidated it emitted a paste-as-root .mount unit for
+    `/etc/systemd/system` (HTTP 200), and raised a bare KeyError → 500 on a target with no mountpoint.
+
+    The reachable trigger is an UPGRADE, not a hand-edited config: `validate()` gained its charset check
+    only in 46a43f7 (2026-07-26 09:21), so a target persisted before that commit is already sitting in
+    config.yaml and flows straight through."""
     if (target.get("kind") or PROTOCOLS[target["protocol"]][0]) != "mount":
         raise StorageError("only a mount-kind target has a mount unit")
     proto = target["protocol"]
-    mp = target["mountpoint"]
+    if not target.get("mountpoint"):
+        raise StorageError("a mount-kind target needs a mountpoint")
+    mp = _abs_path(target["mountpoint"], "mountpoint")
+    if not _under_allowed_root(mp):
+        raise StorageError(f"mountpoint must live under one of {', '.join(MOUNT_ROOTS)} — refusing to "
+                           f"emit a root-installed unit for {mp}")
     unit_name = mp.strip("/").replace("-", "\\x2d").replace("/", "-") + ".mount"
     host, share = target.get("host", ""), target.get("share", "")
+    # `host` and `share` reach the unit body and the iscsiadm/nvme steps, and this text is pasted as
+    # root — so they are re-checked here for the same reason the mountpoint is.
+    if host and not _HOST_RE.match(str(host)):
+        raise StorageError(f"invalid host {host!r}")
+    if share:
+        # Per-protocol, exactly as `validate` splits it: an NFS export is an absolute PATH, everything
+        # else is a share/IQN/NQN name. Applying the name rule to all of them would reject every legal
+        # NFS target — an over-correction that breaks the working case to guard the broken one.
+        share = _abs_path(share, "share") if proto == "nfs" else _share_name(share, "share")
     opts = target.get("options") or ""
     cred = target.get("credentials_file")
 
@@ -394,7 +421,7 @@ async def _run(argv: list[str], timeout: float) -> tuple[int, str]:
     try:
         p = await asyncio.create_subprocess_exec(
             *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-        out, _ = await asyncio.wait_for(p.communicate(), timeout=timeout)
+        out, _ = await proc_util.communicate(p, timeout)
         return p.returncode or 0, (out or b"").decode("utf-8", "replace")
     except FileNotFoundError:
         return 127, f"{argv[0]}: not installed on this box"
