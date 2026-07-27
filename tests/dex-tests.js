@@ -20672,6 +20672,73 @@
       }
     });
 
+    /* DEEP-AUDIT-III §4 — three MotionDex defects, one file, one edit.
+       §4.1 `sampleHz` returned count ÷ SPAN — the average over the span, which any dropout depresses
+            by exactly the coverage fraction (18.68 Hz on a real 52 Hz Verity file). Every consumer
+            treats it as the NATIVE rate and sizes a window with it, so an under-stated rate makes
+            each window too short in real time and moves the surfaced metrics.
+       §4.2 `respResample` fills a sensor-off hole by LINEAR INTERPOLATION, so the gap becomes a smooth
+            synthetic line, and `respWindowSpectrum` normalises power away — discarding amplitude, the
+            only cue separating "no signal" from "signal". A confident breathing rate was measured
+            across epochs where the strap was not recording.
+       §4.3 `parseSensorXYZ` finite-checked only X and range-checked nothing, so a real capture-host
+            file's 136 corrupt samples (up to 1.6e38 mg) were ingested verbatim. */
+    group('MotionDex: rate, coverage and plausibility — §4', 'motiondex-dsp · absence · units', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.parseSensorXYZ === 'function' && typeof MD.respiratoryRate === 'function')) {
+        T.skip('MOTIONDSP available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      // ── §4.3 · an implausible sample is DROPPED AND COUNTED, never clamped (a clamp is a fabricated
+      //          reading sitting at the bound) and never silently kept.
+      var hdr = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n';
+      var g1 = '2026-06-10T22:00:00.000;599628000000000000;100;200;900\n';
+      var g2 = '2026-06-10T22:00:00.076;599628076000000000;101;201;901\n';
+      var absurd = '2026-06-10T22:00:00.038;599628038000000000;1.621450968458543e+38;-3;5\n';
+      var pr = MD.parseSensorXYZ(hdr + g1 + absurd + g2);
+      T.eq('an out-of-full-scale ACC sample is dropped', pr.length, 2);
+      T.eq('…and counted, so a corrupt stream is visible not merely absent', pr._implausibleDropped, 1);
+      T.ok(
+        'no surviving sample is beyond ACC full scale',
+        pr.every(function (r) {
+          return Math.abs(r.x) <= 16000 && Math.abs(r.y) <= 16000 && Math.abs(r.z) <= 16000;
+        })
+      );
+      var nanYZ = MD.parseSensorXYZ(hdr + g1 + '2026-06-10T22:00:00.038;599628038000000000;10;abc;5\n');
+      T.eq('a non-finite Y/Z is dropped too (only X used to be checked)', nanYZ.length, 1);
+      // ── §4.1 + §4.2 · the SAME samples, once contiguous and once with the clock carrying a hole.
+      var txt = MD.genSyntheticACC({ sec: 300, hz: 26, brpm: 15, seed: 5 });
+      var lines = txt.split('\n');
+      var head = lines[0],
+        body = lines.slice(1).filter(Boolean);
+      var cut0 = Math.floor(body.length * 0.4),
+        cut1 = Math.floor(body.length * 0.6);
+      var gapped = head + '\n' + body.slice(0, cut0).concat(body.slice(cut1)).join('\n') + '\n';
+      var rowsFull = MD.parseSensorXYZ(txt),
+        rowsGap = MD.parseSensorXYZ(gapped);
+      var rrFull = MD.respiratoryRate(rowsFull, rowsFull[0].tMs, 'mg', {});
+      var rrGap = MD.respiratoryRate(rowsGap, rowsGap[0].tMs, 'mg', {});
+      T.ok('baseline · the contiguous synthetic yields a rate', !!rrFull && rrFull.hasData && rrFull.medianBrpm > 0, rrFull && 'brpm=' + rrFull.medianBrpm);
+      if (rrGap && rrGap.hasData) {
+        // §4.1 — a hole in the CLOCK must not re-scale the analysis. Pre-fix the derived native rate
+        // fell by the coverage fraction, dragging every hz-scaled window down with it.
+        T.ok('§4.1 · a clock hole does not move the measured rate', Math.abs(rrGap.medianBrpm - rrFull.medianBrpm) <= 1.5, 'full=' + rrFull.medianBrpm + ' gapped=' + rrGap.medianBrpm);
+        // §4.2 — the windows spanning the hole are NOT RECORDING and carry no rate.
+        var unc = (rrGap.series || []).filter(function (e) {
+          return e.covered === false;
+        });
+        T.ok('§4.2 · windows over the hole are marked not-recording', unc.length > 0, unc.length + ' uncovered of ' + (rrGap.series || []).length);
+        T.ok(
+          '…and none of them reports a breathing rate',
+          unc.every(function (e) {
+            return e.brpm === null;
+          })
+        );
+        T.eq('…and they leave the coverage DENOMINATOR (class 3a)', rrGap.windowsUncovered, unc.length);
+        T.ok('coverage is measured over RECORDED windows only', rrGap.coverage >= 0 && rrGap.coverage <= 1, 'coverage=' + rrGap.coverage + ' uncovered=' + rrGap.windowsUncovered + '/' + rrGap.windowsTotal);
+      }
+    });
+
     /* ════ MotionDex effort epochs are WALL-CLOCK windows, not sample-index windows (DEEP-AUDIT-II §7.1/§7.2) ════
      §7.2: `relSecOf` used the PER-STREAM device counter (`relNs`, 0 at the stream's own first sample) as if it
      were seconds-from-the-GLOBAL-`t0Ms`, so a chest sensor that starts after `t0Ms` was time-shifted. §7.1:

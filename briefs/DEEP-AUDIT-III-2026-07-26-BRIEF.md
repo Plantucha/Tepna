@@ -379,6 +379,28 @@ and make the note reflect the actual `n`.
 
 ## 4 · MotionDex — a sample rate derived from wall-clock, and a rate measured across a gap
 
+> **ALL THREE FIXED 2026-07-27** — one file, one edit, one re-bundle, as this section argued.
+>
+> · **§4.1** `sampleHz` is now the median inter-sample interval (the measurement `respResample` in the
+>   same file already did correctly), with the span-based form kept only as a last resort for rows that
+>   carry no usable deltas at all.
+> · **§4.2** `respResample` publishes a coverage mask: grid points interpolated across a gap wider than
+>   four native periods are uncovered. Such a window gets a **uniform likelihood** rather than the
+>   spectrum of the interpolated line — the verifier's point that `respViterbi` is a GLOBAL ridge track,
+>   so a fabricated ridge corrupts CLEAN windows too, is what forced this rather than a simple null-out.
+>   The window ships as `covered:false` with a null rate and **leaves the coverage denominator**.
+> · **§4.3** samples beyond hardware full scale are **dropped and counted** (`_implausibleDropped`),
+>   the PpgDex precedent — never clamped, since a clamped sample is a fabricated reading at the bound.
+>   Verified on the real file the finding cites: **136 samples dropped**, exactly the audit's count, and
+>   the 5.02e32 `Effort amplitude` saturation is gone.
+>
+> **Gate:** 3936 assertions green with `DEX_UPLOADS` (0 skipped) · GATE A 9/9 (`MotionDex.html`
+> `c1563dc52703` → `1396dc11ce29`) · `resp-acc-analysis.html` + docs re-bundled · `verify-fixtures`
+> reports all 14 current (the MotionDex golden has committed inputs, so CI re-runs it every push).
+> New group *"MotionDex: rate, coverage and plausibility — §4"* (10 assertions), **mutation-checked:
+> 6 fail against pre-fix code**, including the denominator — old coverage 0.667 vs new 1.0 on a
+> stream whose uncovered windows should never have been counted.
+
 ### 4.1 `sampleHz` divides count by span, so any gap mis-scales every window — `motiondex-dsp.js:214/220`
 
 Filed independently by **two** hunters (dimensions *absence* and *matrix-siblings*), on the same function.
