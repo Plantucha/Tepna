@@ -72,6 +72,89 @@
     spo2Drift: { label: 'SpO₂ drift', unit: '%/night', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: '7-day rolling chronic-drift indicator' },
     hrSpikes: { label: 'HR Spikes', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Autonomic-arousal surrogate from HR rises' },
 
+    /* ── DEEP-AUDIT-III §6.5 — SURFACED BUT UNREGISTERED until 2026-07-27 ─────
+       `badgeForLabel(label, true)` mints an `experimental` disc for any label the registry cannot
+       resolve, so these rendered fully badged while having NO entry at all — the badge looked like a
+       grade and was really a fallback. Tiers are stated here so the claim is auditable:
+         · MOS — implements the published McGill criteria (Nixon 2004), but that score was validated
+           in CHILDREN for adenotonsillectomy planning; OxyDex applies it to adult unattended home
+           oximetry. `audits/REFERENCE-GUIDE-AUDIT-FINDINGS.md` already requires MOS be "honestly
+           distinguished from the pediatric McGill score", so `validated` would be a fabricated
+           citation. EXPERIMENTAL until validated in this population.
+         · deltaIndex — the 12-s mean-absolute-difference delta index IS a published oximetry
+           parameter, so EMERGING; upgrading to `validated` requires the exact citation checked
+           against what this code computes, and a tier is never upgraded on "the literature says".
+         · pbEpisodes — periodic breathing has real diagnostic criteria, but this is OxyDex's own
+           detector on oximetry alone. EMERGING.
+         · everything else — internal composites or detector-derived descriptors, same class as the
+           `nsi` entry below, which already reads `experimental` with an "internal" cite. */
+    mos: {
+      label: 'MOS',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'heuristic',
+      cite: "McGill-criteria oximetry grade (ODI-4 + CT<90) — published criteria (Nixon 2004) applied OUTSIDE their validated paediatric population; not the paediatric McGill score. HEURISTIC per the OxyDex Reference guide's pre-existing grade (§6.5: the doc's call predates this entry and is the more conservative one)"
+    },
+    deltaIndex: {
+      label: 'Δ-Index',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'emerging',
+      cite: 'Mean absolute difference of successive 12-s SpO₂ means — published oximetry variability parameter'
+    },
+    pbEpisodes: {
+      label: 'PB Episodes',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'emerging',
+      cite: 'Periodic-breathing episode count — OxyDex detector on oximetry alone (no airflow/effort channel)'
+    },
+    oscIndex: {
+      label: 'SpO₂ oscillation index',
+      unit: '/hr',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Crossings of a node-local 95% SpO₂ level (SPO2_OSC_THRESHOLD) — OxyDex-only, no external validation'
+    },
+    episodeRange: {
+      label: 'Episode range',
+      unit: 's',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: "Duration range of detected episodes — inherits the detector's standing, not a direct measurement"
+    },
+    periodicityPattern: {
+      label: 'Periodicity pattern',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Descriptor of the oscillation pattern — OxyDex classification, internal'
+    },
+    pnn3: { label: 'pNN3', unit: '%', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'pNN-family variant at a 3 ms threshold on PULSE rate — not the validated pNN50 on RR' },
+    aai: {
+      label: 'AAI',
+      unit: '/hr',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: "Autonomic arousal index — OxyDex surrogate from pulse-rate rises, internal. HEURISTIC per the OxyDex Reference guide's pre-existing grade"
+    },
+    wtdsi: {
+      label: 'WtDSI',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: "Weighted desaturation severity index — OxyDex composite, internal. HEURISTIC per the OxyDex Reference guide's pre-existing grade"
+    },
+    sfi: { label: 'SFI', unit: '/hr', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Sleep fragmentation index — OxyDex composite, internal' },
+
     /* ── EXPERIMENTAL — plausible node composite, not externally validated ──── */
     nsi: { label: 'NSI', unit: '', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Nocturnal Stress Index — OxyDex composite (dip-rate + AUC-90 + T95 + AAI), internal' },
     sleepStability: { label: 'Sleep stability', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: 'OxyDex sleep-stability score — internal composite' },
@@ -186,6 +269,19 @@
    zero call-site churn (Preservation Rule). Match is case/space-insensitive on
    the normalized label; aliases cover UI variants ("ODI-4 Rate" → odi4). */
   var OXY_LABEL_ALIAS = {
+    // §6.5 — the labels these metrics actually render with
+    mos: 'mos',
+    'δ-index': 'deltaIndex',
+    'delta index': 'deltaIndex',
+    'pb episodes': 'pbEpisodes',
+    'spo₂ oscillation index': 'oscIndex',
+    'spo2 oscillation index': 'oscIndex',
+    'episode range': 'episodeRange',
+    'periodicity pattern': 'periodicityPattern',
+    pnn3: 'pnn3',
+    aai: 'aai',
+    wtdsi: 'wtdsi',
+    sfi: 'sfi',
     'odi-4': 'odi4',
     'odi-4 rate': 'odi4',
     odi4: 'odi4',

@@ -197,6 +197,11 @@
 
   /* ── Alias map: UI label (as rendered today) → registry id ───────────────── */
   var ECG_LABEL_ALIAS = {
+    // §6.5 — the ectopy chart card renders "PVC burden" and fell through to the `experimental`
+    // fallback while the registry grades the metric `measured`. No new entry: an alias, so the card
+    // inherits the graded tier by construction instead of minting its own.
+    'pvc burden': 'ectopy',
+    'pvc load': 'ectopy',
     rmssd: 'rmssd',
     'rmssd (med)': 'rmssd',
     'rmssd (median)': 'rmssd',
