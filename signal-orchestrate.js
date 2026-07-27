@@ -392,7 +392,7 @@
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
     if (/_PPG\b|_PPG\./.test(u)) return 'ppg';
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
-    if (/_MAGN\b|_MAGN\./.test(u)) return 'magn';
+    if (/_MAGN?\b|_MAGN?\./.test(u)) return 'magn'; // §6.4 — capture-host writes _MAG.txt, PSL writes _MAGN.txt; motiondex-dsp.js knew both, these did not
     if (/_ACC\b|_ACC\./.test(u)) return 'acc';
     if (/_PPI\b|_PPI\./.test(u)) return 'ppi';
     if (/_HR\b|_HR\./.test(u)) return 'hr';

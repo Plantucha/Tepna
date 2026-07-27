@@ -21432,6 +21432,48 @@
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
     });
 
+    /* DEEP-AUDIT-III §6.4 — three ingest routing defects, one seam.
+       (a) Every classifier except MotionDex knew only `_MAGN`; the capture host writes `_MAG.txt`, so
+           688 real magnetometer files were never paired and PpgDex told the user "No *_MAGN.txt for
+           this session" about a file sitting in the drop.
+       (b) `ecgKind`/`ppgKind` default an unrecognised name to that node's PRIMARY waveform — fail-OPEN.
+           On a real capture-host night, 40 of 67 "ECG recordings" were the host's own telemetry
+           (`_CLOCK.csv`, `_LINK.csv`), `QC-SUMMARY.json` and `.archived`.
+       (c) A rival chest strap's `_HR.txt` matched the `_HR` companion rule before anything asked whose
+           device it was, so it entered the H10's device-HR lane — while SignalAdapters.route() sent the
+           same bytes to `coospo-rr`. Two routing layers, one file, two answers. */
+    group('Ingest routes by what a file IS, not by what it is not — §6.4', 'dex-ingest · signal-orchestrate · routing', function (T) {
+      var I = env.DexIngest,
+        SO = env.SignalOrchestrate;
+      if (!(I && typeof I.ecgKind === 'function' && typeof I.ppgKind === 'function')) {
+        T.skip('DexIngest available', 'dex-ingest not wired in this lane');
+        return;
+      }
+      // (a) both real spellings of the magnetometer — capture-host `_MAG`, Polar SL `_MAGN`
+      var magHost = 'Polar_VeritySense_0C301E3F_20260720033421_MAG.txt',
+        magPsl = 'Polar_Sense_0C301E3F_20260617_010900_MAGN.txt';
+      T.eq('§6.4a · capture-host _MAG is a magnetometer companion', I.ppgKind(magHost), 'magn');
+      T.eq('§6.4a · Polar SL _MAGN still is too', I.ppgKind(magPsl), 'magn');
+      T.eq('§6.4a · …and it is never mistaken for a PPG primary', I.ppgKind(magHost) === 'ppg', false);
+      if (SO && typeof SO.streamKind === 'function') {
+        T.eq('§6.4a · the orchestrator agrees on _MAG', SO.streamKind(magHost), 'magn');
+      }
+      // (b) capture-host telemetry and sidecars are set aside, not queued as recordings
+      ['Tepna_20260720045557_CLOCK.csv', 'Tepna_20260720045557_LINK.csv', 'QC-SUMMARY.json', '.archived'].forEach(function (n) {
+        T.eq('§6.4b · non-signal file is set aside, not queued as an ECG: ' + n, I.ecgKind(n), 'skip');
+        T.eq('§6.4b · …nor as a PPG: ' + n, I.ppgKind(n), 'skip');
+      });
+      // …while a genuinely bare waveform still defaults through (the reason the default exists)
+      T.eq('§6.4b · a bare suffix-less waveform still defaults to the node primary', I.ecgKind('20260618214109.dat'), 'ecg');
+      // (c) a rival strap is foreign; the H10's own HR companion is untouched
+      T.eq('§6.4c · a competing chest strap is set aside, not admitted to the H10 HR lane', I.ecgKind('Coospo_HRM808S_0022265_20260720185250_HR.txt'), 'skip');
+      T.eq('§6.4c · …and is labelled precisely', I.foreignVendor('Coospo_HRM808S_0022265_20260720185250_HR.txt'), 'hr-strap');
+      T.eq('§6.4c · the H10 own _HR companion still routes as hr', I.ecgKind('Polar_H10_02849638_20260720185349_HR.txt'), 'hr');
+      // …and the O2Ring finger PPG is NOT collateral damage: it matches the spo2 vendor pattern, which
+      // is exactly why ppgKind keeps suffix-first ordering while ecgKind hoists the vendor test.
+      T.eq('§6.4c · the O2Ring finger PPG remains PpgDex primary', I.ppgKind('Wellue_O2Ring-S_S8AW2100_20260720_PPG.txt'), 'ppg');
+    });
+
     /* DEEP-AUDIT-III §3.3/§3.4/§3.5 — the Integrator published agreement it did not measure.
        §3.3 every confirmed_apnea_event hardcoded 'OxyDex' as the desat observer — correct while the
             pool was node-keyed, wrong ever since DEEP-AUDIT-2026-07-11 §15 made it IMPULSE-keyed, so

@@ -615,7 +615,7 @@ after a green corpus run. Both real headers ship as **committed twins** in the g
 recording would have left CI exactly as blind as the positional read was. **Mutation-checked:** the
 twins return `[57]` and `[]` against pre-fix code.
 
-### 6.4 Ingest: three routing defects — `dex-ingest.js:63/80/92`
+### 6.4 Ingest: three routing defects — `dex-ingest.js:63/80/92` — **FIXED 2026-07-27**
 
 - **`_MAG` vs `_MAGN`** — every classifier except MotionDex knows only `_MAGN`; the capture host writes
   `_MAG.txt`. **688 files** across the corpus are silently never paired, and PpgDex tells the user
@@ -627,6 +627,16 @@ twins return `[57]` and `[]` against pre-fix code.
 - **Non-signal files default into the ECG primary lane** — 40 of 67 "ECG recordings" on a real night folder are
   the capture host's own `_CLOCK.csv` / `_LINK.csv` telemetry and `QC-SUMMARY.json`. The default is
   **fail-open**, and the content sniff is an allow-list that also fails open on any header it has not seen.
+
+**FIXED 2026-07-27.** The magnetometer regex is now the one `motiondex-dsp.js` already had; names that
+*announce* they are not signal are set aside while a genuinely bare waveform still defaults through (the
+default exists for a reason); and the vendor test is **hoisted in `ecgKind`** so a rival strap is judged
+by whose device it is before its `_HR` suffix is read. **It is deliberately NOT hoisted in `ppgKind`** —
+the O2Ring's own `Wellue_*_PPG.txt` matches the spo2 vendor pattern and is PpgDex's legitimate finger
+PRIMARY, so that classifier keeps suffix-first ordering and the asymmetry is documented at both sites.
+**Gate:** 3978 assertions green with `DEX_UPLOADS` (0 skipped) · GATE A 9/9 (`ECGDex` `9f98493f904c` →
+`53d81c734820`, `PpgDex` `41efc6b8c803` → `fb32ff3da399`, Data Unifier + OverDex re-bundled) ·
+**mutation-checked: 26 assertions fail against pre-fix code**.
 
 ### 6.5 The badge fallback hides surfaced numbers with no registry entry — `oxydex-render.js:321`
 
