@@ -4529,6 +4529,37 @@
       // (2) HR: a stamped row is floating; a STAMPLESS row keeps tsMs null (never a fabricated now()/ramp)
       var hrStamp = D.parseDeviceHR('2026-06-13 20:44:48,58\n');
       T.eq('parseDeviceHR stamped tsMs is floating (Date.UTC)', hrStamp[0].tsMs, Date.UTC(2026, 5, 13, 20, 44, 48));
+      /* DEEP-AUDIT-III §6.3 — HR's column is resolved BY HEADER, never by position. This read the
+         LAST column, and on BOTH real `_HR.txt` layouts the last column is an interval in
+         MILLISECONDS. The twins below carry the two real headers byte-for-byte; committed, because a
+         gitignored real recording would leave CI exactly as blind as the positional read was.
+           PSL          — 2 fields when HRV is absent, 3 when present, so "last" is HR on some rows
+                          and HRV on others WITHIN ONE FILE. Real 21 613-row file: truth n=21613
+                          mean 50.47 bpm; the positional read returned n=6396 mean 39.94.
+           capture-host — RR-interval [ms] last. Its values (857–1062) all exceed the 20–260 bpm
+                          band, so EVERY row was rejected: n=0. The validation card did not go
+                          wrong there, it went SILENT, on every capture-host night. */
+      var psl = D.parseDeviceHR('Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];\n2026-06-07T22:21:34.807;57\n2026-06-07T22:21:35.807;58;902\n2026-06-07T22:21:36.807;59;915\n');
+      T.ok(
+        'PSL layout · HR comes from the labelled column, not the last one',
+        psl.length === 3 && psl[0].hr === 57 && psl[1].hr === 58 && psl[2].hr === 59,
+        JSON.stringify(
+          psl.map(function (r) {
+            return r.hr;
+          })
+        )
+      );
+      var chHR = D.parseDeviceHR('Phone timestamp;sensor timestamp [ns];HR [bpm];RR-interval [ms]\n2026-07-16T20:57:58.778;0;60;912\n2026-07-16T20:57:59.778;0;61;1062\n');
+      T.ok(
+        'capture-host layout · the RR-interval column is never read as HR',
+        chHR.length === 2 && chHR[0].hr === 60 && chHR[1].hr === 61,
+        JSON.stringify(
+          chHR.map(function (r) {
+            return r.hr;
+          })
+        )
+      );
+      T.ok('the header row is not parsed as data', psl.length === 3 && chHR.length === 2);
       var hrBare = D.parseDeviceHR('58\n60\n62\n'); // no timestamp column
       T.ok(
         'parseDeviceHR stampless row → tsMs null (no fabricated clock)',

@@ -509,7 +509,7 @@ healthiest CGM record — zero events because everything was in range — is the
 > `durSec = (lastTMs − t0)/1000` on HRVDex would declare a **29-day** window as continuous recording, turning
 > an honest exclusion into a false 29-day overlap. The fix must express *sparse* coverage, not a span.
 
-### 6.3 `parseDeviceHR` reads the last column — which is HRV in ms — `ecgdex-dsp.js:3274`
+### 6.3 `parseDeviceHR` reads the last column — which is HRV in ms — `ecgdex-dsp.js:3274` — **FIXED 2026-07-27**
 
 ```
 header : Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];
@@ -522,8 +522,32 @@ column is HRV-in-ms on the majority of rows**, and the 20–260 band silently la
 This drives ECGDex's surfaced *ECG-derived vs Device HR* validation card — mean, range, MAE, correlation *r*
 and its green/yellow/red pill.
 
-**Fix.** Resolve the HR column **by header**, mirroring `MOTIONDSP.xyzColsFromHeader`, and remember the
-HRV/RR indices so they can never be read as HR.
+**Fix AS LANDED (2026-07-27).** The column is resolved **by header** — a port of
+`motiondex-dsp.js xyzColsFromHeader`, which had it right — with `\bhr\b` deliberately not matching
+`hrv` (no word boundary before the v), so the interval column can never be taken for the rate column.
+Headerless files fall back **by shape, per row**: a bare list of rates reads column 0, anything wider
+reads the first field after the stamp. Neither choice can land on an interval, and the pre-existing
+bare-value contract (`58\n60\n62\n`) is preserved.
+
+**The defect was worse than filed — it has two faces, and the second is invisible in the write-up.**
+Executing it against both real layouts:
+
+| layout | last column | pre-fix result | truth |
+|---|---|---|---|
+| Polar SL (`…;HR [bpm];HRV [ms];…`) | HRV ms on 3-field rows | n=6396, mean **39.94** | n=21613, mean **50.47** |
+| capture-host (`…;HR [bpm];RR-interval [ms]`) | RR ms, 857–1062 | **n=0** | n=138, mean 61.64 |
+
+On capture-host files every RR value exceeds the 20–260 bpm band, so **every row was rejected**: the
+validation card did not go wrong there, it went **silent**, on every capture-host night. Post-fix both
+layouts reproduce their labelled-column truth exactly.
+
+**Gate:** 3914 assertions green with `DEX_UPLOADS` (0 skipped) · GATE A 9/9 (`ECGDex.html`
+`f97624c0a100` → `b89f59803103`; `Data Unifier.html` + `OverDex.html` re-bundled) · **8 analysis pages
+re-bundled** (`build-analysis.mjs` — they inline the DSP in worker blobs; `--check` caught them) ·
+docs re-bundled · `verify-fixtures` re-stamped `ECGDex_2026-06-27_equiv verifiedUnder → d11461c7983e`
+after a green corpus run. Both real headers ship as **committed twins** in the gate — a gitignored
+recording would have left CI exactly as blind as the positional read was. **Mutation-checked:** the
+twins return `[57]` and `[]` against pre-fix code.
 
 ### 6.4 Ingest: three routing defects — `dex-ingest.js:63/80/92`
 
