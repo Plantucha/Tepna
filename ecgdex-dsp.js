@@ -3263,15 +3263,56 @@
     }
     return out;
   }
-  // `*_HR.txt` (device onboard HR, bpm in the last column) → [{tsMs, hr}], 20–260 bpm.
+  /* Resolve HR's column BY HEADER — never by position (DEEP-AUDIT-III §6.3).
+     This read `p[p.length - 1]`, the LAST column. On BOTH real `_HR.txt` layouts the last column is
+     an INTERVAL IN MILLISECONDS, not a rate:
+        capture-host  Phone timestamp;sensor timestamp [ns];HR [bpm];RR-interval [ms]  → last = RR ms
+        Polar SL      Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];      → last = HRV ms
+                      (PSL writes 2 fields when HRV is absent and 3 when present, so the last column
+                       is HR on some rows and HRV on others WITHIN ONE FILE)
+     Measured on a real 21 613-row PSL file: the truth (its `HR [bpm]` column) is n=21613, mean 50.5,
+     range 46–78; the positional read returned n=6396, mean 39.9 — 70 % of rows dropped and the
+     survivors are millisecond values laundered through the 20–260 "plausible bpm" band. That feeds
+     ECGDex's surfaced ECG-vs-device validation card: mean, range, mean-abs-error, correlation r and
+     its excellent/good/weak pill. The correct implementation already existed one node over —
+     `motiondex-dsp.js xyzColsFromHeader`; this is that, ported. */
+  function hrColsFromHeader(headerLine) {
+    var p = String(headerLine || '').split(/[;\t,]/);
+    var idx = { hr: -1, rr: -1 };
+    for (var i = 0; i < p.length; i++) {
+      var h = p[i].trim().toLowerCase();
+      // `\bhr\b` deliberately does NOT match "hrv" (no word boundary before the v), so the interval
+      // column can never be taken for the rate column.
+      if (idx.hr < 0 && (/\bhr\b/.test(h) || /heart\s*rate/.test(h) || /\[bpm\]/.test(h))) idx.hr = i;
+      else if (idx.rr < 0 && (/rr[-\s]?interval/.test(h) || /\bhrv\b/.test(h))) idx.rr = i;
+    }
+    return idx.hr >= 0 ? idx : null;
+  }
+  // `*_HR.txt` (device onboard HR) → [{tsMs, hr}], 20–260 bpm.
   function parseDeviceHR(text) {
     var lines = String(text == null ? '' : text).split(/\r?\n/),
       out = [];
+    var cols = null,
+      headerless = false;
     for (var i = 0; i < lines.length; i++) {
       var t = lines[i].trim();
       if (!t) continue;
       var p = t.split(/[;\t,]/);
-      var hr = parseFloat(p[p.length - 1]);
+      if (cols === null && !headerless) {
+        var fromHdr = hrColsFromHeader(t);
+        if (fromHdr) {
+          cols = fromHdr;
+          continue; // the header line is not data
+        }
+        headerless = true;
+      }
+      // Headerless → decide BY SHAPE, per row: a bare list of rates has HR in column 0; anything
+      // wider puts it in the first field after the stamp. Both known layouts agree, and unlike "the
+      // last column" neither choice can land on an interval. A row whose chosen column is not a
+      // plausible rate fails the band below and is skipped — an honest empty result rather than
+      // milliseconds relabelled as bpm.
+      var hrIdx = cols ? cols.hr : p.length === 1 ? 0 : 1;
+      var hr = parseFloat(p[hrIdx]);
       if (!isFinite(hr) || hr < 20 || hr > 260) continue;
       var ts = parseTimestamp(p[0]);
       out.push({ tsMs: ts && ts.tMs != null ? ts.tMs : null, hr: hr }); // null stamp stays null — never fabricated
