@@ -44,6 +44,7 @@ jobs:
   # EVERY changed file is under briefs/ audits/ changes/. Forgetting a path here therefore runs the
   # gate unnecessarily; it can never silently disable it (CLAUDE.md §🔒's fail-closed rule).
   changes:
+    name: relevance (browser-gates)
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.filter.outputs.run }}

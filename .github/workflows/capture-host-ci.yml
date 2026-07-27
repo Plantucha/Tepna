@@ -36,6 +36,10 @@ name: capture-host-ci
 # detect the changed paths INSIDE the job, and skip via a job-level `if:` — a job skipped by a condition
 # reports as skipped and satisfies the requirement, whereas a workflow skipped by `paths:` reports
 # nothing. The difference is invisible until it deadlocks the repo, which is why this note is this long.
+#
+# That is exactly what the `changes` job below now does, so the trigger stays unfiltered (the checks
+# always report) while a JS-only PR pays ~8 s instead of ~80 s. This matters because coders here merge
+# the moment CI is green rather than rebasing, so anything on the critical path is paid by every PR.
 on:
   push:
   pull_request:
@@ -46,7 +50,53 @@ defaults:
     working-directory: capture-host
 
 jobs:
+  # Relevance check, as a JOB so the gate can report `skipped` rather than never being scheduled.
+  # ALLOWLIST, unlike browser-gates' denylist, because the dependency set here is closed and provable:
+  # tests/conftest.py puts ONLY capture-host/ on sys.path, so nothing outside this directory can change
+  # what the Python suite executes — the sole other input is this workflow file (the matrix, the pins,
+  # the coverage floor), which is why it is listed.
+  changes:
+    name: relevance (capture-host)   # distinct from browser-gates' own `changes` job
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"     # push / manual dispatch always runs
+            echo "decision: run=true (event=${{ github.event_name }})"; exit 0
+          fi
+          changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" \
+                                          "${{ github.event.pull_request.head.sha }}")
+          echo "changed files:"; echo "$changed"
+          # Pure-shell `case`, NOT grep: `grep -qv` returns the wrong exit status under ugrep, and a
+          # filter that mis-answers toward SKIP is a blind gate (see browser-gates.yml for the bite).
+          run=false
+          if [ -z "$changed" ]; then
+            run=true                                # no diff to judge ⇒ run, never silently skip
+          else
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              case "$f" in
+                capture-host/*|.github/workflows/capture-host-ci.yml) run=true ;;
+                *) ;;
+              esac
+            done <<< "$changed"
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "decision: run=$run"
+
   test:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     # ⚠️ THE BOX'S VERSION MUST BE IN THIS MATRIX. It was pinned to 3.12 alone while the Vigil box ran
     # 3.13.11 — CI was green on a Python the hardware does not execute. That is not hypothetical here:
