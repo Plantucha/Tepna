@@ -530,7 +530,15 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
                 continue
             st["files"] += 1
             st["bytes"] += n
-            if was_short:
+            # VESTIGIAL, and deliberately left in place. `fetch` raises ShortRead on exactly the
+            # predicate it then returns — `short_read(entry, len(data))`, a pure function of the same
+            # two arguments — so the flag it hands back here is unconditionally False and this branch
+            # cannot run. It is the pre-§C5 reporting path, from before a short body became an
+            # exception (the `except ShortRead` arm above now records the same thing, and does it
+            # WITHOUT promoting the truncated file). Kept because the flag is part of fetch's
+            # documented return contract; if that third element is ever made meaningful again, this
+            # is where it lands.
+            if was_short:   # pragma: no cover — unreachable; see above
                 st["short"].append(f"{e['name']}: listing {e['size']}, got {n / 1024:.0f}KB")
 
     root = ez.listing()

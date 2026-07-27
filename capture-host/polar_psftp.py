@@ -459,7 +459,9 @@ def main():
             recs = await list_recordings(a.address, a.adapter)
             print(json.dumps(recs, indent=2))
             print(f"\n{len(recs)} recording(s).")
-        elif a.cmd == "pull":
+        # No `else`: the subparser is `required=True` with exactly these two names, so argparse has
+        # already exited on anything else and the both-false arm cannot be reached.
+        elif a.cmd == "pull":   # pragma: no branch
             sessions = [a.session] if a.session else [r["path"] for r in await list_recordings(a.address, a.adapter)]
             for s in sessions:
                 out = os.path.join(a.out, s.strip("/").replace("/", "_"))

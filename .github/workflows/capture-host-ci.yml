@@ -3,11 +3,19 @@ name: capture-host-ci
 # Python CI for the OUT-OF-SUITE capture-host (the Tepna Vigil box software). Path-filtered so it runs
 # ONLY when capture-host/ changes — the JS suite's Node/browser gates are unaffected, and vice versa.
 # Covers the reverse-engineered BLE decoders (oxyii / polar_pmd / viatom), the suite-critical writers
-# (Clock Contract / the ~10% HR-bug regression), clockcfg, and the live-sample telemetry bus. No BLE
-# hardware needed — the tested modules are pure-Python (bleak/aiohttp are only imported by the runtime
-# daemon: capture/webmon/bonding/pull_session/polar_psftp, which read 0% in this hardware-free CI).
-# Coverage is REPORTED every run with a conservative --cov-fail-under backstop (source-only ~51% today);
-# it guards against a coverage CRATER, not normal incremental additions.
+# (Clock Contract / the ~10% HR-bug regression), clockcfg, the live-sample telemetry bus, AND the async
+# daemon itself. No BLE hardware needed: the runtime deps are installed below and bleak defers all D-Bus
+# contact to connect time, so capture/webmon/bonding/pull_session/polar_psftp import and measure fine.
+#
+# ⚠️ THE FLOOR IS 100%, STATEMENT **AND** BRANCH. It is a floor, not an aspiration: new code arrives with
+# its tests or the build is red. The previous floor was 48 while the tree measured 97 — a 49-point window
+# in which coverage could have cratered with CI staying green, which is the one thing a coverage gate
+# exists to prevent. Branch mode is on (pyproject `branch = true`) because statement-only coverage counts
+# a taken-one-way `if` as covered, and roughly a fifth of what was missing here was exactly that.
+#
+# Genuinely unreachable code is excluded INLINE with `# pragma: no cover` / `# pragma: no branch` and a
+# comment proving why — never by lowering this number. If a branch cannot be reached, say so at the
+# branch; if it can, test it.
 #
 # Runs on a MATRIX of Python versions, and the version the real box runs is required to be one of them —
 # see the note on the matrix below for why that is load-bearing rather than tidiness.
@@ -56,4 +64,7 @@ jobs:
       - name: Lint (ruff — real errors only)
         run: ruff check .
       - name: Unit tests + coverage (pytest)
-        run: pytest -q --cov=. --cov-report=term-missing --cov-fail-under=48
+        # Bare `--cov` (no path) on purpose — it defers to pyproject's `source = [".", "deploy"]`. An
+        # explicit `--cov=.` OVERRIDES that list and silently drops deploy/ back out of the denominator,
+        # which is how deploy/ezparse.py sat untested and invisible.
+        run: pytest -q --cov --cov-branch --cov-report=term-missing --cov-fail-under=100

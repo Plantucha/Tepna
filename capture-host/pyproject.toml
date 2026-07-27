@@ -4,12 +4,21 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
-# Coverage config (CAPTURE-HOST-FOLLOWUPS-III test-coverage). Inert for a plain `pytest` run — it only
-# takes effect when CI passes `--cov`, so a dev without pytest-cov installed still runs the suite clean.
-# Source only (tests/harness/venvs excluded); the bleak/aiohttp runtime modules (capture/webmon/bonding/
-# pull_session/polar_psftp) can't import in a hardware-free CI, so they read 0% here by construction.
+# Coverage config (CAPTURE-HOST-FOLLOWUPS-III test-coverage; taken to 100% statement+branch by
+# the 2026-07-27 coverage pass). Inert for a plain `pytest` run — it only takes effect when CI passes
+# `--cov`, so a dev without pytest-cov installed still runs the suite clean. Source only (tests/harness/
+# venvs excluded). The bleak/aiohttp runtime modules (capture/webmon/bonding/pull_session/polar_psftp)
+# DO measure here: CI installs requirements.txt and bleak defers all D-Bus contact to connect time, so
+# they import fine on a box with no radio.
+#
+# `deploy` is listed as its own source root ON PURPOSE. Coverage's unexecuted-file scan only descends
+# into IMPORTABLE subdirectories, and `deploy/` has no `__init__.py` — so with `source = ["."]` alone,
+# `deploy/ezparse.py` was not merely uncovered, it was absent from the denominator entirely. An
+# untested file that reads as zero coverage DEBT is the one failure mode a coverage gate exists to
+# prevent, so every future .py added under deploy/ now counts against the 100% floor by construction.
 [tool.coverage.run]
-source = ["."]
+source = [".", "deploy"]
+branch = true
 omit = ["tests/*", ".venv*/*", "*/site-packages/*"]
 
 [tool.coverage.report]
@@ -17,8 +26,15 @@ skip_empty = true
 # Standard, reviewable exclusions. `if __name__ == "__main__":` CLI entry blocks are exercised by running
 # the module as a script, not by unit tests — every module here that has one is a hand-run diagnostic /
 # operator tool (bonding, pull_session, polar_psftp, probe_oxyii_ppg) or the daemon's own launcher
-# (capture). Also the usual defensive/typing lines. Anything excluded with `# pragma: no cover` inline
-# carries a comment explaining WHY it is unreachable.
+# (capture). Also the usual defensive/typing lines.
+#
+# Everything else is at 100% (statement AND branch), enforced by `--cov-fail-under=100` in CI. The ONLY
+# other way out is an inline `# pragma: no cover` / `# pragma: no branch`, and the house rule for one is
+# strict: it carries a comment PROVING the code is unreachable — an argparse `choices` that already
+# rejected the value, a guard whose condition an earlier guard settled — not merely "hard to test".
+# Fourteen exist across the tree (`grep -rn 'pragma: no ' *.py deploy/*.py`); each names its proof at
+# the line, and one of them (cpap_harvest's `was_short`) documents genuinely dead code rather than a
+# defensive guard — it is a removal candidate, not a permanent exemption.
 exclude_also = [
     'if __name__ == .__main__.:',
     'raise NotImplementedError',

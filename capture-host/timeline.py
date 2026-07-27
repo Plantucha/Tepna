@@ -169,8 +169,11 @@ def bucket_link(samples: list[tuple[float, int, float | None]], t0: float, t1: f
         # LAST sample always sits exactly on t1 — and that is the most recent reading, the one a live
         # card is showing. `ts >= t1` silently dropped it every time.
         i = min(int((ts - t0) / width), n - 1)
-        if 0 <= i < n:
-            buckets[i].append((c, r))
+        if 0 <= i < n:   # pragma: no branch — cannot be false once the explicit window check above
+            buckets[i].append((c, r))   # exists: n >= 1 and t1 > t0 are guaranteed by the early
+            # return, so width > 0; `ts >= t0` gives i >= 0 and the min() clamp gives i <= n-1. Kept
+            # as an assertion of that reasoning rather than deleted, since it is the guard the
+            # truncate-toward-zero comment above is describing the replacement of.
     for i, b in enumerate(buckets):
         if not b:
             continue
@@ -411,8 +414,8 @@ def build(night_dir: str, devices: list[dict], buckets: int = DEFAULT_BUCKETS) -
                 spans.append(s + f["span_sec"])
     else:
         for v in link.values():
-            if v:
-                spans.append(v[0][0]); spans.append(v[-1][0])
+            if v:   # pragma: no branch — read_link_samples only creates a key by appending to it, so
+                spans.append(v[0][0]); spans.append(v[-1][0])   # no value here is ever the empty list
     if not spans:
         return {"night": os.path.basename(night_dir.rstrip("/")), "buckets": 0, "devices": []}
     t0, t1 = min(spans), max(spans)
