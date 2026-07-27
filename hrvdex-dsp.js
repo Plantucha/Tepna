@@ -631,9 +631,17 @@
       // MeanRR through the SAME asSecondsRR detector as MxDMn/Mode above (was a hard /1000 → ~10³× mis-scale
       // on a MeanRR-in-seconds vendor export; latent while both real ingest paths carried MeanRR in ms).
       const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
-      // Toichi CVI: log10(rMSSD_ms × MeanRR_ms) — both in ms for correct units
-      // Typical resting values: 3.5–4.5; threshold thresholds updated accordingly
-      r.d_cvi = r._rmssd > 0 && r._meanRR > 0 ? Math.log10(r._rmssd * r._meanRR) : NaN;
+      /* Toichi CVI: log10(rMSSD_ms × MeanRR_ms) — typical resting 3.5–4.5, and the render colour rule
+         (>4.4 good / >4.1 warn / else bad) is calibrated to that ms×ms band.
+         §2.1 — this read `_meanRR` RAW while its neighbours two lines up and down read it through the
+         asSecondsRR guard: SAME loop, SAME field, SAME row. On a MeanRR-in-seconds vendor row the KPI
+         went 4.58 → 1.58 and painted a red "bad" cardiac-vagal verdict while every guarded neighbour
+         stayed exactly invariant. DEEP-AUDIT-2026-07-22's REFUTED row dismissed this as "internally
+         consistent (both operands from the same vendor)" — ratio-cancellation reasoning, which does
+         NOT hold for a LOG OF A PRODUCT: log10(a_s·b_s) = log10(a_ms·b_ms) − 6. Compute in ONE
+         declared unit (seconds, via the same detector) and restate into the published ms×ms band. */
+      const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._rmssd).valueS : r._rmssd / 1000;
+      r.d_cvi = rmssd_s > 0 && meanRR_s > 0 ? Math.log10(rmssd_s * meanRR_s) + 6 : NaN;
       // CSI: MxDMn in SECONDS / meanRR in seconds. Uses the SAME guard-normalized MxDMn as d_si
       // (was a hard "assumes seconds" → ~10³× mis-scale on a ms-unit file; -III §1). meanRR_s already
       // converts meanRR ms→s above, so both operands are seconds; do NOT re-fork the threshold.
@@ -706,8 +714,10 @@
       r.d_all_night = _hrvIsAllNight(r); // consumers (view filter, band gating) read THIS, not the hour
 
       // ── NN50 estimate ──
-      const meanRR_s_local = r._meanRR > 0 ? r._meanRR / 1000 : NaN; // fix: use per-row value
-      const beats5min = meanRR_s_local > 0 ? 300 / meanRR_s_local : NaN;
+      // §2.1 — this hard `/1000` is the exact idiom the guard replaced 76 lines earlier in the same
+      // function; on a MeanRR-in-seconds row it made the NN50 estimate 60 → 59 999. Reuse the guarded
+      // value rather than re-deriving it (a second derivation is a second place to diverge).
+      const beats5min = meanRR_s > 0 ? 300 / meanRR_s : NaN;
       r.d_nn50 = !isNaN(beats5min) && _all(r._pnn50) ? (r._pnn50 / 100) * beats5min : NaN;
 
       // ── VO2max Estimates ──────────────────────────────────────────

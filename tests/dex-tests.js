@@ -21432,6 +21432,71 @@
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
     });
 
+    /* DEEP-AUDIT-III §1.3 / §2.1 / §2.2 / §2.3 — units and parser correctness, all mechanical.
+       §1.3 PpgDex ROUNDED a fractional second, so any fraction >= .9995 became 1000 ms and `_ckMk`'s
+            `ms > 999` guard turned a valid ISO stamp into an honest-null. Four sibling parsers
+            truncate; PpgDex is a sanctioned node-local variant, so this is a bug inside the variant.
+       §2.1 Three of six `_meanRR` consumers bypassed the asSecondsRR guard their neighbours use — same
+            loop, same field, same row. (`d_cv_calc` is NOT among them: the verifier proved it invariant
+            under any vendor-consistent convention, so it is deliberately untouched.)
+       §2.2 An unrecognised ACC unit silently defaulted to milli-g. A default is not a measurement:
+            gravity is, so the parse boundary now cross-examines the declared unit against it.
+       §2.3 `SignalSpec.cgm.unit` declared mmol/L for frames every producer emits in mg/dL. */
+    group('Units and parsers: §1.3 · §2.1 · §2.2 · §2.3', 'clock · units · parsers', function (T) {
+      // ── §1.3 · truncate, never round
+      var P = env.PPGDSP,
+        C = env.DexClock;
+      if (P && typeof P.parseTimestamp === 'function' && C) {
+        [['2026-06-17T01:02:03.9995', 999], ['2026-06-17T01:02:03.999500000', 999], ['2026-06-17T01:02:03.0005', 0]].forEach(function (c) {
+          var r = P.parseTimestamp(c[0]);
+          T.ok('§1.3 · ' + c[0] + ' parses (no overflow to null)', !!r && r.tMs != null, JSON.stringify(r));
+          if (r && r.tMs != null) T.eq('§1.3 · …and truncates like its four siblings', r.tMs % 1000, c[1]);
+          var d = C.parseTimestamp(c[0]);
+          if (r && d) T.eq('§1.3 · …agreeing with DexClock exactly', r.tMs, d.tMs);
+        });
+      }
+      // ── §2.1 · every _meanRR consumer is unit-invariant
+      var H = env.HRVDex;
+      if (H && typeof H.derive === 'function') {
+        var base = { _sdnn: 55, _rmssd: 42, _pnn50: 18, _amo50: 40 };
+        var msRow = H.derive([{ _sdnn: 55, _rmssd: 42, _pnn50: 18, _amo50: 40, _meanRR: 900, _mode: 900, _mxdmn: 300 }])[0];
+        var sRow = H.derive([{ _sdnn: 0.055, _rmssd: 0.042, _pnn50: 18, _amo50: 40, _meanRR: 0.9, _mode: 0.9, _mxdmn: 0.3 }])[0];
+        ['d_cvi', 'd_nn50', 'd_csi', 'd_si', 'd_mxdmn_meanrr'].forEach(function (k) {
+          T.ok('§2.1 · ' + k + ' is unit-INVARIANT (whole-ms row ≡ whole-seconds row)', Math.abs(msRow[k] - sRow[k]) < 1e-6, k + ': ms=' + msRow[k] + ' s=' + sRow[k]);
+        });
+        // and the published band is preserved — the render colour rule (>4.4 good) is calibrated to ms×ms
+        T.ok('§2.1 · d_cvi keeps its published ms×ms scale (3.5–4.5 resting)', msRow.d_cvi > 3.5 && msRow.d_cvi < 5.5, 'd_cvi=' + msRow.d_cvi);
+      }
+      // ── §2.2 · a unit tag is a claim; gravity is a measurement
+      var M = env.MOTIONDSP;
+      if (M && typeof M.parseSensorXYZ === 'function') {
+        var mk = function (hdr, scale) {
+          var t = hdr + '\n';
+          for (var i = 0; i < 200; i++) {
+            var j = Math.sin(i * 0.4) * 0.02;
+            t += '2026-06-10T22:00:' + (i % 60 < 10 ? '0' : '') + (i % 60) + '.000;' + (599628000000000000 + i * 38000000) + ';' + (0.1 * scale).toFixed(4) + ';' + (0.2 * scale).toFixed(4) + ';' + ((0.97 + j) * scale).toFixed(4) + '\n';
+          }
+          return t;
+        };
+        var HDR_MG = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]';
+        var okMg = M.parseSensorXYZ(mk(HDR_MG, 1000));
+        T.eq('§2.2 · a declared mg file agrees with gravity', okMg._unitSuspect == null, true);
+        var si = M.parseSensorXYZ(mk('Phone timestamp;sensor timestamp [ns];X [m/s^2];Y [m/s^2];Z [m/s^2]', 9.80665));
+        T.eq('§2.2 · an m/s² header is recognised as SI acceleration', si._unit, 'm/s2');
+        var unknown = M.parseSensorXYZ(mk('Phone timestamp;sensor timestamp [ns];X [blorp];Y [blorp];Z [blorp]', 1000));
+        T.eq('§2.2 · an UNKNOWN unit is inferred from gravity, not defaulted to mg', unknown._unitInferred, 'mg');
+        T.ok('§2.2 · …and its rows survive (the bound must not assume g before the unit is known)', unknown.length > 100, 'rows=' + unknown.length);
+        var lying = M.parseSensorXYZ(mk(HDR_MG, 1));
+        T.ok('§2.2 · a header that DISAGREES with gravity is flagged, not silently rescaled', !!lying._unitSuspect && lying._unitSuspect.declared === 'mg' && lying._unitSuspect.inferred === 'g', JSON.stringify(lying._unitSuspect));
+        T.eq('§2.2 · …and the DECLARED unit still stands (report, never guess)', lying._unit, 'mg');
+      }
+      // ── §2.3 · the declared cgm unit is the one producers emit
+      var S = env.SignalSpec;
+      if (S && typeof S.unitOf === 'function') {
+        T.eq('§2.3 · SignalSpec declares cgm in mg/dL, the unit every producer emits', S.unitOf('cgm'), 'mg/dL');
+      }
+    });
+
     /* DEEP-AUDIT-III §1.2 — the time-only midnight roll needs REAL slack.
        `while (t < prevTMs) t += 86400000` treated ANY backwards step as a midnight wrap, so one
        duplicated row turned a 120-minute night into a claimed 1560 and collapsed SBII 13× — while

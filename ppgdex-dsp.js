@@ -55,7 +55,12 @@
     // 2/3 — ISO-8601 (zone authoritative if present, else components verbatim)
     m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?\s*(Z|[+-]\d{2}:?\d{2})?$/);
     if (m) {
-      const ms = m[7] ? Math.round(parseFloat('0.' + m[7]) * 1000) : 0;
+      /* §1.3 — TRUNCATE, never round. `Math.round(parseFloat('0.'+frac)*1000)` yields 1000 for any
+         fraction >= .9995, and `_ckMk`'s `ms > 999` guard then returns null: a perfectly valid ISO
+         stamp became an honest-null. The four sibling parsers (clock.js, glucodex-dsp, cpapdex-dsp,
+         ecgdex-dsp) all do `+(m[7]+'00').slice(0,3)`, which cannot overflow. PpgDex is a sanctioned
+         node-local variant, so this is a bug INSIDE the variant, not a call to unify it. */
+      const ms = m[7] ? +(m[7] + '00').slice(0, 3) : 0;
       const tMs = _ckMk(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, ms);
       if (tMs == null) return null; // §2.7 — out-of-range component → honest null, never a rolled instant
       let offsetMin = null;

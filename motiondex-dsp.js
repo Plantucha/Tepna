@@ -102,7 +102,15 @@
     if (unit && /^mg$/i.test(unit)) return { kind: 'acc', unit: 'mg' };
     if (unit === 'g') return { kind: 'acc', unit: 'g' };
     if (/\[\s*mg\s*\]/i.test(h)) return { kind: 'acc', unit: 'mg' };
-    return { kind: 'acc', unit: 'mg' }; // XYZ default (milli-g)
+    // SI acceleration — an m/s² header is real acceleration, not milli-g (1 g = 9.80665 m/s²).
+    if (/m\/s\^?2|m\/s²|ms-2/i.test(h)) return { kind: 'acc', unit: 'm/s2' };
+    /* §2.2 — an UNRECOGNISED unit is not milli-g, it is UNKNOWN. Returning 'mg' here meant any header
+       we do not recognise was silently scaled as milli-g; an m/s² file would have read 9.8× low with
+       no flag. Saying `unit: null` is the honest answer and lets the magnitude oracle below decide,
+       instead of a default quietly asserting a unit nobody read. (Reachability, stated plainly: every
+       ACC file in both corpora is `[mg]`, and capture-host/writers.py hardcodes it, so this path has
+       no producer today — it is the SILENT DEFAULT that is the defect, not an observed miscount.) */
+    return { kind: 'acc', unit: null };
   }
   // Filename stream token (ACC / GYRO / MAGN), tolerant of Polar Sensor Logger "(1)" re-downloads.
   function streamKindFromName(name) {
@@ -154,7 +162,10 @@
       unit = (headerKind && headerKind.unit) || '';
     var lim;
     if (kind === 'acc')
-      lim = /^mg$/i.test(unit) ? 16000 : 16; // mg vs g
+      // §2.2 interaction: an acc stream whose unit is UNKNOWN must not be bounded as if it were g —
+      // that would reject every row of a milli-g file before `inferAccUnit` ever sees it, converting an
+      // honest "unknown unit" into an empty stream. Bound only the absurd until the unit is known.
+      lim = /^mg$/i.test(unit) ? 16000 : unit === 'm/s2' ? 160 : unit === 'g' ? 16 : 1e7;
     else if (kind === 'gyro') lim = 2000;
     else if (kind === 'mag') lim = /^G$/.test(unit) ? 49 : 4900;
     else lim = 1e7; // unlabelled stream: bound only the physically absurd
@@ -210,6 +221,17 @@
     out._implausibleDropped = nImplausible;
     out._kind = headerKind ? headerKind.kind : null;
     out._unit = headerKind ? headerKind.unit : null;
+    /* §2.2 — cross-examine the declared unit against gravity. The oracle REPORTS; it never rescales,
+       because silently replacing a declared unit with a guessed one is the fabrication this suite
+       exists to prevent. When the header declared nothing, its inference becomes the unit (an honest
+       inference beats a silent default); when the header did declare something and they disagree,
+       the declaration stands and `_unitSuspect` records the disagreement. */
+    if (out._kind === 'acc') {
+      var inferred = inferAccUnit(out);
+      out._unitInferred = inferred;
+      if (out._unit == null) out._unit = inferred;
+      else if (inferred && inferred !== out._unit) out._unitSuspect = { declared: out._unit, inferred: inferred };
+    }
     // DEEP-AUDIT-II §7.9 — normalize a Gauss magnetometer stream to SI µT at the parse boundary (1 G = 100 µT,
     // CLAUDE.md §📏) so a `[G]` file is an honest µT mag stream and can never be read as gravity-g downstream.
     if (out._kind === 'mag' && out._unit === 'G') {
@@ -244,7 +266,34 @@
     // DEEP-AUDIT-II §7.9 — mg is matched CASE-INSENSITIVELY (a `[mG]` header is still milli-g; the old
     // `unit === 'mg'` missed it and read the value as g → 1000× motion metrics). Gauss never reaches here
     // (routed to mag + converted to µT at the parse boundary); a plain 'g' that does is already in g.
-    return /^mg$/i.test(unit) ? v / 1000 : v;
+    if (/^mg$/i.test(unit)) return v / 1000;
+    if (unit === 'm/s2') return v / 9.80665; // §2.2 — SI acceleration → g
+    return v;
+  }
+
+  /* §2.2 — THE MAGNITUDE ORACLE. A unit tag is a claim; gravity is a measurement. A worn accelerometer
+     at rest reads |xyz| ≈ 1 g, so the median vector magnitude of a real ACC stream tells us which unit
+     the file is ACTUALLY in — the same physics `classifyGravity` already relies on downstream, applied
+     at the parse boundary where it can still prevent a mis-scale rather than inherit one.
+     It REPORTS, it does not rescale: silently "correcting" a file would replace a declared unit with a
+     guessed one, which is the fabrication this suite exists to prevent. `_unitSuspect` lets a consumer
+     (or a future gate) see the disagreement; when the header declares nothing, the oracle supplies the
+     honest inference instead of a default. */
+  function inferAccUnit(rows) {
+    if (!rows || rows.length < 8) return null;
+    var mags = [];
+    for (var i = 0; i < rows.length && mags.length < 2000; i += Math.max(1, Math.floor(rows.length / 2000))) {
+      var r = rows[i];
+      if (!r || !isFinite(r.x) || !isFinite(r.y) || !isFinite(r.z)) continue;
+      mags.push(Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z));
+    }
+    if (mags.length < 8) return null;
+    var med = median(mags);
+    if (!isFinite(med) || med <= 0) return null;
+    if (med > 300 && med < 3000) return 'mg'; // ~1000
+    if (med > 0.3 && med < 3) return 'g'; // ~1
+    if (med > 3 && med < 30) return 'm/s2'; // ~9.81
+    return null; // nothing gravity-like — do not guess
   }
   /* NATIVE sample rate = MEDIAN inter-sample interval, never count ÷ span (DEEP-AUDIT-III §4.1).
      `(n-1)/(tLast-tFirst)` is the AVERAGE over the span, so it is depressed by exactly the coverage
