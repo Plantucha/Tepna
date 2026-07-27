@@ -154,12 +154,14 @@ def _chk(src, systemd, udev, *args):
 def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
     src = tmp_path / "capture-host" / "systemd"
     src.mkdir(parents=True)
+    (tmp_path / "capture-host" / "deploy").mkdir(parents=True)
     systemd = tmp_path / "etc-systemd"; systemd.mkdir()
     udev = tmp_path / "etc-udev"; udev.mkdir()
     (src / "99-tepna-btdongle.rules").write_text('ACTION=="add", ATTR{idVendor}=="2357"\n')
     (src / "tepna-usb-autosuspend.service").write_text("[Service]\nType=oneshot\n")
     unit = "[Service]\nUser={u}\nGroup={u}\nReadWritePaths=/srv/tepna\nExecStart=/x\n"
-    (src / "tepna-capture.service").write_text(unit.format(u=capture_user_repo))
+    # deploy/ is the installed source (see the script header); systemd/ no longer participates.
+    (tmp_path / "capture-host" / "deploy" / "tepna-capture.service").write_text(unit.format(u=capture_user_repo))
     (udev / "99-tepna-btdongle.rules").write_text('ACTION=="add", ATTR{idVendor}=="2357"\n')
     (systemd / "tepna-usb-autosuspend.service").write_text("[Service]\nType=oneshot\n")
     (systemd / "tepna-capture.service").write_text(unit.format(u=capture_user_etc))
@@ -182,32 +184,23 @@ def test_a_stale_managed_file_goes_RED(tmp_path):
     assert "STALE" in r.stdout
 
 
-def test_a_site_customised_unit_is_NOT_reported_as_drift(tmp_path):
-    """User/Group/ReadWritePaths are the site's to set. Flagging them would make the check cry wolf
-    on every box and train the operator to ignore it."""
-    src, sd, ud = _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="vigil")
-    r = _chk(src, sd, ud)
-    assert r.returncode == 0, r.stdout
-    assert "same but for site keys" in r.stdout
-
-
-def test_a_templated_unit_that_drifts_BEYOND_the_site_keys_is_reported(tmp_path):
-    """Normalising the site keys must not blind the check to a real change in the rest of the unit."""
-    src, sd, ud = _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="vigil")
-    (sd / "tepna-capture.service").write_text(
-        "[Service]\nUser=vigil\nGroup=vigil\nReadWritePaths=/srv/tepna\nExecStart=/x\nRestart=no\n")
+def test_a_User_difference_in_etc_is_now_REAL_drift(tmp_path):
+    """This used to be normalised away as "site keys". It is drift: the installed unit no longer
+    matches the committed one, and the whole reason to look is to find out when that happens."""
+    src, sd, ud = _tree(tmp_path, capture_user_repo="vigil", capture_user_etc="tepna")
     r = _chk(src, sd, ud)
     assert r.returncode == 1
-    assert "DRIFTED beyond the site keys" in r.stdout
+    assert "STALE" in r.stdout
 
 
-def test_install_never_writes_the_templated_unit(tmp_path):
-    """The repo's copy names a user the box may not have. Writing it would stop capture."""
-    src, sd, ud = _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="vigil")
-    before = (sd / "tepna-capture.service").read_text()
+def test_install_writes_the_unit_from_the_deploy_copy(tmp_path):
+    """The old rule was "never write this file", because the only repo copy named a user the box does
+    not have. The deploy/ copy names the RIGHT user and is what /etc already holds, so installing it is
+    correct — and refusing to would leave the one file most worth keeping current permanently stale."""
+    src, sd, ud = _tree(tmp_path, capture_user_repo="vigil", capture_user_etc="tepna")
     _chk(src, sd, ud, "--install")
-    assert (sd / "tepna-capture.service").read_text() == before, \
-        "--install must never touch a site-templated unit"
+    assert (sd / "tepna-capture.service").read_text() == \
+        (src / "deploy" / "tepna-capture.service").read_text()
 
 
 def test_install_does_replace_a_stale_managed_file(tmp_path):
@@ -229,3 +222,67 @@ def test_a_file_missing_from_etc_is_drift_not_a_crash(tmp_path):
 def test_the_deploy_runs_the_check():
     body = open(os.path.join(HERE, "deploy", "deploy-vigil.sh"), encoding="utf-8").read()
     assert "check-system-files.sh" in body
+
+
+# ══ THE CHECKER WAS WATCHING THE WRONG FILE (2026-07-26, same day it shipped) ══════════════════════
+# It compared `systemd/tepna-capture.service` and reported "✓ same but for site keys". The box installs
+# `deploy/tepna-capture.service` — a DIFFERENT file that is byte-identical to /etc. The site-key
+# normalisation papered over `User=tepna` vs `User=vigil` between two SOURCES, and comment-stripping hid
+# the rest, so the green said nothing about the file anyone actually runs.
+#
+# Two files with one name is the condition that produced it, so that condition is now itself the alarm.
+def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
+    src = tmp_path / "capture-host"
+    (src / "systemd").mkdir(parents=True)
+    (src / "deploy").mkdir(parents=True)
+    systemd = tmp_path / "etc-systemd"; systemd.mkdir()
+    udev = tmp_path / "etc-udev"; udev.mkdir()
+    (src / "systemd" / "99-tepna-btdongle.rules").write_text("rule\n")
+    (udev / "99-tepna-btdongle.rules").write_text("rule\n")
+    (src / "systemd" / "tepna-usb-autosuspend.service").write_text("unit\n")
+    (systemd / "tepna-usb-autosuspend.service").write_text("unit\n")
+    (src / "deploy" / "tepna-capture.service").write_text(deploy_body)
+    (src / "systemd" / "tepna-capture.service").write_text(systemd_body)
+    (systemd / "tepna-capture.service").write_text(etc_body)
+    return src, systemd, udev
+
+
+UNIT_V = "[Service]\nUser=vigil\nExecStart=/x\n"
+UNIT_T = "[Service]\nUser=tepna\nExecStart=/x\n"
+
+
+def test_the_installed_file_is_the_one_compared(tmp_path):
+    """/etc matches deploy/ byte-for-byte; systemd/ differs. That must read as IN SYNC."""
+    src, sd, ud = _tree_two_sources(tmp_path, UNIT_V, UNIT_T, UNIT_V)
+    r = _chk(src, sd, ud)
+    assert "in sync" in r.stdout, r.stdout
+
+
+def test_a_second_differing_copy_is_reported_as_AMBIGUOUS(tmp_path):
+    """THE regression: two files named tepna-capture.service, one installed, one watched."""
+    src, sd, ud = _tree_two_sources(tmp_path, UNIT_V, UNIT_T, UNIT_V)
+    r = _chk(src, sd, ud)
+    assert "AMBIGUOUS SOURCE" in r.stdout, r.stdout
+    assert r.returncode == 1, "an ambiguous source must be non-zero even when /etc matches"
+
+
+def test_no_ambiguity_when_the_copies_agree(tmp_path):
+    """One name, two paths, identical bytes — nothing to choose between, so no alarm."""
+    src, sd, ud = _tree_two_sources(tmp_path, UNIT_V, UNIT_V, UNIT_V)
+    r = _chk(src, sd, ud)
+    assert "AMBIGUOUS" not in r.stdout, r.stdout
+    assert r.returncode == 0, r.stdout
+
+
+def test_drift_in_the_installed_file_is_still_caught(tmp_path):
+    src, sd, ud = _tree_two_sources(tmp_path, UNIT_V, UNIT_V, UNIT_V.replace("/x", "/y"))
+    r = _chk(src, sd, ud)
+    assert "STALE" in r.stdout and r.returncode == 1
+
+
+def test_install_services_installs_from_the_repo_not_HOME(tmp_path):
+    """`install -m644 /home/$OWNER/tepna-capture.service` installed a hand-edited file outside version
+    control. It was a day stale and would have reverted the CAP_NET_ADMIN grant on the next deploy."""
+    body = open(os.path.join(HERE, "deploy", "install-services.sh"), encoding="utf-8").read()
+    assert "/home/$OWNER/tepna-capture.service" not in body
+    assert "UNIT_SRC=" in body and "tepna-capture.service" in body
