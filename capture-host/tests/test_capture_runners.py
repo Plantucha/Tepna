@@ -3571,3 +3571,37 @@ def test_notifier_logs_a_non_2xx_rejection(caplog):
     with caplog.at_level("WARNING"):
         assert _run(n.send("Tepna: disk low", "body")) is False
     assert any("rejected" in r.message for r in caplog.records)
+
+
+def test_an_unreadable_rssi_poll_writes_a_blank_not_the_last_good_value(tmp_path, monkeypatch):
+    """§B1. `_set(name, rssi=...)` ran only when the read SUCCEEDED, while the LINK row unconditionally
+    wrote `st.get("rssi")` — so every unreadable poll re-recorded the last good dBm at a NEW timestamp,
+    indistinguishable from a real measurement:
+
+        2026-07-26T21:02:50.422;H10;1;-55;...
+        2026-07-26T21:02:50.422;H10;1;-55;...   (1 real measurement -> 4 recorded readings)
+
+    Worse after the fix that preceded it: VIGIL-PPG-GRID-AUDIT §4 tightened `parse_rssi` to -127..-1 so
+    BlueZ's sentinels return None — "Recording 'unknown' is the honest answer" — which strictly
+    INCREASED how often the stale value was logged instead of a blank. `timeline.bucket_link` then
+    medians the column and the monitor renders it as the night's signal trace."""
+    reads = iter([-55, None, None, None])
+    async def _read(_adapter, _addr):
+        return next(reads, None)
+    monkeypatch.setattr(capture.link_rssi, "read_rssi", _read)
+    async def _hci(mac, refresh=False): return "hci0"
+    monkeypatch.setattr(capture.link_rssi, "resolve_hci", _hci)
+    capture.STATUS["devices"]["H10"] = {"connected": True}
+    cfg = {"link": {"rssi_interval_sec": 1, "log_enabled": True},
+           "devices": [_dev(name="H10", address="AA:BB:CC:DD:EE:FF")]}
+    _stop_after(monkeypatch, 4)
+    _run(capture.rssi_poller("AA:BB:CC:DD:EE:00", cfg, str(tmp_path)))
+
+    import glob
+    links = glob.glob(str(tmp_path / "captures" / "*" / "*_LINK.csv"))
+    assert links, "the sidecar must have been written"
+    rows = [r for r in open(links[0]).read().splitlines()[1:] if r]
+    dbm = [r.split(";")[3] for r in rows]
+    assert dbm[0] == "-55", "a real reading is recorded"
+    assert all(v == "" for v in dbm[1:]), (
+        f"an unreadable poll must write a blank, not the last good value — got {dbm}")

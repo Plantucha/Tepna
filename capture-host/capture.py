@@ -1279,10 +1279,9 @@ async def run_polar(dev: dict, root: str):
                                             name, pmd.MEAS_NAME.get(meas, meas))
                             else:                        # truly unsupported settings — drop it, don't leave an empty file / idle card
                                 _set(name, last_error=f"{pmd.MEAS_NAME.get(meas, meas)} START rejected")
-                                try:
-                                    p = writers[meas].path; writers[meas].close(); os.remove(p)
-                                except OSError:
-                                    pass
+                                # discard(), not `os.remove(wr.path)` — the writer knows every file it
+                                # owns and `path` names only the primary (CAPTURE-HOST-DEEP-AUDIT §C8).
+                                writers[meas].discard()
                                 del writers[meas]
                                 BUS.unregister(_live_key(pmd.MEAS_NAME.get(meas, str(meas)), tag))
                             await asyncio.sleep(0.2)
@@ -1399,16 +1398,15 @@ async def run_polar(dev: dict, root: str):
             # Those files are indistinguishable from a real capture until something opens them, and they
             # pollute the night directory the Dex ingest walks. The START-rejected path already deleted
             # its file for exactly this reason; this generalises it to every way a session can end.
+            # discard(), never os.remove(wr.path): the writer knows every file it owns and `path` names
+            # only the primary — see StreamWriter.paths (CAPTURE-HOST-DEEP-AUDIT §C8).
             for wr in list(writers.values()) + ([hr_writer] if hr_writer else []):
-                empty = not wr.rows
-                path = wr.path
-                wr.close()
-                if empty:
-                    try:
-                        os.remove(path)
-                        log.debug("%s: discarded header-only %s", name, os.path.basename(path))
-                    except OSError:
-                        pass
+                if not wr.rows:
+                    names = ", ".join(os.path.basename(p) for p in wr.paths)
+                    wr.discard()
+                    log.debug("%s: discarded header-only %s", name, names)
+                else:
+                    wr.close()
         if not _STOP.is_set():
             if charging_hold:
                 # Not a fault, so it must not ride the error backoff: recheck on a steady cadence so the
@@ -1547,7 +1545,17 @@ async def run_viatom(dev: dict, root: str):
                         return
                     now = _now()
                     if pkt["spo2"] is not None:
-                        wr.write(now, pkt["spo2"], pkt["pr"] or 0, pkt["motion"])
+                        # `pkt["pr"]` passed through AS-IS, including None (CAPTURE-HOST-DEEP-AUDIT §B2).
+                        # VIGIL-PPG-GRID-AUDIT §5.2 removed `or 0` from the OXYII call site and left a
+                        # comment there plus a past-tense docstring on Spo2CsvWriter.write — and never
+                        # touched this one, the SECOND producer of the identical CSV one screen up.
+                        # Reachable by configuration (`protocol: legacy`, config.example.yaml:83), not
+                        # dead. Impact is bounded and worth stating plainly: the shipped oxydex-dsp.js
+                        # rejects `0` and blank IDENTICALLY (`parseInt('')` → NaN and `0 < 20` hit the
+                        # same `continue`), 0 occurrences across 110k real rows on the sibling path — so
+                        # NO downstream number moves. What changes is that the file stops asserting a
+                        # pulse the ring never measured.
+                        wr.write(now, pkt["spo2"], pkt["pr"], pkt["motion"])
                         BUS.push("spo2", [pkt["spo2"]])
                         if pkt["pr"]:
                             BUS.push("pr", [pkt["pr"]])
@@ -2438,6 +2446,20 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
                     continue
                 st = STATUS["devices"].get(name, {})
                 connected = bool(st.get("connected"))
+                # THE READ IS AUTHORITATIVE, INCLUDING ITS FAILURE (CAPTURE-HOST-DEEP-AUDIT §B1).
+                # `_set(name, rssi=...)` used to run only when the read SUCCEEDED, while the row below
+                # unconditionally wrote `st.get("rssi")` — so every unreadable poll re-recorded the last
+                # good dBm at a NEW timestamp, indistinguishable from a real measurement. After three
+                # consecutive failures the poller goes idle and suppresses reads for `rssi_retry_sec`
+                # (600 s), which at a 25 s cadence is 24 further rows all carrying the same stale value.
+                # `timeline.bucket_link` then medians the column and the monitor renders it as the
+                # night's signal trace.
+                #
+                # This got WORSE with the fix that preceded it: VIGIL-PPG-GRID-AUDIT §4 tightened
+                # `parse_rssi` to -127..-1 so BlueZ's sentinels return None — "Recording 'unknown' is the
+                # honest answer" — which strictly increased how often the stale value was logged instead
+                # of a blank. An un-polled row is not a measurement; it is blank.
+                rssi = None
                 if not connected:
                     _set(name, rssi=None)     # a stale reading must not linger on a dropped device
                 elif do_rssi:
@@ -2445,10 +2467,12 @@ async def rssi_poller(adapter_mac, cfg: dict, root: str | None = None):
                     rssi = await link_rssi.read_rssi(adapter_mac, addr)
                     if rssi is not None:
                         got_any = True
-                        _set(name, rssi=rssi)
+                    _set(name, rssi=rssi)     # None included — an unreadable poll is not a reading
                 if writer:
                     st = STATUS["devices"].get(name, {})
-                    writer.write(_now(), name, connected, st.get("rssi"), st.get("battery"),
+                    # `rssi` from THIS poll, not STATUS: while idle we do not read at all, and carrying
+                    # STATUS's value forward is what fabricated the run of identical readings.
+                    writer.write(_now(), name, connected, rssi, st.get("battery"),
                                  st.get("frames_dropped"), st.get("frames_duplicated"),
                                  st.get("link_epoch"),    # E5: the reconnect count the 25 s sampling can't miss
                                  addr)                    # the identity a rename cannot break
@@ -2927,6 +2951,10 @@ async def cpap_poller(cfg: dict, root: str):
 
     at_hour = int(ccfg.get("at_hour", 13))
     profile = str(ccfg.get("wifi_profile", "ezshare"))
+    # The wpa backend (no NetworkManager — precisely the vigil box) does not read `wifi_profile` at
+    # all; it needs an INTERFACE, which used to be the module constant `wlp1s0` with no config key
+    # (CAPTURE-HOST-DEEP-AUDIT §E5). Default is discovered, not a literal.
+    wifi_iface = str(ccfg.get("wifi_iface") or cpap_harvest.default_wifi_iface())
     base = str(ccfg.get("base_url", cpap_harvest.DEFAULT_BASE))
     dest = os.path.join(root, str(ccfg.get("dest_subdir", "captures/cpap")))
     max_run = float(ccfg.get("max_run_sec", 5400))
@@ -2943,18 +2971,18 @@ async def cpap_poller(cfg: dict, root: str):
     # Release any association left over from a run that died mid-transfer (SIGKILL, OOM, power cut).
     # `keep_running` restarts this task on any escaping exception, so without this the box could sit
     # associated to a routeless card indefinitely with nothing to explain why Wi-Fi looked occupied.
-    await asyncio.to_thread(cpap_harvest.wifi_down, profile)
+    await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface)
     try:
-        await _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st)
+        await _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface)
     finally:
         # Whatever ends this task — shutdown, cancellation, an escaping error — the card is released.
         # shield() because at shutdown this task is already being cancelled and a bare await here would
         # be cancelled with it, leaving exactly the stranded association this block exists to prevent.
         with contextlib.suppress(Exception):
-            await asyncio.shield(asyncio.to_thread(cpap_harvest.wifi_down, profile))
+            await asyncio.shield(asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface))
 
 
-async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st):
+async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface=None):
     """The daily loop, split out so `cpap_poller` can wrap it in a teardown-guaranteeing `finally`."""
     import cpap_harvest
     last_run_date = None
@@ -2975,14 +3003,18 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             _st(state="waiting", detail="streaming: " + ", ".join(busy[:3]))
             continue
 
-        last_run_date = now.date()
+        # The WINDOW's start date, not today's (CAPTURE-HOST-DEEP-AUDIT §E4): for a window that wraps
+        # midnight these differ, and stamping today would leave `due_now` still asking about yesterday
+        # — due again a minute later, forever.
+        last_run_date = cpap_harvest.window_start_date(now, at_hour) or now.date()
         started = _time.monotonic()
         _st(state="running", detail=None, last_run=now.isoformat(timespec="seconds"))
         # Note the box's lifeline BEFORE associating, and hand it to wifi_up as a guard. If the default
         # route moves to the card — a routeless dead end — wifi_up tears the association down and fails,
         # and we skip the day. A day of CPAP files is never worth making the box unreachable.
         guard = await asyncio.to_thread(cpap_harvest.default_route_dev)
-        ok = await asyncio.to_thread(cpap_harvest.wifi_up, profile, 45.0, guard)
+        ok = await asyncio.to_thread(cpap_harvest.wifi_up, profile, 45.0, guard,
+                                     "ez Share", "88888888", wifi_iface)
         if not ok:
             _st(state="error", detail=f"Wi-Fi profile {profile!r} would not come up safely")
             log.warning("cpap: profile %r would not come up, or it moved the default route off %r "
@@ -2997,7 +3029,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             log.warning("cpap: harvest failed: %r", e)
             continue
         finally:
-            await asyncio.to_thread(cpap_harvest.wifi_down, profile)
+            await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface)
 
         dur = _time.monotonic() - started
         bad = bool(res["short"] or res["errors"])

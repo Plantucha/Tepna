@@ -266,3 +266,34 @@ def test_all_three_sample_writers_are_counted_and_the_sidecars_are_not(tmp_path)
     for w in ws + side:
         w.close()
     assert writers.open_sample_writers() == base
+
+
+def test_the_legacy_viatom_caller_does_not_fabricate_a_pulse():
+    """§B2. VIGIL-PPG-GRID-AUDIT §5.2 removed `or 0` from the OXYII call site and left a comment there
+    plus a past-tense docstring on Spo2CsvWriter.write — and never touched the LEGACY viatom runner, the
+    second producer of the identical CSV one screen up. Reachable by configuration
+    (`protocol: legacy`, config.example.yaml:83), not dead.
+
+    A CALLER-level check, because the writer-level tests structurally cannot catch a caller that
+    fabricates BEFORE it writes — which is exactly why they stayed green while one did.
+
+    Impact is bounded and worth stating: the shipped oxydex-dsp.js rejects `0` and blank identically
+    (`parseInt('')` → NaN and `0 < 20` hit the same `continue`), 0 occurrences across 110k real rows on
+    the sibling path. No downstream number moves; the FILE stops asserting a pulse never measured."""
+    import os as _os
+    src = open(_os.path.join(_os.path.dirname(__file__), "..", "capture.py"), encoding="utf-8").read()
+    assert 'wr.write(now, pkt["spo2"], pkt["pr"], pkt["motion"])' in src, \
+        "the legacy viatom runner must pass `pr` through as-is, including None"
+    assert 'pkt["pr"] or 0' not in src, "a fabricated 0 is indistinguishable from a real reading"
+
+
+def test_both_spo2_producers_write_a_blank_for_an_unreadable_pulse(tmp_path):
+    """The two callers must emit the SAME row for the same packet — the divergence itself was the bug."""
+    p = tmp_path / "o.csv"
+    w = writers.Spo2CsvWriter(str(p), fsync=False)
+    w.write(_dt.datetime(2026, 7, 26, 2, 3, 4), 96, None, 3)     # pulse unreadable
+    w.write(_dt.datetime(2026, 7, 26, 2, 3, 5), 96, 61, 3)       # pulse read
+    w.close()
+    rows = p.read_text().splitlines()[1:]
+    assert rows[0] == "02:03:04 26/07/2026,96,,3", "blank, never 0"
+    assert rows[1] == "02:03:05 26/07/2026,96,61,3"

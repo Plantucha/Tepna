@@ -195,3 +195,43 @@ def test_is_night_dir():
     assert ch.is_night_dir({"isdir": True, "name": "20260725"})
     assert not ch.is_night_dir({"isdir": True, "name": "SETTINGS"})
     assert not ch.is_night_dir({"isdir": False, "name": "20260725"})
+
+
+def test_size_kb_accepts_the_G_its_own_listing_regex_matches(tmp_path):
+    """§E3. `_ROW` accepts `[KMG]?B` but `size_kb` had no G branch, so `2.5GB` fell through to the bytes
+    case and became 0.0024 KB — producer and consumer disagreeing inside one file. A complete download
+    then reads as an enormous over-read and is re-fetched forever. Latent on the real ResMed card
+    (integer KB throughout, largest observed 2613 KB), which is why nothing caught it."""
+    assert ch.size_kb("2.5GB") == 2.5 * 1024 * 1024
+    assert ch.size_kb("1.5MB") == 1536.0
+    assert ch.size_kb("2229KB") == 2229.0
+    assert ch.size_kb("832B") == 832 / 1024
+    # and the round trip that matters: a complete file is not a short read
+    e = {"name": "big.edf", "size": "2.5GB"}
+    assert not ch.short_read(e, int(2.5 * 1024 * 1024 * 1024))
+    p = tmp_path / "big.edf"
+    p.write_bytes(b"")
+    assert ch.should_fetch(e, str(p)), "an empty local file is still missing the whole thing"
+
+
+def test_due_now_window_wraps_midnight():
+    """§E4. `at_hour <= h < at_hour + window_h` is arithmetic on a value that wraps mod 24, so a window
+    starting late in the day was clipped at 23:59. With the shipped window_h=2 the only reachable clip
+    is at_hour 23, which got one hour instead of two; the default 13 is unaffected."""
+    import datetime as _d
+    at = 23
+    assert ch.due_now(_d.datetime(2026, 7, 26, 23, 30), at, None) is True
+    assert ch.due_now(_d.datetime(2026, 7, 27, 0, 30), at, None) is True, "the second hour is past midnight"
+    assert ch.due_now(_d.datetime(2026, 7, 27, 1, 30), at, None) is False, "and the window then closes"
+    # the once-per-day key is the window's START date, so a post-midnight firing consumes the 26th
+    d = ch.window_start_date(_d.datetime(2026, 7, 27, 0, 30), at)
+    assert d == _d.date(2026, 7, 26)
+    assert ch.due_now(_d.datetime(2026, 7, 27, 0, 45), at, d) is False, \
+        "recording today's date instead would leave it due again a minute later, forever"
+
+
+def test_the_default_window_is_unaffected_by_the_wrap_fix():
+    """The control: at_hour 13 never wraps, and its behaviour must be byte-identical."""
+    import datetime as _d
+    for h, want in ((12, False), (13, True), (14, True), (15, False), (0, False)):
+        assert ch.due_now(_d.datetime(2026, 7, 26, h, 0), 13, None) is want, h

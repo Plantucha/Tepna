@@ -225,6 +225,7 @@ class StreamWriter:
         # only the LAST "_HR." so a device name never triggers it. `rr` never opens its own StreamWriter —
         # it exists solely as this sibling of `hr`.
         self._rr_fh = None
+        self._rr_path: str | None = None
         if stream == "hr":
             rr_path = "_RR.".join(path.rsplit("_HR.", 1))
             if rr_path == path:                       # path lacks the "_HR." token — never collide with it
@@ -232,6 +233,7 @@ class StreamWriter:
                 rr_path = f"{base}_RR.{ext}" if dot else path + "_RR"
             self._rr_fh = open(rr_path, "w", buffering=1 << 20, newline="\n")
             self._rr_fh.write(self.HEADERS["rr"] + "\n")
+            self._rr_path = rr_path                   # remembered so `paths`/`discard` can see it
         self._n = 0
         self._first_ns: int | None = None   # per-file anchor for the relative `timestamp [ms]` column
         self._flush_interval = flush_interval
@@ -339,6 +341,25 @@ class StreamWriter:
     @property
     def rows(self) -> int:
         return self._n
+
+    @property
+    def paths(self) -> list[str]:
+        """EVERY file this writer owns. `self.path` names only the primary, and the `hr` stream silently
+        owns a second handle (`_RR.<ext>`) — so the header-only pruner's `path = wr.path; wr.close();
+        os.remove(path)` deleted the HR file and left its RR sibling behind as an orphan
+        (CAPTURE-HOST-DEEP-AUDIT §C8). Measured: 4 orphan 33-byte RR files with no HR sibling on
+        2026-07-25 alone."""
+        return [self.path] + ([self._rr_path] if self._rr_path else [])
+
+    def discard(self) -> None:
+        """Close and unlink everything this writer owns. The teardown path for a session that produced
+        nothing but headers — use this rather than removing `path`, which cannot see the sibling."""
+        self.close()
+        for p in self.paths:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
 
     def close(self) -> None:
         try:

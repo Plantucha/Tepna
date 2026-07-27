@@ -398,15 +398,53 @@ def test_harden_profile_is_a_noop_on_the_wpa_backend(monkeypatch):
     assert ch.harden_profile("ezshare") is True
 
 
-def test_wifi_up_and_down_route_to_the_wpa_backend(monkeypatch):
+def test_wifi_up_and_down_route_to_the_wpa_backend(monkeypatch, tmp_path):
     monkeypatch.setattr(ch, "backend", lambda: "wpa")
     monkeypatch.setattr(ch, "default_route_dev", lambda: "eno1")
+    # A stand-in /sys/class/net. `wifi_up` now refuses an interface the box does not have
+    # (CAPTURE-HOST-DEEP-AUDIT §E5), so the fixture has to say the interface exists.
+    (tmp_path / "wlp1s0").mkdir()
+    monkeypatch.setattr(ch, "SYS_NET", str(tmp_path))
     seen = {}
     monkeypatch.setattr(ch, "_wpa_up", lambda i, s, p, a, t: (seen.update(up=i), True)[1])
     monkeypatch.setattr(ch, "_wpa_down", lambda i: (seen.update(down=i), True)[1])
     assert ch.wifi_up("ezshare", guard_dev="eno1", iface="wlp1s0") is True
     assert ch.wifi_down("ezshare", iface="wlp1s0") is True
     assert seen == {"up": "wlp1s0", "down": "wlp1s0"}
+
+
+def test_wifi_up_refuses_an_interface_the_box_does_not_have(monkeypatch, tmp_path, caplog):
+    """§E5. `WPA_IFACE` was a module constant with no config key, and `backend()` returns `wpa`
+    whenever nmcli is absent — which this module's own comment says is precisely the vigil box. On that
+    branch `profile` is DEAD, yet the failure surfaced as "Wi-Fi profile 'ezshare' would not come up
+    safely", naming the one setting that branch never reads:
+
+        nmcli on PATH? None -> backend() = wpa ; WPA_IFACE = wlp1s0 ; host has wlp10s0
+        LOG WARNING: cpap: sudo -n ip link -> rc=1 Cannot find device "wlp1s0"
+    """
+    monkeypatch.setattr(ch, "backend", lambda: "wpa")
+    monkeypatch.setattr(ch, "SYS_NET", str(tmp_path))          # no interfaces at all
+    called = []
+    monkeypatch.setattr(ch, "_wpa_up", lambda *a: called.append(a) or True)
+    with caplog.at_level("ERROR"):
+        assert ch.wifi_up("ezshare", iface="wlp1s0") is False
+    assert not called, "it must not shell out to `ip link` for an interface that does not exist"
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "wlp1s0" in msg, "the reason must name the interface it could not find"
+    assert "wifi_iface" in msg, "and the setting that actually fixes it"
+    # It may MENTION wifi_profile — to say it is not consulted, which is the useful thing to tell an
+    # operator whose config documents it as the only Wi-Fi knob. What it must not do is blame it.
+    assert "would not come up safely" not in msg
+
+
+def test_the_default_wifi_interface_is_discovered_not_a_literal(monkeypatch, tmp_path):
+    (tmp_path / "lo").mkdir()
+    (tmp_path / "eno1").mkdir()
+    (tmp_path / "wlp10s0").mkdir()
+    monkeypatch.setattr(ch, "SYS_NET", str(tmp_path))
+    assert ch.default_wifi_iface() == "wlp10s0"
+    monkeypatch.setattr(ch, "SYS_NET", str(tmp_path / "nope"))
+    assert ch.default_wifi_iface() == ch.WPA_IFACE, "falls back rather than raising"
 
 
 def test_sh_never_raises(monkeypatch):

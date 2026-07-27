@@ -163,7 +163,15 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
                          # 08:35→12:02, median 08:56), and the LATE files are the big ones: on
                          # 20260725 CSL/EVE landed 03:50/06:42 but PLD, SA2 and BRP (the 25 Hz flow
                          # waveform CPAPDex reads) all landed 10:10. 13:00 clears the latest by ~1 h.
-  wifi_profile: ezshare  # NetworkManager profile for the card's AP; MUST carry ipv4.never-default yes
+  wifi_profile: ezshare  # NetworkManager profile for the card's AP; MUST carry ipv4.never-default yes.
+                         # ⚠️ Consulted ONLY on the nmcli backend. With no NetworkManager installed —
+                         # which is the vigil box — the wpa_supplicant path runs instead and never
+                         # reads this key. There, `wifi_iface` is the setting that matters.
+  # wifi_iface: wlp1s0   # wpa backend only. Default: the box's first `wl*` under /sys/class/net.
+                         # Set it when the box has several radios, or the discovered one is not the
+                         # dongle you mean. A wrong interface now fails fast and NAMES itself, instead
+                         # of surfacing as "Wi-Fi profile 'ezshare' would not come up safely" — the one
+                         # setting this branch never reads (CAPTURE-HOST-DEEP-AUDIT §E5).
   base_url: http://192.168.4.1
   dest_subdir: captures/cpap   # native ResMed layout mirrored verbatim (§7: no new parser branch)
   max_run_sec: 5400      # hard cap. First backfill ~492 MB @ ~130 KB/s ≈ 65 min; a night ≈ 20 s.
