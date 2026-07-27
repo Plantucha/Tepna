@@ -89,27 +89,68 @@ def local_name(name: str) -> str:
     return "STR.edf" if name.upper() == "STR.EDF" else name
 
 
+def size_tolerance_kb(s: str) -> float:
+    """How far a file may legitimately differ from the size the listing PRINTED, in KB.
+
+    ONE tolerance, shared by `should_fetch` and `short_read` — they used to carry different ones and the
+    gap between them was a hole (CAPTURE-HOST-DEEP-AUDIT §C5). The skip test allowed
+    `max(1.0, want*0.02)`; the truncation detector flagged only `> max(2.0, want*0.05)`. Since 5 % > 2 %,
+    every truncation the detector could SEE was one the resume logic would re-fetch anyway, and the
+    whole 0-2 % band was invisible to both: a truncated EDF was accepted, reported ok, and skipped
+    forever.
+
+    The percentage was the mistake. It was justified as "the listing reports rounded KB", but that error
+    is bounded by the QUANTIZATION OF THE PRINTED NUMBER, not by the file's size — a value shown as
+    `2229KB` is exact to ±0.5 KB whether the file is 2 KB or 2 GB. Scaling it with the file is what
+    opened the hole: 44.6 KB of slack on a 2229 KB BRP.edf. So the tolerance is read off the string's own
+    precision, half its last displayed digit. For the real ResMed card (integer KB throughout) that is
+    0.5 KB; a `1.5MB` row would get the 51.2 KB it genuinely deserves.
+
+    The correct sibling was already one module over: `pull_session.py:145` gates its skip on EXACT
+    equality."""
+    txt = (s or "").strip()
+    digits = "".join(c for c in txt if c.isdigit() or c == ".")
+    if not digits:
+        return 0.0
+    dec = len(digits.split(".", 1)[1]) if "." in digits else 0
+    quantum = 10.0 ** (-dec)                       # in whatever unit the listing used
+    u = txt.upper()
+    if "M" in u:
+        quantum *= 1024.0
+    elif "G" in u:
+        quantum *= 1024.0 * 1024.0
+    elif "K" not in u and "B" in u:
+        quantum /= 1024.0
+    return max(quantum / 2.0, 1e-3)                # a byte of float slack, never a percentage
+
+
 def should_fetch(entry: dict, dest_path: str) -> bool:
-    """Skip-if-present on name + approximate size. Makes the steady state nearly free (one night ≈ 2.5 MB
-    ≈ 20 s) and lets an interrupted backfill resume. Size is compared loosely because the listing reports
-    rounded KB. A file that is present but the WRONG size is re-fetched, not trusted."""
+    """Skip-if-present on name + size. Makes the steady state nearly free (one night ≈ 2.5 MB ≈ 20 s) and
+    lets an interrupted backfill resume. A file that is present but the WRONG size is re-fetched, not
+    trusted — see `size_tolerance_kb` for what "wrong" means and why it is not a percentage."""
     want = size_kb(entry.get("size", ""))
     if not os.path.exists(dest_path):
         return True
     if want <= 0:
         return False
     have = os.path.getsize(dest_path) / 1024.0
-    return abs(have - want) > max(1.0, want * 0.02)
+    return abs(have - want) > size_tolerance_kb(entry.get("size", ""))
 
 
 def short_read(entry: dict, got_bytes: int) -> bool:
-    """True when a download is materially smaller than the listing promised — i.e. the card truncated
-    under load. A short read is NOT a valid file; accepting one writes a corrupt EDF that parses far
-    enough to look real. Same class as the part-decoded PMD frame in `VIGIL-HARDENING-III §1`."""
+    """True when a download is smaller than the listing promised — i.e. the card truncated under load. A
+    short read is NOT a valid file; accepting one writes a corrupt EDF that parses far enough to look
+    real. Same class as the part-decoded PMD frame in `VIGIL-HARDENING-III §1`.
+
+    Shares `size_tolerance_kb` with `should_fetch` by construction, so the two can no longer disagree
+    about what counts as complete. Scope of the silent path this closes: it exists only where the card
+    frames the body by connection-close. With a declared `Content-Length`, urllib raises
+    `IncompleteRead`, `_get` retries, and the failure already lands in `st['errors']` with the file
+    absent."""
     want = size_kb(entry.get("size", ""))
     if want <= 0:
         return False
-    return abs(got_bytes / 1024.0 - want) > max(2.0, want * 0.05)
+    return abs(got_bytes / 1024.0 - want) > size_tolerance_kb(entry.get("size", ""))
 
 
 def due_now(now: _dt.datetime, at_hour: int, last_run_date, window_h: int = 2) -> bool:
@@ -171,6 +212,11 @@ def blocking_devices(status_devices: dict) -> list[str]:
 
 
 # ── IO ──────────────────────────────────────────────────────────────────────────────────────────────
+class ShortRead(RuntimeError):
+    """A download smaller than the listing promised. Its own type so the harvester can tell a truncated
+    body (retry next run; the `.part` is still on disk) from a transport failure."""
+
+
 class EzShare:
     """Thin bounded HTTP client for the card. Every request has a timeout and capped retries."""
 
@@ -196,13 +242,23 @@ class EzShare:
 
     def fetch(self, entry: dict, dest_dir: str) -> tuple[str, int, bool]:
         """Download one entry. Returns (path, bytes, was_short). Writes via a .part temp then renames, so
-        an interrupted run can never leave a truncated file that skip-if-present would later accept."""
+        an interrupted run can never leave a truncated file that skip-if-present would later accept.
+
+        Raises `ShortRead` when the body is smaller than the listing promised — WITHOUT renaming. The
+        `.part` guard was already here and did not cover this case: `short_read` was consulted only
+        AFTER `os.replace` had already promoted the truncated body to its final name, at which point
+        skip-if-present saw a plausible file and never came back for it (CAPTURE-HOST-DEEP-AUDIT §C5).
+        Leaving the `.part` behind means the destination stays absent, so the next run re-fetches."""
         dest = os.path.join(dest_dir, local_name(entry["name"]))
         os.makedirs(dest_dir, exist_ok=True)
         data = self._get(urllib.parse.urljoin(self.base + "/", entry["href"]))
         tmp = dest + ".part"
         with open(tmp, "wb") as fh:
             fh.write(data)
+        if short_read(entry, len(data)):
+            time.sleep(self.delay)
+            raise ShortRead(f"{entry['name']}: listing {entry.get('size', '?')}, "
+                            f"got {len(data) / 1024:.1f}KB — left as {os.path.basename(tmp)}")
         os.replace(tmp, dest)
         time.sleep(self.delay)
         return dest, len(data), short_read(entry, len(data))
@@ -398,6 +454,12 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
                 continue
             try:
                 _p, n, was_short = ez.fetch(e, subdir)
+            except ShortRead as ex:
+                # A truncated body is NOT a fetched file: it is left as a `.part`, so the destination
+                # stays absent and the next run re-fetches it. Reported under `short` (the diagnostic
+                # this list has always been for) rather than only as a transport error.
+                st["short"].append(str(ex))
+                continue
             except Exception as ex:                    # noqa: BLE001 — one bad file must not end the run
                 st["errors"].append(f"{e['name']}: {ex}")
                 continue

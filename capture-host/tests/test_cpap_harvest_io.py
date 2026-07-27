@@ -101,8 +101,15 @@ def test_fetch_flags_a_short_read(tmp_path, monkeypatch):
     monkeypatch.setattr(ch.urllib.request, "urlopen", _urlopen({"download": b"A" * 1024}))
     monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
     e = {"name": "BRP.edf", "size": "2229KB", "href": "download?file=B"}
-    _p, _n, short = ch.EzShare().fetch(e, str(tmp_path))
-    assert short is True
+    # `fetch` used to os.replace the truncated body to its FINAL name and merely return short=True —
+    # at which point skip-if-present saw a plausible file and never came back for it. It now raises
+    # without renaming, so the destination stays absent and the next run re-fetches
+    # (CAPTURE-HOST-DEEP-AUDIT §C5).
+    with pytest.raises(ch.ShortRead):
+        ch.EzShare().fetch(e, str(tmp_path))
+    assert not os.path.exists(str(tmp_path / "BRP.edf")), "a truncated body must not take the real name"
+    assert os.path.exists(str(tmp_path / "BRP.edf.part")), "and the partial stays for evidence"
+    assert ch.should_fetch(e, str(tmp_path / "BRP.edf")), "so the next run fetches it again"
 
 
 # ── nmcli shell-outs ────────────────────────────────────────────────────────────────────────────────
@@ -259,7 +266,10 @@ def test_harvest_records_short_reads_without_aborting(tmp_path, monkeypatch):
     _card(monkeypatch, brp=b"B" * 1024)                               # listing says 2229KB
     st = ch.harvest(str(tmp_path), nights={"20260725"})
     assert len(st["short"]) == 1 and "BRP" in st["short"][0]
-    assert st["files"] == 3                                          # the others still landed
+    # 2, not 3: a truncated body is no longer COUNTED as a fetched file, because it is no longer
+    # written under its real name (CAPTURE-HOST-DEEP-AUDIT §C5). The others still landed.
+    assert st["files"] == 2
+    assert st["errors"] == [], "a short read is its own diagnostic, not a transport error"
 
 
 def test_harvest_one_bad_file_does_not_end_the_run(tmp_path, monkeypatch):

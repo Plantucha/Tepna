@@ -91,8 +91,40 @@ def test_short_read_detected():
     e = {"name": "b.edf", "size": "2229KB"}
     assert ch.short_read(e, 1000 * 1024)
     assert not ch.short_read(e, 2229 * 1024)
-    assert not ch.short_read(e, 2200 * 1024)                   # rounding tolerance
+    # `assert not ch.short_read(e, 2200 * 1024)  # rounding tolerance` USED TO BE HERE, and it was the
+    # assertion pinning CAPTURE-HOST-DEEP-AUDIT §C5 green. 29 KB missing from a 2229 KB file is not
+    # rounding — the listing prints integer KB, so its error is ±0.5 KB whatever the file's size. The
+    # percentage tolerance that made 29 KB look like rounding is exactly what opened the 0-2 % band in
+    # which a truncated EDF was accepted, reported ok, and skipped forever.
+    assert ch.short_read(e, 2200 * 1024), "29 KB short is a truncation, not rounding"
+    assert not ch.short_read(e, 2229 * 1024 - 400), "but a sub-0.5KB difference IS the listing rounding"
     assert not ch.short_read({"name": "x", "size": ""}, 5)      # unknown size never claims a short read
+
+
+def test_the_skip_test_and_the_truncation_detector_cannot_disagree(tmp_path):
+    """§C5's mechanism, stated directly. `should_fetch` allowed max(1.0, want*0.02) and `short_read`
+    flagged only > max(2.0, want*0.05). Because 5 % > 2 %, EVERY truncation the detector could see was
+    one the resume logic would re-fetch anyway — and the whole 0-2 % band was invisible to both, so the
+    file was accepted, reported ok, and never repaired. They now share one tolerance by construction."""
+    import os
+    e = {"name": "BRP.edf", "size": "2229KB"}
+    dest = str(tmp_path / "BRP.edf")
+    for pct in (0.005, 0.01, 0.019, 0.021, 0.05):
+        with open(dest, "wb") as fh:
+            fh.write(b"x" * int(2229 * 1024 * (1 - pct)))
+        got = os.path.getsize(dest)
+        assert ch.short_read(e, got), f"{pct:.1%} truncation must be SEEN"
+        assert ch.should_fetch(e, dest), f"{pct:.1%} truncation must be RE-FETCHED"
+
+
+def test_the_tolerance_follows_the_listings_printed_precision():
+    """Not a percentage: the only error the listing introduces is the quantization of the number it
+    printed. `2229KB` is exact to ±0.5 KB whether the file is 2 KB or 2 GB — scaling that with the file
+    is what gave a 2229 KB BRP.edf 44.6 KB of slack."""
+    assert ch.size_tolerance_kb("2229KB") == 0.5
+    assert ch.size_tolerance_kb("1.5MB") == 1024.0 / 20        # 0.1 MB quantum -> +/- 51.2 KB
+    assert ch.size_tolerance_kb("832B") < 0.001 + 1e-9         # bytes are exact
+    assert ch.size_tolerance_kb("") == 0.0
 
 
 def test_due_now_fires_only_inside_a_bounded_window():
