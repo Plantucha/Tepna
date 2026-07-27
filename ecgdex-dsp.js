@@ -1083,7 +1083,10 @@
       vlf: _v,
       lf: _l,
       hf: _h,
-      lfhf: +(lf / (hf || 1)).toFixed(3),
+      /* §5.2 — `hf || 1` FABRICATES a ratio when HF is zero: it silently substitutes 1 ms² and reports
+         lf/1 as if it were a measurement. PpgDex already does the honest thing (`hf > 0 ? lf/hf : null`).
+         A ratio with no denominator is not a small ratio, it is no ratio. */
+      lfhf: hf > 0 ? +(lf / hf).toFixed(3) : null,
       respRate: +(peakF * 60).toFixed(1),
       hfAboveNyquist: fNyq < fHi,
       nyquistHz: +fNyq.toFixed(3)
@@ -2045,7 +2048,13 @@
         hf: _hf,
         lf: _lf,
         vlf: _vlf,
-        lfhf: +median(epochs.map((e) => e.lfhf)).toFixed(3),
+        /* §5.2 — an epoch with NO HF power now reports lfhf null (it used to fabricate lf/1), so the
+           night-level median must DROP those epochs rather than count them. A null epoch leaves the
+           denominator; it is not a zero ratio. */
+        lfhf: (() => {
+          const _lh = epochs.map((e) => e.lfhf).filter((v) => v != null && isFinite(v));
+          return _lh.length ? +median(_lh).toFixed(3) : null;
+        })(),
         // null, NOT 0 — a respiratory rate of 0 breaths/min is not a measurement, it is a
         // FABRICATED value standing in for "unknown". Same discipline as the Clock Contract's
         // "a missing stamp must be visible (null), never invented" (TCH-REFERENCE-VALIDATION §D2).

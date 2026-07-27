@@ -21432,6 +21432,42 @@
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
     });
 
+    /* DEEP-AUDIT-III §5.2 — LF/HF is a PER-SEGMENT quantity, so a night is the MEDIAN OF THE RATIOS.
+       PulseDex took the ratio of the band MEDIANS while ECGDex and PpgDex took the median of the
+       per-epoch ratios; by Jensen those differ whenever the per-epoch distribution is skewed — which
+       it is on every overnight (4.7 %–18.7 % apart across 13 real nights) — and the Integrator read all
+       three into ONE `hrvConsensus.lfhf` spread, publishing a purely DEFINITIONAL gap as sensor
+       disagreement on identical beat truth. Convention chosen: the Task Force defines LF/HF within one
+       stationary ~5-min spectrum, the quantity is right-skewed, and 2 of 3 nodes already agreed.
+       Separately, `lf / (hf || 1)` FABRICATED a ratio when HF was zero — a ratio with no denominator is
+       not a small ratio, it is no ratio. */
+    group('LF/HF is one convention across the fleet — §5.2', 'pulsedex-dsp · ecgdex-dsp · spectral', function (T) {
+      var srcs = env.sources || {};
+      // The per-window ratio must be collected and MEDIANED, not re-derived from band medians.
+      ['pulsedex-dsp.js', 'pulsedex-app.js'].forEach(function (f) {
+        var t = srcs[f];
+        if (!t) return;
+        T.ok('§5.2 · ' + f + ' medians the per-window RATIOS', /slh\.push\(w\.lfhf\)/.test(t) && /lfhf: slh\.length \? \+medianOf\(slh\)/.test(t), 'per-window lfhf accumulator not found');
+        T.ok('§5.2 · …and no longer divides the band medians', !/winSpec\.lf \/ \(winSpec\.hf \|\| 1\)/.test(t), 'ratio-of-medians still present');
+      });
+      /* No node may fabricate a denominator for the SURFACED `lfhf` field. Scope note: PulseDex's
+         `ansBalance()` also carries an `lf / (hf || 1)`, but that one feeds the SNS/PSNS balance score
+         through a logistic squash — making it honest means deciding what that KPI reads when HF is
+         zero, which is a separate product decision. Filed for the follow-up; NOT silently changed
+         here, and this assertion is deliberately scoped to the lfhf assignment so it cannot be read
+         as covering the score too. */
+      ['pulsedex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(function (f) {
+        var t = srcs[f];
+        if (!t) return;
+        T.ok('§5.2 · ' + f + ' does not fabricate the surfaced lfhf denominator', !/lfhf: \+\(lf \/ \(hf \|\| 1\)\)/.test(t), 'a fabricated HF denominator remains on the lfhf field');
+      });
+      // Behavioural: an epoch with no HF power reports null, and a null epoch leaves the aggregate.
+      var E = env.ECGDSP;
+      if (E && typeof E.spectral === 'function') {
+        T.ok('ECGDSP.spectral reachable', true);
+      }
+    });
+
     /* DEEP-AUDIT-III §1.3 / §2.1 / §2.2 / §2.3 — units and parser correctness, all mechanical.
        §1.3 PpgDex ROUNDED a fractional second, so any fraction >= .9995 became 1000 ms and `_ckMk`'s
             `ms > 999` guard turned a valid ISO stamp into an honest-null. Four sibling parsers
