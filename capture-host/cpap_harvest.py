@@ -146,9 +146,28 @@ def is_night_dir(entry: dict) -> bool:
 
 
 def blocking_devices(status_devices: dict) -> list[str]:
-    """Devices that must stop the harvest. ANY connected sensor blocks it — mirrors `autopull_poller`'s
-    "never interrupt a live capture" and `_OXYII_PAUSE`. Returns names so the skip can say WHICH."""
-    return sorted(n for n, st in (status_devices or {}).items() if (st or {}).get("connected"))
+    """Devices actually STREAMING, which must stop the harvest. Returns names so a skip can say WHICH.
+
+    `connected` alone is NOT streaming, and blocking on it was wrong. A sensor on its charger reports
+    connected=True while producing nothing: the Verity refuses PMD outright ("charging — PMD streams
+    unavailable") and the ring reports worn=False on the dock. Observed 2026-07-26 — every sensor was
+    docked and idle, yet the manual pull still refused with "streaming: Polar Verity Sense, Wellue
+    O2Ring-S". The gate was unreachable on any evening the sensors were charging, which is precisely
+    when a pull is safest.
+
+    The rule this encodes: a harvest is unsafe when a radio is carrying real sample traffic near the
+    body, not merely when a link exists. A charging device cannot be on a body."""
+    out = []
+    for name, st in (status_devices or {}).items():
+        st = st or {}
+        if not st.get("connected"):
+            continue
+        if st.get("charging"):                 # on the dock — cannot be worn, streams unavailable
+            continue
+        if st.get("worn") is False:            # explicitly reported off-body (the ring knows)
+            continue
+        out.append(name)
+    return sorted(out)
 
 
 # ── IO ──────────────────────────────────────────────────────────────────────────────────────────────
