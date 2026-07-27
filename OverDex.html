@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+l9kayHtgPb17wTT9MN3iYZMy5v8gPMlGu7MSRHNeY0=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-46boG2Zei2KUTqqL3no38xx2xgHnFR/QxIJLutVxSyg=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UM6igO6Zeqb2NF+J331HHcOwrLkoro1iPDePcD69YEk=' 'sha256-VOf+xjB5JoEpz0jHi+ykh6dBvth2PEk7t/L8pg0SmW4=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hBs4G9ijy/HbbGpjr4Q/qwyaJl3xnVpIYXpZqv9Z51o=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-jgFCSY4h0MGW7aXWFFOExrtUfz58KsUW0GJnpwdUJgA=' 'sha256-ny+9QsHxaHVyaSmFUnXWP8dZDJGp+l7uuEzI8mNPtH8=' 'sha256-oF99Eq/9w0BVdhrEzf2s8wuOd4ecfT053jj8fRd/HPM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+l9kayHtgPb17wTT9MN3iYZMy5v8gPMlGu7MSRHNeY0=' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-46boG2Zei2KUTqqL3no38xx2xgHnFR/QxIJLutVxSyg=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QQ0KacKH/GQMvONOobfclwjWfwAHFkmG41i5GZK6pR0=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UM6igO6Zeqb2NF+J331HHcOwrLkoro1iPDePcD69YEk=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-jAIBSLGggaPq1y7DfUch6J9nYLf0Pk20xw/5AM1sJmU=' 'sha256-ny+9QsHxaHVyaSmFUnXWP8dZDJGp+l7uuEzI8mNPtH8=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -961,6 +961,16 @@
     opts = opts || {};
     var preferDMY = opts.preferDMY !== false; // default true (O2Ring/Welltory exports are DMY)
     var dmyLocked = opts.dmyLocked === true; // set by resolveDMY — the order is proven for this file
+    /* §1.1 — THE FILE CONTRADICTS ITSELF. `resolveDMY` detects this and returns `contradictory:true`,
+       and the doc-comment above has always said "refuse rather than guess" — but the flag was computed
+       and thrown away by every caller, so the file silently fell back to the caller's PREFERENCE. One
+       anomalous row moved a proven-MDY O2Ring night 2026-06-12 → 2026-12-06, with the date, t0Ms,
+       exportName(), the crossnight axis and the Integrator's date join all confidently wrong.
+       We refuse the ROW, not the FILE: only the two AMBIGUOUS slash shapes (4a/4c) return null, because
+       only they depend on the unresolvable order. An ISO, epoch, 14-digit or time-only stamp in the same
+       file is not ambiguous and still parses. Punishing unambiguous rows for their neighbours' sins
+       would be its own kind of dishonesty. */
+    var dmyContradictory = opts.dmyContradictory === true;
     var anchor = opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs) ? opts.dateAnchorMs : null;
     if (raw == null) return null;
     if (typeof raw === 'number') return _ckNumEpoch(raw);
@@ -987,6 +997,7 @@
     // 4a. "HH:MM:SS DD/MM/YYYY" | "HH:MM:SS MM/DD/YYYY" (O2Ring)
     m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
+      if (dmyContradictory) return null; // §1.1 — the file's day/month order is unresolvable; this SHAPE cannot be read
       var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
       if (!dm) return null; // row contradicts the file's proven order → honest null
       var _to = _ckMk(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]);
@@ -1001,6 +1012,7 @@
     // 4c. "DD/MM/YYYY HH:MM[:SS]" | "MM/DD/YYYY HH:MM[:SS]" (Welltory etc.)
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
+      if (dmyContradictory) return null; // §1.1 — the file's day/month order is unresolvable; this SHAPE cannot be read
       var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
       if (!dm2) return null; // row contradicts the file's proven order → honest null
       var _tw = _ckMk(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0);
@@ -8091,7 +8103,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       if (_sp.length >= 3 && timeCol < _sp.length) _stamps.push(_sp[timeCol].trim());
     }
     var _order = DexClock.resolveDMY(_stamps, true); // O2Ring default is DMY when genuinely ambiguous
-    var _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
+    // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing.
+    // This is the node the finding's repro used: one anomalous row moved a proven-MDY night 6 months.
+    var _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
     for (var i = firstDataIdx; i < lines.length; i++) {
       var p = lines[i].trim().split(DELIM);
       if (p.length < 3) continue;
@@ -8116,7 +8130,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       // CLOCK-UNIFY: floating wall-clock ms is the source of truth. row.t is a derived
       // compat Date, ALWAYS read back with getUTC*. Time-only rows anchor to _anchorMs
       // and roll forward monotonically past midnight (no Jan-2000, no +86400000 hack).
-      var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked });
+      var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked, dmyContradictory: _tsOpts.dmyContradictory });
       if (!_ts) continue;
       _prevTMs = _ts.tMs;
       rows.push({ tMs: _ts.tMs, t: new Date(_ts.tMs), spo2: spo2, hr: hr, motion: motion, pi: pi });
@@ -13944,7 +13958,8 @@ __exports.OxyDex = window.OxyDex;
       _stamps.push(_st && !/\d{1,2}:\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim() : _sd || _st);
     }
     const _order = typeof DexClock !== 'undefined' && DexClock.resolveDMY ? DexClock.resolveDMY(_stamps, true) : { dmy: true, locked: false };
-    const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
+    // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing
+    const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(',');
       if (cells.length < 5) continue;
@@ -15883,7 +15898,8 @@ __exports.HRVDex = window.HRVDex;
         _stamps.push(parts[0].trim());
       }
       const _order = DexClock.resolveDMY(_stamps, preferDMY);
-      const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
+      // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing
+      const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
 
       for (const parts of rows) {
         if (parts === headerLine) continue;
@@ -15893,7 +15909,7 @@ __exports.HRVDex = window.HRVDex;
         if (!isFinite(v)) continue; // leftover header / label rows fall out here
         vals.push(v);
         const ts = parts[0].trim();
-        const p = parseTimestamp(ts, { dateAnchorMs, prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked }); // floating wall-clock
+        const p = parseTimestamp(ts, { dateAnchorMs, prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked, dmyContradictory: _tsOpts.dmyContradictory }); // floating wall-clock
         if (p) {
           tsMs.push(p.tMs);
           prevTMs = p.tMs;

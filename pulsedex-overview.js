@@ -91,7 +91,8 @@ function pxHistory() {
           true
         )
       : { dmy: true, locked: false };
-  const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
+  // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing
+  const _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
   const rows = welltoryData.rows
     .map((r) => {
       const p = parseTimestamp(r[iDt] || '', _tsOpts); // CLOCK-UNIFY floating wall-clock

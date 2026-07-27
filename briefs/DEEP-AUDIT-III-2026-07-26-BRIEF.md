@@ -58,7 +58,7 @@ shipped `.js` files — **failing open by omission** on a hand-maintained list n
 
 ## 1 · The shared spine — `clock.js` and the Clock-Contract gate
 
-### 1.1 `resolveDMY` computes `contradictory` and all six callers throw it away — `clock.js:97`
+### 1.1 `resolveDMY` computes `contradictory` and all six callers throw it away — `clock.js:97` — **FIXED 2026-07-27**
 
 The doc-comment at `clock.js:66` says *"the file contradicts itself ⇒ refuse (`contradictory:true`) rather
 than guess"*, and `DEEP-AUDIT-2026-07-11` punch-list #1 (stamped EXECUTED) claims the same word. Nothing
@@ -80,11 +80,23 @@ One anomalous row moves a proven-MDY O2Ring night **six months**.
 > **date**: `night.date`, `t0Ms`, `exportName()`, the crossnight axis and the Integrator's cross-node date
 > join. Keep the finding, narrow the claim.
 
-**Fix.** Make the refusal real at the seam that already exists — `parseTimestamp` gains
-`opts.dmyContradictory` and returns **null** for the two ambiguous slash shapes when set (honest null per
-§2.6). **Gate cost: `clock.js` is the shared spine ⇒ re-bundle all 8 apps + re-stamp all 8
-`provenance/<App>.json` fragments, serialized per `CLAUDE.md` §👥.3; `computeHash` moves ⇒
-`DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs` re-verification owed.**
+**Fix AS LANDED (2026-07-27) — refuse the ROW, not the FILE.** `parseTimestamp` gains
+`opts.dmyContradictory`; when set, **only the two ambiguous slash shapes** (4a O2Ring, 4c Welltory)
+return null, because only they depend on the unresolvable order. An ISO, 14-digit, epoch or time-only
+stamp in the same file is not ambiguous and still parses — punishing unambiguous rows for their
+neighbours' sins would be its own kind of dishonesty, and it is why "null the whole night's date" was not
+taken.
+
+**The caller count in the heading is wrong and worth correcting: it is FOUR live callers, not six.**
+`glucodex-dsp.js` has a local port and `integrator-dsp.js` only comments on it. The four are
+`oxydex-dsp.js`, `pulsedex-dsp.js`, `pulsedex-overview.js` and `hrvdex-dsp.js` — and **OxyDex is the one
+this finding's own repro used**, so the gate asserts all four forward the flag: a caller that computes
+the contradiction and drops it *is* the defect, and a fix that lands in `clock.js` alone would be inert.
+
+**Gate:** 4056 assertions green with `DEX_UPLOADS` (0 skipped) · GATE A 9/9 · spine re-bundle of all 11
+owned bundles, **7 moved** (`OxyDex` `af324fa85458` → `e6090be9408c`, HRVDex, PulseDex, ECGDex, MotionDex,
+Integrator + the two orchestrators; GlucoDex/CPAPDex/PpgDex unmoved — node-local parsers) · **8 fixtures
+re-verified** against the real corpus · **mutation-checked: all 12 assertions fail against pre-fix code**.
 
 ### 1.2 The time-only roll has zero backwards tolerance — `clock.js:184` — **FIXED 2026-07-27**
 

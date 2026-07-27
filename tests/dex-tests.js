@@ -21432,6 +21432,49 @@
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
     });
 
+    /* DEEP-AUDIT-III §1.1 — a file that contradicts itself must REFUSE, not guess.
+       `resolveDMY` detects a file carrying both DMY and MDY proofs and returns `contradictory:true`;
+       clock.js:66 has always said "refuse rather than guess" and DEEP-AUDIT-2026-07-11 stamped that
+       EXECUTED — but every caller read only `.dmy`/`.locked` and threw the flag away, so the file
+       silently fell back to the caller's PREFERENCE. One anomalous row moved a proven-MDY O2Ring night
+       2026-06-12 → 2026-12-06, with the date, t0Ms, exportName(), the crossnight axis and the
+       Integrator's date join all confidently wrong.
+       The refusal is per-ROW-SHAPE, not per-file: only the two ambiguous slash shapes depend on the
+       unresolvable order. Punishing an ISO stamp for its neighbours' sins would be its own dishonesty. */
+    group('A self-contradicting file refuses the ambiguous rows — §1.1', 'clock · contract · dmy', function (T) {
+      var C = env.DexClock;
+      if (!(C && typeof C.parseTimestamp === 'function' && typeof C.resolveDMY === 'function')) {
+        T.skip('DexClock available', 'clock not wired in this lane');
+        return;
+      }
+      // a file carrying BOTH orders proven: 13/05 can only be DMY, 05/13 can only be MDY
+      var contradictory = C.resolveDMY(['23:00:16 13/05/2026', '23:00:17 05/13/2026'], true);
+      T.eq('§1.1 · resolveDMY still detects the contradiction', contradictory.contradictory, true);
+      T.eq('§1.1 · …and does not claim the order is locked', contradictory.locked, false);
+      var opts = { dmyContradictory: contradictory.contradictory === true };
+      // the two AMBIGUOUS shapes refuse
+      T.eq('§1.1 · shape 4a (O2Ring "HH:MM:SS DD/MM/YYYY") refuses', C.parseTimestamp('23:00:16 12/06/2026', opts), null);
+      T.eq('§1.1 · shape 4c (Welltory "DD/MM/YYYY HH:MM") refuses', C.parseTimestamp('12/06/2026 23:00', opts), null);
+      // …and every UNAMBIGUOUS shape in the same file still parses
+      [
+        ['ISO', '2026-06-12T23:00:16', Date.UTC(2026, 5, 12, 23, 0, 16)],
+        ['14-digit', '20260612230016', Date.UTC(2026, 5, 12, 23, 0, 16)]
+      ].forEach(function (c) {
+        var r = C.parseTimestamp(c[1], opts);
+        T.eq('§1.1 · ' + c[0] + ' is not ambiguous and still parses', r && r.tMs, c[2]);
+      });
+      T.ok('§1.1 · an epoch number still parses', !!C.parseTimestamp(1781305216000, opts));
+      // control — WITHOUT the flag nothing changes, so the refusal is opt-in per file, not global
+      T.ok('§1.1 · control · a clean file is unaffected', !!C.parseTimestamp('23:00:16 12/06/2026', {}));
+      // and the wiring: every live caller must forward the flag, or the refusal never fires
+      var srcs = env.sources || {};
+      ['oxydex-dsp.js', 'pulsedex-dsp.js', 'pulsedex-overview.js', 'hrvdex-dsp.js'].forEach(function (f) {
+        var t = srcs[f];
+        if (!t) return;
+        T.ok('§1.1 · ' + f + ' forwards contradictory to the parser', /dmyContradictory/.test(t), 'caller computes the flag and drops it — the exact defect');
+      });
+    });
+
     /* DEEP-AUDIT-III §6.2 — a sparse record declares COVERAGE, not a span.
        HRVDex declared no duration key `adaptEnvelopeNode` reads, so its window collapsed to a POINT at
        t0Ms: a 29-day export overlapped nothing, rendered "Excluded (no temporal overlap)", and dragged

@@ -347,6 +347,16 @@
     opts = opts || {};
     var preferDMY = opts.preferDMY !== false; // default true (O2Ring/Welltory exports are DMY)
     var dmyLocked = opts.dmyLocked === true; // set by resolveDMY — the order is proven for this file
+    /* §1.1 — THE FILE CONTRADICTS ITSELF. `resolveDMY` detects this and returns `contradictory:true`,
+       and the doc-comment above has always said "refuse rather than guess" — but the flag was computed
+       and thrown away by every caller, so the file silently fell back to the caller's PREFERENCE. One
+       anomalous row moved a proven-MDY O2Ring night 2026-06-12 → 2026-12-06, with the date, t0Ms,
+       exportName(), the crossnight axis and the Integrator's date join all confidently wrong.
+       We refuse the ROW, not the FILE: only the two AMBIGUOUS slash shapes (4a/4c) return null, because
+       only they depend on the unresolvable order. An ISO, epoch, 14-digit or time-only stamp in the same
+       file is not ambiguous and still parses. Punishing unambiguous rows for their neighbours' sins
+       would be its own kind of dishonesty. */
+    var dmyContradictory = opts.dmyContradictory === true;
     var anchor = opts.dateAnchorMs != null && isFinite(opts.dateAnchorMs) ? opts.dateAnchorMs : null;
     if (raw == null) return null;
     if (typeof raw === 'number') return _ckNumEpoch(raw);
@@ -373,6 +383,7 @@
     // 4a. "HH:MM:SS DD/MM/YYYY" | "HH:MM:SS MM/DD/YYYY" (O2Ring)
     m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (m) {
+      if (dmyContradictory) return null; // §1.1 — the file's day/month order is unresolvable; this SHAPE cannot be read
       var dm = _ckDMY(+m[4], +m[5], preferDMY, dmyLocked);
       if (!dm) return null; // row contradicts the file's proven order → honest null
       var _to = _ckMk(+m[6], dm.mo - 1, dm.d, +m[1], +m[2], +m[3]);
@@ -387,6 +398,7 @@
     // 4c. "DD/MM/YYYY HH:MM[:SS]" | "MM/DD/YYYY HH:MM[:SS]" (Welltory etc.)
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
     if (m) {
+      if (dmyContradictory) return null; // §1.1 — the file's day/month order is unresolvable; this SHAPE cannot be read
       var dm2 = _ckDMY(+m[1], +m[2], preferDMY, dmyLocked);
       if (!dm2) return null; // row contradicts the file's proven order → honest null
       var _tw = _ckMk(+m[3], dm2.mo - 1, dm2.d, +m[4], +m[5], m[6] ? +m[6] : 0);
@@ -2204,7 +2216,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       if (_sp.length >= 3 && timeCol < _sp.length) _stamps.push(_sp[timeCol].trim());
     }
     var _order = DexClock.resolveDMY(_stamps, true); // O2Ring default is DMY when genuinely ambiguous
-    var _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked };
+    // §1.1 — pass the contradiction through so the ambiguous slash shapes refuse instead of guessing.
+    // This is the node the finding's repro used: one anomalous row moved a proven-MDY night 6 months.
+    var _tsOpts = { preferDMY: _order.dmy, dmyLocked: _order.locked, dmyContradictory: _order.contradictory === true };
     for (var i = firstDataIdx; i < lines.length; i++) {
       var p = lines[i].trim().split(DELIM);
       if (p.length < 3) continue;
@@ -2229,7 +2243,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       // CLOCK-UNIFY: floating wall-clock ms is the source of truth. row.t is a derived
       // compat Date, ALWAYS read back with getUTC*. Time-only rows anchor to _anchorMs
       // and roll forward monotonically past midnight (no Jan-2000, no +86400000 hack).
-      var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked });
+      var _ts = parseTimestamp(tStr, { dateAnchorMs: _anchorMs, prevTMs: _prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked, dmyContradictory: _tsOpts.dmyContradictory });
       if (!_ts) continue;
       _prevTMs = _ts.tMs;
       rows.push({ tMs: _ts.tMs, t: new Date(_ts.tMs), spo2: spo2, hr: hr, motion: motion, pi: pi });
