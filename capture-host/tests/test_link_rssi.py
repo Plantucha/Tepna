@@ -107,6 +107,23 @@ def test_sysfs_hci_skips_a_garbage_address(tmp_path):
     assert link_rssi.sysfs_hci(str(base)) == {}
 
 
+def test_sysfs_hci_skips_a_controller_whose_address_cannot_be_read(tmp_path):
+    """A per-ENTRY failure, distinct from the base being absent: sysfs listed the controller but its
+    `address` cannot be opened — a device mid-teardown, or one the kernel exposes without the attribute.
+    That entry is skipped and the OTHERS still map, because dropping the whole table would send
+    resolve_hci to the hcitool fallback and, on a Pi 5 where hcitool is absent, silently back to the
+    BlueZ default radio — the 2026-07-18 deaf-onboard mis-pin.
+
+    Covered here explicitly because it was previously reached only by accident, via the real
+    /sys/class/bluetooth on a developer's machine — so it read as covered locally and was uncovered in
+    CI, on a line whose whole job is to survive an unreadable host."""
+    base = tmp_path / "bt"
+    (base / "hci0").mkdir(parents=True)                       # listed, but has no `address` file
+    good = base / "hci1"; good.mkdir()
+    (good / "address").write_text("AC:A7:F1:29:9D:1D\n")
+    assert link_rssi.sysfs_hci(str(base)) == {"AC:A7:F1:29:9D:1D": "hci1"}
+
+
 # ── POSITIVE RSSI IS NOT A MEASUREMENT (VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF §4) ──────────────
 # BlueZ returns 0 (sometimes a small positive) from HCI_Read_RSSI when it has no valid reading —
 # a stale handle, a link being torn down. The old +20 upper bound admitted those sentinels as real

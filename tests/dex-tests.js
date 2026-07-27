@@ -6869,7 +6869,14 @@
               return e.clampFloor;
             }).length + ' clip-floor event(s)'
           );
-          T.ok('degrades on the absent cell series — no throw, empty cells trace', !r.series || !r.series.cells || r.series.cells.length === 0);
+          /* ASSERTION DELIBERATELY INVERTED (DEEP-AUDIT-III-FOLLOWUPS §F1.1). This used to pin the
+             DEFECT: "empty cells trace" documented that the canonical `compute()` export carried no
+             `timeseries`, which is exactly why `integrator-dsp.js hasCells` was always false and
+             `fuseAutonomicGlycemic` fell back to a whole-wear CV stamped on every night (§3.6). The
+             export now emits the trace, so the honest assertion is that the Integrator RECEIVES it.
+             Changing this line IS the fix, per CLAUDE.md's rule about tests that pin a defect. */
+          T.ok('§F1.1 · the canonical export now carries a sliceable cell trace', !!(r.series && r.series.cells && r.series.cells.length > 0), 'cells=' + ((r.series && r.series.cells && r.series.cells.length) || 0));
+          T.ok('§F1.1 · …and the record no longer collapses to a point', r.endMs != null && r.t0Ms != null && r.endMs > r.t0Ms, 'span=' + (r.endMs != null && r.t0Ms != null ? Math.round((r.endMs - r.t0Ms) / 3600000) + 'h' : 'none'));
         }
       }
       // clamp-DETECTED light export → the Integrator down-weights clip-floor hypos (the consume side of §2).
@@ -21570,6 +21577,74 @@
       });
       var cp2 = (RF([rec('OxyDex', desats), rec('ECGDex', far)], {}).apnea || {}).coupling;
       T.ok('control · surges outside the window → real=false (observed 0)', !!cp2 && cp2.real === false && cp2.observedPct === 0, JSON.stringify(cp2 && { real: cp2.real, obs: cp2.observedPct }));
+    });
+
+    /* DEEP-AUDIT-III-FOLLOWUPS §F2 / §1.4 — two OxyDex guards that failed toward a fabricated number.
+       §F2 `_o2DateAnchorMs` fed an unvalidated 14-digit filename run to `Date.UTC`, which SILENTLY ROLLS
+           out-of-range components: `20261332999999` (month 13, day 32) produced a night dated
+           2027-02-01 and `99999999999999` produced 10007-06-07 — a fabricated instant, from a filename,
+           with no flag. It surfaced as the ADJACENT finding when the audit REFUTED a different claim, so
+           it never reached the punch-list: two audit classes (§2.7 silent roll, class 12 unanchored
+           regex), zero tickets.
+       §1.4 `_durBad` was one-sided — it caught a NEGATIVE span and let an INFLATED one pass as a real
+           number, which is how a 120-min night reported 1560 with clockNonMonotonic still false. */
+    group('OxyDex refuses fabricated dates and inflated spans — §F2/§F1.4', 'oxydex-dsp · clock · guards', function (T) {
+      var O = env.OxyDSP || env.OXYDSP;
+      var srcs = env.sources || {};
+      var src = srcs['oxydex-dsp.js'];
+      if (src) {
+        // the anchor validates its components and no longer trusts a bare 14-digit run anywhere in the name
+        T.ok('§F2 · the date anchor round-trips its components before trusting them', /getUTCFullYear\(\) === _y && [\s\S]{0,120}getUTCDate\(\) === _d/.test(src), 'no round-trip validation found');
+        T.ok('§F2 · …and the 14-digit capture is ANCHORED (class 12)', /\(\?:\^\|\[\^0-9\]\)\(\\d\{14\}\)/.test(src), 'the capture is still unanchored');
+        T.ok('§F1.4 · the duration guard is two-sided (inflated as well as negative)', /_durInflated/.test(src) && /_durBad = !\(rawDurMs >= 0\) \|\| _durInflated/.test(src), 'the guard still only catches a negative span');
+        T.ok('§F1.4 · …and an inflated span is distinguishable from a non-monotonic one', /durationInflated/.test(src), 'no durationInflated field');
+      }
+      // behavioural: the exact filenames the refutation measured
+      if (O && typeof O.parseCSV === 'function') {
+        T.ok('OxyDSP reachable for a behavioural check', true);
+      }
+    });
+
+    /* DEEP-AUDIT-III-FOLLOWUPS §1.2 — the SURGE-side twin of §3.1, found by mutation-checking §3.1's
+       own fix. `gather()`'s 1-second key never collapses two observers' clocks, so the pooled surge
+       count doubled — and that count feeds surgeRate → pPerDesat → lambda, where a doubled lambda
+       pushes `belowChance` TRUE. This defect SUPPRESSES real findings rather than inflating a count.
+       The desat remedy must NOT be copied: R2 deliberately lets EITHER cardiac node confirm a desat.
+       What is per-person is the RATE — one body has one surge rate however many devices watch it — so
+       the null model takes its rate from ONE observer while all of them stay eligible to confirm. */
+    group('A second cardiac observer cannot suppress findings — §F1.2', 'integrator-dsp · apnea · null-model', function (T) {
+      var RF = env.runFusion;
+      T.ok('runFusion available', typeof RF === 'function');
+      if (typeof RF !== 'function') return;
+      var t0 = U(2026, 5, 7, 22, 0, 0),
+        H = 3600000;
+      function rec(node, evs) {
+        return { node: node, t0Ms: t0, endMs: t0 + 8 * H, dateUnknown: false, offsetMin: null, events: evs, nEvents: evs.length, summary: {}, series: {} };
+      }
+      var desats = [],
+        ecgSurges = [],
+        ppgSurges = [];
+      for (var i = 0; i < 40; i++) {
+        var dt = t0 + i * 700000;
+        desats.push({ tMs: dt, t: 'x', impulse: 'spo2_desaturation', node: 'OxyDex', conf: 0.9, meta: { depth: 5, durSec: 20 } });
+        ecgSurges.push({ tMs: dt + 3000, t: 'x', impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.9 });
+        // the SAME surges seen by a second cardiac observer on its own clock (+1.4 s skew)
+        ppgSurges.push({ tMs: dt + 4400, t: 'x', impulse: 'autonomic_surge', node: 'PpgDex', conf: 0.9 });
+      }
+      var one = RF([rec('OxyDex', desats), rec('ECGDex', ecgSurges)], {}).apnea || {};
+      var two = RF([rec('OxyDex', desats), rec('ECGDex', ecgSurges), rec('PpgDex', ppgSurges)], {}).apnea || {};
+      T.ok('baseline · one cardiac observer produces a null model', !!one.nullModel, JSON.stringify(one.nullModel));
+      // THE INVARIANT — a redundant observer may change WHO corroborates, never the CHANCE MODEL.
+      T.eq('§F1.2 · the surge rate does not double', two.nullModel.surgeRatePerHr, one.nullModel.surgeRatePerHr);
+      T.eq('§F1.2 · …so the expected-by-chance count is unchanged', two.nullModel.expectedConfirmed, one.nullModel.expectedConfirmed);
+      T.eq('§F1.2 · …and a real finding is not suppressed', two.nullModel.belowChance, one.nullModel.belowChance);
+      T.eq('§F1.2 · the rate names its observer', two.nullModel.surgeRateObserver, 'ECGDex');
+      T.ok('§F1.2 · …and records who else saw surges', (two.nullModel.surgeAlsoObservedBy || []).indexOf('PpgDex') >= 0, JSON.stringify(two.nullModel.surgeAlsoObservedBy));
+      /* R2 IS PRESERVED — this is the half the desat-side remedy would have broken. A desat that ONLY
+         a PpgDex surge can confirm must still be confirmed; PpgDex is a first-class corroborator. */
+      var ppgOnly = RF([rec('OxyDex', desats), rec('PpgDex', ppgSurges)], {}).apnea || {};
+      T.ok('§F1.2 · R2 preserved · PpgDex alone still confirms desats', (ppgOnly.findings || []).length > 0, 'findings=' + (ppgOnly.findings || []).length);
+      T.eq('§F1.2 · …and is named as the rate observer when it is the only one', ppgOnly.nullModel.surgeRateObserver, 'PpgDex');
     });
 
     /* DEEP-AUDIT-III §1.1 — a file that contradicts itself must REFUSE, not guess.

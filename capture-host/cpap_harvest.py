@@ -371,7 +371,24 @@ def default_wifi_iface(_sys: str | None = None) -> str:
 # control socket — so `wpa_cli status` can never reach it and the association can never be confirmed.
 # Found on real hardware 2026-07-26; mocked subprocesses cannot catch it, because the bug is in the
 # CONFIG we hand the daemon, not in how we call it. Bounded-wait then teardown handled it correctly.
-_WPA_CONF = ('ctrl_interface=/run/wpa_supplicant\nctrl_interface_group=0\n'
+#
+# …and it must be OUR OWN directory, not the system daemon's. `/run/wpa_supplicant` is where the
+# packaged `wpa_supplicant.service` keeps ITS sockets, and on the vigil box that unit is ACTIVE
+# (systemd-networkd + wpa_supplicant, no NetworkManager — the very branch `backend()` selects). Two
+# consequences, both observed on real hardware 2026-07-27:
+#
+#   1. our `wpa_supplicant -B` exits 255 the moment it tries to own a socket in that directory —
+#      "Successfully initialized wpa_supplicant" on stderr, then gone — so the harvest could NEVER
+#      bring the card up on a stock Ubuntu box, and reported it as the PROFILE failing;
+#   2. worse, a bare `wpa_cli -i <iface> …` resolves through that same shared directory, so the
+#      status poll interrogated — and `_wpa_down`'s `terminate` would have KILLED — the SYSTEM
+#      supplicant. On this box wlp1s0 is idle and the uplink is wired, so nothing was lost; on a
+#      box that runs on Wi-Fi, the CPAP teardown would have taken the network down with it.
+#
+# So: a private directory, and every wpa_cli call is pinned to it with `-p`. The two daemons then
+# cannot see each other's sockets, which is the only version of "bound to OUR interface" that holds.
+_WPA_DIR = "/run/tepna-wpa"
+_WPA_CONF = ('ctrl_interface=' + _WPA_DIR + '\nctrl_interface_group=0\n'
              'network={{\n\tssid="{ssid}"\n\tpsk="{psk}"\n\tkey_mgmt=WPA-PSK\n\tscan_ssid=1\n}}\n')
 
 
@@ -383,14 +400,22 @@ def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float) -> bool:
         os.close(fd)
         os.chmod(conf, 0o600)                          # the PSK is in here; never world-readable
         _sh(["ip", "link", "set", iface, "up"], 10, sudo=True)
-        # -B daemonises. Bound to OUR conf and OUR interface: the packaged wpa_supplicant.service may
-        # also be enabled, and two supplicants driving one interface fight over the association.
+        # -B daemonises. Bound to OUR conf, OUR interface and OUR control directory: the packaged
+        # wpa_supplicant.service is active on this box, and two supplicants sharing one ctrl_interface
+        # directory collide over the socket before they ever get as far as fighting over the radio.
+        _sh(["mkdir", "-p", _WPA_DIR], 10, sudo=True)
         rc, out = _sh(["wpa_supplicant", "-B", "-i", iface, "-c", conf], 20, sudo=True)
         if rc:
+            # Say WHY. `state='error', detail="profile 'ezshare' would not come up safely"` names the
+            # profile, which is the one thing that was never wrong here — the same mis-aimed reason
+            # CAPTURE-HOST-DEEP-AUDIT §E5 fixed once already, arriving by a different route.
+            log.warning("cpap: wpa_supplicant -B failed on %s (rc=%s) — %s", iface, rc,
+                        (out or "").strip().splitlines()[-1] if (out or "").strip() else "no output")
+            _wpa_down(iface)
             return False
         deadline = time.monotonic() + max(5.0, timeout)
         while time.monotonic() < deadline:             # bounded wait for association
-            rc, out = _sh(["wpa_cli", "-i", iface, "status"], 8, sudo=True)
+            rc, out = _sh(["wpa_cli", "-p", _WPA_DIR, "-i", iface, "status"], 8, sudo=True)
             if rc == 0 and "wpa_state=COMPLETED" in out:
                 _sh(["ip", "addr", "add", addr, "dev", iface], 10, sudo=True)   # NO route, ever
                 return True
@@ -410,7 +435,11 @@ def _wpa_down(iface: str) -> bool:
     # supplicant, then down the interface. Every step is best-effort — a box that cannot tear down
     # cleanly must still not raise into the harvest task.
     _sh(["ip", "addr", "flush", "dev", iface], 10, sudo=True)
-    _sh(["wpa_cli", "-i", iface, "terminate"], 10, sudo=True)
+    # `-p _WPA_DIR` is load-bearing, not tidiness: without it this resolves through the SYSTEM
+    # supplicant's socket directory and `terminate` kills the box's own wpa_supplicant. Harmless here
+    # only because the vigil box uplinks over wired eno1; on a Wi-Fi box the CPAP harvest's teardown
+    # would have taken the network down with it.
+    _sh(["wpa_cli", "-p", _WPA_DIR, "-i", iface, "terminate"], 10, sudo=True)
     _sh(["ip", "link", "set", iface, "down"], 10, sudo=True)
     return True
 
@@ -530,7 +559,15 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
                 continue
             st["files"] += 1
             st["bytes"] += n
-            if was_short:
+            # VESTIGIAL, and deliberately left in place. `fetch` raises ShortRead on exactly the
+            # predicate it then returns — `short_read(entry, len(data))`, a pure function of the same
+            # two arguments — so the flag it hands back here is unconditionally False and this branch
+            # cannot run. It is the pre-§C5 reporting path, from before a short body became an
+            # exception (the `except ShortRead` arm above now records the same thing, and does it
+            # WITHOUT promoting the truncated file). Kept because the flag is part of fetch's
+            # documented return contract; if that third element is ever made meaningful again, this
+            # is where it lands.
+            if was_short:   # pragma: no cover — unreachable; see above
                 st["short"].append(f"{e['name']}: listing {e['size']}, got {n / 1024:.0f}KB")
 
     root = ez.listing()

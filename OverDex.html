@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+l9kayHtgPb17wTT9MN3iYZMy5v8gPMlGu7MSRHNeY0=' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-46boG2Zei2KUTqqL3no38xx2xgHnFR/QxIJLutVxSyg=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QJmpjWDlpbIiDYkV79kKDuftqVSCp3mG9WWwC4ZEiTQ=' 'sha256-QQ0KacKH/GQMvONOobfclwjWfwAHFkmG41i5GZK6pR0=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-jAIBSLGggaPq1y7DfUch6J9nYLf0Pk20xw/5AM1sJmU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-u68LAhX9o5gpDAI7BBLJZiRqgeAMP9uLrCOh2vtb2LM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IFqYc6dzcRVE3XPKUT4Cl5Fn3+2l/+LqHeS2o2sF0yY=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MjgKGx7flz9bToi39X3OOw9FMRYQE8d+PIvype3QeWU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QJmpjWDlpbIiDYkV79kKDuftqVSCp3mG9WWwC4ZEiTQ=' 'sha256-QQ0KacKH/GQMvONOobfclwjWfwAHFkmG41i5GZK6pR0=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-u68LAhX9o5gpDAI7BBLJZiRqgeAMP9uLrCOh2vtb2LM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -3439,7 +3439,34 @@ function fuseApneaEvents(recs, dtMs, gate) {
   // exceed chance (P(≥observed) not significant) so a coincidence can't pose as
   // a clinical event. Emit-but-flag — nothing is silently dropped. ────────────
   var unionSec = totHrs * 3600;
-  var surgeRate = unionSec > 0 ? surges.length / unionSec : 0; // surges per second
+  /* SURGE RATE IS PER PERSON, NOT PER DEVICE (DEEP-AUDIT-III-FOLLOWUPS §1.2 — the surge-side twin of
+     §3.1, found by mutation-checking §3.1's own fix). `gather()` dedupes with `impulse@round(tMs/1000)`,
+     which only collapses stamps landing in the SAME second; two cardiac observers run two clocks and
+     never round together, so the pooled surge count DOUBLED. That count feeds
+     `surgeRate → pPerDesat → lambda`, and a doubled lambda pushes `belowChance` true — this defect
+     SUPPRESSES real findings rather than inflating a count, which is the worse direction: a number that
+     is too high eventually gets questioned, a missing one does not.
+     The desat-side remedy (one observer owns the spine) must NOT be copied here. R2 above is a
+     deliberate design decision — "a desat is confirmable by an autonomic surge from EITHER; PpgDex is a
+     first-class node here, not silently dropped" — so MATCHING keeps the whole pool. What is per-person
+     is the RATE: one body has one autonomic surge rate however many devices watch it. So the null model
+     takes its rate from a SINGLE observer, chosen by the HR_AUTHORITY ladder that already exists for
+     exactly this judgement, while every observer remains eligible to confirm. */
+  var _surgeByNode = {};
+  surges.forEach(function (sv) {
+    var n = sv.node || 'ECGDex';
+    _surgeByNode[n] = (_surgeByNode[n] || 0) + 1;
+  });
+  var _surgeNodes = Object.keys(_surgeByNode).sort(function (a, b) {
+    var ra = HR_AUTHORITY[a] != null ? HR_AUTHORITY[a] : 99,
+      rb = HR_AUTHORITY[b] != null ? HR_AUTHORITY[b] : 99;
+    if (ra !== rb) return ra - rb;
+    if (_surgeByNode[b] !== _surgeByNode[a]) return _surgeByNode[b] - _surgeByNode[a];
+    return a < b ? -1 : 1;
+  });
+  var _rateNode = _surgeNodes.length ? _surgeNodes[0] : null;
+  var _rateCount = _rateNode ? _surgeByNode[_rateNode] : surges.length;
+  var surgeRate = unionSec > 0 ? _rateCount / unionSec : 0; // surges per second, from ONE observer
   var winSec = leadMaxSec + trailMaxSec;
   var pPerDesat = Math.min(1, surgeRate * winSec);
   var lambda = desats.length * pPerDesat; // expected confirmations by chance
@@ -3518,6 +3545,10 @@ function fuseApneaEvents(recs, dtMs, gate) {
       pAtLeastObserved: +pAtLeast.toFixed(3),
       belowChance: belowChance,
       surgeRatePerHr: +(surgeRate * 3600).toFixed(1),
+      // which observer the rate came from, and who else saw surges — so a reader can tell a
+      // one-device night from a corroborated one without the count silently changing the null.
+      surgeRateObserver: _rateNode,
+      surgeAlsoObservedBy: _surgeNodes.slice(1),
       directionalWindowSec: winSec
     },
     coupling: coupling
@@ -7715,11 +7746,29 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     parseTimestamp = DexClock.parseTimestamp;
   // Floating-ms date anchor (00:00) for a recording: filename 14-digit date, else
   // file.lastModified (as floating wall-clock), else null. Used for time-only rows.
+  /* §F2 (DEEP-AUDIT-III-FOLLOWUPS) — VALIDATE THE COMPONENTS, and ANCHOR the regex.
+     This surfaced as the ADJACENT finding when the audit refuted a different claim, so it never reached
+     the punch-list — two audit classes, zero tickets. Both defects are real and measured:
+       · `Date.UTC` SILENTLY ROLLS out-of-range components (Clock Contract §2.7), so a filename run of
+         `20261332999999` (month 13, day 32) produced a night dated 2027-02-01, and `99999999999999`
+         produced 10007-06-07. A fabricated instant, from a filename, with no flag.
+       · the capture is UNANCHORED (class 12), so on a name carrying an 8-digit device serial the first
+         14 consecutive digits found need not be the stamp at all.
+     `clock.js` already solved exactly this in `_ckMk` — a date that does not round-trip is refused —
+     so this validates the same way rather than inventing a second rule. Refusing returns null, which
+     `_o2DateAnchorMs` already treats as "date unknown"; that path is honest and already exercised. */
   function _o2DateAnchorMs(fname, file) {
-    var m = String(fname || '').match(/(\d{14})/);
+    var m = String(fname || '').match(/(?:^|[^0-9])(\d{14})(?:[^0-9]|$)/);
     if (m) {
       var s = m[1];
-      return Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8));
+      var _y = +s.slice(0, 4),
+        _mo = +s.slice(4, 6),
+        _d = +s.slice(6, 8);
+      var _t = Date.UTC(_y, _mo - 1, _d);
+      var _rt = new Date(_t);
+      // round-trip: a rolled component (month 13, Feb 30, day 32) cannot survive this
+      if (_rt.getUTCFullYear() === _y && _rt.getUTCMonth() === _mo - 1 && _rt.getUTCDate() === _d) return _t;
+      return null; // out-of-range stamp ⇒ date unknown, never a fabricated night
     }
     if (file && file.lastModified) {
       var fl = _ckNumEpoch(file.lastModified);
@@ -10015,10 +10064,36 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // §3), so rows cannot run backward. If one still does, that is a clock failure — surface it as an
     // absent duration, never as a negative number that would silently divide the ODI/burden denominators.
     var rawDurMs = rows[n - 1].tMs - rows[0].tMs;
-    var _durBad = !(rawDurMs >= 0);
+    /* §F1.4 — the guard was one-SIDED: `!(rawDurMs >= 0)` catches a NEGATIVE span and lets an INFLATED
+       one pass as a real number. That is how a 120-minute night reported 1560 minutes with
+       `clockNonMonotonic` still false. §1.2's roll fix removed the CAUSE; this closes the GUARD, because
+       defence-in-depth is the point of a guard — any future clock disorder that inflates a span should
+       be visible rather than surfaced as a duration.
+       The bound comes from the data, not a constant: with n rows at the observed median cadence, the
+       span cannot honestly exceed n × cadence by much. 1.5× is deliberately generous (real recordings
+       carry genuine gaps), so this fires only on the multiple-of-24 h shape a rolled date produces. */
+    var _cad = null;
+    if (n > 8) {
+      var _d = [];
+      for (var _i = 1; _i < n; _i++) {
+        var _dt = rows[_i].t - rows[_i - 1].t;
+        if (_dt > 0) _d.push(_dt);
+      }
+      if (_d.length > 4) {
+        _d.sort(function (a, b) {
+          return a - b;
+        });
+        _cad = _d[_d.length >> 1];
+      }
+    }
+    var _durInflated = _cad != null && rawDurMs > 1.5 * n * _cad + 3600000;
+    var _durBad = !(rawDurMs >= 0) || _durInflated;
     return {
       durationMin: _durBad ? null : +(rawDurMs / 60000).toFixed(1),
       clockNonMonotonic: _durBad || undefined,
+      // §F1.4 — distinguish the two failures: a span that ran BACKWARDS vs one inflated far past what
+      // the row count and cadence can support. Both null the duration; only one is non-monotonic.
+      durationInflated: _durInflated || undefined,
       start: fmtTime(rows[0].t),
       end: fmtTime(rows[n - 1].t),
       meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : 0,
@@ -18715,6 +18790,24 @@ __exports.PulseDex = window.PulseDex;
   //  and self-contained — kernel/provenance arrive via opts (typeof-guarded by the
   //  caller), never reached off window here (CONTRIBUTING.md §6 / brief §1B).
   // ════════════════════════════════════════════════════════════════════════
+  /* §F1.1 — the per-cell trace, SINGLE-SOURCED. `glucoBuildNodeExport` (the canonical compute() /
+     "Export Ganglior" path) omitted `timeseries` entirely, so `integrator-dsp.js:1871 hasCells` was
+     always false: the Integrator stamped the SAME whole-wear glucose CV on every overlapping night,
+     `pearson` over that constant series returned null, and the `directional` fallback published a
+     number computed from the ECG slope alone under a note claiming "Single overlapping night" (§3.6).
+     `glucodex-app.js` already built this block — so the fix is to give both callers ONE builder rather
+     than a second copy, which is the sibling-divergence class this audit exists to fix. */
+  function glucoCells(series) {
+    if (!series || !series.N) return [];
+    var W = series.FLAG ? series.FLAG.WARMUP : 1;
+    var out = [];
+    for (var i = 0; i < series.N; i++) {
+      if (series.gF[i] === W) continue; // warm-up garbage; keep OK/GAP/COMPRESSION/GAP_LONG
+      out.push({ tMs: series.gT[i], v: Math.round(series.gV[i]), f: series.gF[i] });
+    }
+    return out;
+  }
+
   function glucoBuildNodeExport(r, opts) {
     opts = opts || {};
     // CLAMP-SATURATION HONESTY (GLUCODEX-FOLLOWUPS §2). When the CGM export clipped at the floor (Abbott
@@ -18781,6 +18874,17 @@ __exports.PulseDex = window.PulseDex;
             : null,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
         events: events.length,
+        /* §F1.1 — CONTINUOUS coverage, the sibling of HRVDex's sparse block (§6.2). GlucoDex declared no
+           duration key `adaptEnvelopeNode` reads, so a well-controlled ZERO-EVENT CGM record collapsed to
+           a point at t0Ms — the healthiest record was the one that dropped out of fusion. A CGM wear IS
+           continuous, so one segment states that honestly; here `spanSec` and `recordedSec` agree BY
+           MEASUREMENT, which is precisely what the sparse case could not claim. */
+        coverage: (function () {
+          var _c = glucoCells(r.series);
+          if (!_c.length || r.t0Ms == null) return null;
+          var _sec = Math.max(0, Math.round((_c[_c.length - 1].tMs - r.t0Ms) / 1000));
+          return { kind: 'continuous', spanSec: _sec, segments: [{ startMs: r.t0Ms, durSec: _sec }], recordedSec: _sec, nWithDuration: 1, n: 1 };
+        })(),
         clamp:
           cs && cs.detected
             ? {
@@ -18812,6 +18916,24 @@ __exports.PulseDex = window.PulseDex;
         dawn: r.dawn && r.dawn.present ? { present: true, medianDelta: r.dawn.medianDelta } : { present: false },
         daypart: r.daypart || null
       },
+      /* §F1.1 / §3.6 — the SLICEABLE trace. Without it `integrator-dsp.js hasCells` was always false, so
+         the Integrator stamped the SAME whole-wear glucose CV on every overlapping night, `pearson` over
+         that constant series returned null, and the `directional` fallback published a number computed
+         from the ECG slope ALONE under a note claiming "Single overlapping night". `glucodex-app.js`
+         already emitted this block; both now call `glucoCells` so the two cannot drift. */
+      timeseries: (function () {
+        var _cells = glucoCells(r.series);
+        if (!_cells.length) return null;
+        return {
+          doc: 'Per-cell trace. cells[] makes this continuous node SLICEABLE: a consumer (the Integrator) recomputes glycemic metrics on any sub-window without GlucoDex pre-segmenting into nights.',
+          cadenceMin: r.cadence,
+          t0Ms: r.t0Ms,
+          unit: 'mg/dL',
+          cells: _cells,
+          cellsNote:
+            'ONE entry per cell in time order; WARMUP cells dropped. tMs = absolute floating wall-clock ms; v = mg/dL; f = clean flag (0 OK · 2 gap-interp SHORT · 3 compression-low · 4 gap-interp LONG). A consumer computing glucose statistics MUST exclude 3 and 4 — flag 4 is straight-line interpolation the sensor never saw, and counting it inflates TIR/CV and any coverage figure derived from the cell count.'
+        };
+      })(),
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };

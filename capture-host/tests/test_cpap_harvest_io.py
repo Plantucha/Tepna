@@ -382,6 +382,48 @@ def test_wpa_up_false_when_the_supplicant_will_not_start(monkeypatch):
     assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 5) is False
 
 
+def test_our_supplicant_never_shares_the_system_daemons_control_directory():
+    """/run/wpa_supplicant belongs to the packaged wpa_supplicant.service, which is ACTIVE on the vigil
+    box (systemd-networkd, no NetworkManager — the branch backend() selects). Sharing it made our
+    `wpa_supplicant -B` exit 255 the instant it tried to own a socket there: "Successfully initialized
+    wpa_supplicant", then gone. Observed on real hardware 2026-07-27; the harvest could never bring the
+    card up on a stock box and blamed the PROFILE for it."""
+    assert ch._WPA_DIR != "/run/wpa_supplicant"
+    assert f"ctrl_interface={ch._WPA_DIR}" in ch._WPA_CONF
+    assert "/run/wpa_supplicant" not in ch._WPA_CONF
+
+
+def test_every_wpa_cli_call_is_pinned_to_our_own_control_directory(monkeypatch):
+    """A bare `wpa_cli -i <iface>` resolves through /run/wpa_supplicant — the SYSTEM daemon's sockets.
+    The status poll therefore interrogated the wrong supplicant, and `_wpa_down`'s `terminate` would
+    have KILLED the box's own wpa_supplicant. Harmless on this box only because its uplink is wired;
+    on a Wi-Fi box the CPAP teardown would have taken the network down with it."""
+    calls = _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=COMPLETED\n")})
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    ch._wpa_up("wlp1s0", "ez Share", "88888888", "192.168.4.2/24", 10)
+    ch._wpa_down("wlp1s0")
+    cli = [c for c, _ in calls if c.startswith("wpa_cli")]
+    assert cli, "expected wpa_cli calls"
+    for c in cli:
+        assert f"-p {ch._WPA_DIR}" in c, f"unpinned wpa_cli would hit the system daemon: {c}"
+    # the destructive one specifically
+    assert any("terminate" in c and f"-p {ch._WPA_DIR}" in c for c in cli)
+
+
+def test_a_supplicant_that_will_not_start_tears_down_and_says_why(monkeypatch, caplog):
+    """The surfaced reason used to name the profile — the one thing that was never wrong. Same
+    mis-aimed-reason defect CAPTURE-HOST-DEEP-AUDIT §E5 fixed once, arriving by another route."""
+    import logging
+    _sh_spy(monkeypatch, {"wpa_supplicant": (255, "Successfully initialized wpa_supplicant")})
+    downs = []
+    monkeypatch.setattr(ch, "_wpa_down", lambda i: downs.append(i) or True)
+    with caplog.at_level(logging.WARNING):
+        assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 5) is False
+    assert downs == ["wlp1s0"], "a supplicant that half-started must still be torn down"
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "rc=255" in msg and "wlp1s0" in msg
+
+
 def test_wpa_down_flushes_before_killing_the_supplicant(monkeypatch):
     """Address first, so nothing can route over a half-torn link."""
     calls = _sh_spy(monkeypatch)
@@ -466,7 +508,24 @@ def test_wpa_up_still_returns_when_the_psk_conf_cannot_be_unlinked(monkeypatch):
     assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 10) is True
 
 
-def test_wifi_up_false_when_the_wpa_backend_cannot_associate(monkeypatch):
+def test_wifi_up_false_when_the_wpa_backend_cannot_associate(tmp_path, monkeypatch):
+    """⚠️ SYS_NET is redirected on purpose. The wpa path first checks that the interface EXISTS under
+    /sys/class/net, so against the real one this test took whichever branch the host happened to
+    provide — reaching `_wpa_up` on a dev box with a wlan device and returning at the
+    interface-missing guard in CI. It passed either way while covering different code, which is how an
+    environment dependency hides inside a green suite."""
+    net = tmp_path / "net" / "wlan0"
+    net.mkdir(parents=True)
+    monkeypatch.setattr(ch, "SYS_NET", str(tmp_path / "net"))
     monkeypatch.setattr(ch, "backend", lambda: "wpa")
     monkeypatch.setattr(ch, "_wpa_up", lambda *a: False)
-    assert ch.wifi_up("ezshare", guard_dev="eno1") is False
+    assert ch.wifi_up("ezshare", guard_dev="eno1", iface="wlan0") is False
+
+
+def test_wifi_up_refuses_an_interface_this_box_does_not_have(tmp_path, monkeypatch):
+    """The other arm, now that the one above cannot drift into it: a `wifi_iface` naming a device that
+    is not present must fail with the message that names the setting, not attempt to associate."""
+    monkeypatch.setattr(ch, "SYS_NET", str(tmp_path / "net"))          # empty — no interfaces at all
+    monkeypatch.setattr(ch, "backend", lambda: "wpa")
+    monkeypatch.setattr(ch, "_wpa_up", lambda *a: pytest.fail("must not associate on a missing iface"))
+    assert ch.wifi_up("ezshare", guard_dev="eno1", iface="wlan0") is False

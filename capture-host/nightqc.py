@@ -264,7 +264,10 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         midnight = _midnight_of(night_dir)
         if midnight is not None and 0 <= earliest - midnight < _SESSION_GAP_SEC:
             prev = _prev_day_dir(night_dir)
-            if prev:
+            if prev:   # pragma: no branch — unreachable-false: `midnight is not None` above already
+                # proves _folder_date() parsed, and that is the only condition under which
+                # _prev_day_dir returns None. (timeline.build's sibling gate adds an isdir() check,
+                # which CAN be false; this one is about the folder NAME, which is already settled.)
                 data = [f for f in scan_night(prev) if f["stream"] not in _SIDECAR_TAGS] + data
     # Isolate the CURRENT capture session (merge_sessions holds the reasoning). The current session is
     # the merged interval reaching the newest write (~now); `span` is its elapsed time. None (coverage

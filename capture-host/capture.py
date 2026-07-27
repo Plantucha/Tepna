@@ -1067,7 +1067,11 @@ async def run_polar(dev: dict, root: str):
                         BUS.push(key, [s.values[0] for s in samples], hz)
                     elif meas in (pmd.PPG, pmd.ACC, pmd.GYRO, pmd.MAG):
                         BUS.push(key, [list(s.values) for s in samples], hz)      # multi-channel
-                    elif meas == pmd.PPI:
+                    # No `else`: this chain is EXHAUSTIVE over pmd.MEAS_NAME (ecg · ppg · acc · gyro ·
+                    # mag · ppi), and a meas outside it cannot reach here — `writers` is keyed by those
+                    # six, so an unknown one already returned at the `not wr` guard above, and the
+                    # MEAS_NAME[meas] lookup one line up would have raised before this.
+                    elif meas == pmd.PPI:   # pragma: no branch
                         BUS.push(key, [[s.values[1], s.values[0]] for s in samples], hz)  # [PP-int ms, HR]
                     _set(name, **{f"rows_{meas}": wr.rows, "last_sample": samples[-1].phone.isoformat()})
 
@@ -1748,7 +1752,11 @@ async def run_oxyii(dev: dict, root: str):
                         if not live:
                             continue
                         frames[0] += 1
-                        if oxyflagwr:
+                        # Unreachable-false: oxyflagwr is opened UNCONDITIONALLY on every connect
+                        # (unlike ppgwr, which is gated on the `ppg` stream), so it cannot be None by
+                        # the time the poll loop runs. Kept as a guard because the three writers are
+                        # torn down together and a future gate on this one would land here.
+                        if oxyflagwr:   # pragma: no branch
                             oxyflagwr.write(_now(), live)   # PI + the fields the vendor CSV cannot carry
                         # [0:4] is the ring's SESSION DURATION, not a frame counter — the old
                         # frame_gap() accounting on it reported phantom loss (9 warnings in one
