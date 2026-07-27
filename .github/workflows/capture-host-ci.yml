@@ -1,7 +1,7 @@
 name: capture-host-ci
 
-# Python CI for the OUT-OF-SUITE capture-host (the Tepna Vigil box software). Path-filtered so it runs
-# ONLY when capture-host/ changes — the JS suite's Node/browser gates are unaffected, and vice versa.
+# Python CI for the OUT-OF-SUITE capture-host (the Tepna Vigil box software). The JS suite's Node/browser
+# gates are unaffected by it, and vice versa — the two lanes share nothing but this repo.
 # Covers the reverse-engineered BLE decoders (oxyii / polar_pmd / viatom), the suite-critical writers
 # (Clock Contract / the ~10% HR-bug regression), clockcfg, the live-sample telemetry bus, AND the async
 # daemon itself. No BLE hardware needed: the runtime deps are installed below and bleak defers all D-Bus
@@ -20,13 +20,25 @@ name: capture-host-ci
 # Runs on a MATRIX of Python versions, and the version the real box runs is required to be one of them —
 # see the note on the matrix below for why that is load-bearing rather than tidiness.
 
-# The filter includes THIS FILE: without it a change to the workflow could not run the workflow, so an
-# edit to the matrix, the pin or the coverage floor would merge completely unexercised.
+# ⚠️ NO `paths:` FILTER, AND THAT IS LOAD-BEARING — DO NOT ADD ONE BACK.
+#
+# This workflow's two jobs are REQUIRED status checks on `main` (ruleset `protect-main`). GitHub requires
+# a required check to actually REPORT: a workflow skipped by a `paths:` filter never reports at all, so
+# its checks sit in "Expected — waiting for status" and every PR that does not touch capture-host/ is
+# blocked FOREVER. Path-filtering and requiring are mutually exclusive; requiring won.
+#
+# It was path-filtered until 2026-07-27, and the reason it is now required is what that filter cost:
+# PR #469 raised this job's coverage floor to 100 and MERGED WITH THIS WORKFLOW RED, because these
+# contexts were not in the required set — auto-merge waited only on the four that were (test,
+# no-network, typecheck, biome) and let the Python failure through. main shipped a red gate.
+#
+# If the ~80 s on every PR ever needs reclaiming, the ONLY safe shape is: keep the trigger unfiltered,
+# detect the changed paths INSIDE the job, and skip via a job-level `if:` — a job skipped by a condition
+# reports as skipped and satisfies the requirement, whereas a workflow skipped by `paths:` reports
+# nothing. The difference is invisible until it deadlocks the repo, which is why this note is this long.
 on:
   push:
-    paths: ['capture-host/**', '.github/workflows/capture-host-ci.yml']
   pull_request:
-    paths: ['capture-host/**', '.github/workflows/capture-host-ci.yml']
   workflow_dispatch:
 
 defaults:
