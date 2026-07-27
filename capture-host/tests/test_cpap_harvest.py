@@ -135,12 +135,28 @@ def test_nine_am_would_have_missed_the_waveform():
     assert brp_hour > 9, "09:00 would have missed BRP.edf — see brief §3.2"
 
 
-def test_any_connected_device_blocks_the_harvest():
+def test_a_streaming_device_blocks_the_harvest():
     devs = {"Polar H10": {"connected": True}, "O2Ring": {"connected": False}, "COOSPO": {}}
     assert ch.blocking_devices(devs) == ["Polar H10"]
     assert ch.blocking_devices({"a": {"connected": False}}) == []
     assert ch.blocking_devices({}) == []
     assert ch.blocking_devices(None) == []
+
+
+def test_a_charging_or_off_body_sensor_does_NOT_block():
+    """`connected` is not `streaming`. A docked sensor stays connected while producing nothing — the
+    Verity refuses PMD outright while charging, and the ring reports worn=False on the dock. Blocking
+    on `connected` made the window unreachable on any evening the sensors were charging, which is
+    exactly when a pull is safest. Observed live 2026-07-26."""
+    assert ch.blocking_devices({"Verity": {"connected": True, "charging": True}}) == []
+    assert ch.blocking_devices({"Ring": {"connected": True, "charging": True, "worn": False}}) == []
+    assert ch.blocking_devices({"Ring": {"connected": True, "worn": False}}) == []
+    # the real state of the box that night: everything docked, nothing streaming
+    assert ch.blocking_devices({"Polar Verity Sense": {"connected": True, "charging": True},
+                                "Wellue O2Ring-S": {"connected": True, "charging": True, "worn": False},
+                                "Polar H10": {"connected": False}}) == []
+    # but a worn, streaming sensor still blocks — worn=True is not off-body
+    assert ch.blocking_devices({"H10": {"connected": True, "worn": True}}) == ["H10"]
 
 
 def test_is_night_dir():
