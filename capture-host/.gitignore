@@ -6,3 +6,9 @@ config.yaml
 .coverage
 .coverage.*
 htmlcov/
+
+# The host rewrites config.yaml in place and keeps a timestamped snapshot beside it on every change
+# (config.yaml.bak, config.yaml.pre-acc52, config.yaml.pre-ppi-1646, config.yaml.pre-legB.<epoch>, …).
+# config.yaml itself is already ignored above; its snapshots were not, so they accumulated as permanent
+# `git status` noise. Nothing tracked matches this glob (the shipped sample is config.example.yaml).
+config.yaml.*
