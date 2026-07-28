@@ -40,6 +40,7 @@ set -uo pipefail
 SRC="${TEPNA_SRC:-$(cd "$(dirname "$0")/.." && pwd)}"          # …/capture-host
 ETC_SYSTEMD="${TEPNA_ETC_SYSTEMD:-/etc/systemd/system}"
 ETC_UDEV="${TEPNA_ETC_UDEV:-/etc/udev/rules.d}"
+ETC_NETWORKD="${TEPNA_ETC_NETWORKD:-/etc/systemd/network}"
 INSTALL=0
 [ "${1:-}" = "--install" ] && INSTALL=1
 
@@ -125,6 +126,14 @@ if [ "$INSTALL" = "1" ] && [ "$installed" -gt 0 ]; then
     udevadm control --reload-rules 2>/dev/null && echo "  udev rules reloaded"
   else
     echo "  udev NOT reloaded — installed to $ETC_UDEV, not the host path"
+  fi
+  # networkd only re-reads .network files on reload, and reloading it does NOT disturb an established
+  # link — the wired uplink keeps its lease. Gated on the real host path for the same reason as the
+  # other two: a redirected install has no business touching host state.
+  if [ "$ETC_NETWORKD" = "/etc/systemd/network" ]; then
+    networkctl reload 2>/dev/null && echo "  networkd config reloaded"
+  else
+    echo "  networkd NOT reloaded — installed to $ETC_NETWORKD, not the host path"
   fi
   if [ "$ETC_SYSTEMD" = "/etc/systemd/system" ]; then
     systemctl daemon-reload 2>/dev/null && echo "  systemd units reloaded"
