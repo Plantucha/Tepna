@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-27 · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` · **Method-parent:** `AUDIT-PROMPT.md` · **Sibling:** `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS-2026-07-26-BRIEF.md`
+**Status:** DONE — 2026-07-28 (its OWN §1/§2/§3 scope; the parent stays PROPOSED — see §4) · **Created:** 2026-07-27 · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` · **Method-parent:** `AUDIT-PROMPT.md` · **Sibling:** `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS-2026-07-26-BRIEF.md`
 
 # Deep audit III — residue, and what executing it taught
 
@@ -224,4 +224,4 @@ every branch in #449–#464 was created and is worth a `CONTRIBUTING.md` note.
 - [x] §1.5 `tools/regen-integrator-goldens.mjs`
 - [x] §2.5 / §2.6 / §3 folded into `CONTRIBUTING.md` — 2026-07-27: the three-builders table in §3, the
       pinned-Biome rule in §B2, and the exFAT ref-write friction as §6.1
-- [ ] parent `DEEP-AUDIT-III` flipped to DONE **only** once its punch-list is closed
+- [ ] parent `DEEP-AUDIT-III` flipped to DONE **only** once its punch-list is closed — **still open on 2026-07-28, and this brief does not close it.** Everything in §1 above is shipped, and the parent's §6.6 (no Integrator regen tool) fell to §1.5 — but **four** parent sections carry no fix stamp and were never in this brief's scope: **§3.6** (`Autonomic ⟷ glycemic` publishes an ECG-only number under a false note, `integrator-dsp.js:1902`), **§4.1** (`sampleHz` divides count by span, so any gap mis-scales every window, `motiondex-dsp.js:214/220`), **§4.2** (`respiratoryRate()` reports a confident rate across epochs where the strap was off, `motiondex-dsp.js:786`), **§4.3** (no plausibility bound on IMU samples, `motiondex-dsp.js:174`). Three of the four are MotionDex; they are carried in `CPAP-AUTOHARVEST-FOLLOWUPS-2026-07-28-BRIEF.md` §4 so they are not lost. Stamping the parent DONE now would be the false DONE `CPAP-REAL-CORPUS-FOLLOWUPS-II` opens by correcting.
