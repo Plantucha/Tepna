@@ -195,10 +195,11 @@ every branch in #449–#464 was created and is worth a `CONTRIBUTING.md` note.
 
 ## 4 · Done when
 
-- [ ] §1.1 GlucoDex `coverage` + `timeseries`, fixtures regenerated through the sanctioned tool
-- [ ] §1.2 surge-pool authority (or a documented reason the desat template does not transfer)
-- [ ] §1.3 a decision on SNS/PSNS at HF = 0, then the fix
-- [ ] §1.4 OxyDex inflated-span guard
-- [ ] §1.5 `tools/regen-integrator-goldens.mjs`
-- [ ] §2.5 / §2.6 / §3 folded into `CONTRIBUTING.md`
+- [x] §1.1 GlucoDex `coverage` + `timeseries`, fixtures regenerated through the sanctioned tool
+- [x] §1.2 surge-pool authority (or a documented reason the desat template does not transfer)
+- [ ] §1.3 a decision on SNS/PSNS at HF = 0, then the fix — **the one item still open; owner decision**
+- [x] §1.4 OxyDex inflated-span guard
+- [x] §1.5 `tools/regen-integrator-goldens.mjs`
+- [x] §2.5 / §2.6 / §3 folded into `CONTRIBUTING.md` — 2026-07-27: the three-builders table in §3, the
+      pinned-Biome rule in §B2, and the exFAT ref-write friction as §6.1
 - [ ] parent `DEEP-AUDIT-III` flipped to DONE **only** once its punch-list is closed
