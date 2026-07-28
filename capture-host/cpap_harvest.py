@@ -375,8 +375,8 @@ class EzShare:
         url = urllib.parse.urljoin(self.base + "/", href)
         return parse_listing(self._get(url).decode("utf-8", "replace"), self.ignore)
 
-    def fetch(self, entry: dict, dest_dir: str) -> tuple[str, int, bool]:
-        """Download one entry. Returns (path, bytes, was_short). Writes via a .part temp then renames, so
+    def fetch(self, entry: dict, dest_dir: str) -> tuple[str, int]:
+        """Download one entry. Returns (path, bytes). Writes via a .part temp then renames, so
         an interrupted run can never leave a truncated file that skip-if-present would later accept.
 
         Raises `ShortRead` when the body is smaller than the listing promised — WITHOUT renaming. The
@@ -403,7 +403,7 @@ class EzShare:
                 have = os.path.getsize(tmp)
                 if declared > 0 and have == declared:
                     os.replace(tmp, dest)
-                    return dest, have, False
+                    return dest, have
             except Exception:                       # noqa: BLE001 — a failed HEAD just means "download it"
                 pass
 
@@ -416,7 +416,7 @@ class EzShare:
                             f"got {len(data)} bytes — left as {os.path.basename(tmp)}")
         os.replace(tmp, dest)
         time.sleep(self.delay)
-        return dest, len(data), False
+        return dest, len(data)
 
 
 def default_route_dev() -> str | None:
@@ -778,7 +778,7 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
                 reap_stale_part(dest, st)
                 continue
             try:
-                _p, n, was_short = ez.fetch(e, subdir)
+                _p, n = ez.fetch(e, subdir)
             except ShortRead as ex:
                 # A truncated body is NOT a fetched file: it is left as a `.part`, so the destination
                 # stays absent and the next run re-fetches it. Reported under `short` (the diagnostic
@@ -790,16 +790,6 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
                 continue
             st["files"] += 1
             st["bytes"] += n
-            # VESTIGIAL, and deliberately left in place. `fetch` raises ShortRead on exactly the
-            # predicate it then returns — `short_read(entry, len(data))`, a pure function of the same
-            # two arguments — so the flag it hands back here is unconditionally False and this branch
-            # cannot run. It is the pre-§C5 reporting path, from before a short body became an
-            # exception (the `except ShortRead` arm above now records the same thing, and does it
-            # WITHOUT promoting the truncated file). Kept because the flag is part of fetch's
-            # documented return contract; if that third element is ever made meaningful again, this
-            # is where it lands.
-            if was_short:   # pragma: no cover — unreachable; see above
-                st["short"].append(f"{e['name']}: listing {e['size']}, got {n / 1024:.0f}KB")
 
     root = ez.listing()
     pull_into(root, dest_root)                                       # STR.edf, Identification.*

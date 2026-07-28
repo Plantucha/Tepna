@@ -264,3 +264,74 @@ def test_an_empty_pull_is_logged_loudly(tmp_path, monkeypatch, caplog):
     with caplog.at_level("WARNING"):
         _run(capture.cpap_poller(CFG, str(tmp_path)))
     assert any("pulled NOTHING" in r.message for r in caplog.records)
+
+
+# ── barren: found nothing, and said so ──────────────────────────────────────────────────────────────
+class _Note:
+    """A Notifier double. Accepts exactly what the caller passes — a double that cannot tests itself."""
+
+    def __init__(self):
+        self.sent = []
+
+    async def send(self, title, message, **kw):
+        self.sent.append((title, message, kw))
+        return True
+
+
+def test_a_barren_pull_is_NOT_ok(tmp_path, monkeypatch):
+    """`bad` reads only short/errors, and an empty walk raises neither — so this used to publish `ok`
+    and the monitor painted a green '✓ 0 files' over a harvest that had silently failed."""
+    spy = _Spy(); spy.install(monkeypatch, harvest=lambda *a, **k: _res(files=0, skipped=0, nights=0))
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    _stop_after(monkeypatch, 2)
+    _run(capture.cpap_poller(CFG, str(tmp_path)))
+    st = capture.STATUS["cpap"]
+    assert st["state"] == "barren", "zero fetched AND zero skipped is a failure, not a quiet success"
+    assert st["last_ok"] is None, "a run that saw nothing must not stamp a good time"
+    assert "unreachable" in st["detail"]
+
+
+def test_a_barren_pull_alerts(tmp_path, monkeypatch):
+    """cpap_poller's own docstring promised 'zero files is an ALERT, not a silent no-op'. It logged."""
+    spy = _Spy(); spy.install(monkeypatch, harvest=lambda *a, **k: _res(files=0, skipped=0, nights=0))
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    _stop_after(monkeypatch, 2)
+    note = _Note()
+    _run(capture.cpap_poller(CFG, str(tmp_path), note))
+    assert len(note.sent) == 1, "the operator must be told the therapy data is not on the box"
+    assert "CPAP" in note.sent[0][0]
+
+
+def test_NOTHING_TO_DO_IS_NOT_BARREN(tmp_path, monkeypatch):
+    """The line that makes this safe to alert on. A healthy day with no new night still SKIPS every file
+    already on disk (1249 of them on the real box) — so `skipped` is what separates 'nothing to do' from
+    'nothing there'. Without this, the steady state would page the operator every afternoon."""
+    spy = _Spy(); spy.install(monkeypatch, harvest=lambda *a, **k: _res(files=0, skipped=1249, nights=0))
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    _stop_after(monkeypatch, 2)
+    note = _Note()
+    _run(capture.cpap_poller(CFG, str(tmp_path), note))
+    assert capture.STATUS["cpap"]["state"] == "ok"
+    assert capture.STATUS["cpap"]["last_ok"] is not None
+    assert note.sent == [], "a quiet, healthy day must never alert"
+
+
+def test_a_barren_pull_with_no_webhook_still_publishes_the_state(tmp_path, monkeypatch):
+    """Alerting is opt-in; the honest state is not."""
+    spy = _Spy(); spy.install(monkeypatch, harvest=lambda *a, **k: _res(files=0, skipped=0, nights=0))
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    _stop_after(monkeypatch, 2)
+    _run(capture.cpap_poller(CFG, str(tmp_path), None))
+    assert capture.STATUS["cpap"]["state"] == "barren"
+
+
+def test_short_reads_still_outrank_barren(tmp_path, monkeypatch):
+    """A run with shorts is `error`, never `barren` — barren is only for a walk that found nothing."""
+    spy = _Spy(); spy.install(monkeypatch,
+                              harvest=lambda *a, **k: _res(files=0, skipped=0, short=["BRP: short"]))
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    _stop_after(monkeypatch, 2)
+    note = _Note()
+    _run(capture.cpap_poller(CFG, str(tmp_path), note))
+    assert capture.STATUS["cpap"]["state"] == "error"
+    assert note.sent == [], "the short-read diagnostic is the story, not 'found nothing'"
