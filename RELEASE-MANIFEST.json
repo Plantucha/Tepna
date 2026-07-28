@@ -554,6 +554,42 @@
         "INTEGRATOR-OXYDEX-ADAPTER-GAP-2026-07-21-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "1.18.0",
+      "date": "2026-07-28",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "1322ef185d5e",
+        "OxyDex": "ffc146274682",
+        "PulseDex": "0c05050ab9b4",
+        "GlucoDex": "5bf582e0abaf",
+        "PpgDex": "90efe3dcdf33",
+        "HRVDex": "d770685a29f9",
+        "CPAPDex": "0958bdfd6a56",
+        "Integrator": "f3d273a34cc4",
+        "MotionDex": "5becc2b85fd6"
+      },
+      "briefs": [
+        "O2RING-PPG-GAP-2026-07-22-BRIEF.md",
+        "PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md",
+        "VIGIL-DEEP-ANALYSIS-2026-07-22-BRIEF.md",
+        "ESM-MIGRATION-FOLLOWUPS-II-2026-07-16-BRIEF.md",
+        "NODE-EXPORT-RECORDING-DURATION-2026-07-24-BRIEF.md",
+        "CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md",
+        "STORAGE-OFFLOAD-TARGETS-2026-07-25-BRIEF.md",
+        "VIGIL-HARDENING-II-2026-07-25-BRIEF.md",
+        "VIGIL-HARDENING-III-2026-07-25-BRIEF.md",
+        "VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF.md",
+        "CAPTURE-HOST-DEEP-AUDIT-2026-07-26-BRIEF.md",
+        "VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md",
+        "DEEP-AUDIT-III-2026-07-26-BRIEF.md",
+        "CPAP-AUTOHARVEST-2026-07-26-BRIEF.md",
+        "NODE-EXPORT-DURATION-SEMANTICS-2026-07-27-BRIEF.md",
+        "DEEP-AUDIT-III-FOLLOWUPS-2026-07-27-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
