@@ -225,7 +225,6 @@ def test_an_uncreatable_control_dir_warns_and_does_not_raise(monkeypatch, caplog
     """QC-style honesty: the harvest reports and carries on to the association attempt rather than
     raising into the poller task. wpa_supplicant will then fail loudly on its own, which is the
     diagnosis a reader needs — not a traceback from a mkdir."""
-    import os
 
     def boom(*a, **k):
         raise OSError(13, "Permission denied")
