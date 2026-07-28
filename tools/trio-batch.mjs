@@ -891,7 +891,17 @@ for (const p of work) {
   try {
     const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECG(readFileSync(f.full, 'utf8'))));
     if (p.accH10 && p.accH10.length) {
-      const a = ECGDex.parseDeviceACC(readFileSync(p.accH10[0].full, 'utf8'));
+      /* THE LONGEST ACC SESSION, not the first. `[0]` is the earliest concurrent session, which on a
+         night with connection churn is a settling fragment of a few minutes — while the ECG side
+         MERGES all of them. Measured on 2026-07-27: 7 concurrent ACC sessions, `[0]` = 0.2 MB, the
+         real one = 60 MB spanning 22:16:51→04:30:04; ECGDex published motionIndex for 1 of 77
+         epochs and the stager saw no motion at all, on a night whose chest ACC was complete.
+         NOT merged, deliberately: accExtras/epochMotion index the array as UNIFORMLY sampled from
+         deviceACC[0].tsMs, so concatenating across inter-session gaps would silently time-shift
+         every sample after the first gap — a wrong alignment is worse than partial coverage, and
+         the longest session covers essentially the whole sleep window anyway. */
+      const pickAcc = p.accH10.reduce((best, f) => (f.bytes > best.bytes ? f : best), p.accH10[0]);
+      const a = ECGDex.parseDeviceACC(readFileSync(pickAcc.full, 'utf8'));
       rec.deviceACC = a.acc;
       rec.accFs = a.accFs;
     }

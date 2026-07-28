@@ -1672,31 +1672,121 @@
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  CARDIORESPIRATORY SLEEP STAGING (HRV + EDR, simplified).
-  //  Per-epoch features → Wake / REM / Light(N1-N2) / Deep(N3) with smoothing.
+  //  PER-EPOCH GROSS-MOTION INDEX from the chest ACC — night-normalised
+  //  (median → 0, p95 → 100), null wherever the ACC did not observe the epoch.
+  //
+  //  SINGLE-SOURCED here on purpose. This was computed inside accExtras' vote
+  //  block, behind `if (epochs && stages && stages.length)` — so a motion
+  //  observation could only exist once the HRV stager already had an opinion.
+  //  That ordering is backwards: motion does not depend on staging, staging
+  //  depends on MOTION. Actigraphy is the best-validated wake discriminator
+  //  there is, and gating it behind the stager is what kept the single most
+  //  useful feature out of the classifier that needed it most.
   // ════════════════════════════════════════════════════════════════════════
-  function stageSleep(epochs) {
+  function epochMotion(deviceACC, accFs, ecgT0Ms, durSec, epochs) {
+    const fs = accFs || 4;
+    if (!deviceACC || !epochs || !epochs.length || deviceACC.length < fs * 30) return null;
+    const N = deviceACC.length;
+    const vm = new Float64Array(N);
+    for (let i = 0; i < N; i++) vm[i] = Math.hypot(deviceACC[i].x, deviceACC[i].y, deviceACC[i].z);
+    const baseOffset = ecgT0Ms && deviceACC[0].tsMs ? (deviceACC[0].tsMs - ecgT0Ms) / 1000 : 0;
+    const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
+    // GROSS motion from jerk (|Δ vector-magnitude|): suppresses the always-present respiratory
+    // chest movement + gravity baseline, so only real body movement scores.
+    const dmv = new Float64Array(N);
+    for (let i = 1; i < N; i++) dmv[i] = Math.abs(vm[i] - vm[i - 1]);
+    const rawMot = [];
+    for (const e of epochs) {
+      const s0 = Math.round((e.tMin * 60 - off) * fs),
+        s1 = Math.round((e.tMin * 60 + 300 - off) * fs);
+      let a = 0,
+        c = 0;
+      for (let i = Math.max(1, s0); i < Math.min(N, s1); i++) {
+        a += dmv[i];
+        c++;
+      }
+      // null (not 0) when the ACC covered less than 30 s of the epoch: "no accelerometer observed
+      // this window" is not "the body was still".
+      rawMot.push({ tMin: e.tMin, act: c > fs * 30 ? a / c : null });
+    }
+    const actVals = /** @type {number[]} */ (rawMot.filter((m) => m.act != null).map((m) => m.act)).slice().sort((a, b) => a - b);
+    if (!actVals.length) return null;
+    const qOf = (p) => actVals[Math.min(actVals.length - 1, Math.floor(actVals.length * p))];
+    const floor = qOf(0.5),
+      span = Math.max(qOf(0.95) - floor, 1e-6); // typical-sleep median → 0, p95 → 100
+    const out = new Map();
+    for (const m of rawMot) {
+      if (m.act == null) continue;
+      out.set(m.tMin.toFixed(1), +Math.max(0, Math.min(100, ((m.act - floor) / span) * 100)).toFixed(1));
+    }
+    return out;
+  }
+
+  // Night-relative quantile with an ABSOLUTE FLOOR. A purely relative gate always fires somewhere —
+  // it would MANUFACTURE the stage it is gating on a night that genuinely lacks it — and a purely
+  // absolute one cannot fire at all on a subject whose whole distribution sits below it. Both
+  // failure modes are real: `lfhf > 2.2` (absolute) returned REM = 0 min across a healthy 6.3 h
+  // night whose epoch-median LF/HF was 1.62. So: the night's own percentile, but never below a
+  // physiological floor.
+  function _relGate(vals, p, absFloor) {
+    const v = vals
+      .filter((x) => Number.isFinite(x))
+      .slice()
+      .sort((a, b) => a - b);
+    if (!v.length) return absFloor;
+    const q = v[Math.min(v.length - 1, Math.floor(v.length * p))];
+    return Math.max(q, absFloor);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  CARDIORESPIRATORY SLEEP STAGING (HRV + actigraphy, simplified).
+  //  Per-epoch features → Wake / REM / Light(N1-N2) / Deep(N3) with smoothing.
+  //  `motionByTMin` is optional: HRV-only staging stays the fallback for a
+  //  recording with no chest ACC, so this is additive, never a regression.
+  // ════════════════════════════════════════════════════════════════════════
+  function stageSleep(epochs, motionByTMin) {
     if (!epochs.length) return [];
     const rmAll = epochs.map((e) => e.rmssd);
     const hrAll = epochs.map((e) => e.hr);
     const rmMed = median(rmAll),
       hrMed = median(hrAll),
       hrSd = std(hrAll) || 1;
+    // REM's LF/HF gate, night-relative with a floor (see _relGate). 0.65 keeps the candidate pool
+    // near the physiological REM share before the RMSSD half of the conjunction narrows it further.
+    const lfhfGate = _relGate(
+      epochs.map((e) => e.lfhf),
+      0.65,
+      1.0
+    );
+    const mot = (e) => (motionByTMin ? motionByTMin.get(e.tMin.toFixed(1)) : undefined);
     const raw = epochs.map((e) => {
       const hrZ = (e.hr - hrMed) / hrSd;
       const lfhf = e.lfhf;
+      const m = mot(e);
       let stage;
-      if (hrZ > 1.1 || e.rmssd < rmMed * 0.45) stage = 'Wake';
-      else if (lfhf > 2.2 && e.rmssd < rmMed * 0.85) stage = 'REM';
+      // MOTION FIRST where the ACC observed the epoch. Gross body movement is the most reliable
+      // wake marker available without EEG, and HRV alone under-calls wake badly — the same night
+      // that scored REM = 0 also scored 99.8% sleep efficiency with zero WASO.
+      if (m != null && m >= 60) stage = 'Wake';
+      else if (hrZ > 1.1 || e.rmssd < rmMed * 0.45) stage = 'Wake';
+      // REM is near-atonic: an epoch with real body movement is not REM, whatever the HRV says.
+      else if (lfhf > lfhfGate && e.rmssd < rmMed * 0.85 && !(m != null && m >= 35)) stage = 'REM';
       else if (e.rmssd > rmMed * 1.12 && e.hr < hrMed) stage = 'Deep';
       else stage = 'Light';
       return stage;
     });
-    // smooth: majority of ±1 neighbours
+    // SMOOTH — but never over a minority stage. This was an unconditional despiker (replace any
+    // epoch its two neighbours outvote), and against a series where one class dominates that is not
+    // a denoiser, it is an eraser: Light held 290 of 330 min on the night this was found, so every
+    // isolated REM epoch was overwritten by construction. Measured there: two epochs satisfied the
+    // full REM rule and the smoother deleted both, reporting REM = 0 min.
+    // At a 5-min grid a single epoch IS a legitimate REM or Deep bout (real bouts run 5-25 min), so
+    // the minority stages are exempt; Wake/Light singletons — the genuinely noisy pair — still get
+    // smoothed. (A proper minimum-bout-length rule wants a finer grid; that is separate work.)
     const order = { Wake: 3, REM: 2, Light: 1, Deep: 0 };
     const sm = raw.slice();
     for (let i = 1; i < raw.length - 1; i++) {
-      if (raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1]) sm[i] = raw[i - 1];
+      if (raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1] && (raw[i] === 'Light' || raw[i] === 'Wake')) sm[i] = raw[i - 1];
     }
     return epochs.map((e, i) => ({ tMin: e.tMin, stage: sm[i], y: order[sm[i]] }));
   }
@@ -2088,7 +2178,11 @@
 
     prog(92, 'CVHR / apnea detection…');
     const cvhrRaw = detectCVHR(nn, tt);
-    const stages = longRec ? stageSleep(epochs) : [];
+    // MOTION BEFORE STAGING (see epochMotion). The chest ACC is parsed and on hand here; computing
+    // it after the stager — as this did — is what left the classifier blind to the one feature that
+    // most improves it.
+    const _epochMot = rec.deviceACC && rec.accFs && rec.deviceACC.length >= rec.accFs * 30 ? epochMotion(rec.deviceACC, rec.accFs, rec.t0Ms, durSec, epochs) : null;
+    const stages = longRec ? stageSleep(epochs, _epochMot) : [];
 
     // ── activity-gated mode (AMBULATORY-MODE-BRIEF §1) ───────────────────────────
     // Consult the activity/gait/ACC evidence ALREADY computed before letting duration/
@@ -3087,11 +3181,10 @@
          stager having an opinion — gating the two together is what made an available measurement
          look absent. Scale is the night's own median→0, p95→100, same as the vote reads; ρ is a
          correlation, so a per-node scale is what the other two corners use too. */
-      motionByTMin = new Map();
-      for (const m of rawMot) {
-        if (m.act == null) continue;
-        motionByTMin.set(m.tMin.toFixed(1), +Math.max(0, Math.min(100, ((m.act - floor) / span) * 100)).toFixed(1));
-      }
+      // SINGLE-SOURCED with the stager (epochMotion). This block used to own the only copy of the
+      // computation, which is why it could not be reached before staging; it now consumes the same
+      // helper, so the index the classifier votes on and the index the bus publishes cannot drift.
+      motionByTMin = epochMotion(deviceACC, fs, ecgT0Ms, durSec, epochs);
       for (const m of rawMot) {
         if (m.act == null) continue;
         const hrv = stageBy[m.tMin.toFixed(1)];
@@ -3182,6 +3275,10 @@
     validateHR,
     accAnalyze,
     accExtras,
+    // Additive (contract rule: new data via a NEW field, never by changing an existing shape) —
+    // the staging rules and the motion index are now gateable in their own right.
+    stageSleep,
+    epochMotion,
     stampEpochPositions,
     bandpass,
     detectPeaks,
