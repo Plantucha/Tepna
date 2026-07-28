@@ -133,11 +133,30 @@ the **LF/HF scale globally**, since no stage currently reaches a physiological r
 write the assertions.
 
 ⚠️ **The LF/HF correction moves the RR series for every stage**, so it will move the seed-20260601 /
-seed-42 known-answer pins in the `PRSA + SampEn tolerance` group (DC 7.35 · AC −7.16 · SampEn 0.562).
-Re-pinning them is legitimate *because the fixture is being deliberately corrected* — but it must be done
-knowingly and said out loud, never quietly adjusted to whatever the new run prints. The REM-motion
-correction alone does **not** move them: REM first occurs at t ≈ 4674 s and those pins are 900 s runs.
-**Do the motion fix first** — it is the more important half and it lands at zero blast radius.
+seed-42 known-answer pins in the `PRSA + SampEn tolerance` group. Re-pinning them is legitimate *because
+the fixture is being deliberately corrected* — but it must be done knowingly and said out loud, never
+quietly adjusted to whatever the new run prints. The REM-motion correction alone does **not** move them:
+REM first occurs at t ≈ 4674 s and those pins are 900 s runs. **Do the motion fix first** — it is the more
+important half and it lands at zero blast radius.
+
+> **EXECUTED 2026-07-28.** Both halves landed; the pins moved exactly as warned and were re-pinned with
+> their reasons in the test source:
+>
+> | pin | was | now |
+> |---|---|---|
+> | PRSA DC | 7.35 | **9.62** |
+> | PRSA AC | −7.16 | **−10.26** |
+> | SampEn | 0.562 | **1.03** |
+> | ACC/HRV consensus | ≥ 70 | **≥ 75** (via 65; see below) |
+>
+> Discrimination verified by mutation, not assumed: a `/4 → /2` PRSA slip still fails 2 of them, and
+> reverting the Mayer wave to 0.014 Hz fails all 3 — so the re-pinned values now *also* guard the fix.
+> `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §EP-rest` records the original values and is updated to match.
+>
+> The consensus pin has an arc worth keeping: **77 → 67 → 80**. It fell when the corrected LF band
+> exposed the stager's REM→Wake defect, and rose past its own baseline once §4c fixed the ordering —
+> they now agree for the right reason instead of by sharing an error. It was lowered to 65 *with the
+> prediction written down* that it would recover, then tightened to 75 when it did.
 
 **The conclusion that survives all of this:** REM and Wake are near-identical in HR and RMSSD, so
 **HRV alone cannot separate them**. Motion is not an enhancement to the stager, it is the *necessary*
@@ -163,10 +182,19 @@ literature policy the citation has to be checkable, not gestured at.
 
 ## 6 · Done when
 
-- [ ] §4a correct `genSynthetic`'s REM model — atonia + phasic twitches, elevated LF/HF, irregular
-      respiration — so the planted truth is a truth
-- [ ] §4b assertions on `stages`/`stageMinutes` in the group that already runs `analyze()` past `longRec`
-- [ ] §4c REM/Wake ordering: a still body with elevated HR and suppressed RMSSD is REM, not Wake
+- [x] §4a `genSynthetic` REM motion → atonia + phasic twitches (motion index 96 → 26 over 6 h) · **and**
+      the Mayer wave corrected from a per-beat AR(1) at ~0.014 Hz (VLF) to a real 0.1 Hz oscillation, which
+      is what made LF/HF physiological AND discriminative (N3 0.63 · REM 2.43). Redistribution, not
+      inflation: whole-record SDNN 100.7 → 100.6
+- [x] §4b the generator publishes `stageTruth`; assertions read it rather than re-deriving the cycle maths
+- [x] §4c REM/Wake ordering — spectrum-led, motion as veto. **Planted REM recall 0/9 → 9/9**; corpus median
+      REM% 4.8 → 6.5, no night regressed. The bout guard (b) was built, measured, and **not shipped**: inert
+      on the synthetic, and it took the real night from 10 min of REM to zero because there the only two
+      candidates are isolated singletons
+- [ ] §3 the weighted-score detector — **now the sole remaining blocker.** Ordering is fixed and the
+      spectrum works, but on real data the CONJUNCTION still under-selects: 2026-07-27 has 26 epochs
+      clearing the LF/HF gate, 10 clearing RMSSD, and 2 clearing both. Corpus median REM% is 6.5 against a
+      physiological 15–25%
 - [ ] §3 REM score replaces the conjunction; respiratory-rate variability computed per epoch
 - [ ] Bout-structure constraint; the minority-stage exemption from `9f1edbc` retired in favour of it
 - [ ] §5 acceptance run over the 11-night corpus — median REM % inside 15–25 %, cycle structure present
