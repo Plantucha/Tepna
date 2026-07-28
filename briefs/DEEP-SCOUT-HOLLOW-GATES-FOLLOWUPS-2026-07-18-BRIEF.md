@@ -69,8 +69,27 @@ wave (patient-facing wrong numbers), so this §RN is the priority.
 From the parent §EP. **CLOSED:** PR #177 (ECG LF/HF 0.15 + ECG DFA 4..16), PR #193 (PPG DFA 4..16), PR #197
 (**PRSA DC/AC + SampEn** — driven through the FULL `ECGDSP.analyze` on a deterministic `genSynthetic` ECG;
 DC 7.35 / AC −7.16 seed 20260601, SampEn 0.562 seed 42 chosen because `0.2·SD` is tolerance-sensitive on
-that segment), PR #198 (**PPG VLF/LF 0.04** — a clean 0.045 Hz tone over 800 beats resolves the band with no
+that segment — **values RE-PINNED 2026-07-28 to DC 9.62 / AC −10.26 / SampEn 1.03**, see the note
+below), PR #198 (**PPG VLF/LF 0.04** — a clean 0.045 Hz tone over 800 beats resolves the band with no
 leakage; the "narrow-band" deferral was wrong).
+
+> **⚠ THE §EP-rest PINS MOVED 2026-07-28 — the FIXTURE was corrected, not the maths.**
+> `REM-STAGING-REDESIGN` found that `genSynthetic`'s Mayer wave was an AR(1) low-pass stepped once per
+> beat — a ~73 s time constant, i.e. **~0.014 Hz (VLF)** — while the comment above it claimed 0.1 Hz.
+> The LF band was starved by construction and every stage measured LF/HF ≈ 0.1, ~20× below physiological.
+> It is now a real 0.1 Hz oscillation, so the deterministic ECG these pins are driven through has changed:
+>
+> | | PR #197 | now |
+> |---|---|---|
+> | PRSA DC (seed 20260601) | 7.35 | **9.62** |
+> | PRSA AC | −7.16 | **−10.26** |
+> | SampEn (seed 42) | 0.562 | **1.03** |
+>
+> The pins keep their discriminative purpose, verified by mutation: a `/4 → /2` normalisation slip still
+> fails DC and AC, and reverting the Mayer wave to 0.014 Hz fails all three — so they now guard the LF
+> correction as well as the original slip. Recorded here because a brief stating a known-answer that no
+> longer holds is the same failure class this wave exists to close: something that reads authoritative
+> and is not.
 
 **REMAINING (3) — each ATTEMPTED and genuinely fixture-blocked (not deferred for convenience):**
 - **EDR respiration autocorr window `[2.5,10] s`** — the surfaced `respRate` is the RR-interval RSA
