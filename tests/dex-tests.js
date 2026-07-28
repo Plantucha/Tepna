@@ -10965,6 +10965,78 @@
       }
     });
 
+    /* ════ EVERY NODE DECLARES A RECORDING LENGTH — the class gate.
+     `NODE-EXPORT-RECORDING-DURATION-2026-07-24-BRIEF §4.3` asks for exactly this: the Integrator places
+     each node on the fold clock via `adaptEnvelopeNode`, which derives `endMs` from — in order —
+     `recording.endEpochMs` → `durationMin`/`durMin` → `durationSec`/`durSec`, ELSE the last event's tMs.
+     A node that declares none of them collapses to a POINT at t0Ms on an event-sparse night and is
+     dropped from the fold's overlap — silently, because it looks like "no temporal overlap".
+
+     That has now shipped THREE times: CPAPDex (confirmed live failure, 2026-06-11), then PpgDex and
+     PulseDex as latent siblings, then HRVDex (a 29-day export that overlapped nothing and dragged every
+     OTHER node's intersectionMin to 0). Three instances of one class is what a gate is for — this is the
+     "so a fourth cannot ship silently" the brief asks for.
+
+     Structural on purpose: it reads each node's OWN export builder rather than constructing eight
+     exports, because the defect is a MISSING KEY IN THE SOURCE and every instance of it was invisible
+     until a real night happened to be event-sparse. ════ */
+    group('Every node declares a recording length the Integrator can read (NODE-EXPORT-RECORDING-DURATION §4.3)', 'fleet · integrator-dsp · node-export', function (T) {
+      var SRC = env.sources || {};
+      // The keys `integrator-dsp.js adaptEnvelopeNode` actually consults, in its own order.
+      var KEYS = ['endEpochMs', 'durationMin', 'durMin', 'durationSec', 'durSec'];
+      // node → the module that owns its `ganglior.node-export` builder.
+      var OWNERS = [
+        ['ECGDex', 'ecgdex-dsp.js'],
+        ['PpgDex', 'ppgdex-dsp.js'],
+        ['OxyDex', 'oxydex-dsp.js'],
+        ['PulseDex', 'pulsedex-dsp.js'],
+        ['HRVDex', 'hrvdex-dsp.js'],
+        ['GlucoDex', 'glucodex-dsp.js'],
+        ['MotionDex', 'motiondex-dsp.js'],
+        ['CPAPDex', 'cpapdex-fusion.js']
+      ];
+      // The adapter's key list must not drift away from what this gate checks: if someone adds a key to
+      // adaptEnvelopeNode and not here, the gate silently under-tests. Pin it against the real source.
+      var idsp = SRC['integrator-dsp.js'] || '';
+      if (idsp) {
+        KEYS.forEach(function (k) {
+          T.ok('adaptEnvelopeNode still consults `' + k + '`', new RegExp('_rec\\.' + k + '|json\\.' + k).test(idsp), k);
+        });
+      } else {
+        T.ok('integrator-dsp.js source available (env.sources)', false, 'wire it into both runners');
+      }
+      OWNERS.forEach(function (pair) {
+        var node = pair[0],
+          file = pair[1],
+          src = SRC[file];
+        if (!src) {
+          T.ok(node + ' · ' + file + ' source available', false, 'wire it into both runners');
+          return;
+        }
+        // Find the export's `recording:` object literal and read the keys it emits. Brace-matched rather
+        // than regex-scanned so a nested object cannot make a sibling block look like this one.
+        var i = src.indexOf('recording: {');
+        var found = [];
+        while (i >= 0 && !found.length) {
+          var depth = 0,
+            j = src.indexOf('{', i);
+          for (var k2 = j; k2 < src.length; k2++) {
+            if (src[k2] === '{') depth++;
+            else if (src[k2] === '}') {
+              depth--;
+              if (depth === 0) break;
+            }
+          }
+          var block = src.slice(j, k2 + 1);
+          found = KEYS.filter(function (key) {
+            return new RegExp('(^|[\\s,{])' + key + '\\s*:').test(block);
+          });
+          i = src.indexOf('recording: {', i + 1);
+        }
+        T.ok(node + ' declares a duration key the adapter reads', found.length > 0, found.length ? found.join('+') : 'NONE — this node collapses to a point at t0Ms on an event-sparse night');
+      });
+    });
+
     /* ════ 12e · ECGDex EVENT BYTE-SHAPE — the surge/stage impulse stream incl. the sqi axis
      + meta (ECGDEX-FOLLOWUPS-2026-06-27 §4). The equiv fixture is 0-event, so the byte-shape
      of ECGDex's emitted impulses went untested. Drive a deterministic overnight synthetic

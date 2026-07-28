@@ -191,6 +191,11 @@ const SOURCE_FILES = ['clock.js','oxydex-util.js','pulsedex-dsp.js','oxydex-dsp.
   'cpapdex-dsp.js','cpapdex-cross.js','cpapdex-edf.js','cpapdex-app.js','cpapdex-fusion.js','ecgdex-morph.js','ppgdex-morph.js','dex-export.js',
   'ganglior-provenance.js','signal-frame.js','glucodex-render.js','glucodex-app.js',
   'cpapdex-render.js','pulsedex-overview.js','ecgdex-profile.js','glucodex-profile.js','ppgdex-profile.js',
+ // motiondex-dsp.js is EVAL'd into the realm above (line ~239) but its TEXT was never in env.sources,
+ // so every source-mirror assertion about MotionDex silently had nothing to read in this lane. The
+ // duration class gate surfaced it by asking all 8 node builders the same question and getting a hole
+ // for exactly one — which is what a fleet gate is for. Node's run-tests.mjs already lists it.
+ 'motiondex-dsp.js',
   'overdex-app.js'];
 
 let ALL_GROUPS = [];

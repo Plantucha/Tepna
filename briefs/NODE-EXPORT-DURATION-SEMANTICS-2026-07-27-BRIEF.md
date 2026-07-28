@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-07-27 · **Created:** 2026-07-27 · **Decision:** owner-ratified 2026-07-27 (option (c)) · **Builds-on:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` §6.2 (`recording.coverage`, landed `986d17e`) · **Relates:** `INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md` (§5 — the coverage model this ruling completes), `CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md` (added the `durSec` key whose meaning this pins down)
+**Status:** IN-PROGRESS — 2026-07-27 · **Created:** 2026-07-27 · **Follows:** `NODE-EXPORT-RECORDING-DURATION-2026-07-24-BRIEF.md` (which asked whether a node declares a length at all; this one asks what it MEANS) · **Decision:** owner-ratified 2026-07-27 (option (c)) · **Builds-on:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` §6.2 (`recording.coverage`, landed `986d17e`) · **Relates:** `INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md` (§5 — the coverage model this ruling completes), `CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md` (added the `durSec` key whose meaning this pins down)
 
 # `recording` publishes BOTH a data duration and a clock end — one scalar cannot answer two questions
 
