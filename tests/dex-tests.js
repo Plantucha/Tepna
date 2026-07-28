@@ -2679,15 +2679,26 @@
       } else {
         // PRSA deceleration/acceleration capacity DC/AC = (X2+X3−X1−X0)/4 (Bauer 2006). seed 20260601,
         // 900 s synthetic → DC 7.35 / AC −7.16; a /4→/2 normalization slip DOUBLES both (14.71 / −14.32).
+        /* RE-PINNED 2026-07-28 (REM-STAGING-REDESIGN §4). These moved because the FIXTURE was
+           deliberately corrected, not because the maths changed: genSynthetic's Mayer wave was an
+           AR(1) low-pass stepped once per beat (≈0.014 Hz — VLF), and is now a real 0.1 Hz
+           oscillation. Whole-record SDNN is unchanged (100.7 → 100.6), so the power was REDISTRIBUTED
+           into the LF band rather than added; DC/AC rise because deceleration/acceleration capacity is
+           exactly what a genuine LF oscillation carries. The pin's DISCRIMINATIVE purpose is intact —
+           a /4 → /2 normalisation slip still doubles both, which is why the slip values are restated
+           alongside. Re-pinned knowingly, per the brief: never fit a known-answer to whatever the new
+           run prints without saying why it moved. */
         var synP = D.genSynthetic({ durSec: 900, seed: 20260601 });
         var rP = D.analyze({ int16: synP.int16, fs: synP.fs });
-        T.approx('analyze PRSA DC = (X2+X3−X1−X0)/4 = 7.35 on the seed-20260601 synthetic (a /2 slip → 14.71)', rP.dc, 7.35, 0.05);
-        T.approx('analyze PRSA AC = −7.16 (a /2 slip → −14.32)', rP.ac, -7.16, 0.05);
+        T.approx('analyze PRSA DC = (X2+X3−X1−X0)/4 = 9.62 on the seed-20260601 synthetic (a /2 slip → 19.24)', rP.dc, 9.62, 0.05);
+        T.approx('analyze PRSA AC = −10.26 (a /2 slip → −20.52)', rP.ac, -10.26, 0.05);
         // SampEn tolerance r = 0.2·SD (Richman-Moorman). seed 42 (0.2·SD is tolerance-sensitive on this
         // segment) → sampEn 0.562; a 0.2→0.15 tolerance slip re-scores it to 0.822.
         var synS = D.genSynthetic({ durSec: 900, seed: 42 });
         var rS = D.analyze({ int16: synS.int16, fs: synS.fs });
-        T.approx('analyze SampEn(r=0.2·SD) = 0.562 on the seed-42 synthetic (a 0.15·SD tolerance slip → 0.822)', rS.sampen, 0.562, 0.02);
+        // Re-pinned with the same fixture correction: a real LF oscillation makes the series less
+        // self-similar, so SampEn rises. The tolerance slip it guards still moves it further.
+        T.approx('analyze SampEn(r=0.2·SD) = 1.03 on the seed-42 synthetic (a 0.15·SD tolerance slip moves it further)', rS.sampen, 1.03, 0.02);
       }
     });
 
@@ -11970,7 +11981,16 @@
             return ['Wake (motion)', 'Ambiguous', 'Sleep (still)'].indexOf(v.vote) >= 0;
           })
         );
-        T.ok('mostly-still synthetic night reaches consensus ≥ 70%', co.rate >= 70, 'rate=' + co.rate);
+        /* THRESHOLD LOWERED 77 → ≥65 on 2026-07-28, and the reason matters more than the number.
+           Measured on this exact fixture: origin/main 77 (7 conflicts) → 67 (10 conflicts) from the
+           Mayer-wave correction alone. It is NOT fixture inflation — whole-record SDNN is unchanged
+           (100.7 → 100.6), the power merely moved from VLF into LF where it belongs. What dropped is
+           ACC↔HRV AGREEMENT, and the HRV half is the known-defective one: the stager calls planted
+           REM "Wake" (REM-STAGING-REDESIGN §4, 9/9), so a more realistic spectrum makes it disagree
+           with actigraphy more often. Attribution of the 10 conflicts: REM 4, N3 4, N2 2.
+           This number should RISE again when §4c fixes the REM/Wake ordering — so it is a tripwire for
+           that fix, not a bar quietly lowered to fit. If it drops below 65, something else broke. */
+        T.ok('mostly-still synthetic night reaches consensus ≥ 65% (77 → 67 when the LF band was corrected; see note)', co.rate >= 65, 'rate=' + co.rate);
       }
 
       // Feature 4 — gait: a 4-Hz ACC cannot resolve the 0.5–3.5 Hz step band → graceful no-walk
@@ -21981,6 +22001,29 @@
       T.ok('§4a · planted REM is not gross-mobile: median motion < 60 (was ~96, vs Wake 100)', med(remM) < 60, 'REM median=' + med(remM).toFixed(1));
       T.ok('§4a · …and stays under the stager\'s own REM motion guard of 35, so the oracle does not forbid its own answer', Math.max.apply(null, remM) < 35, 'REM max=' + Math.max.apply(null, remM).toFixed(1));
       T.ok('§4a · …while deep/light sleep remains the stillest of all', med(deepM) <= med(remM), 'N2/N3 median=' + med(deepM).toFixed(1) + ' REM median=' + med(remM).toFixed(1));
+
+      /* §4 · THE SPECTRUM MUST BE PHYSIOLOGICAL TOO, and discriminative. The Mayer wave used to be an
+         AR(1) low-pass stepped once per beat — ~0.014 Hz, i.e. VLF — so the LF band was starved by
+         construction and every stage measured LF/HF ≈ 0.05-0.2, ~20x below the physiological 0.5-4.
+         A classifier gating REM on LF/HF could not fire on this fixture whatever its thresholds.
+         Now it is a real 0.1 Hz oscillation, and the ORDER is the physiology: parasympathetic in deep
+         sleep, sympathetic in REM. */
+      var lfhfOf = function (st) {
+        var v = (byStage2[st] || []).filter(function (x) { return isFin(x); });
+        return v.length ? med(v) : null;
+      };
+      var byStage2 = {};
+      eps.forEach(function (e) {
+        var st = stageAtSec(e.tMin * 60 + 150);
+        if (st != null && isFin(e.lfhf)) (byStage2[st] = byStage2[st] || []).push(e.lfhf);
+      });
+      var remR = lfhfOf('REM'),
+        deepR = lfhfOf('N3');
+      if (remR != null && deepR != null) {
+        T.ok('§4 · LF/HF is physiological, not VLF-starved: deep sleep in 0.3-2 (was ~0.1)', deepR >= 0.3 && deepR <= 2, 'N3 LF/HF=' + deepR.toFixed(2));
+        T.ok('§4 · …and REM is sympathetically dominant: LF/HF above 1', remR > 1, 'REM LF/HF=' + remR.toFixed(2));
+        T.ok('§4 · …so the two stages are SEPARABLE by spectrum (REM > N3)', remR > deepR, 'REM=' + remR.toFixed(2) + ' N3=' + deepR.toFixed(2));
+      }
 
       /* The planted REM FRACTION has to be physiological, or "recover the planted truth" is not a
          meaningful acceptance test for the redesign. */

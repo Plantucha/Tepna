@@ -247,7 +247,6 @@
     // instantaneous frequency badly. f wanders ±0.03 Hz with a 600 s period.
     const respPhase = (tt) => 2 * Math.PI * respHz0 * tt - 0.03 * 600 * (Math.cos((2 * Math.PI * tt) / 600) - 1);
     let t = 0.4,
-      lf = 0,
       lfTarget = 0,
       bw = 0; // bw = slow correlated (fractal) drift
     let sinusRR = 900; // running "expected" sinus interval
@@ -257,10 +256,20 @@
       const sa = stageAt(t);
       // respiration (RSA) — vagal scales HF amplitude; resp rate wanders slowly
       const rsa = sa.vagal * 38 * Math.sin(respPhase(t));
-      // LF (~0.1 Hz Mayer) ornstein-uhlenbeck-ish
+      /* LF (Mayer wave, ~0.1 Hz) — an OSCILLATION, modelled the same way RSA is.
+         This used to be an AR(1) low-pass stepped ONCE PER BEAT: `lfTarget = 0.985·lfTarget + …`,
+         `lf = 0.9·lf + 0.1·lfTarget`. At ~55 bpm a beat is ~1.09 s, so a = 0.985 is a time constant of
+         ~67 beats ≈ 73 s ≈ 0.014 Hz — squarely VLF. The comment said 0.1 Hz; the arithmetic delivered
+         VLF, so the LF BAND WAS STARVED BY CONSTRUCTION and LF/HF came out ~0.1 for every stage,
+         ~20× below the physiological 0.5–4 (measured: N3 HF 632 vs LF 57). A classifier gating REM on
+         LF/HF could therefore never fire on synthetic data whatever its thresholds
+         (REM-STAGING-REDESIGN §4).
+         The AR(1) is kept, demoted to what it is good at: a slow wander of the oscillation's AMPLITUDE.
+         Note the phase is built from `t` (accumulated beat time), so the wave stays at 0.1 Hz in TIME
+         regardless of how the heart rate moves the beat index. */
       lfTarget = 0.985 * lfTarget + 0.17 * gauss();
-      lf = 0.9 * lf + 0.1 * lfTarget;
-      const lfMs = lf * 24 * (1.1 - sa.vagal * 0.5);
+      const lfAmp = 30 * (1.05 - sa.vagal * 0.42) * (1 + 0.3 * lfTarget);
+      const lfMs = lfAmp * Math.sin(2 * Math.PI * 0.1 * t);
       // slow correlated drift → long-range (1/f-like) structure for DFA α1 ≈ 1.
       bw = 0.992 * bw + gauss() * 0.9;
       // CVHR oscillation inside apnea windows
