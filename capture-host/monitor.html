@@ -885,6 +885,10 @@ function renderCpap(c){
     partial: ['warn', `⏱ partial — hit the ${Math.round((c.duration_sec||0)/60)} min cap; resumes tomorrow`],
     running: ['idle', '⟳ harvesting…'],
     waiting: ['idle', `⏸ waiting — ${c.detail||'a sensor is streaming'}`],
+    // BARREN IS RED, NOT GREEN. Zero fetched AND zero skipped means the walk found no files at all —
+    // the card was unreachable or empty. This used to fall through to `ok` and paint "✓ 0 files" over
+    // a harvest that had silently failed, which is precisely the reading this card exists to prevent.
+    barren:  ['bad',  '✗ found nothing — card unreachable or empty'],
     error:   ['bad',  `✗ ${c.detail||'harvest failed'}`],
     idle:    ['idle', `idle · next run ${String(c.at_hour??13).padStart(2,'0')}:00`],
   };

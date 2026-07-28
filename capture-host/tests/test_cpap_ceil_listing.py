@@ -124,8 +124,8 @@ def test_a_complete_part_is_promoted_without_downloading(tmp_path, monkeypatch):
     monkeypatch.setattr(c.urllib.request, "urlopen", fake)
     monkeypatch.setattr(c.time, "sleep", lambda *_: None)
     e = {"name": "SA2.edf", "size": "104KB", "href": "download?file=S"}
-    path, n, short = c.EzShare().fetch(e, str(tmp_path))
-    assert os.path.basename(path) == "SA2.edf" and n == 105810 and not short
+    path, n = c.EzShare().fetch(e, str(tmp_path))
+    assert os.path.basename(path) == "SA2.edf" and n == 105810
     assert not list(tmp_path.glob("*.part")), "the .part must be gone, not left beside the real file"
     assert got == ["HEAD"], f"the body must never be downloaded — requests made: {got}"
 
@@ -137,7 +137,7 @@ def test_a_part_of_the_WRONG_size_is_not_promoted(tmp_path, monkeypatch):
     monkeypatch.setattr(c.urllib.request, "urlopen", lambda req, timeout=None: _Resp(b"Z" * 105810))
     monkeypatch.setattr(c.time, "sleep", lambda *_: None)
     e = {"name": "SA2.edf", "size": "104KB", "href": "download?file=S"}
-    path, n, _ = c.EzShare().fetch(e, str(tmp_path))
+    path, n = c.EzShare().fetch(e, str(tmp_path))
     assert n == 105810, "it must have been downloaded in full, not promoted from the stub"
 
 
@@ -156,7 +156,7 @@ def test_a_failed_HEAD_just_means_download_it(tmp_path, monkeypatch):
     monkeypatch.setattr(c.urllib.request, "urlopen", fake)
     monkeypatch.setattr(c.time, "sleep", lambda *_: None)
     e = {"name": "STR.edf", "size": "2KB", "href": "download?file=S"}
-    _, n, _ = c.EzShare().fetch(e, str(tmp_path))
+    _, n = c.EzShare().fetch(e, str(tmp_path))
     assert n == 2048 and calls["n"] >= 2
 
 

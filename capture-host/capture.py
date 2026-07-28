@@ -2958,7 +2958,7 @@ async def charger_pull_poller(cfg: dict, root: str):
                          dev.get("name"), type(e).__name__)   # autopull_poller is the backstop, no spam
 
 
-async def cpap_poller(cfg: dict, root: str):
+async def cpap_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
     """Harvest the ResMed card off its ez Share Wi-Fi SD adapter, once a day, while nothing is streaming.
     Executes `CPAP-AUTOHARVEST-2026-07-26-BRIEF.md`. Opt-in (`cpap.enabled`).
 
@@ -3011,7 +3011,8 @@ async def cpap_poller(cfg: dict, root: str):
     # associated to a routeless card indefinitely with nothing to explain why Wi-Fi looked occupied.
     await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface, root)
     try:
-        await _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface, root)
+        await _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface, root,
+                         notifier)
     finally:
         # Whatever ends this task — shutdown, cancellation, an escaping error — the card is released.
         # shield() because at shutdown this task is already being cancelled and a bare await here would
@@ -3020,7 +3021,8 @@ async def cpap_poller(cfg: dict, root: str):
             await asyncio.shield(asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface, root))
 
 
-async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface=None, root=None):
+async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface=None,
+                     root=None, notifier=None):
     """The daily loop, split out so `cpap_poller` can wrap it in a teardown-guaranteeing `finally`."""
     import cpap_harvest
     last_run_date = None
@@ -3094,19 +3096,40 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
 
         dur = _time.monotonic() - started
         bad = bool(res["short"] or res["errors"])
-        _st(state="error" if bad else ("partial" if res["partial"] else "ok"),
-            last_ok=None if bad else now.isoformat(timespec="seconds"),
+        # A RUN THAT SAW NOTHING AT ALL. Zero fetched AND zero skipped means the walk found no files —
+        # the card was unreachable, empty, or answering with a catch-all. It is NOT the steady state:
+        # a healthy day with no new night still skips every file already on disk (1249 of them here),
+        # so `skipped == 0` is what separates "nothing to do" from "nothing there".
+        #
+        # This used to report `ok`, because `bad` reads only `short`/`errors` and an empty walk raises
+        # neither. The monitor then painted a green ✓ 0 files over a harvest that had failed silently —
+        # while this function's own docstring promised "zero files is an ALERT, not a silent no-op".
+        # The promise was in prose and nothing enforced it, which is the `writers.IDENTITY_FIELDS`
+        # shape exactly: remembered ✓, then never captured.
+        barren = not bad and res["files"] == 0 and res["skipped"] == 0
+        _st(state="error" if bad else ("barren" if barren else ("partial" if res["partial"] else "ok")),
+            last_ok=None if (bad or barren) else now.isoformat(timespec="seconds"),
             files=res["files"], bytes=res["bytes"], nights=res["nights"], skipped=res["skipped"],
             nights_on_card=res["nights_on_card"], duration_sec=round(dur, 1),
             partial=res["partial"], short=res["short"][:5], errors=res["errors"][:5],
-            detail=None if not bad else f"{len(res['short'])} short read(s), {len(res['errors'])} error(s)")
+            detail=("card unreachable or empty — the walk found no files at all" if barren
+                    else None if not bad
+                    else f"{len(res['short'])} short read(s), {len(res['errors'])} error(s)"))
         log.info("cpap: %d file(s) (%.1f MB) over %d night(s), %d skipped, %.0fs%s",
                  res["files"], res["bytes"] / 1048576, res["nights"], res["skipped"], dur,
                  " [PARTIAL — deadline]" if res["partial"] else "")
         for s in res["short"]:
             log.warning("cpap: SHORT READ %s", s)       # a truncated EDF parses far enough to look real
-        if res["files"] == 0 and res["skipped"] == 0:
+        if barren:
+            # WARNING even with no webhook configured — the journal is the only alerting surface a box
+            # without one has, and this is the failure that leaves no other trace.
             log.warning("cpap: pulled NOTHING and skipped nothing — card unreachable or empty")
+            if notifier:
+                await notifier.send(
+                    "Tepna: CPAP harvest found nothing",
+                    f"The {at_hour:02d}:00 harvest reached the end of its walk having fetched no files "
+                    f"and skipped none. The card is unreachable or empty — last night's therapy data "
+                    f"is not on the box.")
 
 
 async def autopull_poller(cfg: dict, root: str):
@@ -3317,7 +3340,7 @@ async def main():
                    ("qc_poller", lambda: qc_poller(cfg, root, notifier)),
                    ("archive_poller", lambda: archive_poller(cfg, root)),
                    ("autopull_poller", lambda: autopull_poller(cfg, root)),
-                   ("cpap_poller", lambda: cpap_poller(cfg, root)),
+                   ("cpap_poller", lambda: cpap_poller(cfg, root, notifier)),
                    ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),
                    ("sd_watchdog", sd_watchdog)]
     tasks = []

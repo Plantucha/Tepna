@@ -109,9 +109,9 @@ def test_fetch_writes_via_part_and_renames(tmp_path, monkeypatch):
     monkeypatch.setattr(ch.urllib.request, "urlopen", _urlopen({"download": b"A" * 2048}))
     monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
     e = {"name": "STR.EDF", "size": "2KB", "href": "download?file=STR.EDF"}
-    path, n, short = ch.EzShare().fetch(e, str(tmp_path))
+    path, n = ch.EzShare().fetch(e, str(tmp_path))
     assert os.path.basename(path) == "STR.edf"          # lowercased on the way to disk
-    assert n == 2048 and not short
+    assert n == 2048
     assert not list(tmp_path.glob("*.part"))            # temp cleaned up by the rename
 
 
