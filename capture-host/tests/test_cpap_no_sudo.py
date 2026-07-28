@@ -256,3 +256,92 @@ def test_an_uncreatable_control_dir_warns_and_does_not_raise(monkeypatch, caplog
     assert any("no writable wpa control dir" in r.getMessage() for r in caplog.records), [
         r.getMessage() for r in caplog.records
     ]
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# ASSOCIATION IS CONFIRMED FROM /sys, NOT FROM wpa_cli
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# wpa_cli creates its own CLIENT socket under /tmp, and the unit runs ProtectSystem=strict — so every
+# status poll failed with "Read-only file system" even when wpa_supplicant was up and associated. The
+# harvest reported "did not associate within 45s" for a radio that had associated in four seconds.
+#
+# Measured against the real radio and the real card, side by side with wpa_cli:
+#     link down          carrier unreadable (EINVAL)   -> NOT associated
+#     up, not associated carrier=0    wpa_state=SCANNING
+#     associated         carrier=1    wpa_state=COMPLETED
+
+def _sysfs(tmp_path, carrier=None, operstate="up", iface="wlan9"):
+    """A fake /sys/class/net. `carrier=None` means the file is absent — the EINVAL a DOWN link really
+    produces. Injected as a path rather than by patching builtins.open, which reaches far beyond the
+    code under test."""
+    net = tmp_path / "net" / iface
+    net.mkdir(parents=True, exist_ok=True)
+    if carrier is not None:
+        (net / "carrier").write_text(f"{carrier}\n")
+    if operstate is not None:
+        (net / "operstate").write_text(f"{operstate}\n")
+    return str(tmp_path / "net")
+
+
+def test_carrier_1_is_associated(tmp_path):
+    assert cpap_harvest.associated("wlan9", _sysfs(tmp_path, carrier=1)) is True
+
+
+def test_carrier_0_is_not_associated(tmp_path):
+    assert cpap_harvest.associated("wlan9", _sysfs(tmp_path, carrier=0)) is False
+
+
+def test_a_down_link_reads_as_NOT_associated_not_as_unknown(tmp_path):
+    """The EINVAL case. A down link is a definite no — answering `None` there would send the caller to
+    the wpa_cli fallback that cannot run, which is the whole failure being removed."""
+    assert cpap_harvest.associated("wlan9", _sysfs(tmp_path, carrier=None, operstate="down")) is False
+
+
+def test_an_unreadable_interface_is_UNKNOWN_so_the_fallback_can_run(tmp_path):
+    """Only a driver that exposes neither file gets `None` — and only that case may consult wpa_cli."""
+    (tmp_path / "net" / "wlan9").mkdir(parents=True)
+    assert cpap_harvest.associated("wlan9", str(tmp_path / "net")) is None
+
+
+def test_the_poll_prefers_sysfs_and_never_shells_out_when_it_answers(monkeypatch):
+    """THE regression this replaces: a definite /sys answer must not be second-guessed by wpa_cli, or
+    the read-only-/tmp failure comes straight back. `associated` is stubbed rather than faked through
+    the filesystem — its own reading is covered above; what is under test here is the PREFERENCE."""
+    monkeypatch.setattr(cpap_harvest, "associated", lambda iface, sysfs="/sys/class/net": True)
+    calls = []
+    monkeypatch.setattr(cpap_harvest, "_sh",
+                        lambda argv, t, sudo=False: (calls.append(argv[0]), (0, ""))[1])
+    assert cpap_harvest._wpa_up("wlan9", "ez Share", "pw", "192.168.4.2/24", 5.0) is True
+    assert "wpa_cli" not in calls, f"wpa_cli must not be consulted when /sys answered: {calls}"
+    assert "ip" in calls, "the address must still be assigned"
+
+
+def test_wpa_cli_is_still_the_fallback_when_sysfs_cannot_tell(monkeypatch):
+    """Kept, not deleted: a driver that exposes no carrier still has a way to confirm."""
+    monkeypatch.setattr(cpap_harvest, "associated", lambda iface, sysfs="/sys/class/net": None)
+    calls = []
+
+    def sh(argv, t, sudo=False):
+        calls.append(argv[0])
+        return (0, "wpa_state=COMPLETED\n") if argv[0] == "wpa_cli" else (0, "")
+    monkeypatch.setattr(cpap_harvest, "_sh", sh)
+    assert cpap_harvest._wpa_up("wlan9", "ez Share", "pw", "192.168.4.2/24", 5.0) is True
+    assert "wpa_cli" in calls, "the fallback must still be reachable"
+
+
+def test_an_inherited_supplicant_can_still_associate(monkeypatch):
+    """`wpa_supplicant -B` exits non-zero when one is already running on the interface, and one often
+    is: the teardown's `wpa_cli terminate` is the only thing that reaps it and that is exactly the call
+    that cannot run under the sandbox. A non-zero start must not abort an association that works."""
+    monkeypatch.setattr(cpap_harvest, "associated", lambda iface, sysfs="/sys/class/net": True)
+    monkeypatch.setattr(cpap_harvest, "_sh",
+                        lambda argv, t, sudo=False: (1, "nl80211: deinit ifname=wlan9")
+                        if argv[0] == "wpa_supplicant" else (0, ""))
+    assert cpap_harvest._wpa_up("wlan9", "ez Share", "pw", "192.168.4.2/24", 5.0) is True
+
+
+def test_no_carrier_but_a_live_operstate_is_UNKNOWN_not_a_no(tmp_path):
+    """`operstate` only settles the question when it says "down". A driver reporting `dormant` or
+    `unknown` with no carrier file has told us nothing, so the answer is None and wpa_cli gets its
+    turn — reading "not down" as "associated" would fabricate a success."""
+    assert cpap_harvest.associated("wlan9", _sysfs(tmp_path, carrier=None, operstate="dormant")) is None

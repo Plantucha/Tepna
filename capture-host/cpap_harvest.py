@@ -468,6 +468,40 @@ _WPA_CONF = ('ctrl_interface={ctrl}\nctrl_interface_group=0\n'
              'network={{\n\tssid="{ssid}"\n\tpsk="{psk}"\n\tkey_mgmt=WPA-PSK\n\tscan_ssid=1\n}}\n')
 
 
+def associated(iface: str, sysfs: str = "/sys/class/net") -> bool | None:
+    """Is `iface` associated to an AP? Read from /sys, so it needs NO privilege and no helper binary.
+
+    WHY NOT wpa_cli, WHICH IS RIGHT THERE. wpa_cli creates its own CLIENT socket under /tmp, and the
+    capture unit runs ProtectSystem=strict — so every status poll fails with
+    `Failed to connect to non-global ctrl_ifname: … Read-only file system` even when wpa_supplicant is
+    up, associated, and its sockets exist. The harvest was therefore reporting "did not associate
+    within 45s" for a radio that had associated in four seconds. Measured on the box 2026-07-28.
+
+    `carrier` is the same fact without the socket:
+
+        link down            carrier unreadable (EINVAL)   ← NOT associated
+        up, not associated   carrier=0                     wpa_state=SCANNING
+        associated           carrier=1                     wpa_state=COMPLETED
+
+    Verified against the real radio and the real card, side by side with wpa_cli, before this replaced
+    it. Returns None when the file cannot be read at all, so the caller can tell "not associated" from
+    "this kernel/driver will not tell me" and fall back rather than guess."""
+    # `sysfs` is a parameter so this is testable by pointing it at a directory, rather than by
+    # monkeypatching builtins.open — which is both fragile and reaches far beyond the code under test.
+    try:
+        with open(os.path.join(sysfs, iface, "carrier")) as fh:
+            return fh.read().strip() == "1"
+    except OSError:
+        # EINVAL is the normal answer for a DOWN link — that is a real "no", not an unknown.
+        try:
+            with open(os.path.join(sysfs, iface, "operstate")) as fh:
+                if fh.read().strip() == "down":
+                    return False
+        except OSError:
+            pass
+        return None
+
+
 def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float, root: str | None = None) -> bool:
     import tempfile
     fd, conf = tempfile.mkstemp(prefix="tepna-ezshare-", suffix=".conf")
@@ -489,14 +523,28 @@ def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float, root: st
             # Say WHY. `state='error', detail="profile 'ezshare' would not come up safely"` names the
             # profile, which is the one thing that was never wrong here — the same mis-aimed reason
             # CAPTURE-HOST-DEEP-AUDIT §E5 fixed once already, arriving by a different route.
-            log.warning("cpap: wpa_supplicant -B failed on %s (rc=%s) — %s", iface, rc,
+            # A FAILED START IS NOT A FAILED ASSOCIATION. `wpa_supplicant -B` exits non-zero when one
+            # is ALREADY running on this interface ("nl80211: deinit ifname=…"), and one can easily be:
+            # the teardown's `wpa_cli terminate` is the only thing that reaps it, and that is precisely
+            # the call that cannot run under ProtectSystem=strict. So a previous run's supplicant
+            # survives, and it is perfectly capable of associating for us.
+            # Log it and fall through to the poll rather than giving up. The poll is bounded, so the
+            # worst case is unchanged — we fail after `timeout` either way — while the common case of
+            # an inherited supplicant now succeeds instead of reporting a phantom failure.
+            log.warning("cpap: wpa_supplicant -B returned rc=%s on %s (%s) — continuing; an existing "
+                        "supplicant may still associate", rc, iface,
                         (out or "").strip().splitlines()[-1] if (out or "").strip() else "no output")
-            _wpa_down(iface, root)
-            return False
         deadline = time.monotonic() + max(5.0, timeout)
         while time.monotonic() < deadline:             # bounded wait for association
-            rc, out = _sh(["wpa_cli", "-p", wdir, "-i", iface, "status"], 8, sudo=True)
-            if rc == 0 and "wpa_state=COMPLETED" in out:
+            # PRIMARY: /sys carrier — unprivileged, no socket, works under ProtectSystem=strict.
+            # FALLBACK: wpa_cli, for a driver that will not expose carrier. Only consulted when the
+            # primary says "I cannot tell" (None), never to override a definite answer — otherwise the
+            # read-only-/tmp failure that made this necessary would simply come back.
+            ok = associated(iface)
+            if ok is None:
+                rc, out = _sh(["wpa_cli", "-p", wdir, "-i", iface, "status"], 8, sudo=True)
+                ok = rc == 0 and "wpa_state=COMPLETED" in out
+            if ok:
                 _sh(["ip", "addr", "add", addr, "dev", iface], 10, sudo=True)   # NO route, ever
                 return True
             time.sleep(1.0)
