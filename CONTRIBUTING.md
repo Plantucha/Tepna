@@ -95,6 +95,21 @@ change shifts it; an inert re-bundle of identical source does not. (`buildHash` 
 reads it; see gate #2.) After a code change, update `BUILD-MANIFEST.json` and regenerate any committed
 fixture whose output the change moved.
 
+> ### ⚠️ A DSP change owns **three** builders, not one
+> `tools/build.mjs` re-bundles the apps — but two other builders inline the same sources, and both are
+> **separately CI-gated**:
+>
+> | Builder | What it re-generates | Its guard |
+> |---|---|---|
+> | `node tools/build.mjs --all` | the 10 owned bundles | `--check` (in `npm run check`) |
+> | `node tools/build-analysis.mjs` | the analysis pages — they inline the DSPs into **worker blobs** | `--check` (CI only) |
+> | `node tools/build-docs.mjs` | the served `docs/` deploy snapshot (copies the bundles) | `--check` (CI only) |
+>
+> **`npm run check` covers only the first** — it stops at `build:check`. `tests.yml` runs
+> `build-analysis.mjs --check` and `build-docs.mjs --check` as well, so a forgotten builder is a red CI
+> you find *after* pushing. This was missed twice in one audit's execution (`build-docs` → #450 red,
+> then `build-analysis`; DEEP-AUDIT-III-FOLLOWUPS §2.5). If you changed a DSP, run all three.
+
 ---
 
 ## 4. The two gates — run after **every** change
@@ -169,6 +184,11 @@ ignores the `!= null` idiom the code relies on). Warnings are advisory (they nev
 > **Biome now owns lint (Phase 3 DONE).** ESLint was fully **retired** once Biome's floor proved parity in CI —
 > `.eslintrc.json`, the `npx eslint` script, and the `lint.yml` workflow are all gone; `npm run lint` runs Biome.
 > One pinned tool does format + lint; `format.yml`'s `biome ci --changed` is the sole lint gate.
+
+> **Always invoke Biome PINNED.** Use the `npm run` scripts (they resolve `@biomejs/biome 2.5.3` from
+> the committed lockfile) or, if you must call it directly, `npx --yes @biomejs/biome@2.5.3`. A bare
+> `npx biome` fetches whatever npm resolves at that moment: it once read **clean locally while CI failed
+> on the same file** (DEEP-AUDIT-III-FOLLOWUPS §2.6). An unpinned lint is not a lint.
 
 The one rule that governs *when* you may apply the **formatter** (the lint floor is check-only, no `--write`):
 
@@ -254,7 +274,10 @@ night pairing, byte-weighted parallel ETA) live in the brief.
   Corollary: never `git checkout .` / `git stash` / `git reset --hard` a dirty tree you didn't dirty.
 - **The Clock Contract** (`CLAUDE.md`). Store time as floating wall-clock `tMs = Date.UTC(...)` and
   read it back **only** with `getUTC*`. Parse vendor stamps by **regex**, never `new Date(str)`. A
-  missing timestamp is **`null`, never `now()`**. `parseTimestamp` is duplicated per node **by design**.
+  missing timestamp is **`null`, never `now()`** — and an out-of-range component is `null` too, because
+  `Date.UTC` silently *rolls* it onto a plausible wrong instant. `parseTimestamp` is **single-sourced in
+  `clock.js`** (`DexClock`, inlined into every bundle) since A5; ppgdex/glucodex/cpapdex keep
+  **deliberate** node-local variants. Don't force those onto `DexClock`, and don't reintroduce a mirror.
 - **Honesty is architectural.** Every metric carries an **evidence grade** (`measured ◉ → validated ●
   → emerging ◐ → experimental ○ → heuristic ◌`), **and that badge MUST be visible on every surface the
   metric appears** — KPI, card, hero/headline number, chart series, table & chip — pinned
@@ -281,7 +304,27 @@ night pairing, byte-weighted parallel ETA) live in the brief.
 - **Frozen / do-not-touch:** the bus name **`Ganglior`** (the Integrator still reads a `fascia` input
   alias for back-compat). Retired vocabulary (proxy→heuristic, composite→experimental) must not reappear.
 - **Known non-issues** (see `CLAUDE.md` — don't "fix" these): no `*.woff2` / `@font-face` by design;
-  duplicated `parseTimestamp`; the finished `docs-archive/REFACTOR-BRIEF-modularize-Dexes.md`.
+  the deliberate node-local `parseTimestamp` variants; the finished
+  `docs-archive/REFACTOR-BRIEF-modularize-Dexes.md`.
+
+### 6.1 Branch creation on the mounted working volume (environment friction, not a code defect)
+
+The primary checkout lives under `/run/media/michal/647A504F7A50205A` — a **`ntfs3`** mount, not the exFAT
+that `DEEP-AUDIT-III-FOLLOWUPS §3` names (verified 2026-07-28 via `findmnt`; the brief's label is wrong,
+the symptoms it records are real). Git's ref/config writes are occasionally unhappy there:
+`git worktree add` fails intermittently with *"unable to write upstream branch configuration"* and has
+once left a **locked, empty worktree entry** that needed `git worktree remove -f -f`; `git checkout -b`
+has hung ~2 minutes on a stale ref lock. Three workarounds carried the whole #449–#464 run
+(DEEP-AUDIT-III-FOLLOWUPS §3):
+
+```sh
+git worktree add --no-track ../wt-<task> origin/main   # skip the upstream-config write that fails
+git switch --detach origin/main                        # or work detached, no local branch at all
+git push HEAD:refs/heads/<name>                        # publish without a tracked local branch
+```
+
+Plain file I/O and ordinary object-store reads are unaffected — this is specifically about writing refs
+and branch config. If a git command hangs, suspect a stale `.git` lock before suspecting the repo.
 
 ---
 
