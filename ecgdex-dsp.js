@@ -1804,13 +1804,25 @@
       const lfhf = e.lfhf;
       const m = mot(e);
       let stage;
-      // MOTION FIRST where the ACC observed the epoch. Gross body movement is the most reliable
-      // wake marker available without EEG, and HRV alone under-calls wake badly — the same night
-      // that scored REM = 0 also scored 99.8% sleep efficiency with zero WASO.
+      /* ORDER MATTERS MORE THAN ANY THRESHOLD HERE (REM-STAGING-REDESIGN §4c).
+         REM and Wake share their HRV signature — elevated HR, suppressed RMSSD — so a Wake branch
+         tested FIRST swallows REM wholesale. Measured against planted truth: 9 of 9 REM epochs were
+         classified Wake, and no threshold change could fix it because the Wake rule fired before the
+         REM rule was ever reached.
+         The discriminator is the SPECTRUM: REM is sympathetically dominant (planted LF/HF 2.43) while
+         deep sleep is not (0.63). That only became usable once the generator's Mayer wave was a real
+         0.1 Hz oscillation instead of a VLF low-pass — before that every stage measured ~0.1 and the
+         gate could not fire at all.
+         Motion is the VETO, not the detector: REM is atonic, so gross movement rules it out, but
+         stillness alone cannot distinguish REM from lying awake perfectly still. */
+      // Gross body movement — awake, whatever the spectrum says. Atonia makes this incompatible with REM.
       if (m != null && m >= 60) stage = 'Wake';
-      else if (hrZ > 1.1 || e.rmssd < rmMed * 0.45) stage = 'Wake';
-      // REM is near-atonic: an epoch with real body movement is not REM, whatever the HRV says.
+      // SPECTRUM-LED REM, ahead of the HRV-only wake heuristic, vetoed by any real movement.
+      // `m == null` (no accelerometer observed this epoch) does NOT veto: absence of an observation is
+      // not evidence of stillness OR of movement, and refusing REM there would reinstate the old
+      // Wake-swallows-REM behaviour on every ACC-less recording.
       else if (lfhf > lfhfGate && e.rmssd < rmMed * 0.85 && !(m != null && m >= 35)) stage = 'REM';
+      else if (hrZ > 1.1 || e.rmssd < rmMed * 0.45) stage = 'Wake';
       else if (e.rmssd > rmMed * 1.12 && e.hr < hrMed) stage = 'Deep';
       else stage = 'Light';
       return stage;
@@ -1828,6 +1840,19 @@
     for (let i = 1; i < raw.length - 1; i++) {
       if (raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1] && (raw[i] === 'Light' || raw[i] === 'Wake')) sm[i] = raw[i - 1];
     }
+    /* MINIMUM REM BOUT — DESIGNED, MEASURED, AND DELIBERATELY NOT SHIPPED (§4c, the (b) half).
+       The idea is sound: a real REM period runs 5-25 min, so a single isolated epoch is more likely
+       quiet wakefulness, which shares REM's whole signature and which nothing in this stack separates
+       from REM directly. Implemented as "an isolated REM epoch demotes to Light" it is INERT on the
+       synthetic (bouts there are 3, 5 and 3 epochs) — and it took REM from 10 min to ZERO on the real
+       2026-07-27 night, because there the only two candidates are isolated singletons (epoch 11 and
+       epoch 64 of 77).
+       That is not the guard misbehaving, it is the guard having nothing to guard: on real data the REM
+       DETECTOR still under-selects — 26 epochs clear the LF/HF gate, 10 clear the RMSSD gate, and the
+       conjunction of the two yields 2. A bout rule cannot help a detector that never produces a bout,
+       and suppressing the little signal there is would trade a visible under-count for a silent zero.
+       So it waits for the weighted-score detector (brief §3). Recorded here rather than in a branch
+       nobody reads, because the measurement is the reason. */
     return epochs.map((e, i) => ({ tMin: e.tMin, stage: sm[i], y: order[sm[i]] }));
   }
 
