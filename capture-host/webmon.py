@@ -249,15 +249,29 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         profile = str(ccfg.get("wifi_profile", "ezshare"))
         max_run = float(ccfg.get("max_run_sec", 5400))
 
+        root = cfg.get("root", "/srv/tepna")
+        base = ccfg.get("base_url", cpap_harvest.DEFAULT_BASE)
+
         def _work():
-            guard = cpap_harvest.default_route_dev()
-            if not cpap_harvest.wifi_up(profile, 45.0, guard):
-                return {"ok": False, "error": "could not associate to the card"}
+            # SAME TWO RULES AS THE SCHEDULED LOOP, and they have to be stated here too because this is
+            # a second caller of the same machinery — a manual pull that behaves differently from the
+            # nightly one is a trap for whoever is debugging at 2am.
+            #   1. already reachable ⇒ associate nothing (a station-mode card needs no Wi-Fi work);
+            #   2. `root` MUST be passed, so the wpa control dir is probed against a path inside
+            #      ReadWritePaths. Omitting it silently falls through to /tmp, which is READ-ONLY under
+            #      ProtectSystem=strict — measured: the scheduled path worked and this one still failed
+            #      with "Failed to initialize control interface '/tmp/tepna-wpa-1000'".
+            direct = cpap_harvest.reachable(base, 5.0)
+            if not direct:
+                guard = cpap_harvest.default_route_dev()
+                if not cpap_harvest.wifi_up(profile, 45.0, guard, root=root):
+                    return {"ok": False, "error": "could not associate to the card"}
             try:
-                r = cpap_harvest.harvest(dest, ccfg.get("base_url", cpap_harvest.DEFAULT_BASE), nights,
+                r = cpap_harvest.harvest(dest, base, nights,
                                          __import__("time").monotonic() + max_run)
             finally:
-                cpap_harvest.wifi_down(profile)
+                if not direct:
+                    cpap_harvest.wifi_down(profile, root=root)
             r["ok"] = not (r["short"] or r["errors"])
             return r
 
