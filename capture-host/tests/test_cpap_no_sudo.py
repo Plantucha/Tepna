@@ -96,11 +96,11 @@ def _drive(monkeypatch, tmp_path, *, reachable, ticks=2):
     """Run one due cycle of the real poller with the card either already reachable or not."""
     seen = {"up": 0, "down": 0, "harvest": 0}
 
-    def _up(profile, timeout=45.0, guard_dev=None, ssid="ez Share", psk="88888888", iface=None, addr=None):
+    def _up(profile, timeout=45.0, guard_dev=None, ssid="ez Share", psk="88888888", iface=None, addr=None, root=None):
         seen["up"] += 1
         return True
 
-    def _down(profile, timeout=30.0, iface=None):
+    def _down(profile, timeout=30.0, iface=None, root=None):
         seen["down"] += 1
         return True
 
@@ -189,13 +189,26 @@ def test_the_wpa_control_dir_is_creatable_by_this_user(tmp_path, monkeypatch):
     assert os.access(d, os.W_OK), f"{d} must be writable by the daemon user"
 
 
-def test_systemd_runtime_directory_is_preferred_when_present(monkeypatch):
-    """RuntimeDirectory= is the tidy source: systemd creates and cleans it, owned by the service user."""
-    monkeypatch.setenv("RUNTIME_DIRECTORY", "/run/tepna-capture")
-    assert cpap_harvest._wpa_dir() == "/run/tepna-capture/wpa"
+def test_systemd_runtime_directory_is_preferred_when_it_is_usable(tmp_path, monkeypatch):
+    """RuntimeDirectory= is the tidy source — systemd creates and cleans it, owned by the service user —
+    but preference is expressed by TRYING it, not by trusting the env var. A path that cannot be created
+    must fall through rather than be returned and fail later inside wpa_supplicant."""
+    rt = tmp_path / "rt"
+    rt.mkdir()
+    monkeypatch.setenv("RUNTIME_DIRECTORY", str(rt))
+    assert cpap_harvest._wpa_dir() == str(rt / "wpa")
     # systemd may hand a colon-separated list; the first entry is ours.
-    monkeypatch.setenv("RUNTIME_DIRECTORY", "/run/a:/run/b")
-    assert cpap_harvest._wpa_dir() == "/run/a/wpa"
+    monkeypatch.setenv("RUNTIME_DIRECTORY", f"{rt}:/run/somewhere-else")
+    assert cpap_harvest._wpa_dir() == str(rt / "wpa")
+
+
+def test_an_unusable_runtime_directory_falls_through_to_the_capture_root(tmp_path, monkeypatch):
+    """The exact shape that broke on the box: the first choice is unwritable under ProtectSystem=strict,
+    so the probe must keep going instead of returning a path nothing can use."""
+    monkeypatch.setenv("RUNTIME_DIRECTORY", "/proc/definitely-not-writable")
+    root = tmp_path / "srv"
+    root.mkdir()
+    assert cpap_harvest._wpa_dir(str(root)) == str(root / ".run" / "wpa")
 
 
 def test_the_fallback_is_uid_scoped_and_not_shared(monkeypatch):
@@ -215,10 +228,12 @@ def test_bringing_the_link_up_never_shells_out_to_mkdir():
     import inspect
     import textwrap
 
-    fn = ast.parse(textwrap.dedent(inspect.getsource(cpap_harvest._wpa_up))).body[0]
-    code = ast.unparse(fn)
-    assert "'mkdir'" not in code and '"mkdir"' not in code, "the control dir must be made in-process"
-    assert "makedirs" in code, "…and it must actually be made"
+    up = ast.unparse(ast.parse(textwrap.dedent(inspect.getsource(cpap_harvest._wpa_up))).body[0])
+    assert "'mkdir'" not in up and '"mkdir"' not in up, "the control dir must never be made by a shell"
+    assert "_wpa_dir(" in up, "…it must come from the probe, so the path is one that works"
+    mk = ast.unparse(ast.parse(textwrap.dedent(inspect.getsource(cpap_harvest._wpa_dir))).body[0])
+    assert "makedirs" in mk, "…and the probe must actually create it"
+    assert "sudo" not in mk, "…without privilege"
 
 
 def test_an_uncreatable_control_dir_warns_and_does_not_raise(monkeypatch, caplog):
@@ -230,10 +245,14 @@ def test_an_uncreatable_control_dir_warns_and_does_not_raise(monkeypatch, caplog
         raise OSError(13, "Permission denied")
 
     monkeypatch.setattr(cpap_harvest.os, "makedirs", boom)
+    # …and nothing may already BE there. The uid-scoped /tmp fallback survives between runs, so without
+    # this the isdir() check passes on a leftover directory and the warning never fires — the test
+    # would depend on whether a previous run happened to create it.
+    monkeypatch.setattr(cpap_harvest.os.path, "isdir", lambda _p: False)
     monkeypatch.setattr(cpap_harvest, "_sh", lambda argv, t, sudo=False: (1, "stubbed"))
     with caplog.at_level("WARNING"):
         ok = cpap_harvest._wpa_up("wlp1s0", "ez Share", "88888888", "192.168.4.2/24", 5.0)
     assert ok is False
-    assert any("could not create the wpa control dir" in r.getMessage() for r in caplog.records), [
+    assert any("no writable wpa control dir" in r.getMessage() for r in caplog.records), [
         r.getMessage() for r in caplog.records
     ]

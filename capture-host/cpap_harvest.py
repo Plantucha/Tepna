@@ -431,34 +431,59 @@ def default_wifi_iface(_sys: str | None = None) -> str:
 # systemd's RuntimeDirectory= is the tidiest source when the unit provides one (it creates and cleans
 # `/run/<name>` owned by the service user); the uid-scoped /tmp path is the portable fallback, 0700 so
 # no other local user can reach the sockets.
-def _wpa_dir() -> str:
-    rt = os.environ.get("RUNTIME_DIRECTORY")
+# WHERE, exactly, is decided by PROBING — because guessing has now been wrong twice.
+#
+# First guess `/run/tepna-wpa` + `sudo mkdir`: needed a sudoers rule nobody added, so the directory
+# never existed and wpa_supplicant exited 255. Second guess `/tmp/tepna-wpa-<uid>`, created
+# unprivileged: verified by hand over SSH, shipped, and STILL failed —
+#   "could not create the wpa control dir /tmp/tepna-wpa-1000: [Errno 30] Read-only file system"
+# because the daemon runs under `ProtectSystem=strict`, which makes the whole hierarchy read-only
+# except an explicit ReadWritePaths list. An SSH shell is not that sandbox, so the hand-verification
+# proved nothing about the process that actually runs this. On the box:
+#   ReadWritePaths=/srv/tepna /opt/tepna/capture-host …   PrivateTmp=no   RuntimeDirectory=(empty)
+#
+# So: try candidates in order and keep the first one that can actually be CREATED, which is the only
+# question that matters and the only one a probe can answer from inside the sandbox that constrains it.
+def _wpa_dir(root: str | None = None) -> str:
+    cands = []
+    rt = os.environ.get("RUNTIME_DIRECTORY")           # systemd's own, when the unit provides one
     if rt:
-        return os.path.join(rt.split(":")[0], "wpa")
-    return "/tmp/tepna-wpa-%d" % os.getuid()
+        cands.append(os.path.join(rt.split(":")[0], "wpa"))
+    if root:                                            # the capture root is in ReadWritePaths by
+        cands.append(os.path.join(root, ".run", "wpa")) # definition — the daemon writes there all night
+    cands.append("/tmp/tepna-wpa-%d" % os.getuid())     # unsandboxed fallback (CLI use, dev boxes)
+    for c in cands:
+        try:
+            os.makedirs(c, mode=0o700, exist_ok=True)
+            return c
+        except OSError:
+            continue
+    return cands[-1]                                    # nothing worked; the caller warns and carries on
 
 
-_WPA_DIR = _wpa_dir()
-_WPA_CONF = ('ctrl_interface=' + _WPA_DIR + '\nctrl_interface_group=0\n'
+_WPA_DIR = "/tmp/tepna-wpa-%d" % os.getuid()  # module default for CLI/test use; the daemon passes a root
+# ctrl_interface is a PARAMETER, not a module constant: the directory is probed per call (see
+# _wpa_dir), so baking it in at import time would hand wpa_supplicant a path the daemon cannot write.
+_WPA_CONF = ('ctrl_interface={ctrl}\nctrl_interface_group=0\n'
              'network={{\n\tssid="{ssid}"\n\tpsk="{psk}"\n\tkey_mgmt=WPA-PSK\n\tscan_ssid=1\n}}\n')
 
 
-def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float) -> bool:
+def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float, root: str | None = None) -> bool:
     import tempfile
     fd, conf = tempfile.mkstemp(prefix="tepna-ezshare-", suffix=".conf")
     try:
-        os.write(fd, _WPA_CONF.format(ssid=ssid, psk=psk).encode())
+        wdir = _wpa_dir(root)
+        os.write(fd, _WPA_CONF.format(ctrl=wdir, ssid=ssid, psk=psk).encode())
         os.close(fd)
         os.chmod(conf, 0o600)                          # the PSK is in here; never world-readable
         _sh(["ip", "link", "set", iface, "up"], 10, sudo=True)
         # -B daemonises. Bound to OUR conf, OUR interface and OUR control directory: the packaged
         # wpa_supplicant.service is active on this box, and two supplicants sharing one ctrl_interface
         # directory collide over the socket before they ever get as far as fighting over the radio.
-        # UNPRIVILEGED by design — see _wpa_dir(). A root mkdir here is what broke the harvest.
-        try:
-            os.makedirs(_WPA_DIR, mode=0o700, exist_ok=True)
-        except OSError as e:                            # noqa: BLE001 — report, do not raise into the poller
-            log.warning("cpap: could not create the wpa control dir %s: %s", _WPA_DIR, e)
+        # UNPRIVILEGED by design and PROBED, not assumed — see _wpa_dir().
+        if not os.path.isdir(wdir):
+            log.warning("cpap: no writable wpa control dir (tried up to %s) — the association will fail "
+                        "and say so", wdir)
         rc, out = _sh(["wpa_supplicant", "-B", "-i", iface, "-c", conf], 20, sudo=True)
         if rc:
             # Say WHY. `state='error', detail="profile 'ezshare' would not come up safely"` names the
@@ -466,17 +491,17 @@ def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float) -> bool:
             # CAPTURE-HOST-DEEP-AUDIT §E5 fixed once already, arriving by a different route.
             log.warning("cpap: wpa_supplicant -B failed on %s (rc=%s) — %s", iface, rc,
                         (out or "").strip().splitlines()[-1] if (out or "").strip() else "no output")
-            _wpa_down(iface)
+            _wpa_down(iface, root)
             return False
         deadline = time.monotonic() + max(5.0, timeout)
         while time.monotonic() < deadline:             # bounded wait for association
-            rc, out = _sh(["wpa_cli", "-p", _WPA_DIR, "-i", iface, "status"], 8, sudo=True)
+            rc, out = _sh(["wpa_cli", "-p", wdir, "-i", iface, "status"], 8, sudo=True)
             if rc == 0 and "wpa_state=COMPLETED" in out:
                 _sh(["ip", "addr", "add", addr, "dev", iface], 10, sudo=True)   # NO route, ever
                 return True
             time.sleep(1.0)
         log.warning("cpap: wpa_supplicant did not associate to %r within %.0fs", ssid, timeout)
-        _wpa_down(iface)
+        _wpa_down(iface, root)
         return False
     finally:
         try:
@@ -485,16 +510,16 @@ def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float) -> bool:
             pass
 
 
-def _wpa_down(iface: str) -> bool:
+def _wpa_down(iface: str, root: str | None = None) -> bool:
     # Order matters: drop the address first so nothing can route over a half-torn link, then kill the
     # supplicant, then down the interface. Every step is best-effort — a box that cannot tear down
     # cleanly must still not raise into the harvest task.
     _sh(["ip", "addr", "flush", "dev", iface], 10, sudo=True)
-    # `-p _WPA_DIR` is load-bearing, not tidiness: without it this resolves through the SYSTEM
+    # `-p _wpa_dir(root)` is load-bearing, not tidiness: without it this resolves through the SYSTEM
     # supplicant's socket directory and `terminate` kills the box's own wpa_supplicant. Harmless here
     # only because the vigil box uplinks over wired eno1; on a Wi-Fi box the CPAP harvest's teardown
     # would have taken the network down with it.
-    _sh(["wpa_cli", "-p", _WPA_DIR, "-i", iface, "terminate"], 10, sudo=True)
+    _sh(["wpa_cli", "-p", _wpa_dir(root), "-i", iface, "terminate"], 10, sudo=True)
     _sh(["ip", "link", "set", iface, "down"], 10, sudo=True)
     return True
 
@@ -522,7 +547,7 @@ def harden_profile(profile: str) -> bool:
 
 def wifi_up(profile: str, timeout: float = 45.0, guard_dev: str | None = None,
             ssid: str = "ez Share", psk: str = "88888888",
-            iface: str | None = None, addr: str = WPA_ADDR) -> bool:
+            iface: str | None = None, addr: str = WPA_ADDR, root: str | None = None) -> bool:
     """Associate to the card, then PROVE the box's lifeline survived it.
 
     `guard_dev` is the default-route interface observed before associating. If the default route moves
@@ -544,7 +569,7 @@ def wifi_up(profile: str, timeout: float = 45.0, guard_dev: str | None = None,
             log.error("cpap: Wi-Fi interface %r does not exist on this box (wpa backend, so "
                       "`wifi_profile` is not consulted) — set `cpap.wifi_iface`", iface)
             return False
-        if not _wpa_up(iface, ssid, psk, addr, timeout):
+        if not _wpa_up(iface, ssid, psk, addr, timeout, root):
             return False
     if guard_dev is None:
         return True
@@ -557,12 +582,12 @@ def wifi_up(profile: str, timeout: float = 45.0, guard_dev: str | None = None,
     return True
 
 
-def wifi_down(profile: str, timeout: float = 30.0, iface: str | None = None) -> bool:
+def wifi_down(profile: str, timeout: float = 30.0, iface: str | None = None, root: str | None = None) -> bool:
     """Drop the association. Safe to call when already down — the poller calls this on the way in as
     well as the way out, so a run killed mid-transfer cannot leave the card associated indefinitely."""
     if backend() == "nmcli":
         return _nmcli(["connection", "down", profile], timeout)
-    return _wpa_down(iface or default_wifi_iface())
+    return _wpa_down(iface or default_wifi_iface(), root)
 
 
 def _nmcli(args: list[str], timeout: float) -> bool:
