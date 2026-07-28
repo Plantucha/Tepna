@@ -132,20 +132,51 @@ def size_tolerance_kb(s: str) -> float:
     return max(quantum / 2.0, 1e-3)                # a byte of float slack, never a percentage
 
 
+def size_window_kb(s: str) -> tuple[float, float]:
+    """The (low, high] KB range a COMPLETE file may occupy, given what the listing printed.
+
+    THE CARD CEILS. It does not round to nearest, and assuming it did rejected roughly half of every
+    file it ever served. Measured on the real card 2026-07-28, ten files, listing vs Content-Length —
+    `listed == ceil(bytes/1024)` in all ten:
+
+        CSL      1 KB      832 B  =    0.81 KB   ceil 1
+        EVE      2 KB     1344 B  =    1.31 KB   ceil 2   <- rejected as "short" under +/-0.5
+        PLD    204 KB   208776 B  =  203.88 KB   ceil 204
+        BRP   2229 KB  2281784 B  = 2228.30 KB   ceil 2229 <- rejected
+        BRP     25 KB    25032 B  =   24.45 KB   ceil 25   <- rejected
+
+    The old model was symmetric — `|have - printed| <= half the last displayed digit`. Its reasoning
+    (quantization of the PRINTED number, never a percentage) was right and is kept; only the rounding
+    direction was wrong. Under ceil a complete file may be up to a whole quantum SMALLER than printed
+    and can never be larger, so the window is ASYMMETRIC: `(P - q, P]`.
+
+    That asymmetry is the safety property, not a detail. It stays tight on the high side, and on the
+    low side it admits exactly the values ceil could have produced — nothing more. A symmetric `P +/- q`
+    would open a band above P where a genuinely corrupt file could pass, which is the §C5 hole this
+    family of functions exists to close."""
+    printed = size_kb(s)
+    q = size_tolerance_kb(s) * 2.0                 # the quantum itself, not half of it
+    if printed <= 0:
+        return (0.0, 0.0)
+    return (printed - q, printed + 1e-6)           # (low, high] with a float epsilon on the boundary
+
+
 def should_fetch(entry: dict, dest_path: str) -> bool:
     """Skip-if-present on name + size. Makes the steady state nearly free (one night ≈ 2.5 MB ≈ 20 s) and
     lets an interrupted backfill resume. A file that is present but the WRONG size is re-fetched, not
-    trusted — see `size_tolerance_kb` for what "wrong" means and why it is not a percentage."""
+    trusted — see `size_window_kb` for what "wrong" means, why it is not a percentage, and why it is
+    not symmetric either."""
     want = size_kb(entry.get("size", ""))
     if not os.path.exists(dest_path):
         return True
     if want <= 0:
         return False
     have = os.path.getsize(dest_path) / 1024.0
-    return abs(have - want) > size_tolerance_kb(entry.get("size", ""))
+    lo, hi = size_window_kb(entry.get("size", ""))
+    return not (lo < have <= hi)
 
 
-def short_read(entry: dict, got_bytes: int) -> bool:
+def short_read(entry: dict, got_bytes: int, content_length: int | None = None) -> bool:
     """True when a download is smaller than the listing promised — i.e. the card truncated under load. A
     short read is NOT a valid file; accepting one writes a corrupt EDF that parses far enough to look
     real. Same class as the part-decoded PMD frame in `VIGIL-HARDENING-III §1`.
@@ -154,11 +185,20 @@ def short_read(entry: dict, got_bytes: int) -> bool:
     about what counts as complete. Scope of the silent path this closes: it exists only where the card
     frames the body by connection-close. With a declared `Content-Length`, urllib raises
     `IncompleteRead`, `_get` retries, and the failure already lands in `st['errors']` with the file
-    absent."""
+    absent.
+
+    `content_length`, when the caller has it, settles the question outright — see below."""
+    # CONTENT-LENGTH FIRST, because it is EXACT and this card sends it. The listing prints a
+    # ceil-rounded KB string ("104KB" for 105810 bytes); comparing received bytes against display text
+    # is what made half of every download look truncated. When the server has declared the exact
+    # length there is no rounding question to model — either we got it all, or it really is short.
+    if content_length is not None and content_length > 0:
+        return got_bytes < content_length
     want = size_kb(entry.get("size", ""))
     if want <= 0:
         return False
-    return abs(got_bytes / 1024.0 - want) > size_tolerance_kb(entry.get("size", ""))
+    lo, hi = size_window_kb(entry.get("size", ""))
+    return not (lo < got_bytes / 1024.0 <= hi)
 
 
 def due_now(now: _dt.datetime, at_hour: int, last_run_date, window_h: int = 2) -> bool:
@@ -278,12 +318,20 @@ class EzShare:
         self.base, self.timeout, self.retries, self.delay = base.rstrip("/"), timeout, max(1, retries), delay
         self.ignore = tuple(ignore)
 
-    def _get(self, url: str) -> bytes:
+    def _get(self, url: str, want_length: bool = False):
+        """Bytes, or (bytes, declared_length) when `want_length` — the exact size the server promised,
+        which beats the listing's ceil-rounded display string for deciding completeness."""
         last = None
         for attempt in range(self.retries):
             try:
                 with urllib.request.urlopen(url, timeout=self.timeout) as r:
-                    return r.read()
+                    body = r.read()
+                    if want_length:
+                        try:
+                            return body, int(r.headers.get("Content-Length") or 0)
+                        except (TypeError, ValueError):     # a server that declares nothing usable
+                            return body, 0
+                    return body
             except Exception as e:                     # noqa: BLE001 — every transport error is retryable
                 last = e
                 time.sleep(0.4 * (attempt + 1))
@@ -304,17 +352,37 @@ class EzShare:
         Leaving the `.part` behind means the destination stays absent, so the next run re-fetches."""
         dest = os.path.join(dest_dir, local_name(entry["name"]))
         os.makedirs(dest_dir, exist_ok=True)
-        data = self._get(urllib.parse.urljoin(self.base + "/", entry["href"]))
+        url = urllib.parse.urljoin(self.base + "/", entry["href"])
+
+        # PROMOTE AN ALREADY-COMPLETE .part INSTEAD OF RE-FETCHING IT.
+        # The ceil bug left 487 of these — 246 MB of byte-perfect files rejected against a rounded
+        # display string and re-downloaded, and re-rejected, every run. With the completeness test
+        # fixed they would all simply re-download; a HEAD is cheaper than the body and settles it.
+        # Only ever promotes on an EXACT match against the declared length: this is the one place that
+        # turns an unverified file into a trusted one, so it does not get to guess.
         tmp = dest + ".part"
+        if os.path.exists(tmp) and not os.path.exists(dest):
+            try:
+                req = urllib.request.Request(url, method="HEAD")
+                with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                    declared = int(r.headers.get("Content-Length") or 0)
+                have = os.path.getsize(tmp)
+                if declared > 0 and have == declared:
+                    os.replace(tmp, dest)
+                    return dest, have, False
+            except Exception:                       # noqa: BLE001 — a failed HEAD just means "download it"
+                pass
+
+        data, declared = self._get(url, want_length=True)
         with open(tmp, "wb") as fh:
             fh.write(data)
-        if short_read(entry, len(data)):
+        if short_read(entry, len(data), declared):
             time.sleep(self.delay)
-            raise ShortRead(f"{entry['name']}: listing {entry.get('size', '?')}, "
-                            f"got {len(data) / 1024:.1f}KB — left as {os.path.basename(tmp)}")
+            raise ShortRead(f"{entry['name']}: declared {declared or entry.get('size', '?')}, "
+                            f"got {len(data)} bytes — left as {os.path.basename(tmp)}")
         os.replace(tmp, dest)
         time.sleep(self.delay)
-        return dest, len(data), short_read(entry, len(data))
+        return dest, len(data), False
 
 
 def default_route_dev() -> str | None:

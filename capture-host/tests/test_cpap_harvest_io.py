@@ -17,6 +17,16 @@ import cpap_harvest as ch  # noqa: E402
 
 # ── helpers ─────────────────────────────────────────────────────────────────────────────────────────
 class _Resp(io.BytesIO):
+    """A fake HTTP response. It carries `headers` because the real client now reads Content-Length —
+    the ez Share listing is ceil-rounded, so the declared length is the only exact size available and
+    the completeness test prefers it. A double that omits what the caller reads tests the double."""
+
+    def __init__(self, data, declared=None):
+        super().__init__(data)
+        # `declared=None` means "the server told us the truth" — the common case. Pass an explicit
+        # value to model a server that declares something other than what it sends.
+        self.headers = {"Content-Length": str(len(data) if declared is None else declared)}
+
     def __enter__(self):
         return self
 
@@ -24,8 +34,12 @@ class _Resp(io.BytesIO):
         return False
 
 
-def _urlopen(mapping, calls=None):
-    """Fake urlopen driven by a {substring: bytes|Exception} map."""
+def _urlopen(mapping, calls=None, declared=None):
+    """Fake urlopen driven by a {substring: bytes|Exception} map.
+
+    `declared` overrides the Content-Length the fake server announces. TRUNCATION IS declared > sent —
+    a server that promises 2229 KB and delivers 1 KB. Without this the fake can only ever tell the
+    truth about its own body, which is not a truncation at all."""
     def open_(url, timeout=None):
         if calls is not None:
             calls.append(url)
@@ -33,7 +47,11 @@ def _urlopen(mapping, calls=None):
             if frag in url:
                 if isinstance(val, Exception):
                     raise val
-                return _Resp(val)
+                # A tuple value is (body, declared_length) — a server that PROMISES one size and sends
+                # another, i.e. a real truncation. Per-URL, so one file can lie while the rest do not.
+                if isinstance(val, tuple):
+                    return _Resp(val[0], val[1])
+                return _Resp(val, declared)
         raise AssertionError(f"unexpected URL {url}")
     return open_
 
@@ -98,7 +116,9 @@ def test_fetch_writes_via_part_and_renames(tmp_path, monkeypatch):
 
 
 def test_fetch_flags_a_short_read(tmp_path, monkeypatch):
-    monkeypatch.setattr(ch.urllib.request, "urlopen", _urlopen({"download": b"A" * 1024}))
+    # The server PROMISES a 2229 KB file and delivers 1 KB — that is what a truncation is.
+    monkeypatch.setattr(ch.urllib.request, "urlopen",
+                        _urlopen({"download": b"A" * 1024}, declared=2229 * 1024))
     monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
     e = {"name": "BRP.edf", "size": "2229KB", "href": "download?file=B"}
     # `fetch` used to os.replace the truncated body to its FINAL name and merely return short=True —
@@ -229,7 +249,7 @@ DATALOG = ('   2026- 7-26   17: 0: 0         &lt;DIR&gt;   <a href="dir?dir=A:%5
 NIGHT = '   2026- 7-26   10:10:58        2229KB  <a href="download?file=BRP.EDF"> 20260725_BRP.edf</a>\n'
 
 
-def _card(monkeypatch, night_body=NIGHT, brp=b"B" * (2229 * 1024)):
+def _card(monkeypatch, night_body=NIGHT, brp=b"B" * (2229 * 1024), brp_declared=None):
     monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
     monkeypatch.setattr(ch.urllib.request, "urlopen", _urlopen({
         "dir?dir=A:%5CSETTINGS": SETTINGS.encode(),
@@ -239,7 +259,7 @@ def _card(monkeypatch, night_body=NIGHT, brp=b"B" * (2229 * 1024)):
         "dir?dir=A:": ROOT.encode(),
         "download?file=STR.EDF": b"S" * (105 * 1024),
         "download?file=CS.JSON": b"C" * 1024,
-        "download?file=BRP.EDF": brp,
+        "download?file=BRP.EDF": brp if brp_declared is None else (brp, brp_declared),
     }))
 
 
@@ -263,7 +283,9 @@ def test_harvest_skips_what_is_already_on_disk(tmp_path, monkeypatch):
 
 
 def test_harvest_records_short_reads_without_aborting(tmp_path, monkeypatch):
-    _card(monkeypatch, brp=b"B" * 1024)                               # listing says 2229KB
+    # The card PROMISES 2229 KB and delivers 1 KB — the shape of a real truncation. (Declaring the
+    # short length instead would be a server telling the truth about a small file, which is not one.)
+    _card(monkeypatch, brp=b"B" * 1024, brp_declared=2229 * 1024)
     st = ch.harvest(str(tmp_path), nights={"20260725"})
     assert len(st["short"]) == 1 and "BRP" in st["short"][0]
     # 2, not 3: a truncated body is no longer COUNTED as a fetched file, because it is no longer
