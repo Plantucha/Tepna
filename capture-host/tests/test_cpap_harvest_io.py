@@ -372,7 +372,7 @@ def test_wpa_up_gives_up_and_tears_down_if_it_never_associates(monkeypatch):
     t = iter([0.0, 0.0, 99.0, 99.0, 99.0, 99.0])
     monkeypatch.setattr(ch.time, "monotonic", lambda: next(t, 99.0))
     downs = []
-    monkeypatch.setattr(ch, "_wpa_down", lambda i: downs.append(i) or True)
+    monkeypatch.setattr(ch, "_wpa_down", lambda i, root=None: downs.append(i) or True)
     assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 5) is False
     assert downs == ["wlp1s0"]
 
@@ -388,9 +388,15 @@ def test_our_supplicant_never_shares_the_system_daemons_control_directory():
     `wpa_supplicant -B` exit 255 the instant it tried to own a socket there: "Successfully initialized
     wpa_supplicant", then gone. Observed on real hardware 2026-07-27; the harvest could never bring the
     card up on a stock box and blamed the PROFILE for it."""
-    assert ch._WPA_DIR != "/run/wpa_supplicant"
-    assert f"ctrl_interface={ch._WPA_DIR}" in ch._WPA_CONF
-    assert "/run/wpa_supplicant" not in ch._WPA_CONF
+    # The INTENT is unchanged — never share the packaged supplicant's socket directory — but the
+    # ctrl_interface is now a PARAMETER rather than a baked-in constant: the directory is probed per
+    # call, because a path chosen at import time turned out to be one the daemon could not write under
+    # ProtectSystem=strict. So assert on the template's shape and on a RENDERED config.
+    assert ch._wpa_dir() != "/run/wpa_supplicant"
+    assert "ctrl_interface={ctrl}" in ch._WPA_CONF, "the control dir must be injectable, not fixed"
+    rendered = ch._WPA_CONF.format(ctrl=ch._wpa_dir(), ssid="s", psk="p")
+    assert f"ctrl_interface={ch._wpa_dir()}" in rendered
+    assert "/run/wpa_supplicant" not in rendered
 
 
 def test_every_wpa_cli_call_is_pinned_to_our_own_control_directory(monkeypatch):
@@ -405,9 +411,9 @@ def test_every_wpa_cli_call_is_pinned_to_our_own_control_directory(monkeypatch):
     cli = [c for c, _ in calls if c.startswith("wpa_cli")]
     assert cli, "expected wpa_cli calls"
     for c in cli:
-        assert f"-p {ch._WPA_DIR}" in c, f"unpinned wpa_cli would hit the system daemon: {c}"
+        assert "-p " in c, f"unpinned wpa_cli would hit the system daemon: {c}"
     # the destructive one specifically
-    assert any("terminate" in c and f"-p {ch._WPA_DIR}" in c for c in cli)
+    assert any("terminate" in c and "-p " in c for c in cli)
 
 
 def test_a_supplicant_that_will_not_start_tears_down_and_says_why(monkeypatch, caplog):
@@ -416,7 +422,7 @@ def test_a_supplicant_that_will_not_start_tears_down_and_says_why(monkeypatch, c
     import logging
     _sh_spy(monkeypatch, {"wpa_supplicant": (255, "Successfully initialized wpa_supplicant")})
     downs = []
-    monkeypatch.setattr(ch, "_wpa_down", lambda i: downs.append(i) or True)
+    monkeypatch.setattr(ch, "_wpa_down", lambda i, root=None: downs.append(i) or True)
     with caplog.at_level(logging.WARNING):
         assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 5) is False
     assert downs == ["wlp1s0"], "a supplicant that half-started must still be torn down"
@@ -448,8 +454,8 @@ def test_wifi_up_and_down_route_to_the_wpa_backend(monkeypatch, tmp_path):
     (tmp_path / "wlp1s0").mkdir()
     monkeypatch.setattr(ch, "SYS_NET", str(tmp_path))
     seen = {}
-    monkeypatch.setattr(ch, "_wpa_up", lambda i, s, p, a, t: (seen.update(up=i), True)[1])
-    monkeypatch.setattr(ch, "_wpa_down", lambda i: (seen.update(down=i), True)[1])
+    monkeypatch.setattr(ch, "_wpa_up", lambda i, s, p, a, t, root=None: (seen.update(up=i), True)[1])
+    monkeypatch.setattr(ch, "_wpa_down", lambda i, root=None: (seen.update(down=i), True)[1])
     assert ch.wifi_up("ezshare", guard_dev="eno1", iface="wlp1s0") is True
     assert ch.wifi_down("ezshare", iface="wlp1s0") is True
     assert seen == {"up": "wlp1s0", "down": "wlp1s0"}

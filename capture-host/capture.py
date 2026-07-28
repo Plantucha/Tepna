@@ -3009,18 +3009,18 @@ async def cpap_poller(cfg: dict, root: str):
     # Release any association left over from a run that died mid-transfer (SIGKILL, OOM, power cut).
     # `keep_running` restarts this task on any escaping exception, so without this the box could sit
     # associated to a routeless card indefinitely with nothing to explain why Wi-Fi looked occupied.
-    await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface)
+    await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface, root)
     try:
-        await _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface)
+        await _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface, root)
     finally:
         # Whatever ends this task — shutdown, cancellation, an escaping error — the card is released.
         # shield() because at shutdown this task is already being cancelled and a bare await here would
         # be cancelled with it, leaving exactly the stranded association this block exists to prevent.
         with contextlib.suppress(Exception):
-            await asyncio.shield(asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface))
+            await asyncio.shield(asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface, root))
 
 
-async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface=None):
+async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _st, wifi_iface=None, root=None):
     """The daily loop, split out so `cpap_poller` can wrap it in a teardown-guaranteeing `finally`."""
     import cpap_harvest
     last_run_date = None
@@ -3071,7 +3071,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             # unreachable.
             guard = await asyncio.to_thread(cpap_harvest.default_route_dev)
             ok = await asyncio.to_thread(cpap_harvest.wifi_up, profile, 45.0, guard,
-                                         "ez Share", "88888888", wifi_iface)
+                                         "ez Share", "88888888", wifi_iface, cpap_harvest.WPA_ADDR, root)
             if not ok:
                 _st(state="error", detail=f"Wi-Fi profile {profile!r} would not come up safely")
                 log.warning("cpap: profile %r would not come up, or it moved the default route off %r "
@@ -3090,7 +3090,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             # Only tear down what we brought up. On the direct path there is no association to undo,
             # and calling wifi_down would attack the SYSTEM supplicant on the shared interface.
             if not direct:
-                await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface)
+                await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface, root)
 
         dur = _time.monotonic() - started
         bad = bool(res["short"] or res["errors"])

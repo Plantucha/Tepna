@@ -47,13 +47,13 @@ class _Spy:
         # `cpap.wifi_iface` through both (CAPTURE-HOST-DEEP-AUDIT §E5), and a double that cannot
         # accept what the caller passes tests the double, not the caller.
         def _up(profile, timeout=45.0, guard_dev=None, ssid="ez Share", psk="88888888",
-                iface=None, addr=None):
+                iface=None, addr=None, root=None):
             self.up += 1
             self.guards.append(guard_dev)
             self.ifaces.append(iface)
             return up_ok
 
-        def _down(profile, timeout=30.0, iface=None):
+        def _down(profile, timeout=30.0, iface=None, root=None):
             self.down += 1
             self.ifaces.append(iface)
             return True
