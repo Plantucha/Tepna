@@ -11037,6 +11037,56 @@
       });
     });
 
+    /* ════ ECGDex MOTION INDEX — the third corner of the correlated-TCH motion-ρ.
+     The chest-ACC activity index was already being computed, for the staging vote, and never left
+     that block: ECGDex published no per-epoch `motionIndex` while PpgDex and OxyDex both do, so the
+     correlated three-cornered-hat's ρ ran on TWO corners. Measured over the 2026-07-16..26 capture
+     corpus, all 11 nights folded reporting "ECGDex … 0 motion" — with the H10 chest ACC sitting in
+     `rec.deviceACC` the whole time.
+
+     Note this rides the RICH export (`opts.rich`), which NO committed fixture exercises — both ECGDex
+     goldens are light, so `regen --check` reports "content unchanged" and the equiv/GATE-C legs cannot
+     see this field at all. That is exactly why it needs its own group: without one it would ship
+     ungated. ════ */
+    group('ECGDex motion index — per-epoch chest-ACC activity reaches the bus', 'ecgdex-dsp', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.compute === 'function' && typeof D.genSynthetic === 'function')) {
+        T.ok('ECGDSP.compute + genSynthetic available', false, 'not loaded');
+        return;
+      }
+      var rec = D.genSynthetic({ durSec: 2 * 3600, scenario: 'osa' });
+      T.ok('the synthetic carries a device ACC to measure', !!(rec.deviceACC && rec.deviceACC.length && rec.accFs), rec.deviceACC && rec.deviceACC.length + ' @ ' + rec.accFs + ' Hz');
+      var exp = D.compute(rec, { rich: true });
+      var eps = (exp && exp.timeseries && exp.timeseries.epochs) || [];
+      T.ok('rich export carries per-epoch timeseries', eps.length > 0, eps.length + ' epochs');
+      var withMot = eps.filter(function (e) {
+        return e.motionIndex != null;
+      });
+      T.ok('EVERY epoch the ACC observed carries a motionIndex (was: none, ever)', withMot.length > 0 && withMot.length === eps.length, withMot.length + '/' + eps.length);
+      T.ok(
+        'motionIndex is a number in [0,100] — the night-normalised activity scale',
+        withMot.every(function (e) {
+          return typeof e.motionIndex === 'number' && e.motionIndex >= 0 && e.motionIndex <= 100;
+        })
+      );
+      // It must be a real SERIES, not a constant: a flat column correlates with nothing, so a ρ leg
+      // built on it would be silently useless rather than visibly absent.
+      var vals = withMot.map(function (e) {
+        return e.motionIndex;
+      });
+      T.ok('the series VARIES (a constant column would give ρ no signal)', Math.max.apply(null, vals) > Math.min.apply(null, vals), 'min ' + Math.min.apply(null, vals) + ' max ' + Math.max.apply(null, vals));
+      // …and NULL, never 0, when no accelerometer covered the recording: "nothing observed" is not
+      // "the body was still". A 0 would be a fabricated stillness the ρ would happily correlate on.
+      var bare = D.genSynthetic({ durSec: 2 * 3600, scenario: 'osa' });
+      delete bare.deviceACC;
+      delete bare.accFs;
+      var exp2 = D.compute(bare, { rich: true });
+      var eps2 = (exp2 && exp2.timeseries && exp2.timeseries.epochs) || [];
+      T.ok('no ACC ⇒ motionIndex null on every epoch, never 0', eps2.length > 0 && eps2.every(function (e) {
+        return e.motionIndex === null;
+      }), eps2.length + ' epochs');
+    });
+
     /* ════ 12e · ECGDex EVENT BYTE-SHAPE — the surge/stage impulse stream incl. the sqi axis
      + meta (ECGDEX-FOLLOWUPS-2026-06-27 §4). The equiv fixture is 0-event, so the byte-shape
      of ECGDex's emitted impulses went untested. Drive a deterministic overnight synthetic

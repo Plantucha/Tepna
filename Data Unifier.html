@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-MjgKGx7flz9bToi39X3OOw9FMRYQE8d+PIvype3QeWU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QJmpjWDlpbIiDYkV79kKDuftqVSCp3mG9WWwC4ZEiTQ=' 'sha256-QQ0KacKH/GQMvONOobfclwjWfwAHFkmG41i5GZK6pR0=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-u68LAhX9o5gpDAI7BBLJZiRqgeAMP9uLrCOh2vtb2LM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FBCPnSdo2zcmDpyfrAGdkZRGmHJwXt/KgbTeaGz1ep4=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-MjgKGx7flz9bToi39X3OOw9FMRYQE8d+PIvype3QeWU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QJmpjWDlpbIiDYkV79kKDuftqVSCp3mG9WWwC4ZEiTQ=' 'sha256-QQ0KacKH/GQMvONOobfclwjWfwAHFkmG41i5GZK6pR0=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -20396,6 +20396,9 @@ __exports.PpgDex = window.PpgDex;
   }
   // Orchestrator — returns the four feature payloads (or null if no usable ACC).
   function accExtras(deviceACC, accFs, ecgT0Ms, durSec, epochs, stages) {
+    // Declared at function scope so the epoch motion series survives the staging block it is built in
+    // (that block is conditional; a night with no HRV stages still has ACC observations worth exporting).
+    let motionByTMin = null;
     const fs = accFs || 4;
     if (!deviceACC || deviceACC.length < fs * 30) return null;
     const N = deviceACC.length,
@@ -20489,6 +20492,21 @@ __exports.PpgDex = window.PpgDex;
         abstained = 0;
       const conflicts = [],
         voteRows = [];
+      /* The per-epoch motion index, keyed by tMin, for EVERY epoch the ACC actually observed.
+         It was already being computed here — but only INSIDE the vote loop, which `continue`s
+         whenever the HRV stage for that epoch is missing, and it never left this block. So ECGDex
+         exported no motionIndex at all while PpgDex and OxyDex both do, and the correlated-TCH's
+         motion-ρ leg had two corners instead of three: measured over the 2026-07-16..26 corpus,
+         every one of 11 nights folded with "ECGDex … 0 motion".
+         Built here rather than in the loop because a motion observation does not depend on the HRV
+         stager having an opinion — gating the two together is what made an available measurement
+         look absent. Scale is the night's own median→0, p95→100, same as the vote reads; ρ is a
+         correlation, so a per-node scale is what the other two corners use too. */
+      motionByTMin = new Map();
+      for (const m of rawMot) {
+        if (m.act == null) continue;
+        motionByTMin.set(m.tMin.toFixed(1), +Math.max(0, Math.min(100, ((m.act - floor) / span) * 100)).toFixed(1));
+      }
       for (const m of rawMot) {
         if (m.act == null) continue;
         const hrv = stageBy[m.tMin.toFixed(1)];
@@ -20529,7 +20547,7 @@ __exports.PpgDex = window.PpgDex;
     // ── Feature 4: step count & gait ──
     const gait = _gait(vm, fs, off);
 
-    return { rracc, rraccSummary, agreement, consensus, gait, off, accFs: fs, durMin: +(N / fs / 60).toFixed(1) };
+    return { rracc, rraccSummary, agreement, consensus, gait, off, accFs: fs, motionByTMin, durMin: +(N / fs / 60).toFixed(1) };
   }
 
   // ── multi-part split files (Polar Sensor Logger) ───────────────────────────
@@ -21024,12 +21042,20 @@ __exports.PpgDex = window.PpgDex;
         }
       };
       out.timeseries = {
-        doc: 'Per-5-min-epoch aggregates — the primary cross-node feed (posture rides on epochs[].position).',
+        doc: 'Per-5-min-epoch aggregates — the primary cross-node feed (posture rides on epochs[].position; motionIndex = chest-ACC activity, night-normalised median→0 p95→100, null where the ACC did not observe that epoch).',
         // §D2: the internal epoch already carried `resp` (ls.respRate) — this map dropped it, so no
         // per-epoch respiration ever reached the bus. It is the per-epoch series any cross-node
         // respiration work needs (a night median cannot be correlated against anything).
+        // …and the SAME shape of loss applied to motion: the chest-ACC activity index was computed for
+        // the staging vote and never left that block, so ECGDex published no motionIndex while PpgDex
+        // and OxyDex both do — the correlated-TCH motion-ρ leg ran on two corners, not three. Measured
+        // over the 2026-07-16..26 corpus, all 11 nights folded "ECGDex … 0 motion" with the H10 ACC
+        // sitting right there in `rec.deviceACC`. Null (not 0) where the ACC observed nothing: "no
+        // accelerometer covered this epoch" is not "the body was still".
         epochs: (r.epochs || []).map(function (e) {
-          return { tMin: e.tMin, hr: nz(e.hr), rmssd: nz(e.rmssd), sdnn: nz(e.sdnn), lfhf: nz(e.lfhf), resp: nz(e.resp), position: e.position || 'unknown' };
+          var _ax = r._accEx; // analyze() carries it on its return; it is NOT a local here
+          var _mot = _ax && _ax.motionByTMin ? _ax.motionByTMin.get(e.tMin.toFixed(1)) : undefined;
+          return { tMin: e.tMin, hr: nz(e.hr), rmssd: nz(e.rmssd), sdnn: nz(e.sdnn), lfhf: nz(e.lfhf), resp: nz(e.resp), motionIndex: _mot == null ? null : _mot, position: e.position || 'unknown' };
         }),
         sleepStages:
           lng && !amb && Array.isArray(r.stages)

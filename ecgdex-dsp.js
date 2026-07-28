@@ -2981,6 +2981,9 @@
   }
   // Orchestrator — returns the four feature payloads (or null if no usable ACC).
   function accExtras(deviceACC, accFs, ecgT0Ms, durSec, epochs, stages) {
+    // Declared at function scope so the epoch motion series survives the staging block it is built in
+    // (that block is conditional; a night with no HRV stages still has ACC observations worth exporting).
+    let motionByTMin = null;
     const fs = accFs || 4;
     if (!deviceACC || deviceACC.length < fs * 30) return null;
     const N = deviceACC.length,
@@ -3074,6 +3077,21 @@
         abstained = 0;
       const conflicts = [],
         voteRows = [];
+      /* The per-epoch motion index, keyed by tMin, for EVERY epoch the ACC actually observed.
+         It was already being computed here — but only INSIDE the vote loop, which `continue`s
+         whenever the HRV stage for that epoch is missing, and it never left this block. So ECGDex
+         exported no motionIndex at all while PpgDex and OxyDex both do, and the correlated-TCH's
+         motion-ρ leg had two corners instead of three: measured over the 2026-07-16..26 corpus,
+         every one of 11 nights folded with "ECGDex … 0 motion".
+         Built here rather than in the loop because a motion observation does not depend on the HRV
+         stager having an opinion — gating the two together is what made an available measurement
+         look absent. Scale is the night's own median→0, p95→100, same as the vote reads; ρ is a
+         correlation, so a per-node scale is what the other two corners use too. */
+      motionByTMin = new Map();
+      for (const m of rawMot) {
+        if (m.act == null) continue;
+        motionByTMin.set(m.tMin.toFixed(1), +Math.max(0, Math.min(100, ((m.act - floor) / span) * 100)).toFixed(1));
+      }
       for (const m of rawMot) {
         if (m.act == null) continue;
         const hrv = stageBy[m.tMin.toFixed(1)];
@@ -3114,7 +3132,7 @@
     // ── Feature 4: step count & gait ──
     const gait = _gait(vm, fs, off);
 
-    return { rracc, rraccSummary, agreement, consensus, gait, off, accFs: fs, durMin: +(N / fs / 60).toFixed(1) };
+    return { rracc, rraccSummary, agreement, consensus, gait, off, accFs: fs, motionByTMin, durMin: +(N / fs / 60).toFixed(1) };
   }
 
   // ── multi-part split files (Polar Sensor Logger) ───────────────────────────
@@ -3609,12 +3627,20 @@
         }
       };
       out.timeseries = {
-        doc: 'Per-5-min-epoch aggregates — the primary cross-node feed (posture rides on epochs[].position).',
+        doc: 'Per-5-min-epoch aggregates — the primary cross-node feed (posture rides on epochs[].position; motionIndex = chest-ACC activity, night-normalised median→0 p95→100, null where the ACC did not observe that epoch).',
         // §D2: the internal epoch already carried `resp` (ls.respRate) — this map dropped it, so no
         // per-epoch respiration ever reached the bus. It is the per-epoch series any cross-node
         // respiration work needs (a night median cannot be correlated against anything).
+        // …and the SAME shape of loss applied to motion: the chest-ACC activity index was computed for
+        // the staging vote and never left that block, so ECGDex published no motionIndex while PpgDex
+        // and OxyDex both do — the correlated-TCH motion-ρ leg ran on two corners, not three. Measured
+        // over the 2026-07-16..26 corpus, all 11 nights folded "ECGDex … 0 motion" with the H10 ACC
+        // sitting right there in `rec.deviceACC`. Null (not 0) where the ACC observed nothing: "no
+        // accelerometer covered this epoch" is not "the body was still".
         epochs: (r.epochs || []).map(function (e) {
-          return { tMin: e.tMin, hr: nz(e.hr), rmssd: nz(e.rmssd), sdnn: nz(e.sdnn), lfhf: nz(e.lfhf), resp: nz(e.resp), position: e.position || 'unknown' };
+          var _ax = r._accEx; // analyze() carries it on its return; it is NOT a local here
+          var _mot = _ax && _ax.motionByTMin ? _ax.motionByTMin.get(e.tMin.toFixed(1)) : undefined;
+          return { tMin: e.tMin, hr: nz(e.hr), rmssd: nz(e.rmssd), sdnn: nz(e.sdnn), lfhf: nz(e.lfhf), resp: nz(e.resp), motionIndex: _mot == null ? null : _mot, position: e.position || 'unknown' };
         }),
         sleepStages:
           lng && !amb && Array.isArray(r.stages)
