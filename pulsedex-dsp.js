@@ -134,9 +134,31 @@
   // (DEEP-AUDIT-FIXES §1). It was the pre–Lomb–Scargle estimator; its only surfaced use — the
   // "VLF (night)"/"Total Pwr (night)" display rows — mis-stated VLF (4–11× the real LS VLF) and
   // borrowed a `validated` grade. lombScargle() is the single spectral source. Closes SIGNAL-ADAPTER §622.
+  /* SNS/PSNS from LF/HF. DEEP-AUDIT-III-FOLLOWUPS §1.3, decided 2026-07-28: at HF = 0 this returns
+     NULL, it does not invent a denominator.
+     This used to read `lf / (hf || 1)` — the same fabrication §5.2 removed from the surfaced `lfhf`
+     field, left in place here because it feeds a logistic-squashed score and removing it makes the
+     KPI disappear. That is exactly what it should do. A 1 ms² HF is not a measurement, it is a number
+     chosen so the arithmetic keeps working, and the suite's rule for an unmeasurable quantity is
+     already settled: a missing value is null, never a plausible substitute (Clock Contract §2.6 draws
+     the same line for a missing timestamp). A floor would keep the score alive at the cost of making
+     it a heuristic wearing a number's clothes — and it would then owe a re-tier down the evidence
+     ladder for a value nobody could tell was substituted.
+     HF = 0 is also a signal-quality fact worth surfacing rather than smoothing over.
+     The RETURN SHAPE is unchanged (four keys, always) so every consumer keeps working; the values go
+     null. Callers read `ans.sns` directly, so returning a bare null here would throw. */
   function ansBalance(hf, lf) {
-    const ratio = lf / (hf || 1); // LF/HF (sympathovagal)
-    const x = Math.log(ratio || 0.0001);
+    const hfOk = typeof hf === 'number' && isFinite(hf) && hf > 0;
+    const lfOk = typeof lf === 'number' && isFinite(lf) && lf >= 0;
+    if (!hfOk || !lfOk) return { sns: null, psns: null, snsBal: null, psnsBal: null };
+    const ratio = lf / hf; // LF/HF (sympathovagal) — a real quotient now, or nothing
+    if (ratio === 0) {
+      // LF = 0 with HF > 0 is a genuine reading, not a degeneracy: the logistic's limit is 0, i.e.
+      // fully parasympathetic. Only the RECIPROCAL is unreportable (1/0), so that one field is null
+      // rather than Infinity — which is what it used to serialise as.
+      return { sns: 0, psns: 100, snsBal: 0, psnsBal: null };
+    }
+    const x = Math.log(ratio);
     const sns = Math.round(100 / (1 + Math.exp(-x * 1.3))); // 0–100, rises with LF/HF (≈50 at balance)
     const psns = 100 - sns; // parasympathetic complement (non-saturating)
     return {

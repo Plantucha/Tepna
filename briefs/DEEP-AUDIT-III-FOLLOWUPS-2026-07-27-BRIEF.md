@@ -56,13 +56,35 @@ The desat fix (`pickDesatObserver`) is the template, but the ladder differs: ECG
 same physiological surge by different means, and `HR_AUTHORITY` (`ECGDex 1 · PulseDex/OxyDex 2 · PpgDex 3`)
 already exists for exactly this judgement.
 
-### 1.3 `ansBalance()` fabricates a denominator — **needs a decision, not a patch**
+### 1.3 `ansBalance()` fabricates a denominator — **DECIDED + FIXED 2026-07-28: null**
 
-`pulsedex-dsp.js:138` carries `lf / (hf || 1)`, the same fabrication `§5.2` removed from the surfaced
+`pulsedex-dsp.js:138` carried `lf / (hf || 1)`, the same fabrication `§5.2` removed from the surfaced
 `lfhf` field. It was deliberately **not** changed because it feeds the logistic-squashed SNS/PSNS balance
-score, so the real question is *what that KPI reads when HF is zero* — `null` (honest, but the score
-disappears), or a documented floor (survives, but is a heuristic wearing a number's clothes). The `§5.2`
-gate is scoped to the `lfhf` assignment so it cannot be misread as covering the score.
+score, so the real question was *what that KPI reads when HF is zero* — `null` (honest, but the score
+disappears), or a documented floor (survives, but is a heuristic wearing a number's clothes).
+
+**DECIDED 2026-07-28 (owner): `null`.** A 1 ms² HF is not a measurement, it is a number chosen so the
+arithmetic keeps working. The suite's rule for an unmeasurable quantity was already settled — the Clock
+Contract §2.6 draws exactly this line for a missing timestamp — and a floor would have kept the KPI alive
+only by making it a heuristic wearing a number's clothes, then owed it a re-tier down the evidence ladder
+for a substitution no reader could see. HF = 0 is itself a signal-quality fact worth surfacing.
+
+**As shipped:**
+- HF ≤ 0 or non-finite ⇒ all four fields (`sns`/`psns`/`snsBal`/`psnsBal`) are `null`. The **return shape
+  is unchanged** — callers read `ans.sns` directly, so a bare `null` would throw; new behaviour rides the
+  values, not the shape, per the back-compat rule.
+- **LF = 0 with HF > 0 is a real reading, not a degeneracy** — the logistic's limit is fully
+  parasympathetic, so `sns 0 / psns 100`. Only the reciprocal is unreportable, and `psnsBal` is now
+  `null` where it used to serialise as `Infinity`. This sibling was found while fixing the headline.
+- The render no longer prints an absent score as a confident empty bar: `Math.min(100, null)` is 0, so
+  the old markup drew a full-width-zero bar and the word "null" beside it — both failure modes a null
+  exists to prevent. Bar collapses, value reads "—".
+
+**Gate:** 4123 assertions green (14 in the new `ansBalance` group, mutation-checked three ways) ·
+`PulseDex.compute() ≡ committed export` **byte-identical**, so the change is export-inert on real data by
+measurement rather than by claim · GATE A 9/9 · GATE B 25/25 · re-bundled PulseDex + both orchestrators.
+The `§5.2` scope note in `tests/dex-tests.js`, which recorded this as an open product decision, is
+updated to point at the new group.
 
 ### 1.4 OxyDex's `_durBad` catches a negative span but not an inflated one — **FIXED 2026-07-27**
 
@@ -197,7 +219,7 @@ every branch in #449–#464 was created and is worth a `CONTRIBUTING.md` note.
 
 - [x] §1.1 GlucoDex `coverage` + `timeseries`, fixtures regenerated through the sanctioned tool
 - [x] §1.2 surge-pool authority (or a documented reason the desat template does not transfer)
-- [ ] §1.3 a decision on SNS/PSNS at HF = 0, then the fix — **the one item still open; owner decision**
+- [x] §1.3 a decision on SNS/PSNS at HF = 0, then the fix — decided **null** 2026-07-28, shipped
 - [x] §1.4 OxyDex inflated-span guard
 - [x] §1.5 `tools/regen-integrator-goldens.mjs`
 - [x] §2.5 / §2.6 / §3 folded into `CONTRIBUTING.md` — 2026-07-27: the three-builders table in §3, the
