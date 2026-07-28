@@ -165,3 +165,76 @@ def test_the_teardown_never_closes_a_link_it_did_not_open(tmp_path, monkeypatch)
     assert associated - direct == 1, (
         f"exactly one extra teardown belongs to the associated path (direct={direct}, "
         f"associated={associated})")
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# THE WPA CONTROL DIRECTORY MUST BE CREATABLE WITHOUT ROOT
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# 16a97fb gave the harvest its own wpa_supplicant control directory — correct, and it stopped the
+# teardown from being able to kill the SYSTEM supplicant. But it put that directory in /run and created
+# it with `sudo -n mkdir -p`, a privilege no sudoers rule granted. Deployed, that broke the harvest
+# outright: mkdir failed, the directory did not exist, `wpa_supplicant -B` could not create its control
+# socket and exited 255, and the failure was reported as the Wi-Fi PROFILE not coming up.
+#
+# The privilege was never necessary. wpa_supplicant runs as root and can write into any directory that
+# EXISTS; the directory itself does not have to be root-owned. Verified on the box.
+
+def test_the_wpa_control_dir_is_creatable_by_this_user(tmp_path, monkeypatch):
+    """The regression, pinned: if this ever needs root again the harvest silently stops associating."""
+    import os
+
+    d = cpap_harvest._wpa_dir()
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    assert os.path.isdir(d), f"{d} must be creatable without privilege"
+    assert os.access(d, os.W_OK), f"{d} must be writable by the daemon user"
+
+
+def test_systemd_runtime_directory_is_preferred_when_present(monkeypatch):
+    """RuntimeDirectory= is the tidy source: systemd creates and cleans it, owned by the service user."""
+    monkeypatch.setenv("RUNTIME_DIRECTORY", "/run/tepna-capture")
+    assert cpap_harvest._wpa_dir() == "/run/tepna-capture/wpa"
+    # systemd may hand a colon-separated list; the first entry is ours.
+    monkeypatch.setenv("RUNTIME_DIRECTORY", "/run/a:/run/b")
+    assert cpap_harvest._wpa_dir() == "/run/a/wpa"
+
+
+def test_the_fallback_is_uid_scoped_and_not_shared(monkeypatch):
+    """A shared path would let another local user pre-create or read the socket directory."""
+    import os
+
+    monkeypatch.delenv("RUNTIME_DIRECTORY", raising=False)
+    d = cpap_harvest._wpa_dir()
+    assert str(os.getuid()) in d, "the fallback must be scoped to this uid"
+    assert d != "/run/tepna-wpa", "the root-owned path is what broke the harvest"
+
+
+def test_bringing_the_link_up_never_shells_out_to_mkdir():
+    """The specific call that failed on the box. Scanned on parsed CODE, docstrings stripped — a text
+    scan matches the comment explaining the fix and passes for the wrong reason."""
+    import ast
+    import inspect
+    import textwrap
+
+    fn = ast.parse(textwrap.dedent(inspect.getsource(cpap_harvest._wpa_up))).body[0]
+    code = ast.unparse(fn)
+    assert "'mkdir'" not in code and '"mkdir"' not in code, "the control dir must be made in-process"
+    assert "makedirs" in code, "…and it must actually be made"
+
+
+def test_an_uncreatable_control_dir_warns_and_does_not_raise(monkeypatch, caplog):
+    """QC-style honesty: the harvest reports and carries on to the association attempt rather than
+    raising into the poller task. wpa_supplicant will then fail loudly on its own, which is the
+    diagnosis a reader needs — not a traceback from a mkdir."""
+    import os
+
+    def boom(*a, **k):
+        raise OSError(13, "Permission denied")
+
+    monkeypatch.setattr(cpap_harvest.os, "makedirs", boom)
+    monkeypatch.setattr(cpap_harvest, "_sh", lambda argv, t, sudo=False: (1, "stubbed"))
+    with caplog.at_level("WARNING"):
+        ok = cpap_harvest._wpa_up("wlp1s0", "ez Share", "88888888", "192.168.4.2/24", 5.0)
+    assert ok is False
+    assert any("could not create the wpa control dir" in r.getMessage() for r in caplog.records), [
+        r.getMessage() for r in caplog.records
+    ]

@@ -413,7 +413,32 @@ def default_wifi_iface(_sys: str | None = None) -> str:
 #
 # So: a private directory, and every wpa_cli call is pinned to it with `-p`. The two daemons then
 # cannot see each other's sockets, which is the only version of "bound to OUR interface" that holds.
-_WPA_DIR = "/run/tepna-wpa"
+# …and it must be a directory THIS DAEMON CAN CREATE. `/run/tepna-wpa` is root-owned territory, so
+# 16a97fb's `sudo -n mkdir -p` needed a sudoers rule that was never added alongside it. Deployed to the
+# box, that broke the harvest outright: the mkdir failed with "interactive authentication is required",
+# the directory therefore did not exist, `wpa_supplicant -B` could not create its control socket and
+# exited 255, and the run was reported as the Wi-Fi PROFILE failing. The last good pull (2026-07-27
+# 22:03) ran the PREVIOUS code, whose log line is `wpa_cli -i wlp1s0 terminate` with no `-p` at all.
+#
+# The privilege was never necessary. wpa_supplicant runs as root and can write into any directory that
+# EXISTS; nothing requires that directory to be root-owned. Verified on the box 2026-07-28:
+#   mkdir -p -m 0700 /tmp/tepna-wpa-1000        (as vigil, no sudo)      -> OK
+#   sudo -n wpa_supplicant -B -i wlp1s0 -c …    -> rc=0, sockets created inside it, root-owned
+#   sudo -n wpa_cli -p /tmp/tepna-wpa-1000 …    -> wpa_state=SCANNING
+# So the association works with the sudoers rules that ALREADY exist (ip · wpa_supplicant · wpa_cli),
+# and 16a97fb's real gain — never sharing the system supplicant's socket directory — is kept intact.
+#
+# systemd's RuntimeDirectory= is the tidiest source when the unit provides one (it creates and cleans
+# `/run/<name>` owned by the service user); the uid-scoped /tmp path is the portable fallback, 0700 so
+# no other local user can reach the sockets.
+def _wpa_dir() -> str:
+    rt = os.environ.get("RUNTIME_DIRECTORY")
+    if rt:
+        return os.path.join(rt.split(":")[0], "wpa")
+    return "/tmp/tepna-wpa-%d" % os.getuid()
+
+
+_WPA_DIR = _wpa_dir()
 _WPA_CONF = ('ctrl_interface=' + _WPA_DIR + '\nctrl_interface_group=0\n'
              'network={{\n\tssid="{ssid}"\n\tpsk="{psk}"\n\tkey_mgmt=WPA-PSK\n\tscan_ssid=1\n}}\n')
 
@@ -429,7 +454,11 @@ def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float) -> bool:
         # -B daemonises. Bound to OUR conf, OUR interface and OUR control directory: the packaged
         # wpa_supplicant.service is active on this box, and two supplicants sharing one ctrl_interface
         # directory collide over the socket before they ever get as far as fighting over the radio.
-        _sh(["mkdir", "-p", _WPA_DIR], 10, sudo=True)
+        # UNPRIVILEGED by design — see _wpa_dir(). A root mkdir here is what broke the harvest.
+        try:
+            os.makedirs(_WPA_DIR, mode=0o700, exist_ok=True)
+        except OSError as e:                            # noqa: BLE001 — report, do not raise into the poller
+            log.warning("cpap: could not create the wpa control dir %s: %s", _WPA_DIR, e)
         rc, out = _sh(["wpa_supplicant", "-B", "-i", iface, "-c", conf], 20, sudo=True)
         if rc:
             # Say WHY. `state='error', detail="profile 'ezshare' would not come up safely"` names the
