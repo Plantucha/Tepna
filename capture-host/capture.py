@@ -3050,14 +3050,34 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
         # Note the box's lifeline BEFORE associating, and hand it to wifi_up as a guard. If the default
         # route moves to the card — a routeless dead end — wifi_up tears the association down and fails,
         # and we skip the day. A day of CPAP files is never worth making the box unreachable.
-        guard = await asyncio.to_thread(cpap_harvest.default_route_dev)
-        ok = await asyncio.to_thread(cpap_harvest.wifi_up, profile, 45.0, guard,
-                                     "ez Share", "88888888", wifi_iface)
-        if not ok:
-            _st(state="error", detail=f"Wi-Fi profile {profile!r} would not come up safely")
-            log.warning("cpap: profile %r would not come up, or it moved the default route off %r "
-                        "— skipping today", profile, guard)
-            continue
+        # ── ALREADY REACHABLE? THEN ASSOCIATE NOTHING. ────────────────────────────────────────────
+        # Every privileged step in this harvest exists to join the card's own Wi-Fi AP: ip link,
+        # wpa_supplicant, wpa_cli, ip addr add, and the teardown — all `sudo -n`, all needing sudoers
+        # entries a stock box does not have. The DOWNLOAD is a plain unauthenticated HTTP GET and never
+        # needed a privilege at all. On 2026-07-28 the 13:00 run died at `sudo -n mkdir -p` with
+        # "interactive authentication is required" and skipped the day, with the night's therapy data
+        # one HTTP request away.
+        # An ez Share card can run in station mode and join the house network, at which point the box
+        # reaches it over the existing uplink. Probing first means the same build serves both
+        # deployments and the privileged branch is simply never entered on the sudo-free one.
+        direct = await asyncio.to_thread(cpap_harvest.reachable, base, 5.0)
+        guard = None
+        if direct:
+            log.info("cpap: %s already reachable — harvesting directly, no Wi-Fi association needed", base)
+        else:
+            # Note the box's lifeline BEFORE associating, and hand it to wifi_up as a guard. If the
+            # default route moves to the card — a routeless dead end — wifi_up tears the association
+            # down and fails, and we skip the day. A day of CPAP files is never worth making the box
+            # unreachable.
+            guard = await asyncio.to_thread(cpap_harvest.default_route_dev)
+            ok = await asyncio.to_thread(cpap_harvest.wifi_up, profile, 45.0, guard,
+                                         "ez Share", "88888888", wifi_iface)
+            if not ok:
+                _st(state="error", detail=f"Wi-Fi profile {profile!r} would not come up safely")
+                log.warning("cpap: profile %r would not come up, or it moved the default route off %r "
+                            "— skipping today (set cpap.base_url to the card's LAN address if it is in "
+                            "station mode; then no association is attempted at all)", profile, guard)
+                continue
         try:
             res = await asyncio.to_thread(
                 cpap_harvest.harvest, dest, base, None, started + max_run, cpap_harvest.DEFAULT_IGNORE,
@@ -3067,7 +3087,10 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
             log.warning("cpap: harvest failed: %r", e)
             continue
         finally:
-            await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface)
+            # Only tear down what we brought up. On the direct path there is no association to undo,
+            # and calling wifi_down would attack the SYSTEM supplicant on the shared interface.
+            if not direct:
+                await asyncio.to_thread(cpap_harvest.wifi_down, profile, 30.0, wifi_iface)
 
         dur = _time.monotonic() - started
         bad = bool(res["short"] or res["errors"])
