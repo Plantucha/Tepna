@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-26
+**Status:** DONE — 2026-07-28 · **Created:** 2026-07-26 · **Followed-by:** `CPAP-AUTOHARVEST-FOLLOWUPS-2026-07-28-BRIEF.md` · **Reference:** `EZSHARE-CARD-INTEGRATION-2026-07-28-BRIEF.md`
 
 # CPAP auto-harvest — pulling ResMed `DATALOG/` off a Wi-Fi SD adapter, nightly, unattended
 
