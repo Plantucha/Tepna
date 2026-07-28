@@ -21930,6 +21930,71 @@
       }
     });
 
+    /* REM-STAGING-REDESIGN §4a/§4b — THE ORACLE, pinned.
+       `genSynthetic` is the only ground truth this suite has for sleep staging, and until 2026-07-28 it
+       was wrong about REM in the feature that matters most: `act` was 0.5 against N2/N3's 0.07, making
+       REM the SECOND-MOST-ACTIVE stage and landing planted REM at a night-normalised motion index of
+       96/100 — indistinguishable from Wake's 100. REM is defined by muscle ATONIA. An oracle that models
+       REM as mobile AGREES with the classifier's REM→Wake confusion instead of exposing it, so anything
+       tuned against it is trained toward the wrong target.
+       These assertions pin the fixture, not the classifier. They read the planted truth from
+       `rec.stageTruth` rather than re-deriving the cycle maths, because a test that re-derives its
+       fixture's ground truth is a second source that drifts the moment the first is tuned. */
+    group('ECGDex synthetic oracle — REM is atonic, and says so (§4a/§4b)', 'ecgdex-dsp · synthetic · oracle', function (T) {
+      var E = env.ECGDSP;
+      if (!E || typeof E.genSynthetic !== 'function' || typeof E.analyze !== 'function' || typeof E.epochMotion !== 'function') {
+        T.skip('env.ECGDSP genSynthetic + analyze + epochMotion available', 'ECGDSP not co-loaded in this runner');
+        return;
+      }
+      var rec = E.genSynthetic({ durSec: 110 * 60, seed: 20260601 }); // first REM bout opens at 78 min
+      T.ok('§4b · the generator PUBLISHES its planted truth (no re-derivation in the test)', Array.isArray(rec.stageTruth) && rec.stageTruth.length > 2, 'stageTruth runs=' + (rec.stageTruth || []).length);
+      var truth = rec.stageTruth || [];
+      var stageAtSec = function (t) {
+        var cur = null;
+        for (var i = 0; i < truth.length; i++) if (truth[i].t0Sec <= t) cur = truth[i].stage;
+        return cur;
+      };
+      T.ok('§4b · …and it plants REM at all', truth.some(function (r) { return r.stage === 'REM'; }), JSON.stringify(truth.map(function (r) { return r.stage; })));
+
+      var r = E.analyze(rec);
+      var eps = r.epochs || [];
+      var mot = E.epochMotion(rec.deviceACC, rec.accFs, rec.t0Ms, rec.durSec, eps);
+      T.ok('§4b · the synthetic carries an accelerometer the motion index can read', !!mot && mot.size > 0, 'motion epochs=' + (mot ? mot.size : 0));
+      if (!mot || !mot.size) return;
+
+      var byStage = {};
+      eps.forEach(function (e) {
+        var st = stageAtSec(e.tMin * 60 + 150); // epoch centre
+        var m = mot.get(e.tMin.toFixed(1));
+        if (st == null || m == null) return;
+        (byStage[st] = byStage[st] || []).push(m);
+      });
+      var med = function (a) { var v = a.slice().sort(function (x, y) { return x - y; }); return v[Math.floor(v.length / 2)]; };
+      var remM = byStage.REM || [],
+        deepM = (byStage.N3 || []).concat(byStage.N2 || []);
+      T.ok('§4b · planted REM epochs were observed by the ACC', remM.length > 0, 'n=' + remM.length);
+      if (!remM.length || !deepM.length) return;
+
+      /* THE ATONIA INVARIANT. Before the fix this read ~96 against Wake's 100. The classifier excludes
+         an epoch from REM once motion reaches 35, so REM planted ABOVE that threshold is a fixture that
+         forbids its own answer — which is precisely what it was doing. */
+      T.ok('§4a · planted REM is not gross-mobile: median motion < 60 (was ~96, vs Wake 100)', med(remM) < 60, 'REM median=' + med(remM).toFixed(1));
+      T.ok('§4a · …and stays under the stager\'s own REM motion guard of 35, so the oracle does not forbid its own answer', Math.max.apply(null, remM) < 35, 'REM max=' + Math.max.apply(null, remM).toFixed(1));
+      T.ok('§4a · …while deep/light sleep remains the stillest of all', med(deepM) <= med(remM), 'N2/N3 median=' + med(deepM).toFixed(1) + ' REM median=' + med(remM).toFixed(1));
+
+      /* The planted REM FRACTION has to be physiological, or "recover the planted truth" is not a
+         meaningful acceptance test for the redesign. */
+      var mins = {};
+      for (var i = 0; i < truth.length; i++) {
+        var a = truth[i],
+          b = truth[i + 1];
+        mins[a.stage] = (mins[a.stage] || 0) + ((b ? b.t0Sec : rec.durSec) - a.t0Sec) / 60;
+      }
+      var slept = (mins.N1 || 0) + (mins.N2 || 0) + (mins.N3 || 0) + (mins.REM || 0);
+      var remPct = slept ? (100 * (mins.REM || 0)) / slept : 0;
+      T.ok('§4b · the planted REM fraction is physiological (10-30% of sleep)', remPct >= 10 && remPct <= 30, 'planted REM = ' + remPct.toFixed(1) + '% of ' + slept.toFixed(0) + ' min');
+    });
+
     /* DEEP-AUDIT-III-FOLLOWUPS §1.3 — the SNS/PSNS score at HF = 0, decided 2026-07-28: NULL.
        `ansBalance()` carried `lf / (hf || 1)`: a 1 ms² HF invented so the arithmetic keeps working.
        The alternative on the table was a documented floor, which would have kept the KPI alive at the

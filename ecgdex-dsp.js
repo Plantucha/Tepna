@@ -440,10 +440,22 @@
         const ti = i / ACCfs,
           sa = stageAt(ti);
         const breath = 42 * Math.sin(respPhase(ti)); // chest movement → ACC respiration (same breath)
-        // posture shifts are more likely during Wake/REM arousals (realistic position changes)
-        const shiftP = sa.stage === 'Wake' || sa.stage === 'REM' ? 0.0016 : 0.0004;
+        /* REM ATONIA (REM-STAGING-REDESIGN §4a, 2026-07-28). This block used to model REM as the
+           SECOND-MOST-ACTIVE stage — `act` 0.5 against N2/N3's 0.07, and postural shifts as likely as
+           Wake's. Measured over a 6 h run that put planted REM at a night-normalised motion index of
+           96/100, indistinguishable from Wake's 100.
+           REM is defined by skeletal-muscle ATONIA: gross body movement and postural change are
+           SUPPRESSED, below even N2/N3. What REM does have is brief PHASIC twitches — small, sparse,
+           and nothing like a turn-over. Modelling REM as mobile made the oracle agree with the
+           classifier's REM→Wake confusion instead of exposing it, so a stager tuned against this
+           fixture would have been trained toward the wrong target. */
+        const shiftP = sa.stage === 'Wake' ? 0.0016 : sa.stage === 'REM' ? 0.0002 : 0.0004;
         if (rnd() < (shiftP / ACCfs) * 4) posture = POSTURES[Math.floor(rnd() * POSTURES.length)];
-        let act = sa.stage === 'Wake' ? 1.0 : sa.stage === 'REM' ? 0.5 : sa.stage === 'N1' ? 0.32 : 0.07;
+        let act = sa.stage === 'Wake' ? 1.0 : sa.stage === 'N1' ? 0.32 : sa.stage === 'REM' ? 0.04 : 0.07;
+        // Phasic REM twitches: brief and small. They must stay well under the gross-movement scale —
+        // a twitch is not a turn-over, and if these restored a Wake-like signature the fix would be
+        // cosmetic.
+        if (sa.stage === 'REM' && rnd() < 0.25 / ACCfs) act += 0.45;
         for (const w of apneaWindows) {
           if (ti >= w.t0 && ti < w.t1) {
             const ph = (ti - w.t0) % w.cyc;
@@ -467,6 +479,25 @@
       deviceACC: devACC,
       accFs: ACCfs,
       nBeatsTrue: gtRR.length,
+      /* THE PLANTED TRUTH, PUBLISHED (REM-STAGING-REDESIGN §4b). A fixture whose ground truth can only
+         be recovered by re-deriving `stageAt` in the test is a fixture with two sources of truth, and
+         the copy in the test drifts the moment this one is tuned — the sibling-divergence class the
+         audits keep finding. Emitted as RUNS (~20 for a 6 h night), so it is compact, serialisable and
+         reads as data rather than as a function on a data object. */
+      stageTruth: (function () {
+        var out = [],
+          step = 30,
+          prev = null,
+          tt;
+        for (tt = 0; tt < durSec; tt += step) {
+          var st = stageAt(tt).stage;
+          if (st !== prev) {
+            out.push({ t0Sec: tt, stage: st });
+            prev = st;
+          }
+        }
+        return out;
+      })(),
       scenario: opts.scenario || 'overnight'
     };
   }

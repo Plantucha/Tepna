@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4gqacl5Ms4PJyKlYGDWyfacOplNSI/L4HuhS6Hs36m4=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-ZAzb5Otasm++nQdBl90HnemzB7xsFHZtTUZG6ZJL1QE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-zzSJRKL0zjzynyMUyIEdLySnS7uq/+MYYjrKsGQomCI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-NRApjTAWKSdXTogZSeS2c3uy+tN3vUitkDbWHsl7qQs=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-ZAzb5Otasm++nQdBl90HnemzB7xsFHZtTUZG6ZJL1QE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-zzSJRKL0zjzynyMUyIEdLySnS7uq/+MYYjrKsGQomCI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -7001,10 +7001,22 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         const ti = i / ACCfs,
           sa = stageAt(ti);
         const breath = 42 * Math.sin(respPhase(ti)); // chest movement → ACC respiration (same breath)
-        // posture shifts are more likely during Wake/REM arousals (realistic position changes)
-        const shiftP = sa.stage === 'Wake' || sa.stage === 'REM' ? 0.0016 : 0.0004;
+        /* REM ATONIA (REM-STAGING-REDESIGN §4a, 2026-07-28). This block used to model REM as the
+           SECOND-MOST-ACTIVE stage — `act` 0.5 against N2/N3's 0.07, and postural shifts as likely as
+           Wake's. Measured over a 6 h run that put planted REM at a night-normalised motion index of
+           96/100, indistinguishable from Wake's 100.
+           REM is defined by skeletal-muscle ATONIA: gross body movement and postural change are
+           SUPPRESSED, below even N2/N3. What REM does have is brief PHASIC twitches — small, sparse,
+           and nothing like a turn-over. Modelling REM as mobile made the oracle agree with the
+           classifier's REM→Wake confusion instead of exposing it, so a stager tuned against this
+           fixture would have been trained toward the wrong target. */
+        const shiftP = sa.stage === 'Wake' ? 0.0016 : sa.stage === 'REM' ? 0.0002 : 0.0004;
         if (rnd() < (shiftP / ACCfs) * 4) posture = POSTURES[Math.floor(rnd() * POSTURES.length)];
-        let act = sa.stage === 'Wake' ? 1.0 : sa.stage === 'REM' ? 0.5 : sa.stage === 'N1' ? 0.32 : 0.07;
+        let act = sa.stage === 'Wake' ? 1.0 : sa.stage === 'N1' ? 0.32 : sa.stage === 'REM' ? 0.04 : 0.07;
+        // Phasic REM twitches: brief and small. They must stay well under the gross-movement scale —
+        // a twitch is not a turn-over, and if these restored a Wake-like signature the fix would be
+        // cosmetic.
+        if (sa.stage === 'REM' && rnd() < 0.25 / ACCfs) act += 0.45;
         for (const w of apneaWindows) {
           if (ti >= w.t0 && ti < w.t1) {
             const ph = (ti - w.t0) % w.cyc;
@@ -7028,6 +7040,25 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       deviceACC: devACC,
       accFs: ACCfs,
       nBeatsTrue: gtRR.length,
+      /* THE PLANTED TRUTH, PUBLISHED (REM-STAGING-REDESIGN §4b). A fixture whose ground truth can only
+         be recovered by re-deriving `stageAt` in the test is a fixture with two sources of truth, and
+         the copy in the test drifts the moment this one is tuned — the sibling-divergence class the
+         audits keep finding. Emitted as RUNS (~20 for a 6 h night), so it is compact, serialisable and
+         reads as data rather than as a function on a data object. */
+      stageTruth: (function () {
+        var out = [],
+          step = 30,
+          prev = null,
+          tt;
+        for (tt = 0; tt < durSec; tt += step) {
+          var st = stageAt(tt).stage;
+          if (st !== prev) {
+            out.push({ t0Sec: tt, stage: st });
+            prev = st;
+          }
+        }
+        return out;
+      })(),
       scenario: opts.scenario || 'overnight'
     };
   }
