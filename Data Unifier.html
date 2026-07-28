@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-MjgKGx7flz9bToi39X3OOw9FMRYQE8d+PIvype3QeWU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QJmpjWDlpbIiDYkV79kKDuftqVSCp3mG9WWwC4ZEiTQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-zI28zbuBwWDV/xU8BJFCWKek94TcOwFJj8L6lH303UE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-MjgKGx7flz9bToi39X3OOw9FMRYQE8d+PIvype3QeWU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QJmpjWDlpbIiDYkV79kKDuftqVSCp3mG9WWwC4ZEiTQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-nDplrAG2jOvkIUrVm+9NZGXbYdEQgDI4kT0XQu9Douo=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -19241,13 +19241,25 @@ __exports.PpgDex = window.PpgDex;
       const lfhf = e.lfhf;
       const m = mot(e);
       let stage;
-      // MOTION FIRST where the ACC observed the epoch. Gross body movement is the most reliable
-      // wake marker available without EEG, and HRV alone under-calls wake badly — the same night
-      // that scored REM = 0 also scored 99.8% sleep efficiency with zero WASO.
+      /* ORDER MATTERS MORE THAN ANY THRESHOLD HERE (REM-STAGING-REDESIGN §4c).
+         REM and Wake share their HRV signature — elevated HR, suppressed RMSSD — so a Wake branch
+         tested FIRST swallows REM wholesale. Measured against planted truth: 9 of 9 REM epochs were
+         classified Wake, and no threshold change could fix it because the Wake rule fired before the
+         REM rule was ever reached.
+         The discriminator is the SPECTRUM: REM is sympathetically dominant (planted LF/HF 2.43) while
+         deep sleep is not (0.63). That only became usable once the generator's Mayer wave was a real
+         0.1 Hz oscillation instead of a VLF low-pass — before that every stage measured ~0.1 and the
+         gate could not fire at all.
+         Motion is the VETO, not the detector: REM is atonic, so gross movement rules it out, but
+         stillness alone cannot distinguish REM from lying awake perfectly still. */
+      // Gross body movement — awake, whatever the spectrum says. Atonia makes this incompatible with REM.
       if (m != null && m >= 60) stage = 'Wake';
-      else if (hrZ > 1.1 || e.rmssd < rmMed * 0.45) stage = 'Wake';
-      // REM is near-atonic: an epoch with real body movement is not REM, whatever the HRV says.
+      // SPECTRUM-LED REM, ahead of the HRV-only wake heuristic, vetoed by any real movement.
+      // `m == null` (no accelerometer observed this epoch) does NOT veto: absence of an observation is
+      // not evidence of stillness OR of movement, and refusing REM there would reinstate the old
+      // Wake-swallows-REM behaviour on every ACC-less recording.
       else if (lfhf > lfhfGate && e.rmssd < rmMed * 0.85 && !(m != null && m >= 35)) stage = 'REM';
+      else if (hrZ > 1.1 || e.rmssd < rmMed * 0.45) stage = 'Wake';
       else if (e.rmssd > rmMed * 1.12 && e.hr < hrMed) stage = 'Deep';
       else stage = 'Light';
       return stage;
@@ -19265,6 +19277,19 @@ __exports.PpgDex = window.PpgDex;
     for (let i = 1; i < raw.length - 1; i++) {
       if (raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1] && (raw[i] === 'Light' || raw[i] === 'Wake')) sm[i] = raw[i - 1];
     }
+    /* MINIMUM REM BOUT — DESIGNED, MEASURED, AND DELIBERATELY NOT SHIPPED (§4c, the (b) half).
+       The idea is sound: a real REM period runs 5-25 min, so a single isolated epoch is more likely
+       quiet wakefulness, which shares REM's whole signature and which nothing in this stack separates
+       from REM directly. Implemented as "an isolated REM epoch demotes to Light" it is INERT on the
+       synthetic (bouts there are 3, 5 and 3 epochs) — and it took REM from 10 min to ZERO on the real
+       2026-07-27 night, because there the only two candidates are isolated singletons (epoch 11 and
+       epoch 64 of 77).
+       That is not the guard misbehaving, it is the guard having nothing to guard: on real data the REM
+       DETECTOR still under-selects — 26 epochs clear the LF/HF gate, 10 clear the RMSSD gate, and the
+       conjunction of the two yields 2. A bout rule cannot help a detector that never produces a bout,
+       and suppressing the little signal there is would trade a visible under-count for a silent zero.
+       So it waits for the weighted-score detector (brief §3). Recorded here rather than in a branch
+       nobody reads, because the measurement is the reason. */
     return epochs.map((e, i) => ({ tMin: e.tMin, stage: sm[i], y: order[sm[i]] }));
   }
 

@@ -11988,9 +11988,14 @@
            ACC↔HRV AGREEMENT, and the HRV half is the known-defective one: the stager calls planted
            REM "Wake" (REM-STAGING-REDESIGN §4, 9/9), so a more realistic spectrum makes it disagree
            with actigraphy more often. Attribution of the 10 conflicts: REM 4, N3 4, N2 2.
-           This number should RISE again when §4c fixes the REM/Wake ordering — so it is a tripwire for
-           that fix, not a bar quietly lowered to fit. If it drops below 65, something else broke. */
-        T.ok('mostly-still synthetic night reaches consensus ≥ 65% (77 → 67 when the LF band was corrected; see note)', co.rate >= 65, 'rate=' + co.rate);
+           …and it DID rise when §4c landed: 80, above the 77 it started at, with conflicts 10 → 6. So
+           the arc is 77 → 67 (LF band corrected, exposing the stager's REM→Wake defect) → 80 (ordering
+           fixed, ACC and HRV agree again — and agree better than before, because they now agree for
+           the right reason instead of by sharing an error).
+           The bar is tightened back to 75 accordingly. A tripwire left at 65 while the value sits at 80
+           is not a gate, it is slack — and the whole point of writing the 65 down with its reason was
+           that it would be revisited rather than forgotten. */
+        T.ok('mostly-still synthetic night reaches consensus ≥ 75% (arc: 77 → 67 → 80; see note)', co.rate >= 75, 'rate=' + co.rate);
       }
 
       // Feature 4 — gait: a 4-Hz ACC cannot resolve the 0.5–3.5 Hz step band → graceful no-walk
@@ -22023,6 +22028,32 @@
         T.ok('§4 · LF/HF is physiological, not VLF-starved: deep sleep in 0.3-2 (was ~0.1)', deepR >= 0.3 && deepR <= 2, 'N3 LF/HF=' + deepR.toFixed(2));
         T.ok('§4 · …and REM is sympathetically dominant: LF/HF above 1', remR > 1, 'REM LF/HF=' + remR.toFixed(2));
         T.ok('§4 · …so the two stages are SEPARABLE by spectrum (REM > N3)', remR > deepR, 'REM=' + remR.toFixed(2) + ' N3=' + deepR.toFixed(2));
+      }
+
+      /* §4c · THE ORDERING. REM and Wake share their HRV signature, so a Wake branch tested FIRST
+         swallows REM wholesale: measured against this same planted truth, 9 of 9 REM epochs were
+         classified "Wake", and no threshold could fix it because the Wake rule fired before the REM
+         rule was reached. The discriminator is the SPECTRUM (planted REM LF/HF 2.43 vs deep sleep
+         0.63) with motion as a VETO — REM is atonic, so movement rules it out, but stillness alone
+         cannot separate REM from lying awake perfectly still.
+         This is the assertion that would have caught the original defect. */
+      var stages = r.stages || [];
+      if (stages.length) {
+        var recalled = 0,
+          plantedREM = 0;
+        stages.forEach(function (st) {
+          if (stageAtSec(st.tMin * 60 + 150) !== 'REM') return;
+          plantedREM++;
+          if (st.stage === 'REM') recalled++;
+        });
+        T.ok('§4c · the window contains planted REM to recall', plantedREM > 0, 'planted REM epochs=' + plantedREM);
+        if (plantedREM) {
+          T.ok('§4c · planted REM is classified REM, not swallowed by the Wake branch (was 0/9)', recalled === plantedREM, recalled + '/' + plantedREM + ' recalled');
+        }
+        var mins = {};
+        stages.forEach(function (st) { mins[st.stage] = (mins[st.stage] || 0) + 5; });
+        var slept = (mins.REM || 0) + (mins.Light || 0) + (mins.Deep || 0);
+        T.ok('§4c · …and the resulting REM share is physiological (8-30% of sleep)', slept > 0 && (100 * (mins.REM || 0)) / slept >= 8 && (100 * (mins.REM || 0)) / slept <= 30, 'REM = ' + (slept ? ((100 * (mins.REM || 0)) / slept).toFixed(1) : '0') + '% of ' + slept + ' min');
       }
 
       /* The planted REM FRACTION has to be physiological, or "recover the planted truth" is not a
