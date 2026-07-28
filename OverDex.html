@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IFqYc6dzcRVE3XPKUT4Cl5Fn3+2l/+LqHeS2o2sF0yY=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MjgKGx7flz9bToi39X3OOw9FMRYQE8d+PIvype3QeWU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QJmpjWDlpbIiDYkV79kKDuftqVSCp3mG9WWwC4ZEiTQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-XesQp+AB9X3SgqI4RvdqPnZk1lABdydz/g93mcc2RWU=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-IFqYc6dzcRVE3XPKUT4Cl5Fn3+2l/+LqHeS2o2sF0yY=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MjgKGx7flz9bToi39X3OOw9FMRYQE8d+PIvype3QeWU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QJmpjWDlpbIiDYkV79kKDuftqVSCp3mG9WWwC4ZEiTQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-zI28zbuBwWDV/xU8BJFCWKek94TcOwFJj8L6lH303UE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -22543,7 +22543,6 @@ __exports.PpgDex = window.PpgDex;
     // instantaneous frequency badly. f wanders ±0.03 Hz with a 600 s period.
     const respPhase = (tt) => 2 * Math.PI * respHz0 * tt - 0.03 * 600 * (Math.cos((2 * Math.PI * tt) / 600) - 1);
     let t = 0.4,
-      lf = 0,
       lfTarget = 0,
       bw = 0; // bw = slow correlated (fractal) drift
     let sinusRR = 900; // running "expected" sinus interval
@@ -22553,10 +22552,20 @@ __exports.PpgDex = window.PpgDex;
       const sa = stageAt(t);
       // respiration (RSA) — vagal scales HF amplitude; resp rate wanders slowly
       const rsa = sa.vagal * 38 * Math.sin(respPhase(t));
-      // LF (~0.1 Hz Mayer) ornstein-uhlenbeck-ish
+      /* LF (Mayer wave, ~0.1 Hz) — an OSCILLATION, modelled the same way RSA is.
+         This used to be an AR(1) low-pass stepped ONCE PER BEAT: `lfTarget = 0.985·lfTarget + …`,
+         `lf = 0.9·lf + 0.1·lfTarget`. At ~55 bpm a beat is ~1.09 s, so a = 0.985 is a time constant of
+         ~67 beats ≈ 73 s ≈ 0.014 Hz — squarely VLF. The comment said 0.1 Hz; the arithmetic delivered
+         VLF, so the LF BAND WAS STARVED BY CONSTRUCTION and LF/HF came out ~0.1 for every stage,
+         ~20× below the physiological 0.5–4 (measured: N3 HF 632 vs LF 57). A classifier gating REM on
+         LF/HF could therefore never fire on synthetic data whatever its thresholds
+         (REM-STAGING-REDESIGN §4).
+         The AR(1) is kept, demoted to what it is good at: a slow wander of the oscillation's AMPLITUDE.
+         Note the phase is built from `t` (accumulated beat time), so the wave stays at 0.1 Hz in TIME
+         regardless of how the heart rate moves the beat index. */
       lfTarget = 0.985 * lfTarget + 0.17 * gauss();
-      lf = 0.9 * lf + 0.1 * lfTarget;
-      const lfMs = lf * 24 * (1.1 - sa.vagal * 0.5);
+      const lfAmp = 30 * (1.05 - sa.vagal * 0.42) * (1 + 0.3 * lfTarget);
+      const lfMs = lfAmp * Math.sin(2 * Math.PI * 0.1 * t);
       // slow correlated drift → long-range (1/f-like) structure for DFA α1 ≈ 1.
       bw = 0.992 * bw + gauss() * 0.9;
       // CVHR oscillation inside apnea windows
