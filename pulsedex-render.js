@@ -25,6 +25,15 @@ function evBadge(label, fallback) {
   }
 }
 
+/* SNS/PSNS are NULL when HF = 0 (DEEP-AUDIT-III-FOLLOWUPS §1.3, decided 2026-07-28 — the DSP no longer
+   invents a denominator). An absent score must READ as absent: `Math.min(100, null)` is 0, so the old
+   markup drew a confident empty bar and printed the word "null" beside it — the two failure modes a null
+   exists to prevent. Bar collapses to zero width, value reads "—".
+   MODULE SCOPE, not inside renderANS: renderTable needs them too, and declaring them in one function
+   while using them in another is a ReferenceError at render time — browser-gates caught exactly that. */
+const _ansTxt = (v) => (v == null ? '—' : v);
+const _ansPct = (v) => (v == null ? 0 : Math.min(100, v));
+
 // ─── RENDER CONTEXT BANNER ────────────────────────────────────────────────────
 function renderContext(r) {
   const el = document.getElementById('ctxBanner');
@@ -160,12 +169,6 @@ function reRender() {
 // ─── RENDER ANS BARS ──────────────────────────────────────────────────────────
 function renderANS(r) {
   const wrap = document.getElementById('ansWrap');
-  /* SNS/PSNS are NULL when HF = 0 (DEEP-AUDIT-III-FOLLOWUPS §1.3, decided 2026-07-28 — the DSP no
-     longer invents a denominator). An absent score must READ as absent: `Math.min(100, null)` is 0, so
-     the old markup drew a confident empty bar and printed the word "null" beside it — the two failure
-     modes a null exists to prevent. Bar collapses to zero width, value reads "—". */
-  const _ansTxt = (v) => (v == null ? '—' : v);
-  const _ansPct = (v) => (v == null ? 0 : Math.min(100, v));
   wrap.innerHTML = `
   <div class="ans-card">
     <div class="ans-title">ANS Activation</div>
@@ -261,7 +264,14 @@ function renderTable(r) {
     ['Focus est', r.focus, '0–100', '>55', r.focus >= 55 ? 'ok' : r.focus >= 35 ? 'warn' : 'bad', 'Welltory-style estimate'],
     ['Coherence', r.coherence, '0–100', '>50', r.coherence >= 50 ? 'ok' : r.coherence >= 30 ? 'warn' : 'bad', 'Welltory-style estimate'],
     ['ANS SNS', _ansTxt(r.sns), '0–100', '<40', r.sns == null ? 'neutral' : r.sns <= 40 ? 'ok' : r.sns <= 60 ? 'warn' : 'bad', 'Sympathetic activation'],
-    ['ANS PSNS', r.satP ? '100 (max)' : _ansTxt(r.psns), '0–100', '>30', r.psns == null ? 'neutral' : r.psns >= 30 ? 'ok' : r.psns >= 15 ? 'warn' : 'bad', 'Parasympathetic activation' + (r.satP ? ' · saturated (off-scale)' : '')],
+    [
+      'ANS PSNS',
+      r.satP ? '100 (max)' : _ansTxt(r.psns),
+      '0–100',
+      '>30',
+      r.psns == null ? 'neutral' : r.psns >= 30 ? 'ok' : r.psns >= 15 ? 'warn' : 'bad',
+      'Parasympathetic activation' + (r.satP ? ' · saturated (off-scale)' : '')
+    ],
     ['SNS bal', _ansTxt(r.snsBal), 'ratio', '<1.5', 'neutral', 'LF/HF-based sympathetic ratio'],
     ['PSNS bal', _ansTxt(r.psnsBal), 'ratio', '>0.7', 'neutral', 'HF/LF-based parasympathetic'],
     ['EFC Readiness', r.efc, '0–100', '>60', r.efc >= 60 ? 'ok' : r.efc >= 40 ? 'warn' : 'bad', 'Energy×0.4+Focus×0.3+Coh×0.3'],
