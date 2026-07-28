@@ -100,17 +100,44 @@ branch is reached. That is an ordering defect independent of any threshold.
 
 Two further measurements say the generator, not just the classifier, is at fault:
 
-- **Planted REM has LF/HF of 0.084–0.154** — implausibly low for any stage, and the opposite of the
-  sympathetic dominance real REM shows. The classifier looks for *high* LF/HF; the oracle plants *low*.
-- **Planted REM has a motion index of 96 / 100** (median), against N2/N3 at 0. `ecgdex-dsp.js:446` sets
+Per-stage medians over the same 6 h run. **This table supersedes a narrower and partly wrong reading in
+the previous revision**, which described the LF/HF problem as REM-specific — it is not:
+
+| planted | n | LF/HF | RMSSD | HR | LF | HF | motion |
+|---|---|---|---|---|---|---|---|
+| Wake | 1 | 0.206 | 15.1 | 69.1 | 21 | 101 | 100 |
+| N1 | 11 | 0.079 | 22.0 | 59.8 | 18 | 235 | 56.8 |
+| N2 | 31 | 0.055 | 28.7 | 55.3 | 20 | 385 | 0 |
+| N3 | 20 | 0.108 | 40.3 | 52.3 | 57 | 632 | 0 |
+| **REM** | 9 | **0.119** | 17.5 | 63.6 | 17 | 144 | **96.1** |
+
+- **LF/HF is uninformative across the WHOLE generator, not just in REM.** Every stage lands between
+  0.055 and 0.206 — roughly 20× below the physiological ~0.5–4 — because HF dominates LF everywhere
+  (N3: HF 632 vs LF 57). REM's 0.119 is in fact *above* N1 and N2, so the parameterisation's intent is
+  directionally right (`rsa ∝ vagal`, `lfMs ∝ 1.1 − 0.5·vagal`); the realised spectrum simply never gets
+  LF anywhere near HF. The consequence for the classifier is absolute: the REM gate needs LF/HF above a
+  floor of 1.0 and the synthetic's night maximum is ~0.2, so **on synthetic data the REM gate cannot fire
+  at all, whatever the branch ordering**. Real data is unaffected — 2026-07-27's epoch median was 1.62
+  with a maximum of 6.68, squarely physiological.
+- **Planted REM has a motion index of 96 / 100**, against N2/N3 at 0. `ecgdex-dsp.js:446` sets
   `act = Wake ? 1.0 : REM ? 0.5 : N1 ? 0.32 : 0.07`, making REM the **second-most-active** stage.
   REM is characterised by skeletal muscle **atonia**; gross body movement is suppressed, not elevated.
+  This one *is* REM-specific, and it is the more damaging of the two, because motion is the feature §3
+  identifies as the necessary REM/Wake discriminator.
 
 So the generator models REM as *looking like Wake in every feature the classifier can see* — which may be
 where the REM/Wake confusion came from in the first place, if the rules were ever tuned against it.
 **Building a classifier against this oracle would train toward a false target.** The first deliverable is
-therefore to correct `genSynthetic`'s REM model — low gross motion with phasic twitches, elevated LF/HF,
-irregular respiration — and only then write the assertions.
+therefore to correct the generator — REM motion down to atonia with phasic twitches (REM-specific), and
+the **LF/HF scale globally**, since no stage currently reaches a physiological ratio — and only then
+write the assertions.
+
+⚠️ **The LF/HF correction moves the RR series for every stage**, so it will move the seed-20260601 /
+seed-42 known-answer pins in the `PRSA + SampEn tolerance` group (DC 7.35 · AC −7.16 · SampEn 0.562).
+Re-pinning them is legitimate *because the fixture is being deliberately corrected* — but it must be done
+knowingly and said out loud, never quietly adjusted to whatever the new run prints. The REM-motion
+correction alone does **not** move them: REM first occurs at t ≈ 4674 s and those pins are 900 s runs.
+**Do the motion fix first** — it is the more important half and it lands at zero blast radius.
 
 **The conclusion that survives all of this:** REM and Wake are near-identical in HR and RMSSD, so
 **HRV alone cannot separate them**. Motion is not an enhancement to the stager, it is the *necessary*
