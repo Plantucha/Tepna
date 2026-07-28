@@ -2656,6 +2656,48 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                         alerted.add(name)
 
 
+# THE OUTER RECOVERY, AND WHY IT CANNOT LIVE WHERE THE OTHER ONE DOES.
+#
+# The in-session stall watchdog (any_stream_stalled, ~90 s) is evaluated INSIDE run_polar's hold loop.
+# That placement is correct for what it catches — a stream that dies behind a link the runner is still
+# holding — and structurally blind to the runner dying, because the watchdog dies with it.
+#
+# On 2026-07-28 that is exactly what happened: every device runner went silent at 22:16:22, seconds
+# after the H10 ACKed `START ecg → ok`. No disconnect, no error, no stall warning. LINK.csv kept
+# growing, webmon kept serving, the systemd watchdog kept being fed — the process was healthy, only the
+# capture tasks were gone. QC noticed immediately and correctly, and logged `missing stream(s)` every
+# ten minutes for 6 h 14 m without ever acting. ~6 h of a sleep study lost.
+#
+# So the recovery has to be driven by a task that is NOT the one that fails: qc_poller, which already
+# computes the right verdict. Dropping the BlueZ link is the same remedy the in-session watchdog
+# applies ("dropping it so the device frees the stream and we re-negotiate"), just reached from
+# outside — and it is what actually recovered the H10 by hand that morning, when a service restart
+# alone did not (the strap still held its single PMD slot for a dead subscriber, so the re-ACK was
+# honest and the notifications still went nowhere).
+# OPT-IN BY DEFAULT (0 = off). Every other guard on this box observes and reports; this one is the first
+# that ACTS on the radio unprompted, so it is not switched on behind an operator's back — a recorder that
+# starts dropping links on its own, on a night the operator did not expect it to, is its own kind of lost
+# night. Set `qc.recover_after_sec: 900` to arm it; 900 s is the value the tests and the 2026-07-28
+# post-mortem are written around (well past any legitimate slow start, far short of losing a night).
+_QC_RECOVER_AFTER_S = 0.0      # connected + every stream at zero for this long ⇒ drop the link; qc.recover_after_sec
+_QC_RECOVER_COOLDOWN_S = 900.0 # per device, so a genuinely absent sensor cannot become a reconnect storm
+
+
+async def force_link_drop(address: str, timeout: float = 6.0) -> bool:
+    """Drop any BlueZ-held link to `address` so the device frees its single PMD slot and the runner
+    re-negotiates from scratch. Best-effort by design — a failure here must never take down the poller
+    that called it. Mirrors polar_psftp._bt_disconnect, which does the same thing before a PS-FTP op."""
+    try:
+        p = await asyncio.create_subprocess_exec(
+            "bluetoothctl", "disconnect", address,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        await asyncio.wait_for(p.wait(), timeout=timeout)
+        return True
+    except Exception as e:                                  # pragma: no cover — defensive
+        log.warning("qc: could not drop the link to %s: %s", address, e)
+        return False
+
+
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
     """Summarise the CURRENT night's capture completeness — rows per configured stream, which declared
     streams produced nothing (the header-only files a rejected START / never-worn sensor leaves). Turns
@@ -2674,11 +2716,17 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
     # never slow — it is dead. Same reasoning as the 90 s in-session stall watchdog, at the coarser
     # cadence QC polls on, and it catches the case the watchdog cannot: a task stuck BEFORE it.
     frozen_after = float(qcfg.get("frozen_after_sec", 600))
+    # TOTAL SILENCE behind a live link ⇒ drop the link (see _QC_RECOVER_AFTER_S). Longer grace than
+    # `frozen_after` because this one ACTS rather than announces, and the cost of acting on a night
+    # that was merely slow to start is a needless re-negotiation.
+    recover_after = float(qcfg.get("recover_after_sec", _QC_RECOVER_AFTER_S))
+    recover_cooldown = float(qcfg.get("recover_cooldown_sec", _QC_RECOVER_COOLDOWN_S))
     settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
     first_seen: dict[str, float] = {}      # night → monotonic ts we first saw it with data
     alerted: set[str] = set()              # nights already alerted (edge-trigger, one per night)
     frozen_alerted: set[str] = set()       # night:device — one warning per frozen sensor per night
+    recovered_at: dict[str, float] = {}    # device name → monotonic ts of its last forced link drop
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
@@ -2725,6 +2773,32 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                         "Tepna: sensor connected but silent",
                         f"{_name} has sent no data for ~{int(_sil / 60)} min while the night is still "
                         f"recording. The link is up, so this is not a dropout.")
+            # CONNECTED AND TOTALLY SILENT — the runner-death case the in-session stall watchdog is
+            # structurally blind to (_QC_RECOVER_AFTER_S holds the reasoning). This is the one QC
+            # verdict that ACTS: it drops the BlueZ link so the device frees its PMD slot and the
+            # runner re-negotiates. Guarded so it can never fight the machinery that owns the radio.
+            _watched = _time.monotonic() - first_seen[n]
+            for _name in alerts.silent_devices(summ, STATUS.get("devices") or {}, _watched, recover_after):
+                _dev = next((d for d in (cfg.get("devices") or [])
+                             if (d.get("name") or d.get("device_id")) == _name), None)
+                _addr = (_dev or {}).get("address")
+                # A pull owns the link, or the adapter watchdog is mid-reset: both legitimately produce
+                # zero rows, and dropping the link under either is the contention they exist to avoid.
+                if not _addr or _addr in _POLAR_PAUSED or _RECOVER.is_set():
+                    continue
+                _last = recovered_at.get(_name)
+                if _last is not None and (_time.monotonic() - _last) < recover_cooldown:
+                    continue               # already tried recently — a dead sensor is not a drum to beat
+                recovered_at[_name] = _time.monotonic()
+                log.warning("qc: %s is CONNECTED with every stream at zero for %d min — dropping the "
+                            "link so the device frees its streams and the runner re-negotiates",
+                            _name, int(_watched / 60))
+                await force_link_drop(_addr)
+                if notifier:
+                    await notifier.send(
+                        "Tepna: recovering a silent sensor",
+                        f"{_name} has been connected with every declared stream at zero rows for "
+                        f"~{int(_watched / 60)} min. Dropped the link to force a re-negotiation.")
             if summ["missing"]:
                 log.info("qc: %s missing stream(s): %s", n, ", ".join(summ["missing"]))
                 waited = _time.monotonic() - first_seen[n]

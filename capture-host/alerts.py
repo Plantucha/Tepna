@@ -113,3 +113,45 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
             continue
         out.append(name)
     return out
+
+
+# THE CASE frozen_devices DELIBERATELY HANDS TO `missing` — AND WHY THAT HAND-OFF LEAKED.
+#
+# frozen_devices excludes a device that has written NOTHING, on the grounds that `missing` already
+# reports it and two names for one fault is noise. That reasoning is still right about ALERTING and
+# wrong about ACTING: `missing` only ever logged. On 2026-07-28 every device runner went silent at
+# 22:16:22 — the H10 had just ACKed `START ecg → ok` — and QC logged the same nine missing streams
+# every ten minutes for 6 h 14 m while the links stayed up and the process stayed healthy. Nothing
+# acted on 27 consecutive reports of total silence.
+#
+# The in-session stall watchdog could not help: it is evaluated INSIDE the per-device hold loop, so
+# when the runner dies the watchdog dies with it. A guard nested inside its own subject cannot observe
+# that subject's death. WatchdogSec could not help either — the event loop was alive and serving.
+#
+# So this predicate exists to be ACTED on, not merely announced. Same exclusions as frozen_devices
+# (connected, not charging, known to `live`), with two additions:
+#
+#   every declared stream at zero  — the signature of a runner that never delivered, as opposed to one
+#                                    that delivered and stopped (which is frozen_devices' job).
+#   the night watched long enough  — a just-started night is legitimately empty. `watched_sec` is how
+#                                    long QC has been watching THIS night, so a fresh box cannot fire.
+def silent_devices(qc: dict, live: dict, watched_sec: float, threshold_sec: float) -> list[str]:
+    """Connected devices whose every declared stream is still at zero rows this session.
+
+    Distinct from frozen_devices: that one needs a prior write to measure silence FROM. This one is
+    the total-silence case — the runner that acknowledged its streams and never produced a byte.
+    Empty when the feature is off (threshold_sec <= 0) or the night is younger than the threshold."""
+    if not threshold_sec or threshold_sec <= 0 or watched_sec < threshold_sec:
+        return []
+    out = []
+    for d in qc.get("devices") or []:
+        name, streams = d.get("name"), (d.get("streams") or {})
+        if not name or not streams:
+            continue
+        if sum(streams.values()):
+            continue                      # produced something — frozen_devices' territory, not ours
+        st = live.get(name)
+        if not st or not st.get("connected") or st.get("charging"):
+            continue
+        out.append(name)
+    return out
