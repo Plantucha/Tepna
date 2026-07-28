@@ -88,8 +88,20 @@ beats a real one because CI re-runs it from committed bytes.
 
 ## 6 · Done when
 
-- [ ] ECGDex / PpgDex / OxyDex emit `recording.coverage` with `kind:"sparse"` and real `segments` when their input was multi-session. The session boundaries are already known at parse time (ECGDex tracks `gaps`; the capture layout is one file per segment).
-- [ ] `totHrs` / `apnea.overlapHours` / `confirmedAHI` / the null-model expectation are computed on **recorded** time when coverage is declared, falling back to the envelope when it is not.
+- [ ] **PART 2, still open.** ECGDex / PpgDex / OxyDex emit `recording.coverage` with `kind:"sparse"` and real `segments` when their input was multi-session. Until this lands the part-1 fix is INERT on the capture corpus — the Integrator will honour coverage, and no capture node declares any. The session boundaries are already known at parse time (ECGDex tracks `gaps`; the capture layout is one file per segment).
+- [x] **LANDED 2026-07-28 (part 1 of 2).** `totHrs` / `apnea.overlapHours` / `confirmedAHI` / the
+      null-model expectation are computed on **recorded** time when coverage is declared, falling back to
+      the envelope when it is not. New `overlapIntervals(a,b)` — the quantity-bearing sibling of
+      `segmentsOverlap`, returning every intersected RECORDED interval — replaces the single
+      `overlapInterval` push inside `_desatUnion`, so the merged union, `inUnion`, `totHrs`, the Poisson
+      expectation and the index all become gap-aware at one seam.
+      Back-compat is **by construction**: with neither side declaring segments it delegates to
+      `overlapInterval` and returns exactly the old interval. Verified two ways — an explicit
+      absent-coverage pin (identical `overlapHours` and `confirmedAHI`), and GATE B still reporting 25/25
+      fixtures reproducible after the re-bundle.
+      Demonstrated on a synthetic 2 h-of-8 h coverage: same confirmed events, `overlapHours` 8 → 2,
+      `confirmedAHI` 2.5 → 10.0. Mutation-checked (reverting the union to envelope-only fails 2;
+      ignoring declared segments fails 4).
 - [ ] The fusion export publishes the coverage it used, so a reader can tell 7 h-of-7 from 2 h-of-7.
 - [ ] **Adversarial committed fixture** — a three-node night with real holes (the 2026-07-23 shape: ~2 h of concurrency inside a ~7 h envelope) in `uploads/` + `FIXTURE-PROVENANCE.json`, with a test asserting the gap-aware overlap, **verified RED against current code**.
 - [ ] Absent coverage ⇒ byte-identical results to today (pin it — that is the back-compat contract §6.2 already established).

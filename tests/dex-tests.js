@@ -22409,6 +22409,74 @@
        twice and the surfaced index DOUBLED — 7.5/h (mild) → 15/h (moderate) — by adding a DEVICE, not
        a symptom. Metamorphic invariant: a redundant observer of the same events may change WHO is
        credited, never HOW MANY events there were. */
+    /* INTEGRATOR-GAP-AWARE-OVERLAP — the published AHI denominator must be RECORDED time.
+       §6.2 shipped `recording.coverage.segments` and `segmentsOverlap`, but wired them to a BOOLEAN:
+       `_mayOverlap` asked "did these overlap at all" while every published QUANTITY still came from
+       the envelope. `apnea.overlapHours`, `confirmedAHI = nConf / totHrs` and the Poisson null model's
+       chance expectation were all divided by envelope hours.
+       That is not a rounding matter on this corpus. A BLE drop opens a new segment, so one real night
+       spans 24-47 segments per stream, and the envelope is a bracket around the recording rather than
+       the recording. Measured on 2026-07-23 — the ONE night in eleven marked `confirmedAHIReportable`
+       — recorded three-way overlap was 2.1 h against an envelope 6.86 h, a factor of 3.3. The error
+       does not even run one way: an inflated denominator UNDER-states confirmedAHI while the same
+       coverage RAISES the chance expectation, so the reportability verdict rests on a coverage figure
+       wrong by an unbounded factor in a night-dependent direction. */
+    group('Apnea hours are RECORDED hours when a node declares coverage', 'integrator-dsp · apnea · coverage · gap-aware', function (T) {
+      var RF = env.runFusion,
+        ID = env.IntegratorDSP;
+      T.ok('runFusion available', typeof RF === 'function');
+      if (typeof RF !== 'function') return;
+      var t0 = U(2026, 5, 7, 22, 0, 0),
+        H = 3600000;
+      function rec(node, evs, cov) {
+        var r = { node: node, t0Ms: t0, endMs: t0 + 8 * H, dateUnknown: false, offsetMin: null, events: evs, nEvents: evs.length, summary: {}, series: {} };
+        if (cov) r.coverage = cov;
+        return r;
+      }
+      /* 20 desat+surge pairs, all inside the FIRST TWO HOURS — so the events are identical in both
+         runs and only the DENOMINATOR can move. Putting them inside the recorded segments is the
+         point: the same confirmed events, divided by honest hours. */
+      var desats = [],
+        surges = [];
+      for (var i = 0; i < 20; i++) {
+        var dt = t0 + 5 * 60000 + i * 5 * 60000; // 00:05 .. 01:40 after t0
+        desats.push({ tMs: dt, t: 'x', impulse: 'spo2_desaturation', node: 'OxyDex', conf: 0.9, meta: { depth: 5, durSec: 20 } });
+        surges.push({ tMs: dt + 3000, t: 'x', impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.9 });
+      }
+      // The oximeter actually recorded only 2 h of its 8 h envelope — the capture-host shape.
+      var sparse = { kind: 'sparse', spanSec: 8 * 3600, recordedSec: 2 * 3600, n: 1, nWithDuration: 1, segments: [{ startMs: t0, durSec: 2 * 3600 }] };
+
+      var envelopeRun = RF([rec('OxyDex', desats), rec('ECGDex', surges)], {}).apnea || {};
+      var recordedRun = RF([rec('OxyDex', desats, sparse), rec('ECGDex', surges)], {}).apnea || {};
+
+      T.ok('baseline · the envelope run confirms events at all', envelopeRun.confirmedAHI > 0, JSON.stringify({ ahi: envelopeRun.confirmedAHI, hrs: envelopeRun.overlapHours }));
+      T.approx('§3 · envelope hours are the full 8 h span', envelopeRun.overlapHours, 8, 0.05);
+      T.approx('§2/§3 · THE FIX · declared coverage makes the denominator RECORDED hours', recordedRun.overlapHours, 2, 0.05);
+      T.eq('…the confirmed EVENT count is untouched — only the denominator moved', recordedRun.total && recordedRun.total.desat, envelopeRun.total && envelopeRun.total.desat);
+      T.ok('…so the index rises by the coverage ratio (2 h vs 8 h ⇒ ~4x)', recordedRun.confirmedAHI > envelopeRun.confirmedAHI * 3.5 && recordedRun.confirmedAHI < envelopeRun.confirmedAHI * 4.5, 'envelope AHI=' + envelopeRun.confirmedAHI + '  recorded AHI=' + recordedRun.confirmedAHI);
+
+      /* BACK-COMPAT, the contract §6.2 established: a node that declares NOTHING must be scored exactly
+         as before. This is the assertion that makes the change safe to ship on a corpus where no node
+         emits coverage yet. */
+      var again = RF([rec('OxyDex', desats), rec('ECGDex', surges)], {}).apnea || {};
+      T.eq('BACK-COMPAT · absent coverage ⇒ identical overlapHours', again.overlapHours, envelopeRun.overlapHours);
+      T.eq('BACK-COMPAT · …and identical confirmedAHI', again.confirmedAHI, envelopeRun.confirmedAHI);
+
+      // The primitive, pinned directly — continuous pairs must yield the SAME single interval the old
+      // single-`overlapInterval` push produced.
+      if (ID && typeof ID.overlapIntervals === 'function') {
+        var A = { t0Ms: t0, endMs: t0 + 8 * H, events: [] },
+          B = { t0Ms: t0 + 1 * H, endMs: t0 + 7 * H, events: [] };
+        var cont = ID.overlapIntervals(A, B);
+        T.ok('overlapIntervals · two continuous records ⇒ one envelope intersection (unchanged)', cont.length === 1 && cont[0][0] === t0 + 1 * H && cont[0][1] === t0 + 7 * H, JSON.stringify(cont));
+        var Asp = { t0Ms: t0, endMs: t0 + 8 * H, events: [], coverage: { segments: [{ startMs: t0 + 1 * H, durSec: 3600 }, { startMs: t0 + 5 * H, durSec: 3600 }] } };
+        var sp = ID.overlapIntervals(Asp, B);
+        T.ok('overlapIntervals · a sparse record yields one interval PER recorded segment', sp.length === 2, JSON.stringify(sp));
+        var spHrs = sp.reduce(function (t, iv) { return t + (iv[1] - iv[0]) / H; }, 0);
+        T.approx('overlapIntervals · …totalling recorded time, not the envelope', spHrs, 2, 0.01);
+      }
+    });
+
     group('A second oximeter cannot double the apnea index — §3.1', 'integrator-dsp · apnea · fabricated-redundancy', function (T) {
       var RF = env.runFusion;
       T.ok('runFusion available', typeof RF === 'function');

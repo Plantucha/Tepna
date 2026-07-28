@@ -1219,6 +1219,50 @@ function overlapInterval(a, b) {
   return { startMs: Math.max(wa.startMs, wb.startMs), endMs: Math.min(wa.endMs, wb.endMs), overlapMin: +((e - s) / 60000).toFixed(1), basis: basis };
 }
 
+/* EVERY intersected RECORDED interval between two records — the quantity-bearing sibling of
+   `segmentsOverlap`, which only ever answered the boolean "did they overlap at all".
+   INTEGRATOR-GAP-AWARE-OVERLAP: §6.2 shipped the coverage MECHANISM but wired it to a boolean, so
+   every published quantity — `apnea.overlapHours`, `confirmedAHI = nConf / totHrs`, and the Poisson
+   null model's chance expectation — was still divided by ENVELOPE hours. On the real capture corpus a
+   BLE drop opens a new segment and one night routinely spans 24-47 of them per stream, so the envelope
+   is not a recording, it is a bracket around one. Measured on 2026-07-23: three-way recorded overlap
+   2.1 h against an envelope 6.86 h, a factor of 3.3 — on the one night in eleven that was marked
+   `confirmedAHIReportable`.
+   BACK-COMPAT BY CONSTRUCTION: when NEITHER side declares segments this delegates to `overlapInterval`
+   and returns exactly the interval the old code pushed, so a corpus that declares no coverage produces
+   byte-identical unions, hours and indices. The gap-aware path engages only where a node has said, in
+   its own export, that it has holes. */
+function overlapIntervals(a, b) {
+  var sa = recSegments(a),
+    sb = recSegments(b);
+  if (!sa && !sb) {
+    var w = overlapInterval(a, b);
+    return w ? [[w.startMs, w.endMs]] : [];
+  }
+  var wa = recWindow(a),
+    wb = recWindow(b);
+  if (!wa || !wb) return [];
+  if (!sa) sa = [[wa.startMs, wa.endMs]];
+  if (!sb) sb = [[wb.startMs, wb.endMs]];
+  // Same alignment rule as overlapInterval: real instants only when BOTH offsets are present AND
+  // differ. Intersect in the aligned frame, report back in a's own wall-clock frame.
+  var shA = 0,
+    shB = 0;
+  if (a.offsetMin != null && b.offsetMin != null && a.offsetMin !== b.offsetMin) {
+    shA = a.offsetMin * 60000;
+    shB = b.offsetMin * 60000;
+  }
+  var out = [];
+  for (var i = 0; i < sa.length; i++) {
+    for (var j = 0; j < sb.length; j++) {
+      var st = Math.max(sa[i][0] - shA, sb[j][0] - shB),
+        en = Math.min(sa[i][1] - shA, sb[j][1] - shB);
+      if (en > st) out.push([st + shA, en + shA]);
+    }
+  }
+  return out;
+}
+
 /* "Could these two have been recorded together?" — for the fusion rules that publish a ONE-SESSION
    claim (§3.4, §3.5). A proven-disjoint pair must never be fused. But a record whose WINDOW IS
    UNKNOWN is not a disjoint record: §6.2 of the same audit shows HRVDex and GlucoDex declare no
@@ -1444,8 +1488,10 @@ function _desatUnion(oxyRecs, cardiacRecs) {
   var raw = [];
   oxyRecs.forEach(function (o) {
     cardiacRecs.forEach(function (g) {
-      var w = overlapInterval(o, g);
-      if (w) raw.push([w.startMs, w.endMs]);
+      // GAP-AWARE: every intersected RECORDED interval, not one envelope intersection. Identical to
+      // the old single-interval push whenever neither side declares coverage (see overlapIntervals).
+      var ivs = overlapIntervals(o, g);
+      for (var k = 0; k < ivs.length; k++) raw.push([ivs[k][0], ivs[k][1]]);
     });
   });
   if (!raw.length) return { merged: [], hours: 0 };
@@ -3593,6 +3639,7 @@ function gradeFor(node, id) {
 /* expose to other page scripts (plain global scope, but be explicit) */
 window.IntegratorDSP = {
   segmentsOverlap: segmentsOverlap, // §6.2 — recorded-time overlap (sparse-aware); gate-visible
+  overlapIntervals: overlapIntervals, // gap-aware intersected intervals — the quantity-bearing sibling
   recSegments: recSegments,
   BUS: BUS,
   parseTimestamp,
