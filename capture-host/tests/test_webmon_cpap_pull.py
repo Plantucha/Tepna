@@ -37,12 +37,17 @@ def _post(app, body=None):
     return _serve(app, go)
 
 
-def _stub(monkeypatch, harvest=None, up=True, calls=None):
+def _stub(monkeypatch, harvest=None, up=True, calls=None, reachable=False):
+    """`reachable` defaults False so these tests keep exercising the ASSOCIATION path they were written
+    for. The doubles take the same optional args the real functions grew (`root`, `addr`) — a double
+    that cannot accept what the caller passes tests the double, not the caller."""
+    monkeypatch.setattr(cpap_harvest, "reachable", lambda base, timeout=5.0: reachable)
     monkeypatch.setattr(cpap_harvest, "default_route_dev", lambda: "eno1")
     monkeypatch.setattr(cpap_harvest, "wifi_up",
-                        lambda p, t=45.0, g=None: (calls.append(("up", g)) if calls is not None else None) or up)
+                        lambda p, t=45.0, g=None, ssid=None, psk=None, iface=None, addr=None, root=None:
+                        (calls.append(("up", g)) if calls is not None else None) or up)
     monkeypatch.setattr(cpap_harvest, "wifi_down",
-                        lambda p, t=30.0, iface=None: (calls.append(("down", p)) if calls is not None else None) or True)
+                        lambda p, t=30.0, iface=None, root=None: (calls.append(("down", p)) if calls is not None else None) or True)
     monkeypatch.setattr(cpap_harvest, "harvest", harvest or (lambda *a, **k: _res()))
 
 
@@ -172,3 +177,15 @@ def test_a_second_concurrent_pull_is_refused_not_queued(tmp_path, monkeypatch):
 
     status, body = _serve(app, go)
     assert status == 409 and "already running" in body["error"]
+
+
+def test_a_reachable_card_is_pulled_without_associating(tmp_path, monkeypatch):
+    """The manual pull must follow the SAME two rules as the scheduled loop. A station-mode card needs
+    no Wi-Fi work at all, and a manual path that behaves differently from the nightly one is a trap for
+    whoever is debugging at 2am."""
+    calls = []
+    _stub(monkeypatch, calls=calls, reachable=True)
+    status, body = _post(_app(tmp_path), {"scope": "missing"})
+    assert status == 200 and body["ok"] is True
+    assert not any(c[0] == "up" for c in calls), "a reachable card must not be associated to"
+    assert not any(c[0] == "down" for c in calls), "…and nothing torn down that was never brought up"
