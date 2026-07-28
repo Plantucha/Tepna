@@ -161,10 +161,13 @@ def test_install_services_no_longer_writes_its_own_caddyfile():
 CHK = os.path.join(HERE, "deploy", "check-system-files.sh")
 
 
-def _chk(src, systemd, udev, *args):
-    return subprocess.run(["bash", CHK, *args], capture_output=True, text=True,
-                          env={**os.environ, "TEPNA_SRC": str(src),
-                               "TEPNA_ETC_SYSTEMD": str(systemd), "TEPNA_ETC_UDEV": str(udev)})
+def _chk(src, systemd, udev, *args, networkd=None):
+    env = {**os.environ, "TEPNA_SRC": str(src),
+           "TEPNA_ETC_SYSTEMD": str(systemd), "TEPNA_ETC_UDEV": str(udev)}
+    # The networkd destination is redirected for the same reason as the other two: an install that
+    # writes into a tmpdir must never touch the developer's own /etc (§E6).
+    env["TEPNA_ETC_NETWORKD"] = str(networkd if networkd is not None else systemd)
+    return subprocess.run(["bash", CHK, *args], capture_output=True, text=True, env=env)
 
 
 def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
@@ -374,7 +377,13 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
                     executed.add(os.path.basename(names[a.id]))
     assert executed, "the scan found no executed deploy scripts — it has stopped working"
     # check-system-files.sh: guarded above. sync-apps.sh / sse-frames.sh: files and HTTP only.
-    assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh"}, (
+    # enable-cpap-wifi.sh added 2026-07-28, and the confirmation this list demands:
+    #   • it writes ONLY under $TEPNA_ETC_NETWORKD / $TEPNA_ETC_SYSTEMD, which the tests redirect into
+    #     tmp_path — there is no unredirectable destination;
+    #   • `networkctl reload` and `systemctl daemon-reload` are each gated on their OWN real-host path,
+    #     the same §E6 shape check-system-files.sh uses, so a redirected run reloads nothing;
+    #   • the only other command is `ip route show` — read-only, and stubbed on PATH by the tests.
+    assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 

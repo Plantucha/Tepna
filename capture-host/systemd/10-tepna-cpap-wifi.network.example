@@ -1,0 +1,38 @@
+# tepna-capture — 10-tepna-cpap-wifi.network.example  (TEMPLATE — install via deploy/enable-cpap-wifi.sh)
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# HAND THE Wi-Fi RADIO TO THE CPAP HARVEST, AND KEEP networkd OFF IT.
+#
+# The box's uplink is WIRED (eno1, DHCP). The Wi-Fi interface is used for exactly one thing: associating
+# to the ez Share SD card in the CPAP machine for a few minutes a day. Nothing else wants it.
+#
+# But a stock Ubuntu box has no persistent config for it at all — /etc/systemd/network is empty — and
+# dracut leaves a catch-all behind in /run:
+#
+#     /run/systemd/network/zzzz-dracut-default.network
+#     [Match] Kind=!*   Type=!loopback        [Network] DHCP=yes
+#
+# That matches EVERY non-loopback interface, so systemd-networkd claims the Wi-Fi too, and reports
+# `State: off (configured)` while holding the link DOWN. The harvest's own `ip link set … up` succeeds
+# (it is in NOPASSWD and the sudo session opens) and networkd configures it straight back off, so
+# wpa_supplicant sits at `wpa_state=INTERFACE_DISABLED` and can never associate. Measured on the box
+# 2026-07-28, after the control-directory fixes had already got wpa_supplicant starting cleanly.
+#
+# `Unmanaged=yes` tells networkd to keep its hands off, leaving the interface for wpa_supplicant to own
+# and release around each harvest. The `10-` prefix sorts ahead of `zzzz-dracut-default`, which is how
+# networkd resolves the conflict: first match by filename order wins.
+#
+# The uplink is untouched — this matches ONE interface by name, and the box's lifeline must be a
+# DIFFERENT one. That separation is the same guarantee `wifi_up`'s default-route guard enforces at
+# runtime: a day of CPAP files is never worth making the box unreachable.
+#
+# ⚠ WHICH IS WHY THIS IS A TEMPLATE, NOT A DROP-IN FILE. `@IFACE@` is substituted by
+# deploy/enable-cpap-wifi.sh, which REFUSES to write it for an interface that carries the default
+# route. On a box with no Ethernet the Wi-Fi radio IS the lifeline, and marking it unmanaged would
+# take the box off the network to fetch a CPAP file — the exact trade the guard exists to forbid.
+# Those boxes need a second radio or a station-mode card; the script says so rather than guessing.
+[Match]
+Name=@IFACE@
+
+[Link]
+Unmanaged=yes
