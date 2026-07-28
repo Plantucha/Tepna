@@ -149,3 +149,70 @@ def test_the_summary_reports_its_own_scope(tmp_path):
     assert summ["judged_dir"] == "2026-07-28"
     assert summ["searched_dirs"] == ["2026-07-28", "2026-07-27"]
     assert summ["data_files"] == 1
+
+
+# ── newest_data_mtime · the unreadable-entry paths ────────────────────────────────────────────────
+def test_an_unreadable_night_dir_is_none_not_a_crash(tmp_path):
+    """QC is observability — it must never take capture down. A directory that cannot be listed is
+    'no opinion', which is what None means here."""
+    assert nightqc.newest_data_mtime(str(tmp_path / "does-not-exist")) is None
+
+
+def test_a_directory_named_like_a_capture_file_is_not_data(tmp_path):
+    """`parse_capture_name` reads a NAME; only a real file is evidence a session lives here."""
+    d = str(tmp_path / "2026-07-27")
+    os.makedirs(os.path.join(d, "Polar_H10_02849638_20260727221616_ECG.txt"))
+    assert nightqc.newest_data_mtime(d) is None
+
+
+def test_an_entry_that_vanishes_mid_scan_is_skipped(tmp_path, monkeypatch):
+    """A night dir is being written while QC reads it; a file can disappear between listdir and stat.
+    Skip that entry rather than losing the whole scan."""
+    d = str(tmp_path / "2026-07-27")
+    _mk(d, "Polar_H10_02849638_20260727221616_ECG.txt")
+
+    def boom(_p):
+        raise OSError("raced away")
+    monkeypatch.setattr(nightqc.os.path, "getmtime", boom)
+    assert nightqc.newest_data_mtime(d) is None
+
+
+# ── Layer 3 · the consumer side: what qc_poller SAYS about an unlocatable session ─────────────────
+def test_qc_poller_reports_a_scope_fault_as_a_scope_fault(tmp_path, monkeypatch, caplog):
+    """The line that ran every ten minutes for 6 h 14 m on 2026-07-28 named nine streams as if nine
+    things had broken, while 942 MB was being recorded next door. It must describe the right object —
+    and it must NOT raise the 'night has a gap' alert, because no gap has been established."""
+    import asyncio
+
+    os.makedirs(str(tmp_path / "captures" / "2026-07-28"), exist_ok=True)
+    monkeypatch.setattr(capture, "_current_night", lambda captures, settle: "2026-07-28")
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda night, devices: {
+        "night": "2026-07-28", "missing": ["A:ecg", "A:acc", "B:ppg"], "devices": [],
+        "scope_suspect": True, "judged_dir": "2026-07-28",
+        "searched_dirs": ["2026-07-28", "2026-07-27"], "data_files": 0})
+    sent = []
+
+    class _N:
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return True
+
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 1:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    capture._STOP.clear()
+    try:
+        with caplog.at_level("WARNING"):
+            asyncio.run(capture.qc_poller({"qc": {"poll_sec": 1, "alert_after_sec": 0}, "devices": []},
+                                          str(tmp_path), _N()))
+    finally:
+        capture._STOP.clear()
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("cannot locate the active session" in m for m in msgs), msgs
+    assert any("SCOPE result, not a device fault" in m for m in msgs)
+    assert any("2026-07-28 + 2026-07-27" in m for m in msgs), "the scope it searched must be named"
+    assert sent == [], "a scope fault must not raise the night-has-a-gap alert"
