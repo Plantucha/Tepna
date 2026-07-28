@@ -11,6 +11,11 @@
 > 5.5 h of sleep**, alongside 99.8 % sleep efficiency and zero WASO. Three defects were found and fixed
 > (`9f1edbc`); they removed the structural zero and left the under-detection standing. This brief is the
 > part the fixes could not reach.
+>
+> **§4 was rewritten 2026-07-28** after running the synthetic oracle: it corrects an overstatement in
+> this brief's first revision (and in #487) and reports that **every planted REM epoch is classified
+> Wake, 9 of 9** — and that the oracle itself models REM wrongly, so it cannot yet serve as ground
+> truth.
 
 ---
 
@@ -66,19 +71,51 @@ not describing sleep, which makes this both a constraint and a falsifier.
 stable at 60 s; carry LF/HF from the enclosing 5-min window, since LF needs ≥2 min) with a proper
 minimum-bout rule replaces the minority-stage exemption that fix 3 installed as a stopgap.
 
-## 4 · The coverage hole this exposed — fix FIRST
+## 4 · The oracle is broken — fix THAT first
 
-**No committed fixture exercises `stageSleep` at all.** Staging is gated on `longRec` (≥ 90 min) and both
-ECGDex fixtures are far shorter: the equiv clip spans **6 min** (`01:06:17 → 01:12:19`), the synthetic
-golden **60 s**. Every gate stayed green through all three defects, and would have stayed green through
-anything else done here.
+**Correction to this brief's first revision, and to #487's PR body and commit message.** They said "no
+committed fixture exercises `stageSleep` at all". That is too strong and it is wrong. The
+`§10/§11 one spectral time scale` group in `tests/dex-tests.js` drives
+`E.genSynthetic({ durSec: 100 * 60 })` through `analyze()`, which is past the 90-min `longRec` threshold,
+so **`stageSleep` executes on every CI run**. What is true — and is the substance of the point — is that
+nothing *asserts* anything about its output: the group checks `specWindow` and the band-split identity
+and never looks at `stages`, `stageMinutes` or `totalSleepMin`. The code runs; no assertion can fail.
+That is this suite's own "a gate can be blind rather than green" (`DEEP-AUDIT-III §2.3`), and it is why
+three defects passed every gate. The remedy is assertions, not bytes — which makes it cheaper than the
+first revision claimed, and the committed 6-min clip / 60-s golden are irrelevant to it.
 
-So the first deliverable is **a committed synthetic long-recording twin** that reaches the staging path —
-adversarial by construction, with a known REM architecture planted in it. This repo already learned that
-an adversarial *committed* twin beats a real one (the GlucoDex 14 h-gap case): a real gappy night is
-gitignored and CI stays just as blind. `genSynthetic` already builds staged sleep architecture
-(`ecgdex-dsp.js:182` — "cycles ~90 min; each cycle dips into deep then up to REM"), so the planted truth
-is already expressible.
+**But the assertions cannot be written yet, because the planted truth is itself wrong about REM.**
+Measured on `genSynthetic({ durSec: 6*3600 })`, 72 epochs, planted REM at cycle phase 0.82–1.00:
+
+| planted | classified | n |
+|---|---|---|
+| REM | **Wake** | **9 / 9** |
+| N3 | Deep | 19 |
+| N2 | Light | 26 |
+| N1 | Light / Wake | 5 / 6 |
+
+**Every planted REM epoch is called Wake**, and the mechanism is exact: their `hrZ` runs 1.31–2.22, all
+above the Wake gate's `hrZ > 1.1`, and **Wake is evaluated first**, so it swallows REM before the REM
+branch is reached. That is an ordering defect independent of any threshold.
+
+Two further measurements say the generator, not just the classifier, is at fault:
+
+- **Planted REM has LF/HF of 0.084–0.154** — implausibly low for any stage, and the opposite of the
+  sympathetic dominance real REM shows. The classifier looks for *high* LF/HF; the oracle plants *low*.
+- **Planted REM has a motion index of 96 / 100** (median), against N2/N3 at 0. `ecgdex-dsp.js:446` sets
+  `act = Wake ? 1.0 : REM ? 0.5 : N1 ? 0.32 : 0.07`, making REM the **second-most-active** stage.
+  REM is characterised by skeletal muscle **atonia**; gross body movement is suppressed, not elevated.
+
+So the generator models REM as *looking like Wake in every feature the classifier can see* — which may be
+where the REM/Wake confusion came from in the first place, if the rules were ever tuned against it.
+**Building a classifier against this oracle would train toward a false target.** The first deliverable is
+therefore to correct `genSynthetic`'s REM model — low gross motion with phasic twitches, elevated LF/HF,
+irregular respiration — and only then write the assertions.
+
+**The conclusion that survives all of this:** REM and Wake are near-identical in HR and RMSSD, so
+**HRV alone cannot separate them**. Motion is not an enhancement to the stager, it is the *necessary*
+discriminator, and a recording with no accelerometer should abstain or mark REM low-confidence rather
+than guess. That is the strongest single design constraint this investigation produced.
 
 ## 5 · How to validate without PSG
 
@@ -99,7 +136,10 @@ literature policy the citation has to be checkable, not gestured at.
 
 ## 6 · Done when
 
-- [ ] §4 synthetic long-recording twin committed, with planted REM architecture, reaching `stageSleep`
+- [ ] §4a correct `genSynthetic`'s REM model — atonia + phasic twitches, elevated LF/HF, irregular
+      respiration — so the planted truth is a truth
+- [ ] §4b assertions on `stages`/`stageMinutes` in the group that already runs `analyze()` past `longRec`
+- [ ] §4c REM/Wake ordering: a still body with elevated HR and suppressed RMSSD is REM, not Wake
 - [ ] §3 REM score replaces the conjunction; respiratory-rate variability computed per epoch
 - [ ] Bout-structure constraint; the minority-stage exemption from `9f1edbc` retired in favour of it
 - [ ] §5 acceptance run over the 11-night corpus — median REM % inside 15–25 %, cycle structure present
