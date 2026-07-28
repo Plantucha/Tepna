@@ -244,6 +244,32 @@ class ShortRead(RuntimeError):
     body (retry next run; the `.part` is still on disk) from a transport failure."""
 
 
+def reachable(base: str = DEFAULT_BASE, timeout: float = 5.0) -> bool:
+    """Is the card ALREADY answering at `base`? One short, unretried, unprivileged GET.
+
+    WHY THIS EXISTS. The harvest's only privileged work is joining the card's own Wi-Fi AP: `ip link`,
+    `wpa_supplicant`, `wpa_cli`, `ip addr add`, and the teardown — all `sudo -n`, all needing sudoers
+    entries that a stock box does not have. The DOWNLOAD itself is a plain unauthenticated HTTP GET and
+    has never needed a privilege. Observed 2026-07-28: the 13:00 run died at `sudo -n mkdir -p` with
+    "interactive authentication is required" and skipped the day, with the previous night's therapy data
+    sitting one HTTP request away.
+
+    An ez Share card does not have to be an access point. Put it in station mode and it joins the house
+    network like any other client, at which point the box reaches it over the wired uplink and the entire
+    privileged branch is dead code for that deployment. This probe is what lets the same build serve both:
+    if the card answers, associate nothing.
+
+    Deliberately NOT retried and deliberately short. This is a routing question — "can I already see it"
+    — not a transfer, and a slow answer here is a no. The real client keeps its own retries for the
+    fetches that matter."""
+    try:
+        req = urllib.request.Request(base.rstrip("/") + "/dir?dir=A:", method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return 200 <= getattr(r, "status", 200) < 400
+    except Exception:                                   # noqa: BLE001 — unreachable is the answer, not an error
+        return False
+
+
 class EzShare:
     """Thin bounded HTTP client for the card. Every request has a timeout and capped retries."""
 
