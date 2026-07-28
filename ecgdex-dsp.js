@@ -1729,7 +1729,10 @@
   // night whose epoch-median LF/HF was 1.62. So: the night's own percentile, but never below a
   // physiological floor.
   function _relGate(vals, p, absFloor) {
-    const v = vals.filter((x) => Number.isFinite(x)).slice().sort((a, b) => a - b);
+    const v = vals
+      .filter((x) => Number.isFinite(x))
+      .slice()
+      .sort((a, b) => a - b);
     if (!v.length) return absFloor;
     const q = v[Math.min(v.length - 1, Math.floor(v.length * p))];
     return Math.max(q, absFloor);
@@ -1750,7 +1753,11 @@
       hrSd = std(hrAll) || 1;
     // REM's LF/HF gate, night-relative with a floor (see _relGate). 0.65 keeps the candidate pool
     // near the physiological REM share before the RMSSD half of the conjunction narrows it further.
-    const lfhfGate = _relGate(epochs.map((e) => e.lfhf), 0.65, 1.0);
+    const lfhfGate = _relGate(
+      epochs.map((e) => e.lfhf),
+      0.65,
+      1.0
+    );
     const mot = (e) => (motionByTMin ? motionByTMin.get(e.tMin.toFixed(1)) : undefined);
     const raw = epochs.map((e) => {
       const hrZ = (e.hr - hrMed) / hrSd;
