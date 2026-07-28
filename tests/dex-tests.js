@@ -21912,12 +21912,12 @@
         T.ok('§5.2 · ' + f + ' medians the per-window RATIOS', /slh\.push\(w\.lfhf\)/.test(t) && /lfhf: slh\.length \? \+medianOf\(slh\)/.test(t), 'per-window lfhf accumulator not found');
         T.ok('§5.2 · …and no longer divides the band medians', !/winSpec\.lf \/ \(winSpec\.hf \|\| 1\)/.test(t), 'ratio-of-medians still present');
       });
-      /* No node may fabricate a denominator for the SURFACED `lfhf` field. Scope note: PulseDex's
-         `ansBalance()` also carries an `lf / (hf || 1)`, but that one feeds the SNS/PSNS balance score
-         through a logistic squash — making it honest means deciding what that KPI reads when HF is
-         zero, which is a separate product decision. Filed for the follow-up; NOT silently changed
-         here, and this assertion is deliberately scoped to the lfhf assignment so it cannot be read
-         as covering the score too. */
+      /* No node may fabricate a denominator for the SURFACED `lfhf` field. Scope note, UPDATED
+         2026-07-28: `ansBalance()` used to carry the same `lf / (hf || 1)`, deliberately left alone
+         because it feeds the SNS/PSNS score through a logistic squash and needed a product decision
+         about what that KPI reads at HF = 0. That decision is made — NULL, the score disappears —
+         and DEEP-AUDIT-III-FOLLOWUPS §1.3 landed it. The assertion below stays scoped to the lfhf
+         assignment; the score has its own group, immediately after. */
       ['pulsedex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(function (f) {
         var t = srcs[f];
         if (!t) return;
@@ -21927,6 +21927,50 @@
       var E = env.ECGDSP;
       if (E && typeof E.spectral === 'function') {
         T.ok('ECGDSP.spectral reachable', true);
+      }
+    });
+
+    /* DEEP-AUDIT-III-FOLLOWUPS §1.3 — the SNS/PSNS score at HF = 0, decided 2026-07-28: NULL.
+       `ansBalance()` carried `lf / (hf || 1)`: a 1 ms² HF invented so the arithmetic keeps working.
+       The alternative on the table was a documented floor, which would have kept the KPI alive at the
+       cost of making it a heuristic wearing a number's clothes — and owed it a re-tier down the
+       evidence ladder for a substitution no reader could see. The suite's rule for an unmeasurable
+       quantity was already settled (Clock Contract §2.6: a missing stamp is null, never now()), so
+       the score follows it. HF = 0 is itself a signal-quality fact worth surfacing.
+       The RETURN SHAPE is unchanged — four keys, always — because callers read `ans.sns` directly and
+       a bare null would throw. That is the back-compat rule: new behaviour via values, not shape. */
+    group('PulseDex ansBalance — no fabricated denominator; HF=0 reads null (§1.3)', 'pulsedex-dsp · ans · honesty', function (T) {
+      var P = env.PulseDex;
+      var f = P && P._bare && P._bare.ansBalance;
+      if (typeof f !== 'function') {
+        T.skip('env.PulseDex._bare.ansBalance available', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      var z = f(0, 500);
+      T.ok('§1.3 · HF = 0 nulls the whole score rather than inventing a 1 ms² denominator', z.sns === null && z.psns === null && z.snsBal === null && z.psnsBal === null, JSON.stringify(z));
+      T.ok('§1.3 · …and the SHAPE is preserved, so a caller reading ans.sns cannot throw', Object.keys(z).sort().join(',') === 'psns,psnsBal,sns,snsBal', Object.keys(z).join(','));
+      ['sns', 'psns', 'snsBal', 'psnsBal'].forEach(function (k) {
+        T.ok('§1.3 · a non-finite HF also nulls ' + k, f(NaN, 500)[k] === null && f(null, 500)[k] === null);
+      });
+      // LF = 0 with HF > 0 is a REAL reading, not a degeneracy — the logistic's limit is fully
+      // parasympathetic. Only the reciprocal is unreportable, and it used to serialise as Infinity.
+      var l0 = f(500, 0);
+      T.eq('§1.3 · LF = 0 with HF > 0 is measured, not nulled: sns = 0', l0.sns, 0);
+      T.eq('§1.3 · …psns = 100 (fully parasympathetic)', l0.psns, 100);
+      T.ok('§1.3 · …and the reciprocal is null, never Infinity', l0.psnsBal === null, String(l0.psnsBal));
+      // The ordinary path is untouched — this must not move a real reading.
+      var n = f(300, 600);
+      T.eq('§1.3 · a normal reading is unchanged: LF/HF = 2 → snsBal 2', n.snsBal, 2);
+      T.eq('§1.3 · …psnsBal 0.5', n.psnsBal, 0.5);
+      T.ok('§1.3 · …sns rises above 50 when LF dominates', n.sns > 50 && n.psns === 100 - n.sns, JSON.stringify(n));
+      // Source-level: the fabrication must not come back.
+      /* Anti-regression on the SOURCE. Matched on the ASSIGNMENT, not the bare expression: both this
+         file and pulsedex-dsp.js now discuss `lf / (hf || 1)` in prose, and a scan that cannot tell
+         code from a comment about code fails for the wrong reason — it did, first time out. */
+      var t = (env.sources || {})['pulsedex-dsp.js'];
+      if (t) {
+        T.ok('§1.3 · the `const ratio = lf / (hf || 1)` fabrication is gone from the source', !/const ratio = lf \/ \(hf \|\| 1\)/.test(t), 'fabricated denominator still assigned');
+        T.ok('§1.3 · …and the guard that replaced it is present', /hfOk/.test(t) && /hf > 0/.test(t), 'no finite-HF guard found');
       }
     });
 

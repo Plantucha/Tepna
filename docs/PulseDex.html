@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-6zF30b+8pTfNSGRRamOQ6LJ4fxbitL8WEtVi4NVrSbw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CxM8JgTPdnoVh+3A6y0lzzs08WtHxueWqE4eJwDBOzU=' 'sha256-Engy0aUAzlCkkBelou/EomEzfO6PEgr9qoj9T0h7qEU=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-QQ0KacKH/GQMvONOobfclwjWfwAHFkmG41i5GZK6pR0=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WIkFbL2oleMNGRl8JnmJHJHr24/Q1W+/ZCGBpqSl2fM=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CxM8JgTPdnoVh+3A6y0lzzs08WtHxueWqE4eJwDBOzU=' 'sha256-Engy0aUAzlCkkBelou/EomEzfO6PEgr9qoj9T0h7qEU=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WIkFbL2oleMNGRl8JnmJHJHr24/Q1W+/ZCGBpqSl2fM=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kicckJUugYMR/nL9FCUUAszKV2CCvcWFdz8e7Olm5v0=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PulseDex — Raw RR Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6296,9 +6296,31 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
   // (DEEP-AUDIT-FIXES §1). It was the pre–Lomb–Scargle estimator; its only surfaced use — the
   // "VLF (night)"/"Total Pwr (night)" display rows — mis-stated VLF (4–11× the real LS VLF) and
   // borrowed a `validated` grade. lombScargle() is the single spectral source. Closes SIGNAL-ADAPTER §622.
+  /* SNS/PSNS from LF/HF. DEEP-AUDIT-III-FOLLOWUPS §1.3, decided 2026-07-28: at HF = 0 this returns
+     NULL, it does not invent a denominator.
+     This used to read `lf / (hf || 1)` — the same fabrication §5.2 removed from the surfaced `lfhf`
+     field, left in place here because it feeds a logistic-squashed score and removing it makes the
+     KPI disappear. That is exactly what it should do. A 1 ms² HF is not a measurement, it is a number
+     chosen so the arithmetic keeps working, and the suite's rule for an unmeasurable quantity is
+     already settled: a missing value is null, never a plausible substitute (Clock Contract §2.6 draws
+     the same line for a missing timestamp). A floor would keep the score alive at the cost of making
+     it a heuristic wearing a number's clothes — and it would then owe a re-tier down the evidence
+     ladder for a value nobody could tell was substituted.
+     HF = 0 is also a signal-quality fact worth surfacing rather than smoothing over.
+     The RETURN SHAPE is unchanged (four keys, always) so every consumer keeps working; the values go
+     null. Callers read `ans.sns` directly, so returning a bare null here would throw. */
   function ansBalance(hf, lf) {
-    const ratio = lf / (hf || 1); // LF/HF (sympathovagal)
-    const x = Math.log(ratio || 0.0001);
+    const hfOk = typeof hf === 'number' && isFinite(hf) && hf > 0;
+    const lfOk = typeof lf === 'number' && isFinite(lf) && lf >= 0;
+    if (!hfOk || !lfOk) return { sns: null, psns: null, snsBal: null, psnsBal: null };
+    const ratio = lf / hf; // LF/HF (sympathovagal) — a real quotient now, or nothing
+    if (ratio === 0) {
+      // LF = 0 with HF > 0 is a genuine reading, not a degeneracy: the logistic's limit is 0, i.e.
+      // fully parasympathetic. Only the RECIPROCAL is unreportable (1/0), so that one field is null
+      // rather than Infinity — which is what it used to serialise as.
+      return { sns: 0, psns: 100, snsBal: 0, psnsBal: null };
+    }
+    const x = Math.log(ratio);
     const sns = Math.round(100 / (1 + Math.exp(-x * 1.3))); // 0–100, rises with LF/HF (≈50 at balance)
     const psns = 100 - sns; // parasympathetic complement (non-saturating)
     return {
@@ -7812,6 +7834,15 @@ function evBadge(label, fallback) {
   }
 }
 
+/* SNS/PSNS are NULL when HF = 0 (DEEP-AUDIT-III-FOLLOWUPS §1.3, decided 2026-07-28 — the DSP no longer
+   invents a denominator). An absent score must READ as absent: `Math.min(100, null)` is 0, so the old
+   markup drew a confident empty bar and printed the word "null" beside it — the two failure modes a null
+   exists to prevent. Bar collapses to zero width, value reads "—".
+   MODULE SCOPE, not inside renderANS: renderTable needs them too, and declaring them in one function
+   while using them in another is a ReferenceError at render time — browser-gates caught exactly that. */
+const _ansTxt = (v) => (v == null ? '—' : v);
+const _ansPct = (v) => (v == null ? 0 : Math.min(100, v));
+
 // ─── RENDER CONTEXT BANNER ────────────────────────────────────────────────────
 function renderContext(r) {
   const el = document.getElementById('ctxBanner');
@@ -7951,11 +7982,11 @@ function renderANS(r) {
   <div class="ans-card">
     <div class="ans-title">ANS Activation</div>
     <div class="bar-row"><div class="bar-lbl" style="color:var(--red)">${evBadge('SNS')}SNS</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, r.sns)}%;background:var(--red)"></div></div>
-      <div class="bar-v" style="color:var(--red)">${r.sns}</div></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${_ansPct(r.sns)}%;background:var(--red)"></div></div>
+      <div class="bar-v" style="color:var(--red)">${_ansTxt(r.sns)}</div></div>
     <div class="bar-row"><div class="bar-lbl" style="color:var(--green)">${evBadge('PSNS')}PSNS</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, r.psns)}%;background:var(--green)"></div></div>
-      <div class="bar-v" style="color:var(--green)">${r.psns}</div></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${_ansPct(r.psns)}%;background:var(--green)"></div></div>
+      <div class="bar-v" style="color:var(--green)">${_ansTxt(r.psns)}</div></div>
   </div>
   <div class="ans-card">
     <div class="ans-title">Spectral Power</div>
@@ -8041,10 +8072,17 @@ function renderTable(r) {
     ['Energy est', r.satE ? '100 (max)' : r.energy, '0–100', '>60', r.energy >= 60 ? 'ok' : r.energy >= 40 ? 'warn' : 'bad', 'Welltory-style estimate' + (r.satE ? ' · saturated (off-scale)' : '')],
     ['Focus est', r.focus, '0–100', '>55', r.focus >= 55 ? 'ok' : r.focus >= 35 ? 'warn' : 'bad', 'Welltory-style estimate'],
     ['Coherence', r.coherence, '0–100', '>50', r.coherence >= 50 ? 'ok' : r.coherence >= 30 ? 'warn' : 'bad', 'Welltory-style estimate'],
-    ['ANS SNS', r.sns, '0–100', '<40', r.sns <= 40 ? 'ok' : r.sns <= 60 ? 'warn' : 'bad', 'Sympathetic activation'],
-    ['ANS PSNS', r.satP ? '100 (max)' : r.psns, '0–100', '>30', r.psns >= 30 ? 'ok' : r.psns >= 15 ? 'warn' : 'bad', 'Parasympathetic activation' + (r.satP ? ' · saturated (off-scale)' : '')],
-    ['SNS bal', r.snsBal, 'ratio', '<1.5', 'neutral', 'LF/HF-based sympathetic ratio'],
-    ['PSNS bal', r.psnsBal, 'ratio', '>0.7', 'neutral', 'HF/LF-based parasympathetic'],
+    ['ANS SNS', _ansTxt(r.sns), '0–100', '<40', r.sns == null ? 'neutral' : r.sns <= 40 ? 'ok' : r.sns <= 60 ? 'warn' : 'bad', 'Sympathetic activation'],
+    [
+      'ANS PSNS',
+      r.satP ? '100 (max)' : _ansTxt(r.psns),
+      '0–100',
+      '>30',
+      r.psns == null ? 'neutral' : r.psns >= 30 ? 'ok' : r.psns >= 15 ? 'warn' : 'bad',
+      'Parasympathetic activation' + (r.satP ? ' · saturated (off-scale)' : '')
+    ],
+    ['SNS bal', _ansTxt(r.snsBal), 'ratio', '<1.5', 'neutral', 'LF/HF-based sympathetic ratio'],
+    ['PSNS bal', _ansTxt(r.psnsBal), 'ratio', '>0.7', 'neutral', 'HF/LF-based parasympathetic'],
     ['EFC Readiness', r.efc, '0–100', '>60', r.efc >= 60 ? 'ok' : r.efc >= 40 ? 'warn' : 'bad', 'Energy×0.4+Focus×0.3+Coh×0.3'],
     ['Cardiac CRS', r.crs, 'a.u.', '>0.05', r.crs >= 0.05 ? 'ok' : r.crs >= 0.02 ? 'warn' : 'bad', '(Coh·rMSSD·pNN50)/Stress×1000'],
     ['ABS', r.abs, '−1..+1', '~0', Math.abs(r.abs) <= 0.3 ? 'ok' : Math.abs(r.abs) <= 0.6 ? 'warn' : 'bad', 'Autonomic Balance Score'],
