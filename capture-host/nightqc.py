@@ -234,6 +234,39 @@ def scan_night(night_dir: str) -> list[dict]:
     return out
 
 
+def newest_data_mtime(night_dir: str) -> float | None:
+    """Newest mtime among this folder's DEVICE-CAPTURE files, or None if it holds none.
+
+    Sidecars are excluded deliberately, and that exclusion is the whole point. LINK/CLOCK roll on the
+    WALL CLOCK, so at 00:00 the box creates tomorrow's folder and writes sidecars into it while every
+    sensor keeps appending to the session's START-date folder. That decoy folder is `active` (it is
+    being written) and lexically newer, so picking the current night by name lands on a folder holding
+    no data at all — which is exactly how QC came to report nine missing streams on 2026-07-28 against
+    942 MB of healthy tri-device recording. A sidecar is the box talking about itself; only a capture
+    file is evidence that a SESSION lives here.
+
+    Cheap: listdir + stat, never a read. Callers scan at most the handful of nights that are active."""
+    newest = None
+    try:
+        names = os.listdir(night_dir)
+    except OSError:
+        return None
+    for n in names:
+        if n == _SUMMARY_NAME:
+            continue
+        parsed = parse_capture_name(n)
+        if not parsed or parsed[0] in _SIDECAR_TAGS:
+            continue
+        p = os.path.join(night_dir, n)
+        try:
+            if os.path.isfile(p):
+                m = os.path.getmtime(p)
+                newest = m if newest is None else max(newest, m)
+        except OSError:
+            continue
+    return newest
+
+
 def summarize(night_dir: str, devices: list[dict]) -> dict:
     """Roll the CURRENT capture session up against the configured devices. The session is scoped by
     file-activity (see _SESSION_GAP_SEC) and unified across midnight (see below), NOT the whole date
@@ -259,16 +292,25 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     # previous day's files so the session — and its coverage — is measured whole; without this, each folder
     # sees only its half and a device that streamed cleanly across midnight reads as badly degraded. Gated
     # on the near-midnight start so an ordinary mid-day session never pays to re-read a whole prior day.
+    searched = [night_dir]
     if data:
         earliest = min(f["session"] for f in data)
         midnight = _midnight_of(night_dir)
-        if midnight is not None and 0 <= earliest - midnight < _SESSION_GAP_SEC:
-            prev = _prev_day_dir(night_dir)
-            if prev:   # pragma: no branch — unreachable-false: `midnight is not None` above already
-                # proves _folder_date() parsed, and that is the only condition under which
-                # _prev_day_dir returns None. (timeline.build's sibling gate adds an isdir() check,
-                # which CAN be false; this one is about the folder NAME, which is already settled.)
-                data = [f for f in scan_night(prev) if f["stream"] not in _SIDECAR_TAGS] + data
+        _pool = midnight is not None and 0 <= earliest - midnight < _SESSION_GAP_SEC
+    else:
+        # NO CAPTURE FILES HERE AT ALL. The old gate was `if data:`, so this branch could not run — and
+        # it is precisely the 2026-07-28 shape: the midnight sidecar rollover creates tomorrow's folder,
+        # QC is pointed at it, and the pooling built to measure a cross-midnight session whole is skipped
+        # because the folder it was asked about is empty. An empty folder is the STRONGEST reason to look
+        # next door, not a reason to stop. (capture._current_night now prefers the folder with the newest
+        # DATA write, so QC should rarely land here — this is the second line of that defence, because a
+        # single resolver getting it right is a hope and two independent ones agreeing is a property.)
+        _pool = True
+    if _pool:
+        prev = _prev_day_dir(night_dir)
+        if prev:
+            searched.append(prev)
+            data = [f for f in scan_night(prev) if f["stream"] not in _SIDECAR_TAGS] + data
     # Isolate the CURRENT capture session (merge_sessions holds the reasoning). The current session is
     # the merged interval reaching the newest write (~now); `span` is its elapsed time. None (coverage
     # unknown) until a judge-able span has accrued.
@@ -363,6 +405,19 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         "total_rows": sum(f["rows"] for f in scanned),
         "total_bytes": sum(f["bytes"] for f in scanned),
         "sidecars": sorted({f["stream"] for f in scanned if f["stream"] in _SIDECAR_TAGS}),
+        # THE SCOPE THIS VERDICT RESTS ON, REPORTED RATHER THAN IMPLIED. On 2026-07-28 the summary
+        # already carried the tell — `files: 2`, both sidecars — and nothing said what that meant, so a
+        # scope failure read as nine simultaneous device failures. A verdict that cannot be audited
+        # against the ground it was computed from is a claim, not a measurement.
+        "judged_dir": os.path.basename(night_dir.rstrip("/")),
+        "searched_dirs": [os.path.basename(p.rstrip("/")) for p in searched],
+        "data_files": len(data),
+        # NINE INDEPENDENT STREAMS ACROSS THREE VENDORS DO NOT FAIL IN THE SAME SECOND. When the scope
+        # we searched holds no capture file at all, "every stream is missing" is a statement about where
+        # we looked, not about the hardware — and must never be dressed up as the latter. `missing` is
+        # still populated (it is honestly what this scope contains); this flag says do not read it as a
+        # device fault, and it is what any consumer — human or automated — must branch on first.
+        "scope_suspect": bool(devices) and not data,
         # A hole in the night is a reason to look, exactly like a missing or degraded stream. `ok` is a
         # claim about THE NIGHT; if half of it was excluded from the judgement, the claim is unsupported.
         "ok": not missing and not degraded and not gaps,

@@ -851,7 +851,23 @@ def _current_night(captures: str, settle_sec: float) -> str | None:
     empty _now()-dated folder that no one has created). None only when captures/ holds no night at all."""
     active = diskguard.active_nights(captures, settle_sec)
     if active:
-        return max(active)                     # names are YYYY-MM-DD, so lexical max == most recent
+        # NOT max(active) — THE LEXICALLY-NEWEST ACTIVE FOLDER CAN HOLD NO DATA. active_nights returns a
+        # SET precisely because a cross-midnight session leaves TWO folders active (its own docstring
+        # says so), and at 00:00 the LINK/CLOCK sidecars roll into a fresh date dir while every sensor
+        # keeps appending to the session's START-date folder. That decoy is active and lexically newer,
+        # so `max()` picked it on 2026-07-28 and QC judged two sidecars — reporting nine missing streams
+        # against 942 MB of healthy recording, on what was in fact an ordinary night. This misfires on
+        # EVERY session that crosses midnight, which is every normal night.
+        #
+        # So rank by where the DATA is: the active folder whose newest capture file is newest. Sidecars
+        # are the box talking about itself and never break the tie. Falls back to the old lexical rule
+        # only when no active folder holds any capture file at all — there is then no data anywhere to
+        # prefer, and the newest name is as good an answer as exists.
+        by_data = [(nightqc.newest_data_mtime(os.path.join(captures, n)), n) for n in active]
+        withdata = [(m, n) for m, n in by_data if m is not None]
+        if withdata:
+            return max(withdata)[1]
+        return max(active)
     nights = diskguard.list_nights(captures)
     return nights[-1] if nights else None
 
@@ -2725,7 +2741,20 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
                         "Tepna: sensor connected but silent",
                         f"{_name} has sent no data for ~{int(_sil / 60)} min while the night is still "
                         f"recording. The link is up, so this is not a dropout.")
-            if summ["missing"]:
+            if summ.get("scope_suspect"):
+                # A SCOPE RESULT, NOT A DEVICE FAULT (nightqc's scope_suspect holds the reasoning).
+                # Nine independent streams across three vendors do not fail in the same second, so
+                # naming them one by one — as this line did every ten minutes for six hours on
+                # 2026-07-28, while 942 MB was being recorded next door — describes the wrong object
+                # and sends the reader hunting hardware. Say what is actually true: we could not find
+                # the session. WARNING, not INFO: the box's own report was right there and read as
+                # routine. And no "night has a gap" alert — we have not established that there is one.
+                log.warning("qc: %s holds no capture file (searched %s) — cannot locate the active "
+                            "session, so the %d 'missing' stream(s) below are a SCOPE result, not a "
+                            "device fault: %s", summ.get("judged_dir"),
+                            " + ".join(summ.get("searched_dirs") or []),
+                            len(summ["missing"]), ", ".join(summ["missing"]))
+            elif summ["missing"]:
                 log.info("qc: %s missing stream(s): %s", n, ", ".join(summ["missing"]))
                 waited = _time.monotonic() - first_seen[n]
                 if notifier and n not in alerted and waited >= alert_after:
