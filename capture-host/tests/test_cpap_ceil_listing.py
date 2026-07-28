@@ -180,3 +180,61 @@ def test_an_unparseable_content_length_is_treated_as_absent(monkeypatch):
 
 def test_an_empty_listing_size_yields_an_empty_window():
     assert c.size_window_kb("") == (0.0, 0.0)
+
+
+# ── reaping the residue ─────────────────────────────────────────────────────────────────────────────
+def test_a_part_identical_to_the_real_file_is_reaped(tmp_path):
+    """485 of these on the box, 246 MB, all verified byte-identical. They are unreachable by the
+    promotion path — should_fetch correctly SKIPS those files, so fetch() never runs."""
+    real = tmp_path / "BRP.edf"
+    real.write_bytes(b"D" * 4096)
+    (tmp_path / "BRP.edf.part").write_bytes(b"D" * 4096)
+    st = {}
+    assert c.reap_stale_part(str(real), st) is True
+    assert not (tmp_path / "BRP.edf.part").exists()
+    assert real.read_bytes() == b"D" * 4096, "the real file must be untouched"
+    assert st["reaped"] == 1
+
+
+def test_a_DIFFERING_part_is_never_reaped(tmp_path):
+    """The safety line. A .part that differs may be an interrupted download whose bytes are the only
+    ones we have — deleting it destroys the evidence the .part convention exists to preserve."""
+    real = tmp_path / "BRP.edf"
+    real.write_bytes(b"D" * 4096)
+    (tmp_path / "BRP.edf.part").write_bytes(b"D" * 2048)          # half — a real partial
+    assert c.reap_stale_part(str(real)) is False
+    assert (tmp_path / "BRP.edf.part").exists()
+
+
+def test_same_size_but_different_bytes_is_never_reaped(tmp_path):
+    """Size alone is not identity — that assumption is what this whole change is unpicking."""
+    real = tmp_path / "S.edf"
+    real.write_bytes(b"A" * 4096)
+    (tmp_path / "S.edf.part").write_bytes(b"B" * 4096)
+    assert c.reap_stale_part(str(real)) is False
+    assert (tmp_path / "S.edf.part").exists()
+
+
+def test_a_part_with_no_real_file_is_left_for_promotion(tmp_path):
+    """That one belongs to fetch(), which HEADs and promotes it. Reaping it would lose the file."""
+    (tmp_path / "S.edf.part").write_bytes(b"A" * 4096)
+    assert c.reap_stale_part(str(tmp_path / "S.edf")) is False
+    assert (tmp_path / "S.edf.part").exists()
+
+
+def test_reaping_never_raises_on_an_unreadable_pair(tmp_path, monkeypatch):
+    """A harvest must not die tidying up."""
+    real = tmp_path / "S.edf"
+    real.write_bytes(b"A" * 16)
+    (tmp_path / "S.edf.part").write_bytes(b"A" * 16)
+    monkeypatch.setattr(c.os.path, "getsize", lambda _p: (_ for _ in ()).throw(OSError("gone")))
+    assert c.reap_stale_part(str(real)) is False
+
+
+def test_reaping_works_without_a_stats_dict(tmp_path):
+    """`st` is optional — the reaper is usable as a plain predicate, e.g. from a one-off cleanup."""
+    real = tmp_path / "S.edf"
+    real.write_bytes(b"A" * 32)
+    (tmp_path / "S.edf.part").write_bytes(b"A" * 32)
+    assert c.reap_stale_part(str(real)) is True
+    assert not (tmp_path / "S.edf.part").exists()

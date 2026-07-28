@@ -161,6 +161,40 @@ def size_window_kb(s: str) -> tuple[float, float]:
     return (printed - q, printed + 1e-6)           # (low, high] with a float epsilon on the boundary
 
 
+def reap_stale_part(dest_path: str, st: dict | None = None) -> bool:
+    """Remove a `.part` that is byte-identical to the real file sitting beside it.
+
+    RESIDUE FROM THE CEIL BUG. While the listing was read as round-to-nearest, a complete download was
+    rejected AFTER being written, leaving a `.part` next to a real file that was already correct — 485
+    of them, 246 MB, every one verified byte-identical with `cmp` on the box. They are unreachable by
+    the promotion path in `fetch()`, because `should_fetch` now correctly SKIPS those files and fetch
+    is never called at all. So they are reaped here, on the skip path, where the pair is already known.
+
+    ONLY on an exact byte match, and only when the real file exists. A `.part` that DIFFERS may be an
+    interrupted download whose bytes are the only ones we have — deleting that would destroy the very
+    evidence the `.part` convention exists to preserve. Compared in chunks so a 2.6 MB waveform does not
+    have to be held twice in memory."""
+    tmp = dest_path + ".part"
+    if not (os.path.exists(tmp) and os.path.exists(dest_path)):
+        return False
+    try:
+        if os.path.getsize(tmp) != os.path.getsize(dest_path):
+            return False
+        with open(tmp, "rb") as a, open(dest_path, "rb") as b:
+            while True:
+                ca, cb = a.read(65536), b.read(65536)
+                if ca != cb:
+                    return False
+                if not ca:
+                    break
+        os.unlink(tmp)
+    except OSError:                                 # unreadable or vanished — leave it alone
+        return False
+    if st is not None:
+        st["reaped"] = st.get("reaped", 0) + 1
+    return True
+
+
 def should_fetch(entry: dict, dest_path: str) -> bool:
     """Skip-if-present on name + size. Makes the steady state nearly free (one night ≈ 2.5 MB ≈ 20 s) and
     lets an interrupted backfill resume. A file that is present but the WRONG size is re-fetched, not
@@ -724,7 +758,7 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
     """
     ez = EzShare(base, timeout=timeout, retries=retries, ignore=ignore)
     st = {"files": 0, "bytes": 0, "skipped": 0, "nights": 0, "short": [], "errors": [],
-          "partial": False, "nights_on_card": 0}
+          "partial": False, "nights_on_card": 0, "reaped": 0}
 
     def expired() -> bool:
         if deadline is not None and time.monotonic() > deadline:
@@ -741,6 +775,7 @@ def harvest(dest_root: str, base: str = DEFAULT_BASE, nights: set[str] | None = 
             dest = os.path.join(subdir, local_name(e["name"]))
             if not should_fetch(e, dest):
                 st["skipped"] += 1
+                reap_stale_part(dest, st)
                 continue
             try:
                 _p, n, was_short = ez.fetch(e, subdir)
