@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2NbnaJkl+zDxSZmPPZeYIDLXPgW6QdrINJYs/1CP8Gk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Bwa/N+qRzyDsjOZpmfdHYhAreF5CgmWplQccV4x1M1Y=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-UEKo8q6oDlx+nVLthNAe7RbwjyJyrvNlro9P8mjjnKQ=' 'sha256-ViFy/FyuOg+idGpS/QW3jiYojjMVWds06A3MHGaOZ6M=' 'sha256-ZUa0k0eijzdw4iPmWPhHWDrvilarjuoXaLi0UBgq1Pc=' 'sha256-aEfZQR6fGbh0Ow231H86nQj4MBDK3qxz5NzQsq3muNI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-xmCO+KG/wZmooyHWC8QXjwZPouxno/BiqgB9ScwoF8c='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2NbnaJkl+zDxSZmPPZeYIDLXPgW6QdrINJYs/1CP8Gk=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Bwa/N+qRzyDsjOZpmfdHYhAreF5CgmWplQccV4x1M1Y=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-Nh9Kmv/4SV7gyKIHoiYrtmgzUDMIF4m3UURr2iKoLa4=' 'sha256-UEKo8q6oDlx+nVLthNAe7RbwjyJyrvNlro9P8mjjnKQ=' 'sha256-ViFy/FyuOg+idGpS/QW3jiYojjMVWds06A3MHGaOZ6M=' 'sha256-aEfZQR6fGbh0Ow231H86nQj4MBDK3qxz5NzQsq3muNI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-r6dnw1/a2DwgyuhnKF2QN2JZvS0hOeFIb3T3caRoJi8='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPAPDex — PAP Therapy Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -4872,7 +4872,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
    cpapdex-dsp.js / cpapdex-fusion.js / cpapdex-render.js (clone OxyDex).
 
    Run the self-test:  node cpapdex-edf.js --selftest
-   Exposes: window.CpapEdf = { readEDF, parseEdfClock, parseTAL, classifyAnnotation }
+   Exposes: window.CpapEdf = { readEDF, parseEdfClock, parseTAL, classifyAnnotation, annotationBoundary }
    ════════════════════════════════════════════════════════════════════════ */
 (function (root) {
   'use strict';
@@ -5004,6 +5004,21 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     return 'Unclassified';
   }
 
+  /* Vendor annotation text → span EDGE, or null when the text carries no edge word.
+     ResMed writes a periodic-breathing span as two zero-duration markers ("CSR Start" / "CSR End")
+     rather than one TAL with a duration, and `classifyAnnotation` maps BOTH to 'Cheyne-Stokes' —
+     correct as a class, but it erases the only thing that makes the pair a span. Kept separate from
+     the class (rather than returned as 'Cheyne-Stokes Start') so no existing class consumer changes
+     behaviour. Word-boundary anchored: a text that merely CONTAINS "start" mid-word is not an edge,
+     and 'Recording starts' is deliberately matched — it is an edge marker, just not of a PB span,
+     and the caller filters by class before it ever looks here. */
+  function annotationBoundary(text) {
+    var s = String(text || '').toLowerCase();
+    if (/\bstarts?\b|\bbegin[s]?\b|\bon\b/.test(s)) return 'start';
+    if (/\bends?\b|\bstop[s]?\b|\bfinish(ed)?\b|\boff\b/.test(s)) return 'end';
+    return null;
+  }
+
   /* ════════════════════════════════════════════════════════════════════════
    readEDF(arrayBuffer) → decoded record
    {
@@ -5127,6 +5142,12 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
               durSec: tals[k].durSec,
               text: tals[k].text,
               class: cls,
+              // MULTINIGHT-CORPUS-FINDINGS §1 — a span the vendor encodes as a MARKER PAIR
+              // ("CSR Start" … "CSR End", durSec 0 on both) classifies to ONE class, so the class
+              // alone cannot tell an opening edge from a closing one and the span collapses to zero
+              // length. `boundary` is an ADDITIVE field (class is unchanged, every existing reader
+              // keeps working) that preserves the edge so a consumer can pair them.
+              boundary: annotationBoundary(tals[k].text),
               tMs: clock ? clock.t0Ms + tals[k].onsetSec * 1000 : null
             });
           }
@@ -5248,6 +5269,16 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         var ev = '+12.5\u00158\u0014Obstructive Apnea\u0014\u0000';
         for (var c2 = 0; c2 < ev.length && w < ab.length; c2++) ab[w++] = ev.charCodeAt(c2);
       }
+      /* MULTINIGHT-CORPUS-FINDINGS §1 — the PB encoding a REAL AirSense 11 writes into CSL: a
+         zero-duration marker PAIR, not one TAL carrying a duration. Emitted as BYTES (rather than
+         as hand-built annotation objects) so the coverage runs the whole path — TAL parse →
+         classifyAnnotation → annotationBoundary — instead of only the pairing arithmetic. */
+      if (opts.csrMarkers && (r === 1 || r === 3)) {
+        var TAL = '\u0014',
+          NUL = '\u0000';
+        var mk = '+' + (r === 1 ? '10' : '30') + TAL + 'CSR ' + (r === 1 ? 'Start' : 'End') + TAL + NUL;
+        for (var c3 = 0; c3 < mk.length && w < ab.length; c3++) ab[w++] = mk.charCodeAt(c3);
+      }
       p += annSpr * 2;
     }
     return opts.truncateBytes ? buf.slice(0, size - opts.truncateBytes) : buf;
@@ -5285,6 +5316,21 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     ok('annotation classified', ev[0] && ev[0].class === 'Obstructive Apnea');
     ok('annotation absolute tMs = t0Ms + onset', ev[0] && Math.abs(ev[0].tMs - (rec.clock.t0Ms + 12500)) < 1e-6);
 
+    /* 3b) MULTINIGHT-CORPUS-FINDINGS §1 — the marker-pair span encoding, from BYTES.
+       `classifyAnnotation` collapses "CSR Start" and "CSR End" onto ONE class (correct: both are
+       Cheyne-Stokes), which is why the class alone cannot delimit a span and every real night
+       measured 0 s of periodic breathing. `boundary` is what restores the edges. */
+    var recCsr = readEDF(_buildSyntheticEDF({ records: 5, csrMarkers: true }));
+    var csr = recCsr.annotations.filter(function (a) {
+      return a.class === 'Cheyne-Stokes';
+    });
+    ok('CSR marker pair decoded from bytes', csr.length === 2, 'got ' + csr.length);
+    ok('both markers classify as Cheyne-Stokes (class cannot delimit the span)', csr.length === 2 && csr[0].class === csr[1].class);
+    ok('both markers carry durSec 0 (the span has no duration to sum)', csr.length === 2 && !csr[0].durSec && !csr[1].durSec);
+    ok('boundary restores the edges the class erases', csr.length === 2 && csr[0].boundary === 'start' && csr[1].boundary === 'end', csr.length === 2 ? csr[0].boundary + '/' + csr[1].boundary : '');
+    ok('marker onsets give a 20 s span', csr.length === 2 && csr[1].onsetSec - csr[0].onsetSec === 20, csr.length === 2 ? csr[1].onsetSec - csr[0].onsetSec : '');
+    ok('annotationBoundary ignores text with no edge word', annotationBoundary('Central Apnea') === null && annotationBoundary('CSR Start') === 'start' && annotationBoundary('CSR End') === 'end');
+
     // 4) numRecords = -1 recovered from file size
     var rec2 = readEDF(_buildSyntheticEDF({ records: 5, numRecordsField: -1 }));
     ok('numRecords=-1 recovered', rec2.recordsRead === 5, 'got ' + rec2.recordsRead);
@@ -5303,6 +5349,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     sampleTMs: sampleTMs,
     parseTAL: parseTAL,
     classifyAnnotation: classifyAnnotation,
+    annotationBoundary: annotationBoundary,
     _buildSyntheticEDF: _buildSyntheticEDF,
     selfTest: selfTest
   };
@@ -6152,15 +6199,73 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     }
     return out;
   }
-  // CSL spans (Cheyne-Stokes / PeriodicBreathing) → total seconds in periodic breathing
-  function periodicBreathingSec(annotations) {
-    if (!annotations) return 0;
-    var sum = 0;
+  /* CSL spans (Cheyne-Stokes / PeriodicBreathing) → periodic-breathing seconds + span bookkeeping.
+
+     MULTINIGHT-CORPUS-FINDINGS §1. This summed `durSec` and nothing else, which is right for ONE
+     encoding and blind to the other. A real AirSense 11 writes a PB span as a **marker pair** —
+     "CSR Start" … "CSR End", `durSec` **0** on both — so every real night summed to exactly 0 and
+     `periodicBreathingPct` published a measured-looking 0.00 across the whole 197-night corpus. The
+     committed synthetic twin used the duration-carrying form, so the golden asserted a working
+     metric while the device's own encoding had never once been measured.
+
+     BOTH forms are handled, because both are real: a TAL that carries a duration is its own span
+     (the vendor form the golden pins), and a zero-duration marker opens or closes one (the form this
+     device writes). They can coexist in one file; a duration-carrying TAL never opens a pair.
+
+     Unpaired edges are RESOLVED, not silently dropped, and both counts are surfaced so a caller can
+     see that it happened: a Start still open at end-of-file closes at `sessionDurSec` (the recording
+     ended mid-episode — real time in PB, and discarding it would under-report exactly the worst
+     nights), while an End with no Start is discarded rather than back-dated to zero, which would
+     fabricate an episode reaching back to lights-out. Overlapping/repeated Starts do not nest: the
+     first one owns the span, matching a device that cannot be in two episodes at once. */
+  function periodicBreathingSpans(annotations, sessionDurSec) {
+    var out = { sec: 0, spans: 0, unpairedStart: 0, unpairedEnd: 0 };
+    if (!annotations || !annotations.length) return out;
+    var pb = [];
     for (var i = 0; i < annotations.length; i++) {
       var c = annotations[i].class;
-      if (c === 'Cheyne-Stokes' || c === 'PeriodicBreathing') sum += annotations[i].durSec || 0;
+      if (c === 'Cheyne-Stokes' || c === 'PeriodicBreathing') pb.push(annotations[i]);
     }
-    return sum;
+    // Onset order is what makes pairing meaningful; EDF records are written in time order, but a
+    // multi-record CSL is concatenated per data record and a caller may hand us a merged array.
+    pb.sort(function (a, b) {
+      return (a.onsetSec || 0) - (b.onsetSec || 0);
+    });
+    var open = null;
+    for (var j = 0; j < pb.length; j++) {
+      var a = pb[j],
+        dur = a.durSec || 0;
+      if (dur > 0) {
+        out.sec += dur;
+        out.spans++;
+        continue;
+      }
+      if (a.boundary === 'end') {
+        if (open == null) {
+          out.unpairedEnd++;
+          continue;
+        }
+        out.sec += Math.max(0, (a.onsetSec || 0) - open);
+        out.spans++;
+        open = null;
+      } else if (a.boundary === 'start') {
+        if (open == null) open = a.onsetSec || 0;
+        // else: already inside an episode — the first Start owns it, no nesting.
+      }
+      // boundary null + durSec 0 → a zero-length PB annotation carries no span; ignore it.
+    }
+    if (open != null) {
+      out.unpairedStart++;
+      if (sessionDurSec > 0 && sessionDurSec > open) {
+        out.sec += sessionDurSec - open;
+        out.spans++;
+      }
+    }
+    return out;
+  }
+  // Back-compat scalar surface — unchanged signature, `sessionDurSec` added LAST and optional.
+  function periodicBreathingSec(annotations, sessionDurSec) {
+    return periodicBreathingSpans(annotations, sessionDurSec).sec;
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -6207,7 +6312,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
 
     // ── events from EVE; PB span from CSL ──
     var events = eveEvents(set.EVE && set.EVE.annotations, t0Ms);
-    var pbSec = periodicBreathingSec(set.CSL && set.CSL.annotations);
+    // `durSec` (line above) is the session envelope — it closes a PB span the recording cut short.
+    var pbSec = periodicBreathingSec(set.CSL && set.CSL.annotations, durSec);
 
     // ── EPR delta + mode (CPAP fixed vs APAP variable) ──
     var eprDelta = null;
@@ -6729,7 +6835,20 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         { class: 'RERA', durSec: 8, onsetSec: 500, tMs: t0 + 500000 }
       ]
     };
-    var CSL = { clock: { t0Ms: t0 }, annotations: opts.cs ? [{ class: 'Cheyne-Stokes', durSec: 120, onsetSec: 50, tMs: t0 + 50000 }] : [{ class: 'Unclassified', durSec: 0, onsetSec: 0, tMs: t0 }] };
+    /* Two PB encodings, both real (MULTINIGHT-CORPUS-FINDINGS §1):
+         opts.cs        — one TAL carrying a duration (the form the committed golden pins)
+         opts.csMarkers — "CSR Start" … "CSR End", durSec 0 on both, which is what a real
+                          AirSense 11 writes. Same 120 s span as `cs`, so the two encodings are
+                          directly comparable and a fixture can assert they agree. */
+    var csAnn = opts.csMarkers
+      ? [
+          { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 50, text: 'CSR Start', boundary: 'start', tMs: t0 + 50000 },
+          { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 170, text: 'CSR End', boundary: 'end', tMs: t0 + 170000 }
+        ]
+      : opts.cs
+        ? [{ class: 'Cheyne-Stokes', durSec: 120, onsetSec: 50, tMs: t0 + 50000 }]
+        : [{ class: 'Unclassified', durSec: 0, onsetSec: 0, tMs: t0 }];
+    var CSL = { clock: { t0Ms: t0 }, annotations: csAnn };
     return { PLD: PLD, BRP: BRP, SA2: SA2, EVE: EVE, CSL: CSL };
   }
 
@@ -6877,6 +6996,48 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         { class: 'Hypopnea', durSec: 10 }
       ]) === 60
     );
+    /* MULTINIGHT-CORPUS-FINDINGS §1 — the encoding a REAL AirSense 11 writes. Every case below
+       returned 0 before the fix, which is why 197 real nights reported no periodic breathing. */
+    ok(
+      'periodicBreathingSec pairs CSR Start/End markers (durSec 0 — the real device encoding)',
+      periodicBreathingSec([
+        { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 13049, boundary: 'start' },
+        { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 14918, boundary: 'end' }
+      ]) === 1869
+    );
+    ok(
+      'periodicBreathingSec: marker pairs and duration TALs coexist in one file',
+      periodicBreathingSec([
+        { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 100, boundary: 'start' },
+        { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 160, boundary: 'end' },
+        { class: 'PeriodicBreathing', durSec: 40, onsetSec: 300 }
+      ]) === 100
+    );
+    ok(
+      'periodicBreathingSec: annotations are paired in ONSET order, not array order',
+      periodicBreathingSec([
+        { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 160, boundary: 'end' },
+        { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 100, boundary: 'start' }
+      ]) === 60
+    );
+    var pbOpen = periodicBreathingSpans([{ class: 'Cheyne-Stokes', durSec: 0, onsetSec: 200, boundary: 'start' }], 500);
+    ok('periodicBreathingSpans: a Start still open at EOF closes at the session end', pbOpen.sec === 300 && pbOpen.unpairedStart === 1, JSON.stringify(pbOpen));
+    var pbNoDur = periodicBreathingSpans([{ class: 'Cheyne-Stokes', durSec: 0, onsetSec: 200, boundary: 'start' }]);
+    ok('periodicBreathingSpans: an open Start with NO session length contributes nothing (never guessed)', pbNoDur.sec === 0 && pbNoDur.unpairedStart === 1, JSON.stringify(pbNoDur));
+    var pbOrphan = periodicBreathingSpans([{ class: 'Cheyne-Stokes', durSec: 0, onsetSec: 200, boundary: 'end' }], 500);
+    ok('periodicBreathingSpans: an End with no Start is discarded, never back-dated to zero', pbOrphan.sec === 0 && pbOrphan.unpairedEnd === 1, JSON.stringify(pbOrphan));
+    var pbNest = periodicBreathingSpans(
+      [
+        { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 100, boundary: 'start' },
+        { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 150, boundary: 'start' },
+        { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 200, boundary: 'end' }
+      ],
+      500
+    );
+    ok('periodicBreathingSpans: repeated Starts do not nest — the first owns the span', pbNest.sec === 100 && pbNest.spans === 1, JSON.stringify(pbNest));
+    var sessMk = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ csMarkers: true }), { fname: 'sM' }));
+    var sessDur = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ cs: true }), { fname: 'sD' }));
+    ok('buildSessionFromEdf: the two PB encodings of the SAME 120 s span agree end-to-end', sessMk.pbSec === 120 && sessDur.pbSec === 120, sessMk.pbSec + ' vs ' + sessDur.pbSec);
 
     // ── full EDF-set integration: buildSessionFromEdf on a synthetic file-set ──
     var sess = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ cs: true }), { fname: 's1' }));
@@ -7114,6 +7275,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     eveEvents: eveEvents,
     eveClassToType: eveClassToType,
     periodicBreathingSec: periodicBreathingSec,
+    periodicBreathingSpans: periodicBreathingSpans,
     buildSessionFromEdf: buildSessionFromEdf,
     nightMetrics: nightMetrics,
     compute: compute,

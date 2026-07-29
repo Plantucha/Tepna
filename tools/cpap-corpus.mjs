@@ -128,8 +128,24 @@ export function sessionSetsForDay(dir) {
     .sort((a, b) => a.sec - b.sec);
   const clusters = [];
   for (const s of stamps) {
-    const c = clusters.find((c) => Math.abs(c.sec - s.sec) <= 60 && !c.byType[s.type]);
-    if (c) c.byType[s.type] = s;
+    /* NEAREST eligible cluster, not the FIRST. `find` took whichever cluster came earlier in the
+       array, so when two sessions open inside the same minute the waveforms landed on the wrong
+       one: 2026-04-21 has CSL/EVE at 20:56:15 and 20:56:28, and BRP/PLD/SA2 at 20:56:33 — 18 s
+       from the first, 5 s from the second. They joined the first, leaving the session that
+       actually held that night's `CSR Start`/`CSR End` pair with no waveform, hence no duration to
+       report a percentage against: the device scored 20 min of periodic breathing and this harness
+       reported none. Invisible until §1 made PB measurable at all — while every night read 0, no
+       grouping error could show. */
+    let best = null,
+      bestD = Infinity;
+    for (const c of clusters) {
+      const d = Math.abs(c.sec - s.sec);
+      if (d <= 60 && !c.byType[s.type] && d < bestD) {
+        best = c;
+        bestD = d;
+      }
+    }
+    if (best) best.byType[s.type] = s;
     else clusters.push({ sec: s.sec, byType: { [s.type]: s } });
   }
   return clusters;
