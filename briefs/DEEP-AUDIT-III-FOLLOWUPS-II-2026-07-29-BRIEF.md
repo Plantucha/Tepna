@@ -353,7 +353,67 @@ Running total: **46 sections resolved, 5 blind (~11 %)**.
 
 ---
 
-## 7 · An open red in the canonical gate (found 2026-07-29, unresolved)
+## 7 · The "open red" was my harness — but it uncovered a real fragility (RESOLVED 2026-07-29)
+
+> ⚠️ **CORRECTION to what §7 first claimed.** The red was **not** a gate failure. My headless invocation
+> passed **`--virtual-time-budget`**, which fast-forwards `setTimeout` relative to real CPU work — so a
+> 12 s watchdog fires essentially instantly while the Worker is still computing. Proven by the fix's own
+> instrumentation: the replacement stall-timer reported *"STALLED after **0** night(s)"* — zero
+> heartbeats had arrived before it fired. Under that flag ANY timing assertion in this suite is void,
+> and the original watchdog would fire the same way. **`--virtual-time-budget` must never be used to
+> drive `Dex-Test-Suite.html`** — it silently invalidates every timing-based gate in it. That belongs in
+> whatever automates the browser lane next.
+>
+> **What survived the correction is a genuine fragility, measured independently in Node with real
+> timers**, and it is what the fix addresses.
+
+### 7.1 The measurement
+
+The hang guard allowed ONE fixed 12 000 ms budget for the whole 15-night pool. Running that exact
+workload in Node:
+
+| | |
+|---|---|
+| total workload | **9 550 – 11 363 ms** across runs |
+| old budget | 12 000 ms |
+| **margin** | **1.05 – 1.26×** |
+| worst SINGLE night | 712 – 717 ms (its own assertion allows 1 500) |
+
+So the gate was a **stopwatch**, not a hang guard: no night was pathological, the aggregate simply sat
+on the budget. Any machine a shade slower — or the Worker + `importScripts` overhead of a real browser —
+reds the one gate CLAUDE.md §🧪 requires all-green. **A flaky gate is worse than a missing one: it
+teaches readers to discount reds.**
+
+### 7.2 The fix — a hang is the ABSENCE OF PROGRESS, not slowness
+
+The worker now emits a `{type:'progress'}` heartbeat per night and the harness **re-arms its timer on
+each one**, so the guard is machine-speed independent while still catching true non-termination (no
+heartbeat ⇒ stall). `STALL_MS` is sized off the worst *night*, never the total.
+
+| | old | new |
+|---|---|---|
+| what it measures | total runtime | longest gap without progress |
+| budget | 12 000 ms | 15 000 ms per gap |
+| **headroom** | **1.26×** | **21.1×** |
+
+Detection power is not reduced: pathological slowdown keeps its own separate assertion (the per-night
+1.5 s ceiling), and a genuine hang produces no heartbeat at all. The stall message now also reports how
+far it got, so *"hung immediately"* and *"hung on night 12"* are distinguishable — the old message could
+tell neither apart, nor either from *"merely slow"*.
+
+### 7.3 What is verified, and what is not
+
+- **Verified in Node, real timers:** 15 heartbeats emitted (one per night); worst inter-beat gap 712 ms
+  against a 15 000 ms stall budget — 21× headroom. Node lane green (4287).
+- **NOT verified in a real browser.** Headless Chrome cannot be driven honestly here without virtual
+  time (which voids the measurement), and CDP would not start in this environment. The harness half of
+  the change is a twelve-line timer re-arm; it should be eyeballed on a real
+  `Dex-Test-Suite.html?full` open before this is trusted as green.
+- A **second** headless failure appeared under the same flag (`dashboard still populated after profile
+  edit — 17 numeric tokens (was 51)`). It is very likely the same virtual-time artefact, was not present
+  on the first run, and is **not** claimed as a real defect.
+
+## 7-OLD · An open red in the canonical gate (found 2026-07-29, superseded by §7 above)
 
 The browser lane was driven headlessly for the first time in this work —
 `google-chrome --headless=new` against a local server, `Dex-Test-Suite.html?full`. It runs:

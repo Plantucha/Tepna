@@ -152,6 +152,19 @@ self.onmessage = function (e) {
           worstSeed = seed;
         }
         nNights++;
+        /* PROGRESS HEARTBEAT — what makes this a HANG guard rather than a stopwatch.
+           The harness used to allow ONE fixed budget for the whole pool, so the gate measured TOTAL
+           RUNTIME and called anything slower a hang. Measured on this workload: 11 363 ms against a
+           12 000 ms budget — a 5 % margin — so ordinary Worker/importScripts overhead reds it on any
+           machine a shade slower than the author's, and the canonical release gate goes red for a
+           reason that is not a defect. A flaky gate is worse than a missing one: it teaches readers
+           to discount reds.
+           A hang is NOT slowness, it is the ABSENCE OF PROGRESS. Emitting a heartbeat per night lets
+           the harness reset its timer on evidence of life, so the guard becomes independent of machine
+           speed while still catching true non-termination (no heartbeat, ever). Pathological slowdown
+           keeps its own separate assertion — the per-night 1.5 s ceiling below, which this does not
+           touch. */
+        self.postMessage({ type: 'progress', nNights: nNights, lastMs: +dt.toFixed(1) });
         if (nNights >= targetNights) break;
       }
     }
