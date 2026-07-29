@@ -5,7 +5,7 @@
 -->
 **Status:** PROPOSED · **Created:** 2026-07-29 · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · **Sibling:** `DEEP-AUDIT-III-FOLLOWUPS-2026-07-27-BRIEF.md` (DONE, §1/§2/§3 scope)
 
-# Closing the punch list found two fixes guarding nothing
+# Closing the punch list found three fixes guarding nothing
 
 `CPAP-AUTOHARVEST-FOLLOWUPS` §4 carried four `DEEP-AUDIT-III` items as unowned, on the reasonable
 assumption that no fix stamp meant no fix. **All four were already fixed** — on 2026-07-27, with the
@@ -13,7 +13,7 @@ parent never re-stamped. What was not already true is that they were gated.
 
 ---
 
-## 1 · The finding: two of the four fixes had no gate that could fail
+## 1 · The finding: fixes ship; gates do not always follow
 
 Verified the only way this suite accepts — **by mutation**, reverting each fix and watching what reds:
 
@@ -50,9 +50,24 @@ alone under a note claiming both signals were read. Closed by a group that pins 
 `directional`, the honest `n`, **and the note's wording** — the defect was as much the note as the
 number. Verified RED (the mutation republishes a confident coupling with no glucose in it).
 
+### 1.3 §6.3's gate tests the header path; the defect lived in the headerless one
+
+Not a punch-list item — found by starting §4's sweep early, on the five FIXED sections with the fewest
+test references. `parseDeviceHR`'s existing assertion (*"HR comes from the labelled column, not the
+last one"*) feeds a file **with a header**, so `cols` resolves from it and the by-shape branch — the one
+§6.3 actually rewrote — never executes. Reverting that branch to the old last-column rule reds
+**nothing**, while on a headerless PSL row (`stamp;HR;HRV-ms`) it takes the parse from 3 rows to
+**ZERO**: the last column is HRV in ms, every value falls outside the plausible-HR band, and the whole
+file is rejected. That is the defect's own signature — *"it went silent, on every capture-host night"* —
+reproduced under a green suite. Gated, verified RED.
+
 **The generalisable point.** A section marked FIXED and a green suite are two facts that feel like one.
 `AUDIT-PROMPT.md` already says a gate can be blind rather than green; this is that, on the audit brief
 that coined the phrase. **The mutation is the evidence — the label is not.**
+
+**Base rate so far: 3 blind or absent gates in 9 sections mutation-checked** (§3.6, §4.1, §6.3), plus
+one partial (§4.2). §3.2 and §6.1 came back with real teeth (2 and 6 assertions red). The sweep in §4
+is therefore not hypothetical — it is projecting from a measured ~⅓ rate.
 
 ---
 
@@ -84,10 +99,10 @@ is missing is a falsifier for the tracking half.
 - **A MotionDex brief of their own.** `CPAP-AUTOHARVEST-FOLLOWUPS` §4 suggested splitting the four into
   one. With three of them already fixed *and* now gated, a new brief would be an empty container; the
   one genuinely open item (§2 above) is recorded here instead.
-- **Re-auditing the other 24 sections' gates.** This pass mutation-checked the four punch-list items
-  because those were the ones being closed. The same question — *does a gate exist that can fail?* —
-  has not been asked of the 24 marked FIXED on 2026-07-27. §4 below proposes it as its own work-unit
-  rather than smuggling it in here.
+- **The full sweep of every remaining FIXED section.** This pass mutation-checked the four punch-list
+  items (because those were the ones being closed) plus the five FIXED sections with the fewest test
+  references — which is how §6.3 surfaced. The same question — *does a gate exist that can fail?* — has
+  not been asked of the rest. §4 keeps it as its own work-unit rather than letting this PR sprawl.
 
 ---
 
@@ -95,5 +110,7 @@ is missing is a falsifier for the tracking half.
 
 - [ ] §2 a `genSyntheticACC` that can emit a rate CHANGE across a real clock hole, and a §4.2 tracking
       falsifier built on it, verified RED against a flat-likelihood revert
-- [ ] The same mutation sweep run across `DEEP-AUDIT-III`'s other 24 FIXED sections — how many more
-      fixes are guarding nothing?
+- [ ] The same mutation sweep run across `DEEP-AUDIT-III`'s remaining FIXED sections. Nine are done
+      (§3.6, §4.1, §4.2, §4.3, §3.2, §6.1, §6.3, and the two screens that came back clean); **three of
+      the nine were blind or absent**. A static screen on test-reference COUNT is not a substitute —
+      §4.1 had 15 references and was blind, §6.3 had 5 and was blind. Only the mutation decides.

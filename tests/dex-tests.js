@@ -4624,6 +4624,27 @@
           })
         )
       );
+      /* …AND THE HEADERLESS PATH, WHICH THE ASSERTION ABOVE CANNOT REACH (DEEP-AUDIT-III-FOLLOWUPS-II).
+         The file above carries a header, so `cols` is resolved from it and the by-shape branch — the
+         one §6.3 actually rewrote — never executes. Mutation-checked: reverting that branch to the
+         old "last column" rule reds NOTHING in the whole suite, while on this headerless PSL shape it
+         takes the parse from 3 rows to ZERO, because the last column is HRV in ms (812/798/840) and
+         every value falls outside the plausible-HR band. The defect's own signature — "it went silent,
+         on every capture-host night" — reproduced exactly, with a green suite. */
+      var pslNoHdr = D.parseDeviceHR('2026-06-17T01:06:17.723;58;812\n2026-06-17T01:06:18.723;59;798\n2026-06-17T01:06:19.723;57;840\n');
+      T.eq('§6.3 headerless · a stamped multi-column row keeps all three rows (last-column rule ⇒ 0)', pslNoHdr.length, 3);
+      T.ok(
+        '§6.3 headerless · …and HR is the RATE column, never the HRV-in-ms one',
+        pslNoHdr.length === 3 && pslNoHdr[0].hr === 58 && pslNoHdr[1].hr === 59 && pslNoHdr[2].hr === 57,
+        JSON.stringify(
+          pslNoHdr.map(function (r) {
+            return r.hr;
+          })
+        )
+      );
+      // A bare list of rates still reads column 0 — the other half of the by-shape rule.
+      var bare = D.parseDeviceHR('58\n59\n57\n');
+      T.eq('§6.3 headerless · a single-column file reads column 0', bare.length && bare[0].hr, 58);
       var chHR = D.parseDeviceHR('Phone timestamp;sensor timestamp [ns];HR [bpm];RR-interval [ms]\n2026-07-16T20:57:58.778;0;60;912\n2026-07-16T20:57:59.778;0;61;1062\n');
       T.ok(
         'capture-host layout · the RR-interval column is never read as HR',
