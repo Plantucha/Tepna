@@ -30,6 +30,35 @@ changesets.)
 
 ---
 
+## [1.19.0] — 2026-07-29
+
+### Added
+- ECGDex, PpgDex and OxyDex now declare `recording.coverage` when their recording has holes in it, and the fusion export publishes which denominator it used. Published AHI values will move on fragmented nights — that is the point: the Integrator honoured declared coverage since part 1, and no node declared any, so the index was still divided by the bracket around a recording rather than the recording. (`INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md`)
+- Harvest the CPAP card directly when it is already reachable, so a station-mode card needs no Wi-Fi association and no root.
+- Ship a networkd rule that hands the otherwise-unused Wi-Fi radio to the CPAP harvest instead of letting a dracut catch-all hold it down.
+- `tools/trio-batch.mjs` gains **`--skip-existing`**: a night already computed **from the same inputs by the same code** is not recomputed.
+
+### Changed
+- Fold the deep-audit-III process findings into CONTRIBUTING.md — a DSP change owns three builders, Biome must be invoked pinned, and the exFAT ref-write workarounds. (`DEEP-AUDIT-III-FOLLOWUPS-2026-07-27-BRIEF.md`)
+
+### Fixed
+- Report the SNS/PSNS balance as null when HF is zero instead of inventing a 1 ms² denominator. (`DEEP-AUDIT-III-FOLLOWUPS-2026-07-27-BRIEF.md`)
+- A harvest that found nothing now reports `barren` and alerts, instead of publishing `ok` and painting a green "✓ 0 files". (`CPAP-AUTOHARVEST-2026-07-26-BRIEF.md`)
+- Confirm the CPAP Wi-Fi association from /sys/class/net carrier instead of wpa_cli, which cannot run under the service sandbox.
+- Stop rejecting half of every CPAP download as truncated — the card's listing ceils, and completeness is now judged against the exact Content-Length.
+- Give the manual CPAP pull the same reachability probe and control-directory root the scheduled loop uses.
+- Reap .part files that are byte-identical to the real file beside them — 485 duplicates, 246 MB, left behind by the ceil bug.
+- Probe for a writable wpa control directory instead of assuming one — the daemon runs under ProtectSystem=strict, where both /run and /tmp are read-only.
+- Create the harvest's wpa control directory without root — the sudo mkdir it replaced had silently stopped the CPAP harvest associating at all.
+- Let sleep staging see the chest accelerometer, and stop the smoother erasing every isolated REM and Deep epoch. (`REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`)
+- Divide the confirmed apnea index by recorded hours, not envelope hours, wherever a node declares sparse coverage. (`INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md`)
+- Resolve the capture night by where the data is, not by folder name — QC judged the empty post-midnight folder on every cross-midnight session and reported healthy recordings as nine missing streams. (`QC-SCOPE-RESOLUTION-2026-07-28-BRIEF.md`)
+- Test REM before the HRV-only wake heuristic, so the Wake branch stops swallowing every REM epoch. (`REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`)
+- Make the synthetic Mayer wave a real 0.1 Hz oscillation so LF/HF is physiological instead of VLF-starved. (`REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`)
+- Model REM as atonic in the synthetic oracle and publish its planted truth, so the staging fixture stops agreeing with the defect it should expose. (`REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`)
+
+---
+
 ## [1.18.0] — 2026-07-28
 
 ### Added
@@ -690,7 +719,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.18.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.19.0...HEAD
+[1.19.0]: https://github.com/Plantucha/Tepna/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/Plantucha/Tepna/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/Plantucha/Tepna/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/Plantucha/Tepna/compare/v1.15.0...v1.16.0
