@@ -621,3 +621,52 @@ def test_wpa_up_falls_back_to_wpa_cli_only_when_sys_cannot_tell(monkeypatch):
     assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 10) is True
     assert any(c.startswith("wpa_cli") and "status" in c for c, _ in calls), \
         "with no /sys verdict the fallback is the only thing that can answer"
+
+
+def test_every_wpa_cli_call_relocates_its_client_socket_too(monkeypatch):
+    """`-p` is only HALF of reaching the right supplicant. wpa_cli also creates its OWN client socket,
+    under a compiled-in /tmp that is READ-ONLY for this unit (ProtectSystem=strict; /tmp is not in
+    ReadWritePaths). So every call failed —
+
+        Failed to connect to non-global ctrl_ifname: wlp1s0  error: Read-only file system
+
+    — with the server sockets sitting right there. `associated()` routes the STATUS read around this by
+    reading /sys, but teardown has no /sys equivalent: `terminate` stayed broken and leaked a root
+    supplicant per harvest (measured on the box 2026-07-29). `-s` puts the client socket in the same
+    probed-writable directory as `-p`, so both ends are somewhere this unit can actually write."""
+    calls = _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=COMPLETED\n")})
+    _assoc(monkeypatch, None)                       # drive the fallback so a status call happens
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 10)
+    ch._wpa_down("wlp1s0")
+    cli = [c for c, _ in calls if c.startswith("wpa_cli")]
+    assert cli, "expected wpa_cli calls"
+    wdir = ch._wpa_dir()
+    for c in cli:
+        assert f"-p {wdir}" in c, f"server sockets unpinned — would hit the system daemon: {c}"
+        assert f"-s {wdir}" in c, f"client socket left in the read-only /tmp: {c}"
+
+
+def test_wpa_down_reports_a_terminate_that_failed(monkeypatch, caplog):
+    """It used to `return True` unconditionally, so a terminate that never worked reported a clean
+    teardown and the harvest reported `ok: true` over a LEAKED root process — `wpa_supplicant -B -i
+    wlp1s0` still running, holding an already-deleted conf. Downloads were unaffected (the next run's
+    `-B` fails and /sys still sees the association), which is exactly why nobody noticed. A green verdict
+    over a failed step is the shape this codebase keeps finding bugs behind, so say it."""
+    import logging
+    _sh_spy(monkeypatch, {"wpa_cli": (255, "Failed to connect to non-global ctrl_ifname: wlp1s0")})
+    with caplog.at_level(logging.WARNING):
+        assert ch._wpa_down("wlp1s0") is False
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "terminate failed" in msg and "wlp1s0" in msg
+    assert "left running" in msg, "the operator needs to know a supplicant may have survived"
+
+
+def test_wpa_down_still_flushes_and_downs_even_when_terminate_fails(monkeypatch):
+    """Reporting the failure must not turn into skipping the rest. The address flush is what stops
+    anything routing over a half-torn link, so it and the link-down run regardless."""
+    calls = _sh_spy(monkeypatch, {"wpa_cli": (255, "nope")})
+    assert ch._wpa_down("wlp1s0") is False
+    flat = [c for c, _ in calls]
+    assert flat[0].startswith("ip addr flush"), "the flush must still come first"
+    assert any("link set wlp1s0 down" in c for c in flat), "and the link must still go down"

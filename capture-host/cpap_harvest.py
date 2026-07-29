@@ -604,6 +604,26 @@ def associated(iface: str, sysfs: str = "/sys/class/net") -> bool | None:
         return None
 
 
+def _wpa_cli(wdir: str, iface: str, *args: str) -> list[str]:
+    """A `wpa_cli` argv that can actually connect from inside the unit's sandbox.
+
+    `-p` points at the SERVER sockets — load-bearing, because resolving through /run/wpa_supplicant
+    would let `terminate` kill the box's own supplicant. But `-p` is only half of it: wpa_cli also
+    creates its OWN CLIENT socket, and that goes under a compiled-in `/tmp` which is READ-ONLY for this
+    unit (`ProtectSystem=strict`, and /tmp is not in ReadWritePaths). So every call failed with
+
+        Failed to connect to non-global ctrl_ifname: wlp1s0  error: Read-only file system
+
+    even with the server sockets sitting right there. That is the failure `associated()` was written to
+    route around by reading /sys instead — but teardown has no /sys equivalent, so it stayed broken and
+    leaked a root supplicant per harvest.
+
+    `-s` moves the client socket, so it goes in the same probed-writable directory as the server ones.
+    Verified against the real box 2026-07-29: `status` returned `wpa_state=INTERFACE_DISABLED` and
+    `terminate` returned OK where both had been failing rc=255."""
+    return ["wpa_cli", "-p", wdir, "-s", wdir, "-i", iface, *args]
+
+
 def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float, root: str | None = None) -> bool:
     import tempfile
     fd, conf = tempfile.mkstemp(prefix="tepna-ezshare-", suffix=".conf")
@@ -644,7 +664,7 @@ def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float, root: st
             # read-only-/tmp failure that made this necessary would simply come back.
             ok = associated(iface)
             if ok is None:
-                rc, out = _sh(["wpa_cli", "-p", wdir, "-i", iface, "status"], 8, sudo=True)
+                rc, out = _sh(_wpa_cli(wdir, iface, "status"), 8, sudo=True)
                 ok = rc == 0 and "wpa_state=COMPLETED" in out
             if ok:
                 _sh(["ip", "addr", "add", addr, "dev", iface], 10, sudo=True)   # NO route, ever
@@ -669,9 +689,19 @@ def _wpa_down(iface: str, root: str | None = None) -> bool:
     # supplicant's socket directory and `terminate` kills the box's own wpa_supplicant. Harmless here
     # only because the vigil box uplinks over wired eno1; on a Wi-Fi box the CPAP harvest's teardown
     # would have taken the network down with it.
-    _sh(["wpa_cli", "-p", _wpa_dir(root), "-i", iface, "terminate"], 10, sudo=True)
+    wdir = _wpa_dir(root)
+    rc, out = _sh(_wpa_cli(wdir, iface, "terminate"), 10, sudo=True)
     _sh(["ip", "link", "set", iface, "down"], 10, sudo=True)
-    return True
+    # DO NOT SWALLOW IT. This used to `return True` unconditionally, so a terminate that never worked
+    # reported a clean teardown and the harvest reported `ok: true` over a leaked root process. Measured
+    # 2026-07-29: after a successful pull, `wpa_supplicant -B -i wlp1s0` was still running (holding an
+    # already-deleted conf) because `terminate` had failed rc=255 and nothing said so. Downloads were
+    # unaffected — the next run's `-B` fails and /sys still reports the association — but a green verdict
+    # over a failed step is the shape this codebase keeps finding bugs behind.
+    if rc:
+        log.warning("cpap: wpa_cli terminate failed on %s (rc=%s, %s) — a supplicant may be left running",
+                    iface, rc, (out or "").strip().splitlines()[-1] if (out or "").strip() else "no output")
+    return rc == 0
 
 
 def harden_profile(profile: str) -> bool:
