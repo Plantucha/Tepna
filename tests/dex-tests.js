@@ -15843,7 +15843,13 @@
       var BASE = CASES.slice();
       [
         { sfx: '_synth', tag: ' [synthetic]' },
-        { sfx: '_gap', tag: ' [synthetic · 14 h sensor-change gap]' }
+        { sfx: '_gap', tag: ' [synthetic · 14 h sensor-change gap]' },
+        // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — the same argument one node over. Every ECGDex equiv
+        // input is a CONTIGUOUS recording, so `recording.coverage` (which the Integrator's apnea
+        // denominator now rests on) had no committed leg at all; a regression that stopped emitting it,
+        // or emitted the envelope instead of the segments, would reproduce byte-identically on both
+        // clean twins. `_gapped` is a committed input with three recorded segments in a 60 s envelope.
+        { sfx: '_gapped', tag: ' [synthetic · fragmented recording]' }
       ].forEach(function (t) {
         CASES = CASES.concat(
           BASE.filter(function (c) {
@@ -22475,6 +22481,216 @@
         var spHrs = sp.reduce(function (t, iv) { return t + (iv[1] - iv[0]) / H; }, 0);
         T.approx('overlapIntervals · …totalling recorded time, not the envelope', spHrs, 2, 0.01);
       }
+    });
+
+    /* INTEGRATOR-GAP-AWARE-OVERLAP part 2 — THE EMITTERS.
+       Part 1 (the group above) made the Integrator HONOUR `recording.coverage`. It changed nothing on
+       the real corpus, because no node emitted the block: `integrator-dsp.js` said so in a comment —
+       "null for every node that records continuously, which is all of them today" — and that sentence
+       was false for exactly the three capture nodes, whose recordings are the ones with holes in them.
+       So part 1 was a mechanism wired to a signal nobody sent.
+
+       These assertions are about the SIGNAL. Each node derives its segments from evidence it was
+       already computing and throwing away: ECGDex from the dropouts `parseECGText` records, PpgDex from
+       the `relSec` jumps `intervalsSpanningTimeGap` already drops intervals across, OxyDex from the row
+       stamps `computeDataGaps` already counts. Nothing new is measured — what is new is that the
+       positions survive into the export instead of being reduced to a percentage. */
+    group('The capture nodes DECLARE their holes — recording.coverage emitters', 'ecgdex-dsp · ppgdex-dsp · oxydex-dsp · dex-export · coverage · gap-aware', function (T) {
+      var DE = env.DexExport;
+      T.ok('DexExport.coverageFromSegments available', !!(DE && typeof DE.coverageFromSegments === 'function'));
+
+      // ── the shared assembler ──────────────────────────────────────────────────────────────────
+      if (DE && typeof DE.coverageFromSegments === 'function') {
+        var C = DE.coverageFromSegments;
+        var t0 = U(2026, 6, 23, 22, 0, 0),
+          H = 3600000;
+        T.eq('a CONTIGUOUS recording declares nothing — one segment ⇒ null', C([[t0, t0 + H]]), null);
+        T.eq('…and so does an empty / absent segment list', C([]), null);
+        var two = C([
+          [t0, t0 + H],
+          [t0 + 5 * H, t0 + 6 * H]
+        ]);
+        T.ok('two disjoint segments DO declare coverage', !!two && two.kind === 'sparse', JSON.stringify(two && { n: two.n, rec: two.recordedSec }));
+        T.eq('…spanSec is the ENVELOPE (first start → last end)', two && two.spanSec, 6 * 3600);
+        T.eq('…recordedSec is the COVERAGE (the sum of the segments), NOT the envelope', two && two.recordedSec, 2 * 3600);
+        T.eq('…and the two are different numbers, so neither can be read as the other', two && two.spanSec !== two.recordedSec, true);
+        // Interval algebra is the assembler's job, not each caller's — a node deriving segments from a
+        // noisy stream must not also have to own sorting and merging.
+        var unsorted = C([
+          [t0 + 5 * H, t0 + 6 * H],
+          [t0, t0 + H]
+        ]);
+        T.eq('unsorted input is sorted, not trusted', unsorted && unsorted.segments[0].startMs, t0);
+        var touching = C([
+          [t0, t0 + 2 * H],
+          [t0 + H, t0 + 3 * H]
+        ]);
+        T.eq('OVERLAPPING segments merge — and a merge that closes every hole ⇒ null (contiguous)', touching, null);
+        var withPoint = C([
+          [t0, t0 + H],
+          [t0 + 3 * H, t0 + 3 * H],
+          [t0 + 5 * H, t0 + 6 * H]
+        ]);
+        T.eq('a ZERO-LENGTH segment is a point and is dropped — a point cannot create overlap', withPoint && withPoint.n, 2);
+      }
+
+      // ── ECGDex · dropouts → segments ──────────────────────────────────────────────────────────
+      var E = env.ECGDex;
+      if (E && typeof E.coverage === 'function' && typeof E.parseECG === 'function') {
+        var gapTxt = env.equiv && env.equiv.ecgdex_gapped && env.equiv.ecgdex_gapped.input;
+        T.ok('the committed FRAGMENTED ECG twin is wired into env.equiv', !!gapTxt, gapTxt ? '' : 'wire equiv.ecgdex_gapped in both runners');
+        if (gapTxt) {
+          var grec = E.parseECG(gapTxt);
+          var gcov = E.coverage(grec);
+          T.eq('the parser sees the two dropouts', grec.gaps.length, 2);
+          T.ok('…and ECGDex declares coverage for them', !!gcov && gcov.kind === 'sparse', JSON.stringify(gcov && { n: gcov.n, rec: gcov.recordedSec, span: gcov.spanSec }));
+          T.eq('THREE recorded segments, one per surviving stretch', gcov && gcov.n, 3);
+          T.approx('recordedSec ≈ the DATA seconds the parser counted (n/fs), not the envelope', gcov && gcov.recordedSec, grec.int16.length / grec.fs, 1);
+          T.approx('spanSec is the 60 s envelope — 3x the recorded time, which is the whole point', gcov && gcov.spanSec, 60, 1);
+          // The export is what the Integrator reads; a coverage block that never reaches it is inert.
+          if (typeof E.compute === 'function') {
+            var gex = E.compute({ text: gapTxt }, { generated: 'pinned' });
+            T.ok('the EXPORT carries the block (this is the field the fusion denominator reads)', !!(gex && gex.recording && gex.recording.coverage), JSON.stringify(gex && gex.recording && gex.recording.coverage && gex.recording.coverage.n));
+          }
+        }
+        // A CLEAN recording must declare nothing — the byte-identity contract every committed fixture rests on.
+        var cleanTxt = env.equiv && env.equiv.ecgdex_synth && env.equiv.ecgdex_synth.input;
+        if (cleanTxt) {
+          var crec = E.parseECG(cleanTxt);
+          T.eq('BACK-COMPAT · a contiguous ECG recording declares NO coverage', E.coverage(crec), null);
+          if (typeof E.compute === 'function') {
+            var cex = E.compute({ text: cleanTxt }, { generated: 'pinned' });
+            T.eq('BACK-COMPAT · …so the key is ABSENT from a clean export, not present-and-null', cex && cex.recording && Object.prototype.hasOwnProperty.call(cex.recording, 'coverage'), false);
+          }
+        }
+        /* THE MERGED-SESSION SHAPE — the one that actually costs a published number. tools/trio-batch
+           folds a night's several *_ECG.txt files into ONE rec, carrying the off-link silence as a
+           `gaps` entry with NO ms column, and hands that to compute(). A sample INDEX is data time, so
+           reading `idx/fs` as a clock position under-states every boundary by the accumulated silence;
+           this pins the walk instead. Measured on the real 2026-07-23 fold: 6 sessions, 6.71 h recorded
+           inside a 23.02 h envelope. */
+        var FS = 130,
+          T0 = U(2026, 6, 23, 22, 0, 0);
+        var merged = {
+          int16: new Int16Array(FS * 900), // 900 s of data …
+          fs: FS,
+          t0Ms: T0,
+          // … split into 3 x 300 s by two 10-minute off-link holes. `idx` only — no ms column, exactly
+          // as the session merge writes it.
+          gaps: [
+            { idx: FS * 300, ms: 600000 },
+            { idx: FS * 600, ms: 600000 }
+          ]
+        };
+        var mcov = E.coverage(merged);
+        T.eq('MERGED SESSIONS · three segments recovered from {idx, ms} alone', mcov && mcov.n, 3);
+        T.approx('MERGED SESSIONS · recorded time is the DATA seconds (900 s), not the span', mcov && mcov.recordedSec, 900, 2);
+        T.approx('MERGED SESSIONS · the envelope is 900 s + two 10-min holes = 2100 s', mcov && mcov.spanSec, 2100, 2);
+        T.ok(
+          'MERGED SESSIONS · the LAST segment starts after BOTH holes (an idx/fs read would place it ~20 min early)',
+          !!(mcov && mcov.segments[2]) && Math.abs(mcov.segments[2].startMs - (T0 + (600 + 1200) * 1000)) < 2000,
+          mcov && mcov.segments[2] ? String(mcov.segments[2].startMs - T0) : 'no third segment'
+        );
+      }
+
+      // ── PpgDex · relSec jumps → segments ──────────────────────────────────────────────────────
+      var P = env.PpgDex;
+      if (P && typeof P.coverage === 'function') {
+        var pfs = 55,
+          pt0 = U(2026, 6, 23, 22, 0, 0);
+        var n1 = pfs * 60,
+          rel = new Float64Array(n1 * 2);
+        for (var i2 = 0; i2 < n1; i2++) rel[i2] = i2 / pfs; // 60 s …
+        for (var j2 = 0; j2 < n1; j2++) rel[n1 + j2] = 60 + 300 + j2 / pfs; // … 5 min off-link … 60 s
+        var pcov = P.coverage({ t0Ms: pt0, fs: pfs, relSec: rel });
+        T.eq('a relSec JUMP splits the stream into two recorded segments', pcov && pcov.n, 2);
+        T.approx('…recordedSec is the two minutes actually sampled', pcov && pcov.recordedSec, 120, 2);
+        T.approx('…while spanSec is the 7-minute bracket around them', pcov && pcov.spanSec, 420, 2);
+        var contRel = new Float64Array(n1);
+        for (var k2 = 0; k2 < n1; k2++) contRel[k2] = k2 / pfs;
+        T.eq('BACK-COMPAT · a contiguous PPG stream declares NO coverage', P.coverage({ t0Ms: pt0, fs: pfs, relSec: contRel }), null);
+      }
+
+      // ── OxyDex · row stamps → segments ────────────────────────────────────────────────────────
+      var O = env.OxyDex;
+      if (O && typeof O.coverage === 'function') {
+        var ot0 = U(2026, 6, 23, 22, 0, 0),
+          rows = [];
+        for (var s2 = 0; s2 < 600; s2++) rows.push({ t: ot0 + s2 * 1000 }); // 10 min at 1 Hz
+        for (var s3 = 0; s3 < 600; s3++) rows.push({ t: ot0 + (1800 + s3) * 1000 }); // 20-min hole, then 10 min
+        var ocov = O.coverage(rows, ot0);
+        T.eq('a finger-off hole splits the night into two recorded segments', ocov && ocov.n, 2);
+        T.approx('…recordedSec is the 20 minutes of oximetry, not the 40-minute envelope', ocov && ocov.recordedSec, 1199, 3);
+        var contRows = [];
+        for (var s4 = 0; s4 < 600; s4++) contRows.push({ t: ot0 + s4 * 1000 });
+        T.eq('BACK-COMPAT · a contiguous night declares NO coverage', O.coverage(contRows, ot0), null);
+      }
+    });
+
+    /* …and the loop closed: a node that declares holes must MOVE the published denominator, and the
+       export must say which denominator it used. Without this the emitters could ship correct and
+       still change nothing, which is precisely what happened to part 1. */
+    group('A declared hole reaches the published AHI — and the export says so', 'integrator-dsp · apnea · coverage · gap-aware', function (T) {
+      var RF = env.runFusion;
+      T.ok('runFusion available', typeof RF === 'function');
+      if (typeof RF !== 'function') return;
+      var t0 = U(2026, 6, 23, 22, 0, 0),
+        H = 3600000;
+      // A 7 h envelope in which the two nodes were actually concurrent for ~2 h — the 2026-07-23 shape.
+      function rec(node, evs, segs) {
+        var r = { node: node, t0Ms: t0, endMs: t0 + 7 * H, dateUnknown: false, offsetMin: null, events: evs, nEvents: evs.length, summary: {}, series: {} };
+        if (segs)
+          r.coverage = {
+            kind: 'sparse',
+            spanSec: 7 * 3600,
+            recordedSec: segs.reduce(function (a, s) {
+              return a + s[1];
+            }, 0),
+            n: segs.length,
+            nWithDuration: segs.length,
+            segments: segs.map(function (s) {
+              return { startMs: t0 + s[0] * 1000, durSec: s[1] };
+            })
+          };
+        return r;
+      }
+      var desats = [],
+        surges = [];
+      for (var i = 0; i < 10; i++) {
+        var dt = t0 + 10 * 60000 + i * 5 * 60000; // all inside the first recorded hour
+        desats.push({ tMs: dt, t: 'x', impulse: 'spo2_desaturation', node: 'OxyDex', conf: 0.9, meta: { depth: 5, durSec: 20 } });
+        surges.push({ tMs: dt + 3000, t: 'x', impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.9 });
+      }
+      // Both nodes fragmented, and their recorded segments only partly coincide: OxyDex [0-1h]+[5-6h],
+      // ECGDex [0-1h]+[3-4h] ⇒ ONE hour of genuine concurrency inside a 7 h envelope.
+      var oxySegs = [
+          [0, 3600],
+          [5 * 3600, 3600]
+        ],
+        ecgSegs = [
+          [0, 3600],
+          [3 * 3600, 3600]
+        ];
+      var envRun = RF([rec('OxyDex', desats), rec('ECGDex', surges)], {}).apnea || {};
+      var covRun = RF([rec('OxyDex', desats, oxySegs), rec('ECGDex', surges, ecgSegs)], {}).apnea || {};
+
+      T.approx('the envelope run divides by the whole 7 h bracket', envRun.overlapHours, 7, 0.05);
+      T.approx('THE FIX · two fragmented nodes share ONE recorded hour, and that is the denominator', covRun.overlapHours, 1, 0.05);
+      T.eq('the confirmed events are the same events — only the denominator moved', covRun.matched && covRun.matched.desat, envRun.matched && envRun.matched.desat);
+
+      // The published audit trail (§6 — "the fusion export publishes the coverage it used").
+      var oc = covRun.overlapCoverage;
+      T.ok('the export publishes an overlapCoverage block', !!oc, JSON.stringify(oc));
+      T.eq('…naming the basis as RECORDED when a node declared coverage', oc && oc.basis, 'recorded');
+      T.approx('…carrying the envelope figure BESIDE the recorded one, so 1-of-7 is legible', oc && oc.envelopeHours, 7, 0.05);
+      T.approx('…and the fraction of the bracket that was actually recorded', oc && oc.recordedFrac, 1 / 7, 0.01);
+      T.eq('…and naming WHICH nodes declared it, so the claim is attributable', oc && oc.declaredBy && oc.declaredBy.join(','), 'ECGDex,OxyDex');
+
+      var oe = envRun.overlapCoverage;
+      T.eq('BACK-COMPAT · with nothing declared the basis is ENVELOPE', oe && oe.basis, 'envelope');
+      T.eq('BACK-COMPAT · …and the two hour figures are equal by construction, which is the honest statement', oe && oe.recordedHours, oe && oe.envelopeHours);
+      T.eq('BACK-COMPAT · …with no node credited for a claim it never made', oe && oe.declaredBy && oe.declaredBy.length, 0);
+      T.eq('BACK-COMPAT · absent coverage ⇒ the pre-existing overlapHours, unchanged', envRun.overlapHours, RF([rec('OxyDex', desats), rec('ECGDex', surges)], {}).apnea.overlapHours);
     });
 
     group('A second oximeter cannot double the apnea index — §3.1', 'integrator-dsp · apnea · fabricated-redundancy', function (T) {

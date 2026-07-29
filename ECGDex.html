@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6UERDhurc7xMKjtqCO0yVljkq+xmkT8wIPYdXlPS0eU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-ZAzb5Otasm++nQdBl90HnemzB7xsFHZtTUZG6ZJL1QE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-zzSJRKL0zjzynyMUyIEdLySnS7uq/+MYYjrKsGQomCI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/ZR58Ik6AhJP/jaQIWInSNGS+ValGVbbSAy6GCmo83A=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-ZAzb5Otasm++nQdBl90HnemzB7xsFHZtTUZG6ZJL1QE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-zzSJRKL0zjzynyMUyIEdLySnS7uq/+MYYjrKsGQomCI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -4038,6 +4038,75 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   // ── SCRUB FOR SHARING (SELF-INGEST §5 · shared helper D1, SELF-INGEST-FOLLOWUPS-2026-07-03) ──
   // De-raw'd ≠ de-identified: a node-export's schema.provenance.inputs[].name can carry a DEVICE
   // SERIAL / source filename + inputs[].sha256. For clinical sharing return a deep CLONE with those
+  /* ────────────────────────────────────────────────────────────────────────
+     recording.coverage — the WRITER side of the sparse-coverage contract
+     (DEEP-AUDIT-III §6.2 built the READER; INTEGRATOR-GAP-AWARE-OVERLAP part 1 wired it to the
+     published quantities; this is part 2 — the emitters).
+
+     WHY IT LIVES HERE. `integrator-dsp.js recSegments` is the single reader of this block, and until
+     now HRVDex was its single writer — one node, one hand-rolled literal. Three more nodes now owe the
+     same block, and three more hand-rolled literals is how a shape drifts. The DERIVATION is
+     irreducibly node-local (ECGDex reads dropouts off its `gaps[]`, PpgDex off `relSec` jumps, OxyDex
+     off row stamps); the ASSEMBLY is not, so the assembly is single-sourced here — same reasoning that
+     put `parseTimestamp` in `clock.js`.
+
+     WHY IT RETURNS null FOR A CONTIGUOUS RECORDING. A node that omits `coverage` makes no coverage
+     claim, and the Integrator falls back to the envelope — which, for a recording with no holes, IS
+     the coverage. Emitting `kind:"continuous"` on every clean export would therefore add no
+     information while moving every committed fixture's bytes. So: a node declares coverage exactly
+     when it has something to declare, i.e. when it found a hole. `segments.length <= 1` ⇒ null.
+
+     `spanSec` is the ENVELOPE (first start → last end) and `recordedSec` is the COVERAGE (the sum of
+     the segments). They are different fields with different names so neither can be read as the other
+     — the same discipline §6.2 established for HRVDex.
+
+     segs: [[startMs, endMs], …] floating wall-clock ms. Unsorted / overlapping / zero-length input is
+     tolerated: it is sorted, merged and filtered here, because a caller deriving segments from a noisy
+     stream should not also have to own interval algebra. */
+  function coverageFromSegments(segs, opts) {
+    if (!Array.isArray(segs) || !segs.length) return null;
+    opts = opts || {};
+    var clean = [];
+    for (var i = 0; i < segs.length; i++) {
+      var s = segs[i];
+      if (!s) continue;
+      var a = Array.isArray(s) ? s[0] : s.startMs,
+        b = Array.isArray(s) ? s[1] : s.endMs;
+      // A segment with no start is not a segment. A zero/negative-length one is a POINT, and a point
+      // cannot create overlap — dropping it is the honest consequence, and matches recSegments' own
+      // treatment of `durSec:null`.
+      if (a == null || !isFinite(a) || b == null || !isFinite(b) || !(b > a)) continue;
+      clean.push([a, b]);
+    }
+    if (clean.length < 2) return null; // no hole to declare ⇒ no claim to make (see above)
+    clean.sort(function (x, y) {
+      return x[0] - y[0];
+    });
+    var merged = [clean[0].slice()];
+    for (var j = 1; j < clean.length; j++) {
+      var last = merged[merged.length - 1];
+      if (clean[j][0] <= last[1]) last[1] = Math.max(last[1], clean[j][1]);
+      else merged.push(clean[j].slice());
+    }
+    if (merged.length < 2) return null; // the holes closed under merge — a contiguous recording
+    var recordedMs = 0;
+    for (var k = 0; k < merged.length; k++) recordedMs += merged[k][1] - merged[k][0];
+    return {
+      kind: 'sparse',
+      spanSec: Math.round((merged[merged.length - 1][1] - merged[0][0]) / 1000),
+      segments: merged.map(function (m) {
+        return { startMs: m[0], durSec: +((m[1] - m[0]) / 1000).toFixed(3) };
+      }),
+      recordedSec: Math.round(recordedMs / 1000),
+      // Every segment built from a stream carries its own length, so `nWithDuration === n` here. Both
+      // are kept so the block is shape-identical to HRVDex's, where they genuinely differ.
+      nWithDuration: merged.length,
+      n: merged.length,
+      // What OPENED the holes, for a reader deciding whether to trust them. Free-form, node-supplied.
+      source: opts.source != null ? opts.source : null
+    };
+  }
+
   // stripped while KEEPING: the full clinical summary (nights[]/recordings[]/… + ganglior_events[] +
   // crossNight), a COARSE build stamp (buildHash + generated, so provenance integrity survives), and
   // recording.contentId (the identity-free EXPORT-IDENTITY handle). PURE: never mutates the input.
@@ -4084,7 +4153,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return out;
   }
 
-  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport, coverageFromSegments: coverageFromSegments };
   root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;
@@ -8904,6 +8973,9 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       // `durSec` above is analyze's ACTIVE seconds (nnRes.activeSec), which is data-seconds by an even
       // stricter reading than the parser's n/fs — all the more reason the clock end must travel too.
       endEpochMs: rec.endEpochMs != null ? rec.endEpochMs : null,
+      // …and the SEGMENTS inside that span (INTEGRATOR-GAP-AWARE-OVERLAP part 2). Also a property of
+      // the recording, not the analysis — null whenever the link never dropped.
+      coverage: ecgCoverage(rec),
       durMin: +durMin.toFixed(1),
       longRec,
       tier,
@@ -9954,6 +10026,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       stepSum = 0,
       stepN = 0;
     var gaps = [];
+    // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — the SESSION BOUNDARIES, in the file's own relative-ms
+    // frame. `gaps[i].idx` alone would force a consumer to reconstruct wall-clock from `idx/fs`, which
+    // re-accumulates exactly the rounding the mean-interval fs derivation exists to avoid; the `ms`
+    // column already states both edges of every dropout, so record them and let the caller anchor once
+    // at t0Ms. `firstRelMs` is that anchor's zero. Additive: `idx`/`ms` are untouched.
+    var firstRelMs = null,
+      lastRelMs = null;
     var lastTs = null; // phone stamp of the last valid row → the recording's clock end
     function push(v) {
       if (n >= cap) {
@@ -9988,12 +10067,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       if (p.length >= 3) {
         var ms = parseFloat(p[2]);
         if (isFinite(ms)) {
+          if (firstRelMs === null) firstRelMs = ms;
           if (prevMs !== null) {
             var d = ms - prevMs;
             if (d > 0) {
               if (msStep === null && d < 50) msStep = d; // provisional step — anchors the gap threshold
               if (msStep && d > msStep * 2.5) {
-                gaps.push({ idx: n - 1, ms: d }); // a dropout, not a sample interval — excluded from fs
+                // a dropout, not a sample interval — excluded from fs
+                gaps.push({ idx: n - 1, ms: d, atRelMs: prevMs, endRelMs: ms });
               } else if (d < 50) {
                 stepSum += d;
                 stepN++;
@@ -10001,6 +10082,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
             }
           }
           prevMs = ms;
+          lastRelMs = ms;
         }
       }
     }
@@ -10017,7 +10099,84 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // answers "where does this recording end on the clock" — two questions one scalar cannot both answer.
     var endTs = lastTs != null ? parseTimestamp(lastTs) : null;
     var endEpochMs = endTs && endTs.tMs != null ? endTs.tMs : null;
-    return { int16: arr.slice(0, n), fs: fs, gaps: gaps, t0Ms: t0Ms, offsetMin: offsetMin, source: 'file', durSec: n / fs, endEpochMs: endEpochMs };
+    return {
+      int16: arr.slice(0, n),
+      fs: fs,
+      gaps: gaps,
+      t0Ms: t0Ms,
+      offsetMin: offsetMin,
+      source: 'file',
+      durSec: n / fs,
+      endEpochMs: endEpochMs,
+      firstRelMs: firstRelMs,
+      lastRelMs: lastRelMs
+    };
+  }
+
+  /* recording.coverage for an ECG recording — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
+     The dropouts `parseECGText` already found ARE the session boundaries: a BLE link drop ends one
+     segment and its recovery starts the next. On the 2026-07-16..26 capture corpus one H10 night runs
+     3 segments and one Verity night 24, so the envelope this node used to declare on its own is a
+     bracket around a recording, not the recording.
+
+     Prefers the exact relative-ms edges (`atRelMs`/`endRelMs`); falls back to `idx/fs` for a rec that
+     reached us without them — a worker hand or a SignalFrame carries `{idx, ms}` only, and a coverage
+     block reconstructed to the nearest sample period is still enormously better than an envelope. */
+  function ecgCoverage(rec) {
+    if (!rec || rec.t0Ms == null || !isFinite(rec.t0Ms)) return null;
+    var gaps = rec.gaps;
+    if (!Array.isArray(gaps) || !gaps.length) return null; // contiguous ⇒ no claim (DexExport contract)
+    var fs = rec.fs > 0 ? rec.fs : 130;
+    var nSamp = rec.int16 && rec.int16.length != null ? rec.int16.length : null;
+    var t0 = rec.t0Ms,
+      segs = [];
+    if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs != null && isFinite(rec.lastRelMs) && gaps[0] && gaps[0].atRelMs != null) {
+      // ── EXACT: the parser kept both edges of every dropout, in the file's own ms column. ──
+      var base = rec.firstRelMs,
+        cur = 0;
+      for (var i = 0; i < gaps.length; i++) {
+        var g = gaps[i];
+        if (!g || g.atRelMs == null || !isFinite(g.atRelMs) || g.endRelMs == null || !isFinite(g.endRelMs)) continue;
+        var gs = g.atRelMs - base,
+          ge = g.endRelMs - base;
+        if (!(ge > gs)) continue;
+        if (gs > cur) segs.push([t0 + cur, t0 + gs]);
+        cur = Math.max(cur, ge);
+      }
+      var endOff = rec.lastRelMs - base;
+      if (endOff > cur) segs.push([t0 + cur, t0 + endOff]);
+    } else if (nSamp) {
+      /* ── FALLBACK: `{idx, ms}` only. A sample index is DATA time, not wall-clock time — after one
+         dropout, sample k sits at k/fs PLUS every gap before it, so reading `idx/fs` as a clock
+         position under-states every boundary by the accumulated silence. Walk instead: consume the
+         segment's data seconds, then jump the gap. This is the path the trio-batch session merge
+         takes (it rebuilds `gaps` by hand and carries no ms column), i.e. the exact shape this whole
+         brief is about — so it has to be the correct one, not the convenient one.
+
+         The merge writes `idx` as the LAST sample BEFORE the join while the parser writes the FIRST
+         sample AFTER the dropout. That is a one-sample disagreement — 7.7 ms at 130 Hz — against
+         segments measured in hours, so it is left alone rather than papered over with a heuristic
+         that would have to guess which producer it is reading. */
+      var sorted = gaps
+        .filter(function (x) {
+          return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite(x.ms) && x.ms > 0;
+        })
+        .sort(function (a, b) {
+          return a.idx - b.idx;
+        });
+      var wall = 0,
+        prevIdx = 0;
+      for (var j = 0; j < sorted.length; j++) {
+        var gi = Math.max(prevIdx, Math.min(nSamp, sorted[j].idx));
+        var dataMs = ((gi - prevIdx) / fs) * 1000;
+        if (dataMs > 0) segs.push([t0 + wall, t0 + wall + dataMs]);
+        wall += dataMs + sorted[j].ms;
+        prevIdx = gi;
+      }
+      var tailMs = ((nSamp - prevIdx) / fs) * 1000;
+      if (tailMs > 0) segs.push([t0 + wall, t0 + wall + tailMs]);
+    } else return null;
+    return typeof DexExport !== 'undefined' && DexExport && DexExport.coverageFromSegments ? DexExport.coverageFromSegments(segs, { source: 'ble-dropout' }) : null;
   }
 
   // COMPANION device-stream parsers (ECG-PPG-FOLLOWUPS-HANDOFF §2(b)) — the Polar Sensor
@@ -10290,6 +10449,17 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
+    /* SPARSE COVERAGE — INTEGRATOR-GAP-AWARE-OVERLAP part 2 (the emitter half of DEEP-AUDIT-III §6.2).
+       `durSec` says how much signal there is and `endEpochMs` says where the recording ends on the
+       clock; NEITHER says WHERE INSIDE that span the signal actually is. On a night of BLE reconnects
+       those are different questions with a 3.3× different answer: measured 2026-07-23, three-way
+       recorded overlap 2.1 h against a 6.86 h envelope — on the one night in eleven marked
+       `confirmedAHIReportable`, whose `confirmedAHI` is divided by exactly that figure.
+       ASSIGNED CONDITIONALLY, like `stats.sensorWarmupTrimmed` in oxydex-dsp and for the same reason:
+       an always-present `coverage:null` would move EVERY clean export's bytes, including the committed
+       provenance fixtures, to say nothing. Absent ⇒ no coverage claim ⇒ the Integrator uses the
+       envelope, which for a contiguous recording IS the coverage. */
+    if (r.coverage) out.recording.coverage = r.coverage;
     // ── RICH export (gated: opts.rich) — ECG-PPG-FOLLOWUPS-HANDOFF §1 option (a) / ECGDEX-FOLLOWUPS-II §2 ──
     // By DEFAULT this builder emits the LIGHT export above (recording + ganglior_events) and the app's
     // exportGanglior() calls WITHOUT opts.rich → the app's Ganglior stream stays BYTE-IDENTICAL. Only the
@@ -10548,6 +10718,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     parseDeviceRR: parseDeviceRR,
     parseDeviceHR: parseDeviceHR,
     parseDeviceACC: parseDeviceACC,
+    coverage: ecgCoverage, // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — pure, so the segment derivation is gateable
     planCompanionGraft: planCompanionGraft // §10.4 — pure, so the graft rule is gateable
   };
   global.ECGDex.loadOwnExport = ecgLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)

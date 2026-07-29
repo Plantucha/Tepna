@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-MjgKGx7flz9bToi39X3OOw9FMRYQE8d+PIvype3QeWU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QJmpjWDlpbIiDYkV79kKDuftqVSCp3mG9WWwC4ZEiTQ=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-nDplrAG2jOvkIUrVm+9NZGXbYdEQgDI4kT0XQu9Douo=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-27EYp1T+2EygYyXso6DI/5QsrVFYS8a/2nO4ZuEOx8E=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-l6r7/Fzq6euRe+9UnldDHhD9UYovRG2vQwqCr4eys8I=' 'sha256-nk1K9raammH5+ukD3qiVo4WFwiPqIy4Mn0dLsBOnqHA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -5072,6 +5072,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var night_obj = {
       date: date,
       t0Ms: t0Ms,
+      // Where inside the night the oximeter was actually recording (INTEGRATOR-GAP-AWARE-OVERLAP
+      // part 2). `dataGaps` above already found these holes and reported only a percentage; the
+      // Integrator needs their POSITIONS to divide by recorded rather than envelope hours.
+      // Null on a contiguous night, which keeps every clean export byte-identical.
+      coverage: oxyCoverage(rows, t0Ms),
       fname: fname,
       stats: stats,
       spikes: spikes,
@@ -6887,6 +6892,11 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   }
 
   // ── M. Data Gap Detection ─────────────────────────────────────────
+  // A step longer than this is MISSING TIME, not a sample interval. The O2Ring samples at 1 Hz, so
+  // two seconds is one skipped sample — loose enough that ordinary jitter never trips it. Named
+  // because `computeDataGaps` (the QC lane) and `oxyCoverage` (the export block) must agree: a hole
+  // one calls a gap and the other counts as recorded time is a contradiction the export would publish.
+  var GAP_STEP_SEC = 2;
   function computeDataGaps(rows) {
     var n = rows.length;
     if (n < 2) return null;
@@ -6894,7 +6904,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       maxGap = 0;
     for (var i = 1; i < n; i++) {
       var dt = rows[i].t != null && rows[i - 1].t != null ? (rows[i].t - rows[i - 1].t) / 1000 : 0;
-      if (dt > 2) {
+      if (dt > GAP_STEP_SEC) {
         gaps.push(dt);
         if (dt > maxGap) maxGap = dt;
       }
@@ -6918,6 +6928,38 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       gapPct: +Math.min(100, (totalGap / _spanSec) * 100).toFixed(1),
       gapLabel: maxGap > 120 ? 'Significant gap (>2min)' : maxGap > 10 ? 'Minor gaps' : 'Clean'
     };
+  }
+
+  /* recording.coverage for an oximetry night — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
+     `computeDataGaps` has always FOUND these holes; it reported them as a QC percentage and threw the
+     positions away. The Integrator needs the positions: `durationMin` is the envelope, and dividing a
+     confirmed apnea count by an envelope that contains an hour of missing oximetry overstates the
+     denominator and understates the index. Same rows, same threshold, one extra product.
+
+     Null when the night is contiguous — the common case, and the one that keeps every clean export
+     byte-identical. */
+  function oxyCoverage(rows, t0Ms) {
+    if (!rows || rows.length < 2) return null;
+    var segs = [],
+      segStart = null,
+      prev = null;
+    for (var i = 0; i < rows.length; i++) {
+      var t = rows[i] && rows[i].t;
+      if (t == null || !isFinite(t)) continue;
+      if (segStart === null) segStart = t;
+      else if ((t - prev) / 1000 > GAP_STEP_SEC) {
+        segs.push([segStart, prev]);
+        segStart = t;
+      }
+      prev = t;
+    }
+    if (segStart !== null && prev !== null) segs.push([segStart, prev]);
+    if (segs.length < 2) return null; // contiguous ⇒ no claim to make (DexExport contract)
+    // t0Ms is the night's anchor; the rows already carry absolute floating ms, so it is only a guard
+    // against a stampless night reaching us — one that cannot be placed on a clock cannot declare
+    // coverage on one either.
+    if (t0Ms == null || !isFinite(t0Ms)) return null;
+    return typeof DexExport !== 'undefined' && DexExport && DexExport.coverageFromSegments ? DexExport.coverageFromSegments(segs, { source: 'sensor-dropout' }) : null;
   }
 
   // ── N. HR Flatline Runs ───────────────────────────────────────────
@@ -8814,7 +8856,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       doc: 'OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.'
     };
     if (opts.ingest) schema.ingest = opts.ingest; // adapter provenance (unifier/OverDex path)
-    return {
+    var _out = {
       kernel: kfmt,
       schema: schema,
       recording: {
@@ -8829,6 +8871,16 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       timeseries: oxyBuildTimeseriesBlock([night]),
       nights: [el]
     };
+    /* SPARSE COVERAGE — INTEGRATOR-GAP-AWARE-OVERLAP part 2. `durationMin` above is the ENVELOPE the
+       oximeter spanned; on a night where the ring lost contact it contains time no oximeter was
+       recording, and the Integrator divided a confirmed apnea count by all of it. `coveragePct` beside
+       it stays null — a different, still-unfilled field, and the two must not be read as each other.
+       Assigned conditionally so a contiguous night's export stays byte-identical.
+       Kept OUT of the literal deliberately: NODE-EXPORT-RECORDING-DURATION §4.3's gate source-scans
+       for a `recording: {` block and reads the duration keys inside it, so the literal must survive
+       intact — hoisting it into a variable makes that gate blind. */
+    if (night.coverage) _out.recording.coverage = night.coverage;
+    return _out;
   };
   OxyDex.computeNight = oxyComputeNight;
   OxyDex.buildNightElement = oxyBuildNightElement;
@@ -8846,6 +8898,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2: expose the warm-up trim for the regression harness + any
   // headless caller that wants to pre-clean rows the way processNight does.
   OxyDex.trimSensorWarmup = trimSensorWarmup;
+  OxyDex.coverage = oxyCoverage; // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — pure, so the segment derivation is gateable
   OxyDex.cleanArtifactHR = cleanArtifactHR; // exposed for the OXYDEX-HR-ARTIFACT-RUNAWAY-FIX regression gate
   OxyDex.computeGatedNadir = computeGatedNadir; // exposed for the OXYDEX-NADIR-HONESTY regression gate
   // TRIO-BATCH-O2RING-DAT: the O2Ring writes a native .dat beside the vendor CSV, and when the CSV
@@ -15361,6 +15414,38 @@ __exports.GlucoDex = window.GlucoDex;
     return out;
   }
 
+  /* recording.coverage for a PPG recording — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
+     The SAME discontinuities `intervalsSpanningTimeGap` drops intervals across are the recording's
+     session boundaries — a `relSec` jump is real time in which no signal arrived. That function
+     answers "is THIS beat interval untrustworthy"; this one answers "where was this node actually
+     recording", which is what a fusion denominator needs. One threshold (`TIME_GAP_STEPS`) governs
+     both, deliberately: a hole big enough to invalidate an interval is a hole big enough to leave out
+     of the recorded time, and two constants would eventually disagree.
+
+     Verity is the worst offender in the corpus — 24 segments in a single night against the H10's 3 —
+     and PpgDex declared none of them. Null when the stream is contiguous (every pre-capture-host file
+     and every clean Verity file), so a clean export stays byte-identical. */
+  function ppgCoverage(rec) {
+    if (!rec || rec.t0Ms == null || !isFinite(rec.t0Ms)) return null;
+    const relSec = rec.relSec,
+      fs = rec.fs;
+    if (!relSec || !relSec.length || !(fs > 0)) return null;
+    const n = relSec.length,
+      maxStep = TIME_GAP_STEPS / fs,
+      base = relSec[0];
+    const segs = [];
+    let segStart = 0; // rel seconds from the first sample
+    for (let i = 1; i < n; i++) {
+      if (relSec[i] - relSec[i - 1] > maxStep) {
+        segs.push([rec.t0Ms + segStart * 1000, rec.t0Ms + (relSec[i - 1] - base) * 1000]);
+        segStart = relSec[i] - base;
+      }
+    }
+    if (!segs.length) return null; // fast path: contiguous ⇒ no claim to make
+    segs.push([rec.t0Ms + segStart * 1000, rec.t0Ms + (relSec[n - 1] - base) * 1000]);
+    return typeof DexExport !== 'undefined' && DexExport && DexExport.coverageFromSegments ? DexExport.coverageFromSegments(segs, { source: 'ble-dropout' }) : null;
+  }
+
   // FOOT-ANCHORED, not foot→peak-spanning (O2RING-PPG-GAP §3). The old window ran the WHOLE upstroke,
   // `[min(foot,peak)−2, max(foot,peak)+2]` — 12–25 samples at 125.7 Hz — so a sentinel ANYWHERE in the
   // systolic rise condemned the beat. On a real O2Ring night (2026-07-20, finger, paired H10 ECG) the
@@ -16717,6 +16802,9 @@ __exports.GlucoDex = window.GlucoDex;
       t0Ms: rec.t0Ms,
       offsetMin: rec.offsetMin,
       durSec: rec.durSec,
+      // The SEGMENTS inside that span (INTEGRATOR-GAP-AWARE-OVERLAP part 2) — a property of the
+      // recording, not of the analysis, so analyze carries it rather than re-deriving it downstream.
+      coverage: ppgCoverage(rec),
       durMin: r1(durMin),
       tier,
       tierMsg,
@@ -17194,6 +17282,12 @@ __exports.GlucoDex = window.GlucoDex;
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
+    /* SPARSE COVERAGE — INTEGRATOR-GAP-AWARE-OVERLAP part 2. `durSec` above is the ENVELOPE this node
+       records over; it does not say where inside that envelope the signal is. The Verity is the
+       fleet's most fragmented stream — 24 segments in one night against the H10's 3 — and its envelope
+       was feeding `apnea.overlapHours` as if it were continuous. Assigned conditionally so a clean
+       export stays byte-identical (see the identical note in ecgdex-dsp). */
+    if (r.coverage) out.recording.coverage = r.coverage;
     // ── RICH export (gated: opts.rich) — ECG-PPG-FOLLOWUPS-HANDOFF §1 option (a) / PPGDEX-FOLLOWUPS §1 ──
     // By DEFAULT this builder emits the LIGHT export above and the app's exportGanglior() calls WITHOUT
     // opts.rich → the app's Ganglior stream stays BYTE-IDENTICAL. Only the orchestrate emitter
@@ -17413,7 +17507,7 @@ __exports.GlucoDex = window.GlucoDex;
     };
   }
 
-  global.PpgDex = global.PpgDex || { compute: compute, parsePPG: parsePPG, analyze: analyze, buildNodeExport: ppgBuildNodeExport, _build: ppgBuildNodeExport };
+  global.PpgDex = global.PpgDex || { compute: compute, parsePPG: parsePPG, analyze: analyze, buildNodeExport: ppgBuildNodeExport, _build: ppgBuildNodeExport, coverage: ppgCoverage };
   global.PpgDex.loadOwnExport = ppgLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)
   // scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
   global.PpgDex.scrubExport = function (env) {
@@ -19780,6 +19874,9 @@ __exports.PpgDex = window.PpgDex;
       // `durSec` above is analyze's ACTIVE seconds (nnRes.activeSec), which is data-seconds by an even
       // stricter reading than the parser's n/fs — all the more reason the clock end must travel too.
       endEpochMs: rec.endEpochMs != null ? rec.endEpochMs : null,
+      // …and the SEGMENTS inside that span (INTEGRATOR-GAP-AWARE-OVERLAP part 2). Also a property of
+      // the recording, not the analysis — null whenever the link never dropped.
+      coverage: ecgCoverage(rec),
       durMin: +durMin.toFixed(1),
       longRec,
       tier,
@@ -20830,6 +20927,13 @@ __exports.PpgDex = window.PpgDex;
       stepSum = 0,
       stepN = 0;
     var gaps = [];
+    // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — the SESSION BOUNDARIES, in the file's own relative-ms
+    // frame. `gaps[i].idx` alone would force a consumer to reconstruct wall-clock from `idx/fs`, which
+    // re-accumulates exactly the rounding the mean-interval fs derivation exists to avoid; the `ms`
+    // column already states both edges of every dropout, so record them and let the caller anchor once
+    // at t0Ms. `firstRelMs` is that anchor's zero. Additive: `idx`/`ms` are untouched.
+    var firstRelMs = null,
+      lastRelMs = null;
     var lastTs = null; // phone stamp of the last valid row → the recording's clock end
     function push(v) {
       if (n >= cap) {
@@ -20864,12 +20968,14 @@ __exports.PpgDex = window.PpgDex;
       if (p.length >= 3) {
         var ms = parseFloat(p[2]);
         if (isFinite(ms)) {
+          if (firstRelMs === null) firstRelMs = ms;
           if (prevMs !== null) {
             var d = ms - prevMs;
             if (d > 0) {
               if (msStep === null && d < 50) msStep = d; // provisional step — anchors the gap threshold
               if (msStep && d > msStep * 2.5) {
-                gaps.push({ idx: n - 1, ms: d }); // a dropout, not a sample interval — excluded from fs
+                // a dropout, not a sample interval — excluded from fs
+                gaps.push({ idx: n - 1, ms: d, atRelMs: prevMs, endRelMs: ms });
               } else if (d < 50) {
                 stepSum += d;
                 stepN++;
@@ -20877,6 +20983,7 @@ __exports.PpgDex = window.PpgDex;
             }
           }
           prevMs = ms;
+          lastRelMs = ms;
         }
       }
     }
@@ -20893,7 +21000,84 @@ __exports.PpgDex = window.PpgDex;
     // answers "where does this recording end on the clock" — two questions one scalar cannot both answer.
     var endTs = lastTs != null ? parseTimestamp(lastTs) : null;
     var endEpochMs = endTs && endTs.tMs != null ? endTs.tMs : null;
-    return { int16: arr.slice(0, n), fs: fs, gaps: gaps, t0Ms: t0Ms, offsetMin: offsetMin, source: 'file', durSec: n / fs, endEpochMs: endEpochMs };
+    return {
+      int16: arr.slice(0, n),
+      fs: fs,
+      gaps: gaps,
+      t0Ms: t0Ms,
+      offsetMin: offsetMin,
+      source: 'file',
+      durSec: n / fs,
+      endEpochMs: endEpochMs,
+      firstRelMs: firstRelMs,
+      lastRelMs: lastRelMs
+    };
+  }
+
+  /* recording.coverage for an ECG recording — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
+     The dropouts `parseECGText` already found ARE the session boundaries: a BLE link drop ends one
+     segment and its recovery starts the next. On the 2026-07-16..26 capture corpus one H10 night runs
+     3 segments and one Verity night 24, so the envelope this node used to declare on its own is a
+     bracket around a recording, not the recording.
+
+     Prefers the exact relative-ms edges (`atRelMs`/`endRelMs`); falls back to `idx/fs` for a rec that
+     reached us without them — a worker hand or a SignalFrame carries `{idx, ms}` only, and a coverage
+     block reconstructed to the nearest sample period is still enormously better than an envelope. */
+  function ecgCoverage(rec) {
+    if (!rec || rec.t0Ms == null || !isFinite(rec.t0Ms)) return null;
+    var gaps = rec.gaps;
+    if (!Array.isArray(gaps) || !gaps.length) return null; // contiguous ⇒ no claim (DexExport contract)
+    var fs = rec.fs > 0 ? rec.fs : 130;
+    var nSamp = rec.int16 && rec.int16.length != null ? rec.int16.length : null;
+    var t0 = rec.t0Ms,
+      segs = [];
+    if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs != null && isFinite(rec.lastRelMs) && gaps[0] && gaps[0].atRelMs != null) {
+      // ── EXACT: the parser kept both edges of every dropout, in the file's own ms column. ──
+      var base = rec.firstRelMs,
+        cur = 0;
+      for (var i = 0; i < gaps.length; i++) {
+        var g = gaps[i];
+        if (!g || g.atRelMs == null || !isFinite(g.atRelMs) || g.endRelMs == null || !isFinite(g.endRelMs)) continue;
+        var gs = g.atRelMs - base,
+          ge = g.endRelMs - base;
+        if (!(ge > gs)) continue;
+        if (gs > cur) segs.push([t0 + cur, t0 + gs]);
+        cur = Math.max(cur, ge);
+      }
+      var endOff = rec.lastRelMs - base;
+      if (endOff > cur) segs.push([t0 + cur, t0 + endOff]);
+    } else if (nSamp) {
+      /* ── FALLBACK: `{idx, ms}` only. A sample index is DATA time, not wall-clock time — after one
+         dropout, sample k sits at k/fs PLUS every gap before it, so reading `idx/fs` as a clock
+         position under-states every boundary by the accumulated silence. Walk instead: consume the
+         segment's data seconds, then jump the gap. This is the path the trio-batch session merge
+         takes (it rebuilds `gaps` by hand and carries no ms column), i.e. the exact shape this whole
+         brief is about — so it has to be the correct one, not the convenient one.
+
+         The merge writes `idx` as the LAST sample BEFORE the join while the parser writes the FIRST
+         sample AFTER the dropout. That is a one-sample disagreement — 7.7 ms at 130 Hz — against
+         segments measured in hours, so it is left alone rather than papered over with a heuristic
+         that would have to guess which producer it is reading. */
+      var sorted = gaps
+        .filter(function (x) {
+          return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite(x.ms) && x.ms > 0;
+        })
+        .sort(function (a, b) {
+          return a.idx - b.idx;
+        });
+      var wall = 0,
+        prevIdx = 0;
+      for (var j = 0; j < sorted.length; j++) {
+        var gi = Math.max(prevIdx, Math.min(nSamp, sorted[j].idx));
+        var dataMs = ((gi - prevIdx) / fs) * 1000;
+        if (dataMs > 0) segs.push([t0 + wall, t0 + wall + dataMs]);
+        wall += dataMs + sorted[j].ms;
+        prevIdx = gi;
+      }
+      var tailMs = ((nSamp - prevIdx) / fs) * 1000;
+      if (tailMs > 0) segs.push([t0 + wall, t0 + wall + tailMs]);
+    } else return null;
+    return typeof DexExport !== 'undefined' && DexExport && DexExport.coverageFromSegments ? DexExport.coverageFromSegments(segs, { source: 'ble-dropout' }) : null;
   }
 
   // COMPANION device-stream parsers (ECG-PPG-FOLLOWUPS-HANDOFF §2(b)) — the Polar Sensor
@@ -21166,6 +21350,17 @@ __exports.PpgDex = window.PpgDex;
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
+    /* SPARSE COVERAGE — INTEGRATOR-GAP-AWARE-OVERLAP part 2 (the emitter half of DEEP-AUDIT-III §6.2).
+       `durSec` says how much signal there is and `endEpochMs` says where the recording ends on the
+       clock; NEITHER says WHERE INSIDE that span the signal actually is. On a night of BLE reconnects
+       those are different questions with a 3.3× different answer: measured 2026-07-23, three-way
+       recorded overlap 2.1 h against a 6.86 h envelope — on the one night in eleven marked
+       `confirmedAHIReportable`, whose `confirmedAHI` is divided by exactly that figure.
+       ASSIGNED CONDITIONALLY, like `stats.sensorWarmupTrimmed` in oxydex-dsp and for the same reason:
+       an always-present `coverage:null` would move EVERY clean export's bytes, including the committed
+       provenance fixtures, to say nothing. Absent ⇒ no coverage claim ⇒ the Integrator uses the
+       envelope, which for a contiguous recording IS the coverage. */
+    if (r.coverage) out.recording.coverage = r.coverage;
     // ── RICH export (gated: opts.rich) — ECG-PPG-FOLLOWUPS-HANDOFF §1 option (a) / ECGDEX-FOLLOWUPS-II §2 ──
     // By DEFAULT this builder emits the LIGHT export above (recording + ganglior_events) and the app's
     // exportGanglior() calls WITHOUT opts.rich → the app's Ganglior stream stays BYTE-IDENTICAL. Only the
@@ -21424,6 +21619,7 @@ __exports.PpgDex = window.PpgDex;
     parseDeviceRR: parseDeviceRR,
     parseDeviceHR: parseDeviceHR,
     parseDeviceACC: parseDeviceACC,
+    coverage: ecgCoverage, // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — pure, so the segment derivation is gateable
     planCompanionGraft: planCompanionGraft // §10.4 — pure, so the graft rule is gateable
   };
   global.ECGDex.loadOwnExport = ecgLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)

@@ -2343,6 +2343,9 @@
       // `durSec` above is analyze's ACTIVE seconds (nnRes.activeSec), which is data-seconds by an even
       // stricter reading than the parser's n/fs — all the more reason the clock end must travel too.
       endEpochMs: rec.endEpochMs != null ? rec.endEpochMs : null,
+      // …and the SEGMENTS inside that span (INTEGRATOR-GAP-AWARE-OVERLAP part 2). Also a property of
+      // the recording, not the analysis — null whenever the link never dropped.
+      coverage: ecgCoverage(rec),
       durMin: +durMin.toFixed(1),
       longRec,
       tier,
@@ -3393,6 +3396,13 @@
       stepSum = 0,
       stepN = 0;
     var gaps = [];
+    // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — the SESSION BOUNDARIES, in the file's own relative-ms
+    // frame. `gaps[i].idx` alone would force a consumer to reconstruct wall-clock from `idx/fs`, which
+    // re-accumulates exactly the rounding the mean-interval fs derivation exists to avoid; the `ms`
+    // column already states both edges of every dropout, so record them and let the caller anchor once
+    // at t0Ms. `firstRelMs` is that anchor's zero. Additive: `idx`/`ms` are untouched.
+    var firstRelMs = null,
+      lastRelMs = null;
     var lastTs = null; // phone stamp of the last valid row → the recording's clock end
     function push(v) {
       if (n >= cap) {
@@ -3427,12 +3437,14 @@
       if (p.length >= 3) {
         var ms = parseFloat(p[2]);
         if (isFinite(ms)) {
+          if (firstRelMs === null) firstRelMs = ms;
           if (prevMs !== null) {
             var d = ms - prevMs;
             if (d > 0) {
               if (msStep === null && d < 50) msStep = d; // provisional step — anchors the gap threshold
               if (msStep && d > msStep * 2.5) {
-                gaps.push({ idx: n - 1, ms: d }); // a dropout, not a sample interval — excluded from fs
+                // a dropout, not a sample interval — excluded from fs
+                gaps.push({ idx: n - 1, ms: d, atRelMs: prevMs, endRelMs: ms });
               } else if (d < 50) {
                 stepSum += d;
                 stepN++;
@@ -3440,6 +3452,7 @@
             }
           }
           prevMs = ms;
+          lastRelMs = ms;
         }
       }
     }
@@ -3456,7 +3469,84 @@
     // answers "where does this recording end on the clock" — two questions one scalar cannot both answer.
     var endTs = lastTs != null ? parseTimestamp(lastTs) : null;
     var endEpochMs = endTs && endTs.tMs != null ? endTs.tMs : null;
-    return { int16: arr.slice(0, n), fs: fs, gaps: gaps, t0Ms: t0Ms, offsetMin: offsetMin, source: 'file', durSec: n / fs, endEpochMs: endEpochMs };
+    return {
+      int16: arr.slice(0, n),
+      fs: fs,
+      gaps: gaps,
+      t0Ms: t0Ms,
+      offsetMin: offsetMin,
+      source: 'file',
+      durSec: n / fs,
+      endEpochMs: endEpochMs,
+      firstRelMs: firstRelMs,
+      lastRelMs: lastRelMs
+    };
+  }
+
+  /* recording.coverage for an ECG recording — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
+     The dropouts `parseECGText` already found ARE the session boundaries: a BLE link drop ends one
+     segment and its recovery starts the next. On the 2026-07-16..26 capture corpus one H10 night runs
+     3 segments and one Verity night 24, so the envelope this node used to declare on its own is a
+     bracket around a recording, not the recording.
+
+     Prefers the exact relative-ms edges (`atRelMs`/`endRelMs`); falls back to `idx/fs` for a rec that
+     reached us without them — a worker hand or a SignalFrame carries `{idx, ms}` only, and a coverage
+     block reconstructed to the nearest sample period is still enormously better than an envelope. */
+  function ecgCoverage(rec) {
+    if (!rec || rec.t0Ms == null || !isFinite(rec.t0Ms)) return null;
+    var gaps = rec.gaps;
+    if (!Array.isArray(gaps) || !gaps.length) return null; // contiguous ⇒ no claim (DexExport contract)
+    var fs = rec.fs > 0 ? rec.fs : 130;
+    var nSamp = rec.int16 && rec.int16.length != null ? rec.int16.length : null;
+    var t0 = rec.t0Ms,
+      segs = [];
+    if (rec.firstRelMs != null && isFinite(rec.firstRelMs) && rec.lastRelMs != null && isFinite(rec.lastRelMs) && gaps[0] && gaps[0].atRelMs != null) {
+      // ── EXACT: the parser kept both edges of every dropout, in the file's own ms column. ──
+      var base = rec.firstRelMs,
+        cur = 0;
+      for (var i = 0; i < gaps.length; i++) {
+        var g = gaps[i];
+        if (!g || g.atRelMs == null || !isFinite(g.atRelMs) || g.endRelMs == null || !isFinite(g.endRelMs)) continue;
+        var gs = g.atRelMs - base,
+          ge = g.endRelMs - base;
+        if (!(ge > gs)) continue;
+        if (gs > cur) segs.push([t0 + cur, t0 + gs]);
+        cur = Math.max(cur, ge);
+      }
+      var endOff = rec.lastRelMs - base;
+      if (endOff > cur) segs.push([t0 + cur, t0 + endOff]);
+    } else if (nSamp) {
+      /* ── FALLBACK: `{idx, ms}` only. A sample index is DATA time, not wall-clock time — after one
+         dropout, sample k sits at k/fs PLUS every gap before it, so reading `idx/fs` as a clock
+         position under-states every boundary by the accumulated silence. Walk instead: consume the
+         segment's data seconds, then jump the gap. This is the path the trio-batch session merge
+         takes (it rebuilds `gaps` by hand and carries no ms column), i.e. the exact shape this whole
+         brief is about — so it has to be the correct one, not the convenient one.
+
+         The merge writes `idx` as the LAST sample BEFORE the join while the parser writes the FIRST
+         sample AFTER the dropout. That is a one-sample disagreement — 7.7 ms at 130 Hz — against
+         segments measured in hours, so it is left alone rather than papered over with a heuristic
+         that would have to guess which producer it is reading. */
+      var sorted = gaps
+        .filter(function (x) {
+          return x && x.idx != null && isFinite(x.idx) && x.ms != null && isFinite(x.ms) && x.ms > 0;
+        })
+        .sort(function (a, b) {
+          return a.idx - b.idx;
+        });
+      var wall = 0,
+        prevIdx = 0;
+      for (var j = 0; j < sorted.length; j++) {
+        var gi = Math.max(prevIdx, Math.min(nSamp, sorted[j].idx));
+        var dataMs = ((gi - prevIdx) / fs) * 1000;
+        if (dataMs > 0) segs.push([t0 + wall, t0 + wall + dataMs]);
+        wall += dataMs + sorted[j].ms;
+        prevIdx = gi;
+      }
+      var tailMs = ((nSamp - prevIdx) / fs) * 1000;
+      if (tailMs > 0) segs.push([t0 + wall, t0 + wall + tailMs]);
+    } else return null;
+    return typeof DexExport !== 'undefined' && DexExport && DexExport.coverageFromSegments ? DexExport.coverageFromSegments(segs, { source: 'ble-dropout' }) : null;
   }
 
   // COMPANION device-stream parsers (ECG-PPG-FOLLOWUPS-HANDOFF §2(b)) — the Polar Sensor
@@ -3729,6 +3819,17 @@
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
+    /* SPARSE COVERAGE — INTEGRATOR-GAP-AWARE-OVERLAP part 2 (the emitter half of DEEP-AUDIT-III §6.2).
+       `durSec` says how much signal there is and `endEpochMs` says where the recording ends on the
+       clock; NEITHER says WHERE INSIDE that span the signal actually is. On a night of BLE reconnects
+       those are different questions with a 3.3× different answer: measured 2026-07-23, three-way
+       recorded overlap 2.1 h against a 6.86 h envelope — on the one night in eleven marked
+       `confirmedAHIReportable`, whose `confirmedAHI` is divided by exactly that figure.
+       ASSIGNED CONDITIONALLY, like `stats.sensorWarmupTrimmed` in oxydex-dsp and for the same reason:
+       an always-present `coverage:null` would move EVERY clean export's bytes, including the committed
+       provenance fixtures, to say nothing. Absent ⇒ no coverage claim ⇒ the Integrator uses the
+       envelope, which for a contiguous recording IS the coverage. */
+    if (r.coverage) out.recording.coverage = r.coverage;
     // ── RICH export (gated: opts.rich) — ECG-PPG-FOLLOWUPS-HANDOFF §1 option (a) / ECGDEX-FOLLOWUPS-II §2 ──
     // By DEFAULT this builder emits the LIGHT export above (recording + ganglior_events) and the app's
     // exportGanglior() calls WITHOUT opts.rich → the app's Ganglior stream stays BYTE-IDENTICAL. Only the
@@ -3987,6 +4088,7 @@
     parseDeviceRR: parseDeviceRR,
     parseDeviceHR: parseDeviceHR,
     parseDeviceACC: parseDeviceACC,
+    coverage: ecgCoverage, // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — pure, so the segment derivation is gateable
     planCompanionGraft: planCompanionGraft // §10.4 — pure, so the graft rule is gateable
   };
   global.ECGDex.loadOwnExport = ecgLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)

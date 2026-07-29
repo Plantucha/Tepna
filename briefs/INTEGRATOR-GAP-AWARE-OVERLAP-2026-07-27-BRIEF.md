@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-27 · **Found-by:** the 11-night capture-host corpus fold (2026-07-16 … 07-26) · **Builds-on:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` §6.2 (`recording.coverage` + `segmentsOverlap`, landed `986d17e`) · **Relates:** `NODE-EXPORT-DURATION-SEMANTICS-2026-07-27-BRIEF.md` (the `durSec`/`endEpochMs` ruling), `CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md`
+**Status:** DONE — 2026-07-28 · **Created:** 2026-07-27 · **Found-by:** the 11-night capture-host corpus fold (2026-07-16 … 07-26) · **Builds-on:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` §6.2 (`recording.coverage` + `segmentsOverlap`, landed `986d17e`) · **Relates:** `NODE-EXPORT-DURATION-SEMANTICS-2026-07-27-BRIEF.md` (the `durSec`/`endEpochMs` ruling), `CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md`
 
 # The coverage contract exists. Nothing emits it — and the capture nodes are the sparse ones.
 
@@ -88,7 +88,24 @@ beats a real one because CI re-runs it from committed bytes.
 
 ## 6 · Done when
 
-- [ ] **PART 2, still open.** ECGDex / PpgDex / OxyDex emit `recording.coverage` with `kind:"sparse"` and real `segments` when their input was multi-session. Until this lands the part-1 fix is INERT on the capture corpus — the Integrator will honour coverage, and no capture node declares any. The session boundaries are already known at parse time (ECGDex tracks `gaps`; the capture layout is one file per segment).
+- [x] **PART 2, LANDED 2026-07-28.** ECGDex / PpgDex / OxyDex emit `recording.coverage` with
+      `kind:"sparse"` and real `segments`. Each derives them from evidence it was ALREADY computing and
+      discarding: ECGDex from the dropouts `parseECGText` records (now carrying both edges of each in
+      the file's own ms column, `atRelMs`/`endRelMs`), PpgDex from the `relSec` jumps
+      `intervalsSpanningTimeGap` already drops intervals across (same `TIME_GAP_STEPS`, deliberately —
+      two constants would eventually disagree), OxyDex from the row stamps `computeDataGaps` already
+      counts (same threshold, now named `GAP_STEP_SEC`). Assembly is single-sourced in
+      `DexExport.coverageFromSegments`; only the derivation is node-local.
+      **The block is ABSENT, not null, on a contiguous recording** — a node with no hole makes no
+      coverage claim, the Integrator falls back to the envelope (which then IS the coverage), and every
+      committed fixture's bytes are untouched. Verified: the fleet re-bundle moved no export.
+      **The shape that actually costs a number is the MERGED one.** Each capture file is internally
+      clean — the holes are BETWEEN files — and `tools/trio-batch.mjs` folds a night's sessions into one
+      rec, carrying the off-link silence as a `gaps` entry with no ms column. That path is pinned
+      separately, because a sample INDEX is data time: reading `idx/fs` as a clock position under-states
+      every boundary by the accumulated silence (mutation-checked — the naive read loses a segment).
+      Measured on the real 2026-07-23 fold: 6 sessions, **6.71 h recorded inside a 23.02 h envelope**,
+      the recorded sum agreeing exactly with the parser's independent `n/fs`.
 - [x] **LANDED 2026-07-28 (part 1 of 2).** `totHrs` / `apnea.overlapHours` / `confirmedAHI` / the
       null-model expectation are computed on **recorded** time when coverage is declared, falling back to
       the envelope when it is not. New `overlapIntervals(a,b)` — the quantity-bearing sibling of
@@ -102,11 +119,34 @@ beats a real one because CI re-runs it from committed bytes.
       Demonstrated on a synthetic 2 h-of-8 h coverage: same confirmed events, `overlapHours` 8 → 2,
       `confirmedAHI` 2.5 → 10.0. Mutation-checked (reverting the union to envelope-only fails 2;
       ignoring declared segments fails 4).
-- [ ] The fusion export publishes the coverage it used, so a reader can tell 7 h-of-7 from 2 h-of-7.
-- [ ] **Adversarial committed fixture** — a three-node night with real holes (the 2026-07-23 shape: ~2 h of concurrency inside a ~7 h envelope) in `uploads/` + `FIXTURE-PROVENANCE.json`, with a test asserting the gap-aware overlap, **verified RED against current code**.
-- [ ] Absent coverage ⇒ byte-identical results to today (pin it — that is the back-compat contract §6.2 already established).
-- [ ] Gates: `Dex-Test-Suite.html?full` · `run-tests.mjs` · `verify-manifest.mjs` GATE A+B · `build.mjs --check`. Nodes re-bundled; `computeHash` moves ⇒ corpus re-verification (`DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs`). The `integrator_fusion_*` fixtures are `historical:true` — byte-pinned, **not** to be re-stamped.
-- [ ] Changeset `bump: minor` (exports gain a field). **Published AHI values will move on fragmented nights** — that is the point, and it belongs in the CHANGELOG in those words.
+- [x] The fusion export publishes the coverage it used — `apnea.overlapCoverage`
+      `{ basis, recordedHours, envelopeHours, recordedFrac, segments, declaredBy }`. `overlapHours`
+      alone cannot be audited: 2.1 and 6.86 look equally reasonable, and the difference between them
+      decided a reportability verdict. `basis:'envelope'` means nobody declared coverage, and the two
+      hour figures are then equal by construction — itself the honest statement. `declaredBy` names the
+      nodes, so the claim is attributable rather than anonymous.
+- [x] **Adversarial committed fixture** — `uploads/synthetic_ecgdex_h10_gapped.txt` (three ~6.7 s
+      recorded segments inside a 60 s envelope, a 3× ratio) + `synthetic_ecgdex_gapped_golden.node-export.json`,
+      minted through `tools/regen-ecgdex-goldens.mjs` and registered in `provenance/ECGDex.json`. It runs
+      as a full equiv/GATE-C leg (`env.equiv.ecgdex_gapped`, wired in BOTH runners via the `_gapped`
+      suffix). **A COMMITTED twin, not the real night, deliberately** (CLAUDE.md §🔒): the real
+      fragmented recording is gitignored, so CI would be exactly as blind to a regression as it was to
+      the original defect. **Verified RED**: suppressing the emitter reds 10 assertions INCLUDING the
+      committed equiv leg, which needs no corpus.
+      *(Scope note: the fixture is single-node. The three-node case is covered by the fusion group's
+      two fragmented nodes sharing one recorded hour of a 7 h envelope — a committed three-node golden
+      would pin the Integrator's whole output tree, which is a fixture this brief did not need.)*
+- [x] Absent coverage ⇒ byte-identical results to today. Pinned three ways: the key is ABSENT (not
+      null) from a clean export; `basis:'envelope'` runs return the pre-existing `overlapHours` and
+      `confirmedAHI` exactly; and the full fleet re-bundle re-stamped **zero** fixture outputs.
+- [x] Gates: `run-tests.mjs` green both lanes (4166 + 12 corpus skips in CI mode; **4194** with the real
+      corpus) · `build.mjs --check` clean (11 owned) · `verify-manifest.mjs` GATE A 9/9 + GATE B 13
+      reproducible · `tools/build-analysis.mjs` + `tools/build-docs.mjs` re-run (worker blobs + served
+      docs carry the DSPs too). `computeHash` moved fleet-wide (`dex-export.js` is inlined into every
+      bundle), so all 14 corpus-backed fixtures were re-verified under the real corpus. The
+      `integrator_fusion_*` fixtures are `historical:true` and were left alone.
+- [x] Changeset `bump: minor` — `changes/2026-07-28-coverage-emitters.md`, saying in those words that
+      **published AHI values will move on fragmented nights**.
 
 ## 7 · What this brief does NOT claim
 

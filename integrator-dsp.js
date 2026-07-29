@@ -1484,12 +1484,21 @@ var DESAT_OBSERVER_AUTHORITY = { CPAPDex: 1, OxyDex: 2, PpgDex: 3 };
 /* Merged union of every (oxy × cardiac) overlap. A union — not the sum of pairwise
    overlaps — so one oximeter night overlapping two cardiac recordings is counted
    ONCE (no inflated AHI denominator). */
-function _desatUnion(oxyRecs, cardiacRecs) {
+function _desatUnion(oxyRecs, cardiacRecs, opts) {
+  // `envelopeOnly` reproduces the pre-gap-aware union deliberately — NOT as a fallback, but so the
+  // export can publish the envelope figure BESIDE the recorded one. A reader who cannot see both
+  // cannot tell 7 h-of-7 from 2 h-of-7, which is the whole complaint this brief opened with.
+  var envelopeOnly = !!(opts && opts.envelopeOnly);
   var raw = [];
   oxyRecs.forEach(function (o) {
     cardiacRecs.forEach(function (g) {
       // GAP-AWARE: every intersected RECORDED interval, not one envelope intersection. Identical to
       // the old single-interval push whenever neither side declares coverage (see overlapIntervals).
+      if (envelopeOnly) {
+        var w = overlapInterval(o, g);
+        if (w) raw.push([w.startMs, w.endMs]);
+        return;
+      }
       var ivs = overlapIntervals(o, g);
       for (var k = 0; k < ivs.length; k++) raw.push([ivs[k][0], ivs[k][1]]);
     });
@@ -1547,6 +1556,26 @@ function pickDesatObserver(oxyRecs, cardiacRecs) {
   };
 }
 
+/* The audit trail for `apnea.overlapHours` — see its call site for why it exists. Pure; derives
+   nothing the union did not already compute except the envelope comparison. */
+function _overlapCoverage(oxyRecs, cardiacRecs, u, totHrs) {
+  var declaredBy = [];
+  (oxyRecs || []).concat(cardiacRecs || []).forEach(function (r) {
+    if (r && recSegments(r) && declaredBy.indexOf(r.node) < 0) declaredBy.push(r.node || 'unknown');
+  });
+  var envHrs = declaredBy.length ? _desatUnion(oxyRecs, cardiacRecs, { envelopeOnly: true }).hours : totHrs;
+  return {
+    basis: declaredBy.length ? 'recorded' : 'envelope',
+    recordedHours: +totHrs.toFixed(2),
+    envelopeHours: +envHrs.toFixed(2),
+    // How much of the bracket was actually recorded. Null rather than 1 when the envelope is zero —
+    // a ratio with no denominator is unknown, not complete.
+    recordedFrac: envHrs > 0 ? +(totHrs / envHrs).toFixed(3) : null,
+    segments: u && u.merged ? u.merged.length : 0,
+    declaredBy: declaredBy.sort()
+  };
+}
+
 function fuseApneaEvents(recs, dtMs, gate) {
   // CARDIAC surge sources: ECGDex (primary) + PpgDex (PPG-derived). A desat is
   // confirmable by an autonomic surge from EITHER — PpgDex is a first-class node
@@ -1590,6 +1619,10 @@ function fuseApneaEvents(recs, dtMs, gate) {
       confirmedAHI: null,
       confirmedAHIReportable: false,
       overlapHours: 0,
+      // Same block on the no-overlap path so a reader never has to branch on its presence. A zero
+      // recorded union with a NON-zero envelope is exactly the case worth seeing: the recordings
+      // bracketed each other but never ran at the same time.
+      overlapCoverage: _overlapCoverage(oxy, cardiac, _u, 0),
       apneaAuthority: _deviceScoredAuthority(recs, null),
       desatObserver: desatObserver,
       matched: { desat: 0, surge: 0 },
@@ -1822,6 +1855,13 @@ function fuseApneaEvents(recs, dtMs, gate) {
     confirmedAHI: ahi,
     confirmedAHIReportable: !belowChance && nConf > 0,
     overlapHours: +totHrs.toFixed(2),
+    /* WHAT THAT DENOMINATOR IS (INTEGRATOR-GAP-AWARE-OVERLAP §6 — "the fusion export publishes the
+       coverage it used"). `overlapHours` alone cannot be audited: 2.1 and 6.86 look equally
+       reasonable, and on 2026-07-23 the difference between them decided a reportability verdict.
+       So publish the envelope figure beside the recorded one, name the nodes whose declared coverage
+       moved it, and count the segments. `basis:'envelope'` means no node declared coverage — the two
+       hours figures are then equal by construction, which is itself the honest statement. */
+    overlapCoverage: _overlapCoverage(oxy, cardiac, _u, totHrs),
     apneaAuthority: _deviceScoredAuthority(recs, ahi),
     desatObserver: desatObserver,
     matched: { desat: nConf, surge: nConf },
