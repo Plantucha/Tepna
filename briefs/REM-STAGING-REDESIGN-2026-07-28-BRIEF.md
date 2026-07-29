@@ -213,7 +213,62 @@ literature policy the citation has to be checkable, not gestured at.
       AC −10.26 → −9.87, SampEn 1.03 → 0.962, with the /2-slip discrimination re-verified by mutation.
       Export-inert by measurement: both committed ECGDex goldens are byte-unchanged (`respCv` is an
       internal epoch field), so no fixture moved.
-- [ ] **§3b the REM score itself — still open, and now the sole blocker.** A weighted score
+- [ ] **§3b the REM score itself — still open. Executed, measured against all three of §5's
+      falsifiers, and NOT SHIPPED: it passes two and fails the third, and the third shows the passes
+      are partly an artifact.** (2026-07-29 run; supersedes the p=0.845 reading below.)
+
+      **First, a correction.** The earlier note claimed the score's recall losses were **motion-veto**
+      losses. That was asserted, not measured, and it is **false**. Planted REM's motion index runs
+      0–28.9 against vetoes at 35 and 60 — *no REM epoch reaches either veto*, under either detector.
+      The conjunction's two misses (tMin 270/275, the last bout) fail the **LF/HF gate**: 1.567 and
+      1.454 against a night gate of 1.775, with RMSSD and motion unambiguously REM on both. A
+      night-relative veto would therefore have changed **nothing**. The right lesson is the one this
+      brief keeps re-learning: *measure the mechanism before prescribing the fix.*
+
+      **What the score actually does.** Those same two epochs carry respCv 0.159 and 0.071 against an
+      NREM median of ~0.038, so the feature §3a added is exactly what rescues them — the score reaches
+      **9/9 planted recall** where the conjunction gets 7/9. It works, and for the stated reason.
+
+      **The three falsifiers, measured.** (bout ≥ 2 epochs applied; corpus = 14 nights)
+
+      | gate | planted recall | precision | corpus median REM% |
+      |---|---|---|---|
+      | conjunction (shipped) | 7/9 | 78 % | **6.5 %** ✗ |
+      | score, absolute floor 2.0 | **9/9** | 47 % | **0 %** ✗ |
+      | score, band p=0.78 | 8/9 | 57 % | 25.0 % |
+      | score, band **p=0.80** | **8/9** | 57 % | **22.5 %** ✓ |
+      | score, band p=0.82 | 7/9 | 64 % | 20.7 % ✓ |
+      | score, band p=0.86 | 6/9 | 55 % | 18.9 % ✓ |
+
+      §5's **population** falsifier passes at p=0.80 with recall *better* than shipped — so the
+      either/or reported earlier was an artefact of a single badly-chosen percentile, not a real wall.
+      An absolute floor is not the answer either: the synthetic's REM separates far more strongly than
+      real REM (planted REM scores 2.10–8.22; **nothing on the real corpus reaches 2.0**), so a floor
+      tuned on planted truth fires essentially never on real data. **The oracle cannot calibrate a gate
+      for real data** — recall and corpus share are measuring different worlds. That is new, and it
+      constrains every future attempt.
+
+      **§5's CYCLE-STRUCTURE falsifier FAILS, and that is why this is not shipped.** A REM period runs
+      5–25 min. Fraction of each night's REM sitting in runs **longer than 25 min**:
+
+      | night | 07-16 | 07-17 | 07-19 | 07-20 | 07-21 | 07-22 | 07-23 | 07-25 | 07-27 | 07-28 |
+      |---|---|---|---|---|---|---|---|---|---|---|
+      | % of REM in >25 min bouts | 62 | **100** | 46 | 0 | 76 | 54 | **88** | 0 | 35 | **100** |
+
+      Median ≈ 58 %. Single "bouts" of **75 min** (07-23) and **65 min** (07-21) are not REM periods,
+      and bout length does not lengthen toward morning (07-23 runs 75 → 10, the wrong way). **So the
+      22.5 % that passes the population falsifier is more than half composed of runs that cannot be
+      REM.** A number can be in the right range for the wrong reason, and this one is — which makes
+      shipping it worse than the visible 6.5 % under-call, not better.
+
+      **Next, and now concrete rather than vague:** a MAXIMUM bout constraint is the obvious move but
+      not a mechanical one — truncating a 75-min run to its best 25 min chooses where REM "really" was,
+      which is fabrication, and demoting the whole run discards real signal. What the over-long runs
+      actually say is that the score stays elevated for a stretch the detector cannot resolve; the
+      finer (1-min) staging grid, already sequenced below, is the honest instrument for that and should
+      come **before** any further gate tuning.
+
+- [ ] ~~**§3b the REM score itself — still open, and now the sole blocker.**~~ *(superseded by the entry above)* A weighted score
       (`z(LF/HF) − z(RMSSD) + z(respCv)`, MAD-based, motion kept as veto rather than term, band gate)
       was **built, measured, and deliberately NOT shipped** — it passes one of §5's falsifiers by
       failing another:
