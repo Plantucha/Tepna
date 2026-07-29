@@ -57,6 +57,7 @@
  *     --min-overlap <h>  required three-way overlap (default 1 — tch-multinight needs ≥12 5-min epochs)
  *     --night-band <a-b> nocturnal hours, local wall clock (default 21-9); may wrap midnight
  *     --keep-daytime     do not filter non-nocturnal captures
+ *     --skip-existing    skip a night already computed from the SAME inputs by the SAME code
  *     --jobs <n>         nights to compute in parallel (default: AUTO — probed from the host)
  *     --dry-run          plan only: print the night/file plan, compute nothing, write nothing
  *     --selftest         known-answer checks for the nocturnal gate (no corpus, no I/O)
@@ -76,6 +77,7 @@ import vm from 'node:vm';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 
 const __filename = fileURLToPath(import.meta.url); // re-spawned as the child (see DISPATCH)
 const __dirname = dirname(__filename);
@@ -108,6 +110,7 @@ const MIN_HOURS = parseFloat(opt('--min-hours', '3'));
 // reason — a stricter floor silently discards eligible nights.
 const MIN_OVERLAP = parseFloat(opt('--min-overlap', '1'));
 const KEEP_DAYTIME = flag('--keep-daytime');
+const SKIP_EXISTING = flag('--skip-existing');
 // Nocturnal band, floating wall clock. Wraps midnight when start > end, which is the normal case.
 const [BAND_A, BAND_B] = (() => {
   const raw = opt('--night-band', '21-9');
@@ -155,6 +158,21 @@ const nocturnalMs = (A, a = BAND_A, b = BAND_B) => {
    Still a fraction, never an absolute clip — a 19:00→02:00 sleep is 71 % nocturnal and survives
    WHOLE; we do not cut it at 21:00, because sleep onset is not a band edge. */
 const nocturnalBlocks = (A, a = BAND_A, b = BAND_B) => A.filter(([s, e]) => e > s && nocturnalMs([[s, e]], a, b) / (e - s) > 0.5);
+
+/* ── --skip-existing verdict, as a PURE function so it can be known-answer tested ─────────────────
+ * Returns the reason a night must be RECOMPUTED, or null when skipping is provably safe. Pure and
+ * I/O-free on purpose: the caller does the stat/read, this decides. A skip is a claim that recomputing
+ * would change nothing, and an unchecked claim of that shape is how a stale artifact ships — so every
+ * way the claim can be false gets its own branch, and every branch gets a case in --selftest.
+ * `stamp` is the parsed sidecar, null when absent, the string 'BAD' when unparseable. */
+function redoReason(stamp, nJson, inputsDigest, codeDigest) {
+  if (!stamp) return 'no stamp';
+  if (stamp === 'BAD') return 'unreadable stamp';
+  if (nJson !== 3) return `${nJson}/3 exports present`;
+  if (stamp.inputsDigest !== inputsDigest) return 'inputs changed';
+  if (stamp.codeDigest !== codeDigest) return 'code changed';
+  return null;
+}
 
 /* ── --selftest ───────────────────────────────────────────────────────────────────────────────────
  * Known answers for the nocturnal gate, on hand-built windows — no corpus, no I/O, CI-safe. The gate
@@ -213,6 +231,25 @@ if (flag('--selftest')) {
   ok('all-daytime cluster trims to zero blocks', nocturnalBlocks([awake]).length, 0);
   // Boundary: exactly half is NOT a majority, matching the whole-window reading of `> 0.5`.
   ok('07:00 -> 11:00 (exactly half) is trimmed out', nocturnalBlocks([[at(1, 7), at(1, 11)]]).length, 0);
+
+  /* --skip-existing. A skip is a CLAIM that recomputing changes nothing; each way that claim can be
+     false gets a case. The `null` case is the dangerous one — it is the only branch that skips work,
+     so the four beside it are what stop it from skipping a night it should redo. */
+  const eq = (name, got, want) => {
+    const good = got === want;
+    if (!good) fail++;
+    console.log(`  ${good ? '✓' : '✗'} ${name}  got=${JSON.stringify(got)} want=${JSON.stringify(want)}`);
+  };
+  const S = { inputsDigest: 'IN', codeDigest: 'CODE' };
+  eq('same inputs + same code + 3 exports ⇒ SKIP', redoReason(S, 3, 'IN', 'CODE'), null);
+  eq('no stamp ⇒ redo', redoReason(null, 3, 'IN', 'CODE'), 'no stamp');
+  eq('unreadable stamp ⇒ redo (never trust a corrupt claim)', redoReason('BAD', 3, 'IN', 'CODE'), 'unreadable stamp');
+  // The OOM case: 2026-07-06 was left with only its ECGDex export by a killed run.
+  eq('2 of 3 exports ⇒ redo (the half-written night)', redoReason(S, 2, 'IN', 'CODE'), '2/3 exports present');
+  eq('4 json in the dir ⇒ redo (not a clean trio)', redoReason(S, 4, 'IN', 'CODE'), '4/3 exports present');
+  eq('a new session appended ⇒ redo', redoReason(S, 3, 'IN-MOVED', 'CODE'), 'inputs changed');
+  // The stale-artifact case this whole gate exists for: a DSP edit must invalidate every night.
+  eq('a DSP edit ⇒ redo', redoReason(S, 3, 'IN', 'CODE-MOVED'), 'code changed');
 
   console.log(fail ? `\n  ${fail} FAILED` : '\n  all green');
   process.exit(fail ? 1 : 0);
@@ -684,7 +721,72 @@ for (const n of plan) {
 }
 
 console.log(`\ntrio nights: ${trio.length}${LIMIT ? ` (limiting to ${LIMIT})` : ''}`);
-const work = LIMIT ? trio.slice(0, LIMIT) : trio;
+let work = LIMIT ? trio.slice(0, LIMIT) : trio;
+
+/* ── 3a · --skip-existing — a night is DONE only if the SAME inputs AND the SAME code produced it ──
+ * Re-running a corpus to add ONE night recomputes every night: measured 38.4 s for a night that was
+ * already on disk, byte-identical. Over a 20-night corpus that is the whole run wasted to add an hour
+ * of new sleep.
+ *
+ * But "the folder exists" is NOT a safe skip, and this repo has been burned by exactly that shape
+ * before (a served bundle a day stale behind a green gate; a fixture re-stamped as reproducible under
+ * code that no longer reproduced it). A skip is a CLAIM that recomputing would change nothing, so it
+ * is only allowed when both halves of that claim are checked:
+ *   · inputs — every planned file's basename + size + mtime. A new session appended to a night, or a
+ *     re-pull that replaced a truncated file, moves this digest and the night recomputes.
+ *   · code   — the DSP sources the child actually loads, plus THIS FILE (its merge/clip/gate logic
+ *     shapes the output as much as the DSPs do). Edit a DSP and every night recomputes, which is the
+ *     whole point: a stale export that no current code reproduces is the defect, not the saving.
+ * Neither digest stores a filename or a serial — only a hash — so the privacy contract above holds.
+ *
+ * The stamp is written ONLY after all three exports land, so a night an OOM-kill left half-written
+ * (which has happened: 2026-07-06 kept only its ECGDex export) has no stamp and is always redone. */
+const STAMP = '.trio-stamp'; // NOT *.json — tch-multinight --dir globs /\.json$/i and must not see it
+const sha16 = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
+const CODE_DIGEST = (() => {
+  const srcs = ['clock.js', 'kernel-constants.js', 'dex-export.js', 'oxydex-util.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].map((f) => join(ROOT, f)).concat([__filename]);
+  return sha16(srcs.map((f) => (existsSync(f) ? readFileSync(f, 'utf8') : '')).join('\0'));
+})();
+const inputDigest = (p) =>
+  sha16(
+    Object.keys(p)
+      .sort()
+      .flatMap((k) => {
+        const v = p[k];
+        return (Array.isArray(v) ? v : v && v.name ? [v] : []).map((f) => {
+          let mt = 0;
+          try {
+            mt = statSync(f.full).mtimeMs;
+          } catch {
+            /* gone → digest changes → recompute */
+          }
+          return `${k}\0${f.name}\0${f.bytes}\0${mt}`;
+        });
+      })
+      .sort()
+      .join('\n')
+  );
+if (SKIP_EXISTING && !DRY) {
+  const keep = [];
+  for (const p of work) {
+    const dir = join(OUT, p.key);
+    const sf = join(dir, STAMP);
+    let st = null;
+    if (existsSync(sf)) {
+      try {
+        st = JSON.parse(readFileSync(sf, 'utf8'));
+      } catch {
+        st = 'BAD';
+      }
+    }
+    const nJson = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.json')).length : 0;
+    const why = redoReason(st, nJson, inputDigest(p), CODE_DIGEST);
+    if (why) keep.push(p);
+    else console.log(`  ⏭ ${p.key} — already computed from these inputs by this code (--skip-existing)`);
+  }
+  if (keep.length !== work.length) console.log(`  skipped ${work.length - keep.length} of ${work.length} night(s); ${keep.length} to compute`);
+  work = keep;
+}
 
 if (DRY) {
   for (const p of work) {
@@ -971,6 +1073,13 @@ for (const p of work) {
     else row.nodes.push(writeExport(dir, 'OxyDex', p.key, ex));
   } catch (e) {
     console.log(`    ✗ OxyDex  ${e.message}`);
+  }
+
+  // The stamp is the ONLY thing --skip-existing trusts, so it is written only when all three exports
+  // actually landed. A partial night (a node threw, or the run was OOM-killed) stays unstamped and is
+  // recomputed next time rather than being mistaken for done.
+  if (row.nodes.length === 3) {
+    writeFileSync(join(dir, STAMP), JSON.stringify({ inputsDigest: inputDigest(p), codeDigest: CODE_DIGEST, nodes: row.nodes.map((n) => n.node).sort() }, null, 2) + '\n');
   }
 
   summary.push(row);
