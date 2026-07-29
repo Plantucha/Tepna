@@ -4409,6 +4409,70 @@
       JSON.stringify(allOmit && { sdnn: allOmit.sdnn, meanRR: allOmit.meanRR }));
   });
 
+  /* ════ PpgDex HRV SHAPE gate — the failure a coverage gate cannot see ════
+     MULTINIGHT-CORPUS-FINDINGS §2. Six of 37 corpus nights published whole-record rMSSD of
+     91–188 ms against a chest ECG reading 26–42 ms on the same night, every one with
+     `lowConfidence: false`, because every coverage field was healthy (analyzable 96–100 %,
+     correction 2.5–13 %, LED agreement 96–100). The contamination is a SHAPE, not sparsity:
+     an alternating short/long interval sequence. The numbers below are the real corpus values. */
+  group('PpgDex HRV shape gate — rMSSD > sdnnRobust is a detector artifact (MULTINIGHT-CORPUS-FINDINGS §2)', 'ppgdex-dsp', function (T) {
+    var Dv = env.PPGDSP;
+    if (!(Dv && typeof Dv.hrvShapeViolates === 'function' && typeof Dv.timeDomain === 'function')) {
+      T.ok('PPGDSP.hrvShapeViolates exported', false, 'export it from ppgdex-dsp.js');
+      return;
+    }
+    // The six real nights that shipped unflagged — [night, rmssd, sdnnRobust].
+    var BAD = [
+      ['2026-06-29', 188.4, 136.2],
+      ['2026-07-05', 162.5, 109.2],
+      ['2026-07-25', 108.8, 85.5],
+      ['2026-07-18', 96.0, 78.0],
+      ['2026-07-26', 93.4, 76.0],
+      ['2026-07-17', 91.5, 87.6]
+    ];
+    for (var bi = 0; bi < BAD.length; bi++) {
+      T.ok('flags ' + BAD[bi][0] + ' (rMSSD ' + BAD[bi][1] + ' > sdnnRobust ' + BAD[bi][2] + ')', Dv.hrvShapeViolates(BAD[bi][1], BAD[bi][2]) === true);
+    }
+    // Clean nights from the same corpus, including the two that come CLOSEST to the line — if the
+    // threshold were even slightly loose these would trip, so they pin that it is not arbitrary.
+    var OKN = [
+      ['2026-07-01 (nearest miss)', 61.7, 64.1],
+      ['2026-07-02 (2nd nearest)', 52.0, 57.9],
+      ['2026-06-10', 40.0, 51.6],
+      ['2026-07-27', 37.8, 50.0],
+      ['2026-07-09', 25.7, 39.9]
+    ];
+    for (var oi = 0; oi < OKN.length; oi++) {
+      T.ok('leaves ' + OKN[oi][0] + ' alone (rMSSD ' + OKN[oi][1] + ' < sdnnRobust ' + OKN[oi][2] + ')', Dv.hrvShapeViolates(OKN[oi][1], OKN[oi][2]) === false);
+    }
+    // An absent comparand is not evidence of good shape — but it is not a violation either.
+    T.ok('null sdnnRobust ⇒ no verdict (record too short for the robust median)', Dv.hrvShapeViolates(120, null) === false);
+    T.ok('null rMSSD ⇒ no verdict', Dv.hrvShapeViolates(null, 60) === false);
+    T.ok('non-finite inputs ⇒ no verdict, never a throw', Dv.hrvShapeViolates(NaN, 60) === false && Dv.hrvShapeViolates(120, Infinity) === false);
+    T.ok('sdnnRobust 0 ⇒ no verdict (degenerate, not alternating)', Dv.hrvShapeViolates(120, 0) === false);
+    T.ok('equality is NOT a violation (strict >)', Dv.hrvShapeViolates(60, 60) === false);
+
+    /* The predicate is only worth having if a REAL alternating series produces the ordering it
+       tests for. Build one — the short/long pattern an extra detected foot creates — and confirm
+       the SHIPPED timeDomain() reports rMSSD above the series' own dispersion, while the same
+       mean in a physiological order does not. This is what makes the gate a measurement rather
+       than a restatement of its own threshold. */
+    var alt = [],
+      smooth = [];
+    for (var ki = 0; ki < 240; ki++) {
+      alt.push(ki % 2 ? 700 : 1500); // an inserted beat splits one RR into a short + a long
+      // A SLOW oscillation — respiratory-sinus shape, period 120 beats. Deliberately not a
+      // `ki % 8` sawtooth: that resets discontinuously every 8 beats and trips the predicate for
+      // the right reason (it IS a jumpy series), which would make this control prove nothing.
+      smooth.push(1100 + 80 * Math.sin((2 * Math.PI * ki) / 120));
+    }
+    var tdAlt = Dv.timeDomain(alt, null),
+      tdSm = Dv.timeDomain(smooth, null);
+    T.ok('an alternating series really does put rMSSD above its own SDNN', tdAlt.rmssd > tdAlt.sdnn, 'rmssd ' + tdAlt.rmssd.toFixed(1) + ' vs sdnn ' + tdAlt.sdnn.toFixed(1));
+    T.ok('…and a physiological series does not', tdSm.rmssd < tdSm.sdnn, 'rmssd ' + tdSm.rmssd.toFixed(1) + ' vs sdnn ' + tdSm.sdnn.toFixed(1));
+    T.ok('the predicate agrees with both', Dv.hrvShapeViolates(tdAlt.rmssd, tdAlt.sdnn) === true && Dv.hrvShapeViolates(tdSm.rmssd, tdSm.sdnn) === false);
+  });
+
   group('PpgDex finger site — single-channel parse, honest agreement, sentinel gaps (O2RING-FINGER-SITE)', 'ppgdex-dsp · ppgdex-registry', function (T) {
     var D = env.PPGDSP;
     var eq = env.equiv && env.equiv.ppgdex_finger;

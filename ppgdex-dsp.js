@@ -1112,6 +1112,24 @@
   //  loss is ≥ 5 samples (the host's 40 ms floor), while a healthy stream's steps are uniform to well
   //  under one period (Verity sensor-ns spread is ±370 ns on a 5.67 ms step), so nothing legitimate
   //  lands in between. O(n + beats) via a prefix count — no per-interval rescan.
+  /* MULTINIGHT-CORPUS-FINDINGS §2 — an interval series is ALTERNATING, not autonomic, when its
+     successive-difference dispersion exceeds its overall dispersion. Over a whole night that
+     ordering is impossible physiologically: rMSSD measures beat-to-beat change, sdnnRobust the
+     spread those beats live in, so rMSSD > sdnnRobust means consecutive intervals swing further
+     than the distribution they are drawn from — the signature of a detector emitting short/long
+     pairs (intermittent dicrotic-notch locking), not of a heart.
+
+     Compared against `sdnnRobust` rather than `sdnn` on purpose: whole-record `sdnn` runs high on
+     optical through SDANN/baseline-wander inflation, which would mask the very violation this
+     looks for. Returns FALSE when either input is absent — a record too short for the robust
+     median gets no verdict, because an absent comparand is not evidence of good shape. Pure, so
+     the gate is testable without driving the whole analyze pipeline. */
+  function hrvShapeViolates(rmssdMs, sdnnRobustMs) {
+    if (rmssdMs == null || sdnnRobustMs == null) return false;
+    if (!isFinite(rmssdMs) || !isFinite(sdnnRobustMs) || sdnnRobustMs <= 0) return false;
+    return rmssdMs > sdnnRobustMs;
+  }
+
   const TIME_GAP_STEPS = 2;
   function intervalsSpanningTimeGap(relSec, fs, feet, nIntervals) {
     const out = new Array(nIntervals).fill(false);
@@ -2511,14 +2529,43 @@
         })
         .sort((a, b) => a.tMin - b.tMin);
     }
-    // §3: coverage/SQI gate — a sparse / heavily-corrected record must not publish an
-    // unqualified whole-record short-term HRV (it would feed the Integrator consensus axis a
-    // jitter-inflated number). Keep the values but STAMP low-confidence + reason (option b),
-    // applied consistently to hrv.time/poincare/frequency in the exports. Inert on good data.
-    const hrvLowConfidence = analyzablePct < 60 || correctionRate > 20;
-    const hrvLowConfidenceReason = hrvLowConfidence
-      ? 'low coverage — analyzable ' + analyzablePct + '% / correction ' + correctionRate + '% → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
-      : null;
+    /* §3: coverage/SQI gate — a sparse / heavily-corrected record must not publish an
+       unqualified whole-record short-term HRV (it would feed the Integrator consensus axis a
+       jitter-inflated number). Keep the values but STAMP low-confidence + reason (option b),
+       applied consistently to hrv.time/poincare/frequency in the exports. Inert on good data.
+
+       MULTINIGHT-CORPUS-FINDINGS §2 — the coverage test alone CANNOT see the failure it most
+       needs to. Six of 37 corpus nights published whole-record rMSSD of 91–188 ms against a chest
+       ECG reading 26–42 ms on the same night, all six with `lowConfidence: false`, because every
+       coverage field was healthy: analyzable 96–100 %, correction 2.5–13 %, LED agreement 96–100,
+       motion-rejected ≤ 1.7. The contamination is not missing data, it is a SHAPE — an alternating
+       short/long interval sequence (epoch lf/hf collapses to 0.1–0.6 against 0.4–5.4 on a clean
+       night: energy piled at the RR-series Nyquist), most likely intermittent dicrotic-notch
+       locking in the foot detector. No threshold on coverage reaches it without also rejecting
+       good nights.
+
+       The shape test is free and needs no new statistic: over a whole night, successive-difference
+       dispersion cannot exceed overall dispersion, so `rmssd > sdnnRobust` is not a physiological
+       state — it is a detector artifact. It holds on all six and on none of the other 31, and the
+       two next-most-divergent nights (2026-07-01 61.7 vs 64.1, 07-02 52.0 vs 57.9) sit just under
+       the line, so the ordering is real rather than a coincidence of six.
+
+       `sdnnRobust` is the right comparand rather than `sdnn`: whole-record `sdnn` runs high on
+       optical through SDANN/baseline-wander inflation (see sdnnNote below), which would mask the
+       violation. Both are already computed above; nothing new is measured. Guarded on presence —
+       a record too short for the robust median (`sdnnRobust` null) simply does not get the test,
+       because an absent comparand is not evidence of good shape. */
+    const hrvShapeViolation = hrvShapeViolates(td.rmssd, sdnnRobust);
+    const hrvLowConfidence = analyzablePct < 60 || correctionRate > 20 || hrvShapeViolation;
+    const hrvLowConfidenceReason = hrvShapeViolation
+      ? 'interval-shape violation — rMSSD ' +
+        r1(td.rmssd) +
+        ' ms exceeds sdnnRobust ' +
+        r1(sdnnRobust) +
+        ' ms, which a whole night cannot do physiologically; the interval series is alternating (detector artifact, not autonomic tone) → whole-record short-term HRV unusable; use per-5-min epochs[] and prefer a chest-ECG leg'
+      : hrvLowConfidence
+        ? 'low coverage — analyzable ' + analyzablePct + '% / correction ' + correctionRate + '% → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct'
+        : null;
 
     // tier (mirror ECGDex)
     const durMin = rec.durSec / 60;
@@ -2673,6 +2720,10 @@
       nGapSpanIntervals,
       hrvLowConfidence,
       hrvLowConfidenceReason,
+      // §2 — WHY the confidence dropped, as a field rather than a substring of the reason. Coverage
+      // and shape call for different consumer responses: a sparse night can still be down-weighted
+      // and pooled, an alternating one must be discarded outright.
+      hrvShapeViolation,
       motion,
       motionRejectedPct,
       magHasData: motion.hasMag,
@@ -2945,6 +2996,7 @@
     consensusBeats,
     distinctChannelIdx,
     intervalsSpanningTimeGap,
+    hrvShapeViolates,
     gapBeats,
     pickChannel,
     harmonicOutlierRefIdx,
@@ -3094,6 +3146,8 @@
           units: 'ms',
           lowConfidence: !!r.hrvLowConfidence,
           lowConfidenceReason: r.hrvLowConfidenceReason || null,
+          // \u00a72 \u2014 additive: absent on every clean night, so no existing export moves.
+          ...(r.hrvShapeViolation ? { shapeViolation: true } : {}),
           windowNote: 'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
           sdnnNote:
             'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison.'
