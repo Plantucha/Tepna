@@ -6485,6 +6485,63 @@
        two DOMINANT SPI terms collapsed to 0 EXACTLY on the worse (undetected-onset) nights — scoring
        them LOWER pressure than a calm detected night. The fix withholds SPI (null) when its inputs
        were withheld, so the push (already `if (n.sleepP)`-guarded) no longer carries a fabricated 0. */
+    /* MULTINIGHT-CORPUS-FINDINGS §4 — the severity opener was CONSTANT across a whole corpus.
+       `Clean night` required worstScore < 4 and `Mild disruption` < 6, but with 28 ranked metrics
+       something always scores 8–10, so all 37 nights printed `Moderate burden` while the driving
+       `avgScore` ranged 1.19 → 5.21. The acceptance test for this is necessarily DISTRIBUTIONAL:
+       any single night's label is defensible, and the defect is only visible across the set. */
+    group('OxyDex severity ladder discriminates across a corpus (MULTINIGHT-CORPUS-FINDINGS §4)', 'oxydex-dsp · regression', function (T) {
+      var OI = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      var bi = OI && OI.buildImpression;
+      T.ok('OxyDex.buildImpression exposed', typeof bi === 'function');
+      if (typeof bi !== 'function') return;
+      /* Drive the real buildImpression with a ranked set engineered to a target (avgScore,
+         worstScore): one metric at `worst`, the rest at whatever mean the pair requires. `key`s are
+         unknown to the `leads` table on purpose, so every case exercises the same fallback lead and
+         only the SEVERITY word varies between them. */
+      var mkNight = function (avg, worst, nMetrics) {
+        var k = nMetrics || 28;
+        var rest = (avg * k - worst) / (k - 1);
+        var all = [{ key: 'zzUnknown0', label: 'M0', score: worst, detail: '' }];
+        for (var i = 1; i < k; i++) all.push({ key: 'zzUnknown' + i, label: 'M' + i, score: rest, detail: '' });
+        return bi({ stats: { minSpo2: 90 } }, all.slice(0, 5), all);
+      };
+      var wordOf = function (s) {
+        return String(s).split(':')[0];
+      };
+      // The real (avgScore, worstScore) pairs of the 37-night corpus, ordered by avgScore.
+      var CORPUS = [
+        [1.19, 8], [1.59, 8], [1.89, 8], [1.93, 9], [2.04, 9], [2.21, 9], [2.21, 10], [2.25, 9],
+        [2.29, 9], [2.54, 9], [2.64, 10], [2.75, 10], [2.93, 10], [2.93, 10], [3.0, 10], [3.0, 10],
+        [3.29, 10], [3.32, 10], [3.36, 10], [3.38, 9], [3.46, 10], [3.5, 10], [3.68, 10], [3.75, 10],
+        [3.77, 9], [3.79, 10], [3.82, 10], [3.86, 10], [3.89, 10], [3.93, 10], [3.93, 10], [4.07, 10],
+        [4.14, 10], [4.14, 10], [4.82, 10], [4.96, 10], [5.21, 10]
+      ];
+      var seen = {};
+      for (var c = 0; c < CORPUS.length; c++) seen[wordOf(mkNight(CORPUS[c][0], CORPUS[c][1]))] = true;
+      var labels = Object.keys(seen);
+      T.ok('THE INVARIANT · a 37-night corpus does not produce one label', labels.length > 1, labels.join(' / '));
+      T.eq('…all four rungs of the ladder are reachable', labels.length, 4);
+      // Ordering: the quietest and loudest nights must not land on the same rung.
+      T.eq('the corpus-quietest night (avg 1.19) reads Clean night', wordOf(mkNight(1.19, 8)), 'Clean night');
+      T.eq('the corpus-worst night (avg 5.21) reads Significant burden', wordOf(mkNight(5.21, 10)), 'Significant burden');
+      // The guardrail is SOFTENED, not removed — a top-of-scale finding still floors the night.
+      T.eq('a quiet night with a worst-of-10 finding is still floored to Moderate', wordOf(mkNight(1.19, 10)), 'Moderate burden');
+      T.eq('…while the same night with a worst-of-8 is allowed to read Clean', wordOf(mkNight(1.19, 8)), 'Clean night');
+      // Monotonic in avgScore at a fixed worst — a louder night is never labelled quieter.
+      var RANK = { 'Clean night': 0, 'Mild disruption': 1, 'Moderate burden': 2, 'Significant burden': 3 };
+      var mono = true,
+        prev = -1;
+      for (var a = 1.0; a <= 6.0; a += 0.1) {
+        var r = RANK[wordOf(mkNight(+a.toFixed(1), 9))];
+        if (r < prev) mono = false;
+        prev = r;
+      }
+      T.ok('severity is monotonic in avgScore (a louder night never reads quieter)', mono);
+      // The lead finding still opens the sentence, so the word never has to carry the whole truth.
+      T.ok('the finding still leads the clause after the severity word', /:/.test(mkNight(1.19, 8)));
+    });
+
     group('OxyDex Sleep Pressure Index does not invert on undetectable onset (DEEP-AUDIT FINDING 6)', 'oxydex-dsp · fabricated-absence · regression', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       var spi = OB && OB.computeSleepPressure;
