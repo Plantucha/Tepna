@@ -289,3 +289,56 @@ def test_an_uninterrupted_night_reports_no_gap_and_stays_green(tmp_path):
     assert s["gaps"] == [] and s["prior_gap_sec"] is None
     assert len(s["sessions"]) == 1, "a reconnect inside the threshold is one session, not two"
     assert s["ok"] is True
+
+
+def test_summarize_pools_when_the_reconnect_took_longer_than_the_gap(tmp_path):
+    """THE NEAR-MIDNIGHT PROXY IS NOT THE QUESTION. Pooling used to be gated on "did this folder open just
+    after midnight", which stands in for "does last night continue here" only while the reconnect is quicker
+    than _SESSION_GAP_SEC. Real case, 2026-07-28: the H10 dropped at 01:08:10 and returned at 01:08:59 —
+    4101 s past midnight, 501 s over the gate — so its 107 MB 01:08→05:03 half landed in tomorrow's folder
+    with pooling off. The night was judged twice and wrong both times (07-28: ecg 0.53, 3.4 h "silent",
+    ok=false; 07-29: ecg 1.0 but no Verity or O2Ring at all). Contiguity with the neighbour is the property
+    that actually matters, and it does not care how long the reconnect took."""
+    from datetime import datetime as _dt
+    d28 = str(tmp_path / "2026-07-28"); os.makedirs(d28)
+    d29 = str(tmp_path / "2026-07-29"); os.makedirs(d29)
+    pre = _dt.strptime("20260728220542", "%Y%m%d%H%M%S").timestamp()    # 22:05 — the evening connection
+    post = _dt.strptime("20260729010859", "%Y%m%d%H%M%S").timestamp()   # 01:08 — past the 1 h gate
+    _utime(_cap(d28, "Polar_H10_02849638_20260728220542_HR.txt", 10920), pre + 10920)   # → 01:08:02
+    _utime(_cap(d29, "Polar_H10_02849638_20260729010859_HR.txt", 14082), post + 14082)  # → 05:03
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = nightqc.summarize(d29, devs)
+    assert s["searched_dirs"] == ["2026-07-29", "2026-07-28"]   # it ASKED next door
+    assert s["devices"][0]["streams"]["hr"] == 25002            # both halves, one night
+    assert s["span_sec"] > 6 * 3600                             # ~7 h, not the 3.9 h post-midnight half
+    assert 0.9 < s["devices"][0]["coverage"]["hr"] <= 1.05      # not the deflated 0.53 the box reported
+    assert s["degraded"] == [] and s["missing"] == []
+
+
+def test_summarize_does_not_pool_a_non_contiguous_small_hours_session(tmp_path):
+    """The probe widens WHERE we ask, never WHAT we accept. A 02:00 sitting whose neighbour stopped at
+    18:00 yesterday is not last night's session, and pooling it would fuse two unrelated sittings — the
+    exact failure the mid-day guard exists to prevent, just inside the probe window."""
+    from datetime import datetime as _dt
+    d28 = str(tmp_path / "2026-07-28"); os.makedirs(d28)
+    d29 = str(tmp_path / "2026-07-29"); os.makedirs(d29)
+    y = _dt.strptime("20260728180000", "%Y%m%d%H%M%S").timestamp()      # yesterday evening, long over
+    t = _dt.strptime("20260729020000", "%Y%m%d%H%M%S").timestamp()      # 02:00 — inside the probe window
+    _utime(_cap(d28, "Polar_H10_02849638_20260728180000_HR.txt", 600), y + 600)
+    _utime(_cap(d29, "Polar_H10_02849638_20260729020000_HR.txt", 600), t + 600)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+    s = nightqc.summarize(d29, devs)
+    assert s["searched_dirs"] == ["2026-07-29"]        # asked, and the answer was no
+    assert s["devices"][0]["streams"]["hr"] == 600     # yesterday's sitting stays out
+
+
+def test_prev_probe_window_is_a_cost_guard_only():
+    """Known answers for the probe window. It decides only whether the contiguity question is ASKED."""
+    mid = 1_000_000.0
+    assert nightqc.prev_probe_window(mid, mid) is True                    # 00:00
+    assert nightqc.prev_probe_window(mid + 4101, mid) is True             # 01:08 — the real 2026-07-28 case
+    assert nightqc.prev_probe_window(mid + 11.9 * 3600, mid) is True      # 11:54 — still worth asking
+    assert nightqc.prev_probe_window(mid + 12 * 3600, mid) is False       # noon — cannot be last night
+    assert nightqc.prev_probe_window(mid + 15 * 3600, mid) is False       # 15:00 — never pays for the scan
+    assert nightqc.prev_probe_window(mid - 1, mid) is False               # before this folder's midnight
+    assert nightqc.prev_probe_window(mid, None) is False                  # undatable folder name

@@ -29,6 +29,9 @@ _SUMMARY_NAME = "QC-SUMMARY.json"
 # ~0 % (a false 'degraded', the very inversion of the false-confidence bug coverage exists to catch). One hour
 # comfortably spans reconnect churn / a bathroom break (kept in one session) but splits a genuine new sitting.
 _SESSION_GAP_SEC = 3600.0
+# How far into a day a capture may open and still be ASKED whether it continues last night. A cost
+# guard on the probe, not a correctness threshold — see prev_probe_window.
+_PREV_PROBE_SEC = 12 * 3600.0
 _STAMP_RE = re.compile(r"_(\d{14})_")
 
 
@@ -66,6 +69,18 @@ def _hhmm(epoch: float) -> str:
     """`HH:MM` local civil, for a human-readable gap description. Clock Contract: the stamps these
     epochs come from were written as naive LOCAL time, so they are read back the same way."""
     return datetime.fromtimestamp(epoch).strftime("%H:%M")
+
+
+def prev_probe_window(earliest: float, midnight) -> bool:
+    """Is it worth ASKING the previous folder whether its session runs into this one?
+
+    Purely a cost guard, never a correctness one — the pooling decision is made by contiguity, and this
+    only decides whether that question gets asked at all. The cheap near-midnight gate beside it answers
+    the common case for free; this widens the probe to the small hours, where a cross-midnight
+    continuation is the only thing a session can be. A capture opening at 15:00 cannot be last night's,
+    so it never pays for the extra directory scan. Noon is deliberately generous: the cost of being wrong
+    here is one scan, and the cost of being too tight is a night judged as two broken halves."""
+    return midnight is not None and 0 <= earliest - midnight < _PREV_PROBE_SEC
 
 
 def _midnight_of(night_dir: str):
@@ -293,10 +308,31 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     # sees only its half and a device that streamed cleanly across midnight reads as badly degraded. Gated
     # on the near-midnight start so an ordinary mid-day session never pays to re-read a whole prior day.
     searched = [night_dir]
+    prev_data = None
     if data:
         earliest = min(f["session"] for f in data)
         midnight = _midnight_of(night_dir)
         _pool = midnight is not None and 0 <= earliest - midnight < _SESSION_GAP_SEC
+        if not _pool and prev_probe_window(earliest, midnight):
+            # THE NEAR-MIDNIGHT PROXY IS NOT THE QUESTION. "Did this folder open just after midnight"
+            # only ever stood in for "does last night's session continue into this folder", and the two
+            # part company the moment a device takes longer than the gap to reconnect. Real case,
+            # 2026-07-28: the H10 dropped at 01:08:10 and came back at 01:08:59 — 4101 s past midnight,
+            # 501 s over _SESSION_GAP_SEC — so its 107 MB 01:08→05:03 half landed in tomorrow's folder
+            # with pooling switched off. The night was then judged TWICE and wrong both times: the
+            # 07-28 folder saw ecg 0.53 with 3.4 h "silent" and ok=false, the 07-29 folder saw ecg 1.0
+            # but no Verity or O2Ring at all (coverage {}). A complete 7.7 h tri-device night read as
+            # two broken halves, and the alert fired on the half that looked worse.
+            #
+            # So ASK the neighbour instead of guessing from the clock: pool when its last write actually
+            # runs into this folder's earliest session, within the same gap that defines a session
+            # everywhere else in this file. Contiguity is the property the proxy was approximating, and
+            # unlike the proxy it does not care how long the reconnect took.
+            # _prev_day_dir cannot be None here: prev_probe_window already required a parseable
+            # midnight, which is the same folder-name parse. No dead guard for an unreachable state.
+            prev_data = [f for f in scan_night(_prev_day_dir(night_dir)) if f["stream"] not in _SIDECAR_TAGS]
+            if prev_data:
+                _pool = 0 <= earliest - max(f["mtime"] for f in prev_data) < _SESSION_GAP_SEC
     else:
         # NO CAPTURE FILES HERE AT ALL. The old gate was `if data:`, so this branch could not run — and
         # it is precisely the 2026-07-28 shape: the midnight sidecar rollover creates tomorrow's folder,
@@ -310,7 +346,9 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         prev = _prev_day_dir(night_dir)
         if prev:
             searched.append(prev)
-            data = [f for f in scan_night(prev) if f["stream"] not in _SIDECAR_TAGS] + data
+            if prev_data is None:
+                prev_data = [f for f in scan_night(prev) if f["stream"] not in _SIDECAR_TAGS]
+            data = prev_data + data
     # Isolate the CURRENT capture session (merge_sessions holds the reasoning). The current session is
     # the merged interval reaching the newest write (~now); `span` is its elapsed time. None (coverage
     # unknown) until a judge-able span has accrued.
