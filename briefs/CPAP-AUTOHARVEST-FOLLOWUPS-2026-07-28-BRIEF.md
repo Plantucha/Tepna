@@ -125,6 +125,14 @@ only in conversation:
 4. **Fold by night key** — one folder per sleep *night* (`start − 12 h`) rather than per calendar date.
    Going forward only; never retroactive.
 
+> **Status 2026-07-29.** §5.1 released (v1.19.0). §5.2 **DONE** — the three capture nodes emit
+> `recording.coverage` and the fusion export publishes `apnea.overlapCoverage`; residue in
+> `INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS-2026-07-28-BRIEF.md`. §5.3 **part-done** — its prerequisite
+> landed (the synthetic oracle breathed identically in REM and NREM, so §3's discriminator could not be
+> built; it now does, and `epochs[].respCv` measures a 2.6× REM/NREM separation), but the weighted-score
+> detector itself is **still open**: it reaches the physiological 15–25 % band on the corpus only by
+> losing planted-truth recall, and §5 of that brief requires both. §5.4 untouched.
+
 ---
 
 ## 6 · Done when
@@ -132,4 +140,11 @@ only in conversation:
 - [ ] §2.1 routed to its own brief (CPAP `SA2.edf` as a second SpO₂ source) or explicitly declined
 - [ ] §2.2 one deliberate fault injection against the running box, with the webhook actually delivering
 - [ ] §4 split into a MotionDex brief, after which `DEEP-AUDIT-III` can finally close
-- [ ] §5.1 verified + released, or the changeset backlog explicitly parked with a reason
+- [x] **§5.1 DONE 2026-07-29 — verified AND released as v1.19.0.** Four fixtures (ECGDex, PulseDex ×2,
+      Integrator) carried a `verifiedUnder` predating the ECGDex-staging, `ansBalance` and
+      gap-aware-hours compute changes, so `tools/release.mjs` was refusing exactly as designed.
+      `DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs` on the corpus machine re-verified them; no
+      export byte had moved, so nothing needed regenerating. 18 changesets folded into **v1.19.0**
+      (MINOR — exports gain `recording.coverage`). **The tag is the owner's to push.**
+      *Gotcha found on the way:* `build-docs.mjs` prints a 9-path `git add` line but the version badge
+      moves in **51** files — stage what `git status` shows, not what the tool printed.
