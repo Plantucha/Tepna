@@ -134,7 +134,69 @@ is missing is a falsifier for the tracking half.
 
 - [ ] §2 a `genSyntheticACC` that can emit a rate CHANGE across a real clock hole, and a §4.2 tracking
       falsifier built on it, verified RED against a flat-likelihood revert
-- [ ] The same mutation sweep run across `DEEP-AUDIT-III`'s remaining FIXED sections. Nine are done
+- [x] **SWEEP RUN 2026-07-29 — see §5. 19 sections mutation-checked, 4 blind, base rate ~21 %.**
+- [ ] ~~The same mutation sweep run across `DEEP-AUDIT-III`'s remaining FIXED sections.~~ Nine are done
       (§3.6, §4.1, §4.2, §4.3, §3.2, §6.1, §6.3, and the two screens that came back clean); **three of
       the nine were blind or absent**. A static screen on test-reference COUNT is not a substitute —
       §4.1 had 15 references and was blind, §6.3 had 5 and was blind. Only the mutation decides.
+
+---
+
+## 5 · The sweep, run (2026-07-29)
+
+Every remaining FIXED section mutation-checked: revert the fix, run the suite, count what reds.
+
+| § | verdict | reds | note |
+|---|---|---|---|
+| 1.1 `resolveDMY` contradictory | teeth | 10 | |
+| 1.2 midnight-roll slack | teeth | 8 | |
+| 1.3 PpgDex `.9995` truncate | teeth | 8 | |
+| 2.1 HRVDex `_meanRR` guard | teeth | 2 | |
+| **2.2 MotionDex unknown ACC unit** | **BLIND** → gated | 0 → 2 | see §5.1 |
+| 2.3 `SignalSpec.cgm.unit` | teeth | 2 | |
+| 3.2 `apneaCoupling.real` | teeth | 2 | |
+| 3.3 desat attribution | teeth | 2 | |
+| 3.4 respiration self-consensus | teeth | 2 | **only with BOTH guards reverted** — §5.2 |
+| 3.5 pulse cross-check | teeth | 2 | flag-only mutation was inert — §5.2 |
+| **3.6 autonomic⟷glycemic** | **no gate** → gated | 0 → 5 | |
+| **4.1 `sampleHz` native rate** | **BLIND** → gated | 0 → 6 | |
+| 4.2 rate across a strap-off gap | partial | 0 | reporting gated, tracking not (§2) |
+| 4.3 IMU plausibility bound | teeth | 4 | |
+| 5.1 PulseDex surfaced Total Power | teeth | 2 | |
+| 5.2 PulseDex LF/HF | inconclusive | 0 | fixture cannot express it |
+| 6.1 abstention ≠ agreement | teeth | 6 | |
+| 6.2 HRVDex duration key | teeth | 2 | |
+| **6.3 `parseDeviceHR` headerless** | **BLIND** → gated | 0 → 2 | |
+
+**Base rate: 4 blind or absent in 19 checked (~21 %)** — lower than the ~⅓ the first nine suggested,
+which is the value of finishing a sweep rather than extrapolating from its opening.
+
+### 5.1 §2.2 — the fixture agreed with the defect
+
+`parseSensorXYZ`'s unknown-unit test feeds a `[blorp]` header whose data is **genuinely mg**, so the
+honest `unit:null`-then-infer and the silent `unit:'mg'` default agree on it — and the assertion reads
+`_unitInferred`, which runs identically either way. Same header with data in **m/s²**: the fix reports
+`_unit:'m/s2'`, the default reports `'mg'` — a **9.8× error on every downstream magnitude**, with the
+whole suite green. Gated, verified RED.
+
+### 5.2 Three ways this method LIES, all hit during this sweep
+
+Recorded because a mutation result is only as good as the mutation, and a false *blind* is as costly
+as a false *green*:
+
+1. **A redundant fix under-detects.** §3.4 ships TWO independent guards — fuse only within a
+   temporally-overlapping group, AND collapse to one observer per node. Reverting either alone reds
+   nothing, because the other still holds; reverting BOTH reds the assertion and reproduces the exact
+   published defect (`"2 independent estimates (ECGDex + ECGDex)"`). Single-point mutation called this
+   blind, and it is not. **Defence in depth reads as a blind gate under single-point mutation.**
+2. **Mutating a published FLAG is not mutating the fix.** §3.5's first mutation flipped
+   `overlapVerified` — a reported boolean — and reddened nothing. Re-aimed at the actual guard
+   (`_mayOverlap` before pairing) it reds immediately. The mutation must sit where the FIX sits.
+3. **An inert edit is indistinguishable from a blind gate.** §5.2 stays inconclusive on exactly this:
+   the mutation reddened nothing, but its semantic validity was never established, and the committed
+   PulseDex synthetic has a degenerate spectrum (LF 1 / HF 1006) that cannot express a Jensen gap.
+
+**So the rule that makes the method honest: before reporting a gate blind, prove the DEFECT is
+reachable** — construct the input that separates fix from defect and show the two disagree. That is
+what §5.1 does for §2.2, and what §3.4 failed and was therefore not reported.
+
