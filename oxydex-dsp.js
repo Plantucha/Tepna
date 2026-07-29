@@ -2266,7 +2266,8 @@
     var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, rows.length, blArr);
     var odi3 = detectODI(spo2s, 3, rows.length, blArr, pulseSeries);
     var hb = computeHypoxicBurden(rows);
-    var motion = computeMotionProfile(rows);
+    var _motionStuck = _motionColumnStuck(rows);
+    var motion = _motionStuck ? null : computeMotionProfile(rows);
     var stab = computeSleepStabilityScore(stats, hrv, osc, hb);
     var durationHr = /** @type {number} */ (stats.durationMin) / 60;
     var desat = computeDesaturationProfile(rows, tIdx, odi4, blArr);
@@ -2300,6 +2301,31 @@
     }
     var hrProf = computeHRProfile(rows);
     var motSleep = computeMotionSleep(rows);
+    /* MULTINIGHT-CORPUS-FINDINGS §3 — a motion column that is NEVER zero is a sensor/writer fault,
+       not a night of continuous movement, and everything derived from it is meaningless rather than
+       extreme. On 2026-07-16 and 07-17 the capture host wrote a Motion field pinned at ~19–27 for
+       every sample of the night (every other night in the corpus is >= 98 % zero); OxyDex read
+       `motion > 0` as movement and published `motionPct 100`, `sleepEff 0`, `arousalIndex 100`,
+       `wasoPct 100` — a confident description of a night that did not happen — while every
+       motion-GATED metric silently ran on an empty sample set.
+
+       The response is the `_durBad`/`durationInflated` one directly above: surface the absence, do
+       not publish a plausible wrong number. `computeHRV` already self-nulls here (it has no
+       motion-free samples to work with), which is the behaviour the rest now matches.
+
+       The whole NIGHT's motion family is dropped even though the fault is per-source, because a
+       merged night carries no source provenance by the time it reaches here — and a motion series
+       that is part fabrication cannot be partially trusted. See `_motionColumnStuck` for why the
+       detector measures a contiguous run rather than the night's zero-fraction. */
+    if (_motionStuck) {
+      motSleep = /** @type {any} */ (null);
+      /* `motionPct` is the one motion number that survives — as an explicit null plus the reason,
+         because a reader who sees the field absent must be able to tell "the sensor lied" from
+         "this build predates the field". Conditional assignment (the EXPORT-INVARIANCE convention
+         a few lines below) keeps every healthy night's export byte-identical. */
+      stats.motionPct = /** @type {any} */ (null);
+      stats.motionColumnStuck = true;
+    }
     var cross = computeCrossSignal(rows, osc, spikes, odi4, durationHr);
     var spo2Adv = computeSpO2Advanced(rows, blArr); // nadir events computed inline
     var hrAdv = computeHRAdvanced(rows, osc);
@@ -3036,6 +3062,47 @@
   // Motion Profile: divide night into 30-min windows, score each for motion %.
   // Restless window = any window where motion% >= 2.0.
   // Arousal index = % of total windows that are restless (0-100).
+  /* MULTINIGHT-CORPUS-FINDINGS §3 — is the motion column STUCK (a writer/sensor fault) rather than
+     reporting a genuinely restless night?
+
+     The test is the LONGEST CONTIGUOUS RUN of non-zero samples, not the whole-night fraction, and
+     the corpus is why. The fault is per-SOURCE, not per-night: on 2026-07-16/17/18 the capture
+     host's live BLE stream wrote a motion field that never returned to zero, while the O2Ring's own
+     onboard `.dat` backup for the SAME nights is 94–98 % zero. A folded night merges both, so its
+     overall zero-fraction lands at a healthy-looking 50–63 % and any fraction test is blind to it.
+     A run test is not, because it asks the question locally.
+
+     The separation it gets is not marginal — measured over 13 consecutive capture nights:
+
+         faulted (07-16 / 07-17 / 07-18):   110 min · 366 min · 302 min of unbroken movement
+         every healthy night (07-19..28):     3 s –  13 s
+
+     ~500x, with nothing in between. 10 minutes sits 46x above the worst healthy observation and 11x
+     below the smallest fault, so the threshold is read off a gap rather than chosen. A sleeper who
+     genuinely never stills for ten minutes does not then produce a night whose next-longest run is
+     four seconds; the shape is a writer, not a body.
+
+     This also catches 2026-07-18, which a whole-night fraction test cannot (18.7 % zero looks like a
+     restless night by fraction, and is 302 minutes of impossible continuity by run).
+
+     Non-finite/absent motion values break no run and start none: a file with no motion column is
+     missing data, a different condition that already reads as zero motion downstream. */
+  var MOTION_STUCK_RUN_SAMPLES = 600; // 10 min at the O2Ring's 1 Hz cadence
+  function _motionColumnStuck(rows) {
+    if (!rows || !rows.length) return false;
+    var run = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var m = rows[i].motion;
+      if (m == null || !isFinite(m)) continue;
+      if (m === 0) {
+        run = 0;
+        continue;
+      }
+      if (++run >= MOTION_STUCK_RUN_SAMPLES) return true;
+    }
+    return false;
+  }
+
   function computeMotionProfile(rows) {
     var WIN = 1800,
       windows = [],
@@ -3078,11 +3145,35 @@
     // remaining 0.9 of weight to 1.0 so the score reflects only the components actually measured,
     // and surface hrFloor=null so the absence is visible (gate on inputs PRESENT, never seed one).
     var s2 = hrv ? Math.max(0, Math.min(100, Math.round(((70 - hrv.hrFloor) / 18) * 100))) : null;
-    var s3 = Math.max(0, Math.min(100, Math.round(((2.0 - stats.motionPct) / 1.8) * 100)));
+    /* §3 — the motion subscore inherits s2's rule, and must: `stats.motionPct` is now null on a
+       faulted motion column, and `(2.0 - null)/1.8` is 1.11 → clamps to a PERFECT 100. A stuck
+       sensor would have scored the night's stillness top marks, which is the same fabricated-absence
+       bug the note above s2 exists to prevent. Drop the component instead. */
+    var s3 = stats.motionPct == null ? null : Math.max(0, Math.min(100, Math.round(((2.0 - stats.motionPct) / 1.8) * 100)));
     var s4 = Math.max(0, Math.min(100, Math.round(((20 - osc.episodeCount) / 20) * 100)));
     var s5 = Math.max(0, Math.min(100, Math.round(((15 - hb.rate) / 15) * 100)));
     var s6 = Math.max(0, Math.min(100, Math.round(((20 - stats.t95pct) / 20) * 100)));
-    var score = s2 == null ? Math.round((s1 * 0.2 + s3 * 0.15 + s4 * 0.2 + s5 * 0.2 + s6 * 0.15) / 0.9) : Math.round(s1 * 0.2 + s2 * 0.1 + s3 * 0.15 + s4 * 0.2 + s5 * 0.2 + s6 * 0.15);
+    /* Renormalize over the components actually MEASURED, generalizing the s2-only branch this
+       replaces. Arithmetically identical where it applied — with nothing null the divisor is 1.0,
+       with only s2 null it is 0.9 — so no existing export moves. */
+    var _parts = [
+      [s1, 0.2],
+      [s2, 0.1],
+      [s3, 0.15],
+      [s4, 0.2],
+      [s5, 0.2],
+      [s6, 0.15]
+    ].filter(function (p) {
+      return p[0] != null;
+    });
+    var _wSum = _parts.reduce(function (a, p) {
+      return a + /** @type {number} */ (p[1]);
+    }, 0);
+    var score = Math.round(
+      _parts.reduce(function (a, p) {
+        return a + /** @type {number} */ (p[0]) * /** @type {number} */ (p[1]);
+      }, 0) / _wSum
+    );
     var grade = score >= 80 ? 'Good' : score >= 60 ? 'Fair' : 'Poor';
     var gradeClass = score >= 80 ? 'good' : score >= 60 ? 'warn' : 'bad';
     return { score: score, grade: grade, gradeClass: gradeClass, components: { spo2Stab: s1, hrFloor: s2, motion: s3, pb: s4, hypoxicBurden: s5, t95: s6 } };
@@ -5534,7 +5625,9 @@
             // reading the export can tell "no PI sensor data" from "zero perfusion".
             meanPi: s.meanPi != null ? s.meanPi : null,
             piFrames: s.piFrames || 0,
-            motionPct: s.motionPct || 0,
+            // §3 — same reasoning as meanPi directly above: `|| 0` would turn a faulted motion
+            // column into a report of a perfectly still night, which is the opposite of the truth.
+            motionPct: s.motionPct != null ? s.motionPct : null,
             n: s.n || 0,
             artifactHrCleaned: s.artifactHrCleaned || 0,
             artifactSpikesRemoved: s.artifactSpikesRemoved || 0
@@ -5879,6 +5972,9 @@
       hypoxicBurden: n.hb,
       motionProfile: {
         motionPct: n.stats ? n.stats.motionPct : null,
+        // §3 — present ONLY on a faulted night, so no healthy export moves. Without it a null
+        // motionPct is indistinguishable from an oximeter that never had a motion column.
+        ...(n.stats && n.stats.motionColumnStuck ? { columnStuck: true } : {}),
         arousalIndex: n.motion ? n.motion.arousalIndex : null,
         restlessWindows: n.motion ? n.motion.restlessWindows : null,
         totalWindows: n.motion ? n.motion.totalWindows : null,
@@ -6293,6 +6389,7 @@
     buildFlags,
     computeHypoxicBurden,
     computeMotionProfile,
+    _motionColumnStuck,
     computeSleepStabilityScore,
     SELFGATE,
     selfGateDesat,

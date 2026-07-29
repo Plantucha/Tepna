@@ -206,6 +206,36 @@ publishing zeros. The precedent for the shape is `_durBad` / `durationInflated` 
 `DEEP-AUDIT-III-FOLLOWUPS` already carries "`_durBad` is still one-sided"; this is the same discipline
 applied to the motion column, and the two are worth doing together.
 
+> ### ⚠ §3 CORRECTED ON EXECUTION (2026-07-29) — the threshold paragraph below is wrong
+>
+> Both the mechanism and the proposed detector were mis-stated, and only measuring found it. Kept
+> rather than rewritten, per `DEEP-AUDIT-III-FOLLOWUPS` §2: **a brief's fix sketch is a lead to
+> re-derive, not an instruction.** What is actually true:
+>
+> **The fault is per-SOURCE, not per-night.** On 2026-07-16/17/18 the capture host's live BLE stream
+> wrote a motion field that never returned to zero — but the O2Ring's **own onboard `.dat` backup for
+> the same nights is 94–98 % zero**. The device reports motion correctly; the host's live decode of
+> that byte does not. A folded night merges both sources, so its overall zero-fraction lands at a
+> healthy-looking **50–63 %**, and *any* whole-night fraction test — including the `motionPct == 100`
+> one proposed below — is blind to it. The first implementation used exactly that test and **missed
+> 2026-07-17**, one of the two nights the fix exists for.
+>
+> **The detector that works is the longest contiguous run of non-zero samples**, which asks the
+> question locally and needs no source provenance. Measured over 13 consecutive capture nights:
+>
+> | | longest unbroken all-moving run |
+> |---|---|
+> | 2026-07-16 / 07-17 / 07-18 (faulted) | **110 min · 366 min · 302 min** |
+> | 2026-07-19 … 07-28 (every healthy night) | **3 s – 13 s** |
+>
+> ~500× apart with nothing in between, so the 10-minute threshold is **read off a gap rather than
+> chosen** — 46× above the worst healthy observation, 11× below the smallest fault.
+>
+> **2026-07-18 is therefore decidable after all**, and the "middle band" the next paragraph warns
+> about does not exist: 18.7 % zero looks like a restless night *by fraction* and is five hours of
+> impossible continuity *by run*. The caution was right in spirit — do not invent a threshold — and
+> wrong in fact: the data had a clean one, just not on the axis this brief assumed.
+
 **Threshold care:** 100 % is the unambiguous case. 2026-07-18 at 81 % nonzero is contaminated but not
 saturated, and no defensible line separates "restless night" from "partially stuck column" without a
 second opinion. Do **not** invent one — flag at 100 %, and treat the middle band as a question for §6.

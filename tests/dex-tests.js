@@ -6273,6 +6273,70 @@
       T.eq('present HR → score includes the 0.1-weighted subscore (90, unchanged from before the fix)', present.score, 90);
     });
 
+    /* MULTINIGHT-CORPUS-FINDINGS §3 — a motion column that is NEVER zero is a writer/sensor fault,
+       not a restless night. On 2026-07-16 and 07-17 the capture host pinned the O2Ring Motion field
+       at ~19–27 for every sample (every other corpus night is ≥ 98 % zero) and OxyDex published
+       `motionPct 100`, `sleepEff 0`, `arousalIndex 100`, `wasoPct 100` — a confident description of
+       a night that did not happen — with nothing in the export marking it. */
+    group('OxyDex stuck motion column is rejected, not integrated (MULTINIGHT-CORPUS-FINDINGS §3)', 'oxydex-dsp · fabricated-absence · regression', function (T) {
+      var OM = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      var stuckFn = OM && OM._motionColumnStuck;
+      var cssM = OM && OM.computeSleepStabilityScore;
+      T.ok('OxyDex._motionColumnStuck exposed', typeof stuckFn === 'function');
+      if (typeof stuckFn !== 'function') return;
+      var mkRows = function (nRows, motionAt) {
+        var out = [];
+        for (var i = 0; i < nRows; i++) out.push({ motion: motionAt(i), spo2: 96, hr: 50, tMs: i * 1000 });
+        return out;
+      };
+      // The 2026-07-16 shape: every sample non-zero, in the value range the host actually wrote.
+      T.ok('a column pinned non-zero for a whole night is stuck', stuckFn(mkRows(20000, function (i) { return 19 + (i % 9); })) === true);
+      /* THE CASE A FRACTION TEST CANNOT SEE. The fault is per-SOURCE: on 2026-07-16/17/18 the live
+         BLE stream never returned to zero while the O2Ring's own .dat backup for the same nights is
+         94–98 % zero. A folded night merges both, so its overall zero-fraction is a healthy-looking
+         50–63 % — and the stuck stretch is still hours long. This is the shape that made the run
+         test necessary, and it is why the first version of this guard missed 2026-07-17. */
+      T.ok(
+        'a healthy half merged with a stuck half is still caught (63 % zero overall)',
+        stuckFn(mkRows(20000, function (i) { return i < 12600 ? (i % 50 === 0 ? 3 : 0) : 22; })) === true
+      );
+      // Measured healthy nights (07-19..28) top out at 3–13 s of continuous movement.
+      T.ok('a healthy mostly-zero column is not stuck', stuckFn(mkRows(20000, function (i) { return i % 100 === 0 ? 3 : 0; })) === false);
+      T.ok(
+        'the WORST healthy run observed in the corpus (13 s) is not stuck',
+        stuckFn(mkRows(20000, function (i) { return i % 600 < 13 ? 22 : 0; })) === false
+      );
+      // 2026-07-18: 18.7 % zero overall — indistinguishable from a restless night BY FRACTION, and
+      // 302 minutes of unbroken movement BY RUN. The run test is what makes it decidable.
+      T.ok(
+        'a night that looks restless by fraction (18.7 % zero) but runs 5 h unbroken IS caught',
+        stuckFn(mkRows(30000, function (i) { return i < 5600 ? (i % 1000 < 940 ? 0 : 22) : 22; })) === true
+      );
+      // A short clip must not be condemned: over a handful of samples "never zero" is unremarkable.
+      T.ok('a sub-threshold run is never condemned (10 min at 1 Hz is the floor)', stuckFn(mkRows(20000, function (i) { return i % 1200 < 599 ? 22 : 0; })) === false);
+      T.ok('exactly at the threshold IS stuck', stuckFn(mkRows(600, function () { return 22; })) === true);
+      T.ok('one sample short of it is not', stuckFn(mkRows(599, function () { return 22; })) === false);
+      T.ok('empty / absent rows ⇒ false, never a throw', stuckFn([]) === false && stuckFn(null) === false);
+      // Absent motion values are missing data, a different condition — not evidence of movement.
+      T.ok('a file with no motion column at all is not "stuck"', stuckFn(mkRows(20000, function () { return null; })) === false);
+
+      /* The subscore half: `stats.motionPct` is null on a faulted night, and `(2.0 - null)/1.8`
+         clamps to a PERFECT 100 — a stuck sensor scoring the night's stillness top marks. It must
+         drop out and renormalize, exactly as the absent-HR component beside it does. */
+      if (typeof cssM === 'function') {
+        var oscM = { episodeCount: 0 },
+          hbM = { rate: 0 },
+          hrvM = { hrFloor: 70 };
+        var nullMotion = cssM({ spo2Std: 0.5, motionPct: null, t95pct: 0 }, hrvM, oscM, hbM);
+        T.eq('null motionPct → motion component is null, not a fabricated 100', nullMotion.components.motion, null);
+        // measured: s1=100 (.2) s2=0 (.1) s4=100 (.2) s5=100 (.2) s6=100 (.15) over 0.85 weight
+        T.eq('…and the score renormalizes over the measured components', nullMotion.score, Math.round((100 * 0.2 + 0 * 0.1 + 100 * 0.2 + 100 * 0.2 + 100 * 0.15) / 0.85));
+        var withMotion = cssM({ spo2Std: 0.5, motionPct: 0.2, t95pct: 0 }, hrvM, oscM, hbM);
+        T.eq('control · present motionPct still scores and blends unchanged', withMotion.components.motion, 100);
+        T.eq('control · present-everything score is unchanged from before the fix', withMotion.score, 90);
+      }
+    });
+
     /* DEEP-AUDIT FINDING 1 (mis-states-number) — the ODI-3 THRESHOLD family was inflated by
        artifacts. selfGateDesat flags probe-squeeze / finger-off artifact desats and processNight
        subtracts them from ODI-4 (via desat.artifactCount), but the drop:3 family (odi3, hypoxicLoad,
