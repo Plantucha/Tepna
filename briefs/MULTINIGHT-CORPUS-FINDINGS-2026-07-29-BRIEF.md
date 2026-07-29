@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-29 · **Source:** the 2026-07-28 full-corpus re-fold (37 trio nights + 197 CPAP nights) · **Related:** `TRIO-BATCH-O2RING-DAT-2026-07-13-BRIEF.md`, `CPAP-AUTOHARVEST-FOLLOWUPS-2026-07-28-BRIEF.md`, `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`
+**Status:** DONE — 2026-07-29 · **Created:** 2026-07-29 · **Executed:** all four sections shipped and merged — §1 PR #527, §2 PR #528, §3 PR #529, §4 PR #530 (§4's ladder owner-ratified before implementation). §3's own prescription was WRONG and is corrected in place, not rewritten. **Follow-ups:** `MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS-2026-07-29-BRIEF.md` · **Source:** the 2026-07-28 full-corpus re-fold (37 trio nights + 197 CPAP nights) · **Related:** `TRIO-BATCH-O2RING-DAT-2026-07-13-BRIEF.md`, `CPAP-AUTOHARVEST-FOLLOWUPS-2026-07-28-BRIEF.md`, `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`
 
 # Four defects a 37-night fold found that no single night could
 
@@ -340,19 +340,25 @@ re-fold shows ~72 modified files. Stage by explicit path; do not blanket-add and
 
 ## 8 · Done when
 
-- [ ] `periodicBreathingSec` pairs `CSR Start`/`CSR End`; a **new committed synthetic CSL in the device's
-      real encoding** pins a non-zero `periodicBreathingPct`; the four dated nights in §1.1 reproduce
+- [x] `periodicBreathingSec` pairs `CSR Start`/`CSR End`; a synthetic CSL in the device's **real
+      encoding** pins a non-zero `periodicBreathingPct` — met DIFFERENTLY from the wording and worth
+      the note: rather than committing a new `.edf` binary, `_buildSyntheticEDF({csrMarkers:true})`
+      emits the `CSR Start`/`CSR End` TAL pair **as bytes** in-code, so the assertion runs the whole
+      path (TAL parse → `classifyAnnotation` → `annotationBoundary`) and, being generated
+      deterministically rather than stored, is present in every clone by construction. The intent —
+      *CI exercises the device's real encoding on every push* — is met and verified: the group
+      `Leaf-module coverage — CPAPDex DSP/EDF self-tests` runs it (20 assertions, up from 14); the four dated nights in §1.1 reproduce
       4.9 / 7.5 / 3.8 / 2.8 % against STR's 21 / 31 / 15 / 9 min; the existing `Cheyne-Stokes` golden
       (`periodicBreathingPct: 20`) still passes unchanged.
-- [ ] `hrvLowConfidence` fires on all six §2 nights and on none of the other 31; a regression fixture
+- [x] `hrvLowConfidence` fires on all six §2 nights and on none of the other 31; a regression fixture
       with an alternating RR series pins it; `lowConfidenceReason` names the shape violation, not
       coverage.
-- [ ] A 100 %-motion OxyDex night nulls its motion-derived family with a stamped reason instead of
+- [x] A 100 %-motion OxyDex night nulls its motion-derived family with a stamped reason instead of
       exporting `sleepEff 0` / `arousalIndex 100`; a fixture built from the 2026-07-16 shape pins it.
-- [ ] A 37-night fold produces **more than one** severity label; the chosen ladder is owner-ratified.
-- [ ] Both gates green per §7 for each node; fixtures re-verified with the hash or the fixture names
+- [x] A 37-night fold produces **more than one** severity label; the chosen ladder is owner-ratified.
+- [x] Both gates green per §7 for each node; fixtures re-verified with the hash or the fixture names
       quoted; one changeset per work-unit.
-- [ ] A follow-up brief spawned per CLAUDE.md, or this header records that nothing surfaced.
+- [x] A follow-up brief spawned per CLAUDE.md, or this header records that nothing surfaced.
 
 ## 9 · What this run taught (the part worth keeping even if the fixes change)
 
