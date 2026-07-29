@@ -224,7 +224,75 @@
     };
   }
 
-  var api = { envelope: envelope, findAnchors: findAnchors, lagAtAnchor: lagAtAnchor, alignByAnchors: alignByAnchors, DEFAULTS: DEFAULTS };
+  /* R-peak -> peripheral foot pairing, with the PHYSIOLOGICAL WINDOW ENFORCED.
+     Extracted from pat-feasibility-worker.js `coupledPAT` so it can be gated, and carrying the fix
+     that measurement forced.
+
+     THE DEFECT. The original accepted the first foot with `lag >= 0` inside a 2000 ms search span,
+     while declaring a physiological window (200-650 ms) that only ever fed a display diagnostic. But
+     2000 ms is WIDER THAN ONE RR INTERVAL (~1200 ms at 50 bpm), so any missed foot — a detection
+     dropout, a motion-rejected beat — let the NEXT beat's foot be accepted as this beat's PAT, and the
+     reported value jumped a whole cardiac cycle.
+
+     Measured over 24 pairings on two corpora: `driftRange` read 900-1250 ms while `residIQR` stayed
+     at 8-45 ms, drift/RR clustered at 0.85-0.98, and the per-bin medians were BIMODAL exactly one RR
+     apart. A night cannot have 8 ms of beat-to-beat scatter and 1058 ms of genuine clock wander. The
+     "inter-device drift" the PAT go/no-go gate was rejecting on was beat-slip.
+
+     Enforcing the window makes slip STRUCTURALLY impossible (PHYS_HI < 1 RR): a beat whose foot is
+     genuinely absent now contributes NOTHING rather than a wrong value. `matchRate` consequently
+     reports real coupling instead of a trivially-high number.
+
+     ⚠️ `driftRange` is still NOT a clock-drift estimator — post-fix it tracks the window width under
+     low coupling (~420 ms vs a 450 ms window). It is returned for continuity, never as drift. */
+  var PHYS = { LO_MS: 200, HI_MS: 650 };
+  function coupleRtoFoot(rTimes, fTimes, opts) {
+    opts = opts || {};
+    var lo = opts.physLoMs != null ? opts.physLoMs : PHYS.LO_MS;
+    var hi = opts.physHiMs != null ? opts.physHiMs : PHYS.HI_MS;
+    var minPairs = opts.minPairs != null ? opts.minPairs : 20;
+    var R = rTimes || [],
+      F = fTimes || [],
+      nf = F.length;
+    var pairs = [],
+      j = 0;
+    for (var i = 0; i < R.length; i++) {
+      var r = R[i];
+      while (j < nf && F[j] < r) j++;
+      for (var k = j; k < nf; k++) {
+        var lag = F[k] - r;
+        if (lag > hi) break; // past the window — this beat's foot is missing, contribute nothing
+        if (lag >= lo) {
+          pairs.push({ tMs: r, patMs: lag });
+          break;
+        }
+      }
+    }
+    if (pairs.length < minPairs) return { ok: false, reason: 'too few R->foot pairs in the physiological window (' + pairs.length + ')', pairs: pairs.length, nR: R.length };
+    var lags = pairs.map(function (p) {
+      return p.patMs;
+    });
+    var srt = lags.slice().sort(function (a, b) {
+      return a - b;
+    });
+    var q = function (t) {
+      var x = (srt.length - 1) * t,
+        l = Math.floor(x),
+        h = Math.ceil(x);
+      return l === h ? srt[l] : srt[l] + (srt[h] - srt[l]) * (x - l);
+    };
+    return {
+      ok: true,
+      pairs: pairs,
+      matchRate: pairs.length / Math.max(R.length, 1),
+      medianPatMs: srt[srt.length >> 1],
+      patIQRms: q(0.75) - q(0.25),
+      minPatMs: srt[0],
+      maxPatMs: srt[srt.length - 1]
+    };
+  }
+
+  var api = { envelope: envelope, findAnchors: findAnchors, lagAtAnchor: lagAtAnchor, alignByAnchors: alignByAnchors, coupleRtoFoot: coupleRtoFoot, PHYS: PHYS, DEFAULTS: DEFAULTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.PATAlign = api;
 })(typeof self !== 'undefined' ? self : typeof window !== 'undefined' ? window : null);

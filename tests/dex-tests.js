@@ -1759,6 +1759,63 @@
       }
     });
 
+    /* PAT COUPLER — R-peak -> peripheral foot pairing, with the physiological window ENFORCED.
+       The shipped coupler accepted the first foot within a 2000 ms search while only *reporting* the
+       200-650 ms window as a diagnostic. 2000 ms exceeds one RR (~1200 ms at 50 bpm), so a missed
+       foot let the NEXT beat's foot become this beat's PAT — and `driftRange` read 900-1250 ms while
+       beat-to-beat IQR stayed at 8-45 ms, with per-bin medians bimodal exactly one RR apart. The
+       go/no-go gate was rejecting PAT on beat-slip. These assertions pin that it cannot recur. */
+    group('PAT coupler: a missing foot contributes nothing, never the next beat (PAT slip fix)', 'pat-align · regression', function (T) {
+      var P = env.PATAlign;
+      T.ok('PATAlign.coupleRtoFoot exposed', !!(P && typeof P.coupleRtoFoot === 'function'));
+      if (!P || typeof P.coupleRtoFoot !== 'function') return;
+      var LO = P.PHYS.LO_MS, HI = P.PHYS.HI_MS;
+
+      // 60 beats at a 1200 ms RR, each foot a physiological 280 ms after its R-peak.
+      var RR = 1200, PAT = 280, N = 60, t0 = 1782000000000;
+      var R = [], F = [];
+      for (var i = 0; i < N; i++) { R.push(t0 + i * RR); F.push(t0 + i * RR + PAT); }
+
+      var clean = P.coupleRtoFoot(R, F, {});
+      T.ok('a clean night couples', clean.ok, clean.reason);
+      T.eq('…every beat pairs', clean.pairs.length, N);
+      T.ok('…at the planted PAT', Math.abs(clean.medianPatMs - PAT) < 1, clean.medianPatMs);
+      T.ok('…with no spread', clean.patIQRms < 1, clean.patIQRms);
+
+      /* THE DEFECT, as data: drop 10 feet scattered through the night. Those beats must contribute
+         NOTHING. Under the old rule each would have paired with the next foot at RR+PAT = 1480 ms —
+         inside the 2000 ms search — inflating the spread by a whole cardiac cycle. */
+      var dropped = [5, 11, 17, 23, 29, 34, 40, 46, 51, 57];
+      var gappy = F.filter(function (_, k) { return dropped.indexOf(k) < 0; });
+      var g = P.coupleRtoFoot(R, gappy, {});
+      T.ok('a gappy night still couples', g.ok, g.reason);
+      T.eq('…the beats whose foot is missing are DROPPED, not mis-paired', g.pairs.length, N - dropped.length);
+      T.ok('…the surviving PATs are unchanged', Math.abs(g.medianPatMs - PAT) < 1, g.medianPatMs);
+      T.ok('…and the spread does NOT grow by a cardiac cycle', g.patIQRms < 1, g.patIQRms);
+      T.ok('…no accepted PAT exceeds the physiological window', g.maxPatMs <= HI && g.minPatMs >= LO, g.minPatMs + '..' + g.maxPatMs);
+
+      /* MUTATION CONTROL — prove the OLD rule would fail this. Re-pair the same gappy night with the
+         window widened past one RR (what LAG_SEARCH_MS=2000 effectively did): the slipped beats come
+         back, at RR+PAT, and the spread explodes. Without this the group would pass for a coupler that
+         simply rejects everything. */
+      var old = P.coupleRtoFoot(R, gappy, { physLoMs: 0, physHiMs: 2000 });
+      T.eq('MUTATION · a >1 RR window re-pairs the dropped beats (the slip)', old.pairs.length, N);
+      T.ok('MUTATION · …and slipped beats land at RR + PAT', Math.abs(old.maxPatMs - (RR + PAT)) < 2, old.maxPatMs);
+      /* The RANGE explodes by ~1 RR — while the IQR does NOT MOVE AT ALL (10 slipped beats in 60
+         cannot shift a quartile). That asymmetry is not a curiosity: it is exactly why the shipped
+         gate looked healthy on `residIQR` (8-45 ms) while `driftRange` read 900-1250 ms on the same
+         nights. A robust statistic hid the defect from the metric sitting next to it. */
+      T.ok('MUTATION · …inflating the RANGE by about one RR', old.maxPatMs - old.minPatMs > RR * 0.5, old.maxPatMs - old.minPatMs);
+      T.eq('MUTATION · …while the IQR does not move — why the shipped gate missed it', old.patIQRms, 0);
+
+      // Lags below the window are rejected too (a foot arriving implausibly early is not this beat's).
+      var early = R.map(function (t) { return t + 40; });
+      T.ok('a sub-physiological lag is rejected, not accepted', P.coupleRtoFoot(R, early, {}).ok === false);
+      // Refusal is explicit and counted.
+      var few = P.coupleRtoFoot(R.slice(0, 5), F.slice(0, 5), {});
+      T.ok('too few pairs ⇒ ok:false naming the count', few.ok === false && /too few/.test(few.reason), few.reason);
+    });
+
     /* PAT-ALIGN — the anchor-based inter-device aligner, extracted from pat-feasibility-worker.js
        so its math is EXECUTED by a gate rather than only existing in a page's static script list
        (TEST-COVERAGE-FOLLOWUPS §3 flags exactly that class). Two devices on one body see the same
