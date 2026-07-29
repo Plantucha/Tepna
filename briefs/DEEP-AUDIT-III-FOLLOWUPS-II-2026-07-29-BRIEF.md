@@ -229,3 +229,43 @@ an invalid edit and a blind gate produce identical evidence — and this sweep p
 "0 reds" before the rule was found. A second harness rule earned the hard way: **never edit the mutation
 script while a batch is running** — doing so left a mutated `ppgdex-dsp.js` in the tree and silently
 ran the next mutation on top of it, invalidating both results.
+
+---
+
+## 6 · The sweep extended to `DEEP-AUDIT-II` §1 (2026-07-29)
+
+`DEEP-AUDIT-II` §1 is an 11-defect cluster in `hrvdex-dsp.js` with **one root pattern** — a presence
+gate that validates some operands and not others, so JS coerces the ungated `null` to `0` and an absent
+column becomes a confident measurement. Same shape ⇒ mechanical mutations, so it is the natural place
+to take the method next.
+
+| item | fix | reds |
+|---|---|---|
+| 1.1 `d_sd1` ungated `_rmssd` | teeth | 4 |
+| 1.2 `d_otr` gate is `_pnn50 >= 0` | teeth | 4 |
+| 1.5 `d_nn50` fabricated 0 | teeth | 2 |
+| 1.6 `d_hfnu` gates only the denominator | teeth | 2 |
+| 1.7 `d_abs` saturates on partial absence | teeth | 2 |
+
+**5 of 5 have teeth.** A cluster fixed as one pattern was evidently gated as one pattern — which is the
+encouraging direction, and the opposite of what `DEEP-AUDIT-III`'s scattered one-off fixes showed.
+
+Running total: **26 sections checked, 4 blind (~15 %)**.
+
+### 6.1 A THIRD harness rule — a killed batch leaves the tree mutated
+
+The first attempt at this batch hit a 10-minute timeout mid-run and was killed **between mutating and
+restoring**. The leftover `d_nn50` mutation then sat in the tree while the next two items ran on top of
+it, so their reds were the sum of two mutations. Measured: §1.6 read **4** contaminated and **2** clean.
+
+So, added to the harness — and this one subsumes the "don't edit the script mid-run" rule:
+
+```sh
+[ -n "$(git status --porcelain "$f")" ] && { echo "ABORT — $f is dirty before mutating"; return 1; }
+```
+
+**Assert the tree is clean BEFORE mutating, and restore with `git checkout --` rather than a temp-file
+copy.** A backup taken from an already-mutated file restores the mutation. All three harness rules this
+sweep produced have the same shape: *the measurement apparatus failed silently and looked exactly like
+a result.* That is the same failure class the sweep itself hunts, which is either reassuring or
+unsettling depending on the hour.
