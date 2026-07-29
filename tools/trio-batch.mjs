@@ -1060,19 +1060,65 @@ for (const p of work) {
     try {
       const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECG(readFileSync(f.full, 'utf8'))));
       if (p.accH10 && p.accH10.length) {
-        /* THE LONGEST ACC SESSION, not the first. `[0]` is the earliest concurrent session, which on a
-         night with connection churn is a settling fragment of a few minutes — while the ECG side
-         MERGES all of them. Measured on 2026-07-27: 7 concurrent ACC sessions, `[0]` = 0.2 MB, the
-         real one = 60 MB spanning 22:16:51→04:30:04; ECGDex published motionIndex for 1 of 77
-         epochs and the stager saw no motion at all, on a night whose chest ACC was complete.
-         NOT merged, deliberately: accExtras/epochMotion index the array as UNIFORMLY sampled from
-         deviceACC[0].tsMs, so concatenating across inter-session gaps would silently time-shift
-         every sample after the first gap — a wrong alignment is worse than partial coverage, and
-         the longest session covers essentially the whole sleep window anyway. */
-        const pickAcc = p.accH10.reduce((best, f) => (f.bytes > best.bytes ? f : best), p.accH10[0]);
-        const a = ECGDex.parseDeviceACC(readFileSync(pickAcc.full, 'utf8'));
-        rec.deviceACC = a.acc;
-        rec.accFs = a.accFs;
+        /* ALL concurrent ACC sessions, laid on ONE UNIFORM GRID with the silence between them padded.
+           `[0]` was wrong (the earliest session is often a settling fragment: 2026-07-27 had 7 sessions
+           with `[0]` = 0.2 MB against a real 60 MB one). Taking the LONGEST fixed that, but only that:
+           accExtras/epochMotion index deviceACC as UNIFORMLY sampled from `[0].tsMs`, so a plain concat
+           would time-shift every sample after the first gap — which is why the longest was taken alone.
+
+           The premise that "the longest covers essentially the whole window" does not hold. Measured over
+           2026-07-16..26, ECGDex motion coverage ran 39–98 % of epochs while PpgDex and OxyDex were 100 %
+           on every night; 2026-07-25 lost a contiguous 26-epoch (~130 min) block at the START, with ECG
+           and ACC spanning the same 7.7 h — four earlier ACC fragments (22:34→23:00) were simply
+           discarded. The correlated-TCH's motion-ρ third corner therefore saw less of the night than the
+           other two, which is the leg PR #483 exists to provide.
+
+           So: place every session at its TRUE index on one grid at the first session's rate, and fill the
+           never-written slots with non-finite samples. Alignment is preserved BY CONSTRUCTION (an index
+           is a time), and the DSP's epoch accumulator treats a non-finite sample as a HOLE — lowering
+           coverage, never entering the mean — so a gap epoch still reports `null`, not a fabricated
+           stillness. Falls back to the longest single session if the grid would be implausibly large, so
+           one wild stamp degrades to the old behaviour instead of allocating a night-sized array. */
+        const accRecs = p.accH10
+          .map((f) => {
+            try {
+              return ECGDex.parseDeviceACC(readFileSync(f.full, 'utf8'));
+            } catch {
+              return null;
+            }
+          })
+          .filter((a) => a && a.acc && a.acc.length && a.acc[0].tsMs != null)
+          .sort((x, y) => x.acc[0].tsMs - y.acc[0].tsMs);
+        if (accRecs.length) {
+          const fsAcc = accRecs[0].accFs || 51;
+          const t0Acc = accRecs[0].acc[0].tsMs;
+          const tEnd = accRecs.reduce((mx, r) => Math.max(mx, r.acc[r.acc.length - 1].tsMs), t0Acc);
+          const nGrid = Math.round(((tEnd - t0Acc) / 1000) * fsAcc) + 1;
+          const CAP = 36 * 3600 * 200;
+          if (accRecs.length > 1 && nGrid > 0 && nGrid <= CAP) {
+            const grid = new Array(nGrid);
+            for (const r of accRecs) {
+              for (const smp of r.acc) {
+                const i = Math.round(((smp.tsMs - t0Acc) / 1000) * fsAcc);
+                if (i >= 0 && i < nGrid) grid[i] = smp;
+              }
+            }
+            let filled = 0;
+            for (let i = 0; i < nGrid; i++) {
+              if (grid[i]) filled++;
+              else grid[i] = { x: NaN, y: NaN, z: NaN, tsMs: t0Acc + (i / fsAcc) * 1000 };
+            }
+            rec.deviceACC = grid;
+            rec.accFs = fsAcc;
+            const pct = ((filled / nGrid) * 100).toFixed(0);
+            const hrs = ((tEnd - t0Acc) / 3600e3).toFixed(1);
+            console.log(`    \u00b7 ${p.key}: H10 ACC \u2014 ${accRecs.length} session(s) on one grid, ${pct}% of ${hrs} h covered (rest padded as holes)`);
+          } else {
+            const best = accRecs.reduce((b, r) => (r.acc.length > b.acc.length ? r : b), accRecs[0]);
+            rec.deviceACC = best.acc;
+            rec.accFs = best.accFs;
+          }
+        }
       }
       const ex = ECGDex.compute(rec, { ...COMMON, source: 'polar-h10-ecg' });
       const h = hoursOf(ex);
