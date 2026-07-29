@@ -248,6 +248,18 @@ literature policy the citation has to be checkable, not gestured at.
       for real data** — recall and corpus share are measuring different worlds. That is new, and it
       constrains every future attempt.
 
+      > ⚠️ **CONFOUND — the corpus figures in this entry are NOT VALID as sleep measurements
+      > (found 2026-07-29, same day).** The harness that produced them merged **every** `*_ECG.txt` in
+      > a calendar-date folder, with **no nocturnal gate and no night-key pooling**. The resulting
+      > "nights" span ~23 h of wear (07-23 runs 02:37 → 01:39; 07-21 19:47 → 02:41), so the
+      > denominator — "sleep minutes" — contains daytime wear, and several REM bouts start at 19:47,
+      > 20:36 and 20:51. `tools/trio-batch.mjs` has defaulted to `--night-band 21-9` plus night-key
+      > pooling all along; the ad-hoc harness had neither, and reproducing the project's own tool was
+      > the step that got skipped. **Every corpus median and every bout statistic below must be
+      > re-measured before it is used**, and §5.4 of `CPAP-AUTOHARVEST-FOLLOWUPS` (fold by night key)
+      > is a precondition for any corpus-based REM claim, not a nicety. The PLANTED-TRUTH numbers
+      > (recall, precision) are unaffected — they come from the synthetic, which is one clean night.
+
       **§5's CYCLE-STRUCTURE falsifier FAILS, and that is why this is not shipped.** A REM period runs
       5–25 min. Fraction of each night's REM sitting in runs **longer than 25 min**:
 
@@ -261,7 +273,34 @@ literature policy the citation has to be checkable, not gestured at.
       REM.** A number can be in the right range for the wrong reason, and this one is — which makes
       shipping it worse than the visible 6.5 % under-call, not better.
 
-      **Next, and now concrete rather than vague:** a MAXIMUM bout constraint is the obvious move but
+      **THE OPTION SPACE IS WIDER THAN "a finer grid" — recorded because that claim was too narrow.**
+      1. **Re-measure under the project's own night definition** (nocturnal gate + night key). Cheapest,
+         and a precondition for everything else here.
+      2. **REM vs QUIET WAKE is structurally unseparated.** The score is tested BEFORE the Wake
+         heuristic and motion is the only Wake defence — and quiet wakefulness has no motion. §4c
+         already concluded HRV alone cannot separate the two; the score makes REM's claim *stronger*
+         without adding any Wake discriminator, so over-long "REM" runs in the evening are exactly what
+         one would predict. This may be the whole of the §3 bout failure.
+      3. **Real PSG ground truth — `nsrr-adapter.js` already exists and already parses scored staging**
+         (`parseNsrrXml`, 30 s epochs), today only to count non-Wake epochs for a TST denominator.
+         NSRR cohorts (SHHS/MESA/MrOS) ship full expert hypnograms WITH ECG, so extending that parser
+         to emit the per-epoch hypnogram replaces falsifiers with measured sensitivity/specificity —
+         and is the only route to the `emerging` tier §5 describes. Requires the owner's signed DUA;
+         the files are user-supplied, exactly as the existing ODI-bias analysis already assumes.
+      4. **The cross-signal falsifier §5 lists and nobody has run:** REM should carry more and longer
+         desaturations, and OxyDex publishes those per night. Available immediately, no new code — and
+         it would directly separate "long REM bout" from "long quiet-wake stretch".
+      5. **Structure inside the decision, not patched after it.** The current design thresholds each
+         epoch and then repairs the series (smoother, bout rule). A hidden semi-Markov model with
+         stage-duration and transition priors produces bout lengths and cycle structure *by
+         construction*, which is the standard approach and would make §5's cycle falsifier a modelled
+         quantity rather than an after-the-fact test.
+      6. **Cardiopulmonary coupling (Thomas 2005)** — named in §5 as the only formulation that could
+         justify `emerging` with a real citation. Never attempted.
+      7. The finer (1-min) staging grid — worth doing, but it is one option among these, not the
+         conclusion it was first written up as.
+
+      **On the maximum-bout constraint:** a MAXIMUM bout constraint is the obvious move but
       not a mechanical one — truncating a 75-min run to its best 25 min chooses where REM "really" was,
       which is fabrication, and demoting the whole run discards real signal. What the over-long runs
       actually say is that the score stays elevated for a stretch the detector cannot resolve; the
