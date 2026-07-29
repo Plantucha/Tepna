@@ -308,7 +308,25 @@ assertion reds.** It says the gate is CONNECTED to the fix, not that the asserti
 opposite is not "a bad test" but "a green suite that would stay green without the fix at all" — and the
 two are indistinguishable until you try.
 
-Running total: **39 sections resolved, 5 blind (~13 %)**.
+### 6.4 Batch 4 — crossnight weighting and ingest pairing
+
+| item | verdict | reds |
+|---|---|---|
+| 9.1 CV% divides an unweighted sd by a weighted mean | teeth | **12** |
+| 10.2 `pickNearestByStamp` max-distance guard | teeth | 2 |
+| 10.3 an unparseable stamp scored as epoch 0 | **defence in depth** | 0 |
+
+**§10.3 is NOT blind.** Its null-skip is subsumed by §10.2's guard: with the fix reverted an absent
+stamp scores 0, and `|0 − refMs|` is ~58 YEARS, which the 24 h distance test rejects anyway. Probed
+both ways — an unstamped candidate loses to a real one, and alone returns null, identically under fix
+and defect. **Fourth defence-in-depth of the sweep** (§3.4, §7.9, §10.3, and §3.5's flag).
+
+That is now the single most common explanation for a zero: **4 of the 9 zeros this sweep produced were
+redundancy, not blindness.** Which reframes the headline — the codebase is not merely gated, it is
+gated with overlapping guards often enough that single-point mutation systematically UNDER-reports its
+own safety.
+
+Running total: **42 sections resolved, 5 blind (~12 %)**.
 
 ### 6.1 A THIRD harness rule — a killed batch leaves the tree mutated
 
