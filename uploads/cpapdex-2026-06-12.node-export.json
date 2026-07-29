@@ -77,7 +77,7 @@
     "obstructiveIndex": 0.57,
     "centralIndex": 1.27,
     "hypopneaIndex": 0.99,
-    "reraIndex": 0,
+    "reraIndex": null,
     "periodicBreathingPct": 0,
     "medianPressure": 6.24,
     "p95Pressure": 8.1,
