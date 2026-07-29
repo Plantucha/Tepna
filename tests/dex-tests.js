@@ -22559,6 +22559,15 @@
         var unknown = M.parseSensorXYZ(mk('Phone timestamp;sensor timestamp [ns];X [blorp];Y [blorp];Z [blorp]', 1000));
         T.eq('§2.2 · an UNKNOWN unit is inferred from gravity, not defaulted to mg', unknown._unitInferred, 'mg');
         T.ok('§2.2 · …and its rows survive (the bound must not assume g before the unit is known)', unknown.length > 100, 'rows=' + unknown.length);
+        /* …AND THE INFERENCE MUST BECOME THE UNIT. The two assertions above cannot see the defect:
+           the `blorp` file is scaled as genuine mg, so a silent `unit:'mg'` default and an honest
+           `unit:null`-then-infer agree on it, and `_unitInferred` runs either way. Mutation-checked —
+           restoring the default reds NOTHING in the whole suite.
+           Same header, data genuinely in m/s²: the fix reports `_unit:'m/s2'`, the default reports
+           `_unit:'mg'` — a 9.8× error on every downstream magnitude. `_unitInferred` is 'm/s2' in BOTH,
+           which is precisely why asserting it proves nothing. */
+        var unknownSI = M.parseSensorXYZ(mk('Phone timestamp;sensor timestamp [ns];X [blorp];Y [blorp];Z [blorp]', 9.80665));
+        T.eq('§2.2 · an unknown unit whose data is NOT mg takes the inferred unit, not a defaulted mg', unknownSI._unit, 'm/s2');
         var lying = M.parseSensorXYZ(mk(HDR_MG, 1));
         T.ok('§2.2 · a header that DISAGREES with gravity is flagged, not silently rescaled', !!lying._unitSuspect && lying._unitSuspect.declared === 'mg' && lying._unitSuspect.inferred === 'g', JSON.stringify(lying._unitSuspect));
         T.eq('§2.2 · …and the DECLARED unit still stands (report, never guess)', lying._unit, 'mg');
