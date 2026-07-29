@@ -17613,6 +17613,50 @@
         if (cW) {
           T.approx('§9.1 · central.sd is COVERAGE-WEIGHTED: √18.75 ≈ 4.3 (unweighted would be 7.5)', cW.sd, 4.3, 0.06);
           T.approx('§9.1 · central.cv follows the same weights: ≈4.6 (an unweighted spread gave 8.0)', cW.cv, 4.6, 0.06);
+          /* …AND THE OTHER FOUR CLONES — INCLUDING THE ONE THE DEFECT WAS FOUND ON.
+             `wsd` lives in all five `*-cross.js` files; everything above drives OXYCross only.
+             Worse than a hand-picked gate: `wsd`'s own comment states it reduces to `sd()`
+             BIT-FOR-BIT under uniform weights, and OxyDex's fixtures feed uniform weights — so the
+             gate sat in a node where the fix is a provable no-op, while the defect was FOUND on
+             "routine CPAP partial-use" (§9.1: 74.6 % where the consistent figure is 49.8 %).
+             Mutation-checked on cpapdex-cross.js with real partial-use weights: reverting `wsd` to
+             `sd` reds NOTHING and moves the published CV% 36.5 → 123.6 (sd 1.9 → 6.4) — a 3.4x
+             inflation. The weights below are deliberately NON-UNIFORM; with uniform ones this
+             assertion could not fail in any clone. */
+          var _cl91 = [
+            ['OXYCross', env.OXYCross],
+            ['ECGCross', env.ECGCross],
+            ['PulseCross', env.PulseCross],
+            ['PPGCross', env.PPGCross],
+            ['CPAPCross', env.CPAPCross]
+          ];
+          // Routine partial use: six well-covered nights plus two barely-worn ones carrying wild
+          // values — down-weighted in the centre, and (pre-fix) at FULL strength in the spread.
+          var _pu = [
+            { v: 5.0, w: 1 },
+            { v: 5.2, w: 1 },
+            { v: 4.9, w: 1 },
+            { v: 5.1, w: 1 },
+            { v: 5.0, w: 1 },
+            { v: 5.3, w: 1 },
+            { v: 22.0, w: 0.06 },
+            { v: 0.4, w: 0.06 }
+          ].map(function (r, i) {
+            return { v: r.v, t: day(i), w: r.w };
+          });
+          _cl91.forEach(function (pr) {
+            var nm = pr[0],
+              M = pr[1];
+            if (!M || typeof M.crossNight !== 'function') {
+              T.skip('§9.1 · ' + nm + '.crossNight available', 'not wired in this lane');
+              return;
+            }
+            var r91 = M.crossNight(_pu, { good: 'down' });
+            // Anti-vacuity: the two barely-worn nights must actually be down-weighted, else a
+            // weighted and an unweighted spread agree and the assertion proves nothing.
+            T.ok('§9.1 · ' + nm + ' · the partial-use series really is non-uniformly weighted', r91.sd != null && r91.sd < 4, nm + ' sd=' + r91.sd);
+            T.ok('§9.1 · ' + nm + ' · CV% carries the coverage weights (unweighted gives ~123, not ~37)', r91.cv != null && r91.cv < 60, nm + ' cv=' + r91.cv);
+          });
           T.ok('§9.1 · …the down-weighted outlier genuinely shrinks the spread', cW.sd < 7.0, 'sd=' + cW.sd + ' — 7.5 is what the outlier used to force at full weight');
         }
         /* ── DEEP-AUDIT-II §9.3 · direction and significance must come from the SAME test ───────────
