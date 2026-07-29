@@ -385,7 +385,46 @@ needs a gate that iterates the clones** — one hand-picked node passes forever 
 The suite already knows this pattern (`registry-defs-parity` iterates every node); §9.3 simply predates
 it.
 
-Running total: **48 sections resolved, 6 blind (~13 %)**.
+### 6.7 The clone survey §6.6 called for — and §9.1 is worse than §9.3
+
+All four remaining §9 fixes are present in **all five** `*-cross.js` clones. Testing the most
+peripheral one (`cpapdex-cross.js`), which no §9 assertion had ever driven:
+
+| item | cpapdex | verdict |
+|---|---|---|
+| 9.4 `slopeBasis` | 2 reds | gated per clone ✓ |
+| 9.5 `Math.imul` LCG | 4 reds | gated per clone ✓ (source scan is per-file) |
+| **9.1 `wsd` coverage-weighted spread** | **0 reds** | **BLIND in 4 of 5** |
+
+So §9.4 and §9.5 are genuinely gated everywhere — the §6.6 worry does not generalise to all of §9.
+
+**But §9.1 is worse than §9.3, and for a sharper reason.** `wsd`'s own comment states it reduces to
+`sd()` **bit for bit under uniform weights** — and OxyDex's crossnight fixtures feed a uniform weight
+vector. So the gate was placed in a node where **the fix is a provable no-op**, while the defect was
+FOUND on *"routine CPAP partial-use"* (§9.1: 74.6 % where the consistent figure is 49.8 %).
+
+Measured on `cpapdex-cross.js` with realistic partial-use weights — six well-covered nights plus two
+6 %-coverage nights carrying wild values:
+
+| | CV% | sd |
+|---|---|---|
+| weighted spread (the fix) | **36.5** | 1.9 |
+| unweighted spread (the defect) | **123.6** | 6.4 |
+
+**A 3.4× inflation of a published CV%, in four nodes, suite fully green.**
+
+Closed with the same table-driven shape as §9.3, over all five clones, with **deliberately non-uniform
+weights** — under uniform weights the assertion could not fail in ANY clone, which is exactly how the
+original gate came to be vacuous. Each clone carries an anti-vacuity check that the low-coverage nights
+really are down-weighted. **Verified RED: 4 reds in each of cpapdex/ecgdex/pulsedex/ppgdex** (the
+oxydex re-check timed out and was not re-run — it was already gated at 12 reds).
+
+**The sharpest lesson of the whole sweep:** a gate can be *connected to the fix* and still vacuous, if
+its fixture makes the fix a no-op. "Teeth" measured on one node says nothing about a fixture that
+cannot express the defect on another. **Check that the gate's own data can distinguish fix from
+defect** — the anti-vacuity assertions now do that inline.
+
+Running total: **51 sections resolved, 7 blind (~14 %)**.
 
 ---
 
