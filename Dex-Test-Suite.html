@@ -1308,16 +1308,35 @@ async function oxyHangGate(){
   let w;
   try{ w = new Worker('tests/oxy-hang.worker.js'); }
   catch(e){ add(g, 'hang-probe worker spawns', false, e.message); return g; }
-  const BUDGET = 12000;
+  /* STALL budget, NOT a total-runtime budget. This was ONE fixed 12 s allowance for the WHOLE pool,
+     which made the gate a stopwatch rather than a hang guard: measured, the workload itself takes
+     ~11.4 s (worst single night 717 ms), so the margin was 5 % and ordinary Worker + importScripts
+     overhead reddened it on any machine slightly slower than the author's. That is a flake in the one
+     gate CLAUDE.md §🧪 requires all-green, and a flaky gate is worse than a missing one — it teaches
+     readers to discount reds.
+     A hang is the ABSENCE OF PROGRESS, not slowness. The worker now heartbeats per night, so the timer
+     resets on evidence of life: the guard becomes machine-speed independent while still catching true
+     non-termination (no heartbeat ⇒ stall). STALL_MS is sized off the measured worst NIGHT with an
+     order of magnitude to spare, never off the total. Pathological slowdown keeps its OWN assertion —
+     the per-night 1.5 s ceiling below — so this loses no detection power. */
+  const STALL_MS = 15000;
   const res = await new Promise(resolve=>{
-    let done=false;
-    const to=setTimeout(()=>{ if(!done){ done=true; resolve({hang:true}); } }, BUDGET);
-    w.onmessage=(e)=>{ if(done) return; done=true; clearTimeout(to); resolve(e.data||{}); };
-    w.onerror=(ev)=>{ if(done) return; done=true; clearTimeout(to); resolve({werr:(ev&&ev.message)||'worker error'}); };
+    let done=false, to=null, beats=0, lastN=0;
+    const arm=()=>{ if(to) clearTimeout(to); to=setTimeout(()=>{ if(!done){ done=true; resolve({hang:true, beats:beats, nNights:lastN}); } }, STALL_MS); };
+    arm();
+    w.onmessage=(e)=>{
+      if(done) return;
+      const d=e.data||{};
+      if(d.type==='progress'){ beats++; lastN=d.nNights||lastN; arm(); return; }   // alive → reset the stall timer
+      done=true; if(to) clearTimeout(to); resolve(d);
+    };
+    w.onerror=(ev)=>{ if(done) return; done=true; if(to) clearTimeout(to); resolve({werr:(ev&&ev.message)||'worker error'}); };
     w.postMessage({ type:'run', nPatients:24, targetNights:15 });
   });
   try{ w.terminate(); }catch(_){}
-  if(res.hang){ add(g, 'processNight terminates on heavy-dropout pool (watchdog '+(BUDGET/1000)+'s)', false, 'WATCHDOG TIMEOUT — possible processNight hang'); return g; }
+  // A stall reports the progress it DID make, so "hung immediately" and "hung on night 12" are
+  // distinguishable — the pre-fix message could tell neither apart, nor either from "merely slow".
+  if(res.hang){ add(g, 'processNight makes progress on heavy-dropout pool (no '+(STALL_MS/1000)+'s stall)', false, 'STALLED after '+(res.beats||0)+' night(s) with no further progress — possible processNight hang'); return g; }
   if(res.werr){ add(g, 'hang-probe worker ran without error', false, res.werr); return g; }
   if(res.type==='error'){ add(g, 'real OxyDex stack loaded + ran in worker', false, res.error+' (after '+(res.nNights||0)+' nights)'); return g; }
   add(g, 'real OxyDex DSP stack loaded in worker realm', res.type==='done');
