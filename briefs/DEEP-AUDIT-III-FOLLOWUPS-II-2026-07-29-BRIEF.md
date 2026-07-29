@@ -163,12 +163,12 @@ Every remaining FIXED section mutation-checked: revert the fix, run the suite, c
 | 4.2 rate across a strap-off gap | partial | 0 | reporting gated, tracking not (§2) |
 | 4.3 IMU plausibility bound | teeth | 4 | |
 | 5.1 PulseDex surfaced Total Power | teeth | 2 | |
-| 5.2 PulseDex LF/HF | inconclusive | 0 | fixture cannot express it |
+| 5.2 PulseDex LF/HF | **teeth** | 2 CI · 4 corpus | earlier "inconclusive" was a BROKEN MUTATION — §5.4 |
 | 6.1 abstention ≠ agreement | teeth | 6 | |
 | 6.2 HRVDex duration key | teeth | 2 | |
 | **6.3 `parseDeviceHR` headerless** | **BLIND** → gated | 0 → 2 | |
 
-**Base rate: 4 blind or absent in 19 checked (~21 %)** — lower than the ~⅓ the first nine suggested,
+**Base rate: 4 blind or absent in 21 checked (~19 %)** — lower than the ~⅓ the first nine suggested,
 which is the value of finishing a sweep rather than extrapolating from its opening.
 
 ### 5.1 §2.2 — the fixture agreed with the defect
@@ -196,7 +196,36 @@ as a false *green*:
    the mutation reddened nothing, but its semantic validity was never established, and the committed
    PulseDex synthetic has a degenerate spectrum (LF 1 / HF 1006) that cannot express a Jensen gap.
 
+4. **A mutation that does not PARSE reports zero reds.** The worst of the four, because the output is
+   indistinguishable from a blind gate. §5.2's mutation inserted a `// MUTATION` marker **mid-line**
+   inside an object literal, commenting out the rest of it (`respRate: … };`) — the module stopped
+   parsing, the suite tolerated the load failure, and it reported **0 reds** three times running. With
+   a `/* … */` marker instead, the SAME edit reds **2 assertions in CI and 4 with the corpus**,
+   including the exact expected `hrv.frequency.lfhf: 0 != 0.207`. **§5.2 was never inconclusive — it is
+   properly gated in both lanes**, and the earlier verdict was an artefact of my own broken edit.
+
 **So the rule that makes the method honest: before reporting a gate blind, prove the DEFECT is
 reachable** — construct the input that separates fix from defect and show the two disagree. That is
-what §5.1 does for §2.2, and what §3.4 failed and was therefore not reported.
+what §5.1 does for §2.2, and what §3.4 failed and was therefore not reported. **And prove the mutated
+file still PARSES**, which §5.4 below now makes mechanical.
 
+### 5.3 §6.4 — ingest routing, checked
+
+Three sub-fixes, two mutated: removing the rival-chest-strap vendor set-aside reds **4**; removing the
+non-signal-name set-aside reds **16** (it is the guard that kept 40 of 67 "ECG recordings" on a real
+capture-host night from being telemetry, `QC-SUMMARY.json` and `.archived`). Both have teeth.
+
+### 5.4 The harness rule this sweep earned
+
+Every mutation must be **parse-checked before the suite is run**, and the marker must never land inside
+an expression:
+
+```js
+new Function(DexBuild.classicify(fs.readFileSync(file,'utf8')));   // throws ⇒ the mutation is invalid
+```
+
+Use `/* MUTATION */`, never `// MUTATION`, for any edit inside a literal or argument list. Without this,
+an invalid edit and a blind gate produce identical evidence — and this sweep produced three false
+"0 reds" before the rule was found. A second harness rule earned the hard way: **never edit the mutation
+script while a batch is running** — doing so left a mutated `ppgdex-dsp.js` in the tree and silently
+ran the next mutation on top of it, invalidating both results.
