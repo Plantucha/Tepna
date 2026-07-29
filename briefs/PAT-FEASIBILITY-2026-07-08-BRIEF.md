@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** DONE — 2026-07-08 · **Created:** 2026-07-08
+**Status:** DONE — 2026-07-08 · **Created:** 2026-07-08 · **⚠ CAUSE CORRECTED 2026-07-29:** this brief's headline no-go — "~48 ppm, ~1147 ms across a night" — was attributed to CRYSTAL DRIFT. It was **beat-slip in the coupler**: `coupledPAT` searched 2000 ms for a foot while only *reporting* its 200–650 ms physiological window, and 2000 ms exceeds one RR (~1200 ms at 50 bpm), so every missed foot paired the beat with the NEXT one. 1147 ms IS one RR. Measured over 24 pairings on two corpora, drift/RR clustered at 0.85–0.98 with per-bin medians bimodal exactly one RR apart, while beat-to-beat IQR stayed at 8–45 ms — impossible for genuine clock wander. With the window enforced, phone-stamped and single-host capture become indistinguishable, so the "needs single-host synchronised capture" unblock this brief prescribed does not follow from the evidence. The measurement stands; the CAUSE does not. Fix + 16 gated assertions in `pat-align.js coupleRtoFoot`; full write-up in `INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md` §2-RESULT.
 
 # PAT (Pulse Arrival Time) feasibility — ECG R-peak → PPG foot coupling
 

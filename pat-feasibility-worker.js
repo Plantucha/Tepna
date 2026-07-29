@@ -128,14 +128,27 @@ function coupledPAT(rTimes, fTimes) {
   for (var i = 0; i < rTimes.length; i++) {
     var r = rTimes[i];
     while (j < nf && fTimes[j] < r) j++;
+    /* The pairing window is the PHYSIOLOGICAL one, not the raw search span.
+       Before: any foot with `lag >= 0` within LAG_SEARCH_MS (2000 ms) was accepted. 2000 ms is WIDER
+       THAN ONE RR INTERVAL (~1200 ms at 50 bpm), so whenever a foot was missed — a detection dropout,
+       a motion-rejected beat — the NEXT beat's foot fell inside the window and was accepted as this
+       beat's PAT. The reported value then jumped by a whole cardiac cycle.
+       That is why `driftRange` read ~900-1250 ms across the corpus while `residIQR` stayed at 8-45 ms:
+       measured drift/RR clustered at 0.85-0.98 and the per-bin medians were BIMODAL exactly one RR
+       apart. A night cannot have 8 ms of beat-to-beat scatter and 1058 ms of genuine clock wander —
+       the "drift" was beat-slip, and the go/no-go gate was reading it as a capture-path failure.
+       PHYS_LO/PHYS_HI were already declared for this purpose but only fed the `inPhysPct` diagnostic;
+       enforcing them here makes slip STRUCTURALLY impossible, because PHYS_HI (650 ms) is less than
+       one RR. A beat whose foot is genuinely missing now contributes nothing instead of a wrong value. */
     var k = j,
       bestLag = null;
     while (k < nf && fTimes[k] - r <= LAG_SEARCH_MS) {
       var lag = fTimes[k] - r;
-      if (lag >= 0) {
+      if (lag >= PHYS_LO && lag <= PHYS_HI) {
         bestLag = lag;
         break;
       }
+      if (lag > PHYS_HI) break; // past the physiological window — the foot for this beat is missing
       k++;
     }
     if (bestLag != null) {
