@@ -13356,6 +13356,21 @@
       if (n.odi41ratio != null && n.odi1 && n.odi1.odi1Total) {
         T.eq('§5 · odi41ratio is count4/count1 (same clock cancels), not a cross-basis mix', n.odi41ratio, +(o.count / n.odi1.odi1Total).toFixed(3));
       }
+      /* DEEP-AUDIT-II §2.1 — SBII AND desSev MUST SCORE THE ARTIFACT-GATED DESAT SET.
+         `computeSBII` and `computeDesSev` each used to re-run `detectDesatEvents` themselves and never
+         read the canonical `desat.events`, so every artifact ODI-4 had already rejected was scored
+         again. The fix threads the gated set in; nothing asserted the threading.
+         THIS TWIN ALREADY EXPRESSED THE DEFECT AND NOBODY LOOKED. Mutation-checked on this exact
+         committed input: passing `null` instead of `desat` takes SBII 64.3 → 418.2 (6.5x) and desSev
+         7.8 → 18.9 (2.4x) — with the whole suite green.
+         Bounded, not pinned: wide ceilings that the gated values clear comfortably and the ungated
+         ones cannot, so ordinary drift does not red this while a lost gating does. */
+      if (n.sbii && n.sbii.sbii != null) {
+        T.ok('§2.1 · SBII scores the artifact-GATED desat set (ungated re-derivation reads ~418 here)', n.sbii.sbii < 150, 'sbii=' + n.sbii.sbii);
+      }
+      if (n.desSev && n.desSev.desSev != null) {
+        T.ok('§2.1 · …and so does desSev (ungated reads ~18.9 here)', n.desSev.desSev < 12, 'desSev=' + n.desSev.desSev);
+      }
     });
 
     group('OxyDex fusion is COVERAGE-AWARE — confPct/dose scoped to the ECG window, no green 0 on non-overlap (DEEP-AUDIT-II §11.1–11.3)', 'oxydex-fusion · coverage-aware · fabricated-absence', function (T) {

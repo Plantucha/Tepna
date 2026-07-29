@@ -269,12 +269,27 @@ the time `toG` runs the case has been settled. Proven by probe — a `[mG]` file
 identical actigraphy under both the fix and the case-sensitive revert. Same shape as §3.4: a second
 guard behind a first one that already holds.
 
-**§2.1 is NOT CLAIMED EITHER WAY.** The mutation reddened nothing, but the reachability probe could not
-be built — `oxydex-dsp.js` needs the full co-load realm (the one `tools/regen-oxydex-goldens.mjs`
-constructs) and my DOM stub failed to load it. Per §5's own rule that is an *unproven* result, not a
-blind gate, and it is recorded as such rather than counted.
+**§2.1 RESOLVED 2026-07-29 — BLIND, and the twin that proves it was already committed.** The probe was
+unbuildable until the realm from `tools/regen-oxydex-goldens.mjs` was reused verbatim instead of
+hand-rolling a DOM stub — that realm is the sanctioned way to drive an app-layer DSP headlessly and
+should be the first tool reached for, not the last.
 
-Running total: **32 sections resolved, 4 blind (~13 %)**; 1 unproven (§2.1).
+With it, the defect is reachable on **`synthetic_oxydex_o2ring_gap.csv`, a COMMITTED adversarial twin**:
+
+| metric | artifact-gated (the fix) | ungated (the defect) | |
+|---|---|---|---|
+| SBII | 64.3 | **418.2** | **6.5×** |
+| desSev | 7.8 | **18.9** | 2.4× |
+
+…and the suite reddened **zero**. The fixture expressed the defect all along; nothing asserted on the
+affected metrics — the twin is registered input-only (`pairCommitted(..., null)`), so its "invariants
+are the gate", and SBII/desSev were not among them. Gated with wide ceilings (SBII < 150, desSev < 12)
+rather than pinned values, so drift does not red it but a lost gating does. Verified RED.
+
+**The lesson generalises past this item:** an adversarial twin only gates what someone asserts about
+it. Committing the input is half the work, and the half that gets remembered.
+
+Running total: **33 sections resolved, 5 blind (~15 %)**.
 
 ### 6.1 A THIRD harness rule — a killed batch leaves the tree mutated
 
