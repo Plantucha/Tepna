@@ -289,7 +289,26 @@ rather than pinned values, so drift does not red it but a lost gating does. Veri
 **The lesson generalises past this item:** an adversarial twin only gates what someone asserts about
 it. Committing the input is half the work, and the half that gets remembered.
 
-Running total: **33 sections resolved, 5 blind (~15 %)**.
+### 6.3 Batch 3 — spectral, units and absence, across four nodes
+
+| item | verdict | reds |
+|---|---|---|
+| 2.3 `dataGaps.gapPct` divides seconds by a sample count | teeth | 2 |
+| 3.1 PulseDex Lomb–Scargle Parseval over full support | teeth | 4 |
+| 3.1e ECGDex — the same `tpFull` calibration, sibling site | teeth | 2 |
+| 7.4 `supineFrac` denominator counts uncovered epochs | teeth | 4 |
+| 1.8 `d_sdi` gates one operand, reads the absent other as 0 | teeth | 2 |
+| 1.11 `persistHRVRows` warning appended, not overwritten | teeth | 2 |
+
+Six for six. Notably §3.1's ECGDex sibling — the SAME defect in a second file — is independently gated,
+which is the pattern §1 showed at cluster scale holding at pair scale.
+
+**Definition, since the word carries the whole result. "Teeth" = revert the fix, and at least one
+assertion reds.** It says the gate is CONNECTED to the fix, not that the assertion is a good one. Its
+opposite is not "a bad test" but "a green suite that would stay green without the fix at all" — and the
+two are indistinguishable until you try.
+
+Running total: **39 sections resolved, 5 blind (~13 %)**.
 
 ### 6.1 A THIRD harness rule — a killed batch leaves the tree mutated
 
