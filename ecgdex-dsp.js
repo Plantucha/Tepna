@@ -1742,7 +1742,11 @@
       let a = 0,
         c = 0;
       for (let i = Math.max(1, s0); i < Math.min(N, s1); i++) {
-        a += dmv[i];
+        // A NON-FINITE sample is a HOLE, not a reading — it lowers COVERAGE, never enters the mean.
+        // See the sibling accumulator in accExtras for why holes exist at all.
+        const d = dmv[i];
+        if (!Number.isFinite(d)) continue;
+        a += d;
         c++;
       }
       // null (not 0) when the ACC covered less than 30 s of the epoch: "no accelerometer observed
@@ -3224,7 +3228,14 @@
         let a = 0,
           c = 0;
         for (let i = Math.max(1, s0); i < Math.min(N, s1); i++) {
-          a += dmv[i];
+          // A NON-FINITE sample is a HOLE, not a reading. It must lower COVERAGE (c), never enter the
+          // mean: one NaN would otherwise make the whole epoch's activity NaN. Holes appear when a
+          // caller lays several ACC sessions onto one uniform grid and pads the silence between them —
+          // the only way to keep index↔time alignment across a gap. Inert for a single continuous
+          // session, where parseDeviceACC has already dropped every non-finite row.
+          const d = dmv[i];
+          if (!Number.isFinite(d)) continue;
+          a += d;
           c++;
         }
         rawMot.push({ tMin: e.tMin, act: c > fs * 30 ? a / c : null });
