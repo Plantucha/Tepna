@@ -3353,6 +3353,220 @@ function _kernelVersion(k) {
   return (k && (k.version != null ? k.version : k.VERSION)) || null;
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   CROSS-DEVICE-CLOCK-SKEW §3.1 — a node whose clock is wrong looks exactly like
+   a node that observed nothing.
+
+   `runFusion` pairs events within `toleranceSec` (default 120 s). A device whose
+   internal clock is off by more than that never co-occurs with anything, and the
+   fusion reports a quiet, confident nothing. Measured on the reference corpus:
+   the CPAP's clock runs ~39 min slow, so NO CPAP event has ever co-occurred with
+   any other node's — `alsoObservedBy`, the apnea-confirmation path and the
+   redundancy accounting all ran on an empty intersection without a word.
+
+   A fusion that finds ZERO overlap between two nodes that each reported plenty of
+   events has learned something. These functions stop discarding it.
+
+   The estimator needs no reference clock, which matters here: the machine is on
+   its own cell network, so it cannot be disciplined by NTP and the skew is
+   permanent. It recovers the offset from the DATA — the lag at which two nodes'
+   events coincide most — and reports the peak-over-floor that justifies the
+   claim, so a weak or absent peak declares nothing rather than inventing a shift.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* COARSE GATE (stage 1 of 2). Lag (seconds) at which B's events best coincide with A's, by direct
+   search over the full +/-90 min range.
+
+   This is deliberately a COARSE instrument and is scoped as one. Measured on the reference corpus it
+   is precise but sparse: 6 of 38 nights resolved, ZERO false positives, and every hit within
+   37.5-40.0 min of the independently-established 39.5 min offset. Tightening it to that precision
+   cost recall (a looser setting found 17 nights but also named a host-captured node as 29 min skewed
+   on a night with no CPAP present at all) — and for a correction that gets APPLIED, a wrong 30-minute
+   shift on good data is worse than a missed detection.
+
+   Its job is therefore to NARROW THE SEARCH, not to be the final answer: it turns an unbounded
+   +/-90 min hunt into a few-minute window that a precise estimator can resolve inside. The fine
+   stage is the anchor-based cross-correlation already shipped in `pat-feasibility-worker.js`
+   (`estimateDriftACC`), which locks onto strong isolated body movements — simultaneous in two
+   devices by physics — instead of correlating whole noisy series. See
+   `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md`.
+
+   Lag (seconds) at which B's events best coincide with A's.
+   Returns null when either side is too sparse to carry an opinion.
+   `peakOverFloor` is the honesty term: the peak count divided by the MEAN count
+   across all scanned lags — i.e. how much better the winner does than a random
+   alignment of the same two event sets. A true skew produced 4.3–6.2x on the
+   reference corpus; noise sits at ~1. */
+function estimateEventLag(aTimes, bTimes, opts) {
+  opts = opts || {};
+  var maxSec = opts.maxLagSec != null ? opts.maxLagSec : 5400; // ±90 min
+  var stepSec = opts.stepSec != null ? opts.stepSec : 30;
+  var tolMs = (opts.matchSec != null ? opts.matchSec : 60) * 1000;
+  var minEvents = opts.minEvents != null ? opts.minEvents : 5;
+  var A = (aTimes || []).filter(function (t) {
+    return t != null && isFinite(t);
+  });
+  var B = (bTimes || [])
+    .filter(function (t) {
+      return t != null && isFinite(t);
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+  if (A.length < minEvents || B.length < minEvents) return null;
+  var best = null,
+    total = 0,
+    nLags = 0;
+  for (var L = -maxSec; L <= maxSec; L += stepSec) {
+    var shift = L * 1000,
+      hits = 0;
+    for (var i = 0; i < A.length; i++) {
+      var t = A[i] + shift;
+      // nearest-neighbour by binary search — O(n log m) per lag, not O(n·m)
+      var lo = 0,
+        hi = B.length - 1,
+        near = Infinity;
+      while (lo <= hi) {
+        var mid = (lo + hi) >> 1,
+          d = Math.abs(B[mid] - t);
+        if (d < near) near = d;
+        if (B[mid] < t) lo = mid + 1;
+        else hi = mid - 1;
+      }
+      if (near <= tolMs) hits++;
+    }
+    total += hits;
+    nLags++;
+    /* A hard match window makes the peak a PLATEAU about 2x`matchSec` wide, not a spike: every lag
+       that puts each event within the window scores identically. Keeping the first, the last, or the
+       one nearest zero all bias the estimate by up to the window. Collect the whole plateau and take
+       its CENTRE, which is unbiased and — for a genuinely aligned pair — is exactly 0 by symmetry. */
+    if (!best || hits > best.hits) best = { hits: hits, lags: [L] };
+    else if (hits === best.hits) best.lags.push(L);
+  }
+  if (!best || !nLags) return null;
+  var floor = total / nLags;
+  var centre = Math.round((best.lags[0] + best.lags[best.lags.length - 1]) / 2 / stepSec) * stepSec;
+  return {
+    lagSec: centre,
+    plateauSec: best.lags[best.lags.length - 1] - best.lags[0],
+    hits: best.hits,
+    floor: +floor.toFixed(2),
+    peakOverFloor: floor > 0 ? +(best.hits / floor).toFixed(2) : null,
+    nA: A.length,
+    nB: B.length
+  };
+}
+
+/* Which node's clock is wrong, and by how much?
+   Every dated pair is estimated. A pair counts as SKEWED when its best lag sits
+   outside the fusion tolerance AND its peak clearly beats the floor. A node is
+   then named as the offender when it is skewed against EVERY other node it was
+   compared with, by a consistent sign — one device disagreeing with all the
+   others is the one that is wrong, whereas two nodes disagreeing only with each
+   other names nobody (reported, not attributed). */
+function detectClockSkew(recs, opts) {
+  opts = opts || {};
+  var tolSec = opts.toleranceSec != null ? opts.toleranceSec : 120;
+  // 4x, not 3x: on the reference corpus the true skew ran 3.5-7.2x and spurious peaks 3.0-3.8x,
+  // so 3 sat inside the noise. The partner-agreement test below is what actually separates them;
+  // this only keeps the weakest claims out of the running.
+  var minPeak = opts.minPeakOverFloor != null ? opts.minPeakOverFloor : 4;
+  var dated = (recs || []).filter(function (r) {
+    return r && !r.dateUnknown && r.events && r.events.length;
+  });
+  var times = function (r) {
+    return r.events
+      .map(function (e) {
+        return e.tMs;
+      })
+      .filter(function (t) {
+        return t != null && isFinite(t);
+      });
+  };
+  var pairs = [];
+  for (var i = 0; i < dated.length; i++)
+    for (var j = i + 1; j < dated.length; j++) {
+      var est = estimateEventLag(times(dated[i]), times(dated[j]), opts);
+      if (!est) continue;
+      pairs.push({
+        a: dated[i].node,
+        b: dated[j].node,
+        lagSec: est.lagSec,
+        peakOverFloor: est.peakOverFloor,
+        hits: est.hits,
+        floor: est.floor,
+        skewed: Math.abs(est.lagSec) > tolSec && est.peakOverFloor != null && est.peakOverFloor >= minPeak
+      });
+    }
+  // attribute: a node skewed against EVERY partner, all with the same sign
+  var byNode = {};
+  pairs.forEach(function (p) {
+    /* `estimateEventLag(A, B).lagSec` is the shift that must be ADDED TO A to line it up with B.
+       So A's own correction is +lag and B's is its negation — getting this backwards inverts the
+       sign of every reported skew, which is why the gate pins the direction and not just the size. */
+    (byNode[p.a] = byNode[p.a] || []).push({ other: p.b, lagSec: p.lagSec, skewed: p.skewed, peakOverFloor: p.peakOverFloor });
+    (byNode[p.b] = byNode[p.b] || []).push({ other: p.a, lagSec: -p.lagSec, skewed: p.skewed, peakOverFloor: p.peakOverFloor });
+  });
+  var findings = [];
+  Object.keys(byNode).forEach(function (node) {
+    var rel = byNode[node];
+    if (
+      rel.length < 1 ||
+      !rel.every(function (r) {
+        return r.skewed;
+      })
+    )
+      return;
+    var signs = rel.map(function (r) {
+      return r.lagSec > 0 ? 1 : -1;
+    });
+    if (
+      !signs.every(function (s) {
+        return s === signs[0];
+      })
+    )
+      return;
+    var lags = rel
+      .map(function (r) {
+        return r.lagSec;
+      })
+      .sort(function (x, y) {
+        return x - y;
+      });
+    var medLag = lags[lags.length >> 1];
+    /* AGREEMENT ACROSS PARTNERS — the discriminator that peak-over-floor alone does not give.
+       A device whose CLOCK is wrong is wrong by the same amount against everything it is compared
+       with; a spurious peak in one noisy pairing is not. Measured on the reference corpus, requiring
+       consistent SIGN alone produced 7 false positives in 38 nights (a host-captured node named as
+       29 min skewed, once on a night with no CPAP present at all) — enough to corrupt good data if
+       applied. Requiring the per-partner estimates to AGREE removes them: the true CPAP skew held
+       37.5-40.0 min across every partner, while the false ones scattered.
+       Tolerance is 2x the match window, i.e. the width of the coincidence plateau itself — two
+       honest estimates of the same offset cannot differ by more than that for a real reason. */
+    var spread = lags[lags.length - 1] - lags[0];
+    var agreeTol = 2 * (opts.matchSec != null ? opts.matchSec : 60);
+    if (rel.length > 1 && spread > agreeTol) return;
+    findings.push({
+      node: node,
+      // The correction to ADD to this node's timestamps to align it with the rest.
+      offsetSec: medLag,
+      againstNodes: rel.map(function (r) {
+        return r.other;
+      }),
+      peakOverFloor: Math.min.apply(
+        null,
+        rel.map(function (r) {
+          return r.peakOverFloor;
+        })
+      ),
+      method: 'event-coincidence cross-correlation vs the other nodes (no external reference)',
+      note: node + ' timestamps appear ' + Math.abs(Math.round(medLag / 60)) + ' min ' + (medLag > 0 ? 'BEHIND' : 'AHEAD OF') + ' every other node — its internal clock is wrong, not its physiology.'
+    });
+  });
+  return { pairs: pairs, findings: findings };
+}
+
 /* P8/kernel: compare each node's stamped physiology-kernel hash against THIS
    Integrator's own DexKernel.HASH. A node whose hash differs (or is missing) was
    built against a different rulebook — flag it so a cross-deployment threshold
@@ -3384,6 +3598,43 @@ function runFusion(recs, opts) {
   // hash (or is missing), the two are running different threshold rulebooks —
   // they would "agree with themselves" while silently diverging. Surface it. ─
   var kernelAudit = auditNodeKernels(recs);
+
+  /* CROSS-DEVICE-CLOCK-SKEW §3.1/§3.2 — measure the skew BEFORE fusing, declare it, and align on it.
+     The ResMed sits on its own cell network, so it cannot be NTP-disciplined and the offset is
+     permanent: refusing to fuse would mean permanently discarding a signal that is perfectly good
+     apart from its timestamps. So the offset is FITTED from the data and APPLIED — but never
+     silently. Everything it touches is stamped, `clockSkew` rides in the fusion output, and the
+     render surfaces it as a warning banner, because a corrected number that does not say it was
+     corrected is the failure this whole line of work exists to stop.
+
+     Applied to a SHALLOW COPY: the caller's recs keep their original timestamps, so nothing
+     downstream inherits a shifted clock by surprise. */
+  var skew = detectClockSkew(recs, { toleranceSec: opts.toleranceSec != null ? opts.toleranceSec : 120, minPeakOverFloor: opts.minPeakOverFloor });
+  var skewApplied = [];
+  if (skew.findings.length && opts.applyClockSkew !== false) {
+    var byNode = {};
+    skew.findings.forEach(function (f) {
+      byNode[f.node] = f;
+    });
+    recs = recs.map(function (r) {
+      var f = r && byNode[r.node];
+      if (!f || !r.events || !r.events.length) return r;
+      var shift = f.offsetSec * 1000;
+      var copy = {};
+      for (var k in r) if (Object.prototype.hasOwnProperty.call(r, k)) copy[k] = r[k];
+      copy.events = r.events.map(function (e) {
+        var e2 = {};
+        for (var k2 in e) if (Object.prototype.hasOwnProperty.call(e, k2)) e2[k2] = e[k2];
+        if (e2.tMs != null && isFinite(e2.tMs)) e2.tMs = e2.tMs + shift;
+        return e2;
+      });
+      if (copy.t0Ms != null && isFinite(copy.t0Ms)) copy.t0Ms = copy.t0Ms + shift;
+      if (copy.endMs != null && isFinite(copy.endMs)) copy.endMs = copy.endMs + shift;
+      copy.clockSkewApplied = { offsetSec: f.offsetSec, peakOverFloor: f.peakOverFloor, method: f.method };
+      skewApplied.push({ node: r.node, offsetSec: f.offsetSec });
+      return copy;
+    });
+  }
   // R5 directionality gate params (asymmetric, seconds). Surge may lead the
   // nadir by ≤leadMaxSec and trail by ≤trailMaxSec.
   var gate = { leadMaxSec: opts.leadMaxSec != null ? opts.leadMaxSec : 15, trailMaxSec: opts.trailMaxSec != null ? opts.trailMaxSec : 60 };
@@ -3568,6 +3819,10 @@ function runFusion(recs, opts) {
     matchWindow: { leadMaxSec: gate.leadMaxSec, trailMaxSec: gate.trailMaxSec, directionalWindowSec: gate.leadMaxSec + gate.trailMaxSec, unionPrefilterSec: dtMs / 1000 },
     anyOverlap: anyOverlap,
     kernelAudit: kernelAudit,
+    /* CROSS-DEVICE-CLOCK-SKEW §3.1 — always present, so a consumer can tell "checked, clean" from
+       "never checked". `findings` names the offending node and the fitted offset; `applied` names
+       what was actually shifted before fusing; `pairs` is the raw per-pair evidence. */
+    clockSkew: { findings: skew.findings, applied: skewApplied, pairs: skew.pairs },
     hrSource: hrSource,
     pairs: pairs,
     apnea: apnea,
@@ -3595,6 +3850,8 @@ function buildFusionExport(recs, fusion) {
   var _exp = {
     kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,
     kernelAudit: fusion.kernelAudit || null,
+    // §3.1 — the export carries it too: a fused number that was time-corrected must say so.
+    clockSkew: fusion.clockSkew || null,
     schema: {
       name: BUS + '.fusion-export',
       version: '1.3',
@@ -3758,6 +4015,9 @@ window.IntegratorDSP = {
   overlapInterval,
   runFusion,
   buildFusionExport,
+  // CROSS-DEVICE-CLOCK-SKEW §3.1 — exported so the gate can drive them without a whole fusion.
+  estimateEventLag,
+  detectClockSkew,
   combineConf,
   glucoseMetricsInWindow,
   corroborateDesat,
