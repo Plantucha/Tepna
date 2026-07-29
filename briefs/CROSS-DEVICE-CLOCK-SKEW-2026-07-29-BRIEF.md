@@ -95,6 +95,52 @@ it reads as a clock that was **set approximately once and never corrected**.
 
 ---
 
+## 2b · ROOT CAUSE, part-identified — 2026-07-29 (owner)
+
+The AirSense 11 exposes **no time-of-day setting** in the accessible menus. It does expose a
+**timezone**, and it was set to **GMT−5** for a device in **Asheville**. In late July Asheville is on
+EDT = **GMT−4**, so the machine was running **exactly 60 min behind** local civil time. The owner
+changed it to GMT−4 on 2026-07-29.
+
+**That accounts for most, but not all, of the measured offset — and the residual is the interesting
+part.** The corpus says **39 min** (per-night range 37.5–40.0, median 38.5), not 60. So:
+
+```
+   60 min   timezone error (GMT−5 where GMT−4 was correct)
+ − 21 min   the machine's own clock running FAST
+ ─────────
+   39 min   net, behind the host cluster        ← what was measured
+```
+
+The ~21 min residual is a genuine oscillator/setting error with no exposed control to correct it.
+
+### The falsifiable prediction this makes
+
+Correcting the timezone adds 60 min, so it should **not** zero the offset — it should **flip** it:
+nights recorded after 2026-07-29 should read about **+21 min AHEAD** of the host cluster. If instead
+they read ≈ 0, the 21 min inference is wrong and the whole offset was timezone, with a measurement
+bias in §1 that would need explaining. **Either result is informative; the first night after the
+change decides it.**
+
+### Two consequences that change the design
+
+**The corpus now contains a STEP CHANGE.** Nights up to 2026-07-29 sit at −39 min; nights after sit
+somewhere else. Any pooled per-device offset must therefore detect a **step**, not assume a constant
+and not average across the discontinuity — §3.3's "carry a `clockOffsetSec` per source" is only safe
+if it is versioned by date. The earlier framing ("alert if it drifts") was too weak: this is not
+drift, it is a reconfiguration, and it happens instantly.
+
+**This is a Clock Contract interaction, not just a bad oscillator.** The CPAP's EDF header carries
+**local civil time with no zone**, which Tepna stores as floating wall-clock `tMs` (CLAUDE.md §🔒).
+That is the right model — but it means a timezone change on the device shifts every subsequent
+timestamp by a whole hour relative to every earlier one, with nothing in the file to say so. The
+offset is a property of **device configuration**, not only of clock drift, and a device that travels
+or crosses a DST boundary will step again. A detector that assumes "one device, one offset, slowly
+varying" is wrong for this class; the anchor estimator's per-anchor offsets (§3.1 stage 2) are the
+right shape precisely because they measure *when* as well as *how much*.
+
+---
+
 ## 3 · What to do
 
 The device fault and the blindness are separate problems and want separate fixes.
@@ -141,6 +187,9 @@ describe the same physiology. That question is still open and still matters: Oxy
       produce the skew report and **must not** produce a fused co-observation — plus a control at
       zero offset that fuses normally, so the check cannot pass vacuously.
 - [ ] No auto-correction anywhere in the path (assert it: a skewed pair stays unfused).
-- [ ] The device clock is corrected and the correction recorded.
+- [x] The device clock is corrected and the correction recorded. **PARTLY DONE 2026-07-29** — the
+      timezone was GMT−5 for a GMT−4 location and is now corrected (§2b); the ~21 min residual has
+      no exposed control. **Verify the prediction** on the first night recorded after the change:
+      the offset should flip to ≈ +21 min ahead, not fall to 0.
 - [ ] §1.1 re-run with the offset removed, and its verdict written into
       `MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS`.
