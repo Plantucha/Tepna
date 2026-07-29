@@ -265,6 +265,7 @@ function readSources() {
     'sensor-trio-gpu.js',
     'hrvdex-render.js',
     'pat-gate.js',
+    'pat-align.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
     'cpapdex-dsp.js',
@@ -910,6 +911,7 @@ async function main() {
       'ppgdex-dsp.js',
       'integrator-dsp.js',
       'integrator-tch.js',
+      'pat-align.js',
       'signal-spec.js',
       'signal-frame.js',
       'dex-export.js',
@@ -1066,6 +1068,7 @@ async function main() {
     ECGScope: ctx.ECGUI && ctx.ECGUI.ECGScope, // §RN: canvas waveform explorer (axis-tick label drive)
     IntegratorDSP: ctx.IntegratorDSP,
     IntegratorTCH: ctx.IntegratorTCH,
+    PATAlign: ctx.PATAlign,
     IntegratorLong: ctx.IntegratorLong,
     DexPatientGen: ctx.DexPatientGen,
     parseTimestamp: ctx.parseTimestamp,

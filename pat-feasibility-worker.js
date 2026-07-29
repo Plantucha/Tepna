@@ -44,7 +44,7 @@ function loadScript(url) {
 var DSP_OK = false,
   DSP_ERR = '';
 try {
-  ['kernel-constants.js', 'clock.js', 'pat-gate.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
+  ['kernel-constants.js', 'clock.js', 'pat-gate.js', 'pat-align.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
   DSP_OK = !!(typeof ECGDSP !== 'undefined' && ECGDSP.parseECG && typeof PPGDSP !== 'undefined' && PPGDSP.parsePPG);
 } catch (e) {
   DSP_ERR = String((e && e.message) || e);
@@ -239,158 +239,38 @@ function coupledPAT(rTimes, fTimes) {
 // The renderer reads the SAME constants, and the suite executes the math — neither was true before.
 
 // ── ACC-sync: trace the inter-device clock drift from shared body motion ─────
-// Both the H10 (chest) and Verity (arm) accelerometers register the SAME sleep
-// movements at the SAME true instant (mechanical, not pulse-delayed). Build each
-// device's motion envelope on a common absolute-ms grid, then windowed normalized
-// cross-correlation gives the relative clock offset wherever a real movement occurs.
-// Those anchors trace the (non-linear) drift curve — no user taps needed.
-function motionEnv(text, t0, t1, dt) {
-  var rows = PPGDSP.parseSensorXYZ(text);
-  if (rows.length < 20) return null;
-  var ema = null,
-    A = 0.02,
-    ng = Math.max(1, Math.floor((t1 - t0) / dt) + 1),
-    grid = new Float32Array(ng);
-  for (var i = 0; i < rows.length; i++) {
-    var r = rows[i];
-    if (r.tMs == null) continue;
-    var g = Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z);
-    ema = ema == null ? g : ema + A * (g - ema);
-    var b = Math.floor((r.tMs - t0) / dt),
-      d = Math.abs(g - ema);
-    if (b >= 0 && b < ng && d > grid[b]) grid[b] = d;
-  }
-  return grid;
-}
+// Both the H10 (chest) and Verity (arm) accelerometers register the SAME sleep movements at the
+// SAME true instant (mechanical, not pulse-delayed), so a windowed cross-correlation around each
+// shared movement gives the relative clock offset there. Those anchors trace the (non-linear)
+// drift curve — no user taps needed.
+//
+// The algorithm now lives in `pat-align.js` (PATAlign) rather than inline here: it is pure maths
+// that was previously reachable only by loading this worker, so no gate could execute it
+// (TEST-COVERAGE-FOLLOWUPS §3 flags exactly that). This keeps the identical contract —
+// {ok, anchors, coverage, offsetAt, offRange} — as a thin adapter over the shared implementation.
 function estimateDriftACC(h10Text, vText, t0, t1) {
-  var dt = 50,
-    A = motionEnv(h10Text, t0, t1, dt),
-    B = motionEnv(vText, t0, t1, dt);
-  if (!A || !B) return { ok: false, reason: 'ACC parse failed' };
-  var ng = A.length,
-    MAXLAG = Math.round(1600 / dt),
-    EHALF = Math.round(1600 / dt);
-  // EVENT-TRIGGERED matching (option 2): fixed windows drown a shared whole-body turn in
-  // decorrelated chest-vs-ankle background. Instead, detect STRONG isolated movements on the
-  // chest (H10) and do a tight ±1.6 s cross-correlation around each against the ankle (Verity),
-  // locking only on the big turns that actually shake both segments.
-  var mA = 0;
-  for (var i = 0; i < ng; i++) mA += A[i];
-  mA /= ng;
-  var vA = 0;
-  for (var i = 0; i < ng; i++) {
-    var d = A[i] - mA;
-    vA += d * d;
-  }
-  var sA = Math.sqrt(vA / ng) || 1;
-  var thr = mA + 4 * sA,
-    anchors = [],
-    lastC = -1e9;
-  for (var c = EHALF; c + EHALF < ng; c++) {
-    if (A[c] < thr) continue;
-    var isMax = true;
-    for (var k = c - 12; k <= c + 12; k++) {
-      if (k >= 0 && k < ng && A[k] > A[c]) {
-        isMax = false;
-        break;
-      }
-    }
-    if (!isMax) continue;
-    if ((c - lastC) * dt < 3000) continue; // ≥3 s between events
-    var s = c - EHALF,
-      e = c + EHALF,
-      aMean = 0;
-    for (var i = s; i < e; i++) aMean += A[i];
-    aMean /= e - s;
-    var corrs = new Float64Array(2 * MAXLAG + 1),
-      best = -2,
-      bestK = 0;
-    for (var lag = -MAXLAG; lag <= MAXLAG; lag++) {
-      var bMean = 0,
-        cnt = 0;
-      for (var i = s; i < e; i++) {
-        var j = i + lag;
-        if (j < 0 || j >= ng) continue;
-        bMean += B[j];
-        cnt++;
-      }
-      if (cnt < (e - s) * 0.85) {
-        corrs[lag + MAXLAG] = -2;
-        continue;
-      }
-      bMean /= cnt;
-      var sa = 0,
-        sb = 0,
-        sab = 0;
-      for (var i = s; i < e; i++) {
-        var j = i + lag;
-        if (j < 0 || j >= ng) continue;
-        var da = A[i] - aMean,
-          db = B[j] - bMean;
-        sa += da * da;
-        sb += db * db;
-        sab += da * db;
-      }
-      var corr = sab / (Math.sqrt(sa * sb) || 1e-9);
-      corrs[lag + MAXLAG] = corr;
-      if (corr > best) {
-        best = corr;
-        bestK = lag + MAXLAG;
-      }
-    }
-    if (best > 0.6) {
-      // stricter: only clean shared events
-      var lagRef = bestK - MAXLAG;
-      if (bestK > 0 && bestK < 2 * MAXLAG) {
-        var y1 = corrs[bestK - 1],
-          y2 = corrs[bestK],
-          y3 = corrs[bestK + 1],
-          den = y1 - 2 * y2 + y3;
-        if (den < 0 && y1 > -2 && y3 > -2) {
-          var dd = (0.5 * (y1 - y3)) / den;
-          if (dd > -1 && dd < 1) lagRef += dd;
-        }
-      }
-      anchors.push({ t: t0 + c * dt, off: lagRef * dt, corr: best });
-      lastC = c;
-    }
-  }
-  if (anchors.length < 2) return { ok: false, reason: 'too few clean shared movements (' + anchors.length + ') — chest & ankle motion too decorrelated', anchors: anchors.length };
-  anchors.sort(function (a, b) {
-    return a.t - b.t;
-  });
-  var cov = (anchors[anchors.length - 1].t - anchors[0].t) / (t1 - t0 || 1);
+  var eA = PATAlign.envelope(PPGDSP.parseSensorXYZ(h10Text), t0, t1, {}),
+    eB = PATAlign.envelope(PPGDSP.parseSensorXYZ(vText), t0, t1, {});
+  if (!eA || !eB) return { ok: false, reason: 'ACC parse failed' };
+  var r = PATAlign.alignByAnchors(eA, eB, t0, {});
+  if (!r.ok) return { ok: false, reason: r.reason + ' — chest & ankle motion too decorrelated', anchors: r.anchors.length };
+  var anchors = r.anchors;
+  var cov = (anchors[anchors.length - 1].tMs - anchors[0].tMs) / (t1 - t0 || 1);
+  // Piecewise-linear between anchors, flat outside them: drift is measured where a shared movement
+  // actually happened and is never extrapolated past the last one.
   function offsetAt(t) {
-    if (t <= anchors[0].t) return anchors[0].off;
-    if (t >= anchors[anchors.length - 1].t) return anchors[anchors.length - 1].off;
+    if (t <= anchors[0].tMs) return anchors[0].offsetMs;
+    if (t >= anchors[anchors.length - 1].tMs) return anchors[anchors.length - 1].offsetMs;
     for (var i = 1; i < anchors.length; i++)
-      if (t <= anchors[i].t) {
+      if (t <= anchors[i].tMs) {
         var a = anchors[i - 1],
           b = anchors[i],
-          f = (t - a.t) / (b.t - a.t || 1);
-        return a.off + f * (b.off - a.off);
+          f = (t - a.tMs) / (b.tMs - a.tMs || 1);
+        return a.offsetMs + f * (b.offsetMs - a.offsetMs);
       }
-    return anchors[anchors.length - 1].off;
+    return anchors[anchors.length - 1].offsetMs;
   }
-  return {
-    ok: true,
-    anchors: anchors.length,
-    coverage: cov,
-    offsetAt: offsetAt,
-    offRange:
-      Math.max.apply(
-        null,
-        anchors.map(function (a) {
-          return a.off;
-        })
-      ) -
-      Math.min.apply(
-        null,
-        anchors.map(function (a) {
-          return a.off;
-        })
-      )
-  };
+  return { ok: true, anchors: anchors.length, coverage: cov, offsetAt: offsetAt, offRange: r.offsetRangeMs };
 }
 
 self.onmessage = function (e) {
