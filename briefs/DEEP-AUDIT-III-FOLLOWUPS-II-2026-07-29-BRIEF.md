@@ -326,7 +326,54 @@ redundancy, not blindness.** Which reframes the headline — the codebase is not
 gated with overlapping guards often enough that single-point mutation systematically UNDER-reports its
 own safety.
 
-Running total: **42 sections resolved, 5 blind (~12 %)**.
+### 6.5 Batch 5 — isolated one-off fixes, where the risk was predicted to concentrate
+
+§6.4 chose deliberately: every blind gate so far had been an *isolated* fix, so this batch targeted
+isolated fixes specifically. The prediction did not hold — four for four.
+
+| item | verdict | reds |
+|---|---|---|
+| 6.4 `_hmsToMs` anchors to the recording start | teeth | 2 |
+| 6.2 ODI rated over analyzable, not therapy, span | teeth | 4 |
+| 6.5 badge fallback mints a fabricated `experimental` | teeth | 2 |
+| 9.4 an index slope shipped under the per-day name | teeth | 2 |
+
+**§6.5 WAS NEVER A BROWSER ITEM.** It was recorded as needing the render-coverage rigs because the
+defect is FILED against `oxydex-render.js`. That is where the *symptom* renders; the **fix** was adding
+registry entries to `oxydex-registry.js`, and the gate lives in the shared suite. It reds **2 assertions
+in the node lane** — `got "experimental" · want "heuristic"`, the fabricated-fallback signature exactly.
+Third time this sweep a fix was looked for at the brief's filed line instead of in the code that
+actually changed (cf. §4.1, §3.5). **Find the fix, not the filing.**
+
+**§9.4's first mutation was mis-targeted** — it flipped `slopeBasis`, a published *label*, and reddened
+nothing. Re-aimed at the computation (`slopePerDay = byIdx.slope` instead of null) it reds immediately.
+Same error as §3.5's first attempt, and the second time a *published field* was mistaken for the fix.
+
+Running total: **46 sections resolved, 5 blind (~11 %)**.
+
+---
+
+## 7 · An open red in the canonical gate (found 2026-07-29, unresolved)
+
+The browser lane was driven headlessly for the first time in this work —
+`google-chrome --headless=new` against a local server, `Dex-Test-Suite.html?full`. It runs:
+**4293 passed · 25 skipped · 303 groups.** But it is **not all-green on clean `main`**:
+
+```
+✕ processNight terminates on heavy-dropout pool (watchdog 12s)
+  WATCHDOG TIMEOUT — possible processNight hang
+```
+
+A 12-second watchdog, so the likeliest reading is headless-performance sensitivity rather than a hang —
+**but that has not been established, and the difference matters.** CLAUDE.md §🧪 makes
+`Dex-Test-Suite.html?full` all-green the release gate, and a red nobody has adjudicated is precisely the
+state this suite's culture exists to prevent. Either the watchdog needs a headless-aware budget (the way
+the cold-boot iframe timeout became a ⊘ SKIP under DEX-TEST-DETERMINISM) or there is a real hang on
+heavy-dropout input. **Whoever picks this up: reproduce it in a headed browser first** — if it passes
+there, it is the budget; if it hangs there too, it is `processNight`.
+
+Recorded here rather than fixed because guessing which of the two it is, and patching accordingly, is
+how a watchdog gets widened around a real defect.
 
 ### 6.1 A THIRD harness rule — a killed batch leaves the tree mutated
 
