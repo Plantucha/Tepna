@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-12 (**§A + §B EXECUTED** — and in BOTH cases this brief's own prescription was wrong; the corrections are recorded in place. **§D1 · §D2 · §E1 EXECUTED 2026-07-13** — EVENT-LEXICON §7 records the CPAPDex-annotation + HRVDex-window decisions, and the fixture content-claims are swept-clean + byte-locked as a new gate. **§C1 EXECUTED 2026-07-29** — movement PROVEN across 76 real nights and it was not marginal (`respRateBpm` changed its published label on 76/76 nights); `spo2Ac1` is now whole-record and the three LOCAL metrics are medians over 30-min windows, all four disclosing `basis`. **Still open:** §C2 (located exactly at `integrator-dsp.js:351`/`:955`/`:3107`, deliberately NOT executed — it must ride with the REM re-derivation a parallel session is mid-way through, and "one denominator" cannot be chosen without fabricating a TST OxyDex does not have) + §C3 (ROUTED to `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`, which now owns it) + §E2 (version-into-bundle, deferred)) · **Created:** 2026-07-12 · **Supersedes:** — · **Parent:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, all 21 findings executed)
+**Status:** IN-PROGRESS — 2026-07-12 (**§A + §B EXECUTED** — and in BOTH cases this brief's own prescription was wrong; the corrections are recorded in place. **§D1 · §D2 · §E1 EXECUTED 2026-07-13** — EVENT-LEXICON §7 records the CPAPDex-annotation + HRVDex-window decisions, and the fixture content-claims are swept-clean + byte-locked as a new gate. **§C1 EXECUTED 2026-07-29** — movement PROVEN across 76 real nights and it was not marginal (`respRateBpm` changed its published label on 76/76 nights); `spo2Ac1` is now whole-record and the three LOCAL metrics are medians over 30-min windows, all four disclosing `basis`. **§C2 EXECUTED 2026-07-29** — the corpus showed "one denominator" is UNACHIEVABLE (OxyDex's only sleep estimate reads 99.1–99.9 % on every night, missing ECGDex TST by a median 58 min, and converting puts REM above 100 % of sleep on four nights), so each leg now DECLARES `remFractionBasis` and the fusion refuses to compare across clocks. **Still open:** §C3 (ROUTED to `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`, which now owns it) + §E2 (version-into-bundle, deferred)) · **Created:** 2026-07-12 · **Supersedes:** — · **Parent:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, all 21 findings executed)
 
 # Deep-audit follow-ups — the residue, and the blind spot that hid it
 
@@ -225,30 +225,48 @@ time; `fuseStagingConsensus` compares them directly. Moot *today* — §7 suppre
 so the comparison no longer runs on it — but the mismatch is still in the code and **must** be reconciled
 before the REM estimator is ever re-derived. **Do:** one denominator, named in the export.
 
-> **C2 — located exactly, deliberately NOT executed 2026-07-29.** Both clocks are set in the
-> Integrator adapter, not in either node's estimator:
+> ### ✅ C2 EXECUTED 2026-07-29 — the corpus chose, and it chose NEITHER option
 >
-> - `integrator-dsp.js:351` — ECGDex leg: `remFraction = stageMinutes.REM / sleep.totalSleepMin` → **sleep** time.
-> - `integrator-dsp.js:955` — OxyDex leg: `remFraction = stageProxy.remProxyPct / 100`, and
->   `oxydex-dsp.js:5237` computes that as `remSec / n` where `n` is the **recording** sample count.
-> - `integrator-dsp.js:3107` — `fuseStagingConsensus` reads both as `remPct` and compares them.
+> Both clocks are set in the Integrator adapter, not in either node's estimator: `integrator-dsp.js:351`
+> (ECGDex, `REM / totalSleepMin` → **sleep**), `:955` (OxyDex, `remProxyPct/100`, which
+> `oxydex-dsp computeSleepStageProxy` computes as `remSec / n` → **recording**), compared at `:3107`.
 >
-> Not executed for two reasons, both of which would make executing it now *worse* than leaving it:
-> **(1)** this brief's own instruction is that C2 must be reconciled *before* the REM estimator is
-> re-derived — and the estimator is being re-derived **right now** by a parallel session (PRs #521
-> #522 #523 landed today: REM-before-wake ordering, the Mayer-wave oracle, respiratory variability).
-> Picking a denominator against an estimator mid-rewrite prejudges work in flight. **(2)** "one
-> denominator" is not free to choose: sleep-time is the clinical convention (REM % of TST), but OxyDex
-> has no trustworthy TST — its only sleep estimate is motion-derived, and `MULTINIGHT-CORPUS-FINDINGS`
-> §3 has just made that legitimately **null** on a faulted motion column. Forcing OxyDex onto a
-> sleep-time denominator would fabricate the very quantity it cannot measure.
+> This section's instruction — *"one denominator, named in the export"* — turns out to be
+> **unachievable**, and the corpus says so rather than an opinion. Measured over **76 real O2Ring
+> nights**, running the shipped `processNight` (trio-batch's emitter ships a reduced export that omits
+> `stageProxy` entirely, so the fold's JSON cannot answer this):
 >
-> **Recommended shape when it is taken up** (owner's call, and it should ride with the REM work rather
-> than ahead of it): name the basis per leg (`remFractionBasis: 'sleep' | 'recording'`) and have
-> `fuseStagingConsensus` **refuse to fuse legs whose bases differ** rather than silently compare them.
-> That is fail-closed, needs no fabricated TST, and survives whatever the re-derived estimator turns
-> out to be. If instead a single denominator is mandated, recording-time is the only one both nodes can
-> honestly produce — at the cost of ECGDex reporting a non-standard fraction.
+> **Q1 · does the mismatched comparison even run?** The OxyDex proxy is suppressed by the §7
+> plausibility ceiling on **75 of 76 nights**. So C2 was a *latent* defect, exactly as this section
+> said — and it is fixed now precisely because C3's estimator is being re-derived, and the day it
+> starts producing plausible numbers is the day this starts firing.
+>
+> **Q2 · could the OxyDex leg be converted onto sleep time?** No. `remProxyPct` reads **66.6–87.6 %
+> of the recording on every single night** — the estimator, not the denominator, is what is broken
+> (which is C3, and this is the strongest evidence yet for its "demote it entirely" option). Converting
+> to ECGDex's TST makes it *arithmetically impossible*: **2026-07-02 → 112.1 %, 06-29 → 106.4 %,
+> 06-25 → 103.0 %, 06-10 → 101.5 %** — more REM than there is sleep. Median |Δ| from the conversion
+> is 14.7 pp, worst 26.8 pp.
+>
+> **Q3 · does OxyDex own anything that could serve as a TST?** No. Its only sleep estimate is
+> motion-derived and reads **99.1–99.9 % on every night of the corpus**, so `sleepEff × recording` is
+> indistinguishable from the raw span: median error vs ECGDex TST **58 min** either way (bias **+47**,
+> worst **115**) against a **335 min** median TST — a 17 % error. OxyDex systematically over-states
+> sleep because it counts every still minute as sleep.
+>
+> **So the fix is fail-closed, not a chosen denominator.** Each leg now DECLARES
+> `summary.remFractionBasis` (`'sleep'` | `'recording'`), and `fuseStagingConsensus` **refuses to fuse
+> a group whose legs disagree about it** — reporting `unfusable` with both bases named, `remGapPct:
+> null` and `disagreement: null`, because neither agreement nor disagreement is knowable across
+> different clocks. Legs predating the field are commensurate with each other but not with a
+> declared-different one, so a legacy export cannot silently acquire a basis it never had. This
+> survives whatever the re-derived estimator turns out to be, which "pick a denominator now" would not.
+>
+> **A test was asserting the defect.** `Integrator staging consensus — REM disagreement threshold (#2)`
+> paired the ECGDex and OxyDex legs and asserted their difference was a "25 pt REM gap" — a subtraction
+> across two clocks, so the gap it measured was arithmetic, not physiology. The threshold coverage was
+> genuine and is kept, moved onto a **same-basis** pair; the mixed pair now asserts the refusal. 11
+> assertions, up from 5.
 
 ### C3 · The REM estimator itself was never re-derived
 §7 made the node **refuse to assert an impossible number as a healthy finding** (all 39 real nights now
