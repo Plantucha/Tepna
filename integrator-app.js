@@ -31,6 +31,30 @@
         warnAll.push('Node ' + m.node + ' built against kernel ' + (m.hash || '(none)') + ', expected ' + (ka.expected || '(unknown)') + ' — thresholds may differ.');
       });
     }
+    /* CROSS-DEVICE-CLOCK-SKEW §3.1 — a fitted time correction MUST be visible. The device on the
+       reference deployment sits on its own cell network, so it cannot be NTP-disciplined: this
+       banner is permanent infrastructure, not transitional. Every night it fires, the reader is told
+       which node's clock is wrong, by how much, on what evidence, and that the fusion realigned it
+       before comparing anything. */
+    var cs = FUSION && FUSION.clockSkew;
+    if (cs && cs.findings && cs.findings.length) {
+      cs.findings.forEach(function (f) {
+        var mins = Math.abs(f.offsetSec) / 60;
+        warnAll.push(
+          '⏱ ' +
+            f.node +
+            "'s internal clock is WRONG — its timestamps run " +
+            (mins >= 1 ? mins.toFixed(mins < 10 ? 1 : 0) + ' min' : Math.round(Math.abs(f.offsetSec)) + ' s') +
+            ' ' +
+            (f.offsetSec > 0 ? 'BEHIND' : 'AHEAD OF') +
+            ' ' +
+            f.againstNodes.join(' + ') +
+            '. Events were realigned by that amount before fusing (evidence: ' +
+            f.peakOverFloor +
+            '× over chance). Fix the device clock — this correction is fitted from the data, not authoritative.'
+        );
+      });
+    }
     R.renderAll(RECS, FUSION, warnAll);
     if (L) {
       try {

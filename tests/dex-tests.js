@@ -1676,6 +1676,89 @@
       }
     });
 
+    /* CROSS-DEVICE-CLOCK-SKEW §3.1 — a node whose clock is wrong looks exactly like a node that
+       observed nothing. `runFusion` pairs events within `toleranceSec` (120 s); the reference
+       corpus's CPAP runs ~39 min slow, so no CPAP event ever co-occurred with any other node's and
+       the fusion reported a confident nothing. The device is on its own cell network and cannot be
+       NTP-disciplined, so the skew is permanent: it is FITTED from event coincidence and applied,
+       but never silently. */
+    group('Integrator detects, declares and corrects a wrong device clock (CROSS-DEVICE-CLOCK-SKEW §3.1)', 'integrator-dsp · regression', function (T) {
+      var D = env.IntegratorDSP || env.D || null;
+      var est = D && D.estimateEventLag,
+        det = D && D.detectClockSkew,
+        RF = env.runFusion;
+      T.ok('estimateEventLag + detectClockSkew exported', typeof est === 'function' && typeof det === 'function');
+      if (typeof est !== 'function' || typeof det !== 'function') return;
+
+      var t0 = U(2026, 5, 12, 22, 0, 0);
+      // A shared "physiology": 40 events at irregular but reproducible spacing, so a lag search has
+      // something to lock onto and cannot win by periodicity alone.
+      var base = [];
+      // Gaps must stay comfortably above 2x the 60 s match window, or a neighbour matches as well
+      // as self and the peak flattens — an artifact of the fixture, not of the estimator.
+      // 10-min spacing, which is both realistic for desat events and sharp enough that the peak
+      // clears the 4x floor the detector now demands. (At 5-min spacing the coincidence floor is
+      // high enough that a TRUE offset only reaches ~3.3x — the fixture, not the estimator.)
+      for (var i = 0; i < 40; i++) base.push(t0 + (i * 600 + ((i * i * 31) % 61)) * 1000);
+      var shifted = function (sec) {
+        return base.map(function (t) { return t + sec * 1000; });
+      };
+
+      // ── the estimator, on its own ──
+      var e0 = est(base, shifted(0), {});
+      T.eq('a perfectly aligned pair estimates lag 0', e0 && e0.lagSec, 0);
+      var e40 = est(base, shifted(2370), {});  // the real corpus offset: +39.5 min
+      T.eq('a 39.5 min offset is recovered exactly', e40 && e40.lagSec, 2370);
+      T.ok('…and it beats the random floor decisively', e40 && e40.peakOverFloor > 3, e40 && e40.peakOverFloor);
+      var eNeg = est(base, shifted(-900), {});
+      T.eq('a negative offset is recovered with the right sign', eNeg && eNeg.lagSec, -900);
+      T.ok('too few events ⇒ no opinion, not a guess', est([1, 2], [3, 4], {}) === null);
+
+      /* MUTATION CONTROL — the estimator must NOT invent a skew from unrelated event sets. Without
+         this the group would pass for a detector that always reports something. */
+      var rnd = [];
+      for (var j = 0; j < 40; j++) rnd.push(t0 + ((j * 971 + 13) % 28800) * 1000);
+      var eRnd = est(base, rnd, {});
+      T.ok('MUTATION · unrelated event sets do not produce a confident skew', !eRnd || eRnd.peakOverFloor < 3, eRnd && eRnd.peakOverFloor);
+
+      // ── attribution: which node is wrong? ──
+      var mkRec = function (node, times) {
+        return {
+          node: node, label: node + '.json', t0Ms: times[0], dateUnknown: false,
+          events: times.map(function (t) { return { tMs: t, t: '00:00:00', impulse: 'desat_event', node: node, conf: 0.8 }; })
+        };
+      };
+      var det3 = det([mkRec('OxyDex', base), mkRec('ECGDex', base), mkRec('CPAPDex', shifted(-2370))], { toleranceSec: 120 });
+      T.eq('exactly one node is named as skewed', det3.findings.length, 1);
+      if (det3.findings.length === 1) {
+        T.eq('…and it is the one that disagrees with BOTH others', det3.findings[0].node, 'CPAPDex');
+        T.eq('the fitted correction is the offset needed to realign it', det3.findings[0].offsetSec, 2370);
+        T.eq('…measured against every other node', det3.findings[0].againstNodes.sort().join(','), 'ECGDex,OxyDex');
+      }
+      // control: three agreeing clocks name nobody.
+      T.eq('three agreeing nodes produce NO skew finding', det([mkRec('OxyDex', base), mkRec('ECGDex', base), mkRec('CPAPDex', base)], { toleranceSec: 120 }).findings.length, 0);
+
+      // ── end-to-end through runFusion: declared AND applied ──
+      if (typeof RF === 'function') {
+        var fus = RF([mkRec('OxyDex', base), mkRec('ECGDex', base), mkRec('CPAPDex', shifted(-2370))], { toleranceSec: 120 });
+        T.ok('runFusion always reports a clockSkew block (checked-and-clean ≠ never checked)', !!(fus && fus.clockSkew));
+        if (fus && fus.clockSkew) {
+          T.eq('the skewed node is declared in the fusion output', (fus.clockSkew.findings[0] || {}).node, 'CPAPDex');
+          T.eq('…and the correction is recorded as APPLIED, not merely noticed', (fus.clockSkew.applied[0] || {}).node, 'CPAPDex');
+          T.ok('the finding carries the evidence that justifies it', (fus.clockSkew.findings[0] || {}).peakOverFloor > 3);
+        }
+        // The caller's own recs must be untouched — nothing downstream inherits a shifted clock.
+        var mine = mkRec('CPAPDex', shifted(-2370));
+        var before = mine.events[0].tMs;
+        RF([mkRec('OxyDex', base), mkRec('ECGDex', base), mine], { toleranceSec: 120 });
+        T.eq('the caller\'s recs keep their ORIGINAL timestamps (correction is applied to a copy)', mine.events[0].tMs, before);
+        // opt-out still declares, just does not shift.
+        var noApply = RF([mkRec('OxyDex', base), mkRec('ECGDex', base), mkRec('CPAPDex', shifted(-2370))], { toleranceSec: 120, applyClockSkew: false });
+        T.eq('applyClockSkew:false still DECLARES the skew', (noApply.clockSkew.findings[0] || {}).node, 'CPAPDex');
+        T.eq('…but applies nothing', noApply.clockSkew.applied.length, 0);
+      }
+    });
+
     /* ════ 6 · METRIC REGISTRY infra (cohesion §2/§3) ════ */
     group('Metric registry — disclosure + evidence (cohesion)', 'metric-registry', function (T) {
       var M = env.MetricRegistry;
