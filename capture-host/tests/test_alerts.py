@@ -90,3 +90,18 @@ def test_http_post_returns_false_on_5xx():
     async def handler(req):
         return web.Response(status=503)
     assert _serve(handler) is False
+
+
+def test_offline_alert_suppressed():
+    """Known answers. Only an OPTIONAL device that never joined stays quiet.
+
+    The real 2026-07-29 case: a COOSPO strap nobody was wearing made the box contradict itself six
+    minutes apart — "optional backup device not present — keeping a quiet eye out", then "has been
+    offline for ~5 min — capture is missing it" plus a webhook, on every service start."""
+    assert alerts.offline_alert_suppressed(True, False) is True    # optional, never joined → quiet
+    assert alerts.offline_alert_suppressed(True, True) is False    # optional but WAS contributing → alert
+    assert alerts.offline_alert_suppressed(False, False) is False  # required and absent → the whole point
+    assert alerts.offline_alert_suppressed(False, True) is False
+    # `optional` arrives straight from YAML, so absent/None must read as "not optional" — a required
+    # device silently demoted to quiet would be the worst possible way to get this wrong.
+    assert alerts.offline_alert_suppressed(None, False) is False

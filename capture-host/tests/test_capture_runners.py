@@ -3605,3 +3605,54 @@ def test_an_unreadable_rssi_poll_writes_a_blank_not_the_last_good_value(tmp_path
     assert dbm[0] == "-55", "a real reading is recorded"
     assert all(v == "" for v in dbm[1:]), (
         f"an unreadable poll must write a blank, not the last good value — got {dbm}")
+
+
+def test_alert_poller_stays_quiet_for_an_optional_device_that_never_joined(monkeypatch):
+    """The COOSPO case. The connect loop already logs "optional backup device not present — keeping a
+    quiet eye out" once and backs off deliberately, "instead of a warning every backoff cycle (the COOSPO
+    spam)"; the alert loop never asked, so the same absent strap still produced a WARNING and a webhook on
+    every service start. An alert channel that cries over a non-event is one an operator learns to
+    ignore — which costs the alerts that matter."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return True
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0},
+           "devices": [dict(_dev(name="COOSPO"), optional=True)]}
+    capture.STATUS["devices"]["COOSPO"] = {"connected": False}
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    assert sent == [], "an optional device that never joined is not something capture is missing"
+
+
+def test_alert_poller_DOES_alert_an_optional_device_that_joined_then_dropped(monkeypatch):
+    """The nuance that keeps the suppression honest. An optional device that WAS contributing and then
+    went offline is a real event — precisely what this alert is for. Silence is only correct for one that
+    never showed up at all, so the loop has to remember which happened."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return True
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0},
+           "devices": [dict(_dev(name="COOSPO"), optional=True)]}
+    st = {"connected": True}                       # it IS here to begin with
+    capture.STATUS["devices"]["COOSPO"] = st
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        # The loop sleeps BEFORE it reads state, so poll 1 must observe it connected — that is what
+        # records "this device did join". Dropping it any earlier would test the never-joined path.
+        calls["n"] += 1
+        if calls["n"] == 2:
+            st["connected"] = False                # …and then it drops
+        if calls["n"] >= 4:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    assert sent == ["Tepna: sensor offline"], "a device that stopped contributing must still alert"

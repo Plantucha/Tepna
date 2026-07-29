@@ -2640,6 +2640,10 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     threshold = float(acfg.get("offline_sec", 300))
     down_since: dict[str, float] = {}
     alerted: set[str] = set()
+    # Devices seen connected at least once this session. An `optional: true` device that never joined is
+    # not something capture is "missing" (alerts.offline_alert_suppressed holds the reasoning); one that
+    # joined and then dropped is, so the distinction has to be remembered rather than re-derived.
+    ever_connected: set[str] = set()
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         now = _time.monotonic()
@@ -2649,6 +2653,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 continue
             connected = bool(STATUS["devices"].get(name, {}).get("connected"))
             if connected:
+                ever_connected.add(name)
                 down_since.pop(name, None)
                 if name in alerted:                        # it had alerted → tell the operator it is back
                     alerted.discard(name)
@@ -2656,6 +2661,8 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                     await notifier.send("Tepna: sensor recovered", f"{name} reconnected.")
             else:
                 down_since.setdefault(name, now)
+                if alerts.offline_alert_suppressed(d.get("optional"), name in ever_connected):
+                    continue                               # never showed up; not a thing we are missing
                 if name not in alerted and alerts.offline_alert_due(down_since[name], now, threshold):
                     mins = int((now - down_since[name]) / 60)
                     # The journal FIRST, unconditionally — a box with no webhook has no other surface,
