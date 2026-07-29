@@ -349,7 +349,43 @@ actually changed (cf. §4.1, §3.5). **Find the fix, not the filing.**
 nothing. Re-aimed at the computation (`slopePerDay = byIdx.slope` instead of null) it reds immediately.
 Same error as §3.5's first attempt, and the second time a *published field* was mistaken for the fix.
 
-Running total: **46 sections resolved, 5 blind (~11 %)**.
+### 6.6 Batch 6 — and the largest blind spot of the sweep
+
+| item | verdict | reds |
+|---|---|---|
+| 9.5 `bootstrapDeltaCI` LCG `Math.imul` | teeth | 4 (source-scan gate) |
+| **9.3 trend direction from tau, not OLS** | **BLIND in 4 of 5 clones** → gated | 0 → 4 per clone |
+
+**§9.3 is the sweep's biggest gap by breadth.** §9 is explicitly about *"the five `*-cross.js` clones"*,
+and the tau-direction fix landed in **all five** — `grep -c 'mk.tau || 0) > 0'` returns 1 in
+oxydex/ecgdex/pulsedex/ppgdex/cpapdex. The existing §9.3 group drives **`OXYCross` only**. Four fixes
+carried no gate at all.
+
+The consequence is not cosmetic. On a monotone decline with one high terminal outlier —
+**tau −0.67, p 0.003** (a significant decline) against an OLS slope of **+8.65** — the published
+`trendLabel` flips:
+
+| | label |
+|---|---|
+| direction from tau (the fix) | `declining` |
+| direction from OLS (the defect) | **`improving`** |
+
+A **clinically inverted verdict on a significant decline**, in four nodes, with the suite fully green.
+That is precisely the defect §9.3 was filed for, still live in four of five places it was "fixed".
+
+Closed with a table-driven assertion over all five clones, driven through `crossNight(series, opts)` —
+the uniform seam holding the fix — rather than each node's own `crossNightBlock`, whose input shape
+differs per node and would have turned one assertion into a five-way fixture problem. Each clone gets
+an anti-vacuity check that the series really does split tau from OLS. **Verified RED: 4 reds in each of
+the four previously-unprotected clones.**
+
+**The lesson, and it is the sweep's most transferable one:** §3.1's ECGDex sibling WAS independently
+gated, so "same fix in two files" looked safe. At five files it was not. **A fix applied to N clones
+needs a gate that iterates the clones** — one hand-picked node passes forever while the other four rot.
+The suite already knows this pattern (`registry-defs-parity` iterates every node); §9.3 simply predates
+it.
+
+Running total: **48 sections resolved, 6 blind (~13 %)**.
 
 ---
 

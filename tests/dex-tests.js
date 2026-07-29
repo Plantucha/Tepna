@@ -17646,6 +17646,43 @@
         T.eq('§9.3 · a clean monotone decline is still "declining"', agr.label, 'declining');
         T.eq('§9.3 · …with no disagreement flagged (the flag is not always-on)', agr.dirDisagree, false);
 
+        /* …AND THE OTHER FOUR CLONES, WHICH THIS GROUP DID NOT REACH.
+           §9 is explicitly about "the five `*-cross.js` clones", and the tau-direction fix landed in
+           ALL FIVE — `grep -c 'mk.tau || 0) > 0'` returns 1 in oxydex/ecgdex/pulsedex/ppgdex/cpapdex.
+           Everything above drives OXYCross only, so four fixes were carrying no gate at all.
+           Mutation-checked on ecgdex-cross.js: reverting `rising` to the OLS slope reds NOTHING, while
+           on the series below it flips the published label from "declining" to "improving" — a
+           CLINICALLY INVERTED verdict on a significant decline (tau −0.67, p 0.003), which is the exact
+           defect §9.3 was filed for.
+           Driven through `crossNight(series, opts)` — the uniform seam that holds the fix — rather than
+           each node's own `crossNightBlock`, whose input shape differs per node and would make this a
+           five-way fixture problem instead of one assertion. */
+        var _clones = [
+          ['OXYCross', env.OXYCross],
+          ['ECGCross', env.ECGCross],
+          ['PulseCross', env.PulseCross],
+          ['PPGCross', env.PPGCross],
+          ['CPAPCross', env.CPAPCross]
+        ];
+        // Monotone decline (tau strongly negative) with one terminal outlier whose leverage drags
+        // least-squares POSITIVE. The two tests disagree by construction — that is the whole point.
+        var _lev = [100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 400].map(function (v, i) {
+          return { v: v, t: day(i), w: 1 };
+        });
+        _clones.forEach(function (pair) {
+          var nm = pair[0],
+            M = pair[1];
+          if (!M || typeof M.crossNight !== 'function') {
+            T.skip('§9.3 · ' + nm + '.crossNight available', 'not wired in this lane');
+            return;
+          }
+          var cn = M.crossNight(_lev, { good: 'up' });
+          // Anti-vacuity: the fixture must actually put the two tests in conflict for this node.
+          T.ok('§9.3 · ' + nm + ' · the leverage series really does split tau from OLS', cn.tau < 0 && cn.slopePerDay > 0, 'tau=' + cn.tau + ' slopePerDay=' + cn.slopePerDay);
+          T.eq('§9.3 · ' + nm + ' · the label follows tau — "declining", never OLS\'s "improving"', cn.trendLabel, 'declining');
+          T.eq('§9.3 · ' + nm + ' · …and the disagreement is published, not silently resolved', cn.trendDirDisagree, true);
+        });
+
         /* ── DEEP-AUDIT-II §9.2 · the personal BASELINE must carry the same weights too ─────────────
            `central.mean` is wmean(vals, w), but the baseline behind `zLatest` was mean(prior) /
            sd(prior) — UNWEIGHTED. A near-empty night therefore moved the baseline as though it were
