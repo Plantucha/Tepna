@@ -248,6 +248,10 @@ literature policy the citation has to be checkable, not gestured at.
       for real data** — recall and corpus share are measuring different worlds. That is new, and it
       constrains every future attempt.
 
+      > ✅ **RE-MEASURED 2026-07-29 on the project's own night definition — see §7 below. Two of the
+      > three conclusions in this entry were artefacts of the confounded harness and are WITHDRAWN;
+      > the premise survived and a new, better-powered defect surfaced.**
+
       > ⚠️ **CONFOUND — the corpus figures in this entry are NOT VALID as sleep measurements
       > (found 2026-07-29, same day).** The harness that produced them merged **every** `*_ECG.txt` in
       > a calendar-date folder, with **no nocturnal gate and no night-key pooling**. The resulting
@@ -330,3 +334,70 @@ literature policy the citation has to be checkable, not gestured at.
 - [ ] §5 acceptance run over the 11-night corpus — median REM % inside 15–25 %, cycle structure present
 - [ ] Finer staging grid (1 min) — sequenced after the score lands, own re-bundle
 - [ ] Evidence tier re-checked against what was actually demonstrated
+
+---
+
+## 7 · Re-measured on the project's own night definition (2026-07-29)
+
+The confounded harness was replaced by the thing that should have been used from the start: the
+**24 nights `tools/trio-batch.mjs` has already computed**, under its own rules — night key =
+date of *(start − 12 h)*, **majority-nocturnal** (`--night-band 21-9`), and **concurrent sessions
+only**. My harness had none of the three; on 2026-07-16 the tool merges 9 concurrent sessions / 6.3 h
+where I merged 20 / 7.28 h, and on 07-18 it takes 40 where I took 64.
+
+### 7.1 The premise SURVIVES, and is slightly worse than stated
+
+| | median REM % of sleep | range | nights at exactly 0 |
+|---|---|---|---|
+| 24 proper nights, shipped detector | **4.8 %** | 0 – 14.1 % | **5 of 24** |
+
+Physiological is 15–25 %. So the ~4× under-call is confirmed independently, on nights defined by the
+project's own tool — and it matches §1's original 4.8 % exactly. The 6.5 % figure quoted through §3b
+came from the confounded harness; **4.8 % is the number to beat.**
+
+### 7.2 WITHDRAWN: "the cycle-structure falsifier fails"
+
+It does not — not for the shipped detector. On the 24 proper nights:
+
+**39 bouts · median 10 min · maximum 25 min · 0 % of REM minutes in runs over 25 min.**
+
+Every bout falls inside the physiological 5–25 min window. The 75-min and 65-min "bouts" reported in
+§3b were **entirely** an artefact of merging daytime wear. What the proper nights show is the opposite
+failure — too FEW bouts (1–4 per night, and five nights with none) against the 4–6 REM periods a real
+night has. **Under-detection, not malformation.** The §3b claim that "the 22.5 % is more than half
+composed of runs that cannot be REM" is unsupported and withdrawn; the score's bout structure on proper
+nights has never been measured.
+
+### 7.3 §5's cross-signal falsifier, run for the first time — and it does not look good
+
+REM-related OSA is well established: REM should carry MORE and longer desaturations than NREM. Mapping
+every OxyDex `desat_event` onto the ECGDex stage epoch covering it, across the same 24 nights (exact
+Poisson 95 % CIs):
+
+| called stage | min | desats | rate /h | 95 % CI |
+|---|---|---|---|---|
+| **REM** | 375 | 4 | **0.64** | [0.17, 1.64] |
+| Light | 6855 | 179 | 1.57 | [1.35, 1.81] |
+| **Deep** | 935 | 84 | **5.39** | [4.30, 6.67] |
+| Wake | 1215 | 49 | 2.42 | [1.79, 3.20] |
+
+- **Called-REM has the LOWEST desaturation rate of any stage** — backwards. But with 4 events its CI
+  reaches 1.64 and overlaps Light's, so this is **suggestive and underpowered, not established**. It is
+  recorded as a hypothesis with its power stated, not as a finding.
+- **Called-DEEP carries 3.4× Light's rate, CIs non-overlapping** — decisive, and physiologically
+  backwards: N3 normally has the FEWEST respiratory events. The likely mechanism is mechanical and
+  testable: apnea drives **cyclical variation of heart rate**, CVHR produces large beat-to-beat swings,
+  large swings raise RMSSD, and the Deep rule is `rmssd > 1.12 × median && hr < median`. **The stager
+  may be reading sleep-apnea CVHR as deep sleep.** That is a bigger claim than anything in this brief
+  and it is not REM-specific — it deserves its own investigation.
+
+### 7.4 What this changes
+
+- The REM detector must beat **4.8 %**, not 6.5 %.
+- Bout structure is NOT currently a failing falsifier; **bout COUNT** is (1–4 against 4–6).
+- The cross-signal falsifier is now runnable at zero cost from existing trio output, and should be a
+  standing acceptance check for any candidate detector — it is the only one of §5's five that uses an
+  independent SIGNAL rather than a population prior.
+- §7.3's Deep result is the most statistically solid thing this investigation has produced, and it is
+  about a stage nobody was looking at.
+
