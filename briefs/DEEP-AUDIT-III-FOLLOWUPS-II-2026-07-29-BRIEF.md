@@ -65,6 +65,30 @@ reproduced under a green suite. Gated, verified RED.
 `AUDIT-PROMPT.md` already says a gate can be blind rather than green; this is that, on the audit brief
 that coined the phrase. **The mutation is the evidence — the label is not.**
 
+### 1.4 The sweep log so far
+
+Recorded so the next pass does not repeat it. "Teeth" = reverting the fix reds assertions.
+
+| § | fix site | verdict | reds |
+|---|---|---|---|
+| 3.2 | `apneaCoupling.real` permutation p | **teeth** | 2 |
+| 3.3 | desat attribution carries the observer | **teeth** | 2 |
+| 3.6 | autonomic⟷glycemic needs both signals | **no gate** → added | 0 → 5 |
+| 4.1 | `sampleHz` native rate | **blind** → added | 0 → 6 |
+| 4.2 | rate across a strap-off gap | **partial** (see §2) | 0 |
+| 4.3 | IMU plausibility bound | **teeth** | 4 |
+| 6.1 | abstention ≠ agreement | **teeth** | 6 |
+| 6.3 | `parseDeviceHR` headerless column | **blind** → added | 0 → 2 |
+| 5.2 | PulseDex LF/HF median-of-ratios | **INCONCLUSIVE** | 0 |
+
+**§5.2 is explicitly not claimed either way.** The mutation (revert to ratio-of-medians) reddened
+nothing, but its semantic validity was never confirmed — a probe of the same edit threw at runtime, so
+the suite's 0 may mean "inert edit" rather than "blind gate". What *is* established is that the
+committed PulseDex synthetic cannot express this defect regardless: its whole-record spectrum is
+**LF 1 / HF 1006 / lfhf 0.001**, a degenerate ratio, and §5.2 is a *Jensen gap* that only appears when
+the per-segment ratio distribution is skewed. A fixture that cannot express the failure proves nothing
+— the same lesson as `INTEGRATOR-GAP-AWARE-OVERLAP` §5. Re-run this one with a deliberately skewed twin.
+
 **Base rate so far: 3 blind or absent gates in 9 sections mutation-checked** (§3.6, §4.1, §6.3), plus
 one partial (§4.2). §3.2 and §6.1 came back with real teeth (2 and 6 assertions red). The sweep in §4
 is therefore not hypothetical — it is projecting from a measured ~⅓ rate.
