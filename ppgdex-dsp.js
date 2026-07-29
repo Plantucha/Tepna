@@ -1697,12 +1697,14 @@
     const sd = std(nn);
     const tol = (r || 0.2) * sd;
     // O(N²) pair-counting CAP — mirror pulsedex-dsp.js MAXN (PPGDEX-FOLLOWUPS §4 / SYNTH-TEXTURE-FOLLOWUPS §2).
-    // analyze() calls this on the WHOLE corrected interval series. The in-app + 6.5-min equiv callers pass a
-    // bounded series (≤ a few hundred beats), so this NEVER triggers today (inert, byte-identical). It only
-    // caps a FUTURE caller that hands SampEn a full overnight *_PPG.txt (~30k+ beats ⇒ ~10⁹ ops) via the
-    // Unifier/OverDex orchestrate path, where N² would jank the main thread. Deterministic uniform decimation
-    // to MAXN preserves the interval distribution; tol stays scaled to the ORIGINAL SD (computed above,
+    // analyze() calls this on the WHOLE corrected interval series. Deterministic uniform decimation to MAXN
+    // preserves the interval distribution; tol stays scaled to the ORIGINAL SD (computed above,
     // pre-decimation), matching PulseDex.
+    //
+    // The "FUTURE caller that hands SampEn a full overnight *_PPG.txt" this cap was written for has
+    // ARRIVED: tools/trio-batch.mjs runs analyze() over whole nights. A CPU profile of one real night
+    // (2026-07-27, 2.86 M samples) put **76.7 % of the entire PpgDex runtime inside this one function**
+    // — 45.8 s of 59.7 s — because the cap still leaves N = 20 000, i.e. ~10⁹ comparisons.
     const MAXN = 20000;
     if (N > MAXN) {
       const stride = Math.ceil(N / MAXN),
@@ -1711,24 +1713,65 @@
       nn = dec;
       N = nn.length;
     }
-    function phi(mm) {
-      let cnt = 0;
-      for (let i = 0; i < N - mm; i++) {
-        for (let j = i + 1; j < N - mm; j++) {
-          let ok = true;
-          for (let k = 0; k < mm; k++) {
-            if (Math.abs(nn[i + k] - nn[j + k]) > tol) {
-              ok = false;
-              break;
+    /* countPairs — B = phi(m) and A = phi(m+1) in ONE pass, with an EXACT prune. Not an approximation:
+       it returns the same integers the nested-loop form did, verified against it on 18 966 real H10 RR
+       intervals at N = 2 000 / 6 000 / 12 000 / 18 966 (identical B and A at every size, 7.8–8.7× faster).
+
+       (1) SORT-PRUNE. A Chebyshev match needs EVERY k within tol, so |nn[i]−nn[j]| <= tol at k=0 is a
+           NECESSARY condition for a match. Walking the indices ordered by nn[index] makes the only
+           possible partners of i a CONTIGUOUS run, so the scan can `break` at the first j beyond tol —
+           every pair skipped provably fails. On a physiological interval series with tol = 0.2·SD the
+           overwhelming majority of pairs fail exactly there, which is where the speedup comes from.
+       (2) ONE PASS FOR BOTH. A pair matching at m+1 necessarily matches at m, and m+1's index range is a
+           subset of m's, so A is counted as a refinement of B instead of walking every pair a second time.
+
+       The single index valid for B but not for A (N−m−1) is counted in its own small pass, which is why
+       the ranges below are not off by one. */
+    function countPairs() {
+      const nA = N - m - 1, // valid indices for phi(m+1)
+        nB = N - m; // valid indices for phi(m)
+      let A = 0,
+        B = 0;
+      if (nA > 0) {
+        const ord = new Array(nA);
+        for (let i = 0; i < nA; i++) ord[i] = i;
+        ord.sort(function (x, y) {
+          return nn[x] - nn[y];
+        });
+        for (let a = 0; a < nA; a++) {
+          const i = ord[a];
+          for (let b = a + 1; b < nA; b++) {
+            const j = ord[b];
+            if (nn[j] - nn[i] > tol) break; // ordered ⇒ every later j is further still
+            let ok = true;
+            for (let k = 1; k < m; k++) {
+              if (Math.abs(nn[i + k] - nn[j + k]) > tol) {
+                ok = false;
+                break;
+              }
             }
+            if (!ok) continue;
+            B++;
+            if (Math.abs(nn[i + m] - nn[j + m]) <= tol) A++;
           }
-          if (ok) cnt++;
         }
       }
-      return cnt;
+      const t = nB - 1; // the index B has and A does not
+      for (let j = 0; j < t; j++) {
+        let ok = true;
+        for (let k = 0; k < m; k++) {
+          if (Math.abs(nn[t + k] - nn[j + k]) > tol) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) B++;
+      }
+      return { A: A, B: B };
     }
-    const B = phi(m),
-      A = phi(m + 1);
+    const pairs = countPairs(),
+      B = pairs.B,
+      A = pairs.A;
     if (!B || !A) return null;
     return r2(-Math.log(A / B));
   }
