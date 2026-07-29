@@ -66,6 +66,30 @@ So §2's epoch-level result and §3's null are consistent, and the honest statem
 is demonstrated locally and its dose-response is untestable on this corpus.** It needs nights with
 real apnea burden — which is exactly what `CPAPDex` nights are, and they are not in this fold.
 
+## 3b · §5's settling test, RUN (2026-07-29) — Deep does NOT collapse
+
+The direct test: remove every epoch overlapping a desat and see whether Deep survives.
+
+| set | epochs | Deep | Deep % of sleep | med RMSSD Deep | Light | gap |
+|---|---|---|---|---|---|---|
+| all | 1876 | 187 | **11.5 %** | 43.1 | 35.0 | 8.1 |
+| **excluding desat-overlapping** | 1720 | 155 | **10.3 %** | 43.0 | 34.8 | **8.2** |
+| only desat-overlapping | 156 | 32 | **25.2 %** | 44.0 | 39.9 | 4.1 |
+
+**Deep survives intact.** 11.5 % → 10.3 %, and the Deep-vs-Light RMSSD gap does not move at all
+(8.1 → 8.2). So the Deep rule is **NOT primarily reading CVHR** — the ~1.2 percentage-point drop is
+the whole of the effect, confirming §2's ~10 %-of-Deep-minutes estimate from an independent direction.
+
+Two things worth keeping from the third row. Desat-overlapping epochs are **2.4× enriched for Deep**
+(25.2 % vs 10.3 %) — the bias is real and local. And within them the Deep-vs-Light RMSSD gap *shrinks*
+to 4.1, because **Light epochs carrying desats are themselves RMSSD-elevated** (39.9 vs 34.8): CVHR
+raises RMSSD across stages, and only the epochs it pushes past `1.12 × median` flip to Deep. That is
+the mechanism drawn precisely.
+
+**The honest limit.** This cannot separate *misclassification* from *real N3-predominant events* —
+some sleepers genuinely have NREM- or position-predominant OSA. The RMSSD evidence favours
+misclassification for the enriched fraction; nothing here settles the rest, and PSG is what would.
+
 ## 4 · Why it matters more than the REM under-call
 
 `REM-STAGING-REDESIGN` is about a number that is visibly, uniformly **too low** (4.8 % against a
@@ -92,7 +116,9 @@ precisely when it mattered most.
 
 ## 6 · Done when
 
-- [ ] §5's exclude-desat-epochs test run — does Deep survive without them?
+- [x] **§5's exclude-desat-epochs test — RUN 2026-07-29 (§3b). Deep SURVIVES**: 11.5 % → 10.3 % of
+      sleep with the RMSSD gap unchanged, so the rule is not primarily reading CVHR and the effect is
+      bounded at ~10 % of Deep minutes by two independent routes.
 - [ ] §3 re-run on a corpus with real ODI-4/AHI spread (CPAPDex nights)
 - [ ] Deep's rule re-examined for CVHR/vagal separability, or its evidence tier re-checked
 - [ ] The cross-signal falsifier promoted to a standing acceptance check for ANY staging change —
