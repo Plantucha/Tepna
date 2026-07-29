@@ -374,10 +374,28 @@ def test_backend_is_probed_not_assumed(monkeypatch):
     assert ch.backend() == "wpa"
 
 
+def _assoc(monkeypatch, answer):
+    """Pin the /sys association verdict for a `_wpa_up` test.
+
+    `_wpa_up` consults `associated()` FIRST and falls back to `wpa_cli` ONLY when that answers None —
+    deliberately, so a definite verdict is never overridden. A test that leaves this to the host is
+    therefore asking the machine it runs on which branch it covers, and the two machines disagree:
+
+        CI / dev box   no wlp1s0 at all      -> associated() None  -> the wpa_cli FALLBACK runs
+        the vigil box  wlp1s0 exists, down   -> associated() False -> no fallback, _wpa_up returns False
+
+    So `..._installs_an_address_but_NEVER_a_route` and `..._psk_conf_cannot_be_unlinked` asserted True
+    and passed for years on CI while covering the fallback, then failed the first time they ran on the
+    box this code ships to (2026-07-29, 2 failed / 1644 passed). The /sys primary was never covered
+    there at all. Pin it, and each test asserts its own subject on the branch it names."""
+    monkeypatch.setattr(ch, "associated", lambda *_a, **_k: answer)
+
+
 def test_wpa_up_installs_an_address_but_NEVER_a_route(monkeypatch):
     """THE guarantee, structurally: the card routes nowhere, so the wpa path assigns a static on-link
     address and runs no DHCP client. There is no route to suppress and nothing to talk us into one."""
     calls = _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=COMPLETED\n")})
+    _assoc(monkeypatch, True)
     monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
     assert ch._wpa_up("wlp1s0", "ez Share", "88888888", "192.168.4.2/24", 10) is True
     flat = [c for c, _ in calls]
@@ -390,6 +408,7 @@ def test_wpa_up_installs_an_address_but_NEVER_a_route(monkeypatch):
 def test_wpa_up_gives_up_and_tears_down_if_it_never_associates(monkeypatch):
     """Bounded: a card that is powered off must cost one timeout, not a hung task."""
     _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=SCANNING\n")})
+    _assoc(monkeypatch, None)          # /sys cannot tell; the fallback says SCANNING
     monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
     t = iter([0.0, 0.0, 99.0, 99.0, 99.0, 99.0])
     monkeypatch.setattr(ch.time, "monotonic", lambda: next(t, 99.0))
@@ -427,6 +446,7 @@ def test_every_wpa_cli_call_is_pinned_to_our_own_control_directory(monkeypatch):
     have KILLED the box's own wpa_supplicant. Harmless on this box only because its uplink is wired;
     on a Wi-Fi box the CPAP teardown would have taken the network down with it."""
     calls = _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=COMPLETED\n")})
+    _assoc(monkeypatch, None)          # this test is ABOUT the wpa_cli calls, so drive the fallback
     monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
     ch._wpa_up("wlp1s0", "ez Share", "88888888", "192.168.4.2/24", 10)
     ch._wpa_down("wlp1s0")
@@ -531,6 +551,7 @@ def test_wpa_up_still_returns_when_the_psk_conf_cannot_be_unlinked(monkeypatch):
     """Cleanup of the temp conf is best-effort — a read-only /tmp must not mask a successful
     association, and must not raise into the harvest task."""
     _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=COMPLETED\n")})
+    _assoc(monkeypatch, True)
     monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
     monkeypatch.setattr(ch.os, "unlink", lambda *_a, **_k: (_ for _ in ()).throw(OSError("EROFS")))
     assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 10) is True
@@ -557,3 +578,46 @@ def test_wifi_up_refuses_an_interface_this_box_does_not_have(tmp_path, monkeypat
     monkeypatch.setattr(ch, "backend", lambda: "wpa")
     monkeypatch.setattr(ch, "_wpa_up", lambda *a: pytest.fail("must not associate on a missing iface"))
     assert ch.wifi_up("ezshare", guard_dev="eno1", iface="wlan0") is False
+
+
+def test_wpa_up_prefers_sys_and_never_asks_wpa_cli_when_it_answers(monkeypatch):
+    """PRECEDENCE, asserted rather than inherited from the host. `associated()` is the primary because
+    wpa_cli needs a client socket under /tmp and the unit runs ProtectSystem=strict — the read-only-/tmp
+    failure that made the harvest report "did not associate within 45s" for a radio that associated in
+    four seconds. If a definite /sys verdict still cost a wpa_cli poll, that failure would come straight
+    back, so a definite verdict must SHORT-CIRCUIT it."""
+    calls = _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=COMPLETED\n")})
+    _assoc(monkeypatch, True)
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 10) is True
+    assert not any(c.startswith("wpa_cli") and "status" in c for c, _ in calls), \
+        "a definite /sys verdict must not cost a wpa_cli status poll"
+
+
+def test_a_definite_not_associated_is_never_overridden_by_wpa_cli(monkeypatch):
+    """THE INVARIANT THE BOX EXPOSED. /sys says carrier=0 (up, not associated) while a stubbed wpa_cli
+    says COMPLETED. The fallback exists for "this driver will not tell me" (None), NOT to argue with a
+    definite answer — consulting it here would reinstate exactly the guess `cb63b31` removed.
+
+    This is also the real 2026-07-29 shape: on the vigil box wlp1s0 exists and is down, so `associated`
+    returned False and `_wpa_up` correctly returned False — while two tests that never pinned it
+    asserted True and failed. The production code was right; the tests were reading the host."""
+    _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=COMPLETED\n")})
+    _assoc(monkeypatch, False)
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    t = iter([0.0, 0.0, 99.0, 99.0, 99.0, 99.0])
+    monkeypatch.setattr(ch.time, "monotonic", lambda: next(t, 99.0))
+    monkeypatch.setattr(ch, "_wpa_down", lambda i, root=None: True)
+    assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 5) is False
+
+
+def test_wpa_up_falls_back_to_wpa_cli_only_when_sys_cannot_tell(monkeypatch):
+    """The other arm: a driver that exposes no carrier at all yields None, and THEN wpa_cli decides.
+    Without this the fallback would be covered only by accident — by CI happening to lack the
+    interface — which is how it came to be covered at all before today."""
+    calls = _sh_spy(monkeypatch, {"wpa_cli": (0, "wpa_state=COMPLETED\n")})
+    _assoc(monkeypatch, None)
+    monkeypatch.setattr(ch.time, "sleep", lambda *_: None)
+    assert ch._wpa_up("wlp1s0", "s", "p", "192.168.4.2/24", 10) is True
+    assert any(c.startswith("wpa_cli") and "status" in c for c, _ in calls), \
+        "with no /sys verdict the fallback is the only thing that can answer"
