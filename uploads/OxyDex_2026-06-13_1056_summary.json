@@ -1051,20 +1051,25 @@
         "overshootLabel": "Normal"
       },
       "spo2Ac1": {
-        "ac1": 0.973,
-        "ac1Label": "Sustained (hypoventilation)"
+        "ac1": 0.985,
+        "ac1Label": "Sustained (hypoventilation)",
+        "basis": "wholeRecord"
       },
       "hrFreqBands": {
-        "hrLfPow": 0.8,
+        "hrLfPow": 5.1,
         "hrHfPow": 0.1,
-        "hrLfHf": 8,
-        "hrLfHfLabel": "SNS dominant"
+        "hrLfHf": 42.75,
+        "hrLfHfLabel": "SNS dominant",
+        "basis": "medianOf30minWindows",
+        "windowsUsed": 14
       },
       "respRate": {
-        "respRateBpm": 12.9,
-        "rsaPeakFreq": 0.2142,
-        "rsaPeakPow": 1.2,
-        "respRateLabel": "Normal (10-20)"
+        "respRateBpm": 11,
+        "rsaPeakFreq": 0.1833,
+        "rsaPeakPow": 0.5,
+        "respRateLabel": "Normal (10-20)",
+        "basis": "medianOf30minWindows",
+        "windowsUsed": 14
       },
       "hrAsymmetry": {
         "hrAccelAsym": 1.008,
@@ -1082,9 +1087,11 @@
         "hrArcLabel": "Rising (arousal)"
       },
       "spo2HRLag": {
-        "crossCorrLag": 63,
-        "crossCorrPeak": -0.007,
-        "crossCorrLabel": "Delayed lag"
+        "crossCorrLag": 68,
+        "crossCorrPeak": 0.18,
+        "crossCorrLabel": "Delayed lag",
+        "basis": "medianOf30minWindows",
+        "windowsUsed": 14
       },
       "spikeDecay": null,
       "spikeUndershoot": null,

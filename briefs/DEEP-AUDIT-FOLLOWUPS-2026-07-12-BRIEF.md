@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-12 (**§A + §B EXECUTED** — and in BOTH cases this brief's own prescription was wrong; the corrections are recorded in place. **§D1 · §D2 · §E1 EXECUTED 2026-07-13** — EVENT-LEXICON §7 records the CPAPDex-annotation + HRVDex-window decisions, and the fixture content-claims are swept-clean + byte-locked as a new gate. **Still open:** §C1/§C2/§C3 (need the gitignored real corpus / are research) + §E2 (version-into-bundle, deferred)) · **Created:** 2026-07-12 · **Supersedes:** — · **Parent:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, all 21 findings executed)
+**Status:** IN-PROGRESS — 2026-07-12 (**§A + §B EXECUTED** — and in BOTH cases this brief's own prescription was wrong; the corrections are recorded in place. **§D1 · §D2 · §E1 EXECUTED 2026-07-13** — EVENT-LEXICON §7 records the CPAPDex-annotation + HRVDex-window decisions, and the fixture content-claims are swept-clean + byte-locked as a new gate. **§C1 EXECUTED 2026-07-29** — movement PROVEN across 76 real nights and it was not marginal (`respRateBpm` changed its published label on 76/76 nights); `spo2Ac1` is now whole-record and the three LOCAL metrics are medians over 30-min windows, all four disclosing `basis`. **Still open:** §C2 (located exactly at `integrator-dsp.js:351`/`:955`/`:3107`, deliberately NOT executed — it must ride with the REM re-derivation a parallel session is mid-way through, and "one denominator" cannot be chosen without fabricating a TST OxyDex does not have) + §C3 (ROUTED to `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`, which now owns it) + §E2 (version-into-bundle, deferred)) · **Created:** 2026-07-12 · **Supersedes:** — · **Parent:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, all 21 findings executed)
 
 # Deep-audit follow-ups — the residue, and the blind spot that hid it
 
@@ -171,11 +171,84 @@ which is the only reason it is here and not in the parent. **Do:** prove or refu
 real nights (the same method that proved §9: recompute per-night with and without the cap), then either
 decimate whole-record or **disclose the window** in the export and on the card.
 
+> ### ✅ C1 EXECUTED 2026-07-29 — movement PROVEN, and it was not marginal
+>
+> Measured over **76 real O2Ring nights** (not 39 — the corpus has grown), by sliding the window end
+> across each night and reading back what the export publishes. The shipped function is its own probe:
+> `f(rows.slice(0, k))` reports on the 30–60 min ending at *k*, so no modification to the code under
+> test was needed.
+>
+> | metric | median swing | relative | nights whose published **label** flips |
+> |---|---|---|---|
+> | `spo2Ac1` | 0.061 | 6 % | **70 / 76** |
+> | `hrLfHf` | 99 | **308 %** | 64 / 76 |
+> | `respRateBpm` | 10.1 bpm | 87 % | **76 / 76** |
+> | `crossCorrLag` | 120 s | 187 % | 75 / 76 |
+>
+> `crossCorrLag`'s swing is the **entire** 0–120 s search range: a reported "lag" that can be anything
+> the search allows is not a measurement of coupling. `respRateBpm` changed its published label —
+> `Slow (<10)` / `Normal (10-20)` / `Fast (>20)` — on **every single night** in the corpus.
+>
+> **The fix is two fixes, because these are two kinds of quantity.** `spo2Ac1` is GLOBAL (lag-1
+> autocorrelation is defined over the whole series and costs O(n)) → whole-record. The other three are
+> LOCAL: an LF/HF ratio, a respiratory rate and a coupling lag are only meaningful where the signal is
+> stationary, which a whole night is not — the Task-Force HRV convention is 5-min windows for exactly
+> this reason. Computing them whole-record would have traded an arbitrary window for a meaningless one,
+> so they are evaluated over consecutive 30-min windows and reduced by **median** (the robust-median
+> shape PpgDex already uses for `sdnnRobust`, ECGDex for `epochMedian5min`). All four now disclose
+> `basis`, and the three windowed ones `windowsUsed` — the other half of what this section asked for.
+>
+> **Verified by jackknife, which is the right test for the fixed design** (on the OLD code a jackknife
+> is degenerate: dropping any window but the last changed nothing at all — that *is* the defect). Over
+> the full night, dropping each 30-min window in turn and recomputing the published value:
+>
+> | metric | label changes when one window is dropped |
+> |---|---|
+> | `spo2Ac1` | **0 / 76** |
+> | `hrLfHf` | **0 / 76** |
+> | `respRateBpm` | 6 / 76 |
+> | `crossCorrLag` | 12 / 76 |
+>
+> Gated by a new `oxydex-dsp` group that pins the **invariant** (a disturbed final 30 min cannot
+> capture the published value) rather than the numbers, which the equivalence legs already pin — and
+> which carries its own **mutation check**: the disturbed tail alone must read differently (17.9 vs
+> 12.2 br/min), or every assertion in the group would be passing for the wrong reason. The first draft
+> of that check *failed*, because the synthetic disturbance was broadband noise and a peak-picker does
+> not reliably move on noise; it was rebuilt as a clean 0.3 Hz oscillation.
+>
+> Three OxyDex fixtures moved and were regenerated with `tools/regen-oxydex-goldens.mjs`, never
+> hand-edited.
+
 ### C2 · `remProxyPct` and `remFraction` denominate on different clocks
 OxyDex's `remProxyPct` denominates on **recording** time; ECGDex's `remFraction` denominates on **sleep**
 time; `fuseStagingConsensus` compares them directly. Moot *today* — §7 suppresses the implausible proxy,
 so the comparison no longer runs on it — but the mismatch is still in the code and **must** be reconciled
 before the REM estimator is ever re-derived. **Do:** one denominator, named in the export.
+
+> **C2 — located exactly, deliberately NOT executed 2026-07-29.** Both clocks are set in the
+> Integrator adapter, not in either node's estimator:
+>
+> - `integrator-dsp.js:351` — ECGDex leg: `remFraction = stageMinutes.REM / sleep.totalSleepMin` → **sleep** time.
+> - `integrator-dsp.js:955` — OxyDex leg: `remFraction = stageProxy.remProxyPct / 100`, and
+>   `oxydex-dsp.js:5237` computes that as `remSec / n` where `n` is the **recording** sample count.
+> - `integrator-dsp.js:3107` — `fuseStagingConsensus` reads both as `remPct` and compares them.
+>
+> Not executed for two reasons, both of which would make executing it now *worse* than leaving it:
+> **(1)** this brief's own instruction is that C2 must be reconciled *before* the REM estimator is
+> re-derived — and the estimator is being re-derived **right now** by a parallel session (PRs #521
+> #522 #523 landed today: REM-before-wake ordering, the Mayer-wave oracle, respiratory variability).
+> Picking a denominator against an estimator mid-rewrite prejudges work in flight. **(2)** "one
+> denominator" is not free to choose: sleep-time is the clinical convention (REM % of TST), but OxyDex
+> has no trustworthy TST — its only sleep estimate is motion-derived, and `MULTINIGHT-CORPUS-FINDINGS`
+> §3 has just made that legitimately **null** on a faulted motion column. Forcing OxyDex onto a
+> sleep-time denominator would fabricate the very quantity it cannot measure.
+>
+> **Recommended shape when it is taken up** (owner's call, and it should ride with the REM work rather
+> than ahead of it): name the basis per leg (`remFractionBasis: 'sleep' | 'recording'`) and have
+> `fuseStagingConsensus` **refuse to fuse legs whose bases differ** rather than silently compare them.
+> That is fail-closed, needs no fabricated TST, and survives whatever the re-derived estimator turns
+> out to be. If instead a single denominator is mandated, recording-time is the only one both nodes can
+> honestly produce — at the cost of ECGDex reporting a non-standard fraction.
 
 ### C3 · The REM estimator itself was never re-derived
 §7 made the node **refuse to assert an impossible number as a healthy finding** (all 39 real nights now
@@ -183,6 +256,15 @@ self-report `plausible:false`; 0 render "good", previously 39/39 did). It did **
 "still + HR SD < 3 + HR within ±5 bpm of the night mean" still describes quiet sleep, not REM (REM shows
 *increased* HR variability). That is research, not an audit fix. **Do:** re-derive against a staged
 reference, or demote the metric out of the surfaced set entirely.
+
+> **C3 — ROUTED, not executed 2026-07-29.** This is research, as the section says, and it now has an
+> owner: `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`, actively being executed by a parallel session
+> (PRs #521/#522/#523 landed today). That brief has already established what C3 suspected and more —
+> the REM rule is a conjunction of two gates that do not co-vary, so it can only under-call (2 epochs
+> against ~3.4 expected by chance); the synthetic oracle modelled REM as looking like Wake in every
+> feature the classifier can see; and planted-REM recall went 0/9 → 9/9 once the evaluation ordering
+> was fixed. Duplicating that here would fork it. **C3 is closed as a pointer:** the work lives in
+> `REM-STAGING-REDESIGN`, and C2 above should ride with it.
 
 ---
 

@@ -4004,12 +4004,63 @@
     return { overshootMean: mean, overshootCount: overshoots.length, overshootLabel: mean > 1.5 ? 'Elevated (CS pattern)' : mean > 0.5 ? 'Mild' : 'Normal' };
   }
 
+  /* ══ DEEP-AUDIT-FOLLOWUPS §C1 — the tail-slice family ═══════════════════════
+     Four metrics reported on `rows.slice(-USE)`: the LAST 30–60 min of a 6–10 h night. §9 had already
+     fixed the HEAD-slice twins; this family was left because it was "not proven to move a surfaced
+     number". Measured across 76 real O2Ring nights by sliding the window end across each night, it
+     moves a great deal — the published number is an artifact of where the recording stopped:
+
+       metric          median swing    relative    nights whose published LABEL flips
+       spo2Ac1              0.061          6 %              70 / 76
+       hrLfHf              99            308 %              64 / 76
+       respRateBpm         10.1 bpm       87 %              76 / 76   <- every night
+       crossCorrLag       120 s          187 %              75 / 76
+
+     Two different fixes, because these are two different kinds of quantity:
+
+     - `spo2Ac1` is a GLOBAL statistic: lag-1 autocorrelation is defined over the whole series and
+       costs O(n). It now uses the whole record. There is no window left to disclose.
+
+     - The other three are LOCAL: an LF/HF ratio, a respiratory rate and a coupling lag are only
+       meaningful where the signal is stationary, which a whole night is not (the Task-Force HRV
+       convention is 5-min windows for exactly that reason). Computing them whole-record would trade
+       an arbitrary window for a meaningless one. They are instead evaluated over CONSECUTIVE windows
+       spanning the night and reduced by MEDIAN - the same robust-median shape PpgDex already uses for
+       `sdnnRobust` and ECGDex for `window: 'epochMedian5min'`. The reported number now describes the
+       night rather than its last half hour, and one disturbed window can no longer set it.
+
+     All four DISCLOSE their basis in the export (`basis`, plus `windowsUsed` where a reduction
+     happened) - the other half of what §C1 asked for: a consumer must be able to tell a whole-record
+     number from a windowed one without reading the source. */
+  var TAIL_WIN_SEC = 1800; // 30 min - the span each LOCAL metric is stationary over
+  function _nightWindows(rows, winSec) {
+    var out = [],
+      n = rows.length;
+    if (n < winSec) return out;
+    // Consecutive, non-overlapping, anchored at the START so a short tail remnant is dropped rather
+    // than evaluated on a partial window - a partial window is what made the old answer arbitrary.
+    for (var i = 0; i + winSec <= n; i += winSec) out.push(rows.slice(i, i + winSec));
+    return out;
+  }
+  function _medianOf(vals) {
+    var v = vals
+      .filter(function (x) {
+        return x != null && isFinite(x);
+      })
+      .sort(function (a, b) {
+        return a - b;
+      });
+    if (!v.length) return null;
+    var h = v.length >> 1;
+    return v.length % 2 ? v[h] : (v[h - 1] + v[h]) / 2;
+  }
+
   // ── D. SpO2 Autocorrelation Lag-1 ────────────────────────────────
   function computeSpO2Autocorr(rows) {
     var n = rows.length;
     if (n < 300) return null;
-    var USE = Math.min(n, 3600);
-    var s = rows.slice(-USE).map(function (r) {
+    var USE = n; // §C1: whole record - ac1 is global and O(n); the 3600 cap bought nothing
+    var s = rows.map(function (r) {
       return r.spo2;
     });
     var m =
@@ -4024,11 +4075,62 @@
     }
     if (den === 0) return null;
     var ac1 = +(num / den).toFixed(3);
-    return { ac1: ac1, ac1Label: ac1 > 0.95 ? 'Sustained (hypoventilation)' : ac1 > 0.85 ? 'Persistent' : ac1 < 0.5 ? 'Oscillating (PB pattern)' : 'Transient' };
+    return {
+      ac1: ac1,
+      ac1Label: ac1 > 0.95 ? 'Sustained (hypoventilation)' : ac1 > 0.85 ? 'Persistent' : ac1 < 0.5 ? 'Oscillating (PB pattern)' : 'Transient',
+      basis: 'wholeRecord' // §C1 disclosure
+    };
   }
 
   // ── E. HR Power Spectral Density (LF/HF) ─────────────────────────
+  /* §C1: `_hrFreqBandsWindow` is the ORIGINAL kernel, unchanged, now scoped to one stationary window;
+     `computeHRFreqBands` reduces it across the night by median. Keeping the kernel intact means the
+     per-window physics is exactly what it always was — only the choice of which window to publish
+     changed, which is the defect. */
   function computeHRFreqBands(rows) {
+    var wins = _nightWindows(rows, TAIL_WIN_SEC);
+    if (!wins.length) return _hrFreqBandsWindow(rows); // record shorter than one window: unchanged
+    var per = /** @type {any[]} */ (
+      wins
+        .map(function (w) {
+          return _hrFreqBandsWindow(w);
+        })
+        .filter(Boolean)
+    );
+    if (!per.length) return null;
+    var lfhf = _medianOf(
+      per.map(function (p) {
+        return p.hrLfHf;
+      })
+    );
+    /* Re-round every reduced value: a median of an EVEN count averages the two middles, so a median
+       of 1-decimal powers can land on 0.15000000000000002 and ship that into the export. The per-
+       window kernel's own precision is the contract; the reduction must not widen it. */
+    var _r1 = function (v) {
+      return v == null ? null : +v.toFixed(1);
+    };
+    return {
+      hrLfPow: _r1(
+        _medianOf(
+          per.map(function (p) {
+            return p.hrLfPow;
+          })
+        )
+      ),
+      hrHfPow: _r1(
+        _medianOf(
+          per.map(function (p) {
+            return p.hrHfPow;
+          })
+        )
+      ),
+      hrLfHf: lfhf == null ? null : +lfhf.toFixed(2),
+      hrLfHfLabel: lfhf === null ? 'N/A' : lfhf > 4 ? 'SNS dominant' : lfhf > 2 ? 'SNS-leaning' : 'Balanced',
+      basis: 'medianOf' + TAIL_WIN_SEC / 60 + 'minWindows', // §C1 disclosure
+      windowsUsed: per.length
+    };
+  }
+  function _hrFreqBandsWindow(rows) {
     var n = rows.length;
     if (n < 600) return null;
     var USE = Math.min(n, 1800);
@@ -4064,7 +4166,45 @@
   }
 
   // ── F. Respiratory Rate Proxy ─────────────────────────────────────
+  /* §C1: original kernel scoped to one window (`_respRateProxyWindow`), reduced across the night by
+     median. This was the worst of the four — 76 of 76 nights changed their published label depending
+     on which half hour the recording happened to end in. */
   function computeRespRateProxy(rows) {
+    var wins = _nightWindows(rows, TAIL_WIN_SEC);
+    if (!wins.length) return _respRateProxyWindow(rows);
+    var per = /** @type {any[]} */ (
+      wins
+        .map(function (w) {
+          return _respRateProxyWindow(w);
+        })
+        .filter(Boolean)
+    );
+    if (!per.length) return null;
+    var bpm = _medianOf(
+      per.map(function (p) {
+        return p.respRateBpm;
+      })
+    );
+    if (bpm == null) return null;
+    bpm = +bpm.toFixed(1);
+    return {
+      respRateBpm: bpm,
+      rsaPeakFreq: +(bpm / 60).toFixed(4),
+      rsaPeakPow: (function (v) {
+        return v == null ? null : +v.toFixed(1); // see the re-round note in computeHRFreqBands
+      })(
+        _medianOf(
+          per.map(function (p) {
+            return p.rsaPeakPow;
+          })
+        )
+      ),
+      respRateLabel: bpm < 10 ? 'Slow (<10)' : bpm > 20 ? 'Fast (>20)' : 'Normal (10-20)',
+      basis: 'medianOf' + TAIL_WIN_SEC / 60 + 'minWindows', // §C1 disclosure
+      windowsUsed: per.length
+    };
+  }
+  function _respRateProxyWindow(rows) {
     var n = rows.length;
     if (n < 600) return null;
     var USE = Math.min(n, 1800);
@@ -4164,7 +4304,44 @@
   }
 
   // ── I. SpO2-HR Cross-Correlation Peak Lag ────────────────────────
+  /* §C1: original kernel scoped to one window, reduced across the night by median. The lag search
+     spans 0-120 s, and the old tail slice swung across that entire range night to night — a reported
+     "lag" that could be anything the search allows is not a measurement of coupling. */
   function computeSpO2HRLag(rows) {
+    var wins = _nightWindows(rows, TAIL_WIN_SEC);
+    if (!wins.length) return _spO2HRLagWindow(rows);
+    var per = /** @type {any[]} */ (
+      wins
+        .map(function (w) {
+          return _spO2HRLagWindow(w);
+        })
+        .filter(Boolean)
+    );
+    if (!per.length) return null;
+    var lag = _medianOf(
+      per.map(function (p) {
+        return p.crossCorrLag;
+      })
+    );
+    if (lag == null) return null;
+    lag = Math.round(lag);
+    return {
+      crossCorrLag: lag,
+      crossCorrPeak: (function (v) {
+        return v == null ? null : +v.toFixed(3); // see the re-round note in computeHRFreqBands
+      })(
+        _medianOf(
+          per.map(function (p) {
+            return p.crossCorrPeak;
+          })
+        )
+      ),
+      crossCorrLabel: lag < 10 ? 'Near-zero lag (central pattern)' : lag < 30 ? 'Moderate lag' : 'Delayed lag',
+      basis: 'medianOf' + TAIL_WIN_SEC / 60 + 'minWindows', // §C1 disclosure
+      windowsUsed: per.length
+    };
+  }
+  function _spO2HRLagWindow(rows) {
     var n = rows.length;
     if (n < 600) return null;
     var USE = Math.min(n, 1800);

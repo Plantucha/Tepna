@@ -6273,6 +6273,90 @@
       T.eq('present HR → score includes the 0.1-weighted subscore (90, unchanged from before the fix)', present.score, 90);
     });
 
+    /* DEEP-AUDIT-FOLLOWUPS §C1 — the tail-slice family reported on the LAST 30–60 min of a 6–10 h
+       night. Measured across 76 real O2Ring nights by sliding the window end, the published LABEL
+       flipped on 70/76 (spo2Ac1), 64/76 (hrLfHf), 76/76 (respRateBpm) and 75/76 (crossCorrLag) —
+       the number was an artifact of where the recording stopped. spo2Ac1 is now whole-record (it is
+       a global statistic); the other three are medians over consecutive 30-min windows, since an
+       LF/HF ratio, a respiratory rate and a coupling lag are only defined where the signal is
+       stationary. These pin the INVARIANT — a late disturbance cannot capture the published value —
+       rather than the numbers, which the equivalence legs already pin. */
+    group('OxyDex tail-slice family reports on the night, not its last half hour (DEEP-AUDIT-FOLLOWUPS §C1)', 'oxydex-dsp · regression', function (T) {
+      var OT = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      var names = ['computeSpO2Autocorr', 'computeHRFreqBands', 'computeRespRateProxy', 'computeSpO2HRLag'];
+      var okFns = !!OT && names.every(function (k) { return typeof OT[k] === 'function'; });
+      T.ok('the four tail-slice functions are exposed', okFns);
+      if (!okFns) return;
+
+      /* A 6 h synthetic night: a steady 12 br/min respiratory oscillation on HR. Then the SAME night
+         with its final 30 min replaced by a faster, noisy disturbance — the shape that used to seize
+         the published value outright. */
+      var mkNight = function (hours, disturbTailMin) {
+        var n = Math.round(hours * 3600),
+          rows = [],
+          tailFrom = n - (disturbTailMin || 0) * 60;
+        for (var i = 0; i < n; i++) {
+          var dist = disturbTailMin && i >= tailFrom;
+          // 0.2 Hz = 12 br/min on a 1 Hz series. The disturbance is a CLEAN, stronger 0.3 Hz
+          // (18 br/min) rather than noise — the mutation check below requires that the tail alone
+          // really does read differently, and broadband noise does not reliably move a peak-picker.
+          var f = dist ? 0.3 : 0.2;
+          var amp = dist ? 8 : 2;
+          rows.push({
+            tMs: 1782000000000 + i * 1000,
+            t: new Date(1782000000000 + i * 1000),
+            spo2: 96 + (i % 600 < 300 ? 0 : 1),
+            hr: 55 + amp * Math.sin(2 * Math.PI * f * i),
+            motion: 0,
+            pi: null
+          });
+        }
+        return rows;
+      };
+      var clean = mkNight(6, 0),
+        tailBad = mkNight(6, 30);
+
+      // Disclosure — §C1's other half: the basis must be readable without opening the source.
+      var a = OT.computeSpO2Autocorr(clean),
+        h = OT.computeHRFreqBands(clean),
+        r = OT.computeRespRateProxy(clean),
+        l = OT.computeSpO2HRLag(clean);
+      T.eq('spo2Ac1 discloses whole-record basis', a && a.basis, 'wholeRecord');
+      T.eq('hrLfHf discloses its windowed basis', h && h.basis, 'medianOf30minWindows');
+      T.eq('respRate discloses its windowed basis', r && r.basis, 'medianOf30minWindows');
+      T.eq('crossCorrLag discloses its windowed basis', l && l.basis, 'medianOf30minWindows');
+      T.ok('the windowed metrics report how many windows they reduced', h.windowsUsed === 12 && r.windowsUsed === 12 && l.windowsUsed === 12,
+        h.windowsUsed + '/' + r.windowsUsed + '/' + l.windowsUsed + ' (6 h => 12 windows)');
+
+      // THE INVARIANT: a 30-min disturbance at the very end must not capture the published value.
+      var rBad = OT.computeRespRateProxy(tailBad);
+      T.ok('respRate: a disturbed final 30 min does not set the published rate',
+        Math.abs(rBad.respRateBpm - r.respRateBpm) <= 1.5,
+        'clean ' + r.respRateBpm + ' vs tail-disturbed ' + rBad.respRateBpm);
+      T.eq('…and the published label survives it', rBad.respRateLabel, r.respRateLabel);
+      T.eq('hrLfHf: the label survives a disturbed final 30 min', OT.computeHRFreqBands(tailBad).hrLfHfLabel, h.hrLfHfLabel);
+      /* spo2Ac1 is whole-record, so a genuinely different final 30 min SHOULD move it a little —
+         that is the metric working, not failing. What must not happen is the tail SETTING it. Assert
+         the bound: the whole-record value moves far less than the tail alone reads. */
+      var aBad = OT.computeSpO2Autocorr(tailBad),
+        aTail = OT.computeSpO2Autocorr(tailBad.slice(-1800));
+      T.ok('spo2Ac1: a changed final 30 min shifts the whole-record value only in proportion to its share',
+        Math.abs(aBad.ac1 - a.ac1) < Math.abs(aTail.ac1 - a.ac1),
+        'whole-record moved ' + Math.abs(aBad.ac1 - a.ac1).toFixed(3) + ' vs tail-only ' + Math.abs(aTail.ac1 - a.ac1).toFixed(3));
+
+      /* MUTATION CHECK — this group is only meaningful if the OLD behaviour would fail it. Feeding
+         just the disturbed tail (what the old cap effectively saw) MUST read differently; if it did
+         not, every assertion above would be passing for the wrong reason. */
+      var rTail = OT.computeRespRateProxy(tailBad.slice(-1800));
+      T.ok('MUTATION · the disturbed tail alone really does read differently (else this group proves nothing)',
+        rTail && Math.abs(rTail.respRateBpm - r.respRateBpm) > 1.5,
+        'tail-only ' + (rTail && rTail.respRateBpm) + ' vs night ' + r.respRateBpm);
+
+      // A record shorter than one window must still answer, on whatever it has.
+      var rShort = OT.computeRespRateProxy(mkNight(0.4, 0));
+      T.ok('a sub-window record still returns a value rather than null', !!(rShort && rShort.respRateBpm != null));
+    });
+
     /* MULTINIGHT-CORPUS-FINDINGS §3 — a motion column that is NEVER zero is a writer/sensor fault,
        not a restless night. On 2026-07-16 and 07-17 the capture host pinned the O2Ring Motion field
        at ~19–27 for every sample (every other corpus night is ≥ 98 % zero) and OxyDex published
