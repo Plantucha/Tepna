@@ -76,6 +76,27 @@ def offline_alert_due(down_since: float | None, now: float, threshold_sec: float
     return down_since is not None and (now - down_since) >= threshold_sec
 
 
+def offline_alert_suppressed(optional: bool, ever_connected: bool) -> bool:
+    """Should the offline alert stay QUIET for this device?
+
+    Only for an `optional: true` device that has NEVER connected this session. The connect loop already
+    draws this distinction — it logs "optional backup device not present — keeping a quiet eye out" once
+    and backs off, deliberately, "instead of a warning every backoff cycle (the COOSPO spam)". The alert
+    loop never asked, so the same absent strap produced the box contradicting itself, six minutes apart:
+
+        INFO     COOSPO 808S 0022265: optional backup device not present — keeping a quiet eye out
+        WARNING  alert: COOSPO 808S 0022265 has been offline for ~5 min — capture is missing it
+
+    plus a webhook, on every service start (three in three days for a strap nobody was wearing).
+    Capture is not "missing" a device that was never expected to join, and an alert channel that cries
+    over a non-event is one an operator learns to ignore — which costs the alerts that matter.
+
+    `ever_connected` is the whole nuance. An optional device that DID join and then dropped is a real
+    event: it was contributing data and stopped, exactly what this alert is for. Silence is only correct
+    for one that never showed up at all."""
+    return bool(optional) and not ever_connected
+
+
 # WHY THIS EXISTS, AND WHY IT IS NOT `missing`.
 #
 # On 2026-07-25 the Verity acknowledged four PMD streams `ok` at 23:51:23 and wrote nothing until
