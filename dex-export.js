@@ -102,6 +102,75 @@
   // ── SCRUB FOR SHARING (SELF-INGEST §5 · shared helper D1, SELF-INGEST-FOLLOWUPS-2026-07-03) ──
   // De-raw'd ≠ de-identified: a node-export's schema.provenance.inputs[].name can carry a DEVICE
   // SERIAL / source filename + inputs[].sha256. For clinical sharing return a deep CLONE with those
+  /* ────────────────────────────────────────────────────────────────────────
+     recording.coverage — the WRITER side of the sparse-coverage contract
+     (DEEP-AUDIT-III §6.2 built the READER; INTEGRATOR-GAP-AWARE-OVERLAP part 1 wired it to the
+     published quantities; this is part 2 — the emitters).
+
+     WHY IT LIVES HERE. `integrator-dsp.js recSegments` is the single reader of this block, and until
+     now HRVDex was its single writer — one node, one hand-rolled literal. Three more nodes now owe the
+     same block, and three more hand-rolled literals is how a shape drifts. The DERIVATION is
+     irreducibly node-local (ECGDex reads dropouts off its `gaps[]`, PpgDex off `relSec` jumps, OxyDex
+     off row stamps); the ASSEMBLY is not, so the assembly is single-sourced here — same reasoning that
+     put `parseTimestamp` in `clock.js`.
+
+     WHY IT RETURNS null FOR A CONTIGUOUS RECORDING. A node that omits `coverage` makes no coverage
+     claim, and the Integrator falls back to the envelope — which, for a recording with no holes, IS
+     the coverage. Emitting `kind:"continuous"` on every clean export would therefore add no
+     information while moving every committed fixture's bytes. So: a node declares coverage exactly
+     when it has something to declare, i.e. when it found a hole. `segments.length <= 1` ⇒ null.
+
+     `spanSec` is the ENVELOPE (first start → last end) and `recordedSec` is the COVERAGE (the sum of
+     the segments). They are different fields with different names so neither can be read as the other
+     — the same discipline §6.2 established for HRVDex.
+
+     segs: [[startMs, endMs], …] floating wall-clock ms. Unsorted / overlapping / zero-length input is
+     tolerated: it is sorted, merged and filtered here, because a caller deriving segments from a noisy
+     stream should not also have to own interval algebra. */
+  function coverageFromSegments(segs, opts) {
+    if (!Array.isArray(segs) || !segs.length) return null;
+    opts = opts || {};
+    var clean = [];
+    for (var i = 0; i < segs.length; i++) {
+      var s = segs[i];
+      if (!s) continue;
+      var a = Array.isArray(s) ? s[0] : s.startMs,
+        b = Array.isArray(s) ? s[1] : s.endMs;
+      // A segment with no start is not a segment. A zero/negative-length one is a POINT, and a point
+      // cannot create overlap — dropping it is the honest consequence, and matches recSegments' own
+      // treatment of `durSec:null`.
+      if (a == null || !isFinite(a) || b == null || !isFinite(b) || !(b > a)) continue;
+      clean.push([a, b]);
+    }
+    if (clean.length < 2) return null; // no hole to declare ⇒ no claim to make (see above)
+    clean.sort(function (x, y) {
+      return x[0] - y[0];
+    });
+    var merged = [clean[0].slice()];
+    for (var j = 1; j < clean.length; j++) {
+      var last = merged[merged.length - 1];
+      if (clean[j][0] <= last[1]) last[1] = Math.max(last[1], clean[j][1]);
+      else merged.push(clean[j].slice());
+    }
+    if (merged.length < 2) return null; // the holes closed under merge — a contiguous recording
+    var recordedMs = 0;
+    for (var k = 0; k < merged.length; k++) recordedMs += merged[k][1] - merged[k][0];
+    return {
+      kind: 'sparse',
+      spanSec: Math.round((merged[merged.length - 1][1] - merged[0][0]) / 1000),
+      segments: merged.map(function (m) {
+        return { startMs: m[0], durSec: +((m[1] - m[0]) / 1000).toFixed(3) };
+      }),
+      recordedSec: Math.round(recordedMs / 1000),
+      // Every segment built from a stream carries its own length, so `nWithDuration === n` here. Both
+      // are kept so the block is shape-identical to HRVDex's, where they genuinely differ.
+      nWithDuration: merged.length,
+      n: merged.length,
+      // What OPENED the holes, for a reader deciding whether to trust them. Free-form, node-supplied.
+      source: opts.source != null ? opts.source : null
+    };
+  }
+
   // stripped while KEEPING: the full clinical summary (nights[]/recordings[]/… + ganglior_events[] +
   // crossNight), a COARSE build stamp (buildHash + generated, so provenance integrity survives), and
   // recording.contentId (the identity-free EXPORT-IDENTITY handle). PURE: never mutates the input.
@@ -148,7 +217,7 @@
     return out;
   }
 
-  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport, coverageFromSegments: coverageFromSegments };
   root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;

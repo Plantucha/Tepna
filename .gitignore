@@ -66,6 +66,10 @@ uploads/*
 # carrying BOTH sentinel classes. Closed-form, no recording of any person.
 !uploads/synthetic_ppgdex_o2ring_finger.txt
 !uploads/synthetic_ecgdex_h10.txt
+# FRAGMENTED H10 twin (INTEGRATOR-GAP-AWARE-OVERLAP part 2) — three recorded segments inside a 60 s
+# envelope. The only committed input in the repo that exercises `recording.coverage`; every other
+# equiv fixture is gapless, which is precisely why the gap-aware defect shipped green.
+!uploads/synthetic_ecgdex_h10_gapped.txt
 !uploads/synthetic_oxydex_golden.node-export.json
 !uploads/synthetic_pulsedex_golden.node-export.json
 !uploads/synthetic_hrvdex_golden.node-export.json
@@ -73,6 +77,7 @@ uploads/*
 !uploads/synthetic_glucodex_gap_golden.node-export.json
 !uploads/synthetic_ppgdex_golden.node-export.json
 !uploads/synthetic_ecgdex_golden.node-export.json
+!uploads/synthetic_ecgdex_gapped_golden.node-export.json
 !uploads/synthetic_motiondex_acc.txt
 !uploads/synthetic_motiondex_golden.node-export.json
 !uploads/integrator_tch_golden.node-export.json

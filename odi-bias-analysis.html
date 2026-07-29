@@ -4013,6 +4013,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var night_obj = {
       date: date,
       t0Ms: t0Ms,
+      // Where inside the night the oximeter was actually recording (INTEGRATOR-GAP-AWARE-OVERLAP
+      // part 2). `dataGaps` above already found these holes and reported only a percentage; the
+      // Integrator needs their POSITIONS to divide by recorded rather than envelope hours.
+      // Null on a contiguous night, which keeps every clean export byte-identical.
+      coverage: oxyCoverage(rows, t0Ms),
       fname: fname,
       stats: stats,
       spikes: spikes,
@@ -5828,6 +5833,11 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   }
 
   // ── M. Data Gap Detection ─────────────────────────────────────────
+  // A step longer than this is MISSING TIME, not a sample interval. The O2Ring samples at 1 Hz, so
+  // two seconds is one skipped sample — loose enough that ordinary jitter never trips it. Named
+  // because `computeDataGaps` (the QC lane) and `oxyCoverage` (the export block) must agree: a hole
+  // one calls a gap and the other counts as recorded time is a contradiction the export would publish.
+  var GAP_STEP_SEC = 2;
   function computeDataGaps(rows) {
     var n = rows.length;
     if (n < 2) return null;
@@ -5835,7 +5845,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       maxGap = 0;
     for (var i = 1; i < n; i++) {
       var dt = rows[i].t != null && rows[i - 1].t != null ? (rows[i].t - rows[i - 1].t) / 1000 : 0;
-      if (dt > 2) {
+      if (dt > GAP_STEP_SEC) {
         gaps.push(dt);
         if (dt > maxGap) maxGap = dt;
       }
@@ -5859,6 +5869,38 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       gapPct: +Math.min(100, (totalGap / _spanSec) * 100).toFixed(1),
       gapLabel: maxGap > 120 ? 'Significant gap (>2min)' : maxGap > 10 ? 'Minor gaps' : 'Clean'
     };
+  }
+
+  /* recording.coverage for an oximetry night — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
+     `computeDataGaps` has always FOUND these holes; it reported them as a QC percentage and threw the
+     positions away. The Integrator needs the positions: `durationMin` is the envelope, and dividing a
+     confirmed apnea count by an envelope that contains an hour of missing oximetry overstates the
+     denominator and understates the index. Same rows, same threshold, one extra product.
+
+     Null when the night is contiguous — the common case, and the one that keeps every clean export
+     byte-identical. */
+  function oxyCoverage(rows, t0Ms) {
+    if (!rows || rows.length < 2) return null;
+    var segs = [],
+      segStart = null,
+      prev = null;
+    for (var i = 0; i < rows.length; i++) {
+      var t = rows[i] && rows[i].t;
+      if (t == null || !isFinite(t)) continue;
+      if (segStart === null) segStart = t;
+      else if ((t - prev) / 1000 > GAP_STEP_SEC) {
+        segs.push([segStart, prev]);
+        segStart = t;
+      }
+      prev = t;
+    }
+    if (segStart !== null && prev !== null) segs.push([segStart, prev]);
+    if (segs.length < 2) return null; // contiguous ⇒ no claim to make (DexExport contract)
+    // t0Ms is the night's anchor; the rows already carry absolute floating ms, so it is only a guard
+    // against a stampless night reaching us — one that cannot be placed on a clock cannot declare
+    // coverage on one either.
+    if (t0Ms == null || !isFinite(t0Ms)) return null;
+    return typeof DexExport !== 'undefined' && DexExport && DexExport.coverageFromSegments ? DexExport.coverageFromSegments(segs, { source: 'sensor-dropout' }) : null;
   }
 
   // ── N. HR Flatline Runs ───────────────────────────────────────────
@@ -7755,7 +7797,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       doc: 'OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.'
     };
     if (opts.ingest) schema.ingest = opts.ingest; // adapter provenance (unifier/OverDex path)
-    return {
+    var _out = {
       kernel: kfmt,
       schema: schema,
       recording: {
@@ -7770,6 +7812,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       timeseries: oxyBuildTimeseriesBlock([night]),
       nights: [el]
     };
+    /* SPARSE COVERAGE — INTEGRATOR-GAP-AWARE-OVERLAP part 2. `durationMin` above is the ENVELOPE the
+       oximeter spanned; on a night where the ring lost contact it contains time no oximeter was
+       recording, and the Integrator divided a confirmed apnea count by all of it. `coveragePct` beside
+       it stays null — a different, still-unfilled field, and the two must not be read as each other.
+       Assigned conditionally so a contiguous night's export stays byte-identical.
+       Kept OUT of the literal deliberately: NODE-EXPORT-RECORDING-DURATION §4.3's gate source-scans
+       for a `recording: {` block and reads the duration keys inside it, so the literal must survive
+       intact — hoisting it into a variable makes that gate blind. */
+    if (night.coverage) _out.recording.coverage = night.coverage;
+    return _out;
   };
   OxyDex.computeNight = oxyComputeNight;
   OxyDex.buildNightElement = oxyBuildNightElement;
@@ -7787,6 +7839,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2: expose the warm-up trim for the regression harness + any
   // headless caller that wants to pre-clean rows the way processNight does.
   OxyDex.trimSensorWarmup = trimSensorWarmup;
+  OxyDex.coverage = oxyCoverage; // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — pure, so the segment derivation is gateable
   OxyDex.cleanArtifactHR = cleanArtifactHR; // exposed for the OXYDEX-HR-ARTIFACT-RUNAWAY-FIX regression gate
   OxyDex.computeGatedNadir = computeGatedNadir; // exposed for the OXYDEX-NADIR-HONESTY regression gate
   // TRIO-BATCH-O2RING-DAT: the O2Ring writes a native .dat beside the vendor CSV, and when the CSV

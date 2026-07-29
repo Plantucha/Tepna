@@ -1137,6 +1137,38 @@
     return out;
   }
 
+  /* recording.coverage for a PPG recording — INTEGRATOR-GAP-AWARE-OVERLAP part 2.
+     The SAME discontinuities `intervalsSpanningTimeGap` drops intervals across are the recording's
+     session boundaries — a `relSec` jump is real time in which no signal arrived. That function
+     answers "is THIS beat interval untrustworthy"; this one answers "where was this node actually
+     recording", which is what a fusion denominator needs. One threshold (`TIME_GAP_STEPS`) governs
+     both, deliberately: a hole big enough to invalidate an interval is a hole big enough to leave out
+     of the recorded time, and two constants would eventually disagree.
+
+     Verity is the worst offender in the corpus — 24 segments in a single night against the H10's 3 —
+     and PpgDex declared none of them. Null when the stream is contiguous (every pre-capture-host file
+     and every clean Verity file), so a clean export stays byte-identical. */
+  function ppgCoverage(rec) {
+    if (!rec || rec.t0Ms == null || !isFinite(rec.t0Ms)) return null;
+    const relSec = rec.relSec,
+      fs = rec.fs;
+    if (!relSec || !relSec.length || !(fs > 0)) return null;
+    const n = relSec.length,
+      maxStep = TIME_GAP_STEPS / fs,
+      base = relSec[0];
+    const segs = [];
+    let segStart = 0; // rel seconds from the first sample
+    for (let i = 1; i < n; i++) {
+      if (relSec[i] - relSec[i - 1] > maxStep) {
+        segs.push([rec.t0Ms + segStart * 1000, rec.t0Ms + (relSec[i - 1] - base) * 1000]);
+        segStart = relSec[i] - base;
+      }
+    }
+    if (!segs.length) return null; // fast path: contiguous ⇒ no claim to make
+    segs.push([rec.t0Ms + segStart * 1000, rec.t0Ms + (relSec[n - 1] - base) * 1000]);
+    return typeof DexExport !== 'undefined' && DexExport && DexExport.coverageFromSegments ? DexExport.coverageFromSegments(segs, { source: 'ble-dropout' }) : null;
+  }
+
   // FOOT-ANCHORED, not foot→peak-spanning (O2RING-PPG-GAP §3). The old window ran the WHOLE upstroke,
   // `[min(foot,peak)−2, max(foot,peak)+2]` — 12–25 samples at 125.7 Hz — so a sentinel ANYWHERE in the
   // systolic rise condemned the beat. On a real O2Ring night (2026-07-20, finger, paired H10 ECG) the
@@ -2493,6 +2525,9 @@
       t0Ms: rec.t0Ms,
       offsetMin: rec.offsetMin,
       durSec: rec.durSec,
+      // The SEGMENTS inside that span (INTEGRATOR-GAP-AWARE-OVERLAP part 2) — a property of the
+      // recording, not of the analysis, so analyze carries it rather than re-deriving it downstream.
+      coverage: ppgCoverage(rec),
       durMin: r1(durMin),
       tier,
       tierMsg,
@@ -2970,6 +3005,12 @@
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
+    /* SPARSE COVERAGE — INTEGRATOR-GAP-AWARE-OVERLAP part 2. `durSec` above is the ENVELOPE this node
+       records over; it does not say where inside that envelope the signal is. The Verity is the
+       fleet's most fragmented stream — 24 segments in one night against the H10's 3 — and its envelope
+       was feeding `apnea.overlapHours` as if it were continuous. Assigned conditionally so a clean
+       export stays byte-identical (see the identical note in ecgdex-dsp). */
+    if (r.coverage) out.recording.coverage = r.coverage;
     // ── RICH export (gated: opts.rich) — ECG-PPG-FOLLOWUPS-HANDOFF §1 option (a) / PPGDEX-FOLLOWUPS §1 ──
     // By DEFAULT this builder emits the LIGHT export above and the app's exportGanglior() calls WITHOUT
     // opts.rich → the app's Ganglior stream stays BYTE-IDENTICAL. Only the orchestrate emitter
@@ -3189,7 +3230,7 @@
     };
   }
 
-  global.PpgDex = global.PpgDex || { compute: compute, parsePPG: parsePPG, analyze: analyze, buildNodeExport: ppgBuildNodeExport, _build: ppgBuildNodeExport };
+  global.PpgDex = global.PpgDex || { compute: compute, parsePPG: parsePPG, analyze: analyze, buildNodeExport: ppgBuildNodeExport, _build: ppgBuildNodeExport, coverage: ppgCoverage };
   global.PpgDex.loadOwnExport = ppgLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)
   // scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
   global.PpgDex.scrubExport = function (env) {

@@ -461,6 +461,49 @@ const emit = (name, text) => {
     rows.push(`${isoMs(t0 + (i / FS) * 1000)};${ns};${((i / FS) * 1000).toFixed(6)};${Math.round(v)}`);
   }
   emit('synthetic_ecgdex_h10.txt', rows.join('\n') + '\n');
+
+  /* ── 6b · ECGDex ADVERSARIAL twin — a FRAGMENTED recording ──────────────────────────────────
+     WHY THIS FILE EXISTS. The clean twin above is contiguous, so it exercises none of the
+     `recording.coverage` path — and that hole is exactly the one INTEGRATOR-GAP-AWARE-OVERLAP §5
+     names: "the equiv/GATE-C fixtures are single-recording and gapless, so the envelope IS the
+     coverage there". Every gate stayed green while the Integrator divided a confirmed apnea count by
+     an envelope 3.3× the recorded time (measured 2026-07-23, on the one night in eleven marked
+     reportable).
+
+     A COMMITTED twin beats the real night deliberately (CLAUDE.md §🔒): the real fragmented recording
+     is gitignored, so CI would be exactly as blind to a regression as it was to the original defect.
+     This file is re-parsed from committed bytes on every push.
+
+     THE SHAPE IS ADVERSARIAL, NOT DECORATIVE. Same 60 s envelope as the clean twin, but the sensor is
+     off-link for two thirds of it: three ~6.7 s recorded segments separated by two 20 s dropouts. So
+     the data seconds and the envelope disagree by ~3×, which is the ratio that matters — a coverage
+     block that silently reported the envelope would read 60 s here and be caught, and one that lost
+     the trailing segment would read short and be caught too. The dropouts are REAL ABSENCE: no rows
+     at all, and the `timestamp [ms]` column jumps across them, which is what a Polar Sensor Logger
+     file does when the link drops. */
+  const gapRows = [HEAD];
+  const SEG = 6.7, // recorded seconds per segment
+    HOLE = 20; // off-link seconds between segments
+  let relSec = 0;
+  for (let s = 0; s < 3; s++) {
+    for (let i = 0; i < Math.round(FS * SEG); i++) {
+      const rel = relSec + i / FS;
+      let v = 12 * Math.sin(2 * Math.PI * 0.25 * rel);
+      for (const b of beats) {
+        const d = rel - b;
+        if (d < -0.25 || d > 0.45) continue;
+        v += g(d, -0.16, 0.025, 90);
+        v += g(d, -0.02, 0.008, -110);
+        v += g(d, 0.0, 0.01, 1150);
+        v += g(d, 0.025, 0.011, -230);
+        v += g(d, 0.22, 0.045, 260);
+      }
+      const ns = ns0 + BigInt(Math.round(rel * 1e9));
+      gapRows.push(`${isoMs(t0 + rel * 1000)};${ns};${(rel * 1000).toFixed(6)};${Math.round(v)}`);
+    }
+    relSec += SEG + HOLE; // the silence — no rows emitted for it
+  }
+  emit('synthetic_ecgdex_h10_gapped.txt', gapRows.join('\n') + '\n');
 }
 
 let total = 0;

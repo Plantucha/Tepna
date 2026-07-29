@@ -309,6 +309,10 @@ async function main(){
     // is null (never a fabricated 100), and the in-band 156 sentinel splits by isolation not value.
     ['ppgdex_finger', 'synthetic_ppgdex_o2ring_finger.txt', null],
     ['ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json'],
+    // ADVERSARIAL ECGDex twin — a FRAGMENTED recording, WITH a golden (INTEGRATOR-GAP-AWARE-OVERLAP
+    // part 2). The clean twin above is contiguous, so nothing committed exercised recording.coverage —
+    // the field the Integrator's apnea denominator now rests on.
+    ['ecgdex_gapped', 'synthetic_ecgdex_h10_gapped.txt', 'synthetic_ecgdex_gapped_golden.node-export.json'],
     // MotionDex IMU leg (MOTIONDEX-BUILD-2026-07-17 §5) — committed synthetic Polar ACC + its golden.
     ['motiondex', 'synthetic_motiondex_acc.txt', 'synthetic_motiondex_golden.node-export.json'],
     // ADVERSARIAL GlucoDex twin — a 14 h sensor-change gap, WITH a golden (FIXTURE-VERIFICATION-GATE §4).

@@ -122,7 +122,19 @@ const fromECG = (file) => {
 
 const FIXTURES = [
   { name: 'ECGDex_2026-06-27_equiv.node-export.json', real: true, build: () => fromECG('Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt') },
-  { name: 'synthetic_ecgdex_golden.node-export.json', build: () => fromECG('synthetic_ecgdex_h10.txt') }
+  { name: 'synthetic_ecgdex_golden.node-export.json', build: () => fromECG('synthetic_ecgdex_h10.txt') },
+  /* The FRAGMENTED twin (INTEGRATOR-GAP-AWARE-OVERLAP part 2). Its whole reason to exist is that both
+     fixtures above are contiguous, so neither can catch a regression in `recording.coverage` — the
+     field the Integrator's apnea denominator now rests on. Committed input ⇒ CI re-runs it. */
+  {
+    name: 'synthetic_ecgdex_gapped_golden.node-export.json',
+    build: () => fromECG('synthetic_ecgdex_h10_gapped.txt'),
+    newRecord: {
+      added: '2026-07-28',
+      inputs: ['synthetic_ecgdex_h10_gapped.txt'],
+      note: 'INTEGRATOR-GAP-AWARE-OVERLAP part 2 — the FRAGMENTED committed twin. Three ~6.7 s recorded segments inside a 60 s envelope, so recording.coverage must declare 3 segments / ~20 s recorded. Every other equiv fixture is gapless, which is why the gap-aware apnea-denominator defect shipped green.'
+    }
+  }
 ];
 
 const rerecord = makeRerecord({ repo: REPO, node: 'ECGDex', bundle: 'ECGDex.html', uploadsDir: UP, ManifestGate });

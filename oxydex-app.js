@@ -131,6 +131,11 @@ function exportJSON() {
     _aL = _asc[_asc.length - 1];
   var _aT0 = _aF ? _aF.t0Ms : null;
   var _aSpan = nights.length > 1 && _aF && _aL && _aF.t0Ms != null && _aL.t0Ms != null ? Math.round((_aL.t0Ms - _aF.t0Ms) / 864e5) : null;
+  // SPARSE COVERAGE — INTEGRATOR-GAP-AWARE-OVERLAP part 2. SINGLE-NIGHT only, the same rule
+  // `timeseries` below follows: across several nights this block would have to describe them all, and
+  // a coverage claim spanning nights is not a claim about a recording. Undefined (not null) when
+  // contiguous, so a clean export's bytes do not move.
+  var _aCov = nights.length === 1 && nights[0] && nights[0].coverage ? nights[0].coverage : undefined;
   // SELF-INGEST §3 — a review-mode RE-EXPORT is a DERIVED VIEW of a past computation, NOT a fresh one:
   // use the reloaded export's ORIGINAL provenance and NEVER call GangliorProvenance.stamp() (that would
   // stamp the current build over the original). A normal (non-review) export stamps as before.
@@ -197,7 +202,7 @@ function exportJSON() {
       provenance: _prov,
       doc: 'OxyDex SpO₂/oximetry node-export. nights[] = per-night summaries (unchanged). ganglior_events[] = desat_event (per scored desaturation) + periodic_breathing (per oscillation episode); OxyDex infers respiration from an SpO₂ proxy, not airflow. crossNight = ganglior.crossnight v1.0 aggregate (≥3 nights only, else null). tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.'
     },
-    recording: { startEpochMs: _aT0 != null ? _aT0 : null, offsetMin: _aF && _aF.offsetMin != null ? _aF.offsetMin : null },
+    recording: { startEpochMs: _aT0 != null ? _aT0 : null, offsetMin: _aF && _aF.offsetMin != null ? _aF.offsetMin : null, coverage: _aCov },
     ganglior_events: _events,
     // INTEGRATOR-THREE-CORNERED-HAT §2 — top-level per-epoch HR+motion feed (single-night only,
     // matching OxyDex.compute). Sibling to nights[] so the per-night elements stay byte-identical.

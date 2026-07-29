@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-LT5yf+9pkSlPQfFp94lgMpDMmmTGDn+qUgwpwnfjftA=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-SN1Vzuwjy3Oz2lLf9tPqzpQJXuz2l3Lu7oLRK9cjWDo=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-XtIgeiiGEz2UwCxpHmgfVC3QJVq7u+H3d8V7Xk75vM8=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-w0qAEFoHqc95bqRLiWwkjKyLZo1O2yTq0roAzEmAI0g=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-SN1Vzuwjy3Oz2lLf9tPqzpQJXuz2l3Lu7oLRK9cjWDo=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-XtIgeiiGEz2UwCxpHmgfVC3QJVq7u+H3d8V7Xk75vM8=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-okLw44WPLuhLGe2xa7mqcjoCZ/9OrdAaEY9+zIqBxbs=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -3458,6 +3458,75 @@ body.light .cov-grid td.cg-node{ background:#fff; }
   // ── SCRUB FOR SHARING (SELF-INGEST §5 · shared helper D1, SELF-INGEST-FOLLOWUPS-2026-07-03) ──
   // De-raw'd ≠ de-identified: a node-export's schema.provenance.inputs[].name can carry a DEVICE
   // SERIAL / source filename + inputs[].sha256. For clinical sharing return a deep CLONE with those
+  /* ────────────────────────────────────────────────────────────────────────
+     recording.coverage — the WRITER side of the sparse-coverage contract
+     (DEEP-AUDIT-III §6.2 built the READER; INTEGRATOR-GAP-AWARE-OVERLAP part 1 wired it to the
+     published quantities; this is part 2 — the emitters).
+
+     WHY IT LIVES HERE. `integrator-dsp.js recSegments` is the single reader of this block, and until
+     now HRVDex was its single writer — one node, one hand-rolled literal. Three more nodes now owe the
+     same block, and three more hand-rolled literals is how a shape drifts. The DERIVATION is
+     irreducibly node-local (ECGDex reads dropouts off its `gaps[]`, PpgDex off `relSec` jumps, OxyDex
+     off row stamps); the ASSEMBLY is not, so the assembly is single-sourced here — same reasoning that
+     put `parseTimestamp` in `clock.js`.
+
+     WHY IT RETURNS null FOR A CONTIGUOUS RECORDING. A node that omits `coverage` makes no coverage
+     claim, and the Integrator falls back to the envelope — which, for a recording with no holes, IS
+     the coverage. Emitting `kind:"continuous"` on every clean export would therefore add no
+     information while moving every committed fixture's bytes. So: a node declares coverage exactly
+     when it has something to declare, i.e. when it found a hole. `segments.length <= 1` ⇒ null.
+
+     `spanSec` is the ENVELOPE (first start → last end) and `recordedSec` is the COVERAGE (the sum of
+     the segments). They are different fields with different names so neither can be read as the other
+     — the same discipline §6.2 established for HRVDex.
+
+     segs: [[startMs, endMs], …] floating wall-clock ms. Unsorted / overlapping / zero-length input is
+     tolerated: it is sorted, merged and filtered here, because a caller deriving segments from a noisy
+     stream should not also have to own interval algebra. */
+  function coverageFromSegments(segs, opts) {
+    if (!Array.isArray(segs) || !segs.length) return null;
+    opts = opts || {};
+    var clean = [];
+    for (var i = 0; i < segs.length; i++) {
+      var s = segs[i];
+      if (!s) continue;
+      var a = Array.isArray(s) ? s[0] : s.startMs,
+        b = Array.isArray(s) ? s[1] : s.endMs;
+      // A segment with no start is not a segment. A zero/negative-length one is a POINT, and a point
+      // cannot create overlap — dropping it is the honest consequence, and matches recSegments' own
+      // treatment of `durSec:null`.
+      if (a == null || !isFinite(a) || b == null || !isFinite(b) || !(b > a)) continue;
+      clean.push([a, b]);
+    }
+    if (clean.length < 2) return null; // no hole to declare ⇒ no claim to make (see above)
+    clean.sort(function (x, y) {
+      return x[0] - y[0];
+    });
+    var merged = [clean[0].slice()];
+    for (var j = 1; j < clean.length; j++) {
+      var last = merged[merged.length - 1];
+      if (clean[j][0] <= last[1]) last[1] = Math.max(last[1], clean[j][1]);
+      else merged.push(clean[j].slice());
+    }
+    if (merged.length < 2) return null; // the holes closed under merge — a contiguous recording
+    var recordedMs = 0;
+    for (var k = 0; k < merged.length; k++) recordedMs += merged[k][1] - merged[k][0];
+    return {
+      kind: 'sparse',
+      spanSec: Math.round((merged[merged.length - 1][1] - merged[0][0]) / 1000),
+      segments: merged.map(function (m) {
+        return { startMs: m[0], durSec: +((m[1] - m[0]) / 1000).toFixed(3) };
+      }),
+      recordedSec: Math.round(recordedMs / 1000),
+      // Every segment built from a stream carries its own length, so `nWithDuration === n` here. Both
+      // are kept so the block is shape-identical to HRVDex's, where they genuinely differ.
+      nWithDuration: merged.length,
+      n: merged.length,
+      // What OPENED the holes, for a reader deciding whether to trust them. Free-form, node-supplied.
+      source: opts.source != null ? opts.source : null
+    };
+  }
+
   // stripped while KEEPING: the full clinical summary (nights[]/recordings[]/… + ganglior_events[] +
   // crossNight), a COARSE build stamp (buildHash + generated, so provenance integrity survives), and
   // recording.contentId (the identity-free EXPORT-IDENTITY handle). PURE: never mutates the input.
@@ -3504,7 +3573,7 @@ body.light .cov-grid td.cg-node{ background:#fff; }
     return out;
   }
 
-  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport };
+  var DexExport = { exportName: exportName, EXPORT_KINDS: EXPORT_KINDS, scrubExport: scrubExport, coverageFromSegments: coverageFromSegments };
   root.DexExport = DexExport;
   // app/back-compat bare globals (the apps call exportName(...) directly, like fmtDate/fmtClock)
   root.exportName = exportName;
@@ -6805,12 +6874,21 @@ var DESAT_OBSERVER_AUTHORITY = { CPAPDex: 1, OxyDex: 2, PpgDex: 3 };
 /* Merged union of every (oxy × cardiac) overlap. A union — not the sum of pairwise
    overlaps — so one oximeter night overlapping two cardiac recordings is counted
    ONCE (no inflated AHI denominator). */
-function _desatUnion(oxyRecs, cardiacRecs) {
+function _desatUnion(oxyRecs, cardiacRecs, opts) {
+  // `envelopeOnly` reproduces the pre-gap-aware union deliberately — NOT as a fallback, but so the
+  // export can publish the envelope figure BESIDE the recorded one. A reader who cannot see both
+  // cannot tell 7 h-of-7 from 2 h-of-7, which is the whole complaint this brief opened with.
+  var envelopeOnly = !!(opts && opts.envelopeOnly);
   var raw = [];
   oxyRecs.forEach(function (o) {
     cardiacRecs.forEach(function (g) {
       // GAP-AWARE: every intersected RECORDED interval, not one envelope intersection. Identical to
       // the old single-interval push whenever neither side declares coverage (see overlapIntervals).
+      if (envelopeOnly) {
+        var w = overlapInterval(o, g);
+        if (w) raw.push([w.startMs, w.endMs]);
+        return;
+      }
       var ivs = overlapIntervals(o, g);
       for (var k = 0; k < ivs.length; k++) raw.push([ivs[k][0], ivs[k][1]]);
     });
@@ -6868,6 +6946,26 @@ function pickDesatObserver(oxyRecs, cardiacRecs) {
   };
 }
 
+/* The audit trail for `apnea.overlapHours` — see its call site for why it exists. Pure; derives
+   nothing the union did not already compute except the envelope comparison. */
+function _overlapCoverage(oxyRecs, cardiacRecs, u, totHrs) {
+  var declaredBy = [];
+  (oxyRecs || []).concat(cardiacRecs || []).forEach(function (r) {
+    if (r && recSegments(r) && declaredBy.indexOf(r.node) < 0) declaredBy.push(r.node || 'unknown');
+  });
+  var envHrs = declaredBy.length ? _desatUnion(oxyRecs, cardiacRecs, { envelopeOnly: true }).hours : totHrs;
+  return {
+    basis: declaredBy.length ? 'recorded' : 'envelope',
+    recordedHours: +totHrs.toFixed(2),
+    envelopeHours: +envHrs.toFixed(2),
+    // How much of the bracket was actually recorded. Null rather than 1 when the envelope is zero —
+    // a ratio with no denominator is unknown, not complete.
+    recordedFrac: envHrs > 0 ? +(totHrs / envHrs).toFixed(3) : null,
+    segments: u && u.merged ? u.merged.length : 0,
+    declaredBy: declaredBy.sort()
+  };
+}
+
 function fuseApneaEvents(recs, dtMs, gate) {
   // CARDIAC surge sources: ECGDex (primary) + PpgDex (PPG-derived). A desat is
   // confirmable by an autonomic surge from EITHER — PpgDex is a first-class node
@@ -6911,6 +7009,10 @@ function fuseApneaEvents(recs, dtMs, gate) {
       confirmedAHI: null,
       confirmedAHIReportable: false,
       overlapHours: 0,
+      // Same block on the no-overlap path so a reader never has to branch on its presence. A zero
+      // recorded union with a NON-zero envelope is exactly the case worth seeing: the recordings
+      // bracketed each other but never ran at the same time.
+      overlapCoverage: _overlapCoverage(oxy, cardiac, _u, 0),
       apneaAuthority: _deviceScoredAuthority(recs, null),
       desatObserver: desatObserver,
       matched: { desat: 0, surge: 0 },
@@ -7143,6 +7245,13 @@ function fuseApneaEvents(recs, dtMs, gate) {
     confirmedAHI: ahi,
     confirmedAHIReportable: !belowChance && nConf > 0,
     overlapHours: +totHrs.toFixed(2),
+    /* WHAT THAT DENOMINATOR IS (INTEGRATOR-GAP-AWARE-OVERLAP §6 — "the fusion export publishes the
+       coverage it used"). `overlapHours` alone cannot be audited: 2.1 and 6.86 look equally
+       reasonable, and on 2026-07-23 the difference between them decided a reportability verdict.
+       So publish the envelope figure beside the recorded one, name the nodes whose declared coverage
+       moved it, and count the segments. `basis:'envelope'` means no node declared coverage — the two
+       hours figures are then equal by construction, which is itself the honest statement. */
+    overlapCoverage: _overlapCoverage(oxy, cardiac, _u, totHrs),
     apneaAuthority: _deviceScoredAuthority(recs, ahi),
     desatObserver: desatObserver,
     matched: { desat: nConf, surge: nConf },

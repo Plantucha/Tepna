@@ -492,6 +492,12 @@ function readEquiv() {
   // real-corpus override cannot hide it.
   pairCommitted('ppgdex_finger', 'synthetic_ppgdex_o2ring_finger.txt', null);
   pair('ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json');
+  // ADVERSARIAL ECGDex twin — a COMMITTED FRAGMENTED recording (INTEGRATOR-GAP-AWARE-OVERLAP part 2).
+  // The clean twin above is contiguous, so nothing committed exercised `recording.coverage` — which is
+  // exactly how §5 describes the defect surviving every gate: "the equiv/GATE-C fixtures are
+  // single-recording and gapless, so the envelope IS the coverage there". pairCommitted (not pair):
+  // the input is a repo artifact, so a DEX_UPLOADS real-corpus override cannot hide it.
+  pairCommitted('ecgdex_gapped', 'synthetic_ecgdex_h10_gapped.txt', 'synthetic_ecgdex_gapped_golden.node-export.json');
   // MotionDex IMU leg (MOTIONDEX-BUILD-2026-07-17 §5): a COMMITTED synthetic Polar ACC stream →
   // buildNodeExport(compute({acc,chestAcc})) ≡ the committed golden. pairCommitted (repo artifact,
   // resolved against ROOT/uploads) so a DEX_UPLOADS real-corpus override cannot hide it.
