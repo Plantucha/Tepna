@@ -130,7 +130,7 @@ this corpus hands it three dated, quantified cases it did not have.
       the nights both fire, with a verdict on whether they overlap in time at all.
 - [ ] §2.1 answered: the `capture.py` change that broke and unbroke the motion byte is identified, or
       the search is recorded as exhausted so the next occurrence is not re-investigated from scratch.
-- [ ] `reraIndex` returns `null` where the source emits no RERA label (§3), in its own change.
+- [x] `reraIndex` returns `null` where the source emits no RERA label (§3), in its own change. **DONE 2026-07-29** — scoped, not blanket: the synthetic golden that genuinely carries a RERA keeps its number, the multi-night sibling pools before deciding, and the self-test pins both directions. Three fixtures regenerated.
 - [ ] §4's two operational lessons (`--ours` on provenance, `npm run check` ≠ the suite) are in
       `CONTRIBUTING.md`, not only here.
 - [ ] §1.2 routed to `PAPERS-ROADMAP` rather than surfaced in a node.

@@ -1005,7 +1005,21 @@
       obstructiveIndex: usageHours > 0 ? +(aCount('OA') / usageHours).toFixed(2) : null,
       centralIndex: usageHours > 0 ? +(aCount('CA') / usageHours).toFixed(2) : null,
       hypopneaIndex: usageHours > 0 ? +(aCount('H') / usageHours).toFixed(2) : null,
-      reraIndex: usageHours > 0 ? +(aCount('RE') / usageHours).toFixed(2) : null,
+      /* MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS §3 — `0.00` on all 197 nights of the reference corpus,
+         and not because the subject had no RERAs: this device does not score them AT ALL. Its EVE
+         vocabulary is exactly `Central Apnea · Hypopnea · Obstructive Apnea · Arousal · Recording
+         starts` — there is no RERA label for `aCount('RE')` to find, ever. Publishing 0.00 asserts a
+         measurement that was never made, which is the same fabricated-absence class as §1's
+         periodic breathing (and as `meanPi`, and as the sleep-stability subscores).
+
+         Unlike §1 there is no better source to switch to, so the honest report is ABSENCE. The
+         trade-off is real and taken deliberately: on a model that DOES score RERA, a genuine zero
+         now also reads `null`. That loses a true negative; the alternative asserts a false positive
+         measurement on every device that cannot score it. Absence of evidence is not a zero.
+
+         `nRE > 0` rather than a capability probe because capability is not knowable from one
+         session's annotations — see the multi-night sibling below, which can and does pool. */
+      reraIndex: usageHours > 0 && aCount('RE') > 0 ? +(aCount('RE') / usageHours).toFixed(2) : null,
       periodicBreathingPct: durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null, // §7 (DEEP-AUDIT-2026-07-14): null on absence, matching the sibling apnea indices (residualAHI etc.), not a measured-looking 0
       // Leak (converted to L/min)
       medianLeak: leak ? +_p(leakMaskOn, 50).toFixed(2) : null,
@@ -1175,7 +1189,10 @@
       obstructiveIndex: totHours > 0 ? +(nOA / totHours).toFixed(2) : null,
       centralIndex: totHours > 0 ? +(nCA / totHours).toFixed(2) : null,
       hypopneaIndex: totHours > 0 ? +(nH / totHours).toFixed(2) : null,
-      reraIndex: totHours > 0 ? +(nRE / totHours).toFixed(2) : null,
+      // §3 sibling: the night pools its sessions, so a device that scored a RERA in ANY session of
+      // this night is demonstrably capable of it — and a zero across the others is then a real
+      // measurement, not an absent one. Same rule, more evidence to apply it to.
+      reraIndex: totHours > 0 && nRE > 0 ? +(nRE / totHours).toFixed(2) : null,
       periodicBreathingPct: durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null, // §7 (DEEP-AUDIT-2026-07-14): null on absence, matching the sibling apnea indices (residualAHI etc.), not a measured-looking 0
       medianPressure: +_p(P, 50).toFixed(2),
       p95Pressure: +_p(P, 95).toFixed(2),
@@ -1462,9 +1479,11 @@
         { class: 'Obstructive Apnea', durSec: 15, onsetSec: 100, tMs: t0 + 100000 },
         { class: 'Obstructive Apnea', durSec: 18, onsetSec: 200, tMs: t0 + 200000 },
         { class: 'Central Apnea', durSec: 12, onsetSec: 300, tMs: t0 + 300000 },
-        { class: 'Hypopnea', durSec: 20, onsetSec: 400, tMs: t0 + 400000 },
-        { class: 'RERA', durSec: 8, onsetSec: 500, tMs: t0 + 500000 }
+        { class: 'Hypopnea', durSec: 20, onsetSec: 400, tMs: t0 + 400000 }
       ]
+        // §3: `noRera` models the REAL AirSense vocabulary, which has no RERA label at all — the
+        // shape 197 of 197 corpus nights actually have, and the one that used to report 0.00.
+        .concat(opts.noRera ? [] : [{ class: 'RERA', durSec: 8, onsetSec: 500, tMs: t0 + 500000 }])
     };
     /* Two PB encodings, both real (MULTINIGHT-CORPUS-FINDINGS §1):
          opts.cs        — one TAL carrying a duration (the form the committed golden pins)
@@ -1795,6 +1814,16 @@
     ok('EDF session: AHI = 4 apneas+hypopnea / hr', near(sess.metrics.residualAHI, 4 / uh, 0.5), sess.metrics.residualAHI);
     ok('EDF session: obstructiveIndex from 2 OA', near(sess.metrics.obstructiveIndex, 2 / uh, 0.5), sess.metrics.obstructiveIndex);
     ok('EDF session: reraIndex from 1 RERA', near(sess.metrics.reraIndex, 1 / uh, 0.5), sess.metrics.reraIndex);
+    /* MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS §3 — the control the assertion above needs: a session with
+       NO RERA annotation must report ABSENCE, not a measured-looking 0. On the reference corpus this
+       is every one of 197 nights, because the device has no RERA label at all. */
+    var _noRera = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ noRera: true }), { fname: 'nr' }));
+    ok('EDF session: no RERA annotation ⇒ reraIndex null, never 0 (absence is not a zero)', _noRera.metrics.reraIndex === null, _noRera.metrics.reraIndex);
+    ok(
+      '…while its sibling apnea indices still report real numbers (the null is scoped, not blanket)',
+      _noRera.metrics.residualAHI != null && _noRera.metrics.centralIndex != null,
+      JSON.stringify({ ahi: _noRera.metrics.residualAHI, cai: _noRera.metrics.centralIndex })
+    );
     ok('EDF session: periodicBreathingPct = 20% (120/600 s)', near(sess.metrics.periodicBreathingPct, 20, 0.5), sess.metrics.periodicBreathingPct);
     ok('EDF session: breathRate ≈ 15 brpm (flow-derived)', near(sess.metrics.breathRate, 15, 3), sess.metrics.breathRate);
     ok('EDF session: SA2 sentinel ⇒ oximetry lane unavailable', sess.oximetry.available === false && sess.oximetry.reason === 'oximeter-not-connected', JSON.stringify(sess.oximetry));
