@@ -1759,6 +1759,99 @@
       }
     });
 
+    /* PAT-ALIGN — the anchor-based inter-device aligner, extracted from pat-feasibility-worker.js
+       so its math is EXECUTED by a gate rather than only existing in a page's static script list
+       (TEST-COVERAGE-FOLLOWUPS §3 flags exactly that class). Two devices on one body see the same
+       movement at the same true instant; correlating whole signals does not recover the offset
+       because most of a night is each sensor's own noise, so the correlation spends itself only
+       where there is information — strong isolated movements. */
+    group('PAT-align: anchor-based inter-device offset recovery (PAT-FEASIBILITY extraction)', 'pat-align · regression', function (T) {
+      var P = env.PATAlign;
+      T.ok('PATAlign exposed', !!(P && P.envelope && P.findAnchors && P.lagAtAnchor && P.alignByAnchors));
+      if (!P || !P.alignByAnchors) return;
+
+      /* A synthetic night: quiet background plus a handful of sharp whole-body movements. Device B
+         sees the SAME movements, its own independent background, and a planted clock offset. */
+      var t0 = 1782000000000,
+        DUR = 20 * 60 * 1000,
+        DT = 50;
+      var mkSamples = function (moveAtMs, offsetMs, seed) {
+        var out = [],
+          n = DUR / DT;
+        for (var i = 0; i < n; i++) {
+          var t = i * DT;
+          // deterministic, device-specific background — NOT shared, so only the movements can align
+          var bg = 1 + 0.02 * Math.sin((t / 1000 + seed * 7) * 0.9) + 0.01 * (((i * (seed + 13)) % 17) / 17);
+          var v = bg;
+          for (var m = 0; m < moveAtMs.length; m++) {
+            var d = t - (moveAtMs[m] + offsetMs);
+            if (Math.abs(d) < 400) v += 0.9 * Math.exp(-(d * d) / (2 * 120 * 120)); // a ~0.4 s lurch
+          }
+          out.push({ tMs: t0 + t, v: v });
+        }
+        return out;
+      };
+      var moves = [90000, 260000, 470000, 700000, 905000, 1010000];
+      var A = mkSamples(moves, 0, 1);
+
+      var envOf = function (sm) {
+        return P.envelope(sm, t0, t0 + DUR, { dtMs: DT });
+      };
+      var eA = envOf(A);
+      T.ok('envelope builds on the requested grid', !!eA && eA.length === Math.floor(DUR / DT) + 1, eA && eA.length);
+      var anch = P.findAnchors(eA, { dtMs: DT });
+      T.ok('anchors are found, one per planted movement (not one per threshold crossing)', anch.length === moves.length, anch.length + ' vs ' + moves.length);
+
+      // ZERO offset — the aligner must not invent one.
+      var z = P.alignByAnchors(eA, envOf(mkSamples(moves, 0, 2)), t0, { dtMs: DT });
+      T.ok('an aligned pair aligns', z.ok, z.reason);
+      T.ok('…at ~0 ms, not at an arbitrary lag', z.ok && Math.abs(z.medianOffsetMs) <= 25, z.ok && z.medianOffsetMs);
+
+      // A planted offset must come back, with SUB-BIN precision (the parabolic refinement).
+      [-800, -175, 250, 725].forEach(function (planted) {
+        var r = P.alignByAnchors(eA, envOf(mkSamples(moves, planted, 3)), t0, { dtMs: DT });
+        T.ok('recovers a planted ' + planted + ' ms offset within 25 ms', r.ok && Math.abs(r.medianOffsetMs - planted) <= 25, r.ok ? r.medianOffsetMs : r.reason);
+      });
+      // 175 and 725 are not multiples of the 50 ms bin — they can only be hit by sub-bin refinement.
+      var sub = P.alignByAnchors(eA, envOf(mkSamples(moves, 175, 4)), t0, { dtMs: DT });
+      T.ok('sub-bin: a non-multiple-of-dt offset is not rounded to the grid', sub.ok && Math.abs(sub.medianOffsetMs - 175) < 25 && sub.medianOffsetMs % DT !== 0, sub.ok && sub.medianOffsetMs);
+
+      /* MUTATION CONTROL — two devices that share NO movements must not align. Without this the
+         group would pass for an aligner that always returns something. */
+      var other = [55000, 300000, 610000, 880000, 1100000];
+      var un = P.alignByAnchors(eA, envOf(mkSamples(other, 0, 5)), t0, { dtMs: DT });
+      T.ok('MUTATION · unshared movements do NOT produce a confident alignment', !un.ok || un.offsetRangeMs > 400, un.ok ? 'range ' + un.offsetRangeMs : un.reason);
+
+      // Refusals are explicit, never a silent zero.
+      var few = P.alignByAnchors(envOf(mkSamples([90000], 0, 6)), envOf(mkSamples([90000], 0, 7)), t0, { dtMs: DT });
+      T.ok('too few anchors ⇒ ok:false with a reason, not offset 0', !few.ok && /too few/.test(few.reason), JSON.stringify(few.reason));
+      T.ok('a missing envelope is refused, not crashed', P.alignByAnchors(null, eA, t0, {}).ok === false);
+      T.ok('envelope of too-short input is null', P.envelope([{ tMs: t0, v: 1 }], t0, t0 + DUR, {}) === null);
+
+      /* DRIFT: the anchors are the point — a pair whose offset CHANGES over the night should show it
+         in the anchor spread rather than being flattened into one median. */
+      var drifting = [];
+      for (var i = 0; i < moves.length; i++) drifting.push(moves[i]);
+      var Bd = (function () {
+        var out = [],
+          n = DUR / DT;
+        for (var k = 0; k < n; k++) {
+          var t = k * DT,
+            v = 1 + 0.02 * Math.sin((t / 1000 + 21) * 0.9);
+          for (var m = 0; m < drifting.length; m++) {
+            var slide = 100 + (600 * m) / (drifting.length - 1); // 100 → 700 ms across the night
+            var d = t - (drifting[m] + slide);
+            if (Math.abs(d) < 400) v += 0.9 * Math.exp(-(d * d) / (2 * 120 * 120));
+          }
+          out.push({ tMs: t0 + t, v: v });
+        }
+        return out;
+      })();
+      var dr = P.alignByAnchors(eA, envOf(Bd), t0, { dtMs: DT });
+      T.ok('a drifting offset is visible as anchor SPREAD, not hidden by the median', dr.ok && dr.offsetRangeMs > 400, dr.ok && dr.offsetRangeMs);
+      T.ok('…and the anchors are timestamped so the drift curve can be traced', dr.ok && dr.anchors.every(function (a) { return a.tMs >= t0 && a.corr > 0; }));
+    });
+
     /* ════ 6 · METRIC REGISTRY infra (cohesion §2/§3) ════ */
     group('Metric registry — disclosure + evidence (cohesion)', 'metric-registry', function (T) {
       var M = env.MetricRegistry;
