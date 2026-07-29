@@ -2687,19 +2687,101 @@
            exactly what a genuine LF oscillation carries. The pin's DISCRIMINATIVE purpose is intact —
            a /4 → /2 normalisation slip still doubles both, which is why the slip values are restated
            alongside. Re-pinned knowingly, per the brief: never fit a known-answer to whatever the new
-           run prints without saying why it moved. */
+           run prints without saying why it moved.
+
+           RE-PINNED AGAIN 2026-07-28 (REM-STAGING-REDESIGN §3), 9.62 → 10.1 / −10.26 → −9.87 /
+           1.03 → 0.962, and for the SAME reason one signal over: the generator's respiration was a
+           single stage-independent phase function, so REM and NREM breathed identically and §3's
+           respiratory-variability discriminator measured ~0 everywhere. Correcting it makes the RSA
+           term stage-dependent, which moves the RR series — exactly the blast radius the §4 note
+           predicted for any change to the generator's oscillators. Discrimination re-verified by
+           mutation, not assumed: a /4 → /2 PRSA slip still fails both DC and AC against the new pins,
+           and flattening respIrreg to a constant fails the respiratory-variability assertions below. */
         var synP = D.genSynthetic({ durSec: 900, seed: 20260601 });
         var rP = D.analyze({ int16: synP.int16, fs: synP.fs });
-        T.approx('analyze PRSA DC = (X2+X3−X1−X0)/4 = 9.62 on the seed-20260601 synthetic (a /2 slip → 19.24)', rP.dc, 9.62, 0.05);
-        T.approx('analyze PRSA AC = −10.26 (a /2 slip → −20.52)', rP.ac, -10.26, 0.05);
+        T.approx('analyze PRSA DC = (X2+X3−X1−X0)/4 = 10.1 on the seed-20260601 synthetic (a /2 slip → 20.2)', rP.dc, 10.1, 0.05);
+        T.approx('analyze PRSA AC = −9.87 (a /2 slip → −19.74)', rP.ac, -9.87, 0.05);
         // SampEn tolerance r = 0.2·SD (Richman-Moorman). seed 42 (0.2·SD is tolerance-sensitive on this
         // segment) → sampEn 0.562; a 0.2→0.15 tolerance slip re-scores it to 0.822.
         var synS = D.genSynthetic({ durSec: 900, seed: 42 });
         var rS = D.analyze({ int16: synS.int16, fs: synS.fs });
         // Re-pinned with the same fixture correction: a real LF oscillation makes the series less
         // self-similar, so SampEn rises. The tolerance slip it guards still moves it further.
-        T.approx('analyze SampEn(r=0.2·SD) = 1.03 on the seed-42 synthetic (a 0.15·SD tolerance slip moves it further)', rS.sampen, 1.03, 0.02);
+        T.approx('analyze SampEn(r=0.2·SD) = 0.962 on the seed-42 synthetic (a 0.15·SD tolerance slip moves it further)', rS.sampen, 0.962, 0.02);
       }
+    });
+
+    /* RESPIRATORY-RATE VARIABILITY — the discriminator, and the oracle that can express it.
+       REM-STAGING-REDESIGN §3 names respiratory irregularity as the one feature giving REM a POSITIVE
+       signature instead of an LF/HF proxy, and §2 shows why one is needed: the conjunction (LF/HF high
+       AND RMSSD low) selects roughly P(A)×P(B) of epochs — chance — so no threshold rescues it.
+
+       But the feature could not be built against the old generator, which breathed through ONE
+       stage-independent phase function. That is the same failure §4 found in the motion channel: an
+       oracle that cannot express the thing being learned, against which any detector would be tuned
+       toward a false target. So this group asserts BOTH halves — that the generator now separates the
+       stages, and that the measurement recovers the separation — because either alone is hollow. */
+    group('Respiratory-rate variability separates REM from NREM (REM-STAGING-REDESIGN §3)', 'ecgdex-dsp · analyze · staging · known-answer', function (T) {
+      var Dr = env.ECGDSP;
+      if (!Dr || typeof Dr.analyze !== 'function' || typeof Dr.genSynthetic !== 'function') {
+        T.skip('env.ECGDSP.analyze + genSynthetic available', 'ECGDSP not co-loaded in this runner');
+        return;
+      }
+      var rec = Dr.genSynthetic({ durSec: 6 * 3600 });
+      T.ok('the generator publishes its planted truth (§4b)', Array.isArray(rec.stageTruth) && rec.stageTruth.length > 0, rec.stageTruth ? rec.stageTruth.length + ' runs' : 'absent');
+      var res = Dr.analyze(rec, function () {});
+      var eps = (res && res.epochs) || [];
+      T.ok('the 6 h synthetic yields epochs to score', eps.length > 50, String(eps.length));
+      // Planted stage covering an epoch's midpoint — READ from stageTruth, never re-derived here
+      // (§4b: a fixture with two sources of truth has one that drifts).
+      function planted(sec) {
+        var s = null;
+        for (var i = 0; i < rec.stageTruth.length; i++) {
+          if (rec.stageTruth[i].t0Sec <= sec) s = rec.stageTruth[i].stage;
+          else break;
+        }
+        return s;
+      }
+      var by = {};
+      for (var i2 = 0; i2 < eps.length; i2++) {
+        var pst = planted(eps[i2].tMin * 60 + 150);
+        (by[pst] = by[pst] || []).push(eps[i2].respCv);
+      }
+      function medOf(a) {
+        var v = a
+          .filter(function (x) {
+            return x != null && isFinite(x);
+          })
+          .sort(function (x, y) {
+            return x - y;
+          });
+        return v.length ? v[Math.floor(v.length / 2)] : null;
+      }
+      var remCv = medOf(by.REM || []),
+        n2Cv = medOf(by.N2 || []),
+        n3Cv = medOf(by.N3 || []);
+      T.ok('respCv is measured on the epochs (not null across the board)', remCv != null && n2Cv != null && n3Cv != null, JSON.stringify({ REM: remCv, N2: n2Cv, N3: n3Cv }));
+      if (remCv != null && n2Cv != null && n3Cv != null) {
+        // THE SEPARATION. Measured ~2.6x (REM 0.099 vs N2 0.039 / N3 0.038); asserted at 1.8x so
+        // ordinary drift does not red it — but a generator that stopped distinguishing the stages
+        // (flatten `respIrreg` to a constant) is caught here, which is the point of the assertion.
+        T.ok('REM breathing is measurably MORE irregular than N2', remCv > n2Cv * 1.8, 'REM ' + remCv.toFixed(4) + ' vs N2 ' + n2Cv.toFixed(4));
+        T.ok('…and than N3, the most metronomic stage', remCv > n3Cv * 1.8, 'REM ' + remCv.toFixed(4) + ' vs N3 ' + n3Cv.toFixed(4));
+        // NREM stages must NOT separate from each other on this feature — it is a REM discriminator,
+        // and one that also split N2 from N3 would be measuring depth, not irregularity.
+        T.ok('N2 and N3 are alike on it — this measures irregularity, not depth', Math.abs(n2Cv - n3Cv) < Math.max(n2Cv, n3Cv) * 0.5, 'N2 ' + n2Cv.toFixed(4) + ' vs N3 ' + n3Cv.toFixed(4));
+      }
+      // ABSENCE STAYS ABSENT. Fewer than three usable sub-windows cannot yield a CV, and zero would
+      // read as "perfectly metronomic" — the strongest NREM evidence, fabricated from missing data.
+      T.ok(
+        'an unmeasurable epoch reports null, never a fabricated 0',
+        !eps.some(function (e) {
+          return e.respCv === 0;
+        }),
+        eps.filter(function (e) {
+          return e.respCv == null;
+        }).length + ' epoch(s) unmeasurable'
+      );
     });
 
     group('ECGDSP.hrvStability — per-window epoch count n surfaced (DEEP-AUDIT-II #39)', 'ecgdex-dsp · hrv-stability · known-answer', function (T) {
