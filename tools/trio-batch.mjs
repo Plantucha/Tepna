@@ -58,6 +58,7 @@
  *     --night-band <a-b> nocturnal hours, local wall clock (default 21-9); may wrap midnight
  *     --keep-daytime     do not filter non-nocturnal captures
  *     --skip-existing    skip a night already computed from the SAME inputs by the SAME code
+ *     --force            recompute everything, stamp or no stamp (beats --skip-existing)
  *     --jobs <n>         nights to compute in parallel (default: AUTO — probed from the host)
  *     --dry-run          plan only: print the night/file plan, compute nothing, write nothing
  *     --selftest         known-answer checks for the nocturnal gate (no corpus, no I/O)
@@ -111,6 +112,13 @@ const MIN_HOURS = parseFloat(opt('--min-hours', '3'));
 const MIN_OVERLAP = parseFloat(opt('--min-overlap', '1'));
 const KEEP_DAYTIME = flag('--keep-daytime');
 const SKIP_EXISTING = flag('--skip-existing');
+// --force recomputes everything, stamp or no stamp. The engine is still being tuned, so "redo it all
+// under today's code" has to be one flag away — and it must BEAT --skip-existing when both are given.
+const FORCE = flag('--force');
+// Internal: a child told to compute exactly ONE node of one night (see the node-split dispatch).
+const ONLY_NODE = opt('--only-node', null);
+const TRIO_NODES = ['ECGDex', 'PpgDex', 'OxyDex'];
+const wantNode = (n) => !ONLY_NODE || ONLY_NODE === n;
 // Nocturnal band, floating wall clock. Wraps midnight when start > end, which is the normal case.
 const [BAND_A, BAND_B] = (() => {
   const raw = opt('--night-band', '21-9');
@@ -165,6 +173,14 @@ const nocturnalBlocks = (A, a = BAND_A, b = BAND_B) => A.filter(([s, e]) => e > 
  * would change nothing, and an unchecked claim of that shape is how a stale artifact ships — so every
  * way the claim can be false gets its own branch, and every branch gets a case in --selftest.
  * `stamp` is the parsed sidecar, null when absent, the string 'BAD' when unparseable. */
+/* Split a night's nodes across children ONLY with slots to spare. `jobs` is already the probed floor of
+   (cores−1, free RAM ÷ ~1.2 GB, HARD_CAP), so on a 1-core or memory-tight host this is false and the
+   run behaves exactly as before. Never split when the nights alone already fill the pool — the slots are
+   busy either way and splitting would only add process startup. Pure, so --selftest can pin it. */
+function shouldSplitNodes(jobs, nights) {
+  return jobs > 1 && nights < jobs;
+}
+
 function redoReason(stamp, nJson, inputsDigest, codeDigest) {
   if (!stamp) return 'no stamp';
   if (stamp === 'BAD') return 'unreadable stamp';
@@ -250,6 +266,17 @@ if (flag('--selftest')) {
   eq('a new session appended ⇒ redo', redoReason(S, 3, 'IN-MOVED', 'CODE'), 'inputs changed');
   // The stale-artifact case this whole gate exists for: a DSP edit must invalidate every night.
   eq('a DSP edit ⇒ redo', redoReason(S, 3, 'IN', 'CODE-MOVED'), 'code changed');
+
+  /* Node split. The rule has to be safe on a SMALL machine first: the probe hands it jobs=1 there, and
+     a 1-slot host must behave exactly as it did before. Splitting is only ever a use for slots that
+     would otherwise idle. */
+  eq('1 slot (small/busy host) ⇒ never split', shouldSplitNodes(1, 1), false);
+  eq('1 slot, many nights ⇒ never split', shouldSplitNodes(1, 20), false);
+  eq('1 night, 8 slots ⇒ split (7 would idle)', shouldSplitNodes(8, 1), true);
+  eq('2 nights, 8 slots ⇒ split', shouldSplitNodes(8, 2), true);
+  eq('nights already fill the pool ⇒ do not split', shouldSplitNodes(8, 8), false);
+  eq('more nights than slots ⇒ do not split', shouldSplitNodes(8, 11), false);
+  eq('2 slots, 1 night ⇒ split (the modest-host win)', shouldSplitNodes(2, 1), true);
 
   console.log(fail ? `\n  ${fail} FAILED` : '\n  all green');
   process.exit(fail ? 1 : 0);
@@ -766,7 +793,7 @@ const inputDigest = (p) =>
       .sort()
       .join('\n')
   );
-if (SKIP_EXISTING && !DRY) {
+if (SKIP_EXISTING && !FORCE && !DRY) {
   const keep = [];
   for (const p of work) {
     const dir = join(OUT, p.key);
@@ -781,8 +808,13 @@ if (SKIP_EXISTING && !DRY) {
     }
     const nJson = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.json')).length : 0;
     const why = redoReason(st, nJson, inputDigest(p), CODE_DIGEST);
-    if (why) keep.push(p);
-    else console.log(`  ⏭ ${p.key} — already computed from these inputs by this code (--skip-existing)`);
+    if (why) {
+      // SAY WHY. "code changed" is the line that matters while the engine is being tuned: it is the
+      // tool reporting that today's DSP bytes are not the ones that produced this night, which is the
+      // version-awareness a hand-maintained version number would only approximate.
+      keep.push(p);
+      console.log(`  ↻ ${p.key} — recomputing: ${why}`);
+    } else console.log(`  ⏭ ${p.key} — already computed from these inputs by this code (--skip-existing)`);
   }
   if (keep.length !== work.length) console.log(`  skipped ${work.length - keep.length} of ${work.length} night(s); ${keep.length} to compute`);
   work = keep;
@@ -811,7 +843,7 @@ if (DRY) {
  * down, it just reports and the pool continues.
  * The parent NEVER loads a DSP realm (see loadDsps) — it plans, spawns, and streams the children's lines.
  */
-if (!CHILD && work.length > 1) {
+if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1)) {
   const plan = planConcurrency();
   const heapMB = childHeapMB(plan);
   console.log(
@@ -832,13 +864,33 @@ if (!CHILD && work.length > 1) {
         ` a night at a time with --night <YYYY-MM-DD>.`
     );
 
+  /* ── NODE SPLIT — only ever with capacity to spare ──────────────────────────────────────────────
+   * The pool parallelises across NIGHTS, so a run of one night used ONE core however many the host
+   * has: measured 39.4 s at 104 % CPU on a 24-core box. The three nodes of a night are independent
+   * (each reads its own streams and writes its own export), so with idle slots they can run as
+   * separate children and the night's cost becomes max(node) instead of sum(node).
+   *
+   * ONLY with slots to spare. `plan.jobs` is already the probed floor of (cores−1, free RAM ÷ ~1.2 GB,
+   * HARD_CAP) — on a small or busy machine it is 1, and then this is 1 too and nothing changes. Never
+   * split when nights alone already fill the pool: the slots are full either way and splitting would
+   * only add process startup and re-planning. So the split is strictly a use for capacity that would
+   * otherwise idle, which is why it cannot make a modest host slower.
+   *
+   * A split child computes ONE node and does NOT write the night's stamp — it cannot know whether its
+   * siblings succeeded. The PARENT writes it, once, after every node of that night has come back 0. */
+  const splitNodes = shouldSplitNodes(plan.jobs, work.length);
+  if (splitNodes) console.log(`  node-split: ON — ${work.length} night(s) < ${plan.jobs} slot(s), so each night's ${TRIO_NODES.length} nodes run as separate children`);
+
   const t0 = Date.now();
-  const queue = work.slice();
+  const queue = splitNodes ? work.flatMap((p) => TRIO_NODES.map((n) => ({ p, node: n }))) : work.map((p) => ({ p, node: null }));
+  const queue0 = queue.length; // immutable job count — `queue` is drained by the workers
+  const nightOutcome = new Map(); // night key → { ok, total } so the parent can stamp a fully-green night
   let done = 0,
     failed = 0;
-  const runOne = (p) =>
+  const runOne = ({ p, node }) =>
     new Promise((res) => {
       const args = [`--max-old-space-size=${heapMB}`, __filename, '--src', SRC, '--out', OUT, '--night', p.key, '--child', '--min-hours', String(MIN_HOURS), '--min-overlap', String(MIN_OVERLAP)];
+      if (node) args.push('--only-node', node);
       if (KEEP_DAYTIME) args.push('--keep-daytime');
       const ch = spawn(process.execPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
       let out = '';
@@ -855,7 +907,7 @@ if (!CHILD && work.length > 1) {
           .split('\n')
           .filter((l) => /^\s{4}[✓✗⊘·]/.test(l))
           .join('\n');
-        console.log(`\n▸ ${p.key}  [${done}/${work.length}]${code === 0 ? '' : `  ✗ child exit ${code}`}`);
+        console.log(`\n▸ ${p.key}${node ? ` · ${node}` : ''}  [${done}/${queue0}]${code === 0 ? '' : `  ✗ child exit ${code}`}`);
         if (body) console.log(body);
         if (code !== 0) {
           failed++;
@@ -869,6 +921,20 @@ if (!CHILD && work.length > 1) {
                 .join('\n')
             );
         }
+        // A split night is only STAMPED once every one of its nodes has come back 0 — the same rule the
+        // in-child path uses (all three exports landed), enforced here because no single child can see
+        // its siblings. A night with one failed node stays unstamped and is redone next run.
+        if (node) {
+          const o = nightOutcome.get(p.key) || { ok: 0, total: TRIO_NODES.length };
+          if (code === 0) o.ok++;
+          nightOutcome.set(p.key, o);
+          if (o.ok === o.total) {
+            const dir = join(OUT, p.key);
+            const nJson = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.json')).length : 0;
+            if (nJson === TRIO_NODES.length)
+              writeFileSync(join(dir, STAMP), JSON.stringify({ inputsDigest: inputDigest(p), codeDigest: CODE_DIGEST, nodes: TRIO_NODES.slice().sort() }, null, 2) + '\n');
+          }
+        }
         res();
       });
     });
@@ -881,7 +947,7 @@ if (!CHILD && work.length > 1) {
   const complete = readdirSync(OUT, { withFileTypes: true }).filter((d) => d.isDirectory() && readdirSync(join(OUT, d.name)).filter((f) => f.endsWith('.json')).length === 3).length;
   console.log(`\n${'─'.repeat(64)}`);
   console.log(`nights        : ${work.length} planned · ${complete} complete trio(s) on disk${failed ? ` · ${failed} child failure(s)` : ''}`);
-  console.log(`wall-clock    : ${secs.toFixed(0)}s  (${(secs / work.length).toFixed(0)}s/night at ${plan.jobs}× — sequential would be ~${((secs * plan.jobs) / 60).toFixed(0)} min)`);
+  console.log(`wall-clock    : ${secs.toFixed(0)}s  (${(secs / Math.max(1, work.length)).toFixed(0)}s/night at ${plan.jobs}×${splitNodes ? `, nodes split ${TRIO_NODES.length}-way` : ''})`);
   console.log(`\nnext: node tools/tch-multinight.mjs --dir ${opt('--out', 'uploads/trio')}`);
   process.exit(failed ? 1 : 0);
 }
@@ -990,10 +1056,11 @@ for (const p of work) {
 
   /* ECGDex — raw H10 _ECG is the HONEST H10 leg (device _HR.txt is smoothed; CLAUDE.md).
      Build the parsed rec, then attach the _ACC companion so posture/accExtras run. */
-  try {
-    const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECG(readFileSync(f.full, 'utf8'))));
-    if (p.accH10 && p.accH10.length) {
-      /* THE LONGEST ACC SESSION, not the first. `[0]` is the earliest concurrent session, which on a
+  if (wantNode('ECGDex'))
+    try {
+      const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECG(readFileSync(f.full, 'utf8'))));
+      if (p.accH10 && p.accH10.length) {
+        /* THE LONGEST ACC SESSION, not the first. `[0]` is the earliest concurrent session, which on a
          night with connection churn is a settling fragment of a few minutes — while the ECG side
          MERGES all of them. Measured on 2026-07-27: 7 concurrent ACC sessions, `[0]` = 0.2 MB, the
          real one = 60 MB spanning 22:16:51→04:30:04; ECGDex published motionIndex for 1 of 77
@@ -1002,78 +1069,80 @@ for (const p of work) {
          deviceACC[0].tsMs, so concatenating across inter-session gaps would silently time-shift
          every sample after the first gap — a wrong alignment is worse than partial coverage, and
          the longest session covers essentially the whole sleep window anyway. */
-      const pickAcc = p.accH10.reduce((best, f) => (f.bytes > best.bytes ? f : best), p.accH10[0]);
-      const a = ECGDex.parseDeviceACC(readFileSync(pickAcc.full, 'utf8'));
-      rec.deviceACC = a.acc;
-      rec.accFs = a.accFs;
+        const pickAcc = p.accH10.reduce((best, f) => (f.bytes > best.bytes ? f : best), p.accH10[0]);
+        const a = ECGDex.parseDeviceACC(readFileSync(pickAcc.full, 'utf8'));
+        rec.deviceACC = a.acc;
+        rec.accFs = a.accFs;
+      }
+      const ex = ECGDex.compute(rec, { ...COMMON, source: 'polar-h10-ecg' });
+      const h = hoursOf(ex);
+      if (!KEEP_DAYTIME && h != null && h < MIN_HOURS) console.log(`    ⊘ ECGDex  ${h.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);
+      else row.nodes.push(writeExport(dir, 'ECGDex', p.key, ex));
+    } catch (e) {
+      console.log(`    ✗ ECGDex  ${e.message}`);
     }
-    const ex = ECGDex.compute(rec, { ...COMMON, source: 'polar-h10-ecg' });
-    const h = hoursOf(ex);
-    if (!KEEP_DAYTIME && h != null && h < MIN_HOURS) console.log(`    ⊘ ECGDex  ${h.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);
-    else row.nodes.push(writeExport(dir, 'ECGDex', p.key, ex));
-  } catch (e) {
-    console.log(`    ✗ ECGDex  ${e.message}`);
-  }
 
   /* PpgDex — Verity HR MUST come from raw _PPG (device _HR.txt is all-zero; _PPI is header-only).
      ACC+GYRO drive the per-epoch motionIndex. */
-  try {
-    const rec = mergePpg(p.ppg.map((f) => PpgDex.parsePPG(readFileSync(f.full, 'utf8'))));
-    // The IMU companions stay single-session: they only drive the per-epoch motionIndex, and the
-    // 775 MB ACC union is the one that would blow the string limit. Documented, not silent.
-    const xyz = (l) => (l && l.length ? ctx.PPGDSP.parseSensorXYZ(readFileSync(l[0].full, 'utf8')) : null);
-    rec.acc = xyz(p.accVer);
-    rec.gyro = xyz(p.gyro);
-    rec.magn = xyz(p.magn);
-    const ex = PpgDex.compute(rec, { ...COMMON, source: 'polar-sense-ppg' });
-    const h = hoursOf(ex);
-    if (!KEEP_DAYTIME && h != null && h < MIN_HOURS) console.log(`    ⊘ PpgDex  ${h.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);
-    else row.nodes.push(writeExport(dir, 'PpgDex', p.key, ex));
-  } catch (e) {
-    console.log(`    ✗ PpgDex  ${e.message}`);
-  }
+  if (wantNode('PpgDex'))
+    try {
+      const rec = mergePpg(p.ppg.map((f) => PpgDex.parsePPG(readFileSync(f.full, 'utf8'))));
+      // The IMU companions stay single-session: they only drive the per-epoch motionIndex, and the
+      // 775 MB ACC union is the one that would blow the string limit. Documented, not silent.
+      const xyz = (l) => (l && l.length ? ctx.PPGDSP.parseSensorXYZ(readFileSync(l[0].full, 'utf8')) : null);
+      rec.acc = xyz(p.accVer);
+      rec.gyro = xyz(p.gyro);
+      rec.magn = xyz(p.magn);
+      const ex = PpgDex.compute(rec, { ...COMMON, source: 'polar-sense-ppg' });
+      const h = hoursOf(ex);
+      if (!KEEP_DAYTIME && h != null && h < MIN_HOURS) console.log(`    ⊘ PpgDex  ${h.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);
+      else row.nodes.push(writeExport(dir, 'PpgDex', p.key, ex));
+    } catch (e) {
+      console.log(`    ✗ PpgDex  ${e.message}`);
+    }
 
   /* OxyDex — O2Ring CSV (HH:MM:SS DD/MM/YYYY → Clock Contract rule 4, preferDMY). The Motion
      column supplies this corner's motionIndex. fileMeta name is already serial-free. */
-  try {
-    /* .dat → CSV text via OxyDex's OWN decoder (the same one the browser drop path uses), because
+  if (wantNode('OxyDex'))
+    try {
+      /* .dat → CSV text via OxyDex's OWN decoder (the same one the browser drop path uses), because
        compute() takes {samples|rows|text} and never bytes. Not a second implementation: the 3-byte
        layout, the 0xFF 0xFF trailer, the motion×2 scale and the filename→t0 rule live in exactly one
        place. Verified equivalent on 2026-07-06, the night that has both files. */
-    // SpO2 merges as TEXT: the whole-night union is at most 1.4 MB in this corpus, nowhere near the
-    // string limit, and every row carries its own absolute stamp so concatenation in time order is
-    // exactly the same record the ring would have written had it never dropped. Header kept once.
-    const oxyText = (f) => {
-      if (f.kind === 'dat') {
-        const bytes = new Uint8Array(readFileSync(f.full));
-        if (!OxyDex.isO2RingBin(bytes)) throw new Error(`not an O2Ring native binary: ${f.name}`);
-        return OxyDex.decodeO2RingBinToCSV(bytes, f.name);
-      }
-      return readFileSync(f.full, 'utf8');
-    };
-    const parts = p.oxy.map(oxyText).filter((t) => t && t.trim());
-    if (!parts.length) throw new Error('no readable O2Ring session');
-    const head = parts[0].split('\n')[0];
-    const text =
-      [parts[0].trimEnd()]
-        .concat(
-          parts
-            .slice(1)
-            .map((t) => {
-              const lines = t.split('\n');
-              return (lines[0].trim() === head.trim() ? lines.slice(1) : lines).join('\n').trimEnd();
-            })
-            .filter(Boolean)
-        )
-        .join('\n') + '\n';
-    const isDat = p.oxy.some((f) => f.kind === 'dat');
-    const ex = OxyDex.compute({ text, fileMeta: { name: p.oxy[0].name } }, { ...COMMON, source: isDat ? 'o2ring-dat' : 'o2ring-csv' });
-    const h = hoursOf(ex);
-    if (!KEEP_DAYTIME && h != null && h < MIN_HOURS) console.log(`    ⊘ OxyDex  ${h.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);
-    else row.nodes.push(writeExport(dir, 'OxyDex', p.key, ex));
-  } catch (e) {
-    console.log(`    ✗ OxyDex  ${e.message}`);
-  }
+      // SpO2 merges as TEXT: the whole-night union is at most 1.4 MB in this corpus, nowhere near the
+      // string limit, and every row carries its own absolute stamp so concatenation in time order is
+      // exactly the same record the ring would have written had it never dropped. Header kept once.
+      const oxyText = (f) => {
+        if (f.kind === 'dat') {
+          const bytes = new Uint8Array(readFileSync(f.full));
+          if (!OxyDex.isO2RingBin(bytes)) throw new Error(`not an O2Ring native binary: ${f.name}`);
+          return OxyDex.decodeO2RingBinToCSV(bytes, f.name);
+        }
+        return readFileSync(f.full, 'utf8');
+      };
+      const parts = p.oxy.map(oxyText).filter((t) => t && t.trim());
+      if (!parts.length) throw new Error('no readable O2Ring session');
+      const head = parts[0].split('\n')[0];
+      const text =
+        [parts[0].trimEnd()]
+          .concat(
+            parts
+              .slice(1)
+              .map((t) => {
+                const lines = t.split('\n');
+                return (lines[0].trim() === head.trim() ? lines.slice(1) : lines).join('\n').trimEnd();
+              })
+              .filter(Boolean)
+          )
+          .join('\n') + '\n';
+      const isDat = p.oxy.some((f) => f.kind === 'dat');
+      const ex = OxyDex.compute({ text, fileMeta: { name: p.oxy[0].name } }, { ...COMMON, source: isDat ? 'o2ring-dat' : 'o2ring-csv' });
+      const h = hoursOf(ex);
+      if (!KEEP_DAYTIME && h != null && h < MIN_HOURS) console.log(`    ⊘ OxyDex  ${h.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);
+      else row.nodes.push(writeExport(dir, 'OxyDex', p.key, ex));
+    } catch (e) {
+      console.log(`    ✗ OxyDex  ${e.message}`);
+    }
 
   // The stamp is the ONLY thing --skip-existing trusts, so it is written only when all three exports
   // actually landed. A partial night (a node threw, or the run was OOM-killed) stays unstamped and is
