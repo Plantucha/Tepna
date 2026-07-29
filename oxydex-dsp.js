@@ -2140,10 +2140,28 @@
       all.reduce(function (a, m) {
         return a + m.score;
       }, 0) / Math.max(all.length, 1);
+    /* MULTINIGHT-CORPUS-FINDINGS §4 — the guardrail had swallowed the whole ladder. Gating
+       `Clean night` on `worstScore < 4` and `Mild disruption` on `< 6` is unreachable in practice:
+       with 28 ranked metrics SOMETHING always scores 8-10, so across a 37-night corpus every single
+       night printed `Moderate burden` while `avgScore` — the statistic actually driving it — ranged
+       1.19 to 5.21. A label constant over a 4.4x spread carries no information; it reads as a
+       verdict and is really a formatting artifact.
+
+       The guardrail's INTENT is kept: never call a night clean while a finding on it is severe.
+       What changes is its strength. It now floors only on a 10 — a metric at the very top of its
+       scale — instead of on anything >= 4/6. An 8 is common enough to be the worst finding on the
+       corpus's QUIETEST night (2026-07-21: ODI3 0.8/h, T90 0.2 %, nadir 90 %), so treating an 8 as
+       disqualifying is exactly what collapsed the vocabulary. The lead finding still opens the
+       sentence either way, so a quiet night carrying one red metric reads
+       `Mild disruption: nadir SpO2 84%` — the severity word describes the night, the clause names
+       what was found, and neither has to lie for the other.
+
+       Bands are read off the observed distribution rather than left at their original guesses.
+       Owner-ratified 2026-07-29. */
     var severity;
-    if (avgScore < 2 && worstScore < 4) severity = 'Clean night';
-    else if (avgScore < 4 && worstScore < 6) severity = 'Mild disruption';
-    else if (avgScore < 6) severity = 'Moderate burden';
+    if (avgScore < 2 && worstScore < 10) severity = 'Clean night';
+    else if (avgScore < 3 && worstScore < 10) severity = 'Mild disruption';
+    else if (avgScore < 4.5) severity = 'Moderate burden';
     else severity = 'Significant burden';
     var isolatedSevere = avgScore < 4 && worstScore >= 6; // mostly-clean night, one red finding
 
