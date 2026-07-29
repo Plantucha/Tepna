@@ -247,10 +247,34 @@ to take the method next.
 | 1.6 `d_hfnu` gates only the denominator | teeth | 2 |
 | 1.7 `d_abs` saturates on partial absence | teeth | 2 |
 
-**5 of 5 have teeth.** A cluster fixed as one pattern was evidently gated as one pattern — which is the
+| 1.3 `computeCAMQ` absent parasympathetic | teeth | 2 |
+| 1.4 `d_crs` gates the wrong operands | teeth | 2 |
+| 1.4b `d_pti` ungated `_rmssd` | teeth | 4 |
+| 1.9 `d_welfare` denominator omitted | teeth | 4 |
+
+**9 of 9 have teeth.** A cluster fixed as one pattern was evidently gated as one pattern — the
 encouraging direction, and the opposite of what `DEEP-AUDIT-III`'s scattered one-off fixes showed.
 
-Running total: **26 sections checked, 4 blind (~15 %)**.
+### 6.2 Breadth — does that hold outside the cluster?
+
+| item | verdict | reds |
+|---|---|---|
+| 8.3 Integrator counts long-gap interpolation as glucose | teeth | 8 |
+| 7.9 `toG` case-sensitive `mg` | **defence in depth** — see below | 0 |
+| 2.1 SBII counts artifact desaturations | **UNPROVEN** — see below | 0 |
+
+**§7.9 is NOT blind.** `toG`'s case-insensitive `/^mg$/i` cannot be reached through the normal path:
+`streamKindFromHeader` already normalises a `[mG]` header to `unit:'mg'` at the PARSE boundary, so by
+the time `toG` runs the case has been settled. Proven by probe — a `[mG]` file yields `_unit=mg` and
+identical actigraphy under both the fix and the case-sensitive revert. Same shape as §3.4: a second
+guard behind a first one that already holds.
+
+**§2.1 is NOT CLAIMED EITHER WAY.** The mutation reddened nothing, but the reachability probe could not
+be built — `oxydex-dsp.js` needs the full co-load realm (the one `tools/regen-oxydex-goldens.mjs`
+constructs) and my DOM stub failed to load it. Per §5's own rule that is an *unproven* result, not a
+blind gate, and it is recorded as such rather than counted.
+
+Running total: **32 sections resolved, 4 blind (~13 %)**; 1 unproven (§2.1).
 
 ### 6.1 A THIRD harness rule — a killed batch leaves the tree mutated
 
