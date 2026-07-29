@@ -21082,6 +21082,104 @@
       }
     });
 
+    /* DEEP-AUDIT-III §3.6 — A COUPLING BETWEEN TWO SIGNALS CANNOT BE ESTIMATED FROM ONE OF THEM.
+       `fuseAutonomicGlycemic`'s single-pair branch fell back to `p0.slope` ALONE. With `glucoseCV`
+       absent — which it ALWAYS was on a ganglior export, the read-chain defect §13 fixed — it still
+       published a confident glucose⟷autonomic coupling of **0.44 with n=0**, computed entirely from the
+       ECG side, under a note claiming both signals had been read.
+
+       THE FIX WAS SHIPPED AND NEVER GATED. The only test naming §3.6 asserts something else entirely
+       (that GlucoDex's export now carries a sliceable cell trace, DEEP-AUDIT-III-FOLLOWUPS §F1.1) —
+       upstream of the defect, not at it. Nothing pinned the arithmetic, so a revert would have re-shipped
+       a fabricated coupling silently. This is that gate, at the seam that owns it. */
+    group('A coupling needs BOTH signals — autonomic ⟷ glycemic is null, not ECG-only (DEEP-AUDIT-III §3.6)', 'integrator-dsp · fusion · fabrication', function (T) {
+      var RF = env.runFusion;
+      T.ok('runFusion available', typeof RF === 'function');
+      if (typeof RF !== 'function') return;
+      var t0 = U(2026, 5, 20, 22, 0, 0),
+        H = 3600000;
+      // An ECG record carrying the autonomic slope, and a CGM record overlapping it. The ONLY thing
+      // that varies between the two runs is whether the CGM actually carried a glucose CV.
+      function ecgRec() {
+        return { node: 'ECGDex', label: 'ecg-1', t0Ms: t0, endMs: t0 + 8 * H, dateUnknown: false, offsetMin: null, events: [], nEvents: 0, summary: { autonomicInstabilitySlope: 0.4 }, series: {} };
+      }
+      function gluRec(cv) {
+        var s = {};
+        if (cv != null) s.glucoseCV = cv;
+        return { node: 'GlucoDex', label: 'glu-1', t0Ms: t0, endMs: t0 + 8 * H, dateUnknown: false, offsetMin: null, events: [], nEvents: 0, summary: s, series: {} };
+      }
+      var withGlu = RF([ecgRec(), gluRec(28)], {}).autoGly;
+      var noGlu = RF([ecgRec(), gluRec(null)], {}).autoGly;
+
+      T.ok('baseline · with a glucose CV present the coupling IS estimated (anti-vacuity)', !!withGlu && withGlu.glucoseAutonomicCorrelation != null, withGlu && JSON.stringify({ v: withGlu.glucoseAutonomicCorrelation, n: withGlu.n }));
+      // THE ASSERTION. Pre-fix this published 0.44 from the ECG slope alone.
+      T.eq('§3.6 · with NO glucose value the coupling is NULL, never an ECG-only number', noGlu && noGlu.glucoseAutonomicCorrelation, null);
+      T.eq('§3.6 · …and the directional estimate is null too (that was the fabricating branch)', noGlu && noGlu.directional, null);
+      // The note must not claim a reading it did not make — the defect was as much the note as the number.
+      T.ok(
+        '§3.6 · …and the note SAYS a coupling cannot be estimated, rather than describing one',
+        !!(noGlu && /CANNOT be estimated/i.test(noGlu.note || '')),
+        noGlu && (noGlu.note || '').slice(0, 90)
+      );
+      T.ok('§3.6 · n is honest about how many paired nights were actually used', !!noGlu && noGlu.n === 0, noGlu && 'n=' + noGlu.n);
+    });
+
+    /* §4.1 AGAIN — BECAUSE THE GROUP ABOVE DOES NOT ACTUALLY TEST IT.
+       The assertion labelled "§4.1 · a clock hole does not move the measured rate" drives
+       `respiratoryRate`, and `respiratoryRate` DOES NOT CALL `sampleHz` — it measures its own rate in
+       `respResample`. The §4.1 defect lives in `sampleHz`, whose only consumers are `actigraphy`
+       (motiondex-dsp.js:418) and `respiratoryEffort` (:974). So the fix was real and the gate was
+       pointed one function away from it.
+
+       Measured, not inferred: reverting `sampleHz` to count-over-span reds ZERO assertions in the whole
+       suite, while on this very stream it drops the derived native rate 26.00 → 20.80 Hz on the gapped
+       copy (−20 %) and moves `respiratoryEffort`'s PUBLISHED `amplitudeG` 0.0106 → 0.0133 (+25 %).
+       A regression would have shipped a quarter-off "Effort amplitude" in silence.
+
+       This is the suite's own "a gate can be blind rather than green" (DEEP-AUDIT-III §2.3) landing on
+       DEEP-AUDIT-III's own punch list. The gate below asserts the property AT the seam that owns it:
+       the same samples, once contiguous and once with a hole punched in the clock, must yield the same
+       NATIVE rate — because a hole removes samples, it does not slow the sensor down. */
+    group('MotionDex sampleHz is the NATIVE rate, not the coverage-depressed average — §4.1 at its own seam', 'motiondex-dsp · rate · absence', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.parseSensorXYZ === 'function' && typeof MD.actigraphy === 'function' && typeof MD.respiratoryEffort === 'function' && typeof MD.genSyntheticACC === 'function')) {
+        T.skip('MOTIONDSP.actigraphy + respiratoryEffort + genSyntheticACC available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var HZ = 26,
+        SEC = 600;
+      var txt = MD.genSyntheticACC({ sec: SEC, hz: HZ, brpm: 15, seed: 5 });
+      var lines = txt.split('\n'),
+        head = lines[0],
+        body = lines.slice(1).filter(Boolean);
+      // Punch out the middle 20 % — the sensor stopped reporting; the clock did not stop.
+      var c0 = Math.floor(body.length * 0.4),
+        c1 = Math.floor(body.length * 0.6);
+      var gapped = head + '\n' + body.slice(0, c0).concat(body.slice(c1)).join('\n') + '\n';
+      var rF = MD.parseSensorXYZ(txt),
+        rG = MD.parseSensorXYZ(gapped);
+      T.ok('the gapped copy really is missing samples (anti-vacuity)', rG.length < rF.length * 0.9, rG.length + ' of ' + rF.length + ' rows');
+      var aF = MD.actigraphy(rF, rF[0].tMs, SEC, 'mg'),
+        aG = MD.actigraphy(rG, rG[0].tMs, SEC, 'mg');
+      var eF = MD.respiratoryEffort(rF, rF[0].tMs, SEC, 'mg'),
+        eG = MD.respiratoryEffort(rG, rG[0].tMs, SEC, 'mg');
+      T.ok('baseline · the contiguous stream derives its true native rate', !!aF && Math.abs(aF.hz - HZ) < 0.5, aF && 'hz=' + aF.hz);
+      // THE ASSERTION. Pre-fix this read ~20.8 — the native rate times the coverage fraction.
+      T.ok('§4.1 · actigraphy sees the NATIVE rate across a clock hole, not count÷span', !!aG && Math.abs(aG.hz - HZ) < 0.5, aG && 'gapped hz=' + aG.hz + ' (count÷span would read ~' + (HZ * 0.8).toFixed(1) + ')');
+      T.ok('§4.1 · respiratoryEffort likewise', !!eG && Math.abs(eG.hz - HZ) < 0.5, eG && 'gapped hz=' + eG.hz);
+      T.eq('§4.1 · and the two consumers agree on it', aG && +aG.hz.toFixed(2), eG && +eG.hz.toFixed(2));
+      /* THE CONSEQUENCE, pinned separately — an hz-scaled window sized off a depressed rate is too
+         SHORT in real time, which moves a PUBLISHED number. This is the assertion that makes the
+         defect's cost visible rather than leaving it as a property of an internal helper. */
+      if (eF && eG && eF.amplitudeG != null && eG.amplitudeG != null) {
+        T.ok(
+          '§4.1 · …so the published Effort amplitude does not move with coverage (pre-fix: +25 %)',
+          Math.abs(eG.amplitudeG - eF.amplitudeG) <= Math.max(eF.amplitudeG * 0.1, 1e-4),
+          'full=' + eF.amplitudeG + ' gapped=' + eG.amplitudeG
+        );
+      }
+    });
+
     /* ════ MotionDex effort epochs are WALL-CLOCK windows, not sample-index windows (DEEP-AUDIT-II §7.1/§7.2) ════
      §7.2: `relSecOf` used the PER-STREAM device counter (`relNs`, 0 at the stream's own first sample) as if it
      were seconds-from-the-GLOBAL-`t0Ms`, so a chest sensor that starts after `t0Ms` was time-shifted. §7.1:

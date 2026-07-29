@@ -106,6 +106,16 @@ whoever takes them should split them into a MotionDex brief of their own.
 Three of the four are MotionDex, and §4.1 is the one with the widest blast radius — a mis-scaled
 `sampleHz` corrupts every windowed metric downstream of it, not just one.
 
+> **CLOSED 2026-07-29 — and the premise above was wrong in an instructive way.** All four were
+> **already fixed**, on 2026-07-27; the parent was simply never re-stamped, so "no fix stamp" read as
+> "no fix". What was NOT already true is that they were gated. Mutation-checking each revealed that
+> **§3.6 had no gate at all** and **§4.1's gate was pointed one function away from the defect** — it
+> drives `respiratoryRate`, which never calls `sampleHz`. Reverting either fix reddened **zero**
+> assertions, while the §4.1 revert moves a published `Effort amplitude` by 25 %. Both now have gates
+> verified RED; §4.3's was already sound; §4.2's covers its reporting half but not its tracking half.
+> `DEEP-AUDIT-III` is **DONE**. No MotionDex brief was needed — the residue is in
+> `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md`.
+
 ---
 
 ## 5 · Also open, fleet-wide (recorded here only so the list survives)
@@ -139,7 +149,9 @@ only in conversation:
 
 - [ ] §2.1 routed to its own brief (CPAP `SA2.edf` as a second SpO₂ source) or explicitly declined
 - [ ] §2.2 one deliberate fault injection against the running box, with the webhook actually delivering
-- [ ] §4 split into a MotionDex brief, after which `DEEP-AUDIT-III` can finally close
+- [x] **§4 CLOSED 2026-07-29 — `DEEP-AUDIT-III` is DONE.** Not by splitting a MotionDex brief: all four
+      items were already fixed, and what they actually lacked was gates. §3.6 had none, §4.1's was
+      blind. Both added and verified RED by mutation. Residue → `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md`.
 - [x] **§5.1 DONE 2026-07-29 — verified AND released as v1.19.0.** Four fixtures (ECGDex, PulseDex ×2,
       Integrator) carried a `verifiedUnder` predating the ECGDex-staging, `ansBalance` and
       gap-aware-hours compute changes, so `tools/release.mjs` was refusing exactly as designed.

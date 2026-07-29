@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (24 of 28 executed 2026-07-27 — punch-list not closed) · **Created:** 2026-07-26 · **Followed-by:** `DEEP-AUDIT-III-FOLLOWUPS-2026-07-27-BRIEF.md` · **Method-parent:** `AUDIT-PROMPT.md` · **Sibling:** `CAPTURE-HOST-DEEP-AUDIT-2026-07-26-BRIEF.md` (same day, the producer half) · **Relates:** `DEEP-AUDIT-II-2026-07-18-BRIEF.md`, `DEEP-AUDIT-2026-07-22-BRIEF.md` (§1.1 amends its REFUTED row), `DEEP-AUDIT-2026-07-11-BRIEF.md` (§1.2 and §3.1 amend its punch-list #1 and §15), `DEEP-AUDIT-2026-07-14-BRIEF.md` (§5.1 completes its §3), `MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS-2026-07-22-BRIEF.md` (§4.2 executes its §2)
+**Status:** DONE — 2026-07-29 (all 28 executed; the four punch-list items were fixed 2026-07-27 but two were left UNGATED — closed 2026-07-29, see each section) · **Created:** 2026-07-26 · **Followed-by:** `DEEP-AUDIT-III-FOLLOWUPS-2026-07-27-BRIEF.md` · **Method-parent:** `AUDIT-PROMPT.md` · **Sibling:** `CAPTURE-HOST-DEEP-AUDIT-2026-07-26-BRIEF.md` (same day, the producer half) · **Relates:** `DEEP-AUDIT-II-2026-07-18-BRIEF.md`, `DEEP-AUDIT-2026-07-22-BRIEF.md` (§1.1 amends its REFUTED row), `DEEP-AUDIT-2026-07-11-BRIEF.md` (§1.2 and §3.1 amend its punch-list #1 and §15), `DEEP-AUDIT-2026-07-14-BRIEF.md` (§5.1 completes its §3), `MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS-2026-07-22-BRIEF.md` (§4.2 executes its §2)
 
 # Deep audit III — the Integrator's arithmetic, opened for the first time
 
@@ -412,7 +412,7 @@ contract the code does not enforce (*"one session"*), and the call site's own co
 out loud. **Reachability is thin today** (no `site:'finger'` PpgDex export exists in the corpus) — the verifier
 insisted this be stated.
 
-### 3.6 `Autonomic ⟷ glycemic` publishes an ECG-only number under a false note — `integrator-dsp.js:1902`
+### 3.6 `Autonomic ⟷ glycemic` publishes an ECG-only number under a false note — `integrator-dsp.js:1902` — **FIXED 2026-07-27 · GATED 2026-07-29**
 
 ```
 per-night glucoseCV: 14.2, 14.2, 14.2, 14.2   (the SAME whole-wear value on every night)
@@ -472,7 +472,7 @@ assertions fail against pre-fix code**, one of them printing the fabricated clai
 > 6 fail against pre-fix code**, including the denominator — old coverage 0.667 vs new 1.0 on a
 > stream whose uncovered windows should never have been counted.
 
-### 4.1 `sampleHz` divides count by span, so any gap mis-scales every window — `motiondex-dsp.js:214/220`
+### 4.1 `sampleHz` divides count by span, so any gap mis-scales every window — `motiondex-dsp.js:214/220` — **FIXED 2026-07-27 · GATED 2026-07-29 (the first gate was BLIND)**
 
 Filed independently by **two** hunters (dimensions *absence* and *matrix-siblings*), on the same function.
 
@@ -494,7 +494,7 @@ implementation is 8 lines away in the same file (`respResample`'s median delta).
 > effort/apnea-typing consequence** from the second filing — it was produced by passing a *wrist* file into
 > the `chestAcc` slot, which `slotFor()` gates against.
 
-### 4.2 `respiratoryRate()` measures a confident rate across epochs where the strap was off — `motiondex-dsp.js:786`
+### 4.2 `respiratoryRate()` measures a confident rate across epochs where the strap was off — `motiondex-dsp.js:786` — **FIXED 2026-07-27 · PARTLY GATED (see below)**
 
 ```
 trueBrpm 10 | FULL 10.3 | GAPPED 18.2  rateCoverage 0.664 | in-gap fabricated n=78 median 18.2
@@ -513,7 +513,7 @@ sensor-off windows return a brpm at conf up to 0.882. Textbook `AUDIT-PROMPT` cl
 **Fix.** A per-grid-point coverage mask, `brpm=null` plus exclusion from `kept`/`series.length` below a
 coverage floor (mirroring `bodyPosition`'s `covered` counter).
 
-### 4.3 No plausibility bound on IMU samples — `motiondex-dsp.js:174`
+### 4.3 No plausibility bound on IMU samples — `motiondex-dsp.js:174` — **FIXED 2026-07-27 · GATED (verified 2026-07-29)**
 
 ```
 out-of-full-scale (>16 g): 136 of 102 671   worst |x| = 1.62e38 mg
