@@ -350,6 +350,10 @@ function adaptEnvelopeNode(json, node, filename) {
         _tot = json.sleep.totalSleepMin;
       summary.remFraction = _sm.REM != null ? +(_sm.REM / _tot).toFixed(3) : null;
       summary.deepFraction = _sm.Deep != null ? +(_sm.Deep / _tot).toFixed(3) : null;
+      /* DEEP-AUDIT-FOLLOWUPS §C2 — this leg divides by TOTAL SLEEP; the OxyDex leg further down
+         divides by RECORDING. Naming the basis is what lets fuseStagingConsensus refuse to compare
+         across them instead of silently treating the two as commensurate. */
+      summary.remFractionBasis = 'sleep';
       summary.stagingMethod = 'ECG cardiorespiratory (HRV + EDR), single-signal estimate';
     }
   }
@@ -954,6 +958,14 @@ function adaptOxyDex(json, filename) {
     if (_sp && _sp.remProxyPct != null && !_remImplausible) {
       summary.remFraction = +(_sp.remProxyPct / 100).toFixed(3);
       summary.deepFraction = _sp.nremDeepPct != null ? +(_sp.nremDeepPct / 100).toFixed(3) : null;
+      /* DEEP-AUDIT-FOLLOWUPS §C2 — RECORDING time, not sleep time (`oxydex-dsp computeSleepStageProxy`
+         divides by the sample count). Measured over 76 real nights, converting this leg onto the
+         ECGDex leg's sleep-time denominator is NOT available: OxyDex's own sleep estimate is
+         motion-derived and reads 99.1–99.9 % on every night, so `sleepEff × recording` misses ECGDex's
+         TST by a median 58 min (bias +47, worst 115) against a 335 min median — and on four nights the
+         converted REM fraction exceeds 100 %, i.e. more REM than there is sleep. So the basis is
+         DECLARED and the comparison refuses, rather than a denominator being fabricated. */
+      summary.remFractionBasis = 'recording';
       summary.stagingMethod = 'SpO₂/PR oximetry proxy, single-signal estimate';
     } else if (_remImplausible) {
       summary.stagingSuppressed = _sp.plausibilityNote || 'oximetry REM proxy implausible (' + _sp.remProxyPct + '% of the recording)';
@@ -3098,11 +3110,60 @@ function fuseStagingConsensus(recs, remGapThresh) {
     }
     if (!placed) groups.push([s]);
   });
+  /* DEEP-AUDIT-FOLLOWUPS §C2 — FAIL CLOSED across denominators.
+     `remFraction` does not mean the same thing on every leg: ECGDex divides REM by TOTAL SLEEP,
+     OxyDex by RECORDING span. Subtracting one from the other and calling the result a "REM gap" is a
+     unit error, and it fabricates disagreement (or hides it) out of arithmetic rather than physiology.
+
+     Measured over 76 real nights before writing this: the OxyDex proxy is suppressed by the §7
+     plausibility ceiling on 75 of them, so the comparison almost never runs today — this is a latent
+     defect, not a live one, and it is fixed now precisely because the REM estimator is being
+     re-derived and the day it starts producing plausible numbers is the day this starts firing.
+
+     Converting is not available: OxyDex's only sleep estimate is motion-derived and reads 99.1–99.9 %
+     on every night of the corpus, missing ECGDex's TST by a median 58 min, and on four nights the
+     converted fraction exceeds 100 % — more REM than sleep. So a group whose legs disagree about the
+     denominator is NOT fused; it is reported as unfusable, naming the bases, which is the honest
+     answer and the one that survives whatever the estimator becomes.
+
+     Legs that predate the field (no `remFractionBasis`) are treated as commensurate with each other
+     but not with a declared-different one — a legacy export must not silently acquire a basis it
+     never had. */
+  var _basisOf = function (s) {
+    return (s.summary && s.summary.remFractionBasis) || null;
+  };
+  var _mixedBasis = function (g) {
+    var seen = {};
+    for (var i = 0; i < g.length; i++) seen[String(_basisOf(g[i]))] = true;
+    return Object.keys(seen).length > 1;
+  };
   var blocks = groups
     .filter(function (g) {
       return g.length >= 2;
     })
     .map(function (g) {
+      if (_mixedBasis(g)) {
+        return {
+          window: fmtDayShort(g[0].t0Ms),
+          nodes: g.map(function (s) {
+            return s.node;
+          }),
+          remByNode: g.map(function (s) {
+            return { node: s.node, remPct: +(s.summary.remFraction * 100).toFixed(1), basis: _basisOf(s), method: s.summary.stagingMethod || null };
+          }),
+          remGapPct: null, // §C2: not computed — the legs are not commensurate
+          disagreement: null, // neither agreement nor disagreement is knowable here
+          unfusable:
+            'mixed remFraction denominators (' +
+            g
+              .map(function (s) {
+                return s.node + '=' + (_basisOf(s) || 'undeclared');
+              })
+              .join(', ') +
+            ') — REM fractions on different clocks are not comparable; no gap computed',
+          note: 'Sleep-stage legs could not be fused: they denominate REM on different clocks. Reported separately rather than differenced.'
+        };
+      }
       var vals = g.map(function (s) {
         return { node: s.node, remPct: +(s.summary.remFraction * 100).toFixed(1), method: s.summary.stagingMethod || null };
       });

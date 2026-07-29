@@ -1632,19 +1632,45 @@
           'oxy.json'
         ).recs[0];
       };
-      // (a) BIG gap: ECG REM 0.30 (120/400) vs Oxy 0.05 → gap 0.25 (> 0.20) ⇒ disagreement.
-      //     RED under `remGapThresh … 0.2` → `0.9` (0.25 < 0.9 → disagreement silently false).
-      var fusBig = RF([ecgStage(120, 400), oxyStage(5)], { toleranceSec: 120 });
+      /* DEEP-AUDIT-FOLLOWUPS §C2 — THIS GROUP USED TO ASSERT THE DEFECT.
+         It paired an ECGDex leg (REM / total SLEEP) with an OxyDex leg (REM / RECORDING span) and
+         asserted their difference was a "25 pt REM gap". Those two fractions are on different
+         clocks, so the subtraction is a unit error: the gap it measured was arithmetic, not
+         physiology. The threshold coverage was real and is kept below on a SAME-basis pair; the
+         mixed pair now asserts the fail-closed behaviour instead. */
+
+      // (a) MIXED denominators ⇒ NOT fused. ECGDex declares 'sleep', OxyDex declares 'recording'.
+      var fusMix = RF([ecgStage(120, 400), oxyStage(5)], { toleranceSec: 120 });
+      var sMix = fusMix.staging && fusMix.staging.blocks && fusMix.staging.blocks[0];
+      T.ok('#2/§C2: staging block still produced (2 overlapping single-signal stagers)', !!sMix);
+      if (sMix) {
+        T.ok('§C2: a sleep-basis leg and a recording-basis leg are reported UNFUSABLE', !!sMix.unfusable, JSON.stringify(sMix.unfusable));
+        T.eq('§C2: no REM gap is computed across different clocks', sMix.remGapPct, null);
+        T.eq('§C2: disagreement is null — neither agreement nor disagreement is knowable', sMix.disagreement, null);
+        T.ok('§C2: both bases are named so the reader can see WHY', /ECGDex=sleep/.test(sMix.unfusable) && /OxyDex=recording/.test(sMix.unfusable), sMix.unfusable);
+        T.ok('§C2: each leg still reports its own fraction, labelled with its basis',
+          (sMix.remByNode || []).length === 2 && sMix.remByNode.every(function (v) { return !!v.basis; }),
+          JSON.stringify(sMix.remByNode));
+      }
+
+      /* (b) SAME denominator ⇒ the gap threshold still works, which is the coverage the old cases
+         were really providing. Two ECGDex-shaped legs, both 'sleep': REM 0.30 vs 0.05 ⇒ gap 0.25. */
+      var ecgAs = function (node, remMin, totMin) {
+        var r = ecgStage(remMin, totMin);
+        r.node = node;
+        return r;
+      };
+      var fusBig = RF([ecgAs('ECGDex', 120, 400), ecgAs('HRVDex', 20, 400)], { toleranceSec: 120 });
       var sBig = fusBig.staging && fusBig.staging.blocks && fusBig.staging.blocks[0];
-      T.ok('#2: staging block produced (2 overlapping single-signal stagers)', !!sBig, 'staging=' + JSON.stringify(fusBig.staging && fusBig.staging.blocks && fusBig.staging.blocks.length));
-      if (sBig) {
+      T.ok('#2: same-basis legs DO fuse', !!sBig && !sBig.unfusable);
+      if (sBig && !sBig.unfusable) {
         T.eq('#2: REM gap ≈ 25 pts as built (0.30 vs 0.05)', sBig.remGapPct, 25);
         T.eq('#2: gap > 0.20 → disagreement TRUE', sBig.disagreement, true);
       }
-      // (b) SMALL gap control: ECG REM 0.20 (80/400) vs Oxy 0.08 → gap 0.12 (< 0.20) ⇒ agreement.
-      var fusSm = RF([ecgStage(80, 400), oxyStage(8)], { toleranceSec: 120 });
+      // small-gap control on the same basis: 0.20 vs 0.08 ⇒ 0.12 (< 0.20) ⇒ agreement.
+      var fusSm = RF([ecgAs('ECGDex', 80, 400), ecgAs('HRVDex', 32, 400)], { toleranceSec: 120 });
       var sSm = fusSm.staging && fusSm.staging.blocks && fusSm.staging.blocks[0];
-      if (sSm) {
+      if (sSm && !sSm.unfusable) {
         T.eq('#2 control: REM gap ≈ 12 pts (0.20 vs 0.08)', sSm.remGapPct, 12);
         T.eq('#2 control: gap < 0.20 → disagreement FALSE', sSm.disagreement, false);
       }
