@@ -243,9 +243,31 @@
     const gtRR = []; // ground-truth RR (ms) — interval ending at this beat
     const gtType = []; // 'N' | 'V' | 'S'
     const respHz0 = 0.235; // ~14 breaths/min baseline
-    // respiration phase = 2π·∫f dτ (accumulated), NOT 2π·f(t)·t — the latter chirps the
-    // instantaneous frequency badly. f wanders ±0.03 Hz with a 600 s period.
-    const respPhase = (tt) => 2 * Math.PI * respHz0 * tt - 0.03 * 600 * (Math.cos((2 * Math.PI * tt) / 600) - 1);
+    /* RESPIRATORY IRREGULARITY IS STAGE-DEPENDENT (REM-STAGING-REDESIGN §3, the missing discriminator).
+       Respiration phase = 2π·∫f dτ (accumulated), NOT 2π·f(t)·t — the latter chirps the instantaneous
+       frequency badly. The carrier wanders ±0.03 Hz with a 600 s period.
+
+       This USED TO BE that carrier alone: one global phase function, identical in every stage. That is
+       a generator in which REM and NREM breathe ALIKE — the same defect §4 found in the motion channel,
+       one signal over. §3 names respiratory variability as the one feature giving REM a POSITIVE
+       signature rather than an LF/HF proxy; against this oracle it measured ~0 in every stage, so it
+       could be neither developed nor validated, and a detector fitted to it would have been tuned
+       toward a false target.
+
+       The physiology now modelled: NREM breathing is metronomic; REM breathing is IRREGULAR in rate
+       and depth. Wake is irregular too (volitional) — which is exactly why respiratory variability is
+       a REM/NREM discriminator while motion remains the REM/Wake one.
+
+       The irregularity rides as a SECOND, faster wander whose amplitude is stage-scaled, so the MEAN
+       rate is unchanged and only its VARIABILITY moves. Closed-form integral, so the phase stays exact
+       and the generator stays a pure function of t (no per-beat accumulator to drift). Period 47 s —
+       fast enough that a 60 s analysis sub-window sees a full cycle, which is what makes the
+       variability measurable at the resolution the stager works at. */
+    const respIrreg = (tt) => {
+      const s = stageAt(tt).stage;
+      return s === 'REM' ? 0.055 : s === 'Wake' ? 0.045 : s === 'N1' ? 0.022 : 0.008; // Hz, ± swing
+    };
+    const respPhase = (tt) => 2 * Math.PI * respHz0 * tt - 0.03 * 600 * (Math.cos((2 * Math.PI * tt) / 600) - 1) - respIrreg(tt) * 47 * (Math.cos((2 * Math.PI * tt) / 47) - 1);
     let t = 0.4,
       lfTarget = 0,
       bw = 0; // bw = slow correlated (fractal) drift
@@ -1254,6 +1276,54 @@
     return { pip: +PIP.toFixed(1), ials: +IALS.toFixed(3), pss: +((shortNN / tot) * 100).toFixed(1) };
   }
 
+  /* RESPIRATORY-RATE VARIABILITY over one epoch (REM-STAGING-REDESIGN §3).
+     REM breathing is irregular in rate and depth; NREM breathing is metronomic. The epoch's own
+     `resp` (the HF spectral peak over all 5 minutes) cannot express that — it is one frequency, and a
+     rate that swung wildly and one that never moved produce the same peak. So: split the epoch into
+     60 s sub-windows, take each one's HF peak, and report the coefficient of variation across them.
+
+     WHY 60 s. Long enough for the HF band (0.15–0.4 Hz ⇒ ≥9 respiratory cycles) to have a peak worth
+     reading, short enough that five of them fit in an epoch. LF would NOT survive this — it needs
+     ≥2 min — which is why only the respiratory peak is computed here and LF/HF stays on the 5-min
+     scale it is defined at.
+
+     CV, NOT SD. A rate swinging ±2 /min around 12 is more irregular than the same swing around 20,
+     and the stager compares epochs whose mean rates differ. Normalising by the mean is what makes the
+     number comparable across epochs and across subjects.
+
+     NULL, NOT ZERO, when it cannot be measured. Fewer than three usable sub-windows (a sparse or
+     gappy epoch) means the variability is UNKNOWN — and zero would read as "perfectly metronomic",
+     the strongest possible NREM evidence, fabricated from absence. Consumers must treat null as no
+     contribution rather than as a value.
+
+     MEASURED against planted truth on the 6 h synthetic: REM 0.099 against NREM 0.036–0.039 and Wake
+     0.056 — a ~2.6× REM/NREM separation, and the Wake value sitting between them exactly as the
+     physiology predicts. */
+  function _respCv(seg, segT, w0, w1) {
+    const SUB = 60;
+    const rates = [];
+    for (let s0 = w0; s0 + SUB <= w1 + 1e-6; s0 += SUB) {
+      const s1 = s0 + SUB,
+        sSeg = [],
+        sT = [];
+      for (let k = 0; k < segT.length; k++) {
+        if (segT[k] >= s0 && segT[k] < s1) {
+          sSeg.push(seg[k]);
+          sT.push(segT[k]);
+        }
+      }
+      // ~30 bpm floor for a usable 60 s sub-window; below that the HF peak is noise, not respiration.
+      if (sSeg.length < 30) continue;
+      const r = lombScargle(sSeg, sT, 160).respRate;
+      if (r != null && isFinite(r) && r > 0) rates.push(r);
+    }
+    if (rates.length < 3) return null;
+    const m = rates.reduce((a, b) => a + b, 0) / rates.length;
+    if (!(m > 0)) return null;
+    const v = rates.reduce((a, b) => a + (b - m) * (b - m), 0) / rates.length;
+    return +(Math.sqrt(v) / m).toFixed(4);
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  5-MIN EPOCH ENGINE — window the NN series; per-epoch short-term suite.
   // ════════════════════════════════════════════════════════════════════════
@@ -1278,6 +1348,12 @@
         const ls = lombScargle(seg, segT, 160);
         epochs.push({
           tMin: +(w0 / 60).toFixed(1),
+          // RESPIRATORY-RATE VARIABILITY (REM-STAGING-REDESIGN §3) — `resp` below is one frequency for
+          // the whole epoch and by construction says nothing about whether the breathing that produced
+          // it was metronomic or ragged. See _respCv. Not yet consumed by the stager: the weighted-score
+          // detector this feature exists for is still open (§3), and the measurements are in the
+          // follow-up brief rather than in a half-calibrated gate.
+          respCv: _respCv(seg, segT, w0, w1),
           n: seg.length,
           hr: +(60000 / m).toFixed(1),
           meanRR: +m.toFixed(1),

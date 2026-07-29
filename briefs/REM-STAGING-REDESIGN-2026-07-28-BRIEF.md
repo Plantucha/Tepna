@@ -195,7 +195,43 @@ literature policy the citation has to be checkable, not gestured at.
       spectrum works, but on real data the CONJUNCTION still under-selects: 2026-07-27 has 26 epochs
       clearing the LF/HF gate, 10 clearing RMSSD, and 2 clearing both. Corpus median REM% is 6.5 against a
       physiological 15–25%
-- [ ] §3 REM score replaces the conjunction; respiratory-rate variability computed per epoch
+- [x] **§3a respiratory-rate variability computed per epoch — LANDED 2026-07-29, and the oracle had to
+      be corrected first, for the third time in this brief's life.** `respPhase` was ONE
+      stage-independent phase function: the generator breathed identically in REM and NREM, so the
+      feature §3 calls "the missing discriminator" measured ~0 in every stage and could be neither
+      built nor validated against it. That is §4's motion finding one signal over, and the same rule
+      applied — **fix the oracle first, or train toward a false target.** `respIrreg` now scales the
+      wander per stage (REM 0.055 · Wake 0.045 · N1 0.022 · NREM 0.008 Hz); mean rate unchanged,
+      variability only. `epochs[].respCv` measures it: five 60 s sub-windows per epoch, each one's HF
+      peak, CV across them — **null, never 0**, below three usable sub-windows, because 0 reads as
+      perfectly metronomic and that is the strongest NREM evidence there is, fabricated from absence.
+      **Measured against planted truth: REM 0.099 · Wake 0.056 · N1 0.036 · N2 0.039 · N3 0.038** — a
+      2.6× REM/NREM separation, Wake sitting between them exactly as the physiology predicts, and
+      N2 ≈ N3 confirming it measures irregularity rather than depth. All four facts are gated;
+      flattening `respIrreg` to a constant reds them. The three §EP-rest pins moved again for the same
+      reason as in §4 (the RSA term moves the RR series) and were re-pinned knowingly: DC 9.62 → 10.1,
+      AC −10.26 → −9.87, SampEn 1.03 → 0.962, with the /2-slip discrimination re-verified by mutation.
+      Export-inert by measurement: both committed ECGDex goldens are byte-unchanged (`respCv` is an
+      internal epoch field), so no fixture moved.
+- [ ] **§3b the REM score itself — still open, and now the sole blocker.** A weighted score
+      (`z(LF/HF) − z(RMSSD) + z(respCv)`, MAD-based, motion kept as veto rather than term, band gate)
+      was **built, measured, and deliberately NOT shipped** — it passes one of §5's falsifiers by
+      failing another:
+
+      | detector | corpus median REM% (target 15–25) | planted-truth REM recall |
+      |---|---|---|
+      | conjunction (shipped) | **6.5 %** ✗ | 7/9 |
+      | weighted score, band p=0.78 | 28.2 % ✗ | 8/9 |
+      | weighted score, band p=0.845 | **21.3 %** ✓ | **6/9** ✗ |
+
+      Population plausibility and planted-truth recall move in **opposite** directions across the band,
+      so no single setting satisfies both — and §5 lists both as acceptance. Two things are worth
+      knowing before the next attempt. (1) The band percentile had to be **calibrated to the corpus**
+      to land in the physiological range at all. That is legitimate — §5 names population plausibility
+      as a falsifier — but it is a *calibration*, not a validation, and must never be reported as
+      accuracy. (2) The planted-truth losses are **motion-veto** losses: REM epochs whose phasic
+      twitches exceed the veto's fixed threshold of 60. A night-relative veto is the obvious next thing
+      to measure, and it is cheap.
 - [ ] Bout-structure constraint; the minority-stage exemption from `9f1edbc` retired in favour of it
 - [ ] §5 acceptance run over the 11-night corpus — median REM % inside 15–25 %, cycle structure present
 - [ ] Finer staging grid (1 min) — sequenced after the score lands, own re-bundle
