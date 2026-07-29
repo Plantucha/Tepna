@@ -19,7 +19,7 @@
    cpapdex-dsp.js / cpapdex-fusion.js / cpapdex-render.js (clone OxyDex).
 
    Run the self-test:  node cpapdex-edf.js --selftest
-   Exposes: window.CpapEdf = { readEDF, parseEdfClock, parseTAL, classifyAnnotation }
+   Exposes: window.CpapEdf = { readEDF, parseEdfClock, parseTAL, classifyAnnotation, annotationBoundary }
    ════════════════════════════════════════════════════════════════════════ */
 (function (root) {
   'use strict';
@@ -151,6 +151,21 @@
     return 'Unclassified';
   }
 
+  /* Vendor annotation text → span EDGE, or null when the text carries no edge word.
+     ResMed writes a periodic-breathing span as two zero-duration markers ("CSR Start" / "CSR End")
+     rather than one TAL with a duration, and `classifyAnnotation` maps BOTH to 'Cheyne-Stokes' —
+     correct as a class, but it erases the only thing that makes the pair a span. Kept separate from
+     the class (rather than returned as 'Cheyne-Stokes Start') so no existing class consumer changes
+     behaviour. Word-boundary anchored: a text that merely CONTAINS "start" mid-word is not an edge,
+     and 'Recording starts' is deliberately matched — it is an edge marker, just not of a PB span,
+     and the caller filters by class before it ever looks here. */
+  function annotationBoundary(text) {
+    var s = String(text || '').toLowerCase();
+    if (/\bstarts?\b|\bbegin[s]?\b|\bon\b/.test(s)) return 'start';
+    if (/\bends?\b|\bstop[s]?\b|\bfinish(ed)?\b|\boff\b/.test(s)) return 'end';
+    return null;
+  }
+
   /* ════════════════════════════════════════════════════════════════════════
    readEDF(arrayBuffer) → decoded record
    {
@@ -274,6 +289,12 @@
               durSec: tals[k].durSec,
               text: tals[k].text,
               class: cls,
+              // MULTINIGHT-CORPUS-FINDINGS §1 — a span the vendor encodes as a MARKER PAIR
+              // ("CSR Start" … "CSR End", durSec 0 on both) classifies to ONE class, so the class
+              // alone cannot tell an opening edge from a closing one and the span collapses to zero
+              // length. `boundary` is an ADDITIVE field (class is unchanged, every existing reader
+              // keeps working) that preserves the edge so a consumer can pair them.
+              boundary: annotationBoundary(tals[k].text),
               tMs: clock ? clock.t0Ms + tals[k].onsetSec * 1000 : null
             });
           }
@@ -395,6 +416,16 @@
         var ev = '+12.5\u00158\u0014Obstructive Apnea\u0014\u0000';
         for (var c2 = 0; c2 < ev.length && w < ab.length; c2++) ab[w++] = ev.charCodeAt(c2);
       }
+      /* MULTINIGHT-CORPUS-FINDINGS §1 — the PB encoding a REAL AirSense 11 writes into CSL: a
+         zero-duration marker PAIR, not one TAL carrying a duration. Emitted as BYTES (rather than
+         as hand-built annotation objects) so the coverage runs the whole path — TAL parse →
+         classifyAnnotation → annotationBoundary — instead of only the pairing arithmetic. */
+      if (opts.csrMarkers && (r === 1 || r === 3)) {
+        var TAL = '\u0014',
+          NUL = '\u0000';
+        var mk = '+' + (r === 1 ? '10' : '30') + TAL + 'CSR ' + (r === 1 ? 'Start' : 'End') + TAL + NUL;
+        for (var c3 = 0; c3 < mk.length && w < ab.length; c3++) ab[w++] = mk.charCodeAt(c3);
+      }
       p += annSpr * 2;
     }
     return opts.truncateBytes ? buf.slice(0, size - opts.truncateBytes) : buf;
@@ -432,6 +463,21 @@
     ok('annotation classified', ev[0] && ev[0].class === 'Obstructive Apnea');
     ok('annotation absolute tMs = t0Ms + onset', ev[0] && Math.abs(ev[0].tMs - (rec.clock.t0Ms + 12500)) < 1e-6);
 
+    /* 3b) MULTINIGHT-CORPUS-FINDINGS §1 — the marker-pair span encoding, from BYTES.
+       `classifyAnnotation` collapses "CSR Start" and "CSR End" onto ONE class (correct: both are
+       Cheyne-Stokes), which is why the class alone cannot delimit a span and every real night
+       measured 0 s of periodic breathing. `boundary` is what restores the edges. */
+    var recCsr = readEDF(_buildSyntheticEDF({ records: 5, csrMarkers: true }));
+    var csr = recCsr.annotations.filter(function (a) {
+      return a.class === 'Cheyne-Stokes';
+    });
+    ok('CSR marker pair decoded from bytes', csr.length === 2, 'got ' + csr.length);
+    ok('both markers classify as Cheyne-Stokes (class cannot delimit the span)', csr.length === 2 && csr[0].class === csr[1].class);
+    ok('both markers carry durSec 0 (the span has no duration to sum)', csr.length === 2 && !csr[0].durSec && !csr[1].durSec);
+    ok('boundary restores the edges the class erases', csr.length === 2 && csr[0].boundary === 'start' && csr[1].boundary === 'end', csr.length === 2 ? csr[0].boundary + '/' + csr[1].boundary : '');
+    ok('marker onsets give a 20 s span', csr.length === 2 && csr[1].onsetSec - csr[0].onsetSec === 20, csr.length === 2 ? csr[1].onsetSec - csr[0].onsetSec : '');
+    ok('annotationBoundary ignores text with no edge word', annotationBoundary('Central Apnea') === null && annotationBoundary('CSR Start') === 'start' && annotationBoundary('CSR End') === 'end');
+
     // 4) numRecords = -1 recovered from file size
     var rec2 = readEDF(_buildSyntheticEDF({ records: 5, numRecordsField: -1 }));
     ok('numRecords=-1 recovered', rec2.recordsRead === 5, 'got ' + rec2.recordsRead);
@@ -450,6 +496,7 @@
     sampleTMs: sampleTMs,
     parseTAL: parseTAL,
     classifyAnnotation: classifyAnnotation,
+    annotationBoundary: annotationBoundary,
     _buildSyntheticEDF: _buildSyntheticEDF,
     selfTest: selfTest
   };
