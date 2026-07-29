@@ -744,9 +744,7 @@ let work = LIMIT ? trio.slice(0, LIMIT) : trio;
 const STAMP = '.trio-stamp'; // NOT *.json — tch-multinight --dir globs /\.json$/i and must not see it
 const sha16 = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
 const CODE_DIGEST = (() => {
-  const srcs = ['clock.js', 'kernel-constants.js', 'dex-export.js', 'oxydex-util.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js']
-    .map((f) => join(ROOT, f))
-    .concat([__filename]);
+  const srcs = ['clock.js', 'kernel-constants.js', 'dex-export.js', 'oxydex-util.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].map((f) => join(ROOT, f)).concat([__filename]);
   return sha16(srcs.map((f) => (existsSync(f) ? readFileSync(f, 'utf8') : '')).join('\0'));
 })();
 const inputDigest = (p) =>
@@ -757,7 +755,11 @@ const inputDigest = (p) =>
         const v = p[k];
         return (Array.isArray(v) ? v : v && v.name ? [v] : []).map((f) => {
           let mt = 0;
-          try { mt = statSync(f.full).mtimeMs; } catch { /* gone → digest changes → recompute */ }
+          try {
+            mt = statSync(f.full).mtimeMs;
+          } catch {
+            /* gone → digest changes → recompute */
+          }
           return `${k}\0${f.name}\0${f.bytes}\0${mt}`;
         });
       })
@@ -770,7 +772,13 @@ if (SKIP_EXISTING && !DRY) {
     const dir = join(OUT, p.key);
     const sf = join(dir, STAMP);
     let st = null;
-    if (existsSync(sf)) { try { st = JSON.parse(readFileSync(sf, 'utf8')); } catch { st = 'BAD'; } }
+    if (existsSync(sf)) {
+      try {
+        st = JSON.parse(readFileSync(sf, 'utf8'));
+      } catch {
+        st = 'BAD';
+      }
+    }
     const nJson = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.json')).length : 0;
     const why = redoReason(st, nJson, inputDigest(p), CODE_DIGEST);
     if (why) keep.push(p);
