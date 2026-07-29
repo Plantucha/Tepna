@@ -126,8 +126,13 @@ this corpus hands it three dated, quantified cases it did not have.
 
 ## 5 · Done when
 
-- [ ] §1.1 answered: OxyDex PB episodes compared episode-by-episode against the device's CSL spans on
-      the nights both fire, with a verdict on whether they overlap in time at all.
+- [ ] §1.1 answered — **BLOCKED, and the attempt found something bigger.** The episode-by-episode
+      comparison was run: 0 of 20 PB episodes overlap a device CSR span. That result is **void as
+      measured** — cross-correlating CPAP events against two independently host-captured nodes shows
+      the CPAP clock is **~39 min slow** (6.21x over floor at +39.5 min vs OxyDex, 4.28x at +38.0 min
+      vs ECGDex, 27 of 32 nights agreeing individually). The 0/20 was measuring the clock, not the
+      detectors. Re-run once the offset is handled — see `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md`,
+      which now owns it.
 - [ ] §2.1 answered: the `capture.py` change that broke and unbroke the motion byte is identified, or
       the search is recorded as exhausted so the next occurrence is not re-investigated from scratch.
 - [x] `reraIndex` returns `null` where the source emits no RERA label (§3), in its own change. **DONE 2026-07-29** — scoped, not blanket: the synthetic golden that genuinely carries a RERA keeps its number, the multi-night sibling pools before deciding, and the self-test pins both directions. Three fixtures regenerated.
