@@ -17754,6 +17754,43 @@
           T.approx('§9.2 · zLatest = −2.43 — the real event (unweighted reported −0.36)', zBase.zLatest, -2.43, 0.05);
           T.ok('§9.2 · …and |z| ≥ 1, so it is FLAGGED — pre-fix it was not raised at all', Math.abs(zBase.zLatest) >= 1, 'zLatest=' + zBase.zLatest);
         }
+
+        /* …AND THE OTHER FOUR CLONES. Third member of the same family as §9.1 and §9.3: the fix lives
+           in all five `*-cross.js` files and the gate drove OXYCross only. Mutation-checked on
+           cpapdex-cross.js — reverting `priorW` to uniform weights reds NOTHING, so a −2.43σ event
+           silently read as −0.36σ (below the |z| ≥ 1 flag threshold) on four of the five nodes.
+           Unlike §9.1 this fixture was never VACUOUS — the 6 %-coverage night is genuinely
+           down-weighted — it simply was not replicated, which is the cheaper failure to fix and the
+           easier one to miss. Driven through the shared `crossNight` primitive, so one table covers
+           every clone regardless of each node's own stats shape. */
+        var _cl92 = [
+          ['OXYCross', env.OXYCross],
+          ['ECGCross', env.ECGCross],
+          ['PulseCross', env.PulseCross],
+          ['PPGCross', env.PPGCross],
+          ['CPAPCross', env.CPAPCross]
+        ];
+        // The audit's own figures: prior [95,95,95,60] at w=[1,1,1,0.06], newest 80 at full coverage.
+        //   unweighted baseline → mean 86.25, sd 17.50 ⇒ z = −0.36   (NOT flagged)
+        //   weighted   baseline → mean 94.31, sd  5.89 ⇒ z = −2.43   (flagged)
+        var _z92 = [95, 95, 95, 60, 80].map(function (v, i) {
+          return { v: v, t: day(i), w: [1, 1, 1, 0.06, 1][i] };
+        });
+        _cl92.forEach(function (pr) {
+          var nm = pr[0],
+            M = pr[1];
+          if (!M || typeof M.crossNight !== 'function') {
+            T.skip('§9.2 · ' + nm + '.crossNight available', 'not wired in this lane');
+            return;
+          }
+          var r92 = M.crossNight(_z92, { good: 'up' });
+          T.approx('§9.2 · ' + nm + ' · baseline mean is coverage-WEIGHTED: 94.31 (unweighted 86.25)', r92.baselineMean, 94.31, 0.05);
+          T.approx('§9.2 · ' + nm + ' · baseline sd likewise: 5.9 (the 6 %-coverage night inflated it to 17.5)', r92.baselineSd, 5.9, 0.1);
+          T.approx('§9.2 · ' + nm + ' · zLatest = −2.43, the real event (unweighted reported −0.36)', r92.zLatest, -2.43, 0.05);
+          // Anti-vacuity: this must land on the FLAGGED side of the threshold the spec uses, otherwise
+          // the assertion pins a number without pinning the decision that number drives.
+          T.ok('§9.2 · ' + nm + ' · …and |z| ≥ 1 ⇒ FLAGGED; the unweighted −0.36 was not raised at all', Math.abs(r92.zLatest) >= 1, nm + ' zLatest=' + r92.zLatest);
+        });
         // deep-scout §CN — the block also surfaces median/iqr/min/max/slopePerDay/tau/p but the group
         // never pinned their VALUES, so every one of those estimators was hollow. meanSpo2 = [90..97]
         // (8 nights, 1 day apart, coverage 90 → equal weights): median = (93+94)/2 = 93.5; IQR = P75−P25 =
