@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<!--
+  null-calibration.html — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+  Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+  project root, or http://www.apache.org/licenses/LICENSE-2.0
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calibrating a null: a negative result is only as strong as the proof the instrument could have found a positive — Tepna preprint</title>
+<link rel="stylesheet" href="../licensing/dex-license.css">
+<link rel="stylesheet" href="paper.css">
+</head>
+<body>
+<div class="sheet">
+  <a class="toplink" href="papers.html">← Tepna preprints</a>
+  <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <h1 class="title">Calibrating a null: a negative result is only as strong as the proof that the instrument could have found a positive</h1>
+  <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
+  <p class="affil">Methods note, Tepna physiological-signal suite</p>
+  <p class="meta">Draft v1 · 2026-07-29 · Methods / meta-analysis of this suite's own errors · the control regenerates from <code>tools/acc-acc-control.mjs</code>; the arithmetic regenerates from published tables · 100% local</p>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> Negative results are increasingly published, and rightly so. But a null carries an asymmetric evidential burden that the positive literature does not: a positive result is checked by the world, whereas a null is only ever checked by the instrument that produced it. If that instrument was incapable of returning a positive, the null describes the instrument and not the world — and nothing in the usual reporting distinguishes the two cases. <b>Objective.</b> State the failure mode precisely, give the arithmetic that predicts when a search enters it, and demonstrate both on two of this suite's own published or near-published nulls. <b>Method.</b> Two diagnostics, each cheap. (i) A <b>known-answer control</b>: run the identical code and parameters on a case whose answer is fixed by construction, and on the same case with a known effect planted. (ii) A <b>chance-maximum bound</b>: for a search maximising correlation over <i>N</i> candidate lags with <i>n</i> samples per comparison, the expected largest spurious correlation is ≈ (1/√<i>n</i>)·√(2 ln <i>N</i>); if the acceptance threshold falls below it, the search is guaranteed to report a confident value drawn from noise. <b>Results.</b> Widening a cross-correlation from ±1.6 s to ±50 min at 250 ms resolution takes <i>N</i> from 65 to 24,001 while a ±15 s window supplies <i>n</i> = 121, giving a chance maximum of ≈ <b>0.41</b> against an acceptance threshold that had been lowered to <b>0.35</b> — inoperative. The known-answer control confirms it: on two accelerometers sharing one acquisition clock the search recovers a <b>planted −39 min</b> offset on <b>1 night of 13</b>, attenuated to −14.3 min, while the same code at its design range aligns <b>13/13</b> to sub-1.6 s. Lengthening the correlation window restores the bound and recovery improves monotonically (±60 s → −27.3 min, 3/13; ±240 s → −31.4 min, 6/13), a dose-response that identifies the mechanism. Because the noise median regresses to the centre of the search range, the failed search reports ≈ 0 <em>whatever the truth is</em> — so its null is indistinguishable from a measurement. Two of this suite's conclusions rested on this regime: one is withdrawn, one is void. A third error, in the same family, shows a companion metric that <b>cannot move</b> under the failure it was trusted to detect. <b>Conclusion.</b> Report, alongside any null, the demonstration that the method recovers a planted effect of the size being denied. Where a null is explained by a physical mechanism, test one prediction that mechanism makes and its rivals do not; in our case that test was a single correlation over an already-published table, and it overturned the paper's thesis.</p>
+  </div>
+  <p class="kw"><b>Keywords:</b> negative results · null calibration · known-answer control · positive control · multiple comparisons · cross-correlation · sensor fusion · reproducibility · self-correction · research methods</p>
+
+  <div class="callout" style="border:1px dashed #b8860b;background:#fffdf5">
+    <h2 class="sec" style="margin-top:0">0. Layman overview <span style="font-weight:400;color:#b8860b;font-size:13px">(delete before submission)</span></h2>
+    <p>If you search a haystack and find no needle, that tells you something — but only if you can show your search would have found a needle had one been there. Otherwise all you have learned is that your search doesn't work. This is obvious when stated, and we still got it wrong twice.</p>
+    <p>Both times we were trying to line up two recordings in time by sliding one against the other until they matched best. When you allow a very wide range of possible shifts, you get an enormous number of chances to match by pure luck — and luck reliably beats the real answer. Worse, we had <em>lowered</em> the bar for what counted as a good match, precisely because the search "wasn't finding anything". That guaranteed the luck would win. And because the lucky matches scatter evenly, their average lands in the middle of the range we searched, which looks reassuringly like "no shift found" — the exact answer a broken search produces regardless of the truth.</p>
+    <p>The fix costs almost nothing: take a case where you already know the answer, hide a known shift in it, and check the search finds it. When we did that, our search missed a hidden 39-minute shift on twelve of thirteen tries. So our earlier conclusion — that two body sensors couldn't be aligned from their motion — was never evidence. We also learned a second, sharper lesson: one of our safety checks was mathematically incapable of registering the error it was meant to catch, so it stayed green throughout and made us more confident, not less.</p>
+  </div>
+
+  <h2 class="sec">1. The asymmetry</h2>
+  <p>A published positive claim is exposed. Others will try to reproduce it, and the instrument that produced it will be turned on new data where it can embarrass its author. A published null is not exposed in the same way. Nobody reproduces an absence; the result is filed, cited as a boundary, and the instrument is retired. The only entity that ever tested whether the instrument worked is the instrument itself, and its null is consistent with two states of the world that the usual reporting cannot separate: <em>the effect is absent</em>, and <em>the method could not have detected the effect</em>.</p>
+  <p>This is not the familiar point about statistical power. Power analysis asks whether the sample was large enough given that the estimator is unbiased and the noise model holds. The failure here is upstream of that: the estimator is not merely underpowered but structurally incapable, and it reports a confident, stable, plausible number while being so. Nothing in a power calculation catches it, because the noise is not the noise the calculation assumed.</p>
+  <p>The remedy is the oldest one in experimental science and is simply not conventional in computational analysis: <b>a positive control</b>. Before believing a null, run the identical pipeline on a case where the answer is known, and on the same case with a known effect planted at the magnitude being denied. This note gives the arithmetic that predicts when the control is essential, and reports what happened when we finally ran it.</p>
+
+  <h2 class="sec">2. When a maximising search is guaranteed to lie</h2>
+  <p>Consider the common shape: two series are aligned by choosing the lag that maximises their normalised cross-correlation, accepting the result if the correlation clears a threshold <i>r</i><sub>min</sub>. Let <i>N</i> be the number of candidate lags searched and <i>n</i> the number of samples in each comparison window. For roughly independent samples the sample correlation under the null has sd ≈ 1/√<i>n</i>, and the expected maximum of <i>N</i> such draws is approximately</p>
+  <p style="text-align:center;font-size:15px">E[max spurious <i>r</i>] ≈ (1/√<i>n</i>) · √(2 ln <i>N</i>)</p>
+  <p>The consequence is stark. <b>If <i>r</i><sub>min</sub> &lt; E[max spurious <i>r</i>], the acceptance threshold is inoperative</b>: chance alone clears it on essentially every trial, so the search always returns a confident lag, and that lag is noise. Two further properties make the failure hard to notice.</p>
+  <ul>
+    <li><b>The null looks like a measurement.</b> Spurious maxima are distributed roughly uniformly over the searched range, so their median sits near the <em>centre</em> of that range. A search centred on zero therefore reports ≈ 0 — the very answer that reads as "no offset detected", regardless of the truth.</li>
+    <li><b>Widening the search makes it worse in the direction that feels like diligence.</b> Extending the range raises <i>N</i>; and because a wide search "finds nothing" at the original threshold, the natural response is to <em>lower</em> <i>r</i><sub>min</sub>. Both moves push the same inequality the wrong way. The parameter change that feels like thoroughness is the one that blinds the instrument.</li>
+  </ul>
+  <p>The bound is crude — neighbouring lags are correlated, so the effective <i>N</i> is smaller than the nominal count, and the estimate is generous. That is the right direction for a screening test: it over-warns rather than under-warns. Table 1 evaluates it for the configurations at issue here.</p>
+
+  <table class="data">
+    <thead><tr><th>configuration</th><th>window samples <i>n</i></th><th>candidate lags <i>N</i></th><th>E[max spurious <i>r</i>]</th><th><i>r</i><sub>min</sub></th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>design range (±1.6 s @ 50 ms)</td><td>65</td><td>65</td><td>0.358</td><td>0.60</td><td>threshold binds</td></tr>
+      <tr class="hi"><td>wide search (±50 min @ 250 ms, ±15 s window)</td><td>121</td><td>24,001</td><td><b>0.408</b></td><td><b>0.35</b></td><td style="color:#a11"><b>INOPERATIVE</b></td></tr>
+      <tr><td>wide search, ±60 s window</td><td>481</td><td>24,001</td><td>0.205</td><td>0.35</td><td>threshold binds</td></tr>
+      <tr><td>wide search, ±240 s window</td><td>1,921</td><td>24,001</td><td>0.102</td><td>0.35</td><td>threshold binds</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;color:#777;margin-top:-4px">Table 1 · The same aligner at four settings. Only the highlighted row was used to produce a published conclusion. Note that the design-range configuration is safe not because it searches few lags but because its threshold was never lowered.</p>
+
+  <h2 class="sec">3. The known-answer control</h2>
+  <p>The bound predicts failure; a control demonstrates it. The requirement is a case whose answer is fixed by construction while remaining, in every other respect, the problem actually being studied — otherwise the control tests the arithmetic rather than the method.</p>
+  <p><b>Construction.</b> A capture host records a Polar H10 chest accelerometer and a Polar Verity accelerometer through one daemon on one clock. Their true relative offset is therefore <b>zero by construction</b>, while they remain two different sensors on two different body segments whose signals are correlated only through real body movement — which is the situation the original analysis addressed. An autocorrelation of one sensor against itself would have been useless here: it shares the noise, and would have verified only that the code can find a peak.</p>
+  <p><b>Legs.</b> 13 nights, 30–1,313 min of overlap each. Each night was run at the design range, at the wide-search settings, and at the wide-search settings with a known offset planted in one stream by shifting its timeline. The planted leg is scored as <code>recovered(<i>I</i>) − recovered(0)</code>, a self-consistency comparison that requires no knowledge of the implementation's sign convention.</p>
+
+  <table class="data">
+    <thead><tr><th>leg</th><th>nights aligned</th><th>median reported offset</th><th>median anchor spread</th><th>recovered</th></tr></thead>
+    <tbody>
+      <tr><td>design range, true offset 0</td><td>13/13</td><td>0.00 min</td><td>0.1 min</td><td><b>13/13</b></td></tr>
+      <tr><td>wide search, true offset 0</td><td>13/13</td><td>0.00 min</td><td><b>92.4 min</b></td><td>11/13 “within ±5 min”</td></tr>
+      <tr class="hi"><td>wide search, <b>−39 min planted</b></td><td>13/13</td><td>−20.11 min</td><td>94.2 min</td><td style="color:#a11"><b>1/13</b> (Δ = −14.3 of −39)</td></tr>
+      <tr><td>wide search, +17.5 min planted</td><td>13/13</td><td>+12.44 min</td><td>92.4 min</td><td>7/13 (Δ = +12.6 of +17.5)</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;color:#777;margin-top:-4px">Table 2 · The control. Anchor spread is the range of the per-anchor offset estimates within a night: at the design range they agree to 0.1 min, in the wide search they cover essentially the entire ±50 min searched — the signature of noise.</p>
+
+  <p>Three things in Table 2 deserve emphasis.</p>
+  <ol>
+    <li><b>The wide search's "correct" row is the most dangerous one.</b> At a true offset of zero it reports 0.00 min and lands within ±5 min on 11 of 13 nights, which reads as a working method. It is not working; it is regressing to the centre of its search range, and the planted rows prove it. A control run only at the true answer would have <em>validated</em> the broken configuration. <b>A positive control must plant an effect.</b></li>
+    <li><b>Attenuation scales with the effect being sought.</b> The +17.5 min plant is recovered on 7 of 13 nights and the −39 min plant on 1 of 13, with estimates shrunk to 72 % and 37 % of truth respectively. A search in this regime is not merely noisy but systematically biased toward zero, by an amount that grows with the distance from the search centre — so the larger the effect one is looking for, the more confidently its absence will be reported.</li>
+    <li><b>The dose-response identifies the mechanism rather than merely the failure.</b> Holding the search range fixed and lengthening only the correlation window — the term that raises <i>n</i> in the bound — improves recovery of the planted −39 min monotonically: −14.3 min (1/13) at ±15 s, −27.3 min (3/13) at ±60 s, −31.4 min (6/13) at ±240 s. That is the bound's prediction confirmed on real data. It also shows the repair is not available in this case: even an 8-minute window under-recovers, and a window that long no longer isolates a single movement event, which was the premise of the method.</li>
+  </ol>
+
+  <h2 class="sec">4. Two nulls this invalidated, and one metric that could not see</h2>
+  <p><b>4.1 A withdrawn cause.</b> A prior preprint reported that two body-worn sensors could not be re-synchronised from their accelerometers, and attributed the failure to anatomy — that a chest strap and an ankle band register largely uncorrelated motion, from which it further concluded that inertial re-synchronisation requires co-located sensors. The failure reproduces. The explanation does not survive: the control above shows the same code, at the same settings, failing on a pair whose offset is known, while the same code at its design range aligns two <em>different</em> body segments 13/13 to sub-1.6 s. The anatomical claim is therefore <b>unsupported rather than disproven</b> — and the distinction matters, because the original wording closed a design direction that is in fact still open. (The control pairs chest with arm rather than chest with ankle, so it cannot establish the converse.)</p>
+  <p><b>4.2 A void null.</b> A separate analysis asked whether a CPAP machine's mis-set clock could be fitted by correlating its airflow disturbances against body movement recorded on an accurately-clocked device. It returned 1 of 28 nights near the independently-known offset, against a chance expectation of 2.8 — read at the time as evidence that airflow disturbance does not track movement. It was run in exactly the regime of Table 1's highlighted row. That null is <b>void</b>: it cannot distinguish the physiological claim from the method's blindness, and the underlying question is reopened. The offset itself was recovered by a different estimator that pools every event across the whole night at each candidate lag rather than correlating a short window — raising <i>n</i> with the recording length, which is precisely the term the bound says must grow.</p>
+  <p><b>4.3 A companion metric that could not move.</b> The same preprint's headline number — a per-night lag "drift" of ~1,150 ms attributed to quartz-crystal tolerance — was an artifact of a beat-coupler that searched a 2,000 ms span while only <em>displaying</em> its 200–650 ms physiological window, so a missed pulse admitted the next beat's. Beside that number stood a reassuring beat-to-beat interquartile spread of ~48 ms. A gated mutation control now shows that this spread <b>cannot move at all</b> under the failure mode: ten slipped beats in sixty do not shift a quartile. The check that supplied confidence was structurally blind to the error it was trusted to exclude, and its healthy value was uninformative rather than corroborating.</p>
+  <p>This generalises the note's thesis beyond search. <b>Ask what a diagnostic is capable of reporting</b>, not only what it reports. A companion metric earns its place only if some realisable failure makes it move.</p>
+
+  <p><b>4.4 A remedy accepted without measuring the quantity it removes.</b> The same preprint prescribed single-clock acquisition as the fix. That recommendation was never checked against the size of the term it would eliminate, and both halves of that check were cheap. <em>Upper end:</em> the acquisition host's clock is disciplined by chrony against a local stratum-1 server to a 5.9 µs offset and a <b>0.008 ppm</b> residual rate — one command on the box. <em>Lower end:</em> the inter-device rate implied by the observed half-to-half wander is <b>1.46 ppm</b> median on the 27 longest nights, and the claimed 47.7 ppm is excluded on 51 of 54 — one division over data already collected. The remedy therefore removes ~1.5 ppm using a clock 6,000× better than the fault it was invoked against. When it was finally applied — a path that re-references both device clocks to that host every few minutes, capping accumulated drift at 8.6 ms <em>even granting the claimed rate</em> — the outcome was unchanged (18.8 % vs 19.0 %). A well-engineered solution to a non-problem.</p>
+  <p>Two further traps sit here, and both are general. First, <b>establish what a comparison actually controls before resting on it</b>. A first draft of this correction claimed the two corpora were architecturally identical — both timing samples as <code>anchor + device-elapsed</code> — and therefore that their agreement said nothing about the remedy. That was wrong, and it was checked only after a reviewer pressed: the single-host daemon <em>does</em> discipline both device clocks from its host on every connect and re-anchors each ~3.0 min fragment, so the comparison is a genuine test and the remedy genuinely fails to help. The lesson cuts both ways — an over-cautious retraction is also an unverified claim. Second, <b>the remedy's own cost went unexamined</b>: a genuine single-clock capture must stamp at packet arrival, and arrival stamping inherits transport burst jitter — on this host it steps <em>backwards</em> on 0.5–0.8 % of rows — so it would replace a stable per-sample clock with a noisier one. <b>Before adopting a fix, measure the quantity it removes and the quantity it introduces.</b></p>
+
+  <h2 class="sec">5. The cheapest check of all: test a prediction the mechanism makes and its rivals do not</h2>
+  <p>The drift claim in §4.3 had a rival explanation available from the start — one slipped cardiac cycle — and the two make different, easily separated predictions. A fixed parts-per-million clock offset <em>must</em> produce a discrepancy proportional to recording duration. One slipped beat is independent of duration. The paper's own published per-night table contains both columns, so the test is a single correlation over data already in print:</p>
+  <table class="data">
+    <thead><tr><th>test on the published table (<i>n</i> = 11 nights)</th><th>fixed-ppm predicts</th><th>one-RR slip predicts</th><th>measured</th></tr></thead>
+    <tbody>
+      <tr class="hi"><td><i>r</i>(recording duration, discrepancy in ms)</td><td>≈ +1</td><td>≈ 0</td><td style="color:#a11"><b>+0.17</b></td></tr>
+      <tr><td><i>r</i>(recording duration, discrepancy in ppm)</td><td>≈ 0</td><td>strongly negative</td><td><b>−0.71</b></td></tr>
+      <tr><td>which is the stabler quantity across nights?</td><td>the ppm rate</td><td>the millisecond value</td><td><b>ms (CV 8.1 %) &lt; ppm (CV 10.8 %)</b></td></tr>
+      <tr><td>median discrepancy expressed as a heart rate</td><td>unrelated to HR</td><td>= the subject's RR</td><td><b>1,156 ms = RR at 51.9 bpm</b> (stated ~50 bpm)</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px;color:#777;margin-top:-4px">Table 3 · Four discriminating tests, all computable from a table already published, all agreeing against the mechanism that was claimed.</p>
+  <p>The claimed mechanism fails every test, and the rival passes every one. Note also how the coincidence arose that made the wrong answer persuasive: one RR interval divided by one night's duration — 1,156 ms ÷ 6.6 h — is 48 ppm, which lands squarely inside the ±20–50 ppm tolerance band of ordinary quartz. A ratio of two unrelated quantities matched a familiar constant, and the match was taken as confirmation rather than as something to check.</p>
+  <p>We record this because the effort involved was negligible and the consequence was not. The refutation of a preprint's central thesis was available, for a year, in that preprint's own Table 1.</p>
+
+  <h2 class="sec">6. Recommendation</h2>
+  <ol>
+    <li><b>Publish the calibration with the null.</b> State the magnitude of effect the method was asked to recover, and report its recovery rate on a planted case. "We found no offset" should be accompanied by "and this method recovers a planted offset of that size on <i>k</i>/<i>n</i> cases".</li>
+    <li><b>Plant the effect; do not merely verify the true answer.</b> Table 2's zero-offset row would have certified a blind configuration.</li>
+    <li><b>Bound the chance maximum before lowering a threshold.</b> For a maximising search, compare <i>r</i><sub>min</sub> against (1/√<i>n</i>)·√(2 ln <i>N</i>). Lowering a threshold because a search "finds nothing" is the single most dangerous move available, and it is the natural one.</li>
+    <li><b>Ask what each companion diagnostic can report.</b> A metric that no realisable failure can move is decoration.</li>
+    <li><b>Where a null is explained by a mechanism, test a prediction that distinguishes it.</b> Preferably one computable from data already published.</li>
+  </ol>
+  <p>None of these require new equipment, new data, or meaningful compute. All five were available at the time of the errors described, and none was run.</p>
+
+  <h2 class="sec">7. Reproducibility</h2>
+  <ul>
+    <li><b>The control:</b> <code>tools/acc-acc-control.mjs</code>, read-only, prints the per-night table and the aggregate verdict of Table 2. <code>WH=&lt;ms&gt;</code> overrides the correlation half-window to reproduce the ±15/60/240 s dose-response. It loads the production <code>PATAlign</code> aligner verbatim, so it tests the shipped code path rather than a re-implementation.</li>
+    <li><b>The bound:</b> Table 1 is four evaluations of a closed-form expression; the window-sample and candidate-lag counts follow from the stated bin size, window half-width and search range.</li>
+    <li><b>Table 3:</b> computable entirely from the table published in <a href="wearable-clock-drift.html"><i>One phone is not one clock</i></a> §3.2 — no corpus access required.</li>
+    <li><b>Raw data:</b> the overnight capture corpus is personal biosignal data and is not published; the control runs on any capture tree carrying both devices' <code>*_ACC.txt</code> streams. Note that the control's own first run silently produced 2 of 13 nights because the capture host had changed the accelerometer column layout mid-corpus and the harness indexed columns positionally — read these columns from the header.</li>
+  </ul>
+
+  <h2 class="sec">8. References &amp; provenance</h2>
+  <ol class="refs">
+    <li>The corrected preprint: <code>papers/wearable-clock-drift.html</code> — <i>One phone is not one clock — but the clock was never the problem</i>, §7 correction record.</li>
+    <li>The negative-results synthesis this note is wall 2.8 of: <code>papers/dead-ends.html</code>.</li>
+    <li>Instruments: <code>pat-align.js</code> (<code>coupleRtoFoot</code> with the physiological window enforced; <code>alignByAnchors</code>; 16 gated assertions including the mutation control of §4.3) · <code>tools/acc-acc-control.mjs</code> (§3).</li>
+    <li>Decision records: <code>INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md</code> §2-RESULT, §2-RESULT-II · <code>CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md</code> §2c · <code>PAT-FEASIBILITY-2026-07-08-BRIEF.md</code>.</li>
+    <li>On the extreme-value bound: standard result for the maximum of <i>N</i> approximately independent normal deviates; used here only as a screening estimate, deliberately generous because neighbouring lags are correlated.</li>
+  </ol>
+
+  <div class="footer">Tepna working preprint · methods note · a meta-analysis of this suite's own errors. The control regenerates from <code>tools/acc-acc-control.mjs</code>; Tables 1 and 3 regenerate from published values. Not peer-reviewed; not a medical device; not for clinical use. Copyright 2026 Michal Planicka · Apache-2.0.</div>
+</div>
+
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v1.19.0</div>
+</body></html>

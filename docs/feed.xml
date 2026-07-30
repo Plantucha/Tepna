@@ -31,6 +31,12 @@
     <updated>2026-07-29T00:00:00Z</updated>
   </entry>
   <entry>
+    <title>Calibrating a null: a negative result is only as strong as the proof the instrument could have found a positive — Tepna preprint</title>
+    <link href="https://tepna.net/papers/null-calibration.html"/>
+    <id>https://tepna.net/papers/null-calibration.html</id>
+    <updated>2026-07-29T00:00:00Z</updated>
+  </entry>
+  <entry>
     <title>Rolling-baseline ODI-4 under-estimates AHI in severe OSA — Tepna preprint</title>
     <link href="https://tepna.net/papers/odi4-ahi-bias.html"/>
     <id>https://tepna.net/papers/odi4-ahi-bias.html</id>
@@ -103,7 +109,7 @@
     <updated>2026-07-29T00:00:00Z</updated>
   </entry>
   <entry>
-    <title>One phone is not one clock: inter-device timing drift defeats beat-level fusion of consumer wearables — Tepna preprint</title>
+    <title>One phone is not one clock — but the clock was never the problem: a corrected account of why beat-level fusion of two consumer wearables fails — Tepna preprint</title>
     <link href="https://tepna.net/papers/wearable-clock-drift.html"/>
     <id>https://tepna.net/papers/wearable-clock-drift.html</id>
     <updated>2026-07-29T00:00:00Z</updated>
