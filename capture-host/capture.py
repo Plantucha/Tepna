@@ -414,6 +414,12 @@ _POLAR_PAUSED: set = set()
 # power-cycle doesn't fight an in-flight connect. Cleared when recovery finishes.
 _RECOVER = asyncio.Event()
 
+# Addresses whose clock was just written successfully. `clock_watchdog` DRAINS this and forgives its
+# give-up bookkeeping for those devices. The two live in different tasks and the watchdog's state is
+# task-local, so a fresh sync had no way to reach it — leaving a device that was written off while on
+# its charger permanently `clock_uncorrectable`, even after coming off the dock and syncing cleanly.
+_CLOCK_FRESHLY_SYNCED: set = set()
+
 
 def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = None) -> dict:
     """PURE (testable): from each configured device's {name, connected, last_error, bluez_connected} plus
@@ -829,6 +835,63 @@ def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLO
     return None
 
 
+def clock_sync_due(is_polar, enabled, charging, first_attempt) -> bool:
+    """PURE: should we (re-)write this device's clock before the next connection attempt?
+
+    RE-SYNC ON EVERY RECONNECT, not once per task. The sync used to run exactly once, ahead of the
+    reconnect loop — so a device that was on its charger when the daemon started never got a usable
+    clock for the rest of the session, however many times it reconnected afterwards. That is the common
+    case, not a corner: the sensors sit on the dock all day and the daemon is already running when they
+    come off. `clock auto-sync gave up — device stayed unreachable/busy` appeared 21x in one week of
+    logs. A reconnect is also the RIGHT moment mechanically — the PS-FTP write needs the device's single
+    BLE link, so it can only happen before the PMD session is established.
+
+    NEVER WHILE CHARGING. A docked Polar refuses PMD outright ("charging — PMD streams unavailable",
+    status 0x0D) and will not take a clock write either, so the attempt cannot succeed — it only burns
+    the watchdog's give-up budget and gets the device permanently marked `clock_uncorrectable` for the
+    session (observed 2026-07-29: Verity −5.0 s, three re-syncs at 05:01/05:06/05:12, given up 05:17,
+    right after it went on the dock). Skipping is not deferring the fix: coming OFF the dock produces a
+    reconnect, which is exactly when this returns True.
+
+    `first_attempt` is True for the pre-loop sync that already runs, so this governs only the RE-syncs."""
+    return bool(is_polar and enabled and not charging and not first_attempt)
+
+
+async def auto_sync_clock(name, addr) -> bool:
+    """Write the host clock into one Polar device, waiting out contention. Returns True on success.
+
+    Every device task starts at once and each wants the single offline slot, so the losers get
+    OfflineBusy. Fail-fast is right for a user-clicked pull (don't leave the browser spinning) but wrong
+    here — an auto-sync should simply WAIT ITS TURN, or the second sensor silently never syncs and the
+    two end up on different timebases (observed 2026-07-18: the Verity lost the race and stayed 4 h off
+    the H10). Retry on busy only; a real failure still gives up.
+
+    On success this CLEARS `clock_uncorrectable` and records the address in `_CLOCK_FRESHLY_SYNCED`, so
+    `clock_watchdog` forgives a device it had previously written off. Without that the give-up is sticky
+    across the very event that fixes it — a device that failed while docked stayed marked uncorrectable
+    for the whole session even after it came off the dock and re-synced cleanly."""
+    for attempt in range(12):
+        try:
+            await sync_device_time(addr)
+            _set(name, clock_synced=_now().isoformat(timespec="seconds"), clock_uncorrectable=False)
+            _CLOCK_FRESHLY_SYNCED.add(addr)
+            return True
+        except offline_lock.OfflineBusy:
+            await asyncio.sleep(5)
+        except Exception as e:
+            # A transient BlueZ state is a BUSY signal from a different layer, not a failure.
+            # Surrendering here left the device stamping samples from an unsynced clock all night.
+            if transient_ble_error(e):
+                log.info("%s clock auto-sync busy (%s) — retry %d/12",
+                         name, type(e).__name__, attempt + 1)
+                await asyncio.sleep(min(5 * (attempt + 1), 30))
+                continue
+            log.warning("%s clock auto-sync failed: %r", name, e)
+            return False
+    log.warning("%s clock auto-sync gave up — device stayed unreachable/busy", name)
+    return False
+
+
 def stream_is_stalled(last_change, now, grace) -> bool:
     """PURE: has a stream been silent long enough to call it dead? False when the feature is off
     (grace<=0) or the stream has not started yet (last_change None). Per-stream — see any_stream_stalled."""
@@ -949,39 +1012,18 @@ async def run_polar(dev: dict, root: str):
                 log.warning("%s not bonded; PMD will likely drop until bonded", name)
         except Exception as e:
             _set(name, last_error=f"bond error: {e!r}")
-    # Sync the device clock ONCE at task start, BEFORE the PMD link is established. Polar stamps every
-    # sample with device time, and an H10 resets to its 2019 firmware default whenever it leaves the
-    # strap — so without this `sensor timestamp [ns]` is meaningless and siblings share no origin.
+    # Sync the device clock BEFORE the PMD link is established. Polar stamps every sample with device
+    # time, and an H10 resets to its 2019 firmware default whenever it leaves the strap — so without
+    # this `sensor timestamp [ns]` is meaningless and siblings share no origin.
     # It must happen here, not inside the connected session: the PS-FTP client needs the device's single
     # BLE link, and polar_offline_op waits for run_polar to release it (calling it from inside would
     # deadlock — run_polar would be awaiting a pause only run_polar can grant).
     # PS-FTP is POLAR-SPECIFIC. On anything else the sync cannot succeed — it fails on a missing
     # characteristic — and it costs a global capture pause to find that out, every task start.
+    # This is the FIRST sync; `clock_sync_due` repeats it on every later reconnect (see the loop below).
     if is_polar and (_CFG.get("time") or {}).get("auto_sync_devices", True):
-        # Every device task starts at once and each wants the single offline slot, so the losers get
-        # OfflineBusy. Fail-fast is right for a user-clicked pull (don't leave the browser spinning) but
-        # wrong here — an auto-sync should simply WAIT ITS TURN, or the second sensor silently never
-        # syncs and the two end up on different timebases (observed 2026-07-18: the Verity lost the race
-        # and stayed 4 h off the H10). Retry on busy only; a real failure still gives up.
-        for attempt in range(12):
-            try:
-                await sync_device_time(addr)
-                _set(name, clock_synced=_now().isoformat(timespec="seconds"))
-                break
-            except offline_lock.OfflineBusy:
-                await asyncio.sleep(5)
-            except Exception as e:
-                # A transient BlueZ state is a BUSY signal from a different layer, not a failure.
-                # Surrendering here left the device stamping samples from an unsynced clock all night.
-                if transient_ble_error(e):
-                    log.info("%s clock auto-sync busy (%s) — retry %d/12",
-                             name, type(e).__name__, attempt + 1)
-                    await asyncio.sleep(min(5 * (attempt + 1), 30))
-                    continue
-                log.warning("%s clock auto-sync failed: %r", name, e)
-                break
-        else:
-            log.warning("%s clock auto-sync gave up — device stayed unreachable/busy", name)
+        await auto_sync_clock(name, addr)
+    first_attempt = True
     while not _STOP.is_set():
         if addr in _POLAR_PAUSED or _RECOVER.is_set():   # a pull owns the link, or the watchdog is resetting the adapter
             _set(name, connected=False,
@@ -989,6 +1031,14 @@ async def run_polar(dev: dict, root: str):
             while (addr in _POLAR_PAUSED or _RECOVER.is_set()) and not _STOP.is_set():
                 await asyncio.sleep(0.3)
             continue
+        # RE-SYNC ON RECONNECT. Must be here — before `_connect` — because the PS-FTP write needs the
+        # device's single BLE link (see the first-sync comment above). Skipped while the device is on
+        # its charger: a docked Polar cannot take the write, so trying only burns the watchdog's
+        # give-up budget. Coming off the dock IS a reconnect, so the sync lands then.
+        if clock_sync_due(is_polar, (_CFG.get("time") or {}).get("auto_sync_devices", True),
+                          STATUS["devices"].get(name, {}).get("charging"), first_attempt):
+            await auto_sync_clock(name, addr)
+        first_attempt = False
         writers: dict[int, StreamWriter] = {}
         stream_fs: dict[int, float] = {}   # actual negotiated sample rate per meas (ACC differs per device)
         stream_scale: dict[int, float] = {}   # raw-int → physical-unit factor per meas (GYRO dps / MAG gauss)
@@ -2309,6 +2359,22 @@ async def clock_watchdog(cfg: dict):
                 continue
             st = STATUS["devices"].get(name, {})
             skew = st.get("clock_skew_sec")
+            # A FRESH SYNC FORGIVES THE HISTORY. run_polar re-syncs on every reconnect and records the
+            # address here on success; the give-up bookkeeping below is task-local, so without this
+            # drain a device written off while docked would stay `clock_uncorrectable` for the whole
+            # session even after it came off the dock and synced cleanly. Also re-baselines `seen`, or
+            # the corrected skew would read as a JUMP and trigger a redundant re-sync next cycle.
+            if addr in _CLOCK_FRESHLY_SYNCED:
+                _CLOCK_FRESHLY_SYNCED.discard(addr)
+                gave_up.discard(addr)
+                failed_adrift[addr] = 0
+                tried_adrift.pop(addr, None)
+                seen.pop(addr, None)
+            # A DOCKED DEVICE CANNOT TAKE A CLOCK WRITE. Re-syncing one only burns the give-up budget
+            # and ends with it permanently marked uncorrectable — the exact failure observed on the
+            # Verity, 2026-07-29. Leave it entirely alone; run_polar syncs it when it comes off.
+            if st.get("charging"):
+                continue
             if not st.get("connected") or skew is None:
                 continue
             prev = seen.get(addr)
