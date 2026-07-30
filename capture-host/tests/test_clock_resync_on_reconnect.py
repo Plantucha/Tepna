@@ -21,7 +21,32 @@
 # the watchdog's history.
 
 import asyncio
+
+import pytest
+
 import capture
+
+
+@pytest.fixture(autouse=True)
+def _clean_stop():
+    """Same reset `test_capture_runners` uses, and for the same reason: the runners mutate process-wide
+    state, and a module-level asyncio.Event binds to the first loop that awaits it — every asyncio.run()
+    below is a NEW loop, so a shared `_STOP` raises "bound to a different event loop" (or, worse, stays
+    set and the runner's `while not _STOP.is_set()` body never executes, which silently turns a
+    behavioural test into a no-op that passes)."""
+    capture._STOP = asyncio.Event()
+    capture._RECOVER = asyncio.Event()
+    capture._OXYII_PAUSE = asyncio.Event()
+    capture._CONNECT_LOCK = asyncio.Lock()
+    capture._POLAR_PAUSED.clear()
+    capture._CLOCK_FRESHLY_SYNCED.clear()
+    capture._CFG.clear()
+    capture.STATUS.clear()
+    capture.STATUS["devices"] = {}
+    yield
+    capture._STOP.set()
+    capture._STOP.clear()
+    capture._CLOCK_FRESHLY_SYNCED.clear()
 
 
 # ---------------------------------------------------------------- the pure predicate
@@ -154,6 +179,93 @@ def test_the_watchdog_forgives_a_freshly_synced_device():
     assert "gave_up.discard(addr)" in body
     assert "seen.pop(addr, None)" in body, \
         "it must also re-baseline `seen`, or the corrected skew reads as a JUMP and re-syncs again"
+
+
+# ---------------------------------------------------------------- driven through the real runners
+
+def test_run_polar_rewrites_the_clock_on_the_SECOND_connection(tmp_path, monkeypatch):
+    """The behaviour itself, not the wiring: a reconnect must produce another clock write.
+
+    Every other run_polar test sets `auto_sync_devices: False` to skip this path — which is exactly how
+    it went unnoticed that the loop never re-synced.
+
+    The link is made to FAIL, deliberately. A successful session runs its own sleep loop and would
+    exhaust `_stop_after`'s budget before the outer loop could ever come round again, so a passing
+    connection can never reach a second iteration under this harness. A refused connection costs one
+    sleep and lands us squarely on attempt #2 — which is the case under test."""
+    from tests.test_capture_runners import _polar_common, _stop_after, _pdev
+    _polar_common(monkeypatch)
+    capture._CFG.clear()
+    capture._CFG.update({"time": {"auto_sync_devices": True}})
+    calls = []
+
+    async def fake_sync(addr):
+        calls.append(addr)
+
+    def refuse(addr, *a, **k):
+        raise OSError("le-connection-abort-by-local")
+
+    monkeypatch.setattr(capture, "sync_device_time", fake_sync)
+    monkeypatch.setattr(capture, "_connect", refuse)
+    _stop_after(monkeypatch, 2)          # attempt 1 fails -> sleep #1 -> attempt 2 RE-SYNCS -> sleep #2 -> stop
+    capture.STATUS["devices"].pop("H10", None)
+    asyncio.run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert len(calls) >= 2, \
+        "one write at task start is not enough — a device docked then is never corrected otherwise"
+
+
+def test_run_polar_does_NOT_rewrite_the_clock_of_a_docked_device(tmp_path, monkeypatch):
+    """The inverse control. Without it the test above passes on a loop that syncs unconditionally —
+    which is the version that burns the give-up budget and marks the device uncorrectable."""
+    from tests.test_capture_runners import _polar_common, _inject_connect, _stop_after, _pdev, FakePolarClient
+    _polar_common(monkeypatch)
+    capture._CFG.clear()
+    capture._CFG.update({"time": {"auto_sync_devices": True}})
+    calls = []
+
+    async def fake_sync(addr):
+        calls.append(addr)
+
+    monkeypatch.setattr(capture, "sync_device_time", fake_sync)
+    _inject_connect(monkeypatch, FakePolarClient(start_status=0x00))
+    _stop_after(monkeypatch, 3)
+    capture.STATUS["devices"]["H10"] = {"charging": True}
+    asyncio.run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert len(calls) <= 1, "a docked device must get no RE-sync (the pre-loop attempt may still run)"
+
+
+def test_clock_watchdog_leaves_a_docked_device_alone(monkeypatch):
+    """A 99 s skew normally triggers a re-sync; on the charger it must not, however far off it is."""
+    from tests.test_capture_runners import _stop_after, _dev
+    synced = {}
+
+    async def fake_sync(addr):
+        synced["addr"] = addr
+
+    monkeypatch.setattr(capture, "sync_device_time", fake_sync)
+    _stop_after(monkeypatch, 1)
+    cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
+           "devices": [_dev(name="H10")]}
+    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 99,
+                                        "charging": True, "address": "24:AC:AC:02:84:96"}
+    asyncio.run(capture.clock_watchdog(cfg))
+    assert "addr" not in synced, "the watchdog must not spend its give-up budget on a docked device"
+
+
+def test_clock_watchdog_forgives_a_device_that_just_synced(monkeypatch):
+    """The sticky give-up, driven end to end: a fresh sync must clear the watchdog's history so the
+    device is retried normally instead of staying written off for the session."""
+    from tests.test_capture_runners import _stop_after, _dev
+    monkeypatch.setattr(capture, "sync_device_time", lambda addr: asyncio.sleep(0))
+    _stop_after(monkeypatch, 1)
+    cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
+           "devices": [_dev(name="H10")]}
+    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 99,
+                                        "address": "24:AC:AC:02:84:96"}
+    capture._CLOCK_FRESHLY_SYNCED.add("24:AC:AC:02:84:96")
+    asyncio.run(capture.clock_watchdog(cfg))
+    assert "24:AC:AC:02:84:96" not in capture._CLOCK_FRESHLY_SYNCED, \
+        "the watchdog must DRAIN the set, or every later cycle would re-forgive forever"
 
 
 def test_the_first_sync_still_happens_before_the_loop():
