@@ -22170,6 +22170,121 @@
         T.eq('…and they leave the coverage DENOMINATOR (class 3a)', rrGap.windowsUncovered, unc.length);
         T.ok('coverage is measured over RECORDED windows only', rrGap.coverage >= 0 && rrGap.coverage <= 1, 'coverage=' + rrGap.coverage + ' uncovered=' + rrGap.windowsUncovered + '/' + rrGap.windowsTotal);
       }
+
+      /* ── §4.2 · THE TRACKING HALF — the half this brief filed as OPEN ────────────────────────────
+         §4.2 does two separable things about an uncovered window. The REPORTING half (mark it
+         `covered:false`, publish `brpm:null`, leave the coverage denominator) is gated above. The
+         TRACKING half — substituting a UNIFORM likelihood rather than the spectrum of the interpolated
+         line — was not: replacing that flat likelihood with the real spectrum reds nothing, and the
+         gap above cannot see it because its two sides share ONE true rate, so a steered track lands on
+         the right answer anyway.
+
+         The falsifier needs the true rate to CHANGE across the hole. Built here test-side by
+         re-stamping a second `genSyntheticACC` segment onto the first — 12 brpm for 300 s, a 120 s
+         clock hole, then 18 brpm for 120 s. (The brief proposed teaching the generator a `segments:[…]`
+         option; that would move motiondex-dsp's `computeHash` and owe fixture re-verification for a
+         fixture only the tests need, so the splice lives here instead.)
+
+         MEASURED, and the brief's §2 predicted the mechanism but not the symptom — corrected here.
+         The track IS steered globally, as described. What that costs the CLEAN post-hole windows is not
+         a confidently wrong number, it is a LOST one: the path sits off the true 18 brpm ridge, so the
+         spectral mass around it collapses and every window falls under `confMin`.
+
+           post-hole windows, true rate 18 brpm, 5 seed pairs:
+             flat likelihood (the fix)  →  17.5–18.0 brpm   conf 0.51–0.66
+             interpolated-line spectrum →  null            conf 0.06–0.14
+
+         So a real breathing rate measured after a strap-off gap was silently dropped. Reproducible on
+         every seed pair tried; asserted on conf as well as on the rate, because the confidence collapse
+         is the mechanism and it is the larger signal. */
+      if (typeof MD.genSyntheticACC === 'function') {
+        var _sA = 300,
+          _gap = 120,
+          _sB = 120,
+          _hz = 26;
+        var _t0 = U(2026, 5, 10, 22, 0, 0); // genSyntheticACC's own fixed civil anchor
+        var _nsBase = 599628000000000000;
+        var _pad = function (v, w) {
+          var s = String(v);
+          while (s.length < w) s = '0' + s;
+          return s;
+        };
+        // Clock Contract §5 — the stamp is written from getUTC* only, like the generator's own isoStamp.
+        var _iso = function (ms) {
+          var d = new Date(ms);
+          return d.getUTCFullYear() + '-' + _pad(d.getUTCMonth() + 1, 2) + '-' + _pad(d.getUTCDate(), 2) + 'T' + _pad(d.getUTCHours(), 2) + ':' + _pad(d.getUTCMinutes(), 2) + ':' + _pad(d.getUTCSeconds(), 2) + '.' + _pad(d.getUTCMilliseconds(), 3);
+        };
+        var _segA = MD.genSyntheticACC({ sec: _sA, hz: _hz, brpm: 12, seed: 5 }).split('\n').filter(Boolean);
+        var _segB = MD.genSyntheticACC({ sec: _sB, hz: _hz, brpm: 18, seed: 6 }).split('\n').filter(Boolean);
+        var _shMs = (_sA + _gap) * 1000,
+          _shNs = Math.round((_sA + _gap) * 1e9);
+        var _bodyB = _segB.slice(1).map(function (ln, i) {
+          var c = ln.split(';');
+          // re-stamp onto the continuing clock: the samples are real, the CLOCK carries the hole
+          return [_iso(_t0 + _shMs + Math.round((i * 1000) / _hz)), String(_nsBase + _shNs + Math.round((i * 1e9) / _hz)), c[2], c[3], c[4]].join(';');
+        });
+        var _twoRate = [_segA[0]].concat(_segA.slice(1), _bodyB).join('\n') + '\n';
+        var _rows2 = MD.parseSensorXYZ(_twoRate);
+        var _rr2 = MD.respiratoryRate(_rows2, _rows2[0].tMs, 'mg', {});
+        T.ok('§4.2 · the two-rate gapped stream yields a rate at all', !!(_rr2 && _rr2.hasData), _rr2 && 'median=' + _rr2.medianBrpm);
+        if (_rr2 && _rr2.hasData) {
+          var _hS = _t0 + _sA * 1000,
+            _hE = _t0 + _shMs;
+          var _pre = (_rr2.series || []).filter(function (e) {
+            return e.covered && e.tMs < _hS;
+          });
+          var _post = (_rr2.series || []).filter(function (e) {
+            return e.covered && e.tMs >= _hE;
+          });
+          // Anti-vacuity: there must BE a hole, and there must be clean windows on both sides of it —
+          // otherwise "the post-hole windows are fine" is a claim about an empty set.
+          T.ok('§4.2 · …and the clock really carries a hole', _rr2.windowsUncovered > 0, 'uncovered=' + _rr2.windowsUncovered);
+          T.ok('§4.2 · …with clean windows on BOTH sides of it', _pre.length >= 3 && _post.length >= 2, 'pre=' + _pre.length + ' post=' + _post.length);
+          var _medOf = function (a) {
+            var s = a
+              .map(function (e) {
+                return e.brpm;
+              })
+              .filter(function (v) {
+                return v != null;
+              })
+              .sort(function (x, y) {
+                return x - y;
+              });
+            return s.length ? s[Math.floor(s.length / 2)] : null;
+          };
+          // The pre-hole side is the control: it is upstream of the hole, so a steered track cannot
+          // reach it and BOTH variants read 12. If this ever moves, the fixture stopped isolating.
+          T.approx('§4.2 · control · the pre-hole windows read their true 12 brpm', _medOf(_pre), 12, 1.0);
+          // THE DISCRIMINATOR: post-hole windows must recover their OWN rate, not lose it to a ridge
+          // fabricated inside the gap.
+          T.approx('§4.2 · the post-hole windows recover their true 18 brpm across the hole', _medOf(_post), 18, 1.0);
+          T.ok(
+            '§4.2 · …and EVERY clean post-hole window reports a rate — an interpolated-line ridge steers the global track and collapses all of them to null',
+            _post.every(function (e) {
+              return e.brpm != null;
+            }),
+            JSON.stringify(
+              _post.map(function (e) {
+                return e.brpm;
+              })
+            )
+          );
+          T.ok(
+            '§4.2 · …with real confidence, not the ~0.1 a steered track leaves behind (0.25: fix measured 0.39-0.66, defect 0.06-0.14)',
+            _post.every(function (e) {
+              return e.conf >= 0.25;
+            }),
+            'confs=' +
+              JSON.stringify(
+                _post.map(function (e) {
+                  return e.conf;
+                })
+              ) +
+              ' (interpolated-line spectrum measured 0.06–0.14)'
+          );
+        }
+      }
     });
 
     /* DEEP-AUDIT-III §3.6 — A COUPLING BETWEEN TWO SIGNALS CANNOT BE ESTIMATED FROM ONE OF THEM.
