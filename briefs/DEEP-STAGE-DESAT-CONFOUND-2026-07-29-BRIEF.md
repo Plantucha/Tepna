@@ -128,11 +128,18 @@ precisely when it mattered most.
       (device-scored AHI 1.1→8.0, 7 nights in the abnormal band) and the between-night dose-response is
       still null — but the test is UNDERPOWERED for the effect size §2/§3b already bounded, so the null
       is uninformative rather than negative.** All 38 trio nights paired.
-- [ ] Deep's rule re-examined for CVHR/vagal separability, or its evidence tier re-checked — **evidence
-      tier already sits at the floor** (`deepMin: evidence:'heuristic'`, `ecgdex-registry.js:194` — the
-      lowest of the 5-level ladder), so there is nothing lower to cap it to. The rule REDESIGN is now
-      **measured to be BLOCKED on an export gap, not merely unstarted** — see §8.3: `lfhf` is
-      structurally blind to CVHR and per-epoch `vlf` is computed but never exported.
+- [x] **Deep's rule re-examined for CVHR/vagal separability — DONE 2026-07-30 (§9).** Evidence tier
+      already sits at the floor (`deepMin: evidence:'heuristic'`, `ecgdex-registry.js:194`), so there
+      was nothing lower to cap it to. Separability was measured three ways and the rule is **NOT**
+      changed: VLF discriminates but weakly (AUC 0.610, and 0.594–0.620 under every night-relative
+      form), the targeted CVHR band does *worse* (0.567, CI spans 0.5), and no threshold yields a
+      net-positive veto at 14 % contamination prevalence. §8.3's "blocked on an export gap" was wrong
+      on both halves — `ECGDex.analyze()` was already public with `vlf` intact and `stageSleep()`
+      receives the same rich epochs, so nothing was ever blocked (§9.1). The per-epoch band export
+      shipped anyway (#569) as an additive convenience, not a prerequisite.
+- [ ] **A better LABEL** — PSG, or flow-based apnea scoring not gated on a 3 % desaturation. §9.6 bounds
+      why: ~50 % of "clean" Deep epochs would have to hide unscored apnea before VLF's true power
+      clears the actionable threshold. This is the only remaining lever, and it is not a code change.
 
 ## 7 · Re-measured on the grown corpus (2026-07-30) — confirms one thing, weakens another
 
@@ -283,7 +290,7 @@ demonstrated to exist.
 
 ---
 
-## 9 · The §5 redesign, MEASURED AND REFUTED (2026-07-30)
+## 9 · The §5 redesign, MEASURED — NOT ACTIONABLE AT CURRENT LABEL QUALITY (2026-07-30)
 
 §8.4 sequenced the redesign as "export `vlf` → measure → redesign". **The first step was unnecessary
 and the third turns out to be unwarranted.** Both corrections come from measurement, on the largest
@@ -352,9 +359,17 @@ apnea OxyDex never scored (a hypopnea with arousal but no 3 % desaturation leave
 "genuine Deep destroyed" is an over-estimate of true loss. But the margin is 43 % vs 59 % at the most
 aggressive θ; no plausible correction flips a −116 net to positive.
 
-### 9.4 Conclusion: the redesign is REFUTED as specified, and `Deep` stays as it is
+### 9.4 Conclusion: NOT ACTIONABLE at current label quality — and that is weaker than "refuted"
 
-- **Do NOT ship a VLF-keyed Deep veto.** It is measured to make the metric worse, not better.
+> **Revised 2026-07-30 (same day).** This section first read *"the redesign is REFUTED as specified."*
+> That overstated the evidence and is withdrawn. The per-night pooled CI reaches **0.725**, i.e. it does
+> NOT exclude the ~0.70 break-even, so "refuted" was a stronger claim than the interval supports. What
+> the data supports is *not actionable at current label quality* — a different statement, with a
+> different remedy (§9.6).
+
+- **Do NOT ship a VLF-keyed Deep veto** — on the evidence in hand it makes the metric worse, not better.
+  That conclusion is about the OPERATING POINT, which is solid (§9.3); it is not a claim that VLF is
+  uninformative, which §9.5 shows is false.
 - The confound remains **real, bounded, and documented**: ~10 % of Deep minutes, by three independent
   routes now (§2 epoch-level, §3b settling test, §9.3's contamination share).
 - `deepMin` is already `heuristic`, the lowest tier — the correct place for a metric with a known,
@@ -368,6 +383,74 @@ aggressive θ; no plausible correction flips a −116 net to positive.
 spectral separation, and shipped a metric that was measurably worse — the precise failure mode this
 brief's whole line of work exists to catch, avoided by measuring the operating points instead of
 stopping at a significant AUC.
+
+### 9.5 Two further attempts to rescue VLF, both measured, both failed
+
+Recorded because each was a plausible reason the AUC might be artificially low, and finding out cost
+one run apiece. Neither is a reason to revisit §9.4; together they make it considerably more robust.
+
+**(a) Wrong band?** VLF spans 0.003–0.04 Hz, but a 300 s epoch resolves that range very unevenly:
+0.003 Hz is a 333 s period — under ONE cycle in the window — while CVHR at 0.022–0.04 Hz gets 7–12.
+So `vlf` averages the CVHR-relevant slice together with a mostly unresolvable trend region, which can
+only attenuate it. `detectCVHR` already band-passes 0.022–0.05 Hz exactly and emits per-event
+`{sec, ampBpm, periodSec}`, so the targeted feature was already available and simply untested.
+
+| feature (within Deep) | AUC | 95 % CI |
+|---|---|---|
+| `vlf/lf` (the diluted band) | **0.610** | [0.528, 0.692] |
+| `cvhrDensity` (targeted 0.022–0.05 Hz) | **0.567** | [0.485, 0.649] — **not established** |
+| `cvhrAmp` (targeted, amplitude-weighted) | 0.561 | [0.479, 0.643] — not established |
+
+**The targeted band did WORSE**, and its CI includes 0.5. Likely cause: `detectCVHR` is an EVENT
+detector with hard gates (≥5 bpm amplitude, 14–46 s period, 14 s refractory), so it discards subtle
+CVHR, and a handful of events per 5-min epoch is a far coarser signal than continuous band power. The
+dilution is real; this cure is worse than the disease.
+
+**(b) Wrong units?** Every stage rule in this DSP is night-relative (`rmssd > 1.12 × median`,
+`_relGate` on lfhf) because absolute HRV amplitude varies severalfold between nights. §9 evaluated
+VLF in ABSOLUTE ms², which is not how a rule would ever consume it, and pools between-night baseline
+shift into the comparison where it can only depress AUC.
+
+| `vlf/lf` scoring | AUC | 95 % CI |
+|---|---|---|
+| absolute (what §9.2 tested) | 0.610 | [0.528, 0.692] |
+| ratio to night median (the shipped rule's own shape) | 0.594 | [0.512, 0.676] |
+| within-night rank (distribution-free) | 0.602 | [0.520, 0.684] |
+| per-night AUC, inverse-variance pooled | **0.620** | **[0.515, 0.725]** |
+
+All four land at ~0.60. **Removing between-night variation changes nothing**, which localises the
+problem: the class overlap is WITHIN nights, not between them. It also answers a reasonable worry —
+that pooling 90 nights of a drifting baseline would degrade the estimate. Under night-relative scoring
+it would not, because each epoch is scored against its own night; but there is no gain to collect.
+
+**What the per-night view DOES add, and it is the reason §9.4 was softened:** across the 11 nights
+carrying both classes, **10 of 11 favour the effect** (median per-night AUC 0.65, range 0.25–0.80).
+The effect is *consistent*, not carried by a few nights — and the pooled interval reaches 0.725, above
+break-even. VLF is not noise. It is a real, reproducible, weak signal.
+
+### 9.6 The ceiling is the LABEL, not the sensor — with a bound
+
+Worth stating because "the sensors aren't sensitive enough" is the intuitive explanation and it is
+wrong. The H10 resolves RR to ~1 ms; VLF power on a real night runs to thousands of ms². Beat-timing
+noise sits orders of magnitude below the signal, and the O2Ring detects the desaturations it is asked
+to detect. Neither instrument is near its floor.
+
+The noise is in the LABEL. "Contaminated" here means *an OxyDex `desat_event` overlapped this epoch* —
+a downstream, delayed, threshold-gated CONSEQUENCE of apnea. On CPAP especially, many events never
+produce a 3 % dip, so an unknown share of the "clean" epochs are contaminated-but-unlabelled, and
+mislabelled negatives attenuate AUC toward 0.5. Modelling that share as ε with
+`A_true = (A_obs − 0.5ε)/(1 − ε)`:
+
+| ε (clean epochs secretly containing apnea) | implied true AUC | clears 0.70? |
+|---|---|---|
+| 20 % | 0.637 | no |
+| 40 % | 0.683 | no |
+| **50 %** | **0.720** | **yes** |
+
+So **half** the clean Deep epochs would have to be hiding unscored apnea before VLF's true power clears
+break-even. That is the quantitative form of §9.4's last bullet: the remedy is a better label — PSG, or
+flow-based apnea scoring not gated on a 3 % desaturation — and NOT a better HRV feature. Two independent
+attempts at a better feature (§9.5a, §9.5b) both failed, which is what that bound predicts.
 
 ---
 
@@ -403,4 +486,4 @@ refutation is a **base-rate** argument (contamination is ~14 % of Deep epochs, s
 discriminator has little to gain and a mediocre one loses), and better timing raises AUC without
 changing prevalence. For the veto to become viable, the vigil-only AUC would have to rise far enough
 that a threshold finally clears net-zero — which is a real possibility worth testing, but not the way
-to bet. **Until that re-run happens, §9.4 stands and nothing about `Deep` should move.**
+to bet. **Until that re-run happens, §9.4 stands as revised (not actionable, not refuted) and nothing about `Deep` should move.**
