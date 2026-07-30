@@ -420,6 +420,23 @@ _RECOVER = asyncio.Event()
 # its charger permanently `clock_uncorrectable`, even after coming off the dock and syncing cleanly.
 _CLOCK_FRESHLY_SYNCED: set = set()
 
+# name -> monotonic time SAMPLES last arrived. The alert loop keys on this instead of `connected`,
+# because a link is not a recording: an unbonded H10 connects for 1-2 s, streams nothing and is torn
+# down, which read as "reconnected" FOUR TIMES on 2026-07-29 while 4.5 h of ECG went missing. See
+# `alerts.device_is_recording` for the full trace.
+_LAST_DATA: dict[str, float] = {}
+
+
+def note_data(name: str, mono: float) -> None:
+    """Record that samples just arrived for `name` — the alert loop's evidence that a link is earning
+    its keep. Deliberately a plain module dict rather than a STATUS field: it is monotonic-clock
+    bookkeeping between two tasks, not something to publish into `status.json`.
+
+    `mono` is PASSED IN, not read here. Every caller already holds a fresh `_time.monotonic()`, so
+    reading it again would be a wasted call on a per-second hot path — and, less obviously, it would
+    perturb the stall tests, which drive a STATEFUL fake clock that advances on every read."""
+    _LAST_DATA[name] = mono
+
 
 def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = None) -> dict:
     """PURE (testable): from each configured device's {name, connected, last_error, bluez_connected} plus
@@ -809,6 +826,15 @@ def should_drop_not_worn(worn_since, now, grace) -> bool:
 # the stream. Deliberately generous: every PMD stream we start (slowest is MAG at 20 Hz, PPI ~1/beat)
 # delivers many rows a second, so 90 s of TOTAL silence is never a slow stream — it is a dead one.
 _STREAM_STALL_S = 90.0       # started-stream silence before the session is torn down; stream.stall_sec (0 = off)
+# Re-bond cadence for a Polar whose BlueZ bond has vanished mid-session. Every 5th reconnect, up to 72
+# attempts — at the observed ~70 s reconnect period that is one try every ~6 min for 7 h. Sized to span
+# a WHOLE NIGHT on purpose: the 2026-07-29 loss would have needed a retry four hours after the bond went
+# stale, so a short burst would have been long exhausted before the operator touched the strap. A bond
+# restored by operator action (re-wetting the electrodes, pulling the battery) is therefore picked up
+# the same night without a service restart, while a hopeless one stops costing subprocesses by morning.
+# `test_the_cap_still_spans_a_whole_night` pins the arithmetic, so shrinking either constant reds.
+_REBOND_EVERY = 5
+_REBOND_LIMIT = 72
 _STALL_RECONNECT_S = 5.0     # pause before re-negotiating after a stall — a stall is not an error backoff
 
 # The night-boundary anchor. A 24/7 daemon crossing midnight keeps appending to the START-date folder
@@ -855,6 +881,28 @@ def clock_sync_due(is_polar, enabled, charging, first_attempt) -> bool:
 
     `first_attempt` is True for the pre-loop sync that already runs, so this governs only the RE-syncs."""
     return bool(is_polar and enabled and not charging and not first_attempt)
+
+
+def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit) -> bool:
+    """PURE: should this reconnect attempt try to re-establish a LOST bond?
+
+    Four conditions, each earning its place:
+
+    * `needs_pmd` — the SIG Heart Rate characteristic needs no authentication, and most third-party
+      straps cannot pair at all, so bonding one fails and reports a scary "bond failed" for a device
+      that was about to work perfectly well.
+    * `not bonded` — BlueZ is the authority. A healthy device must cost nothing.
+    * `iteration % every == 0` — bonding drives a `bluetoothctl` subprocess and takes seconds; retrying
+      on every ~70 s reconnect would spend more time pairing than capturing.
+    * `attempts < limit` — a bond that can NEVER take (sensor factory-reset, or held in someone else's
+      pairing table) must not be retried until the battery dies.
+
+    The cap counts re-bond ATTEMPTS, not reconnects, so at the defaults it still spans a whole night —
+    which is the point. The 2026-07-29 loss needed a retry FOUR HOURS after the bond went stale, long
+    after any short-lived burst of attempts would have been exhausted."""
+    if not needs_pmd or bonded or every <= 0:
+        return False
+    return attempts < limit and iteration % every == 0
 
 
 async def auto_sync_clock(name, addr) -> bool:
@@ -998,9 +1046,14 @@ async def run_polar(dev: dict, root: str):
     stale_bond_hits = 0        # consecutive one-sided-bond failures; see the teardown handler
     needs_pmd = bool(set(streams) & _PMD_STREAMS)
     is_polar = (dev.get("vendor") or "").strip().lower() == "polar"
-    # One-time bond BEFORE any PMD attempt — the H10 drops an un-authenticated link ~1-2 s after
-    # connect (bleak #1943). ensure_bonded is a no-op if the bond already exists. (Reconnects after a
-    # transient drop reuse the stored bond, so we don't re-bond in the loop.)
+    # Bond BEFORE any PMD attempt — the H10 drops an un-authenticated link ~1-2 s after connect
+    # (bleak #1943). ensure_bonded is a no-op if the bond already exists.
+    # This ran ONCE, on the assumption noted here for a year — "reconnects after a transient drop reuse
+    # the stored bond, so we don't re-bond in the loop". That assumption fails exactly when it matters.
+    # On 2026-07-29 the H10's bond went STALE; `ensure_bonded`'s re-pair removed it and could not
+    # re-establish it, leaving BlueZ at `Paired: no`. Nothing ever tried again, so the task spent 4.5 h
+    # connecting and being torn down every ~70 s with NO PATH TO RECOVERY, and 4.5 h of ECG was lost.
+    # `maybe_rebond` below now re-checks inside the loop, so a lost bond is a recoverable state.
     # ONLY when a PMD stream is wanted. The bond exists because the H10 refuses PMD on an
     # unauthenticated link — the SIG Heart Rate characteristic has no such requirement, and most
     # third-party straps do not support pairing at all, so bonding one fails and reports a scary
@@ -1024,7 +1077,10 @@ async def run_polar(dev: dict, root: str):
     if is_polar and (_CFG.get("time") or {}).get("auto_sync_devices", True):
         await auto_sync_clock(name, addr)
     first_attempt = True
+    iteration = 0
+    rebond_attempts = 0
     while not _STOP.is_set():
+        iteration += 1
         if addr in _POLAR_PAUSED or _RECOVER.is_set():   # a pull owns the link, or the watchdog is resetting the adapter
             _set(name, connected=False,
                  last_error="paused — pulling offline recording" if addr in _POLAR_PAUSED else "adapter recovering")
@@ -1039,6 +1095,29 @@ async def run_polar(dev: dict, root: str):
                           STATUS["devices"].get(name, {}).get("charging"), first_attempt):
             await auto_sync_clock(name, addr)
         first_attempt = False
+        # RE-BOND A LOST BOND. Also before `_connect`, and for the same reason the clock write is: the
+        # pairing needs the device's own link. Without this a bond that goes stale mid-session is
+        # terminal — the task reconnects forever and is torn down every time, which is exactly how
+        # 2026-07-29 lost 4.5 h of ECG while reporting "reconnected" four times.
+        # The CHEAP conditions gate the EXPENSIVE one. `is_bonded` shells out to bluetoothctl, so asking
+        # it on every ~70 s reconnect would spend a subprocess per cycle on a device that is almost
+        # always fine — the very cost `rebond_due`'s cadence exists to avoid. Arithmetic settles it
+        # first; the predicate then re-checks everything so it stays independently meaningful.
+        if (is_polar and needs_pmd and _REBOND_EVERY > 0
+                and iteration % _REBOND_EVERY == 0 and rebond_attempts < _REBOND_LIMIT):
+            try:
+                if rebond_due(needs_pmd, await bonding.is_bonded(addr, ADAPTER), iteration,
+                              rebond_attempts, _REBOND_EVERY, _REBOND_LIMIT):
+                    rebond_attempts += 1
+                    log.warning("%s: BlueZ reports no bond — re-pairing (attempt %d/%d)",
+                                name, rebond_attempts, _REBOND_LIMIT)
+                    if await bonding.ensure_bonded(addr, ADAPTER, force=True):
+                        log.info("%s: re-bonded — PMD should hold again", name)
+                        rebond_attempts = 0        # it took; a LATER loss gets the full budget again
+                    else:
+                        _set(name, last_error="bond lost — re-pairing failed; pair from the monitor page")
+            except Exception as e:                 # bonding must never take the capture task down
+                log.debug("%s: re-bond check failed: %r", name, e)
         writers: dict[int, StreamWriter] = {}
         stream_fs: dict[int, float] = {}   # actual negotiated sample rate per meas (ACC differs per device)
         stream_scale: dict[int, float] = {}   # raw-int → physical-unit factor per meas (GYRO dps / MAG gauss)
@@ -1409,6 +1488,9 @@ async def run_polar(dev: dict, root: str):
                             last_change[_i] = _mono; flowed = True
                     last_rows = rows_now
                     if flowed:
+                        note_data(name, _mono)  # evidence for the alert loop that this link is EARNING its
+                                              # keep. `connected` alone said yes all night while the H10
+                                              # streamed nothing (alerts.device_is_recording).
                         backoff = 5           # E3: AGGREGATE flow — SOME stream is live, so this is a
                                               # viable session; reset the reconnect backoff. A later drop
                                               # then recovers fast; a connect that never streams leaves
@@ -1630,6 +1712,7 @@ async def run_viatom(dev: dict, root: str):
                         BUS.push("spo2", [pkt["spo2"]])
                         if pkt["pr"]:
                             BUS.push("pr", [pkt["pr"]])
+                        note_data(name, _time.monotonic())
                         _set(name, rows=wr.rows, spo2=pkt["spo2"], pr=pkt["pr"], battery=pkt["batt"],
                              last_sample=now.isoformat(), last_error=None)
                     else:
@@ -1847,6 +1930,7 @@ async def run_oxyii(dev: dict, root: str):
                             if live["pr"]:
                                 BUS.push("pr", [live["pr"]])
                             BUS.push("motion_o2", [live["motion"]])   # raw movement level (~1/s)
+                            note_data(name, _time.monotonic())
                             _set(name, rows=wr.rows, spo2=live["spo2"], pr=live["pr"], battery=live["batt"],
                                  motion=live["motion"], worn=True, last_sample=now.isoformat(),
                                  charging=bool(live.get("batt_state")), last_error=None)
@@ -2704,6 +2788,11 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     acfg = cfg.get("alerts") or {}
     interval = float(acfg.get("poll_sec", 60))
     threshold = float(acfg.get("offline_sec", 300))
+    # How stale the last sample may be before a link stops counting as a recording. Comfortably longer
+    # than the poll (60 s) and than any normal inter-frame gap, so a healthy device never flickers; far
+    # shorter than `offline_sec`, so a link that streams nothing is caught by the SAME 5-minute alarm a
+    # disconnected one is.
+    data_grace = float(acfg.get("data_stale_sec", 120))
     down_since: dict[str, float] = {}
     alerted: set[str] = set()
     # Devices seen connected at least once this session. An `optional: true` device that never joined is
@@ -2720,24 +2809,34 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             connected = bool(STATUS["devices"].get(name, {}).get("connected"))
             if connected:
                 ever_connected.add(name)
+            # RECORDING, not merely LINKED. Keying recovery on `connected` turned a 4.5 h outage into
+            # four "resolved" blips, because an unbonded H10 is briefly connected inside every doomed
+            # connect→drop cycle. Only flowing samples clear the alarm.
+            recording = alerts.device_is_recording(connected, _LAST_DATA.get(name), now, data_grace)
+            if recording:
                 down_since.pop(name, None)
                 if name in alerted:                        # it had alerted → tell the operator it is back
                     alerted.discard(name)
-                    log.info("alert: %s reconnected", name)
-                    await notifier.send("Tepna: sensor recovered", f"{name} reconnected.")
+                    log.info("alert: %s recording again", name)
+                    await notifier.send("Tepna: sensor recovered", f"{name} is recording again.")
             else:
                 down_since.setdefault(name, now)
                 if alerts.offline_alert_suppressed(d.get("optional"), name in ever_connected):
                     continue                               # never showed up; not a thing we are missing
                 if name not in alerted and alerts.offline_alert_due(down_since[name], now, threshold):
                     mins = int((now - down_since[name]) / 60)
+                    # NAME THE FAILURE. "offline" and "linked but silent" want different responses from
+                    # the operator — the first is a flat battery or an out-of-range strap, the second is
+                    # the bond/PMD failure that cost 2026-07-29. Saying "offline" for a device sitting
+                    # right there, connecting every 70 s, sends them looking for the wrong thing.
+                    how = "offline" if not connected else "linked but recording nothing"
                     # The journal FIRST, unconditionally — a box with no webhook has no other surface,
                     # and a box whose webhook is broken must still leave the event behind.
-                    log.warning("alert: %s has been offline for ~%d min — capture is missing it",
-                                name, mins)
+                    log.warning("alert: %s has been %s for ~%d min — capture is missing it",
+                                name, how, mins)
                     delivered = await notifier.send(
                         "Tepna: sensor offline",
-                        f"{name} has been offline for ~{mins} min — capture is missing it.")
+                        f"{name} has been {how} for ~{mins} min — capture is missing it.")
                     # Latch on the OUTCOME. A failed POST must be retried next poll, not treated as
                     # "the operator has been told". `not notifier.enabled` still latches: with alerting
                     # off there is nothing to retry, and re-logging every 60 s all night is noise.
