@@ -10660,6 +10660,49 @@
       } else {
         T.ok('SignalOrchestrate exposes plannedHosts', false, 'the §10.1 fix is not present');
       }
+
+      /* ── 3 · THE CONSUMERS. Everything above drives SignalOrchestrate, which is the file that got the
+         derived list RIGHT. §10.1's defect did not live there — it lived in the two host-booting apps
+         that used to hardcode a pulse/oxy/hrv trio. Mutation-checked 2026-07-29: reverting EITHER
+         consumer to a literal trio reds NOTHING.
+
+         Reachability, proven before reporting blind: `emittableTypes()` returns
+         ['rr','spo2','hrv','cgm','ppg','ecg','cpap'], so a hardcoded trio leaves FIVE of seven signal
+         types with no booted host — spo2, cgm, ppg, ecg, cpap — and `canEmit()` returns true for every
+         one of them. That is precisely the invariant the fix established ("a signal the orchestrator
+         advertises via canEmit() is a signal it has really booted"), and the published symptom follows:
+         emitNodeExport() throws, the throw is caught into a per-file 'run error' blaming a co-load that
+         IS present, and the file silently vanishes from exports[]. Note the legacy trio's 'oxy' is not
+         even an emittable type — the real one is 'spo2' — so the pre-fix code booted a host for a
+         signal that does not exist and skipped the one that does.
+
+         Cross-file consistency is what source inspection is legitimately for (same rationale as §7.8):
+         a behavioural test cannot see every host-booting surface at once, and the point here is that a
+         THIRD orchestrator added later must not be able to reintroduce this. */
+      var _bootSrcs = Object.keys(env.sources || {}).filter(function (f) {
+        return f !== 'signal-orchestrate.js' && /\.bootHosts\s*\(/.test(env.sources[f]);
+      });
+      // Anti-vacuity FIRST: with data-unifier-app.js missing from env.sources this scan read one file
+      // and called itself clean, which is the failure mode it exists to prevent.
+      T.ok('§10.1 · the host-booting surfaces are actually visible to this scan (≥2 expected)', _bootSrcs.length >= 2, _bootSrcs.length + ' found: ' + (_bootSrcs.join(', ') || 'NONE — add them to env.sources in BOTH lanes, or this gate is hollow'));
+      if (_bootSrcs.length) {
+        var _litBoot = _bootSrcs.filter(function (f) {
+          return /\.bootHosts\s*\(\s*\[/.test(env.sources[f]);
+        });
+        T.ok('§10.1 · no host-booting surface passes a LITERAL type list to bootHosts()', _litBoot.length === 0, _litBoot.length ? 'hardcoded boot list: ' + _litBoot.join(', ') : _bootSrcs.length + ' surface(s) derive it from the orchestrator');
+        // …and the list must be DERIVED, not merely non-literal at the call site: a surface that
+        // filters candidates against its own signal-type array is just as hardcoded one line up.
+        var _SIG = "(?:rr|spo2|hrv|cgm|ppg|ecg|cpap|oxy)";
+        var _litArr = new RegExp("\\[\\s*'" + _SIG + "'(?:\\s*,\\s*'" + _SIG + "')+\\s*\\]");
+        var _hardFilter = _bootSrcs.filter(function (f) {
+          return _litArr.test(env.sources[f]);
+        });
+        T.ok('§10.1 · …nor enumerates signal types in a literal array anywhere in that surface', _hardFilter.length === 0, _hardFilter.length ? 'literal signal-type list: ' + _hardFilter.join(', ') : 'clean');
+        var _undrived = _bootSrcs.filter(function (f) {
+          return !/emittableTypes\s*\(|canEmit\s*\(/.test(env.sources[f]);
+        });
+        T.ok('§10.1 · every host-booting surface derives its list via emittableTypes()/canEmit()', _undrived.length === 0, _undrived.length ? 'derives from neither: ' + _undrived.join(', ') : 'clean');
+      }
     });
 
     /* ════ GLUCODEX CLAMP-SATURATION HONESTY FLAG (GLUCODEX-FOLLOWUPS §2). A clamped CGM (Abbott Lingo
