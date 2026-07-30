@@ -6119,6 +6119,67 @@
             /vr\.errors\s*\.concat\(\s*vr\.warnings\s*\)/.test(iaSrc),
             'integrator-app.js must forward validateNodeExport warnings into WARN'
           );
+
+          /* ── CROSS-DEVICE-CLOCK-SKEW §3.1 · a fitted time correction MUST be visible ───────────────
+             Mutation-checked 2026-07-29: short-circuiting the banner's guard reds NOTHING, so the
+             reference deployment's permanent −39 min correction could go silent and every fused night
+             would still read as agreement. Same no-headless-seam situation as §8.1 above, but a regex
+             on the guard's SPELLING would miss `if (false && …)`, so instead the guard EXPRESSION is
+             lifted out of the shipped source and EXECUTED against a stub — behavioural on real code.
+             The banner is permanent infrastructure (the device sits on its own cell network and cannot
+             be NTP-disciplined), not a transitional warning, so its reachability is load-bearing. */
+          var _csGuard = /if\s*\(([^)]*cs\.findings[^)]*)\)\s*\{/.exec(iaSrc);
+          T.ok('CDCS §3.1 · the clock-skew banner guard is present in integrator-app.js', !!_csGuard, _csGuard ? _csGuard[1] : 'no guard on cs.findings found — the banner may have been removed entirely');
+          if (_csGuard) {
+            var _csEval = function (cs) {
+              try {
+                return !!new Function('cs', 'return (' + _csGuard[1] + ');')(cs);
+              } catch (e) {
+                return null;
+              }
+            };
+            T.eq('CDCS §3.1 · a fitted skew finding REACHES the banner (not short-circuited by a constant)', _csEval({ findings: [{ offsetSec: -2340 }] }), true);
+            // Anti-vacuity: the guard must still be selective, else `if (true)` would satisfy the above
+            // and the banner would fire on every night with nothing to report.
+            T.eq('CDCS §3.1 · …and an empty finding list does NOT fire it', _csEval({ findings: [] }), false);
+            T.eq('CDCS §3.1 · …nor does an absent clockSkew block', _csEval(null), false);
+          }
+
+          /* ── DEEP-AUDIT-II §10.4 · the app must RELEASE what the recording took ────────────────────
+             `ECGDSP.planCompanionGraft` is a pure function and is well gated (12 assertions). The half
+             that was blind is the APP's obligation to write `remaining` back: mutation-checked, dropping
+             the `DEVICE_RR = _cg.remaining.deviceRR` line reds NOTHING — and that is the whole original
+             defect, night B inheriting night A's parked companions. `deviceKey` cannot discriminate
+             (it is POLAR_<model>_<id>, per DEVICE, so two nights from one H10 share it exactly).
+             Driven off the DSP's OWN return shape rather than a hardcoded list, so a fifth companion
+             kind added to `remaining` later must also be released or this reds. */
+          var _egSrc = (env.sources || {})['ecgdex-app.js'];
+          var _ED = env.ECGDSP;
+          if (_egSrc == null || !_ED || typeof _ED.planCompanionGraft !== 'function') {
+            T.ok('§10.4 · ecgdex-app source + ECGDSP.planCompanionGraft available', false, 'src=' + (_egSrc != null) + ' fn=' + !!(_ED && _ED.planCompanionGraft));
+          } else {
+            var _rem = _ED.planCompanionGraft({ deviceRR: null, deviceHR: null, deviceACC: null, accFs: null }, { t0Ms: 0 });
+            var _remKeys = Object.keys((_rem && _rem.remaining) || {});
+            T.ok('§10.4 · planCompanionGraft publishes a `remaining` contract', _remKeys.length >= 4, JSON.stringify(_remKeys));
+            var _unreleased = _remKeys.filter(function (k) {
+              return !new RegExp('_cg\\.remaining\\.' + k + '\\b').test(_egSrc);
+            });
+            T.ok('§10.4 · every companion the DSP hands back is RELEASED by the app — none can be inherited by the next recording', _unreleased.length === 0, _unreleased.length ? 'never released: ' + _unreleased.join(', ') : _remKeys.length + ' companion slot(s) all released');
+          }
+
+          /* ── DEEP-AUDIT-II §4.3 (#5) · fs is the MEAN non-gap interval, at every site ───────────────
+             Three sites compute it: ecgdex-app.js twice (the file path and the inlined WORKER_SRC) and
+             ecgdex-dsp.js once. Mutation-checked: reverting the file path to a single delta reds
+             NOTHING. A single delta taken across a dropout reads one long interval as the sample
+             period, so fs collapses and every downstream duration and rate scales with it. Counted
+             rather than lifted, because one of the three sites lives inside a worker SOURCE STRING and
+             has no expression to execute. */
+          var _fsMean = /\(\s*1000\s*\*\s*stepN\s*\)\s*\/\s*stepSum/g;
+          var _fsSites = ['ecgdex-app.js', 'ecgdex-dsp.js'].reduce(function (a, f) {
+            var s = (env.sources || {})[f];
+            return a + (s == null ? 0 : (s.match(_fsMean) || []).length);
+          }, 0);
+          T.ok('§4.3 · every fs-from-interval site uses the MEAN non-gap interval (3 expected: app ×2 incl. WORKER_SRC, dsp ×1)', _fsSites >= 3, _fsSites + ' mean-form site(s) found — a drop means one regressed to a single delta');
         }
       }
     });
