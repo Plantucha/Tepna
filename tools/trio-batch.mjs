@@ -1166,7 +1166,34 @@ for (const p of work) {
       const rec = mergePpg(p.ppg.map((f) => PpgDex.parsePPG(readFileSync(f.full, 'utf8'))));
       // The IMU companions stay single-session: they only drive the per-epoch motionIndex, and the
       // 775 MB ACC union is the one that would blow the string limit. Documented, not silent.
-      const xyz = (l) => (l && l.length ? ctx.PPGDSP.parseSensorXYZ(readFileSync(l[0].full, 'utf8')) : null);
+      /* EVERY concurrent session, not `[0]`.
+         `[0]` discarded 99 % of the night. Measured on 2026-07-26: 50 Verity ACC fragments totalling
+         229 MB, of which the first held 2.2 MB — so PpgDex's motionIndex, posture, every magnetometer
+         feature and the movement_onset impulse were all computed from roughly the first two minutes of
+         each night. The H10 ACC path already learned this ("`[0]` was wrong … the earliest session is
+         often a settling fragment") and was fixed to a padded uniform grid; this path was never given
+         the same treatment.
+
+         A GRID is not needed here, and that is the whole reason the fix differs from the H10's.
+         `accExtras` indexes deviceACC as UNIFORMLY sampled, so a plain concat there would time-shift
+         every sample after a gap. PpgDex instead times each row through `relSecOf`, which reads an
+         ABSOLUTE per-row stamp — so a time-ordered concat is already correctly placed, and silence
+         between fragments is simply absent rather than mis-timed.
+
+         `relNs` must be dropped, though: it is the DEVICE counter and restarts at 0 in every fragment,
+         so `relSecOf` would fold all 50 sessions onto the first one's window. Clearing it makes the
+         helper fall through to the absolute `tMs` path. Millisecond resolution is ample for a 0.25 s
+         motion grid. */
+      const xyz = (l) => {
+        if (!l || !l.length) return null;
+        const rows = [];
+        for (const f of l) {
+          const parsed = ctx.PPGDSP.parseSensorXYZ(readFileSync(f.full, 'utf8'));
+          for (const r of parsed || []) if (r.tMs != null && isFinite(r.tMs)) rows.push({ ...r, relNs: NaN });
+        }
+        rows.sort((a, b) => a.tMs - b.tMs);
+        return rows.length ? rows : null;
+      };
       rec.acc = xyz(p.accVer);
       rec.gyro = xyz(p.gyro);
       rec.magn = xyz(p.magn);
