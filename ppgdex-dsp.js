@@ -1922,9 +1922,31 @@
     const dt = 0.25,
       nG = Math.max(1, Math.ceil(durSec / dt));
     const grid = new Float32Array(nG);
+    /* `relNs` is the DEVICE counter and it RESTARTS AT 0 in every capture fragment. Preferring it
+       blindly is a trap: hand this function a night assembled from several sessions and every fragment
+       folds onto the first one's window, silently. That is not hypothetical — `trio-batch` did exactly
+       this, and 99 % of a night's inertial data (229 MB of Verity ACC, of which 2.2 MB was used) was
+       discarded on every fold, taking motionIndex, posture, the magnetometer features and
+       movement_onset with it. Nothing errored; the numbers simply described the first two minutes.
+
+       So the CALLER is no longer trusted to have re-based it. If `relNs` ever steps BACKWARDS across
+       the input, it is per-fragment and unusable as a night-relative clock, and the absolute per-row
+       stamp is used instead. Checked once, on the rows actually passed. */
+    const _relNsUsable = (rows) => {
+      if (!rows || rows.length < 2) return true;
+      let prev = -Infinity;
+      for (let i = 0; i < rows.length; i++) {
+        const v = rows[i] && rows[i].relNs;
+        if (!isFinite(v)) continue;
+        if (v < prev) return false;
+        prev = v;
+      }
+      return true;
+    };
+    const _useRelNs = _relNsUsable(accRows) && _relNsUsable(gyroRows) && _relNsUsable(magRows);
     // ACC dynamic magnitude (de-gravitated)
     function relSecOf(r) {
-      if (isFinite(r.relNs)) return r.relNs / 1e9;
+      if (_useRelNs && isFinite(r.relNs)) return r.relNs / 1e9;
       if (r.tMs != null && t0Ms != null) return (r.tMs - t0Ms) / 1000;
       return null;
     }

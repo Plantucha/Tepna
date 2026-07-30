@@ -12586,6 +12586,36 @@
           g = grav(sec);
         acc.push({ x: g[0], y: g[1], z: g[2], relNs: sec * 1e9 });
       }
+      /* THE FRAGMENT TRAP. `relNs` is the DEVICE counter and RESTARTS AT 0 in every capture fragment,
+         so a night assembled from several sessions folds onto the first one's window if it is trusted
+         blindly. That is not hypothetical: `trio-batch` did exactly this and discarded 99 % of every
+         night's inertial data (229 MB of Verity ACC, 2.2 MB used), taking motionIndex, posture, the
+         magnetometer features and movement_onset with it — silently, because nothing errored. The
+         caller was fixed; this asserts the DSP no longer depends on the caller getting it right. */
+      var t0 = 1782000000000;
+      var frag = [];
+      for (var q = 0; q < 400; q++) frag.push({ x: 0, y: 0, z: 1000, relNs: (q / 10) * 1e9, tMs: t0 + q * 100 });
+      // A second session: relNs restarts at 0, absolute time continues 2 h later.
+      // Fragment 2 carries real MOVEMENT (z swings), so where it lands is visible in the grid. With a
+      // constant vector the de-gravitated magnitude is zero everywhere and the grid cannot show it.
+      for (var q2 = 0; q2 < 400; q2++)
+        frag.push({ x: 0, y: 0, z: q2 % 20 < 10 ? 1000 : 1600, relNs: (q2 / 10) * 1e9, tMs: t0 + 7200000 + q2 * 100 });
+      var mf = P.analyzeMotion(frag, null, t0, 7300);
+      T.ok('a night whose relNs restarts per fragment still spans the WHOLE night',
+        mf.hasData && mf.grid && mf.grid.length > 7000 / 0.25 * 0.9, mf.grid && mf.grid.length);
+      /* The tell: with the trap live, every sample lands in the first 40 s and the rest of the grid is
+         untouched. With the guard, the second fragment sits at its true +2 h. */
+      var dtf = mf.dt, lateBin = Math.floor(7200 / dtf);
+      var lateTouched = false;
+      for (var b2 = lateBin; b2 < Math.min(mf.grid.length, lateBin + 400); b2++) if (mf.grid[b2] !== 0) lateTouched = true;
+      T.ok('…and the second fragment lands at its TRUE +2 h, not folded onto the first', lateTouched);
+
+      // A single continuous session must still use the precise device clock — the guard only fires on
+      // a BACKWARDS step, so it costs a normal recording nothing.
+      var cont = [];
+      for (var q3 = 0; q3 < 400; q3++) cont.push({ x: 0, y: 0, z: 1000, relNs: (q3 / 10) * 1e9, tMs: t0 + q3 * 100 });
+      T.ok('a single continuous session is unaffected by the guard', P.analyzeMotion(cont, null, t0, 45).hasData);
+
       var m = P.analyzeMotion(acc, null, 0, durSec);
       T.ok('motion exposes postureAtSec when ACC present', typeof m.postureAtSec === 'function');
       T.eq('supine segment → supine', m.postureAtSec(60, 360), 'supine');
