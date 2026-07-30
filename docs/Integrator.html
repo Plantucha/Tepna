@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-1sxd/HdwJrtU1LV9dthDC+L2JXadE2OIeXDXfD0QAts=' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-XtIgeiiGEz2UwCxpHmgfVC3QJVq7u+H3d8V7Xk75vM8=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cklZCxcMoqtJ5sIHDiYMHVses472s6Hkkx3T774upHg=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UzMci41YclpKBicziNatAEHCCKHUwwOxQ08tVhufE4U=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-XtIgeiiGEz2UwCxpHmgfVC3QJVq7u+H3d8V7Xk75vM8=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-wrYKoMATryogohDhTGQJVmqOPk0EUfX65dbTofmBEIw=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8972,6 +8972,11 @@ function refineLagByDeltaMode(aTimes, bTimes, coarseLagSec, opts) {
     for (var r = 0; r < deltas.length; r++) re[r] = deltas[(rnd() * deltas.length) | 0];
     modes.push(deltaModeSec(re, opts));
   }
+  // `deltaModeSec` is typed `number | null`; a resample can in principle be empty. Coerce before the
+  // comparator rather than subtracting possibly-null operands.
+  modes = modes.map(function (m) {
+    return m == null ? 0 : m;
+  });
   modes.sort(function (x, y) {
     return x - y;
   });
@@ -9013,6 +9018,8 @@ function fitClockOffset(anchorTimes, channels, opts) {
   });
   for (var i = 0; i < (channels || []).length; i++) {
     var ch = channels[i] || {};
+    /** @type {any} — progressively filled: the literal initialiser would otherwise pin these fields
+        to `null` and reject every later assignment. */
     var rec = {
       node: ch.node || null,
       channel: ch.channel || null,
@@ -9032,8 +9039,7 @@ function fitClockOffset(anchorTimes, channels, opts) {
       if (!coarse) rec.reason = 'no coarse peak';
       else {
         rec.peakOverFloor = coarse.peakOverFloor;
-        if (coarse.peakOverFloor == null || coarse.peakOverFloor < minPeakOverFloor)
-          rec.reason = 'peak does not clear the floor';
+        if (coarse.peakOverFloor == null || coarse.peakOverFloor < minPeakOverFloor) rec.reason = 'peak does not clear the floor';
         else {
           var fine = refineLagByDeltaMode(A, ch.times, coarse.lagSec, opts);
           if (!fine) rec.reason = 'too few pairs to refine';
@@ -9067,8 +9073,7 @@ function fitClockOffset(anchorTimes, channels, opts) {
   var good = out.filter(function (r) {
     return r.usable;
   });
-  if (!good.length)
-    return { offsetSec: null, spreadSec: null, confident: false, reason: 'no channel could be estimated', channels: out };
+  if (!good.length) return { offsetSec: null, spreadSec: null, confident: false, reason: 'no channel could be estimated', channels: out };
   /* AGREEMENT, not an average. A plain median over every channel that clears the floor is wrong,
      and measurably so: sleep-STAGE impulses (`stage_light`, `stage_deep`, …) are long segments spread
      across the whole night, so on a 20-event night they clear a 3x floor by chance at arbitrary lags.
@@ -9099,8 +9104,7 @@ function fitClockOffset(anchorTimes, channels, opts) {
   var win = scored[0];
   for (var w = 1; w < scored.length; w++) {
     var z = scored[w];
-    if (z.nodes > win.nodes || (z.nodes === win.nodes && z.c.length > win.c.length) || (z.nodes === win.nodes && z.c.length === win.c.length && z.width < win.width))
-      win = z;
+    if (z.nodes > win.nodes || (z.nodes === win.nodes && z.c.length > win.c.length) || (z.nodes === win.nodes && z.c.length === win.c.length && z.width < win.width)) win = z;
   }
   var vals = win.c
     .map(function (r) {
@@ -9289,8 +9293,8 @@ function runFusion(recs, opts) {
      too quiet is visible rather than silently missing. */
   var skewFits = {};
   skew.findings.forEach(function (f) {
-    var anchor = null,
-      chans = [];
+    /** @type {any} */ var anchor = null;
+    /** @type {any[]} */ var chans = [];
     (recs || []).forEach(function (r) {
       if (!r || r.dateUnknown || !r.events || !r.events.length) return;
       if (r.node === f.node) {
@@ -13367,21 +13371,7 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
               : '⏱ …could not be refined: ' + (fit.reason || 'no usable channel');
           var parts = (fit.channels || []).map(function (c) {
             if (!c.usable) return '· ' + c.node + '/' + c.channel + ': — (' + (c.reason || 'unusable') + ')';
-            return (
-              '· ' +
-              c.node +
-              '/' +
-              c.channel +
-              ': ' +
-              (c.offsetSec / 60).toFixed(2) +
-              ' min [' +
-              Math.round(c.ciLoSec) +
-              '–' +
-              Math.round(c.ciHiSec) +
-              ' s, n=' +
-              c.nPairs +
-              ']'
-            );
+            return '· ' + c.node + '/' + c.channel + ': ' + (c.offsetSec / 60).toFixed(2) + ' min [' + Math.round(c.ciLoSec) + '–' + Math.round(c.ciHiSec) + ' s, n=' + c.nPairs + ']';
           });
           warnAll.push(head + (parts.length ? '  ' + parts.join('  ') : ''));
         }

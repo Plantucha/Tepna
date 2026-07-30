@@ -75,21 +75,7 @@
               : '⏱ …could not be refined: ' + (fit.reason || 'no usable channel');
           var parts = (fit.channels || []).map(function (c) {
             if (!c.usable) return '· ' + c.node + '/' + c.channel + ': — (' + (c.reason || 'unusable') + ')';
-            return (
-              '· ' +
-              c.node +
-              '/' +
-              c.channel +
-              ': ' +
-              (c.offsetSec / 60).toFixed(2) +
-              ' min [' +
-              Math.round(c.ciLoSec) +
-              '–' +
-              Math.round(c.ciHiSec) +
-              ' s, n=' +
-              c.nPairs +
-              ']'
-            );
+            return '· ' + c.node + '/' + c.channel + ': ' + (c.offsetSec / 60).toFixed(2) + ' min [' + Math.round(c.ciLoSec) + '–' + Math.round(c.ciHiSec) + ' s, n=' + c.nPairs + ']';
           });
           warnAll.push(head + (parts.length ? '  ' + parts.join('  ') : ''));
         }

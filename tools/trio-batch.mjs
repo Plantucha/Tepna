@@ -913,7 +913,7 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
         // Print each night's block whole, so interleaved children never shred each other's output.
         const body = out
           .split('\n')
-          .filter((l) => /^\s{4,}[✓✗⊘·⏱]/.test(l))   // `{4,}`, and ⏱: the clock-fit block indents its per-sensor lines deeper, and an exact-4 filter silently ate them
+          .filter((l) => /^\s{4,}[✓✗⊘·⏱]/.test(l)) // `{4,}`, and ⏱: the clock-fit block indents its per-sensor lines deeper, and an exact-4 filter silently ate them
           .join('\n');
         console.log(`\n▸ ${p.key}${node ? ` · ${node}` : ''}  [${done}/${queue0}]${code === 0 ? '' : `  ✗ child exit ${code}`}`);
         if (body) console.log(body);
@@ -984,7 +984,11 @@ const writeExport = (dir, node, key, ex) => {
 const cpapApneaTimes = (dayDir) => {
   const out = [];
   let files = [];
-  try { files = readdirSync(dayDir).filter((f) => /_EVE\.edf$/.test(f)); } catch { return out; }
+  try {
+    files = readdirSync(dayDir).filter((f) => /_EVE\.edf$/.test(f));
+  } catch {
+    return out;
+  }
   for (const f of files) {
     const b = readFileSync(join(dayDir, f));
     const S = (o, n) => b.toString('latin1', o, o + n).trim();
@@ -1259,16 +1263,19 @@ for (const p of work) {
         }
         const fit = ctx.IntegratorDSP.fitClockOffset(ap, chans, {});
         row.clockFit = fit;
-        const head = fit.offsetSec != null
-          ? `${(fit.offsetSec / 60).toFixed(2)} min (${Math.round(fit.offsetSec)} s)` +
-            (fit.spreadSec != null ? `, sensors agree within ${Math.round(fit.spreadSec)} s` : '') +
-            (fit.confident ? '' : `  — NOT corroborated (${fit.reason})`)
-          : `unresolved — ${fit.reason}`;
+        const head =
+          fit.offsetSec != null
+            ? `${(fit.offsetSec / 60).toFixed(2)} min (${Math.round(fit.offsetSec)} s)` +
+              (fit.spreadSec != null ? `, sensors agree within ${Math.round(fit.spreadSec)} s` : '') +
+              (fit.confident ? '' : `  — NOT corroborated (${fit.reason})`)
+            : `unresolved — ${fit.reason}`;
         console.log(`    ⏱ CPAP clock offset: ${head}   [${ap.length} apnea events]`);
         for (const c of fit.channels) {
-          console.log(c.usable
-            ? `        · ${(c.node + '/' + c.channel).padEnd(38)} ${(c.offsetSec / 60).toFixed(2)} min  [${Math.round(c.ciLoSec)}–${Math.round(c.ciHiSec)} s, n=${c.nPairs}]`
-            : `        · ${(c.node + '/' + c.channel).padEnd(38)} —      (${c.reason})`);
+          console.log(
+            c.usable
+              ? `        · ${(c.node + '/' + c.channel).padEnd(38)} ${(c.offsetSec / 60).toFixed(2)} min  [${Math.round(c.ciLoSec)}–${Math.round(c.ciHiSec)} s, n=${c.nPairs}]`
+              : `        · ${(c.node + '/' + c.channel).padEnd(38)} —      (${c.reason})`
+          );
         }
       }
     } catch (e) {

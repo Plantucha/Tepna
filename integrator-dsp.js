@@ -3582,6 +3582,11 @@ function refineLagByDeltaMode(aTimes, bTimes, coarseLagSec, opts) {
     for (var r = 0; r < deltas.length; r++) re[r] = deltas[(rnd() * deltas.length) | 0];
     modes.push(deltaModeSec(re, opts));
   }
+  // `deltaModeSec` is typed `number | null`; a resample can in principle be empty. Coerce before the
+  // comparator rather than subtracting possibly-null operands.
+  modes = modes.map(function (m) {
+    return m == null ? 0 : m;
+  });
   modes.sort(function (x, y) {
     return x - y;
   });
@@ -3623,6 +3628,8 @@ function fitClockOffset(anchorTimes, channels, opts) {
   });
   for (var i = 0; i < (channels || []).length; i++) {
     var ch = channels[i] || {};
+    /** @type {any} — progressively filled: the literal initialiser would otherwise pin these fields
+        to `null` and reject every later assignment. */
     var rec = {
       node: ch.node || null,
       channel: ch.channel || null,
@@ -3642,8 +3649,7 @@ function fitClockOffset(anchorTimes, channels, opts) {
       if (!coarse) rec.reason = 'no coarse peak';
       else {
         rec.peakOverFloor = coarse.peakOverFloor;
-        if (coarse.peakOverFloor == null || coarse.peakOverFloor < minPeakOverFloor)
-          rec.reason = 'peak does not clear the floor';
+        if (coarse.peakOverFloor == null || coarse.peakOverFloor < minPeakOverFloor) rec.reason = 'peak does not clear the floor';
         else {
           var fine = refineLagByDeltaMode(A, ch.times, coarse.lagSec, opts);
           if (!fine) rec.reason = 'too few pairs to refine';
@@ -3677,8 +3683,7 @@ function fitClockOffset(anchorTimes, channels, opts) {
   var good = out.filter(function (r) {
     return r.usable;
   });
-  if (!good.length)
-    return { offsetSec: null, spreadSec: null, confident: false, reason: 'no channel could be estimated', channels: out };
+  if (!good.length) return { offsetSec: null, spreadSec: null, confident: false, reason: 'no channel could be estimated', channels: out };
   /* AGREEMENT, not an average. A plain median over every channel that clears the floor is wrong,
      and measurably so: sleep-STAGE impulses (`stage_light`, `stage_deep`, …) are long segments spread
      across the whole night, so on a 20-event night they clear a 3x floor by chance at arbitrary lags.
@@ -3709,8 +3714,7 @@ function fitClockOffset(anchorTimes, channels, opts) {
   var win = scored[0];
   for (var w = 1; w < scored.length; w++) {
     var z = scored[w];
-    if (z.nodes > win.nodes || (z.nodes === win.nodes && z.c.length > win.c.length) || (z.nodes === win.nodes && z.c.length === win.c.length && z.width < win.width))
-      win = z;
+    if (z.nodes > win.nodes || (z.nodes === win.nodes && z.c.length > win.c.length) || (z.nodes === win.nodes && z.c.length === win.c.length && z.width < win.width)) win = z;
   }
   var vals = win.c
     .map(function (r) {
@@ -3899,8 +3903,8 @@ function runFusion(recs, opts) {
      too quiet is visible rather than silently missing. */
   var skewFits = {};
   skew.findings.forEach(function (f) {
-    var anchor = null,
-      chans = [];
+    /** @type {any} */ var anchor = null;
+    /** @type {any[]} */ var chans = [];
     (recs || []).forEach(function (r) {
       if (!r || r.dateUnknown || !r.events || !r.events.length) return;
       if (r.node === f.node) {
