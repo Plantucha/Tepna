@@ -197,7 +197,11 @@ const SOURCE_FILES = ['clock.js','oxydex-util.js','pulsedex-dsp.js','oxydex-dsp.
  // duration class gate surfaced it by asking all 8 node builders the same question and getting a hole
  // for exactly one — which is what a fleet gate is for. Node's run-tests.mjs already lists it.
  'motiondex-dsp.js',
-  'overdex-app.js'];
+  'overdex-app.js',
+  /* DEEP-AUDIT-III-FOLLOWUPS-II §6.9 — the OTHER host-booting orchestrator; same omission as
+     motiondex-dsp.js above, same consequence. A scan over "every host-booting surface" that can
+     see only one of the two surfaces reports itself clean while the other is blind. */
+  'data-unifier-app.js'];
 
 let ALL_GROUPS = [];
 

@@ -289,6 +289,11 @@ function readSources() {
     'glucodex-profile.js',
     'ppgdex-profile.js',
     'overdex-app.js',
+    /* DEEP-AUDIT-III-FOLLOWUPS-II §6.9 — the OTHER host-booting orchestrator. `overdex-app.js` was
+       listed and `data-unifier-app.js` was not, so a source scan over "every host-booting surface"
+       would have read one of the two and reported itself clean. Both §10.1 consumers mutation-tested
+       BLIND; a scan that closes them has to be able to see both. */
+    'data-unifier-app.js',
     // TEST-COVERAGE-ANALYSIS 2026-07-15 — the analysis-page controllers, so the statistics-kernel
     // group can assert each one delegates to AnalysisStats (delegation-parity leg).
     'analysis-stats.js',
