@@ -2076,7 +2076,11 @@ def test_storage_poller_swallows_an_error(tmp_path, monkeypatch):
 
 
 def test_alert_poller_fires_on_a_sustained_offline_then_recovers(monkeypatch):
-    """A device offline past the threshold alerts once; when it reconnects, a recovery alert fires."""
+    """A device offline past the threshold alerts once; when it RECORDS again, a recovery alert fires.
+
+    Recovery needs flowing samples, not merely a link — so the device coming back must stamp
+    `_LAST_DATA`, exactly as the real stream paths do. Keying this on `connected` alone is what let a
+    4.5 h outage report itself recovered four times (see `alerts.device_is_recording`)."""
     sent = []
     class _N:
         # `enabled` and a truthy return are part of Notifier's interface, and the poller now reads
@@ -2087,17 +2091,48 @@ def test_alert_poller_fires_on_a_sustained_offline_then_recovers(monkeypatch):
     cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="H10")]}
     st = {"connected": False}
     capture.STATUS["devices"]["H10"] = st
+    capture._LAST_DATA.pop("H10", None)
     calls = {"n": 0}
     async def fake_sleep(_s):
         calls["n"] += 1
         if calls["n"] == 2:
-            st["connected"] = True            # it comes back on the 2nd poll → recovery alert
+            st["connected"] = True               # it comes back on the 2nd poll…
+            capture._LAST_DATA["H10"] = 1000.0   # …and, crucially, streams → recovery alert
         if calls["n"] >= 3:
             capture._STOP.set()
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
     _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop("H10", None)
     assert sent == ["Tepna: sensor offline", "Tepna: sensor recovered"]
+
+
+def test_alert_poller_does_NOT_call_a_silent_link_recovered(monkeypatch):
+    """THE 2026-07-29 REGRESSION GUARD. An unbonded H10 connects for 1–2 s, streams nothing and is torn
+    down, over and over. `connected` is TRUE at whichever poll lands inside a connect, so the old poller
+    sent four "recovered" notices while not one byte was written after 23:48. A link that produces no
+    data must STAY in alarm."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return True
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="H10")]}
+    st = {"connected": False}
+    capture.STATUS["devices"]["H10"] = st
+    capture._LAST_DATA.pop("H10", None)          # never streamed this session — the real state that night
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            st["connected"] = True               # linked, but still silent
+        if calls["n"] >= 4:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    assert "Tepna: sensor recovered" not in sent, \
+        "a link recording nothing was called recovered — the exact 2026-07-29 false all-clear"
+    assert sent == ["Tepna: sensor offline"], "and the outage must still be reported, once"
 
 
 def test_alert_poller_skips_a_nameless_device_and_a_connected_one(monkeypatch):

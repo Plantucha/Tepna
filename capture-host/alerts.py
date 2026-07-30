@@ -70,6 +70,34 @@ class Notifier:
         self._last.pop(key, None)
 
 
+def device_is_recording(connected: bool, last_data_mono: float | None, now: float,
+                        grace_sec: float) -> bool:
+    """PURE: is the device actually PRODUCING DATA, or merely LINKED?
+
+    `connected` is not `recording`, and conflating them cost a whole night. On 2026-07-29 the H10 lost
+    its BlueZ bond and entered a connect→drop loop: it linked for 1–2 s, was torn down for being
+    unauthenticated, retried ~70 s later, for four and a half hours. The alert loop keyed on
+    `connected`, which is momentarily TRUE inside each doomed connect, so the operator got:
+
+        23:54 offline → 00:18 RECONNECTED → 00:24 offline → 00:51 RECONNECTED
+        00:57 offline → 03:31 RECONNECTED → 03:37 offline → 03:42 RECONNECTED → 03:48 offline
+
+    Four "recovered" notices, and NOT ONE BYTE written after 23:48. Every all-clear was false, and the
+    flapping turned a total outage into what read as a series of resolved blips.
+
+    This is the lesson `cpap_harvest.blocking_devices` already learned one module over — "a sensor on
+    its charger reports connected=True while producing nothing" — applied to the alert path, which
+    never got it. Both are the house rule that a silent zero is the thing to catch.
+
+    `grace_sec` exists because a device that has only just linked has not streamed yet and must not be
+    called recording on the strength of the link alone. `last_data_mono is None` — nothing ever arrived
+    this session — therefore reads as NOT recording, which is the honest answer and is precisely the
+    state the H10 sat in all night."""
+    if not connected or last_data_mono is None:
+        return False
+    return (now - last_data_mono) <= grace_sec
+
+
 def offline_alert_due(down_since: float | None, now: float, threshold_sec: float) -> bool:
     """True when a device has been continuously offline for at least `threshold_sec`. `down_since` is the
     monotonic time it first went offline (None = currently connected → never due)."""
