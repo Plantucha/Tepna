@@ -53,6 +53,46 @@
             f.peakOverFloor +
             '× over chance). Fix the device clock — this correction is fitted from the data, not authoritative.'
         );
+        /* WHICH SENSOR FOUND IT, AND WHAT EACH ONE SAID.
+           The coarse finding above is scanned on a 30 s grid, so it cannot honestly be quoted finer
+           than that. The fit refines it to seconds and — the part a reader needs in order to decide
+           whether to believe it — reports each contributing sensor SEPARATELY. Agreement between
+           unrelated mechanisms (oxygen transport, autonomic tone, body movement) IS the evidence; one
+           blended number would hide precisely the disagreement worth seeing. A sensor that could not
+           contribute is listed with its reason rather than omitted, because an absent contributor is
+           itself information — the silent-zero failure this suite keeps finding. */
+        var fit = cs.fits && cs.fits[f.node];
+        if (fit) {
+          var head =
+            fit.offsetSec != null
+              ? '⏱ …refined to ' +
+                (fit.offsetSec / 60).toFixed(2) +
+                ' min (' +
+                Math.round(fit.offsetSec) +
+                ' s)' +
+                (fit.spreadSec != null ? ', sensors agree within ' + Math.round(fit.spreadSec) + ' s' : '') +
+                (fit.confident ? '' : ' — NOT corroborated: ' + (fit.reason || 'single channel'))
+              : '⏱ …could not be refined: ' + (fit.reason || 'no usable channel');
+          var parts = (fit.channels || []).map(function (c) {
+            if (!c.usable) return '· ' + c.node + '/' + c.channel + ': — (' + (c.reason || 'unusable') + ')';
+            return (
+              '· ' +
+              c.node +
+              '/' +
+              c.channel +
+              ': ' +
+              (c.offsetSec / 60).toFixed(2) +
+              ' min [' +
+              Math.round(c.ciLoSec) +
+              '–' +
+              Math.round(c.ciHiSec) +
+              ' s, n=' +
+              c.nPairs +
+              ']'
+            );
+          });
+          warnAll.push(head + (parts.length ? '  ' + parts.join('  ') : ''));
+        }
       });
     }
     R.renderAll(RECS, FUSION, warnAll);

@@ -1759,6 +1759,105 @@
       }
     });
 
+    /* THE OFFSET, PINNED TO SECONDS AND ATTRIBUTED PER SENSOR.
+
+       `detectClockSkew` scans a 30 s grid with a +-60 s match window, so its lag cannot be quoted
+       finer than that — reporting its peak as "the offset" states the INSTRUMENT's resolution as if it
+       were the DATA's. On the real corpus the deltas locate ~500x tighter: four sensors (finger
+       oximeter desaturation, chest ECG tachycardia, arm accelerometer and arm gyro) independently
+       agreed within 12 s, and the residual spread was physiological latency, not error.
+
+       The attribution is the point. A single blended number cannot be audited; three sensors reporting
+       separately, through unrelated mechanisms, is what turns an estimate into a measurement — and a
+       channel that could NOT contribute has to say so, because a silently missing sensor is exactly
+       the class of failure this suite keeps finding. */
+    group('Integrator pins the clock offset to seconds and says which sensor found it', 'integrator-dsp · clock-fit', function (T) {
+      var D = env.IntegratorDSP || env.D || null;
+      var fit = D && D.fitClockOffset,
+        mode = D && D.deltaModeSec,
+        refine = D && D.refineLagByDeltaMode;
+      T.ok('fitClockOffset + deltaModeSec + refineLagByDeltaMode exported',
+        typeof fit === 'function' && typeof mode === 'function' && typeof refine === 'function');
+      if (typeof fit !== 'function') return;
+
+      // --- deltaModeSec: the tie rule is load-bearing --------------------------------------------
+      T.eq('the mode of a tight cluster is its centre', mode([100, 100, 101, 99, 100], { smoothSec: 2 }), 100);
+      /* A raw argmax on 1 s bins ties constantly and the tie-break is arbitrary. That is not
+         hypothetical: a spurious -4350 s once outranked a tied -1050 s purely by iteration order and
+         was reported as a finding. Ties must resolve DETERMINISTICALLY, to the smaller |lag|. */
+      T.eq('a tie resolves to the smaller |lag|, not to iteration order',
+        mode([-600, -600, 600, 600], { smoothSec: 0 }), -600);
+      T.eq('no deltas -> null, never 0', mode([], {}), null);
+
+      // --- a planted offset, recovered to the second --------------------------------------------
+      var t0 = U(2026, 5, 12, 22, 0, 0), OFF = 2297;   // the real corpus figure, 38.28 min
+      var anchor = [], partnerA = [], partnerB = [];
+      for (var i = 0; i < 40; i++) {
+        var t = t0 + i * 600000 + (i % 7) * 9000;      // irregular, so periodicity cannot win
+        anchor.push(t);
+        partnerA.push(t + OFF * 1000);                 // exact
+        partnerB.push(t + (OFF + 11) * 1000);          // 11 s later — a slower mechanism
+      }
+      var r = fit(anchor, [
+        { node: 'OxyDex', channel: 'desat_event', times: partnerA },
+        { node: 'ECGDex', channel: 'autonomic_surge', times: partnerB }
+      ], { minPairs: 10 });
+      T.ok('the planted offset is recovered within 15 s', Math.abs(r.offsetSec - OFF) <= 15, r.offsetSec);
+      T.ok('…and it is confident, because two channels agree', r.confident === true, r.reason);
+      T.eq('…both channels are reported', r.channels.length, 2);
+      T.ok('…each names its node and mechanism',
+        r.channels[0].node === 'OxyDex' && r.channels[0].channel === 'desat_event');
+      T.ok('…each carries its own estimate, not just the blend',
+        r.channels[0].offsetSec != null && r.channels[1].offsetSec != null);
+      /* The spread is PHYSIOLOGY — movement fires at arousal, desaturation trails it by circulation
+         transit. Publishing it is what lets a reader tell "sensors agree" from "sensors disagree". */
+      T.ok('…and the inter-channel spread is published', r.spreadSec != null && r.spreadSec >= 0, r.spreadSec);
+
+      // --- DEGRADATION: it must work with sensors missing ----------------------------------------
+      var one = fit(anchor, [{ node: 'OxyDex', channel: 'desat_event', times: partnerA }], { minPairs: 10 });
+      T.ok('a single sensor still yields an offset', Math.abs(one.offsetSec - OFF) <= 15, one.offsetSec);
+      T.ok('…but is NOT called confident — one channel cannot corroborate itself', one.confident === false);
+      T.ok('…and says why', /one device/.test(one.reason || ''), one.reason);
+
+      var none = fit(anchor, [], {});
+      T.eq('no partner sensors at all -> null, never a fabricated number', none.offsetSec, null);
+      T.ok('…and reports the reason', /no channel/.test(none.reason || ''), none.reason);
+
+      /* A channel that cannot contribute is RETAINED with its reason. Dropping it silently would make
+         an absent sensor indistinguishable from one that was present and useless. */
+      var withDead = fit(anchor, [
+        { node: 'OxyDex', channel: 'desat_event', times: partnerA },
+        { node: 'PpgDex', channel: 'hrv_drop', times: [t0, t0 + 1000] }
+      ], { minPairs: 10 });
+      T.eq('an unusable channel is kept, not dropped', withDead.channels.length, 2);
+      var dead = withDead.channels.filter(function (c) { return !c.usable; })[0];
+      T.ok('…flagged unusable with a reason', dead && dead.reason, dead && dead.reason);
+      T.ok('…and it does not poison the answer', Math.abs(withDead.offsetSec - OFF) <= 15, withDead.offsetSec);
+
+      /* A LYING channel must not drag the median. Three channels, one of them 20 min out. */
+      var liar = anchor.map(function (t) { return t + (OFF + 1200) * 1000; });
+      var robust = fit(anchor, [
+        { node: 'OxyDex', channel: 'desat_event', times: partnerA },
+        { node: 'ECGDex', channel: 'autonomic_surge', times: partnerB },
+        { node: 'PpgDex', channel: 'motion_artifact_segment', times: liar }
+      ], { minPairs: 10 });
+      T.ok('a single wildly-wrong channel does not move the answer', Math.abs(robust.offsetSec - OFF) <= 20, robust.offsetSec);
+      /* The liar must be VISIBLE, not merely outvoted. Under agreement-clustering the winning cluster's
+         spread stays tight (that is the point), so the disagreement shows up as a channel that was
+         estimated, reported, and left OUT of the agreeing set — which is more informative than a
+         widened spread, because it names the dissenter. */
+      var liarRec = robust.channels.filter(function (c) { return c.channel === 'motion_artifact_segment'; })[0];
+      T.ok('…the dissenting channel is still reported', !!liarRec && liarRec.offsetSec != null, liarRec && liarRec.offsetSec);
+      T.ok('…and is NOT counted among the agreeing sensors', !(liarRec && liarRec.agreed));
+      T.ok('…so the agreeing set is the two that concur', robust.nNodes === 2, robust.nNodes);
+
+      // --- determinism: a CI that moves on re-run is not a measurement ---------------------------
+      var a1 = fit(anchor, [{ node: 'OxyDex', channel: 'desat_event', times: partnerA }], { minPairs: 10 });
+      var a2 = fit(anchor, [{ node: 'OxyDex', channel: 'desat_event', times: partnerA }], { minPairs: 10 });
+      T.eq('the bootstrap CI is reproducible (seeded, not Math.random)', a1.channels[0].ciLoSec, a2.channels[0].ciLoSec);
+      T.eq('…on both bounds', a1.channels[0].ciHiSec, a2.channels[0].ciHiSec);
+    });
+
     /* PAT COUPLER — R-peak -> peripheral foot pairing, with the physiological window ENFORCED.
        The shipped coupler accepted the first foot within a 2000 ms search while only *reporting* the
        200-650 ms window as a diagnostic. 2000 ms exceeds one RR (~1200 ms at 50 bpm), so a missed
