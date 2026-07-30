@@ -5742,6 +5742,34 @@
         ),
         rich.timeseries && rich.timeseries.epochs && rich.timeseries.epochs.length
       );
+
+      /* ── ALL FOUR BANDS reach the per-epoch series (DEEP-STAGE-DESAT-CONFOUND §9) ────────────────
+         The epoch map used to publish only the RATIO `lfhf`, which is structurally blind to VLF:
+         CVHR is a 20–45 s oscillation ⇒ 0.022–0.05 Hz, VLF is banded f < 0.04, and LF/HF excludes
+         VLF by construction. Measured on 38 nights, `lfhf` separates CVHR-suspect Deep epochs from
+         clean ones by −0 % (AUC 0.477) while `vlf/lf` separates by +78 % (AUC 0.610).
+
+         THIS NEEDED ITS OWN GATE because every committed ECGDex fixture has ZERO epochs — the
+         synthetic inputs are too short to stage — so all three fixtures are structurally blind to
+         this field set and the suite stayed green with the export unchanged. A fixture that cannot
+         express the change proves nothing about it; this assertion is what actually holds the line.
+
+         The whole set, not just vlf: DEEP-AUDIT-2026-07-11 §10 is the precedent AND the warning —
+         emitting lf/hf WITHOUT totalPower collapsed HRVDex's normalized-units denominator
+         (hf/(totalPower − vlf)) and surfaced HF n.u. = 125,000,000 %. */
+      var _bandEps = (rich.timeseries && rich.timeseries.epochs) || [];
+      T.ok('§9 · epochs carry ALL FOUR bands (vlf·lf·hf·totalPower), not just the lfhf ratio', _bandEps.length > 0 && _bandEps.every(function (e) { return 'vlf' in e && 'lf' in e && 'hf' in e && 'totalPower' in e && 'lfhf' in e; }), _bandEps.length ? JSON.stringify(Object.keys(_bandEps[0])) : 'no epochs — this gate would be vacuous');
+      // Anti-vacuity: presence is not enough — a set of nulls would satisfy `in`. At least one epoch
+      // must carry a real, finite VLF, or the field is published but empty.
+      var _withVlf = _bandEps.filter(function (e) { return typeof e.vlf === 'number' && isFinite(e.vlf); });
+      T.ok('§9 · …and at least one epoch carries a REAL finite vlf (not a published null)', _withVlf.length > 0, _withVlf.length + ' of ' + _bandEps.length + ' epochs have finite vlf');
+      // The Task-Force identity the DSP guarantees by construction (ecgdex-dsp.js:1133) must survive
+      // the export: tp is DEFINED as the sum of the rounded bands, so this is exact, not approximate.
+      var _bad = _bandEps.filter(function (e) {
+        return typeof e.totalPower === 'number' && typeof e.vlf === 'number' && typeof e.lf === 'number' && typeof e.hf === 'number' && e.totalPower !== e.vlf + e.lf + e.hf;
+      });
+      T.ok('§9 · …and totalPower === vlf+lf+hf holds per epoch (Task-Force identity, exact)', _bad.length === 0, _bad.length ? JSON.stringify(_bad[0]) : _bandEps.length + ' epoch(s) consistent');
+
       T.ok('rich: ganglior_events still present (rich is a SUPERSET of light)', Array.isArray(rich.ganglior_events));
       // (3) the Integrator now gets HRV consensus from the rich export.
       var rRich = A(rich, 'ECGDex', 'ecg-rich.json')[0];
