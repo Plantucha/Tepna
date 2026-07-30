@@ -2889,8 +2889,7 @@
       if (motion.nAcc) streams.push('acc');
       if (motion.nGyro) streams.push('gyro');
       if (motion.hasMag) streams.push('mag');
-      for (const sec of onsets)
-        evt(sec, 'movement_onset', 0.6, { streams: streams.length ? streams : undefined, motionIndex: r2(motion.motionAtSec(sec)) }, sqiAt(sec));
+      for (const sec of onsets) evt(sec, 'movement_onset', 0.6, { streams: streams.length ? streams : undefined, motionIndex: r2(motion.motionAtSec(sec)) }, sqiAt(sec));
     }
     // CHRONOLOGICAL ORDER IS PART OF THE EXPORT CONTRACT — sort before returning.
     // The blocks above are each internally ordered but are appended per KIND, so the

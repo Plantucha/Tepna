@@ -3519,7 +3519,7 @@
     validateHR,
     accAnalyze,
     accExtras,
-    movementOnsets: _movementOnsets,   // exported for `movement-onset-parity` — the gate on the duplication
+    movementOnsets: _movementOnsets, // exported for `movement-onset-parity` — the gate on the duplication
     // Additive (contract rule: new data via a NEW field, never by changing an existing shape) —
     // the staging rules and the motion index are now gateable in their own right.
     stageSleep,
