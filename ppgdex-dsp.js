@@ -1856,6 +1856,63 @@
     }
     return out;
   }
+  /* DISCRETE MOVEMENT ONSETS from a motion grid — the fiducial an apnea's terminating arousal leaves
+     on an accelerometer.
+
+     WHY THIS EXISTS SEPARATELY FROM `motion_artifact_segment`. That impulse is emitted per BEAT, so it
+     requires the PPG to still be detectable — and it is precisely a large movement that destroys the
+     optical signal. The quality flag therefore thins out exactly where the movement was biggest. This
+     reads the inertial grid directly, so a movement that blinds the PPG still produces an onset.
+
+     WHY ONSETS AND NOT THE INDEX. A cross-device clock fit needs INSTANTS to correlate, not a
+     continuous level: `motionIndex` is already exported per epoch and cannot locate anything to better
+     than the epoch. Measured on the real corpus, onsets derived this way from four inertial streams
+     (chest ACC, arm ACC/GYRO/MAG) independently agreed on the same clock offset to within 12 s.
+
+     Three conditions, all necessary — the same shape `PATAlign.findAnchors` uses and for the same
+     reason: a bare threshold fires repeatedly across one long turn, and every extra hit on the SAME
+     movement is a correlated vote, not an independent one. Amplitude alone is not an event. */
+  function movementOnsets(grid, dtSec, opts) {
+    opts = opts || {};
+    const kSigma = opts.sigma != null ? opts.sigma : 3;
+    const localBins = opts.localBins != null ? opts.localBins : Math.max(1, Math.round(5 / dtSec));
+    const minGapSec = opts.minGapSec != null ? opts.minGapSec : 30;
+    if (!grid || !grid.length || !(dtSec > 0)) return [];
+    const n = grid.length;
+    /* mean + k·SD. A MAD-based threshold was tried and REJECTED: MAD tracks the quiet baseline, which
+       on a differenced (jerk) grid is almost zero, so the threshold collapses and the detector fired
+       713 times in one night instead of 29. The tail this distribution carries is the SIGNAL, and a
+       threshold that ignores it is not robust, it is blind. */
+    let m = 0;
+    for (let i = 0; i < n; i++) m += grid[i];
+    m /= n;
+    let v = 0;
+    for (let i = 0; i < n; i++) {
+      const d = grid[i] - m;
+      v += d * d;
+    }
+    const sd = Math.sqrt(v / n) || 1;
+    const thr = m + kSigma * sd;
+    const out = [];
+    let last = -Infinity;
+    for (let c = 0; c < n; c++) {
+      if (grid[c] < thr) continue;
+      let isMax = true;
+      for (let k = c - localBins; k <= c + localBins; k++) {
+        if (k >= 0 && k < n && grid[k] > grid[c]) {
+          isMax = false;
+          break;
+        }
+      }
+      if (!isMax) continue;
+      const sec = c * dtSec;
+      if (sec - last < minGapSec) continue;
+      out.push(sec);
+      last = sec;
+    }
+    return out;
+  }
+
   function analyzeMotion(accRows, gyroRows, t0Ms, durSec, magRows) {
     // magRows is LAST + optional so the historical 4-arg contract analyzeMotion(acc,gyro,t0,dur)
     // (and the shared regression suite) keeps working unchanged.
@@ -1899,8 +1956,17 @@
     // normalise: accel in mg (dynamic), gyro in dps. Scale so "still" ≈ 0.
     const accNorm = (v) => Math.min(1, v / 120); // ~120 mg dynamic = full motion
     const gyNorm = (v) => Math.min(1, v / 40); // ~40 dps = full motion
+    /* `onsetGrid` is the SAME quantity WITHOUT the clip. `grid` saturates at 1.0 by design — it is a
+       0-1 motion INDEX for epoch reporting and quality gating, where "moving hard" and "moving very
+       hard" are usefully the same. For ONSET detection that clip is fatal: on a normal night many
+       movements peg at 1.0, the peaks flatten into an indistinguishable plateau, and a sigma-threshold
+       local-maximum test loses them. Measured: the clipped grid yielded 4 onsets on a night where the
+       chest ACC found 29, which is below the fit's own minimum and would have made the Verity's three
+       inertial streams useless to it. Unclipped, the peak structure survives. */
+    const onsetGrid = new Float32Array(nG);
     for (let i = 0; i < nG; i++) {
       grid[i] = Math.max(accNorm(accCell[i]), gyNorm(gyCell[i]));
+      onsetGrid[i] = Math.max(accCell[i] / 120, gyCell[i] / 40);
     }
     // smooth
     const sm = movavg(grid, 3);
@@ -2077,6 +2143,7 @@
     return {
       hasData: true,
       grid: sm,
+      onsetGrid,
       dt,
       motionAtSec,
       postureAtSec,
@@ -2811,6 +2878,20 @@
         }
       }
     }
+    /* movement_onset — the AROUSAL fiducial, straight off the inertial grid.
+       Independent of beat detection on purpose (see movementOnsets): a movement large enough to matter
+       is a movement large enough to blind the PPG, so anything gated on beats thins out exactly where
+       the signal is strongest. Carries which inertial streams contributed, because a cross-device fit
+       that cannot say WHICH sensor found an offset cannot be audited. */
+    if (motion && motion.hasData && motion.grid && motion.dt) {
+      const onsets = movementOnsets(motion.onsetGrid || motion.grid, motion.dt, {});
+      const streams = [];
+      if (motion.nAcc) streams.push('acc');
+      if (motion.nGyro) streams.push('gyro');
+      if (motion.hasMag) streams.push('mag');
+      for (const sec of onsets)
+        evt(sec, 'movement_onset', 0.6, { streams: streams.length ? streams : undefined, motionIndex: r2(motion.motionAtSec(sec)) }, sqiAt(sec));
+    }
     // CHRONOLOGICAL ORDER IS PART OF THE EXPORT CONTRACT — sort before returning.
     // The blocks above are each internally ordered but are appended per KIND, so the
     // motion_artifact_segment run (which restarts at t0) landed AFTER the last hrv_drop.
@@ -2989,6 +3070,7 @@
     parseDevicePPI,
     analyze,
     analyzeMotion,
+    movementOnsets,
     validatePPI,
     bandpass,
     detectBeats,

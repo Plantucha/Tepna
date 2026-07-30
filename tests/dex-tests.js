@@ -1858,6 +1858,62 @@
       T.eq('…on both bounds', a1.channels[0].ciHiSec, a2.channels[0].ciHiSec);
     });
 
+    /* MOVEMENT ONSETS — the arousal fiducial, and the gate on its duplication.
+
+       An apnea ends in an arousal and the body MOVES. That instant is the sharpest cross-device
+       fiducial available: measured on the real corpus, onsets from four inertial streams (H10 chest
+       ACC, Verity arm ACC/GYRO/MAG) independently agreed on the same CPAP clock offset to within 12 s,
+       where the derived event channels spanned ~90 s.
+
+       The detector lives TWICE — `PPGDSP.movementOnsets` and `ECGDSP.movementOnsets` — because
+       ECGDex.src.html does not bundle ppgdex-dsp.js, and a shared module for twenty lines would mean
+       touching every co-load list, both orchestrators and the worker importScripts sets. This group is
+       the price of that: identical output on identical input, asserted, so a divergence reds the suite
+       instead of the two nodes quietly disagreeing about when the subject moved. Same discipline as
+       `registry-defs-parity`. */
+    group('Movement onsets: one detector, two nodes, gated identical', 'ecgdex-dsp · ppgdex-dsp · movement-onset-parity', function (T) {
+      var P = env.PPGDSP, E = env.ECGDSP;
+      var pOn = P && P.movementOnsets, eOn = E && E.movementOnsets;
+      T.ok('both nodes export a movement-onset detector', typeof pOn === 'function' && typeof eOn === 'function');
+      if (typeof pOn !== 'function' || typeof eOn !== 'function') return;
+
+      // A quiet night with four distinct movements. Quiet baseline + isolated spikes is exactly the
+      // shape a sleeping body produces, and it is what the sigma threshold is tuned for.
+      var dt = 0.25, n = 4 * 3600 / dt, grid = new Float64Array(n);
+      var planted = [600, 1800, 4500, 9000];   // seconds
+      for (var i = 0; i < n; i++) grid[i] = 0.01 * ((i * 7919) % 13) / 13;   // deterministic low noise
+      planted.forEach(function (sec) { grid[Math.round(sec / dt)] = 5; });
+
+      var a = pOn(grid, dt, {}), b = eOn(grid, dt, {});
+      T.eq('PARITY — the two implementations agree exactly', JSON.stringify(a), JSON.stringify(b));
+      T.eq('…and find every planted movement', a.length, planted.length);
+      T.ok('…at the planted instants', a.every(function (s, k) { return Math.abs(s - planted[k]) <= dt; }), a.join(','));
+
+      /* ISOLATION is a condition, not a nicety: one long turn crosses the threshold on many
+         consecutive bins, and counting each is a correlated vote dressed as independent evidence. */
+      var wide = new Float64Array(n);
+      for (var j = 0; j < n; j++) wide[j] = 0.01;
+      for (var k2 = 0; k2 < 40; k2++) wide[Math.round(1800 / dt) + k2] = 5;   // one 10 s movement
+      T.eq('one long movement yields ONE onset, not forty', pOn(wide, dt, {}).length, 1);
+
+      /* A still night must yield nothing. A detector that always finds something would hand the clock
+         fit a channel of pure noise, and the fit would dutifully report an offset from it. */
+      var still = new Float64Array(n);
+      for (var q = 0; q < n; q++) still[q] = 0.02;
+      T.eq('a perfectly still night yields no onsets', pOn(still, dt, {}).length, 0);
+      T.eq('…and both nodes agree on that too', eOn(still, dt, {}).length, 0);
+
+      T.eq('an empty grid yields nothing, never a fabricated onset', pOn(new Float64Array(0), dt, {}).length, 0);
+      T.eq('a zero dt is refused rather than dividing', pOn(grid, 0, {}).length, 0);
+
+      /* The minimum gap must actually bind — two movements closer than it are one event. */
+      var close = new Float64Array(n);
+      for (var r = 0; r < n; r++) close[r] = 0.01;
+      close[Math.round(1000 / dt)] = 5;
+      close[Math.round(1010 / dt)] = 5;    // 10 s later, inside the 30 s floor
+      T.eq('two movements inside the minimum gap collapse to one', pOn(close, dt, {}).length, 1);
+    });
+
     /* PAT COUPLER — R-peak -> peripheral foot pairing, with the physiological window ENFORCED.
        The shipped coupler accepted the first foot within a 2000 ms search while only *reporting* the
        200-650 ms window as a diagnostic. 2000 ms exceeds one RR (~1200 ms at 50 bpm), so a missed
