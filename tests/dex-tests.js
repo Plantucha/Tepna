@@ -6110,7 +6110,16 @@
         // The consumer is a DOM-mutating app function with no headless seam, so this leg checks the
         // WIRING at the source: integrator-app must push vr.warnings, not just vr.errors. Narrow and
         // explicit, and it reds on the exact one-line revert that reintroduces the silence.
-        var iaSrc = (env.sources || {})['integrator-app.js'];
+        /* Every source scan below reads LIVE code only. A scan over raw text cannot tell working code
+           from code someone commented out — mutation proved it: commenting out the §10.4 release line
+           left `_cg.remaining.deviceRR` sitting in the file, the scan matched the comment, and the gate
+           stayed green while the defect was fully reintroduced. Disabling a line by commenting it is
+           exactly how such a regression arrives, so stripping comments is not tidiness, it is the
+           difference between measuring the code and measuring the file. */
+        var _live = function (s) {
+          return s == null ? null : s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[\s;{}(])\/\/[^\n]*/g, '$1');
+        };
+        var iaSrc = _live((env.sources || {})['integrator-app.js']);
         if (iaSrc == null) {
           T.skip('§8.1 · integrator-app surfaces validateNodeExport warnings', 'integrator-app.js not in env.sources');
         } else {
@@ -6153,7 +6162,7 @@
              (it is POLAR_<model>_<id>, per DEVICE, so two nights from one H10 share it exactly).
              Driven off the DSP's OWN return shape rather than a hardcoded list, so a fifth companion
              kind added to `remaining` later must also be released or this reds. */
-          var _egSrc = (env.sources || {})['ecgdex-app.js'];
+          var _egSrc = _live((env.sources || {})['ecgdex-app.js']);
           var _ED = env.ECGDSP;
           if (_egSrc == null || !_ED || typeof _ED.planCompanionGraft !== 'function') {
             T.ok('§10.4 · ecgdex-app source + ECGDSP.planCompanionGraft available', false, 'src=' + (_egSrc != null) + ' fn=' + !!(_ED && _ED.planCompanionGraft));
@@ -6176,7 +6185,7 @@
              has no expression to execute. */
           var _fsMean = /\(\s*1000\s*\*\s*stepN\s*\)\s*\/\s*stepSum/g;
           var _fsSites = ['ecgdex-app.js', 'ecgdex-dsp.js'].reduce(function (a, f) {
-            var s = (env.sources || {})[f];
+            var s = _live((env.sources || {})[f]);
             return a + (s == null ? 0 : (s.match(_fsMean) || []).length);
           }, 0);
           T.ok('§4.3 · every fs-from-interval site uses the MEAN non-gap interval (3 expected: app ×2 incl. WORKER_SRC, dsp ×1)', _fsSites >= 3, _fsSites + ' mean-form site(s) found — a drop means one regressed to a single delta');
