@@ -4012,7 +4012,20 @@
              reads it, and §9.4 explicitly does NOT ship a VLF-keyed Deep rule (measured to make the
              metric worse on base-rate grounds). This exists so the separability question is answerable
              from a committed export instead of only from a raw-corpus re-analysis. */
-          return { tMin: e.tMin, hr: nz(e.hr), rmssd: nz(e.rmssd), sdnn: nz(e.sdnn), vlf: nz(e.vlf), lf: nz(e.lf), hf: nz(e.hf), totalPower: nz(e.tp), lfhf: nz(e.lfhf), resp: nz(e.resp), motionIndex: _mot == null ? null : _mot, position: e.position || 'unknown' };
+          return {
+            tMin: e.tMin,
+            hr: nz(e.hr),
+            rmssd: nz(e.rmssd),
+            sdnn: nz(e.sdnn),
+            vlf: nz(e.vlf),
+            lf: nz(e.lf),
+            hf: nz(e.hf),
+            totalPower: nz(e.tp),
+            lfhf: nz(e.lfhf),
+            resp: nz(e.resp),
+            motionIndex: _mot == null ? null : _mot,
+            position: e.position || 'unknown'
+          };
         }),
         sleepStages:
           lng && !amb && Array.isArray(r.stages)
