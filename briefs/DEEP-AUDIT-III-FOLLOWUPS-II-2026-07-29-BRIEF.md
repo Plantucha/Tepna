@@ -501,6 +501,72 @@ Running total: **52 sections resolved, 8 blind (~15 %)**. Every one of the last 
 been a clone family, which makes "is this fix duplicated, and is the gate?" the highest-yield question
 left in the sweep.
 
+### 6.9 Acting on that: a mechanical duplication survey
+
+Rather than continue section-by-section, the remaining sweep now screens for the *shape* that produced
+the last three findings. Every `§N.M` tag that appears in **2+ source files** is a candidate; 36 of them
+do. Two were checked immediately, and they landed on opposite sides — which is the useful result, because
+it says the clone risk is **not** uniform and identifies what separates the two cases.
+
+**§12.3 — exemplary, no work needed.** The Clock Contract's out-of-range-component fix spans five files
+(`clock.js` plus four deliberate node-local parsers). The gate covers **all five**, each with a
+valid-input control beside each rejection — `GlucoDex · ISO 24:00:00 → next-day 00:00 (kept)` next to
+`GlucoDex · hour 25 → null`, and the same for PpgDex, CPAPDex and the EDF header clock. This is exactly
+the shape §9.1/§9.2 should have had.
+
+**Why did this family get gated and the crossnight one not?** Because *the codebase's own documentation
+names the duplication.* `CLAUDE.md` §✅ explicitly lists the node-local clock parsers as deliberate
+variants that must not be forced onto `DexClock`, so a fixer reading it cannot miss that there are five.
+**Nothing anywhere names the five `*-cross.js` clones.** The corrective is therefore documentation-shaped
+as much as test-shaped: a clone family that is written down gets gated, and one that is not, does not.
+
+**§10.1 — blind in both consumers.** The fix replaced a hardcoded pulse/oxy/hrv trio with a list derived
+from the orchestrator. The gate drives `SignalOrchestrate` — **the file that got the derived list right.**
+The defect lived in the two host-booting apps. Reverting either to a literal trio reds nothing.
+
+This is a *third* distinct failure mode, and the most transferable one yet: not a clone family at all, but
+**one derived source with several consumers, where the gate tests the source.** Testing the definition of
+a shared invariant proves nothing about whether the callers still honour it.
+
+Reachability, proven before reporting blind:
+
+| | value |
+|---|---|
+| `emittableTypes()` | `rr · spo2 · hrv · cgm · ppg · ecg · cpap` (7) |
+| hardcoded legacy trio | `rr · oxy · hrv` |
+| **left with no booted host** | **`spo2 · cgm · ppg · ecg · cpap` — 5 of 7** |
+| `canEmit()` on each of those five | `true` |
+
+So the orchestrator advertises five signals it has not booted — precisely the invariant the fix
+established ("a signal the orchestrator advertises via `canEmit()` is a signal it has really booted"),
+and the published symptom follows: `emitNodeExport()` throws, the throw is caught into a per-file
+`'run error'` blaming a co-load that **is** present, and the file silently vanishes from `exports[]`.
+
+A detail worth keeping: the legacy trio's `'oxy'` **is not an emittable type at all** — the real one is
+`'spo2'`. The pre-fix code booted a host for a signal that does not exist and skipped the one that does.
+
+**And the scan that closes it was itself nearly hollow.** `data-unifier-app.js` was absent from
+`env.sources` in **both** lanes while `overdex-app.js` was present — so a source scan over "every
+host-booting surface" would have read one of the two and reported itself clean. Same omission, same
+consequence, as the `motiondex-dsp.js` hole the duration-class gate found. Both lanes now list it, and
+the **anti-vacuity assertion fires if either surface stops being visible**, because that hollowness is
+the failure the gate exists to prevent.
+
+Closed with a three-way source scan over files calling `.bootHosts()` (the house pattern from §7.8 —
+cross-file consistency is what source inspection is legitimately for): no literal list at the call site,
+no signal-type array **anywhere** in the surface (a candidate filter is just as hardcoded one line up),
+and the list must derive via `emittableTypes()`/`canEmit()`. Scoped by behaviour rather than by filename,
+so a third orchestrator added later is covered by construction. **Verified RED: 2 reds on
+data-unifier-app.js, 1 on overdex-app.js.** Suite green at 4352 assertions.
+
+Running total: **54 sections resolved, 9 blind (~17 %)**. The three failure modes now separated:
+
+| mode | the gate… | example | cost to fix |
+|---|---|---|---|
+| **vacuous where it stands** | drives the right file with data that cannot express the defect | §9.1 | new fixture |
+| **sound but unreplicated** | drives one clone of N | §9.2, §9.3 | a table |
+| **tests the definition, not the callers** | drives the shared source, not its consumers | §10.1 | a scoped scan |
+
 ---
 
 ## 7 · The "open red" was my harness — but it uncovered a real fragility (RESOLVED 2026-07-29)
