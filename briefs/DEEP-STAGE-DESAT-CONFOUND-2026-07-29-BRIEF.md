@@ -119,8 +119,73 @@ precisely when it mattered most.
 - [x] **§5's exclude-desat-epochs test — RUN 2026-07-29 (§3b). Deep SURVIVES**: 11.5 % → 10.3 % of
       sleep with the RMSSD gap unchanged, so the rule is not primarily reading CVHR and the effect is
       bounded at ~10 % of Deep minutes by two independent routes.
+- [x] **The cross-signal falsifier promoted to a standing, reusable tool — `tools/deep-desat-falsifier.mjs`
+      (2026-07-30, §7).** Read-only over already-computed `trio-batch.mjs` output, so it inherits the
+      project's own night definition and cannot repeat the REM investigation's original confound. Ships
+      its own `--selftest` (exact against published Garwood/sign-test values — see §7.1). Re-run on the
+      corpus grown to 37 nights: §7.
 - [ ] §3 re-run on a corpus with real ODI-4/AHI spread (CPAPDex nights)
-- [ ] Deep's rule re-examined for CVHR/vagal separability, or its evidence tier re-checked
-- [ ] The cross-signal falsifier promoted to a standing acceptance check for ANY staging change —
-      it is the only one of `REM-STAGING-REDESIGN` §5's five that uses an independent SIGNAL rather
-      than a population prior, and it cost nothing to run
+- [ ] Deep's rule re-examined for CVHR/vagal separability, or its evidence tier re-checked — **evidence
+      tier already sits at the floor** (`deepMin: evidence:'heuristic'`, `ecgdex-registry.js:194` — the
+      lowest of the 5-level ladder), so there is nothing lower to cap it to; a rule REDESIGN (the VLF/LF
+      separability idea in §5) remains open and unstarted.
+
+## 7 · Re-measured on the grown corpus (2026-07-30) — confirms one thing, weakens another
+
+The 24-night fold this brief was written against has grown to **37 nights** (`uploads/trio`, same
+`trio-batch.mjs` night definition throughout). Re-run with the new standing tool:
+
+```
+node tools/deep-desat-falsifier.mjs --dir uploads/trio
+```
+
+| stage | min | desats | rate/h | 95 % CI |
+|---|---|---|---|---|
+| REM | 930 | 4 | 0.26 | [0.07, 0.66] |
+| Light | 10292 | 235 | 1.37 | [1.20, 1.56] |
+| **Deep** | 2190 | 128 | **3.51** | **[2.93, 4.17]** |
+| Wake | 2564 | 158 | 3.70 | [3.14, 4.32] |
+
+**The headline CONFIRMS, and more decisively than before.** Deep's CI [2.93, 4.17] still does not
+touch Light's [1.20, 1.56] — the gap is now wider in absolute terms and both intervals are tighter
+(37 nights of data instead of 24). §1's finding was not a small-sample artefact.
+
+### 7.1 What WEAKENED: the per-night sign test
+
+§1 reported 11 of 14 qualifying nights favouring Deep, median ratio 3.61, one-sided sign-test
+p ≈ 0.03. Re-run on the now-29 qualifying nights (≥30 min of each stage):
+
+| | nights | favouring Deep | median ratio | p (one-sided) |
+|---|---|---|---|---|
+| §1 (24-night fold) | 14 | 11 | 3.61 | ≈0.03 |
+| **§7 (37-night fold)** | **29** | **18** | **1.45** | **0.1325** |
+
+**This no longer clears conventional significance.** Reported plainly rather than dropped: the
+direction still holds (18 of 29 nights favour Deep, 62 %) and the median ratio is still > 1, but
+neither is strong evidence on its own — the 11/14 result was, in hindsight, a better-than-typical
+draw from a real but noisier per-night effect. The **pooled** rate table (7 above) is the more
+reliable read precisely because it does not discard the CI information the per-night binarisation
+throws away; the sign test was always the weaker of the two tests in §1, kept as a robustness check,
+not the headline.
+
+### 7.2 What held: the settling test
+
+| set | epochs | Deep % of sleep | med RMSSD Deep | Light | gap |
+|---|---|---|---|---|---|
+| all | 3119 | 13.7 | 43.0 | 34.0 | 9.0 |
+| excluding desat-overlapping | 2861 | 13.2 | 43.0 | 33.8 | 9.2 |
+| only desat-overlapping | 258 | 19.6 | 42.7 | 37.0 | 5.7 |
+
+Deep drops only 13.7 % → 13.2 % (0.5 points, vs 1.2 points on the 24-night fold) and the RMSSD gap
+does not move (9.0 → 9.2). §3b's conclusion is reconfirmed, more robustly: **CVHR is not the primary
+driver of the Deep anomaly; the bounded ~10 %-of-Deep-minutes effect is the whole of it.**
+
+### 7.3 Net effect on this brief's status
+
+The core finding (§1's rate-table anomaly) is **stronger** on more data; the secondary corroboration
+(§1's sign test) is **weaker**. Both are now true at once because they measure different things — a
+pooled rate comparison and a per-night direction count do not have to move together, and here they
+didn't. Nothing in §2–§5 changes: the mechanism is still real, still bounded to ~10 % of Deep
+minutes, and still needs a corpus with real apnea burden (CPAPDex nights) to test the dose-response
+§3 could not find. That item, and the VLF/LF rule redesign in §5, remain the two genuinely open
+items — both are new engineering, not further measurement on data already in hand.
