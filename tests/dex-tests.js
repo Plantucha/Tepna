@@ -6110,7 +6110,16 @@
         // The consumer is a DOM-mutating app function with no headless seam, so this leg checks the
         // WIRING at the source: integrator-app must push vr.warnings, not just vr.errors. Narrow and
         // explicit, and it reds on the exact one-line revert that reintroduces the silence.
-        var iaSrc = (env.sources || {})['integrator-app.js'];
+        /* Every source scan below reads LIVE code only. A scan over raw text cannot tell working code
+           from code someone commented out — mutation proved it: commenting out the §10.4 release line
+           left `_cg.remaining.deviceRR` sitting in the file, the scan matched the comment, and the gate
+           stayed green while the defect was fully reintroduced. Disabling a line by commenting it is
+           exactly how such a regression arrives, so stripping comments is not tidiness, it is the
+           difference between measuring the code and measuring the file. */
+        var _live = function (s) {
+          return s == null ? null : s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[\s;{}(])\/\/[^\n]*/g, '$1');
+        };
+        var iaSrc = _live((env.sources || {})['integrator-app.js']);
         if (iaSrc == null) {
           T.skip('§8.1 · integrator-app surfaces validateNodeExport warnings', 'integrator-app.js not in env.sources');
         } else {
@@ -6119,6 +6128,67 @@
             /vr\.errors\s*\.concat\(\s*vr\.warnings\s*\)/.test(iaSrc),
             'integrator-app.js must forward validateNodeExport warnings into WARN'
           );
+
+          /* ── CROSS-DEVICE-CLOCK-SKEW §3.1 · a fitted time correction MUST be visible ───────────────
+             Mutation-checked 2026-07-29: short-circuiting the banner's guard reds NOTHING, so the
+             reference deployment's permanent −39 min correction could go silent and every fused night
+             would still read as agreement. Same no-headless-seam situation as §8.1 above, but a regex
+             on the guard's SPELLING would miss `if (false && …)`, so instead the guard EXPRESSION is
+             lifted out of the shipped source and EXECUTED against a stub — behavioural on real code.
+             The banner is permanent infrastructure (the device sits on its own cell network and cannot
+             be NTP-disciplined), not a transitional warning, so its reachability is load-bearing. */
+          var _csGuard = /if\s*\(([^)]*cs\.findings[^)]*)\)\s*\{/.exec(iaSrc);
+          T.ok('CDCS §3.1 · the clock-skew banner guard is present in integrator-app.js', !!_csGuard, _csGuard ? _csGuard[1] : 'no guard on cs.findings found — the banner may have been removed entirely');
+          if (_csGuard) {
+            var _csEval = function (cs) {
+              try {
+                return !!new Function('cs', 'return (' + _csGuard[1] + ');')(cs);
+              } catch (e) {
+                return null;
+              }
+            };
+            T.eq('CDCS §3.1 · a fitted skew finding REACHES the banner (not short-circuited by a constant)', _csEval({ findings: [{ offsetSec: -2340 }] }), true);
+            // Anti-vacuity: the guard must still be selective, else `if (true)` would satisfy the above
+            // and the banner would fire on every night with nothing to report.
+            T.eq('CDCS §3.1 · …and an empty finding list does NOT fire it', _csEval({ findings: [] }), false);
+            T.eq('CDCS §3.1 · …nor does an absent clockSkew block', _csEval(null), false);
+          }
+
+          /* ── DEEP-AUDIT-II §10.4 · the app must RELEASE what the recording took ────────────────────
+             `ECGDSP.planCompanionGraft` is a pure function and is well gated (12 assertions). The half
+             that was blind is the APP's obligation to write `remaining` back: mutation-checked, dropping
+             the `DEVICE_RR = _cg.remaining.deviceRR` line reds NOTHING — and that is the whole original
+             defect, night B inheriting night A's parked companions. `deviceKey` cannot discriminate
+             (it is POLAR_<model>_<id>, per DEVICE, so two nights from one H10 share it exactly).
+             Driven off the DSP's OWN return shape rather than a hardcoded list, so a fifth companion
+             kind added to `remaining` later must also be released or this reds. */
+          var _egSrc = _live((env.sources || {})['ecgdex-app.js']);
+          var _ED = env.ECGDSP;
+          if (_egSrc == null || !_ED || typeof _ED.planCompanionGraft !== 'function') {
+            T.ok('§10.4 · ecgdex-app source + ECGDSP.planCompanionGraft available', false, 'src=' + (_egSrc != null) + ' fn=' + !!(_ED && _ED.planCompanionGraft));
+          } else {
+            var _rem = _ED.planCompanionGraft({ deviceRR: null, deviceHR: null, deviceACC: null, accFs: null }, { t0Ms: 0 });
+            var _remKeys = Object.keys((_rem && _rem.remaining) || {});
+            T.ok('§10.4 · planCompanionGraft publishes a `remaining` contract', _remKeys.length >= 4, JSON.stringify(_remKeys));
+            var _unreleased = _remKeys.filter(function (k) {
+              return !new RegExp('_cg\\.remaining\\.' + k + '\\b').test(_egSrc);
+            });
+            T.ok('§10.4 · every companion the DSP hands back is RELEASED by the app — none can be inherited by the next recording', _unreleased.length === 0, _unreleased.length ? 'never released: ' + _unreleased.join(', ') : _remKeys.length + ' companion slot(s) all released');
+          }
+
+          /* ── DEEP-AUDIT-II §4.3 (#5) · fs is the MEAN non-gap interval, at every site ───────────────
+             Three sites compute it: ecgdex-app.js twice (the file path and the inlined WORKER_SRC) and
+             ecgdex-dsp.js once. Mutation-checked: reverting the file path to a single delta reds
+             NOTHING. A single delta taken across a dropout reads one long interval as the sample
+             period, so fs collapses and every downstream duration and rate scales with it. Counted
+             rather than lifted, because one of the three sites lives inside a worker SOURCE STRING and
+             has no expression to execute. */
+          var _fsMean = /\(\s*1000\s*\*\s*stepN\s*\)\s*\/\s*stepSum/g;
+          var _fsSites = ['ecgdex-app.js', 'ecgdex-dsp.js'].reduce(function (a, f) {
+            var s = _live((env.sources || {})[f]);
+            return a + (s == null ? 0 : (s.match(_fsMean) || []).length);
+          }, 0);
+          T.ok('§4.3 · every fs-from-interval site uses the MEAN non-gap interval (3 expected: app ×2 incl. WORKER_SRC, dsp ×1)', _fsSites >= 3, _fsSites + ' mean-form site(s) found — a drop means one regressed to a single delta');
         }
       }
     });
@@ -23473,6 +23543,48 @@
         // like the observation, so a rule needing k=0 sits one unlucky shift from a false negative.
         T.ok('and enough that ≥3 extreme surrogates cannot veto a real coupling', 4 / (shifts.length + 1) < ALPHA, 'p with 3 exceedances = ' + (4 / (shifts.length + 1)).toFixed(4));
         T.ok('the DEFAULT shift set deliberately cannot support α=0.05', 1 / (EC.DEFAULT_SHIFTS.length + 1) >= ALPHA, 'pFloor=' + (1 / (EC.DEFAULT_SHIFTS.length + 1)).toFixed(3));
+      }
+
+      /* ── The +1 CORRECTION ITSELF (Phipson & Smyth 2010) ────────────────────────────────────────
+         Everything above reasons about pFloor arithmetically; nothing drove the p-value that has to
+         honour it. Mutation-checked 2026-07-29: reverting `_pPerm` to a bare `atLeast / m` reds
+         NOTHING, and there were no `pPerm` assertions anywhere in the suite — the central quantity
+         of the §3.2 fix was entirely ungated.
+         What the bare ratio does: with no surrogate reaching the observation it returns p = 0, which
+         asserts IMPOSSIBILITY from 10 shifts. The observation is itself one of the arrangements, so
+         the smallest honest p is 1/(m+1). Driven through the real exported `coupling()`, since
+         `_pPerm` is module-private. */
+      if (EC && typeof EC.coupling === 'function') {
+        var _pT0 = U(2026, 5, 1, 0, 0, 0);
+        var _pA = [],
+          _pB = [];
+        for (var _pi = 0; _pi < 40; _pi++) {
+          var _pt = _pT0 + _pi * 600000;
+          _pA.push({ tMs: _pt });
+          _pB.push({ tMs: _pt + 10000 }); // every A followed 10 s later by a B — perfect coupling
+        }
+        var _pSpan = [_pT0, _pT0 + 40 * 600000];
+        var _pR = EC.coupling(_pA, _pB, { span: _pSpan, coverage: [_pSpan] });
+        var _nExc = (_pR.nullPcts || []).filter(function (p) {
+          return p >= _pR.observedPct;
+        }).length;
+        // Anti-vacuity: the fixture must actually reach the zero-exceedance case, or the bare ratio
+        // and the corrected form agree and the assertions below prove nothing.
+        T.eq('§3.2 · the perfect-coupling fixture leaves ZERO surrogates at or above the observation', _nExc, 0);
+        T.ok('§3.2 · …and it really is a full-strength observation', _pR.observedPct === 100, 'observedPct=' + _pR.observedPct);
+        T.ok('§3.2 · p is NEVER 0 — 10 surrogates cannot assert impossibility', _pR.pPerm > 0, 'pPerm=' + _pR.pPerm + ' (an uncorrected k/m returns exactly 0 here)');
+        T.approx('§3.2 · p sits on its floor 1/(m+1) = 1/11 = 0.0909, not 0/10', _pR.pPerm, 1 / ((_pR.nullPcts || []).length + 1), 1e-9);
+        T.approx('§3.2 · …and the published pFloor agrees with the p it produced', _pR.pFloor, _pR.pPerm, 1e-9);
+        // …and the correction must not simply pin every result to the floor: an INDEPENDENT pair has
+        // to land well above it, else "always returns pFloor" would satisfy everything above.
+        var _qA = [],
+          _qB = [];
+        for (var _qi = 0; _qi < 40; _qi++) {
+          _qA.push({ tMs: _pT0 + _qi * 600000 });
+          _qB.push({ tMs: _pT0 + _qi * 600000 + 300000 }); // 5 min off — outside the coupling window
+        }
+        var _qR = EC.coupling(_qA, _qB, { span: _pSpan, coverage: [_pSpan] });
+        T.ok('§3.2 · an uncoupled pair does NOT sit on the floor (the correction is not a constant)', !(_qR.pPerm <= _pR.pPerm), 'uncoupled pPerm=' + _qR.pPerm + ' vs coupled ' + _pR.pPerm);
       }
       // deterministic LCG — no Math.random, so the false-positive count is a fixed known answer
       var seed = 20260727;
