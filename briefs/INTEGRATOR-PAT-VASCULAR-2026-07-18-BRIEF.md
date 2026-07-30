@@ -169,18 +169,42 @@ window placement.
 
 ### II.3 · What this settles
 
-1. **Drift was never the blocker — confirmed a third independent way.** `halfDrift` passes 47/54 with a
-   19.7 ms median. The lag barely wanders inside a night. §2-RESULT already showed `driftRange` measured
-   beat-slip and then window-width; the honest wander metric simply passes.
+1. **Drift was never the blocker — confirmed a third independent way, and now quantified.** `halfDrift`
+   passes 47/54 with a 19.7 ms median. Converting each night's wander into an implied inter-device rate
+   (halfDrift ÷ half the overlap) puts it at a **1.46 ppm** median on the 27 nights ≥ 240 min (max 8.6),
+   and **excludes `PAT-FEASIBILITY`'s 47.7 ppm on 51 of 54 pairings**. The implied rate moreover *falls*
+   as nights lengthen (`r(overlap, ppm) = −0.54`) — the signature of a metric hitting its own noise floor
+   on short recordings, not of a fixed rate. A real 48 ppm offset cannot hide on a 7 h night.
 2. **Removing the offset does NOT rescue coupling.** It stays at ~19 % (18.8 / 19.2 / 19.0) — statistically
    identical to the windowed run's 21.5 / 15.4 / 26.7 %. The mis-centred window was real and was *not*
    the cause.
 3. **The limit is beat-to-beat scatter.** `residIQR` ≈ **96 ms** against a 60 ms bar, measured against
    each night's *own* modal lag, so it is offset-free by construction. The R→foot interval is stable in
    its centre and loose in its detail — the opposite of what PAT needs.
-4. **§1's premise is refuted a second way.** Single-host 18.8 % vs phone-stamped 19.0 %: indistinguishable
-   offset-free, exactly as they were windowed. Better timestamps cannot fix this, so the
-   `POLAR-SDK-CAPTURE` routing still would not help.
+4. **§1's premise is refuted a second way, and the single-host leg is a GENUINE test of the remedy.**
+   Single-host 18.8 % vs phone-stamped 19.0 % — indistinguishable offset-free, exactly as windowed. The
+   single-host path is not merely "a different app"; it removes the clock term three ways at once:
+   - `capture-host` **sets both device clocks from the host on every connect** (`time.auto_sync_devices`,
+     default **True** — `settings_schema.py:24`, applied at `capture.py:960`, skew logged per sync).
+   - The host clock itself is **chrony-disciplined against a LOCAL stratum-1** — 5.9 µs offset, **0.008 ppm**
+     residual, 0.027 ppm skew (measured on the box 2026-07-29).
+   - Captures are written as **fragments re-anchored to the host clock at each first row**; across 858
+     measured fragments the median is **3.0 min**. So either crystal free-runs for minutes, never a night.
+
+   Consequence: accumulated inter-device drift is **structurally capped at 8.6 ms even granting
+   `PAT-FEASIBILITY`'s 47.7 ppm** (0.3 ms at the measured 1.46 ppm) — negligible against a 200–650 ms window.
+   **Even if the 48 ppm claim were entirely true, this corpus could not express it**, and coupling is still
+   18.8 %. `POLAR-SDK-CAPTURE` is therefore **applied-and-unhelpful**, not merely unnecessary.
+
+   One nuance to carry forward: the host writes the **device** counter (`sensor timestamp [ns]`) as the
+   sample clock and its own stamp only as an **arrival** time — deliberately, since arrival stamping inherits
+   BLE burst jitter and steps backwards on 0.5–0.8 % of rows (`capture-host/writers.py`). The correct
+   architecture is a precise *device* counter repeatedly re-referenced to a disciplined host, **not** stamping
+   every sample at the host. Also note device clock discipline is imperfect in practice — the host logs the
+   Verity at −5.0 s and once uncorrectable after 3 re-syncs, and the H10 (which implements no read-back) once
+   at −239,071,318 s. That does not touch this analysis, which uses per-fragment **differences**, so an epoch
+   error cancels — but it means **absolute** device time on these sensors is unusable and only **relative**
+   sample timing is sound.
 
 ### II.4 · The one ambiguity this run does NOT resolve — and it matters
 
@@ -266,10 +290,12 @@ GATE A/B + full suite green + changeset. Then flip this header `DONE` and spawn 
 park PROPOSED with the number inline.
 
 **OUTCOME: no-go, parked.** The `POLAR-SDK-CAPTURE` routing this line originally prescribed is **withdrawn,
-not pending** — it was premised on host-arrival jitter dominating, and single-host vs phone-stamped capture
-measure identically both windowed (§2-RESULT.2) and offset-free (§2-RESULT-II.3), so better timestamps
-cannot move this gate. Reviving the brief requires the beat-correspondence audit of §2-RESULT-II.4, not a
-capture change.
+not pending** — it has effectively already been run. The single-host path sets both device clocks from a host
+held to **0.008 ppm** against a local stratum-1 and re-anchors every ~3.0 min fragment, capping accumulated
+inter-device drift at **8.6 ms even granting the 47.7 ppm premise** — and coupling is still 18.8 % vs 19.0 %
+(§2-RESULT-II.3 item 4). The clock term is both measured small (~1.5 ppm, item 1) *and* structurally bounded,
+and PAT does not couple either way. Reviving the brief requires the beat-correspondence audit of
+§2-RESULT-II.4, not a capture change.
 
 ---
 
