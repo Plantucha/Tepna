@@ -21,7 +21,7 @@ Verified the only way this suite accepts — **by mutation**, reverting each fix
 |---|---|---|---|
 | **3.6** autonomic⟷glycemic ECG-only | real | **none** | 0 assertions red |
 | **4.1** `sampleHz` count÷span | real | **blind** | 0 assertions red |
-| **4.2** rate across a strap-off gap | real | partial | 0 assertions red (see §2) |
+| **4.2** rate across a strap-off gap | real | partial → **closed 2026-07-30** (§2.1) | 0 → 3 assertions red ✓ |
 | **4.3** IMU plausibility bound | real | full | 4 assertions red ✓ |
 
 ### 1.1 §4.1's gate was pointed one function away from the defect
@@ -75,7 +75,7 @@ Recorded so the next pass does not repeat it. "Teeth" = reverting the fix reds a
 | 3.3 | desat attribution carries the observer | **teeth** | 2 |
 | 3.6 | autonomic⟷glycemic needs both signals | **no gate** → added | 0 → 5 |
 | 4.1 | `sampleHz` native rate | **blind** → added | 0 → 6 |
-| 4.2 | rate across a strap-off gap | **partial** (see §2) | 0 |
+| 4.2 | rate across a strap-off gap | **partial** → closed 2026-07-30 (§2.1) | 0 → 3 |
 | 4.3 | IMU plausibility bound | **teeth** | 4 |
 | 6.1 | abstention ≠ agreement | **teeth** | 6 |
 | 6.3 | `parseDeviceHR` headerless column | **blind** → added | 0 → 2 |
@@ -100,7 +100,11 @@ is therefore not hypothetical — it is projecting from a measured ~⅓ rate.
 
 ---
 
-## 2 · Open: §4.2's gate covers the reporting, not the tracking
+## 2 · ~~Open~~ CLOSED 2026-07-30: §4.2's gate covered the reporting, not the tracking
+
+> **Closed — see §2.1 below for the measurement, which corrects the prediction made in this section.**
+> The falsifier this section asked for now exists: a stream whose true rate CHANGES across the hole
+> (12 brpm → 120 s clock hole → 18 brpm), spliced test-side. Reverting the flat likelihood reds **3**.
 
 `respiratoryRate` does two separate things about an uncovered window, and only one is gated:
 
@@ -120,6 +124,40 @@ gaining an optional `segments:[{sec,brpm},…]` is the obvious shape.
 
 **Not gated is not the same as not fixed** — the fix is real and §4.2's reporting half is pinned. What
 is missing is a falsifier for the tracking half.
+
+### 2.1 The falsifier, built — and the symptom was not what §2 predicted
+
+Two things in §2 above were right and one was wrong, so it is worth separating them.
+
+**Right:** the tracking half was ungated, and the existing gap fixture *could not* see it — because its
+two sides share ONE true rate, so a steered track lands on the correct answer regardless. The falsifier
+needs the rate to CHANGE across the hole. Also right: the global-track mechanism.
+
+**Right about the shape, wrong about the cost.** §2 predicted a track "steered through clean windows"
+would *mis-measure* them. Measured, it does something else: the path sits off the true post-hole ridge,
+so the spectral mass around it collapses and every clean post-hole window falls under `confMin` and
+publishes **`null`**. The harm is a **lost** reading, not a wrong one.
+
+| post-hole windows · true rate 18 brpm · 5 seed pairs | brpm | conf |
+|---|---|---|
+| flat likelihood (the fix) | **17.5 – 18.0** | 0.51 – 0.66 |
+| interpolated-line spectrum (the defect) | **null** | 0.06 – 0.14 |
+
+So a real breathing rate measured *after* a strap-off gap was silently dropped — on every seed pair
+tried. That is a worse failure than a mis-measurement in one respect: a wrong number is at least
+visible, whereas this one leaves the series looking merely sparse.
+
+**On the generator.** §2 proposed teaching `genSyntheticACC` an optional `segments:[{sec,brpm},…]`. Not
+taken: `motiondex-dsp.js` is inside the compute closure, so extending it moves MotionDex's `computeHash`
+and **owes fixture re-verification** (§🔒) — a real cost for a fixture only the tests need. The two-rate
+stream is spliced test-side instead by re-stamping a second segment onto the first, which needs no
+bundle change at all. The earlier failed attempts stalled because concatenating two generator outputs
+leaves both starting at the same anchor; re-stamping column 0 and the sensor-ns column fixes exactly
+that.
+
+The pre-hole side is asserted as an explicit **control**: it is upstream of the hole, so a steered track
+cannot reach it and both variants read 12. If that control ever moves, the fixture has stopped isolating
+the thing it was built to isolate.
 
 ---
 
