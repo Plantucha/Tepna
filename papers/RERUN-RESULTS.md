@@ -1,5 +1,45 @@
 # Pilot re-run results (≥1k synthetic patients) — June 2026
 
+## CORRECTION — wearable-clock-drift + dead-ends 2.7, real-data reanalysis (2026-07-29)
+
+**The largest conclusion change in this suite's history, and the only one that overturned a paper's title.**
+No raw data changed; the same corpus was re-analysed with a beat-coupler defect fixed, plus one new control.
+
+- **`wearable-clock-drift` → Draft v2, major correction.** v1's thesis — "one phone is not one clock; the
+  R→foot lag drifts ~1.1 s/night at a fixed **47.7 ppm**, ordinary quartz tolerance; beat-level fusion needs a
+  single acquisition clock" — is **refuted in its mechanism and its remedy**. The ~1,156 ms "drift" is **one RR
+  interval**, admitted by `coupledPAT` searching a **2,000 ms** span (wider than 1 RR at ~50 bpm) while only
+  *displaying* its 200–650 ms window, so a missed foot let the next beat's foot through.
+- **v1's own Table 1 already refuted it**, which is the uncomfortable part: drift **does not scale with recording
+  duration** (`r = +0.17`; a fixed ppm requires ≈ +1), drift in ms is **more** stable across nights than the ppm
+  rate (CV 8.1 % vs 10.8 %), and the 1,156 ms median is RR at **51.9 bpm** against v1's own stated ~50 bpm. The
+  48 ppm coincidence is one RR ÷ one night landing inside the quartz band.
+- **The real inter-device rate**, from a slip-immune half-to-half wander metric: **1.46 ppm** median on the 27
+  nights ≥ 240 min (max 8.6); v1's 47.7 ppm **excluded on 51 of 54** pairings; implied rate *falls* with night
+  length (`r = −0.54`) — a noise floor, not a rate.
+- **The prescribed remedy is unnecessary, not ineffective.** The capture host runs chrony against a **local
+  stratum-1** at a 5.9 µs offset and **0.008 ppm** residual (0.027 ppm skew) — ~6,000× better than the blamed
+  rate. ⚠️ **Correction to an earlier draft of this correction:** the 18.8 % vs 19.0 % single-host/phone-stamped
+  comparison does **NOT** test the remedy — both paths time samples as `anchor + device-elapsed` (the host writes
+  `sensor timestamp [ns]` as the sample clock and its own stamp only as an *arrival* time), so they share the
+  term at issue. The claim rests on the 1.46 ppm bound and the host's 0.008 ppm, not on that comparison.
+- **Also refuted:** v1's 89 % coupling / 48 ms beat-to-beat (artifacts of the same defect; the mutation control
+  shows the IQR **cannot move** under slip), and the anatomical explanation for the failed accelerometer re-sync
+  (**withdrawn**: on a known-zero pair the same wide search misses a planted −39 min offset 12/13, while the same
+  code at design range aligns 13/13 — its 0.35 threshold sits below the ≈0.41 chance maximum).
+- **What survives:** §3.3 (phone timestamp = `start + device-elapsed`) entirely; beat parity 0.02 %; and the
+  headline negative result — 0 of 54 pairings clear the gate. **The wall is real; the map of it was wrong.**
+  The true limit is **~96 ms** of peripheral beat-to-beat scatter against a 60 ms requirement.
+- **`dead-ends` → Draft v2.** Wall 2.7 rewritten with the correction inline and its disposition changed from
+  "fixable at capture time with a hardware sync" to fundamental for this sensor pair. **New wall 2.8** — *a
+  negative result from an uncalibrated search is not evidence* — generalises the failure mode.
+- **NEW PAPER `null-calibration.html`** — the methods note behind wall 2.8: the chance-maximum bound
+  ≈ (1/√n)·√(2 ln N), the known-answer control, the dose-response (±15/60/240 s → 1/3/6 of 13), and five
+  recommendations. Control committed as `tools/acc-acc-control.mjs`.
+- Decision records: `INTEGRATOR-PAT-VASCULAR` §2-RESULT + §2-RESULT-II · `CROSS-DEVICE-CLOCK-SKEW` §2c ·
+  `PAT-FEASIBILITY` (DONE stands; its *cause* attribution is corrected, not its verdict).
+
+
 ## RE-TEXTURE — synth-gen/2.1 + cohort-gen/1.9, hrv-confound rerun (2026-07-07)
 - Running the parent rerun at 20k surfaced 3 rMSSD-scatter artifacts (hard floor line, hard ceiling line, overplot vertical edge). Owner chose a full generator re-texture (no footnotes). See `briefs/SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS-2026-07-07-BRIEF.md`.
 - **synth-gen/2.1** `buildRR`: dropped τ=2 relaxor, white-noise 3→1.0, HRV-level-scaled fast variability `texF` (bulk α1 protected); SubjectA rsaGain re-fit (1.199/0.866/1.523/1.950/2.268). **cohort-gen/1.9** `rsaGainFor = clamp(√(t²−7²)/19.15, 0.06, 4.35)`.
