@@ -401,3 +401,76 @@ Poisson 95 % CIs):
 - §7.3's Deep result is the most statistically solid thing this investigation has produced, and it is
   about a stage nobody was looking at.
 
+
+---
+
+## 8 · §3's "missing discriminator" measured — and REFUTED (2026-07-30)
+
+§3 nominated **respiratory-rate variability** as *"the one feature that gives REM a positive signature
+instead of an LF/HF proxy."* `respCv` has been computed per epoch since 2026-07-28 and deliberately not
+consumed by the stager, pending exactly this measurement. It has now been made, on **38 real nights /
+2721 epochs**, and the feature does not do the job.
+
+### 8.1 The oracle says the detector is fine, which is how you know the oracle is useless here
+
+Against planted `stageTruth`, the SHIPPED conjunction scores **92.6 % recall / 92.6 % precision**, and
+`respCv` separates REM from NREM at **AUC 0.990 [0.971, 1.000]**. Both look like green lights. Neither is.
+
+The same detector under-calls REM **~4×** on real nights. An oracle that reports 92.6 % where reality
+reports 4.8 % is **circular**: `genSynthetic` plants REM carrying the exact signature the rule looks for
+(high LF/HF, suppressed RMSSD, atonic) *and* generates ragged REM breathing by construction, so `respCv`
+recovers what the generator put there. **No REM detector change can be validated on this oracle** —
+it scores agreement with its own assumptions. Recorded because the temptation to accept AUC 0.990 as
+evidence is exactly the failure mode this brief exists to avoid.
+
+### 8.2 On real nights, no threshold satisfies the falsifiers at once
+
+The cheapest form of §3's "score, not conjunction": keep the shipped rule and ADD a `respCv` branch, so
+the change can only ADD REM and the question stays isolated to *does `respCv` recover the missing REM?*
+
+| rule | REM % | bout med | bout max | bouts > 25 min | desat ratio |
+|---|---|---|---|---|---|
+| SHIPPED | 7.5 | 5 | 45 | 4 | 0.46 |
+| `respCv > 0.10` | **68.0** | 15 | **195** | **106** | **1.35** |
+| `respCv > 0.15` | 54.5 | 10 | 160 | 66 | 0.93 |
+| `respCv > 0.20` | 34.3 | 5 | 55 | 26 | 0.77 |
+| `respCv > 0.25` | **18.7** ✓ | 5 | 45 | 6 | 0.58 |
+| `respCv > 0.30` | 11.4 | 5 | 45 | 4 | 0.42 |
+| `respCv > 0.40` | 7.8 | 5 | 45 | 4 | 0.45 |
+
+Passing requires ALL of: REM % in 15–25 · bout max ≤ 25 min · zero over-long bouts · desat ratio > 1.
+**No row passes.** The two criteria that matter move in *opposite* directions: the only thresholds that
+push the desat ratio above 1 are the ones that call **54–68 %** of the night REM, and the only threshold
+that lands REM % in the physiological band (0.25 → 18.7 %) drives the desat ratio *down* to 0.58, worse
+than the shipped 0.46.
+
+### 8.3 A correction: the desat-ratio "improvement" at 0.10 is arithmetic, not detection
+
+First reading of the 0.10 row was that crossing the >1 line meant `respCv` had found something genuinely
+REM-like. **That was wrong and is withdrawn.** At 68 % REM the two pools are no longer a stage against
+its complement — "NREM" has been reduced to the 32 % of epochs with the *quietest* breathing, which is a
+selected-calm subset and will carry fewer desaturations whatever the labels mean. The ratio rises because
+the denominator was filtered, not because the numerator became REM. A falsifier evaluated at a label
+prevalence of 68 % is not testing the label.
+
+**The general form, worth keeping:** a cross-signal falsifier is only informative while the labelling is
+near its plausible prevalence. Outside that range it degenerates into a statement about which epochs were
+left over.
+
+### 8.4 Where this leaves the redesign
+
+- **Do not add a `respCv` branch.** No threshold satisfies the falsifiers, and the one that fixes
+  prevalence makes the independent-signal check worse.
+- `respCv` **stays computed and unconsumed**, as it has been. It costs nothing, it is now measured rather
+  than assumed, and this table is the reason not to wire it.
+- §3's full weighted score is **not** thereby refuted — only its nominated missing discriminator is. But
+  the three remaining terms (z(LF/HF), −z(RMSSD), −motion) are all features the conjunction ALREADY uses;
+  a score over the same inputs redistributes the same information and has no new signal to add. That is
+  the honest prior, and it is why the score is not worth building until a genuinely new input exists.
+- **What would actually move REM is a label, not a feature** — the same conclusion `DEEP-STAGE-DESAT-CONFOUND`
+  §9 reached for Deep, arrived at independently. Both stages are now blocked on ground truth rather than
+  on cleverness.
+
+**Both halves of the staging investigation now terminate in measured negatives.** That is a result: two
+plausible, well-motivated redesigns were stopped by measurement before they shipped metrics that would
+have been worse.
