@@ -124,11 +124,15 @@ precisely when it mattered most.
       project's own night definition and cannot repeat the REM investigation's original confound. Ships
       its own `--selftest` (exact against published Garwood/sign-test values — see §7.1). Re-run on the
       corpus grown to 37 nights: §7.
-- [ ] §3 re-run on a corpus with real ODI-4/AHI spread (CPAPDex nights)
+- [x] **§3 re-run on a corpus with real AHI spread — RUN 2026-07-30 (§8). The x-axis finally HAS range
+      (device-scored AHI 1.1→8.0, 7 nights in the abnormal band) and the between-night dose-response is
+      still null — but the test is UNDERPOWERED for the effect size §2/§3b already bounded, so the null
+      is uninformative rather than negative.** All 38 trio nights paired.
 - [ ] Deep's rule re-examined for CVHR/vagal separability, or its evidence tier re-checked — **evidence
       tier already sits at the floor** (`deepMin: evidence:'heuristic'`, `ecgdex-registry.js:194` — the
-      lowest of the 5-level ladder), so there is nothing lower to cap it to; a rule REDESIGN (the VLF/LF
-      separability idea in §5) remains open and unstarted.
+      lowest of the 5-level ladder), so there is nothing lower to cap it to. The rule REDESIGN is now
+      **measured to be BLOCKED on an export gap, not merely unstarted** — see §8.3: `lfhf` is
+      structurally blind to CVHR and per-epoch `vlf` is computed but never exported.
 
 ## 7 · Re-measured on the grown corpus (2026-07-30) — confirms one thing, weakens another
 
@@ -189,3 +193,90 @@ didn't. Nothing in §2–§5 changes: the mechanism is still real, still bounded
 minutes, and still needs a corpus with real apnea burden (CPAPDex nights) to test the dose-response
 §3 could not find. That item, and the VLF/LF rule redesign in §5, remain the two genuinely open
 items — both are new engineering, not further measurement on data already in hand.
+
+---
+
+## 8 · The CPAPDex re-run, done (2026-07-30) — and the redesign is BLOCKED, not merely unstarted
+
+§7's closing line said the two open items were "new engineering, not further measurement on data
+already in hand." The first half of that was wrong: the AHI x-axis **was** already in hand — 199
+nights of it, on the capture host's own SD card. Run:
+
+```sh
+node tools/cpap-corpus.mjs --root <captures>/cpap/DATALOG --out /tmp/cpap-exports.json   # 199 nights, 1359 therapy h, 0 problems
+node tools/deep-desat-falsifier.mjs --dir uploads/trio --cpap /tmp/cpap-exports.json
+```
+
+### 8.1 The x-axis finally has range — and the dose-response is still null
+
+| x-axis | min | median | max | nights ≥5 (abnormal) | verdict |
+|---|---|---|---|---|---|
+| ODI-4 (§3, why it failed) | 0.4 | 1.9 | 5.2 | ~0 | no range ⇒ **untestable** |
+| **device-scored residual AHI** | **1.1** | **2.9** | **8.0** | **7 of 38** | **7.2× range ⇒ testable** |
+
+All **38** trio nights paired with a CPAP night (the SD card spans 2026-01-11 → 07-29, covering the
+whole trio corpus). Against Deep % of staged sleep:
+
+| test | r | p |
+|---|---|---|
+| Pearson r(AHI, Deep %) | **−0.174** | 0.298 |
+| Spearman ρ(AHI, Deep %) | −0.080 | 0.633 |
+| Pearson r(**cvhrIndex**, Deep %) — the DIRECT measure | **+0.169** | 0.311 |
+
+The third row matters more than the first two. `apnea.cvhrIndex` is already in every ECGDex export, so
+the mechanism can be tested against *itself* rather than against a treated-apnea proxy — and there the
+sign is **positive**, as the hypothesis requires. It is just small.
+
+### 8.2 The null is UNINFORMATIVE, and saying so is the point
+
+At n = 38 the 80 %-power detection floor is **|r| ≥ 0.441**. The observed 0.169 sits far below it. So
+this test can only exclude a *large* between-night effect — and §2/§3b independently bounded the
+effect at **~10 % of Deep minutes**, which is precisely the size that produces a between-night r too
+small to resolve here.
+
+**So the null and the epoch-level finding are consistent, not contradictory.** Reporting "no
+dose-response" without the power figure would have been the same error §3 made with ODI-4, one level
+up: mistaking an untestable null for a negative result. The tool now prints the x-axis spread and an
+explicit `x-axis has usable range: YES/NO` line next to every correlation for exactly this reason.
+
+### 8.3 Why the §5 redesign cannot proceed yet — `lfhf` is structurally blind to CVHR
+
+§5 proposed keying Deep on "the VLF/LF signature of CVHR rather than raw RMSSD," noting *"the spectral
+separation already exists in `epochs[].lfhf` / `vlf`."* Half of that is wrong, and it is the load-bearing
+half. Measured on the 38 nights:
+
+| epochs | median `lfhf` | n |
+|---|---|---|
+| Deep **+ desat** (CVHR-suspect) | **1.77** | 52 |
+| Deep, clean | **1.78** | 399 |
+| Light + desat | 1.94 | 120 |
+| Light, clean | 1.75 | 1924 |
+
+**Separation between CVHR-suspect and clean Deep epochs: 0.00.** That is not sampling noise, it is
+mechanical. CVHR is a 20–45 s oscillation ⇒ **0.022–0.05 Hz**, and `ecgdex-dsp.js:1120` bands VLF as
+`f < 0.04`. So CVHR power lands in **VLF** — and `lfhf` is LF/HF, which **excludes VLF entirely by
+construction**. A ratio that does not contain the band the signal lives in cannot see it.
+
+`vlf` *is* computed per epoch (`ecgdex-dsp.js:1145`, `:1367`) but the export's `timeseries.epochs`
+carries only `{tMin, hr, rmssd, sdnn, lfhf, resp, motionIndex, position}` — **no `vlf`, no `lf`**. So
+the discriminator the redesign depends on is unmeasurable from committed exports today.
+
+### 8.4 The actual next step, in order
+
+1. **Add per-epoch `vlf` + `lf` to the ECGDex export.** Additive and behaviour-neutral for every
+   existing metric, but it changes export CONTENT — so it moves ECGDex's `manifestHash` *and*
+   `computeHash`, and its fixtures' `outputHash` genuinely move. Regenerate via
+   `tools/regen-ecgdex-goldens.mjs`, then re-verify (`DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs`).
+   Per `DEEP-AUDIT-III-FOLLOWUPS-II` §6.11 this class of change is **auto-gated by the equiv legs**, so
+   it is the cheap kind of risky.
+2. **Then measure whether VLF actually separates** CVHR-suspect from clean Deep epochs, the same way
+   §8.3 just measured that `lfhf` does not. If it does not separate either, the redesign is dead and the
+   honest outcome is that `Deep` stays `heuristic` with the ~10 % bias documented.
+3. **Only then redesign the rule.** Shipping a VLF-keyed Deep rule before step 2 would be exactly the
+   mistake this whole line of work exists to avoid: a detector whose discriminator was never shown to
+   discriminate.
+
+**Nothing about `Deep` should move until step 2 returns a number.** The bias is real, bounded at ~10 %,
+and already at the lowest evidence tier — which is a tolerable place to sit while the discriminator is
+established, and a much better one than a redesign justified by a spectral separation that has not been
+demonstrated to exist.

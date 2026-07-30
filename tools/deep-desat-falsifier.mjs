@@ -53,6 +53,11 @@ function opt(flag, def) {
 const AS_JSON = argv.includes('--json');
 const SELFTEST = argv.includes('--selftest');
 const DIR = opt('--dir', join(ROOT, 'uploads', 'trio'));
+/* --cpap <exports.json> — output of `node tools/cpap-corpus.mjs --root <SD>/DATALOG --out <file>`.
+   Supplies device-scored residual AHI per night, which is the x-axis DEEP-STAGE-DESAT-CONFOUND §3
+   could not test on: ODI-4 across the trio corpus runs 0.4→5.2 with EVERY night in the normal band,
+   so a dose-response was unmeasurable for want of dynamic range, not for want of an effect. */
+const CPAP = opt('--cpap', null);
 
 /* ── stats: inverse normal CDF (Acklam), Wilson–Hilferty chi² quantile,
    exact (Garwood) Poisson CI, exact one-sided binomial sign-test p-value ──── */
@@ -184,6 +189,63 @@ function median(a) {
   if (!n) return null;
   return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
 }
+const round1 = (v) => (v == null ? null : Math.round(v * 10) / 10);
+const round3 = (v) => (v == null ? null : Math.round(v * 1000) / 1000);
+/* Pearson r + a two-sided p from the t-approximation, and Spearman rho on ranks. Both reported:
+   Pearson answers "is there a LINEAR dose-response" (the brief's §3 question, which asked for
+   `r(ODI-4, Deep %)`), Spearman answers "is there a MONOTONE one" and is the honest fallback when a
+   handful of high-AHI nights would otherwise dominate a least-squares fit. */
+function pearson(xs, ys) {
+  const n = xs.length;
+  if (n < 3) return { r: null, p: null, n };
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0,
+    sxx = 0,
+    syy = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - mx,
+      dy = ys[i] - my;
+    sxy += dx * dy;
+    sxx += dx * dx;
+    syy += dy * dy;
+  }
+  if (sxx <= 0 || syy <= 0) return { r: null, p: null, n };
+  const r = sxy / Math.sqrt(sxx * syy);
+  // two-sided p via t = r*sqrt((n-2)/(1-r^2)) against Student-t(n-2), using the incomplete beta
+  // relation P(|T|>t) = I_{df/(df+t^2)}(df/2, 1/2). Implemented with the same regularized
+  // incomplete gamma machinery already present? No — beta needs its own; use a normal
+  // approximation on Fisher's z instead, which is well-behaved at these n and needs no new code.
+  const z = 0.5 * Math.log((1 + r) / (1 - r)); // Fisher transform
+  const se = 1 / Math.sqrt(n - 3);
+  const zStat = Math.abs(z / se);
+  // two-sided normal tail
+  const p = 2 * (1 - normCdf(zStat));
+  return { r: round3(r), p: round3(p), n };
+}
+function normCdf(z) {
+  // Abramowitz & Stegun 7.1.26 error-function approximation (|ε| < 1.5e-7) — dependency-free.
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const poly = t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  const tail = 0.3989422804014327 * Math.exp((-z * z) / 2) * poly;
+  return z >= 0 ? 1 - tail : tail;
+}
+function spearman(xs, ys) {
+  const rank = (a) => {
+    const idx = a.map((v, i) => [v, i]).sort((p, q) => p[0] - q[0]);
+    const r = new Array(a.length);
+    let i = 0;
+    while (i < idx.length) {
+      let j = i;
+      while (j + 1 < idx.length && idx[j + 1][0] === idx[i][0]) j++;
+      const avg = (i + j) / 2 + 1; // average rank for ties
+      for (let k = i; k <= j; k++) r[idx[k][1]] = avg;
+      i = j + 1;
+    }
+    return r;
+  };
+  return pearson(rank(xs), rank(ys));
+}
 
 if (SELFTEST) {
   // Known answers: Garwood CI for k=0 is [0, 3.6889/2λ-scale]; k=4 matches the brief's own figures.
@@ -216,6 +278,7 @@ const stageMinutes = Object.fromEntries(STAGES.map((s) => [s, 0]));
 const stageDesats = Object.fromEntries(STAGES.map((s) => [s, 0]));
 const allEpochs = []; // { stage, rmssd, hasDesat, minutes }
 const perNight = []; // { night, deepRate, lightRate, deepMin, lightMin }
+const nightDeepPct = new Map(); // night → Deep % of staged sleep (y-axis for the AHI dose-response)
 let nightsRead = 0,
   nightsSkipped = 0;
 const skipReasons = [];
@@ -285,6 +348,11 @@ for (const night of nightDirs) {
     const lightRate = lightDesats / (lightMin / 60);
     perNight.push({ night, deepRate, lightRate, deepMin, lightMin, ratio: lightRate > 0 ? deepRate / lightRate : deepRate > 0 ? Infinity : null });
   }
+  // Deep % of this night's staged sleep — the y-axis for the AHI dose-response below. Computed for
+  // EVERY read night (not just the >=30-min-of-each subset), since the dose-response question is
+  // about Deep alone and does not need a Light comparison.
+  const stagedMin = windows.filter((w) => STAGES.includes(w.stage)).reduce((a, w) => a + w.durMin, 0);
+  if (stagedMin > 0) nightDeepPct.set(night, (100 * deepMin) / stagedMin);
   nightsRead++;
 }
 
@@ -314,8 +382,10 @@ function settleRow(epochs) {
   return {
     epochs: epochs.length,
     deepPctOfSleep: totalMin > 0 ? +((100 * deepMin) / totalMin).toFixed(1) : null,
-    medRmssdDeep: median(deep.map((e) => e.rmssd).filter((v) => v != null)),
-    medRmssdLight: median(light.map((e) => e.rmssd).filter((v) => v != null))
+    // rounded: an unrounded median (34.150000000000006) overran its padEnd column and collided
+    // with the next one in the printed table — the numbers were right, the report was unreadable.
+    medRmssdDeep: round1(median(deep.map((e) => e.rmssd).filter((v) => v != null))),
+    medRmssdLight: round1(median(light.map((e) => e.rmssd).filter((v) => v != null)))
   };
 }
 const settleAll = settleRow(allEpochs);
@@ -324,6 +394,56 @@ const settleOnly = settleRow(allEpochs.filter((e) => e.hasDesat));
 const gapAll = settleAll.medRmssdDeep != null && settleAll.medRmssdLight != null ? +(settleAll.medRmssdDeep - settleAll.medRmssdLight).toFixed(1) : null;
 const gapExcl = settleExcl.medRmssdDeep != null && settleExcl.medRmssdLight != null ? +(settleExcl.medRmssdDeep - settleExcl.medRmssdLight).toFixed(1) : null;
 
+/* ── report 4: the AHI dose-response — DEEP-STAGE-DESAT-CONFOUND §3's untestable question ────────
+   §3 found r(ODI-4, Deep %) = 0.003 and read it honestly: not "the mechanism is absent" but "there
+   is no dynamic range to detect it in" — ODI-4 across the trio corpus runs 0.4→5.2 with every night
+   inside the normal band (<5). Device-scored residual AHI is the stronger x-axis the brief itself
+   nominated. This block runs that test when --cpap supplies it, and reports the SPREAD alongside the
+   correlation so a null can be told apart from an untestable null: a flat r over a 1.1→1.2 AHI range
+   means nothing, a flat r over 1.1→8.0 with abnormal-band nights present means something. */
+let doseResponse = null;
+if (CPAP) {
+  if (!existsSync(CPAP)) {
+    console.error(`deep-desat-falsifier: --cpap ${CPAP} does not exist.\n  Generate it with:\n    node tools/cpap-corpus.mjs --root <SD-card>/DATALOG --out ${CPAP}\n`);
+    process.exit(2);
+  }
+  let cpapJson;
+  try {
+    cpapJson = JSON.parse(readFileSync(CPAP, 'utf8'));
+  } catch (e) {
+    console.error(`deep-desat-falsifier: --cpap ${CPAP} is not parseable JSON (${e.message})`);
+    process.exit(2);
+  }
+  const exportsArr = Array.isArray(cpapJson) ? cpapJson : cpapJson.exports || [];
+  // cpap-corpus stamps each night's source folder as `_day` (YYYYMMDD); the trio corpus keys nights
+  // as YYYY-MM-DD. Both are the SAME night-of-recording convention, so this is a format map only.
+  const ahiByNight = new Map();
+  for (const e of exportsArr) {
+    const day = e && e._day;
+    const ahi = e && e.metrics && e.metrics.residualAHI;
+    if (day && /^\d{8}$/.test(String(day)) && ahi != null && isFinite(ahi)) ahiByNight.set(`${String(day).slice(0, 4)}-${String(day).slice(4, 6)}-${String(day).slice(6)}`, ahi);
+  }
+  const paired = [];
+  for (const [night, deepPct] of nightDeepPct) {
+    const ahi = ahiByNight.get(night);
+    if (ahi != null) paired.push({ night, ahi, deepPct });
+  }
+  const xs = paired.map((p) => p.ahi),
+    ys = paired.map((p) => p.deepPct);
+  const spread = xs.length ? { min: round1(Math.min(...xs)), median: round1(median(xs)), max: round1(Math.max(...xs)), nAbnormal: xs.filter((v) => v >= 5).length } : null;
+  doseResponse = {
+    cpapNightsAvailable: ahiByNight.size,
+    trioNightsPaired: paired.length,
+    ahiSpread: spread,
+    // Testability verdict, stated by the tool rather than left to the reader: the §3 null was
+    // uninterpretable because its x had no range. Say whether THIS x does.
+    xAxisHasRange: spread ? spread.max / Math.max(spread.min, 0.01) >= 3 && spread.nAbnormal >= 1 : false,
+    pearson: pearson(xs, ys),
+    spearman: spearman(xs, ys),
+    pairs: paired.map((p) => ({ night: p.night, ahi: round1(p.ahi), deepPct: round1(p.deepPct) }))
+  };
+}
+
 const result = {
   nightsFound: nightDirs.length,
   nightsRead,
@@ -331,7 +451,8 @@ const result = {
   skipReasons,
   rateTable,
   signTest: { nights: qualifying.length, favouringDeep, medianRatio: ratios.length ? +median(ratios).toFixed(2) : null, pOneSided: pSign != null ? +pSign.toFixed(4) : null },
-  settling: { all: { ...settleAll, rmssdGap: gapAll }, excludingDesatOverlap: { ...settleExcl, rmssdGap: gapExcl }, onlyDesatOverlap: settleOnly }
+  settling: { all: { ...settleAll, rmssdGap: gapAll }, excludingDesatOverlap: { ...settleExcl, rmssdGap: gapExcl }, onlyDesatOverlap: settleOnly },
+  doseResponse
 };
 
 if (AS_JSON) {
@@ -354,6 +475,15 @@ if (AS_JSON) {
   ];
   for (const [label, s, gap] of rows)
     console.log(label.padEnd(24) + String(s.epochs).padEnd(8) + String(s.deepPctOfSleep).padEnd(12) + String(s.medRmssdDeep).padEnd(15) + String(s.medRmssdLight).padEnd(8) + String(gap));
+  if (doseResponse) {
+    const d = doseResponse;
+    console.log(`\n── AHI dose-response (device-scored residual AHI vs Deep % of sleep) ──`);
+    console.log(`${d.trioNightsPaired} nights paired (of ${d.cpapNightsAvailable} CPAP nights available)`);
+    if (d.ahiSpread) console.log(`AHI spread: min ${d.ahiSpread.min} · median ${d.ahiSpread.median} · max ${d.ahiSpread.max} · ${d.ahiSpread.nAbnormal} night(s) ≥5 (abnormal band)`);
+    console.log(`x-axis has usable range: ${d.xAxisHasRange ? 'YES — a null here is INTERPRETABLE' : 'NO — a null here would be untestable, not negative'}`);
+    console.log(`Pearson  r=${d.pearson.r}  p=${d.pearson.p}  (n=${d.pearson.n})`);
+    console.log(`Spearman r=${d.spearman.r}  p=${d.spearman.p}  (n=${d.spearman.n})`);
+  }
   console.log('');
 }
 process.exit(0);
