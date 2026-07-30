@@ -81,6 +81,11 @@ Recorded so the next pass does not repeat it. "Teeth" = reverting the fix reds a
 | 6.3 | `parseDeviceHR` headerless column | **blind** → added | 0 → 2 |
 | 5.2 | PulseDex LF/HF median-of-ratios | **INCONCLUSIVE** | 0 |
 
+> **SUPERSEDED — §5.2 was resolved later the same day; see §5.2 item 4.** The "0 reds" below was an
+> artefact of a `// MUTATION` marker landing mid-literal, so the module never parsed. With a `/* … */`
+> marker the same edit reds 2 assertions in CI and 4 with the corpus: **§5.2 is properly gated in both
+> lanes.** The paragraph is kept as written because it is the evidence trail for harness rule §5.4.
+
 **§5.2 is explicitly not claimed either way.** The mutation (revert to ratio-of-medians) reddened
 nothing, but its semantic validity was never confirmed — a probe of the same edit threw at runtime, so
 the suite's 0 may mean "inert edit" rather than "blind gate". What *is* established is that the
@@ -179,7 +184,7 @@ honest `unit:null`-then-infer and the silent `unit:'mg'` default agree on it —
 `_unit:'m/s2'`, the default reports `'mg'` — a **9.8× error on every downstream magnitude**, with the
 whole suite green. Gated, verified RED.
 
-### 5.2 Three ways this method LIES, all hit during this sweep
+### 5.2 Five ways this method LIES, all hit during this sweep
 
 Recorded because a mutation result is only as good as the mutation, and a false *blind* is as costly
 as a false *green*:
@@ -203,6 +208,17 @@ as a false *green*:
    a `/* … */` marker instead, the SAME edit reds **2 assertions in CI and 4 with the corpus**,
    including the exact expected `hrv.frequency.lfhf: 0 != 0.207`. **§5.2 was never inconclusive — it is
    properly gated in both lanes**, and the earlier verdict was an artefact of my own broken edit.
+
+5. **A broken red COUNTER reports a false nonzero — and that reads as confirmation.** The worst of the
+   five for a different reason than item 4: items 1–4 all produce a false *blind*, which prompts more
+   work. This one produces false *teeth*, which stops the investigation. Counting `grep -cE '✗|FAIL'`
+   over the whole run log matches **passing assertion TEXT** — this suite has assertions named
+   *"MotionDex badges fail CLOSED"* and *"GATE B banner → FAIL when FIXPROV_ERR is set"* — so a green
+   run scores a **constant 6**. Four clones each reported "6 reds, gated ✓" for §9.2 while every one of
+   them was blind; the giveaway was that the number was *identical* across four different files, which
+   is not how real reds behave. The runner already prints a `▸ FAILURES (n)` recap and exits non-zero:
+   **read the recap header, never the log body**, and treat a suspiciously uniform count as a broken
+   instrument rather than a finding.
 
 **So the rule that makes the method honest: before reporting a gate blind, prove the DEFECT is
 reachable** — construct the input that separates fix from defect and show the two disagree. That is
@@ -229,6 +245,23 @@ an invalid edit and a blind gate produce identical evidence — and this sweep p
 "0 reds" before the rule was found. A second harness rule earned the hard way: **never edit the mutation
 script while a batch is running** — doing so left a mutated `ppgdex-dsp.js` in the tree and silently
 ran the next mutation on top of it, invalidating both results.
+
+The harness that survives all five failure modes is small enough to state completely. Every clause below
+exists because its absence produced a wrong answer in this sweep:
+
+```sh
+reds()   { sed -n 's/^.*▸ FAILURES (\([0-9]*\)).*$/\1/p' "$1" | head -1; }   # the RECAP, not the body
+thrown() { sed -n '/▸ FAILURES/,$p' "$1" | grep -c 'group threw'; }          # >0 ⇒ MY edit is invalid
+clean()  { [ -z "$(git status --porcelain)" ]; }                             # assert BEFORE mutating
+mutate() { perl -0pi -e "$2" "$1" || return 1
+           node --check "$1" || return 1                                     # parses?
+           ! git diff --quiet -- "$1"; }                                     # actually changed?
+```
+
+`group threw` deserves its own counter rather than folding into the red count: a mutation that parses but
+throws at runtime (§9.4's first attempt: `byDay is not defined`) produces plenty of reds that say nothing
+about the gate. And `clean()` must run *before* each mutation, not only after — a killed or timed-out
+batch leaves the tree modified (§6.1), and the next mutation then stacks on top of it.
 
 ---
 
@@ -392,11 +425,18 @@ peripheral one (`cpapdex-cross.js`), which no §9 assertion had ever driven:
 
 | item | cpapdex | verdict |
 |---|---|---|
-| 9.4 `slopeBasis` | 2 reds | gated per clone ✓ |
-| 9.5 `Math.imul` LCG | 4 reds | gated per clone ✓ (source scan is per-file) |
+| 9.3 direction from τ | 2 reds | gated per clone ✓ (closed earlier in this sweep) |
+| 9.4 `slopeBasis` | 3 reds | gated per clone ✓ |
+| 9.5 `Math.imul` LCG | 2 reds | gated per clone ✓ — a per-file source scan, so teeth by construction |
 | **9.1 `wsd` coverage-weighted spread** | **0 reds** | **BLIND in 4 of 5** |
+| **9.2 personal-baseline weights** | **0 reds** | **BLIND in 4 of 5** — see §6.8 |
 
-So §9.4 and §9.5 are genuinely gated everywhere — the §6.6 worry does not generalise to all of §9.
+So §9.3/§9.4/§9.5 are genuinely gated everywhere — the §6.6 worry does not generalise to all of §9.
+
+> **These red counts were re-measured after the counter itself proved wrong** (§5.2 item 5). The first
+> pass reported 9.4 as 2 and 9.5 as 4; the *verdicts* held, the numbers did not. §9.4's mutation also had
+> to be re-aimed — the first attempt parsed but threw at runtime (`byDay is not defined`), which surfaces
+> as `group threw`, not as a gate red.
 
 **But §9.1 is worse than §9.3, and for a sharper reason.** `wsd`'s own comment states it reduces to
 `sd()` **bit for bit under uniform weights** — and OxyDex's crossnight fixtures feed a uniform weight
@@ -424,7 +464,42 @@ its fixture makes the fix a no-op. "Teeth" measured on one node says nothing abo
 cannot express the defect on another. **Check that the gate's own data can distinguish fix from
 defect** — the anti-vacuity assertions now do that inline.
 
-Running total: **51 sections resolved, 7 blind (~14 %)**.
+### 6.8 §9.2 — the same family, the cheaper variant
+
+§9.2 is the third member of the family §9.1 and §9.3 belong to: the fix lives in all five clones and
+the gate drove `OXYCross` only. Mutation on `cpapdex-cross.js` — reverting `priorW` to uniform weights,
+which the fix's own comment notes is bit-for-bit the unweighted path — reds **nothing**.
+
+The audit's own figures, reproduced identically through `crossNight` in all five clones (prior
+`[95,95,95,60]` at `w=[1,1,1,0.06]`, newest night 80 at full coverage):
+
+| baseline | mean | sd | zLatest | flagged (\|z\| ≥ 1) |
+|---|---|---|---|---|
+| weighted (the fix) | 94.31 | 5.9 | **−2.43** | **yes** |
+| unweighted (the defect) | 86.25 | 17.5 | **−0.36** | **no** |
+
+The defect is not an understatement, it is a **suppression**: −2.43σ is flagged, −0.36σ is not, so on
+four of five nodes a genuine event was **never raised at all**.
+
+**But this one is the cheaper failure, and worth distinguishing from §9.1.** §9.2's OxyDex fixture was
+never *vacuous* — its 6 %-coverage night really is down-weighted, so the gate could always have failed
+where it stood. It simply **was not replicated**. That is a strictly easier defect to fix than §9.1's
+(no new fixture design needed, just a table) and a harder one to notice, because nothing about the
+existing gate looks wrong. So the family splits into two distinct failure modes, and only mutation
+separates them:
+
+- **§9.1 · vacuous where it stands** — the fixture cannot express the defect. Needs new data.
+- **§9.2 · sound where it stands, absent everywhere else** — the fixture is fine. Needs breadth.
+
+Closed table-driven through the shared `crossNight` primitive, so one table covers every clone
+regardless of each node's own stats shape, with the flag-threshold check retained as the anti-vacuity
+assertion — pinning the number without pinning the decision it drives would reopen the hole one
+refactor later. **Verified RED: 4 reds in each of cpapdex/ecgdex/pulsedex/ppgdex, 8 in oxydex.**
+Suite green at 4348 assertions / 291 groups.
+
+Running total: **52 sections resolved, 8 blind (~15 %)**. Every one of the last three blind gates has
+been a clone family, which makes "is this fix duplicated, and is the gate?" the highest-yield question
+left in the sweep.
 
 ---
 
