@@ -18435,6 +18435,79 @@
         T.eq('§5.3 · absent drift is neutral, not a fabricated 0-severity', env.GluDisp.drift(null).sev, 'neutral');
         T.eq('§5.3 · absent drift has no display value', env.GluDisp.drift(null).display, null);
         env.GluDisp.set('mgdl');
+
+        /* ── DEEP-AUDIT-II §2.2 · ONE band set for DesSev, across every site that grades it ──────────
+           Mutation-checked 2026-07-29: reverting the CHIP to its old {10,25} reds NOTHING. The chip is
+           built by `nightRowInner`, which is module-private, so there is no exported entry to drive —
+           and the defect is not a single site's arithmetic anyway, it is DISAGREEMENT between three
+           sites that grade the same number:
+             oxydex-render.js  the row CHIP        {5,15}
+             oxydex-render.js  the metric CARD     {5,15}
+             oxydex-dsp.js     the composite SCORE {5,15,30}
+           The published symptom was the same night reading green on the chip and warn on the card
+           BESIDE IT. Cross-site agreement is precisely what source inspection is legitimately for
+           (same rationale as §7.8/§10.1), and it covers a fourth surface added later by construction.
+           {5,15,30} is canonical: on the corrected 37-night scale (0.24–17.6 %-min/hr) it separates
+           26 good / 10 warn / 1 high, where {10,25} collapses the whole corpus into green-or-warn. */
+        var _dsSrcs = ['oxydex-render.js', 'oxydex-dsp.js'];
+        var _dsBands = [];
+        _dsSrcs.forEach(function (f) {
+          var s = (env.sources || {})[f];
+          if (s == null) return;
+          // every expression that grades a desSev value against a numeric edge
+          var re = /desSev(?:\.desSev)?\s*<\s*(\d+(?:\.\d+)?)/g,
+            m;
+          while ((m = re.exec(s))) _dsBands.push({ file: f, edge: +m[1] });
+        });
+        // Anti-vacuity: if the scan finds nothing it must FAIL, not pass by silence.
+        T.ok('DA-II §2.2 · the DesSev grading sites are visible to this scan (≥3 expected)', _dsBands.length >= 3, _dsBands.length + ' found: ' + JSON.stringify(_dsBands));
+        if (_dsBands.length) {
+          var _bad = _dsBands.filter(function (b) {
+            return [5, 15, 30].indexOf(b.edge) < 0;
+          });
+          T.ok('DA-II §2.2 · every DesSev band edge is drawn from the canonical {5,15,30} — no site carries {10,25}', _bad.length === 0, _bad.length ? 'off-band: ' + JSON.stringify(_bad) : _dsBands.length + ' edge(s) all canonical');
+          // …and the two low edges must actually be PRESENT, so "canonical" cannot be satisfied by a
+          // site that grades on 30 alone.
+          var _edges = _dsBands.map(function (b) {
+            return b.edge;
+          });
+          T.ok('DA-II §2.2 · …and both the 5 and the 15 edge are really in use', _edges.indexOf(5) >= 0 && _edges.indexOf(15) >= 0, JSON.stringify(_edges));
+        }
+
+        /* ── DEEP-AUDIT-III-FOLLOWUPS §1.3 · a null ANS score must READ as absent ────────────────────
+           Mutation-checked 2026-07-29: removing EITHER null guard reds NOTHING. pulsedex-render.js
+           exports nothing at all, so there is no entry to drive — but the two guards are pure
+           one-liners, so the gate lifts them out of the SHIPPED SOURCE and executes them. That is a
+           behavioural check on the real code rather than a regex on its spelling, and it does not
+           require exporting them (which would move the bundle for a test's convenience).
+           The defect: `Math.min(100, null)` is 0, so a missing score drew a confident empty bar and
+           printed the literal word "null" beside it — the two failure modes a null exists to prevent. */
+        var _prSrc = (env.sources || {})['pulsedex-render.js'];
+        if (_prSrc == null) {
+          T.ok('§1.3 · pulsedex-render.js source is readable', false, 'not in env.sources — this gate cannot run');
+        } else {
+          var _lift = function (name) {
+            var m = new RegExp('const\\s+' + name + '\\s*=\\s*(\\([^)]*\\)\\s*=>\\s*[^;\\n]+);').exec(_prSrc);
+            if (!m) return null;
+            try {
+              return new Function('return ' + m[1])();
+            } catch (e) {
+              return null;
+            }
+          };
+          var _txt = _lift('_ansTxt'),
+            _pct = _lift('_ansPct');
+          T.ok('DA-III-F §1.3 · both ANS display guards were found in the shipped source', typeof _txt === 'function' && typeof _pct === 'function', 'txt=' + typeof _txt + ' pct=' + typeof _pct);
+          if (typeof _txt === 'function' && typeof _pct === 'function') {
+            T.eq('DA-III-F §1.3 · a null SNS/PSNS renders an em-dash, never the string "null"', _txt(null), '—');
+            T.eq('DA-III-F §1.3 · …and the bar collapses to zero width', _pct(null), 0);
+            // Anti-vacuity: the guards must still pass a REAL score through untouched, else "returns 0
+            // for everything" would satisfy the assertions above.
+            T.eq('DA-III-F §1.3 · a real score still reaches the label', _txt(42), 42);
+            T.eq('DA-III-F §1.3 · …and still sizes the bar', _pct(42), 42);
+            T.eq('DA-III-F §1.3 · …and is still clamped at 100', _pct(140), 100);
+          }
+        }
         // ── OxyDex mean-SpO₂ KPI color: ok≥95 / warn≥92 / bad (HIGH; a lowered cut paints a hypoxic night green) ──
         var oxKpiClass = function (mean) {
           var html = env.OxyDex.reviewView({ events: [], nights: [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }] }, [{ stats: { meanSpo2: mean, minSpo2: mean - 3 } }]);
