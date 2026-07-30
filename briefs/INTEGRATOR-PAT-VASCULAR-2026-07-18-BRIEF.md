@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (Phase 0 run 2026-07-29 — **NO-GO on COUPLING**, and the drift criterion is **unmeasurable with this instrument**; §1's premise that "the blocker moved" is refuted — single-host and phone-stamped capture are indistinguishable. Parked per §2's kill criterion; the coupler defect found on the way is fixed and gated. See §2-RESULT) · **Created:** 2026-07-18
+**Status:** PROPOSED (Phase 0 run 2026-07-29 — **NO-GO on COUPLING**, and the drift criterion is **unmeasurable with this instrument**; §1's premise that "the blocker moved" is refuted — single-host and phone-stamped capture are indistinguishable. Parked per §2's kill criterion; the coupler defect found on the way is fixed and gated. **Re-measured OFFSET-FREE 2026-07-29 — NO-GO stands and hardens: 0 of 54 pairings clear the gate, coupling unchanged at ~19 %, and the real limit is ~96 ms of beat-to-beat scatter while `halfDrift` passes 47/54, so drift was never the blocker.** See §2-RESULT then §2-RESULT-II) · **Created:** 2026-07-18
 
 # Integrator: promote PAT/PTT into a beat-level Vascular (trend-only) fusion layer — dual-site, drift-gated
 
@@ -105,9 +105,109 @@ why the metric beside `driftRange` looked healthy the whole time.
 
 - Establish why coupling is 15–27 %: is the foot detector missing beats, or is the true PAT outside
   200–650 ms for these sites on this subject? That is a **measurement**, not a build.
+  **→ MEASURED, §2-RESULT-II.1: neither, in the simple form. Feet are plentiful (median feet/R = 0.99)
+  and the window IS mis-centred, but re-centring it does not rescue coupling.**
 - Replace `driftRange` with an estimator that actually measures drift (anchor-based; `pat-align.js`).
+  **→ MEASURED, §2-RESULT-II.2: replaced by `halfDrift`, which PASSES 47/54. Drift was never the
+  blocker — a third independent confirmation.**
 - Only then re-evaluate the bar. **No Vascular panel is built on the current numbers** — §4's
-  discipline holds.
+  discipline holds. **→ Re-evaluated in §2-RESULT-II. The NO-GO stands and hardens.**
+
+---
+
+## 2-RESULT-II · Phase 0 re-measured OFFSET-FREE, 2026-07-29 — still NO-GO, cause now located
+
+§2-RESULT closed with two open **measurements**, not builds. Both are now done, and together they move
+the NO-GO from "coupling is low, we don't know why" to a located cause.
+
+**Why re-measure at all.** The absolute 200–650 ms window assumes the two clocks agree to within the
+physiological range. Several nights show a *tight* lag distribution sitting at a *different centre*
+each night, so beats were being rejected for the offset rather than for implausible physiology. And
+this brief only ever wanted a **trend** (§4: "a Vascular trend only — NEVER an absolute BP number") —
+a trend does not need the absolute offset. It needs the lag to be **stable** and its **changes** real.
+So the honest gate is offset-free.
+
+### II.1 · Dropout is refuted; the window is mis-centred; neither explains the failure
+
+Two candidate causes with opposite fixes, so guessing was not an option. Unconstrained nearest-foot
+lags, restricted to the overlap, 54 pairings:
+
+| diagnostic | measured | reading |
+|---|---|---|
+| `feet/R` (PPG feet per ECG R-peak) | median **0.99**, **52/54 ≥ 0.95** (min 0.73, 2026-06-13) | **net dropout REFUTED** — the PPG yields ~one foot per beat |
+| `inWin%` (lags inside 200–650 ms) | median **36.6 %**, range 0.0–64.4 | the window admits only ~a third |
+| lag distribution within a night | p10 ~100–150 · median ~550–800 · p90 ~1000–1200 | ~**1000 ms** of spread ≈ **one RR** |
+| per-night lag centre | **171.9 ms** (2026-06-14) → **1171.1 ms** (2026-06-18) | the centre moves 7× between nights |
+
+Some nights are narrow *but* offset — 2026-07-28 wrist spans p10 555 → p90 874 (319 ms) centred at
+**715**; 2026-07-03 spans 763 → 1092 centred at **956**; 2026-07-08 sits at **942**; 2026-06-14 at
+**172**, below the window. So the window genuinely is mis-centred. That was worth removing.
+
+### II.2 · The offset-free gate — same bars, honest metrics
+
+`modalLag` = the night's median nearest-foot lag (offset and true PAT conflated, deliberately) ·
+`couplingStable` = fraction of beats within **±100 ms** of `modalLag` · `residIQR` = IQR of
+(lag − modalLag) over those beats · **`halfDrift`** = |median(2nd half) − median(1st half)|, a real
+wander measurement that replaces the discredited `driftRange` and is immune to both beat-slip and
+window placement.
+
+| corpus | pairing | n | coupling (≥55 %) | residIQR (≤60 ms) | halfDrift (≤60 ms) | clears the bar |
+|---|---|---|---|---|---|---|
+| single-host | H10→Verity wrist | 13 | **18.8 %** | **96.9 ms** | 26.9 ms | 0/13 |
+| single-host | H10→O2Ring finger | 11 | **19.2 %** | **98.7 ms** | 12.6 ms | 0/11 |
+| phone-stamped | H10→Verity wrist | 30 | **19.0 %** | **95.6 ms** | 21.1 ms | 0/30 |
+
+**0 of 54 pairings clear the gate.** And the near-misses are the informative part, because they fail on
+**disjoint** criteria — no night is close on both at once:
+
+- clears **coupling ≥ 55 %**: exactly **2** — 2026-06-14 (56.0 %) and 2026-07-08 (55.9 %) — and both
+  fail `residIQR` badly (90.8, 87.8 ms).
+- clears **residIQR ≤ 60 ms**: exactly **2** — 2026-07-19 (44.6 ms) and 2026-07-10 (54.7 ms) — and both
+  fail coupling (51.0 %, 40.9 %). 2026-07-19 is the single closest night in the corpus and misses by
+  **4 percentage points of coupling** while passing both other bars.
+- clears **halfDrift ≤ 60 ms**: **47/54 (87 %)**, median **19.7 ms**, and **20/54 under 10 ms**.
+
+### II.3 · What this settles
+
+1. **Drift was never the blocker — confirmed a third independent way.** `halfDrift` passes 47/54 with a
+   19.7 ms median. The lag barely wanders inside a night. §2-RESULT already showed `driftRange` measured
+   beat-slip and then window-width; the honest wander metric simply passes.
+2. **Removing the offset does NOT rescue coupling.** It stays at ~19 % (18.8 / 19.2 / 19.0) — statistically
+   identical to the windowed run's 21.5 / 15.4 / 26.7 %. The mis-centred window was real and was *not*
+   the cause.
+3. **The limit is beat-to-beat scatter.** `residIQR` ≈ **96 ms** against a 60 ms bar, measured against
+   each night's *own* modal lag, so it is offset-free by construction. The R→foot interval is stable in
+   its centre and loose in its detail — the opposite of what PAT needs.
+4. **§1's premise is refuted a second way.** Single-host 18.8 % vs phone-stamped 19.0 %: indistinguishable
+   offset-free, exactly as they were windowed. Better timestamps cannot fix this, so the
+   `POLAR-SDK-CAPTURE` routing still would not help.
+
+### II.4 · The one ambiguity this run does NOT resolve — and it matters
+
+A lag component of **one whole RR** is **indistinguishable from a one-beat slip** by any of these
+statistics. So the per-night `modalLag` (172–1171 ms) must **not** be read as a measured inter-device
+offset: a night centred at 942 ms may be a genuine 942 ms offset or a correctly-centred PAT plus one
+skipped beat, and nothing here separates them.
+
+Relatedly, **`feet/R` ≈ 1.0 refutes NET dropout but not local insertion/deletion pairs** — a missed foot
+here and a spurious foot there preserve the ratio while destroying beat correspondence, and would produce
+exactly the observed signature: plentiful feet, ~1 RR of lag spread, ~96 ms residual scatter. **That is
+the next measurement** if this brief is ever revived: audit beat *correspondence* directly (monotone
+one-to-one R↔foot assignment, counting insertions and deletions), not foot *counts*. Until then,
+"the PPG foot detector is adequate" is not established — only "it produces about the right number of feet".
+
+### Verdict
+
+**The NO-GO stands and hardens.** Both remediation paths §2-RESULT named have now been measured and
+neither rescues the gate: drift was never the problem, and the mis-centred window was real but not
+causal. No Vascular panel is built. `pat-align.js` and its 16 gated assertions stay — they are correct,
+reusable, and they earned their keep by falsifying two prior attributions — but the Phase 1–3 build
+below remains **unstarted by design**.
+
+*(Reproduce: the offset-free gate and the cause diagnostic are the two throwaway harnesses described
+above; they load the real `ECGDSP`/`PPGDSP`/`PATAlign` in a co-loaded realm and read the corpus
+read-only. Cf. `tools/acc-acc-control.mjs`, which is the same pattern committed, for
+`CROSS-DEVICE-CLOCK-SKEW` §2c.)*
 
 ---
 
@@ -163,7 +263,13 @@ Phase 0 re-run on a single-host Tepna night is recorded (pass **or** documented 
 PAT computes and its PEP-cancellation is demonstrated, a Vascular **trend** panel surfaces **experimental**-
 badged with QC gating (no metric on a failed night, no BP number ever), corpus-checked, bundles re-built with
 GATE A/B + full suite green + changeset. Then flip this header `DONE` and spawn `-FOLLOWUPS`. **If no-go** —
-park PROPOSED with the number inline, routed to `POLAR-SDK-CAPTURE`.
+park PROPOSED with the number inline.
+
+**OUTCOME: no-go, parked.** The `POLAR-SDK-CAPTURE` routing this line originally prescribed is **withdrawn,
+not pending** — it was premised on host-arrival jitter dominating, and single-host vs phone-stamped capture
+measure identically both windowed (§2-RESULT.2) and offset-free (§2-RESULT-II.3), so better timestamps
+cannot move this gate. Reviving the brief requires the beat-correspondence audit of §2-RESULT-II.4, not a
+capture change.
 
 ---
 
