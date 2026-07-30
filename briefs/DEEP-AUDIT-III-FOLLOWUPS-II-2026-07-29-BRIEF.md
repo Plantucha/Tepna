@@ -559,7 +559,79 @@ and the list must derive via `emittableTypes()`/`canEmit()`. Scoped by behaviour
 so a third orchestrator added later is covered by construction. **Verified RED: 2 reds on
 data-unifier-app.js, 1 on overdex-app.js.** Suite green at 4352 assertions.
 
-Running total: **54 sections resolved, 9 blind (~17 %)**. The three failure modes now separated:
+### 6.10 The duplication survey, run to completion — and duplication is the dominant predictor
+
+The survey was first keyed on a bare `§N.M` and reported 36 families. **That was wrong: a bare section
+number is not a unique identifier** — four different briefs have a §2.4, so the count conflated
+unrelated fixes. Keyed on *(brief, section)* there are **20** genuine multi-file families. All 20 are
+now mutation-checked, one file each at minimum:
+
+| family | files | verdict |
+|---|---|---|
+| EXPORT-IDENTITY §2.1 | 9 | gated (equiv, all 5 nodes tested) |
+| DEEP-AUDIT-II §12.3 | 5 | gated — exemplary, all 4 parsers |
+| DEEP-AUDIT-II §9.1 | 5 | **blind** → closed |
+| DEEP-AUDIT-II §9.2 | 5 | **blind** → closed |
+| DEEP-AUDIT-II §9.3 | 5 | **blind** → closed |
+| DEEP-AUDIT-II §9.4 | 5 | gated |
+| DEEP-AUDIT-III §6.2 | 4 | gated (equiv) |
+| DEEP-AUDIT-II §10.1 | 3 | **blind** → closed |
+| DEEP-AUDIT-II §3.1 | 3 | gated |
+| DEEP-AUDIT-II §7.6 | 3 | gated (equiv) |
+| DEEP-AUDIT-II §1.10 | 3 | **blind** → closed |
+| CROSS-DEVICE-CLOCK-SKEW §3.1 | 2 | **blind** → closed |
+| DEEP-AUDIT-II §10.2 | 2 | gated |
+| DEEP-AUDIT-II §10.4 | 2 | **blind** → closed |
+| DEEP-AUDIT-II §2.2 | 2 | **blind** → closed |
+| DEEP-AUDIT-II §4.3 | 2 | **blind** → closed |
+| DEEP-AUDIT-II §5.3 | 2 | gated |
+| DEEP-AUDIT-II §8.1 | 2 | gated |
+| DEEP-AUDIT-III §3.2 | 2 | **blind** → closed |
+| DEEP-AUDIT-III-FOLLOWUPS §1.3 | 2 | **blind** → closed |
+
+**11 of 20 were blind — 55 %, against ~20 % across the sweep as a whole.** Whether a fix is duplicated
+is the strongest single predictor of whether its gate is real. That is the sweep's most actionable
+finding, and it is now measured rather than suspected.
+
+### 6.11 The rule that made the second half directed rather than exhaustive
+
+**Any fix that changes export CONTENT is gated automatically by the equiv/golden legs.** Verified, not
+assumed: dropping `recording.contentId` in **each of five nodes** reds that node's equiv leg, so
+EXPORT-IDENTITY §2.1 — the largest family in the codebase — is covered by construction. §7.6 and §6.2
+came back gated by the same mechanism, and neither had a bespoke assertion.
+
+The corollary is what matters: **blind gates concentrate where the fix does NOT touch export content.**
+
+| layer | in the export? | blind rate found |
+|---|---|---|
+| `*-dsp.js` export builders | yes | 0 of 5 |
+| `*-cross.js` crossnight | no (not per-recording) | 3 of 5 |
+| `*-render.js` | no | 3 of 4 |
+| `*-app.js` / orchestration | no | 4 of 5 |
+
+This is not a coincidence about who wrote what. The equiv legs are a **content-addressed** gate over the
+whole export, so they cover every field a DSP writes without anyone having to think of it. Nothing plays
+that role for a chart colour, a cross-night aggregate, or a host-boot list — so each of those needs a
+gate written on purpose, and that is exactly where "the fix landed, the suite is green" stopped being
+evidence.
+
+### 6.12 Two of my OWN new gates were defective, and mutation caught both
+
+Worth recording because it is the strongest argument for the method:
+
+1. **A vacuous assertion.** For §1.3 I wrote `_ansPct(null) === 0`. But `Math.min(100, null)` **is** 0 —
+   the assertion asserted the defect's own output and could never fail. The guard's null branch is
+   documentation of intent, not behaviour; the discriminator is `undefined` (unguarded → `NaN` →
+   `width:NaN%`). Kept the null case as a **labelled control**.
+2. **A source scan that read a comment.** For §10.4 the scan matched `_cg.remaining.deviceRR` — in the
+   line I had just commented out. Commenting a line out is exactly how such a regression arrives, so
+   every scan now strips comments first. A scan over raw text measures the *file*; stripping comments is
+   what makes it measure the *code*.
+
+Both would have read as "closed" under inspection. Neither survived its own mutation.
+
+Running total: **65 sections resolved, 15 blind (~23 %)** — and among the 20 MULTI-FILE families alone,
+11 of 20 (55 %). The three failure modes now separated:
 
 | mode | the gate… | example | cost to fix |
 |---|---|---|---|
