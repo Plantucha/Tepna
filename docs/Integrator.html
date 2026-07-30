@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AHEtQGuexq3kZD1VhtEg1wL+Vu4SuFJ2L8HbIzZFewA=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-M+hra1o3dX38edzEufMj4rwtnyt414qkIrdW6yyxA9A=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-XtIgeiiGEz2UwCxpHmgfVC3QJVq7u+H3d8V7Xk75vM8=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3IsuIfcb6DKsRs2HNebyHs2EgvED9l/WDIaI4lJD9uE=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UzMci41YclpKBicziNatAEHCCKHUwwOxQ08tVhufE4U=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-XtIgeiiGEz2UwCxpHmgfVC3QJVq7u+H3d8V7Xk75vM8=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-wrYKoMATryogohDhTGQJVmqOPk0EUfX65dbTofmBEIw=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8848,6 +8848,289 @@ function estimateEventLag(aTimes, bTimes, opts) {
   };
 }
 
+/* A DETERMINISTIC PRNG, seeded from the sample itself.
+
+   The bootstrap below has to be reproducible: a confidence interval that moves on re-run is not a
+   measurement, and it would make every fixture that carries one non-deterministic — the exact failure
+   `PROVENANCE-NONDETERMINISM` was written to kill. `Math.random()` is therefore not an option. */
+function _seededRng(seed) {
+  var a = seed >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) >>> 0;
+    var t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* The MODE of a delta distribution, at second resolution.
+
+   `estimateEventLag` scans on a 30 s grid with a ±60 s match window, so it cannot report better than
+   its own coarseness — quoting its peak as the offset states the INSTRUMENT's resolution as if it were
+   the DATA's. Given the coarse peak, the deltas themselves locate far tighter: with hundreds of pairs
+   the mode is pinnable to seconds, and four independent sensors on the real corpus agreed to 12 s.
+
+   Smoothed by a ±`smoothSec` window rather than taken as a bare histogram argmax, because a raw argmax
+   on 1 s bins ties constantly and the tie-break is arbitrary — which is precisely how a spurious −72.5
+   min was once reported as a measurement when −17.5 tied it exactly. */
+function deltaModeSec(deltasSec, opts) {
+  opts = opts || {};
+  var smooth = opts.smoothSec != null ? opts.smoothSec : 15;
+  if (!deltasSec || !deltasSec.length) return null;
+  var counts = Object.create(null);
+  for (var i = 0; i < deltasSec.length; i++) {
+    var k = Math.round(deltasSec[i]);
+    for (var o = -smooth; o <= smooth; o++) {
+      var key = k + o;
+      counts[key] = (counts[key] || 0) + 1;
+    }
+  }
+  var bestV = -1;
+  for (var k0 in counts) if (counts[k0] > bestV) bestV = counts[k0];
+  // Every bin holding the maximum. A smoothed histogram maximum is a PLATEAU, not a point, so taking
+  // a bare argmax returns whichever EDGE the iterator happened to reach first — an arbitrary answer
+  // that moves with key order.
+  var tied = [];
+  for (var k1 in counts) if (counts[k1] === bestV) tied.push(+k1);
+  if (!tied.length) return null;
+  tied.sort(function (x, y) {
+    return x - y;
+  });
+  // Split into contiguous runs: one plateau is a single estimate, but two SEPARATED clusters are a
+  // genuinely bimodal distribution, and averaging across them would invent a value that no cluster
+  // supports (a mid-point between -600 and +600 is not "0 s of skew", it is a refusal dressed as a
+  // measurement). Each run collapses to its own centre; the runs then compete.
+  var runs = [[tied[0]]];
+  for (var i2 = 1; i2 < tied.length; i2++) {
+    if (tied[i2] - tied[i2 - 1] <= 1) runs[runs.length - 1].push(tied[i2]);
+    else runs.push([tied[i2]]);
+  }
+  var centres = runs.map(function (r) {
+    return Math.round((r[0] + r[r.length - 1]) / 2);
+  });
+  // Nearest-to-zero wins, and an exact |tie| resolves to the smaller value — deterministic either
+  // way. Arbitrary tie-breaking is precisely how a tied rival was once promoted to a finding.
+  var best = centres[0];
+  for (var i3 = 1; i3 < centres.length; i3++) {
+    var c = centres[i3];
+    if (Math.abs(c) < Math.abs(best) || (Math.abs(c) === Math.abs(best) && c < best)) best = c;
+  }
+  return best;
+}
+
+/* Refine a coarse lag to seconds, with a bootstrap interval.
+
+   Deltas are collected only within ±`windowSec` of the coarse peak: outside that they are unrelated
+   event pairs, and letting them in would drag the mode toward the centre of whatever range was
+   searched. Returns null when too few pairs survive — an interval computed from a handful of pairs is
+   a number without a measurement behind it. */
+function refineLagByDeltaMode(aTimes, bTimes, coarseLagSec, opts) {
+  opts = opts || {};
+  var windowSec = opts.windowSec != null ? opts.windowSec : 360;
+  /* 10, not 25. A single night carries only ~15-50 scored apneas, so a threshold tuned for the
+     POOLED corpus (hundreds of pairs) can never be met per night and every channel reports "too few
+     pairs" — a gate that silently rejects the whole use case it was built for. Ten pairs gives a wide
+     interval, which is the honest outcome and is published as such. */
+  var minPairs = opts.minPairs != null ? opts.minPairs : 10;
+  var iters = opts.bootstrapIters != null ? opts.bootstrapIters : 200;
+  if (coarseLagSec == null || !isFinite(coarseLagSec)) return null;
+  var B = (bTimes || [])
+    .filter(function (t) {
+      return t != null && isFinite(t);
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+  var A = (aTimes || []).filter(function (t) {
+    return t != null && isFinite(t);
+  });
+  if (!A.length || !B.length) return null;
+  var deltas = [];
+  for (var i = 0; i < A.length; i++) {
+    var best = null,
+      bd = Infinity;
+    for (var j = 0; j < B.length; j++) {
+      var d = (B[j] - A[i]) / 1000;
+      var off = Math.abs(d - coarseLagSec);
+      if (off <= windowSec && off < bd) {
+        bd = off;
+        best = d;
+      }
+    }
+    if (best != null) deltas.push(best);
+  }
+  if (deltas.length < minPairs) return null;
+  var mode = deltaModeSec(deltas, opts);
+  // Seed from the sample so the interval is reproducible run to run and machine to machine.
+  var seed = deltas.length;
+  for (var s = 0; s < deltas.length; s++) seed = (seed * 31 + Math.round(deltas[s])) >>> 0;
+  var rnd = _seededRng(seed),
+    modes = [];
+  for (var b = 0; b < iters; b++) {
+    var re = new Array(deltas.length);
+    for (var r = 0; r < deltas.length; r++) re[r] = deltas[(rnd() * deltas.length) | 0];
+    modes.push(deltaModeSec(re, opts));
+  }
+  // `deltaModeSec` is typed `number | null`; a resample can in principle be empty. Coerce before the
+  // comparator rather than subtracting possibly-null operands.
+  modes = modes.map(function (m) {
+    return m == null ? 0 : m;
+  });
+  modes.sort(function (x, y) {
+    return x - y;
+  });
+  return {
+    offsetSec: mode,
+    ciLoSec: modes[Math.floor(modes.length * 0.025)],
+    ciHiSec: modes[Math.floor(modes.length * 0.975)],
+    nPairs: deltas.length
+  };
+}
+
+/* FIT THE CLOCK OFFSET OF ONE NODE FROM EVERY OTHER SENSOR AVAILABLE.
+
+   `anchor` is the suspect (the CPAP, whose clock has no user-settable time); `channels` are every
+   other event stream, each from some node and some impulse. Each channel is estimated INDEPENDENTLY
+   and reported separately, because that is what makes the answer auditable: on the real corpus a
+   finger oximeter, a chest ECG and an arm IMU agreed within 12 s through four unrelated mechanisms,
+   and seeing the three numbers side by side is what establishes that — a single blended figure would
+   not.
+
+   DEGRADES BY DESIGN. Channels are independent, so any subset works: a night with only the oximeter
+   still fits, one with no partner at all reports `confident:false` with a reason rather than a
+   fabricated number. A channel that cannot be estimated is RETAINED in `channels` with `usable:false`
+   and why — never dropped silently, because a missing contributor is itself information (that is the
+   whole lesson of the silent-zero class this suite keeps finding).
+
+   The combined estimate is the MEDIAN of the usable channel modes, not a mean: one bad channel must
+   not drag the answer, and with 3+ channels the median is immune to a single outlier. `spreadSec` is
+   published alongside because agreement across independent mechanisms IS the confidence — and where
+   the channels disagree, the disagreement is physiological latency (movement fires at arousal,
+   desaturation trails it by circulation transit), so a small spread is expected and a large one is a
+   warning, not noise to average away. */
+function fitClockOffset(anchorTimes, channels, opts) {
+  opts = opts || {};
+  var minPeakOverFloor = opts.minPeakOverFloor != null ? opts.minPeakOverFloor : 3;
+  var out = [];
+  var A = (anchorTimes || []).filter(function (t) {
+    return t != null && isFinite(t);
+  });
+  for (var i = 0; i < (channels || []).length; i++) {
+    var ch = channels[i] || {};
+    /** @type {any} — progressively filled: the literal initialiser would otherwise pin these fields
+        to `null` and reject every later assignment. */
+    var rec = {
+      node: ch.node || null,
+      channel: ch.channel || null,
+      nEvents: (ch.times || []).length,
+      usable: false,
+      offsetSec: null,
+      ciLoSec: null,
+      ciHiSec: null,
+      nPairs: null,
+      peakOverFloor: null,
+      reason: null
+    };
+    if (!A.length) rec.reason = 'no anchor events';
+    else if (rec.nEvents < (opts.minEvents != null ? opts.minEvents : 5)) rec.reason = 'too few events';
+    else {
+      var coarse = estimateEventLag(A, ch.times, opts);
+      if (!coarse) rec.reason = 'no coarse peak';
+      else {
+        rec.peakOverFloor = coarse.peakOverFloor;
+        if (coarse.peakOverFloor == null || coarse.peakOverFloor < minPeakOverFloor) rec.reason = 'peak does not clear the floor';
+        else {
+          var fine = refineLagByDeltaMode(A, ch.times, coarse.lagSec, opts);
+          if (!fine) rec.reason = 'too few pairs to refine';
+          else if (fine.ciHiSec - fine.ciLoSec > (opts.maxCiSec != null ? opts.maxCiSec : 300)) {
+            /* A DATA-DRIVEN quality gate, deliberately not an allow-list of impulse names. Sleep-STATE
+               impulses (`stage_light`, `stage_deep`, …) are long segments spread across the whole
+               night, so on a 20-event night they clear a peak-over-floor test at essentially arbitrary
+               lags — and blending them in produced per-night answers from -80 to +60 min. What
+               separates them from a real arousal marker is not their NAME but their STABILITY: a
+               genuine coincidence has a repeatable mode, so its bootstrap interval is tight, while a
+               chance alignment moves under resampling. Gating on CI width therefore generalises to
+               sensors and impulses this code has never seen — which is the whole point, since the
+               offset must be measurable on someone else's hardware, not just this deployment's. */
+            rec.offsetSec = fine.offsetSec;
+            rec.ciLoSec = fine.ciLoSec;
+            rec.ciHiSec = fine.ciHiSec;
+            rec.nPairs = fine.nPairs;
+            rec.reason = 'unstable under resampling (CI ' + Math.round(fine.ciHiSec - fine.ciLoSec) + ' s)';
+          } else {
+            rec.usable = true;
+            rec.offsetSec = fine.offsetSec;
+            rec.ciLoSec = fine.ciLoSec;
+            rec.ciHiSec = fine.ciHiSec;
+            rec.nPairs = fine.nPairs;
+          }
+        }
+      }
+    }
+    out.push(rec);
+  }
+  var good = out.filter(function (r) {
+    return r.usable;
+  });
+  if (!good.length) return { offsetSec: null, spreadSec: null, confident: false, reason: 'no channel could be estimated', channels: out };
+  /* AGREEMENT, not an average. A plain median over every channel that clears the floor is wrong,
+     and measurably so: sleep-STAGE impulses (`stage_light`, `stage_deep`, …) are long segments spread
+     across the whole night, so on a 20-event night they clear a 3x floor by chance at arbitrary lags.
+     Blending them in produced per-night answers from -45 to +60 min with 7000 s "spreads" — a number
+     with no measurement behind it.
+
+     So cluster the estimates and let the clusters compete on INDEPENDENT CORROBORATION: the winner is
+     the one supported by the most distinct NODES. Two unrelated sensors agreeing to within a couple of
+     minutes is evidence; five channels of one node scattering is not. Ties break on channel count,
+     then on tightness — deterministically, never on iteration order. */
+  var sorted = good.slice().sort(function (x, y) {
+    return x.offsetSec - y.offsetSec;
+  });
+  var tolSec = opts.agreeSec != null ? opts.agreeSec : 180;
+  var clusters = [[sorted[0]]];
+  for (var q = 1; q < sorted.length; q++) {
+    var cur = clusters[clusters.length - 1];
+    if (sorted[q].offsetSec - cur[cur.length - 1].offsetSec <= tolSec) cur.push(sorted[q]);
+    else clusters.push([sorted[q]]);
+  }
+  var scored = clusters.map(function (c) {
+    var nodes = {};
+    c.forEach(function (r) {
+      if (r.node) nodes[r.node] = 1;
+    });
+    return { c: c, nodes: Object.keys(nodes).length, width: c[c.length - 1].offsetSec - c[0].offsetSec };
+  });
+  var win = scored[0];
+  for (var w = 1; w < scored.length; w++) {
+    var z = scored[w];
+    if (z.nodes > win.nodes || (z.nodes === win.nodes && z.c.length > win.c.length) || (z.nodes === win.nodes && z.c.length === win.c.length && z.width < win.width)) win = z;
+  }
+  var vals = win.c
+    .map(function (r) {
+      return r.offsetSec;
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+  var mid = vals.length >> 1;
+  var median = vals.length % 2 ? vals[mid] : Math.round((vals[mid - 1] + vals[mid]) / 2);
+  win.c.forEach(function (r) {
+    r.agreed = true;
+  });
+  return {
+    offsetSec: median,
+    spreadSec: win.width,
+    nChannels: win.c.length,
+    nNodes: win.nodes,
+    // One node is an estimate; two or more DISTINCT nodes agreeing through unrelated mechanisms is a
+    // measurement. Channel count alone does not qualify — five channels of one device share its faults.
+    confident: win.nodes >= 2,
+    reason: win.nodes >= 2 ? null : 'only one device agrees — corroboration unavailable',
+    channels: out
+  };
+}
+
 /* Which node's clock is wrong, and by how much?
    Every dated pair is estimated. A pair counts as SKEWED when its best lag sits
    outside the fusion tolerance AND its peak clearly beats the floor. A node is
@@ -9000,6 +9283,45 @@ function runFusion(recs, opts) {
      Applied to a SHALLOW COPY: the caller's recs keep their original timestamps, so nothing
      downstream inherits a shifted clock by surprise. */
   var skew = detectClockSkew(recs, { toleranceSec: opts.toleranceSec != null ? opts.toleranceSec : 120, minPeakOverFloor: opts.minPeakOverFloor });
+  /* REFINE the coarse skew to seconds, and ATTRIBUTE it per contributing sensor.
+     `detectClockSkew` scans a 30 s grid with a ±60 s match window, so its lag cannot honestly be
+     quoted finer than that. Each partner node is split BY IMPULSE so every contribution is
+     attributable to a sensor AND a mechanism — on the real corpus a finger oximeter (desaturation), a
+     chest ECG (autonomic surge) and an arm IMU (movement) agreed to within 12 s through unrelated
+     physiology, and it is seeing those three SEPARATELY that makes the number auditable rather than
+     asserted. Channels that cannot be estimated are kept with a reason, so a sensor that was absent or
+     too quiet is visible rather than silently missing. */
+  var skewFits = {};
+  skew.findings.forEach(function (f) {
+    /** @type {any} */ var anchor = null;
+    /** @type {any[]} */ var chans = [];
+    (recs || []).forEach(function (r) {
+      if (!r || r.dateUnknown || !r.events || !r.events.length) return;
+      if (r.node === f.node) {
+        anchor = r.events
+          .map(function (e) {
+            return e.tMs;
+          })
+          .filter(function (t) {
+            return t != null && isFinite(t);
+          });
+        return;
+      }
+      var byImpulse = {};
+      r.events.forEach(function (e) {
+        if (e.tMs == null || !isFinite(e.tMs)) return;
+        var k = e.impulse || 'event';
+        (byImpulse[k] = byImpulse[k] || []).push(e.tMs);
+      });
+      Object.keys(byImpulse)
+        .sort()
+        .forEach(function (imp) {
+          chans.push({ node: r.node, channel: imp, times: byImpulse[imp] });
+        });
+    });
+    if (anchor && anchor.length && chans.length) skewFits[f.node] = fitClockOffset(anchor, chans, opts);
+  });
+
   var skewApplied = [];
   if (skew.findings.length && opts.applyClockSkew !== false) {
     var byNode = {};
@@ -9212,7 +9534,7 @@ function runFusion(recs, opts) {
     /* CROSS-DEVICE-CLOCK-SKEW §3.1 — always present, so a consumer can tell "checked, clean" from
        "never checked". `findings` names the offending node and the fitted offset; `applied` names
        what was actually shifted before fusing; `pairs` is the raw per-pair evidence. */
-    clockSkew: { findings: skew.findings, applied: skewApplied, pairs: skew.pairs },
+    clockSkew: { findings: skew.findings, applied: skewApplied, pairs: skew.pairs, fits: skewFits },
     hrSource: hrSource,
     pairs: pairs,
     apnea: apnea,
@@ -9407,6 +9729,9 @@ window.IntegratorDSP = {
   buildFusionExport,
   // CROSS-DEVICE-CLOCK-SKEW §3.1 — exported so the gate can drive them without a whole fusion.
   estimateEventLag,
+  deltaModeSec,
+  refineLagByDeltaMode,
+  fitClockOffset,
   detectClockSkew,
   combineConf,
   glucoseMetricsInWindow,
@@ -13024,6 +13349,32 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
             f.peakOverFloor +
             '× over chance). Fix the device clock — this correction is fitted from the data, not authoritative.'
         );
+        /* WHICH SENSOR FOUND IT, AND WHAT EACH ONE SAID.
+           The coarse finding above is scanned on a 30 s grid, so it cannot honestly be quoted finer
+           than that. The fit refines it to seconds and — the part a reader needs in order to decide
+           whether to believe it — reports each contributing sensor SEPARATELY. Agreement between
+           unrelated mechanisms (oxygen transport, autonomic tone, body movement) IS the evidence; one
+           blended number would hide precisely the disagreement worth seeing. A sensor that could not
+           contribute is listed with its reason rather than omitted, because an absent contributor is
+           itself information — the silent-zero failure this suite keeps finding. */
+        var fit = cs.fits && cs.fits[f.node];
+        if (fit) {
+          var head =
+            fit.offsetSec != null
+              ? '⏱ …refined to ' +
+                (fit.offsetSec / 60).toFixed(2) +
+                ' min (' +
+                Math.round(fit.offsetSec) +
+                ' s)' +
+                (fit.spreadSec != null ? ', sensors agree within ' + Math.round(fit.spreadSec) + ' s' : '') +
+                (fit.confident ? '' : ' — NOT corroborated: ' + (fit.reason || 'single channel'))
+              : '⏱ …could not be refined: ' + (fit.reason || 'no usable channel');
+          var parts = (fit.channels || []).map(function (c) {
+            if (!c.usable) return '· ' + c.node + '/' + c.channel + ': — (' + (c.reason || 'unusable') + ')';
+            return '· ' + c.node + '/' + c.channel + ': ' + (c.offsetSec / 60).toFixed(2) + ' min [' + Math.round(c.ciLoSec) + '–' + Math.round(c.ciHiSec) + ' s, n=' + c.nPairs + ']';
+          });
+          warnAll.push(head + (parts.length ? '  ' + parts.join('  ') : ''));
+        }
       });
     }
     R.renderAll(RECS, FUSION, warnAll);
