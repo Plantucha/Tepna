@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-08ySe236hxekqGiGn71slLhd4vNauhdqO6+F87QmT7g=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-ZAzb5Otasm++nQdBl90HnemzB7xsFHZtTUZG6ZJL1QE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-zzSJRKL0zjzynyMUyIEdLySnS7uq/+MYYjrKsGQomCI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6hYCsOXobRcsKAHjfcYUCH/WiHY9ipAkzAxYBmP/azM=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-ZAzb5Otasm++nQdBl90HnemzB7xsFHZtTUZG6ZJL1QE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-g6ItNp0sCxwAWY5IlPoist4zAL/xNHuZPoK9iv06E2g=' 'sha256-p9Oxv8fTa380+XXRWMPFuq0j+QFn4WmHMO+/E8wCeV4=' 'sha256-zzSJRKL0zjzynyMUyIEdLySnS7uq/+MYYjrKsGQomCI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8573,7 +8573,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   //  quality instead of conflating the two (R7). Older consumers that read only
   //  `conf` still get a sensible, severity-bearing number.
   // ════════════════════════════════════════════════════════════════════════
-  function gangliorEvents(cvhr, stages, t0Ms, sqi, times, epochPos) {
+  function gangliorEvents(cvhr, stages, t0Ms, sqi, times, epochPos, movementSecs) {
     const events = [];
     // Clock Contract §2.6: a missing anchor must be VISIBLE (null), never fabricated.
     // No t0 → emit t:null / tMs:null (date-unknown) so the export's startEpochMs:null and
@@ -8658,6 +8658,22 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       }
     }
     // stable order: by relative seconds when stampless (t is null), else by clock string.
+    /* movement_onset — the chest-ACC arousal fiducial (see accExtras). Emitted here so it rides the
+       same chronological sort as every other impulse: the export contract is ordered, and appending a
+       whole kind after the sort is exactly how a block once landed out of order. */
+    if (movementSecs && movementSecs.length) {
+      for (const sec of movementSecs)
+        events.push({
+          t: clock(sec),
+          tMs: tmsAt(sec),
+          impulse: 'movement_onset',
+          node: 'ECGDex',
+          _sec: sec,
+          conf: 0.6,
+          sqi: null,
+          meta: { streams: ['acc'], site: 'chest' }
+        });
+    }
     events.sort((a, b) => (a.tMs != null && b.tMs != null ? a.tMs - b.tMs : /** @type {any} */ (a.t) < /** @type {any} */ (b.t) ? -1 : 1));
     return events;
   }
@@ -9012,7 +9028,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const epochPos = stampEpochPositions(epochs, rec.deviceACC, rec.accFs, rec.t0Ms, durSec);
     // Clock Contract §2.6: thread the real anchor (or null) — NEVER fabricate now(). A stampless
     // recording yields events with t:null/tMs:null, matching the export's startEpochMs:null.
-    const events = gangliorEvents(cvhr, ambulatory ? [] : stages, rec.t0Ms != null ? rec.t0Ms : null, sqi, times, epochPos);
+    const events = gangliorEvents(cvhr, ambulatory ? [] : stages, rec.t0Ms != null ? rec.t0Ms : null, sqi, times, epochPos, _accEx ? _accEx.movementOnsets : null);
 
     // sleep stage summary
     const stageMin = { Wake: 0, REM: 0, Light: 0, Deep: 0 };
@@ -9852,6 +9868,59 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return { totalSteps, walking: totalSteps >= 50, accFs: fs, bouts: boutObjs, cadEpochs: cadEp, zonePct };
   }
   // Orchestrator — returns the four feature payloads (or null if no usable ACC).
+  /* Discrete movement onsets from a motion grid.
+
+     DUPLICATED, DELIBERATELY, from `PPGDSP.movementOnsets` — ECGDex.src.html does not bundle
+     ppgdex-dsp.js, and adding a shared module would mean touching every co-load list, both
+     orchestrators and the worker importScripts sets for twenty lines. The duplication is GATED
+     instead: `movement-onset-parity` asserts both implementations return identical onsets for the
+     same input, the same way `registry-defs-parity` gates a projection against its source. If they
+     ever diverge, the suite reds rather than the two nodes quietly disagreeing about when you moved.
+
+     Three conditions, all necessary — the shape `PATAlign.findAnchors` uses, for the same reason: a
+     bare threshold fires repeatedly across one long turn, and every extra hit on the SAME movement is
+     a correlated vote, not an independent one. */
+  function _movementOnsets(grid, dtSec, opts) {
+    opts = opts || {};
+    const kSigma = opts.sigma != null ? opts.sigma : 3;
+    const localBins = opts.localBins != null ? opts.localBins : Math.max(1, Math.round(5 / dtSec));
+    const minGapSec = opts.minGapSec != null ? opts.minGapSec : 30;
+    if (!grid || !grid.length || !(dtSec > 0)) return [];
+    const n = grid.length;
+    /* mean + k·SD. A MAD-based threshold was tried and REJECTED: MAD tracks the quiet baseline, which
+       on a differenced (jerk) grid is almost zero, so the threshold collapses and the detector fired
+       713 times in one night instead of 29. The tail this distribution carries is the SIGNAL, and a
+       threshold that ignores it is not robust, it is blind. */
+    let m = 0;
+    for (let i = 0; i < n; i++) m += grid[i];
+    m /= n;
+    let v = 0;
+    for (let i = 0; i < n; i++) {
+      const d = grid[i] - m;
+      v += d * d;
+    }
+    const sd = Math.sqrt(v / n) || 1;
+    const thr = m + kSigma * sd;
+    const out = [];
+    let last = -Infinity;
+    for (let c = 0; c < n; c++) {
+      if (grid[c] < thr) continue;
+      let isMax = true;
+      for (let k = c - localBins; k <= c + localBins; k++) {
+        if (k >= 0 && k < n && grid[k] > grid[c]) {
+          isMax = false;
+          break;
+        }
+      }
+      if (!isMax) continue;
+      const sec = c * dtSec;
+      if (sec - last < minGapSec) continue;
+      out.push(sec);
+      last = sec;
+    }
+    return out;
+  }
+
   function accExtras(deviceACC, accFs, ecgT0Ms, durSec, epochs, stages) {
     // Declared at function scope so the epoch motion series survives the staging block it is built in
     // (that block is conditional; a night with no HRV stages still has ACC observations worth exporting).
@@ -9868,6 +9937,26 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
 
     // ── Feature 1: RRacc per 30-s epoch ──
+    /* CHEST MOVEMENT ONSETS — the arousal fiducial an apnea leaves on the H10's accelerometer.
+       From JERK (|d|vm||), not |vm| itself: the vector magnitude is dominated by gravity plus the
+       always-present respiratory chest excursion, so thresholding it marks BREATHING, not movement.
+       Differencing suppresses both and leaves gross body motion, which is what an arousal produces.
+       Binned to 0.25 s to match the grid PpgDex uses, so the two nodes' onsets are directly comparable
+       (gated by the movement-onset parity test).
+       Deliberately computed here rather than in the staging block below, which only runs when epochs
+       AND stages both exist — a clock fit must not silently lose its best channel because staging was
+       unavailable. */
+    const _mvDt = 0.25;
+    const _mvN = Math.max(1, Math.ceil(durSec / _mvDt));
+    const _mvGrid = new Float64Array(_mvN);
+    for (let i = 1; i < N; i++) {
+      const d = Math.abs(vm[i] - vm[i - 1]);
+      if (!Number.isFinite(d)) continue;
+      const g = Math.floor((i / fs - off) / _mvDt);
+      if (g >= 0 && g < _mvN && d > _mvGrid[g]) _mvGrid[g] = d;
+    }
+    const movementOnsets = _movementOnsets(_mvGrid, _mvDt, {});
+
     const rracc = _rraccEpochs(vm, fs, off);
     const hi = rracc.filter((e) => e.conf === 'high'),
       rrVals = hi.map((e) => e.rr);
@@ -10010,7 +10099,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // ── Feature 4: step count & gait ──
     const gait = _gait(vm, fs, off);
 
-    return { rracc, rraccSummary, agreement, consensus, gait, off, accFs: fs, motionByTMin, durMin: +(N / fs / 60).toFixed(1) };
+    return { rracc, rraccSummary, agreement, consensus, gait, off, accFs: fs, motionByTMin, movementOnsets, durMin: +(N / fs / 60).toFixed(1) };
   }
 
   // ── multi-part split files (Polar Sensor Logger) ───────────────────────────
@@ -10060,6 +10149,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     validateHR,
     accAnalyze,
     accExtras,
+    movementOnsets: _movementOnsets, // exported for `movement-onset-parity` — the gate on the duplication
     // Additive (contract rule: new data via a NEW field, never by changing an existing shape) —
     // the staging rules and the motion index are now gateable in their own right.
     stageSleep,

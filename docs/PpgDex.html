@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-klYwG2QtZMTgEtW0yBC2XNOm/6nbGY+GE+bsJQhNT70=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-mEhz6FwrAJsZxT09Ut3OuSNYnhDDZD8zFHb94lqHBsc=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-wGXWUQAwayWkz16xD3eeIZkA7OIoUO9DjimmjQLVmPY=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-C+TJIrAv7qrMiU3g3y/M2hF+fW4449VH6ebxYHyo0PA=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-klYwG2QtZMTgEtW0yBC2XNOm/6nbGY+GE+bsJQhNT70=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-wGXWUQAwayWkz16xD3eeIZkA7OIoUO9DjimmjQLVmPY=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8201,6 +8201,63 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     }
     return out;
   }
+  /* DISCRETE MOVEMENT ONSETS from a motion grid — the fiducial an apnea's terminating arousal leaves
+     on an accelerometer.
+
+     WHY THIS EXISTS SEPARATELY FROM `motion_artifact_segment`. That impulse is emitted per BEAT, so it
+     requires the PPG to still be detectable — and it is precisely a large movement that destroys the
+     optical signal. The quality flag therefore thins out exactly where the movement was biggest. This
+     reads the inertial grid directly, so a movement that blinds the PPG still produces an onset.
+
+     WHY ONSETS AND NOT THE INDEX. A cross-device clock fit needs INSTANTS to correlate, not a
+     continuous level: `motionIndex` is already exported per epoch and cannot locate anything to better
+     than the epoch. Measured on the real corpus, onsets derived this way from four inertial streams
+     (chest ACC, arm ACC/GYRO/MAG) independently agreed on the same clock offset to within 12 s.
+
+     Three conditions, all necessary — the same shape `PATAlign.findAnchors` uses and for the same
+     reason: a bare threshold fires repeatedly across one long turn, and every extra hit on the SAME
+     movement is a correlated vote, not an independent one. Amplitude alone is not an event. */
+  function movementOnsets(grid, dtSec, opts) {
+    opts = opts || {};
+    const kSigma = opts.sigma != null ? opts.sigma : 3;
+    const localBins = opts.localBins != null ? opts.localBins : Math.max(1, Math.round(5 / dtSec));
+    const minGapSec = opts.minGapSec != null ? opts.minGapSec : 30;
+    if (!grid || !grid.length || !(dtSec > 0)) return [];
+    const n = grid.length;
+    /* mean + k·SD. A MAD-based threshold was tried and REJECTED: MAD tracks the quiet baseline, which
+       on a differenced (jerk) grid is almost zero, so the threshold collapses and the detector fired
+       713 times in one night instead of 29. The tail this distribution carries is the SIGNAL, and a
+       threshold that ignores it is not robust, it is blind. */
+    let m = 0;
+    for (let i = 0; i < n; i++) m += grid[i];
+    m /= n;
+    let v = 0;
+    for (let i = 0; i < n; i++) {
+      const d = grid[i] - m;
+      v += d * d;
+    }
+    const sd = Math.sqrt(v / n) || 1;
+    const thr = m + kSigma * sd;
+    const out = [];
+    let last = -Infinity;
+    for (let c = 0; c < n; c++) {
+      if (grid[c] < thr) continue;
+      let isMax = true;
+      for (let k = c - localBins; k <= c + localBins; k++) {
+        if (k >= 0 && k < n && grid[k] > grid[c]) {
+          isMax = false;
+          break;
+        }
+      }
+      if (!isMax) continue;
+      const sec = c * dtSec;
+      if (sec - last < minGapSec) continue;
+      out.push(sec);
+      last = sec;
+    }
+    return out;
+  }
+
   function analyzeMotion(accRows, gyroRows, t0Ms, durSec, magRows) {
     // magRows is LAST + optional so the historical 4-arg contract analyzeMotion(acc,gyro,t0,dur)
     // (and the shared regression suite) keeps working unchanged.
@@ -8244,8 +8301,17 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     // normalise: accel in mg (dynamic), gyro in dps. Scale so "still" ≈ 0.
     const accNorm = (v) => Math.min(1, v / 120); // ~120 mg dynamic = full motion
     const gyNorm = (v) => Math.min(1, v / 40); // ~40 dps = full motion
+    /* `onsetGrid` is the SAME quantity WITHOUT the clip. `grid` saturates at 1.0 by design — it is a
+       0-1 motion INDEX for epoch reporting and quality gating, where "moving hard" and "moving very
+       hard" are usefully the same. For ONSET detection that clip is fatal: on a normal night many
+       movements peg at 1.0, the peaks flatten into an indistinguishable plateau, and a sigma-threshold
+       local-maximum test loses them. Measured: the clipped grid yielded 4 onsets on a night where the
+       chest ACC found 29, which is below the fit's own minimum and would have made the Verity's three
+       inertial streams useless to it. Unclipped, the peak structure survives. */
+    const onsetGrid = new Float32Array(nG);
     for (let i = 0; i < nG; i++) {
       grid[i] = Math.max(accNorm(accCell[i]), gyNorm(gyCell[i]));
+      onsetGrid[i] = Math.max(accCell[i] / 120, gyCell[i] / 40);
     }
     // smooth
     const sm = movavg(grid, 3);
@@ -8422,6 +8488,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     return {
       hasData: true,
       grid: sm,
+      onsetGrid,
       dt,
       motionAtSec,
       postureAtSec,
@@ -9156,6 +9223,19 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         }
       }
     }
+    /* movement_onset — the AROUSAL fiducial, straight off the inertial grid.
+       Independent of beat detection on purpose (see movementOnsets): a movement large enough to matter
+       is a movement large enough to blind the PPG, so anything gated on beats thins out exactly where
+       the signal is strongest. Carries which inertial streams contributed, because a cross-device fit
+       that cannot say WHICH sensor found an offset cannot be audited. */
+    if (motion && motion.hasData && motion.grid && motion.dt) {
+      const onsets = movementOnsets(motion.onsetGrid || motion.grid, motion.dt, {});
+      const streams = [];
+      if (motion.nAcc) streams.push('acc');
+      if (motion.nGyro) streams.push('gyro');
+      if (motion.hasMag) streams.push('mag');
+      for (const sec of onsets) evt(sec, 'movement_onset', 0.6, { streams: streams.length ? streams : undefined, motionIndex: r2(motion.motionAtSec(sec)) }, sqiAt(sec));
+    }
     // CHRONOLOGICAL ORDER IS PART OF THE EXPORT CONTRACT — sort before returning.
     // The blocks above are each internally ordered but are appended per KIND, so the
     // motion_artifact_segment run (which restarts at t0) landed AFTER the last hrv_drop.
@@ -9334,6 +9414,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     parseDevicePPI,
     analyze,
     analyzeMotion,
+    movementOnsets,
     validatePPI,
     bandpass,
     detectBeats,

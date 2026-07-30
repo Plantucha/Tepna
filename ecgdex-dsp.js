@@ -1943,7 +1943,7 @@
   //  quality instead of conflating the two (R7). Older consumers that read only
   //  `conf` still get a sensible, severity-bearing number.
   // ════════════════════════════════════════════════════════════════════════
-  function gangliorEvents(cvhr, stages, t0Ms, sqi, times, epochPos) {
+  function gangliorEvents(cvhr, stages, t0Ms, sqi, times, epochPos, movementSecs) {
     const events = [];
     // Clock Contract §2.6: a missing anchor must be VISIBLE (null), never fabricated.
     // No t0 → emit t:null / tMs:null (date-unknown) so the export's startEpochMs:null and
@@ -2028,6 +2028,22 @@
       }
     }
     // stable order: by relative seconds when stampless (t is null), else by clock string.
+    /* movement_onset — the chest-ACC arousal fiducial (see accExtras). Emitted here so it rides the
+       same chronological sort as every other impulse: the export contract is ordered, and appending a
+       whole kind after the sort is exactly how a block once landed out of order. */
+    if (movementSecs && movementSecs.length) {
+      for (const sec of movementSecs)
+        events.push({
+          t: clock(sec),
+          tMs: tmsAt(sec),
+          impulse: 'movement_onset',
+          node: 'ECGDex',
+          _sec: sec,
+          conf: 0.6,
+          sqi: null,
+          meta: { streams: ['acc'], site: 'chest' }
+        });
+    }
     events.sort((a, b) => (a.tMs != null && b.tMs != null ? a.tMs - b.tMs : /** @type {any} */ (a.t) < /** @type {any} */ (b.t) ? -1 : 1));
     return events;
   }
@@ -2382,7 +2398,7 @@
     const epochPos = stampEpochPositions(epochs, rec.deviceACC, rec.accFs, rec.t0Ms, durSec);
     // Clock Contract §2.6: thread the real anchor (or null) — NEVER fabricate now(). A stampless
     // recording yields events with t:null/tMs:null, matching the export's startEpochMs:null.
-    const events = gangliorEvents(cvhr, ambulatory ? [] : stages, rec.t0Ms != null ? rec.t0Ms : null, sqi, times, epochPos);
+    const events = gangliorEvents(cvhr, ambulatory ? [] : stages, rec.t0Ms != null ? rec.t0Ms : null, sqi, times, epochPos, _accEx ? _accEx.movementOnsets : null);
 
     // sleep stage summary
     const stageMin = { Wake: 0, REM: 0, Light: 0, Deep: 0 };
@@ -3222,6 +3238,59 @@
     return { totalSteps, walking: totalSteps >= 50, accFs: fs, bouts: boutObjs, cadEpochs: cadEp, zonePct };
   }
   // Orchestrator — returns the four feature payloads (or null if no usable ACC).
+  /* Discrete movement onsets from a motion grid.
+
+     DUPLICATED, DELIBERATELY, from `PPGDSP.movementOnsets` — ECGDex.src.html does not bundle
+     ppgdex-dsp.js, and adding a shared module would mean touching every co-load list, both
+     orchestrators and the worker importScripts sets for twenty lines. The duplication is GATED
+     instead: `movement-onset-parity` asserts both implementations return identical onsets for the
+     same input, the same way `registry-defs-parity` gates a projection against its source. If they
+     ever diverge, the suite reds rather than the two nodes quietly disagreeing about when you moved.
+
+     Three conditions, all necessary — the shape `PATAlign.findAnchors` uses, for the same reason: a
+     bare threshold fires repeatedly across one long turn, and every extra hit on the SAME movement is
+     a correlated vote, not an independent one. */
+  function _movementOnsets(grid, dtSec, opts) {
+    opts = opts || {};
+    const kSigma = opts.sigma != null ? opts.sigma : 3;
+    const localBins = opts.localBins != null ? opts.localBins : Math.max(1, Math.round(5 / dtSec));
+    const minGapSec = opts.minGapSec != null ? opts.minGapSec : 30;
+    if (!grid || !grid.length || !(dtSec > 0)) return [];
+    const n = grid.length;
+    /* mean + k·SD. A MAD-based threshold was tried and REJECTED: MAD tracks the quiet baseline, which
+       on a differenced (jerk) grid is almost zero, so the threshold collapses and the detector fired
+       713 times in one night instead of 29. The tail this distribution carries is the SIGNAL, and a
+       threshold that ignores it is not robust, it is blind. */
+    let m = 0;
+    for (let i = 0; i < n; i++) m += grid[i];
+    m /= n;
+    let v = 0;
+    for (let i = 0; i < n; i++) {
+      const d = grid[i] - m;
+      v += d * d;
+    }
+    const sd = Math.sqrt(v / n) || 1;
+    const thr = m + kSigma * sd;
+    const out = [];
+    let last = -Infinity;
+    for (let c = 0; c < n; c++) {
+      if (grid[c] < thr) continue;
+      let isMax = true;
+      for (let k = c - localBins; k <= c + localBins; k++) {
+        if (k >= 0 && k < n && grid[k] > grid[c]) {
+          isMax = false;
+          break;
+        }
+      }
+      if (!isMax) continue;
+      const sec = c * dtSec;
+      if (sec - last < minGapSec) continue;
+      out.push(sec);
+      last = sec;
+    }
+    return out;
+  }
+
   function accExtras(deviceACC, accFs, ecgT0Ms, durSec, epochs, stages) {
     // Declared at function scope so the epoch motion series survives the staging block it is built in
     // (that block is conditional; a night with no HRV stages still has ACC observations worth exporting).
@@ -3238,6 +3307,26 @@
     const off = baseOffset >= -2 && baseOffset <= durSec ? baseOffset : 0;
 
     // ── Feature 1: RRacc per 30-s epoch ──
+    /* CHEST MOVEMENT ONSETS — the arousal fiducial an apnea leaves on the H10's accelerometer.
+       From JERK (|d|vm||), not |vm| itself: the vector magnitude is dominated by gravity plus the
+       always-present respiratory chest excursion, so thresholding it marks BREATHING, not movement.
+       Differencing suppresses both and leaves gross body motion, which is what an arousal produces.
+       Binned to 0.25 s to match the grid PpgDex uses, so the two nodes' onsets are directly comparable
+       (gated by the movement-onset parity test).
+       Deliberately computed here rather than in the staging block below, which only runs when epochs
+       AND stages both exist — a clock fit must not silently lose its best channel because staging was
+       unavailable. */
+    const _mvDt = 0.25;
+    const _mvN = Math.max(1, Math.ceil(durSec / _mvDt));
+    const _mvGrid = new Float64Array(_mvN);
+    for (let i = 1; i < N; i++) {
+      const d = Math.abs(vm[i] - vm[i - 1]);
+      if (!Number.isFinite(d)) continue;
+      const g = Math.floor((i / fs - off) / _mvDt);
+      if (g >= 0 && g < _mvN && d > _mvGrid[g]) _mvGrid[g] = d;
+    }
+    const movementOnsets = _movementOnsets(_mvGrid, _mvDt, {});
+
     const rracc = _rraccEpochs(vm, fs, off);
     const hi = rracc.filter((e) => e.conf === 'high'),
       rrVals = hi.map((e) => e.rr);
@@ -3380,7 +3469,7 @@
     // ── Feature 4: step count & gait ──
     const gait = _gait(vm, fs, off);
 
-    return { rracc, rraccSummary, agreement, consensus, gait, off, accFs: fs, motionByTMin, durMin: +(N / fs / 60).toFixed(1) };
+    return { rracc, rraccSummary, agreement, consensus, gait, off, accFs: fs, motionByTMin, movementOnsets, durMin: +(N / fs / 60).toFixed(1) };
   }
 
   // ── multi-part split files (Polar Sensor Logger) ───────────────────────────
@@ -3430,6 +3519,7 @@
     validateHR,
     accAnalyze,
     accExtras,
+    movementOnsets: _movementOnsets, // exported for `movement-onset-parity` — the gate on the duplication
     // Additive (contract rule: new data via a NEW field, never by changing an existing shape) —
     // the staging rules and the motion index are now gateable in their own right.
     stageSleep,
