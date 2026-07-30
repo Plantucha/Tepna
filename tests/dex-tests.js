@@ -23544,6 +23544,48 @@
         T.ok('and enough that ≥3 extreme surrogates cannot veto a real coupling', 4 / (shifts.length + 1) < ALPHA, 'p with 3 exceedances = ' + (4 / (shifts.length + 1)).toFixed(4));
         T.ok('the DEFAULT shift set deliberately cannot support α=0.05', 1 / (EC.DEFAULT_SHIFTS.length + 1) >= ALPHA, 'pFloor=' + (1 / (EC.DEFAULT_SHIFTS.length + 1)).toFixed(3));
       }
+
+      /* ── The +1 CORRECTION ITSELF (Phipson & Smyth 2010) ────────────────────────────────────────
+         Everything above reasons about pFloor arithmetically; nothing drove the p-value that has to
+         honour it. Mutation-checked 2026-07-29: reverting `_pPerm` to a bare `atLeast / m` reds
+         NOTHING, and there were no `pPerm` assertions anywhere in the suite — the central quantity
+         of the §3.2 fix was entirely ungated.
+         What the bare ratio does: with no surrogate reaching the observation it returns p = 0, which
+         asserts IMPOSSIBILITY from 10 shifts. The observation is itself one of the arrangements, so
+         the smallest honest p is 1/(m+1). Driven through the real exported `coupling()`, since
+         `_pPerm` is module-private. */
+      if (EC && typeof EC.coupling === 'function') {
+        var _pT0 = U(2026, 5, 1, 0, 0, 0);
+        var _pA = [],
+          _pB = [];
+        for (var _pi = 0; _pi < 40; _pi++) {
+          var _pt = _pT0 + _pi * 600000;
+          _pA.push({ tMs: _pt });
+          _pB.push({ tMs: _pt + 10000 }); // every A followed 10 s later by a B — perfect coupling
+        }
+        var _pSpan = [_pT0, _pT0 + 40 * 600000];
+        var _pR = EC.coupling(_pA, _pB, { span: _pSpan, coverage: [_pSpan] });
+        var _nExc = (_pR.nullPcts || []).filter(function (p) {
+          return p >= _pR.observedPct;
+        }).length;
+        // Anti-vacuity: the fixture must actually reach the zero-exceedance case, or the bare ratio
+        // and the corrected form agree and the assertions below prove nothing.
+        T.eq('§3.2 · the perfect-coupling fixture leaves ZERO surrogates at or above the observation', _nExc, 0);
+        T.ok('§3.2 · …and it really is a full-strength observation', _pR.observedPct === 100, 'observedPct=' + _pR.observedPct);
+        T.ok('§3.2 · p is NEVER 0 — 10 surrogates cannot assert impossibility', _pR.pPerm > 0, 'pPerm=' + _pR.pPerm + ' (an uncorrected k/m returns exactly 0 here)');
+        T.approx('§3.2 · p sits on its floor 1/(m+1) = 1/11 = 0.0909, not 0/10', _pR.pPerm, 1 / ((_pR.nullPcts || []).length + 1), 1e-9);
+        T.approx('§3.2 · …and the published pFloor agrees with the p it produced', _pR.pFloor, _pR.pPerm, 1e-9);
+        // …and the correction must not simply pin every result to the floor: an INDEPENDENT pair has
+        // to land well above it, else "always returns pFloor" would satisfy everything above.
+        var _qA = [],
+          _qB = [];
+        for (var _qi = 0; _qi < 40; _qi++) {
+          _qA.push({ tMs: _pT0 + _qi * 600000 });
+          _qB.push({ tMs: _pT0 + _qi * 600000 + 300000 }); // 5 min off — outside the coupling window
+        }
+        var _qR = EC.coupling(_qA, _qB, { span: _pSpan, coverage: [_pSpan] });
+        T.ok('§3.2 · an uncoupled pair does NOT sit on the floor (the correction is not a constant)', !(_qR.pPerm <= _pR.pPerm), 'uncoupled pPerm=' + _qR.pPerm + ' vs coupled ' + _pR.pPerm);
+      }
       // deterministic LCG — no Math.random, so the false-positive count is a fixed known answer
       var seed = 20260727;
       function rnd() {
