@@ -368,3 +368,39 @@ aggressive θ; no plausible correction flips a −116 net to positive.
 spectral separation, and shipped a metric that was measurably worse — the precise failure mode this
 brief's whole line of work exists to catch, avoided by measuring the operating points instead of
 stopping at a significant AUC.
+
+---
+
+## 10 · PARKED (2026-07-30): §9 is not stratified by clock quality — wait for 14 vigil nights
+
+§9's numbers pool **two corpora with different timing discipline**, and that is an uncontrolled
+confound in the conclusion, not a detail:
+
+| corpus | nights folded | clocks |
+|---|---|---|
+| **vigil capture host** (`2026-07-16 →`) | **13** | ONE daemon, all three devices actively `clock_synced` (per-device stamp in `status.json`) |
+| older tri-device corpus (`2026-06-10 → 07-12`) | 25 | three free-running device clocks, no sync |
+
+**Why it could matter.** Every figure in §9 comes from mapping an OxyDex `desat_event` onto the ECGDex
+epoch containing it. That mapping assumes the O2Ring and H10 clocks agree. Inter-device drift
+misassigns desats to neighbouring epochs, which **smears the contrast and biases AUC toward 0.5** — so
+§9's "discriminates but too weakly to act on" (AUC 0.610) could be a *diluted* reading of a sharper
+underlying effect, produced by averaging clean nights with skewed ones.
+
+**Why it is parked rather than answered.** The vigil subset is currently the *smaller* half — 13 of 38
+nights, and only ~1/3 of the Deep+desat epochs that carry the signal. Splitting 58 contaminated Deep
+epochs across two arms leaves each arm too small to compare AUCs meaningfully; the comparison would
+inherit exactly the instability §9 already saw between n=8 and n=13 (separations swinging +159 % → +59 %).
+**Owner decision 2026-07-30: wait until the vigil box has ~14 days of clean capture, then stratify.**
+The probe is written and tags every epoch with its source corpus, so this is a re-run, not a rebuild.
+
+**Status of the raw data at parking time.** The capture host holds **15** day-folders (`2026-07-16 →
+2026-07-30`); **13** are folded into `uploads/trio`. `2026-07-29` and `2026-07-30` are captured but not
+yet folded — `node tools/trio-batch.mjs --src <captures> --skip-existing` picks them up.
+
+**What this does and does not change about §9.** It does **not** rescue the redesign on its own: §9.3's
+refutation is a **base-rate** argument (contamination is ~14 % of Deep epochs, so even a *perfect*
+discriminator has little to gain and a mediocre one loses), and better timing raises AUC without
+changing prevalence. For the veto to become viable, the vigil-only AUC would have to rise far enough
+that a threshold finally clears net-zero — which is a real possibility worth testing, but not the way
+to bet. **Until that re-run happens, §9.4 stands and nothing about `Deep` should move.**
