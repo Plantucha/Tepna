@@ -77,11 +77,13 @@ function invNorm(p) {
   }
   q = p - 0.5;
   r = q * q;
-  return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+  return ((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q) / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
 }
 function logGamma(x) {
   // Lanczos approximation (g=7, n=9 coefficients) — standard, ~15 significant digits.
-  const gLanczos = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  const gLanczos = [
+    0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7
+  ];
   if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - logGamma(1 - x);
   x -= 1;
   let a = gLanczos[0];
@@ -134,7 +136,7 @@ function invGammaIncLowerReg(a, p) {
   if (p <= 0) return 0;
   if (p >= 1) return Infinity;
   const z = invNorm(p);
-  let x = a * Math.max(1e-8, 1 - 1 / (9 * a) + (z * Math.sqrt(1 / (9 * a)))) ** 3;
+  let x = a * Math.max(1e-8, 1 - 1 / (9 * a) + z * Math.sqrt(1 / (9 * a))) ** 3;
   if (!isFinite(x) || x <= 0) x = a;
   for (let i = 0; i < 100; i++) {
     const fx = gammaIncLowerReg(a, x) - p;
@@ -199,7 +201,9 @@ if (SELFTEST) {
 
 /* ── corpus discovery ─────────────────────────────────────────────────────── */
 if (!existsSync(DIR)) {
-  console.error(`deep-desat-falsifier: ${DIR} does not exist.\n\n  This tool reads gitignored personal recordings already folded by tools/trio-batch.mjs.\n  Point --dir at a trio output root, e.g.:\n    node tools/deep-desat-falsifier.mjs --dir uploads/trio\n`);
+  console.error(
+    `deep-desat-falsifier: ${DIR} does not exist.\n\n  This tool reads gitignored personal recordings already folded by tools/trio-batch.mjs.\n  Point --dir at a trio output root, e.g.:\n    node tools/deep-desat-falsifier.mjs --dir uploads/trio\n`
+  );
   process.exit(2);
 }
 const nightDirs = readdirSync(DIR, { withFileTypes: true })
@@ -348,7 +352,8 @@ if (AS_JSON) {
     ['excl. desat-overlapping', settleExcl, gapExcl],
     ['only desat-overlapping', settleOnly, settleOnly.medRmssdDeep != null && settleOnly.medRmssdLight != null ? +(settleOnly.medRmssdDeep - settleOnly.medRmssdLight).toFixed(1) : null]
   ];
-  for (const [label, s, gap] of rows) console.log(label.padEnd(24) + String(s.epochs).padEnd(8) + String(s.deepPctOfSleep).padEnd(12) + String(s.medRmssdDeep).padEnd(15) + String(s.medRmssdLight).padEnd(8) + String(gap));
+  for (const [label, s, gap] of rows)
+    console.log(label.padEnd(24) + String(s.epochs).padEnd(8) + String(s.deepPctOfSleep).padEnd(12) + String(s.medRmssdDeep).padEnd(15) + String(s.medRmssdLight).padEnd(8) + String(gap));
   console.log('');
 }
 process.exit(0);
