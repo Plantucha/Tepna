@@ -18500,7 +18500,16 @@
           T.ok('DA-III-F §1.3 · both ANS display guards were found in the shipped source', typeof _txt === 'function' && typeof _pct === 'function', 'txt=' + typeof _txt + ' pct=' + typeof _pct);
           if (typeof _txt === 'function' && typeof _pct === 'function') {
             T.eq('DA-III-F §1.3 · a null SNS/PSNS renders an em-dash, never the string "null"', _txt(null), '—');
-            T.eq('DA-III-F §1.3 · …and the bar collapses to zero width', _pct(null), 0);
+            /* `_ansPct(null)` is the assertion I wrote first, and it was VACUOUS: `Math.min(100, null)`
+               is 0, which is exactly what the guarded form returns, so it cannot tell fix from defect
+               (mutation-confirmed — removing the guard still reds nothing on this input). Kept as a
+               CONTROL, labelled as one. The guard's null branch is documentation of intent, not a
+               behavioural change; the input that actually discriminates is `undefined`, where the
+               unguarded form yields NaN and the markup becomes `width:NaN%`. A missing key — a legacy
+               or partial record with no `sns` at all — is exactly how undefined arrives here. */
+            T.eq('DA-III-F §1.3 · control (NOT a discriminator): a null score sizes the bar 0 either way', _pct(null), 0);
+            T.eq('DA-III-F §1.3 · an ABSENT score sizes the bar 0, never `width:NaN%`', _pct(undefined), 0);
+            T.ok('DA-III-F §1.3 · …and that is a real number, not NaN', _pct(undefined) === 0 && !isNaN(_pct(undefined)), 'got ' + _pct(undefined));
             // Anti-vacuity: the guards must still pass a REAL score through untouched, else "returns 0
             // for everything" would satisfy the assertions above.
             T.eq('DA-III-F §1.3 · a real score still reaches the label', _txt(42), 42);
