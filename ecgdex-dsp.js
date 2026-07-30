@@ -3977,7 +3977,7 @@
         }
       };
       out.timeseries = {
-        doc: 'Per-5-min-epoch aggregates — the primary cross-node feed (posture rides on epochs[].position; motionIndex = chest-ACC activity, night-normalised median→0 p95→100, null where the ACC did not observe that epoch).',
+        doc: 'Per-5-min-epoch aggregates — the primary cross-node feed (posture rides on epochs[].position; motionIndex = chest-ACC activity, night-normalised median→0 p95→100, null where the ACC did not observe that epoch; vlf·lf·hf·totalPower are absolute band powers in ms² on ONE scale, mirroring the night-level frequency block, so tp = vlf+lf+hf holds per epoch and a consumer can form VLF/LF or normalized units without a collapsed denominator — lfhf alone cannot see the VLF band where CVHR lives).',
         // §D2: the internal epoch already carried `resp` (ls.respRate) — this map dropped it, so no
         // per-epoch respiration ever reached the bus. It is the per-epoch series any cross-node
         // respiration work needs (a night median cannot be correlated against anything).
@@ -3990,7 +3990,42 @@
         epochs: (r.epochs || []).map(function (e) {
           var _ax = r._accEx; // analyze() carries it on its return; it is NOT a local here
           var _mot = _ax && _ax.motionByTMin ? _ax.motionByTMin.get(e.tMin.toFixed(1)) : undefined;
-          return { tMin: e.tMin, hr: nz(e.hr), rmssd: nz(e.rmssd), sdnn: nz(e.sdnn), lfhf: nz(e.lfhf), resp: nz(e.resp), motionIndex: _mot == null ? null : _mot, position: e.position || 'unknown' };
+          /* ALL FOUR BANDS ride here, not just the ratio (DEEP-STAGE-DESAT-CONFOUND §9, and
+             DEEP-AUDIT-2026-07-11 §10 applied one level down). The epoch already carried vlf/lf/hf/tp;
+             this map published only `lfhf`, which is structurally blind to the VLF band — so a consumer
+             could not see cyclical-variation-of-heart-rate at all. CVHR is a 20–45 s oscillation ⇒
+             0.022–0.05 Hz, and VLF is banded f < 0.04 (:1120), so its power lands in VLF while
+             lfhf = LF/HF excludes VLF by construction. Measured on 38 nights: `lfhf` separates
+             desat-overlapping Deep epochs from clean ones by −0 % (AUC 0.477, CI spans 0.5) while
+             `vlf/lf` separates by +78 % (AUC 0.610, CI excludes 0.5).
+
+             WHY THE WHOLE SET AND NOT JUST vlf+lf. §10 is the precedent and the warning: emitting
+             lf/hf WITHOUT totalPower is what collapsed HRVDex's normalized-units denominator
+             (hf/(totalPower − vlf)) and surfaced HF n.u. = 125,000,000 %. A partial band set is a
+             known-harmful shape in this codebase, so the per-epoch series now mirrors the night-level
+             `frequency` block exactly — vlf · lf · hf · totalPower · lfhf, one scale, Task-Force
+             identity tp = vlf+lf+hf holding per epoch by construction (:1133).
+             There is no MF/SF/ULF/VHF band anywhere in this DSP — the Task-Force set here is VLF, LF,
+             HF, and that is the complete set a consumer can expect.
+
+             ADDITIVE ONLY — this publishes what analyze() already computed. No metric changes, no rule
+             reads it, and §9.4 explicitly does NOT ship a VLF-keyed Deep rule (measured to make the
+             metric worse on base-rate grounds). This exists so the separability question is answerable
+             from a committed export instead of only from a raw-corpus re-analysis. */
+          return {
+            tMin: e.tMin,
+            hr: nz(e.hr),
+            rmssd: nz(e.rmssd),
+            sdnn: nz(e.sdnn),
+            vlf: nz(e.vlf),
+            lf: nz(e.lf),
+            hf: nz(e.hf),
+            totalPower: nz(e.tp),
+            lfhf: nz(e.lfhf),
+            resp: nz(e.resp),
+            motionIndex: _mot == null ? null : _mot,
+            position: e.position || 'unknown'
+          };
         }),
         sleepStages:
           lng && !amb && Array.isArray(r.stages)
