@@ -280,3 +280,91 @@ the discriminator the redesign depends on is unmeasurable from committed exports
 and already at the lowest evidence tier — which is a tolerable place to sit while the discriminator is
 established, and a much better one than a redesign justified by a spectral separation that has not been
 demonstrated to exist.
+
+---
+
+## 9 · The §5 redesign, MEASURED AND REFUTED (2026-07-30)
+
+§8.4 sequenced the redesign as "export `vlf` → measure → redesign". **The first step was unnecessary
+and the third turns out to be unwarranted.** Both corrections come from measurement, on the largest
+raw-ECG set available: **38 nights, 2652 staged epochs**, drawn from BOTH raw corpora (the capture
+host's `_YYYYMMDDHHMMSS_ECG.txt` and the older tri-device corpus's `_YYYYMMDD_HHMMSS_ECG.txt` —
+scanning only the first caps the run at 13 nights).
+
+### 9.1 No export change was ever needed
+
+`ECGDex.analyze()` is **already public** (`ecgdex-dsp.js:4171`) and its epochs carry `vlf`/`lf`/`hf`/`tp`
+intact; only `ecgBuildNodeExport` strips them. Better still, **`stageSleep(epochs, …)` receives those
+same rich epochs** and already reads `e.lfhf` one line above the Deep branch — so `e.vlf` is in scope
+*exactly where a fix would go*. §8.4's premise that the rule was blocked on an export field was simply
+wrong: neither the measurement nor the rule needs one.
+
+### 9.2 VLF really does carry the signal RMSSD cannot see
+
+Median `vlf/lf`, Deep epochs overlapping a desat vs clean (38 nights):
+
+| feature | Deep+desat | Deep clean | separation |
+|---|---|---|---|
+| `rmssd` — **what the rule keys on** | 42.4 | 42.2 | **+0 %** |
+| `lfhf` — what §5 named | 1.7 | 1.7 | **−0 %** |
+| `lf` alone | 877.5 | 895.5 | −2 % |
+| **`vlf/lf`** | **2.17** | **1.222** | **+78 %** |
+
+Two things worth pinning. **RMSSD is completely blind (+0 %)** — the feature the Deep rule decides on
+carries no information about whether the epoch is CVHR-contaminated, which is precisely why the rule
+is foolable and why no amount of threshold-tuning on RMSSD could fix it. And **`lf` alone is blind
+(−2 %)**, so the effect is specifically the VLF band, not general power inflation — the "it's just more
+variance" confound is ruled out.
+
+By ROC over every epoch (not medians), within Deep:
+
+| feature | AUC | 95 % CI | verdict |
+|---|---|---|---|
+| **`vlf/lf`** | **0.610** | **[0.528, 0.692]** | discriminates — CI excludes 0.5 |
+| `VLF/tp` | 0.593 | [0.511, 0.676] | discriminates |
+| `vlf` | 0.592 | [0.510, 0.674] | discriminates |
+| `rmssd` | 0.516 | [0.435, 0.597] | **not established** |
+| `lfhf` | 0.477 | [0.398, 0.556] | **not established** |
+
+So §5's hypothesis was right in substance — there IS a spectral signature RMSSD misses — and wrong in
+its specific nomination of `lfhf`, which is structurally incapable (§8.3).
+
+### 9.3 …and it is still not enough to act on. The base rate defeats it.
+
+AUC 0.610 is established but **weak** (0.5 = chance, 0.7 = conventionally "acceptable"). What matters
+is what a threshold would DO. Sweeping θ on `vlf/lf` over 58 contaminated and 348 clean Deep epochs:
+
+| θ | contaminated caught | genuine Deep destroyed | net |
+|---|---|---|---|
+| 1.5 | 34/58 (59 %) | 150/348 (43 %) | **−116** |
+| 2.0 | 30/58 (52 %) | 142/348 (41 %) | **−112** |
+| 2.5 | 27/58 (47 %) | 126/348 (36 %) | **−99** |
+| 3.0 | 23/58 (40 %) | 113/348 (32 %) | **−90** |
+| 4.0 | 20/58 (34 %) | 90/348 (26 %) | **−70** |
+
+**Every operating point is a net loss.** At no threshold does a VLF veto remove more contamination than
+genuine deep sleep. The reason is base rate, not the discriminator: contamination is only ~14 % of Deep
+epochs here (consistent with §2/§3b's ~10 % of Deep *minutes*), and a 0.61-AUC feature cannot clean a
+14 %-prevalence minority without shredding the 86 % majority.
+
+**One caveat that does not rescue it.** The 348 "clean" epochs are only *presumed* genuine — some carry
+apnea OxyDex never scored (a hypopnea with arousal but no 3 % desaturation leaves no `desat_event`). So
+"genuine Deep destroyed" is an over-estimate of true loss. But the margin is 43 % vs 59 % at the most
+aggressive θ; no plausible correction flips a −116 net to positive.
+
+### 9.4 Conclusion: the redesign is REFUTED as specified, and `Deep` stays as it is
+
+- **Do NOT ship a VLF-keyed Deep veto.** It is measured to make the metric worse, not better.
+- The confound remains **real, bounded, and documented**: ~10 % of Deep minutes, by three independent
+  routes now (§2 epoch-level, §3b settling test, §9.3's contamination share).
+- `deepMin` is already `heuristic`, the lowest tier — the correct place for a metric with a known,
+  bounded, unfixable-at-present bias. Nothing to downgrade.
+- What would actually move this is **not a better HRV feature but a better label**: PSG, or at minimum
+  an apnea label that does not depend on a 3 % desaturation threshold. §3b already said the RMSSD
+  evidence cannot separate misclassification from genuine N3-predominant OSA; §9 adds that no spectral
+  feature available to ECGDex can either.
+
+**The negative result is the deliverable.** A VLF-keyed rule would have looked principled, cited a real
+spectral separation, and shipped a metric that was measurably worse — the precise failure mode this
+brief's whole line of work exists to catch, avoided by measuring the operating points instead of
+stopping at a significant AUC.
