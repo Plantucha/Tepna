@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-29 · **Found while executing:** `MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS-2026-07-29-BRIEF.md` §1.1 · **Affects:** Integrator fusion, `tools/cpap-oxy-couple.mjs`, every CPAP↔other-node event comparison
+**Status:** DONE — 2026-07-31 (every Done-when item is closed; the ONE residual — confirming the predicted ≈21 min post-correction offset on a third clean tri-device night, currently n=2 fitting −22.25/−21.13 min — is owned by `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` §4, not by this brief) · **Created:** 2026-07-29 · **Found while executing:** `MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS-2026-07-29-BRIEF.md` §1.1 · **Affects:** Integrator fusion, `tools/cpap-oxy-couple.mjs`, every CPAP↔other-node event comparison · **Spawned:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md`
 
 # The CPAP's clock is ~39 minutes wrong, and nothing in the suite can tell
 
@@ -380,12 +380,17 @@ describe the same physiology. That question is still open and still matters: Oxy
 
 ## 4 · Done when
 
-- [ ] The Integrator reports a suspected cross-node clock skew instead of a silent empty
-      intersection, with the lag and the peak-over-floor that justify the claim.
-- [ ] A gate pins it: two synthetic nodes with a planted offset far outside `toleranceSec` must
-      produce the skew report and **must not** produce a fused co-observation — plus a control at
-      zero offset that fuses normally, so the check cannot pass vacuously.
-- [ ] No auto-correction anywhere in the path (assert it: a skewed pair stays unfused).
+- [x] **DONE** — `detectClockSkew` + `estimateEventLag` ship in `integrator-dsp.js`; `runFusion`
+      always emits a `clockSkew` block (checked-and-clean ≠ never checked) carrying `node`,
+      `offsetSec`, `peakOverFloor` and `againstNodes`.
+- [x] **DONE, with the second half INVERTED by a later decision — see §5.** The planted-offset gate
+      exists (2370 s → the skew is declared, fitted and attributed), and so does the zero-offset
+      control (*"three agreeing nodes produce NO skew finding"*), so it cannot pass vacuously. What
+      the gate does **not** assert is "must not fuse": the shipped design aligns and fuses. §5.
+- [x] **SUPERSEDED — the shipped design DOES correct, deliberately. See §5.** What is gated instead
+      is that the correction is never *silent*: it is declared, attributed per sensor, applied only to
+      a shallow copy (the caller's recs keep their original stamps), and `applyClockSkew:false` still
+      declares while applying nothing.
 - [x] The device clock is corrected and the correction recorded. **PARTLY DONE 2026-07-29** — the
       timezone was GMT−5 for a GMT−4 location and is now corrected (§2b); the ~21 min residual has
       no exposed control. **Verify the prediction** on the first night recorded after the change:
@@ -396,8 +401,11 @@ describe the same physiology. That question is still open and still matters: Oxy
       shuffled null* (p 0.19 and 0.52) — so the corpus-level agreement is the evidence, and one more
       clean tri-device night is still owed. The per-channel estimator could say nothing at all here
       (`uncorroborated` / `AMBIGUOUS`); see `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` §4.
-- [ ] §1.1 re-run with the offset removed, and its verdict written into
-      `MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS`.
+- [x] **DONE 2026-07-31 — see §6.** The re-run could not be the same comparison: the device exports
+      PB as ONE event per night carrying a nightly total, so there is nothing to overlap at episode
+      resolution, clock or no clock. The night-level question — which the offset cannot affect — was
+      run instead: **κ = −0.039 over 39 paired nights.** Verdict carried into
+      `MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS` §1.1.
 - [x] The offset is pinned to a usable precision, and the estimator is safe to consume.
       **DONE 2026-07-30** (§2d) — **38.28 min ± 3–4 s** from 8 channels / 3 devices / 5 mechanisms via
       delta-mode refinement; 7 of 14 nights corroborated by ≥2 distinct devices, 37.75–38.45, median
@@ -413,3 +421,85 @@ describe the same physiology. That question is still open and still matters: Oxy
       −39 min offset on 1 night in 13 while succeeding 13/13 at its design range, because at wide-search
       settings the `minCorr` gate sits below the chance-maximum correlation. The flow-vs-movement negative
       it produced is **void** and must not be cited. Sensitivity work stays on §3.1's histogram.
+
+---
+
+## 5 · §3.2 was REVERSED in shipped code, deliberately — recorded here (2026-07-31)
+
+§3.2 said *"Do NOT auto-correct… Detect, report, refuse to fuse across a suspected skew."* **The
+shipped Integrator does correct.** That is not drift; it is a documented reversal at the call site,
+and this brief's Done-when had gone stale against it.
+
+The reasoning, from `runFusion`: the ResMed sits on its own cell network, so it **cannot be
+NTP-disciplined and the offset is permanent**. Refusing to fuse would mean permanently discarding a
+signal that is perfectly good apart from its timestamps — a worse outcome than aligning on a
+measured offset. §3.2 was written before the offset was pinned to ±3–4 s (§2d); once it was, "refuse"
+stopped being the cautious option and became the wasteful one.
+
+**What replaced the ban is the thing §3.2 actually wanted — no SILENT correction.** All of this is
+gated:
+
+- the offset is fitted from the data, then **declared** in `clockSkew` with `peakOverFloor` and the
+  nodes it was measured against;
+- it is **attributed per sensor and per mechanism**, so a number resting on three unrelated
+  physiologies is auditable rather than asserted;
+- it is applied to a **shallow copy** — the caller's recs keep their original timestamps, gated by an
+  explicit assertion, so nothing downstream inherits a shifted clock by surprise;
+- **`applyClockSkew:false` still declares and applies nothing**, so a consumer that wants the strict
+  §3.2 behaviour has it.
+
+`runFusion` also always emits the block, clean or not, because *checked-and-clean* and *never checked*
+must not look the same. The zero-offset control (*"three agreeing nodes produce NO skew finding"*)
+stops the whole thing passing vacuously.
+
+**Left as-is.** The shipped decision is better argued than the brief's, and re-litigating it to match
+a stale checklist would be the wrong direction of edit.
+
+## 6 · §3.4 · §1.1 RE-RUN (2026-07-31) — and it could not be the same comparison
+
+### 6.1 The episode question is unanswerable from this export
+
+§1.1 compared OxyDex PB episodes against device CSR spans and got 0 of 20, which §1 correctly voided
+as a measurement of the clock. **The re-run cannot repeat it at all**, for a reason the clock has
+nothing to do with: the device exports periodic breathing as **exactly one event per night**, carrying
+`meta.totalSec` / `meta.pct` — a **nightly total, not located spans** (verified: 16 PB events across
+16 distinct nights, never more than one on any night). There is nothing to overlap against at episode
+resolution, with or without the 38.28 min correction.
+
+So §1.1 is not "still open pending the offset". **The episode-level question is not answerable from
+this data**, and that is the result rather than a failure to obtain one.
+
+### 6.2 The night-level question IS answerable, and the offset cannot touch it
+
+A nightly total compared to a nightly total is immune to a constant clock offset — which makes this
+the cleaner test, not the fallback. Over **39 paired nights**:
+
+| | OxyDex PB | OxyDex none |
+|---|---|---|
+| **device PB** | 4 | 1 |
+| **device none** | 32 | 2 |
+
+**Cohen's κ = −0.039** — chance-corrected agreement is *zero*. OxyDex emits `periodic_breathing` on
+**36 of 39** nights; the device scores it on **5 of 39**. On the 4 nights where both fire, burden
+correlates r = −0.448 (n = 4 — reported for completeness, not as evidence of anything).
+
+κ is the right statistic and raw agreement is the wrong one: at 92 % vs 13 % base rates, two raters
+agree by accident often enough to look concordant. The selftest pins exactly that case.
+
+### 6.3 What this does and does not establish
+
+It establishes that **OxyDex's emitted PB events and the device's PB scoring do not describe the same
+nights.** It does *not* establish which is right — the device's scoring is a different instrument with
+its own thresholds, not ground truth, and this is one subject.
+
+**A precision worth recording.** This measured the **emitted `periodic_breathing` ganglior events** —
+the cross-node currency, and what any consumer actually fuses on. It did **not** measure the app's
+"CS pattern likely — review CPAP pressure" text, because that comes from `patScore`, which is
+**absent from batch exports entirely**. That is the same browser-only/batch divergence documented in
+`ECGDEX-CARDIOPULMONARY-COUPLING-FOLLOWUPS` §7.1 — a user-facing derivation no corpus measurement can
+see — and it is why §1.1's "28 of 37" and this "36 of 39" are not the same quantity.
+
+**Carried to a follow-up**, not fixed here: a 92 % emission rate against a 13 % device rate is an
+over-call worth its own brief, and it is the same family as ECGDex's retired `estimatedAHI` — a
+surface whose confidence outruns its validation. See
+`OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md`.
