@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-29 · **Follows:** `MULTINIGHT-CORPUS-FINDINGS-2026-07-29-BRIEF.md` (DONE 2026-07-29, all four sections merged as PRs #527–#530)
+**Status:** IN-PROGRESS — 2026-07-31 (**§1.2, §2.1, §3-reraIndex and §4 all closed**; see §6 for §2.1's answer. The ONLY open item is **§1.1, which is BLOCKED and owned elsewhere** — the PB-vs-CSR comparison is void until the ~39 min CPAP clock offset is handled, and `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md` owns that. This brief flips to DONE when that lands and the re-run happens; it is not waiting on any work of its own.) · **Created:** 2026-07-29 · **Follows:** `MULTINIGHT-CORPUS-FINDINGS-2026-07-29-BRIEF.md` (DONE 2026-07-29, all four sections merged as PRs #527–#530)
 
 # What executing MULTINIGHT-CORPUS-FINDINGS surfaced
 
@@ -133,9 +133,63 @@ this corpus hands it three dated, quantified cases it did not have.
       vs ECGDex, 27 of 32 nights agreeing individually). The 0/20 was measuring the clock, not the
       detectors. Re-run once the offset is handled — see `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md`,
       which now owns it.
-- [ ] §2.1 answered: the `capture.py` change that broke and unbroke the motion byte is identified, or
-      the search is recorded as exhausted so the next occurrence is not re-investigated from scratch.
+- [x] **§2.1 ANSWERED 2026-07-31 — see §6. Not intermittent, not self-healing: a byte-offset swap.**
+      `oxyii.py` read live-header byte **[7] (perfusion index) as motion**; motion is **[11]**. Introduced
+      2026-07-16 with the first live BLE motion capture, corrected 2026-07-18 17:32 by `94d186e`. The
+      window matches exactly, including why 07-18 was *partial*.
 - [x] `reraIndex` returns `null` where the source emits no RERA label (§3), in its own change. **DONE 2026-07-29** — scoped, not blanket: the synthetic golden that genuinely carries a RERA keeps its number, the multi-night sibling pools before deciding, and the self-test pins both directions. Three fixtures regenerated.
-- [ ] §4's two operational lessons (`--ours` on provenance, `npm run check` ≠ the suite) are in
-      `CONTRIBUTING.md`, not only here.
-- [ ] §1.2 routed to `PAPERS-ROADMAP` rather than surfaced in a node.
+- [x] **§4 DONE 2026-07-31.** Both lessons, plus the worktree-serialization and mutation-check ones,
+      are now `CONTRIBUTING.md` §4.1.
+- [x] **§1.2 ROUTED 2026-07-31** — `PAPERS-ROADMAP-2026-06-24-BRIEF.md` **§2.7**, as a REAL n-of-1 real-validation candidate, with the "no node surfaces it until n > 1 subject" condition carried across.
+
+---
+
+## 6 · §2.1 ANSWERED (2026-07-31) — a byte-offset swap, not an intermittent fault
+
+§2.1 called this *"an intermittent capture-side corruption that fixes itself"* and predicted the worst:
+it will come back. **It will not.** It was never intermittent and it never healed — it was a fixed
+decode error with a definite beginning and a definite end.
+
+**`oxyii.py` read O2Ring live-header byte `[7]` as motion. `[7]` is the PERFUSION INDEX; motion is
+`[11]`.** The two were swapped.
+
+| | |
+|---|---|
+| introduced | **2026-07-16** — `1284897` / `483c56f`, the commits that first wrote live BLE motion at all |
+| corrected | **2026-07-18 17:32** — `94d186e`, after `ededb60` recorded byte `[11]` so it could be identified |
+
+That bracket matches the observed fault exactly, including the detail §2.1 flagged as odd: **07-16 and
+07-17 totally faulted, 07-18 *partially*** — because the fix landed at 17:32 on the 18th, part-way
+through that day's capture. Clean from 07-19 onward.
+
+### 6.1 It also explains both clues §2.1 could not place
+
+**Why the column "never returned to zero."** A perfusion index is a continuously non-zero physiological
+quantity. Measured on a real 5288-row night, `[7]` is non-zero in **99.9 %** of frames (mean 13.6 ⇒
+PI 1.36 %); `[11]` is zero in 249/271. A sleeping subject's motion is mostly zero, a perfusion index
+never is — so reading PI as motion produces exactly the stuck-high column observed.
+
+**Why the `.dat` was simultaneously correct.** §2.1 called this *"the strongest available clue — the
+same device, the same night, one decode right and one wrong."* It was: the fault was in the **live BLE
+header decode only**. The onboard `.dat` has its own layout and never went through the swapped offsets.
+The clue pointed straight at the answer.
+
+### 6.2 The blast radius, and why nothing more is owed
+
+`OxyDex` excludes artifact samples with `r.motion === 0`, so on Vigil-captured files from that window
+the filter was keeping ~0.1 % of samples. **Files written before 2026-07-18 17:32 carry PI in the
+Motion column** — already documented at the decode site in `oxyii.py`, and already guarded downstream
+by the stuck-column detector §3 shipped. That detector remains worth having: it is source-agnostic and
+would catch a *different* cause of the same symptom.
+
+**No follow-up.** The cause is identified, fixed, documented at the decode site, and guarded. The one
+thing §2.1 asked for that is now moot is the diff of `capture.py` across 07-15 → 07-19: there are **no
+`capture.py` commits at all** on 07-16, 07-17 or 07-18, which is itself why that search would have come
+back empty — the bug was one file over, in `oxyii.py`.
+
+### 6.3 A note on how this was found, since §4 collects those
+
+The first promising lead was a `wear-gate` added and then reverted (`77358b8` → `e3f5a7a`) — an
+add-then-revert pair is exactly the shape of a fault that appears and disappears. **Both are dated
+2026-07-20**, after the window closed, so the lead was eliminated on dates alone before any diff was
+read. Checking timestamps first cost nothing and skipped a plausible wrong answer.

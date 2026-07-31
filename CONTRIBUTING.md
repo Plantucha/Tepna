@@ -142,6 +142,33 @@ a function signature or return shape, **keep back-compat** (add new params LAST 
 data via a NEW field/method) — don't edit an assertion to hide a break. If a doc and the code-shipped
 registry disagree, **fix the doc**, not the registry.
 
+### 4.1 Two ways a green local run still fails CI
+
+Both cost a real PR each (`MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS` §4), so they belong here and not only
+in a brief.
+
+- **`--ours` on `provenance/*.json` during a rebase is a GATE-B trap.** Resolving a rebase conflict by
+  taking upstream is right for a *bundle* — that file is generated, so you re-run `build.mjs` afterwards
+  and the bytes become correct by construction. It is **wrong for the ledger**: the fragment then records
+  the *previous* PR's `outputHash` while the committed export holds yours. GATE B does catch it
+  (`1513466c0031193c ≠ recorded a290a0461e828ad6`) — but only after you have stopped looking.
+  **After any rebase that touches `provenance/<App>.json`, re-run that node's
+  `tools/regen-<node>-goldens.mjs` before trusting the gate.** Same rule one level up: a conflicted
+  bundle is **rebuilt**, never hand-merged.
+- **`npm run check` includes `typecheck`; the suite does not.** A change can pass every assertion, both
+  build gates and the provenance gate locally, then fail CI on `tsc`. **Running the suite is not running
+  the gate.** (Also: `.filter(Boolean)` does not narrow in TS's JS mode — cast the whole chain, not the
+  source array.)
+
+Two more from the same list, cheap to forget:
+
+- **Same-app work units serialize even in separate worktrees.** A worktree isolates the *tree*, not
+  `provenance/<App>.json` or `Foo.html`. Two units that both re-bundle OxyDex still need the second to
+  rebase and re-run `build.mjs --app OxyDex` before its gates mean anything (`CLAUDE.md` §👥.3).
+- **Every new invariant group deserves a mutation check.** Revert the fix, confirm the new assertions
+  actually red, restore. A group that would have passed against the *old* code is worse than no group —
+  it reports coverage that does not exist. Five minutes, and it has caught a hollow gate more than once.
+
 ---
 ## 4.5 Dev commands — the `npm run` spine
 
