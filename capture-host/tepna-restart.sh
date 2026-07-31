@@ -22,7 +22,7 @@ set -uo pipefail
 
 UNIT=tepna-capture.service
 
-usage() { echo "usage: $0 {restart|status}" >&2; exit 2; }
+usage() { echo "usage: $0 {restart|status|radio}" >&2; exit 2; }
 [ $# -eq 1 ] || usage
 
 case "$1" in
@@ -38,6 +38,22 @@ case "$1" in
     ;;
   status)
     echo "$UNIT: $(systemctl is-active "$UNIT" 2>/dev/null) since $(systemctl show "$UNIT" -p ActiveEnterTimestamp --value 2>/dev/null)"
+    ;;
+  radio)
+    # A DEAF RADIO IS NOT A DOWN RADIO. On 2026-07-30 hci0 reported `UP RUNNING` with 332 MB of
+    # lifetime traffic while a 20 s scan saw ZERO advertisements — in a house that always has dozens.
+    # Every sensor timed out identically, which `classify_adapter_health` correctly cannot separate
+    # from "nobody is wearing them", so the adapter watchdog never fired and ~20 min of a night was
+    # lost until a human restarted bluetoothd by hand.
+    #
+    # Restarting the SERVICE is the cheap rung: it re-initialises the controller without touching USB
+    # power, and it is what actually recovered the box that night (0 -> 91 devices seen). A dongle that
+    # survives this still needs a physical replug, which no script can do.
+    systemctl restart bluetooth || exit 1
+    sleep 5
+    state=$(systemctl is-active bluetooth 2>/dev/null)
+    echo "bluetooth: $state"
+    [ "$state" = active ] || exit 1
     ;;
   *) usage ;;
 esac
