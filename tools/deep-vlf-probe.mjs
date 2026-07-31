@@ -207,9 +207,7 @@ for (const night of nightDirs) {
     const durMin = Math.max(0.1, nextTMin - s.tMin);
     return { stage: s.stage, start, end: start + durMin * 60000, durMin, ep: byTMin.get(s.tMin) };
   });
-  const desats = (oxy.ganglior_events || [])
-    .filter((e) => e.impulse === 'desat_event' && e.tMs != null)
-    .map((e) => e.tMs);
+  const desats = (oxy.ganglior_events || []).filter((e) => e.impulse === 'desat_event' && e.tMs != null).map((e) => e.tMs);
 
   const hit = new Array(windows.length).fill(false);
   for (const tMs of desats) {
@@ -231,7 +229,7 @@ for (const night of nightDirs) {
       hf: e.hf,
       tp: e.totalPower,
       rmssd: e.rmssd,
-      lfhf: e.lfhf,
+      lfhf: e.lfhf
     });
   });
   nightWindows.push({ night, arm, windows, desats });
@@ -244,7 +242,7 @@ const FEATURES = [
   { key: 'VLF/tp', of: (e) => (e.tp > 0 ? e.vlf / e.tp : null) },
   { key: 'vlf', of: (e) => e.vlf },
   { key: 'rmssd', of: (e) => e.rmssd },
-  { key: 'lfhf', of: (e) => e.lfhf },
+  { key: 'lfhf', of: (e) => e.lfhf }
 ];
 
 function armStats(rows) {
@@ -258,7 +256,7 @@ function armStats(rows) {
     clean: neg.length,
     prevalence: deep.length ? pos.length / deep.length : null,
     features: {},
-    sweep: [],
+    sweep: []
   };
   for (const f of FEATURES) {
     const P = pos.map(f.of).filter((v) => v != null && isFinite(v));
@@ -270,7 +268,7 @@ function armStats(rows) {
       ci,
       medPos: median(P),
       medNeg: median(N),
-      established: ci ? ci.lo > 0.5 : null,
+      established: ci ? ci.lo > 0.5 : null
     };
   }
   /* §9.3's operating-point sweep, which is what actually decides the veto: at each θ on vlf/lf,
@@ -328,11 +326,7 @@ function compareArms(a, b, key) {
   const erf = (x) => {
     const s = x < 0 ? -1 : 1;
     const t = 1 / (1 + 0.3275911 * Math.abs(x));
-    const y =
-      1 -
-      ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) *
-        t *
-        Math.exp(-x * x);
+    const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
     return s * y;
   };
   const p = z == null ? null : 1 - erf(Math.abs(z) / Math.SQRT2);
@@ -355,7 +349,7 @@ if (AS_JSON) {
         pooled,
         vigil,
         legacy,
-        shiftProfile: SHIFT_PROFILE ? { pooled: shiftProfile(null), vigil: shiftProfile('vigil'), legacy: shiftProfile('legacy') } : null,
+        shiftProfile: SHIFT_PROFILE ? { pooled: shiftProfile(null), vigil: shiftProfile('vigil'), legacy: shiftProfile('legacy') } : null
       },
       null,
       2
@@ -396,13 +390,7 @@ function printArm(label, s) {
   }
   console.log('  θ on vlf/lf   caught          destroyed        net');
   for (const w of s.sweep) {
-    console.log(
-      `  ${w.th.toFixed(1)}`.padEnd(16) +
-        `${w.caught}/${w.ofPos}`.padEnd(16) +
-        `${w.destroyed}/${w.ofNeg}`.padEnd(17) +
-        (w.net > 0 ? '+' : '') +
-        w.net
-    );
+    console.log(`  ${w.th.toFixed(1)}`.padEnd(16) + `${w.caught}/${w.ofPos}`.padEnd(16) + `${w.destroyed}/${w.ofNeg}`.padEnd(17) + (w.net > 0 ? '+' : '') + w.net);
   }
 }
 
@@ -410,21 +398,16 @@ printArm('POOLED (control — must reproduce §11)', pooled);
 printArm(`VIGIL — one daemon, all three devices clock_synced (≥ ${VIGIL_FROM})`, vigil);
 printArm('LEGACY — three free-running device clocks, no sync', legacy);
 
-console.log('\n── vigil vs legacy: do the arms DIFFER? (§10\'s actual question) ──');
+console.log("\n── vigil vs legacy: do the arms DIFFER? (§10's actual question) ──");
 console.log('  feature'.padEnd(12) + 'Δ AUC'.padEnd(10) + '95% CI'.padEnd(20) + 'z'.padEnd(8) + 'p');
 for (const f of FEATURES) {
   const c = compareArms(vigil, legacy, f.key);
   if (!c) continue;
   console.log(
-    `  ${f.key}`.padEnd(12) +
-      (c.diff >= 0 ? '+' : '') +
-      f3(c.diff).padEnd(9) +
-      `[${c.lo >= 0 ? '+' : ''}${f3(c.lo)}, ${c.hi >= 0 ? '+' : ''}${f3(c.hi)}]`.padEnd(20) +
-      f3(c.z).padEnd(8) +
-      f3(c.p)
+    `  ${f.key}`.padEnd(12) + (c.diff >= 0 ? '+' : '') + f3(c.diff).padEnd(9) + `[${c.lo >= 0 ? '+' : ''}${f3(c.lo)}, ${c.hi >= 0 ? '+' : ''}${f3(c.hi)}]`.padEnd(20) + f3(c.z).padEnd(8) + f3(c.p)
   );
 }
-console.log('  (Δ > 0 would mean the clock-synced arm discriminates BETTER — §10\'s hypothesis)');
+console.log("  (Δ > 0 would mean the clock-synced arm discriminates BETTER — §10's hypothesis)");
 
 if (SHIFT_PROFILE) {
   console.log('\n── AUC vs artificial desat time-shift (a skewed corpus peaks off 0) ──');
@@ -437,12 +420,7 @@ if (SHIFT_PROFILE) {
     L = shiftProfile('legacy');
   const cell = (r) => `${f3(r.auc)} (${r.n})`;
   for (let i = 0; i < P.length; i++) {
-    console.log(
-      `  ${P[i].shiftMin >= 0 ? '+' : ''}${P[i].shiftMin}`.padEnd(13) +
-        cell(P[i]).padEnd(17) +
-        cell(V[i]).padEnd(17) +
-        cell(L[i])
-    );
+    console.log(`  ${P[i].shiftMin >= 0 ? '+' : ''}${P[i].shiftMin}`.padEnd(13) + cell(P[i]).padEnd(17) + cell(V[i]).padEnd(17) + cell(L[i]));
   }
 }
 console.log('');
