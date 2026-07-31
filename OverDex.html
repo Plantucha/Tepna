@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Hq13iClqAIGfQxZKE6gCctF8u4Irlo1t8ruIWUSBEGU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-Q1L67vIKEdmP/Ex3fQOEn1L3DD9UpkwtBY++t5UFMfw=' 'sha256-RjNUQ9Y2ptjQtkuA6ljZBj7Aj5wbb5oLlASOXA/dCAM=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-t7laccvvvHrdIOkE4PV7Yf95WaVWGVlZBsMk7JZnXo4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Hq13iClqAIGfQxZKE6gCctF8u4Irlo1t8ruIWUSBEGU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OhjKg/+DsP2XruvrXgITojMy2lNmFOa/3KPfSl/SQmg=' 'sha256-RjNUQ9Y2ptjQtkuA6ljZBj7Aj5wbb5oLlASOXA/dCAM=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-t7laccvvvHrdIOkE4PV7Yf95WaVWGVlZBsMk7JZnXo4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -11708,6 +11708,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     // node-relative grid). Feeds the Integrator HR-hat 3rd corner + a 2nd per-epoch motion series for
     // the correlated-TCH ρ (only PpgDex had one). Additive; empty when rows/t0Ms are absent.
     night_obj.tchEpochs = oxyBuildEpochSeries(rows, t0Ms);
+    // The oximeter's primary signal at its recorded rate — see oxyBuildSpo2Series. Additive; null
+    // when rows/t0Ms are absent, so a consumer can distinguish "no field" from "no usable SpO2".
+    night_obj.spo2Series = oxyBuildSpo2Series(rows, t0Ms);
     night_obj.summary = computeSmartSummary(night_obj);
     // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: deterministic, identity-free recording handle.
     // processNight is the ONE site BOTH the app (exportJSON→allNights→oxyBuildNightElement) AND
@@ -15604,6 +15607,62 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       });
     return out;
   }
+  /* THE OXIMETER'S PRIMARY SIGNAL, AT THE RATE IT WAS RECORDED.
+
+     Until now this node exported SpO2 nowhere. The whole timeseries block was 5-minute epochs of
+     `{hr, motionIndex}` — 89 rows for a night in which the device recorded ~26,500 SpO2 samples, a
+     ~300x reduction applied at the export boundary, not by the sensor. Every cross-node question that
+     needs oxygen saturation in time therefore could not be asked: the apnea->desaturation transit
+     measurement (WEARABLE-SYNC-APPLIED §3) resolved 3 nights of 39 for exactly this reason — it had a
+     dozen `desat_event` timestamps standing in for a continuous signal.
+
+     WHY 1 Hz AND NOT A BINNED SUMMARY — and the measurement that argues the other way.
+
+     1 Hz IS provably oversampled on this corpus. Measured on 2026-07-26 (26,546 samples): only 6.5 %
+     of adjacent seconds differ, the median run of an identical value is 8 s, and 2 s bins keeping the
+     MINIMUM have a worst-case within-bin spread of 1 percentage point (mean 0.03). Binning to 2 s
+     would halve the cost and lose nothing detectable on this night.
+
+     It is still emitted at 1 Hz, because that 8 s figure is a property of ONE subject, ONE oximeter
+     and ONE night. A patient with faster desaturations, or a device with less internal averaging than
+     the O2Ring's, would be silently degraded by a bin size baked into an export contract — and the
+     degradation would be invisible, because the export is all a consumer ever sees. Choosing a rate
+     from an n=1 bandwidth measurement is the same generalisation error this suite keeps finding.
+     Downsampling later is always available to a consumer; recovering what an export dropped is not.
+
+     The cost is real and was underestimated once already: the export grows ~80 KB -> ~390 KB, because
+     the writers pretty-print (the array alone is 78 KB compact, 156 KB indented). These are local
+     files with no network in the path, so the trade is storage against information, and information
+     is the thing this node exists to produce.
+
+     A UNIFORM GRID WITH EXPLICIT HOLES, not a list of stamped samples. `startMs` + `hz` + one array is
+     both far smaller and unambiguous, and — the part that matters — a second the device never reported
+     is `null`, never carried forward and never zero. A fabricated 0 % saturation would be read as the
+     most severe desaturation possible; a fabricated hold reads as stable oxygen. Absence is not zero,
+     and here it is not stability either. */
+  function oxyBuildSpo2Series(rows, t0Ms) {
+    if (!rows || !rows.length || t0Ms == null) return null;
+    var last = null;
+    for (var i = rows.length - 1; i >= 0; i--)
+      if (rows[i] && rows[i].tMs != null) {
+        last = rows[i].tMs;
+        break;
+      }
+    if (last == null || last < t0Ms) return null;
+    var n = Math.floor((last - t0Ms) / 1000) + 1;
+    if (n < 2 || n > 48 * 3600) return null; // a >48 h grid means a broken stamp, not a long night
+    var out = new Array(n);
+    for (var q = 0; q < n; q++) out[q] = null;
+    for (var j = 0; j < rows.length; j++) {
+      var r = rows[j];
+      if (!r || r.tMs == null) continue;
+      var k = Math.round((r.tMs - t0Ms) / 1000);
+      if (k < 0 || k >= n) continue;
+      // The LAST sample wins a shared second — deterministic, and matches how the row list is ordered.
+      if (typeof r.spo2 === 'number' && isFinite(r.spo2)) out[k] = r.spo2;
+    }
+    return out;
+  }
   // Top-level `timeseries` block — sibling to nights[], where adaptEnvelopeNode reads
   // json.timeseries.epochs[].{hr,motionIndex}. Kept OUT of the per-night element so nights[0] stays
   // byte-identical (the OxyDex equiv fixtures diff nights[0]). Single-recording only (multi-night uses
@@ -15611,10 +15670,22 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   function oxyBuildTimeseriesBlock(nightsChrono) {
     var n = nightsChrono && nightsChrono.length === 1 ? nightsChrono[0] : null;
     if (!n || !Array.isArray(n.tchEpochs) || !n.tchEpochs.length) return null;
-    return {
+    var block = {
       doc: '5-min epochs — cross-node feed for three-cornered-hat: hr = median pulse-HR (bpm), motionIndex = mean O2Ring motion count. HR-hat 3rd corner (ECG+PPG+Oxy) + a 2nd per-epoch motion series for the correlated-TCH ρ.',
       epochs: n.tchEpochs
     };
+    /* ADDITIVE. Consumers that read `epochs` are untouched; `spo2` is a new sibling. Absent rather
+       than empty when it cannot be built, so a reader can tell "this export predates the field" from
+       "this night had no usable SpO2". */
+    if (Array.isArray(n.spo2Series) && n.spo2Series.length) {
+      block.spo2 = {
+        doc: 'SpO₂ at the recorded 1 Hz, on a uniform grid from startEpochMs. values[i] is the saturation (%) at startEpochMs + i*1000 ms; null = the device reported no sample for that second — NOT zero and NOT the previous value. Emitted at source rate deliberately: binning is a bandwidth claim this node has not measured.',
+        hz: 1,
+        n: n.spo2Series.length,
+        values: n.spo2Series
+      };
+    }
+    return block;
   }
   function oxyComputeNight(input, fname) {
     var rows = _oxyRowsFromInput(input);
@@ -15835,7 +15906,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     oxyScrubExport,
     _oxyEnsureRows,
     _oxyRowsFromInput,
-    oxyComputeNight
+    oxyComputeNight,
+    // Exposed so the SpO2 series can be gated directly. Nothing else consumes it — the export path
+    // reaches it through processNight — but a field that ships ungated is a field nobody is defending.
+    oxyBuildSpo2Series
   };
   OxyDex._bare = BARE;
   // DSP→UI hook injection (FOLLOWUPS-II item 3): the co-loaded UI modules register their
