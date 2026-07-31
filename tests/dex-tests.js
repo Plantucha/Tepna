@@ -3407,6 +3407,63 @@
       }
     });
 
+    /* ════ THE EDR RESPIRATION AUTOCORR WINDOW — deep-scout §EP-rest, the slow-respiration fixture ════
+       `cardiorespCoupling` measures respiration DIRECTLY off the EDR band by autocorrelation:
+       `_autocorrPeriod(edrB, FS, 2.5, 10)` — periods 2.5–10 s, i.e. 6–24 breaths/min — and surfaces it as
+       `crc.respFromEDR` (exported, with `respFromEDRMethod: 'EDR (R-peak amplitude modulation)'`).
+       Those two bounds were HOLLOW. DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §EP-rest recorded why and gave up:
+       `genSynthetic` fixes respiration at `respHz0 = 0.235` (~14/min), and post-modulating the waveform
+       AMPLITUDE does not move the surfaced rate (measured 14.2 → 14.5 even at 90 % modulation), because
+       the surfaced value tracks the RR-interval RSA that amplitude editing cannot reach. Its own
+       prescription was "patch respHz0" — which is what `opts.respHz` (additive, optional, default
+       unchanged) now allows.
+
+       Both bounds are pinned by construction, and BOTH directions were verified by mutation:
+         · 20/min (period 3.00 s) sits just inside the LOWER bound → 20.0; `2.5 → 3.5` re-reads it 10.4
+         · 6/min  (period 10.0 s) sits at the UPPER bound          → 6.9;  `10 → 7`  re-reads it 12
+       Three seeds give identical values at both rates, so these are deterministic, not lucky draws. */
+    group('EDR respiration autocorr window 2.5–10 s is real — deep-scout §EP-rest', 'ecgdex-dsp · crc · known-answer', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.analyze !== 'function' || typeof D.genSynthetic !== 'function') {
+        T.skip('env.ECGDSP.analyze + genSynthetic available', 'ECGDSP not co-loaded in this runner');
+        return;
+      }
+      function respAt(bpm, seed) {
+        var s = bpm == null ? D.genSynthetic({ durSec: 900, seed: seed }) : D.genSynthetic({ durSec: 900, seed: seed, respHz: bpm / 60 });
+        var r = D.analyze({ int16: s.int16, fs: s.fs });
+        return r.crc ? r.crc.respFromEDR : null;
+      }
+
+      // ── the additive option must not disturb any existing caller ──
+      T.eq('opts.respHz omitted ⇒ the 0.235 Hz default, unchanged (every golden is byte-identical)', respAt(null, 20260601), respAt(14.1, 20260601));
+      T.eq('an out-of-physiologic-range ask falls back to the default rather than making an unresolvable ECG', respAt(120, 20260601), respAt(null, 20260601));
+
+      // ── LOWER bound (2.5 s): 20/min = a 3.00 s period, just inside ──
+      T.eq('20/min breathing (3.00 s period) resolves to 20.0 — a 2.5→3.5 s slip re-reads it 10.4', respAt(20, 20260601), 20);
+      T.eq('…and it is seed-independent, so the pin is the estimator and not one draw', respAt(20, 42), 20);
+
+      // ── UPPER bound (10 s): 6/min = a 10.0 s period, exactly at the edge ──
+      // 6.9 for a 6.0 truth: the autocorrelation searches INTEGER lags on the 4 Hz EDR grid, so the
+      // resolution near a 10 s period is 0.25 s ⇒ ~1.5 %/lag, and the low band edge biases it high.
+      // Pinned as the WINDOW's behaviour, NOT as an accuracy claim — see the limitation leg below.
+      T.approx('6/min breathing (10.0 s period, the upper edge) is FOUND — 6.9, not the 15 fallback', respAt(6, 20260601), 6.9, 0.25);
+      T.ok('…so the upper bound genuinely admits it (a 10→7 s slip re-reads it 12)', respAt(6, 20260601) < 8, 'got ' + respAt(6, 20260601));
+
+      /* ⚠ CHARACTERIZATION, NOT ENDORSEMENT — a KNOWN LIMITATION, pinned so it cannot change unnoticed.
+         `_bandResp` passes ~0.1–0.4 Hz using the DIFFERENCE OF TWO MOVING AVERAGES, whose roll-off is
+         gentle, so a fundamental sitting AT either declared edge is already attenuated. At 24/min
+         (0.4 Hz, exactly the upper band edge = the 2.5 s lower period bound) the fundamental is
+         suppressed enough that the autocorrelation locks onto the SECOND HARMONIC and reports exactly
+         HALF the true rate. Deterministic across three seeds. The estimator is trustworthy over roughly
+         14–22/min and degrades at both ends of its own declared window.
+         This leg pins 12 because that is what the shipped code does — a fix SHOULD red it, and whoever
+         fixes it updates this pin and `ECGDEX-EDR-RESP-ACCURACY-2026-07-31-BRIEF.md` together. */
+      T.eq('KNOWN LIMITATION · 24/min reads 12 — period-doubling at the band edge (see the spawned brief)', respAt(24, 20260601), 12);
+      T.eq('KNOWN LIMITATION · …deterministic, not a seed artifact', respAt(24, 42), 12);
+      // The working range, as the counterweight: the same estimator is accurate two octaves up the band.
+      T.approx('CONTROL · 18/min — inside the trustworthy 14–22/min range — resolves accurately', respAt(18, 20260601), 18.5, 0.6);
+    });
+
     /* RESPIRATORY-RATE VARIABILITY — the discriminator, and the oracle that can express it.
        REM-STAGING-REDESIGN §3 names respiratory irregularity as the one feature giving REM a POSITIVE
        signature instead of an LF/HF proxy, and §2 shows why one is needed: the conjunction (LF/HF high

@@ -242,7 +242,16 @@
     const beatT = []; // R-peak time (sec)
     const gtRR = []; // ground-truth RR (ms) — interval ending at this beat
     const gtType = []; // 'N' | 'V' | 'S'
-    const respHz0 = 0.235; // ~14 breaths/min baseline
+    /* Baseline respiratory carrier. ADDITIVE + OPTIONAL (`opts.respHz`), default UNCHANGED at 0.235 Hz
+       (~14 breaths/min), so every existing caller — including the goldens — is byte-identical.
+       It exists so a test can generate a SLOW-breathing ECG: DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §EP-rest
+       needed one to reach `_autocorrPeriod(edrB, FS, 2.5, 10)`'s UPPER bound, and recorded that
+       post-modulating the waveform amplitude cannot get there (the surfaced respiration tracks the
+       RR-interval RSA, which amplitude editing does not reach — verified 14.2 → 14.5 at 90 % modulation).
+       Patching the carrier is the route the brief itself named. Clamped to the physiologic 4–40 /min the
+       rest of the generator assumes; an out-of-range ask falls back to the default rather than producing
+       an ECG whose RSA the detector could never resolve. */
+    const respHz0 = opts.respHz != null && opts.respHz >= 4 / 60 && opts.respHz <= 40 / 60 ? +opts.respHz : 0.235;
     /* RESPIRATORY IRREGULARITY IS STAGE-DEPENDENT (REM-STAGING-REDESIGN §3, the missing discriminator).
        Respiration phase = 2π·∫f dτ (accumulated), NOT 2π·f(t)·t — the latter chirps the instantaneous
        frequency badly. The carrier wanders ±0.03 Hz with a 600 s period.

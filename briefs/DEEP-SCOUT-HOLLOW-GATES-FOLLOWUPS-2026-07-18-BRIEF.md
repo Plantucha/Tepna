@@ -91,13 +91,25 @@ leakage; the "narrow-band" deferral was wrong).
 > longer holds is the same failure class this wave exists to close: something that reads authoritative
 > and is not.
 
-**REMAINING (3) — each ATTEMPTED and genuinely fixture-blocked (not deferred for convenience):**
-- **EDR respiration autocorr window `[2.5,10] s`** — the surfaced `respRate` is the RR-interval RSA
-  (spectral HF peak / `_respMedian`), which `genSynthetic` fixes at `respHz0 = 0.235` (~14/min). Post-
-  modulating the waveform **amplitude** at 7/min does NOT move it (verified: 14.2→14.5 even at 90 %
-  modulation over 1200 s) — the EDR path reads amplitude but the SURFACED resp tracks the RR-interval RSA,
-  which amplitude editing can't reach. Needs a **slow-respiration ECG synthesizer** (patch `respHz0`, or a
-  from-scratch QRS train with RR-modulated RSA at ~7/min).
+**REMAINING (2) — each ATTEMPTED and genuinely fixture-blocked (not deferred for convenience):**
+- ~~**EDR respiration autocorr window `[2.5,10] s`**~~ — **CLOSED 2026-07-31.** The prescription in this
+  bullet was right: patch `respHz0`. `genSynthetic` gained an **additive, optional `opts.respHz`** (default
+  unchanged at 0.235 Hz, so every golden is byte-identical — gated by a leg asserting omit ≡ default), and
+  both bounds are now pinned with independent mutation proof: **20/min** (3.00 s period) → 20.0, a
+  `2.5→3.5` slip re-reads it **10.4**; **6/min** (10.0 s period, the upper edge) → 6.9, a `10→7` slip
+  re-reads it **12**. Three seeds give identical values at both rates. Group `ecgdex-dsp · crc ·
+  known-answer`.
+
+  > **And the fixture found a defect in what it was measuring.** Sweeping the carrier 6→24 /min shows
+  > `crc.respFromEDR` — an **exported** field — is trustworthy only over roughly **14–22 /min**: biased
+  > high below it (8/min reads **11.4**, +43 %) and **period-doubled at 24/min**, where it reports
+  > **12** — exactly half. Deterministic across seeds. Cause: `_bandResp` is a difference of moving
+  > averages whose gentle roll-off attenuates a fundamental sitting at the 0.4 Hz edge until the second
+  > harmonic wins, plus 0.25 s lag quantisation on the 4 Hz EDR grid. **The 2.5/10 s bounds are not the
+  > defect.** Two legs now pin 24/min → 12 as an explicit **characterization, not endorsement**, so a fix
+  > reds them deliberately. Routed to `ECGDEX-EDR-RESP-ACCURACY-2026-07-31-BRIEF.md`, which also flags the
+  > untested consequence: `f0 = respFromEDR/60` centres `_narrowPhase`, so **CPC/PLV at 24/min is suspect
+  > too**.
 - **composite per-beat SQI weights (`0.30·kSQI + …`)** — the weight only matters for beats near the SQI
   threshold; `genSynthetic` (even `scenario:'ambulatory'`) produces beats at `sqi≈1`, so a `0.30→0.50`
   slip moves no surfaced metric (verified: analyzablePct 100→100, correctionRate 0.7→0.7, meanSQI
