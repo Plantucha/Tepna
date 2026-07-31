@@ -543,16 +543,18 @@ function oxyEcgFusionSection(n, ecg) {
   } else {
     html += tile('—', 'blue', 'Confirmed apnea', 'no scored desaturations this night');
   }
-  // ECG apnea band
-  if (ap && ap.estimatedAHI) {
-    var band = ap.estimatedAHI.band || '—',
-      av = ap.estimatedAHI.value;
-    var bCls = /sever/i.test(band) ? 'bad' : /moder/i.test(band) ? 'warn' : /mild/i.test(band) ? 'warn' : 'ok';
+  /* ECG cyclic-variation tile. Was "ECG-estimated AHI", keyed on `ap.estimatedAHI` and coloured by
+     its severity band — RETIRED (ECGDEX-CARDIOPULMONARY-COUPLING §10): that value was `cvhrIndex`
+     under AHI's name and cut-points, measured at r = −0.151 (p = 0.36) against device-scored residual
+     AHI. A LEGACY export still carries the field, so re-keying on `cvhrIndex` is what actually stops
+     the old number reaching the screen. Uncoloured on purpose — a severity class needs a validated
+     threshold and §9 found none. */
+  if (ap && ap.cvhrIndex != null) {
     html += tile(
-      (av != null ? av : '—') + '<span style="font-size:13px;color:var(--text3)"> /h</span>',
-      bCls,
-      'ECG-estimated AHI',
-      band + (ap.cvhrIndex != null ? ' · CVHR ' + ap.cvhrIndex + '/h' : '')
+      ap.cvhrIndex + '<span style="font-size:13px;color:var(--text3)"> /h</span>',
+      'blue',
+      'CVHR index (ECG)',
+      'cyclic HR variation — not an apnea count' + (ap.cvhrEvents != null ? ' · ' + ap.cvhrEvents + ' events' : '')
     );
   }
   // HR cross-check
@@ -894,15 +896,9 @@ function buildFullMetricsTable(n) {
     r('SDNN', _oxyFmt(t.sdnn, 1), 'ms', '—', '', 'Total variability');
     if (t.pnn50 != null) r('pNN50', _oxyFmt(t.pnn50, 1), '%', '—');
     if (aa.composite != null) r('ANS age (ECG)', aa.composite, 'yr', '—', '', 'rMSSD·SDNN·restHR composite');
-    if (ap.estimatedAHI)
-      r(
-        'ECG-estimated AHI',
-        _oxyFmt(ap.estimatedAHI.value),
-        '/h',
-        '<5',
-        /sever/i.test(ap.estimatedAHI.band || '') ? 'bad' : /mild|moder/i.test(ap.estimatedAHI.band || '') ? 'warn' : 'ok',
-        ap.estimatedAHI.band || ''
-      );
+    // 'ECG-estimated AHI' row retired (§10) — it carried a `<5` clinical target, which is AHI's
+    // cut-point applied to a CVHR index that does not track AHI (r = −0.151). The row below is the
+    // measured quantity, and it has no target to miss.
     if (ap.cvhrIndex != null) r('CVHR index', _oxyFmt(ap.cvhrIndex, 1), '/h', '—', '', ap.cvhrEvents != null ? ap.cvhrEvents + ' cyclic events' : '');
   }
 
@@ -1057,7 +1053,9 @@ function handleEcgJson(file) {
       date = 'ecg-' + (Object.keys(window._ecgByDate).length + 1);
     }
     window._ecgByDate[date] = obj;
-    var nApnea = obj.apnea ? ' · AHI ' + ((obj.apnea.estimatedAHI && obj.apnea.estimatedAHI.value) || '—') + '/h' : '';
+    // was: ' · AHI <estimatedAHI.value>/h'. Retired (§10) — the ingest confirmation labelled a CVHR
+    // index as an AHI in the very first thing the user sees after loading an ECG export.
+    var nApnea = obj.apnea && obj.apnea.cvhrIndex != null ? ' · CVHR ' + obj.apnea.cvhrIndex + '/h' : '';
     var aa = obj.personalization && obj.personalization.ansAge && obj.personalization.ansAge.composite;
     setS('✓ ' + date + (aa != null ? ' · ANS age ' + aa + ' yr' : '') + nApnea, true);
     var chip = document.getElementById('ecgJsonChip');

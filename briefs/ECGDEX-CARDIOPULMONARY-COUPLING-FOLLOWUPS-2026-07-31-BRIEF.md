@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-31 · **Follows:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 · **Relates:** `DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md` §9/§12
+**Status:** IN-PROGRESS — 2026-07-31 (**§1 + §2 EXECUTED, see §6**; §3 and §4 remain open; §5 is a recorded decision with nothing to do) · **Created:** 2026-07-31 · **Follows:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 · **Relates:** `DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md` §9/§12
 
 # What retiring the AHI proxy left behind
 
@@ -85,3 +85,71 @@ correlate (r = −0.408, p = 0.009) and **a correlate is not an estimator**. Fil
 it would reproduce the retired field's exact error with better inputs. If an AHI estimate is ever
 wanted from ECGDex, it needs a model fit and validated against scored labels — held-out, and ideally
 not one subject — not a rescaled single band.
+
+---
+
+## 6 · §1 and §2 EXECUTED (2026-07-31)
+
+### 6.1 §1 — the legacy value is parsed but no longer trusted
+
+`summary.estAHI` is no longer folded from `apnea.estimatedAHI` at all, and `summary.ahiSource` now
+carries the reason, so a reader can tell **"no AHI known"** from **"AHI is zero"**:
+
+- `'none — legacy ECGDex estimatedAHI ignored (retired: r = −0.151 vs device AHI)'` when the field is
+  present (i.e. a pre-2026-07-31 export)
+- `'none — ECGDex measures CVHR, not AHI'` when it is absent (a current export)
+
+CPAPDex's device-scored override at `integrator-dsp.js:571` is untouched — a CPAP night still yields
+`ahiSource: 'device-scored'`. The three display surfaces were re-keyed onto `cvhrIndex` rather than
+deleted, because a legacy export still carries the retired field and only re-keying actually stops the
+old number reaching a screen: OxyDex's fusion tile (now *"CVHR index (ECG) · cyclic HR variation — not
+an apnea count"*, uncoloured), its detail row (the `<5` clinical target is gone), its ingest
+confirmation line, and CPAPDex's co-import + the `ECG est. AHI` metric tile. That tile was the worst
+placement in the suite: a relabelled CVHR index captioned *"independent estimate"*, sitting directly
+beside CPAPDex's **device-scored** AHI — two numbers in the same units inviting a comparison, one of
+which correlates with the other at r = −0.151.
+
+**Mutation-verified.** Restoring the old read reds `Integrator: a LEGACY estimatedAHI is NOT folded
+into estAHI` with **`got 7 · want null`** — the gate feeds a legacy-shaped export carrying
+`estimatedAHI: {value: 7}` through a **non-CPAP** fusion, so it fails on a real value rather than
+passing vacuously on a null.
+
+### 6.2 §2 — the apnea block is now gated, and the reason it never was is worse than "too short"
+
+§2 assumed the fixtures missed the apnea block because they are too short for `longRec`. That is only
+half of it. **Two** conditions gate that block, and no fixture met *either*:
+
+1. **`opts.rich`.** Plain `compute({text})` emits the **LIGHT** export (`recording` +
+   `ganglior_events` only). The rich blocks — `quality`, `hrv`, `timeseries`, `sleep`, `apnea`,
+   `hrvStability` — are behind `opts.rich`, which only the orchestrate emitter passes. Every fixture
+   builder calls plain `compute`. So **no ECGDex fixture has ever covered the rich export at all**,
+   not just the apnea part of it.
+2. **`longRec`** — `durSec >= 90 min`, measured as **active beat-covered time, not span**, so a
+   sparse or gappy file cannot reach it either.
+
+**The committed-fixture form was rejected on cost, and the number is worth recording:** the 60 s twin
+is 450 KB, so a 90-minute committed ECG is **~40 MB**. That is not a reasonable thing to add to a git
+repo to satisfy a gate. Instead the long recording is **built at test time by tiling the committed
+60 s twin 92×**, advancing only the ms column. This keeps the property the committed-twin argument is
+actually about — CI reconstructs it from committed bytes on every push, so it cannot rot unseen — at
+zero repo cost.
+
+Eight assertions now cover the block: it exists, `cvhrIndex` is a real number, `estimatedAHI` and
+`riskCategory` are **not keys** (absent, not null), `method` disclaims being an AHI *and* carries the
+measured `−0.408`, `cpc` rides the block, and its window is the pinned 512 s. Asserted on **shape,
+not on an outputHash** — the values are whatever the tiled signal yields, and pinning them would gate
+the tiling rather than the export contract.
+
+### 6.3 What the gates proved this round
+
+`computeHash` moved for **Integrator, OxyDex and CPAPDex** (render/display edits are inside the
+compute closure by design — it is a denylist that over-flags rather than a allowlist that fails open),
+so re-verification was owed. Every regen tool was then run **with all inputs present — 0 skipped** —
+and **0 fixtures moved** on all nine nodes. So "no output changed" here is measured, not asserted.
+ECGDex's own `computeHash` is unchanged (`322bb5f5a6e6`): this round touched no ECGDex module.
+
+### 6.4 Still open
+
+**§3** (browser-only `personalize()` derivations invisible to every gate — the near-miss that let
+§9.5 call a live field "null on every night") and **§4** (`surgeEscalationPct`, the next unvalidated
+apnea-adjacent number in the same block) are untouched. **§5** records a decision, not work.
