@@ -7,6 +7,25 @@
    ════════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+
+  /* OxyDex's DSP helpers come from the NAMESPACE, never from bare globals.
+     ESM-MIGRATION-FOLLOWUPS-II removed oxydex-dsp's `Object.assign(root, BARE)` spray, so all 132
+     `OxyDex._bare` entries stopped resolving as bare identifiers in every realm — including this page's.
+     The two `parseCSV(...)`/`processNight(...)` call sites below therefore threw ReferenceError inside
+     their own try/catch and were swallowed as "skip", so every SubjectA and pooled point silently failed
+     to load. `cohort-worker.js` was migrated at the time; this page was missed, and nothing executed it
+     in any lane. Same defect, same cause, as the one fixed in `nsrr-adapter.js`
+     (DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §AD).
+     Resolved once, at load, so a future reader sees a single seam instead of four scattered lookups. */
+  var _OXY = (typeof window !== 'undefined' && window.OxyDex && window.OxyDex._bare) || {};
+  var parseCSV = _OXY.parseCSV;
+  var processNight = _OXY.processNight;
+  /* And FAIL LOUDLY if they are absent. The original defect survived because both call sites sit inside
+     a `try { … } catch { /* skip *​/ }`, so a missing helper read as "that night had no usable data"
+     rather than as a broken page. A page that silently analyses nothing is the worst of both worlds. */
+  if (typeof parseCSV !== 'function' || typeof processNight !== 'function') {
+    throw new Error('odi-bias-analysis: OxyDex._bare.{parseCSV,processNight} unavailable — load oxydex-dsp.js first');
+  }
   var DIR = 'uploads/synthetic/';
   var NIGHTS = [
     { n: 1, oxy: 'O2Ring S 2100_20260511231000.csv', gt: 'ground_truth_night1.json' },
