@@ -24564,6 +24564,27 @@
       T.eq('BACK-COMPAT · …and the two hour figures are equal by construction, which is the honest statement', oe && oe.recordedHours, oe && oe.envelopeHours);
       T.eq('BACK-COMPAT · …with no node credited for a claim it never made', oe && oe.declaredBy && oe.declaredBy.length, 0);
       T.eq('BACK-COMPAT · absent coverage ⇒ the pre-existing overlapHours, unchanged', envRun.overlapHours, RF([rec('OxyDex', desats), rec('ECGDex', surges)], {}).apnea.overlapHours);
+
+      /* ════ §2.3 — the block is RENDERED, not merely published ════
+         INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.3: `overlapCoverage` existed in the export and
+         appeared nowhere in the UI, so a reader had to open the JSON to tell 7 h-of-7 from 2 h-of-7 —
+         and that ratio IS the denominator the confirmed apnea index above is divided by.
+         SOURCE-SCAN, not a render assertion, and the difference is worth stating plainly: driving the
+         real KPI strip needs a DOM, so this pins that the tile is WIRED — reads the block, routes it
+         through `kpi()` with an evidence key, and that key is graded. The painting half is covered by
+         `integrator-render.js` already sitting in BADGE_ENFORCED, which requires the badge to lead
+         the value in every `kpi()` tile. */
+      var _ir = (env.sources || {})['integrator-render.js'];
+      if (!_ir) {
+        T.skip('§2.3 · overlapCoverage is rendered', 'integrator-render.js not in env.sources');
+      } else {
+        T.ok('§2.3 · the renderer READS apnea.overlapCoverage (it was export-only before)', /overlapCoverage/.test(_ir));
+        T.ok('§2.3 · …and surfaces it through kpi() with an evidence key, per the coverage mandate', /'Overlap coverage'[\s\S]{0,300}?'overlap_coverage'/.test(_ir));
+        T.ok('§2.3 · …which is GRADED in the fusion evidence table', /overlap_coverage:\s*\{[\s\S]{0,400}?evidence:\s*'measured'/.test(_ir), 'an ungraded key makes MetricRegistry.badge render nothing');
+        // The honest-null path: recordedFrac is null when the envelope is zero, and a null must not
+        // render as 100 % — a ratio with no denominator is unknown, not complete.
+        T.ok('§2.3 · …and a null recordedFrac renders as an em-dash, never as complete', /frac == null \? '—'/.test(_ir));
+      }
     });
 
     group('A second oximeter cannot double the apnea index — §3.1', 'integrator-dsp · apnea · fabricated-redundancy', function (T) {
