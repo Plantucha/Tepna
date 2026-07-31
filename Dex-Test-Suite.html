@@ -313,6 +313,7 @@ async function main(){
     // Asserts what the 3-LED wrist twin structurally cannot: a 1-column file parses, LED agreement
     // is null (never a fabricated 100), and the in-band 156 sentinel splits by isolation not value.
     ['ppgdex_finger', 'synthetic_ppgdex_o2ring_finger.txt', null],
+    ['ppgdex_gapped', 'synthetic_ppgdex_verity_gapped.txt', 'synthetic_ppgdex_gapped_golden.node-export.json'],  // §2.2 fragmented Verity twin
     ['ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json'],
     // ADVERSARIAL ECGDex twin — a FRAGMENTED recording, WITH a golden (INTEGRATOR-GAP-AWARE-OVERLAP
     // part 2). The clean twin above is contiguous, so nothing committed exercised recording.coverage —

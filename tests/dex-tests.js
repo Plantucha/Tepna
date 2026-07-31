@@ -5098,6 +5098,40 @@
         T.ok("the median-beat AI clause badges EMERGING", /ev-emerging/.test(R.badgeForLabel('Augmentation index', true)));
       }
     }
+
+    /* ════ THE FRAGMENTED VERITY TWIN — INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2 ════
+       Every other committed PpgDex input is contiguous, so `coverage()` returned null on all of them
+       and NOTHING committed exercised the emitter — PpgDex's gap derivation was gated only by inputs
+       hand-built inside the test, which is weaker in exactly the way the parent brief's §5 warns
+       about: an input built in a test drifts with the test.
+       The twin is the SAME 40 s Verity stream with two arm-off holes (6 s and 4 s) cut out, so it
+       differs from the clean twin only by the removed rows. `recording.coverage` is the field the
+       Integrator's overlap denominator reads, so a suppressed emitter must red here — mutation-
+       verified by making `PpgDex.coverage` return null. */
+    var eqGap = env.equiv && env.equiv.ppgdex_gapped;
+    if (!(eqGap && eqGap.input)) {
+      T.skip('committed FRAGMENTED Verity twin present', 'uploads/synthetic_ppgdex_verity_gapped.txt absent — it is COMMITTED, so this must run everywhere including CI');
+    } else if (env.PpgDex && typeof env.PpgDex.compute === 'function') {
+      var gEx = env.PpgDex.compute({ text: eqGap.input });
+      var gCov = gEx && gEx.recording && gEx.recording.coverage;
+      T.ok(
+        '§2.2 · the fragmented Verity twin DECLARES coverage (the overlap denominator reads this)',
+        !!gCov && gCov.kind === 'sparse',
+        gCov ? JSON.stringify({ n: gCov.n, rec: gCov.recordedSec, span: gCov.spanSec, src: gCov.source }) : 'ABSENT — emitter suppressed?'
+      );
+      if (gCov) {
+        T.eq('§2.2 · THREE recorded segments, one per surviving stretch', gCov.n, 3);
+        T.approx('§2.2 · recordedSec is the 30 s that survived, not the 40 s envelope', gCov.recordedSec, 30, 1);
+        T.approx('§2.2 · …and spanSec is still the full 40 s envelope', gCov.spanSec, 40, 1);
+        T.eq('§2.2 · …attributed to the BLE link, not to a short recording', gCov.source, 'ble-dropout');
+      }
+      // The CONTROL that makes the pair meaningful: the clean twin must still declare NOTHING, or the
+      // assertions above would pass on an emitter that fires indiscriminately.
+      if (eq && eq.input) {
+        var cEx = env.PpgDex.compute({ text: eq.input });
+        T.eq('§2.2 · CONTROL — the contiguous twin still declares no coverage at all', (cEx && cEx.recording && cEx.recording.coverage) || null, null);
+      }
+    }
   });
 
   // A storage failure must SURVIVE to the user. persistHRVRows used to paint its own warning and the
@@ -14146,6 +14180,26 @@
       }
       if (n.desSev && n.desSev.desSev != null) {
         T.ok('§2.1 · …and so does desSev (ungated reads ~18.9 here)', n.desSev.desSev < 12, 'desSev=' + n.desSev.desSev);
+      }
+
+      /* ════ COVERAGE on the committed twin — INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2 ════
+         §2.2 asked for a NEW committed fragmented twin for OxyDex. It is not needed. THIS input —
+         committed since DEEP-AUDIT §5 for the ODI-basis divergence — already carries a 30-min
+         finger-off hole, so it already drives the coverage emitter. What was missing was an
+         ASSERTION on that output, not an input. Measured: 2 segments, ~5398 s recorded inside a
+         ~7199 s envelope.
+         This is the field the Integrator's apnea denominator rests on, so a suppressed emitter must
+         red here — mutation-verified by making `OxyDex.coverage` return null. */
+      var _cov = r && r.recording && r.recording.coverage;
+      T.ok(
+        '§2.2 · the committed gappy twin DECLARES coverage (the fusion denominator reads this)',
+        !!_cov && _cov.kind === 'sparse',
+        _cov ? JSON.stringify({ n: _cov.n, rec: _cov.recordedSec, span: _cov.spanSec, src: _cov.source }) : 'ABSENT — emitter suppressed?'
+      );
+      if (_cov) {
+        T.eq('§2.2 · TWO recorded segments, one either side of the finger-off hole', _cov.n, 2);
+        T.ok('§2.2 · recordedSec is materially SHORT of the envelope — the whole point of the block', _cov.recordedSec < _cov.spanSec - 1500, 'recorded=' + _cov.recordedSec + ' span=' + _cov.spanSec);
+        T.eq('§2.2 · …and it names the cause, so a reader can tell a dropout from a short night', _cov.source, 'sensor-dropout');
       }
     });
 

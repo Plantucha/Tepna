@@ -124,7 +124,22 @@ const fromPPG = (file) => {
 
 const FIXTURES = [
   { name: 'PpgDex_2026-06-27_equiv.node-export.json', real: true, build: () => fromPPG('Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt') },
-  { name: 'synthetic_ppgdex_golden.node-export.json', build: () => fromPPG('synthetic_ppgdex_verity.txt') }
+  { name: 'synthetic_ppgdex_golden.node-export.json', build: () => fromPPG('synthetic_ppgdex_verity.txt') },
+  /* The FRAGMENTED twin (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2) — the same argument the ECGDex
+     `_gapped` fixture makes, one node over. Every other committed PpgDex input is CONTIGUOUS, so
+     `coverage()` returned null on all of them and `recording.coverage` — the field the Integrator's
+     overlap denominator rests on — had no committed leg at all. A regression that stopped emitting
+     it, or emitted the envelope instead of the segments, reproduced byte-identically on both clean
+     twins. Committed input ⇒ CI re-runs it from committed bytes every push. */
+  {
+    name: 'synthetic_ppgdex_gapped_golden.node-export.json',
+    build: () => fromPPG('synthetic_ppgdex_verity_gapped.txt'),
+    newRecord: {
+      added: '2026-07-31',
+      inputs: ['synthetic_ppgdex_verity_gapped.txt'],
+      note: 'INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2 — the FRAGMENTED committed Verity twin. Two arm-off holes (6 s + 4 s) cut out of the clean 40 s twin, so recording.coverage must declare 3 segments / ~30 s recorded inside a 40 s envelope, source ble-dropout. Every other PpgDex equiv input is gapless, so the coverage emitter had no committed leg; the clean twin is retained as the control that must still declare nothing.'
+    }
+  }
 ];
 
 const rerecord = makeRerecord({ repo: REPO, node: 'PpgDex', bundle: 'PpgDex.html', uploadsDir: UP, ManifestGate });

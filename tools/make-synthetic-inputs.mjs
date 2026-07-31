@@ -361,6 +361,29 @@ const emit = (name, text) => {
     rows.push(`${isoMs(t0 + (i / FS) * 1000)};${ns};${Math.round(base)};${Math.round(base - 9340)};${Math.round(base - 17140)};${Math.round(-650690 + 40 * Math.sin(t / 11))};`);
   }
   emit('synthetic_ppgdex_verity.txt', rows.join('\n') + '\n');
+
+  /* ── 5a-ii · the FRAGMENTED Verity twin (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2) ──
+     The clean twin above is contiguous, so PpgDex's `coverage()` returns null on it and NOTHING
+     committed exercised the emitter — PpgDex's gap derivation was gated only by hand-built inputs
+     inside the test, which is weaker in exactly the way the parent brief's §5 warns about: an input
+     built in a test can drift with the test.
+     Two arm-off holes are punched out of the SAME 40 s stream, so the fragmented twin differs from
+     the clean one only by the removed rows — a reader diffing them sees the gap and nothing else.
+     The `sensor timestamp [ns]` and phone-stamp columns keep their ORIGINAL values across the hole
+     (rows are dropped, not re-stamped), which is what a real off-link looks like to the parser. */
+  {
+    const HOLES = [
+      [12, 18], // 6 s
+      [27, 31] //  4 s
+    ];
+    const inHole = (t) => HOLES.some(([a, b]) => t >= a && t < b);
+    const gapRows = [rows[0]];
+    for (let i = 0; i < FS * SECS; i++) {
+      if (inHole(i / FS)) continue;
+      gapRows.push(rows[i + 1]); // +1 skips the header
+    }
+    emit('synthetic_ppgdex_verity_gapped.txt', gapRows.join('\n') + '\n');
+  }
 }
 
 /* ── 5b · PpgDex — Wellue O2Ring FINGER-site PPG (1 channel, 8-bit, ~125.7 Hz) ──
