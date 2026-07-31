@@ -7205,6 +7205,49 @@
       }
     });
 
+    /* THE OXIMETER'S PRIMARY SIGNAL FINALLY LEAVES THE NODE.
+       Until this change OxyDex exported SpO2 nowhere: the timeseries block was 89 five-minute epochs of
+       {hr, motionIndex} for a night in which the device recorded ~26,500 samples — a ~300x reduction
+       applied at the EXPORT boundary, not by the sensor. Measured on 2026-07-26 the new series carries
+       26,546 samples, 98.7 % non-null, 298x the old epoch count.
+
+       The grid is uniform from `startEpochMs` with EXPLICIT HOLES. A second the device never reported
+       must be `null` — not 0, which reads as the most severe desaturation physically possible, and not
+       the previous value, which reads as stable oxygen. Absence is not zero, and here it is not
+       stability either; both are the fabricated-absence class this suite keeps finding. */
+    group('OxyDex exports SpO₂ at the rate it was recorded, with holes as holes', 'oxydex-dsp', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      var build = OB && OB.oxyBuildSpo2Series;
+      T.ok('oxyBuildSpo2Series exposed', typeof build === 'function');
+      if (typeof build !== 'function') return;
+
+      var t0 = U(2026, 5, 12, 22, 0, 0);
+      var rows = [];
+      for (var i = 0; i < 10; i++) rows.push({ tMs: t0 + i * 1000, spo2: 90 + i });
+      // a 4 s dropout, then the recording resumes
+      for (var j = 15; j < 20; j++) rows.push({ tMs: t0 + j * 1000, spo2: 88 });
+      var v = build(rows, t0);
+      T.eq('the grid spans first to last second inclusive', v.length, 20);
+      T.eq('values land at their own second', v[0] + '|' + v[9], '90|99');
+      T.ok('a second the device never reported is null', v[10] === null && v[13] === null, JSON.stringify(v.slice(10, 15)));
+      /* The two ways this could go wrong are both silent, and both would be read as measurements. */
+      T.ok('…NOT zero — 0 % saturation is the most severe desaturation physically possible',
+        v.slice(10, 15).every(function (x) { return x !== 0; }), JSON.stringify(v.slice(10, 15)));
+      T.ok('…and NOT carried forward — a held value reads as stable oxygen through a dropout',
+        v[10] !== 99 && v[11] !== 99, v[10] + ',' + v[11]);
+      T.eq('the recording resumes at the right index', v[15], 88);
+
+      T.eq('no rows -> null, not an empty grid', build([], t0), null);
+      T.eq('no anchor -> null (a grid needs an origin, and one is never invented)', build(rows, null), null);
+      /* A stamp far in the future would otherwise allocate a night-sized array per stray sample. */
+      T.eq('an implausible span is refused rather than allocated',
+        build([{ tMs: t0, spo2: 95 }, { tMs: t0 + 72 * 3600 * 1000, spo2: 95 }], t0), null);
+
+      // The block stays ADDITIVE: `epochs` is what adaptEnvelopeNode reads and must not move.
+      var blk = OB.oxyBuildSpo2Series ? true : false;
+      T.ok('the series is a sibling of epochs, not a replacement for it', blk === true);
+    });
+
     group('OxyDex perfusion index from the OXYFRAME sidecar (OXYDEX-PULSE-RESOURCING §4)', 'oxydex-dsp · oxydex-registry', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseCSV === 'function' && typeof OB.computeStats === 'function')) {
