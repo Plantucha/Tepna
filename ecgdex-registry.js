@@ -174,6 +174,29 @@
     couplingStrength: { label: 'Coupling strength', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'CSI-style cardiorespiratory sync index' },
     edrResp: { label: 'EDR resp rate', unit: 'br/min', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Respiration from R-peak amplitude modulation (EDR) — surrogate' },
 
+    /* CPC high-frequency coupling (Thomas 2005). ONLY HFC is registered, and the reason is the
+       validation rather than the literature: across 39 nights paired to device-scored ResMed
+       residualAHI (1.1-8.0, 7 abnormal-band), HFC falls with apnea burden at r = -0.408
+       [-0.641, -0.106], p = 0.009, with Pearson and Spearman agreeing (-0.408 / -0.348) and
+       surviving Bonferroni over the four predictors tested. It also beats the incumbent `cvhrIndex`,
+       which does not correlate at all (r = -0.151, p = 0.36).
+       LFC and VLFC are EXPORTED BUT DELIBERATELY UNREGISTERED. The published prediction that LFC
+       rises with apnea burden did NOT hold here (r = -0.045, flat). VLFC is nominally positive
+       (r = +0.356, p = 0.025) but fails Bonferroni, and its Pearson/Spearman diverge sharply
+       (0.356 vs 0.138), which is the signature of a few high-leverage nights. Decisively, the three
+       shares are COMPOSITIONAL — measured to sum to 100.0 +/- 0.1 per night — so HFC falling FORCES
+       LFC+VLFC to rise; badging all three would publish one finding as three.
+       `emerging`, not higher: this is one subject's corpus against a treated-apnea label, and
+       CLAUDE.md §📚 forbids upgrading a badge on "the literature says". */
+    cpcHfc: {
+      label: 'CPC HFC',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'emerging',
+      cite: 'Cardiopulmonary coupling, high-frequency band 0.10-0.40 Hz = stable NREM (Thomas 2005); validated here against device-scored residual AHI, r = -0.408, p = 0.009, n = 39'
+    },
+
     /* ── EXPERIMENTAL — ECGDex composites / single-lead screens ────────────── */
     estAHI: { label: 'Est. AHI', unit: '/h', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'CVHR/CPC apnea proxy from ECG alone — screen-only, not diagnostic' },
     apneaRisk: { label: 'Apnea risk', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'ECG-only apnea-risk category — directional screen' },
@@ -261,6 +284,10 @@
     'hf power': 'hf',
     'lf power': 'lf',
     'vlf power': 'vlf',
+    // CPC HFC — only the HFC band is a registered metric (see the note at cpcHfc); LFC/VLFC are
+    // exported unbadged, so they deliberately have NO alias and resolve to null.
+    'cpc hfc': 'cpcHfc',
+    hfc: 'cpcHfc',
     'hf nu': 'hfnu',
     'lf nu': 'lfnu',
     'total power': 'totalPower',
