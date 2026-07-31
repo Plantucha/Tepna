@@ -4473,6 +4473,59 @@
             does not converge. Parseval pins the TOTAL to the variance, which is why it looked fine: it is
             the SPLIT that floats. At the 5-min scale the grid is adequate BY CONSTRUCTION, so both die
             together. */
+    /* ════ PpgDex SampEn DEFAULT TOLERANCE r = 0.2·SD — deep-scout §EP-rest, the last one ════
+       `sampEn(nn, m, r)` computes `tol = (r || 0.2) * sd` (Richman–Moorman). Its only call site is
+       `sampEn(nn)` inside `analyze`, so BOTH defaults — `m = 2` and `r = 0.2` — were unreachable, and a
+       `0.2 → 0.15` slip re-scores every PpgDex SampEn silently.
+
+       The brief hunted for "a tolerance-sensitive synthetic" — a series whose SampEn moves enough under
+       that slip to show up in a surfaced metric — and did not find one, so it deferred the gate as LOW.
+       **The hunt was unnecessary.** A DEFAULT is pinned by EQUALITY against the explicit argument:
+       `sampEn(nn)` must equal `sampEn(nn, 2, 0.2)` exactly and must NOT equal `sampEn(nn, 2, 0.15)`.
+       That holds on any series with enough texture, and it pins the default's VALUE rather than merely
+       detecting that some downstream number wobbled. `sampEn` is exposed additively for this
+       (export-only ⇒ compute-inert, proven by the PpgDex equiv leg). */
+    group('PpgDex SampEn defaults m=2, r=0.2·SD are the shipped ones — deep-scout §EP-rest', 'ppgdex-dsp · sampen · known-answer', function (T) {
+      var P = env.PPGDSP;
+      if (!P || typeof P.sampEn !== 'function') {
+        T.skip('env.PPGDSP.sampEn available', 'PPGDSP.sampEn not exposed in this runner');
+        return;
+      }
+      // A deterministic RR series with real texture: a 900 ms carrier + respiratory sinus arrhythmia +
+      // a reproducible xorshift jitter. Fixed seed ⇒ the same series in both lanes, no Math.random.
+      var s = 12345 >>> 0;
+      function rnd() {
+        s ^= s << 13;
+        s >>>= 0;
+        s ^= s >>> 17;
+        s ^= s << 5;
+        s >>>= 0;
+        return s / 4294967296;
+      }
+      var nn = [];
+      for (var i = 0; i < 400; i++) nn.push(900 + 40 * Math.sin((2 * Math.PI * i) / 14) + (rnd() - 0.5) * 30);
+
+      var def = P.sampEn(nn);
+      T.ok('the fixture is textured enough to score at all (a null here would make every leg vacuous)', def != null && isFinite(def) && def > 0, 'sampEn=' + def);
+      // THE PIN — one identity fixes BOTH defaults at once, because the right-hand side names both.
+      // (Splitting this into an "r defaults to 0.2" leg and an "m defaults to 2" leg would be the same
+      // assertion twice, dressed as two — the kind of authoritative-looking emptiness this wave exists
+      // to remove. The isolation comes from the discriminating legs below, one per parameter.)
+      T.eq('sampEn(nn) ≡ sampEn(nn, 2, 0.2) — both defaults, pinned by identity rather than by a wobble', def, P.sampEn(nn, 2, 0.2));
+      // …and the identity is DISCRIMINATING: a neighbouring tolerance gives a different score, so the
+      // equality above is not passing because the function ignores `r`.
+      T.ok('…and 0.15·SD scores DIFFERENTLY, so the equality is not vacuous', P.sampEn(nn, 2, 0.15) !== def, '0.15 → ' + P.sampEn(nn, 2, 0.15) + ' vs 0.2 → ' + def);
+      T.ok('…as does 0.25·SD, in the other direction', P.sampEn(nn, 2, 0.25) !== def, '0.25 → ' + P.sampEn(nn, 2, 0.25));
+      // Direction, not just difference: a TIGHTER tolerance matches fewer templates, so SampEn RISES.
+      T.ok('a tighter tolerance raises SampEn (0.15 > 0.2 > 0.25) — the Richman–Moorman direction', P.sampEn(nn, 2, 0.15) > def && def > P.sampEn(nn, 2, 0.25), [P.sampEn(nn, 2, 0.15), def, P.sampEn(nn, 2, 0.25)].join(' > '));
+      // m is a real parameter too — a longer template is harder to match, so SampEn rises with m.
+      T.ok('m is honoured — m=3 scores differently from the m=2 default', P.sampEn(nn, 3, 0.2) !== def, 'm3=' + P.sampEn(nn, 3, 0.2));
+      // The N<60 floor: too short to estimate ⇒ null, never a fabricated number (Clock-Contract §2.6
+      // honesty applied to a statistic).
+      T.eq('under 60 intervals ⇒ null, never a fabricated score', P.sampEn(nn.slice(0, 59)), null);
+      T.ok('…and exactly 60 is enough (the floor is < 60, not <= 60)', P.sampEn(nn.slice(0, 60)) != null, 'n=60 → ' + P.sampEn(nn.slice(0, 60)));
+    });
+
     group('ECGDex/PpgDex §10/§11 — one spectral time scale; the band split is not a grid lottery', 'ecgdex-dsp · ppgdex-dsp · spectral', function (T) {
       var E = env.ECGDSP;
       if (!E || typeof E.genSynthetic !== 'function' || typeof E.analyze !== 'function') {
@@ -20952,6 +21005,21 @@
       var junk = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [200, 200, 200] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
       T.eq('resample · whole-channel-junk SpO₂ ⇒ 97% normoxic baseline (row 0)', junk.rows[0].spo2, 97);
       T.eq('resample · whole-channel-junk baseline fills every row (row 2)', junk.rows[2].spo2, 97);
+      /* deep-scout §AD, the last residue — `firstValid = validLo === 40 ? 97 : 60` has TWO arms and only
+         the SpO₂ one (97) was pinned by finding #97. The HR arm seeds 60 bpm, and it is reached with a
+         DIFFERENT `validLo` (20, from the HR band) — so a `97 : 60 → 97 : 0` slip, or the two arms being
+         swapped, would seed an impossible pulse on a junk HR channel and go unseen. The SpO₂ leg above
+         cannot catch it: it never takes this arm. */
+      var junkHr = N.edfToOxyRows({
+        signals: { SpO2: { fs: 1, data: [96, 96, 96] }, Pulse: { fs: 1, data: [999, 999, 999] } },
+        clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) }
+      });
+      T.eq('resample · whole-channel-junk PULSE ⇒ 60 bpm baseline, the OTHER arm of the same fallback', junkHr.rows[0].hr, 60);
+      T.eq('resample · …and it fills every row, like the SpO₂ arm', junkHr.rows[2].hr, 60);
+      // CONTROL — the arms are not interchangeable: a junk pulse must NOT seed 97, and the good SpO₂
+      // beside it must be untouched, so the two fallbacks are proven independent rather than coincident.
+      T.ok('CONTROL · the junk-pulse arm seeds 60, never the SpO₂ arm’s 97', junkHr.rows[0].hr !== 97, 'hr=' + junkHr.rows[0].hr);
+      T.eq('CONTROL · …and a valid SpO₂ channel beside a junk pulse is unaffected', junkHr.rows[0].spo2, 96);
       /* deep-scout §AD — the to1Hz physiologic window is INCLUSIVE at BOTH edges (>= validLo && <= validHi);
          the existing legs use interior values (95/96/98) so the exact edges were unpinned. SpO₂ 100 % and
          40 % are legitimate readings, NOT artifacts — a `<= → <` / `>= → >` slip would drop them (forward-

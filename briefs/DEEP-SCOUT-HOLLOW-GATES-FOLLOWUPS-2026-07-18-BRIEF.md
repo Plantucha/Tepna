@@ -91,7 +91,8 @@ leakage; the "narrow-band" deferral was wrong).
 > longer holds is the same failure class this wave exists to close: something that reads authoritative
 > and is not.
 
-**REMAINING (1) — ATTEMPTED and genuinely fixture-blocked (not deferred for convenience):**
+**REMAINING (0) — §EP-rest is CLOSED 9/9 as of 2026-07-31.** What follows is the last bullet's history,
+kept because the reason it was deferred turned out to be the interesting part:
 - ~~**EDR respiration autocorr window `[2.5,10] s`**~~ — **CLOSED 2026-07-31.** The prescription in this
   bullet was right: patch `respHz0`. `genSynthetic` gained an **additive, optional `opts.respHz`** (default
   unchanged at 0.235 Hz, so every golden is byte-identical — gated by a leg asserting omit ≡ default), and
@@ -134,8 +135,16 @@ leakage; the "narrow-band" deferral was wrong).
   `buildNN`'s `sqiThr` 0.3 and thus `analyzablePct`/`correctionRate`: losing bSQI + ampOK leaves
   **0.325** — analysable by 0.025 — and losing rrPlaus too drops it to **0.085**, excluded. That margin
   is exactly what was invisible while every synthetic beat sat at 1.0.
-- **PPG SampEn default tol `r = 0.2·SD`** (LOW) — a default-arg on the internal `sampEn`; same
-  analyze-level reachability problem as the ECG SampEn but without a tolerance-sensitive synthetic found.
+- ~~**PPG SampEn default tol `r = 0.2·SD`** (LOW)~~ — **CLOSED 2026-07-31. §EP-rest is now 9/9.** The
+  bullet's blocker — "without a tolerance-sensitive synthetic found" — was looking for the wrong thing.
+  A **default** is pinned by EQUALITY against the explicit argument, not by hunting a series whose score
+  wobbles enough to surface: `sampEn(nn) ≡ sampEn(nn, 2, 0.2)` fixes BOTH defaults at once (the RHS names
+  both), and `≠ sampEn(nn, 2, 0.15)` keeps the identity from passing vacuously. `sampEn` is exposed
+  additively for it. Also pinned: the Richman–Moorman DIRECTION (0.15 → 1.78 > 0.2 → 1.49 > 0.25 → 1.26 —
+  a tighter tolerance matches fewer templates, so entropy rises), that `m` is honoured, and the `N < 60`
+  floor returning **null** rather than a fabricated score. Three mutations verified independently:
+  `r 0.2→0.15`, `m 2→3`, and the floor `60→80` each red the group.
+  Group `ppgdex-dsp · sampen · known-answer`.
 
 Each is a bespoke synthetic-signal generator for a single MED/LOW gate — real diminishing returns versus
 a slow-resp/borderline-SQI ECG fixture that would also serve other future coverage.
@@ -159,12 +168,17 @@ all: pass the pre-decoded set via `A.parse('', {edfSets:[set]})`, strip `fs` off
 `resmed-edf.js:164`), and the surfaced `frame.fs` can come ONLY from the default → the `|| 50` mutation reds
 exactly the new leg while the fs-present leg stays green (`adapters · resmed-edf · cpap`, group now 26).
 
-**REMAINING §AD (1) — the ODI-4 × 1.1 item is CLOSED 2026-07-31, and closing it found three things this
-brief did not know:**
+**REMAINING §AD (0) — BOTH items CLOSED 2026-07-31; the ODI-4 × 1.1 one found three things this brief
+did not know:**
 
 - ~~`nsrr-adapter` ODI-4 × **1.1** AHI surrogate~~ — **CLOSED, see §AD-1 below.**
-- the seeded-fallback-baseline branch (partly covered — the 97 % normoxic default is already pinned by
-  finding #97). Untouched by the 2026-07-31 pass.
+- ~~the seeded-fallback-baseline branch~~ — **CLOSED 2026-07-31. §AD is now 7/7.** "Partly covered" was
+  the right diagnosis and it named the wrong half as sufficient: `firstValid = validLo === 40 ? 97 : 60`
+  has TWO arms, and finding #97 pins only the SpO₂ one. The **HR arm** (60 bpm, reached with `validLo`
+  20) had no leg, so a `97 : 60 → 97 : 0` slip — or the two arms being swapped — would seed an impossible
+  pulse on a junk HR channel unseen, and the SpO₂ leg could never catch it because it never takes that
+  arm. Now pinned with two controls proving the arms are independent rather than coincident (a junk pulse
+  must seed 60 and NOT 97, and a good SpO₂ beside it is untouched). Mutation-verified: `60 → 0` reds.
 
 ### §AD-1 · the ODI-4 × 1.1 surrogate — CLOSED 2026-07-31, and what it uncovered
 
@@ -252,3 +266,35 @@ silently produced an empty table for as long as the bare-global defect stood.
 §RN is closed by whichever lane (a)/(b) is chosen AND its 7 findings become asserted pins; §EP-rest and
 §AD each have their harness + both-direction pins (or are explicitly dispositioned). Each lands as its own
 gated PR. When all three classes are closed, flip the parent brief to `DONE`.
+
+### Status 2026-07-31 — 20 of 21 gates closed; ONE item left, and it is not this brief's to close
+
+| class | state |
+|---|---|
+| **§EP-rest** | **9/9 — CLOSED** |
+| **§AD** | **7/7 — CLOSED** |
+| **§RN** | 6/7 — the ecgdex canvas minute-tick (`t/60` axis label, **LOW**) remains |
+
+**This brief stays `PROPOSED`, deliberately.** Its own Done-when states §RN strictly — *"its 7 findings
+become asserted pins"* — and the seventh is not a pin but a **disposition**: a pure `getContext('2d')`
+draw with no value seam, judged not worth a canvas shim. That disposition is defensible and was made
+here, but flipping the header to `DONE` while a listed finding has no pin would be exactly the
+"reads authoritative and is not" failure this whole wave exists to remove. Closing it is one of:
+(a) build the canvas shim, (b) hoist the axis-label arithmetic to a pure function and pin THAT — the
+extraction path §RN wave 2 already used three times — or (c) an owner ruling that a 2× axis label is
+below the pin threshold, recorded here. **(b) is cheap and is the recommendation.**
+
+**A note on the three deferrals this brief made, since all three were re-opened and none held:**
+
+| deferred as | actually was |
+|---|---|
+| §AD ODI-4 × 1.1 — *"genuinely fixture-heavy"* | a ~50-line in-memory EDF writer the shipped reader accepts — and the constant it named was **dead code**, while the live one had no test at all |
+| §EP-rest EDR window — *"needs a slow-respiration ECG synthesizer"* | one additive optional parameter, on the route **this brief itself named** |
+| §EP-rest SQI weights — *"needs a borderline-SQI waveform generator"* | unnecessary: **differencing** recovers a weight from any beat, so nothing had to sit near the threshold |
+| §EP-rest SampEn tolerance — *"without a tolerance-sensitive synthetic found"* | unnecessary: a **default** is pinned by equality against the explicit argument |
+
+Three of the four were blocked on a fixture that did not need building, and the fourth on one the brief
+had already described. The pattern is worth carrying forward: **a recorded deferral is a hypothesis about
+cost, not a finding** — re-derive it before inheriting it. Two of these re-derivations also turned up
+defects (`NSRR.analyzeRecord` dead in production; `crc.respFromEDR` halving at 24/min) that only appeared
+because something finally executed the path.
