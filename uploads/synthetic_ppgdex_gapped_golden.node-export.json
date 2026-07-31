@@ -1,0 +1,48 @@
+{
+  "kernel": null,
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "PpgDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-07-31T16:20:10.402Z",
+    "provenance": null,
+    "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated."
+  },
+  "recording": {
+    "source": "ppg",
+    "contentId": "c72d37036e71",
+    "startEpochMs": 1782021923891,
+    "durSec": 29.992592592592594,
+    "sessions": 1,
+    "events": 0,
+    "site": "wrist",
+    "coverage": {
+      "kind": "sparse",
+      "spanSec": 40,
+      "segments": [
+        {
+          "startMs": 1782021923891,
+          "durSec": 11.993
+        },
+        {
+          "startMs": 1782021941891,
+          "durSec": 8.993
+        },
+        {
+          "startMs": 1782021954891,
+          "durSec": 8.993
+        }
+      ],
+      "recordedSec": 30,
+      "nWithDuration": 3,
+      "n": 3,
+      "source": "ble-dropout"
+    }
+  },
+  "ganglior_events": [],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available."
+  }
+}

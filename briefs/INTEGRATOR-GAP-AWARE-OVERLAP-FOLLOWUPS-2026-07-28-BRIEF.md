@@ -99,7 +99,7 @@ a fourth caller needs the same thing — until then, note that two writers of on
 ## 4 · Done when
 
 - [x] **§2.1 DONE 2026-07-31 — see §5.** Convention is *first sample AFTER the dropout*, stated at the definition in `parseECGText`, `mergeEcg` corrected from `idx - 1` to `idx`, gated structurally.
-- [ ] §2.2 committed fragmented twins for PpgDex and OxyDex, each verified RED against a suppressed emitter
+- [x] **§2.2 DONE 2026-07-31 — see §6.** PpgDex got a new committed twin; **OxyDex needed none** — its committed gap twin already drove the emitter and only lacked assertions. Both verified RED against a suppressed emitter.
 - [ ] §2.3 `overlapCoverage` surfaced in the Integrator UI, badged
 - [x] **§2.4 EXPLICITLY DECLINED 2026-07-31 — see §5.3.** No fourth caller has appeared; folding HRVDex in would mean teaching the shared helper about points-with-unknown-length for one call site.
 
@@ -154,3 +154,53 @@ that is recorded here so the next reader does not re-open it as an oversight.
 
 §2.2 (committed fragmented twins for PpgDex and OxyDex) and §2.3 (`overlapCoverage` rendered and
 badged) remain open and carry real work.
+
+---
+
+## 6 · §2.2 EXECUTED (2026-07-31) — one twin was needed, the other already existed
+
+§2.2 asked for **two** new committed inputs. Only one was needed, and finding that out first is the
+difference between adding ~300 KB to the repo and adding ~600 KB.
+
+### 6.1 OxyDex needed no new input — it needed an assertion
+
+`uploads/synthetic_oxydex_o2ring_gap.csv` has been committed since `DEEP-AUDIT §5`, where it was built
+for the **ODI-basis** divergence. It carries a 30-minute finger-off hole, so it was **already driving
+the coverage emitter** — measured before writing anything: `n:2, recordedSec:5398, spanSec:7199,
+source:"sensor-dropout"`. Nothing asserted any of it.
+
+So the gap was never the input. It was that a committed input can exercise a code path and still leave
+it ungated, which is §1 of this brief restated at the fixture layer. Four assertions now pin the block
+on that existing twin, including that `recordedSec` is *materially* short of the envelope — the
+property the whole block exists to express.
+
+### 6.2 PpgDex genuinely needed one
+
+Verified rather than assumed: `coverage()` returns **null** on both committed PpgDex inputs
+(`synthetic_ppgdex_verity.txt`, `synthetic_ppgdex_o2ring_finger.txt`) — they are contiguous. So the
+emitter had **no committed coverage at all**, and the gap derivation was gated only by inputs
+hand-built inside the test, which is weaker in exactly the way the parent's §5 warns about.
+
+`uploads/synthetic_ppgdex_verity_gapped.txt` is the same 40 s Verity stream with two arm-off holes
+(6 s and 4 s) **cut out** — rows dropped, timestamps untouched, which is what a real off-link looks
+like to the parser. Diffing it against the clean twin shows the gap and nothing else. Measured:
+`n:3, recordedSec:30, spanSec:40, source:"ble-dropout"`.
+
+**A control makes the pair meaningful:** the clean twin must still declare `null`. Without that leg,
+the new assertions would also pass on an emitter that fires indiscriminately.
+
+### 6.3 Both verified RED against a suppressed emitter
+
+Exactly what §2.2's Done-when asked for. Forcing `coverage: null` in both DSPs reds both leading
+assertions with `ABSENT — emitter suppressed?`:
+
+```
+✕ §2.2 · the fragmented Verity twin DECLARES coverage (the overlap denominator reads this)
+✕ §2.2 · the committed gappy twin DECLARES coverage (the fusion denominator reads this)
+```
+
+Wired into **both** lanes (`pairCommitted` in `run-tests.mjs`, the `equiv` table in
+`Dex-Test-Suite.html`) — `pairCommitted`, not `pair`, so a `DEX_UPLOADS` real-corpus override cannot
+turn either gate into a silent skip.
+
+**§2.3 (`overlapCoverage` rendered and badged) is now the only open item in this brief.**

@@ -41,6 +41,19 @@
       },
       "outputHash": "8740fd1deb5b6e22",
       "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for PpgDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
+    },
+    "synthetic_ppgdex_gapped_golden.node-export.json": {
+      "bundle": "PpgDex.html",
+      "manifestHash": "ca0efc090b87",
+      "added": "2026-07-31",
+      "note": "INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2 — the FRAGMENTED committed Verity twin. Two arm-off holes (6 s + 4 s) cut out of the clean 40 s twin, so recording.coverage must declare 3 segments / ~30 s recorded inside a 40 s envelope, source ble-dropout. Every other PpgDex equiv input is gapless, so the coverage emitter had no committed leg; the clean twin is retained as the control that must still declare nothing.",
+      "inputs": [
+        "synthetic_ppgdex_verity_gapped.txt"
+      ],
+      "outputHash": "cb809b49c7d20100",
+      "inputHashes": {
+        "synthetic_ppgdex_verity_gapped.txt": "3807ac2e3b6e208c"
+      }
     }
   }
 }

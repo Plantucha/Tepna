@@ -497,6 +497,12 @@ function readEquiv() {
   // beat whose span touches a gap must be dropped, not filled. pairCommitted so a DEX_UPLOADS
   // real-corpus override cannot hide it.
   pairCommitted('ppgdex_finger', 'synthetic_ppgdex_o2ring_finger.txt', null);
+  // The FRAGMENTED Verity twin (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2). Every other committed
+  // PpgDex input is contiguous, so `coverage()` returns null on all of them and NOTHING committed
+  // exercised the emitter — the gap derivation was gated only by inputs hand-built inside the test,
+  // which is weaker in exactly the way the parent brief's §5 warns about. pairCommitted (not pair):
+  // a repo artifact, so a DEX_UPLOADS real-corpus override cannot turn this gate into a silent skip.
+  pairCommitted('ppgdex_gapped', 'synthetic_ppgdex_verity_gapped.txt', 'synthetic_ppgdex_gapped_golden.node-export.json');
   pair('ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json');
   // ADVERSARIAL ECGDex twin — a COMMITTED FRAGMENTED recording (INTEGRATOR-GAP-AWARE-OVERLAP part 2).
   // The clean twin above is contiguous, so nothing committed exercised `recording.coverage` — which is
