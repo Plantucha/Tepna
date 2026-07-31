@@ -91,7 +91,7 @@ leakage; the "narrow-band" deferral was wrong).
 > longer holds is the same failure class this wave exists to close: something that reads authoritative
 > and is not.
 
-**REMAINING (2) — each ATTEMPTED and genuinely fixture-blocked (not deferred for convenience):**
+**REMAINING (1) — ATTEMPTED and genuinely fixture-blocked (not deferred for convenience):**
 - ~~**EDR respiration autocorr window `[2.5,10] s`**~~ — **CLOSED 2026-07-31.** The prescription in this
   bullet was right: patch `respHz0`. `genSynthetic` gained an **additive, optional `opts.respHz`** (default
   unchanged at 0.235 Hz, so every golden is byte-identical — gated by a leg asserting omit ≡ default), and
@@ -110,10 +110,30 @@ leakage; the "narrow-band" deferral was wrong).
   > reds them deliberately. Routed to `ECGDEX-EDR-RESP-ACCURACY-2026-07-31-BRIEF.md`, which also flags the
   > untested consequence: `f0 = respFromEDR/60` centres `_narrowPhase`, so **CPC/PLV at 24/min is suspect
   > too**.
-- **composite per-beat SQI weights (`0.30·kSQI + …`)** — the weight only matters for beats near the SQI
-  threshold; `genSynthetic` (even `scenario:'ambulatory'`) produces beats at `sqi≈1`, so a `0.30→0.50`
-  slip moves no surfaced metric (verified: analyzablePct 100→100, correctionRate 0.7→0.7, meanSQI
-  0.998→0.999). Needs a **borderline-SQI waveform generator** (many beats engineered to sit at ~0.3).
+- ~~**composite per-beat SQI weights (`0.30·kSQI + …`)**~~ — **CLOSED 2026-07-31, and the prescription in
+  this bullet was the wrong shape.** It asked for a *borderline-SQI waveform generator* — many beats
+  coaxed to sit at ~0.3 — on the premise that "the weight only matters for beats near the SQI threshold".
+  That premise is false. A weight is recoverable from ANY beat by **differencing**: hand `computeSQI` two
+  beats identical except in one term, and the change in the composite IS that term's weight, wherever the
+  beat sits. Differencing also cancels the kurtosis term, which is the only one awkward to set exactly —
+  so nothing has to approach the threshold at all.
+
+  `computeSQI` is now exposed additively (export-only, no call site change ⇒ compute-inert, and the
+  ECGDex equiv leg proves it). All four weights are pinned **exactly**, each mutation-verified
+  independently — every one of `0.30→0.50`, `0.28→0.40`, `0.24→0.10`, `0.18→0.30` reds the group:
+
+  | term | how it is isolated | measured Δ |
+  |---|---|---|
+  | bSQI 0.28 | detector B confirms every beat vs none | **0.2800** |
+  | rrPlaus 0.24 | a 2500 ms RR, outside the plausible [300, 2000] band | **0.2400** |
+  | ampOK 0.18 | amplitude below 180 counts (dead lead) | **0.1800** |
+  | ampOK's middle rung | amplitude above 6000 ⇒ 0.4, not 0 | **0.1080** = 0.18 × 0.6 |
+  | kSQI 0.30 | by closure — a saturated beat scores exactly **1.000**, so the four sum to 1 | — |
+
+  Group `ecgdex-dsp · sqi · known-answer`. It also pins the CONSEQUENCE, since the score gates
+  `buildNN`'s `sqiThr` 0.3 and thus `analyzablePct`/`correctionRate`: losing bSQI + ampOK leaves
+  **0.325** — analysable by 0.025 — and losing rrPlaus too drops it to **0.085**, excluded. That margin
+  is exactly what was invisible while every synthetic beat sat at 1.0.
 - **PPG SampEn default tol `r = 0.2·SD`** (LOW) — a default-arg on the internal `sampEn`; same
   analyze-level reachability problem as the ECG SampEn but without a tolerance-sensitive synthetic found.
 
