@@ -71,7 +71,10 @@
                 Math.round(fit.offsetSec) +
                 ' s)' +
                 (fit.spreadSec != null ? ', sensors agree within ' + Math.round(fit.spreadSec) + ' s' : '') +
-                (fit.confident ? '' : ' — NOT corroborated: ' + (fit.reason || 'single channel'))
+                // AMBIGUOUS is a stronger statement than uncorroborated and must not hide inside it: a
+                // tie means a rival offset is equally supported, so the number shown was picked by sort
+                // order. Lead with that rather than burying it in a parenthetical.
+                (fit.ambiguous ? ' — ⚠ ' + fit.reason : fit.confident ? '' : ' — NOT corroborated: ' + (fit.reason || 'single channel'))
               : '⏱ …could not be refined: ' + (fit.reason || 'no usable channel');
           var parts = (fit.channels || []).map(function (c) {
             if (!c.usable) return '· ' + c.node + '/' + c.channel + ': — (' + (c.reason || 'unusable') + ')';

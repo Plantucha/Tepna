@@ -3727,32 +3727,72 @@ function fitClockOffset(anchorTimes, channels, opts) {
     });
     return { c: c, nodes: Object.keys(nodes).length, width: c[c.length - 1].offsetSec - c[0].offsetSec };
   });
+  /* Rank on (distinct nodes, then channels, then tightness). The comparison is STRICT-improvement, so
+     when nothing separates two clusters the incumbent keeps the win — and the incumbent is `scored[0]`,
+     the cluster with the SMALLEST offset, because `sorted` is ascending. Deterministic, but ARBITRARY:
+     on a real tie the answer is decided by which offset happens to be numerically lower.
+
+     Not hypothetical. 2026-07-30 produced exactly two single-channel clusters — `ECGDex/movement_onset`
+     at -21.82 min and `ECGDex/autonomic_surge` at +74.92 min — identical on all three criteria (1 node,
+     1 channel, 0 s width). The fit reported -21.82 with nothing to say a rival 96 minutes away was
+     equally supported. Had the surge landed at -80, it would have "won" instead.
+
+     So a tie is now REPORTED, not broken. `confident` is forced false even when the winner carries two
+     corroborating nodes: "two clusters, each corroborated" is an ambiguous night, not a measured one —
+     and that is precisely the case where the old code returned an arbitrary pick wearing a confidence
+     flag. */
+  var cmp = function (z, y) {
+    return z.nodes !== y.nodes ? z.nodes - y.nodes : z.c.length !== y.c.length ? z.c.length - y.c.length : y.width - z.width;
+  };
   var win = scored[0];
-  for (var w = 1; w < scored.length; w++) {
-    var z = scored[w];
-    if (z.nodes > win.nodes || (z.nodes === win.nodes && z.c.length > win.c.length) || (z.nodes === win.nodes && z.c.length === win.c.length && z.width < win.width)) win = z;
-  }
-  var vals = win.c
-    .map(function (r) {
-      return r.offsetSec;
-    })
-    .sort(function (x, y) {
-      return x - y;
-    });
-  var mid = vals.length >> 1;
-  var median = vals.length % 2 ? vals[mid] : Math.round((vals[mid - 1] + vals[mid]) / 2);
+  for (var w = 1; w < scored.length; w++) if (cmp(scored[w], win) > 0) win = scored[w];
+  var tied = scored.filter(function (z) {
+    return z !== win && cmp(z, win) === 0;
+  });
+  var medOf = function (c) {
+    var v = c
+      .map(function (r) {
+        return r.offsetSec;
+      })
+      .sort(function (x, y) {
+        return x - y;
+      });
+    var m = v.length >> 1;
+    return v.length % 2 ? v[m] : Math.round((v[m - 1] + v[m]) / 2);
+  };
+  var median = medOf(win.c);
   win.c.forEach(function (r) {
     r.agreed = true;
   });
+  // The rivals the tie-break could equally have chosen. Surfaced so a reader sees the disagreement
+  // rather than a single number that happens to have sorted first.
+  var alternativesSec = tied.map(function (z) {
+    return medOf(z.c);
+  });
+  var tieReason = null;
+  if (tied.length) {
+    var everyOffsetMin = [median]
+      .concat(alternativesSec)
+      .map(function (s) {
+        return (s / 60).toFixed(2);
+      })
+      .join(' / ');
+    tieReason = 'ambiguous — ' + (tied.length + 1) + ' equally-supported offsets (' + everyOffsetMin + ' min); the evidence does not choose between them';
+  }
   return {
     offsetSec: median,
     spreadSec: win.width,
     nChannels: win.c.length,
     nNodes: win.nodes,
+    // AMBIGUOUS beats corroborated. A tie means the evidence does not pick a winner, so no number of
+    // agreeing nodes rescues it — reporting one side as confident would be the fabricated authority
+    // this whole estimator exists to avoid.
+    ambiguous: tied.length > 0,
+    alternativesSec: alternativesSec,
     // One node is an estimate; two or more DISTINCT nodes agreeing through unrelated mechanisms is a
     // measurement. Channel count alone does not qualify — five channels of one device share its faults.
-    confident: win.nodes >= 2,
-    reason: win.nodes >= 2 ? null : 'only one device agrees — corroboration unavailable',
+    confident: win.nodes >= 2 && !tied.length,
+    reason: tieReason || (win.nodes >= 2 ? null : 'only one device agrees — corroboration unavailable'),
     channels: out
   };
 }

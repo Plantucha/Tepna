@@ -1856,6 +1856,46 @@
       var a2 = fit(anchor, [{ node: 'OxyDex', channel: 'desat_event', times: partnerA }], { minPairs: 10 });
       T.eq('the bootstrap CI is reproducible (seeded, not Math.random)', a1.channels[0].ciLoSec, a2.channels[0].ciLoSec);
       T.eq('…on both bounds', a1.channels[0].ciHiSec, a2.channels[0].ciHiSec);
+
+      /* --- AN EXACT TIE MUST BE REPORTED, NOT BROKEN -------------------------------------------
+         The cluster ranking is strict-improvement, so when two clusters match on every criterion
+         (distinct nodes, channel count, width) the incumbent keeps the win — and the incumbent is the
+         one with the SMALLEST offset, because clusters are built from an ascending sort. Deterministic
+         and arbitrary, which is worse than obviously random: it looks like a rule.
+
+         2026-07-30 was exactly this. `ECGDex/movement_onset` at -21.82 min and `ECGDex/autonomic_surge`
+         at +74.92 min, both 1 node / 1 channel / 0 s wide. -21.82 was reported as THE offset with
+         nothing to say a rival 96 minutes away was equally supported — and it won only by sorting
+         first. It also landed close to a prediction being tested that night, which is precisely when an
+         arbitrary pick does the most damage. */
+      var tb0 = U(2026, 6, 30, 23, 0, 0), tAnchor = [], tLow = [], tHigh = [];
+      for (var q = 0; q < 20; q++) {
+        var tq = tb0 + q * 900000;
+        tAnchor.push(tq);
+        tLow.push(tq - 1309000);                       // -21.82 min
+        tHigh.push(tq + 4495000);                      // +74.92 min
+      }
+      var tie = fit(tAnchor, [
+        { node: 'ECGDex', channel: 'movement_onset', times: tLow },
+        { node: 'ECGDex', channel: 'autonomic_surge', times: tHigh }
+      ], {});
+      T.ok('two equally-supported clusters are flagged ambiguous', tie.ambiguous === true, tie.ambiguous);
+      T.ok('…the rival offset is reported, not hidden',
+        (tie.alternativesSec || []).length === 1 && Math.abs(tie.alternativesSec[0] - 4495) <= 60, tie.alternativesSec);
+      T.ok('…and the reason names both, so a reader sees the disagreement',
+        /ambiguous/.test(tie.reason || '') && /74\.9/.test(tie.reason || ''), tie.reason);
+      /* The load-bearing half. `confident` is what every consumer keys on, and an ambiguous night must
+         never set it — not even with two corroborating nodes, since "two clusters each corroborated" is
+         an ambiguous night, not a measured one. */
+      T.ok('…confident is FALSE on a tie', tie.confident === false, tie.confident);
+      /* Controls. Without these the assertions above would pass on a function that flagged EVERY night
+         ambiguous and killed confidence across the board. */
+      var solo = fit(tAnchor, [{ node: 'ECGDex', channel: 'movement_onset', times: tLow }], {});
+      T.ok('a lone cluster is NOT ambiguous', solo.ambiguous === false, solo.ambiguous);
+      T.ok('…and keeps the corroboration reason it always had',
+        /only one device agrees/.test(solo.reason || ''), solo.reason);
+      T.ok('a corroborated, untied fit is still confident',
+        robust.confident === true && robust.ambiguous === false, robust.confident + '/' + robust.ambiguous);
     });
 
     /* MOVEMENT ONSETS — the arousal fiducial, and the gate on its duplication.
