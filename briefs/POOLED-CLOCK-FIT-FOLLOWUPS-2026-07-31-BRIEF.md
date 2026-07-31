@@ -111,7 +111,52 @@ Note the CPAP rows in §1's table cannot settle it either: they were aligned usi
 offset, which is itself dominated by these same channels. **Circular — do not quote them as independent
 evidence of latency.** They are in the table because leaving them out would hide that they were tested.
 
-## 3 · Smaller items
+## 3 · The one confident error, and the guard it argues for (2026-07-23)
+
+On the maximum 45-night corpus (parent §8.4) the pooled fit has exactly one `confident` night outside
+the band: **2026-07-23 at 35.18 min**, p=0.032, Z 9.24, not ambiguous. Parent §8.5 rules out the two
+obvious explanations — it is not a stale-export artifact (the other eight legacy nights sit at
+37.5–38.2) and it is not a device-clock shift (`ECGDex/autonomic_surge` at 37.75 disagrees with
+`ECGDex/movement_onset` at 34.17 **from the same file and the same timeline**).
+
+What remains is **half-period aliasing**: the discrepancy is 3.58 min and half the night's mean apnea
+interval is 3.47 min. The movement channels have locked onto the apnea train offset by half a period.
+
+**Why the current `ambiguous` test cannot see it.** That test looks for a rival peak within one noise
+unit *in the pooled curve*. Here there is no second pooled peak — the disagreement is **between
+channels**, one family preferring 34.1 and another 37.75, which pooling then averages into a single
+confident-looking answer. This is exactly the risk the parent's §6 named (*"pooling can mask a genuinely
+disagreeing sensor"*), and §5.3's per-channel table only half-mitigates it: the table *does* show
+`ownOffsetSec` 34.17 against 37.75, but every channel still reports `agreed: true`, because each has
+z ≥ 1 at the chosen offset.
+
+**Candidate guard, deliberately not implemented yet:** flag a night when the usable channels' own
+argmaxes split into clusters separated by more than the peak's support width — i.e. reuse the *old*
+estimator's clustering as a **disagreement detector** rather than as a selector. That keeps the pooled
+fit's decision while restoring the one thing the vote genuinely did better. It must be validated against
+the whole corpus first: a guard invented from a single night is the estimator being fitted to its own
+corpus, which is the error this brief chain keeps finding.
+
+**Do not special-case "movement vs autonomic".** §1 argues against that class of channel-name rule, and
+the same half-period mechanism would arise on any anchor train with a stable period.
+
+## 4 · The fusion gate is stricter than the clock fit needs
+
+`trio-batch` rejects a night with less than `--min-overlap 1` hour of three-way concurrency, because
+`tch-multinight` needs ≥12 five-minute epochs of it. **The clock fit needs no three-way overlap at all**
+— it consumes CPAP anchors plus whatever wearable channels exist, and each node's export is full-length
+regardless of how little the three coincide. Re-folding with `--min-overlap 0 --min-hours 2` admitted
+**5 more nights** (06-17, 06-18, 06-26, 07-03, 07-10) carrying 5–8 channels instead of the usual 10–12;
+the fit produced a number on all five where the vote managed three, and correctly withheld confidence on
+the one that landed out of band (parent §8.4).
+
+Beyond that, **2026-06-06, 06-07, 06-09 and 06-13 carry only two devices**, and `trio-batch` will not
+emit them at all (`have.length < 3`, hard-coded, no flag). A 2-device night is fittable in principle —
+the estimator degrades by design — so this is a tool limit, not a data limit. Worth an
+`--allow-partial` flag so the clock-fit corpus is not bounded by a fusion precondition; but it changes a
+tool every other analysis also uses, so it needs its own gate work rather than a quick edit here.
+
+## 5 · Smaller items
 
 - **`spreadSec` changed meaning at the cutover.** Under the vote it was "how far apart the agreeing
   channels' estimates sat"; under pooling it is the width of the peak's support. Both are published as
@@ -132,7 +177,7 @@ evidence of latency.** They are in the table because leaving them out would hide
   (note `-p` before the package for tsc). Worth a line in `CONTRIBUTING.md`, since an exit-0 no-op is the
   most expensive kind of false green.
 
-## 4 · Done when
+## 6 · Done when
 
 - [ ] The bimodal latency of §1 is either explained (conditioned on arousal intensity / apnea proximity)
       or attributed to fiducial definition — and whichever it is, written back into §2d of
@@ -140,4 +185,9 @@ evidence of latency.** They are in the table because leaving them out would hide
 - [ ] `autonomic_surge` and `movement_onset` each document the instant they stamp, in their emitter.
 - [ ] If §1 resolves to physiology: a `papers/` entry with the null calibration alongside, per
       `LITERATURE-USE-POLICY`. If it resolves to an artifact: a detector fix and a gate.
-- [ ] The window/grid sweep of §3 is run, and the chosen values carry a reason.
+- [ ] The window/grid sweep of §5 is run, and the chosen values carry a reason.
+- [ ] The §3 disagreement guard is designed, validated against all 45 nights (it must not cost any of
+      the 26 correct confident nights to catch 2026-07-23), and gated — or rejected in writing with the
+      measurement that rejected it.
+- [ ] `trio-batch` grows an `--allow-partial` path (§4) so a 2-device night can be fitted, or the four
+      unreachable nights are recorded as permanently out of corpus.
