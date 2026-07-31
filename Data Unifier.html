@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-Q1L67vIKEdmP/Ex3fQOEn1L3DD9UpkwtBY++t5UFMfw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-thMimOxRwQhqT3QgWYVQAADi0d00+/T6XWw/meLoP5g=' 'sha256-vy4QJU98zC3y20n9hVUFSKef+HV/2msQk8FbjSvFZSI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-Q1L67vIKEdmP/Ex3fQOEn1L3DD9UpkwtBY++t5UFMfw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-lEOeKS1Of3gcbzImNd9+Yfqoa1MnXkVYuEB2uhnxDOk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-vy4QJU98zC3y20n9hVUFSKef+HV/2msQk8FbjSvFZSI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -20396,7 +20396,7 @@ __exports.PpgDex = window.PpgDex;
     // suppress-with-reason (NOT delete): a walk is not a sleep study, but consumers must
     // never hit a missing field — emit a present, explicitly-suppressed shape instead.
     const sleepSuppressed = ambulatory ? { suppressed: true, suppressedReason: modeInfo.suppressReason, stages: null } : null;
-    const apneaSuppressed = ambulatory ? { reportable: false, suppressedReason: modeInfo.suppressReason, cvhrIndex: null, estimatedAHI: null } : null;
+    const apneaSuppressed = ambulatory ? { reportable: false, suppressedReason: modeInfo.suppressReason, cvhrIndex: null } : null;
 
     // CVHR apnea screen is invalid under exercise → withhold the index/events. The HR series
     // is kept (heart rate IS valid for a walk); only the apnea interpretation is suppressed.
@@ -22282,34 +22282,43 @@ __exports.PpgDex = window.PpgDex;
         : lng
           ? { totalSleepMin: nz(r.totSleep), stageMinutes: r.stageMin || null }
           : null;
-      // ECGDEX AUDIT F — the Integrator's adaptEnvelopeNode('ECGDex') reads json.apnea.{cvhrIndex,
-      // estimatedAHI.value} and json.hrvStability.mean_lnRMSSD_slope, but this orchestrate-routed rich
-      // export OMITTED both blocks — so a nocturnal ECG fused DIFFERENTLY by ingest route (the app's
-      // ⬇JSON button, which runs buildV2, carried CVHR/estAHI/slope; a raw-file→OverDex route did not).
+      // ECGDEX AUDIT F — the Integrator's adaptEnvelopeNode('ECGDex') reads json.apnea.cvhrIndex and
+      // json.hrvStability.mean_lnRMSSD_slope, but this orchestrate-routed rich export OMITTED both
+      // blocks — so a nocturnal ECG fused DIFFERENTLY by ingest route (the app's ⬇JSON button, which
+      // runs buildV2, carried CVHR/slope; a raw-file→OverDex route did not).
       // MIRRORS ecgdex-app.js buildV2 field-for-field (same `r`, same reportable:false ambulatory
-      // handling, same null cases when r.cvhr/r.estAHI/r.hrvStab are absent) — honoring this builder's
-      // own SHARED-SHAPE no-divergence mandate (ppgBuildNodeExport carries the sibling out.apnea).
+      // handling, same null cases when r.cvhr/r.hrvStab are absent) — honoring this builder's own
+      // SHARED-SHAPE no-divergence mandate (ppgBuildNodeExport carries the sibling out.apnea).
+      // 2026-07-31: the mandate had drifted — `cpc` shipped here (#580) but not in buildV2, so the
+      // app's own ⬇JSON export omitted the very metric §9 validated. Both now carry it.
+      // The Integrator also read json.apnea.estimatedAHI.value; that field is retired (§10) and the
+      // read is left in place upstream, where it degrades to null. See the FOLLOWUPS brief.
       var p = r.profile || {};
       out.apnea = amb
         ? {
             reportable: false,
             suppressedReason: (r.apneaSuppressed && r.apneaSuppressed.suppressedReason) || 'ambulatory — CVHR invalid under exercise',
             cvhrIndex: null,
-            estimatedAHI: null,
-            riskCategory: null,
             onCPAP: !!p.cpap,
             method:
-              'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — WITHHELD: recording is ambulatory/awake-active, exercise HR dynamics read as cardiogenic oscillation. Mirrors the R5 null-model pattern (index withheld with a reason, never fabricated).'
+              'CVHR (Hayano) + CPC (Thomas 2005) — WITHHELD: recording is ambulatory/awake-active, exercise HR dynamics read as cardiogenic oscillation. Mirrors the R5 null-model pattern (index withheld with a reason, never fabricated).'
           }
         : lng
           ? {
               cvhrIndex: r.cvhr.index,
               cvhrEvents: r.cvhr.events.length,
-              estimatedAHI: r.estAHI ? { value: r.estAHI.value, range: [r.estAHI.lo, r.estAHI.hi], band: r.estAHI.band } : null,
-              riskCategory: r.apneaRisk ? r.apneaRisk.cat : null,
               onCPAP: !!p.cpap,
-              method: 'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — ECG-only, screen not diagnosis',
-              /* CPC (Thomas 2005) — the half of the `method` string above that had no implementation
+              /* `method` RE-WRITTEN 2026-07-31 (ECGDEX-CARDIOPULMONARY-COUPLING §10). It read
+                 "CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — ECG-only, screen not
+                 diagnosis": half of it named a coupling computation that did not exist until #580,
+                 and the whole of it implied this block estimates apnea burden. It now names what IS
+                 computed and states the one validated relationship WITH its measured strength, so a
+                 consumer sees how weak the link is instead of inferring one from a citation.
+                 `estimatedAHI` + `riskCategory` are REMOVED, not nulled — a null field invites
+                 someone to fill it, which is how the AHI-labelled proxy arrived. */
+              method:
+                'CVHR index (cyclic variation of HR, Hayano) + CPC band shares (Thomas 2005). NOT an apnea–hypopnea index: against device-scored residual AHI over 39 paired nights the CVHR index did not track it (r = −0.151, p = 0.36); only cpc.hfcPct did (r = −0.408, p = 0.009). Screen-adjacent signal, not diagnosis.',
+              /* CPC (Thomas 2005) — the half of the FORMER `method` string that had no implementation
                  until 2026-07-30. Exported UNREGISTERED and UNBADGED on purpose: it is here so the
                  published bands can be validated against device-scored residualAHI across the paired
                  CPAP nights, which is the evidence a badge would have to rest on. Per

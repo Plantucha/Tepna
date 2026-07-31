@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-30 · **Follows:** `DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md` §9/§11 · **Relates:** `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` §8
+**Status:** DONE — 2026-07-31 · **Created:** 2026-07-30 · **Follows:** `DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md` §9/§11 · **Relates:** `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` §8 · **Follow-up:** `ECGDEX-CARDIOPULMONARY-COUPLING-FOLLOWUPS-2026-07-31-BRIEF.md`
 
 # The export cites cardiopulmonary coupling. Nothing computes it.
 
@@ -147,9 +147,10 @@ literature says"*.
       up, and badging all three would publish one finding as three.
 - [x] **Gated with teeth** — `CPC registers HFC only`, mutation-verified: registering `cpcLfc` "for
       symmetry" reds 2. NOT wired into the stager; §9.4 of `DEEP-STAGE-DESAT-CONFOUND` governs.
-- [ ] **`apnea.method` corrected / `estAHI` resolved.** Still open, and §9.5 recommends retiring both:
-      `estimatedAHI` remains null on every night, and one validated correlate (r = −0.408) is not an
-      AHI estimate. Deliberately left for a separate change rather than bundled here.
+- [x] **`apnea.method` corrected / `estAHI` resolved — §9.5 option (a), executed 2026-07-31 (§10).**
+      `estimatedAHI` AND `riskCategory` are removed (not nulled), `method` now names what is computed
+      and quotes the measured correlation. §9.5's premise was wrong in one respect and understated
+      the problem in another — see §10.
 
 ## 8 · Deliberately not in scope
 
@@ -219,3 +220,86 @@ estimate. The honest options remain (a) retire the field and drop the CPC clause
 or (b) leave both pending a model that actually predicts AHI rather than correlating with it.
 **Recommendation: (a)** — the field has published a method string it never implemented for its entire
 existence, and one validated correlate does not change that.
+
+---
+
+## 10 · EXECUTED 2026-07-31 — and §9.5 had the diagnosis half-wrong
+
+§9.5's recommendation (a) is enacted. Executing it turned up two things §9.5 did not know, one of
+which makes the case stronger and one of which widens the scope.
+
+### 10.1 `estimatedAHI` was not "still null" — it was live in the app
+
+§9.5 said *"It is still null on every night."* That is true of the **batch corpus** it examined, and
+false of the product. The field is computed in `ecgdex-profile.js` by `ECGProfile.personalize`, a
+**browser-only** enrichment that `trio-batch.mjs` never runs — so every corpus export reads `null`
+while the app itself populated it. In the app it rendered as a KPI (`Est. AHI ≈ N /h · Mild`), a hero
+pill on the CVHR card, a detail-table row with a `<5` clinical target, and it rode the ⬇JSON button's
+export. **The conclusion was right for a reason that was wrong**, and the reason mattered: "a dormant
+null field" and "a clinically-labelled number on the user's screen" do not carry the same urgency.
+
+*How the mistake was available to make:* the corpus is the only route anyone measures, so a
+UI-layer derivation is invisible to every gate and every probe in this investigation. Worth
+remembering the next time an audit concludes a field is unused.
+
+### 10.2 What the "estimate" actually was
+
+```js
+estAHI = { value: +idx.toFixed(0), lo: +(idx*0.7).toFixed(0), hi: +(idx*1.3).toFixed(0),
+           band: idx<5?'Normal':idx<15?'Mild':idx<30?'Moderate':'Severe' }   // idx = r.cvhr.index
+```
+
+`value` **is** the CVHR index, rounded. The `lo`/`hi` are an invented ±30 % interval — no error model,
+no calibration, a decoration that reads as a confidence bound. The bands are AHI's own clinical
+cut-points (5/15/30). So the field asserted that CVHR events convert 1:1 into apnea–hypopnea events,
+which is exactly what §9 measured and refuted: **r = −0.151, p = 0.36** against device-scored residual
+AHI over 39 paired nights. The suite even documented the identity — a pre-existing assertion read
+`estimated AHI value = CVHR index`.
+
+### 10.3 `riskCategory` had the same defect, and was retired with it
+
+`apneaRisk(cvhrIndex, onCPAP)` mapped the same refuted index onto directive clinical strings —
+`Moderate · 15–30/h · screen for OSA`, and on CPAP `Inadequate · therapy not controlling events`.
+§7's box named only `estAHI`, but retiring one and leaving the other would have shipped the same
+claim under a different name, so both went (owner decision, 2026-07-31). The hero's "Apnea risk"
+chip, the severity colouring of the CVHR subscore, and the two CPAP-effectiveness sentences in the
+readiness note all went with it.
+
+**Nothing replaced them.** The one validated correlate (`cpc.hfcPct`, r = −0.408) is still not an AHI
+estimate, and promoting it into the vacated slot would repeat the error with better inputs. The
+surviving surfaces are `cvhrIndex` and `cpcHfc` under their own names — the subscore now reads
+`CVHR/h`, uncoloured, because colouring needs a validated cut-point and §9 found none.
+
+### 10.4 Two defects found on the way, both fixed here
+
+- **The `Apnea/h` subscore was UNBADGED.** Its label resolved to no registry id, so
+  `MetricRegistry.badge()` rendered empty — a surfaced measurement with no evidence badge, which
+  CLAUDE.md §🎫 calls a bug of the same severity as a wrong unit. The replacement label `CVHR/h` is
+  aliased to `cvhrIndex`, so it is badged by construction.
+- **`cpc` shipped on ONE export route.** `ecgdex-dsp.js` gained it in #580; `ecgdex-app.js`'s
+  `buildV2` did not — despite the DSP block declaring it "MIRRORS ecgdex-app.js buildV2
+  field-for-field". So the app's own ⬇JSON export omitted the metric this brief validated. Both
+  routes now carry it, and the divergence is gated.
+
+### 10.5 What the gates did and did not prove
+
+- **`computeHash` moved** (`f3969a38cada → 322bb5f5a6e6`), so this is **not** export-inert and
+  re-verification was owed — the honest signal working as designed.
+- **All three ECGDex fixtures regenerated to identical bytes.** That is **not** evidence of
+  inertness: **none of them carries an `apnea` block at all** (the clip and both synthetics are too
+  short for `longRec`). The changed path has **no committed-fixture coverage**, and saying "0
+  fixtures moved" without that caveat would be precisely the false export-inert claim §🔒 was written
+  to abolish. Dynamic coverage does exist — the Integrator RICH-export group builds a populated
+  apnea block — and the new assertions live there.
+- **The retirement is mutation-verified:** re-adding `estimatedAHI` "for back-compat" reds
+  `rich: apnea.estimatedAHI is GONE, not nulled`. The `method` string is pinned twice (that it
+  disclaims being an AHI, and that it carries the measured `−0.408`) so prose cannot soften back.
+
+### 10.6 Deliberately NOT done
+
+Consumers still read `apnea.estimatedAHI` from **legacy** exports — `integrator-dsp.js` (into
+`summary.estAHI`), `oxydex-fusion.js`, `cpapdex-coimport.js`. They all null-guard, so they degrade
+cleanly, and the Integrator prefers CPAP's device-scored `residualAHI` where present. Left in place
+on purpose: touching them re-bundles three more apps for no user-visible correctness gain. Carried to
+the follow-up brief, including the one case that is a real gap — a **non-CPAP** fusion reading a
+legacy ECGDex export still inherits the retired number.
