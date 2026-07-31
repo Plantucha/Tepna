@@ -20371,6 +20371,69 @@
       var gNone = env.GLUProfile.personalize({ tir: { tir: 80, tbr1: 0, tbr2: 0 }, cv: 30, mean: 130, biasOffset: 0, gmi: 5.4, activeMin: 1000, compMin: 20, pctActive: 95 });
       T.eq('GLU · expected GMI for no-diabetes = 5.4 %', gNone.expGMI, 5.4);
 
+      /* ════ THE PROFILE-DERIVATION SWEEP — ECGDEX-CARDIOPULMONARY-COUPLING-FOLLOWUPS §3 ════
+         §3 was raised because a profile-derived field (`estAHI`) reached users while every corpus
+         probe read it as null — `personalize()` does not run in the headless/batch path, so §9.5
+         concluded a LIVE clinical number was "null on every night".
+
+         Enumerating the three `personalize()` implementations found 34 derived fields, SIX of which
+         had no assertion anywhere. They are pinned here. Each is either seen by a user or rides an
+         export, so an unnoticed change to one is a silent product change. */
+
+      /* ── rhrEff · the DENOMINATOR of every VO₂max on the fleet ──
+         Uth–Sørensen is 15.3·HRmax/RHR, so rhrEff divides the headline number. `vo2base` was pinned;
+         rhrEff never was — and a manual RHR silently losing to the auto value moves VO₂ with no leg
+         naming the cause. A manual 50 must WIN over the derived 55. */
+      P._setStore(mk());
+      P.setManual('age', 40);
+      P.setManual('hrRest', 50); // the DexProfile field name — ecgdex-profile reads `detOr0('hrRest')`
+      var rEff = env.ECGProfile.personalize({ hr: 55, longRec: false, dispRm: 40, ambulatory: false });
+      T.eq('ECG · a MANUAL resting HR wins over the auto value (rhrEff divides VO₂max)', rEff.rhrEff, 50);
+      T.approx('ECG · …and VO₂max base moves with it (15.3·180/50)', rEff.vo2base, 55.1, 0.05);
+
+      /* ── hrmaxRejected · an implausible manual HRmax must be rejected VISIBLY ──
+         The guard is `hrmax >= 140 && hrmax > rhr + 45`. A rejected value silently falls back to
+         Tanaka; this flag is what tells the user their entry was discarded rather than used. */
+      P._setStore(mk());
+      P.setManual('age', 40);
+      P.setManual('hrMax', 100); // implausible: < 140
+      var rej = env.ECGProfile.personalize({ hr: 55, longRec: false, dispRm: 40, ambulatory: false });
+      T.eq('ECG · an implausible manual HRmax is REJECTED (<140)', rej.hrmaxRejected, true);
+      T.eq('ECG · …and HRmax falls back to Tanaka, never to the rejected value', rej.hrmaxEff, 180);
+      P._setStore(mk());
+      P.setManual('age', 40);
+      P.setManual('hrMax', 185);
+      T.eq('ECG · a PLAUSIBLE manual HRmax is not flagged rejected', env.ECGProfile.personalize({ hr: 55, longRec: false, dispRm: 40, ambulatory: false }).hrmaxRejected, false);
+
+      // ── cpapInUse (PpgDex) · therapy context, not a measurement ──
+      P._setStore(mk());
+      P.setManual('age', 40);
+      P.setManual('cpap', 'yes');
+      T.eq('PPG · cpapInUse reflects the profile CPAP flag', env.PPGProfile.personalize({ dispHr: 55, dispRm: 40, dispSd: 45 }).cpapInUse, true);
+      P._setStore(mk());
+      P.setManual('age', 40);
+      P.setManual('cpap', 'no');
+      T.eq('PPG · …and is false when CPAP is not declared', env.PPGProfile.personalize({ dispHr: 55, dispRm: 40, dispSd: 45 }).cpapInUse, false);
+
+      /* ── tgtLo / tgtHi (GlucoDex) · DECLARATIVE, and the gate says so ──
+         These are the user's own glycemic target range, and they ride the app export as
+         `targetRangeMgdl`. The reason that is SAFE is worth pinning rather than assuming:
+         time-in-range is computed from the fixed 2019 consensus cut-points (`TIR_CUT` =
+         54/70/180/250), NOT from these. So retargeting annotates the export; it does not move a
+         clinical metric. If a future edit ever wires TIR to the profile targets, the third
+         assertion below is what breaks. */
+      P._setStore(mk());
+      P.setManual('age', 50);
+      P.setManual('glucoseTargetLo', 80);
+      P.setManual('glucoseTargetHi', 160);
+      var gT = env.GLUProfile.personalize({ tir: { tir: 70, tbr1: 2, tbr2: 1 }, cv: 36, mean: 170, biasOffset: 0, gmi: 6.8, activeMin: 1000, compMin: 50, pctActive: 95 });
+      T.eq('GLU · a custom glycemic target LOW is carried through', gT.tgtLo, 80);
+      T.eq('GLU · …and the target HIGH', gT.tgtHi, 160);
+      T.eq('GLU · …but TIR is UNMOVED — it uses the fixed consensus cut-points, not the profile', gT.tir.tir, 70);
+
+      // ── dqLabel (GlucoDex) · the human reading of dataQualityConf, which WAS pinned ──
+      T.ok('GLU · dataQualityConf carries a human label', typeof gT.dqLabel === 'string' && gT.dqLabel.length > 0, 'dqLabel=' + gT.dqLabel);
+
       P._setStore(mk()); // leave a pristine record for later groups (mirrors §19)
     });
 

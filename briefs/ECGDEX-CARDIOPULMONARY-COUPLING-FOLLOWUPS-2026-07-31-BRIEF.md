@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-07-31 (**§1 + §2 EXECUTED, see §6**; §3 and §4 remain open; §5 is a recorded decision with nothing to do) · **Created:** 2026-07-31 · **Follows:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 · **Relates:** `DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md` §9/§12
+**Status:** IN-PROGRESS — 2026-07-31 (**§1 + §2 EXECUTED, see §6; §3 EXECUTED, see §7** — and §3's own premise was wrong, see §7.1; **§4 remains open**; §5 is a recorded decision with nothing to do) · **Created:** 2026-07-31 · **Follows:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 · **Relates:** `DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md` §9/§12
 
 # What retiring the AHI proxy left behind
 
@@ -153,3 +153,62 @@ ECGDex's own `computeHash` is unchanged (`322bb5f5a6e6`): this round touched no 
 **§3** (browser-only `personalize()` derivations invisible to every gate — the near-miss that let
 §9.5 call a live field "null on every night") and **§4** (`surgeEscalationPct`, the next unvalidated
 apnea-adjacent number in the same block) are untouched. **§5** records a decision, not work.
+
+---
+
+## 7 · §3 EXECUTED (2026-07-31) — and its premise was wrong in a way worth keeping
+
+### 7.1 The layer is NOT invisible to the gates
+
+§3 said `personalize()` is *"invisible to every fixture and every Node-lane assertion."* **It is not.**
+`tests/run-tests.mjs` already loads `ecgdex-profile.js`, `glucodex-profile.js` and `ppgdex-profile.js`
+into the realm and exposes them as `env.ECGProfile` / `env.GLUProfile` / `env.PPGProfile`, and a
+known-answer group has been exercising all three since `TEST-COVERAGE-FOLLOWUPS §1`.
+
+What is genuinely invisible is narrower and more specific: **the corpus/export path**. `trio-batch`
+and every probe built on it call the headless route, where `personalize` never runs, so a
+profile-derived field reads `null` in **all 39 nights** while being populated in the app. That — not a
+missing gate — is what let §9.5 describe a live, clinically-labelled number as "null on every night."
+
+The distinction matters because it changes the remedy. "No gate can see it" implies *write gates*;
+the truth is *the gates exist, and a corpus measurement is not one of them*. **Never conclude a field
+is dead from corpus exports alone** — that is the transferable lesson, and it is now the first line of
+this section rather than an inference someone has to re-derive.
+
+### 7.2 The enumeration
+
+Three nodes implement `personalize()`; `hrvdex-profile.js` and `oxydex-profile.js` derive nothing onto
+the result object, and `dex-profile.js` is the shared panel. **34 derived fields**, of which **six** had
+no assertion anywhere:
+
+| field | node | what it is | now pinned by |
+|---|---|---|---|
+| `rhrEff` | ECGDex | **divides every VO₂max** (Uth–Sørensen `15.3·HRmax/RHR`) | a manual RHR must beat the auto value, and VO₂ must move with it |
+| `hrmaxRejected` | ECGDex | flags that an implausible manual HRmax was discarded | rejected `<140` ⇒ flag true **and** fallback to Tanaka; a plausible one ⇒ false |
+| `cpapInUse` | PpgDex | therapy context | true/false both pinned |
+| `tgtLo` / `tgtHi` | GlucoDex | the user's glycemic target range; rides the app export as `targetRangeMgdl` | carried through **and** TIR proved unmoved |
+| `dqLabel` | GlucoDex | the human reading of `dataQualityConf` (which *was* pinned) | non-empty label |
+
+`rhrEff` is the one that mattered. It is the denominator of the fleet's headline fitness number, and
+nothing pinned it — `vo2base` was asserted only against the *derived* RHR, so a regression where a
+user's manual resting HR silently lost to the auto value would have moved every VO₂max with no leg
+naming the cause.
+
+### 7.3 The reassuring find, pinned so it stays true
+
+`tgtLo`/`tgtHi` are the only profile-derived values that reach an **export** (`targetRangeMgdl` in
+`glucodex-app.js`), which looked like the worst case: user-editable inputs feeding a clinical metric.
+**They do not.** Time-in-range is computed from the fixed 2019 consensus cut-points (`TIR_CUT` =
+54/70/180/250 mg/dL); the profile targets are declarative annotation. So retargeting labels an export
+and moves no metric.
+
+That was worth *proving* rather than reading, and it is now gate-backed: the sweep asserts TIR is
+unchanged while custom targets are in force, so **if a future edit ever wires TIR to the profile
+targets, that assertion is what breaks.**
+
+### 7.4 Scope note
+
+§3's "Done when" offered (a) browser-lane coverage **or** (b) documentation as display-only. This took
+(a) for all six, in the **Node** lane — where the existing profile group already lives, so it runs on
+every push rather than only under `?full`. No node needed option (b): every derived field is either
+pinned or transitively pinned by a value that is.
