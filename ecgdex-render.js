@@ -52,6 +52,26 @@ window.evBadge = evBadge;
     return { mins, maxs, factor };
   }
 
+  /* ── ECGScope time-axis arithmetic, hoisted out of the canvas draw ──────────────────────────────
+     DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §RN's last open finding. Both of these lived INSIDE
+     `ECGScope.draw()`, between a `getContext('2d')` and a `fillText`, so no assertion could reach them
+     and a wrong divisor — `t/60 → t/30`, doubling every minute label — shipped green. They are pure
+     functions of `secSpan`/`t`, so the fix is the EXTRACTION path §RN wave 2 already used three times
+     (tanakaHRmax · hrvRmssdClass · oxySpo2NightCV) rather than a canvas shim for one LOW finding.
+     Behaviour-identical: same expressions, same call sites, so this is compute-inert. */
+  function scopeAxisTick(secSpan) {
+    // Aim for ~8 gridlines. Past 120 s the axis switches to MINUTES, so the tick is rounded up to a
+    // whole minute — otherwise the labels below would read the same integer twice in a row.
+    if (secSpan > 120) return Math.ceil(secSpan / 8 / 60) * 60;
+    return secSpan / 8 > 1 ? Math.ceil(secSpan / 8) : secSpan / 8 > 0.2 ? 0.5 : 0.2;
+  }
+  function scopeAxisLabel(t, secSpan) {
+    // `t` is ALWAYS seconds; only the presentation changes. The /60 is the seconds→minutes conversion
+    // that §RN planted a defect in — it is the whole reason this function exists.
+    if (secSpan > 120) return (t / 60).toFixed(0) + 'm';
+    return secSpan > 12 ? t.toFixed(0) + 's' : t.toFixed(1) + 's';
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  ECGScope — interactive canvas
   // ════════════════════════════════════════════════════════════════════════
@@ -142,8 +162,7 @@ window.evBadge = evBadge;
       ctx.lineWidth = 1;
       const secStart = start / this.fs,
         secSpan = span / this.fs;
-      let tick = secSpan / 8 > 1 ? Math.ceil(secSpan / 8) : secSpan / 8 > 0.2 ? 0.5 : 0.2;
-      if (secSpan > 120) tick = Math.ceil(secSpan / 8 / 60) * 60;
+      const tick = scopeAxisTick(secSpan);
       ctx.fillStyle = C.dim;
       ctx.font = 10 * dpr + 'px IBM Plex Mono, monospace';
       ctx.textAlign = 'center';
@@ -153,8 +172,7 @@ window.evBadge = evBadge;
         ctx.moveTo(x, padT);
         ctx.lineTo(x, padT + plotH);
         ctx.stroke();
-        const lbl = secSpan > 120 ? (t / 60).toFixed(0) + 'm' : secSpan > 12 ? t.toFixed(0) + 's' : t.toFixed(1) + 's';
-        ctx.fillText(lbl, x, H - 5 * dpr);
+        ctx.fillText(scopeAxisLabel(t, secSpan), x, H - 5 * dpr);
       }
 
       // ── greyed SQI-excluded spans ──
@@ -567,7 +585,9 @@ window.evBadge = evBadge;
   </svg>`;
   }
 
-  global.ECGUI = { ECGScope, lineChart, poincare, hypnogram, medianBeatChart, buildEnvelope, COLORS: C };
+  // §RN render-harness: the two ECGScope axis helpers are exposed so the node lane can pin the
+  // surfaced tick spacing and label text without a canvas shim (see the note above their definitions).
+  global.ECGUI = { ECGScope, lineChart, poincare, hypnogram, medianBeatChart, buildEnvelope, scopeAxisTick, scopeAxisLabel, COLORS: C };
 })(window);
 
 // ESM-MIGRATION: dual-mode re-export so ecgdex-app.js can `import { ECGUI }`; the IIFE still attaches

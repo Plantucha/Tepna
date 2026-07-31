@@ -1082,6 +1082,9 @@ async function main() {
     HrvRmssdClass: ctx.hrvRmssdClass,
     OxySpo2NightCV: ctx.oxySpo2NightCV,
     ECGScope: ctx.ECGUI && ctx.ECGUI.ECGScope, // §RN: canvas waveform explorer (axis-tick label drive)
+    // §RN last finding — the two ECGScope time-axis helpers, hoisted out of the canvas draw so the
+    // node lane can pin the tick spacing and the label text without a canvas shim.
+    ECGUI: ctx.ECGUI,
     IntegratorDSP: ctx.IntegratorDSP,
     IntegratorTCH: ctx.IntegratorTCH,
     PATAlign: ctx.PATAlign,
