@@ -17994,6 +17994,34 @@
      a node's get field, an inverted goodDirection, or a broken per-node accessor/helper
      (nightOdi · compliancePct · the qtc/cvhr guards) now reds AT THE NODE, instead of being
      inferred from one engine + a source-byte check. */
+    /* ════ CPC — only HFC is a REGISTERED metric (ECGDEX-CARDIOPULMONARY-COUPLING §validation) ════
+       CPC computes three band shares, and exactly one earned a badge. Across 39 nights paired to
+       device-scored ResMed residualAHI, HFC tracks apnea burden (r = -0.408 [-0.641, -0.106],
+       p = 0.009, Pearson and Spearman agreeing, surviving Bonferroni over four predictors) and beats
+       the incumbent cvhrIndex (r = -0.151, p = 0.36). The published LFC prediction did NOT hold
+       (r = -0.045). VLFC is nominally positive but fails Bonferroni and its Pearson/Spearman diverge
+       0.356 vs 0.138.
+       The load-bearing reason LFC/VLFC stay unbadged is COMPOSITIONAL: the three shares sum to 100,
+       so HFC falling FORCES the others up — badging all three publishes one finding as three. This
+       gate pins that asymmetry, because the natural "tidy-up" is to register the sibling bands for
+       symmetry and that would silently manufacture two findings. ════ */
+    group('CPC registers HFC only — LFC/VLFC are exported unbadged (compositional)', 'ecgdex-registry · cpc · evidence', function (T) {
+      var R = env.EcgRegistry,
+        REG = env.ECG_REGISTRY;
+      if (!R || !R.idForLabel || !REG) {
+        T.ok('EcgRegistry + ECG_REGISTRY available', false, 'not wired in this lane');
+        return;
+      }
+      T.eq('CPC HFC resolves to a registered metric', R.idForLabel('CPC HFC'), 'cpcHfc');
+      T.eq('…badged `emerging` — one subject, treated-apnea label, not upgraded on the literature', REG.cpcHfc && REG.cpcHfc.evidence, 'emerging');
+      T.ok('…and its citation carries the validation, not just the paper', /r = -0\.408|residual AHI/i.test((REG.cpcHfc && REG.cpcHfc.cite) || ''), (REG.cpcHfc && REG.cpcHfc.cite) || 'no cite');
+      // The asymmetry IS the finding. LFC failed its prediction and VLFC is the arithmetic
+      // complement of HFC, so neither may carry a badge.
+      T.eq('CPC LFC is NOT registered (its published prediction did not hold here)', R.idForLabel('CPC LFC'), null);
+      T.eq('CPC VLFC is NOT registered (compositional complement of HFC)', R.idForLabel('VLFC'), null);
+      T.ok('…and no cpcLfc/cpcVlfc entry exists to badge', !REG.cpcLfc && !REG.cpcVlfc, JSON.stringify({ cpcLfc: !!REG.cpcLfc, cpcVlfc: !!REG.cpcVlfc }));
+    });
+
     group('Cross §1 — per-node crossNightBlock + helpers (VARYING series)', 'ecgdex-cross · oxydex-cross · pulsedex-cross · ppgdex-cross · cpapdex-cross', function (T) {
       var CNE = env.CrossNightEnvelope;
       var rng = [0, 1, 2, 3, 4, 5, 6, 7];

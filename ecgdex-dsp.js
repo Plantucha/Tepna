@@ -4286,6 +4286,16 @@
               riskCategory: r.apneaRisk ? r.apneaRisk.cat : null,
               onCPAP: !!p.cpap,
               method: 'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — ECG-only, screen not diagnosis',
+              /* CPC (Thomas 2005) — the half of the `method` string above that had no implementation
+                 until 2026-07-30. Exported UNREGISTERED and UNBADGED on purpose: it is here so the
+                 published bands can be validated against device-scored residualAHI across the paired
+                 CPAP nights, which is the evidence a badge would have to rest on. Per
+                 ECGDEX-CARDIOPULMONARY-COUPLING §6, no tier above `emerging` before that passes, and
+                 §9.4 of DEEP-STAGE-DESAT-CONFOUND still governs: nothing about `Deep` moves on this.
+                 Shares are of COUPLING POWER, not of sleep time, and are only interpretable against
+                 the uncorrelated-noise null measured for this estimator (VLFC 1.6 / LFC 23.6 /
+                 HFC 74.8 %) — a band share is not "percent of the night". */
+              cpc: r.crc && r.crc.cpc ? r.crc.cpc : null,
               surgeEscalationPct: r.surgeEsc ? r.surgeEsc.escalationPct : null
             }
           : null;

@@ -125,16 +125,97 @@ literature says"*.
 
 ## 7 · Done when
 
-- [ ] CPC computed from the existing `edrU`/`hrU` grids — coherence × cross-power, banded VLFC/LFC/HFC
-- [ ] Window/overlap/detrend/min-length pinned per §5, each with a stated reason and a stability check
-- [ ] `hfcPct` · `lfcPct` · `vlfcPct` · `e-LFC` exported and registered with an evidence badge
-- [ ] Validated against device-scored `residualAHI` across the 39 paired nights (§4)
-- [ ] `apnea.method` corrected — either it names what is now implemented, or the CPC clause is dropped
-- [ ] `estAHI` resolved: populated from CPC, or its registry entry retired rather than left null-forever
-- [ ] Gated with teeth (mutation-checked), and NOT wired into the stager
+- [x] **CPC computed — but NOT from `edrU`/`hrU`.** §2 was wrong to nominate them: measured, those
+      grids retain **0 % of VLFC and 0–22 % of LFC** (`_bandResp` drops < 0.1 Hz by its own comment;
+      `_detrendMov(x, 40)` is a ~48 s high-pass at sleep HR). Building on them would have reported
+      LFC ≈ 0 every night and read as a clean negative. CPC runs on `hrAbsU` + a new undetrended
+      `edrRawU`, with a per-window LINEAR detrend.
+- [x] **Window pinned at 512 s** (2048 samples @ 4 Hz), matching Thomas's *duration* rather than his
+      sample count — resolution is 1/T, and the 4 Hz grid is already ~10× oversampled against a beat
+      Nyquist of ~0.42 Hz at 50 bpm. `df = 0.00195 Hz`, ~3 bins across VLFC. Records too short return
+      `null` rather than a degraded number.
+- [x] **Estimator verified against a known-answer null.** The first `argmax` version was biased —
+      on uncorrelated noise it gave VLFC 7.5 / LFC 32.5 / HFC 60.0 % against a bandwidth-proportional
+      expectation of 1.5 / 23 / 76. Replaced with integrated band power: null now 1.6 / 23.6 / 74.8 %.
+      Without this the first real reading ("LFC 54 %") would have been reported against an implicit
+      null of zero.
+- [x] **Validated against device-scored `residualAHI`, 39 paired nights (§9).** Partially: the
+      published LFC prediction FAILED (r = −0.045); **HFC validated** (r = −0.408, p = 0.009) and beats
+      the incumbent `cvhrIndex` (r = −0.151, p = 0.36).
+- [x] **Exported; only `cpcHfc` registered, badged `emerging`.** LFC/VLFC exported deliberately
+      unbadged — the shares are compositional (sum to 100.0 ± 0.1), so HFC falling forces the others
+      up, and badging all three would publish one finding as three.
+- [x] **Gated with teeth** — `CPC registers HFC only`, mutation-verified: registering `cpcLfc` "for
+      symmetry" reds 2. NOT wired into the stager; §9.4 of `DEEP-STAGE-DESAT-CONFOUND` governs.
+- [ ] **`apnea.method` corrected / `estAHI` resolved.** Still open, and §9.5 recommends retiring both:
+      `estimatedAHI` remains null on every night, and one validated correlate (r = −0.408) is not an
+      AHI estimate. Deliberately left for a separate change rather than bundled here.
 
 ## 8 · Deliberately not in scope
 
 - **No stager change.** §9.4 governs; `Deep` does not move on this brief.
 - **No `estimatedAHI` back-fill from CVHR alone.** If CPC does not validate, the honest outcome is to
   retire the field and the claim, not to fill it with the half we happen to have.
+
+---
+
+## 9 · VALIDATED against device-scored residual AHI (2026-07-30) — partially, and the headline failed
+
+CPC was computed on all 39 merged nights (exported, then re-folded so every night carries it from
+merged sessions rather than a fragment) and paired to its ResMed night. AHI spread **1.1 – 8.0**, 7
+nights in the abnormal band.
+
+| predictor | Pearson r | 95 % CI | p | Spearman |
+|---|---|---|---|---|
+| **LFC %** | **−0.045** | [−0.356, 0.274] | 0.79 | 0.135 |
+| VLFC % | +0.356 | [0.046, 0.604] | 0.025 | 0.138 |
+| **HFC %** | **−0.408** | **[−0.641, −0.106]** | **0.009** | **−0.348** |
+| `cvhrIndex` (incumbent) | −0.151 | [−0.445, 0.173] | 0.36 | −0.144 |
+
+### 9.1 The published prediction did not hold
+
+§3 predicted, from Thomas 2005 / Hilmisson 2019, that **LFC rises with apnea burden**. It does not:
+r = −0.045, flat, CI straddling zero. Stated plainly because the brief committed to the prediction in
+advance, and a literature-derived expectation that fails on our corpus is a result, not an
+embarrassment to be re-described.
+
+### 9.2 What DID validate: HFC, and it beats the incumbent
+
+**HFC falls with apnea burden — r = −0.408, p = 0.009**, Pearson and Spearman agreeing (−0.408 /
+−0.348), and it survives Bonferroni over the four predictors tested (α = 0.0125). Physiologically
+coherent: HFC is the *stable-NREM* marker, and apnea destabilises NREM.
+
+It also **beats what ECGDex already ships for this job** — `cvhrIndex` does not correlate with device
+AHI at all (r = −0.151, p = 0.36). That is the first time in this whole line of work that a feature
+has out-performed the incumbent against an independent label.
+
+### 9.3 Why only HFC is registered — the shares are COMPOSITIONAL
+
+Measured: `hfcPct + lfcPct + vlfcPct` = **100.0 ± 0.1** on every night. The three are not independent,
+so **HFC falling FORCES LFC + VLFC to rise.** VLFC's nominal r = +0.356 is largely the arithmetic
+complement of the HFC result, not a second discovery — and it fails Bonferroni, with Pearson and
+Spearman diverging sharply (0.356 vs 0.138), the signature of a few high-leverage nights.
+
+**So `cpcHfc` is registered `emerging`; LFC and VLFC are exported and deliberately left unbadged.**
+Badging all three would publish one finding as three. This asymmetry is gate-backed
+(`CPC registers HFC only`, mutation-verified: registering `cpcLfc` "for symmetry" reds 2), because
+that tidy-up is exactly the plausible future edit that would undo the reasoning.
+
+### 9.4 Limits, stated
+
+- **One subject.** 39 nights from one person on CPAP. Nothing here generalises to a population.
+- **A treated-apnea label.** Residual AHI on therapy spans 1.1–8.0; this says nothing about untreated
+  burden or about severe disease.
+- **`emerging`, not higher.** `CLAUDE.md` §📚 forbids upgrading a badge because the literature agrees;
+  the badge rests on the r = −0.408 measured here, and the citation says so.
+- **Not diagnostic, and not wired into staging.** §9.4 of `DEEP-STAGE-DESAT-CONFOUND` still governs —
+  `Deep` does not move on this brief.
+
+### 9.5 What this settles about `estAHI`
+
+§7 asked for `estAHI` to be populated from CPC or retired. It is still **null on every night**, and
+this validation does not license filling it: a single-band correlation of −0.408 is not an AHI
+estimate. The honest options remain (a) retire the field and drop the CPC clause from `apnea.method`,
+or (b) leave both pending a model that actually predicts AHI rather than correlating with it.
+**Recommendation: (a)** — the field has published a method string it never implemented for its entire
+existence, and one validated correlate does not change that.
