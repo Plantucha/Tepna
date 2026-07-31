@@ -3407,6 +3407,111 @@
       }
     });
 
+    /* ════ COMPOSITE PER-BEAT SQI WEIGHTS — deep-scout §EP-rest, the borderline-SQI fixture ════
+       `computeSQI` scores every beat `q = 0.30·kSQI + 0.28·bSQI + 0.24·rrPlaus + 0.18·ampOK`, and that
+       score gates the whole HRV chain: `buildNN` excludes beats under `sqiThr` 0.3, which sets
+       `analyzablePct`, `correctionRate` and every downstream HRV number.
+
+       The four weights were HOLLOW, and the brief explained why it gave up: `genSynthetic` — even
+       `scenario:'ambulatory'` — emits beats at sqi ≈ 1, where all four terms are 1, so ANY weights
+       summing to 1 give the same answer (measured: a 0.30→0.50 slip moved analyzablePct 100→100,
+       correctionRate 0.7→0.7, meanSQI 0.998→0.999). Its prescription was "a borderline-SQI waveform
+       generator" — many beats engineered to sit near the threshold.
+
+       **That prescription was harder than the problem.** Rather than coax a generator toward the
+       threshold, hand `computeSQI` crafted beats in which exactly ONE term differs and pin each weight
+       by a DIFFERENCE. Differencing cancels the kurtosis term, which is the only one that is awkward to
+       set exactly — so no beat has to sit anywhere near the threshold at all. `computeSQI` is exposed
+       additively for this (export-only, no call site changes ⇒ compute-inert, and the ECGDex equiv leg
+       proves it).
+
+       Each weight is pinned EXACTLY, not approximately, and the four together are pinned to sum to 1. */
+    group('Composite per-beat SQI weights 0.30/0.28/0.24/0.18 — deep-scout §EP-rest', 'ecgdex-dsp · sqi · known-answer', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.computeSQI !== 'function') {
+        T.skip('env.ECGDSP.computeSQI available', 'ECGDSP.computeSQI not exposed in this runner');
+        return;
+      }
+      var FS = 130,
+        N = 20,
+        PER = FS; // 1.00 s RR = 60 bpm, comfortably inside the plausible band
+      // A clean beat train: a narrow triangular QRS on a silent baseline. Peaky enough for a healthy
+      // kurtosis, amplitude inside the [180, 6000] sane range, RR perfectly regular.
+      function train(amp) {
+        var len = N * PER + PER,
+          x = new Int16Array(len),
+          peaks = [],
+          times = [];
+        for (var k = 0; k < N; k++) {
+          var i = PER / 2 + k * PER;
+          for (var d = -4; d <= 4; d++) x[i + d] = Math.round((amp == null ? 1000 : amp) * (1 - Math.abs(d) / 5));
+          peaks.push(i);
+          times.push(i / FS);
+        }
+        return { x: x, peaks: Int32Array.from(peaks), times: Float64Array.from(times) };
+      }
+      var base = train();
+      var agree = Int32Array.from(base.peaks); // detector B confirms every beat
+      var sqiOf = function (t, b) {
+        return D.computeSQI(t.x, FS, t.peaks, t.times, b === undefined ? Int32Array.from(t.peaks) : b).sqi[10];
+      };
+      var clean = sqiOf(base, agree);
+
+      /* ── weight 2 · bSQI 0.28 — the cleanest switch in the function: detector B either confirms the
+            beat or it does not, so the term moves 1 → 0 and the composite must fall by exactly 0.28. */
+      T.approx('bSQI weight is 0.28 — detector B confirming vs missing EVERY beat moves the score by exactly that', clean - sqiOf(base, Int32Array.from([])), 0.28, 0.0005);
+
+      /* ── weight 3 · rrPlaus 0.24 — an RR outside the plausible [300, 2000] ms band zeroes the term. */
+      var badRR = train();
+      var t = Array.from(badRR.times);
+      t[10] = t[9] + 2.5; // a 2500 ms interval at beat 10 — implausible, not merely irregular
+      badRR.times = Float64Array.from(t);
+      T.approx('rrPlaus weight is 0.24 — an implausible 2500 ms RR zeroes the term and costs exactly that', clean - sqiOf(badRR, agree), 0.24, 0.0005);
+
+      /* ── weight 4 · ampOK 0.18, and its THREE-level ladder (0 / 0.4 / 1), which a two-level test
+            would miss. Below 180 counts ⇒ 0 (dead lead); above 6000 ⇒ 0.4 (saturating, but real). */
+      T.approx('ampOK weight is 0.18 — a sub-180-count amplitude zeroes the term and costs exactly that', clean - sqiOf(train(100), Int32Array.from(train(100).peaks)), 0.18, 0.0005);
+      T.approx('…and the INTERMEDIATE rung is 0.4, not 0 — an over-6000 amplitude costs 0.18 × 0.6 = 0.108', clean - sqiOf(train(8000), Int32Array.from(train(8000).peaks)), 0.108, 0.0005);
+
+      /* ── weight 1 · kSQI 0.30, pinned by CLOSURE rather than by differencing. A single-sample spike
+            drives kurtosis past the (kurt−2.5)/8 saturation, so all four terms are 1 and the composite
+            must be exactly 1.000 — which pins the four weights to SUM to 1. With 0.28 + 0.24 + 0.18
+            already pinned exactly above, kSQI's share is determined at 0.30. This is why the group does
+            not need to control kurtosis numerically. */
+      var spike = (function () {
+        var len = N * PER + PER,
+          x = new Int16Array(len),
+          peaks = [],
+          times = [];
+        for (var k = 0; k < N; k++) {
+          var i = PER / 2 + k * PER;
+          x[i] = 1000;
+          peaks.push(i);
+          times.push(i / FS);
+        }
+        return { x: x, peaks: Int32Array.from(peaks), times: Float64Array.from(times) };
+      })();
+      T.approx('all four terms saturated ⇒ exactly 1.000, so the weights SUM to 1 (fixing kSQI at 0.30)', sqiOf(spike, Int32Array.from(spike.peaks)), 1, 0.0005);
+
+      /* ── and the consequence, so this is not four numbers in a vacuum: the score gates `buildNN`'s
+            `sqiThr` 0.3, which decides `analyzablePct`, `correctionRate` and every downstream HRV number.
+            Losing TWO of the four terms (bSQI 0.28 + ampOK 0.18 = 0.46) leaves 0.325 — still analysable,
+            but by 0.025. That margin IS the point: at the threshold the exact weights decide inclusion,
+            which is precisely what no test could see while every synthetic beat sat at 1.0. */
+      var twoBad = train(100);
+      T.approx('losing bSQI + ampOK leaves 0.325 — barely analysable, 0.025 above buildNN sqiThr 0.3', sqiOf(twoBad, Int32Array.from([])), 0.325, 0.002);
+      // …and one more term loss puts it decisively out, so the threshold is genuinely being straddled
+      // rather than merely approached from one side.
+      var threeBad = train(100);
+      var t3 = Array.from(threeBad.times);
+      t3[10] = t3[9] + 2.5;
+      threeBad.times = Float64Array.from(t3);
+      T.ok('…and losing rrPlaus as well drops it to 0.085 — excluded from the tachogram', sqiOf(threeBad, Int32Array.from([])) < 0.3, 'sqi=' + sqiOf(threeBad, Int32Array.from([])).toFixed(4));
+      // CONTROL — the clean beat is comfortably ABOVE the same threshold, so the legs above are a
+      // discrimination and not "everything is low".
+      T.ok('CONTROL · the clean beat sits well above sqiThr 0.3', clean > 0.6, 'clean=' + clean.toFixed(4));
+    });
+
     /* ════ THE EDR RESPIRATION AUTOCORR WINDOW — deep-scout §EP-rest, the slow-respiration fixture ════
        `cardiorespCoupling` measures respiration DIRECTLY off the EDR band by autocorrelation:
        `_autocorrPeriod(edrB, FS, 2.5, 10)` — periods 2.5–10 s, i.e. 6–24 breaths/min — and surfaces it as

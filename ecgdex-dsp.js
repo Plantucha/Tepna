@@ -3682,6 +3682,13 @@
     stampEpochPositions,
     bandpass,
     detectPeaks,
+    /* Additive, same contract rule as the block above. DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §EP-rest could
+       not reach the composite per-beat SQI weights (0.30·kSQI + 0.28·bSQI + 0.24·rrPlaus + 0.18·ampOK)
+       through `analyze`, because `genSynthetic` — even `scenario:'ambulatory'` — emits beats at sqi≈1,
+       where every term is 1 and any weights summing to 1 give the same answer. Exposing the pure function
+       lets a test hand it crafted beats in which exactly ONE term differs, so each weight is pinned by a
+       DIFFERENCE. Export-only: no call site changes, so this is compute-inert. */
+    computeSQI,
     buildNN,
     beatConfidence,
     hrConfidence,
