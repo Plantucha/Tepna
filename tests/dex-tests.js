@@ -24290,6 +24290,27 @@
           var grec = E.parseECG(gapTxt);
           var gcov = E.coverage(grec);
           T.eq('the parser sees the two dropouts', grec.gaps.length, 2);
+          /* THE `gaps[].idx` CONVENTION — INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.1.
+             `idx` names the FIRST SAMPLE AFTER the dropout, never the last one before it. TWO
+             producers write this structure and they disagreed until 2026-07-31: `parseECGText` wrote
+             first-after, `tools/trio-batch.mjs mergeEcg` wrote last-before. One sample — 7.7 ms at
+             130 Hz, immaterial against hour-scale segments, which is why it survived — but the
+             consumer's dead-time walk tests `g.idx <= refIdx[k]` and is correct only under
+             first-after.
+             Asserted STRUCTURALLY, not on a magic index: this twin is three equal recorded segments,
+             so the first gap must begin exactly one segment in. A last-before producer lands one
+             sample lower, which this ±2-sample tolerance still separates. */
+          var _segSamples = grec.int16.length / 3;
+          T.approx('gaps[].idx names the FIRST sample AFTER the dropout, not the last before it', grec.gaps[0].idx, _segSamples, 2);
+          T.ok(
+            '…and the gap indices are strictly increasing (a merged multi-session stream stays ordered)',
+            grec.gaps[1].idx > grec.gaps[0].idx,
+            grec.gaps
+              .map(function (g) {
+                return g.idx;
+              })
+              .join(',')
+          );
           T.ok('…and ECGDex declares coverage for them', !!gcov && gcov.kind === 'sparse', JSON.stringify(gcov && { n: gcov.n, rec: gcov.recordedSec, span: gcov.spanSec }));
           T.eq('THREE recorded segments, one per surviving stretch', gcov && gcov.n, 3);
           T.approx('recordedSec ≈ the DATA seconds the parser counted (n/fs), not the envelope', gcov && gcov.recordedSec, grec.int16.length / grec.fs, 1);
