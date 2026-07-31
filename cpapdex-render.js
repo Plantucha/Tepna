@@ -763,13 +763,12 @@ import { CpapDsp } from './cpapdex-dsp.js';
         '<div class="metric"><div class="m-val">' +
         evBadge('cvhrIndex') +
         fnum(aut.cvhrIndex, 1) +
-        '</div><div class="m-label">CVHR Index <span class="xn-tag">ECG</span></div><div class="m-sub">cyclic-variation apnea screen</div></div>' +
-        '<div class="metric"><div class="m-val">' +
-        evBadge('estAHI') +
-        fnum(aut.estAHI, 1) +
-        '</div><div class="m-label">ECG est. AHI <span class="xn-tag">ECG</span></div><div class="m-sub">' +
-        esc(aut.estAHIband || 'independent estimate') +
-        '</div></div>' +
+        '</div><div class="m-label">CVHR Index <span class="xn-tag">ECG</span></div><div class="m-sub">cyclic-variation, not an apnea count</div></div>' +
+        /* The "ECG est. AHI · independent estimate" tile that stood here is REMOVED (§10). It was the
+           worst placement of the retired proxy in the whole suite: a CVHR index relabelled as an AHI,
+           captioned "independent estimate", sitting directly beside CPAPDex's DEVICE-SCORED AHI — two
+           numbers in the same units inviting a comparison, one of which does not measure the quantity
+           it names (r = −0.151 against the very number next to it). */
         '<div class="metric"><div class="m-val">' +
         evBadge('respRateSd') +
         fnum(aut.respRateSd, 2) +

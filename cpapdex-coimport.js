@@ -126,9 +126,16 @@
         hr: t.hr != null ? t.hr : null,
         cvhrIndex: ap.cvhrIndex != null ? ap.cvhrIndex : null,
         cvhrEvents: ap.cvhrEvents != null ? ap.cvhrEvents : null,
-        estAHI: ap.estimatedAHI && ap.estimatedAHI.value != null ? ap.estimatedAHI.value : null,
-        estAHIband: ap.estimatedAHI && ap.estimatedAHI.band ? ap.estimatedAHI.band : null,
-        riskCategory: ap.riskCategory || null,
+        /* estAHI / estAHIband / riskCategory are pinned null: ECGDex's `estimatedAHI` + `riskCategory`
+           are RETIRED (ECGDEX-CARDIOPULMONARY-COUPLING §10) — they were `cvhrIndex` under AHI's name
+           and clinical bands, measured at r = −0.151 (p = 0.36) against device-scored residual AHI.
+           A legacy export still carries them; this co-import deliberately does not propagate them,
+           because CPAPDex is the one node that HAS a real device-scored AHI and showing an ECG-derived
+           "independent estimate" beside it invites a comparison that means nothing. `cvhrIndex` above
+           still rides through, under its own name. */
+        estAHI: null,
+        estAHIband: null,
+        riskCategory: null,
         ansAge: json.personalization && json.personalization.ansAge && json.personalization.ansAge.composite != null ? json.personalization.ansAge.composite : null,
         respRateSd: rrStats && rrStats.sd != null ? rrStats.sd : null,
         respRateMedian: rrStats && rrStats.median != null ? rrStats.median : freq.respRate != null ? freq.respRate : null,

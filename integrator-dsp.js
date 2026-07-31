@@ -319,7 +319,23 @@ function adaptEnvelopeNode(json, node, filename) {
     var _sleepSuppressed = !!(json.sleep && json.sleep.suppressed === true);
     summary.ambulatory = !!(json.recording && json.recording.ambulatory) || _apneaSuppressed || _sleepSuppressed;
     summary.cvhrIndex = json.apnea && !_apneaSuppressed && json.apnea.cvhrIndex != null ? json.apnea.cvhrIndex : null;
-    summary.estAHI = json.apnea && !_apneaSuppressed && json.apnea.estimatedAHI ? json.apnea.estimatedAHI.value : null;
+    /* ECGDex's `apnea.estimatedAHI` is RETIRED (ECGDEX-CARDIOPULMONARY-COUPLING §10) and is NOT read
+       into `summary.estAHI` any more — not even when a LEGACY export still carries it.
+
+       It was never an AHI: `value` was `Math.round(cvhrIndex)` with AHI's clinical bands stapled on,
+       and §9 measured that index against device-scored residual AHI over 39 paired nights at
+       r = −0.151, p = 0.36. Current exports omit the field, so this line only ever fired on a
+       pre-2026-07-31 export — and precisely there it did the most damage, because `:555` overwrites
+       `estAHI` from CPAP's device-scored `residualAHI` ONLY when a CPAP night is present. A NON-CPAP
+       fusion of a legacy ECGDex export therefore surfaced the retired proxy as the night's AHI, with
+       nothing downstream to correct it.
+
+       Deliberately NOT deleting the tolerant read elsewhere: consumers must keep PARSING legacy
+       exports (Clock-Contract §6's spirit — tolerate what old emitters wrote). What changes is that
+       the value is no longer TRUSTED. `ahiSource` says so, so a reader can tell "no AHI known" from
+       "AHI is zero". */
+    summary.estAHI = null;
+    summary.ahiSource = json.apnea && json.apnea.estimatedAHI ? 'none — legacy ECGDex estimatedAHI ignored (retired: r = −0.151 vs device AHI)' : 'none — ECGDex measures CVHR, not AHI';
     // R8: cross-node HRV must compare the SAME analysis window. ECGDex's bare
     // hrv.time.{sdnn,rmssd} is the DISPLAY value (epoch-median for overnight) —
     // NOT comparable to another node's whole-record SDNN. Normalize the consensus

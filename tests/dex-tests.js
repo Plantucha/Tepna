@@ -13239,6 +13239,40 @@
         )[0];
         T.eq('Integrator: normal overnight still folds cvhrIndex (control)', onRec.summary.cvhrIndex, 7);
         T.ok('Integrator: normal overnight still folds remFraction (control)', isFin(onRec.summary.remFraction), 'remFraction=' + onRec.summary.remFraction);
+
+        /* THE LEGACY-DISTRUST GATE — ECGDEX-CARDIOPULMONARY-COUPLING-FOLLOWUPS §1.
+           `onRec` above is deliberately shaped like a PRE-2026-07-31 export: it still carries
+           `estimatedAHI: {value: 7, band: 'Mild'}`. Current ECGDex omits the field, so the only way
+           it reaches the Integrator is a legacy export — and that is exactly the case that used to go
+           wrong, because CPAPDex's device-scored `residualAHI` override at :571 fires ONLY when a CPAP
+           night is present. There is no CPAPDex node here: this is the bare non-CPAP fusion.
+           The planted value is 7, so a regression restoring the old read yields estAHI === 7 and reds
+           this leg — it cannot pass by accident on a null. */
+        T.eq('Integrator: a LEGACY estimatedAHI is NOT folded into estAHI (retired §10)', onRec.summary.estAHI, null);
+        T.ok(
+          'Integrator: …and ahiSource SAYS the legacy value was ignored, so null ≠ "AHI is zero"',
+          /legacy ECGDex estimatedAHI ignored/.test(onRec.summary.ahiSource || ''),
+          'ahiSource=' + onRec.summary.ahiSource
+        );
+        var curRec = A(
+          {
+            schema: { node: 'ECGDex' },
+            recording: { startEpochMs: t0, durationMin: 360 },
+            quality: { analyzablePct: 95 },
+            hrv: { time: { rmssd: 40, sdnn: 58 } },
+            apnea: { cvhrIndex: 7 },
+            sleep: { totalSleepMin: 360, stageMinutes: { REM: 72, Deep: 54, Light: 200, Wake: 34 } },
+            ganglior_events: []
+          },
+          'ECGDex',
+          'current.json'
+        )[0];
+        T.ok(
+          'Integrator: a CURRENT export (no estimatedAHI key) gets the plain no-AHI reason',
+          /ECGDex measures CVHR, not AHI/.test(curRec.summary.ahiSource || ''),
+          'ahiSource=' + curRec.summary.ahiSource
+        );
+        T.eq('Integrator: …and its cvhrIndex still folds (the surviving measurement)', curRec.summary.cvhrIndex, 7);
       } else T.ok('adaptEnvelopeNode present', false);
     });
 
@@ -24171,6 +24205,57 @@
           if (typeof E.compute === 'function') {
             var cex = E.compute({ text: cleanTxt }, { generated: 'pinned' });
             T.eq('BACK-COMPAT · …so the key is ABSENT from a clean export, not present-and-null', cex && cex.recording && Object.prototype.hasOwnProperty.call(cex.recording, 'coverage'), false);
+          }
+        }
+
+        /* ════ THE APNEA-BLOCK GATE — ECGDEX-CARDIOPULMONARY-COUPLING-FOLLOWUPS §2 ════
+           Executing §10 exposed a hole: NO committed ECGDex fixture carries an `apnea` block, so the
+           whole CVHR/CPC export path — including `cpcHfc`, the one metric that validated — had zero
+           committed coverage. Two conditions gate that block and no fixture met either:
+             1. `opts.rich` — plain `compute({text})` emits the LIGHT export (recording + events only);
+                only the orchestrate emitter passes `rich`, and the fixture builders do not.
+             2. `longRec` — `durSec >= 90 min`, measured as ACTIVE beat-covered time, not span (so a
+                sparse/gappy file cannot reach it either).
+
+           A committed 90-min ECG would cost ~40 MB (the 60 s twin is 450 KB), which is not a
+           reasonable thing to put in a git repo to satisfy a gate. So the long recording is BUILT
+           HERE by tiling the committed 60 s twin 92×, advancing only the ms column. That keeps the
+           anti-staleness property the committed-twin argument is really about — CI reconstructs it
+           from committed bytes on every push, so it cannot rot unseen — while adding no repo bytes.
+
+           Deliberately asserted on the SHAPE, not on an outputHash: the numbers here are whatever the
+           tiled signal yields, and pinning them would gate the tiling, not the export contract. */
+        if (cleanTxt && typeof E.compute === 'function') {
+          var _lines = String(cleanTxt).trim().split('\n');
+          var _hdr = _lines[0],
+            _body = _lines.slice(1);
+          var _col = function (ln) {
+            return ln.split(';');
+          };
+          var _step = Number(_col(_body[1])[2]) - Number(_col(_body[0])[2]);
+          var _segMs = Number(_col(_body[_body.length - 1])[2]) + _step;
+          var _out = [_hdr];
+          for (var _r = 0; _r < 92; _r++) {
+            var _off = _r * _segMs;
+            for (var _i = 0; _i < _body.length; _i++) {
+              var _c = _col(_body[_i]);
+              _c[2] = (Number(_c[2]) + _off).toFixed(6);
+              _out.push(_c.join(';'));
+            }
+          }
+          var _long = E.compute({ text: _out.join('\n') + '\n' }, { rich: true, generated: 'pinned' });
+          var _ap = _long && _long.apnea;
+          T.ok('LONG+rich · the apnea block EXISTS (no committed fixture reaches this path)', !!_ap, _ap ? Object.keys(_ap).join(',') : 'null — longRec not reached');
+          if (_ap) {
+            T.ok('LONG+rich · cvhrIndex is a real number (the surviving measurement)', typeof _ap.cvhrIndex === 'number' && isFinite(_ap.cvhrIndex), 'cvhrIndex=' + _ap.cvhrIndex);
+            // The retirement, gated where it is actually emitted rather than only in the Integrator's
+            // synthetic envelope. ABSENT, not null — a null key invites someone to fill it.
+            T.ok('LONG+rich · estimatedAHI is not a key (retired §10)', !Object.prototype.hasOwnProperty.call(_ap, 'estimatedAHI'));
+            T.ok('LONG+rich · riskCategory is not a key (retired §10)', !Object.prototype.hasOwnProperty.call(_ap, 'riskCategory'));
+            T.ok('LONG+rich · method disclaims being an AHI', /NOT an apnea/i.test(_ap.method || ''), String(_ap.method || '').slice(0, 60));
+            T.ok('LONG+rich · method carries the MEASURED correlation, not just a citation', /[−-]0\.408/.test(_ap.method || ''));
+            T.ok('LONG+rich · cpc rides the block (the metric §9 validated)', Object.prototype.hasOwnProperty.call(_ap, 'cpc'));
+            if (_ap.cpc) T.eq('LONG+rich · …at the PINNED 512 s window (§7, not a guess)', _ap.cpc.windowSec, 512);
           }
         }
         /* THE MERGED-SESSION SHAPE — the one that actually costs a published number. tools/trio-batch
