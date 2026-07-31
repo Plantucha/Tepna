@@ -1389,19 +1389,48 @@ function corroborateDesat(desat, hrNodesLive) {
 }
 
 /* 1 — desat ⟷ autonomic surge ⇒ confirmed_apnea_event (the headline). */
-/* ── APNEA TYPING (APNEA-TYPING-FUSION-2026-07-18 §1.1) ──────────────────────────────────────────
-   Type each desaturation OBSTRUCTIVE vs CENTRAL from MotionDex's chest-ACC respiratory-effort series —
-   the one thing oximetry ALONE cannot give:
-     effort PRESENT through the event ⇒ drive persists against a blocked airway ⇒ OBSTRUCTIVE
-     effort ABSENT                    ⇒ no respiratory drive                    ⇒ CENTRAL
-     no effort COVERAGE / ambiguous   ⇒ UNTYPED — never guessed
-   Returns null when the bus carries no MotionDex effort series: nodes are independent and MotionDex is
-   OPTIONAL to the Integrator, so its absence is a silent no-op, never an error and never a default type.
-   EXPERIMENTAL tier (3 devices, Clock-Contract alignment, accelerometer surrogate) — this rides BESIDE
-   the headline AHI and beside CPAPDex's device-scored central/obstructiveIndex; it replaces neither. */
+/* ── APNEA TYPING — TYPE WITHDRAWN (INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22 §4, option 1) ──────
+   APNEA-TYPING-FUSION-2026-07-18 §1.1 typed each desaturation OBSTRUCTIVE vs CENTRAL from MotionDex's
+   chest-ACC effort series (effort present ⇒ obstructive, flat ⇒ central). The PLUMBING was sound — it
+   abstained on missing coverage and never guessed. **The FEATURE does not carry the information the
+   rule assumed**, and 26 nights / 172 h of H10 chest ACC against device-scored AASM events measured it:
+
+     effort during CENTRAL apnea, vs that night's own baseline ... 0.99×  — not absent, NORMAL
+     effort during OBSTRUCTIVE apnea .............................. 1.72×
+     best achievable discrimination (relative, early-70% window) .. AUC 0.691 (p = 0.0002)
+     central apneas below HALF baseline ........................... 16.5%   (one RIP belt gets 84%)
+
+   An ABSOLUTE floor (`amp >= EFFORT_FLOOR_G`, 0.004 g) therefore reads effort "present" through
+   83.5–95.4% of central apneas ⇒ they typed OBSTRUCTIVE. On a corpus whose residual events are
+   overwhelmingly central (370 vs 31) the rule was wrong for the DOMINANT class, silently.
+
+   Three facts forbid simply re-tuning the constant: (1) 0.004 g is Ryser 2022's PEAK threshold on a
+   3-axis vector magnitude at 50 Hz, applied here to the RMS of one differently-filtered axis — net
+   0.2×–3× and rate-dependent; (2) an absolute gate is the wrong SHAPE regardless of value, since AASM
+   defines apnea relative to the patient's own recent baseline and tilt amplitude is posture- and
+   coupling-dependent; (3) the mechanism is unexplained — the obvious candidate (PAP mechanically
+   driving the chest) was tested against MaskPress.2s and FAILS, effort is NEGATIVELY associated with
+   pressure (Spearman ρ = −0.174, p = 0.0008, n = 367).
+
+   So we ABSTAIN rather than re-base: even done well, option 2's relative measure tops out at AUC ≈ 0.69,
+   below clinical utility. This matches the published asymmetry (Nassi 2022: one effort channel recovers
+   84% of central but only 51% of obstructive — thoracoabdominal paradox is unobservable with a single
+   sensor) and the most recent chest-accelerometer AHI system's own limitation: it "is not capable of
+   distinguishing obstructive from central apnea events" (Schipper 2026, Front Sleep).
+
+   WHAT REMAINS. The effort series is a real signal and MotionDex keeps emitting it unchanged; this
+   function keeps walking it to report COVERAGE — how many desats the chest ACC actually witnessed —
+   which is a measurement, not an inference. What it no longer does is name a TYPE from amplitude:
+     every covered desat ⇒ UNTYPED, with `typingWithdrawn:true` + a reason
+     no effort COVERAGE   ⇒ UNTYPED (unchanged — a coverage gap never manufactured a central)
+     no MotionDex on bus  ⇒ null (unchanged graceful no-op)
+   `obstructive`/`central` are NULL, not 0 — a zero would read as "measured none", which is precisely
+   the false claim being withdrawn (Clock Contract §2.6's honesty rule, applied to a count).
+   `usable:false` + `underpowered:true` are held so that EVERY pre-existing consumer gate closes.
+   Re-opening this needs a second sensor (thorax+abdomen) or a second modality (PAT), not a new constant. */
 var APNEA_TYPE_LEAD_MS = 15000; // look this far BEFORE the desat — SpO₂ lags the apnea (circulation + lung O₂ stores)
-var APNEA_TYPE_OBSTRUCTIVE_FRAC = 0.5; // ≥ half the COVERED epochs show effort ⇒ obstructive
-var APNEA_TYPE_MIN_TYPED = 5; // fewer typed events than this ⇒ underpowered (the P7 discipline)
+/* `APNEA_TYPE_OBSTRUCTIVE_FRAC` (0.5) and `APNEA_TYPE_MIN_TYPED` (5) were deleted with the rule they
+   parameterised — a live constant for a withdrawn decision is an invitation to re-enable it by tuning. */
 // Significance level for the desat⟷surge coupling verdict (§3.2). Also sets how many circular-shift
 // surrogates the Integrator must request: p can never fall below 1/(shifts+1), so a verdict at 0.05
 // needs ≥ 20 of them. Conventional α, stated once, read by both the request and the verdict.
@@ -1414,11 +1443,11 @@ function typeApneaByEffort(recs) {
   if (!motion.length) return null; // no MotionDex on the bus → no typing (graceful)
 
   var eps = [],
-    cadMs = 10000,
-    sqi = null;
+    cadMs = 10000;
+  // (`motionSqi` was folded into each typed event's `conf`; with no typed event emitted there is
+  // nothing to weight, and MotionDex already publishes it on the bus for anyone who wants it.)
   motion.forEach(function (r) {
     if (r.summary.effortCadenceSec != null) cadMs = r.summary.effortCadenceSec * 1000;
-    if (r.summary.motionSqi != null) sqi = sqi == null ? r.summary.motionSqi : Math.min(sqi, r.summary.motionSqi);
     r.summary.effortSeries.forEach(function (e) {
       if (e.tMs != null) eps.push(e);
     });
@@ -1438,47 +1467,38 @@ function typeApneaByEffort(recs) {
   });
   if (!desats.length) return null;
 
-  /** @type {Array<{tMs:number, t:string, impulse:string, node:string, conf:number|null, meta:Object}>} */
-  var typedEvents = [];
-  var out = { obstructive: 0, central: 0, untyped: 0, total: desats.length, events: typedEvents, coverageAssumed: false, typed: 0, underpowered: true, usable: false };
+  var out = {
+    obstructive: null, // NULL, not 0 — see the header: a zero reads as "measured none"
+    central: null,
+    untyped: 0,
+    total: desats.length,
+    events: [], // no typed impulse is emitted onto the bus any more
+    effortCovered: 0, // desats the chest ACC actually witnessed — a MEASUREMENT, retained
+    coverageAssumed: false,
+    typed: 0,
+    typingWithdrawn: true,
+    withdrawnReason:
+      'effort amplitude does not separate central from obstructive: central-apnea effort is 0.99x that night’s own baseline (26 nights / 172 h vs device-scored AASM), so an absolute floor typed 83.5-95.4% of centrals as obstructive; best achievable AUC 0.691. INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22 §4 option 1.',
+    underpowered: true,
+    usable: false
+  };
   desats.forEach(function (d) {
     var durMs = (d.ev.meta && d.ev.meta.durSec != null ? d.ev.meta.durSec : 10) * 1000;
     var lo = d.ev.tMs - APNEA_TYPE_LEAD_MS,
       hi = d.ev.tMs + durMs;
-    var covered = 0,
-      present = 0;
+    var covered = 0;
     for (var i = 0; i < eps.length; i++) {
       if (eps[i].tMs + cadMs <= lo) continue;
       if (eps[i].tMs >= hi) break;
       if (eps[i].present == null) continue; // chest ACC NOT recording — out of the denominator, never a "central"
       covered++;
-      if (eps[i].present) present++;
     }
-    if (!covered) {
-      out.untyped++;
-      return;
-    }
-    var frac = present / covered;
-    var type = frac >= APNEA_TYPE_OBSTRUCTIVE_FRAC ? 'obstructive' : frac === 0 ? 'central' : null;
-    if (!type) {
-      out.untyped++; // ambiguous (some effort, but not a majority) — honest non-answer
-      return;
-    }
-    if (type === 'obstructive') out.obstructive++;
-    else out.central++;
-    var conf = sqi != null && d.ev.conf != null ? +(sqi * d.ev.conf).toFixed(2) : d.ev.conf != null ? d.ev.conf : sqi;
-    typedEvents.push({
-      tMs: d.ev.tMs,
-      t: fmtClockS(d.ev.tMs),
-      impulse: 'apnea_' + type,
-      node: 'Integrator',
-      conf: conf,
-      meta: { desatNode: d.node, effortPresentFrac: +frac.toFixed(2), epochs: covered, leadSec: APNEA_TYPE_LEAD_MS / 1000 }
-    });
+    // Every desat is UNTYPED now. `effortCovered` still distinguishes "the chest ACC was there and we
+    // decline to type it" from "the chest ACC was not recording" — the same distinction the old
+    // no-coverage branch protected, kept as a count instead of as a type.
+    if (covered) out.effortCovered++;
+    out.untyped++;
   });
-  out.typed = out.obstructive + out.central;
-  out.underpowered = out.typed < APNEA_TYPE_MIN_TYPED;
-  out.usable = !out.underpowered;
   return out;
 }
 
@@ -4487,9 +4507,10 @@ function runFusion(recs, opts) {
 
   var apnea = anyOverlap ? fuseApneaEvents(recs, dtMs, gate) : null;
   var positional = apnea ? labelPositionalApnea(recs, apnea) : null;
-  // APNEA-TYPING-FUSION §1.1 — obstructive/central typing from MotionDex chest-ACC effort. Independent of
-  // `apnea` (it needs only desats + an effort series, not a cardiac corroborator), and null when MotionDex
-  // is absent from the bus. Additive: it never touches confirmedAHI or its reportability.
+  // APNEA-TYPING-FUSION §1.1 — now a chest-ACC COVERAGE report, not a type (the obstructive/central call
+  // was withdrawn by INTEGRATOR-APNEA-TYPING-REVIEW §4; see the header on typeApneaByEffort). Independent
+  // of `apnea` (it needs only desats + an effort series, not a cardiac corroborator), and null when
+  // MotionDex is absent from the bus. Additive: it never touched confirmedAHI or its reportability.
   var apneaTyping = typeApneaByEffort(recs);
   var autoGly = anyOverlap ? fuseAutonomicGlycemic(recs, dtMs, opts) : null;
   var hrv = anyOverlap ? fuseHRVConsensus(recs, dtMs) : null;
@@ -4684,9 +4705,12 @@ function buildFusionExport(recs, fusion) {
     // P7: the EventCoupling shuffled-null verdict for desat⟷surge (coverage-aware; read `real`/`lift`
     // only where `usable`). Additive + null-tolerant; the Poisson apneaNullModel above is unchanged.
     apneaCoupling: fusion.apnea ? fusion.apnea.coupling || null : null,
-    // APNEA-TYPING-FUSION §1.1: obstructive/central split from MotionDex chest-ACC effort. EXPERIMENTAL —
-    // read the split only where `usable` (not `underpowered`); `untyped` counts desats the effort series
-    // could not resolve (no coverage or ambiguous) and is NEVER folded into central. null with no MotionDex.
+    // APNEA-TYPING-FUSION §1.1, WITHDRAWN by INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22 §4 (option 1).
+    // `obstructive`/`central` are now permanently NULL and `typingWithdrawn` is true with a machine-
+    // readable `withdrawnReason` — a consumer that reads the split gets an explicit "not known", never a
+    // zero it could mistake for "measured none". `untyped` therefore equals `total`; `effortCovered` is
+    // the surviving MEASUREMENT (how many desats the chest ACC actually witnessed). Still null with no
+    // MotionDex on the bus, and `usable` stays false so every pre-existing consumer gate closes.
     apneaTyping: fusion.apneaTyping
       ? {
           obstructive: fusion.apneaTyping.obstructive,
@@ -4694,6 +4718,9 @@ function buildFusionExport(recs, fusion) {
           untyped: fusion.apneaTyping.untyped,
           typed: fusion.apneaTyping.typed,
           total: fusion.apneaTyping.total,
+          effortCovered: fusion.apneaTyping.effortCovered,
+          typingWithdrawn: fusion.apneaTyping.typingWithdrawn,
+          withdrawnReason: fusion.apneaTyping.withdrawnReason,
           underpowered: fusion.apneaTyping.underpowered,
           usable: fusion.apneaTyping.usable,
           coverageAssumed: fusion.apneaTyping.coverageAssumed
