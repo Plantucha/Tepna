@@ -137,6 +137,12 @@ precisely when it mattered most.
       on both halves — `ECGDex.analyze()` was already public with `vlf` intact and `stageSleep()`
       receives the same rich epochs, so nothing was ever blocked (§9.1). The per-epoch band export
       shipped anyway (#569) as an additive convenience, not a prerequisite.
+- [x] **§9 re-measured on properly merged nights — DONE 2026-07-30 (§11).** §9's probe re-parsed ONE
+      ECG fragment per night (74.8 % of available ECG overall, 25.6 % on the worst night) — the same
+      bug `#573` fixed in trio-batch's PpgDex path. Rewritten to read committed merged exports; both
+      corpora re-folded so all 39 nights carry band fields. AUC barely moves (0.610 → 0.599) so the
+      verdict is unchanged, but prevalence (14.3 → 11.8 %) and the break-even (a coarse-grid "~0.70",
+      really 0.664 → 0.684) were both wrong and are corrected there.
 - [ ] **A better LABEL** — PSG, or flow-based apnea scoring not gated on a 3 % desaturation. §9.6 bounds
       why: ~50 % of "clean" Deep epochs would have to hide unscored apnea before VLF's true power
       clears the actionable threshold. This is the only remaining lever, and it is not a code change.
@@ -291,6 +297,13 @@ demonstrated to exist.
 ---
 
 ## 9 · The §5 redesign, MEASURED — NOT ACTIONABLE AT CURRENT LABEL QUALITY (2026-07-30)
+
+> **Superseded in part by §11 (same day).** Every number in this section came from a probe that
+> re-parsed ONE fragment of each night's ECG. Re-measured on properly merged nights the AUC barely
+> moves (0.610 → 0.599) and the VERDICT is unchanged, but two figures here are wrong and are corrected
+> in §11: contamination prevalence (14.3 % → **11.8 %**) and the "~0.70 break-even", which was a
+> coarse-grid artifact (**0.664** at 14.3 % prevalence, **0.684** at 11.8 %). Read §11 for the
+> corrected values; the reasoning below stands.
 
 §8.4 sequenced the redesign as "export `vlf` → measure → redesign". **The first step was unnecessary
 and the third turns out to be unwarranted.** Both corrections come from measurement, on the largest
@@ -487,3 +500,86 @@ discriminator has little to gain and a mediocre one loses), and better timing ra
 changing prevalence. For the veto to become viable, the vigil-only AUC would have to rise far enough
 that a threshold finally clears net-zero — which is a real possibility worth testing, but not the way
 to bet. **Until that re-run happens, §9.4 stands as revised (not actionable, not refuted) and nothing about `Deep` should move.**
+
+---
+
+## 11 · RE-MEASURED on properly merged nights (2026-07-30) — §9's sampling was biased, its verdict survives
+
+Every figure in §9 came from a probe that re-parsed **ONE fragment** of each night's ECG
+(`sort(bySize)[0]`). `#573` found the identical bug in `trio-batch`'s PpgDex path — `l[0]`, 99 % of the
+IMU discarded — and finding it there is what prompted auditing my own harness. Mine was less severe
+(largest fragment, not first) but the same shape:
+
+| | |
+|---|---|
+| ECG available across the corpus | 8371 MB |
+| used by the §9 probe | **6264 MB — 74.8 %** |
+| worst night (2026-07-18, 83 fragments) | **25.6 %** |
+| 2026-07-16 / 07-17 | 32.8 % / 33.6 % |
+
+**The fix was not a better fragment picker.** `trio-batch.mjs` OWNS session merging and the night
+definition, and since `#569` the ECGDex export carries per-epoch `vlf/lf/hf/totalPower`. So the probe
+was rewritten to read the **committed, merged exports** — exactly as `tools/deep-desat-falsifier.mjs`
+already did — instead of re-deriving nights itself. Re-deriving the night is what confounded the
+original REM measurement; doing it again in a second harness was the same mistake wearing a different
+hat. Both corpora were re-folded so all 39 nights carry the band fields (nights folded before `#569`
+are **skipped and counted**, never silently read as having no VLF).
+
+### 11.1 What moved, and what did not
+
+| | §9 (fragment sample) | §11 (merged, corrected) |
+|---|---|---|
+| nights | 38 | **39** |
+| contaminated / clean Deep epochs | 58 / 348 | **54 / 403** |
+| **contamination prevalence** | 14.3 % | **11.8 %** |
+| `vlf/lf` AUC | 0.610 [0.528, 0.692] | **0.599 [0.515, 0.683]** |
+| `VLF/tp` AUC | 0.593 | 0.588 |
+| `rmssd` AUC | 0.516 (not established) | 0.546 (not established) |
+| per-night pooled | 0.620 [0.515, 0.725] · 10/11 | 0.595 [0.470, 0.720] · 6/7 |
+
+**The AUC barely moved: 0.610 → 0.599.** So the fragment bias did *not* materially distort the
+discrimination estimate — worth stating plainly, because the honest prior when a sampling flaw is found
+is that everything downstream is suspect, and here it was not.
+
+**Prevalence did move, 14.3 % → 11.8 %**, and in the direction I did *not* predict. I expected the
+largest-fragment pick to bias toward the calmest stretch and so UNDERSTATE contamination. The opposite
+happens, for a duller reason: a full night contributes many more clean Deep epochs while the desat set
+is unchanged, so the denominator grows and prevalence falls. The prediction was wrong; the measurement
+is what settles it.
+
+### 11.2 A correction to §9's own break-even figure
+
+§9 repeatedly cited a "~0.70 break-even". **That number was an artifact of a coarse grid** — the sweep
+stepped 0.61 → 0.65 → 0.70, so 0.70 was simply the first grid point that showed a net gain, not the
+break-even. Computed properly (0.001 steps, same normal model):
+
+| prevalence | true break-even AUC |
+|---|---|
+| 14.3 % (fragment sample) | **0.664** |
+| **11.8 % (merged corpus)** | **0.684** |
+
+Two consequences, pulling in opposite directions and both worth stating. The bar was **lower** than §9
+claimed (0.664, not 0.70), so 0.610 was closer to actionable than the text implied. But the corrected
+prevalence **raises** the bar to 0.684 — a rarer contaminant is harder to pay for — while the corrected
+AUC falls to 0.599. Net: the gap between measured and required is essentially unchanged.
+
+### 11.3 The verdict, on better data
+
+Measured `vlf/lf` = **0.599, CI [0.515, 0.683]**, against a break-even of **0.684**:
+
+- The CI **excludes 0.5** — VLF is a genuine discriminator, confirmed on merged data.
+- The CI's upper bound (0.683) sits **just below** the break-even (0.684). By a hair — far too fine a
+  margin to lean on, and not a basis for hardening the language.
+- The per-night view weakened (7 nights with both classes, down from 11, because merged nights carry
+  more clean epochs), so it no longer adds independent support: 0.595 [0.470, 0.720], 6/7 favouring.
+
+**§9.4's verdict stands unchanged: NOT ACTIONABLE at current label quality, and still not "refuted".**
+The evidence for it is now better — same conclusion from a corpus with no fragment sampling and no
+skipped nights — and the §9.6 label-noise bound is untouched, since it depends on the mislabelled-
+negative share rather than on either AUC.
+
+**What this episode is really about.** Three separate re-measurements have now improved this
+investigation, and none of them changed the answer: the targeted-band attempt (§9.5a), the
+night-relative attempt (§9.5b), and this one. A conclusion that survives its own author trying three
+times to overturn it is worth more than the first version of it was — and the two figures that WERE
+wrong (prevalence, break-even) were both found by re-running rather than by re-reading.
