@@ -3977,6 +3977,341 @@ function _shuffledAnchors(A, rnd) {
    night's anchor gaps `nullIters` times, refit, and report where the real peak falls against that
    night's own chance distribution. Self-calibrating, no corpus constant, and it degrades honestly on
    exactly the nights that deserve it. */
+
+/* ══ WEARABLE-TO-WEARABLE ALIGNMENT FROM RAW ACCELEROMETERS ═══════════════════
+   Everything above measures a wearable against the CPAP. Nothing measured the
+   wearables against EACH OTHER, and the estimator quietly assumed they agreed.
+   They do not: on this corpus the H10 and the Verity sit **~3.3 s apart on every
+   phone-captured night** (24 of 24, median 3.3 s, none inside 1 s) and ~0.2 s
+   apart on every box-captured night. A systematic bias, invisible for months,
+   because no code ever compared them.
+
+   Two accelerometers strapped to one body see the same turn at the same instant —
+   physics, with no physiology in between — which makes ACC-vs-ACC the only
+   contrast able to check this on EVERY night, rather than on the 8 of 31 where a
+   sparse event channel happened to clear its null.
+
+   WINDOWED, NOT GLOBAL — published practice, not preference. SOURCES:
+     · Straczkiewicz M, Huang EJ, Onnela J-P (2021) "Temporal Alignment of Dual
+       Monitor Accelerometry Recordings." Sensors 21(14):4777.
+       doi:10.3390/s21144777 — windowed cross-correlation of accelerometer NORMS;
+       offset AND drift modelled as linear in time.
+     · "BMAR: Barometric and Motion-based Alignment and Refinement for Offline
+       Signal Synchronization across Devices." arXiv:2501.16015 (2025) — coarse
+       pre-align, then refine by correlating ACC in patches; explicitly motivated
+       by robustness to short-term misalignment.
+     · Bent B et al. (2022) "Time Synchronization of Multimodal Physiological
+       Signals through Alignment of Common Signal Types." J. Imaging 8(5):120.
+       doi:10.3390/jimaging8050120 — align on a COMMON signal type shared by both
+       devices, agnostic to which signal it is.
+     · Knapp CH, Carter GC (1976) "The Generalized Correlation Method for
+       Estimation of Time Delay." IEEE Trans. ASSP 24(4):320-327.
+       doi:10.1109/TASSP.1976.1162830 — reference treatment of correlation-based
+       TDOA. PHAT weighting is the documented next refinement for this code.
+   One
+   correlation over a whole night yields one number and hides everything: it cannot
+   tell a constant offset from a drifting one, and a single restless hour dominates
+   it. Correlating in windows and regressing lag against time yields BOTH terms —
+   intercept = offset, slope = clock drift in ppm — plus residual scatter as the
+   honest quality measure. Drift is the term this corpus could never reach before:
+   regressing the CPAP offset across 48 days gave -12.8 +/- 6.3 ppm, marginal at
+   2 sigma, because per-night precision (~50 s) was worse than the whole 48-day
+   drift (~53 s). Measured WITHIN a night, drift no longer has to fight that noise. */
+
+/* Gravity-removed activity envelope from tri-axial acceleration.
+
+   The devices are on different limbs in different orientations, so no axis
+   corresponds to any other; only the MAGNITUDE of change is comparable — the
+   correlate-the-norms convention used whenever sensor frames are unknown.
+   First-differencing is the high-pass: it removes the 1 g gravity vector AND
+   posture, so lying still on one side cannot masquerade as motion. `log1p`
+   compression stops one violent turn from owning the night — without it the
+   correlation is decided by a single event, which is a sample size of one wearing
+   the costume of an 8-hour recording. */
+function activityEnvelope(x, y, z, dtSec) {
+  var n = Math.min(x ? x.length : 0, y ? y.length : 0, z ? z.length : 0);
+  if (n < 2 || !(dtSec > 0)) return new Float64Array(0);
+  var out = new Float64Array(n);
+  out[0] = 0;
+  for (var i = 1; i < n; i++) {
+    var d = Math.abs(x[i] - x[i - 1]) + Math.abs(y[i] - y[i - 1]) + Math.abs(z[i] - z[i - 1]);
+    out[i] = isFinite(d) ? Math.log1p(d) : 0;
+  }
+  return out;
+}
+
+/* Pearson correlation of `a` against `b` shifted by `k`, over the VALID OVERLAP ONLY.
+
+   Mean and variance are recomputed on exactly the samples being compared. Not
+   pedantry: normalising over a whole array and then correlating a subset produced
+   r = 1.044 in the prototype for this code — an impossible correlation, and the
+   tell that the two were different sample sets. A similarity score that can exceed
+   1 cannot be compared against a threshold or against a null. */
+function _ncc(a, b, k, step) {
+  step = step || 1;
+  var i0 = Math.max(0, -k),
+    i1 = Math.min(a.length, b.length - k);
+  var n = 0,
+    sa = 0,
+    sb = 0;
+  for (var i = i0; i < i1; i += step) {
+    var u = a[i],
+      v = b[i + k];
+    if (!isFinite(u) || !isFinite(v)) continue;
+    sa += u;
+    sb += v;
+    n++;
+  }
+  if (n < 8) return null;
+  var ma = sa / n,
+    mb = sb / n,
+    saa = 0,
+    sbb = 0,
+    sab = 0;
+  for (var j = i0; j < i1; j += step) {
+    var p = a[j],
+      q = b[j + k];
+    if (!isFinite(p) || !isFinite(q)) continue;
+    var da = p - ma,
+      db = q - mb;
+    saa += da * da;
+    sbb += db * db;
+    sab += da * db;
+  }
+  var den = Math.sqrt(saa * sbb);
+  return den > 0 ? sab / den : null;
+}
+
+/* Theil-Sen robust line fit. Theil H (1950) Proc. K. Ned. Akad. Wet. 53:386-392;
+   Sen PK (1968) J. Am. Stat. Assoc. 63(324):1379-1389,
+   doi:10.1080/01621459.1968.10480934.
+
+   The median of all pairwise slopes. Chosen over least squares because a
+   window containing no body movement produces a lag that is pure chance, and one
+   such window is enough to tilt an OLS line into a fabricated drift. Theil-Sen
+   tolerates ~29 % such windows before it breaks, and it is deterministic. */
+function _theilSen(xs, ys) {
+  var slopes = [];
+  for (var i = 0; i < xs.length; i++)
+    for (var j = i + 1; j < xs.length; j++) {
+      var dx = xs[j] - xs[i];
+      if (Math.abs(dx) > 1e-9) slopes.push((ys[j] - ys[i]) / dx);
+    }
+  if (!slopes.length) return null;
+  slopes.sort(function (p, q) {
+    return p - q;
+  });
+  var m = slopes[slopes.length >> 1];
+  var res = xs.map(function (x, k) {
+    return ys[k] - m * x;
+  });
+  res.sort(function (p, q) {
+    return p - q;
+  });
+  return { slope: m, intercept: res[res.length >> 1] };
+}
+
+/* Exact binomial upper tail P(X >= k | n, p). Small n here, so summing terms is
+   both cheaper and more transparent than a normal approximation — and it does not
+   quietly break at the tiny p0 values this test uses (tol/maxLag ~ 0.007). */
+function _binomUpperTail(k, n, p0) {
+  if (k <= 0) return 1;
+  if (k > n) return 0;
+  if (p0 <= 0) return 0;
+  if (p0 >= 1) return 1;
+  var lp = Math.log(p0),
+    lq = Math.log(1 - p0),
+    logC = 0,
+    tail = 0;
+  for (var i = 0; i <= n; i++) {
+    if (i >= k) tail += Math.exp(logC + i * lp + (n - i) * lq);
+    if (i < n) logC += Math.log(n - i) - Math.log(i + 1);
+  }
+  return Math.min(1, tail);
+}
+
+/* ALIGN TWO ENVELOPES: constant offset + clock drift, from windowed correlation.
+   Degrades in one direction only — too few usable windows to fit a slope reports
+   the OFFSET with `driftPpm: null`, never a slope through two points. */
+function alignEnvelopes(a, b, fsHz, opts) {
+  opts = opts || {};
+  var winSec = opts.windowSec != null ? opts.windowSec : 600;
+  var hopSec = opts.hopSec != null ? opts.hopSec : 300;
+  var maxLagSec = opts.maxLagSec != null ? opts.maxLagSec : 30;
+  var minR = opts.minR != null ? opts.minR : 0.2;
+  var nullIters = opts.nullIters != null ? opts.nullIters : 20;
+  var minWindows = opts.minWindows != null ? opts.minWindows : 4;
+  /* A COUNT of surviving windows is not evidence — it is a multiple-comparisons
+     trap. Each window's null admits ~1/(nullIters+1) of chance windows, so across
+     143 windows about 7 survive by luck alone; the first version of this code
+     called two UNRELATED nights `confident` on exactly that basis (4 of 47).
+     A FRACTION threshold was the first repair and it was also wrong: on a real
+     sleeping night most windows contain no movement at all, so all six box nights
+     scored 6-20 % usable while agreeing to within 0.2 s — obviously measured, and
+     rejected by an arbitrary cutoff.
+     What actually separates signal from chance is CONCENTRATION, the same argument
+     the pooled fit makes at corpus level. A chance lag is ~uniform across the
+     +/-maxLag search, so the probability it lands within +/-tol of any particular
+     value is tol/maxLag; k of n agreeing that closely has an exact binomial tail.
+     Real: 8 of 8 within 0.1 s over a +/-30 s search — p ~ 1e-15. Chance: scattered. */
+  var concTolSec = opts.concTolSec != null ? opts.concTolSec : Math.max(0.5, maxLagSec / 20);
+  /** @type {any} — progressively filled; the literal initialiser would otherwise pin every field to
+      `null` (or `windows` to `never[]`) and reject each later assignment. Same annotation, for the
+      same reason, as `fitClockOffsetPooled`'s per-channel record below. */
+  var out = {
+    offsetSec: null,
+    driftPpm: null,
+    windows: [],
+    nUsable: 0,
+    nWindows: 0,
+    nConcentrated: 0,
+    concP: null,
+    madSec: null,
+    medR: null,
+    rmsResidSec: null,
+    confident: false,
+    underpowered: false,
+    pFloor: null,
+    reason: null
+  };
+  if (!(fsHz > 0) || !a || !b || a.length < 2 || b.length < 2) {
+    out.reason = 'no data';
+    return out;
+  }
+  /* The same 1/(N+1) floor the pooled fit publishes: a permutation p-value cannot
+     go below it, so an under-shuffled run says it is underpowered rather than
+     reporting a negative result it was never able to reach. Surrogate practice
+     follows Louis S, Borgelt C, Gruen S (2010) Front. Comput. Neurosci. 4:127,
+     doi:10.3389/fncom.2010.00127. */
+  var pFloor = 1 / (nullIters + 1);
+  out.pFloor = +pFloor.toFixed(4);
+  out.underpowered = pFloor > 0.05;
+  var W = Math.round(winSec * fsHz),
+    H = Math.round(hopSec * fsHz),
+    L = Math.round(maxLagSec * fsHz);
+  var N = Math.min(a.length, b.length);
+  if (W < 4 * L) {
+    out.reason = 'window shorter than 4x the search range — the correlation cannot localise';
+    return out;
+  }
+  var rnd = _seededRng((N * 2654435761) >>> 0);
+  for (var s = 0; s + W <= N; s += H) {
+    out.nWindows++;
+    var av = a.subarray(s, s + W);
+    var lo = Math.max(0, s - L);
+    var bv = b.subarray(lo, Math.min(N, s + W + L));
+    var off = s - lo;
+    var bestR = -2,
+      bestK = 0;
+    for (var k = -L; k <= L; k++) {
+      var c = _ncc(av, bv, off + k);
+      if (c != null && c > bestR) {
+        bestR = c;
+        bestK = k;
+      }
+    }
+    /* The window's OWN null. A quiet stretch of night correlates two noise floors
+       and will happily report a lag; only a window that beats its own surrogate
+       maximum is allowed to vote. */
+    var nullBest = -2;
+    /* The null is searched on a STRIDED lag grid. What is wanted is the chance
+       MAXIMUM over the range, and that surface is smooth on the scale of the
+       envelope's own autocorrelation, so ~40 samples estimate it within noise at
+       1/15th the cost. Without this the function is O(nullIters x lags x window)
+       per window and a six-hour night does not finish. The stride applies ONLY to
+       the null — the real peak is searched at full resolution, because that one is
+       the answer. */
+    var stride = Math.max(1, Math.round((2 * L + 1) / 40));
+    /* The null's windows are also DECIMATED. Fewer effective samples raise the
+       chance-max slightly, which makes the null harder to beat — the conservative
+       direction, and the only one acceptable in a significance test. Together with
+       the lag stride this is what lets a six-hour night finish. */
+    var nStep = Math.max(1, Math.round(W / 600));
+    for (var it = 0; it < nullIters; it++) {
+      var sh = 1 + ((rnd() * (bv.length - 2)) | 0);
+      var rot = new Float64Array(bv.length);
+      for (var q = 0; q < bv.length; q++) rot[q] = bv[(q + sh) % bv.length];
+      for (var k2 = -L; k2 <= L; k2 += stride) {
+        var c2 = _ncc(av, rot, off + k2, nStep);
+        if (c2 != null && c2 > nullBest) nullBest = c2;
+      }
+    }
+    var usable = bestR >= minR && bestR > nullBest;
+    out.windows.push({ tSec: (s + W / 2) / fsHz, lagSec: bestK / fsHz, r: +bestR.toFixed(3), nullR: +nullBest.toFixed(3), usable: usable });
+    if (usable) out.nUsable++;
+  }
+  var good = out.windows.filter(function (w) {
+    return w.usable;
+  });
+  if (!good.length) {
+    out.reason = 'no window beat its own null — the two streams share no detectable motion';
+    return out;
+  }
+  var lags = good
+    .map(function (w) {
+      return w.lagSec;
+    })
+    .sort(function (p, q) {
+      return p - q;
+    });
+  out.offsetSec = lags[lags.length >> 1];
+  var rs = good
+    .map(function (w) {
+      return w.r;
+    })
+    .sort(function (p, q) {
+      return p - q;
+    });
+  out.medR = rs[rs.length >> 1];
+  var med = lags[lags.length >> 1];
+  var dev = good
+    .map(function (w) {
+      return Math.abs(w.lagSec - med);
+    })
+    .sort(function (p, q) {
+      return p - q;
+    });
+  out.madSec = +dev[dev.length >> 1].toFixed(3);
+  var conc = 0;
+  for (var w2 = 0; w2 < good.length; w2++) if (Math.abs(good[w2].lagSec - med) <= concTolSec) conc++;
+  out.nConcentrated = conc;
+  /* One window is within tolerance of the median BY CONSTRUCTION — the median is
+     one of them. Counting it would be scoring a tautology, so the test is run on
+     the remaining n-1. Conservative, and it keeps the p-value meaning what it says. */
+  out.concP = +_binomUpperTail(conc - 1, good.length - 1, Math.min(1, concTolSec / maxLagSec)).toExponential(2);
+  if (good.length >= minWindows) {
+    var ts = good.map(function (w) {
+        return w.tSec;
+      }),
+      ls = good.map(function (w) {
+        return w.lagSec;
+      });
+    var fit = _theilSen(ts, ls);
+    if (fit) {
+      var mid = (ts[0] + ts[ts.length - 1]) / 2;
+      out.offsetSec = +(fit.intercept + fit.slope * mid).toFixed(3);
+      // A lag growing by `slope` seconds per second IS the fractional frequency error.
+      out.driftPpm = +(fit.slope * 1e6).toFixed(2);
+      var sr = 0;
+      for (var g = 0; g < ts.length; g++) {
+        var e = ls[g] - (fit.intercept + fit.slope * ts[g]);
+        sr += e * e;
+      }
+      out.rmsResidSec = +Math.sqrt(sr / ts.length).toFixed(3);
+    }
+  } else {
+    out.reason = good.length + ' usable window(s) — too few to separate drift from offset, so offset only';
+  }
+  out.confident = !out.underpowered && out.nUsable >= minWindows && out.medR >= minR && out.concP <= 0.01;
+  if (!out.confident && !out.underpowered) {
+    if (out.nUsable < minWindows) out.reason = 'only ' + out.nUsable + ' window(s) beat their own null';
+    else if (out.concP > 0.01)
+      out.reason = 'the ' + out.nUsable + ' usable windows do not agree (' + conc + ' within ' + concTolSec.toFixed(1) + ' s, p=' + out.concP + ') — a real offset is ONE number';
+    else if (!out.reason) out.reason = 'correlation below the floor';
+  } else if (out.underpowered) out.reason = 'UNDERPOWERED — raise nullIters to >=19';
+  return out;
+}
+
 function fitClockOffsetPooled(anchorTimes, channels, opts) {
   opts = opts || {};
   var maxSec = opts.maxLagSec != null ? opts.maxLagSec : 5400; // +/-90 min
@@ -4839,6 +5174,9 @@ window.IntegratorDSP = {
      fit; do not add callers here. */
   fitClockOffset,
   fitClockOffsetPooled,
+  // Wearable-to-wearable alignment (see the ACC block above): offset + drift in ppm.
+  activityEnvelope,
+  alignEnvelopes,
   detectClockSkew,
   combineConf,
   glucoseMetricsInWindow,

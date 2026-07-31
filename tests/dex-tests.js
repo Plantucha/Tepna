@@ -2048,6 +2048,98 @@
       T.ok('…and the night reports no offset rather than one from three events', thin.offsetSec === null, thin.offsetSec);
     });
 
+    /* WEARABLE-TO-WEARABLE ALIGNMENT — the contrast nothing in the suite was making.
+       Every clock estimator above measures a wearable against the CPAP; none compared the wearables
+       with each other, and all of them assumed the wearables agreed. Measured on the real corpus they
+       do not: H10 vs Verity sits ~3.3 s apart on 24 of 24 phone-captured nights (median 3.3 s, none
+       inside 1 s) and ~0.2 s apart on all 6 box-captured nights — a systematic bias that survived
+       months precisely because no code compared them.
+
+       Method per Straczkiewicz 2021 (Sensors 21:4777) and BMAR (arXiv:2501.16015): windowed
+       normalized cross-correlation of accelerometer NORMS, with lag regressed against time so that
+       offset and clock DRIFT come out of one fit. */
+    group('Two accelerometers on one body: offset, drift, and the chance that isn’t either', 'integrator-dsp · acc-align', function (T) {
+      var D = env.IntegratorDSP || env.D || null;
+      var envl = D && D.activityEnvelope,
+        align = D && D.alignEnvelopes;
+      T.ok('activityEnvelope + alignEnvelopes exported', typeof envl === 'function' && typeof align === 'function');
+      if (typeof align !== 'function') return;
+
+      var FS = 4, N = FS * 4500;   // 75 min at 4 Hz — 14 windows, enough to fit a slope and still cheap
+      var rng = function (s) { return function () { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; };
+      // A sleeping body: quiet baseline with isolated movement bursts. Exactly the shape the
+      // movement-onset detector is tuned for, and the shape a correlation must survive.
+      var night = function (seed) {
+        var r = rng(seed), a = new Float64Array(N), i, m, j;
+        for (i = 0; i < N; i++) a[i] = 0.02 * r();
+        for (m = 0; m < 70; m++) {
+          var t = Math.floor(r() * (N - 100)), w = 3 + Math.floor(r() * 25);
+          for (j = 0; j < w; j++) a[t + j] += 1.5 * Math.exp(-j / 8) * (0.5 + r());
+        }
+        return a;
+      };
+      var shift = function (x, k) { var o = new Float64Array(x.length); for (var i = 0; i < x.length; i++) { var j = i - k; o[i] = j >= 0 && j < x.length ? x[j] : 0; } return o; };
+      var noisy = function (x, s, amp) { var r = rng(s), o = Float64Array.from(x); for (var i = 0; i < o.length; i++) o[i] += amp * r(); return o; };
+      var base = night(7);
+      var OPT = { windowSec: 300, hopSec: 300, maxLagSec: 15, nullIters: 20 };
+
+      // --- a planted offset, both signs -----------------------------------------------------------
+      var pos = align(noisy(base, 11, 0.05), noisy(shift(base, 13), 12, 0.05), FS, OPT);
+      T.ok('a planted +3.25 s offset is recovered exactly', Math.abs(pos.offsetSec - 3.25) < 0.3 && pos.confident === true, pos.offsetSec + ' conf=' + pos.confident);
+      var neg = align(noisy(base, 13, 0.05), noisy(shift(base, -40), 14, 0.05), FS, OPT);
+      T.ok('…and so is a NEGATIVE one (sign is not assumed)', Math.abs(neg.offsetSec + 10) < 0.3, neg.offsetSec);
+
+      /* PLANTED DRIFT. The term the corpus could never reach: regressing the CPAP offset over 48 days
+         gave -12.8 +/- 6.3 ppm, marginal, because per-night precision was worse than the whole drift.
+         Measured WITHIN a night by resampling one stream, it is recoverable to well under 1 %. */
+      var drift = function (x, ppm) {
+        var o = new Float64Array(x.length);
+        for (var i = 0; i < x.length; i++) { var s = i * (1 - ppm * 1e-6), k = Math.floor(s), f = s - k;
+          o[i] = k >= 0 && k + 1 < x.length ? x[k] * (1 - f) + x[k + 1] * f : 0; }
+        return o;
+      };
+      var dr = align(noisy(base, 15, 0.05), noisy(drift(shift(base, 8), 400), 16, 0.05), FS, OPT);
+      T.ok('a planted 400 ppm clock drift is recovered', dr.driftPpm != null && Math.abs(dr.driftPpm - 400) < 40, dr.driftPpm);
+      T.ok('…and a drift-free pair reports ~0 ppm, not a fitted slope through noise', Math.abs(pos.driftPpm) < 25, pos.driftPpm);
+
+      /* THE NULL CONTROL — and the reason it needs three conditions, not one.
+         A COUNT of surviving windows is a multiple-comparisons trap: each window's null admits about
+         1/(nullIters+1) of chance windows, so across ~47 windows two or three survive by luck. The
+         first version of this code called two UNRELATED nights `confident` on exactly that basis
+         (4 of 47 usable). Fraction and cross-window CONSISTENCY are what chance does not have. */
+      var nul = align(noisy(night(21), 17, 0.05), noisy(night(99), 18, 0.05), FS, OPT);
+      T.ok('two unrelated nights are NOT confident', nul.confident === false, nul.confident + ' usable=' + nul.nUsable + '/' + nul.nWindows);
+      /* The reason must EXPLAIN, and there are three honest ways to fail here: no window beat its
+         own null, too few did to be more than chance, or the survivors disagreed. All three are
+         accepted; a bare "no data" or a silent number is not. */
+      T.ok('…and the reason explains which of the three ways it failed', /own null|chance|disagree/.test(nul.reason || ''), nul.reason);
+      T.ok('…while the real pair CONCENTRATES, so the test is not simply always-false',
+        pos.concP <= 0.01 && pos.madSec <= 2, 'p=' + pos.concP + ' MAD=' + pos.madSec);
+      /* The discriminator is CONCENTRATION, not a count or a fraction. A fraction threshold was tried
+         first and was wrong on real data: all six box-captured nights agreed to within 0.2 s while only
+         6-20 % of windows were usable, because most of a sleeping night contains no movement to
+         correlate. Counting windows measures how restless the subject was; concentration measures
+         whether the windows that DID see motion agree. */
+      T.ok('…and chance windows do NOT concentrate', nul.concP == null || nul.concP > 0.01, 'p=' + nul.concP);
+
+      /* GRAVITY AND POSTURE MUST NOT LOOK LIKE MOTION. Both devices sit in unknown, different
+         orientations, so a static tilt differs between them permanently. First-differencing removes
+         the 1 g vector; without it, rolling onto one side would register as a correlated event. */
+      var post = new Float64Array(N);
+      for (var q = 0; q < N; q++) post[q] = q < N / 2 ? 0 : 1000;
+      var pe = envl(post, post, post, 1 / FS);
+      T.eq('a posture step yields ONE envelope sample, not a level shift', Array.prototype.filter.call(pe, function (v) { return v > 1e-3; }).length, 1);
+
+      // --- the same power guard the pooled fit carries ---------------------------------------------
+      var weak = align(noisy(base, 11, 0.05), noisy(shift(base, 13), 12, 0.05), FS, { windowSec: 300, hopSec: 300, maxLagSec: 15, nullIters: 5 });
+      T.ok('5 surrogates cannot reach p<=0.05, and it says so rather than reporting a null result',
+        weak.underpowered === true && weak.confident === false, weak.pFloor + ' ' + weak.reason);
+
+      T.eq('the fit is deterministic', JSON.stringify(align(noisy(base, 11, 0.05), noisy(shift(base, 13), 12, 0.05), FS, OPT)), JSON.stringify(pos));
+      T.ok('a window shorter than the search range is refused, not silently mis-fitted',
+        /cannot localise/.test(align(base, base, FS, { windowSec: 30, maxLagSec: 15 }).reason || ''), align(base, base, FS, { windowSec: 30, maxLagSec: 15 }).reason);
+    });
+
     /* MOVEMENT ONSETS — the arousal fiducial, and the gate on its duplication.
 
        An apnea ends in an arousal and the body MOVES. That instant is the sharpest cross-device
