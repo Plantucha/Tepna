@@ -113,8 +113,19 @@ const MIN_OVERLAP = parseFloat(opt('--min-overlap', '1'));
 const KEEP_DAYTIME = flag('--keep-daytime');
 /* Optional CPAP DATALOG root. When given, each night's offset is FITTED from the wearables and
    printed with per-sensor attribution. Optional on purpose: the trio fold must work for anyone
-   without a CPAP, and a missing card is not an error, it is simply one fewer thing to report. */
-const CPAP_DIR = opt('--cpap', null);
+   without a CPAP, and a missing card is not an error, it is simply one fewer thing to report.
+
+   ACCEPTS EITHER the card ROOT (the thing `cpap_harvest` mirrors — `SETTINGS/`, `STR.edf`, `DATALOG/`)
+   OR `DATALOG` itself, because the lookup below is `join(CPAP_DIR, '20260730')` and pointing it one
+   level too high fails as "no CPAP events for this night" — which reads like *the CPAP did not record*
+   rather than *you gave me the wrong directory*. A silent wrong answer for a path typo is not worth
+   defending; if `<dir>/DATALOG` exists, that is unambiguously what was meant. */
+const CPAP_DIR = (() => {
+  const raw = opt('--cpap', null);
+  if (!raw) return null;
+  const inner = join(raw, 'DATALOG');
+  return existsSync(inner) && statSync(inner).isDirectory() ? inner : raw;
+})();
 const SKIP_EXISTING = flag('--skip-existing');
 // --force recomputes everything, stamp or no stamp. The engine is still being tuned, so "redo it all
 // under today's code" has to be one flag away — and it must BEAT --skip-existing when both are given.
@@ -941,6 +952,13 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
             const nJson = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.json')).length : 0;
             if (nJson === TRIO_NODES.length)
               writeFileSync(join(dir, STAMP), JSON.stringify({ inputsDigest: inputDigest(p), codeDigest: CODE_DIGEST, nodes: TRIO_NODES.slice().sort() }, null, 2) + '\n');
+            // …and the clock fit, for the same reason the stamp is here: it reads all THREE exports,
+            // so no --only-node child can compute it correctly. Printed under its own heading because
+            // by now the per-node blocks above have already been flushed.
+            if (CPAP_DIR && nJson === TRIO_NODES.length) {
+              console.log(`\n▸ ${p.key} · clock fit`);
+              printClockFit(dir, p.key);
+            }
           }
         }
         res();
@@ -981,7 +999,11 @@ const writeExport = (dir, node, key, ex) => {
 /* Apnea/hypopnea onsets from a ResMed `_EVE.edf`, straight from the device's OWN scoring — no DSP in
    the path, so the fit cannot be an artifact of our own event detection. Time base is the EDF header
    start plus each TAL's onset offset. */
-const cpapApneaTimes = (dayDir) => {
+/* A hoisted DECLARATION, not a `const` arrow: the dispatching parent calls this (via printClockFit)
+   from a child-exit callback and then `process.exit()`s, so module evaluation never reaches this line
+   and a `const` would still be in its temporal dead zone — "Cannot access 'cpapApneaTimes' before
+   initialization", thrown into the fit's own try/catch and printed as a clock-fit failure. */
+function cpapApneaTimes(dayDir) {
   const out = [];
   let files = [];
   try {
@@ -999,7 +1021,71 @@ const cpapApneaTimes = (dayDir) => {
       if (/apnea|apnoea|hypopnea|hypopnoea/i.test(m[3])) out.push(t0 + parseFloat(m[1]) * 1000);
   }
   return out.sort((a, b) => a - b);
-};
+}
+
+/* ── CLOCK FIT vs the CPAP (optional: --cpap) ────────────────────────────────────────────────────
+   A CPAP has no user-settable clock and cannot be NTP-disciplined, so its offset is permanent and
+   must be MEASURED. Each wearable channel is fitted independently and printed separately, because
+   agreement between unrelated mechanisms — oxygen transport, autonomic tone, body movement — is what
+   makes the number credible. One blended figure would hide the disagreement worth seeing.
+
+   Degrades by design: whatever subset of nodes produced events is used, and a channel that cannot
+   contribute is printed WITH ITS REASON rather than omitted. A night with no CPAP data, or none that
+   fits, prints that plainly instead of a fabricated correction.
+
+   A NIGHT-level product, not a node-level one — it consumes all three exports, so it runs exactly
+   once per night, in whichever process can see all of them (see the !ONLY_NODE / parent call sites).
+   `loadDsps()` is called here rather than at start-up so a dispatching parent stays a few-MB
+   coordinator until there is actually a fit to compute. */
+function printClockFit(dir, key) {
+  if (!CPAP_DIR) return null;
+  try {
+    const ap = cpapApneaTimes(join(CPAP_DIR, key.replace(/-/g, '')));
+    if (!ap.length) {
+      console.log('    ⏱ clock-fit: no CPAP events for this night');
+      return null;
+    }
+    loadDsps();
+    const chans = [];
+    for (const node of ['OxyDex', 'ECGDex', 'PpgDex']) {
+      const f = join(dir, `${node}_${key}.node-export.json`);
+      if (!existsSync(f)) continue;
+      const ex = JSON.parse(readFileSync(f, 'utf8'));
+      const t0 = ex.recording && ex.recording.startEpochMs;
+      const by = {};
+      for (const e of ex.ganglior_events || []) {
+        let ms = e.tMs;
+        if (ms == null && t0 != null && e.t) {
+          const [h, m, sec] = e.t.split(':').map(Number);
+          const d = new Date(t0);
+          ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, m, sec);
+          while (ms < t0 - 3600e3) ms += 86400e3;
+        }
+        if (ms != null && isFinite(ms)) (by[e.impulse || 'event'] ||= []).push(ms);
+      }
+      for (const k of Object.keys(by).sort()) chans.push({ node, channel: k, times: by[k] });
+    }
+    const fit = ctx.IntegratorDSP.fitClockOffset(ap, chans, {});
+    const head =
+      fit.offsetSec != null
+        ? `${(fit.offsetSec / 60).toFixed(2)} min (${Math.round(fit.offsetSec)} s)` +
+          (fit.spreadSec != null ? `, sensors agree within ${Math.round(fit.spreadSec)} s` : '') +
+          (fit.confident ? '' : `  — NOT corroborated (${fit.reason})`)
+        : `unresolved — ${fit.reason}`;
+    console.log(`    ⏱ CPAP clock offset: ${head}   [${ap.length} apnea events]`);
+    for (const c of fit.channels) {
+      console.log(
+        c.usable
+          ? `        · ${(c.node + '/' + c.channel).padEnd(38)} ${(c.offsetSec / 60).toFixed(2)} min  [${Math.round(c.ciLoSec)}–${Math.round(c.ciHiSec)} s, n=${c.nPairs}]`
+          : `        · ${(c.node + '/' + c.channel).padEnd(38)} —      (${c.reason})`
+      );
+    }
+    return fit;
+  } catch (e) {
+    console.log(`    ⏱ clock-fit failed: ${e.message}`);
+    return null;
+  }
+}
 
 mkdirSync(OUT, { recursive: true });
 const summary = [];
@@ -1264,51 +1350,14 @@ for (const p of work) {
      Degrades by design: whatever subset of nodes produced events is used, and a channel that cannot
      contribute is printed WITH ITS REASON rather than omitted. A night with no CPAP data, or none
      that fits, prints that plainly instead of a fabricated correction. */
-  if (CPAP_DIR && row.nodes.length) {
-    try {
-      const ap = cpapApneaTimes(join(CPAP_DIR, p.key.replace(/-/g, '')));
-      if (!ap.length) console.log('    ⏱ clock-fit: no CPAP events for this night');
-      else {
-        const chans = [];
-        for (const node of ['OxyDex', 'ECGDex', 'PpgDex']) {
-          const f = join(dir, `${node}_${p.key}.node-export.json`);
-          if (!existsSync(f)) continue;
-          const ex = JSON.parse(readFileSync(f, 'utf8'));
-          const t0 = ex.recording && ex.recording.startEpochMs;
-          const by = {};
-          for (const e of ex.ganglior_events || []) {
-            let ms = e.tMs;
-            if (ms == null && t0 != null && e.t) {
-              const [h, m, sec] = e.t.split(':').map(Number);
-              const d = new Date(t0);
-              ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, m, sec);
-              while (ms < t0 - 3600e3) ms += 86400e3;
-            }
-            if (ms != null && isFinite(ms)) (by[e.impulse || 'event'] ||= []).push(ms);
-          }
-          for (const k of Object.keys(by).sort()) chans.push({ node, channel: k, times: by[k] });
-        }
-        const fit = ctx.IntegratorDSP.fitClockOffset(ap, chans, {});
-        row.clockFit = fit;
-        const head =
-          fit.offsetSec != null
-            ? `${(fit.offsetSec / 60).toFixed(2)} min (${Math.round(fit.offsetSec)} s)` +
-              (fit.spreadSec != null ? `, sensors agree within ${Math.round(fit.spreadSec)} s` : '') +
-              (fit.confident ? '' : `  — NOT corroborated (${fit.reason})`)
-            : `unresolved — ${fit.reason}`;
-        console.log(`    ⏱ CPAP clock offset: ${head}   [${ap.length} apnea events]`);
-        for (const c of fit.channels) {
-          console.log(
-            c.usable
-              ? `        · ${(c.node + '/' + c.channel).padEnd(38)} ${(c.offsetSec / 60).toFixed(2)} min  [${Math.round(c.ciLoSec)}–${Math.round(c.ciHiSec)} s, n=${c.nPairs}]`
-              : `        · ${(c.node + '/' + c.channel).padEnd(38)} —      (${c.reason})`
-          );
-        }
-      }
-    } catch (e) {
-      console.log(`    ⏱ clock-fit failed: ${e.message}`);
-    }
-  }
+  /* NOT in a --only-node child. The fit reads all THREE node-exports off disk, so a child that owns
+     one node sees only whatever siblings happen to have finished — and under node-split the FIRST
+     child sees none, reporting "no channel could be estimated" for a night that fits perfectly well.
+     The same night then prints three different answers depending on which child you read.
+
+     This is the exact hazard the stamp below already documents — "no single child can see its
+     siblings" — solved the same way: the parent runs it once, after every node has landed. */
+  if (!ONLY_NODE) row.clockFit = printClockFit(dir, p.key);
 
   summary.push(row);
 }
