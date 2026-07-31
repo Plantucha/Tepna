@@ -123,6 +123,14 @@ evidence of latency.** They are in the table because leaving them out would hide
   a sweep would let the window be chosen rather than inherited.
 - **9 nights (2026-07-16 … 07-24) remain unfoldable**, raw data gone from every tree. The corpus is 31
   nights and will not grow backwards.
+- **`npx biome …` and `npx tsc …` silently do the wrong thing in this repo.** Biome and TypeScript are
+  devDependencies, so a bare `npx biome ci <file>` resolves to nothing, prints nothing and **exits 0** —
+  it looks like a pass. `npx tsc` hits the unrelated `tsc` shim package. Both gates therefore appeared
+  green locally and failed in CI, on real defects (a `null`-narrowing error and an over-long line). The
+  invocations that actually reproduce CI are the pinned ones the workflows use:
+  `npx -y @biomejs/biome@2.5.3 ci <files>` and `npx -y -p typescript@5.5.4 tsc --noEmit -p tsconfig.json`
+  (note `-p` before the package for tsc). Worth a line in `CONTRIBUTING.md`, since an exit-0 no-op is the
+  most expensive kind of false green.
 
 ## 4 · Done when
 
