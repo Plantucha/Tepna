@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-07-31 (**§1.2, §2.1, §3-reraIndex and §4 all closed**; see §6 for §2.1's answer. The ONLY open item is **§1.1, which is BLOCKED and owned elsewhere** — the PB-vs-CSR comparison is void until the ~39 min CPAP clock offset is handled, and `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md` owns that. This brief flips to DONE when that lands and the re-run happens; it is not waiting on any work of its own.) · **Created:** 2026-07-29 · **Follows:** `MULTINIGHT-CORPUS-FINDINGS-2026-07-29-BRIEF.md` (DONE 2026-07-29, all four sections merged as PRs #527–#530)
+**Status:** DONE — 2026-07-31 · **Created:** 2026-07-29 · **Follows:** `MULTINIGHT-CORPUS-FINDINGS-2026-07-29-BRIEF.md` (DONE 2026-07-29, all four sections merged as PRs #527–#530) · **Spawned:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md`
 
 # What executing MULTINIGHT-CORPUS-FINDINGS surfaced
 
@@ -126,13 +126,14 @@ this corpus hands it three dated, quantified cases it did not have.
 
 ## 5 · Done when
 
-- [ ] §1.1 answered — **BLOCKED, and the attempt found something bigger.** The episode-by-episode
-      comparison was run: 0 of 20 PB episodes overlap a device CSR span. That result is **void as
-      measured** — cross-correlating CPAP events against two independently host-captured nodes shows
-      the CPAP clock is **~39 min slow** (6.21x over floor at +39.5 min vs OxyDex, 4.28x at +38.0 min
-      vs ECGDex, 27 of 32 nights agreeing individually). The 0/20 was measuring the clock, not the
-      detectors. Re-run once the offset is handled — see `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md`,
-      which now owns it.
+- [x] **§1.1 ANSWERED 2026-07-31** — and not by the comparison it asked for. `CROSS-DEVICE-CLOCK-SKEW`
+      §6 re-ran it: the episode-level question is **unanswerable from this export** (the device emits
+      PB as ONE event per night carrying a nightly total, so there are no spans to overlap — clock or
+      no clock). The night-level question, which a constant offset cannot affect, was run instead:
+      **κ = −0.039 over 39 paired nights**; OxyDex emits PB on 36/39, the device on 5/39. The
+      detectors do not describe the same nights. Which is *right* is not established — the device is
+      a different instrument, not ground truth — so the over-call is carried to
+      `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` rather than acted on here.
 - [x] **§2.1 ANSWERED 2026-07-31 — see §6. Not intermittent, not self-healing: a byte-offset swap.**
       `oxyii.py` read live-header byte **[7] (perfusion index) as motion**; motion is **[11]**. Introduced
       2026-07-16 with the first live BLE motion capture, corrected 2026-07-18 17:32 by `94d186e`. The
