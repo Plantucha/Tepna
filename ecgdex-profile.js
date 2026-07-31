@@ -204,21 +204,27 @@
     return Math.round(60 + Math.max(0, age - 30) * 0.12);
   }
 
-  // apnea-risk bands from CVHR index (events/h) — mirrors AHI severity categories.
-  // On CPAP, residual CVHR reflects RESIDUAL/treated burden, not untreated risk — reframe.
-  function apneaRisk(cvhrIdx, onCPAP) {
-    if (cvhrIdx == null) return { cat: '—', sev: 'neutral', note: 'overnight only', cpap: !!onCPAP };
-    if (onCPAP) {
-      if (cvhrIdx < 5) return { cat: 'Well-controlled', sev: 'good', note: 'on CPAP · residual <5/h — therapy effective', cpap: true };
-      if (cvhrIdx < 10) return { cat: 'Mostly controlled', sev: 'warn', note: 'on CPAP · residual 5–10/h — check fit/pressure', cpap: true };
-      if (cvhrIdx < 15) return { cat: 'Residual', sev: 'warn', note: 'on CPAP · residual 10–15/h — suboptimal', cpap: true };
-      return { cat: 'Inadequate', sev: 'bad', note: 'on CPAP · residual ≥15/h — therapy not controlling events', cpap: true };
-    }
-    if (cvhrIdx < 5) return { cat: 'Minimal', sev: 'good', note: '<5/h · no CVHR burden', cpap: false };
-    if (cvhrIdx < 15) return { cat: 'Mild', sev: 'warn', note: '5–15/h · mild CVHR', cpap: false };
-    if (cvhrIdx < 30) return { cat: 'Moderate', sev: 'bad', note: '15–30/h · screen for OSA', cpap: false };
-    return { cat: 'Severe', sev: 'bad', note: '≥30/h · strong OSA signal', cpap: false };
-  }
+  /* RETIRED 2026-07-31 — `apneaRisk` and `estAHI` both mapped the CVHR index onto AHI clinical
+     severity (ECGDEX-CARDIOPULMONARY-COUPLING §7/§9.5, executed §10).
+
+     Both rested on one unmeasured assumption: that `cvhrIndex` tracks apnea burden closely enough
+     to carry AHI's cut-points (5/15/30) and AHI's words. §9 measured it against device-scored
+     residual AHI over 39 paired nights and it does not — **r = −0.151, p = 0.36**, no correlation
+     at all. `estAHI` was the starker of the two: `value` was literally `Math.round(cvhrIndex)`,
+     re-labelled "/h", wrapped in an invented ±30 % range and a severity band. That is not an
+     estimate of AHI; it is one number wearing another number's name and units.
+
+     What replaced them: NOTHING, deliberately. The one thing that DID validate on this corpus is
+     `cpc.hfcPct` (r = −0.408, p = 0.009 — §9.2), and a single validated correlate is still not an
+     AHI estimate, so promoting it into this slot would repeat the error with better inputs. The
+     honest surface is the measured quantity under its own name: `cvhrIndex` (events/h of
+     cyclic variation) and `cpcHfc`, each badged for what it is. A device-scored `residualAHI` from
+     CPAPDex remains the only real AHI in the bus, and the Integrator already prefers it.
+
+     Do NOT reintroduce either without a model VALIDATED against a scored label — per CLAUDE.md §📚,
+     a literature correlation is not a licence to badge, and it was never the missing ingredient
+     here: this suite's own corpus refutes the link. Gate: `ECGDex retires the AHI-labelled proxies`
+     in tests/dex-tests.js. */
 
   // ════════════════════════════════════════════════════════════════════════
   //  PERSONALIZE — derive person-specific values and attach to result r
@@ -242,24 +248,9 @@
     const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altF).toFixed(1);
     const vo2a = +vo2Adj(vo2b, lnrm).toFixed(1);
     // ANS age removed (WP-A) — no longer computed; export keeps ansAge:null for back-compat.
-    // AMBULATORY veto (brief §2): the CVHR apnea screen is invalid under exercise — do not
-    // derive a risk band or AHI estimate from it. Suppressed = null/neutral, never fabricated.
-    const apneaValid = r.longRec && !r.ambulatory;
-    const risk = apneaRisk(apneaValid ? r.cvhr.index : null, p.cpap);
-    // Estimated AHI from ECG alone (no SpO₂). CVHR / cardiopulmonary-coupling events
-    // correlate with PSG-AHI (Hilmisson 2019, r≈0.8–0.9); near 1:1 in moderate-severe.
-    // We report the CVHR index AS the estimate with an honest band, not a new number.
-    let estAHI = null;
-    if (apneaValid) {
-      const idx = r.cvhr.index;
-      estAHI = {
-        value: +idx.toFixed(0),
-        lo: +Math.max(0, idx * 0.7).toFixed(0),
-        hi: +(idx * 1.3).toFixed(0),
-        band: idx < 5 ? 'Normal' : idx < 15 ? 'Mild' : idx < 30 ? 'Moderate' : 'Severe',
-        onCPAP: !!p.cpap
-      };
-    }
+    // apneaRisk + estAHI RETIRED 2026-07-31 (see the note above apneaRisk). The AMBULATORY veto
+    // they carried is not lost — it lives where the underlying index is computed, and `cvhrIndex`
+    // is still withheld under exercise by the same `reportable:false` path in ecgdex-dsp.js.
 
     Object.assign(r, {
       profile: p,
@@ -274,8 +265,6 @@
       vo2adj: vo2a,
       vo2gt: p.vo2gt > 0 ? p.vo2gt : null,
       hrvScore: hrvScore(r.dispRm),
-      apneaRisk: risk,
-      estAHI,
       expRmssd: expectedRmssd(p.age),
       expRHR: expectedRHR(p.age)
     });
@@ -303,7 +292,6 @@
     if (!wrap) return;
     const score = r.hrvScore,
       p = r.profile;
-    const apneaValid = r.longRec && !r.ambulatory; // CVHR apnea screen invalid under ambulatory activity
     let color, tier;
     if (score >= 55) {
       color = 'good';
@@ -326,21 +314,21 @@
     if (ratio >= 1.15) ageNote = `rMSSD ${r.dispRm} ms is <b>above</b> the ~${r.expRmssd} ms typical for age ${p.age} — favourable parasympathetic tone.`;
     else if (ratio >= 0.85) ageNote = `rMSSD ${r.dispRm} ms is <b>about typical</b> for age ${p.age} (~${r.expRmssd} ms expected).`;
     else ageNote = `rMSSD ${r.dispRm} ms is <b>below</b> the ~${r.expRmssd} ms typical for age ${p.age} — watch recovery & load.`;
-    if (apneaValid && r.apneaRisk.sev === 'bad') {
-      if (r.apneaRisk.cpap)
-        ageNote += ` <b style="color:var(--status-concern)">On CPAP but residual CVHR ${r.cvhr.index}/h — therapy isn't fully controlling events; consider a fit/pressure review.</b>`;
-      else
-        ageNote += ` <b style="color:var(--status-concern)">CVHR index ${r.cvhr.index}/h flags ${r.apneaRisk.cat.toLowerCase()} sleep-apnea risk — autonomic readiness can read high despite fragmented breathing.</b>`;
-    } else if (apneaValid && r.apneaRisk.cpap && r.apneaRisk.sev === 'good') {
-      ageNote += ` <b style="color:var(--status-ok)">On CPAP · residual CVHR ${r.cvhr.index}/h — therapy looks effective.</b>`;
-    }
+    /* The apnea clauses that stood here ("flags moderate sleep-apnea risk", "therapy isn't fully
+       controlling events") were all gated on `apneaRisk.sev`, i.e. on CVHR crossing AHI's
+       cut-points — the mapping §9 refuted. They are removed rather than reworded: every branch made
+       a clinical claim the index does not support, and there is no threshold on `cvhrIndex` this
+       corpus licenses. `cvhrIndex` still renders as itself in the subscore below. */
 
     const subs = [
       { v: r.dispRm, fmt: (v) => v.toFixed(0), label: 'rMSSD', cls: (v) => (v >= r.expRmssd ? 'ok' : v > r.expRmssd * 0.7 ? 'warn' : 'bad') },
       { v: r.dispSd, fmt: (v) => v.toFixed(0), label: 'SDNN', cls: (v) => (v > 50 ? 'ok' : v > 35 ? 'warn' : 'bad') },
       { v: r.rhrEff, fmt: (v) => v.toFixed(0), label: 'Rest HR', cls: (v) => (v <= r.expRHR ? 'ok' : v <= r.expRHR + 8 ? 'warn' : 'bad') },
+      /* Label was 'Apnea/h' with a severity colour from `apneaRisk` — both asserted these events ARE
+         apneas at AHI's thresholds. Now 'CVHR/h', the quantity actually computed, and `neutral`:
+         colouring it would need a validated cut-point, which is exactly what §9 could not find. */
       r.longRec && !r.ambulatory
-        ? { v: r.cvhr.index, fmt: (v) => v.toFixed(0), label: 'Apnea/h', cls: () => r.apneaRisk.sev }
+        ? { v: r.cvhr.index, fmt: (v) => v.toFixed(0), label: 'CVHR/h', cls: () => 'neutral' }
         : { v: r.dfa1, fmt: (v) => (v == null ? '—' : v.toFixed(2)), label: 'DFA α1', cls: (v) => (v == null ? 'neutral' : v >= 0.9 && v <= 1.2 ? 'ok' : 'warn') }
     ];
     let subsHtml = '';
@@ -363,10 +351,9 @@
         chips += `<div class="readiness-zone-chip ${c}">${a} HRV ${mom > 1.05 ? 'recovering' : mom > 0.9 ? 'steady' : 'declining'} overnight</div>`;
       }
     }
-    if (r.longRec && !r.ambulatory) {
-      const rk = r.apneaRisk;
-      chips += `<div class="readiness-zone-chip ${rk.sev}">Apnea risk · ${rk.cat}</div>`;
-    }
+    /* The "Apnea risk · <category>" chip was the most directive surface of all — it put a severity
+       colour and an OSA category on the hero. Removed with `apneaRisk` (§10); the CVHR/h subscore
+       carries the measured quantity instead. */
     // Signal-quality is a DATA-QUALITY indicator, not a readiness chip — pin it to the
     // hero's top-right corner instead of mixing it into the training-recommendation chips.
     const qCls = r.analyzablePct >= 90 ? 'ok' : r.analyzablePct >= 75 ? 'warn' : 'bad';

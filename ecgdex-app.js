@@ -553,8 +553,11 @@ self.onmessage = async (e) => {
       },
       { l: 'VO₂max Est', v: r.vo2adj != null ? r.vo2adj : '—', sub: 'ml/kg/min · HR-ratio', s: r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad' }
     ];
-    if (r.longRec && !r.ambulatory && r.apneaRisk) personalized.push({ l: 'Apnea Risk', v: r.apneaRisk.cat, sub: r.apneaRisk.note, s: r.apneaRisk.sev });
-    if (r.estAHI) personalized.push({ l: 'Est. AHI', v: '≈' + r.estAHI.value, sub: '/h · ' + r.estAHI.band + ' · ECG-only', s: r.apneaRisk ? r.apneaRisk.sev : 'neutral' });
+    /* 'Apnea Risk' + 'Est. AHI' KPIs RETIRED 2026-07-31 (ECGDEX-CARDIOPULMONARY-COUPLING §10) — both
+       were `cvhrIndex` under AHI's name, units and cut-points, and §9 measured that index against
+       device-scored residual AHI at r = −0.151 (p = 0.36). Replaced by the index itself, under its
+       own name and with a neutral severity: there is no validated cut-point to colour it by. */
+    if (r.longRec && !r.ambulatory && r.cvhr) personalized.push({ l: 'CVHR index', v: r.cvhr.index, sub: '/h · cyclic HR variation — not an apnea count', s: 'neutral' });
     if (r.morph) {
       personalized.push({
         l: 'Ectopy',
@@ -683,14 +686,13 @@ self.onmessage = async (e) => {
       $('cvhrBody').innerHTML =
         `<div class="mini-h">Smoothed HR with cyclic-variation events <span class="mini-sub">${r.cvhr.events.length} surges · index ${r.cvhr.index}/h</span></div>` +
         UI.lineChart(pts, UI.COLORS.amber, { W: 680, H: 150, marks, xfmt: (x) => (x / 60).toFixed(1) + 'h' }) +
-        (r.estAHI
-          ? `<div class="gang-summary" style="margin-top:10px">
-         <div class="gang-pill" style="border-color:var(--${r.apneaRisk.sev === 'good' ? 'green' : r.apneaRisk.sev === 'warn' ? 'amber' : 'red'});color:var(--${r.apneaRisk.sev === 'good' ? 'green' : r.apneaRisk.sev === 'warn' ? 'amber' : 'red'})"><b>Est. AHI ≈ ${r.estAHI.value}</b>/h (${r.estAHI.lo}–${r.estAHI.hi}) · ${r.estAHI.band}${r.estAHI.onCPAP ? ' · residual on CPAP' : ''}</div>
+        /* The "Est. AHI ≈ N /h · Moderate" pill that stood here is retired (§10). The two pills that
+           remain state provenance rather than a clinical grade. */
+        `<div class="gang-summary" style="margin-top:10px">
          <div class="gang-pill">from ECG alone · no SpO₂</div>
          <div class="gang-pill">osaLabel <b>null</b> · transformer Phase 2</div>
-       </div>`
-          : '') +
-        `<div class="q-note" style="margin-top:8px">Red ticks mark detected <b>cyclic variation of heart rate</b> — the bradycardia→rebound autonomic signature of sleep-disordered breathing. Each becomes an <code>autonomic_surge</code> event on the Ganglior bus. <b>Estimated AHI</b> maps the CVHR index to the clinical apnea–hypopnea scale (cardiopulmonary-coupling proxy, Hilmisson 2019) — screen-only, confirm with PSG or an SpO₂ node. Per-second transformer OSA labels (Almarshad 2026) are the Phase-2 upgrade; the bus <code>osaLabel</code>/<code>osaConf</code> fields are reserved and currently null.</div>`;
+       </div>` +
+        `<div class="q-note" style="margin-top:8px">Red ticks mark detected <b>cyclic variation of heart rate</b> — the bradycardia→rebound autonomic signature of sleep-disordered breathing. Each becomes an <code>autonomic_surge</code> event on the Ganglior bus. This card reports the <b>CVHR index</b> itself; it is <b>not</b> an apnea–hypopnea index and is no longer mapped onto one. Measured against the CPAP's own scored residual AHI over 39 paired nights, the CVHR index did not track it (r = −0.151, p = 0.36) — so the former "Estimated AHI" reading was retired rather than re-tiered (ECGDEX-CARDIOPULMONARY-COUPLING §9/§10). The band share that <i>did</i> validate is <code>cpcHfc</code> (r = −0.408). Confirm apnea with PSG or a device that scores it. Per-second transformer OSA labels (Almarshad 2026) are the Phase-2 upgrade; the bus <code>osaLabel</code>/<code>osaConf</code> fields are reserved and currently null.</div>`;
       $('cvhrCard').style.display = 'block';
     } else $('cvhrCard').style.display = 'none';
     $('chartsSection').style.display = 'block';
@@ -1336,19 +1338,10 @@ self.onmessage = async (e) => {
       ['VO₂max base', r.vo2base == null ? '—' : r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HRmax/HRrest' + (r.altFactor && r.altFactor < 1 ? ' · alt ×' + r.altFactor : '')],
       ['VO₂max adj', r.vo2adj == null ? '—' : r.vo2adj, 'ml/kg/min', '≥40', r.vo2adj == null ? 'neutral' : r.vo2adj >= 45 ? 'ok' : r.vo2adj >= 38 ? 'warn' : 'bad', 'HRV-adjusted estimate'],
       ...(r.vo2gt ? [['VO₂max GT', r.vo2gt, 'ml/kg/min', 'lab', 'neutral', 'Your entered ground truth']] : []),
-      ...(r.longRec && r.apneaRisk ? [['Apnea risk', r.apneaRisk.cat, '—', 'Minimal', r.apneaRisk.sev, r.apneaRisk.note]] : []),
-      ...(r.estAHI
-        ? [
-            [
-              'Est. AHI',
-              '≈' + r.estAHI.value,
-              '/h',
-              '<5',
-              r.apneaRisk ? r.apneaRisk.sev : 'neutral',
-              r.estAHI.band + ' · CVHR/CPC proxy from ECG alone (' + r.estAHI.lo + '–' + r.estAHI.hi + ') · screen-only'
-            ]
-          ]
-        : []),
+      /* 'Apnea risk' + 'Est. AHI' rows retired 2026-07-31 (§10). The target column ('<5', 'Minimal')
+         was the giveaway: those are AHI's clinical cut-points applied to a CVHR index that does not
+         track AHI (r = −0.151). The index now appears as itself, with no target to miss. */
+      ...(r.longRec && !r.ambulatory && r.cvhr ? [['CVHR index', r.cvhr.index, '/h', '—', 'neutral', 'Cyclic variation of HR — an autonomic signature, not an apnea count']] : []),
       ...(r.morph
         ? [
             ['— Morphology / Rhythm —', '', '', '', 'neutral', 'single lead @130 Hz · directional trends, not 12-lead'],
@@ -2419,20 +2412,24 @@ self.onmessage = async (e) => {
             reportable: false,
             suppressedReason: (r.apneaSuppressed && r.apneaSuppressed.suppressedReason) || 'ambulatory — CVHR invalid under exercise',
             cvhrIndex: null,
-            estimatedAHI: null,
-            riskCategory: null,
             onCPAP: !!p.cpap,
             method:
-              'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — WITHHELD: recording is ambulatory/awake-active, exercise HR dynamics read as cardiogenic oscillation. Mirrors the R5 null-model pattern (index withheld with a reason, never fabricated).'
+              'CVHR (Hayano) + CPC (Thomas 2005) — WITHHELD: recording is ambulatory/awake-active, exercise HR dynamics read as cardiogenic oscillation. Mirrors the R5 null-model pattern (index withheld with a reason, never fabricated).'
           }
         : r.longRec
           ? {
               cvhrIndex: r.cvhr.index,
               cvhrEvents: r.cvhr.events.length,
-              estimatedAHI: r.estAHI ? { value: r.estAHI.value, range: [r.estAHI.lo, r.estAHI.hi], band: r.estAHI.band } : null,
-              riskCategory: r.apneaRisk ? r.apneaRisk.cat : null,
               onCPAP: !!p.cpap,
-              method: 'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — ECG-only, screen not diagnosis',
+              /* `method` RE-WRITTEN 2026-07-31 (§10). It read "CVHR/cardiopulmonary-coupling proxy
+                 (Hilmisson 2019) — ECG-only, screen not diagnosis", which claimed a coupling
+                 computation that did not exist until #580 AND implied the block estimates apnea
+                 burden. It now names the two things actually computed and states the one validated
+                 relationship, with its measured strength — no proxy claim, no severity mapping.
+                 `estimatedAHI` + `riskCategory` are GONE, not nulled: see ecgdex-profile.js. */
+              method:
+                'CVHR index (cyclic variation of HR, Hayano) + CPC band shares (Thomas 2005). NOT an apnea–hypopnea index: against device-scored residual AHI over 39 paired nights the CVHR index did not track it (r = −0.151, p = 0.36); only cpc.hfcPct did (r = −0.408, p = 0.009). Screen-adjacent signal, not diagnosis.',
+              cpc: r.crc && r.crc.cpc ? r.crc.cpc : null,
               surgeEscalationPct: r.surgeEsc ? r.surgeEsc.escalationPct : null
             }
           : null,
