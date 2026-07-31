@@ -23497,12 +23497,20 @@
       T.ok('an apnea inside the genuinely-held interval is still counted supine', !!lab2 && lab2.supine === 1, lab2 ? 's=' + lab2.supine : 'none');
     });
 
-    /* APNEA-TYPING-FUSION-2026-07-18 §1.1 — obstructive/central typing from MotionDex chest-ACC effort.
-       Three invariants: effort THROUGH a desat ⇒ obstructive; FLAT effort ⇒ central; and — the one that
-       protects a user from an invented finding — chest-ACC NOT RECORDING ⇒ UNTYPED, never central (a
-       coverage gap must not manufacture a central apnea; the ×0.72 artifact EVENT-COUPLING §2 found one
-       modality over). Plus node-independence: no MotionDex on the bus ⇒ null, not an error. */
-    group('Integrator types apnea obstructive/central from MotionDex effort — §1.1', 'integrator-dsp · motiondex · apnea-typing', function (T) {
+    /* APNEA-TYPING-FUSION-2026-07-18 §1.1, WITHDRAWN by INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22 §4
+       (option 1 — abstain). The rule typed a desat OBSTRUCTIVE on effort-present / CENTRAL on effort-flat
+       from an ABSOLUTE 0.004 g floor; 26 nights against device-scored AASM events measured central-apnea
+       effort at 0.99× that night's own baseline, so the floor read "present" through 83.5–95.4% of
+       centrals and typed the DOMINANT class wrong. Best achievable discrimination even re-based as a
+       relative measure is AUC 0.691 — below utility — so the type is withdrawn rather than re-tuned.
+
+       These assertions are deliberately NEGATIVE where the old ones were positive: the two inputs that
+       used to yield a confident type must now yield NO type. That is the §5 requirement — an effort
+       track present throughout must not produce `obstructive`. Retained from the original group: a
+       coverage gap still never manufactures a central, and an absent MotionDex is still a graceful null.
+       `obstructive`/`central` are asserted `=== null` (not 0) on purpose — a zero would read as
+       "measured none", which is the false claim being withdrawn. */
+    group('Integrator WITHDRAWS effort-based apnea typing — REVIEW §4 option 1', 'integrator-dsp · motiondex · apnea-typing', function (T) {
       var TY = env.IntegratorDSP && env.IntegratorDSP.typeApneaByEffort;
       T.ok('typeApneaByEffort available on IntegratorDSP', typeof TY === 'function');
       if (typeof TY !== 'function') return;
@@ -23532,13 +23540,38 @@
         return null;
       };
       var obs = TY([motion(series(60, yes)), oxy(at)]);
-      T.ok('effort PRESENT through the desat ⇒ obstructive', !!obs && obs.obstructive === 1 && obs.central === 0, obs ? 'obs=' + obs.obstructive + ' cen=' + obs.central : 'null');
+      // THE §5 NEGATIVE — the input that used to type OBSTRUCTIVE with confidence must now type nothing.
+      T.ok(
+        'effort PRESENT throughout ⇒ NOT obstructive — no type is emitted at all',
+        !!obs && obs.obstructive === null && obs.central === null && obs.typed === 0 && obs.untyped === 1,
+        obs ? JSON.stringify({ obs: obs.obstructive, cen: obs.central, typed: obs.typed, unt: obs.untyped }) : 'null'
+      );
+      T.ok('…and it says so machine-readably, with a reason a reader can act on', !!obs && obs.typingWithdrawn === true && typeof obs.withdrawnReason === 'string' && obs.withdrawnReason.length > 40);
+      // The retained MEASUREMENT: the chest ACC did witness this desat, even though we decline to type it.
+      T.eq('effort COVERAGE is still reported (the honest part of the feature survives)', obs && obs.effortCovered, 1);
       var cen = TY([motion(series(60, no)), oxy(at)]);
-      T.ok('effort FLAT through the desat ⇒ central', !!cen && cen.central === 1 && cen.obstructive === 0, cen ? 'obs=' + cen.obstructive + ' cen=' + cen.central : 'null');
+      T.ok(
+        'effort FLAT throughout ⇒ NOT central either — flat effort is 0.99x baseline in real centrals',
+        !!cen && cen.central === null && cen.obstructive === null && cen.typed === 0,
+        cen ? JSON.stringify({ obs: cen.obstructive, cen: cen.central, typed: cen.typed }) : 'null'
+      );
       var gap = TY([motion(series(60, nul)), oxy(at)]);
-      T.ok('chest ACC NOT RECORDING ⇒ untyped, NEVER central', !!gap && gap.untyped === 1 && gap.central === 0, gap ? 'unt=' + gap.untyped + ' cen=' + gap.central : 'null');
+      T.ok('chest ACC NOT RECORDING ⇒ untyped, NEVER central (unchanged invariant)', !!gap && gap.untyped === 1 && gap.central === null, gap ? 'unt=' + gap.untyped + ' cen=' + gap.central : 'null');
+      T.eq('…and coverage separates it from the covered case — 0, not 1', gap && gap.effortCovered, 0);
       T.ok('no MotionDex on the bus ⇒ null (graceful no-op, not an error)', TY([oxy(at)]) === null);
       T.ok('typed + untyped == total desats (nothing invented or dropped)', !!obs && obs.typed + obs.untyped === obs.total, obs ? obs.typed + '+' + obs.untyped + '==' + obs.total : '');
+      // Every pre-existing consumer gate must CLOSE — a reader gating on `usable` stops reading the split.
+      T.ok('usable=false and underpowered=true on every branch (every consumer gate closes)', [obs, cen, gap].every(function (o) {
+        return o && o.usable === false && o.underpowered === true;
+      }));
+      // The constants that parameterised the withdrawn rule are GONE — a live knob invites re-tuning it
+      // back on, which §2 shows cannot work at any value (the floor is the wrong SHAPE, not the wrong number).
+      var isrc = (env.sources || {})['integrator-dsp.js'] || '';
+      if (isrc) T.ok('no APNEA_TYPE_OBSTRUCTIVE_FRAC / APNEA_TYPE_MIN_TYPED knob survives in source', !/APNEA_TYPE_OBSTRUCTIVE_FRAC\s*=|APNEA_TYPE_MIN_TYPED\s*=/.test(isrc));
+      // …and no typed impulse is emitted onto the bus under ANY of the three branches.
+      T.ok('no apnea_obstructive / apnea_central impulse is emitted', [obs, cen, gap].every(function (o) {
+        return o && Array.isArray(o.events) && o.events.length === 0;
+      }));
     });
 
     group('Integrator consumes EventCoupling for desat⟷surge (coverage-aware) — §P7', 'integrator-dsp · event-coupling · spine', function (T) {
