@@ -142,6 +142,20 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
   direction may run *opposite*. **Status: PARKED** until the `MaskPress.2s` test resolves the mechanism —
   do not ship as-is. Draft: `papers/effort-typing-null.html`.
 
+### 2.7 AHI and oximetric burden disagree on the same nights — a real-validation candidate <span title="candidate">[CANDIDATE]</span>
+- **Claim:** the CPAP's own scored **AHI does not predict oximetric burden** on paired nights.
+  Over **37 paired nights**: `r(AHI, ODI3) = 0.06`, `r(AHI, hypoxic burden) = −0.05`,
+  `r(AHI, nadir) = −0.02`. Concretely, 2026-06-14 scored AHI **1.11** (excellent) with ODI3 8.4 /
+  burden 16.8 / nadir 85 %, while 2026-07-23 scored AHI **8.00** — the corpus worst — with ODI3 2.9 /
+  burden 0.9 / nadir 87 %. Two devices, same nights, opposite verdicts.
+- **Data class:** REAL (n-of-1; 37 paired nights), and the literature is on its side — hypoxic burden
+  and AHI are established as non-interchangeable predictors, so this is a *replication in a home
+  setting*, not a novel claim.
+- **Routed here rather than surfaced in a node** (`MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS` §1.2): it is a
+  **fusion** question, and one subject cannot support a claim graded above its tier. **No node may
+  surface it until n > 1 subject** — the same discipline that retired ECGDex's `estimatedAHI`.
+- Natural companion to §2.4 (CPAP flow as a home reference standard), which supplies the AHI leg.
+
 ---
 
 ## 3 · New paper candidates — unlocked by the PLANNED stack
