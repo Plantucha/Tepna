@@ -197,6 +197,12 @@ const SOURCE_FILES = ['clock.js','oxydex-util.js','pulsedex-dsp.js','oxydex-dsp.
  // duration class gate surfaced it by asking all 8 node builders the same question and getting a hole
  // for exactly one — which is what a fleet gate is for. Node's run-tests.mjs already lists it.
  'motiondex-dsp.js',
+  /* DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §AD — the ANALYSIS lane's two OxyDex consumers. Their text is
+     read by the 'no bare OxyDex._bare helper' scan: oxydex-dsp's back-compat global spray was removed,
+     so a bare `processNight(...)` here resolves to nothing. Both files had exactly that and neither lane
+     could see it, because neither file's TEXT was loaded anywhere. */
+  'nsrr-adapter.js',
+  'odi-bias-analysis.js',
   'overdex-app.js',
   /* DEEP-AUDIT-III-FOLLOWUPS-II §6.9 — the OTHER host-booting orchestrator; same omission as
      motiondex-dsp.js above, same consequence. A scan over "every host-booting surface" that can

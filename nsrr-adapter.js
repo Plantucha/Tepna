@@ -19,6 +19,23 @@
 (function (root) {
   'use strict';
 
+  /* Resolve OxyDex's real `processNight` from the NAMESPACE, not from a bare global.
+     ESM-MIGRATION-FOLLOWUPS-II removed oxydex-dsp's `Object.assign(root, BARE)` back-compat spray, so
+     all 132 `OxyDex._bare` helpers stopped being reachable as bare globals in EVERY realm.
+     `cohort-worker.js` was migrated to `OxyDex._bare.processNight` at the time; this adapter was not, so
+     its `typeof processNight !== 'function'` guard has been TRUE ever since and `analyzeRecord` returned
+     `err:'OxyDex not loaded'` before reading a byte of the EDF — on the shipped `odi-bias-analysis.html`
+     page as much as in any test realm. Nothing caught it because nothing ever executed this path:
+     DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §AD deferred the only test that would have, as "genuinely
+     fixture-heavy". Writing that test is what surfaced this.
+     The bare branch is kept FIRST so a legacy sprayed realm still resolves; the namespace lookup is the
+     one that actually fires today. */
+  function _resolveProcessNight() {
+    if (typeof processNight === 'function') return processNight; // legacy sprayed realm
+    var O = root.OxyDex;
+    return O && O._bare && typeof O._bare.processNight === 'function' ? O._bare.processNight : null;
+  }
+
   // SpO₂ channel labels seen across NSRR cohorts (case-insensitive contains)
   var SPO2_LABELS = ['spo2', 'sao2', 'osat', 'sat'];
   var HR_LABELS = ['pulse', 'heart rate', 'hr', 'pr'];
@@ -138,7 +155,8 @@
       out.err = 'CpapEdf not loaded';
       return out;
     }
-    if (typeof processNight !== 'function') {
+    var runNight = _resolveProcessNight();
+    if (!runNight) {
       out.err = 'OxyDex not loaded';
       return out;
     }
@@ -159,15 +177,23 @@
     out.t0Ms = conv.t0Ms;
     var night;
     try {
-      night = processNight(conv.rows, opts.id || 'nsrr.edf');
+      night = runNight(conv.rows, opts.id || 'nsrr.edf');
     } catch (e) {
       out.err = 'processNight: ' + e.message;
       return out;
     }
     out.odi4 = night.odi4 ? night.odi4.rate : null;
     out.odi3 = night.odi3 ? night.odi3.rate : null;
-    // raw processNight doesn't attach ahiEst (summary/JSONL paths do) → mirror the shipped surrogate
-    out.ahiOxyEst = night.ahiEst && night.ahiEst.ahiODI4 != null ? night.ahiEst.ahiODI4 : out.odi4 != null ? +(out.odi4 * 1.1).toFixed(1) : null;
+    /* READ OxyDex's surrogate; never re-derive it. The former line here carried a local
+       `+(out.odi4 * 1.1).toFixed(1)` fallback under the comment "raw processNight doesn't attach ahiEst
+       (summary/JSONL paths do)". That comment was WRONG: `computeAHIestimates` runs inside
+       `processNight` and attaches `ahiEst` whenever there is an ODI-4 (oxydex-dsp.js, `ahiODI4 =
+       +(odi4Rate * 1.1).toFixed(1)`), so the first branch always won and the mirrored constant was
+       unreachable. Proven by mutation: changing the local 1.1 to 1.5 moved no surfaced value.
+       A dead duplicate of a tunable constant is worse than none — it reads as a second source of truth
+       and would silently diverge the day someone "fixed" one of the two. There is now exactly one ×1.1
+       in the suite, in oxydex-dsp, and the end-to-end known-answer leg gates it there. */
+    out.ahiOxyEst = night.ahiEst && night.ahiEst.ahiODI4 != null ? night.ahiEst.ahiODI4 : null;
     out.minSpo2 = night.stats ? night.stats.minSpo2 : null;
     out.t90 = night.stats ? night.stats.t90pct : null;
     out.durMin = night.stats ? night.stats.durationMin : null;

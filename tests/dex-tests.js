@@ -20763,6 +20763,249 @@
       }
     });
 
+    /* ════ 21c-bis · THE ODI-4 → AHI SURROGATE (deep-scout §AD, the last adapter residue) ════
+       OxyDex's ODI-4→AHI surrogate is `ahiODI4 = +(odi4Rate * 1.1).toFixed(1)` (oxydex-dsp.js,
+       `computeAHIestimates`). That ×1.1 had NO known-answer test anywhere in the suite: every existing
+       leg in the group above stops at `edfToOxyRows`, and the constant only becomes visible once a night
+       is actually processed. This group reaches it through the real adapter path.
+
+       Note what §AD asked for and what was actually true. The brief aimed at a SECOND ×1.1 that
+       `nsrr-adapter.js` carried as a local fallback under the comment "raw processNight doesn't attach
+       ahiEst". That comment was wrong — `processNight` does attach it — so the fallback was unreachable
+       and mutating it moved nothing. The duplicate has been deleted rather than gated; gating a dead
+       constant would have been a hollow gate about a hollow gate.
+
+       DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §AD called this "genuinely fixture-heavy — needs a real
+       CpapEdf.readEDF buffer with a desat-bearing SpO₂ channel". It is much cheaper than that: EDF is a
+       256-byte header + field-major signal headers + int16 LE records, so a ~40-line writer builds one in
+       memory. (`cpapdex-edf.js` already carries a `_buildSyntheticEDF` for its own self-test, but it is
+       hardcoded to a `Press.40ms` channel and is not exported, so this is a parameterised sibling rather
+       than a reuse.) Test-only — nothing here is bundled, so no manifestHash moves.
+
+       Both-direction design: the desats are engineered so `odi4` is PREDICTED, not merely recorded —
+       12 unambiguous 25 s drops of 97 → 90 % (7 %, comfortably past the 4 % criterion), spaced 300 s
+       apart over exactly 1 h ⇒ 12 events / 1 h = ODI-4 12.0. Asserting `odi4` separately keeps the
+       surrogate leg non-vacuous: if the detector ever stopped finding the drops, the ×1.1 leg would
+       still "pass" against a wrong denominator. */
+    group('NSRR ODI-4 → AHI surrogate, through a real EDF buffer — deep-scout §AD', 'nsrr-adapter · ingest · known-answer', function (T) {
+      var N = env.NSRR;
+      var ready = !!(N && typeof N.analyzeRecord === 'function' && env.CpapEdf && typeof env.CpapEdf.readEDF === 'function');
+      T.ok('NSRR.analyzeRecord + CpapEdf.readEDF co-resident (the surrogate is reachable)', ready);
+      if (!ready) return;
+
+      /* Minimal EDF writer: N numeric signals, 1 Hz, one sample per signal per 1 s record. physMin/
+         physMax are set equal to digMin/digMax so the reader's `(dig - dMin)*scale + pMin` is the
+         identity — the decoded value is exactly the integer written, which keeps the known-answer
+         arithmetic readable rather than dependent on a scaling round-trip.
+         `chans` is [{label, dim, data:[…]}], all the same length. Field-major signal headers, per spec. */
+      function writeEDF(chans, startTime) {
+        var ns = chans.length,
+          spr = 1,
+          recDur = 1,
+          records = chans[0].data.length;
+        var headerBytes = 256 + ns * 256;
+        var buf = new ArrayBuffer(headerBytes + records * ns * spr * 2);
+        var u8 = new Uint8Array(buf),
+          dv = new DataView(buf);
+        function put(str, start, len) {
+          var s = String(str);
+          for (var i = 0; i < len; i++) u8[start + i] = i < s.length ? s.charCodeAt(i) : 0x20;
+        }
+        function field(width, valOf) {
+          for (var s = 0; s < ns; s++) put(valOf(chans[s]), o + s * width, width);
+          o += ns * width;
+        }
+        put('0', 0, 8);
+        put('X X X X', 8, 80);
+        put('Startdate', 88, 80);
+        put('10.06.20', 168, 8); // 2020-06-10 — floating civil date, Clock Contract §1
+        put(startTime || '22.00.00', 176, 8);
+        put(String(headerBytes), 184, 8);
+        put('', 192, 44);
+        put(String(records), 236, 8);
+        put(String(recDur), 244, 8);
+        put(String(ns), 252, 4);
+        var o = 256;
+        field(16, function (c) {
+          return c.label;
+        }); // labels
+        o += ns * 80; // transducer
+        field(8, function (c) {
+          return c.dim;
+        }); // dimensions
+        field(8, function () {
+          return '0';
+        }); // physMin
+        field(8, function (c) {
+          return String(c.max);
+        }); // physMax
+        field(8, function () {
+          return '0';
+        }); // digMin  ── equal to physMin/physMax ⇒ identity scaling
+        field(8, function (c) {
+          return String(c.max);
+        }); // digMax
+        o += ns * 80; // prefilter
+        field(8, function () {
+          return String(spr);
+        }); // samples/record
+        o += ns * 32; // reserved
+        var p = headerBytes;
+        for (var r = 0; r < records; r++) {
+          for (var s2 = 0; s2 < ns; s2++) {
+            dv.setInt16(p, chans[s2].data[r], true);
+            p += 2;
+          }
+        }
+        return buf;
+      }
+      /* A night is SpO₂ + Pulse. The pulse channel is not decoration: `SELFGATE` reads it for perfusion
+         (`PULSE_VALID_FLOOR` — under 50 % of the window carrying an in-band 30–220 bpm pulse is a
+         perfusion collapse, i.e. a probe artifact, not a desaturation). An SpO₂-only EDF therefore
+         yields hr=0 on every row and EVERY desat is correctly rejected — which is exactly what the
+         first draft of this fixture did. A real NSRR record carries both, so this one does too. */
+      function edfOf(spo2) {
+        var pulse = new Array(spo2.length);
+        for (var i = 0; i < spo2.length; i++) pulse[i] = 60;
+        return writeEDF(
+          [
+            { label: 'SpO2', dim: '%', max: 100, data: spo2 },
+            { label: 'Pulse', dim: 'bpm', max: 250, data: pulse }
+          ],
+          '22.00.00'
+        );
+      }
+
+      /* 1 h at 1 Hz, 97 % baseline, 12 desaturations 300 s apart, each −7 % (past the 4 % criterion).
+         The SHAPE matters and is the point of the control below: a real systemic desaturation falls over
+         TENS of seconds (`SELFGATE.FALL_RATE_MAX` = 1.5 %/s), so each event ramps down over 10 s (0.7 %/s),
+         holds the nadir 10 s, and resaturates over 15 s. A square-edged drop is what a probe squeeze looks
+         like, not what hypoxia looks like. */
+      var DUR = 3600,
+        N_DESAT = 12,
+        SPACING = 300;
+      function night(fallSec, holdSec, riseSec, drop, base) {
+        var a = new Array(DUR);
+        for (var i = 0; i < DUR; i++) a[i] = base;
+        for (var d = 0; d < N_DESAT; d++) {
+          var w = 60 + d * SPACING;
+          for (var f = 1; f <= fallSec; f++) a[w++] = Math.round(base - (drop * f) / fallSec);
+          for (var h = 0; h < holdSec; h++) a[w++] = base - drop;
+          for (var r = 1; r <= riseSec; r++) a[w++] = Math.round(base - drop + (drop * r) / riseSec);
+        }
+        return a;
+      }
+      var edfBuf = edfOf(night(10, 10, 15, 7, 97));
+
+      // The writer must produce something the SHIPPED reader accepts — otherwise the fixture, not the
+      // adapter, is what is being tested. Assert the round-trip before reading anything downstream.
+      var decoded = env.CpapEdf.readEDF(edfBuf);
+      T.eq('the synthetic EDF round-trips through the SHIPPED reader · 2 signals', decoded.ns, 2);
+      T.eq('…SpO₂ channel decoded at 1 Hz', decoded.signals.SpO2 && decoded.signals.SpO2.fs, 1);
+      T.eq('…every second present (3600 samples)', decoded.signals.SpO2 && decoded.signals.SpO2.data.length, DUR);
+      T.eq('…baseline sample decodes to the exact percentage written (identity scaling)', Math.round(decoded.signals.SpO2.data[0]), 97);
+      T.eq('…and a desaturation nadir survives the round-trip', Math.round(decoded.signals.SpO2.data[75]), 90);
+      // Clock Contract §5 — the EDF start time is read back as written, viewer-timezone-independent.
+      T.eq('…EDF start time is floating wall-clock (22:00 as written, getUTC* readback)', new Date(decoded.clock.t0Ms).getUTCHours(), 22);
+
+      var rec = env.NSRR.analyzeRecord({ id: 'synthetic-odi4', edfBuffer: edfBuf });
+      T.ok('analyzeRecord ran end-to-end (readEDF → edfToOxyRows → processNight)', !rec.err, rec.err || '');
+      if (rec.err) return;
+
+      // PREDICTED, not recorded: 12 engineered −7 % drops in exactly 1 h ⇒ ODI-4 = 12.0/h.
+      T.eq('ODI-4 finds all 12 engineered desaturations over exactly 1 h', rec.odi4, 12);
+      // THE §AD GATE — the surrogate is odi4 × 1.1. A 1.1 → 1.5 slip lands 18.0 and reds here.
+      T.eq('ahiOxyEst = ODI-4 × 1.1 (the shipped surrogate) = 13.2', rec.ahiOxyEst, 13.2);
+      // …stated a second way, so the leg survives a change to the fixture's desat count.
+      T.eq('…and it tracks the measured odi4 rather than a constant', rec.ahiOxyEst, +(rec.odi4 * 1.1).toFixed(1));
+      // The surrogate is a SURROGATE: severity must be read off it the same way a scored AHI would be.
+      T.eq('13.2 lands in the MILD band, as [5,15) requires', env.NSRR.severityOf(rec.ahiOxyEst), 'mild');
+
+      /* CONTROL 1 — a flat 97 % night has no desaturations, so the surrogate must be 0, NOT a floor or a
+         fabricated minimum. This is the direction that catches a surrogate which "helpfully" reports a
+         non-zero AHI for a clean night. */
+      var flat = new Array(DUR);
+      for (var f2 = 0; f2 < DUR; f2++) flat[f2] = 97;
+      var clean = env.NSRR.analyzeRecord({ id: 'synthetic-clean', edfBuffer: edfOf(flat) });
+      T.eq('CONTROL · a flat 97 % night ⇒ ODI-4 zero', clean.odi4, 0);
+      T.eq('CONTROL · …so the surrogate is 0, never a fabricated floor', clean.ahiOxyEst, 0);
+
+      /* CONTROL 2 — THE SHAPE CONTROL, and the reason the leg above is not an accident of counting
+         wiggles. The SAME 12 events, same depth, same spacing, but SQUARE-edged (7 % in one second =
+         7 %/s, versus SELFGATE.FALL_RATE_MAX 1.5 %/s). That is a probe squeeze, not hypoxia, and the
+         self-gate must exclude every one of them — ODI-4 0, surrogate 0 — even though a naive
+         count-the-dips detector would report the same 12. Written after the first draft of this fixture
+         used square edges and was correctly rejected: `odi4.artifactExcluded` came back 12. */
+      var squared = env.NSRR.analyzeRecord({ id: 'synthetic-squeeze', edfBuffer: edfOf(night(1, 28, 1, 7, 97)) });
+      T.eq('CONTROL · 12 SQUARE-edged 7 %/s drops are probe artifact, not desaturation ⇒ ODI-4 0', squared.odi4, 0);
+      T.eq('CONTROL · …so the surrogate stays 0 on an artifact-only night', squared.ahiOxyEst, 0);
+      // The two nights differ ONLY in edge slope — same count, depth, spacing and duration — so this
+      // pair pins the self-gate's discrimination, not merely "some input gives zero".
+      T.ok('CONTROL · shape is the ONLY difference: 12.0/h vs 0/h off the same 12 events', rec.odi4 === 12 && squared.odi4 === 0, 'ramped=' + rec.odi4 + ' square=' + squared.odi4);
+    });
+
+    /* ════ 21c-ter · NO CONSUMER MAY REACH AN OxyDex HELPER AS A BARE GLOBAL ════
+       THE CLASS, not the two instances. `oxydex-dsp.js` used to end with `Object.assign(root, BARE)`,
+       spraying all 132 `OxyDex._bare` helpers onto the global object; ESM-MIGRATION-FOLLOWUPS-II removed
+       it because every realm had been migrated to the namespace. Two had not — `nsrr-adapter.js` and
+       `odi-bias-analysis.js` — and both failed SILENTLY, one behind a `typeof` guard that reported
+       "OxyDex not loaded", the other inside a `try/catch` that read a ReferenceError as "no data this
+       night". Neither lane could see it, because neither file's TEXT was in `env.sources` and neither
+       file's code was ever executed by a test.
+
+       A known-answer leg on one call site would not have prevented the other. This scan is the durable
+       form: the day someone writes a fresh bare `processNight(...)` in an OxyDex consumer, it reds here
+       rather than shipping a page that silently analyses nothing.
+
+       The name list is deliberately the DISTINCTIVE entry points only. `avg`/`pad`/`fmtDate` are also in
+       `_bare`, but they are ordinary local identifiers in half the repo, so scanning for them would
+       produce false positives and the gate would be turned off — a scan people ignore is worse than no
+       scan. Under-matching here fails toward silence on an exotic helper; over-matching would fail
+       toward the gate being deleted. */
+    group('No consumer reaches an OxyDex helper as a bare global — deep-scout §AD (the class)', 'nsrr-adapter · oxydex-dsp · source-scan', function (T) {
+      var srcs = env.sources || {};
+      var CONSUMERS = ['nsrr-adapter.js', 'odi-bias-analysis.js'];
+      // Distinctive OxyDex._bare entry points — a bare call to any of these cannot resolve post-migration.
+      var HELPERS = ['parseCSV', 'processNight', 'parseJSONL', 'decodeO2RingBinToCSV', 'computeAHIestimates', 'selfGateDesat', 'detectODI', 'oxyBuildNightElement', 'oxyComputeNight', 'oxyBuildGangliorEvents'];
+
+      var loaded = CONSUMERS.filter(function (f) {
+        return typeof srcs[f] === 'string' && srcs[f].length > 200;
+      });
+      // Non-vacuity: the scan is worthless if the text never arrived. This is the exact failure the
+      // group exists to punish, so it must not be able to happen to the group itself.
+      T.eq('both analysis-lane consumers have their source TEXT loaded (scan is non-vacuous)', loaded.length, CONSUMERS.length, 'loaded: ' + loaded.join(',') + ' of ' + CONSUMERS.join(','));
+      if (loaded.length !== CONSUMERS.length) return;
+
+      /* THE INVARIANT, stated precisely. A bare `parseCSV(…)` is not itself the defect — it is fine when
+         the module BINDS the name locally off the namespace (`var parseCSV = OxyDex._bare.parseCSV`),
+         which is the readable way to migrate a file with many call sites. The defect is calling a helper
+         the module never binds, so the identifier resolves to a global that no longer exists.
+         So: for each helper CALLED bare, require a local binding in the same file. Comments are stripped
+         first — the first draft of this scan flagged its OWN explanatory comment, which is a good
+         reminder that a source-scan gate needs the same scepticism as the code it guards. */
+      function strip(src) {
+        return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+      }
+      var offenders = [];
+      CONSUMERS.forEach(function (f) {
+        var code = strip(srcs[f]);
+        HELPERS.forEach(function (h) {
+          var called = new RegExp('(^|[^.\\w$\'"])' + h + '\\s*\\(', 'm').test(code);
+          if (!called) return;
+          var bound = new RegExp('(var|let|const)\\s+' + h + '\\s*=|function\\s+' + h + '\\s*\\(', 'm').test(code);
+          if (!bound) offenders.push(f + ' calls ' + h + '() with no local binding');
+        });
+      });
+      T.eq('every bare OxyDex helper CALL has a local namespace binding', offenders.length, 0, offenders.join(' | '));
+
+      // …and each consumer actually resolves through the namespace, so the scan above is not passing
+      // merely because the call sites were deleted.
+      T.ok('nsrr-adapter resolves processNight from OxyDex._bare', /_bare\.processNight/.test(srcs['nsrr-adapter.js']));
+      T.ok('odi-bias-analysis resolves parseCSV + processNight from OxyDex._bare', /_bare\s*\)\s*\|\|\s*\{\}|_bare\b/.test(srcs['odi-bias-analysis.js']) && /_OXY\.parseCSV/.test(srcs['odi-bias-analysis.js']) && /_OXY\.processNight/.test(srcs['odi-bias-analysis.js']));
+      // …and it FAILS LOUDLY rather than silently skipping, which is how the defect survived.
+      T.ok('odi-bias-analysis throws on a missing helper instead of swallowing it', /throw new Error\('odi-bias-analysis:/.test(srcs['odi-bias-analysis.js']));
+    });
+
     /* ════ 21d · OVERDEX FOLDER WALKER — known-answer (TEST-COVERAGE-FOLLOWUPS §5) ════
      `overdex-walk.js` (globalThis.OverDexWalk) recurses a dropped/picked directory into a flat
      File[], each tagged with a folder-relative `.relPath` (display + de-dupe key), skipping hidden/

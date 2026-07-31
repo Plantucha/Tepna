@@ -127,13 +127,93 @@ all: pass the pre-decoded set via `A.parse('', {edfSets:[set]})`, strip `fs` off
 `resmed-edf.js:164`), and the surfaced `frame.fs` can come ONLY from the default → the `|| 50` mutation reds
 exactly the new leg while the fs-present leg stays green (`adapters · resmed-edf · cpap`, group now 26).
 
-**REMAINING §AD (2):**
-- `nsrr-adapter` ODI-4 × **1.1** AHI surrogate — `nsrr-adapter.js:170` (repo root, NOT `adapters/`):
-  `out.ahiOxyEst = … : +(out.odi4 * 1.1).toFixed(1)`. The surrogate is inline in the buffer-processing path,
-  so reaching a KNOWN `odi4` with `ahiEst` absent needs an SpO₂ EDF carrying engineered desaturations
-  (a real `CpapEdf.readEDF` buffer with a desat-bearing SpO₂ channel) — genuinely fixture-heavy.
+**REMAINING §AD (1) — the ODI-4 × 1.1 item is CLOSED 2026-07-31, and closing it found three things this
+brief did not know:**
+
+- ~~`nsrr-adapter` ODI-4 × **1.1** AHI surrogate~~ — **CLOSED, see §AD-1 below.**
 - the seeded-fallback-baseline branch (partly covered — the 97 % normoxic default is already pinned by
-  finding #97).
+  finding #97). Untouched by the 2026-07-31 pass.
+
+### §AD-1 · the ODI-4 × 1.1 surrogate — CLOSED 2026-07-31, and what it uncovered
+
+**The fixture was cheap, not "genuinely fixture-heavy".** EDF is a 256-byte header + field-major signal
+headers + int16 LE data records; a ~50-line writer builds a two-channel (SpO₂ + Pulse) buffer in memory
+and the SHIPPED `CpapEdf.readEDF` accepts it. Test-only, so no bundle and no `manifestHash` moves. The
+deferral cost more than the work would have.
+
+Three corrections to this brief's own account, in ascending order of seriousness:
+
+**1. The gated constant was in the wrong file, and the one named was dead.** `nsrr-adapter.js` carried
+`+(out.odi4 * 1.1).toFixed(1)` as a *fallback*, under the comment *"raw processNight doesn't attach
+ahiEst (summary/JSONL paths do)"*. That comment was **false** — `computeAHIestimates` runs inside
+`processNight` and attaches `ahiEst` whenever an ODI-4 exists — so the first branch always won and the
+mirrored constant was unreachable. Proven by mutation: changing that local `1.1` to `1.5` moved **no**
+surfaced value. It has been **deleted**, not gated; gating a dead constant would have been a hollow gate
+about a hollow gate. The live constant is `oxydex-dsp.js` `computeAHIestimates`
+(`ahiODI4 = +(odi4Rate * 1.1).toFixed(1)`), which had **no known-answer test anywhere in the suite**, and
+now has one — verified by mutation (`1.1 → 1.5` reds three legs and flips the surfaced severity band
+mild → mod).
+
+**2. The function under test could never have run — `NSRR.analyzeRecord` was DEAD IN PRODUCTION.**
+`ESM-MIGRATION-FOLLOWUPS-II` removed `oxydex-dsp`'s `Object.assign(root, BARE)` back-compat spray, so all
+**132** `OxyDex._bare` helpers stopped resolving as bare identifiers in every realm. `cohort-worker.js`
+was migrated at the time; `nsrr-adapter.js` was not, so its `typeof processNight !== 'function'` guard
+had been TRUE ever since and `analyzeRecord` returned `err:'OxyDex not loaded'` **before reading a byte
+of the EDF**. `odi-bias-analysis.js` had the same defect at four call sites (`parseCSV` ×2,
+`processNight` ×2), where it was worse: both sit inside `try { … } catch { /* skip */ }`, so a
+ReferenceError read as *"that night had no usable data"* and the page silently analysed nothing.
+Verified not by reading but by **reconstructing the page's realm** (same files, same order, no
+`__DEX_NAMESPACED__`) and executing it. Both files now resolve off the namespace, and
+`odi-bias-analysis.js` **throws** rather than swallowing an absent helper.
+
+**3. So the residue needed a CLASS gate, not two pins.** A known-answer leg on one call site would not
+have protected the other, and neither file's *text* was in `env.sources` in either lane, so no source
+scan could see them either. Both are now loaded in both runners, and a new group asserts the real
+invariant: *every bare call to a distinctive `OxyDex._bare` helper must have a local namespace binding in
+the same file*. Mutation-verified (deleting one binding reds it). The name list is deliberately the
+distinctive entry points only — `avg`/`pad`/`fmtDate` are also in `_bare` but are ordinary identifiers
+repo-wide, and a scan that cries wolf is a scan that gets deleted.
+
+**Gated by:** `nsrr-adapter · ingest · known-answer` (17 legs — EDF round-trip through the shipped reader,
+ODI-4 **predicted** at 12.0/h from 12 engineered −7 % ramps in exactly 1 h, the ×1.1 surrogate, the
+severity band, plus two controls) and `nsrr-adapter · oxydex-dsp · source-scan` (5 legs, incl. a
+non-vacuity check that the source text actually arrived — the exact failure this group punishes).
+
+> **A note on the fixture, because it is the whole method.** The first draft used 12 SQUARE-edged 7 %
+> drops and got ODI-4 **0**, with `odi4.artifactExcluded: 12`. The detector was right and the fixture was
+> wrong: a real systemic desaturation falls over tens of seconds (`SELFGATE.FALL_RATE_MAX` 1.5 %/s), so a
+> 7 %/s step is a probe squeeze. The second draft ramped the edges but still read 0 — because an
+> SpO₂-only EDF yields `hr = 0` on every row and `SELFGATE`'s perfusion check correctly rejects a
+> desaturation with no pulse. Only a physiological shape **and** a pulse channel gives 12.0. Both wrong
+> drafts are now **committed as controls**: the square-edged night (ODI-4 0 off the same 12 events —
+> shape is the only difference) proves the leg is not counting wiggles.
+
+### §AD-1a · SPAWNED — the paper's Table 1 no longer reproduces
+
+Restoring `odi-bias-analysis.js` means its SubjectA path RUNS again — and it does not reproduce the
+numbers in `papers/odi4-ahi-bias.html` Table 1, whose stated recipe is *"open `odi-bias-analysis.html` →
+Run SubjectA corpus"*:
+
+| night | ODI-4 today | published "after" | reference AHI |
+|---|---|---|---|
+| 1 | 5.6 | 12.0 | 22 |
+| 2 | **1.4** | **14.9** | 38 |
+| 3 | 1.5 | 1.9 | 7 |
+| 4 | 0.5 | 0.8 | 4 |
+| 5 | 0.8 | 0.8 | 3 |
+
+The harness is **controlled**: the same realm reproduces the committed, GATE-B-verified
+`OxyDex_2026-06-13_1056_summary.json` at `odi4.rate` **1.9** exactly. So the discrepancy is real and not
+an artifact of running outside the page.
+
+**What is NOT established:** the cause. Night 2 moving 14.9 → 1.4 is an order of magnitude, which no
+baseline change plausibly explains, so the likelier candidate is that the **gitignored**
+`uploads/synthetic/` corpus was regenerated by a changed `synth-gen` and is no longer the input the paper
+used — but that is an inference, not a finding, and detector drift is not excluded. Resolving it needs
+the corpus provenance pinned, which is its own work-unit:
+`PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`. **The published numbers are not asserted to be wrong
+here** — they were computed when the path worked. What is certain is that the paper's reproduction recipe
+silently produced an empty table for as long as the bare-global defect stood.
 
 ## Done when
 

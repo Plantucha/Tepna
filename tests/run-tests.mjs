@@ -243,6 +243,11 @@ function readSources() {
     'oxydex-app.js',
     'oxydex-render.js',
     'oxydex-fusion.js',
+    /* DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §AD — the ANALYSIS lane's two OxyDex consumers, read by the
+       'no bare OxyDex._bare helper' scan. Neither file's TEXT was loaded in either lane, which is why a
+       bare `processNight(...)` in both went unseen after the back-compat global spray was removed. */
+    'nsrr-adapter.js',
+    'odi-bias-analysis.js',
     'dex-escape.js',
     'dex-forget.js',
     'dex-actions.js',
