@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-28 · **Follows:** `INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md` (DONE 2026-07-28)
+**Status:** DONE — 2026-07-31 · **Created:** 2026-07-28 · **Follows:** `INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md` (DONE 2026-07-28)
 
 # What emitting `recording.coverage` turned up
 
@@ -100,7 +100,7 @@ a fourth caller needs the same thing — until then, note that two writers of on
 
 - [x] **§2.1 DONE 2026-07-31 — see §5.** Convention is *first sample AFTER the dropout*, stated at the definition in `parseECGText`, `mergeEcg` corrected from `idx - 1` to `idx`, gated structurally.
 - [x] **§2.2 DONE 2026-07-31 — see §6.** PpgDex got a new committed twin; **OxyDex needed none** — its committed gap twin already drove the emitter and only lacked assertions. Both verified RED against a suppressed emitter.
-- [ ] §2.3 `overlapCoverage` surfaced in the Integrator UI, badged
+- [x] **§2.3 DONE 2026-07-31 — see §7.** Rendered as an "Overlap coverage" KPI, badged `measured`, shown unconditionally, with the honest-null path pinned.
 - [x] **§2.4 EXPLICITLY DECLINED 2026-07-31 — see §5.3.** No fourth caller has appeared; folding HRVDex in would mean teaching the shared helper about points-with-unknown-length for one call site.
 
 ---
@@ -204,3 +204,50 @@ Wired into **both** lanes (`pairCommitted` in `run-tests.mjs`, the `equiv` table
 turn either gate into a silent skip.
 
 **§2.3 (`overlapCoverage` rendered and badged) is now the only open item in this brief.**
+
+---
+
+## 7 · §2.3 EXECUTED (2026-07-31) — the block is on the card, and this brief is closed
+
+`apnea.overlapCoverage` was published in the export and rendered nowhere, so telling 7 h-of-7 from
+2 h-of-7 meant opening the JSON — for a ratio that **is the denominator the confirmed apnea index is
+divided by**. It is now an `Overlap coverage` KPI on the same strip as that index:
+
+- **value** — `recordedFrac` as a percentage
+- **sub** — `<recorded> of <envelope> h`, plus either *declared by ECGDex + OxyDex* or *envelope
+  basis — no node declared coverage*, so the reader can see which of the two regimes produced it
+- **badge** — `measured`, graded in the fusion evidence table beside `desat_match`. It is arithmetic
+  over declared segment lengths, not an inference, so it grades the same way.
+
+**Three deliberate choices.**
+
+*Shown unconditionally,* not only when coverage is poor. "We recorded all of it" is as much a fact as
+the alternative, and a KPI that appears only on bad nights teaches a reader to skim past it.
+
+*Tone warns only under 50 %.* Incomplete coverage is a caveat about the denominator, not a health
+finding — colouring it by severity would import the exact confusion this brief's parent removed.
+
+*A null `recordedFrac` renders "—", never 100 %.* The DSP returns null rather than 1 when the envelope
+is zero, on the principle that a ratio with no denominator is unknown, not complete; the renderer had
+to preserve that rather than collapse it, and the gate pins it.
+
+### 7.1 Gated as a source-scan, and the difference is stated
+
+Four assertions pin that the tile is **wired**: the renderer reads the block, routes it through
+`kpi()` with an evidence key, that key is graded `measured`, and the null path renders an em-dash.
+
+This is a **source-scan, not a render assertion** — driving the real KPI strip needs a DOM. The
+painting half is covered by `integrator-render.js` already sitting in `BADGE_ENFORCED`, which requires
+the badge to lead the value in every `kpi()` tile. Recorded plainly because §1 of this brief is about
+fixes shipping without gates following, and "gated" and "gated end-to-end" are not the same claim.
+
+### 7.2 Export-inert, PROVEN
+
+`manifestHash 7e5b580eb2bd → f96612c0f1d6` while **`computeHash` is unchanged at `06cc68676ffb`** —
+a render-only edit, so per `CLAUDE.md` §🔒 this is export-inert *computed*, not asserted, and no
+fixture re-verification is owed. No fixture moved.
+
+### 7.3 The brief is closed
+
+§2.1 (§5), §2.2 (§6) and §2.3 (§7) executed; §2.4 declined on its own criterion (§5.3). Nothing
+spawned a follow-up: each item was either completed or explicitly declined with the reason recorded.

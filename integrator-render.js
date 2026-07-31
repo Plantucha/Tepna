@@ -214,6 +214,13 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       cite: "Reference-free three-cornered hat (Gray & Allan 1974): each sensor's own error variance recovered from the three pairwise-difference variances of a shared quantity (per-epoch rMSSD). Estimates PRECISION, not trueness — a bias shared by all three is invisible. Needs ≥3 co-recorded sites; degrades to pairwise consensus otherwise."
     },
     desat_match: { evidence: 'measured', cite: 'Raw coverage statistic — matched desaturations ÷ total desaturations inside the overlap window.' },
+    /* INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.3. `measured`, like `desat_match`: arithmetic over
+       declared segment lengths, not an inference. It grades the DENOMINATOR the confirmed index is
+       divided by, which is why it belongs on the same strip rather than in the JSON alone. */
+    overlap_coverage: {
+      evidence: 'measured',
+      cite: 'Raw coverage statistic — hours BOTH nodes actually recorded ÷ hours their brackets overlapped, from each node’s declared recording.coverage segments. Falls back to the envelope, and says so, when no node declares coverage.'
+    },
     periodic_breathing: {
       evidence: 'experimental',
       cite: 'Cross-signal corroboration of periodic breathing / Cheyne–Stokes — SpO₂ oscillation (OxyDex), device flow (CPAPDex), and/or cardiac CVHR (ECGDex). Tier-weighted, down-weighted; a corroboration signal, not a scored CSR index.'
@@ -435,6 +442,23 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       k.push(
         kpi('Desat match rate', a.total.desat ? Math.round((100 * a.matched.desat) / a.total.desat) + '%' : '—', a.matched.desat + '/' + a.total.desat + ' desats paired', 'neutral', 'desat_match')
       );
+      /* Overlap coverage — INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.3. The block was published in
+         the export but rendered nowhere, so a reader had to open the JSON to tell 7 h-of-7 from
+         2 h-of-7 — and that ratio IS the denominator the confirmed index above is divided by. Shown
+         unconditionally rather than only when low: "we recorded all of it" is as much a fact as the
+         alternative, and a KPI that appears only on bad nights teaches readers to skim past it.
+         `recordedFrac` is null (not 1) when the envelope is zero — a ratio with no denominator is
+         unknown, so it renders '—' and the tone stays neutral rather than implying completeness. */
+      if (a.overlapCoverage) {
+        var oc = a.overlapCoverage;
+        var frac = oc.recordedFrac;
+        var ocVal = frac == null ? '—' : Math.round(100 * frac) + '%';
+        var ocSub =
+          oc.recordedHours + ' of ' + oc.envelopeHours + ' h · ' + (oc.basis === 'recorded' ? 'declared by ' + (oc.declaredBy || []).join(' + ') : 'envelope basis — no node declared coverage');
+        // warn only when the denominator is materially incomplete; the index rests on that much data.
+        var ocTone = frac == null ? 'neutral' : frac < 0.5 ? 'warn' : 'neutral';
+        k.push(kpi('Overlap coverage', ocVal, ocSub, ocTone, 'overlap_coverage'));
+      }
     }
     if (fusion.positional && fusion.positional.available) {
       var p = fusion.positional;
