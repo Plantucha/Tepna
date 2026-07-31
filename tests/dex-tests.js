@@ -1898,6 +1898,156 @@
         robust.confident === true && robust.ambiguous === false, robust.confident + '/' + robust.ambiguous);
     });
 
+    /* THE POOLED CLOCK FIT — one candidate offset, every channel scored at it.
+       `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md`. The group above gates the estimator that votes; this one
+       gates its replacement, and the two live side by side on purpose for one corpus cycle.
+
+       Every assertion here comes in a PAIR with its control. A planted-offset recovery on its own would
+       pass on a function that always answers "yes, aligned"; a null control on its own would pass on one
+       that never fires. Neither is evidence alone — the brief's §7 demands both or neither. */
+    group('The pooled clock fit beats voting, and knows when it has found nothing', 'integrator-dsp · clock-fit-pooled', function (T) {
+      var D = env.IntegratorDSP || env.D || null;
+      var pooled = D && D.fitClockOffsetPooled,
+        vote = D && D.fitClockOffset;
+      T.ok('fitClockOffsetPooled exported', typeof pooled === 'function');
+      if (typeof pooled !== 'function') return;
+
+      // Irregular anchor spacing, deterministically generated. Irregularity is a CONDITION, not a
+      // convenience: see the periodicity assertion at the end of this group for why.
+      var rng = function (s) { return function () { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; };
+      var t0 = U(2026, 5, 12, 22, 0, 0), OFF = 2297, NIGHT = 9 * 3600000;
+      var r0 = rng(4242), acc = 0, anchor = [];
+      for (var i = 0; i < 40; i++) { acc += 180000 + Math.floor(r0() * 600000); anchor.push(t0 + acc); }
+
+      // --- a planted offset, recovered ----------------------------------------------------------
+      var exact = anchor.map(function (t) { return t + OFF * 1000; });
+      var later = anchor.map(function (t) { return t + (OFF + 11) * 1000; });   // a slower mechanism
+      var noise = [];
+      var rn = rng(31337);
+      for (var n1 = 0; n1 < 200; n1++) noise.push(t0 + Math.floor(rn() * NIGHT));
+      noise.sort(function (x, y) { return x - y; });
+      var got = pooled(anchor, [
+        { node: 'OxyDex', channel: 'desat_event', times: exact },
+        { node: 'ECGDex', channel: 'movement_onset', times: later },
+        { node: 'PpgDex', channel: 'stage_light', times: noise }
+      ], {});
+      /* Within 15 s of the truth (2302.5 = the midpoint of the two mechanisms). The tolerance is not
+         slack: a +/-45 s match window makes the peak a ~90 s PLATEAU, so the estimator centres it
+         rather than taking the argmax — measured, the argmax lands 37 s low and the centroid within a
+         second. `spreadSec` publishes that plateau; the point estimate must sit at its middle. */
+      T.ok('a planted offset is recovered to the second', Math.abs(got.offsetSec - 2302) <= 15, got.offsetSec);
+      T.ok('…and the night is confident', got.confident === true, got.confident + ' p=' + got.pValue);
+      T.ok('…with the plateau published as the resolution, not hidden', got.spreadSec > 0 && got.spreadSec <= 4 * 45, got.spreadSec);
+
+      /* THE NULL CONTROL. Same anchors, partners that carry no relationship to them. The statistic must
+         not fire — and must say WHY in terms of the night's own null, not a corpus constant. */
+      var u1 = [], u2 = [], ru = rng(20260731);
+      for (var n2 = 0; n2 < 40; n2++) { u1.push(t0 + Math.floor(ru() * NIGHT)); u2.push(t0 + Math.floor(ru() * NIGHT)); }
+      u1.sort(function (x, y) { return x - y; });
+      u2.sort(function (x, y) { return x - y; });
+      var nul = pooled(anchor, [{ node: 'A', channel: 'x', times: u1 }, { node: 'B', channel: 'y', times: u2 }], {});
+      T.ok('unrelated partners are NOT confident', nul.confident === false, nul.confident + ' p=' + nul.pValue);
+      T.ok('…and the reason names the in-run null', /own null/.test(nul.reason || ''), nul.reason);
+      T.ok('…and the p-value is honestly large', nul.pValue > 0.05, nul.pValue);
+
+      /* THE ARGUMENT FOR POOLING, as an executable claim. Six channels, six real coincidences each and
+         34 decoys: every one of them fails the per-channel floor, so the estimator that votes returns
+         NOTHING. Pooled, the same six recover the offset. On the real corpus this is four whole nights
+         (2026-06-14, 06-19, 07-05, 07-25) that no individual channel could fit. */
+      var weak = [];
+      for (var c = 0; c < 6; c++) {
+        var rr = rng(1000 + c * 77), tw = [];
+        for (var k = 0; k < 6; k++) tw.push(anchor[(k * 7 + c) % 40] + OFF * 1000);
+        for (var d = 0; d < 34; d++) tw.push(t0 + Math.floor(rr() * NIGHT));
+        tw.sort(function (x, y) { return x - y; });
+        weak.push({ node: 'N' + (c % 3), channel: 'weak' + c, times: tw });
+      }
+      var wp = pooled(anchor, weak, {});
+      T.ok('six individually-hopeless channels pool into a measurement', wp.confident === true && Math.abs(wp.offsetSec - OFF) <= 45, wp.offsetSec + ' p=' + wp.pValue);
+      if (typeof vote === 'function') {
+        var wv = vote(anchor, weak, {});
+        T.eq('…on input where the voting fit reports nothing at all', wv.offsetSec, null);
+      }
+
+      /* NO EXCLUSION LIST — and the per-channel z-scoring that makes it safe.
+
+         One signal channel of 40 events against SIX junk channels of 1000 each: junk outnumbers signal
+         150 to 1. A pooled fit that summed RAW coincidence counts — the shape the parent brief's §1
+         used — would be decided entirely by the junk. Z-scoring each channel against its own chance
+         floor makes the statistic scale-free, so density buys nothing and the 40 real coincidences
+         still carry the night. This is why no sleep-stage allow-list is needed; an estimator that
+         required one would be wrong the first time a node shipped a new impulse. */
+      var many = [{ node: 'OxyDex', channel: 'desat_event', times: exact }];
+      for (var jc = 0; jc < 6; jc++) {
+        var rj = rng(555 + jc * 13), tj = [];
+        for (var je = 0; je < 1000; je++) tj.push(t0 + Math.floor(rj() * NIGHT));
+        tj.sort(function (x, y) { return x - y; });
+        many.push({ node: 'PpgDex', channel: 'stage_' + jc, times: tj });
+      }
+      var buried = pooled(anchor, many, {});
+      T.ok('6000 junk events cannot outvote 40 real coincidences', buried.confident === true && Math.abs(buried.offsetSec - OFF) <= 45, buried.offsetSec + ' p=' + buried.pValue);
+      T.ok('…and every junk channel is visibly not contributing', buried.channels.slice(1).every(function (rec) { return rec.agreed === false && rec.zAtPeak < 1; }),
+        buried.channels.slice(1).map(function (rec) { return rec.zAtPeak; }).join(','));
+      /* Adding junk shifts the point estimate only INSIDE the plateau it publishes — a couple of
+         seconds against a failure mode measured in tens of minutes. Asserting bit-equality here would
+         be asserting a coincidence, not a property. */
+      var clean = pooled(anchor, [{ node: 'OxyDex', channel: 'desat_event', times: exact }], {});
+      T.ok('a junk channel moves the answer by less than its own resolution',
+        Math.abs(buried.offsetSec - clean.offsetSec) <= 5, buried.offsetSec + ' vs ' + clean.offsetSec);
+
+      /* §5.3 / §6 — POOLING MUST NOT HIDE A DISAGREEING SENSOR. The vote made disagreement visible by
+         leaving a channel out of the agreeing set; if the per-channel table did not survive, pooling
+         would trade one blindness for another. */
+      var tbl = {};
+      got.channels.forEach(function (rec) { tbl[rec.channel] = rec; });
+      T.ok('every channel is retained in the table, contributor or not', got.channels.length === 3);
+      T.ok('a contributing channel reports its z at the CHOSEN offset', tbl.desat_event.zAtPeak > 5 && tbl.desat_event.agreed === true, tbl.desat_event.zAtPeak);
+      T.ok('a disagreeing channel is visible, not silently dropped',
+        tbl.stage_light.usable === true && tbl.stage_light.agreed === false && tbl.stage_light.zAtPeak < 2, tbl.stage_light.zAtPeak);
+      T.ok('…and its own argmax is published so the disagreement can be read',
+        typeof tbl.stage_light.ownOffsetSec === 'number', tbl.stage_light.ownOffsetSec);
+
+      /* PERIODIC ANCHORS — the designed failure mode, asserted so it cannot be "fixed" away. A
+         perfectly periodic anchor train determines the offset only MODULO its period, so the in-run
+         null (which shuffles the gaps) reproduces the same train and scores exactly as high. Reporting
+         confidence here would be fabricated authority; a uniform-scatter null would have done so. */
+      var per = [], pp = [];
+      for (var q = 0; q < 40; q++) { per.push(t0 + q * 600000); pp.push(t0 + q * 600000 + OFF * 1000); }
+      var pr = pooled(per, [{ node: 'A', channel: 'x', times: pp }], {});
+      T.ok('a periodic anchor train is NOT confident, however high its Z', pr.confident === false, pr.confident + ' Z=' + pr.z);
+      T.ok('…because its own null scores just as high', pr.nullZ >= pr.z - 0.01, pr.z + ' vs ' + pr.nullZ);
+
+      /* AN UNDERPOWERED RUN MUST SAY SO, not return a negative result it could never have contradicted.
+         A permutation p-value from N shuffles bottoms out at 1/(N+1), so below 19 shuffles `p <= 0.05`
+         is unreachable and a real signal comes back "indistinguishable from its own null". Found by
+         pointing the estimator at a new question with `nullIters: 10`: 44 channel pairs, zero
+         significant, entirely an artifact of the setting. Same discipline as `apneaTyping.underpowered`
+         — the suite already refuses to read a verdict out of a sample that cannot carry one. */
+      var weak10 = pooled(anchor, [{ node: 'OxyDex', channel: 'desat_event', times: exact }], { nullIters: 10 });
+      T.ok('10 shuffles cannot reach p<=0.05, and the fit says so', weak10.underpowered === true && weak10.confident === false, weak10.pFloor);
+      T.ok('…naming the setting rather than blaming the data', /UNDERPOWERED/.test(weak10.reason || '') && /nullIters/.test(weak10.reason || ''), weak10.reason);
+      T.ok('…on input the same fit calls confident at 30 shuffles (so it is the POWER, not the signal)',
+        clean.confident === true && clean.underpowered === false, clean.confident + '/' + clean.underpowered);
+      T.ok('…and the attainable floor is published', weak10.pFloor > 0.05 && clean.pFloor <= 0.05, weak10.pFloor + ' vs ' + clean.pFloor);
+
+      /* DETERMINISM. The null is seeded from the data, so the verdict must be identical run to run —
+         a confidence that moves on re-run is not a measurement, and would make any fixture carrying
+         one non-deterministic. Same discipline as `_seededRng` for the bootstrap CI. */
+      var again = pooled(anchor, [
+        { node: 'OxyDex', channel: 'desat_event', times: exact },
+        { node: 'ECGDex', channel: 'movement_onset', times: later },
+        { node: 'PpgDex', channel: 'stage_light', times: noise }
+      ], {});
+      T.eq('the fit is deterministic, null and all', JSON.stringify(again), JSON.stringify(got));
+
+      // --- degrades by design, never fabricates -------------------------------------------------
+      T.eq('no anchors -> null offset, never 0', pooled([], [{ node: 'A', channel: 'x', times: exact }], {}).offsetSec, null);
+      T.eq('no channels -> a reason, not a number', pooled(anchor, [], {}).reason, 'no channel could be estimated');
+      var thin = pooled(anchor, [{ node: 'A', channel: 'x', times: exact.slice(0, 3) }], {});
+      T.eq('a too-thin channel is RETAINED with its reason', thin.channels[0].reason, 'too few events');
+      T.ok('…and the night reports no offset rather than one from three events', thin.offsetSec === null, thin.offsetSec);
+    });
+
     /* MOVEMENT ONSETS — the arousal fiducial, and the gate on its duplication.
 
        An apnea ends in an arousal and the body MOVES. That instant is the sharpest cross-device
