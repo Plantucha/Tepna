@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-07-31 (**§1 + §2 EXECUTED, see §6; §3 EXECUTED, see §7** — and §3's own premise was wrong, see §7.1; **§4 remains open**; §5 is a recorded decision with nothing to do) · **Created:** 2026-07-31 · **Follows:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 · **Relates:** `DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md` §9/§12
+**Status:** DONE — 2026-07-31 · **Created:** 2026-07-31 · **Follows:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 · **Relates:** `DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md` §9/§12
 
 # What retiring the AHI proxy left behind
 
@@ -212,3 +212,72 @@ targets, that assertion is what breaks.**
 (a) for all six, in the **Node** lane — where the existing profile group already lives, so it runs on
 every push rather than only under `?full`. No node needed option (b): every derived field is either
 pinned or transitively pinned by a value that is.
+
+---
+
+## 8 · §4 EXECUTED (2026-07-31) — `surgeEscalationPct` is measured, and FLAT
+
+Correlated against the CPAP's own device-scored `residualAHI` over the same 39 paired nights that
+validated `cpcHfc`, using `tools/ecg-apnea-correlate.mjs` (new, committed — §8.2):
+
+| predictor | n | Pearson r | 95 % CI | p | Spearman | vs §9 |
+|---|---|---|---|---|---|---|
+| `cpc.hfcPct` | 39 | **−0.408** | [−0.641, −0.106] | 0.007 | −0.348 | ✓ control reproduced |
+| `cpc.lfcPct` | 39 | −0.045 | [−0.356, +0.274] | 0.78 | +0.135 | ✓ control reproduced |
+| `cpc.vlfcPct` | 39 | +0.356 | [+0.046, +0.604] | 0.020 | +0.138 | ✓ control reproduced |
+| `cvhrIndex` | 39 | −0.151 | [−0.445, +0.173] | 0.35 | −0.144 | ✓ control reproduced |
+| `cvhrEvents` | 39 | −0.116 | [−0.416, +0.207] | 0.48 | −0.053 | new — flat |
+| **`surgeEscalationPct`** | 39 | **−0.095** | **[−0.398, +0.228]** | **0.56** | −0.096 | **new — flat** |
+
+**`surgeEscalationPct` does not track apnea burden.** Pearson and Spearman agree (−0.095 / −0.096)
+and the interval spans zero almost symmetrically — a flat null, not an underpowered hint.
+
+### 8.1 What that does and does not mean
+
+It is **not a refutation of what the metric claims.** `surgeEscalation()` measures whether CVHR surges
+cluster toward the end of the night — a *timing* trend, per Li/Kiyono's HRV-instability signature —
+and nothing ever asserted a link to AHI. The measurement was worth making anyway because the field
+sits in the **`apnea` export block, beside `cvhrIndex` and `cpc`**, and that context is exactly what
+invites a future reader to treat it as an apnea marker and promote it on the assumption. It is not
+one, on the only independent label this suite has.
+
+**Tier unchanged at `experimental`** — it never rested on an AHI claim, so a null against AHI is not
+grounds to move it. What changed is that the registry `cite` and the DSP source comment now carry the
+number, so the assumption cannot be made silently. That is §4's option (b), *documented as
+measured-and-flat*, in a stronger form than prose: the null sits at the two places someone would look
+before promoting the metric.
+
+`cvhrEvents` was measured on the way (r = −0.116, flat) — the raw count behaves like the index derived
+from it, which is the expected result, recorded so nobody re-runs it.
+
+### 8.2 The harness is committed, and it re-checks §9 on every run
+
+`tools/ecg-apnea-correlate.mjs`. §9 published four correlations from a script that was never
+committed — the same failure §11/§12 hit, where a quoted result cannot be re-run without rebuilding
+the harness from prose. So **§9's four numbers are now CONTROLS the tool reproduces on every run**,
+printed in a `vs §9` column: if `hfcPct` stops coming back at −0.408, either the corpus moved or the
+harness is wrong, and both are things to learn *before* reading a new row. All four reproduced
+exactly. `--selftest` additionally pins the Fisher-z intervals against §9's **published** CIs
+(−0.641 / −0.106 / −0.445), so a change to the interval math cannot silently re-write the brief.
+
+**Two honest notes on method.** (1) The tool tests **every** numeric candidate in the apnea block, not
+a favourite — testing only the metric you hope will land is how a fishing expedition looks
+respectable. (2) Bonferroni is therefore over **six** predictors (α = 0.0083), not §9's four
+(α = 0.0125), and **`cpcHfc` survives the stricter bar** (p = 0.0066): adding two more candidates did
+not cost the one real finding. Our p for `hfcPct` prints 0.007 against §9's published 0.009 — a
+normal-approximated tail versus an exact t at n = 39. Same conclusion, and r and CI match to the digit.
+
+---
+
+## 9 · This brief is now closed
+
+§1, §2, §3 and §4 are executed; §5 was a recorded decision with no work in it. Nothing here spawned a
+further follow-up: the two questions that arose during execution were both answered in place (§2's
+`opts.rich` discovery, §7.1's correction to §3's premise), and §8's null closes the last open metric
+in the block rather than opening a new thread.
+
+**What the whole line of work settles.** ECGDex's `apnea` block now contains exactly one number
+validated against an independent label — `cpcHfc`, r = −0.408 — and every other candidate in it has
+been measured against that same label and found flat: `cvhrIndex` (−0.151), `cvhrEvents` (−0.116),
+`surgeEscalationPct` (−0.095), `cpc.lfcPct` (−0.045). The two that *claimed* to be apnea burden and
+never were, `estimatedAHI` and `riskCategory`, are gone.

@@ -207,7 +207,19 @@
        each named for what it measures. See ecgdex-profile.js for why nothing replaced them. */
     sigmaLnRmssd: { label: 'bσ(ln RMSSD)', unit: '/h', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Within-window ln-RMSSD instability slope — ECGDex composite' },
     varLnRmssd: { label: 'bs²(ln RMSSD)', unit: '/h', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Within-window ln-RMSSD variance slope — ECGDex composite' },
-    surgeEsc: { label: 'Surge escalation', unit: '%', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Overnight CVHR-surge escalation trend — ECGDex composite' },
+    /* `cite` records the NULL explicitly (FOLLOWUPS §4). This rides the `apnea` export block beside
+       `cvhrIndex` and `cpc`, which is exactly the context that invites a reader to assume it tracks
+       apnea burden. Measured against device-scored residual AHI over the same 39 paired nights that
+       validated `cpcHfc`, it does not. Tier UNCHANGED — `experimental` never rested on an AHI claim
+       — but the cite now says so, so nobody promotes it on the assumption. */
+    surgeEsc: {
+      label: 'Surge escalation',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Overnight CVHR-surge escalation trend — ECGDex composite. NOT an apnea-burden marker: r = −0.095 (p = 0.56) vs device-scored residual AHI, 39 nights'
+    },
 
     /* ── HEURISTIC — population projections / staging estimates ────────────── */
     /* ANS Age REMOVED 2026-06-21 (external-review WP-A). VO₂ + HR-derived sleep

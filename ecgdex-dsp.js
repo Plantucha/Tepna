@@ -1454,8 +1454,24 @@
     };
   }
 
-  // ── Surge-density escalation: does CVHR cluster later in the night?
-  //    (Li/Kiyono note this escalation IS the HRV-instability signature.) ──
+  /* ── Surge-density escalation: does CVHR cluster later in the night?
+        (Li/Kiyono note this escalation IS the HRV-instability signature.) ──
+
+     MEASURED AGAINST THE DEVICE LABEL, AND FLAT (ECGDEX-CARDIOPULMONARY-COUPLING-FOLLOWUPS §4,
+     2026-07-31). Correlated against the CPAP's own device-scored `residualAHI` over the same 39
+     paired nights that validated `cpcHfc`: **r = −0.095, 95 % CI [−0.398, +0.228], p = 0.56**,
+     Spearman −0.096. It does not track apnea burden.
+
+     That is NOT a refutation of what this function claims. It measures whether CVHR surges cluster
+     toward the end of the night — a TIMING/instability trend, not a burden estimate — and nothing
+     here ever asserted a link to AHI. The measurement is recorded because the metric sits in the
+     `apnea` export block beside `cvhrIndex` and `cpc`, which is exactly the context that invites a
+     reader to assume it is an apnea marker and promote it on that assumption. It is not one, on the
+     only independent label this suite has.
+
+     Tier stays `experimental` — unchanged, because the tier was never resting on an AHI claim.
+     Re-run: `node tools/ecg-apnea-correlate.mjs --cpap <cpap-corpus.json>` (the harness reproduces
+     §9's four published correlations as controls on every run). */
   function surgeEscalation(cvhrEvents, durSec) {
     if (!cvhrEvents || cvhrEvents.length < 4 || durSec < 90 * 60) return null;
     const third = durSec / 3;
