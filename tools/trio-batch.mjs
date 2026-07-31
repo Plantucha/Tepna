@@ -1070,7 +1070,9 @@ function printClockFit(dir, key) {
       fit.offsetSec != null
         ? `${(fit.offsetSec / 60).toFixed(2)} min (${Math.round(fit.offsetSec)} s)` +
           (fit.spreadSec != null ? `, sensors agree within ${Math.round(fit.spreadSec)} s` : '') +
-          (fit.confident ? '' : `  — NOT corroborated (${fit.reason})`)
+          // A tie is a stronger claim than "uncorroborated" — the number shown was chosen by sort order
+          // over an equally-supported rival — so it leads rather than hiding in a parenthetical.
+          (fit.ambiguous ? `  — ⚠ ${fit.reason}` : fit.confident ? '' : `  — NOT corroborated (${fit.reason})`)
         : `unresolved — ${fit.reason}`;
     console.log(`    ⏱ CPAP clock offset: ${head}   [${ap.length} apnea events]`);
     for (const c of fit.channels) {

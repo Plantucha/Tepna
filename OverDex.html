@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-Q1L67vIKEdmP/Ex3fQOEn1L3DD9UpkwtBY++t5UFMfw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-lEOeKS1Of3gcbzImNd9+Yfqoa1MnXkVYuEB2uhnxDOk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-vy4QJU98zC3y20n9hVUFSKef+HV/2msQk8FbjSvFZSI=' 'sha256-ypMifxedsB07CXmu3AIywvVHXhPHZdd/AkUTEgVn7QY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-Q1L67vIKEdmP/Ex3fQOEn1L3DD9UpkwtBY++t5UFMfw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-jpc3IV+KR0Jm++QHaAQj31PQ92xPA/6YnWO04ydDdTc=' 'sha256-lEOeKS1Of3gcbzImNd9+Yfqoa1MnXkVYuEB2uhnxDOk=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-vy4QJU98zC3y20n9hVUFSKef+HV/2msQk8FbjSvFZSI='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -5554,32 +5554,72 @@ function fitClockOffset(anchorTimes, channels, opts) {
     });
     return { c: c, nodes: Object.keys(nodes).length, width: c[c.length - 1].offsetSec - c[0].offsetSec };
   });
+  /* Rank on (distinct nodes, then channels, then tightness). The comparison is STRICT-improvement, so
+     when nothing separates two clusters the incumbent keeps the win — and the incumbent is `scored[0]`,
+     the cluster with the SMALLEST offset, because `sorted` is ascending. Deterministic, but ARBITRARY:
+     on a real tie the answer is decided by which offset happens to be numerically lower.
+
+     Not hypothetical. 2026-07-30 produced exactly two single-channel clusters — `ECGDex/movement_onset`
+     at -21.82 min and `ECGDex/autonomic_surge` at +74.92 min — identical on all three criteria (1 node,
+     1 channel, 0 s width). The fit reported -21.82 with nothing to say a rival 96 minutes away was
+     equally supported. Had the surge landed at -80, it would have "won" instead.
+
+     So a tie is now REPORTED, not broken. `confident` is forced false even when the winner carries two
+     corroborating nodes: "two clusters, each corroborated" is an ambiguous night, not a measured one —
+     and that is precisely the case where the old code returned an arbitrary pick wearing a confidence
+     flag. */
+  var cmp = function (z, y) {
+    return z.nodes !== y.nodes ? z.nodes - y.nodes : z.c.length !== y.c.length ? z.c.length - y.c.length : y.width - z.width;
+  };
   var win = scored[0];
-  for (var w = 1; w < scored.length; w++) {
-    var z = scored[w];
-    if (z.nodes > win.nodes || (z.nodes === win.nodes && z.c.length > win.c.length) || (z.nodes === win.nodes && z.c.length === win.c.length && z.width < win.width)) win = z;
-  }
-  var vals = win.c
-    .map(function (r) {
-      return r.offsetSec;
-    })
-    .sort(function (x, y) {
-      return x - y;
-    });
-  var mid = vals.length >> 1;
-  var median = vals.length % 2 ? vals[mid] : Math.round((vals[mid - 1] + vals[mid]) / 2);
+  for (var w = 1; w < scored.length; w++) if (cmp(scored[w], win) > 0) win = scored[w];
+  var tied = scored.filter(function (z) {
+    return z !== win && cmp(z, win) === 0;
+  });
+  var medOf = function (c) {
+    var v = c
+      .map(function (r) {
+        return r.offsetSec;
+      })
+      .sort(function (x, y) {
+        return x - y;
+      });
+    var m = v.length >> 1;
+    return v.length % 2 ? v[m] : Math.round((v[m - 1] + v[m]) / 2);
+  };
+  var median = medOf(win.c);
   win.c.forEach(function (r) {
     r.agreed = true;
   });
+  // The rivals the tie-break could equally have chosen. Surfaced so a reader sees the disagreement
+  // rather than a single number that happens to have sorted first.
+  var alternativesSec = tied.map(function (z) {
+    return medOf(z.c);
+  });
+  var tieReason = null;
+  if (tied.length) {
+    var everyOffsetMin = [median]
+      .concat(alternativesSec)
+      .map(function (s) {
+        return (s / 60).toFixed(2);
+      })
+      .join(' / ');
+    tieReason = 'ambiguous — ' + (tied.length + 1) + ' equally-supported offsets (' + everyOffsetMin + ' min); the evidence does not choose between them';
+  }
   return {
     offsetSec: median,
     spreadSec: win.width,
     nChannels: win.c.length,
     nNodes: win.nodes,
+    // AMBIGUOUS beats corroborated. A tie means the evidence does not pick a winner, so no number of
+    // agreeing nodes rescues it — reporting one side as confident would be the fabricated authority
+    // this whole estimator exists to avoid.
+    ambiguous: tied.length > 0,
+    alternativesSec: alternativesSec,
     // One node is an estimate; two or more DISTINCT nodes agreeing through unrelated mechanisms is a
     // measurement. Channel count alone does not qualify — five channels of one device share its faults.
-    confident: win.nodes >= 2,
-    reason: win.nodes >= 2 ? null : 'only one device agrees — corroboration unavailable',
+    confident: win.nodes >= 2 && !tied.length,
+    reason: tieReason || (win.nodes >= 2 ? null : 'only one device agrees — corroboration unavailable'),
     channels: out
   };
 }
