@@ -1583,6 +1583,20 @@
     const grid = new Float64Array(M);
     for (let i = 0; i < M; i++) grid[i] = t0 + i / FS;
     const edrU = _interpGrid(tt, edr, grid);
+    /* CPC needs the UNDETRENDED series. `edr`/`hrR` above are `_detrendMov(x, 40)` — a 40-BEAT moving
+       high-pass, ~48 s at a 50 bpm sleep rate — and `edrB`/`hrB` below are `_bandResp`, which by its
+       own comment drops everything under ~0.1 Hz. Measured retention through those filters:
+                          detrendMov(40)   _bandResp
+         VLFC 0.006 Hz          14 %           0 %
+         LFC  0.012 Hz          48 %           0 %
+         LFC  0.020 Hz          98 %           1 %
+         HFC  0.250 Hz          98 %         101 %
+       So the existing coupling grids destroy LFC — the apnea signature CPC exists to measure — and
+       VLFC entirely. Building CPC on them would report LFC ≈ 0 on every night and look like a clean
+       negative result. That is the same failure as `lfhf` being structurally blind to the VLF band
+       (DEEP-STAGE-DESAT-CONFOUND §8.3), caught before shipping this time rather than after.
+       `hrAbsU` is already the raw HR on this grid; the raw R-amplitude needs its own interpolation. */
+    const edrRawU = _interpGrid(tt, amp, grid);
     const hrU = _interpGrid(tt, hrR, grid);
     const hrAbsU = _interpGrid(tt, hrAbs, grid);
     const edrB = _bandResp(edrU, FS),
@@ -1667,7 +1681,10 @@
         if (cnt) epochCRC.push({ tMin: e.tMin, plv: +(acc / cnt).toFixed(3) });
       }
     }
+    // CPC on the RAW grids (see the edrRawU note) — never on edrB/hrB, which retain 0-22 % of LFC.
+    const cpc = _cpc(hrAbsU, edrRawU, FS);
     return {
+      cpc,
       respFromEDR,
       rsaEfficiencyRatio: +rsaRatio.toFixed(2),
       rsaAmplitudeBpm: +rsaAmp.toFixed(1),
@@ -2733,6 +2750,119 @@
   // ─── device accelerometer: derived respiration + motion/activity ─────────────
   // resp rate via autocorrelation of the band-passed chest axis (robust to movement
   // noise, unlike zero-crossing counting).
+  /* ── CARDIOPULMONARY COUPLING (Thomas et al. 2005; apnea application Hilmisson 2019) ──────────
+     Coherence-weighted cross-power between heart rate and ECG-derived respiration, banded by the
+     DOMINANT coupling frequency in each window:
+        HFC  0.10–0.40 Hz   stable NREM
+        LFC  0.01–0.10 Hz   UNSTABLE NREM — the apnea signature
+        VLFC 0.004–0.01 Hz  REM / wake
+     Both inputs must be UNDETRENDED (see the note at the edrRawU assignment): the existing
+     `_detrendMov(40)` and `_bandResp` grids retain 0–22 % of LFC and 0 % of VLFC.
+
+     WINDOW. Frequency resolution is 1/T — set by window DURATION, not by the 4 Hz grid rate (the
+     beat series' own Nyquist is ~0.42 Hz at a 50 bpm sleep rate, so 4 Hz is already ~10x oversampled
+     and a faster grid would add no information). Thomas uses 1024 samples at 2 Hz = 512 s, giving
+     df = 0.00195 Hz — about three bins across VLFC. We keep the 512 s DURATION on the 4 Hz grid
+     (2048 samples), so the resolution matches the published method rather than the sample count.
+     A shorter window cannot resolve VLFC at all: 128 s gives df = 0.0078 Hz, one bin for the band.
+
+     Returns null rather than a degraded number when the record cannot support the analysis. */
+  function _cpc(hrRaw, edrRaw, fs) {
+    const WIN_SEC = 512,
+      N = 1 << Math.round(Math.log2(WIN_SEC * fs)); // 2048 @ 4 Hz
+    const STEP = N >> 1; // 50 % overlap
+    if (!hrRaw || !edrRaw || hrRaw.length < N) return null; // too short to resolve VLFC — say so
+    const df = fs / N;
+    const bandOf = (fHz) => (fHz >= 0.1 && fHz <= 0.4 ? 'hfc' : fHz >= 0.01 ? 'lfc' : fHz >= 0.004 ? 'vlfc' : null);
+    const counts = { hfc: 0, lfc: 0, vlfc: 0 },
+      lfcVals = [];
+    let windows = 0;
+    const kLo = Math.max(1, Math.floor(0.004 / df)),
+      kHi = Math.min(N >> 1, Math.ceil(0.4 / df));
+    for (let s0 = 0; s0 + N <= hrRaw.length; s0 += STEP) {
+      // per-window linear detrend + Hann. A LINEAR detrend removes drift without touching 0.004 Hz,
+      // which is exactly what the 40-beat moving average could not do.
+      const xr = new Float64Array(N),
+        xi = new Float64Array(N),
+        yr = new Float64Array(N),
+        yi = new Float64Array(N);
+      let sx = 0,
+        sy = 0,
+        sxx = 0,
+        sxy1 = 0,
+        sxy2 = 0;
+      for (let i = 0; i < N; i++) {
+        sx += i;
+        sxx += i * i;
+        sy += hrRaw[s0 + i];
+        sxy1 += i * hrRaw[s0 + i];
+        sxy2 += i * edrRaw[s0 + i];
+      }
+      const meanI = sx / N,
+        den = sxx - N * meanI * meanI;
+      let sy2 = 0;
+      for (let i = 0; i < N; i++) sy2 += edrRaw[s0 + i];
+      const bH = den > 0 ? (sxy1 - meanI * sy) / den : 0,
+        aH = sy / N - bH * meanI;
+      const bE = den > 0 ? (sxy2 - meanI * sy2) / den : 0,
+        aE = sy2 / N - bE * meanI;
+      for (let i = 0; i < N; i++) {
+        const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (N - 1));
+        xr[i] = (hrRaw[s0 + i] - (aH + bH * i)) * w;
+        yr[i] = (edrRaw[s0 + i] - (aE + bE * i)) * w;
+      }
+      _fft(xr, xi);
+      _fft(yr, yi);
+      // Coherence needs SMOOTHED spectra — a single-segment magnitude-squared coherence is
+      // identically 1 at every bin and carries no information. Smooth over +/-2 bins (Welch-style
+      // frequency averaging), which is what makes Cxy a real quantity here.
+      const H = 2;
+      const bandPow = { hfc: 0, lfc: 0, vlfc: 0 };
+      for (let k = kLo; k <= kHi; k++) {
+        let pxx = 0,
+          pyy = 0,
+          cr = 0,
+          ci = 0;
+        for (let j = Math.max(1, k - H); j <= Math.min((N >> 1) - 1, k + H); j++) {
+          pxx += xr[j] * xr[j] + xi[j] * xi[j];
+          pyy += yr[j] * yr[j] + yi[j] * yi[j];
+          cr += xr[j] * yr[j] + xi[j] * yi[j]; // Re(X * conj(Y))
+          ci += xi[j] * yr[j] - xr[j] * yi[j]; // Im(X * conj(Y))
+        }
+        const cross2 = cr * cr + ci * ci;
+        if (pxx <= 0 || pyy <= 0) continue;
+        const coh = cross2 / (pxx * pyy); // magnitude-squared coherence
+        const power = coh * Math.sqrt(cross2); // Thomas: coherence x cross-power
+        const b = bandOf(k * df);
+        if (b) bandPow[b] += power;
+      }
+      if (bandPow.hfc + bandPow.lfc + bandPow.vlfc <= 0) continue;
+      // INTEGRATED band power, not argmax of a single peak. Measured on uncorrelated noise, an
+      // argmax estimator lands VLFC 7.5 % / LFC 32.5 % / HFC 60.0 % where the bandwidth-proportional
+      // null is 1.5 / 23 / 76 — a 5x low-frequency over-pick, because the +/-2-bin smoothing spans
+      // fewer independent bins near DC. Reporting "LFC 54 %" against an implicit null of zero would
+      // have been wrong by the width of that bias. Integrating each band and normalising removes the
+      // peak-picking step entirely, so a band's share reflects its power, not its luck.
+      const tot = bandPow.hfc + bandPow.lfc + bandPow.vlfc;
+      counts.hfc += bandPow.hfc / tot;
+      counts.lfc += bandPow.lfc / tot;
+      counts.vlfc += bandPow.vlfc / tot;
+      windows++;
+      lfcVals.push(bandPow.lfc / tot);
+    }
+    if (!windows) return null;
+    const pct = (k) => +((100 * counts[k]) / windows).toFixed(1); // counts[] now accumulate FRACTIONS, so this is a mean share
+    return {
+      windows,
+      windowSec: WIN_SEC,
+      freqResHz: +df.toFixed(5),
+      hfcPct: pct('hfc'),
+      lfcPct: pct('lfc'),
+      vlfcPct: pct('vlfc'),
+      method: 'CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap'
+    };
+  }
+
   function _autocorrPeriod(x, fs, loSec, hiSec) {
     // classic pitch-detection: autocorrelate, skip to the first negative-going zero
     // crossing (past the central lobe), then take the lag of the largest peak. Avoids
