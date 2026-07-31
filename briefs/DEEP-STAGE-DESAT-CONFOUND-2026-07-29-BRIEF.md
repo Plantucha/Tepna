@@ -469,6 +469,12 @@ attempts at a better feature (§9.5a, §9.5b) both failed, which is what that bo
 
 ## 10 · PARKED (2026-07-30): §9 is not stratified by clock quality — wait for 14 vigil nights
 
+> **UNPARKED and CLOSED by §12 (2026-07-30).** The 14th vigil night landed and the split was run. The
+> hypothesis below — that drift dilutes the effect, so clean-clock nights would read sharper — is
+> **not supported**: the vigil arm measures *lower* (0.536 vs 0.625), Δ = −0.088, p = 0.35, and a
+> placebo cut inside the legacy era produces the same ±0.09 gap for free. Read §12. One claim below
+> was also wrong: the probe was **not** written — it had to be rebuilt (§12.5).
+
 §9's numbers pool **two corpora with different timing discipline**, and that is an uncontrolled
 confound in the conclusion, not a detail:
 
@@ -583,3 +589,117 @@ investigation, and none of them changed the answer: the targeted-band attempt (�
 night-relative attempt (§9.5b), and this one. A conclusion that survives its own author trying three
 times to overturn it is worth more than the first version of it was — and the two figures that WERE
 wrong (prevalence, break-even) were both found by re-running rather than by re-reading.
+
+---
+
+## 12 · §10 UNPARKED and CLOSED (2026-07-30) — clean clocks do not sharpen the effect
+
+§10 parked the clock-quality stratification until the vigil box had ~14 clean nights. **It now has
+exactly 14** (`2026-07-16 → 07-29`, all folded), against 25 free-running-clock nights, so the split
+§10 specified has been run. Its hypothesis is **not supported**, and the point estimate moves the
+*opposite* way from the prediction.
+
+| arm | nights | Deep epochs | contaminated / clean | prevalence | `vlf/lf` AUC | 95 % CI |
+|---|---|---|---|---|---|---|
+| **vigil** — one daemon, all three devices `clock_synced` | 14 | 179 | 15 / 164 | **8.4 %** | **0.536** | [0.381, 0.692] — **not established** |
+| **legacy** — three free-running device clocks | 25 | 278 | 39 / 239 | **14.0 %** | **0.625** | [0.525, 0.724] — discriminates |
+| pooled (control, reproduces §11 exactly) | 39 | 457 | 54 / 403 | 11.8 % | 0.599 | [0.515, 0.683] |
+
+**Δ = −0.088, 95 % CI [−0.273, +0.096], z = −0.94, p = 0.35.** §10 predicted Δ > 0 — that better
+timing would recover a sharper effect diluted by drift. The measured sign is negative and the
+interval spans zero.
+
+### 12.1 The placebo split — a ±0.09 arm gap is what this corpus produces for FREE
+
+A non-significant Δ of the *wrong* sign is weak evidence on its own; it could just be two small arms.
+So the split was re-run with a **fake boundary inside the legacy era** (`--until 2026-07-13
+--vigil-from 2026-06-27`), where clock discipline is *identical* on both sides and any gap is
+therefore noise by construction:
+
+| split | arms | Δ `vlf/lf` AUC | p | prevalence gap |
+|---|---|---|---|---|
+| **real** (vigil vs legacy) | 14 / 25 | **−0.088** | 0.35 | 8.4 % vs 14.0 % |
+| **placebo** (fake cut at 2026-06-27, legacy era only) | 15 / 10 | **+0.088** | 0.39 | 11.7 % vs 17.2 % |
+
+**Identical magnitude, opposite sign, same non-significance** — and the placebo's late arm reaches
+AUC 0.669 [0.529, 0.809], *higher than either real arm*, purely from choosing a date. An arm gap of
+±0.09 in AUC and ~5 pp in prevalence is this corpus's noise floor at n ≈ 15 contaminated epochs. The
+real vigil/legacy difference is **indistinguishable from a cut made at random**, which is a much
+stronger statement than "p = 0.35" alone, and it is only available because the placebo was run.
+
+A second stability check says the same thing. The vigil boundary is a capture-side fact (`2026-07-16`
+is simply the host's first night, not a tunable), but moving it by three nights either way swings the
+arm's AUC across almost the whole gap being argued about:
+
+| `--vigil-from` | vigil nights | vigil `vlf/lf` AUC |
+|---|---|---|
+| 2026-07-13 | 15 | 0.560 [0.416, 0.703] |
+| **2026-07-16 (the real boundary)** | **14** | **0.536 [0.381, 0.692]** |
+| 2026-07-19 | 11 | 0.621 [0.429, 0.813] |
+
+None of the three establishes an effect, and the spread across them (0.085) is the same size as Δ
+itself. **No conclusion here survives being read off a single arm's point estimate**, which is why
+§12.2 decides on the operating-point net instead.
+
+### 12.2 The decision does not change in EITHER arm
+
+The operating-point sweep — the thing that actually decides the veto (§9.3) — is negative at every θ
+on both sides of the split:
+
+| θ on `vlf/lf` | vigil net | legacy net |
+|---|---|---|
+| 1.5 | **−69** | **−80** |
+| 2.5 | −58 | −67 |
+| 4.0 | −39 | −49 |
+
+So the clean-clock corpus does not rescue the veto; it loses there too. And it is worse off than the
+pooled figure suggests **for two compounding reasons**: the vigil arm's AUC is *lower* (0.536), and
+its contamination prevalence is *lower* (8.4 % vs 14.0 %) — which by §11.2's own logic **raises** the
+break-even bar, because a rarer contaminant is harder to pay for. The arm with the honest clocks needs
+a better discriminator and supplies a worse one.
+
+### 12.3 The shift profile is not usable as a clock diagnostic at this n
+
+The probe can re-map desats under an artificial time offset and re-measure — a corpus with skewed
+clocks should peak off zero. Run over ±45 min it does **not** produce a usable read: AUC spikes to
+0.670 at −15 min and 0.668 at −45 min while both *neighbouring* shifts sit near 0.43, and a real
+clock offset cannot produce a one-point spike flanked by troughs (adjacent shifts share most of their
+desats). The one legible signal is the **count**: contaminated Deep epochs peak sharply at zero shift
+(54 pooled; legacy 39 against a next-best 35), which is mild evidence against a gross offset in
+either arm — but it is a by-product, not the test. **Recorded so the next reader does not re-run it
+expecting an answer.**
+
+### 12.4 What §10's wait actually bought, and the honest limit
+
+§10 predicted the split would be underpowered and deferred it for more nights. **It is still
+underpowered** — the vigil arm carries 15 contaminated epochs and a CI 0.31 wide — so this does not
+*prove* clock quality is irrelevant; it shows the hypothesis has no support and that the decision is
+unchanged either way. Two limits are worth stating plainly:
+
+- **Era is perfectly confounded with clock discipline.** Every vigil night is later than every legacy
+  night, so therapy drift, mask changes, or seasonal effects are inseparable from timing by this
+  design. §12.1's placebo is what makes the result interpretable in spite of that — it prices the
+  confound rather than assuming it away.
+- **Waiting longer is not obviously worth it.** Doubling the vigil arm would narrow its CI by ~√2,
+  to roughly ±0.11 — still far too wide to resolve a 0.09 difference, and the operating-point net
+  would have to change sign, not merely the AUC. §10's "real possibility worth testing" has been
+  tested; it is not where the remaining uncertainty lives.
+
+**§10 is unparked and CLOSED. §9.4's verdict stands, now on both sides of the clock split: NOT
+ACTIONABLE at current label quality, and still not "refuted".** §9.6's bound is untouched — the
+ceiling is the LABEL, and a fourth attempt to find a better feature has now failed alongside the
+targeted-band (§9.5a) and night-relative (§9.5b) ones.
+
+### 12.5 The probe is now a committed tool — §10's "this is a re-run" was not true
+
+§10 stated *"the probe is written and tags every epoch with its source corpus, so this is a re-run,
+not a rebuild."* **It was a rebuild.** The script behind §9 and §11 was a throwaway that no longer
+existed, and every number above had to be re-derived from the brief's prose. That is the same failure
+§11 documents one level up (an uncommitted harness silently sampling ONE ECG fragment per night),
+and the fix is the same one #565 applied to the falsifier: **`tools/deep-vlf-probe.mjs`** is now a
+standing tool, with `--selftest` pinning the AUC/CI math against §9's and §11's *published* intervals
+so a future edit cannot quietly re-write the brief's own numbers. The next re-run really is a re-run.
+
+One casualty is permanent: the normal-model script behind §11.2's break-even figures (0.664 / 0.684)
+was not recoverable, so §12 decides on the **empirical** operating-point net instead, which needs no
+model. §11.2's numbers stand as published; they are not re-derived here.
