@@ -203,7 +203,7 @@ be comparable on the corpus for at least one cycle.
       `detectClockSkew`'s finding, never by anything the fit computes.
 - [x] Gates: suite green in both lanes (**4529 assertions / 296 groups**) · GATE A 9/9 + GATE B 13
       reproducible · `build --check` 11/11 clean · `integrator_tch_golden` re-verified under the moved
-      compute closure (`computeHash 06cc68676ffb → 133571f75a1d`).
+      compute closure (`computeHash` 06cc68676ffb → 6c454a04fa7e).
 
 ---
 

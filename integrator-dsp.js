@@ -4155,8 +4155,11 @@ function fitClockOffsetPooled(anchorTimes, channels, opts) {
   /* The null verdict is reported FIRST when it fails. On a night that is indistinguishable from its own
      chance floor the peak is noise, and so are its rivals — leading with "3 equally-supported offsets"
      would dress a null result up as a close call between real candidates. */
-  if (underpowered) {
-    reason = 'UNDERPOWERED — ' + nullPeaks.length + ' null shuffles can only reach p=' + pFloor.toFixed(3) + ', so p<=0.05 is unreachable; raise nullIters to >=19 before reading this as a negative result';
+  // `pFloor != null` is redundant with `underpowered` at runtime but not to the type-checker, which
+  // narrows on the guard it can see rather than on a boolean computed three lines earlier.
+  if (pFloor != null && underpowered) {
+    reason =
+      'UNDERPOWERED — ' + nullPeaks.length + ' null shuffles can only reach p=' + pFloor.toFixed(3) + ', so p<=0.05 is unreachable; raise nullIters to >=19 before reading this as a negative result';
   } else if (pValue != null && pValue > 0.05) {
     reason = 'indistinguishable from this night’s own null (p=' + pValue.toFixed(3) + ', Z ' + pk.peak.toFixed(1) + ' vs null max ' + (nullMax == null ? '?' : nullMax.toFixed(1)) + ')';
   } else if (ambiguous) {
