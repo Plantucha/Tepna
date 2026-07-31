@@ -1128,7 +1128,18 @@ for (const p of work) {
     for (const r of recs) {
       if (prevEndMs != null) {
         const d = r.t0Ms - prevEndMs;
-        if (d > 0) gaps.push({ idx: idx - 1, ms: d }); // the real off-link silence
+        /* `idx`, not `idx - 1` — THE CONVENTION IS "the first sample AFTER the dropout"
+           (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.1, fixed 2026-07-31; stated at the definition in
+           `ecgdex-dsp.js parseECGText`). At this point `idx` is where THIS session's first sample is
+           about to land, so `idx` IS the first sample after the silence — and `idx - 1` was the last
+           one before it, the opposite of what `parseECGText` emits for an in-file dropout.
+           Why first-after wins: the consumer (the dead-time walk in `ecgdex-dsp.js`) tests
+           `g.idx <= refIdx[k]` and credits the dropout to every beat at or past that index. Under
+           first-after, a beat ON the boundary sample is genuinely after the hole and SHOULD carry the
+           dead time. Under last-before it was credited to the beat immediately BEFORE the hole too —
+           one sample, 7.7 ms at 130 Hz, immaterial against hour-scale segments (which is why it went
+           unnoticed) but wrong in the direction that inflates elapsed time. */
+        if (d > 0) gaps.push({ idx, ms: d }); // the real off-link silence
       }
       for (const g of r.gaps || []) gaps.push({ idx: g.idx + idx, ms: g.ms });
       out.set(r.int16, idx);

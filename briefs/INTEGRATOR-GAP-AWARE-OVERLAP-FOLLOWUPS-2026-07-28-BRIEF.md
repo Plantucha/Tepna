@@ -98,7 +98,59 @@ a fourth caller needs the same thing — until then, note that two writers of on
 
 ## 4 · Done when
 
-- [ ] §2.1 one `gaps[].idx` convention, documented at the definition and honoured by both producers
+- [x] **§2.1 DONE 2026-07-31 — see §5.** Convention is *first sample AFTER the dropout*, stated at the definition in `parseECGText`, `mergeEcg` corrected from `idx - 1` to `idx`, gated structurally.
 - [ ] §2.2 committed fragmented twins for PpgDex and OxyDex, each verified RED against a suppressed emitter
 - [ ] §2.3 `overlapCoverage` surfaced in the Integrator UI, badged
-- [ ] §2.4 revisited when a fourth caller appears, or explicitly declined
+- [x] **§2.4 EXPLICITLY DECLINED 2026-07-31 — see §5.3.** No fourth caller has appeared; folding HRVDex in would mean teaching the shared helper about points-with-unknown-length for one call site.
+
+---
+
+## 5 · §2.1 EXECUTED and §2.4 DECLINED (2026-07-31)
+
+### 5.1 The convention is "first sample AFTER the dropout"
+
+Both producers now agree, and the disagreement §2.1 described was real — verified in the code, not
+taken on the brief's word:
+
+- **`ecgdex-dsp.js parseECGText`** pushes `{ idx: n - 1 }`, and `push()` for the current row runs
+  *before* the gap check — so `n - 1` is the current, **post-gap** sample. First-after.
+- **`tools/trio-batch.mjs mergeEcg`** pushed `{ idx: idx - 1 }` where `idx` is where the next
+  session's first sample is about to land — so `idx - 1` was the **last pre-gap** sample. Last-before.
+
+**First-after wins, and not by coin-toss — the consumer already required it.** The dead-time walk in
+`ecgdex-dsp.js` tests `g.idx <= refIdx[k]` and credits the dropout to every beat at or past that
+index. Under first-after, a beat landing ON the boundary sample is genuinely after the hole and
+*should* carry the dead time. Under last-before, the beat immediately **before** the hole was credited
+too — one sample, 7.7 ms at 130 Hz, immaterial against hour-scale segments (which is why it survived),
+but wrong in the direction that **inflates** elapsed time. So `mergeEcg` was the side to fix.
+
+The convention is now stated at the definition, where §2.1 asked for it, with the reasoning inline so
+the next reader does not have to re-derive which side is correct.
+
+### 5.2 Gated structurally, not on a magic index
+
+The committed fragmented twin is three equal recorded segments, so the first gap must begin exactly
+one segment in. The gate asserts that (±2 samples) rather than hard-coding an index — a last-before
+producer lands one sample lower and is still separated by that tolerance. Measured: gaps at **871 and
+1742**, against a segment length of 871. A second leg pins that the indices stay strictly increasing,
+which is the property a merged multi-session stream must keep.
+
+**Honest scope note.** The gate covers `parseECGText`, the definition site. `mergeEcg` lives in
+`tools/trio-batch.mjs`, which the suite does not load, so its side of the convention is enforced by
+the comment and by the shared structural expectation rather than by an assertion. A test-visible
+`mergeEcg` would mean either loading the CLI tool into the suite or extracting the merge — neither
+justified by a one-sample correction. **Stated because "gated" and "gated on both sides" are not the
+same claim**, and §1 of this brief is precisely about that distinction.
+
+### 5.3 §2.4 — declined, on its own stated criterion
+
+§2.4 said folding HRVDex into `DexExport.coverageFromSegments` is *"worth doing only when a fourth
+caller needs the same thing."* No fourth caller has appeared. HRVDex's shape is still genuinely
+different — per-measurement rows whose own duration may be unknown, so `nWithDuration < n` and
+`recordedSec` may legitimately be null, neither expressible by a stream-derived segment list — so
+folding it in means teaching the shared helper about points-with-unknown-length for exactly one call
+site. **Declining is the decision, not a deferral**: two writers of one shape exist, both correct, and
+that is recorded here so the next reader does not re-open it as an oversight.
+
+§2.2 (committed fragmented twins for PpgDex and OxyDex) and §2.3 (`overlapCoverage` rendered and
+badged) remain open and carry real work.

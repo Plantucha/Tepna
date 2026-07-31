@@ -3766,7 +3766,17 @@
             if (d > 0) {
               if (msStep === null && d < 50) msStep = d; // provisional step — anchors the gap threshold
               if (msStep && d > msStep * 2.5) {
-                // a dropout, not a sample interval — excluded from fs
+                /* a dropout, not a sample interval — excluded from fs.
+                   THE `gaps[i].idx` CONVENTION, stated here because this is where `gaps` is defined
+                   (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.1, 2026-07-31):
+                   **`idx` is the FIRST SAMPLE AFTER the dropout — never the last one before it.**
+                   `push()` for the current row has already run above, so `n - 1` IS that first
+                   post-gap sample.
+                   Both producers of this structure must agree. `tools/trio-batch.mjs mergeEcg` wrote
+                   `idx - 1` (last-before) until 2026-07-31 and now writes `idx`. The consumer — the
+                   dead-time walk earlier in this file — tests `g.idx <= refIdx[k]`, which is only
+                   correct under first-after: a beat landing ON the boundary sample is after the hole
+                   and must carry the dead time. Pinned by the `gaps[].idx` leg in tests/dex-tests.js. */
                 gaps.push({ idx: n - 1, ms: d, atRelMs: prevMs, endRelMs: ms });
               } else if (d < 50) {
                 stepSum += d;
