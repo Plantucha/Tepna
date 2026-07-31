@@ -3116,6 +3116,15 @@
     poincare,
     lombScargle,
     dfaAlpha1,
+    /* Additive export. DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §EP-rest could not reach this function's
+       DEFAULT tolerance (`r = 0.2·SD`, Richman–Moorman): the only call site is `sampEn(nn)` deep inside
+       `analyze`, and the brief looked for "a tolerance-sensitive synthetic" — a series whose SampEn moves
+       enough under a 0.2→0.15 slip to surface — and did not find one.
+       That search was unnecessary. A DEFAULT is pinned by EQUALITY against the explicit argument
+       (`sampEn(nn)` ≡ `sampEn(nn, 2, 0.2)`, and ≠ `sampEn(nn, 2, 0.15)`), which holds on ANY series with
+       enough texture — no sensitivity hunt required. The ECGDSP sibling is already exported for the same
+       reason. Export-only: no call site changes, so this is compute-inert. */
+    sampEn,
     parseTimestamp,
     fmtClock,
     fmtClockSec,
