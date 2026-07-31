@@ -5845,19 +5845,29 @@
         rPos && rPos.summary && rPos.summary.posture && rPos.summary.posture.length
       );
       /* AUDIT F — the orchestrate rich export MUST also carry the apnea + hrvStability blocks the
-         Integrator reads (json.apnea.{cvhrIndex,estimatedAHI.value}, json.hrvStability.mean_lnRMSSD_slope).
-         Before the fix these were emitted ONLY by ecgdex-app.js buildV2 (the ⬇JSON button), so a
-         nocturnal ECG fused DIFFERENTLY by ingest route. The osa synthetic is a 3 h non-ambulatory
-         night → cvhrIndex + mean_lnRMSSD_slope are populated; estimatedAHI/riskCategory are app-computed
-         (absent in the headless analyze) → null-safe null, mirroring buildV2's null cases exactly. */
+         Integrator reads (json.apnea.cvhrIndex, json.hrvStability.mean_lnRMSSD_slope). Before the fix
+         these were emitted ONLY by ecgdex-app.js buildV2 (the ⬇JSON button), so a nocturnal ECG fused
+         DIFFERENTLY by ingest route. The osa synthetic is a 3 h non-ambulatory night → cvhrIndex +
+         mean_lnRMSSD_slope are populated.
+         2026-07-31 (§10): `estimatedAHI`/`riskCategory` are RETIRED, so the two legs that pinned
+         those keys as PRESENT now pin them as ABSENT. Absent, not null — a null field reads as an
+         unfilled slot and invites exactly the re-derivation this brief removed. */
       T.ok('rich: apnea block present (AUDIT F — was omitted, now mirrors buildV2)', !!rich.apnea, rich.apnea ? Object.keys(rich.apnea).join(',') : 'MISSING');
       T.ok(
         'rich: apnea.cvhrIndex is a finite number (the field the Integrator reads)',
         !!(rich.apnea && typeof rich.apnea.cvhrIndex === 'number' && isFinite(rich.apnea.cvhrIndex)),
         rich.apnea && rich.apnea.cvhrIndex
       );
-      T.ok('rich: apnea.estimatedAHI key present (null-safe when app-only fields absent)', !!(rich.apnea && 'estimatedAHI' in rich.apnea));
-      T.ok('rich: apnea.riskCategory key present (null-safe)', !!(rich.apnea && 'riskCategory' in rich.apnea));
+      T.ok('rich: apnea.estimatedAHI is GONE, not nulled (retired §10)', !!(rich.apnea && !('estimatedAHI' in rich.apnea)));
+      T.ok('rich: apnea.riskCategory is GONE, not nulled (retired §10)', !!(rich.apnea && !('riskCategory' in rich.apnea)));
+      /* The `method` string is the surface that mis-sold this block for its whole existence: it cited
+         a coupling computation that did not exist until #580, and read as a burden estimate. Pin that
+         it no longer claims to be an AHI, and that it carries the measured strength of the one
+         relationship that validated — prose a future edit could soften without this leg. */
+      T.ok('rich: apnea.method disclaims being an AHI', !!(rich.apnea && /NOT an apnea/i.test(rich.apnea.method || '')));
+      // [−-] on purpose: the string carries a typographic minus (U+2212), not an ASCII hyphen.
+      T.ok('rich: apnea.method states the MEASURED correlation, not just a citation', !!(rich.apnea && /[−-]0\.408/.test(rich.apnea.method || '')));
+      T.ok('rich: apnea.cpc rides the orchestrate route (the metric §9 validated)', !!(rich.apnea && 'cpc' in rich.apnea));
       T.ok('rich: hrvStability block present (AUDIT F)', !!rich.hrvStability, rich.hrvStability ? Object.keys(rich.hrvStability).join(',') : 'MISSING');
       T.ok(
         'rich: hrvStability.mean_lnRMSSD_slope is a finite number (the field the Integrator reads)',
@@ -13157,8 +13167,10 @@
       // 3 · ahi-suppressed — CVHR/AHI withheld with a reason, payload null
       T.ok('apneaSuppressed present', !!amb.apneaSuppressed);
       if (amb.apneaSuppressed) {
-        T.eq('CVHR/AHI reportable:false', amb.apneaSuppressed.reportable, false);
-        T.eq('estimatedAHI:null (never fabricated)', amb.apneaSuppressed.estimatedAHI, null);
+        T.eq('CVHR reportable:false', amb.apneaSuppressed.reportable, false);
+        // was: estimatedAHI:null. The field is retired (§10), so the withholding contract is now
+        // carried entirely by cvhrIndex — one fewer thing to fabricate under exercise.
+        T.ok('estimatedAHI is not even a key here (retired §10)', !('estimatedAHI' in amb.apneaSuppressed));
         T.eq('cvhrIndex:null', amb.apneaSuppressed.cvhrIndex, null);
         T.ok('apnea suppression carries a reason', typeof amb.apneaSuppressed.suppressedReason === 'string' && amb.apneaSuppressed.suppressedReason.length > 0);
       }
@@ -20207,8 +20219,8 @@
       T.eq('ECG · HRV score = 1.494·rMSSD − 13.37 (rMSSD 40)', a.hrvScore, 46);
       T.eq('ECG · age-expected rMSSD (age 40)', a.expRmssd, 40);
       T.eq('ECG · age-expected resting HR (age 40)', a.expRHR, 61);
-      T.eq('ECG · short strip cannot screen apnea (CVHR needs overnight)', a.apneaRisk.cat, '—');
-      T.eq('ECG · no overnight ⇒ no estimated AHI', a.estAHI, null);
+      T.ok('ECG · no apnea-risk CATEGORY is derived, on any record (retired §10)', a.apneaRisk === undefined);
+      T.ok('ECG · no estimated AHI is derived, on any record (retired §10)', a.estAHI === undefined);
 
       // ── ECGDex · overnight · altitude 2500 m · on CPAP · valid manual HRmax 170 (age 55) ──
       P._setStore(mk());
@@ -20225,15 +20237,18 @@
       T.approx('ECG · altitude VO₂ factor at 2500 m', b.altFactor, 0.967, 1e-6);
       T.approx('ECG · VO₂max base carries the altitude derate', b.vo2base, 43.4, 0.05);
       T.approx('ECG · VO₂max HRV-adjusted down (low rMSSD)', b.vo2adj, 41.6, 0.1);
-      T.eq('ECG · CVHR 12/h on CPAP ⇒ "Residual" band', b.apneaRisk.cat, 'Residual');
-      T.eq('ECG · apnea band flags CPAP context', b.apneaRisk.cpap, true);
-      T.eq('ECG · estimated AHI value = CVHR index', b.estAHI.value, 12);
-      T.eq('ECG · estimated AHI band = Mild (5–15/h)', b.estAHI.band, 'Mild');
-      /* #93 (TEST-AUDIT-FINDINGS) — the estimated-AHI honest band is ±30%: lo=round(0.7·index),
-         hi=round(1.3·index). idx 12 ⇒ lo=round(8.4)=8, hi=round(15.6)=16. A 0.7→0.5 slip widens the
-         lower bound to −50% (lo=round(6)=6) — no existing leg pins .lo/.hi so the slip was invisible. */
-      T.eq('ECG · estimated AHI band lower bound = round(0.7·index) (honest −30%)', b.estAHI.lo, 8);
-      T.eq('ECG · estimated AHI band upper bound = round(1.3·index) (honest +30%)', b.estAHI.hi, 16);
+      /* THE RETIREMENT GATE — ECGDEX-CARDIOPULMONARY-COUPLING §10.
+         These legs used to pin the AHI mapping in detail: `estAHI.value === cvhrIndex` (12),
+         band 'Mild', lo=round(0.7·idx)=8, hi=round(1.3·idx)=16, and apneaRisk.cat === 'Residual'.
+         Read together they state the defect outright — the "estimate" WAS the CVHR index, and the
+         ±30 % interval was decoration on a number measured not to track AHI at all (r = −0.151,
+         p = 0.36 over 39 device-scored nights, §9).
+         The gate is now the ABSENCE of that mapping, and it is deliberately phrased against an
+         overnight CPAP record — the exact input that used to produce "Residual · Est. AHI ≈ 12" —
+         so re-adding the derivation reds here rather than passing a vacuous null check. */
+      T.ok('ECG · overnight-on-CPAP derives NO apnea-risk category (retired §10)', b.apneaRisk === undefined);
+      T.ok('ECG · overnight-on-CPAP derives NO estimated AHI (retired §10)', b.estAHI === undefined);
+      T.eq('ECG · …while the measured quantity itself survives untouched', b.cvhr.index, 12);
       T.eq('ECG · age-expected resting HR rises with age (55)', b.expRHR, 63);
 
       // ── PpgDex · optical wrist · shares the ECG VO₂/HRV kernel (age 40 M) ─────────────

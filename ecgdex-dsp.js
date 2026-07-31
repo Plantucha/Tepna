@@ -2373,7 +2373,7 @@
     // suppress-with-reason (NOT delete): a walk is not a sleep study, but consumers must
     // never hit a missing field — emit a present, explicitly-suppressed shape instead.
     const sleepSuppressed = ambulatory ? { suppressed: true, suppressedReason: modeInfo.suppressReason, stages: null } : null;
-    const apneaSuppressed = ambulatory ? { reportable: false, suppressedReason: modeInfo.suppressReason, cvhrIndex: null, estimatedAHI: null } : null;
+    const apneaSuppressed = ambulatory ? { reportable: false, suppressedReason: modeInfo.suppressReason, cvhrIndex: null } : null;
 
     // CVHR apnea screen is invalid under exercise → withhold the index/events. The HR series
     // is kept (heart rate IS valid for a walk); only the apnea interpretation is suppressed.
@@ -4259,34 +4259,43 @@
         : lng
           ? { totalSleepMin: nz(r.totSleep), stageMinutes: r.stageMin || null }
           : null;
-      // ECGDEX AUDIT F — the Integrator's adaptEnvelopeNode('ECGDex') reads json.apnea.{cvhrIndex,
-      // estimatedAHI.value} and json.hrvStability.mean_lnRMSSD_slope, but this orchestrate-routed rich
-      // export OMITTED both blocks — so a nocturnal ECG fused DIFFERENTLY by ingest route (the app's
-      // ⬇JSON button, which runs buildV2, carried CVHR/estAHI/slope; a raw-file→OverDex route did not).
+      // ECGDEX AUDIT F — the Integrator's adaptEnvelopeNode('ECGDex') reads json.apnea.cvhrIndex and
+      // json.hrvStability.mean_lnRMSSD_slope, but this orchestrate-routed rich export OMITTED both
+      // blocks — so a nocturnal ECG fused DIFFERENTLY by ingest route (the app's ⬇JSON button, which
+      // runs buildV2, carried CVHR/slope; a raw-file→OverDex route did not).
       // MIRRORS ecgdex-app.js buildV2 field-for-field (same `r`, same reportable:false ambulatory
-      // handling, same null cases when r.cvhr/r.estAHI/r.hrvStab are absent) — honoring this builder's
-      // own SHARED-SHAPE no-divergence mandate (ppgBuildNodeExport carries the sibling out.apnea).
+      // handling, same null cases when r.cvhr/r.hrvStab are absent) — honoring this builder's own
+      // SHARED-SHAPE no-divergence mandate (ppgBuildNodeExport carries the sibling out.apnea).
+      // 2026-07-31: the mandate had drifted — `cpc` shipped here (#580) but not in buildV2, so the
+      // app's own ⬇JSON export omitted the very metric §9 validated. Both now carry it.
+      // The Integrator also read json.apnea.estimatedAHI.value; that field is retired (§10) and the
+      // read is left in place upstream, where it degrades to null. See the FOLLOWUPS brief.
       var p = r.profile || {};
       out.apnea = amb
         ? {
             reportable: false,
             suppressedReason: (r.apneaSuppressed && r.apneaSuppressed.suppressedReason) || 'ambulatory — CVHR invalid under exercise',
             cvhrIndex: null,
-            estimatedAHI: null,
-            riskCategory: null,
             onCPAP: !!p.cpap,
             method:
-              'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — WITHHELD: recording is ambulatory/awake-active, exercise HR dynamics read as cardiogenic oscillation. Mirrors the R5 null-model pattern (index withheld with a reason, never fabricated).'
+              'CVHR (Hayano) + CPC (Thomas 2005) — WITHHELD: recording is ambulatory/awake-active, exercise HR dynamics read as cardiogenic oscillation. Mirrors the R5 null-model pattern (index withheld with a reason, never fabricated).'
           }
         : lng
           ? {
               cvhrIndex: r.cvhr.index,
               cvhrEvents: r.cvhr.events.length,
-              estimatedAHI: r.estAHI ? { value: r.estAHI.value, range: [r.estAHI.lo, r.estAHI.hi], band: r.estAHI.band } : null,
-              riskCategory: r.apneaRisk ? r.apneaRisk.cat : null,
               onCPAP: !!p.cpap,
-              method: 'CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — ECG-only, screen not diagnosis',
-              /* CPC (Thomas 2005) — the half of the `method` string above that had no implementation
+              /* `method` RE-WRITTEN 2026-07-31 (ECGDEX-CARDIOPULMONARY-COUPLING §10). It read
+                 "CVHR/cardiopulmonary-coupling proxy (Hilmisson 2019) — ECG-only, screen not
+                 diagnosis": half of it named a coupling computation that did not exist until #580,
+                 and the whole of it implied this block estimates apnea burden. It now names what IS
+                 computed and states the one validated relationship WITH its measured strength, so a
+                 consumer sees how weak the link is instead of inferring one from a citation.
+                 `estimatedAHI` + `riskCategory` are REMOVED, not nulled — a null field invites
+                 someone to fill it, which is how the AHI-labelled proxy arrived. */
+              method:
+                'CVHR index (cyclic variation of HR, Hayano) + CPC band shares (Thomas 2005). NOT an apnea–hypopnea index: against device-scored residual AHI over 39 paired nights the CVHR index did not track it (r = −0.151, p = 0.36); only cpc.hfcPct did (r = −0.408, p = 0.009). Screen-adjacent signal, not diagnosis.',
+              /* CPC (Thomas 2005) — the half of the FORMER `method` string that had no implementation
                  until 2026-07-30. Exported UNREGISTERED and UNBADGED on purpose: it is here so the
                  published bands can be validated against device-scored residualAHI across the paired
                  CPAP nights, which is the evidence a badge would have to rest on. Per

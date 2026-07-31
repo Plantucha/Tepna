@@ -198,8 +198,13 @@
     },
 
     /* ── EXPERIMENTAL — ECGDex composites / single-lead screens ────────────── */
-    estAHI: { label: 'Est. AHI', unit: '/h', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'CVHR/CPC apnea proxy from ECG alone — screen-only, not diagnostic' },
-    apneaRisk: { label: 'Apnea risk', unit: '', goodDirection: 'down', depth: 'advanced', evidence: 'experimental', cite: 'ECG-only apnea-risk category — directional screen' },
+    /* `estAHI` and `apneaRisk` RETIRED 2026-07-31 (ECGDEX-CARDIOPULMONARY-COUPLING §10). Both were
+       `cvhrIndex` wearing AHI's units, cut-points and words; §9 measured `cvhrIndex` against
+       device-scored residual AHI at r = −0.151 (p = 0.36) over 39 paired nights. `experimental` was
+       the right TIER for an unvalidated proxy — but the tier ladder grades how well a metric is
+       evidenced, not whether it is the quantity it claims to be, so no badge could have made
+       "Est. AHI ≈ 7 /h · Mild" honest. The surviving apnea surfaces are `cvhrIndex` and `cpcHfc`,
+       each named for what it measures. See ecgdex-profile.js for why nothing replaced them. */
     sigmaLnRmssd: { label: 'bσ(ln RMSSD)', unit: '/h', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Within-window ln-RMSSD instability slope — ECGDex composite' },
     varLnRmssd: { label: 'bs²(ln RMSSD)', unit: '/h', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Within-window ln-RMSSD variance slope — ECGDex composite' },
     surgeEsc: { label: 'Surge escalation', unit: '%', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Overnight CVHR-surge escalation trend — ECGDex composite' },
@@ -301,8 +306,10 @@
     'crc plv': 'crcPLV',
     'coupling strength': 'couplingStrength',
     'edr resp rate': 'edrResp',
-    'est. ahi': 'estAHI',
-    'apnea risk': 'apneaRisk',
+    /* 'cvhr/h' is the hero subscore's short label. It resolves to `cvhrIndex` so that surface is
+       BADGED — it previously read 'Apnea/h', which mapped to nothing, so the mandate-required badge
+       silently rendered empty (CLAUDE.md §🎫). Retired alongside it: 'est. ahi' / 'apnea risk'. */
+    'cvhr/h': 'cvhrIndex',
     'bσ(ln rmssd)': 'sigmaLnRmssd',
     'bs²(ln rmssd)': 'varLnRmssd',
     'surge escalation': 'surgeEsc',
