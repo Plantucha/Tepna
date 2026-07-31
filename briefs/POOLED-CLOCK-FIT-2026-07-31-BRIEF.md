@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-31 · **Found while executing:** `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md` §2d · **Affects:** `integrator-dsp.js fitClockOffset`, `tools/trio-batch.mjs`, `integrator-app.js`, every CPAP↔wearable offset the suite reports
+**Status:** DONE — 2026-07-31 · **Created:** 2026-07-31 · **Follow-up:** `POOLED-CLOCK-FIT-FOLLOWUPS-2026-07-31-BRIEF.md` · **Found while executing:** `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md` §2d · **Affects:** `integrator-dsp.js fitClockOffset`, `tools/trio-batch.mjs`, `integrator-app.js`, every CPAP↔wearable offset the suite reports
 
 # `fitClockOffset` estimates each channel separately and then votes. Pooling instead is measurably better.
 
@@ -189,12 +189,97 @@ be comparable on the corpus for at least one cycle.
 
 ## 7 · Done when
 
-- [ ] `fitClockOffsetPooled` exists, is exported, and is gated in `tests/dex-tests.js` — including a
+- [x] `fitClockOffsetPooled` exists, is exported, and is gated in `tests/dex-tests.js` — including a
       **planted-offset recovery** test and a **null control** proving the statistic does not fire on
-      shuffled anchors (the pair, or neither).
-- [ ] Per-night confidence is calibrated in-run (§5.2) and asserted to be false on a null-level night.
-- [ ] The corpus comparison is re-run and recorded here: pooled vs vote, per night, with the null.
-- [ ] `CROSS-DEVICE-CLOCK-SKEW` §2d amended (§5.4).
-- [ ] `trio-batch` + `integrator-app` cut over; `fitClockOffset` marked deprecated, not deleted.
-- [ ] Gates: suite green in both lanes · GATE A/B · `build --check` clean · fixtures re-verified under the
-      moved compute closure (`integrator-dsp.js` is inside it).
+      shuffled anchors (the pair, or neither). **27 assertions**, `integrator-dsp · clock-fit-pooled`.
+- [x] Per-night confidence is calibrated in-run (§5.2) and asserted to be false on a null-level night.
+      The **in-run gap-shuffle null** was taken, not split-half — see §8.2 for the property that decided it.
+- [x] The corpus comparison is re-run and recorded here (§8.1): pooled vs vote, per night, with the null.
+- [x] `CROSS-DEVICE-CLOCK-SKEW` §2d amended (§5.4) — the 7/7 claim retracted in place, the desat-SNR
+      framing corrected, and the §2b prediction row updated with the two post-correction nights.
+- [x] `trio-batch` + `integrator-app` cut over; `fitClockOffset` marked deprecated, not deleted.
+      `runFusion` cut over too — it is the producer `integrator-app` reads, so the app could not have
+      been switched without it. Verified **display-only**: `skewApplied` shifts events by
+      `detectClockSkew`'s finding, never by anything the fit computes.
+- [x] Gates: suite green in both lanes (**4529 assertions / 296 groups**) · GATE A 9/9 + GATE B 13
+      reproducible · `build --check` 11/11 clean · `integrator_tch_golden` re-verified under the moved
+      compute closure (`computeHash 06cc68676ffb → 133571f75a1d`).
+
+---
+
+## 8 · Executed 2026-07-31 — what the corpus actually said
+
+### 8.1 · Pooled vs vote, all 31 nights
+
+`⚠` marks a vote outside the 36–42 min band. Pooled offsets are **bold**; `Z` is the pooled peak,
+`nullZ` the maximum over that night's own 30 gap-shuffles, `p` the permutation p-value.
+
+| night | apneas | vote (min) | vote conf | **pooled (min)** | Z | nullZ | p | pooled conf |
+|---|---|---|---|---|---|---|---|---|
+| 2026-06-10 | 18 | 38.65 | yes | **38.78** | 10.84 | 7.62 | 0.032 | yes |
+| 2026-06-11 | 24 | 38.77 | yes | **38.50** | 11.25 | 8.66 | 0.032 | yes |
+| 2026-06-12 | 20 | 37.90 | yes | **38.17** | 11.02 | 7.92 | 0.032 | yes |
+| 2026-06-14 | 8 | — *(no channel fit)* | no | **38.17** | 8.92 | 8.48 | 0.032 | yes |
+| 2026-06-15 | 37 | 1.53 ⚠ | **yes** | **39.05** | 10.82 | 8.69 | 0.032 | yes |
+| 2026-06-16 | 18 | 38.70 | yes | **38.13** | 17.25 | 11.31 | 0.032 | yes |
+| 2026-06-19 | 13 | — *(no channel fit)* | no | **38.02** | 10.38 | 13.11 | 0.097 | no |
+| 2026-06-20 | 21 | 38.52 | yes | **38.28** | 10.08 | 7.88 | 0.032 | yes |
+| 2026-06-24 | 14 | 38.67 | yes | **39.23** | 12.18 | 9.78 | 0.032 | yes |
+| 2026-06-25 | 35 | 27.10 ⚠ | no | **38.88** | 8.81 | 8.97 | 0.065 | no |
+| 2026-06-27 | 53 | 39.43 | no | **39.08** | 8.15 | 7.40 | 0.032 | yes |
+| 2026-06-28 | 23 | 38.52 | yes | **38.15** | 11.16 | 7.71 | 0.032 | yes |
+| 2026-06-29 | 20 | 37.43 | yes | **38.07** | 14.48 | 11.40 | 0.032 | yes |
+| 2026-06-30 | 11 | 37.62 | yes | **41.15** | 10.84 | 11.27 | 0.065 | no |
+| 2026-07-01 | 24 | 39.12 | yes | **38.92** | 11.12 | 9.14 | 0.032 | yes |
+| 2026-07-02 | 24 | 31.98 ⚠ | no | **37.98** | 13.32 | 9.61 | 0.032 | yes |
+| 2026-07-04 | 30 | 38.72 | yes | **38.28** | 11.86 | 10.45 | 0.032 | yes |
+| 2026-07-05 | 9 | — *(no channel fit)* | no | **38.78** | 8.71 | 7.55 | 0.032 | yes |
+| 2026-07-06 | 32 | 37.70 | yes | **37.90** | 8.56 | 10.32 | 0.129 | no |
+| 2026-07-07 | 18 | 38.23 | no | **38.70** | 7.70 | 8.31 | 0.097 | no |
+| 2026-07-08 | 42 | 37.88 | yes | **38.07** | 10.87 | 7.78 | 0.032 | yes |
+| 2026-07-09 | 17 | 38.27 | yes | **37.82** | 9.62 | 9.52 | 0.032 | yes |
+| 2026-07-11 | 17 | 39.35 | no | **37.52** | 9.28 | 8.83 | 0.032 | yes |
+| 2026-07-12 | 13 | 38.42 | no | **38.78** | 8.13 | 7.68 | 0.032 | yes |
+| 2026-07-13 | 13 | 38.13 | yes | **38.80** | 6.94 | 7.49 | 0.129 | no |
+| 2026-07-25 | 8 | — *(no channel fit)* | no | **38.68** | 7.56 | 8.79 | 0.161 | no |
+| 2026-07-26 | 28 | 38.20 | yes | **37.92** | 16.00 | 9.02 | 0.032 | yes |
+| 2026-07-27 | 16 | 38.12 | yes | **38.55** | 11.43 | 8.40 | 0.032 | yes |
+| 2026-07-28 | 12 | 40.03 | yes | **38.58** | 8.85 | 8.16 | 0.032 | no *(ambiguous)* |
+| 2026-07-29 | 26 | −43.47 ⚠ | no | **−22.25** | 9.94 | 12.61 | 0.194 | no |
+| 2026-07-30 | 19 | −21.82 ⚠ | no | **−21.13** | 6.21 | 9.19 | 0.516 | no |
+
+**29 / 29 pre-correction nights in band** (37.52 … 41.15, median 38.50) against **22 / 25** for the
+vote, reproducing §1 exactly. The four nights no channel could fit individually — 06-14, 06-19, 07-05,
+07-25 — all resolve, all in band. Whole corpus: **2.3 s**, 66–156 ms per night including 30 null refits.
+
+### 8.2 · The property that matters more than the headline
+
+**Every night the pooled fit calls confident is in the band: 21/21. Every night it is not confident is
+*also* in the band: 8/8.** So the in-run null is **conservative, never wrong-directioned** — it
+withholds confidence from correct answers rather than granting it to wrong ones. That is the failure
+direction to want, and it is the opposite of the vote, whose one `confident` error (2026-06-15, 1.53 min)
+is what §2 retracts.
+
+It also settles §5.2's open choice. The gap shuffle preserves the anchor count, span and interval
+distribution, so it degrades honestly on **periodic** anchors: a periodic train reproduces itself under
+shuffling, the null scores as high as the truth, and confidence is refused — correctly, because a
+periodic anchor train determines the offset only *modulo its period*. A uniform-scatter null would have
+hidden that ambiguity behind a confident flag. Gated (`a periodic anchor train is NOT confident,
+however high its Z` — Z 15.22 against nullZ 15.22).
+
+### 8.3 · What execution added that the brief did not ask for
+
+- **The planted-offset control §6 called "the single most valuable thing execution can add"** is in the
+  gate: offset 2297 s planted into three channels, recovered at **2303 s**, with the null control beside
+  it. It immediately earned its keep — the first version of the estimator failed it by **37 s**, because
+  a hard ±45 s match window makes the peak a ~90 s *plateau* and the argmax inside it was being set by
+  whichever unrelated channel tilted it. The point estimate is now the plateau's **centroid**, and
+  `spreadSec` publishes the width being centred rather than implying a precision the window cannot give.
+- **`underpowered`** — a defect this brief's method had until it was pointed at a *different* question.
+  A permutation p-value from N shuffles bottoms out at 1/(N+1), so below 19 shuffles `p ≤ 0.05` is
+  unreachable and every night returns "indistinguishable from its own null". Run at `nullIters: 10`
+  across 44 channel pairs it returned **zero significant results** — a clean negative finding that was
+  entirely an artifact of the setting. The fit now reports `underpowered` + `pFloor` and names the
+  setting rather than blaming the data. Same discipline as `apneaTyping.underpowered`.
+- **`fitClockOffset` is deprecated, not deleted**, per §5.5, and both remain exported and gated so the
+  corpus comparison above can be re-run at any time.

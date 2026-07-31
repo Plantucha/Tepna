@@ -1025,9 +1025,12 @@ function cpapApneaTimes(dayDir) {
 
 /* ── CLOCK FIT vs the CPAP (optional: --cpap) ────────────────────────────────────────────────────
    A CPAP has no user-settable clock and cannot be NTP-disciplined, so its offset is permanent and
-   must be MEASURED. Each wearable channel is fitted independently and printed separately, because
-   agreement between unrelated mechanisms — oxygen transport, autonomic tone, body movement — is what
-   makes the number credible. One blended figure would hide the disagreement worth seeing.
+   must be MEASURED. One candidate offset is slid across the night and EVERY wearable channel is scored
+   at it (`fitClockOffsetPooled`, POOLED-CLOCK-FIT-2026-07-31-BRIEF), because the channels are individually
+   weak and jointly decisive: on this corpus the pooled fit resolved four nights — 2026-06-14, 06-19,
+   07-05, 07-25 — where no single channel cleared its own floor. Each channel's z at that offset is
+   still printed separately, so a sensor that does NOT support the answer stays visible rather than
+   being absorbed into a blend.
 
    Degrades by design: whatever subset of nodes produced events is used, and a channel that cannot
    contribute is printed WITH ITS REASON rather than omitted. A night with no CPAP data, or none that
@@ -1065,20 +1068,25 @@ function printClockFit(dir, key) {
       }
       for (const k of Object.keys(by).sort()) chans.push({ node, channel: k, times: by[k] });
     }
-    const fit = ctx.IntegratorDSP.fitClockOffset(ap, chans, {});
+    const fit = ctx.IntegratorDSP.fitClockOffsetPooled(ap, chans, {});
     const head =
       fit.offsetSec != null
         ? `${(fit.offsetSec / 60).toFixed(2)} min (${Math.round(fit.offsetSec)} s)` +
-          (fit.spreadSec != null ? `, sensors agree within ${Math.round(fit.spreadSec)} s` : '') +
-          // A tie is a stronger claim than "uncorroborated" — the number shown was chosen by sort order
-          // over an equally-supported rival — so it leads rather than hiding in a parenthetical.
-          (fit.ambiguous ? `  — ⚠ ${fit.reason}` : fit.confident ? '' : `  — NOT corroborated (${fit.reason})`)
+          // The plateau, not "how far apart the sensors were": a hard ±45 s match window makes the peak
+          // flat over ~90 s, and quoting its centre without the width states the instrument's precision
+          // as if it were the data's.
+          (fit.spreadSec != null ? `, ±${Math.round(fit.spreadSec / 2)} s` : '') +
+          `, Z ${fit.z.toFixed(1)} vs own null ${fit.nullZ == null ? '?' : fit.nullZ.toFixed(1)} (p ${fit.pValue})` +
+          // Not established is a stronger claim than a parenthetical caveat, so it leads. The corpus
+          // shows why it must: 8 of 29 nights land in the right band WITHOUT clearing their own null.
+          // Those are correct answers the evidence does not yet support, and saying so is the point.
+          (!fit.confident ? `  — ⚠ ${fit.reason}` : '')
         : `unresolved — ${fit.reason}`;
     console.log(`    ⏱ CPAP clock offset: ${head}   [${ap.length} apnea events]`);
     for (const c of fit.channels) {
       console.log(
         c.usable
-          ? `        · ${(c.node + '/' + c.channel).padEnd(38)} ${(c.offsetSec / 60).toFixed(2)} min  [${Math.round(c.ciLoSec)}–${Math.round(c.ciHiSec)} s, n=${c.nPairs}]`
+          ? `        · ${(c.node + '/' + c.channel).padEnd(38)} z ${String(c.zAtPeak).padStart(6)}${c.agreed ? '' : `   (own peak ${(c.ownOffsetSec / 60).toFixed(2)} min — does NOT support this offset)`}`
           : `        · ${(c.node + '/' + c.channel).padEnd(38)} —      (${c.reason})`
       );
     }

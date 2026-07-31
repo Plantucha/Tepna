@@ -275,18 +275,54 @@ responders cluster: **38.28 min (2,297 s), ± 3–4 s**.
 This also explains §1's own internal gap, which the brief noted without resolving: desat gave 39.5 and
 ECGDex `autonomic_surge` gave 38.0. Those were never in conflict. They are two rungs of this ladder.
 
+> **AMENDED 2026-07-31 — the ladder tells only half the story about desaturation.** Read on its own,
+> the table above frames desat as the *laggiest, least useful* channel: last rung, +1.2 min of oximeter
+> lag. It is also, by a wide margin, the **highest-SNR** channel in the set — `peakOverFloor` **6.75 /
+> 9.34 / 9.63 / 18.9** on the nights examined, against **3.3–5.7** for every movement channel. Both
+> facts are true and they pull in opposite directions: desaturation is the worst channel for *pinning
+> the instant* and the best one for *establishing that there is an instant to pin*.
+>
+> That combination is exactly what the cluster vote handled worst, since it ranked on node count and so
+> could be outvoted by three low-SNR movement channels — see the retraction above. It is also why the
+> replacement pools rather than selects: a channel does not have to be the sharpest to contribute, and
+> the sharpest channel does not get to win alone.
+>
+> **The ladder's own ordering is now in doubt**, independently of the clock work. Measured DIRECTLY as a
+> pair — surge events as anchor, movement onsets as partner, 1 s grid, ±10 s window, 992 paired events
+> over 30 nights — `autonomic_surge` → `PpgDex/movement_onset` is significant on **29 of 30 nights**
+> (median Z 11.3) but its latency is **bimodal**: +12 s on 22 nights, −22 s on 7, with a pronounced
+> depletion at simultaneity (**10 of 992 deltas fall within ±5 s**). The ladder puts movement 30 s
+> *ahead* of the surge; the direct measurement says the two are coupled at a latency that changes sign.
+> The ladder was inferred from separate CPAP fits under the now-deprecated estimator, so it is the
+> weaker evidence of the two. See `POOLED-CLOCK-FIT-FOLLOWUPS-2026-07-31-BRIEF.md` §1 — unresolved, and
+> deliberately not resolved by guessing.
+
 ### Per-night, and why the corroboration flag is the whole story
 
 Sensitivity went from §2c's *"6 of 38"* to **7 of 14 nights corroborated by ≥2 distinct devices**,
 spanning **37.75–38.45 min** with a median inter-sensor agreement of **39 s**. On 2026-07-26 four
 channels from two devices landed at 38.28 / 38.28 / 38.00 / 38.10 — **38.20 min, agreeing within 17 s**.
 
-The decisive property: **every corroborated night is in the band, and every wrong night is
-uncorroborated.** The three failures (−52.7, −43.5, …) are all single-device fits with `agree = 0 s`.
-So consuming only corroborated fits is **7/7 correct**, and `fitClockOffset`'s `confident` flag —
-`≥ 2 distinct nodes`, not channel count — is the gate that makes the estimator safe to use. It is
-reported, never silently applied; both the Integrator UI and `trio-batch` print `— NOT corroborated`
-with the reason and list every channel's own estimate and CI.
+> ### ⛔ RETRACTED 2026-07-31 — the corroboration rule below is FALSE
+>
+> The paragraph that follows claimed *"every corroborated night is in the band, and every wrong night
+> is uncorroborated… consuming only corroborated fits is 7/7 correct."* Re-run over **31 nights**
+> instead of 14 (`POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` §2), that does not hold: **2026-06-15 reports
+> 1.53 min while flagged `confident`**, corroborated by two distinct nodes. Three weak channels
+> (`peakOverFloor` 3.40 / 4.38 / 4.46) outvoted one strong one (`OxyDex/desat_event`, peak **6.75**, CI
+> 22 s wide, saying 40.23) — because the cluster vote ranks on **distinct-node count** and never reads
+> the evidence strength it computed. The same pattern loses 2026-06-25 (desat peak 9.34 → 40.22, vote
+> 27.10) and 2026-07-02 (desat peak 9.63 → 39.70, vote 31.98).
+>
+> `n=14` was simply too small to contain the counterexample. **A node count is not a strength measure**
+> — that is the whole lesson, and it is why the replacement estimator calibrates each night against its
+> own shuffled null instead of counting devices. `fitClockOffset` is deprecated in favour of
+> `fitClockOffsetPooled`, which puts **29/29** pre-correction nights in the band against **22/25**.
+
+The agreement between unrelated mechanisms recorded above is real, and remains the reason to believe
+the ~38 min figure. What does *not* follow from it is the retracted inference — that the corroboration
+flag separates right from wrong. The fit is still reported and never silently applied; the Integrator
+UI and `trio-batch` now print the pooled Z against that night's own null instead of a node count.
 
 A large part of that gain was not method at all: `trio-batch` had been feeding PpgDex **one fragment**
 of each night's inertial data (`l[0]`), discarding 99 % of it, so the Verity's three inertial channels
@@ -354,14 +390,24 @@ describe the same physiology. That question is still open and still matters: Oxy
       timezone was GMT−5 for a GMT−4 location and is now corrected (§2b); the ~21 min residual has
       no exposed control. **Verify the prediction** on the first night recorded after the change:
       the offset should flip to ≈ +21 min ahead, not fall to 0.
+      **MEASURED 2026-07-31, not yet confirmed** — the two post-correction nights fit at **−22.25 min**
+      (Z 9.9) and **−21.13 min** (Z 6.2), agreeing within **1.12 min**, against a predicted ≈21 min.
+      Sign and magnitude both match. It is NOT called confirmed: n=2, and *neither night clears its own
+      shuffled null* (p 0.19 and 0.52) — so the corpus-level agreement is the evidence, and one more
+      clean tri-device night is still owed. The per-channel estimator could say nothing at all here
+      (`uncorroborated` / `AMBIGUOUS`); see `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` §4.
 - [ ] §1.1 re-run with the offset removed, and its verdict written into
       `MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS`.
 - [x] The offset is pinned to a usable precision, and the estimator is safe to consume.
       **DONE 2026-07-30** (§2d) — **38.28 min ± 3–4 s** from 8 channels / 3 devices / 5 mechanisms via
       delta-mode refinement; 7 of 14 nights corroborated by ≥2 distinct devices, 37.75–38.45, median
       agreement 39 s. §1's 39.5 is retained as the *desaturation* figure and explained by a physiologically
-      ordered latency ladder. `confident` (≥2 distinct nodes) separates right from wrong 7/7, and the fit
-      is reported, never applied.
+      ordered latency ladder. The fit is reported, never applied.
+      **AMENDED 2026-07-31** — the *"`confident` separates right from wrong 7/7"* half of this claim is
+      **RETRACTED** (see §2d): on 31 nights it is 2026-06-15 `confident` at 1.53 min. The offset itself
+      stands and is now measured on 29/29 pre-correction nights by `fitClockOffsetPooled`
+      (`POOLED-CLOCK-FIT-2026-07-31-BRIEF.md`), which calibrates each night against its own shuffled
+      null rather than counting devices.
 - [x] The movement-alignment alternative is settled. **DONE 2026-07-29** (§2c) — rejected, and rejected
       for a *proven* reason: an ACC↔ACC control on a known-zero pair shows the method recovers a planted
       −39 min offset on 1 night in 13 while succeeding 13/13 at its design range, because at wide-search

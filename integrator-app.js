@@ -55,10 +55,13 @@
         );
         /* WHICH SENSOR FOUND IT, AND WHAT EACH ONE SAID.
            The coarse finding above is scanned on a 30 s grid, so it cannot honestly be quoted finer
-           than that. The fit refines it to seconds and — the part a reader needs in order to decide
-           whether to believe it — reports each contributing sensor SEPARATELY. Agreement between
-           unrelated mechanisms (oxygen transport, autonomic tone, body movement) IS the evidence; one
-           blended number would hide precisely the disagreement worth seeing. A sensor that could not
+           than that. The fit (POOLED since POOLED-CLOCK-FIT-2026-07-31-BRIEF §5.5) refines it to
+           seconds by scoring EVERY channel at one candidate offset, and — the part a reader needs in
+           order to decide whether to believe it — still reports each contributing sensor SEPARATELY.
+           That per-sensor line is not decoration: pooling would otherwise hide a genuinely disagreeing
+           sensor, which is the one thing the old voting fit did better by leaving it out of the
+           agreeing set. Under pooling the numbers are each channel's z AT THE CHOSEN OFFSET, which —
+           unlike each channel's own argmax — are comparable to one another. A sensor that could not
            contribute is listed with its reason rather than omitted, because an absent contributor is
            itself information — the silent-zero failure this suite keeps finding. */
         var fit = cs.fits && cs.fits[f.node];
@@ -70,15 +73,27 @@
                 ' min (' +
                 Math.round(fit.offsetSec) +
                 ' s)' +
-                (fit.spreadSec != null ? ', sensors agree within ' + Math.round(fit.spreadSec) + ' s' : '') +
+                // The plateau the estimate sits in, NOT "how far apart the sensors were" — a hard match
+                // window makes the peak flat over ~2×matchSec, and quoting the centre without the width
+                // would state the instrument's precision as if it were the data's.
+                (fit.spreadSec != null ? ', ±' + Math.round(fit.spreadSec / 2) + ' s resolution' : '') +
+                (fit.z != null ? ', Z ' + fit.z.toFixed(1) + ' vs null ' + (fit.nullZ == null ? '?' : fit.nullZ.toFixed(1)) : '') +
                 // AMBIGUOUS is a stronger statement than uncorroborated and must not hide inside it: a
-                // tie means a rival offset is equally supported, so the number shown was picked by sort
-                // order. Lead with that rather than burying it in a parenthetical.
-                (fit.ambiguous ? ' — ⚠ ' + fit.reason : fit.confident ? '' : ' — NOT corroborated: ' + (fit.reason || 'single channel'))
+                // rival offset within one noise unit means the evidence does not choose. Lead with that
+                // rather than burying it in a parenthetical.
+                (fit.ambiguous ? ' — ⚠ ' + fit.reason : fit.confident ? '' : ' — NOT established: ' + (fit.reason || 'single channel'))
               : '⏱ …could not be refined: ' + (fit.reason || 'no usable channel');
           var parts = (fit.channels || []).map(function (c) {
             if (!c.usable) return '· ' + c.node + '/' + c.channel + ': — (' + (c.reason || 'unusable') + ')';
-            return '· ' + c.node + '/' + c.channel + ': ' + (c.offsetSec / 60).toFixed(2) + ' min [' + Math.round(c.ciLoSec) + '–' + Math.round(c.ciHiSec) + ' s, n=' + c.nPairs + ']';
+            return (
+              '· ' +
+              c.node +
+              '/' +
+              c.channel +
+              ': z ' +
+              (c.zAtPeak == null ? '?' : c.zAtPeak.toFixed(1)) +
+              (c.agreed ? '' : ' (own peak ' + (c.ownOffsetSec / 60).toFixed(2) + ' min — does NOT support this offset)')
+            );
           });
           warnAll.push(head + (parts.length ? '  ' + parts.join('  ') : ''));
         }

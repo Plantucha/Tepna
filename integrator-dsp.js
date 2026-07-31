@@ -3797,6 +3797,407 @@ function fitClockOffset(anchorTimes, channels, opts) {
   };
 }
 
+/* COINCIDENCE COUNT PER CANDIDATE LAG, exactly — the kernel of the pooled fit.
+
+   For every lag on the grid, how many ANCHORS have at least one partner event within +/-`matchSec`
+   of `t + L`. Anchors, not pairs: a burst of ten partner events around one anchor is one piece of
+   evidence, and counting it ten times is the same correlated-votes error the movement-onset isolation
+   rule exists to prevent.
+
+   Computed by STABBING rather than by scanning lags. For one anchor and one partner event the set of
+   lags that match is the interval [d-matchSec, d+matchSec] around their delta; the lags that match the
+   ANCHOR are the UNION of those intervals over its events. Union bounds go into a difference array and
+   one prefix sum yields every lag at once — O(nA·nE) total instead of O(nLags·(nA+nE)), which is what
+   makes a 30-iteration in-run null affordable rather than a minute of CPU. Because the partner list is
+   sorted the deltas are too, so the union is a single forward merge with no sort. */
+function _coincidenceCurve(A, E, nLags, maxSec, stepSec, matchSec) {
+  var diff = new Float64Array(nLags + 1);
+  var span = (maxSec + matchSec) * 1000;
+  for (var i = 0; i < A.length; i++) {
+    var a = A[i];
+    // First event that can possibly match at the most negative lag.
+    var lo = 0,
+      hi = E.length;
+    while (lo < hi) {
+      var mid = (lo + hi) >> 1;
+      if (E[mid] < a - span) lo = mid + 1;
+      else hi = mid;
+    }
+    var curLo = 0,
+      curHi = -1; // empty run
+    for (var j = lo; j < E.length; j++) {
+      var d = (E[j] - a) / 1000;
+      if (d > maxSec + matchSec) break;
+      var iLo = Math.ceil((d - matchSec + maxSec) / stepSec);
+      var iHi = Math.floor((d + matchSec + maxSec) / stepSec);
+      if (iHi < 0 || iLo > nLags - 1) continue;
+      if (iLo < 0) iLo = 0;
+      if (iHi > nLags - 1) iHi = nLags - 1;
+      if (curHi < curLo) {
+        curLo = iLo;
+        curHi = iHi;
+      } else if (iLo <= curHi + 1) {
+        if (iHi > curHi) curHi = iHi;
+      } else {
+        diff[curLo] += 1;
+        diff[curHi + 1] -= 1;
+        curLo = iLo;
+        curHi = iHi;
+      }
+    }
+    if (curHi >= curLo) {
+      diff[curLo] += 1;
+      diff[curHi + 1] -= 1;
+    }
+  }
+  var out = new Float64Array(nLags),
+    run = 0;
+  for (var k = 0; k < nLags; k++) {
+    run += diff[k];
+    out[k] = run;
+  }
+  return out;
+}
+
+/* Z-SCORE A CHANNEL AGAINST ITS OWN CHANCE FLOOR. The load-bearing line of the whole pooled fit.
+
+   Raw coincidence counts are not comparable across channels: a channel with 2000 movement onsets
+   scores an order of magnitude more hits at EVERY lag than one with 30 desaturations, so summing raw
+   counts lets event density masquerade as evidence. Dividing each channel's excess by its own Poisson
+   noise (`sqrt(mean)`, the mean taken across all scanned lags — the same floor `estimateEventLag`
+   already publishes as `peakOverFloor`) makes the statistic SCALE-FREE, so a sparse-but-sharp channel
+   and a dense-but-vague one are weighed by information rather than by volume. */
+function _zCurve(counts) {
+  var n = counts.length,
+    sum = 0;
+  for (var i = 0; i < n; i++) sum += counts[i];
+  var mean = sum / n;
+  var z = new Float64Array(n);
+  if (!(mean > 0)) return z;
+  var sd = Math.sqrt(mean);
+  for (var j = 0; j < n; j++) z[j] = (counts[j] - mean) / sd;
+  return z;
+}
+
+/* The pooled statistic and its peak. Sum of per-channel z divided by `sqrt(nChannels)`, so that under
+   the chance floor the pooled value keeps unit variance whatever the channel count — which is what
+   lets "1 pooled unit" be used below as the noise scale for deciding what counts as a rival peak.
+   The peak is the CENTRE of its plateau, for the same reason `estimateEventLag` centres its own: a
+   hard match window makes equal-scoring neighbours, and keeping the first would bias by the window. */
+function _pooledPeak(zs) {
+  var m = zs.length,
+    n = m ? zs[0].length : 0,
+    denom = Math.sqrt(m || 1);
+  var Z = new Float64Array(n);
+  for (var i = 0; i < n; i++) {
+    var s = 0;
+    for (var c = 0; c < m; c++) s += zs[c][i];
+    Z[i] = s / denom;
+  }
+  var bi = 0;
+  for (var k = 1; k < n; k++) if (Z[k] > Z[bi]) bi = k;
+  var lo = bi,
+    hi = bi;
+  while (lo > 0 && Z[lo - 1] === Z[bi]) lo--;
+  while (hi < n - 1 && Z[hi + 1] === Z[bi]) hi++;
+  return { Z: Z, idx: (lo + hi) >> 1, peak: Z[bi] };
+}
+
+/* THE NULL ANCHOR SET — the same events, rearranged so that any real alignment is destroyed.
+
+   Shuffling the GAPS rather than scattering anchors uniformly is deliberate. It preserves the count,
+   the first anchor, the total span AND the inter-event interval distribution, so the null differs from
+   the truth in exactly one respect: the arrangement. Uniform scatter would additionally destroy the
+   anchor process's burstiness and would therefore understate the chance floor for a bursty night.
+
+   It also earns an honest failure mode for free. If the anchors are near-PERIODIC, a gap shuffle
+   reproduces almost the same point set, the null scores almost as high as the truth, and the fit
+   reports low confidence — which is correct, because a periodic anchor train only determines the
+   offset modulo its period. A uniform null would have hidden that ambiguity behind a confident flag. */
+function _shuffledAnchors(A, rnd) {
+  var n = A.length;
+  if (n < 3) return A.slice();
+  var gaps = [];
+  for (var i = 1; i < n; i++) gaps.push(A[i] - A[i - 1]);
+  for (var j = gaps.length - 1; j > 0; j--) {
+    var k = (rnd() * (j + 1)) | 0;
+    var t = gaps[j];
+    gaps[j] = gaps[k];
+    gaps[k] = t;
+  }
+  var out = [A[0]];
+  for (var q = 0; q < gaps.length; q++) out.push(out[q] + gaps[q]);
+  return out;
+}
+
+/* FIT THE CLOCK OFFSET BY POOLING EVERY CHANNEL AT ONE CANDIDATE OFFSET.
+
+   `fitClockOffset` above estimates each channel INDEPENDENTLY, keeps the ones that clear a floor,
+   clusters them by proximity and lets the clusters compete on distinct-node count. Every failure it
+   has is a symptom of that shape: it computes `peakOverFloor` and a confidence interval per channel,
+   REPORTS both, and then picks the winner by counting nodes — so on 2026-06-15 three weak channels
+   (peaks 3.40-4.46) outvoted one strong one (desaturation, peak 6.75, CI 22 s wide) and the night was
+   published as a corroborated 1.53 min when the truth was near 40.
+
+   Pooling asks the question the other way round: slide ONE candidate offset across the night and score
+   EVERY channel at it. On the real corpus (31 nights, `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md`) this put
+   29/29 pre-correction nights inside the expected band against 22/25 for the vote, AND resolved four
+   nights where no individual channel could be estimated at all — eight weak channels together carry
+   what none carries alone. That is the argument for pooling in one sentence.
+
+   IT NEEDS NO EXCLUSION LIST. A channel carrying no timing information contributes noise at EVERY lag,
+   so it cannot move the peak; `stage_*` impulses are simply included and are harmless. The
+   strongest-channel rule needed them excluded by name to reach 25/25. An estimator that needs an
+   allow-list of trustworthy channels is wrong the first time a node ships a new impulse.
+
+   CONFIDENCE IS MEASURED IN-RUN, NOT THRESHOLDED. The corpus null (93 random anchor sets) puts real
+   nights at Z 6.2-17.2 and null nights at 3.4-9.6 — OVERLAPPING, so no fixed Z threshold is honest and
+   12 of 31 real nights sit under the null's maximum. What separates truth from chance is concentration
+   across nights, not height within one. So each night calibrates against ITS OWN null: shuffle this
+   night's anchor gaps `nullIters` times, refit, and report where the real peak falls against that
+   night's own chance distribution. Self-calibrating, no corpus constant, and it degrades honestly on
+   exactly the nights that deserve it. */
+function fitClockOffsetPooled(anchorTimes, channels, opts) {
+  opts = opts || {};
+  var maxSec = opts.maxLagSec != null ? opts.maxLagSec : 5400; // +/-90 min
+  var stepSec = opts.stepSec != null ? opts.stepSec : 5;
+  var matchSec = opts.matchSec != null ? opts.matchSec : 45;
+  var minEvents = opts.minEvents != null ? opts.minEvents : 5;
+  var nullIters = opts.nullIters != null ? opts.nullIters : 30;
+  // Two peaks closer than this are the same answer seen twice, not a disagreement.
+  var sepSec = opts.separateSec != null ? opts.separateSec : 180;
+  var nLags = Math.floor((2 * maxSec) / stepSec) + 1;
+  var lagOf = function (idx) {
+    return -maxSec + idx * stepSec;
+  };
+
+  var A = (anchorTimes || [])
+    .filter(function (t) {
+      return t != null && isFinite(t);
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+
+  /* Every channel is RETAINED in the output, usable or not, with the reason — a contributor that went
+     missing is itself information, which is the whole lesson of the silent-zero class. */
+  var out = [],
+    live = [];
+  for (var i = 0; i < (channels || []).length; i++) {
+    var ch = channels[i] || {};
+    var E = (ch.times || [])
+      .filter(function (t) {
+        return t != null && isFinite(t);
+      })
+      .sort(function (x, y) {
+        return x - y;
+      });
+    /** @type {any} — progressively filled; a literal initialiser would pin these fields to `null`. */
+    var rec = {
+      node: ch.node || null,
+      channel: ch.channel || null,
+      nEvents: E.length,
+      usable: false,
+      zAtPeak: null,
+      ownOffsetSec: null,
+      agreed: false,
+      reason: null
+    };
+    if (A.length < minEvents) rec.reason = 'too few anchor events';
+    else if (E.length < minEvents) rec.reason = 'too few events';
+    else {
+      rec.usable = true;
+      live.push({ rec: rec, times: E });
+    }
+    out.push(rec);
+  }
+
+  var fail = function (reason) {
+    return {
+      offsetSec: null,
+      spreadSec: null,
+      nChannels: 0,
+      nNodes: 0,
+      z: null,
+      nullZ: null,
+      nullMedianZ: null,
+      nullExceeded: null,
+      pValue: null,
+      pFloor: null,
+      underpowered: false,
+      ambiguous: false,
+      alternativesSec: [],
+      confident: false,
+      reason: reason,
+      channels: out
+    };
+  };
+  if (A.length < minEvents) return fail(A.length ? 'too few anchor events' : 'no anchor events');
+  if (!live.length) return fail('no channel could be estimated');
+
+  var zs = live.map(function (c) {
+    return _zCurve(_coincidenceCurve(A, c.times, nLags, maxSec, stepSec, matchSec));
+  });
+  var pk = _pooledPeak(zs);
+  var Z = pk.Z,
+    bestIdx = pk.idx,
+    bestLag = lagOf(bestIdx);
+
+  /* §5.3 — the per-channel table survives pooling, and gets STRICTLY more informative. Under the vote
+     it listed each channel's own argmax, which are not comparable to each other; here it lists each
+     channel's z AT THE CHOSEN OFFSET, which are. Both are kept: `ownOffsetSec` is what makes a
+     genuinely disagreeing sensor visible, the one thing the vote did better by leaving it out of the
+     agreeing set. Pooling without this trades one blindness for another. */
+  var nodes = {};
+  for (var c2 = 0; c2 < live.length; c2++) {
+    var zc = zs[c2],
+      own = 0;
+    for (var s2 = 1; s2 < zc.length; s2++) if (zc[s2] > zc[own]) own = s2;
+    live[c2].rec.zAtPeak = +zc[bestIdx].toFixed(2);
+    live[c2].rec.ownOffsetSec = lagOf(own);
+    live[c2].rec.agreed = zc[bestIdx] >= 1;
+    if (live[c2].rec.node) nodes[live[c2].rec.node] = 1;
+  }
+
+  /* RESOLUTION, not agreement-spread. The pooled statistic has unit noise by construction, so the
+     lags that stay within 1 unit of the peak are the ones the data cannot distinguish from it — the
+     honest width of the measurement. (The vote's `spreadSec` meant something else: how far apart the
+     agreeing channels' separate estimates sat. There is no such quantity here, and reusing the name
+     for a different thing is the point at which a consumer must read this comment.) */
+  var supLo = bestIdx,
+    supHi = bestIdx;
+  while (supLo > 0 && Z[supLo - 1] >= pk.peak - 1) supLo--;
+  while (supHi < nLags - 1 && Z[supHi + 1] >= pk.peak - 1) supHi++;
+
+  /* THE POINT ESTIMATE IS THE SUPPORT'S CENTROID, NOT THE ARGMAX — measured, not cosmetic.
+
+     A hard +/-`matchSec` match window makes the peak a PLATEAU about 2*matchSec wide: every lag that
+     puts each partner inside the window scores identically, so on planted data the argmax is decided
+     by whichever unrelated channel happens to tilt the plateau, not by the planted offset. Measured on
+     the planted fixture the argmax landed 37 s low; the centroid lands within a second. Weighting by
+     `Z - (peak - 1)` reduces to the plain midpoint on a flat plateau and to the peak on a sharp one,
+     so it is the right estimator in both regimes. `spreadSec` publishes the width being centred, which
+     is the honest resolution of the measurement — the centroid is a better point inside that interval,
+     it does not make the interval smaller. */
+  var wSum = 0,
+    wLag = 0;
+  for (var p2 = supLo; p2 <= supHi; p2++) {
+    var w = Z[p2] - (pk.peak - 1);
+    if (w <= 0) continue;
+    wSum += w;
+    wLag += w * lagOf(p2);
+  }
+  var bestSec = wSum > 0 ? Math.round(wLag / wSum) : bestLag;
+
+  /* RIVALS. Under a continuous statistic an exact tie is vanishingly unlikely, so the vote's tie rule
+     does not port — but a NEAR tie is real and must still be reported rather than resolved. A rival is
+     any peak more than `sepSec` from the winner that comes within one noise unit of it. */
+  var alternativesSec = [],
+    lastRival = -1,
+    runBest = -1;
+  var flush = function () {
+    if (runBest >= 0) alternativesSec.push(lagOf(runBest));
+    lastRival = -1;
+    runBest = -1;
+  };
+  for (var r = 0; r < nLags; r++) {
+    var isRival = Z[r] >= pk.peak - 1 && Math.abs(lagOf(r) - bestSec) > sepSec;
+    if (!isRival) {
+      // Rivals closer than `sepSec` to one another are one rival seen across its own plateau.
+      if (lastRival >= 0 && lagOf(r) - lagOf(lastRival) > sepSec) flush();
+      continue;
+    }
+    if (runBest < 0 || Z[r] > Z[runBest]) runBest = r;
+    lastRival = r;
+  }
+  flush();
+
+  /* THE IN-RUN NULL. Seeded from the data itself so the verdict is reproducible run to run and machine
+     to machine — a confidence that moves on re-run is not a measurement, and it would make every
+     fixture carrying one non-deterministic. */
+  var seed = A.length * 2654435761;
+  for (var sd2 = 0; sd2 < A.length; sd2++) seed = (seed * 31 + (A[sd2] % 1000000)) >>> 0;
+  for (var sc = 0; sc < live.length; sc++) seed = (seed * 31 + live[sc].times.length) >>> 0;
+  var rnd = _seededRng(seed);
+  var nullPeaks = [];
+  for (var it = 0; it < nullIters; it++) {
+    var sh = _shuffledAnchors(A, rnd);
+    var nzs = live.map(function (cc) {
+      return _zCurve(_coincidenceCurve(sh, cc.times, nLags, maxSec, stepSec, matchSec));
+    });
+    nullPeaks.push(_pooledPeak(nzs).peak);
+  }
+  var exceeded = nullPeaks.filter(function (v) {
+    return v >= pk.peak;
+  }).length;
+  nullPeaks.sort(function (x, y) {
+    return x - y;
+  });
+  var nullMax = nullPeaks.length ? nullPeaks[nullPeaks.length - 1] : null;
+  var nullMed = nullPeaks.length ? nullPeaks[nullPeaks.length >> 1] : null;
+  // The standard permutation p-value, +1 on both sides: with 30 shuffles the best attainable is
+  // 1/31 = 0.032, and claiming p=0 from 30 draws would be exactly the fabricated authority this
+  // estimator exists to avoid.
+  var pValue = nullPeaks.length ? (exceeded + 1) / (nullPeaks.length + 1) : null;
+
+  var nNodes = Object.keys(nodes).length;
+  var ambiguous = alternativesSec.length > 0;
+  var reason = null;
+  /* THE NULL MUST BE ABLE TO REACH THE THRESHOLD IT IS JUDGED AGAINST.
+     A permutation p-value from N shuffles bottoms out at 1/(N+1), so with fewer than 19 shuffles
+     `p <= 0.05` is UNREACHABLE and every night comes back "indistinguishable from its own null" —
+     which reads as "no signal found" when the truth is "this run could not have found one". Caught
+     the first time the estimator was pointed at a new question with `nullIters: 10`: 44 channel pairs,
+     zero significant, entirely because of the setting. An underpowered run must say it is underpowered
+     rather than report a negative result it was never able to contradict. */
+  var pFloor = nullPeaks.length ? 1 / (nullPeaks.length + 1) : null;
+  var underpowered = pFloor != null && pFloor > 0.05;
+  /* The null verdict is reported FIRST when it fails. On a night that is indistinguishable from its own
+     chance floor the peak is noise, and so are its rivals — leading with "3 equally-supported offsets"
+     would dress a null result up as a close call between real candidates. */
+  if (underpowered) {
+    reason = 'UNDERPOWERED — ' + nullPeaks.length + ' null shuffles can only reach p=' + pFloor.toFixed(3) + ', so p<=0.05 is unreachable; raise nullIters to >=19 before reading this as a negative result';
+  } else if (pValue != null && pValue > 0.05) {
+    reason = 'indistinguishable from this night’s own null (p=' + pValue.toFixed(3) + ', Z ' + pk.peak.toFixed(1) + ' vs null max ' + (nullMax == null ? '?' : nullMax.toFixed(1)) + ')';
+  } else if (ambiguous) {
+    reason =
+      'ambiguous — ' +
+      (alternativesSec.length + 1) +
+      ' offsets within one noise unit (' +
+      [bestSec]
+        .concat(alternativesSec)
+        .map(function (v) {
+          return (v / 60).toFixed(2);
+        })
+        .join(' / ') +
+      ' min); the evidence does not choose between them';
+  }
+  return {
+    offsetSec: bestSec,
+    spreadSec: (supHi - supLo) * stepSec,
+    nChannels: live.length,
+    nNodes: nNodes,
+    z: +pk.peak.toFixed(2),
+    nullZ: nullMax == null ? null : +nullMax.toFixed(2),
+    nullMedianZ: nullMed == null ? null : +nullMed.toFixed(2),
+    nullExceeded: nullPeaks.length ? exceeded : null,
+    pValue: pValue == null ? null : +pValue.toFixed(4),
+    // The best p this run COULD have reported. A caller comparing `pValue` against a threshold below
+    // `pFloor` is reading a verdict the run was incapable of returning.
+    pFloor: pFloor == null ? null : +pFloor.toFixed(4),
+    underpowered: underpowered,
+    ambiguous: ambiguous,
+    alternativesSec: alternativesSec,
+    /* Corroboration is NOT a node count here. The vote needed `nNodes >= 2` because it had no measure
+       of evidence strength; the in-run null is that measure, and it already accounts for how many
+       channels contributed (they are pooled before the null sees them). A single-node night whose peak
+       beats its own 30-shuffle null is a measurement; a two-node night that does not, is not. */
+    confident: !underpowered && !ambiguous && pValue != null && pValue <= 0.05,
+    reason: reason,
+    channels: out
+  };
+}
+
 /* Which node's clock is wrong, and by how much?
    Every dated pair is estimated. A pair counts as SKEWED when its best lag sits
    outside the fusion tolerance AND its peak clearly beats the floor. A node is
@@ -3985,7 +4386,12 @@ function runFusion(recs, opts) {
           chans.push({ node: r.node, channel: imp, times: byImpulse[imp] });
         });
     });
-    if (anchor && anchor.length && chans.length) skewFits[f.node] = fitClockOffset(anchor, chans, opts);
+    /* POOLED, not voted (POOLED-CLOCK-FIT-2026-07-31-BRIEF §5.5). A REPORTED refinement only —
+       `skewApplied` below shifts events by `skew.findings[].offsetSec` from `detectClockSkew`, never by
+       anything computed here — so the cutover changes what a reader is TOLD, not what is done to the
+       data. On the 31-night corpus it put 29/29 pre-correction nights in the expected band against
+       22/25 for the vote, and resolved 4 nights no single channel could fit at all. */
+    if (anchor && anchor.length && chans.length) skewFits[f.node] = fitClockOffsetPooled(anchor, chans, opts);
   });
 
   var skewApplied = [];
@@ -4397,7 +4803,12 @@ window.IntegratorDSP = {
   estimateEventLag,
   deltaModeSec,
   refineLagByDeltaMode,
+  /* DEPRECATED — superseded by `fitClockOffsetPooled` (POOLED-CLOCK-FIT-2026-07-31-BRIEF).
+     Kept, not deleted: the two must stay comparable on the corpus for at least one cycle, and it is
+     still the only estimator that publishes a per-channel bootstrap CI. New consumers use the pooled
+     fit; do not add callers here. */
   fitClockOffset,
+  fitClockOffsetPooled,
   detectClockSkew,
   combineConf,
   glucoseMetricsInWindow,
