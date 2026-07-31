@@ -11,6 +11,12 @@ Every CPAP-to-other-node event comparison the Integrator has ever made was align
 that is **about 39 minutes slow**. The fusion did not fail loudly — it found no overlap, which is
 indistinguishable from *there was no overlap*.
 
+> **⚠️ REFINED 2026-07-30 — see §2d before applying a number.** The clock offset proper is
+> **38.28 min (2,297 s) ± 3–4 s**, not 39.5. The 39.5 figure below is *correct for desaturations* and
+> stays as measured — but it is `clock + the oximeter's detection lag`, so applying it as a clock
+> correction over-shifts by ~1.2 min. Which number you want depends on which event class you are
+> aligning; §2d gives the ladder.
+
 This is a **device/configuration fault, not a Tepna bug**. What *is* a Tepna gap is that the suite
 cannot detect it: `runFusion` takes a `toleranceSec` (default **120 s**) and silently reports nothing
 when a node sits 2,370 s away.
@@ -239,6 +245,65 @@ digits.
 
 ---
 
+## 2d · The offset is 38.28 min, and 39.5 was never the clock — 2026-07-30
+
+§2c closed with: *"Improving sensitivity beyond 6/38 should come from that direction — more event
+classes fed into the same histogram — not from a second alignment method."* That is what was done, and
+it changed the answer.
+
+**Eight channels across three devices and five independent mechanisms** were fed into §3.1's histogram
+— O2Ring desaturation, ECGDex `autonomic_surge` and `movement_onset`, PpgDex `motion_artifact_segment`
+and `movement_onset`, H10 ACC, Verity ACC/GYRO/MAG — and the per-pair lag distribution refined by its
+**delta mode** rather than its argmax.
+
+### The latency ladder — the finding that reframes §1
+
+The channels do not agree, and their disagreement is *ordered by physiology*:
+
+| responder | mechanism | best lag |
+|---|---|---|
+| body movement | mechanical, ~immediate | **37.5 min** |
+| autonomic surge / optical artifact | sympathetic response, seconds | **38.0 min** |
+| H10 `_RR` tachycardia | chronotropic response | **38.12 min** |
+| SpO₂ desaturation | circulation + oximeter averaging | **39.5 min** |
+
+That spread is not noise — it is **detection latency**, and it runs in the direction physiology
+predicts. §1's 39.5 min is therefore a perfectly good measurement *of desaturation timing*; it is
+simply `clock + ~1.2 min of oximeter lag`. The clock itself sits at the fast end where the mechanical
+responders cluster: **38.28 min (2,297 s), ± 3–4 s**.
+
+This also explains §1's own internal gap, which the brief noted without resolving: desat gave 39.5 and
+ECGDex `autonomic_surge` gave 38.0. Those were never in conflict. They are two rungs of this ladder.
+
+### Per-night, and why the corroboration flag is the whole story
+
+Sensitivity went from §2c's *"6 of 38"* to **7 of 14 nights corroborated by ≥2 distinct devices**,
+spanning **37.75–38.45 min** with a median inter-sensor agreement of **39 s**. On 2026-07-26 four
+channels from two devices landed at 38.28 / 38.28 / 38.00 / 38.10 — **38.20 min, agreeing within 17 s**.
+
+The decisive property: **every corroborated night is in the band, and every wrong night is
+uncorroborated.** The three failures (−52.7, −43.5, …) are all single-device fits with `agree = 0 s`.
+So consuming only corroborated fits is **7/7 correct**, and `fitClockOffset`'s `confident` flag —
+`≥ 2 distinct nodes`, not channel count — is the gate that makes the estimator safe to use. It is
+reported, never silently applied; both the Integrator UI and `trio-batch` print `— NOT corroborated`
+with the reason and list every channel's own estimate and CI.
+
+A large part of that gain was not method at all: `trio-batch` had been feeding PpgDex **one fragment**
+of each night's inertial data (`l[0]`), discarding 99 % of it, so the Verity's three inertial channels
+were computed from roughly the first two minutes of each night. Fixed in the same day's work.
+
+### What this does NOT settle
+
+- **The post-correction offset is still UNKNOWN.** §2b's prediction — that the offset should flip to
+  ≈ +21 min ahead rather than fall to 0 — remains untested; it needs one clean tri-device night after
+  the timezone change.
+- **H10 `_RR` tachycardia is measured but not wired** as an impulse. It is the earliest cardiac
+  responder at 38.12 and would add a third device to nights that currently have two.
+- **OxyDex has no `movement_onset`.** It is the third device on nights where the Verity is absent, and
+  wiring it must respect `motionColumnStuck` (the per-source stuck-column fault).
+
+---
+
 ## 3 · What to do
 
 The device fault and the blindness are separate problems and want separate fixes.
@@ -291,6 +356,12 @@ describe the same physiology. That question is still open and still matters: Oxy
       the offset should flip to ≈ +21 min ahead, not fall to 0.
 - [ ] §1.1 re-run with the offset removed, and its verdict written into
       `MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS`.
+- [x] The offset is pinned to a usable precision, and the estimator is safe to consume.
+      **DONE 2026-07-30** (§2d) — **38.28 min ± 3–4 s** from 8 channels / 3 devices / 5 mechanisms via
+      delta-mode refinement; 7 of 14 nights corroborated by ≥2 distinct devices, 37.75–38.45, median
+      agreement 39 s. §1's 39.5 is retained as the *desaturation* figure and explained by a physiologically
+      ordered latency ladder. `confident` (≥2 distinct nodes) separates right from wrong 7/7, and the fit
+      is reported, never applied.
 - [x] The movement-alignment alternative is settled. **DONE 2026-07-29** (§2c) — rejected, and rejected
       for a *proven* reason: an ACC↔ACC control on a known-zero pair shows the method recovers a planted
       −39 min offset on 1 night in 13 while succeeding 13/13 at its design range, because at wide-search
