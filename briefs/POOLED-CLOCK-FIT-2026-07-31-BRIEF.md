@@ -252,13 +252,35 @@ be comparable on the corpus for at least one cycle.
 vote, reproducing §1 exactly. The four nights no channel could fit individually — 06-14, 06-19, 07-05,
 07-25 — all resolve, all in band. Whole corpus: **2.3 s**, 66–156 ms per night including 30 null refits.
 
-### 8.2 · The property that matters more than the headline
+### 8.2 · The property that matters more than the headline — and its correction
 
-**Every night the pooled fit calls confident is in the band: 21/21. Every night it is not confident is
-*also* in the band: 8/8.** So the in-run null is **conservative, never wrong-directioned** — it
-withholds confidence from correct answers rather than granting it to wrong ones. That is the failure
-direction to want, and it is the opposite of the vote, whose one `confident` error (2026-06-15, 1.53 min)
-is what §2 retracts.
+> ### ⛔ CORRECTED 2026-07-31, same day — this was an n=31 artifact, the same shape as the claim §2 retracts
+>
+> The paragraph below claimed **21/21 confident nights in band** and concluded the null is
+> *"conservative, never wrong-directioned."* Re-run on the maximum corpus of **45 nights** (§8.4) it is
+> **26/27**: **2026-07-23 is `confident` (p=0.032, Z 9.24) at 35.18 min, outside the band.**
+>
+> This is the *same mistake in the same shape* as the parent brief's retracted `7/7` — a clean
+> separation seen on a subset, stated as a property, falsified by more nights — and it was written into
+> this brief, the PR description and `DOCS-INDEX` before the larger corpus existed. **A corpus that has
+> not yet produced a counterexample is not an estimator that cannot produce one.** n=31 could not tell
+> the difference, exactly as n=14 could not one brief earlier. The lesson is not about this estimator.
+>
+> What is true on 43 pre-correction nights, restated to what was measured:
+> - the pooled fit returns a number on **43/43**, the vote on 36/43;
+> - **41/43 in band** vs the vote's 30/36;
+> - **27 confident, 26 of them in band** — one error;
+> - **16 not confident, 15 of them in band** — so confidence is still withheld from correct answers far
+>   more often than it is granted to wrong ones, and the *other* out-of-band night (2026-06-26, 22.07
+>   min) is correctly flagged not-confident.
+>
+> "Never wrong-directioned" is **withdrawn**. It fails once in 27. See §8.5 for what that night is.
+
+The original text, kept rather than deleted so the correction has something to correct: *"Every night
+the pooled fit calls confident is in the band: 21/21. Every night it is not confident is also in the
+band: 8/8. So the in-run null is conservative, never wrong-directioned — it withholds confidence from
+correct answers rather than granting it to wrong ones. That is the failure direction to want, and it is
+the opposite of the vote, whose one `confident` error (2026-06-15, 1.53 min) is what §2 retracts."*
 
 It also settles §5.2's open choice. The gap shuffle preserves the anchor count, span and interval
 distribution, so it degrades honestly on **periodic** anchors: a periodic train reproduces itself under
@@ -283,3 +305,84 @@ however high its Z` — Z 15.22 against nullZ 15.22).
   setting rather than blaming the data. Same discipline as `apneaTyping.underpowered`.
 - **`fitClockOffset` is deprecated, not deleted**, per §5.5, and both remain exported and gated so the
   corpus comparison above can be re-run at any time.
+
+---
+
+## 8.4 · The MAXIMUM corpus — 45 nights, and where they came from
+
+§8.1's 31 nights were not the corpus; they were the nights that pass `trio-batch`'s **fusion** gate.
+Two separate extensions get to 45, and the reason each was previously excluded is worth stating because
+neither exclusion was ever about the clock:
+
+1. **+9 exports-only nights (2026-07-16 … 07-24).** Raw data is gone from every tree, but the folded
+   exports survive in `uploads/trio` from an earlier run (all nine share one `codeDigest`
+   `5b42a5b3d20225a8`, against the current `08fc858a788f4880`). They are therefore **stale but
+   internally consistent**, and cannot be regenerated. Eight of the nine behave indistinguishably from
+   freshly-folded nights (§8.5 checks this rather than assuming it).
+2. **+5 nights admitted by `--min-overlap 0` (06-17, 06-18, 06-26, 07-03, 07-10).** These were rejected
+   for having only **0.0–0.8 h of three-way overlap**, below the 1 h floor. That floor is a **fusion**
+   precondition — `tch-multinight` needs ≥12 five-minute epochs of genuine three-way concurrency. **The
+   clock fit needs no such thing:** it consumes CPAP anchors plus whatever wearable channels exist, and
+   each node's export is full-length regardless of how little the three overlap. Excluding them was
+   correct for fusion and wrong for this question.
+
+Nights genuinely beyond reach: **2026-06-06, 06-07, 06-09, 06-13** carry only two devices (ECG+SpO2, or
+SpO2 alone), so `trio-batch` will not emit them at all. A 2-device night is perfectly fittable in
+principle — the estimator degrades by design — so this is a *tool* limit, not a data limit. Recorded in
+the follow-up rather than fixed here.
+
+### The 5 newly-admitted nights are the hardest in the corpus, and the fit behaves best on them
+
+They carry **5–8 channels** where a normal night has 10–12:
+
+| night | apneas | chans | vote | pooled | Z | p | confident |
+|---|---|---|---|---|---|---|---|
+| 2026-06-17 | 14 | 8 | 37.98 | **38.97** | 6.03 | 0.065 | no |
+| 2026-06-18 | 29 | 5 | 25.98 ⚠ | **39.20** | 12.89 | 0.032 | **yes** |
+| 2026-06-26 | 17 | 7 | 39.97 | **22.07** ✗ | 8.55 | 0.097 | **no** ✓ |
+| 2026-07-03 | 26 | 6 | — | **36.22** | 9.00 | 0.097 | no |
+| 2026-07-10 | 14 | 6 | — | **39.22** | 10.06 | 0.065 | no |
+
+The pooled fit returns a number on all five; the vote returns one on three and gets one of those badly
+wrong (06-18 at 25.98). And on the single night that lands out of band — 06-26 at 22.07 — **confidence
+is correctly withheld**. That is the intended behaviour on thin evidence, observed on the thinnest
+nights available.
+
+### Full maximum-corpus result
+
+| | vote | **pooled** |
+|---|---|---|
+| produced a number (of 43 pre-correction) | 36 | **43** |
+| in the 36–42 min band | 30 / 36 | **41 / 43** |
+| confident | 23 | 27 |
+| confident **and** in band | 22 | **26** |
+| not confident, but in band anyway | — | 15 / 16 |
+
+Range 22.07 … 41.15, median **38.18**; confident-only range 35.18 … 39.23, median **38.17** (n=27).
+
+## 8.5 · The one confident error: 2026-07-23
+
+`35.18 min`, `confident`, `p=0.032`, `Z 9.24`, not ambiguous. Three checks, because the obvious
+explanations are the ones most likely to be wrong:
+
+- **Not a stale-export artifact.** The other eight legacy nights put their movement channels at
+  37.5–38.2, exactly where freshly-folded nights put theirs. 07-23 is the only one at ~34.
+- **Not a device-clock shift.** Its three movement channels agree tightly across **two devices**
+  (ECG 34.17, PpgDex motion 34.00, PpgDex movement 34.17) — but `ECGDex/autonomic_surge`, **from the
+  same H10 file and the same timeline as one of them**, says 37.75. A device clock cannot move one
+  channel of a device and not another.
+- **It looks like half-period aliasing.** The discrepancy is **3.58 min**; the night's mean apnea
+  interval is 6.95 min, so **half of it is 3.47 min**. A movement train matching the apnea train offset
+  by half a period is the classic signature, and it is the one condition the current `ambiguous` test
+  cannot see: the rival peak is a *different channel's* preference, not a second peak in the pooled
+  curve.
+
+Also present, and shared with every `fitClockOffset` failure in §2: **OxyDex contributed nothing**
+(`desat_event` — too few events), so the highest-SNR channel was absent. Absence of desat is *not*
+sufficient to predict failure (06-11, 07-21 and 07-24 have no usable desat channel and are confident and
+correct), so it is a co-factor, not a rule.
+
+**Not fixed here.** A guard that fires on "movement channels disagree with autonomic channels by ~half
+the anchor period" is exactly the kind of special case §1 argues against, and inventing it from one
+night would be fitting the estimator to its own corpus. It goes to the follow-up with the measurement
+attached.
