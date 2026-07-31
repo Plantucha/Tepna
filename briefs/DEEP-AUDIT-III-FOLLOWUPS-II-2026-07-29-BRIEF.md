@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-29 · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · **Sibling:** `DEEP-AUDIT-III-FOLLOWUPS-2026-07-27-BRIEF.md` (DONE, §1/§2/§3 scope)
+**Status:** DONE — 2026-07-31 · **Created:** 2026-07-29 · **Follows:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` (DONE 2026-07-29) · **Sibling:** `DEEP-AUDIT-III-FOLLOWUPS-2026-07-27-BRIEF.md` (DONE, §1/§2/§3 scope)
 
 # Closing the punch list found three fixes guarding nothing
 
@@ -175,8 +175,14 @@ the thing it was built to isolate.
 
 ## 4 · Done when
 
-- [ ] §2 a `genSyntheticACC` that can emit a rate CHANGE across a real clock hole, and a §4.2 tracking
-      falsifier built on it, verified RED against a flat-likelihood revert
+- [x] **§2's tracking falsifier — BUILT and verified RED (see §2.1); re-verified on `main` 2026-07-31.**
+      Reverting the flat likelihood reds exactly **3** assertions, with post-hole confidences
+      0.089 / 0.091 / 0.137 — inside the 0.06–0.14 band §2.1 measured for the defect, and well under
+      the 0.39–0.66 the fix produces. The `genSyntheticACC({segments})` half of this item was
+      **deliberately not taken**: `motiondex-dsp.js` is inside the compute closure, so extending the
+      generator would move MotionDex's `computeHash` and owe fixture re-verification (§🔒) for a
+      fixture only the tests need. The two-rate stream is spliced test-side instead, which needs no
+      bundle change — see §2.1 *"On the generator"*.
 - [x] **SWEEP RUN 2026-07-29 — see §5. 19 sections mutation-checked, 4 blind, base rate ~21 %.**
 - [ ] ~~The same mutation sweep run across `DEEP-AUDIT-III`'s remaining FIXED sections.~~ Nine are done
       (§3.6, §4.1, §4.2, §4.3, §3.2, §6.1, §6.3, and the two screens that came back clean); **three of
@@ -778,3 +784,34 @@ copy.** A backup taken from an already-mutated file restores the mutation. All t
 sweep produced have the same shape: *the measurement apparatus failed silently and looked exactly like
 a result.* That is the same failure class the sweep itself hunts, which is either reassuring or
 unsettling depending on the hour.
+
+---
+
+## 8 · CLOSED 2026-07-31 — both Done-when items re-verified against `main`
+
+This brief's two open items were both already satisfied in substance; what was missing was a check
+that the claims still hold, which is exactly the failure mode the brief itself is about (§1: *"fixes
+ship; gates do not always follow"*). So they were re-run rather than read.
+
+**§2's tracking falsifier still bites.** Reverting the flat likelihood in `motiondex-dsp.js` — the
+one-line defect the falsifier exists to catch — reds **3** assertions on current `main`:
+
+```
+✕ §4.2 · the post-hole windows recover their true 18 brpm across the hole   — got null · want ≈18
+✕ §4.2 · …and EVERY clean post-hole window reports a rate                    — [null,null,null]
+✕ §4.2 · …with real confidence, not the ~0.1 a steered track leaves behind   — confs=[0.089,0.091,0.137]
+```
+
+The confidences land inside the **0.06–0.14** band §2.1 measured for the defect, against **0.39–0.66**
+for the fix — so the gate is discriminating on the mechanism, not tripping on noise. The pre-hole
+control held at 12 brpm in both variants, which is what proves the fixture still isolates the thing it
+was built to isolate.
+
+**The second item was struck through with nine sections already swept** (§5/§6), and its own note
+records the finding that matters more than the count: **three of the nine were blind or absent**, and
+a static screen on test-reference count does not predict which — §4.1 had 15 references and was blind,
+§6.3 had 5 and was blind. Only the mutation decides. That conclusion is unchanged and needs no re-run.
+
+**Nothing spawned a follow-up.** The one deliberate non-action (§2.1's `genSyntheticACC({segments})`)
+is recorded with its reason — it would move MotionDex's `computeHash` and owe fixture re-verification
+for a fixture only the tests need — and the test-side splice supersedes it rather than deferring it.
