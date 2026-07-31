@@ -18,6 +18,7 @@ import polar_pmd as pmd
 import viatom
 import oxyii
 import bonding
+import helper_path
 import link_rssi
 import host_clock
 import offline_lock
@@ -436,6 +437,35 @@ def note_data(name: str, mono: float) -> None:
     reading it again would be a wasted call on a per-second hot path — and, less obviously, it would
     perturb the stall tests, which drive a STATEFUL fake clock that advances on every read."""
     _LAST_DATA[name] = mono
+
+
+def radio_looks_deaf(seen: int, connected_any: bool, consecutive_silent: int, min_silent_rounds: int = 2) -> bool:
+    """PURE: is the radio DEAF — up, unwedged by every existing test, and hearing nothing?
+
+    `classify_adapter_health` cannot answer this and is not meant to. It separates "adapter wedged" from
+    "sensors not worn" using connect errors and the adapter's own up/down state — but on 2026-07-30 hci0
+    reported `UP RUNNING`, with 332 MB of lifetime traffic, while a 20 s scan saw ZERO advertisements. In
+    a house that always has dozens. Every sensor timed out identically, which is EXACTLY what "nobody is
+    wearing them" looks like, so the watchdog correctly declined to power-cycle and ~20 minutes of a
+    night was lost until a human restarted bluetoothd by hand.
+
+    So this adds the one signal none of the others carry: can the radio hear ANYTHING? Zero
+    advertisements is not a statement about our sensors — it is a statement about the receiver. `UP
+    RUNNING` is not the same as hearing, the same way `connected` is not the same as recording.
+
+    `connected_any` short-circuits it: a radio holding a live link is demonstrably working, whatever a
+    scan says, so the question is only asked when nothing is connected — which is also the only state
+    where a probe cannot contend with the daemon's own connects.
+
+    `min_silent_rounds` because ONE empty scan is not evidence: a probe can lose the race for the
+    controller, or land in a genuinely quiet moment. Two consecutive silent rounds minutes apart is a
+    receiver that is not receiving. The cost of being wrong here is a bluetooth restart that drops
+    nothing (nothing was connected), so the bar is deliberately low — but not one sample low."""
+    if connected_any:
+        return False
+    if seen > 0:
+        return False
+    return consecutive_silent >= min_silent_rounds
 
 
 def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = None) -> dict:
@@ -2291,6 +2321,48 @@ async def _adapter_is_up(hci: str) -> "bool | None":
         return None
 
 
+async def _run_helper(*args, timeout=45):
+    """Run a helper and return (rc, combined output). Mirrors clockcfg._run — proc_util.communicate
+    already carries the timeout/kill discipline every subprocess on this box is required to use, so an
+    unbounded wait cannot wedge the watchdog task."""
+    try:
+        p = await asyncio.create_subprocess_exec(
+            *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        out, _ = await proc_util.communicate(p, timeout)
+        return p.returncode, out.decode(errors="replace")
+    except FileNotFoundError:
+        return 127, f"{args[0]} not found"
+    except asyncio.TimeoutError:
+        return 124, "timed out"
+
+
+async def _restart_radio() -> bool:
+    """Restart bluetoothd through the narrow root-owned helper. Returns True if it came back.
+
+    `systemctl restart bluetooth` is the rung that actually recovered the box on 2026-07-30 (a scan went
+    from 0 devices to 91). It is gentler than a USB power-cycle and needs no physical access — but it
+    does need root, which `vigil` only has for this one root-owned, non-user-writable script
+    (deploy/enable-restart-control.sh). Absent that grant this is a no-op that says so, rather than a
+    silent failure: a recovery that cannot run must not look like one that ran."""
+    try:
+        helper = helper_path.resolve("tepna-restart.sh")
+    except Exception:
+        helper = None
+    if not helper or not os.access(helper, os.X_OK):
+        log.error("watchdog: cannot restart the radio — tepna-restart.sh not installed "
+                  "(run deploy/enable-restart-control.sh once)")
+        return False
+    rc, out = await _run_helper("sudo", "-n", helper, "radio", timeout=45)
+    if rc == 0:
+        log.warning("watchdog: bluetooth restarted — %s", out.strip()[:120])
+        _RECOVER.set()
+        await asyncio.sleep(5)
+        _RECOVER.clear()
+        return True
+    log.error("watchdog: bluetooth restart FAILED rc=%s %s", rc, out.strip()[:160])
+    return False
+
+
 async def adapter_watchdog(adapter_mac, cfg: dict):
     """Detect a WEDGED BLE adapter (all worn sensors unreachable though the radio is up — the frozen-
     monitor failure) and auto-recover, WITHOUT reacting to the benign 'sensors simply not worn' state.
@@ -2310,7 +2382,7 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     interval = float(wcfg.get("interval_sec", 60))
     grace = int(wcfg.get("grace_checks", 2))
     max_cycles = int(wcfg.get("max_adapter_cycles", 3))
-    consecutive = cycles = 0
+    consecutive = cycles = silent = 0
     sel = f"select {adapter_mac}\n" if adapter_mac else ""
     while not _STOP.is_set():
         await asyncio.sleep(interval)
@@ -2344,6 +2416,37 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
         adapter_up = (await _adapter_is_up(_hci_now)) if _hci_now else False
         h = classify_adapter_health(devs, adapter_up=adapter_up)
         if not h["wedged"]:
+            # ── IS THE RADIO DEAF? ───────────────────────────────────────────────────────────
+            # Everything above says "not wedged", and on 2026-07-30 that verdict was CORRECT by its own
+            # rules and still wrong about the world: hci0 was `UP RUNNING` with 332 MB of lifetime
+            # traffic, every sensor timed out identically — indistinguishable from nobody wearing them —
+            # and a 20 s scan saw ZERO advertisements in a house that always has dozens. ~20 minutes of
+            # a night was lost until a human restarted bluetoothd by hand.
+            #
+            # So ask the one question none of the other signals carry: can the receiver hear ANYTHING?
+            # Only when nothing is connected — a live link proves the radio works whatever a scan says,
+            # and it is also the only state where probing cannot contend with our own connects.
+            connected_any = any(d["connected"] for d in devs)
+            if connected_any:
+                silent = 0
+            else:
+                try:
+                    found = await bonding.scan(adapter_mac, seconds=float(wcfg.get("deaf_scan_sec", 8)))
+                    n_seen = len(found or [])
+                except Exception as e:
+                    n_seen = -1                      # a failed PROBE is not evidence about the radio
+                    log.debug("watchdog: deafness probe failed: %r", e)
+                if n_seen == 0:
+                    silent += 1
+                    log.warning("watchdog: radio heard NOTHING (%d consecutive) — a working adapter sees "
+                                "neighbours even with our sensors off", silent)
+                elif n_seen > 0:
+                    silent = 0
+                if radio_looks_deaf(max(n_seen, 0), connected_any, silent,
+                                    int(wcfg.get("deaf_rounds", 2))):
+                    silent = 0
+                    log.error("watchdog: adapter reports UP but hears nothing — restarting bluetooth")
+                    await _restart_radio()
             if consecutive:
                 log.info("watchdog: adapter healthy again")
             consecutive = cycles = 0
