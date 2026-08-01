@@ -2923,7 +2923,45 @@
         bestLag = lag;
       }
     }
-    return bestLag > 0 && best > 0.1 ? bestLag / fs : null;
+    if (!(bestLag > 0 && best > 0.1)) return null;
+
+    /* ── HARMONIC CHECK (ECGDEX-EDR-RESP-ACCURACY §4 option 2) ─────────────────────────────────────
+       The zero-crossing skip above defeats half-period SIDELOBES, but not a genuinely stronger
+       harmonic. `_bandResp` is a DIFFERENCE OF TWO MOVING AVERAGES — a gentle roll-off — so a
+       fundamental sitting AT the band edge is already attenuated while its second harmonic is not, and
+       the search locks onto the harmonic. Measured before this fix: a 24 breaths/min carrier (0.4 Hz,
+       exactly the upper band edge = the 2.5 s lower period bound) reported 12/min — exactly HALF —
+       deterministically across three seeds.
+       So: if HALF this lag is admissible and carries comparable correlation, the shorter period is the
+       fundamental and the one found is its octave. The 0.8 factor is deliberately permissive — an
+       attenuated fundamental will NOT match its harmonic's peak, which is the whole failure mode; it
+       only has to be close. Requiring equality would leave the defect in place. */
+    const half = Math.round(bestLag / 2);
+    if (half >= start && half <= maxL && ac[half] > 0.8 * best) {
+      best = ac[half];
+      bestLag = half;
+    }
+
+    /* ── PARABOLIC INTERPOLATION (§4 option 1) ─────────────────────────────────────────────────────
+       The search is over INTEGER lags on a 4 Hz grid, so the period quantises to 0.25 s — ~1.5 % at a
+       3 s period but ~6 % at 4.3 s, which is why a true 14/min read 15.0 (lag 16 = 4.00 s rather than
+       lag 17 = 4.25 s). Fitting a parabola through the peak and its two neighbours recovers the
+       sub-sample maximum. Standard for autocorrelation/pitch estimation; it adds no assumption beyond
+       local smoothness, which an autocorrelation peak has by construction.
+       Guarded: needs both neighbours in range AND a real (negative-curvature) maximum — a degenerate or
+       flat triple leaves the integer lag untouched rather than dividing by ~0. */
+    let refined = bestLag;
+    if (bestLag > 0 && bestLag < maxL) {
+      const ym = ac[bestLag - 1],
+        y0 = ac[bestLag],
+        yp = ac[bestLag + 1];
+      const curv = ym - 2 * y0 + yp;
+      if (curv < 0) {
+        const delta = (0.5 * (ym - yp)) / curv;
+        if (delta > -1 && delta < 1) refined = bestLag + delta; // never leaves the neighbouring bins
+      }
+    }
+    return refined / fs;
   }
   function _bandRespACC(x, fs) {
     // low-pass ~0.6 Hz then remove the ~<0.12 Hz baseline → isolate the respiratory band

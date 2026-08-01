@@ -3813,7 +3813,10 @@
 
       // ── LOWER bound (2.5 s): 20/min = a 3.00 s period, just inside ──
       T.eq('20/min breathing (3.00 s period) resolves to 20.0 — a 2.5→3.5 s slip re-reads it 10.4', respAt(20, 20260601), 20);
-      T.eq('…and it is seed-independent, so the pin is the estimator and not one draw', respAt(20, 42), 20);
+      /* T.approx, not T.eq, since 2026-08-01: parabolic interpolation makes the estimate sub-sample, so
+         landing on an EXACT integer was itself an artifact of the integer-lag quantisation the fix
+         removed. The leg's purpose — seed-independence — is unchanged and the tolerance is tight. */
+      T.approx('…and it is seed-independent, so the pin is the estimator and not one draw', respAt(20, 42), 20, 0.3);
 
       // ── UPPER bound (10 s): 6/min = a 10.0 s period, exactly at the edge ──
       // 6.9 for a 6.0 truth: the autocorrelation searches INTEGER lags on the 4 Hz EDR grid, so the
@@ -3822,19 +3825,29 @@
       T.approx('6/min breathing (10.0 s period, the upper edge) is FOUND — 6.9, not the 15 fallback', respAt(6, 20260601), 6.9, 0.25);
       T.ok('…so the upper bound genuinely admits it (a 10→7 s slip re-reads it 12)', respAt(6, 20260601) < 8, 'got ' + respAt(6, 20260601));
 
-      /* ⚠ CHARACTERIZATION, NOT ENDORSEMENT — a KNOWN LIMITATION, pinned so it cannot change unnoticed.
-         `_bandResp` passes ~0.1–0.4 Hz using the DIFFERENCE OF TWO MOVING AVERAGES, whose roll-off is
-         gentle, so a fundamental sitting AT either declared edge is already attenuated. At 24/min
-         (0.4 Hz, exactly the upper band edge = the 2.5 s lower period bound) the fundamental is
-         suppressed enough that the autocorrelation locks onto the SECOND HARMONIC and reports exactly
-         HALF the true rate. Deterministic across three seeds. The estimator is trustworthy over roughly
-         14–22/min and degrades at both ends of its own declared window.
-         This leg pins 12 because that is what the shipped code does — a fix SHOULD red it, and whoever
-         fixes it updates this pin and `ECGDEX-EDR-RESP-ACCURACY-2026-07-31-BRIEF.md` together. */
-      T.eq('KNOWN LIMITATION · 24/min reads 12 — period-doubling at the band edge (see the spawned brief)', respAt(24, 20260601), 12);
-      T.eq('KNOWN LIMITATION · …deterministic, not a seed artifact', respAt(24, 42), 12);
-      // The working range, as the counterweight: the same estimator is accurate two octaves up the band.
-      T.approx('CONTROL · 18/min — inside the trustworthy 14–22/min range — resolves accurately', respAt(18, 20260601), 18.5, 0.6);
+      /* ── THE PERIOD-DOUBLING IS FIXED (ECGDEX-EDR-RESP-ACCURACY §4, options 1+2, 2026-08-01) ──
+         These two legs previously pinned 24/min → **12**, exactly half, as an explicit CHARACTERIZATION
+         of a defect: `_bandResp` is a difference of two moving averages, so a fundamental sitting AT the
+         0.4 Hz upper edge is attenuated while its second harmonic is not, and the search locked onto the
+         harmonic. The pins said a fix SHOULD red them — it did, and they are updated here in the same
+         commit, as the brief required.
+         A harmonic check (prefer half the winning lag when it is admissible and carries ≥0.8× the
+         correlation) plus parabolic interpolation of the peak now give 23.4–23.8 across seeds: −2.5 %
+         instead of −50 %. */
+      T.approx('24/min no longer period-doubles — 23.6, not the 12 it used to report', respAt(24, 20260601), 23.6, 0.5);
+      T.approx('…and it is seed-stable, as the old defect also was', respAt(24, 42), 23.6, 0.5);
+      /* ⚠ STILL A KNOWN LIMITATION, and honesty requires pinning it too: the 8–12/min band is
+         over-read by up to +43 % and options 1+2 did NOT touch it. That is a THIRD mechanism — the
+         fundamental attenuated at the LOW band edge, where no harmonic substitution helps — and it needs
+         option 3 (a steeper filter), which moves every CRC metric and so was deliberately not taken here.
+         Pinned as characterization, same discipline as the 24/min pin it replaces. */
+      T.approx('KNOWN LIMITATION · 8/min still reads ~11.3 (+43 %) — the LOW band edge, untouched by this fix', respAt(8, 20260601), 11.3, 0.4);
+      T.approx('KNOWN LIMITATION · …and 10/min still reads ~12', respAt(10, 20260601), 12, 0.4);
+      // The working range, as the counterweight — now 14–24/min rather than 14–22.
+      T.approx('CONTROL · 18/min — inside the trustworthy range — resolves accurately', respAt(18, 20260601), 18.2, 0.6);
+      // Tolerance 0.15, not 0.4: at 0.4 the leg still passed with interpolation DISABLED (15.0 sits
+      // inside 14.7 +/- 0.4), so it discriminated nothing. Found by mutating the fix, not by reading it.
+      T.approx('CONTROL · 14/min improved by the interpolation (was 15.0, a +7 % quantisation error)', respAt(14, 20260601), 14.7, 0.15);
     });
 
     /* RESPIRATORY-RATE VARIABILITY — the discriminator, and the oracle that can express it.
