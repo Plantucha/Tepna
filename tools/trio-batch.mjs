@@ -1021,6 +1021,12 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
               console.log(`\n▸ ${p.key} · clock fit`);
               printClockFit(dir, p.key);
             }
+            /* The wearable DRIFT fit is deliberately OUTSIDE the CPAP gate: it aligns the H10 against
+               the Verity from beat times both already export, so it needs no CPAP anchors and no
+               `--cpap` flag. Gating it on the CPAP would be the same fusion-precondition confusion
+               `--allow-partial` exists to undo — a night that cannot be clock-fitted can still be
+               drift-fitted, and on this corpus that is most of them. */
+            if (nJson >= 1) printDriftFit(dir, p.key);
           }
         }
         res();
@@ -1102,6 +1108,47 @@ function cpapApneaTimes(dayDir) {
    once per night, in whichever process can see all of them (see the !ONLY_NODE / parent call sites).
    `loadDsps()` is called here rather than at start-up so a dispatching parent stays a few-MB
    coordinator until there is actually a fit to compute. */
+/* ── WEARABLE DRIFT, from beat times the exports already carry ───────────────────────────────────
+   The H10 and the Verity do NOT share a timebase across a night: measured 87 ppm = 2.26 s over 7.4 h,
+   which exceeds an RR interval, so a constant-offset match walks off the correct beat partway through
+   and reports ~16 % correspondence for a pair that actually agrees on ~90 % of heartbeats.
+
+   Needs no raw files and no contract change — `timeseries.rr.tSec` (ECGDex) and `timeseries.ppi.tSec`
+   (PpgDex) are already in the node-export. Prints the chance control beside every number, because the
+   block fit maximises the statistic it reports. */
+function printDriftFit(dir, key) {
+  const rd = (node, path) => {
+    const f = join(dir, `${node}_${key}.node-export.json`);
+    if (!existsSync(f)) return null;
+    const j = JSON.parse(readFileSync(f, 'utf8'));
+    const ser = path.split('.').reduce((o, k) => (o == null ? o : o[k]), j.timeseries || {});
+    const t0 = j.recording && j.recording.startEpochMs;
+    if (!ser || !ser.tSec || t0 == null) return null;
+    const out = [];
+    for (let i = 0; i < ser.tSec.length; i++) if (!ser.corrected || ser.corrected[i] === 0) out.push(t0 + ser.tSec[i] * 1000);
+    return out;
+  };
+  const A = rd('ECGDex', 'rr'),
+    B = rd('PpgDex', 'ppi');
+  if (!A || !B || A.length < 500 || B.length < 500) {
+    console.log('    ⏱ wearable drift: need ECGDex rr + PpgDex ppi beat series');
+    return null;
+  }
+  loadDsps();
+  const r = ctx.IntegratorDSP.fitClockDrift(A, B, {});
+  if (r.offsetMs == null) {
+    console.log(`    ⏱ wearable drift: unresolved — ${r.reason}`);
+    return r;
+  }
+  console.log(
+    `    ⏱ H10↔Verity drift: ${r.driftPpm.toFixed(0)} ppm (${((r.driftPpm / 1e6) * r.spanMin * 60).toFixed(2)} s over ${r.spanMin} min), offset ${(r.offsetMs / 1000).toFixed(2)} s` +
+      `   corr ${(100 * r.medianCorrespondence).toFixed(0)}% vs chance ${(100 * r.chanceCorrespondence).toFixed(0)}%   IQR ${Math.round(r.medianIqrMs)} ms` +
+      (r.confident ? '' : `  — ⚠ ${r.reason}`) +
+      (Math.abs(r.driftPpm) > r.maxDriftPpm * 0.8 ? `  — ⚠ near the ${r.maxDriftPpm.toFixed(0)} ppm search bound` : '')
+  );
+  return { driftPpm: r.driftPpm, offsetMs: r.offsetMs, corr: r.medianCorrespondence, chance: r.chanceCorrespondence, iqrMs: r.medianIqrMs, confident: r.confident };
+}
+
 function printClockFit(dir, key) {
   if (!CPAP_DIR) return null;
   try {
@@ -1481,6 +1528,7 @@ for (const p of work) {
      This is the exact hazard the stamp below already documents — "no single child can see its
      siblings" — solved the same way: the parent runs it once, after every node has landed. */
   if (!ONLY_NODE) row.clockFit = printClockFit(dir, p.key);
+  if (!ONLY_NODE) row.driftFit = printDriftFit(dir, p.key);
 
   summary.push(row);
 }
