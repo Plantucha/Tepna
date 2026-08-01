@@ -424,6 +424,23 @@
         }
       }
     }
+    /* THE LAYOUT NAMES THE DEVICE, NOT THE LIMB. A one-channel replicated stream is an O2Ring and a
+       three-LED stream is a Verity — that much IS decided on the data and is reliable. What follows
+       from it does not: this value is then spent as an ANATOMICAL fact. It selects the morphology
+       evidence tier (dicrotic notch, augmentation index, reflection index, Takazawa b/a — every one
+       of them site-sensitive and graded against WRIST-validated literature) and it gates three
+       Integrator fusion paths.
+
+       A strap goes where the wearer puts it. On this deployment the Verity is worn on the LEFT ANKLE
+       and has been labelled 'wrist' throughout — so its pulse-wave morphology has been carrying a tier
+       justified by wrist studies, at a site much further from the heart with an entirely different
+       reflection profile. That is a metric holding a grade it never earned, which is the one thing
+       this suite's evidence ladder exists to prevent.
+
+       The site cannot be recovered from the waveform, so it is not guessed. `site` keeps its derived
+       value (consumers gate on it and the sentinel pass genuinely is a device property), and
+       `siteSource` now says where that value came from — so a reader can tell a DECLARED limb from a
+       device default, and a grader can decline to award a site-validated tier to a default. */
     const site = nCh === 1 || replicated ? 'finger' : 'wrist';
     // Sentinel pass runs ONLY on the finger layout — 156 is the O2Ring's marker and carries no meaning
     // in a Verity count stream (where it would be an ordinary, and astronomically rare, raw ADC value).
@@ -440,6 +457,8 @@
       offsetMin: firstTs ? firstTs.offsetMin : null,
       durSec: (n - 1) / fs,
       site,
+      // 'device-default' until someone declares otherwise — see the block above.
+      siteSource: 'device-default',
       // Per-sample missing mask (1 = rejected sentinel). Null for the wrist layout. Never filled.
       gap: sent ? sent.gap : null,
       sentinelRejected: sent ? sent.rejected : 0,
@@ -2799,6 +2818,10 @@
       // `site` is a layout fact from the parser ('wrist' 3-LED Verity | 'finger' 1-channel O2Ring),
       // NOT an inference. Consumers grade morphology by site (§5) instead of inheriting the wrist's.
       site: rec.site || 'wrist',
+      /* WHERE THAT VALUE CAME FROM. The layout identifies the DEVICE reliably; it cannot identify the
+         LIMB, and a strap goes where the wearer puts it. 'device-default' means nobody has said, so a
+         grader must not award a site-validated morphology tier on the strength of it. */
+      siteSource: rec.siteSource || 'device-default',
       // Sentinel bookkeeping — BOTH classes surfaced, because rejecting every 156 would punch ~7 %
       // of holes into valid signal and reporting only rejections would hide that judgement call.
       sentinelRejected: rec.sentinelRejected || 0,
@@ -3209,7 +3232,11 @@
         // Optical site (OXYDEX-PULSE-RESOURCING §Phase 2): 'finger' = O2Ring single-channel pleth,
         // 'wrist' = Polar Verity. The Integrator needs it to identify the O2Ring's OWN waveform leg
         // for the finger-waveform-vs-ring-1 Hz-pulse cross-check (a self-check, not cross-device).
-        site: r.site || 'wrist'
+        site: r.site || 'wrist',
+        /* 'device-default' = inferred from the optical layout, NOT observed. On this deployment the
+           Verity is ankle-worn and defaults to 'wrist', so a morphology tier justified by wrist
+           literature is unearned wherever this reads 'device-default'. */
+        siteSource: r.siteSource || 'device-default'
       },
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }

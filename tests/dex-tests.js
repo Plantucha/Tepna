@@ -1959,6 +1959,34 @@
       T.ok('a non-finger site is flagged rather than published silently', /expected 'finger'/.test(tb));
     });
 
+    /* A STRAP GOES WHERE THE WEARER PUTS IT.
+       `site` is decided on the data — a one-channel replicated stream is an O2Ring, three LEDs is a
+       Verity — and that identifies the DEVICE reliably. It is then spent as an ANATOMICAL fact: it
+       selects the morphology evidence tier (dicrotic notch, augmentation index, reflection index,
+       Takazawa b/a, every one site-sensitive and graded against WRIST-validated literature) and gates
+       three Integrator fusion paths.
+
+       On this deployment the Verity is worn on the LEFT ANKLE and has been labelled 'wrist'
+       throughout — a site much further from the heart with an entirely different reflection profile.
+       That is a metric holding a grade it never earned, which is what the evidence ladder exists to
+       prevent. The limb cannot be recovered from a waveform, so it is NOT guessed; the export now says
+       where the value came from instead. */
+    group('PpgDex says whether the site was observed or assumed', 'ppgdex-dsp · site-provenance', function (T) {
+      var P = env.PpgDex;
+      var eq = env.equiv && env.equiv.ppgdex && env.equiv.ppgdex.input;
+      if (!(P && typeof P.compute === 'function' && eq)) { T.ok('PpgDex equiv input wired (skipped)', true); return; }
+      var ex = P.compute({ text: eq }, { rich: true });
+      var rec = ex && ex.recording;
+      T.ok('an export is produced', !!rec);
+      if (!rec) return;
+      T.ok('site is still carried (consumers gate on it)', rec.site === 'wrist' || rec.site === 'finger', rec.site);
+      T.eq('…and is marked as a DEVICE DEFAULT, not an observation', rec.siteSource, 'device-default');
+      /* The load-bearing distinction: a reader must be able to tell a declared limb from a guess
+         WITHOUT knowing how `site` is computed. If siteSource ever goes missing, a wrist-validated
+         morphology tier silently becomes a claim about wherever the strap actually was. */
+      T.ok('siteSource is present, so a grader can refuse an unearned site tier', typeof rec.siteSource === 'string' && rec.siteSource.length > 0, rec.siteSource);
+    });
+
     group('PpgDex shows its PPI fiducial agreement, not just computes it', 'ppgdex-dsp · ppgdex-app · ppi-agreement', function (T) {
       var src = env.sources || {};
       var dsp = src["ppgdex-dsp.js"] || "";
