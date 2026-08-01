@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C5PsyUZJPRO9MCaibVwbiMOdWNLds3tX5RLIwuBiNDw=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-WvO3HjloyyrUAxkiztvWUIp/kHnzzNSHRfdmDB1iq+0=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-m7UkuedMLKSntYws1Ug4cpYuAPl2TQFlBvuBAWt9q4E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C5PsyUZJPRO9MCaibVwbiMOdWNLds3tX5RLIwuBiNDw=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-WvO3HjloyyrUAxkiztvWUIp/kHnzzNSHRfdmDB1iq+0=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-szhpvDy4CKqiZKWi1BsZZC0gcbEUGGdg4MVDD3Cl3+4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -16261,6 +16261,8 @@ __exports.GlucoDex = window.GlucoDex;
     const fNyq = _meanPPIs > 0 ? 1 / (2 * _meanPPIs) : fmax;
     const fCal = Math.max(fmax, Math.min(fNyq, 2));
     let vlf = 0,
+      hfPeakP = 0,
+      hfPeakF = null,
       lf = 0,
       hf = 0,
       totalFull = 0; // full-support total — the Parseval denominator
@@ -16292,7 +16294,22 @@ __exports.GlucoDex = window.GlucoDex;
       // The band arms are explicit ranges, so they stay bounded without further guarding.
       if (f >= bands.vlf[0] && f < bands.vlf[1]) vlf += pw;
       else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;
-      else if (f >= bands.hf[0] && f < bands.hf[1]) hf += pw;
+      else if (f >= bands.hf[0] && f < bands.hf[1]) {
+        hf += pw;
+        /* ENGINE-VERIFICATION §1.6 link 1 — RETAIN THE HF ARGMAX, not just its power.
+           This loop accumulated band power and threw the frequency away, so `respRate` was null on
+           every PpgDex export while the modulation was demonstrably present: executed on synthetic
+           135 Hz PPG with RSA planted at 0.25 Hz, respRate came back null on all 3 epochs with
+           hf = 5758 / 5729 / 5657 ms². The information was measured and discarded at the last step.
+           Argmax on the RAW periodogram bin `P` — deliberately not on `pw = P * df`, nor on the
+           Parseval-scaled band. `df` is constant across bins and `scF` is a single scalar applied
+           afterwards, so neither can change WHICH bin is largest; comparing pre-scaling keeps the peak
+           independent of a calibration whose job is to make POWERS comparable, not to rank bins. */
+        if (P > hfPeakP) {
+          hfPeakP = P;
+          hfPeakF = f;
+        }
+      }
     }
     let total = vlf + lf + hf;
     // Parseval calibration — ∫PSD = signal variance, so band powers land in ms²
@@ -16323,7 +16340,13 @@ __exports.GlucoDex = window.GlucoDex;
       totalPower: _v + _l + _h,
       lfhf: lfhf != null ? r2(lfhf) : null,
       lfnu: lfnu != null ? Math.round(lfnu) : null,
-      hfnu: hfnu != null ? Math.round(hfnu) : null
+      hfnu: hfnu != null ? Math.round(hfnu) : null,
+      /* §1.6 link 1 — the HF peak as a RESPIRATION RATE, breaths/min. Same method and same name as
+         ECGDex's (`RSA (HF-peak of RR spectrum)`), so the Integrator's existing
+         `summary.respRateBrpm = _hf.respRate` branch picks PpgDex up with no consumer change — link 3
+         was already in place and had nothing to read. null when the HF band held no bin at all. */
+      respRate: hfPeakF != null ? r2(hfPeakF * 60) : null,
+      respRateMethod: hfPeakF != null ? 'RSA (HF-peak of RR spectrum)' : null
     };
   }
   function dfaAlpha1(nn) {
@@ -16989,7 +17012,9 @@ __exports.GlucoDex = window.GlucoDex;
         vlf: ls ? ls.vlf : null,
         tp: ls ? ls.totalPower : null,
         lfhf: ls ? ls.lfhf : null,
-        respRate: null,
+        // §1.6 link 2 — was a hardcoded `null` sitting among computed siblings, which is why the
+        // modulation showed up as hf power on every epoch and never as a rate.
+        respRate: ls ? ls.respRate : null,
         pi,
         motionIndex: mi,
         ledAgreementPct,
@@ -17986,7 +18011,16 @@ __exports.GlucoDex = window.GlucoDex;
             hfRobustLowMotion: nz(r.hfRobustLowMotion),
             wholeRecordLf: nz(fq.lf),
             wholeRecordHf: nz(fq.hf),
-            wholeRecordLfhf: nz(fq.lfhf)
+            wholeRecordLfhf: nz(fq.lfhf),
+            /* §1.6 link 2 — the field the Integrator already reads. `integrator-dsp` has assigned
+               `summary.respRateBrpm = _hf.respRate` all along (link 3 was never missing); it simply had
+               nothing to read, because this block carried no frequency-valued key at any level.
+               WHOLE-RECORD deliberately, not the epoch median: respiration is being reported as ONE
+               number for the recording, and `fq` is the whole-record spectrum — the same scale ECGDex
+               reports its `respRate` on, which is what makes the two comparable in the fusion. The
+               epoch-scale values stay available per-epoch in `timeseries.epochs[].respRate`. */
+            respRate: nz(fq.respRate),
+            respRateMethod: fq && fq.respRate != null ? 'RSA (HF-peak of RR spectrum)' : null
           };
         })(),
         confidence: r.hrvConfidence || null

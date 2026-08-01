@@ -65,7 +65,9 @@
       "hfRobustLowMotion": null,
       "wholeRecordLf": 88,
       "wholeRecordHf": 24,
-      "wholeRecordLfhf": 3.65
+      "wholeRecordLfhf": 3.65,
+      "respRate": 9.06,
+      "respRateMethod": "RSA (HF-peak of RR spectrum)"
     },
     "confidence": {
       "beatToBeat": 0.45,

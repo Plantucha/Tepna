@@ -4160,6 +4160,14 @@
       //     PORTING the PulseDex global-peak/peakBelowHF fields was AUDITED and declined:
       //       · PPGDex lombScargle has NO peak/respRate path at all (band-power only, epoch
       //         respRate:null) → the sub-HF-blindness defect is structurally ABSENT, nothing to port.
+      //     ⚠ AMENDED 2026-08-01 (ENGINE-VERIFICATION §1.6). PpgDex now DOES track a peak — but the
+      //     HF-branch argmax only, which is precisely the shape this note calls ECGDex's intentional
+      //     design two bullets down. What §2 declined was PulseDex's GLOBAL peak + peakBelowHF, whose
+      //     sub-HF blindness is the defect it was protecting against; that is still declined and still
+      //     asserted below. The two briefs are not in conflict once the distinction is named: §2 refused
+      //     a whole-spectrum peak, §1.6 wanted the HF argmax that makes respRate expressible at all.
+      //     Before the amendment `respRate` was null on every PpgDex export while the modulation sat in
+      //     hf power — measured, then discarded.
       //       · ECGDex tracks its peak only in the HF branch BY DESIGN: its whole-record respRate is a
       //         MEDIAN of per-epoch EDR (decoupled from any single-window HF peak — group 12), and
       //         sub-HF CSR/periodic-breathing is caught by a dedicated apnea-band detector (detectCVHR,
@@ -4174,7 +4182,18 @@
       var ppg = src['ppgdex-dsp.js'];
       if (ppg) {
         var pLsBody = (ppg.match(/function\s+lombScargle\b[\s\S]*?(?=\n\s*function\s|$)/) || [''])[0];
-        T.ok('ppgdex lombScargle exposes NO respRate/peak path (band-power only → defect absent)', pLsBody.length > 0 && !/respRate/.test(pLsBody) && !/peakF|peakHz|peakBelowHF/.test(pLsBody));
+        /* The peak test must sit AFTER `hf += pw` and inside that same branch. Checked by position
+           rather than by a fixed-width gap: the explanatory comment between them is ~900 chars, and a
+           regex with a magic character budget would break the next time someone edits the comment —
+           which is a test that fails for the wrong reason. */
+        var pHfAt = pLsBody.indexOf('hf += pw;'),
+          pPeakAt = pLsBody.indexOf('if (P > hfPeakP)'),
+          pVlfAt = pLsBody.indexOf('vlf += pw');
+        T.ok('ppgdex lombScargle tracks its peak in the HF branch ONLY (same shape as ECGDex)', pHfAt >= 0 && pPeakAt > pHfAt && !(pVlfAt >= 0 && pPeakAt < pVlfAt), 'hf@' + pHfAt + ' peak@' + pPeakAt);
+        T.ok('…and surfaces it as respRate, so the field is expressible at all (§1.6)', /respRate:\s*hfPeakF/.test(pLsBody));
+        // THE DECLINED PORT IS STILL DECLINED — no whole-spectrum peak, no peakBelowHF. This is the
+        // assertion SYNTH-TEXTURE-FOLLOWUPS-II §2 actually bought, and it survives the amendment.
+        T.ok('ppgdex still has NO global-peak / peakBelowHF path (the sub-HF-blind shape §2 declined)', !/peakBelowHF/.test(pLsBody) && !/globalPeak/.test(pLsBody));
       }
     });
 
@@ -5081,6 +5100,57 @@
        clean twin. Only `opts.rich` differs between the two goldens, so the pair isolates exactly what
        that flag adds — and because the input is committed, CI re-runs it from committed bytes every push
        (the FIXTURE-VERIFICATION-GATE argument for why a committed twin beats a corpus one). */
+    /* ════ PpgDex respRate — the HF ARGMAX was measured and discarded (ENGINE-VERIFICATION §1.6) ════
+       `lombScargle` accumulated HF band POWER and threw the frequency away, so `respRate` was null on
+       every PpgDex export while the modulation was demonstrably present — the finding executed it on
+       synthetic 135 Hz PPG with RSA planted at 0.25 Hz and got null on all 3 epochs against
+       hf = 5758/5729/5657 ms². Information measured, then dropped at the last step.
+
+       §1.6 named three missing links. Two were real (`lombScargle`'s argmax; the export's frequency
+       block). The third — "the Integrator never assigns summary.respRateBrpm" — is NOT missing and has
+       not been for some time: `integrator-dsp` assigns it from `_hf.respRate`. It simply had nothing to
+       read. Verified before building on it, per this brief's own §0 rule. */
+    group('PpgDex lombScargle retains the HF argmax as respRate — §1.6', 'ppgdex-dsp · spectral · known-answer', function (T) {
+      var P = env.PPGDSP;
+      if (!P || typeof P.lombScargle !== 'function') {
+        T.skip('PPGDSP.lombScargle available', 'not co-loaded in this runner');
+        return;
+      }
+      /* A KNOWN-ANSWER fixture: an NN series whose RSA is planted at an exact frequency. The recovered
+         rate must be that frequency in breaths/min — this is a truth test, not a regression pin. */
+      function planted(fHz) {
+        var tt = [], nn = [], t = 0;
+        for (var k = 0; k < 400; k++) {
+          var rr = 900 + 60 * Math.sin(2 * Math.PI * fHz * t);
+          nn.push(rr); tt.push(t); t += rr / 1000;
+        }
+        return P.lombScargle(tt, nn);
+      }
+      var a = planted(0.25), b = planted(0.2), c = planted(0.3);
+      T.ok('a spectrum is returned at all', !!a);
+      if (!a) return;
+      T.approx('RSA planted at 0.25 Hz is recovered as 15.0 breaths/min', a.respRate, 15.0, 0.3);
+      T.approx('…at 0.20 Hz ⇒ 12.0/min', b.respRate, 12.0, 0.3);
+      T.approx('…at 0.30 Hz ⇒ 18.0/min', c.respRate, 18.0, 0.3);
+      /* THREE distinct plants, because a single one is satisfiable by a constant. The old behaviour
+         (null) and a hard-coded 15 would both die here. */
+      T.ok('the three plants give three DIFFERENT answers — not a constant', a.respRate !== b.respRate && b.respRate !== c.respRate);
+      T.eq('…and it names its method, matching ECGDex so the fusion can compare them', a.respRateMethod, 'RSA (HF-peak of RR spectrum)');
+
+      /* The power was never the problem — assert it is UNCHANGED in character, so a future "fix" that
+         recovers the rate by disturbing the band accumulation reds here. */
+      T.ok('CONTROL · hf power is still accumulated and positive', a.hf > 0 && b.hf > 0 && c.hf > 0, 'hf=' + [a.hf, b.hf, c.hf].join('/'));
+      T.eq('CONTROL · the Task-Force identity still holds exactly', a.vlf + a.lf + a.hf, a.totalPower);
+
+      // …and the EXPORT carries it, which is link 2 — the field integrator-dsp already reads.
+      var eq = env.equiv && env.equiv.ppgdex_rich;
+      if (eq && eq.input && env.PpgDex && typeof env.PpgDex.compute === 'function') {
+        var f = env.PpgDex.compute({ text: eq.input }, { rich: true }).hrv.frequency;
+        T.ok('the rich export publishes hrv.frequency.respRate (was absent at any level)', 'respRate' in f, Object.keys(f).join(','));
+        T.ok('…and respRateMethod beside it', 'respRateMethod' in f);
+      }
+    });
+
     group('PpgDex rich export ≡ its committed golden — Integrator-facing surface', 'ppgdex-dsp · equiv · integrator-facing', function (T) {
       var eq = env.equiv && env.equiv.ppgdex_rich;
       var P = env.PpgDex;

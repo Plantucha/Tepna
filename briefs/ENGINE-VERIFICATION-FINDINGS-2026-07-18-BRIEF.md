@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-19 (**§1.1, §1.2, §1.3, §1.5 EXECUTED + gated — re-checked against `main` on 2026-07-19, in code, not from this header.** §1.1: `pairCompanions` over the real 250-file `Ecg nightly/` H10 corpus answered §6's open question — the defect is **not latent**, **147 of 153** companion slots paired to the wrong night, fixed to **153/153**; `fnameStampMs` anchored + numeric-id two-night gate. §1.2: `dex-ingest.js` `deviceKey`/`stampMs` widened for the contiguous capture-host stamp (PR #221). §1.3: `ppgdex-dsp.js` dedupes bit-identical channels before the consensus vote, so a replicated channel reports `ledAgreement: null` instead of a `measured`-tier 100 (PR #225). §1.5: `pat-gate.js` single-sources the promotion gate and publishes `vdCorr` (PR #217). §1.6 is **half closed by another brief** — the Integrator now assigns `summary.respRateBrpm` via `MULTI-SENSOR-DERIVATIONS`, but PpgDex's `lombScargle` still never retains the HF argmax, so the PpgDex link remains open. **§1.8 CLOSED 2026-07-22** — re-verified against `main`: the Gauss→mag/µT fix shipped as `DEEP-AUDIT-II §7.9` (PR #332) with a both-direction gate (`tests/dex-tests.js:19874`); the parse-boundary conversion resolves the finding's "unreachable" note (see §1.8). **§1.7 CLOSED 2026-08-01** — re-verified in the tree: the finding stands (5 of 8 nodes emit; MotionDex is blind), ONE of its two prose items was owed (`integrator-longitudinal.js` corrected + gated by `integrator-longitudinal · docs · source-scan`, mutation-verified), and the other was **already fixed** — `CROSSNIGHT-ENVELOPE-SPEC §7` now carries a full 8-node adoption table. Note §1.7's own text says "5 of 9"; there are eight nodes. **Still open: §1.4** (blocked on `PPGDEX-O2RING-FINGER-SITE`) and **§1.6 (PpgDex half)** — `lombScargle` still never retains the HF argmax. ⚠️ This header previously read "§1.2 … still owed. §1.3–§1.8 untouched" while three of those had landed, and a session acting on it nearly redid them: **verify against the tree, not against a status line.**) · **Created:** 2026-07-18
+**Status:** IN-PROGRESS — 2026-07-19 (**§1.1, §1.2, §1.3, §1.5 EXECUTED + gated — re-checked against `main` on 2026-07-19, in code, not from this header.** §1.1: `pairCompanions` over the real 250-file `Ecg nightly/` H10 corpus answered §6's open question — the defect is **not latent**, **147 of 153** companion slots paired to the wrong night, fixed to **153/153**; `fnameStampMs` anchored + numeric-id two-night gate. §1.2: `dex-ingest.js` `deviceKey`/`stampMs` widened for the contiguous capture-host stamp (PR #221). §1.3: `ppgdex-dsp.js` dedupes bit-identical channels before the consensus vote, so a replicated channel reports `ledAgreement: null` instead of a `measured`-tier 100 (PR #225). §1.5: `pat-gate.js` single-sources the promotion gate and publishes `vdCorr` (PR #217). §1.6 is **half closed by another brief** — the Integrator now assigns `summary.respRateBrpm` via `MULTI-SENSOR-DERIVATIONS`, but PpgDex's `lombScargle` still never retains the HF argmax, so the PpgDex link remains open. **§1.8 CLOSED 2026-07-22** — re-verified against `main`: the Gauss→mag/µT fix shipped as `DEEP-AUDIT-II §7.9` (PR #332) with a both-direction gate (`tests/dex-tests.js:19874`); the parse-boundary conversion resolves the finding's "unreachable" note (see §1.8). **§1.7 CLOSED 2026-08-01** — re-verified in the tree: the finding stands (5 of 8 nodes emit; MotionDex is blind), ONE of its two prose items was owed (`integrator-longitudinal.js` corrected + gated by `integrator-longitudinal · docs · source-scan`, mutation-verified), and the other was **already fixed** — `CROSSNIGHT-ENVELOPE-SPEC §7` now carries a full 8-node adoption table. Note §1.7's own text says "5 of 9"; there are eight nodes. **Still open: §1.4** (blocked on `PPGDEX-O2RING-FINGER-SITE`) and **§1.6 CLOSED 2026-08-01** — `lombScargle` retains the HF argmax and the export publishes `respRate`; link (iii) turned out never to have been missing. Only **§1.4** (blocked on `PPGDEX-O2RING-FINGER-SITE`) remains. ⚠️ This header previously read "§1.2 … still owed. §1.3–§1.8 untouched" while three of those had landed, and a session acting on it nearly redid them: **verify against the tree, not against a status line.**) · **Created:** 2026-07-18
 
 # Engine-verification findings — what an executed audit of the Vigil↔suite seam actually found
 
@@ -250,6 +250,30 @@ needs no Integrator change."* **That is false** — verified, three links are mi
 
 `fuseRespirationRate` itself *is* n-agnostic and null-safe (verified: adding a PpgDex record without the field
 leaves output byte-identical). Correct that brief's §2 claim when this lands.
+
+**✅ §1.6 CLOSED 2026-08-01 — two of the three links were real; the third was already there.**
+
+| link | verdict |
+|---|---|
+| (i) `lombScargle` must retain the argmax | **REAL, fixed** — HF-branch argmax on the raw periodogram bin |
+| (ii) export `hrv.frequency` has no `respRate` | **REAL, fixed** — whole-record `respRate` + `respRateMethod`, and the epoch `respRate: null` that sat among computed siblings now carries the value |
+| (iii) the Integrator never assigns `summary.respRateBrpm` | **NOT MISSING** — `integrator-dsp` assigns it from `_hf.respRate`; it had nothing to read |
+
+So this section's own correction to `MULTI-SENSOR-DERIVATIONS-FOLLOWUPS` §2 overshot: the fuser *is*
+n-agnostic and PpgDex folded in with **no Integrator change**. What was false in the original claim was
+only that "the DSP fix" is one fix rather than two. Both briefs now say so.
+
+**Known-answer gated** (`ppgdex-dsp · spectral · known-answer`): RSA planted at 0.25 / 0.20 / 0.30 Hz
+recovers **15.06 / 12.06 / 18.06** breaths·min⁻¹ — a truth test, not a regression pin — with three distinct
+plants so a constant cannot pass, plus controls that the HF power and the Task-Force identity are undisturbed.
+
+⚠️ **One existing guard had to be amended, carefully.** `SYNTH-TEXTURE-FOLLOWUPS-II §2` pinned that PpgDex's
+`lombScargle` "exposes NO respRate/peak path", having audited and DECLINED porting PulseDex's peak fields.
+Read closely, what §2 declined is the **global peak + `peakBelowHF`**, whose sub-HF blindness is the defect
+it was guarding against — and the same note calls ECGDex's **HF-branch-only** peak intentional. This change
+adds the HF-only form, so the two briefs are reconcilable once the distinction is named. The guard now
+asserts the HF-only shape **and still forbids the global/`peakBelowHF` path §2 refused**, so that decision
+survives intact rather than being steamrolled.
 
 ---
 
