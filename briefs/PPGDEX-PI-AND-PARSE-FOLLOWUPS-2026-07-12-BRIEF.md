@@ -42,6 +42,52 @@ saves, so measure before choosing.
 `n0614a` companions, `pat-feasibility.html` still produces a non-degenerate motion envelope on a real
 file, and both gates are green.
 
+---
+
+### §1 CLOSED 2026-08-01 — **NOT ACTIONABLE.** There is no consumer that can opt out.
+
+The safe shape this section specifies was implemented and measured, then **reverted unshipped**. Three
+findings, and the third is the one that closes it.
+
+**1 · The win is 1.78×, not 2.08×.** Measured on a real 79.7 MB Polar Verity companion
+(`Polar_VeritySense_0C301E3F_20260727221400_GYRO.txt`, 1,165,946 rows) — a different night from the
+brief's `n0614a`, which is no longer on disk, so this is a re-measurement rather than a reproduction:
+
+| | ms | rows with `tMs` |
+|---|---|---|
+| default (`stamps` on) | 1954 | 1,165,946 |
+| `{ stamps: false }` | **1096** | 0 |
+
+**1.78×**, below this section's own ≥2× acceptance bar. Recorded as measured rather than rounded up to
+the bar it was supposed to clear.
+
+**2 · The consumer census was out of date — 2 had become 9.** This section names
+`pat-feasibility-worker.js` and `ppgdex-app.js`. There are now also `resp-acc-analysis-app.js`,
+`motiondex-dsp.js`, `tools/trio-batch.mjs`, and `adapters/polar-sense-ppg.js`. That growth is exactly the
+hazard the section was written about: *"`parseSensorXYZ` has a second consumer outside the DSP that it
+never checked"* — since then it gained four more, and nothing announced them.
+
+**3 · Every one of them reads `tMs`, so the opt-out has nowhere to go.**
+
+| caller | reads |
+|---|---|
+| `pat-feasibility-worker.js` | `if (r.tMs == null) continue;` — this section's original finding |
+| `resp-acc-analysis-app.js:121` | `rows[0].tMs`, and `s.tMs` per sample |
+| `motiondex-dsp.js:250,260` | `rows[i].tMs` for its stream anchor and `relSecOf` |
+| **`tools/trio-batch.mjs:1299`** | `if (r.tMs != null && isFinite(r.tMs))` — **and it sets `relNs: NaN` on every row it keeps**, making `tMs` the *sole* time base |
+
+`trio-batch` is decisive: it does not merely read `tMs` as a fallback, it discards `relNs` and sorts on
+`tMs`. Opting it out drops **every** row — the same silent all-zero failure this section already caught
+one consumer over, which is a fair sign the hazard is structural rather than a one-off oversight.
+
+**Why nothing shipped.** The `opts.stamps` parameter is safe and correct (default `true`, and rows with
+non-finite `relNs` keep their stamp even under `stamps:false`, so the ns-column-broken fallback survives).
+But shipping it means a `ppgdex-dsp.js` change → PpgDex + both orchestrators re-bundled → `computeHash`
+moves → fixture re-verification owed, **for a knob no caller can pass**. A dormant optimization is not
+free: it is a permanent invitation to opt a caller out later without redoing this audit, and the failure
+mode is silence. Re-open only with a NEW consumer that provably never reads `tMs` — and re-run the census
+first, because it has already doubled twice.
+
 ## §2 — `ppgdex-morph.js` is now formatter-exempt; drop it from the list when it is genuinely reflowed
 
 `biome.json`'s `overrides` gained `ppgdex-morph.js` (formatter off, **linter still on**) because it is a
