@@ -7215,6 +7215,40 @@
        must be `null` — not 0, which reads as the most severe desaturation physically possible, and not
        the previous value, which reads as stable oxygen. Absence is not zero, and here it is not
        stability either; both are the fabricated-absence class this suite keeps finding. */
+    /* A DESATURATION HAS TWO INSTANTS AND THE EXPORT CARRIED ONE.
+       `desat_event.tMs` is the NADIR, which is right for scoring and wrong for timing: the event begins
+       when saturation starts falling and bottoms out a desaturation-duration later, so any correlation
+       against another signal silently measures the coupling PLUS that duration. Measured on the corpus,
+       apnea->desat transit reads ~59 s from the nadir and ~29 s from the onset — the ~30 s difference is
+       the desaturation itself, not physiology. `startTMs` was already computed and stamped from the
+       parsed rows, then dropped at the export boundary. */
+    group('A desaturation event carries its onset, not only its nadir', 'oxydex-dsp', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      var build = OB && OB.oxyBuildGangliorEvents;
+      T.ok('oxyBuildGangliorEvents exposed', typeof build === 'function');
+      if (typeof build !== 'function') return;
+      var t0 = U(2026, 5, 12, 22, 0, 0);
+      var night = {
+        t0Ms: t0,
+        desat: { events: [ { startIdx: 10, nadirIdx: 40, endIdx: 60, depth: 5, duration: 50, recovery: 20, nadir: 88,
+                             tMs: t0 + 40000, startTMs: t0 + 10000, endTMs: t0 + 60000 } ] },
+        oscEpisodes: []
+      };
+      var evs = build([night]) || [];
+      var d = evs.filter(function (e) { return e.impulse === 'desat_event'; })[0];
+      T.ok('a desat_event is emitted', !!d, evs.length + ' event(s)');
+      if (!d) return;
+      T.eq('tMs is still the NADIR — the contract does not move', d.tMs, t0 + 40000);
+      T.eq('…and the ONSET is now carried too', d.meta.onsetTMs, t0 + 10000);
+      T.ok('…strictly before the nadir, which is what makes it a different fiducial', d.meta.onsetTMs < d.tMs, d.meta.onsetTMs + ' vs ' + d.tMs);
+      T.eq('…and the end as well', d.meta.endTMs, t0 + 60000);
+      /* An unstamped row must stay null. The index->time fallback is a uniform stretch that drifts by
+         minutes on a lossy night — the failure the nadir stamp itself was introduced to fix. */
+      var night2 = { t0Ms: t0, desat: { events: [ { startIdx: 10, nadirIdx: 40, depth: 4, tMs: t0 + 40000, startTMs: null } ] }, oscEpisodes: [] };
+      var d2 = (build([night2]) || []).filter(function (e) { return e.impulse === 'desat_event'; })[0];
+      T.ok('an unstamped onset is null, never derived from the index', d2 && d2.meta.onsetTMs === null, d2 && d2.meta.onsetTMs);
+    });
+
     group('OxyDex exports SpO₂ at the rate it was recorded, with holes as holes', 'oxydex-dsp', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       var build = OB && OB.oxyBuildSpo2Series;
