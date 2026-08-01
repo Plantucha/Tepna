@@ -68,6 +68,60 @@ is the defect `#636` had just fixed elsewhere (a resolver that existed, was gate
 Backed out: `dex-export.js`, `ecgdex-dsp.js`, `ppgdex-dsp.js`, both `.src.html` co-loads, both bundles,
 both goldens, the co-load classification and the `trio-batch` realm load. `build --check` clean.
 
+## 3.5 · CORRECTION — the export DOES already carry a sub-second shared channel, and it does not work
+
+This brief opened by saying *"no node-export carries anything mechanical"*. That framing is wrong in a
+way worth fixing: the exports already carry **explicit per-beat times** — `timeseries.rr.tSec`
+(ECGDex) and `timeseries.ppi.tSec` (PpgDex), 22,460 and 22,145 beats on 2026-07-26 — anchored to each
+node's own `startEpochMs`. Beat times are not mechanical, but they *are* a shared channel at
+sub-second resolution, already on the bus, needing **no contract change at all**.
+
+It was measured, and it does not align these devices. Correlating the interval SEQUENCES (aperiodic in
+value, so immune to the mod-RR trap that defeats a raw beat-time scan) gives a beat-index offset at
+**r = 0.411**, and the time offset that pairing implies has **MAD 22 s / IQR 47 s** — the pairing
+drifts, because dropped beats accumulate an index error the correlation cannot see.
+
+| | 2026-07-26 (here) | `IBI-ALIGNMENT-LIMIT` |
+|---|---|---|
+| interval-sequence r | 0.411 | 0.532 |
+| beats within 100 ms of a counterpart | **15.9 %** | 5–26 % |
+| PAT-window deltas (60–700 ms) | median **336 ms**, **IQR 265 ms** | — |
+
+**An independent reproduction on a night that brief did not use.** The median 336 ms is physiologically
+right for pulse arrival and would clear `pat-gate.js`'s `physical` check; the **IQR fails the ≤ 60 ms
+bar by 4.4×**, exactly as 16 % beat correspondence predicts — most "nearest" pulses are the wrong beat.
+
+**So the limit is physiological, not a plumbing gap**, and one design direction is closed: do not build
+an RR↔PPI aligner. The data is already exported and the correspondence is not there.
+
+## 3.6 · A TWO-PASS scheme is the right shape and still fails — with the control that proves it
+
+The natural fix for §3.5 is two passes: a coarse method that is unambiguous but low-resolution gets
+inside one heartbeat, and the beat trains — no longer ambiguous modulo an RR interval — refine it. The
+reasoning is sound; the mod-RR trap really is only a trap when the offset is unknown to better than
+one beat. It was tested with the ACC lock (~−1.2 s) as pass 1 and the PAT gate's own statistic as
+pass 2 (first pulse foot after each R-peak inside 60–700 ms; score median and beat-to-beat IQR).
+
+| offset | n | coverage | median PAT | IQR |
+|---|---|---|---|---|
+| best over a ±3 s sweep (−0.90 s) | 10,792 | 48.0 % | 351 ms | **264 ms** |
+| **control — shifted +1 hour** | 10,318 | 45.9 % | 388 ms | **330 ms** |
+
+**Being an hour wrong looks the same as being right.** The IQR is flat across the whole sweep
+(264–368 ms) with no minimum anywhere, and the chance control sits inside that range. Pass 2 has **no
+discriminating statistic on this data**: at ~16 % beat correspondence, a 640 ms-wide acceptance window
+with beats arriving every ~1 s fills by chance at every offset, so what is being measured is the width
+of the window, not a pulse transit.
+
+**The control is the finding.** Without it the sweep reports *"best IQR 264 ms at −0.90 s"*, which
+reads like an alignment and is not one — the same shape as the point estimates this repo has now
+retracted three times.
+
+What would actually move pass 2 is **better beat correspondence, not a better search**: restrict it to
+the highest-SQI PPG epochs, where the optical spine finds the same beats the ECG does.
+`PAT-FEASIBILITY`'s gate already encodes this as `coupling >= 55 %`, and this night is nowhere near
+it. That is a data-quality precondition, not an alignment algorithm.
+
 ## 4 · The design question the next iteration must answer first
 
 **How do you carry a continuous envelope in a JSON export that is currently 30–400 KB?**
