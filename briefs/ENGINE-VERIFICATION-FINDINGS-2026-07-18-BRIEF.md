@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-19 (**§1.1, §1.2, §1.3, §1.5 EXECUTED + gated — re-checked against `main` on 2026-07-19, in code, not from this header.** §1.1: `pairCompanions` over the real 250-file `Ecg nightly/` H10 corpus answered §6's open question — the defect is **not latent**, **147 of 153** companion slots paired to the wrong night, fixed to **153/153**; `fnameStampMs` anchored + numeric-id two-night gate. §1.2: `dex-ingest.js` `deviceKey`/`stampMs` widened for the contiguous capture-host stamp (PR #221). §1.3: `ppgdex-dsp.js` dedupes bit-identical channels before the consensus vote, so a replicated channel reports `ledAgreement: null` instead of a `measured`-tier 100 (PR #225). §1.5: `pat-gate.js` single-sources the promotion gate and publishes `vdCorr` (PR #217). §1.6 is **half closed by another brief** — the Integrator now assigns `summary.respRateBrpm` via `MULTI-SENSOR-DERIVATIONS`, but PpgDex's `lombScargle` still never retains the HF argmax, so the PpgDex link remains open. **§1.8 CLOSED 2026-07-22** — re-verified against `main`: the Gauss→mag/µT fix shipped as `DEEP-AUDIT-II §7.9` (PR #332) with a both-direction gate (`tests/dex-tests.js:19874`); the parse-boundary conversion resolves the finding's "unreachable" note (see §1.8). **§1.7 CLOSED 2026-08-01** — re-verified in the tree: the finding stands (5 of 8 nodes emit; MotionDex is blind), ONE of its two prose items was owed (`integrator-longitudinal.js` corrected + gated by `integrator-longitudinal · docs · source-scan`, mutation-verified), and the other was **already fixed** — `CROSSNIGHT-ENVELOPE-SPEC §7` now carries a full 8-node adoption table. Note §1.7's own text says "5 of 9"; there are eight nodes. **Still open: §1.4** (blocked on `PPGDEX-O2RING-FINGER-SITE`) and **§1.6 CLOSED 2026-08-01** — `lombScargle` retains the HF argmax and the export publishes `respRate`; link (iii) turned out never to have been missing. Only **§1.4** (blocked on `PPGDEX-O2RING-FINGER-SITE`) remains. ⚠️ This header previously read "§1.2 … still owed. §1.3–§1.8 untouched" while three of those had landed, and a session acting on it nearly redid them: **verify against the tree, not against a status line.**) · **Created:** 2026-07-18
+**Status:** IN-PROGRESS — 2026-07-19 (**§1.1, §1.2, §1.3, §1.5 EXECUTED + gated — re-checked against `main` on 2026-07-19, in code, not from this header.** §1.1: `pairCompanions` over the real 250-file `Ecg nightly/` H10 corpus answered §6's open question — the defect is **not latent**, **147 of 153** companion slots paired to the wrong night, fixed to **153/153**; `fnameStampMs` anchored + numeric-id two-night gate. §1.2: `dex-ingest.js` `deviceKey`/`stampMs` widened for the contiguous capture-host stamp (PR #221). §1.3: `ppgdex-dsp.js` dedupes bit-identical channels before the consensus vote, so a replicated channel reports `ledAgreement: null` instead of a `measured`-tier 100 (PR #225). §1.5: `pat-gate.js` single-sources the promotion gate and publishes `vdCorr` (PR #217). §1.6 is **half closed by another brief** — the Integrator now assigns `summary.respRateBrpm` via `MULTI-SENSOR-DERIVATIONS`, but PpgDex's `lombScargle` still never retains the HF argmax, so the PpgDex link remains open. **§1.8 CLOSED 2026-07-22** — re-verified against `main`: the Gauss→mag/µT fix shipped as `DEEP-AUDIT-II §7.9` (PR #332) with a both-direction gate (`tests/dex-tests.js:19874`); the parse-boundary conversion resolves the finding's "unreachable" note (see §1.8). **§1.7 CLOSED 2026-08-01** — re-verified in the tree: the finding stands (5 of 8 nodes emit; MotionDex is blind), ONE of its two prose items was owed (`integrator-longitudinal.js` corrected + gated by `integrator-longitudinal · docs · source-scan`, mutation-verified), and the other was **already fixed** — `CROSSNIGHT-ENVELOPE-SPEC §7` now carries a full 8-node adoption table. Note §1.7's own text says "5 of 9"; there are eight nodes. **§1.4 CLOSED 2026-08-01** — its blocker (ii) was STALE (`PPGDEX-O2RING-FINGER-SITE` has been DONE since 2026-07-20; verified in the code, not off the status line), so the O2Ring finger pleth now routes to its own `adapters/o2ring-ppg.js` at 0.97 instead of tying 0.95/0.85 and being dropped as `ambiguous`. Fixing it exposed a THIRD, latent defect: the layout→site rule lived only in `parsePPG`, so every frame-routed recording exported `site:'wrist'` by default — harmless while only the 3-LED Verity could route, and a wrist-validated morphology tier on a fingertip pleth the moment one could. `deriveSiteFromLayout` is single-sourced now. And **§1.6 CLOSED 2026-08-01** — `lombScargle` retains the HF argmax and the export publishes `respRate`; link (iii) turned out never to have been missing. **Every §1 finding is now closed.** ⚠️ This header previously read "§1.2 … still owed. §1.3–§1.8 untouched" while three of those had landed, and a session acting on it nearly redid them: **verify against the tree, not against a status line.**) · **Created:** 2026-07-18
 
 # Engine-verification findings — what an executed audit of the Vigil↔suite seam actually found
 
@@ -204,6 +204,48 @@ The real cost is that the 125.738 Hz finger pleth is **never analyzed as PPG in 
   no finger-site path. Fixing (i) alone routes the file into a DSP with no honest model for it, which is worse
   than the current honest failure.
 
+### 1.4 EXECUTED 2026-08-01 — blocker (ii) was STALE, and (i) exposed a third defect
+
+**(ii) no longer holds, and had not for six weeks.** `PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md` is
+**DONE — 2026-07-20**, verified on real hardware. Checked in the code rather than off the status line, per
+this brief's own §0: `parsePPG` derives `site` from the column layout (1 channel *or* replicated → `finger`),
+`detectBeats` has a single-channel lane (`singleChannel: true`), and the O2Ring sentinel pass is site-gated.
+The condition (i) was waiting on had already been met; the item sat blocked on a blocker that was gone.
+
+**(i) fixed by two symmetric DECLINES, not by out-bidding.** New `adapters/o2ring-ppg.js` (vendor
+Wellue/Viatom, `signalType: 'ppg'`) claims vendor-token + `_PPG` at **0.97** and REFERENCES `PpgDex.parsePPG`
+— no second parser. Then `oxydex-spo2` declines a `_PPG` waveform stream (it parses 1 Hz CSV rows; the vendor
+token alone was over-broad), and `polar-sense-ppg` declines a *foreign vendor's* `_PPG`. That second decline
+is the one worth arguing: simply letting `polar-sense-ppg` win the tie — which this section listed as an
+option — would route a Wellue waveform through an adapter whose provenance reads *"Polar Verity Sense / OH1"*,
+a **false vendor stamp on the export**, which is worse than the ambiguity it replaces. An unknown-vendor
+`_PPG` still takes the 0.85 PSL default, which is what that default is for.
+
+**A THIRD defect, latent, that (i) would have activated — and it is what (ii) was really protecting against.**
+`site` is spent as an evidence-tier decision: it selects the morphology tier (dicrotic notch, augmentation
+index, reflection index, Takazawa b/a — every one graded against WRIST-validated literature) and gates three
+Integrator fusion paths. The layout→site rule lived **only inside `parsePPG`**, so `compute()`'s SignalFrame
+branch rebuilt a rec carrying **no `site`** and the export fell through to `rec.site || 'wrist'`. Nothing
+caught it, because the only adapter that could produce a ppg frame was `polar-sense-ppg` — whose recordings
+really are 3-LED, so the default agreed with the truth *for the wrong reason*. Routing a finger layout through
+that branch would have stamped a wrist-validated tier onto a fingertip pleth. `deriveSiteFromLayout` is now
+single-sourced and both ingest paths call it. So blocker (ii) was **right in substance while wrong in its
+stated reason**: the danger was not that PpgDex lacked a finger model — it had one — but that the *adapter
+boundary* discarded the field that model depends on.
+
+**Measured end-to-end on the real corpus, not asserted.** A 7.4 h
+`Wellue_O2Ring-S_S8AW2100_20260729215137_PPG.txt` routes `o2ring-ppg` 0.97 (unambiguous) and exports
+`site:"finger"`, `siteSource:"device-default"`, 8 ganglior events. Under the previous code the same file
+routed `ambiguous`; forced through the frame branch it exported `site:"wrist"`. A Verity file is unchanged
+(`polar-sense-ppg` 0.97, `site:"wrist"`).
+
+Gated by two new groups (`adapters · o2ring-ppg · routing` and `ppgdex-dsp · adapters · site · known-answer`),
+each mutation-verified by reverting the corresponding production change — and each mutation *confirmed
+applied* before its run, because a first attempt at those substitutions silently no-op'd and the resulting
+"no failures" meant nothing. `computeHash` moved `c7a8e6dea17d → 2acf0985e625`, so this is **not** export-inert;
+`tools/verify-fixtures.mjs` was re-run against the real corpus and re-stamped the PpgDex equiv fixture. 13
+bundles rebuilt.
+
 ---
 
 ### 1.5 🟢 LOW — the PAT tool decides its verdict on *uncorrected* drift, and has an undocumented fourth gate
@@ -386,10 +428,17 @@ retains the HF argmax. ⚠️ `ppgdex-dsp.js` is heavily contended — check ope
 shipped as `DEEP-AUDIT-II §7.9` (PR #332) with a both-direction gate. **§1.7 RE-VERIFIED AND CLOSED 2026-08-01** — the finding stands (5 of 8 emit), one of its two prose items
 was already fixed, the other is corrected and now gated. See §1.7.
 
-**Also still open: §1.4**, blocked on `PPGDEX-O2RING-FINGER-SITE` and explicitly out of scope below.
+**§1.4 CLOSED 2026-08-01** — see §1.4's execution note. This block previously listed §1.4 as unresolved and
+said it "must not ship before that brief's single-channel path", while `PPGDEX-O2RING-FINGER-SITE` had been
+**DONE since 2026-07-20**. That is the third time this file's prose has outlived the tree, and the reason its
+own header carries the warning. It is now gated: `docs-ledger` check3c fails a brief that marks a section
+resolved while another line still lists it as outstanding, and it caught this block.
 
-**Not in scope here:** the O2Ring adapter tie (§1.4). It belongs to
-`PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md` and must not ship before that brief's single-channel path.
+*(Recorded scope note: check3c is a string matcher, so it cannot tell a QUOTED historical claim from a live
+one — an earlier draft of this very paragraph quoted the old sentence verbatim and tripped the gate. Describe
+a superseded claim rather than reproducing its wording. That is a real limitation of the check, not a reason
+to loosen it: the alternative is a matcher that reasons about quotation, which is exactly the judgement
+`DOCS-LEDGER-CHECK3B-BLIND-ROW` §4a ruled out.)*
 
 ---
 

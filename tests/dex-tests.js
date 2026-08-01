@@ -24134,6 +24134,116 @@
        silently, with no crash and no warning. 8 sessions in the ~180-night real corpus hit exactly
        this and under-counted their events. The rule is exposed on the adapter record precisely so
        it can be asserted here with no filesystem. */
+    /* ════ ENGINE-VERIFICATION-FINDINGS §1.4 — the O2Ring finger pleth was routed AMBIGUOUS ══════
+     The O2Ring emits two unrelated streams and the router could not tell them apart: the 1 Hz
+     `SpO2/Pulse/Motion` CSV (OxyDex's lane) and a ~125.7 Hz raw optical waveform in `*_PPG.txt`.
+     `oxydex-spo2` matched the vendor token ALONE and claimed both at 0.95; `polar-sense-ppg` claimed
+     the `_PPG` suffix at 0.85. Gap 0.10 < the 0.15 ambiguity threshold, so the finger pleth routed
+     `ambiguous` and — as §1.4 puts it — "is never analyzed as PPG in either host".
+
+     §1.4 held this behind two blockers and said (i) must not land without (ii). (ii) — "PpgDex has
+     no single-channel and no finger-site path" — is STALE: `PPGDEX-O2RING-FINGER-SITE-2026-07-18`
+     is DONE (2026-07-20), verified on hardware, and `parsePPG` returns `site:'finger'` with a
+     single-channel beat lane. Verified in the tree before acting, not read off a status line. */
+    group('o2ring-ppg adapter — the finger pleth routes unambiguously (§1.4)', 'adapters · o2ring-ppg · routing', function (T) {
+      var SA = env.SignalAdapters;
+      var A = SA && SA.byId ? SA.byId('o2ring-ppg') : null;
+      T.ok('o2ring-ppg adapter registered', !!A, A ? '' : 'adapters/o2ring-ppg.js not co-loaded — add it to BOTH runners + both .src.html');
+      if (!A || !SA || typeof SA.route !== 'function') return;
+      T.ok('signalType = ppg (the waveform, not the oximetry summary)', A.signalType === 'ppg', A.signalType);
+
+      // Byte-exact capture-host names + first header line, as §1.4 executed them.
+      var O2_PPG = 'Wellue_O2Ring-S_S8AW2100_20260725010522_PPG.txt',
+        O2_HEAD = 'Phone timestamp;sensor timestamp [ns];channel 0',
+        VERITY_PPG = 'Polar_VeritySense_0C301E3F_20260613_121435_PPG.txt',
+        VERITY_HEAD = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient',
+        O2_CSV = 'O2Ring S 2100_20260720.csv',
+        O2_CSV_HEAD = 'Time,SpO2(%),Pulse Rate(bpm),Motion';
+
+      // (1) THE FIX — the O2Ring waveform now wins outright instead of tying at 0.95/0.85.
+      var r1 = SA.route({ name: O2_PPG }, O2_HEAD);
+      T.eq('§1.4 · O2Ring *_PPG.txt routes to o2ring-ppg', r1.best && r1.best.id, 'o2ring-ppg');
+      T.ok(
+        '§1.4 · …at 0.97 and NOT ambiguous (was oxydex-spo2 0.95 vs polar-sense-ppg 0.85)',
+        r1.best.confidence === 0.97 && r1.ambiguous === false,
+        JSON.stringify({ best: r1.best.id, conf: r1.best.confidence, runnerUp: r1.runnerUp && r1.runnerUp.id, ambiguous: r1.ambiguous })
+      );
+
+      // (2) NO REGRESSION on the two routes that already worked. These catch the tempting wrong fix —
+      //     breaking the tie by simply out-bidding everyone.
+      var r2 = SA.route({ name: VERITY_PPG }, VERITY_HEAD);
+      T.eq('Verity *_PPG.txt still routes to polar-sense-ppg', r2.best && r2.best.id, 'polar-sense-ppg');
+      T.ok('…still unambiguous at 0.97', r2.best.confidence === 0.97 && r2.ambiguous === false, JSON.stringify({ conf: r2.best.confidence, ambiguous: r2.ambiguous }));
+      var r3 = SA.route({ name: O2_CSV }, O2_CSV_HEAD);
+      T.eq('the O2Ring 1 Hz CSV still routes to oxydex-spo2', r3.best && r3.best.id, 'oxydex-spo2');
+      T.ok('…still unambiguous at 0.95', r3.best.confidence === 0.95 && r3.ambiguous === false, JSON.stringify({ conf: r3.best.confidence, ambiguous: r3.ambiguous }));
+
+      // (3) The two DECLINES that break the tie, asserted at the adapter rather than through route()
+      //     so a failure names which adapter changed its mind instead of just "ambiguous again".
+      var OX = SA.byId('oxydex-spo2'),
+        PS = SA.byId('polar-sense-ppg');
+      if (OX) T.eq('oxydex-spo2 declines a _PPG waveform stream (it parses 1 Hz CSV rows)', OX.detect({ name: O2_PPG }, O2_HEAD), 0);
+      if (OX) T.eq('…and still claims the O2Ring CSV at 0.95', OX.detect({ name: O2_CSV }, O2_CSV_HEAD), 0.95);
+      if (PS) T.eq('polar-sense-ppg declines a foreign vendor’s _PPG (no false Polar provenance)', PS.detect({ name: O2_PPG }, O2_HEAD), 0);
+      // The bare-_PPG default is what that rule is FOR — an unknown vendor must still land there.
+      if (PS) T.eq('…but an unknown-vendor _PPG still gets the 0.85 PSL default', PS.detect({ name: 'Unknown_Device_20260725_PPG.txt' }, 'Phone timestamp;sensor timestamp [ns];channel 0'), 0.85);
+    });
+
+    /* ════ §1.4 · SITE MUST SURVIVE THE ADAPTER BOUNDARY ════════════════════════════════════════
+     `site` is spent as an evidence-tier decision — it selects the morphology tier (dicrotic notch,
+     augmentation index, Takazawa b/a, every one graded against WRIST-validated literature) and gates
+     three Integrator fusion paths. The layout→site rule lived only inside `parsePPG`, so `compute()`'s
+     SignalFrame branch rebuilt a rec with NO `site` and the export took its `rec.site || 'wrist'`
+     default. That was invisible for as long as `polar-sense-ppg` was the only adapter that could
+     produce a ppg frame — its recordings really are 3-LED, so the default was right for the wrong
+     reason. Routing the finger pleth (above) makes a FINGER layout reachable through that branch,
+     where the same default would stamp a wrist-validated tier onto a fingertip pleth — precisely the
+     harm §1.4's blocker (ii) existed to prevent. `deriveSiteFromLayout` is now single-sourced.
+
+     Measured end-to-end on the real corpus before this was written: a 7.4 h
+     `Wellue_O2Ring-S_…_PPG.txt` routes `o2ring-ppg` 0.97 and exports `site:"finger"`; the same file
+     under the previous code exported `site:"wrist"`. */
+    group('PpgDex site survives the SignalFrame ingest boundary (§1.4)', 'ppgdex-dsp · adapters · site · known-answer', function (T) {
+      var PG = env.PpgDex || env.PPGDSP;
+      if (!(PG && typeof PG.compute === 'function')) {
+        T.skip('PpgDex.compute available', 'ppgdex-dsp not wired in this lane');
+        return;
+      }
+      var FS = 100,
+        N = FS * 30;
+      // A crude but beat-shaped pulse so compute() has something real to chew on; the ASSERTION is
+      // about site, and site is decided on channel LAYOUT, not on morphology.
+      var mk = function () {
+        var a = new Float32Array(N);
+        for (var i = 0; i < N; i++) a[i] = 1000 + 120 * Math.sin((2 * Math.PI * i) / (FS * 1.0)) + 15 * Math.sin((2 * Math.PI * i) / (FS * 0.25));
+        return a;
+      };
+      var siteOf = function (chs) {
+        var out = PG.compute({
+          signalType: 'ppg',
+          kind: 'samples',
+          samples: { ch: chs, amb: null, n: N, durSec: (N - 1) / FS, length: N },
+          fs: FS,
+          t0Ms: Date.UTC(2026, 6, 25, 1, 5, 26),
+          offsetMin: null,
+          usable: true
+        });
+        return out && out.recording ? out.recording.site : null;
+      };
+      var one = mk();
+      T.eq('§1.4 · a SINGLE-channel frame exports site "finger" (was "wrist")', siteOf([one]), 'finger');
+      // Three channels carrying byte-identical samples is the O2Ring's 3-column file, not a Verity —
+      // decided on the DATA, so a vendor renaming its columns changes nothing.
+      T.eq('§1.4 · three REPLICATED channels are still the finger layout', siteOf([one, Float32Array.from(one), Float32Array.from(one)]), 'finger');
+      // …and three genuinely different LEDs must stay 'wrist' — the regression that matters, since
+      // every ppg frame routed through this branch before today was a Verity.
+      var b = mk(),
+        c = mk();
+      b[10] += 7;
+      c[20] -= 9;
+      T.eq('§1.4 · three DISTINCT channels remain "wrist" (no regression for Verity)', siteOf([one, b, c]), 'wrist');
+    });
+
     group('resmed-edf adapter — SD-card session grouping (CPAP-REAL-CORPUS §F4)', 'adapters · resmed-edf · cpap', function (T) {
       var SA = env.SignalAdapters;
       var A = SA && SA.byId ? SA.byId('resmed-edf') : null;

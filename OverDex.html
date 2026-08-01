@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BKN+oFj/529G2XjwMvVNKSuRiX/S4+v4vRG1pIuDGsc=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-ByHfsmTK8zI2FTuQPWOPcWy8Za/hu3kUDY6Q0HfE9NI=' 'sha256-C5PsyUZJPRO9MCaibVwbiMOdWNLds3tX5RLIwuBiNDw=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W9TlargHDgYSCDALxgH9CGwNJXsDIE0BNYauc9UZEDo=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/5ubvD+CaotD5N0gUtPUav5bqvHALhYTzk9lP14AmHE=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BKN+oFj/529G2XjwMvVNKSuRiX/S4+v4vRG1pIuDGsc=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-C5PsyUZJPRO9MCaibVwbiMOdWNLds3tX5RLIwuBiNDw=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W9TlargHDgYSCDALxgH9CGwNJXsDIE0BNYauc9UZEDo=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -8203,6 +8203,16 @@ window.IntegratorDSP = {
     detect: function (file, headText) {
       var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
+      /* ENGINE-VERIFICATION-FINDINGS §1.4 (i) — THE VENDOR MARK ALONE WAS OVER-BROAD.
+         The O2Ring emits two unrelated streams: the 1 Hz `SpO2/Pulse/Motion` CSV this adapter
+         parses, and a ~125.7 Hz raw optical waveform in `*_PPG.txt`. Matching only the device
+         token claimed BOTH at 0.95, tying with polar-sense-ppg's 0.85 `_PPG` claim (gap 0.10 <
+         the 0.15 threshold) — so the finger pleth routed `ambiguous` and was never analyzed as
+         PPG in either host. Decline the waveform stream: it belongs to `adapters/o2ring-ppg.js`,
+         which hands it to PpgDex's finger-site lane. This is a ROUTING change only — the parse
+         path is untouched, and a `_PPG` waveform never produced usable SpO2 rows here anyway
+         (it failed loud with "no usable SpO₂ rows parsed"). */
+      if (/_PPG\b|_PPG\./i.test(name)) return 0; // raw optical waveform, not the 1 Hz oximetry CSV
       if (/o2ring|oxydex|wellue|viatom|checkme/i.test(name)) return 0.95; // explicit device/app mark
       var hasOx = /\b(spo2|sao2|oxygen|o2)\b|oxygen\s*level/i.test(head);
       var hasPulse = /\b(pulse|pr|hr|bpm|heart\s*rate)\b/i.test(head);
@@ -8567,6 +8577,14 @@ window.IntegratorDSP = {
       var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
       if (/_PPG\b|_PPG\./i.test(name) && /verity|sense|polar|oh1|psl/i.test(name + ' ' + head)) return 0.97;
+      /* ENGINE-VERIFICATION-FINDINGS §1.4 (i) — the bare-`_PPG` fallback is a PSL *default*, so it
+         must not claim a file that names a DIFFERENT vendor. `Wellue_O2Ring-S_…_PPG.txt` is an
+         O2Ring finger pleth (→ `adapters/o2ring-ppg.js`); claiming it here would route a Wellue
+         waveform through an adapter whose provenance reads "Polar Verity Sense / OH1" — a false
+         vendor stamp on the export, which is worse than the ambiguity it replaces. Symmetric to the
+         suffix decline now in `oxydex-spo2.js`. Unknown-vendor `_PPG` still lands here at 0.85,
+         which is what this default is for. */
+      if (/o2ring|wellue|viatom|checkme/i.test(name)) return 0;
       if (/_PPG\b|_PPG\./i.test(name)) return 0.85; // PSL default per-stream PPG naming
       // raw 6-column optical waveform header (channel 0;channel 1;channel 2)
       if (/channel\s*0/i.test(head) && /channel\s*1/i.test(head) && /(sensor\s*timestamp|ambient|Phone\s*timestamp)/i.test(head)) return 0.8;
@@ -8659,6 +8677,131 @@ window.IntegratorDSP = {
     }
   });
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+</script>
+<script data-inline-src="adapters/o2ring-ppg.js">/*
+ * adapters/o2ring-ppg.js — Tepna vendor adapter: raw FINGER-PPG → SignalFrame(ppg)
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0. See the LICENSE and NOTICE
+ * files at the project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * ────────────────────────────────────────────────────────────────────────
+ * Wellue / Viatom O2Ring (O2Ring · O2Ring S · Checkme O2) RAW OPTICAL WAVEFORM,
+ * captured by the Tepna capture host as `*_PPG.txt` (~125.7 Hz reflectance pleth).
+ *
+ * WHY THIS ADAPTER EXISTS — ENGINE-VERIFICATION-FINDINGS §1.4.
+ * The O2Ring emits TWO completely different things and the router could not tell
+ * them apart:
+ *   · `O2Ring S 2100_*.csv`      — 1 Hz SpO2/HR/PI summary rows  → `oxydex-spo2`
+ *   · `Wellue_O2Ring-S_*_PPG.txt` — 125.7 Hz optical waveform    → THIS adapter
+ * `oxydex-spo2` matched the vendor token alone and claimed BOTH at 0.95, while
+ * `polar-sense-ppg` claimed the `_PPG` suffix at 0.85. Gap 0.10 < the 0.15
+ * ambiguity threshold (`signal-adapters.js`), so the finger pleth routed as
+ * `ambiguous` and **was never analyzed as PPG in either host** — the hosts fail
+ * honestly (no fabricated numbers), but the signal was simply lost.
+ *
+ * §1.4 held this behind two blockers, and (i) must not land without (ii):
+ *   (i)  the 0.95/0.85 tie — fixed here;
+ *   (ii) PpgDex had no single-channel and no finger-site path, so breaking the tie
+ *        would route the file into a DSP with no honest model for it — which is
+ *        WORSE than the current honest failure.
+ * (ii) is now satisfied: `PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md` is DONE
+ * (2026-07-20) and verified on real hardware — `parsePPG` derives `site` from the
+ * column layout (1 channel or replicated → 'finger'), `detectBeats` has a
+ * single-channel lane, and the O2Ring sentinel-gap handling is site-gated. That
+ * brief's round-trip: O2Ring→PpgDex median HR 56.3 bpm vs the ring's own 1 Hz
+ * field 57.0 vs the paired H10 ECG 56.1, over a 96 s overlap.
+ *
+ * SITE IS NOT PASSED IN, AND MUST NOT BE. `parsePPG` reads it off the layout — a
+ * layout FACT, not an inference (ppgdex-dsp.js: "`site` is a layout fact from the
+ * parser, NOT an inference"). Consumers grade morphology by site rather than
+ * inheriting the wrist's `emerging` tier, so an adapter that asserted 'finger'
+ * from the filename would be manufacturing the very thing the tier depends on.
+ *
+ * NO SECOND PARSER. This REFERENCES `PpgDex.parsePPG` / `PPGDSP.parsePPG`, exactly
+ * as `polar-sense-ppg.js` does. A private copy would drift from the node.
+ *
+ * Clock Contract: `parsePPG` calls PpgDex's node-local `parseTimestamp` (a
+ * deliberate strict ISO/epoch subset — CLAUDE.md §✅). Do not alter it here; any
+ * vendor quirk belongs at this ingest boundary, in `parse()` only.
+ *
+ * Companions: the O2Ring has no ACC/GYRO/MAGN sidecars (its motion column rides
+ * the 1 Hz CSV, which is OxyDex's lane), so unlike `polar-sense-ppg` there is no
+ * companion-bundle ingest here. `analyzeMotion` degrades to `hasData:false`.
+ * ──────────────────────────────────────────────────────────────────────── */
+(function (root) {
+  'use strict';
+  var REG = root.SignalAdapters;
+  if (!REG || typeof REG.registerAdapter !== 'function') return; // registry must load first
+
+  var VENDOR = 'Wellue / Viatom';
+  var DEVICE = 'O2Ring / O2Ring S / Checkme O2 (finger pleth)';
+
+  /* The vendor mark and the stream suffix, single-sourced so this adapter and the two it
+     disambiguates against cannot drift apart. `oxydex-spo2.js` uses the same suffix test to
+     DECLINE a waveform stream, and `polar-sense-ppg.js` uses the same vendor test to decline a
+     foreign vendor's `_PPG` — three files, one shared pair of facts. */
+  var O2RING_NAME = /o2ring|wellue|viatom|checkme/i;
+  var PPG_STREAM = /_PPG\b|_PPG\./i;
+
+  REG.registerAdapter({
+    id: 'o2ring-ppg',
+    signalType: 'ppg',
+    vendor: VENDOR,
+    device: DEVICE,
+    detect: function (file, headText) {
+      var name = ((file && file.name) || '') + '';
+      var head = (headText || '') + '';
+      // Vendor mark AND the raw-waveform stream suffix. 0.97 mirrors polar-sense-ppg's
+      // vendor+suffix tier, and clears the 0.15 ambiguity gap against every other candidate
+      // once oxydex-spo2 stops claiming waveform streams (§1.4 (i)).
+      if (O2RING_NAME.test(name) && PPG_STREAM.test(name)) return 0.97;
+      // Header-only fallback: the O2Ring pleth carries a SINGLE reflectance column and, unlike
+      // the Polar 3-LED layout, NO ambient column. Deliberately below polar-sense-ppg's 0.8
+      // three-channel header rule so a Verity file can never land here on header alone.
+      if (/channel\s*0/i.test(head) && !/channel\s*1/i.test(head) && !/ambient/i.test(head) && /(sensor\s*timestamp|phone\s*timestamp)/i.test(head)) return 0.75;
+      return 0;
+    },
+
+    // REFERENCE the existing pure parser — never copy it.
+    parse: function (text, ctx) {
+      ctx = ctx || {};
+      var prov = { adapter: 'o2ring-ppg', vendor: VENDOR, device: DEVICE, files: ctx.files || null, warnings: /** @type {string[]} */ ([]) };
+      var ppg = root.PpgDex || root.PPGDSP;
+      var parseFn = ppg && typeof ppg.parsePPG === 'function' ? ppg.parsePPG : typeof root.PPGDSP !== 'undefined' && typeof root.PPGDSP.parsePPG === 'function' ? root.PPGDSP.parsePPG : null;
+      if (!parseFn) return root.SignalFrame.toSignalFrame('ppg', { usable: false, reason: 'o2ring-ppg: PpgDex/PPGDSP not in scope (load ppgdex-dsp.js before this adapter)' }, prov);
+
+      var rec;
+      try {
+        rec = parseFn(text);
+      } catch (e) {
+        return root.SignalFrame.toSignalFrame('ppg', { usable: false, reason: 'o2ring-ppg: parse error — ' + ((e && e.message) || e) }, prov);
+      }
+
+      if (!rec || !rec.ch || !rec.ch.length || !rec.n || rec.n < 10)
+        return root.SignalFrame.toSignalFrame(
+          'ppg',
+          { usable: false, reason: 'o2ring-ppg: no usable PPG samples parsed (expected an O2Ring `*_PPG.txt` waveform: timestamp columns + a single `channel 0` reflectance column)' },
+          prov
+        );
+
+      var samples = { ch: rec.ch, amb: rec.amb, relSec: rec.relSec, n: rec.n, durSec: rec.durSec, length: rec.n };
+      return root.SignalFrame.toSignalFrame(
+        'ppg',
+        {
+          samples: samples,
+          fs: rec.fs,
+          t0Ms: rec.t0Ms,
+          offsetMin: rec.offsetMin,
+          usable: rec.n >= 200,
+          reason: rec.n >= 200 ? null : 'only ' + rec.n + ' PPG sample' + (rec.n === 1 ? '' : 's') + ' (need ≥200 for beat detection)'
+        },
+        prov
+      );
+    }
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
 </script>
 <script data-inline-src="adapters/polar-h10-ecg.js">/*
  * adapters/polar-h10-ecg.js — Tepna vendor adapter: raw chest-strap ECG → SignalFrame(ecg)
@@ -21827,17 +21970,12 @@ __exports.GlucoDex = window.GlucoDex;
     //
     // The scan is exact and stops at the first mismatch — with 0 % of Verity rows identical that is
     // the first sample, so the common case costs one comparison.
-    let replicated = nCh > 1;
-    for (let c = 1; replicated && c < nCh; c++) {
-      const a = chArr[0],
-        b = chArr[c];
-      for (let i = 0; i < n; i++) {
-        if (a[i] !== b[i]) {
-          replicated = false;
-          break;
-        }
-      }
-    }
+    /* The scan itself now lives in `deriveSiteFromLayout` (just below this function) so the
+       SignalFrame ingest path can apply the IDENTICAL rule. It used to sit inline here, and a
+       frame-routed recording therefore carried no `site` at all — it fell through to
+       `rec.site || 'wrist'` in the export. That was invisible while only the 3-LED Verity could
+       route (wrist is right for it, by luck) and became wrong the moment the O2Ring finger pleth
+       got an adapter (ENGINE-VERIFICATION-FINDINGS §1.4). One rule, two callers. */
     /* THE LAYOUT NAMES THE DEVICE, NOT THE LIMB. A one-channel replicated stream is an O2Ring and a
        three-LED stream is a Verity — that much IS decided on the data and is reliable. What follows
        from it does not: this value is then spent as an ANATOMICAL fact. It selects the morphology
@@ -21855,7 +21993,7 @@ __exports.GlucoDex = window.GlucoDex;
        value (consumers gate on it and the sentinel pass genuinely is a device property), and
        `siteSource` now says where that value came from — so a reader can tell a DECLARED limb from a
        device default, and a grader can decline to award a site-validated tier to a default. */
-    const site = nCh === 1 || replicated ? 'finger' : 'wrist';
+    const site = deriveSiteFromLayout(chArr, n);
     // Sentinel pass runs ONLY on the finger layout — 156 is the O2Ring's marker and carries no meaning
     // in a Verity count stream (where it would be an ordinary, and astronomically rare, raw ADC value).
     // Keyed on SITE, not on nCh: a replicated 3-column O2Ring file is still an O2Ring, and keying on
@@ -21878,6 +22016,38 @@ __exports.GlucoDex = window.GlucoDex;
       sentinelRejected: sent ? sent.rejected : 0,
       sentinelKept: sent ? sent.kept : 0
     };
+  }
+
+  /* THE LAYOUT→SITE RULE, SINGLE-SOURCED (ENGINE-VERIFICATION-FINDINGS §1.4).
+     `parsePPG` (text ingest) and `compute`'s SignalFrame branch (adapter ingest) must agree, because
+     `site` is spent as an evidence-tier decision: it selects the morphology tier and gates three
+     Integrator fusion paths. It lived only inside `parsePPG`, so a frame-routed recording arrived at
+     `ppgBuildNodeExport` with no `site` and took the `|| 'wrist'` default. Nothing caught it — the
+     only adapter that could produce a ppg frame was `polar-sense-ppg`, whose recordings really are
+     3-LED, so the default agreed with the truth for the wrong reason. Adding `o2ring-ppg.js` made a
+     FINGER layout reachable through that branch, where the same default would have stamped a
+     wrist-validated tier onto a fingertip pleth.
+
+     One channel, or several carrying byte-identical samples, is the O2Ring (its 3-column files
+     replicate one reading — measured 100 % identical across 526 O2Ring files vs 0 % across 261
+     Verity files, perfect separation). Decided on the DATA, never the header, so a vendor renaming
+     its columns changes nothing. Exact scan, stops at the first mismatch. */
+  function deriveSiteFromLayout(chArr, n) {
+    const nCh = chArr ? chArr.length : 0;
+    if (!nCh) return 'wrist';
+    let replicated = nCh > 1;
+    for (let c = 1; replicated && c < nCh; c++) {
+      const a = chArr[0],
+        b = chArr[c];
+      const len = Math.min(n || 0, a ? a.length : 0, b ? b.length : 0);
+      for (let i = 0; i < len; i++) {
+        if (a[i] !== b[i]) {
+          replicated = false;
+          break;
+        }
+      }
+    }
+    return nCh === 1 || replicated ? 'finger' : 'wrist';
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -24893,6 +25063,12 @@ __exports.GlucoDex = window.GlucoDex;
         t0Ms: input.t0Ms != null ? input.t0Ms : s.t0Ms != null ? s.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,
         durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs || 1) : 0,
+        /* §1.4 — derive site here too, by the SAME rule as the text path. Omitting it let the export's
+           `rec.site || 'wrist'` fallback stamp every frame-routed recording 'wrist'. A declared site
+           (`s.site`) wins if an adapter ever carries one; otherwise it is the layout fact, and
+           `siteSource` stays 'device-default' so a grader can still tell a default from a declaration. */
+        site: s.site || deriveSiteFromLayout(s.ch, n),
+        siteSource: s.siteSource || 'device-default',
         acc: input.acc || null,
         gyro: input.gyro || null,
         magn: input.magn || null,
