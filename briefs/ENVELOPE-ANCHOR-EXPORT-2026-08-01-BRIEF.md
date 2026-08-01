@@ -68,7 +68,9 @@ is the defect `#636` had just fixed elsewhere (a resolver that existed, was gate
 Backed out: `dex-export.js`, `ecgdex-dsp.js`, `ppgdex-dsp.js`, both `.src.html` co-loads, both bundles,
 both goldens, the co-load classification and the `trio-batch` realm load. `build --check` clean.
 
-## 3.5 · CORRECTION — the export DOES already carry a sub-second shared channel, and it does not work
+## 3.5 · ⛔ RETRACTED (see §3.7) — "the export carries a sub-second channel and it does not work"
+
+*(The first half stands: the export DOES already carry per-beat times. The conclusion that they cannot align these devices is WRONG — it assumed a constant offset across a pair drifting at 87 ppm.)*
 
 This brief opened by saying *"no node-export carries anything mechanical"*. That framing is wrong in a
 way worth fixing: the exports already carry **explicit per-beat times** — `timeseries.rr.tSec`
@@ -94,7 +96,9 @@ bar by 4.4×**, exactly as 16 % beat correspondence predicts — most "nearest" 
 **So the limit is physiological, not a plumbing gap**, and one design direction is closed: do not build
 an RR↔PPI aligner. The data is already exported and the correspondence is not there.
 
-## 3.6 · A TWO-PASS scheme is the right shape and still fails — with the control that proves it
+## 3.6 · ⛔ RETRACTED (see §3.7) — "a two-pass scheme is the right shape and still fails"
+
+*(The chance control stands and was worth running. The conclusion does not: pass 2 was scored with a constant offset, so it could not have worked regardless of the coarse lock.)*
 
 The natural fix for §3.5 is two passes: a coarse method that is unambiguous but low-resolution gets
 inside one heartbeat, and the beat trains — no longer ambiguous modulo an RR interval — refine it. The
@@ -121,6 +125,47 @@ What would actually move pass 2 is **better beat correspondence, not a better se
 the highest-SQI PPG epochs, where the optical spine finds the same beats the ECG does.
 `PAT-FEASIBILITY`'s gate already encodes this as `coupling >= 55 %`, and this night is nowhere near
 it. That is a data-quality precondition, not an alignment algorithm.
+
+## 3.7 · ⛔ §3.5 AND §3.6 ARE RETRACTED — the 16 % was DRIFT, and RR↔PPI works
+
+Both sections above measured a **drifting** pair with a **single constant offset**, which is the wrong
+instrument. Refitting the offset locally, in 5-minute blocks, on the beats each node says it OBSERVED
+(`corrected === 0` — 99.7 % of RR, 97.5 % of PPI):
+
+| | median local correspondence |
+|---|---|
+| real alignment, 88 blocks | **90.6 %** (best 99.6 %) |
+| **control — PPG shifted +1 h, same procedure** | **21.3 %** |
+
+The control carries the same degrees of freedom as the fit — a ±3 s search at 20 ms steps, picking the
+best block — so 90.6 % against 21.3 % is a fair comparison, not a fitted artifact.
+
+**Beat correspondence is ~90 %, not 16 %.** What defeated §3.5 and §3.6 was that the two devices are
+**not on one timeline across a night**:
+
+```
+linear drift fit   5.2 ms/min  =  87 ppm  →  2,264 ms over 435 min
+```
+
+Two seconds of accumulated drift is larger than an RR interval, so a constant-offset match walks off
+the correct beat partway through the night and every later beat is compared to the wrong one. That
+produces exactly the signature §3.5 reported — a strong interval-sequence correlation (the *shape* is
+right) with a hopeless implied time offset (MAD 22 s), and a flat, chance-level PAT sweep in §3.6.
+
+**Per-block IQR is 43–112 ms, median ≈50 ms** — inside `pat-gate.js`'s ≤60 ms bar. This does **not**
+declare PAT feasible: the gate also wants coupling ≥55 % and a median lag in [60,700] ms measured as a
+real pulse-arrival delay, which is a separate measurement. It does mean the alignment precision PAT
+needs is **reachable on this pair**, which §3.6 concluded it was not.
+
+**So the correct instrument is drift-aware, and it already exists.** `WEARABLE-SYNC`'s
+`alignEnvelopes` regresses lag against time so *offset and drift come from one fit* — precisely the
+shape this data demands. What was missing was never the signal; it was fitting one number to a pair
+that needs two.
+
+> **Method note, since this is the second retraction in one brief.** Both wrong conclusions came from
+> the same omission: no drift term. The chance control caught §3.6's non-result but could not catch a
+> *model* that was too simple — a control tells you whether you beat chance, not whether you asked the
+> right question. What exposed it was refitting locally and watching the offset march.
 
 ## 4 · The design question the next iteration must answer first
 
