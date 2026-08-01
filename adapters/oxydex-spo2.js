@@ -35,6 +35,16 @@
     detect: function (file, headText) {
       var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
+      /* ENGINE-VERIFICATION-FINDINGS §1.4 (i) — THE VENDOR MARK ALONE WAS OVER-BROAD.
+         The O2Ring emits two unrelated streams: the 1 Hz `SpO2/Pulse/Motion` CSV this adapter
+         parses, and a ~125.7 Hz raw optical waveform in `*_PPG.txt`. Matching only the device
+         token claimed BOTH at 0.95, tying with polar-sense-ppg's 0.85 `_PPG` claim (gap 0.10 <
+         the 0.15 threshold) — so the finger pleth routed `ambiguous` and was never analyzed as
+         PPG in either host. Decline the waveform stream: it belongs to `adapters/o2ring-ppg.js`,
+         which hands it to PpgDex's finger-site lane. This is a ROUTING change only — the parse
+         path is untouched, and a `_PPG` waveform never produced usable SpO2 rows here anyway
+         (it failed loud with "no usable SpO₂ rows parsed"). */
+      if (/_PPG\b|_PPG\./i.test(name)) return 0; // raw optical waveform, not the 1 Hz oximetry CSV
       if (/o2ring|oxydex|wellue|viatom|checkme/i.test(name)) return 0.95; // explicit device/app mark
       var hasOx = /\b(spo2|sao2|oxygen|o2)\b|oxygen\s*level/i.test(head);
       var hasPulse = /\b(pulse|pr|hr|bpm|heart\s*rate)\b/i.test(head);

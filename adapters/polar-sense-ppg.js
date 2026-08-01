@@ -55,6 +55,14 @@
       var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
       if (/_PPG\b|_PPG\./i.test(name) && /verity|sense|polar|oh1|psl/i.test(name + ' ' + head)) return 0.97;
+      /* ENGINE-VERIFICATION-FINDINGS §1.4 (i) — the bare-`_PPG` fallback is a PSL *default*, so it
+         must not claim a file that names a DIFFERENT vendor. `Wellue_O2Ring-S_…_PPG.txt` is an
+         O2Ring finger pleth (→ `adapters/o2ring-ppg.js`); claiming it here would route a Wellue
+         waveform through an adapter whose provenance reads "Polar Verity Sense / OH1" — a false
+         vendor stamp on the export, which is worse than the ambiguity it replaces. Symmetric to the
+         suffix decline now in `oxydex-spo2.js`. Unknown-vendor `_PPG` still lands here at 0.85,
+         which is what this default is for. */
+      if (/o2ring|wellue|viatom|checkme/i.test(name)) return 0;
       if (/_PPG\b|_PPG\./i.test(name)) return 0.85; // PSL default per-stream PPG naming
       // raw 6-column optical waveform header (channel 0;channel 1;channel 2)
       if (/channel\s*0/i.test(head) && /channel\s*1/i.test(head) && /(sensor\s*timestamp|ambient|Phone\s*timestamp)/i.test(head)) return 0.8;

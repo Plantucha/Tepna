@@ -413,17 +413,12 @@
     //
     // The scan is exact and stops at the first mismatch — with 0 % of Verity rows identical that is
     // the first sample, so the common case costs one comparison.
-    let replicated = nCh > 1;
-    for (let c = 1; replicated && c < nCh; c++) {
-      const a = chArr[0],
-        b = chArr[c];
-      for (let i = 0; i < n; i++) {
-        if (a[i] !== b[i]) {
-          replicated = false;
-          break;
-        }
-      }
-    }
+    /* The scan itself now lives in `deriveSiteFromLayout` (just below this function) so the
+       SignalFrame ingest path can apply the IDENTICAL rule. It used to sit inline here, and a
+       frame-routed recording therefore carried no `site` at all — it fell through to
+       `rec.site || 'wrist'` in the export. That was invisible while only the 3-LED Verity could
+       route (wrist is right for it, by luck) and became wrong the moment the O2Ring finger pleth
+       got an adapter (ENGINE-VERIFICATION-FINDINGS §1.4). One rule, two callers. */
     /* THE LAYOUT NAMES THE DEVICE, NOT THE LIMB. A one-channel replicated stream is an O2Ring and a
        three-LED stream is a Verity — that much IS decided on the data and is reliable. What follows
        from it does not: this value is then spent as an ANATOMICAL fact. It selects the morphology
@@ -441,7 +436,7 @@
        value (consumers gate on it and the sentinel pass genuinely is a device property), and
        `siteSource` now says where that value came from — so a reader can tell a DECLARED limb from a
        device default, and a grader can decline to award a site-validated tier to a default. */
-    const site = nCh === 1 || replicated ? 'finger' : 'wrist';
+    const site = deriveSiteFromLayout(chArr, n);
     // Sentinel pass runs ONLY on the finger layout — 156 is the O2Ring's marker and carries no meaning
     // in a Verity count stream (where it would be an ordinary, and astronomically rare, raw ADC value).
     // Keyed on SITE, not on nCh: a replicated 3-column O2Ring file is still an O2Ring, and keying on
@@ -464,6 +459,38 @@
       sentinelRejected: sent ? sent.rejected : 0,
       sentinelKept: sent ? sent.kept : 0
     };
+  }
+
+  /* THE LAYOUT→SITE RULE, SINGLE-SOURCED (ENGINE-VERIFICATION-FINDINGS §1.4).
+     `parsePPG` (text ingest) and `compute`'s SignalFrame branch (adapter ingest) must agree, because
+     `site` is spent as an evidence-tier decision: it selects the morphology tier and gates three
+     Integrator fusion paths. It lived only inside `parsePPG`, so a frame-routed recording arrived at
+     `ppgBuildNodeExport` with no `site` and took the `|| 'wrist'` default. Nothing caught it — the
+     only adapter that could produce a ppg frame was `polar-sense-ppg`, whose recordings really are
+     3-LED, so the default agreed with the truth for the wrong reason. Adding `o2ring-ppg.js` made a
+     FINGER layout reachable through that branch, where the same default would have stamped a
+     wrist-validated tier onto a fingertip pleth.
+
+     One channel, or several carrying byte-identical samples, is the O2Ring (its 3-column files
+     replicate one reading — measured 100 % identical across 526 O2Ring files vs 0 % across 261
+     Verity files, perfect separation). Decided on the DATA, never the header, so a vendor renaming
+     its columns changes nothing. Exact scan, stops at the first mismatch. */
+  function deriveSiteFromLayout(chArr, n) {
+    const nCh = chArr ? chArr.length : 0;
+    if (!nCh) return 'wrist';
+    let replicated = nCh > 1;
+    for (let c = 1; replicated && c < nCh; c++) {
+      const a = chArr[0],
+        b = chArr[c];
+      const len = Math.min(n || 0, a ? a.length : 0, b ? b.length : 0);
+      for (let i = 0; i < len; i++) {
+        if (a[i] !== b[i]) {
+          replicated = false;
+          break;
+        }
+      }
+    }
+    return nCh === 1 || replicated ? 'finger' : 'wrist';
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -3479,6 +3506,12 @@
         t0Ms: input.t0Ms != null ? input.t0Ms : s.t0Ms != null ? s.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,
         durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs || 1) : 0,
+        /* §1.4 — derive site here too, by the SAME rule as the text path. Omitting it let the export's
+           `rec.site || 'wrist'` fallback stamp every frame-routed recording 'wrist'. A declared site
+           (`s.site`) wins if an adapter ever carries one; otherwise it is the layout fact, and
+           `siteSource` stays 'device-default' so a grader can still tell a default from a declaration. */
+        site: s.site || deriveSiteFromLayout(s.ch, n),
+        siteSource: s.siteSource || 'device-default',
         acc: input.acc || null,
         gyro: input.gyro || null,
         magn: input.magn || null,

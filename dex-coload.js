@@ -42,6 +42,7 @@
       'adapters/welltory-summary.js',
       'adapters/libre-cgm.js',
       'adapters/polar-sense-ppg.js',
+      'adapters/o2ring-ppg.js',
       'adapters/polar-h10-ecg.js',
       'adapters/resmed-edf.js'
     ],
