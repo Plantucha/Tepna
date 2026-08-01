@@ -681,6 +681,36 @@
         "PPGDEX-PI-AND-PARSE-FOLLOWUPS-2026-07-12-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.2.0",
+      "date": "2026-08-01",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "e7d9f9cf1a73",
+        "OxyDex": "604ecc4b8976",
+        "PulseDex": "512b1b490391",
+        "GlucoDex": "70831ccda0cb",
+        "PpgDex": "638337292199",
+        "HRVDex": "c4f4ff342c34",
+        "CPAPDex": "f17e19ab29b2",
+        "Integrator": "1165fb655b07",
+        "MotionDex": "31f747a1eb49"
+      },
+      "briefs": [
+        "DOCS-LEDGER-CHECK3B-BLIND-ROW-2026-08-01-BRIEF.md",
+        "CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF.md",
+        "EXPORT-PATH-UNREACHABLE-FOLLOWUPS-III-2026-08-01-BRIEF.md",
+        "ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md",
+        "ECGDEX-EDR-RESP-ACCURACY-2026-07-31-BRIEF.md",
+        "EXPORT-PATH-UNREACHABLE-2026-08-01-BRIEF.md",
+        "EXPORT-PATH-UNREACHABLE-FOLLOWUPS-2026-08-01-BRIEF.md",
+        "EXPORT-PATH-UNREACHABLE-FOLLOWUPS-II-2026-08-01-BRIEF.md",
+        "SYNTH-GEN-DESAT-KINETICS-2026-08-01-BRIEF.md",
+        "SYNTH-GEN-FIXTURE-REALISM-FOLLOWUPS-2026-08-01-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }

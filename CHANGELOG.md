@@ -30,6 +30,29 @@ changesets.)
 
 ---
 
+## [2.2.0] — 2026-08-01
+
+### Added
+- Commit a golden for ECGDex's Integrator-facing rich export — every prior ECGDex golden was the light one, so `respFromEDR` had no fixture. (`ECGDEX-EDR-RESP-ACCURACY-2026-07-31-BRIEF.md`)
+- `SYNTH-GEN-DESAT-KINETICS` closed asking whether the PPG/ECG generators carry the defect it had just fixed in the SpO₂ one. That was left unasserted on purpose — claiming it untested would have been the error the parent brief exists to correct. Measured now. (`SYNTH-GEN-FIXTURE-REALISM-FOLLOWUPS-2026-08-01-BRIEF.md`)
+
+### Changed
+- `CPAP-SA2-OXIMETRY-SOURCE` proposed cross-validating OxyDex's ODI-4 against the CPAP's wired oximeter, on the strength of `SA2.edf` existing across **194 nights at a median 6.83 h**. Executing it refuted the premise. (`CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF.md`)
+- Reconcile ENGINE-VERIFICATION's Phases section against the code — it read as owed for three phases the header records as executed. (`ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md`)
+
+### Fixed
+- `docs-ledger` check3b keeps each DOCS-INDEX row's status equal to its brief's header status. A row carrying **no** status marker was silently skipped (`if (!m) return;`) and the group then reported **"in sync"** — so deleting a status cell left every gate green. That is how it was found: a shell-quoting slip ate a cell and only reading the diff caught it. (`DOCS-LEDGER-CHECK3B-BLIND-ROW-2026-08-01-BRIEF.md`)
+- Stop CPAPDex silently discarding a therapy session that starts within 15 minutes of the previous one. (`EXPORT-PATH-UNREACHABLE-FOLLOWUPS-III-2026-08-01-BRIEF.md`)
+- Correct `integrator-longitudinal.js`'s claim that every node emits a crossnight envelope — five of eight do — and gate the claim against the producer set. (`ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md`)
+- Stop `crc.respFromEDR` reporting half the true rate at 24 breaths/min — a harmonic check plus parabolic peak interpolation on the EDR autocorrelation. (`ECGDEX-EDR-RESP-ACCURACY-2026-07-31-BRIEF.md`)
+- Make every node's export reachable from its own UI, and gate it by pressing the buttons. (`EXPORT-PATH-UNREACHABLE-2026-08-01-BRIEF.md`)
+- Red an unguarded render-coverage leg instead of letting its empty-app-satisfiable predicate pass. (`EXPORT-PATH-UNREACHABLE-FOLLOWUPS-2026-08-01-BRIEF.md`)
+- Feed OverDex's advertised ResMed-EDF adapter the bytes it documents, and boot the node behind it. (`EXPORT-PATH-UNREACHABLE-FOLLOWUPS-II-2026-08-01-BRIEF.md`)
+- **`PpgRegistry.idForSite` had no caller.** `PPGDEX-O2RING-FINGER-SITE §5` built seven `*Finger` metric entries so an O2Ring finger pleth could not inherit wrist-validated grades, and the suite gated the mapping — but every rendered badge went `evBadge → badgeForLabel → idForLabel → the base id`, which never consults a site. So the downgrade reached **zero pixels**: a finger recording drew the wrist grade, and `notchTime`/`pulseWidth` rendered `measured` where the finger entries say `experimental`.
+- `synth-gen` glided SpO₂ toward its target with a first-order lag at `k = 0.28`, whose *initial* rate is `k × depth` — so a 10 % desaturation opened at 2.8 %/s and a 15 % one at 4.2 %/s, against the 1.5 %/s ceiling `selfGateDesat` uses to tell a systemic desaturation from a probe squeeze. OxyDex correctly rejected them: **232 of 242** events on the AHI-38 night, giving ODI-4 **1.4/h**. (`SYNTH-GEN-DESAT-KINETICS-2026-08-01-BRIEF.md`)
+
+---
+
 ## [2.1.0] — 2026-08-01
 
 ### Added
@@ -809,7 +832,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/Plantucha/Tepna/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/Plantucha/Tepna/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/Plantucha/Tepna/compare/v1.19.0...v2.0.0
 [1.19.0]: https://github.com/Plantucha/Tepna/compare/v1.18.0...v1.19.0
