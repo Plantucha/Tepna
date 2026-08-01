@@ -93,6 +93,47 @@ tested, and none has yet fired on the box under real conditions. The alert path 
 never delivered a real webhook. Worth one deliberate fault injection (unplug the card mid-afternoon)
 rather than waiting to discover it during an outage.
 
+**✅ INJECTED 2026-08-01 — and it found a defect the unit tests could not.**
+
+*Unplugging the card* is a physical act; the equivalent fault is the card being **unreachable**, which was
+induced with zero blast radius: the real `cpap_harvest.harvest()` was driven in-process on the box against
+**192.0.2.1** (TEST-NET-1, guaranteed unroutable) with a throwaway destination. No config was changed, the
+running `tepna-capture.service` was untouched, and the destination was verified **empty** afterwards —
+nothing fabricated.
+
+**What the harvest does (correct):** `reachable()` returns `False` in 3.0 s, then `harvest()` **raises**
+`RuntimeError: http://192.0.2.1/dir?dir=A:: <urlopen error timed out>`. The caller catches it
+(`except Exception … # a harvest must never kill the task`), publishes `state=error`, logs a warning, and
+the poller survives. That half is sound.
+
+**What it did NOT do — the finding.** That exit `continue`s, so it never reaches the `barren` block
+below it. And **`barren` was the only exit that alerted.** `barren` requires a walk that *completed*
+having seen nothing; a card that is simply not there never gets that far. So the single most likely field
+failure published `state=error` and **told the operator nothing** — even on a box with a webhook
+configured. Precisely the shape the `barren` comment already records one branch over: a promise kept in
+prose, honoured on one branch of two.
+
+**A second, independent reason the webhook has never fired.** The deployed
+`/opt/tepna/capture-host/config.yaml` has **no `alerts:` block at all** (top-level keys: root, adapter,
+storage, web, devices, link, time, watchdog, pull, archive, cpap). So
+`Notifier(_acfg.get("webhook_url"), enabled=bool(_acfg.get("enabled")))` constructs
+`Notifier(None, enabled=False)`; `send()` returns `False` immediately without posting. Note `if notifier:`
+is still **truthy** — the object exists — so every call site runs and silently no-ops. The transport is
+off, not merely untriggered.
+
+**Fixed (in-repo):** the `except` branch now notifies. Gated by
+`test_a_RAISING_harvest_alerts_not_just_barren`, mutation-verified (removing the alert reds it), with
+`test_a_healthy_run_still_never_alerts` as the control so the fix cannot trade a silent failure for a
+daily false alarm. Short reads deliberately stay silent — `test_short_reads_still_outrank_barren` records
+that decision and this change does **not** overturn it. capture-host suite 1716/1716.
+
+**Still owed, and both are the owner's:**
+1. **Configure `alerts:`** (`enabled` + `webhook_url`). Until then no failure can page anyone, and the
+   journal is the only surface. Which endpoint is a decision, and the URL is a secret this session does
+   not hold.
+2. **Deploy.** The fix is committed, not shipped — the box still runs the old `capture.py`. Deploying is
+   a deliberate two-step (`git pull` **and** `sync-apps.sh`) and was not done unprompted.
+
 ### 2.3 Backfill throughput was measured once, on one card
 
 `130 KB/s` sustained (parent §5) and `1.65 MB/s` (reference brief §2) are the same card measured on
@@ -173,7 +214,7 @@ only in conversation:
 ## 6 · Done when
 
 - [x] §2.1 **routed** 2026-08-01 → `CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF.md` (premise verified first: 194 nights, median 6.85 h)
-- [ ] §2.2 one deliberate fault injection against the running box, with the webhook actually delivering
+- [x] §2.2 **injection done** 2026-08-01 — it found that only `barren` alerted and the raising path did not; fixed + gated. The **webhook still cannot deliver**: the deployed config has no `alerts:` block, so the transport is off (owner: configure it, then deploy)
 - [x] **§4 CLOSED 2026-07-29 — `DEEP-AUDIT-III` is DONE.** Not by splitting a MotionDex brief: all four
       items were already fixed, and what they actually lacked was gates. §3.6 had none, §4.1's was
       blind. Both added and verified RED by mutation. Residue → `DEEP-AUDIT-III-FOLLOWUPS-II-2026-07-29-BRIEF.md`.

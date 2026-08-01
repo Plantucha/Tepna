@@ -3362,6 +3362,20 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
         except Exception as e:                          # noqa: BLE001 — a harvest must never kill the task
             _st(state="error", detail=repr(e)[:200])
             log.warning("cpap: harvest failed: %r", e)
+            # AND TELL THE OPERATOR. This exit — not `barren` below — is the one an absent card takes:
+            # `ez.listing()` raises before the walk can complete, so `barren` (which requires a COMPLETED
+            # walk that saw nothing) is never evaluated and its alert never fires. Until 2026-08-01 the
+            # single most likely field failure therefore published state=error and said nothing, even on
+            # a box with a webhook configured. Found by deliberate fault injection against the running
+            # box (CPAP-AUTOHARVEST-FOLLOWUPS §2.2): driving the real `harvest()` at an unroutable
+            # address raises a RuntimeError whose text is the timed-out listing URL, and lands
+            # here. Same shape as the defect the `barren` comment records — a promise kept in prose,
+            # honoured on one branch of two.
+            if notifier:
+                await notifier.send(
+                    "Tepna: CPAP harvest failed",
+                    f"The {at_hour:02d}:00 harvest could not read the card: {e!r}. Last night's therapy "
+                    f"data is not on the box.")
             continue
         finally:
             # Only tear down what we brought up. On the direct path there is no association to undo,
