@@ -10390,6 +10390,94 @@
         statusBlind.length ? 'blind rows (' + statusBlind.length + '): ' + statusBlind.slice(0, 8).join('; ') : 'all rows state one'
       );
 
+      /* ── CHECK 3c · a brief must not claim a section is BOTH closed and still open ────────────────
+         DOCS-LEDGER-CHECK3B-BLIND-ROW §4a named this hole and deliberately did NOT build it: check3b
+         compares a brief's DOCS-INDEX row against its header, and *nothing* looks inside a brief for
+         self-contradiction. That is not hypothetical — §4a records THREE instances in
+         `ENGINE-VERIFICATION-FINDINGS` alone, in one day: a header saying §1.2 was "still owed" after
+         §1.2 had landed (which its own header says "nearly redid" a session's work), the fix leaving
+         §2's Phases block saying the same false thing (which sent a second session on the same errand),
+         and then closing §1.7 leaving the header still listing §1.7 as open.
+
+         §4a's objection to building it was precise, and is the whole design constraint: *"a gate that
+         cries wolf on the legitimate partial case would be turned off, which is worse than the hole."*
+         A brief legitimately says "§1.6 half closed, half still open", or closes §4 items 1/2/4 while
+         item 3 stays open, or closes §1a while §1b stays open. So this was MEASURED across every brief
+         before it was written, not reasoned into existence:
+
+           briefs carrying a "Still open:" line   12
+           sections claimed both closed and open   0     ← no live subject; this is a REGRESSION guard
+
+         Two refinements were forced by real false positives found during that measurement, and both are
+         load-bearing rather than defensive padding:
+           · section ids keep LETTER SUFFIXES — `PROFILED-HOTSPOTS-CI-AND-DSP` closes §1a while §1b is
+             open, and collapsing both to "§1" fired on a brief that is perfectly consistent;
+           · an open-claim carrying PARTIAL vocabulary (item · half · partial · only · mostly) is not a
+             contradiction — `OXYDEX-PB-OVERCALL`'s "Still open: §4 item 3 only" against "§4 items 1, 2
+             and 4 ANSWERED" is exactly §4a's legitimate case, and it fired before this was added.
+         THE CAPTURE BOUNDS WERE THE HARD PART, and both failure modes were found by running the check
+         against a PLANTED copy of the real historical defect rather than by reading the regex:
+           · to the first "." — truncates inside "§1.4", silently emptying the open-set. That draft
+             reported zero false positives AND zero true positives, which looks identical to success;
+           · to END OF LINE — over-captures badly, because this repo's status headers are one enormous
+             single line: it swallowed five unrelated sections out of ENGINE-VERIFICATION's header.
+         So the open-list is bounded (80 chars, first line) and cut at the first delimiter that ends an
+         enumeration — `**`, ` — `, `;`, `)`. And the partial-vocabulary veto is judged per section id in
+         its OWN ±30-char neighbourhood, not over the whole line, because on a single-line header one
+         "half" anywhere would otherwise excuse the entire header — exactly where these defects live. */
+      var _partial = /\b(item|items|half|partial|partially|only|mostly|some of)\b/i;
+      var _openSeg = function (t, from) {
+        var seg = t.slice(from, from + 80).split('\n')[0];
+        var cut = [seg.indexOf('**'), seg.indexOf(' — '), seg.indexOf(';'), seg.indexOf(')')].filter(function (i) {
+          return i >= 0;
+        });
+        return cut.length ? seg.slice(0, Math.min.apply(null, cut)) : seg;
+      };
+      var _scan = function (t) {
+        var o = {},
+          c = {},
+          mm2,
+          ss;
+        var orRe = /Still open:/gi;
+        while ((mm2 = orRe.exec(t)) !== null) {
+          var seg = _openSeg(t, mm2.index + mm2[0].length);
+          var inn = /§\s*(\d+[a-z]?(?:\.\d+)*)/g;
+          while ((ss = inn.exec(seg)) !== null) if (!_partial.test(seg.slice(Math.max(0, ss.index - 30), ss.index + ss[0].length + 30))) o[ss[1]] = true;
+        }
+        var crRe = /§\s*(\d+[a-z]?(?:\.\d+)*)\s*(?:[^\n§]{0,40}?)\b(CLOSED|DONE|ANSWERED|EXECUTED)\b/g;
+        while ((mm2 = crRe.exec(t)) !== null) {
+          if (_partial.test(t.slice(Math.max(0, mm2.index - 40), mm2.index + mm2[0].length + 40))) continue;
+          c[mm2[1]] = true;
+        }
+        return Object.keys(o).filter(function (k) {
+          return c[k];
+        });
+      };
+      /* Read the TEXT from DL.briefs, not from `briefSet` — that one is a name→1 existence map, and an
+         earlier revision of this check scanned it, so every brief's "text" was the string "1". It
+         matched nothing and the assertion reported green: a no-op wearing a passing badge, which is the
+         exact class check3c exists to catch. It was found by planting a real contradiction, not by
+         review — which is why the self-tests below are permanent rather than a one-off. */
+      var selfContra = [];
+      Object.keys(DL.briefs).forEach(function (bn) {
+        var bt = DL.briefs[bn];
+        if (typeof bt !== 'string' || !/Still open:/i.test(bt)) return;
+        var both = _scan(bt);
+        if (both.length) selfContra.push(bn + ' §' + both.join(' §'));
+      });
+      T.ok(
+        'check3c · no brief claims a section is BOTH closed and still open (§4a)',
+        selfContra.length === 0,
+        selfContra.length ? 'self-contradicting (' + selfContra.length + '): ' + selfContra.slice(0, 6).join('; ') : 'no brief contradicts itself'
+      );
+      // The matcher must still be ABLE to see a contradiction — a check with no live subject can rot
+      // into a no-op unnoticed (this suite's own recurring failure class). Self-test it on the exact
+      // historical shape §4a describes, and on the partial cases it must stay silent about.
+      T.eq('check3c self-test · catches the ENGINE-VERIFICATION shape (§1.7 closed AND still open)', _scan('Header: §1.7 CLOSED 2026-08-01.\nStill open: §1.4 and §1.7 remain\n').join(','), '1.7');
+      T.eq('check3c self-test · silent on an item-level partial (§4 item 3 only)', _scan('§4 items 1, 2 and 4 ANSWERED.\nStill open: §4 item 3 only\n').join(','), '');
+      T.eq('check3c self-test · silent when §1a is closed and §1b is open', _scan('§1a EXECUTED via CI-SHARDING.\nSTILL OPEN: §1b — a recorded decision\n').join(','), '');
+      T.eq('check3c self-test · silent on half/partial vocabulary', _scan('§1.6 is half closed by another brief.\nStill open: §1.6 partial\n').join(','), '');
+
       // ── CHECK 4a · briefs-link integrity (the 2026-07-03 repoint guard) — resolve ](briefs/…) against the
       //    AUTHORITATIVE brief set (never the staleable path inventory), so this sharp guard stands alone. ──
       var linkRe = /\]\((briefs\/[^)]+)\)/g,

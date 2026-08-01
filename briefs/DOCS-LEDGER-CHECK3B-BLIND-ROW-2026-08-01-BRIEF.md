@@ -160,6 +160,56 @@ string-matching, not judgement, and it has an obvious failure mode to avoid — 
 scoped to exact "Still open: …§N" enumerations only. **Not built here** — a gate that cries wolf on the
 legitimate partial case would be turned off, which is worse than the hole.
 
+### 4a.1 · BUILT 2026-08-01 — `check3c`, after measuring the cry-wolf rate rather than assuming it
+
+The objection above was the design constraint, so the false-positive rate was **measured across every
+brief before a line of the gate was written**:
+
+```
+briefs carrying a "Still open:" line   12
+sections claimed both closed and open   0     ← no live subject: this is a REGRESSION guard
+```
+
+Two refinements were forced by real false positives that appeared during that measurement, and both
+are load-bearing rather than defensive padding:
+
+- **Section ids keep letter suffixes.** `PROFILED-HOTSPOTS-CI-AND-DSP` closes §1a while §1b is open;
+  collapsing both to "§1" fired on a brief that is perfectly consistent.
+- **The partial-vocabulary veto is judged per section id, in its own ±30-char neighbourhood.**
+  `OXYDEX-PB-OVERCALL`'s *"Still open: §4 item 3 only"* against *"§4 items 1, 2 and 4 ANSWERED"* is
+  precisely §4a's legitimate case, and it fired before this was added. The window must be local:
+  applying the veto to the whole line excuses an entire single-line header on one stray "half" —
+  and single-line headers are exactly where all three historical instances lived.
+
+**The capture bounds were the hard part, and both wrong answers looked like success.** Reading the
+open-list to the first `.` truncates inside "§1.4" and silently empties the open-set — that draft
+reported zero false positives *and* zero true positives. Reading it to end-of-line over-captures on a
+single-line header, sweeping in five unrelated sections. The shipped form bounds it to 80 chars of the
+first line and cuts at the first enumeration-ending delimiter (`**`, ` — `, `;`, `)`).
+
+**And the gate itself shipped as a no-op once, green.** An early revision scanned `briefSet`, which is
+a name→`1` existence map rather than the brief text, so every brief's "text" was the string `"1"`; it
+matched nothing and the assertion passed. That is the same hollow shape §1 is about, inside the fix for
+it. It was caught by **planting the real §1.7 contradiction back into `ENGINE-VERIFICATION-FINDINGS`**
+and watching the gate stay green — not by review.
+
+Mutation-verified both directions, and four permanent self-tests keep the matcher from rotting into a
+no-op while it has no live subject:
+
+```
+plant §1.7 into ENGINE-VERIFICATION's "Still open:" list → ✕ "self-contradicting (1): …§1.7"
+restore                                                  → ✓ "no brief contradicts itself"
+self-test · catches §1.7 closed AND still open           → ✓
+self-test · silent on "§4 item 3 only"                   → ✓
+self-test · silent on §1a closed / §1b open              → ✓
+self-test · silent on half/partial vocabulary            → ✓
+```
+
+Scope, stated so it is not over-read: this compares *section-level* claims within one brief. It cannot
+see a contradiction phrased without a `§`, and it does not read prose meaning — it is string-matching,
+as §4a proposed. `check3` is total, `check3b` is total over its scope, and `check3c` is a guard with no
+current subject.
+
 ## 5 · Note
 
 `check3` (every brief appears in DOCS-INDEX) and `check3b` (statuses agree) are complementary, and only
