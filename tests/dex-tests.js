@@ -2035,6 +2035,30 @@
       T.ok('the agreement KPI can go warn AND bad, not just ok', /ppiAgreementPct >= 97 \? 'ok'/.test(app) && /'warn' : 'bad'/.test(app), 'no failing band — the panel could never report a problem');
     });
 
+    /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-IV — the APP's export builder is not the DSP's, and nothing
+       executes it: the equiv gate runs `PpgDex.compute`, so a divergence in ppgdex-app.js's own
+       `recording` block is invisible to every dynamic leg. It hardcoded `device: 'Polar Sense'`, so a
+       Wellue O2Ring finger night exported provenance naming a Polar Verity worn on the wrist — a field
+       that names the WRONG instrument, which is worse than an absent one. Source-scanned because that
+       is the only lane that can see this builder at all (the same reason `verifiedUnder`'s
+       forbidden-writer rule is a source scan). */
+    group('PpgDex app export names the instrument it actually read', 'ppgdex-app · export-provenance', function (T) {
+      var src = env.sources || {};
+      var app = src['ppgdex-app.js'] || '';
+      var dsp = src['ppgdex-dsp.js'] || '';
+      if (!app.length || !dsp.length) {
+        T.skip('ppgdex-app.js + ppgdex-dsp.js sources available', 'not in env.sources — wire readSources()');
+        return;
+      }
+      T.ok('the app export carries NO hardcoded device string', !/device:\s*'Polar Sense'/.test(app), "device:'Polar Sense' is back — an O2Ring finger night would export as a wrist Verity");
+      T.ok('…the device follows the optical layout the DSP read', /device:\s*r\.site === 'finger'/.test(app), 'device no longer derived from r.site');
+      /* The site pair is the honesty carrier: 'device-default' = inferred from the layout,
+         'declared' = the wearer said so. Emitting the device without them restates an inference
+         as a fact. */
+      T.ok('…and the app emits site + siteSource, as the DSP builder does', /site:\s*r\.site \|\| 'wrist'/.test(app) && /siteSource:\s*r\.siteSource \|\| 'device-default'/.test(app), 'the two builders disagree about where the signal was taken from');
+      T.ok('control · the DSP builder still emits the same pair (the sibling being matched)', /site:\s*r\.site \|\| 'wrist'/.test(dsp) && /siteSource:\s*r\.siteSource \|\| 'device-default'/.test(dsp));
+    });
+
     group('RR and PPI reach the bus, with beat times that are not reconstructed', 'ecgdex-dsp · ppgdex-dsp · interval-series', function (T) {
       var E = env.ECGDex, P = env.PpgDex;
       var eqP = env.equiv && env.equiv.ppgdex && env.equiv.ppgdex.input;

@@ -911,7 +911,20 @@ import { PPGUI } from './ppgdex-render.js';
       },
       recording: {
         source: r.fname || 'wrist-ppg',
-        device: 'Polar Sense',
+        /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-IV — the device string was HARDCODED to "Polar Sense", so an
+           O2Ring finger recording exported a file claiming it came from a Polar Verity worn on the
+           wrist. Observed on a real night: source "Wellue_O2Ring-S_..._PPG.txt", device "Polar Sense".
+           A provenance field that names the wrong instrument is worse than an absent one.
+           The device now follows the SAME evidence as the site — the optical layout the DSP already
+           read — and `siteSource` beside it says how strong that evidence is ('device-default' =
+           inferred from the layout, 'declared' = the wearer said so). No new inference is invented
+           here; the lie is simply removed. */
+        device: r.site === 'finger' ? 'O2Ring-class single-channel finger pleth' : 'Polar Verity Sense (3-LED)',
+        /* Emitted by the DSP's builder since #626 and missing from this one — the sibling-divergence
+           class again: two builders for one export, and only one of them told you where the signal
+           was taken from. Verbatim from hrvBuildNodeExport's siblings so the app and compute() agree. */
+        site: r.site || 'wrist',
+        siteSource: r.siteSource || 'device-default',
         sampleRateHz: r.fs,
         durationSec: Math.round(r.durSec),
         durationMin: r.durMin,
