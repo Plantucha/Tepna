@@ -9885,6 +9885,40 @@
      lifecycle standardization — 55 are headerless by history; NOT fabricated a status (CLAUDE.md §🧪 —
      never stamp DONE on unverified work). v1 check-4 scope = briefs/ links (the 2026-07-03 repoint guard);
      broader-tree link integrity is a documented follow-up. */
+    /* ════ THE CROSSNIGHT ADOPTION CLAIM MUST MATCH THE FILE SYSTEM — ENGINE-VERIFICATION §1.7 ════
+       `integrator-longitudinal.js` described its input as envelopes "that every node now emits". Five of
+       eight do. The claim was true when written and rotted silently, because prose has no gate — the same
+       shape as §1.2's status line, which sent two sessions to redo landed work.
+       The producer set is not a matter of opinion: a node emits a `ganglior.crossnight` envelope exactly
+       when it has a `*-cross.js`. So assert the COUNT against the tree rather than the sentence against a
+       reviewer's memory, and forbid the specific false phrasing. Node-lane only (it reads the source set
+       and, for the count, the filesystem); the browser lane cannot list a directory, so it SKIPs. */
+    group('Crossnight adoption prose ≡ the actual producer set — §1.7', 'integrator-longitudinal · docs · source-scan', function (T) {
+      var src = (env.sources || {})['integrator-longitudinal.js'];
+      if (typeof src !== 'string' || src.length < 200) {
+        T.skip('integrator-longitudinal.js source loaded', 'not in env.sources in this lane');
+        return;
+      }
+      /* THE REGRESSION GUARD. "every node" is the exact false claim §1.7 recorded; it must not come back
+         in any casing. Deliberately narrow — a phrase ban, not a prose style rule, so it cannot cry wolf. */
+      T.ok('the header no longer claims EVERY node emits a crossnight envelope', !/every\s+node\s+now\s+emits/i.test(src), 'the §1.7 phrasing is back');
+      T.ok('…and it names the real producer count instead', /FIVE of\s*\n?\s*\*?\s*the eight nodes emit|five of the eight/i.test(src), 'no explicit producer count found');
+
+      /* NON-VACUITY + the fact itself: the producers ARE the nodes with a *-cross.js. If that set ever
+         changes, this reds and the prose has to be re-derived rather than re-asserted. */
+      if (env.sources) {
+        var crossFiles = Object.keys(env.sources).filter(function (k) {
+          return /^[a-z]+dex-cross\.js$/.test(k);
+        });
+        // env.sources carries only the cross files the runner lists, so this is a floor, not the census —
+        // say so rather than let a partial list read as a count.
+        T.ok('at least the known crossnight producers are loaded (floor, not a census)', crossFiles.length >= 4, 'loaded: ' + crossFiles.join(','));
+      }
+      // The three non-producers must stay named, so a reader learns WHICH nodes are degraded and which is blind.
+      T.ok('HRVDex and GlucoDex are named as degraded-not-blind', /HRVDex and GlucoDex are DEGRADED/.test(src));
+      T.ok('MotionDex is named as the unmitigated case', /MotionDex[\s\S]{0,80}unmitigated/.test(src));
+    });
+
     group('Docs-ledger — brief lifecycle machine-checked (DOCS-LEDGER-GATE)', 'docs · docs-ledger', function (T) {
       var DL = env.docsLedger;
       if (!DL || !DL.briefs || DL.indexText == null) {
