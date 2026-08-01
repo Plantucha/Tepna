@@ -99,6 +99,29 @@ jobs:
         run: node tools/verify-fixtures.mjs --check
         continue-on-error: true
 
+      # Ten analysis tools ship a --selftest: a synthetic corpus with PLANTED truth, which is a
+      # stronger check than any real night because the right answer is known. Until 2026-08-01 not
+      # one of them ran anywhere — ten known-answer harnesses that executed only when someone
+      # remembered to type the flag. All ten passed when finally run, so wiring them cost nothing
+      # today and stops the next one rotting unnoticed. Discovered rather than listed, so a new tool
+      # is covered the moment it grows the flag.
+      - name: Analysis-tool selftests (planted-truth known answers)
+        run: |
+          found=0; failed=0
+          for f in $(grep -rln -- '--selftest' tools/*.mjs | sort); do
+            found=$((found+1))
+            printf '%-44s' "$f"
+            if node "$f" --selftest > /tmp/selftest.log 2>&1; then
+              echo 'PASS'
+            else
+              failed=$((failed+1)); echo 'FAIL'; sed 's/^/    | /' /tmp/selftest.log
+            fi
+          done
+          echo "--- $found tool selftest(s), $failed failed"
+          # A tool quietly LOSING its --selftest must not read as success.
+          [ "$found" -ge 10 ] || { echo "expected >=10 selftests, found $found"; exit 1; }
+          [ "$failed" -eq 0 ] || exit 1
+
   # ── one aggregated status ──────────────────────────────────────────────────────────
   # Keeps a single stable check name (`test`) for branch protection, independent of the
   # shard count — so the count can change without touching required-checks config.
