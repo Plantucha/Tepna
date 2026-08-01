@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-ByHfsmTK8zI2FTuQPWOPcWy8Za/hu3kUDY6Q0HfE9NI=' 'sha256-C5PsyUZJPRO9MCaibVwbiMOdWNLds3tX5RLIwuBiNDw=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W9TlargHDgYSCDALxgH9CGwNJXsDIE0BNYauc9UZEDo=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-usni84aK+rz/zHDyyq5UGBBttoKdgOjbpscJOrtWqXE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-ByHfsmTK8zI2FTuQPWOPcWy8Za/hu3kUDY6Q0HfE9NI=' 'sha256-C5PsyUZJPRO9MCaibVwbiMOdWNLds3tX5RLIwuBiNDw=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UxTRWz+mt/NyFqqOfz0WizbfTGzuLbsHQG8bTXVMDXs=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W9TlargHDgYSCDALxgH9CGwNJXsDIE0BNYauc9UZEDo=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -6651,12 +6651,36 @@ function runFusion(recs, opts) {
      asserted. Channels that cannot be estimated are kept with a reason, so a sensor that was absent or
      too quiet is visible rather than silently missing. */
   var skewFits = {};
-  skew.findings.forEach(function (f) {
+  /* POOLED-FIT-DECIDES (EXPORT-PATH-UNREACHABLE-FOLLOWUPS-V) — this loop used to be
+     `skew.findings.forEach`, i.e. the pooled fit only ever ran for a node the COARSE detector had
+     ALREADY declared skewed, and then only to REPORT a refinement. Two consequences, both measured on
+     the 24 trio nights that also carry CPAP EDFs:
+
+       coarse detectClockSkew produced a CPAPDex finding      1 / 24
+       pooled fit confident                                  19 / 24
+       pooled offset inside the documented 30-50 min band    24 / 24  (37.6-41.7 min, tight)
+
+     So the Integrator corrected ONE night in twenty-four while the instrument it already shipped
+     would correct nineteen. The veto is not the `minPeakOverFloor` threshold — on the corpus most
+     nights score 5-12 against a bar of 4 — it is the ALL-PARTNERS-MUST-AGREE clause: ECGDex emits
+     sleep stages and autonomic surges, cannot witness a respiratory event, and its noise lag then
+     discards the whole night. A witness that could not see the event has no business casting a veto.
+
+     `tools/trio-batch.mjs` already does the right thing — one unconditional
+     `fitClockOffsetPooled(cpapApneaTimes, allWearableChannels, {})` per night. This runs the same
+     way: EVERY dated node with events is fitted as the anchor against every OTHER node's channels.
+
+     ATTRIBUTION falls out of the statistic rather than needing a rule. The pooled fit scores one
+     candidate offset across all channels at once, so for the node whose clock is actually wrong every
+     channel agrees at the same large offset (a sharp confident peak), while for a healthy node its
+     channel set is split — the offender pulls one way, its peers sit at zero — and the peak lands at
+     ~0. The offender is therefore simply the confident fit with the largest |offset|. */
+  var _fitFor = function (node) {
     /** @type {any} */ var anchor = null;
     /** @type {any[]} */ var chans = [];
     (recs || []).forEach(function (r) {
       if (!r || r.dateUnknown || !r.events || !r.events.length) return;
-      if (r.node === f.node) {
+      if (r.node === node) {
         anchor = r.events
           .map(function (e) {
             return e.tMs;
@@ -6683,15 +6707,105 @@ function runFusion(recs, opts) {
        anything computed here — so the cutover changes what a reader is TOLD, not what is done to the
        data. On the 31-night corpus it put 29/29 pre-correction nights in the expected band against
        22/25 for the vote, and resolved 4 nights no single channel could fit at all. */
-    if (anchor && anchor.length && chans.length) skewFits[f.node] = fitClockOffsetPooled(anchor, chans, opts);
+    return anchor && anchor.length && chans.length ? fitClockOffsetPooled(anchor, chans, opts) : null;
+  };
+  var _fitNodes = {};
+  (recs || []).forEach(function (r) {
+    if (!r || r.dateUnknown || !r.events || !r.events.length || _fitNodes[r.node]) return;
+    _fitNodes[r.node] = 1;
+    var fit = _fitFor(r.node);
+    if (fit) skewFits[r.node] = fit;
   });
 
+  /* THE CORRECTION THAT IS APPLIED (EXPORT-PATH-UNREACHABLE-FOLLOWUPS-V).
+     Previously: `skew.findings[].offsetSec` — the coarse detector's number, quoted off a 30 s grid
+     with a ±60 s match window, and only ever available on a night the coarse detector had already
+     accepted. Now the POOLED fit decides and supplies the number, because it is both more available
+     (19/24 vs 1/24) and finer (#624 took it sub-second; the coarse grid cannot resolve below 30 s).
+
+     ONE node is corrected per fusion — the confident pooled fit with the largest |offset|, and only
+     when that exceeds the match tolerance. That matches the physical model this corpus shows: the
+     phone/host-captured devices share one clock, and it is the CPAP — on its own cell modem, with no
+     user-settable clock and no NTP — that drifts away from them. Correcting two nodes at once from
+     mutually-derived offsets would double-count the same relative shift.
+     LIMITATION, stated rather than hidden: if two devices are independently skewed, only the larger
+     is corrected here, and `clockSkew.fits` carries every node's fit so the second is visible.
+
+     The coarse detector is KEPT — its `pairs` are the per-partner diagnostics a reader needs to see
+     WHICH sensor corroborated, and its `findings` still ride in the output — it simply no longer
+     holds a veto over the better instrument. */
+  /* WHICH NODE IS THE ONE WITH THE WRONG CLOCK — decided by the physical asymmetry, not by the
+     statistic, because the statistic cannot decide it. Fitting A-vs-rest and B-vs-rest recovers the
+     SAME relative shift with opposite signs, and on the corpus `nNodes` is 3 for every node on almost
+     every night, so corroboration breadth does not separate them either: ranking by it still blamed
+     OxyDex for the CPAP's 39 min on 2026-06-25/28 and ECGDex on 07-11.
+
+     What DOES separate them is documented in this file already and in tools/trio-batch.mjs: the
+     wearables are captured through one host and share its disciplined clock (measured at 0.10-0.39 s
+     apart on box-captured nights), while "the ResMed sits on its own cell network, so it cannot be
+     NTP-disciplined and the offset is permanent". So the un-disciplined device is the one that moves,
+     and on all 24 corpus nights carrying both it is the CPAP.
+
+     Named as a PROPERTY with its reason rather than assumed silently: a node listed here is one whose
+     clock no host can set. Anything not listed keeps the previous behaviour exactly — the pairwise
+     detector's own attribution — so this widens what gets corrected without inventing a side for any
+     node the evidence cannot place. */
+  var UNDISCIPLINED_NODES = { CPAPDex: 'no user-settable clock, no NTP — its offset is permanent and must be measured' };
+  var _tolSec = opts.toleranceSec != null ? opts.toleranceSec : 120;
+  var _cands = Object.keys(skewFits)
+    .filter(function (n) {
+      return Object.prototype.hasOwnProperty.call(UNDISCIPLINED_NODES, n);
+    })
+    .map(function (n) {
+      return { node: n, fit: skewFits[n] };
+    })
+    .filter(function (c) {
+      return c.fit && c.fit.confident && c.fit.offsetSec != null && isFinite(c.fit.offsetSec) && Math.abs(c.fit.offsetSec) > _tolSec;
+    })
+    /* ATTRIBUTION — rank on CORROBORATION BREADTH, not on magnitude. Ranking by |offset| alone
+       mis-attributed 4 of 24 corpus nights (2026-06-15 and 07-11 blamed OxyDex/ECGDex for the CPAP's
+       own ~39 min, with the sign flipped): a healthy node fitted against a skewed partner sees that
+       partner's large offset too, so the shift is real but the side is wrong.
+       `nNodes` separates them. It counts the DISTINCT partner nodes backing the winning cluster, so
+       the node whose clock is actually wrong is corroborated by every peer (3 wearables agree the CPAP
+       is late), while a healthy node's large-offset cluster is backed only by the offender itself.
+       Magnitude breaks ties last, after corroboration and then significance. */
+    .sort(function (x, y) {
+      var xn = x.fit.nNodes || 0,
+        yn = y.fit.nNodes || 0;
+      if (xn !== yn) return yn - xn;
+      var xz = x.fit.z || 0,
+        yz = y.fit.z || 0;
+      if (xz !== yz) return yz - xz;
+      return Math.abs(y.fit.offsetSec) - Math.abs(x.fit.offsetSec);
+    });
+  var _pooledPick = _cands.length ? _cands[0] : null;
+
   var skewApplied = [];
-  if (skew.findings.length && opts.applyClockSkew !== false) {
+  if ((skew.findings.length || _pooledPick) && opts.applyClockSkew !== false) {
     var byNode = {};
     skew.findings.forEach(function (f) {
+      /* The coarse finding's own number is superseded by the pooled one for the SAME node — same
+         correction, measured better — so a night the coarse detector did accept is not shifted twice
+         nor shifted by the blunter estimate. */
       byNode[f.node] = f;
     });
+    if (_pooledPick) {
+      byNode[_pooledPick.node] = {
+        node: _pooledPick.node,
+        /* `fitClockOffsetPooled` returns the shift that must be ADDED to the ANCHOR (this node) to
+           line it up with the others — the same direction detectClockSkew's offsetSec carries, which
+           is why it can be substituted here without a sign flip. The gate pins that direction. */
+        offsetSec: _pooledPick.fit.offsetSec,
+        peakOverFloor: _pooledPick.fit.z != null ? _pooledPick.fit.z : null,
+        method: 'pooled joint fit across every partner channel (POOLED-CLOCK-FIT §5.5)',
+        source: 'pooled',
+        z: _pooledPick.fit.z,
+        pValue: _pooledPick.fit.pValue,
+        spreadSec: _pooledPick.fit.spreadSec,
+        note: _pooledPick.fit.reason || null
+      };
+    }
     recs = recs.map(function (r) {
       var f = r && byNode[r.node];
       if (!f || !r.events || !r.events.length) return r;
@@ -6706,8 +6820,19 @@ function runFusion(recs, opts) {
       });
       if (copy.t0Ms != null && isFinite(copy.t0Ms)) copy.t0Ms = copy.t0Ms + shift;
       if (copy.endMs != null && isFinite(copy.endMs)) copy.endMs = copy.endMs + shift;
-      copy.clockSkewApplied = { offsetSec: f.offsetSec, peakOverFloor: f.peakOverFloor, method: f.method };
-      skewApplied.push({ node: r.node, offsetSec: f.offsetSec });
+      /* `source` says WHICH estimator produced the number that moved this node's timestamps — a
+         corrected value that does not say how it was corrected is the failure this line of work
+         exists to stop, and 'pooled' vs 'pairwise' is now a real distinction. */
+      copy.clockSkewApplied = {
+        offsetSec: f.offsetSec,
+        peakOverFloor: f.peakOverFloor,
+        method: f.method,
+        source: f.source || 'pairwise',
+        z: f.z != null ? f.z : null,
+        pValue: f.pValue != null ? f.pValue : null,
+        spreadSec: f.spreadSec != null ? f.spreadSec : null
+      };
+      skewApplied.push({ node: r.node, offsetSec: f.offsetSec, source: f.source || 'pairwise', spreadSec: f.spreadSec != null ? f.spreadSec : null });
       return copy;
     });
   }
