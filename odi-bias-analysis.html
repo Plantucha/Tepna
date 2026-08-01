@@ -7936,7 +7936,25 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           impulse: 'desat_event',
           node: 'OxyDex',
           conf: oxyDesatConf(d),
-          meta: { depth: d.depth != null ? d.depth : null, duration: d.duration != null ? d.duration : null, recovery: d.recovery != null ? d.recovery : null, nadir: d.nadir != null ? d.nadir : null }
+          /* `tMs` is the NADIR — the event's instant for scoring, and that stays the contract. But the
+             nadir is the wrong fiducial for TIMING: a desaturation begins when saturation starts
+             falling and reaches its nadir a desaturation-duration later, so anything correlating
+             desat against another signal measures the coupling PLUS that duration. Measured: the
+             apnea->desat transit reads ~59 s off the nadir and ~29 s off the onset, and the ~30 s gap
+             is the desaturation itself.
+
+             `startTMs`/`endTMs` were already computed and correctly stamped from the parsed rows
+             (see _stampEvent) and were then discarded here — the same loss at the same boundary as
+             the SpO2 series. Both are surfaced; null stays null, never an index-derived guess, because
+             the index->time fallback drifts by minutes on a lossy night. */
+          meta: {
+            depth: d.depth != null ? d.depth : null,
+            duration: d.duration != null ? d.duration : null,
+            recovery: d.recovery != null ? d.recovery : null,
+            nadir: d.nadir != null ? d.nadir : null,
+            onsetTMs: d.startTMs != null ? d.startTMs : null,
+            endTMs: d.endTMs != null ? d.endTMs : null
+          }
         });
       });
       // 2) periodic_breathing — one per detected oscillation episode (window onset)
