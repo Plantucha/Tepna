@@ -18,6 +18,42 @@
   <a class="toplink" href="papers.html">← Tepna preprints</a>
   <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
   <h1 class="title">Rolling-baseline ODI-4 systematically under-estimates the apnea–hypopnea index in severe sleep apnea: a quantified bias, its mechanism, and a detector-level correction</h1>
+  <div class="callout" style="border:2px solid #a33;background:#fdf3f3">
+    <b>⚠ Status — 1 August 2026: this pilot does NOT currently reproduce, and its headline result is not
+    presently supported by a runnable fixture.</b>
+    <p style="margin:.6em 0 0">Three findings, in order of how much they matter:</p>
+    <ol style="margin:.4em 0 0;padding-left:1.4em">
+      <li><b>§6's recipe was broken.</b> <code>odi-bias-analysis.js</code> reached OxyDex's
+        <code>parseCSV</code>/<code>processNight</code> as bare globals, which stopped existing when
+        <code>oxydex-dsp</code>'s back-compat spray was removed. Both call sites sit inside
+        <code>try/catch</code>, so the failure read as "this night had no usable data" and the page
+        populated an <b>empty table, silently</b>. Fixed 2026-07-31; the recipe runs again.</li>
+      <li><b>Table 1 no longer reproduces, and the cause is the INPUTS, not the detector.</b> Running the
+        repository's earliest committed detector (2026-07-01) against today's corpus reproduces today's
+        numbers <em>exactly</em>, so the detector has not drifted. The five
+        <code>uploads/synthetic/</code> recordings are <b>gitignored</b> — they were never a pinned
+        artifact — so the corpus Table 1 was computed from no longer exists and cannot be recovered.</li>
+      <li><b>On the corpus that exists today, the reported under-count is an artifact of the fixture.</b>
+        The synthetic desaturations fall at up to <b>4 %/s</b>, and <b>16–32 % of one-second falls on the
+        two severe nights exceed the 1.5 %/s physiological ceiling</b> that <code>selfGateDesat</code>
+        uses to separate a systemic desaturation from a probe squeeze. The detector therefore rejects
+        <b>232 of 242</b> events on night 2 and 92 of 135 on night 1 as artifact — correctly. Because the
+        generator plants more events on severe nights, the rejection scales with severity, which
+        <em>reproduces the severity-dependent deficit this paper reports as its central finding</em>
+        without any detector bias being present. Measure it yourself:
+        <code>node tools/synth-desat-kinetics.mjs uploads/synthetic/</code>.</li>
+    </ol>
+    <p style="margin:.6em 0 0"><b>What is NOT claimed.</b> The original numbers are not asserted to be
+    wrong — they were computed when the recipe worked, from a corpus that is gone. Whether that corpus had
+    the same kinetics defect is unknown and, without it, unknowable. The baseline-self-suppression
+    mechanism described in the green note below may well be real; what is established is only that
+    <b>this pilot no longer demonstrates it</b>. Resolution requires fixing the generator's desaturation
+    morphology, pinning the corpus as a content-addressed fixture like every other known-answer in this
+    repository, and re-running — tracked in
+    <code>briefs/PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md</code> and
+    <code>briefs/SYNTH-GEN-DESAT-KINETICS-2026-08-01-BRIEF.md</code>. Until then, treat every number
+    below as unverified.</p>
+  </div>
   <div class="callout" style="border:1px solid #1a6e3a;background:#f4fbf6">
     <b>Update — June 2026 (v22.36):</b> the severity-proportional ODI-4 under-count characterized here has been <b>traced to its mechanism and corrected at the detector level</b>. The cause is <b>trailing-mean baseline self-suppression</b>: closely-spaced desaturations in severe OSA drag the rolling-<em>mean</em> reference downward, so the <code>baseline−4%</code> threshold sinks and later events of equal depth are no longer counted. Replacing the trailing mean with a trailing <b>high-percentile (p90) "ceiling" baseline</b> (<code>computeCeilingBaselineArr</code> in <code>oxydex-util.js</code>; wired into <code>detectODI</code>) restores the resting-SpO₂ reference a desaturation is defined against. On the v1.6 synthetic cohort the <b>severe-stratum mean bias roughly halves</b> (≈−31 → ≈−16 events·h⁻¹) and the severity gradient flattens, without inflating the non-apneic stratum. The residual under-count is smaller but non-zero (the detector still recovers &lt;100% of scored events), so the <code>ODI-4 × 1.1</code> AHI surrogate was re-examined and <b>retained</b> (it does not over-shoot). Original characterization preserved below; corrected numbers are marked <span style="color:#1a6e3a"><b>(fixed)</b></span>.</div>
   <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
