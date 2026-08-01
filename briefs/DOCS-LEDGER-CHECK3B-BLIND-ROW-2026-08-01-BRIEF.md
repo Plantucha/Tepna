@@ -137,6 +137,29 @@ both unchanged and both structural rather than accidental: **multi-brief rows** 
 nothing unambiguous to compare) and **non-executable statuses** (`REFERENCE`/`CHECKPOINT`, which §📌 does
 not date-stamp). §5's observation stands: `check3` is total, `check3b` is total over that scope.
 
+## 4a · A SIBLING BLIND SPOT, found the same day by walking into it
+
+check3b compares a brief's **DOCS-INDEX row** against its **header**. Neither it nor any other gate looks
+*inside* a brief for self-contradiction — and that is a live failure mode, not a hypothetical:
+
+- `ENGINE-VERIFICATION-FINDINGS` carried a header saying §1.2 was "still owed" while §1.2 had landed. Its
+  own header records that this "nearly redid" one session's work.
+- The fix went into the header and **left §2's Phases block saying the same false thing**, which sent a
+  second session (2026-08-01) on the same errand before it was reconciled.
+- Then closing §1.7 updated §1.7's body and §2 — and **left the header still listing §1.7 as "not
+  re-verified closed"**. Third instance, same brief, same day, by the session that had just fixed the
+  second one.
+
+All three are the same shape as the missing-status-cell hole above: **a claim with nothing watching it.**
+The row/header pair is gated; header-vs-body is not.
+
+A narrow, mechanical check is available and worth considering with §3's options: *within one brief, a
+section number must not appear in both a "CLOSED"/"DONE" claim and a "Still open:" list.* That is
+string-matching, not judgement, and it has an obvious failure mode to avoid — a brief legitimately saying
+"§1.6 half closed, half still open". So it would need the half/partial vocabulary excluded, or to be
+scoped to exact "Still open: …§N" enumerations only. **Not built here** — a gate that cries wolf on the
+legitimate partial case would be turned off, which is worse than the hole.
+
 ## 5 · Note
 
 `check3` (every brief appears in DOCS-INDEX) and `check3b` (statuses agree) are complementary, and only
