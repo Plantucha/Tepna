@@ -2246,8 +2246,19 @@
     }
     return out;
   }
+  /* ABSENT AND EMPTY ARE DIFFERENT SITUATIONS, and the caller could not tell them apart.
+     `hasData:false` covered both "no *_PPI.txt was loaded" and "one was loaded and the device wrote
+     nothing into it", so the UI said "load the device PPI file to cross-validate" — advice that is
+     actionable in the first case and misleading in the second, because the user already did.
+
+     It is the second case in practice. Measured across this corpus: 107 of 107 Verity `_PPI.txt`
+     files are header-only, and 40 of 40 `_HR.txt` are all-zero. The docs' hedge ("often header-only")
+     understates it — on this firmware it is categorical, which is why the computed PPI is not a
+     second opinion but the only one. `filePresent` lets a reader tell "you have nothing to compare"
+     from "your device produced nothing to compare", which are different facts about the world. */
   function validatePPI(selfNN, devicePPI) {
-    if (!devicePPI || !devicePPI.length) return { hasData: false };
+    if (!devicePPI) return { hasData: false, filePresent: false };
+    if (!devicePPI.length) return { hasData: false, filePresent: true };
     const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.blocker == null || d.blocker === 0)).map((d) => d.ppi);
     if (dev.length < 3 || selfNN.length < 3) return { hasData: true, usable: false, nDevice: dev.length };
     const sM = mean(selfNN),

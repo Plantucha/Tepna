@@ -1971,6 +1971,34 @@
        That is a metric holding a grade it never earned, which is what the evidence ladder exists to
        prevent. The limb cannot be recovered from a waveform, so it is NOT guessed; the export now says
        where the value came from instead. */
+    /* "YOU DIDN'T LOAD IT" AND "YOUR DEVICE WROTE NOTHING" ARE DIFFERENT FACTS.
+       The device-PPI validation lane collapsed both into `hasData:false`, so the UI advised "load the
+       device PPI file to cross-validate" — actionable in the first case, misleading in the second,
+       because the user already had. Measured across this corpus it is always the second: 107 of 107
+       Verity `_PPI.txt` files are header-only and 40 of 40 `_HR.txt` are all-zero, so the docs' hedge
+       ("often header-only") understates a categorical fact about this firmware. */
+    group('PpgDex distinguishes a missing device PPI from an empty one', 'ppgdex-dsp · ppgdex-app · device-ppi', function (T) {
+      /* Asserted, not skipped. The first draft looked this up on the wrong namespace and reported a
+         green "(skipped)" while testing nothing — a hollow gate, which is the failure this suite
+         hunts elsewhere. If the surface moves, this must go RED, not quiet. */
+      var v = env.PPGDSP && env.PPGDSP.validatePPI;
+      T.ok('PPGDSP.validatePPI exposed', typeof v === 'function', 'export validatePPI from ppgdex-dsp.js');
+      if (typeof v !== 'function') return;
+      var absent = v([800, 810, 820], null);
+      var empty = v([800, 810, 820], []);
+      T.eq('no file loaded -> hasData false', absent.hasData, false);
+      T.eq('…and filePresent false', absent.filePresent, false);
+      T.eq('an EMPTY file loaded -> hasData still false', empty.hasData, false);
+      T.eq('…but filePresent TRUE — the device wrote nothing, the user did their part', empty.filePresent, true);
+
+      var src = env.sources || {};
+      var app = src['ppgdex-app.js'] || '';
+      if (app) {
+        T.ok('the app branches on filePresent rather than giving one message for both', /v && v\.filePresent/.test(app) || /v\.filePresent/.test(app), 'still one message for two situations');
+        T.ok('…and does not tell a user to load a file they already loaded', /wrote a header and no intervals/.test(app));
+      }
+    });
+
     group('PpgDex says whether the site was observed or assumed', 'ppgdex-dsp · site-provenance', function (T) {
       var P = env.PpgDex;
       var eq = env.equiv && env.equiv.ppgdex && env.equiv.ppgdex.input;

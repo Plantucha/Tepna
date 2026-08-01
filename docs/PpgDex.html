@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0qqdFwHtXGck1Rrj1rAgHH3IuizKFcWbf6oKlMuNZ7s=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-nBC4VhcZHDNevgPDtsznW7WuLvVCwJC7S958jl6FKRI=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-wGXWUQAwayWkz16xD3eeIZkA7OIoUO9DjimmjQLVmPY=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-aSS2iaQVFAAwjCONyPP2Rime78HgAktXoklaZVdipx8=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-m7UkuedMLKSntYws1Ug4cpYuAPl2TQFlBvuBAWt9q4E=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-wGXWUQAwayWkz16xD3eeIZkA7OIoUO9DjimmjQLVmPY=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8591,8 +8591,19 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     }
     return out;
   }
+  /* ABSENT AND EMPTY ARE DIFFERENT SITUATIONS, and the caller could not tell them apart.
+     `hasData:false` covered both "no *_PPI.txt was loaded" and "one was loaded and the device wrote
+     nothing into it", so the UI said "load the device PPI file to cross-validate" — advice that is
+     actionable in the first case and misleading in the second, because the user already did.
+
+     It is the second case in practice. Measured across this corpus: 107 of 107 Verity `_PPI.txt`
+     files are header-only, and 40 of 40 `_HR.txt` are all-zero. The docs' hedge ("often header-only")
+     understates it — on this firmware it is categorical, which is why the computed PPI is not a
+     second opinion but the only one. `filePresent` lets a reader tell "you have nothing to compare"
+     from "your device produced nothing to compare", which are different facts about the world. */
   function validatePPI(selfNN, devicePPI) {
-    if (!devicePPI || !devicePPI.length) return { hasData: false };
+    if (!devicePPI) return { hasData: false, filePresent: false };
+    if (!devicePPI.length) return { hasData: false, filePresent: true };
     const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.blocker == null || d.blocker === 0)).map((d) => d.ppi);
     if (dev.length < 3 || selfNN.length < 3) return { hasData: true, usable: false, nDevice: dev.length };
     const sM = mean(selfNN),
@@ -14152,7 +14163,14 @@ const { PPGUI } = __require('ppgdex-render.js');
     const v = r.validation;
     let body;
     if (!v || !v.hasData) {
-      body = `<div class="q-note" style="padding:20px 8px">No device <code>*_PPI.txt</code> loaded (or it's empty — the Polar Sense streams PP-intervals only on some firmware). PpgDex's <b>self-PPI</b> from the raw waveform stands alone; load the device PPI file to cross-validate. <span class="dim">This is a validation lane only — self-PPI is never replaced by device PPI, and PPI is never handed to PulseDex.</span></div>`;
+      /* Absent and empty need DIFFERENT text. One is a user action item, the other is a device fact
+         with nothing to do about it — and telling someone to load a file they already loaded is
+         worse than saying nothing. Measured on this corpus, the second case is universal: 107 of 107
+         Verity `_PPI.txt` files are header-only. */
+      body =
+        v && v.filePresent
+          ? `<div class="q-note" style="padding:20px 8px">A device <code>*_PPI.txt</code> was loaded and is <b>empty</b> — the Polar Sense wrote a header and no intervals. Nothing to cross-validate against, and no action will change that on this firmware. PpgDex's <b>self-PPI</b> from the raw waveform is not a second opinion here, it is the only one. <span class="dim">Its two fiducials (foot vs peak) still cross-check each other — see PPI fiducials above.</span></div>`
+          : `<div class="q-note" style="padding:20px 8px">No device <code>*_PPI.txt</code> loaded. PpgDex's <b>self-PPI</b> from the raw waveform stands alone; load the device PPI file to cross-validate — though on the Polar Sense it is usually header-only. <span class="dim">This is a validation lane only — self-PPI is never replaced by device PPI, and PPI is never handed to PulseDex.</span></div>`;
     } else if (!v.usable) {
       body = `<div class="q-note" style="padding:20px 8px">Device PPI present (${v.nDevice} interval${v.nDevice === 1 ? '' : 's'}) but too sparse / blocker-flagged to validate against. Showing self-PPI only.</div>`;
     } else {
