@@ -87,6 +87,7 @@ uploads/*
 !uploads/synthetic_ppgdex_rich_golden.node-export.json
 !uploads/synthetic_ecgdex_golden.node-export.json
 !uploads/synthetic_ecgdex_gapped_golden.node-export.json
+!uploads/synthetic_ecgdex_rich_golden.node-export.json
 !uploads/synthetic_motiondex_acc.txt
 !uploads/synthetic_motiondex_golden.node-export.json
 !uploads/integrator_tch_golden.node-export.json
