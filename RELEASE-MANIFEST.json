@@ -653,6 +653,34 @@
         "WEARABLE-SYNC-2026-07-31-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.1.0",
+      "date": "2026-08-01",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "dd05c2283854",
+        "OxyDex": "cde55e957564",
+        "PulseDex": "1455646f8a24",
+        "GlucoDex": "29e009b125a0",
+        "PpgDex": "b628ba9e1a57",
+        "HRVDex": "b192a6c4c969",
+        "CPAPDex": "46e1fa01b20d",
+        "Integrator": "d608dea564da",
+        "MotionDex": "212c2ef9af56"
+      },
+      "briefs": [
+        "IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md",
+        "CPAP-AUTOHARVEST-FOLLOWUPS-2026-07-28-BRIEF.md",
+        "OXYDEX-SPO2-SERIES-2026-07-31-BRIEF.md",
+        "MOTIONDEX-BUILD-FOLLOWUPS-2026-07-18-BRIEF.md",
+        "PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md",
+        "INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS-2026-07-22-BRIEF.md",
+        "OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md",
+        "PPGDEX-PI-AND-PARSE-FOLLOWUPS-2026-07-12-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
