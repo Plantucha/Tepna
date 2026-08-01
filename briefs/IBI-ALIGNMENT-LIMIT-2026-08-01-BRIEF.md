@@ -115,6 +115,44 @@ Three consequences, and they retire the two open items below:
    at zero because it is flat. That is consistent with a sound timebase but is not evidence of one;
    the ACC↔ACC concentration test remains the thing that actually establishes it.
 
+### The same comb explains this brief's *first* table
+
+The ECG→PPG table at the top — "near-uniform deltas across the whole RR interval", modes jumping
+10 → 1010 ms between nights — was diagnosed as poor foot detection. It is the same comb. Sweeping
+ECG RR against both optical PPI trains on the same six nights:
+
+```
+$ node tools/beat-comb-analysis.mjs --dir <corpus> --pair all
+
+night          pair            meanRR   @lag0%   peak%   floor%   ratio   teeth   spacing (ms)
+2026-07-25     ECG→wrist          980     21.1    24.4     17.7    1.38       0
+2026-07-26     ECG→wrist         1180     16.1    22.5     15.0    1.50       1
+2026-07-27     ECG→wrist         1169     12.9    26.2     15.5    1.69       4   1110 1135 1165
+2026-07-28     ECG→wrist         1190     15.2    24.6     15.4    1.59       2   1197
+2026-07-29     ECG→wrist         1257     16.6    45.8     14.1    3.25       6   1210 1255 1255 1270 1265
+2026-07-30     ECG→wrist         1177     21.0    39.9     14.0    2.85       6   1195 1200 1185 1200 1235
+2026-07-25     ECG→finger         980     17.7    19.2     16.6    1.16       0
+2026-07-26     ECG→finger        1180     15.8    20.1     15.4    1.31       0
+2026-07-27     ECG→finger        1169     17.3    23.4     15.6    1.50       0
+2026-07-28     ECG→finger        1190     17.0    22.6     14.4    1.57       2   1275
+2026-07-29     ECG→finger        1257     23.4    39.8     15.3    2.60       6   1311 1341 1309 1165 1319
+2026-07-30     ECG→finger        1177     17.5    20.2     14.0    1.44       0
+```
+
+Wherever beat sharing is strong enough for teeth to form at all, **the spacing is the mean RR again**
+— 1110/1135/1165 on 07-27, 1195–1235 on 07-30, 1210–1270 on 07-29. And the argmax behaves exactly as
+an argmax over a comb must: across the six ECG→wrist nights it lands at −1959, −909, +573, +2931,
+−201 and +759 ms, hopping whole beats between nights. That *is* the first table's "mode unstable
+10 → 1010 ms", seen with the wrap removed.
+
+On the low-ratio rows (1.16–1.5, most of the ECG→finger column) no teeth form at all: those nights
+share too few beats for the sweep to say anything, and their peak lag is noise. Reporting a mode for
+them — as the first table did — was reading structure out of a flat curve.
+
+So the original diagnosis (a fiducial too poor to match beats) was half right and drew the wrong
+remedy. The fiducial *is* poor here, but fixing it would not deliver an offset: the ambiguity is
+structural, not statistical, and it survives a perfect fiducial.
+
 **The structural reason ACC↔ACC works and this cannot.** An activity envelope is **aperiodic**, so its
 cross-correlation has one peak. A beat train is periodic by construction, so its coincidence curve
 cannot have one, however good the fiducial gets. The design rule for anything downstream: **align on

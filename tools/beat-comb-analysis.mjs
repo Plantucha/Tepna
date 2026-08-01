@@ -46,6 +46,11 @@
  *     PpgDexFinger_<night>.node-export.json (finger); both need timeseries.ppi,
  *     which node exports carry from v2.0.0 on. Prints the per-night table.
  *
+ *   --pair <p>    optical | ecg-wrist | ecg-finger | all   (default optical)
+ *                 `optical` is wrist↔finger, the brief's CONTROL table. The two
+ *                 `ecg-*` pairs are the brief's FIRST table, which turns out to be
+ *                 the same comb — its "mode unstable 10 → 1010 ms" is an argmax
+ *                 hopping between teeth, not a fiducial too poor to match beats.
  *   --tol <ms>    coincidence half-window            (default 100)
  *   --span <RR>   sweep half-width in mean-RR units  (default 3)
  * ════════════════════════════════════════════════════════════════════════ */
@@ -132,47 +137,63 @@ const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
 
 /* ── real corpus ───────────────────────────────────────────────────────── */
 
-function loadPpi(path) {
+/** Beat times from a node export's timeseries block, on the absolute floating timeline. */
+function loadBeats(path, key) {
   if (!existsSync(path)) return null;
   const d = JSON.parse(readFileSync(path, 'utf8'));
-  const p = d.timeseries && d.timeseries.ppi;
+  const p = d.timeseries && d.timeseries[key];
   if (!p || !p.tSec || !p.tSec.length) return null;
   const t0 = (d.recording && d.recording.startEpochMs) || 0;
   return { t: p.tSec.map((s) => s * 1000 + t0), ms: p.ms };
 }
 
-function runDir(dir) {
+/* Which trains to correlate. `optical` is the pair the brief's CONTROL table used;
+   the two `ecg-*` pairs are the brief's FIRST table, which turns out to be the same
+   comb — its "mode unstable 10 → 1010 ms" is an argmax hopping between teeth. */
+const PAIRS = {
+  optical: { label: 'wrist↔finger', a: ['PpgDex', 'ppi'], b: ['PpgDexFinger', 'ppi'] },
+  'ecg-wrist': { label: 'ECG→wrist', a: ['ECGDex', 'rr'], b: ['PpgDex', 'ppi'] },
+  'ecg-finger': { label: 'ECG→finger', a: ['ECGDex', 'rr'], b: ['PpgDexFinger', 'ppi'] }
+};
+
+function runDir(dir, which) {
   const nights = readdirSync(dir).sort();
+  const pairs = which === 'all' ? Object.keys(PAIRS) : [which];
   console.log(`beat-comb — ${dir}   tol ±${TOL} ms, sweep ±${SPAN_RR} RR\n`);
-  console.log('night          meanRR   @lag0%   peak%   floor%   ratio   teeth   spacing (ms)');
+  console.log('night          pair            meanRR   @lag0%   peak%   floor%   ratio   teeth   spacing (ms)');
   let seen = 0;
   for (const night of nights) {
-    const w = loadPpi(join(dir, night, `PpgDex_${night}.node-export.json`));
-    const f = loadPpi(join(dir, night, `PpgDexFinger_${night}.node-export.json`));
-    if (!w || !f) continue;
-    seen++;
-    const meanRR = mean(w.ms);
-    const s = sweep(w.t, f.t, meanRR, TOL, SPAN_RR);
-    const sp = [];
-    for (let i = 1; i < s.teeth.length; i++) sp.push(Math.round(s.teeth[i].lag - s.teeth[i - 1].lag));
-    console.log(
-      night.padEnd(14),
-      String(Math.round(meanRR)).padStart(6),
-      ((100 * s.zero) / w.t.length).toFixed(1).padStart(8),
-      ((100 * s.best.n) / w.t.length).toFixed(1).padStart(7),
-      ((100 * s.floor) / w.t.length).toFixed(1).padStart(8),
-      (s.best.n / s.floor).toFixed(2).padStart(7),
-      String(s.teeth.length).padStart(7),
-      '  ' + sp.join(' ')
-    );
+    for (const key of pairs) {
+      const P = PAIRS[key];
+      const A = loadBeats(join(dir, night, `${P.a[0]}_${night}.node-export.json`), P.a[1]);
+      const B = loadBeats(join(dir, night, `${P.b[0]}_${night}.node-export.json`), P.b[1]);
+      if (!A || !B) continue;
+      seen++;
+      const meanRR = mean(A.ms);
+      const s = sweep(A.t, B.t, meanRR, TOL, SPAN_RR);
+      const sp = [];
+      for (let i = 1; i < s.teeth.length; i++) sp.push(Math.round(s.teeth[i].lag - s.teeth[i - 1].lag));
+      console.log(
+        night.padEnd(14),
+        P.label.padEnd(15),
+        String(Math.round(meanRR)).padStart(6),
+        ((100 * s.zero) / A.t.length).toFixed(1).padStart(8),
+        ((100 * s.best.n) / A.t.length).toFixed(1).padStart(7),
+        ((100 * s.floor) / A.t.length).toFixed(1).padStart(8),
+        (s.best.n / s.floor).toFixed(2).padStart(7),
+        String(s.teeth.length).padStart(7),
+        '  ' + sp.join(' ')
+      );
+    }
   }
   if (!seen) {
-    console.log('\n(no night had both PpgDex and PpgDexFinger with a timeseries.ppi block)');
+    console.log('\n(no night carried both halves of the requested pair with a beat timeseries)');
     return;
   }
-  console.log(`\n${seen} night(s). Read the SPACING column: where it is ≈ meanRR the curve is a comb,`);
+  console.log(`\n${seen} row(s). Read the SPACING column: where it is ≈ meanRR the curve is a comb,`);
   console.log('and the offset is identifiable only modulo one beat. @lag0 is what a nearest-beat');
   console.log('matcher reports as "% corresponding" — it is the comb sampled at zero, nothing more.');
+  console.log('A ratio near 1 means no beat sharing at all, and there the peak lag is pure noise.');
 }
 
 /* ── selftest: planted truth ───────────────────────────────────────────── */
@@ -270,9 +291,14 @@ if (flag('--selftest')) {
   process.exit(selftest() ? 0 : 1);
 } else {
   const dir = opt('--dir', null);
+  const pair = opt('--pair', 'optical');
   if (!dir || !existsSync(dir)) {
     console.error('beat-comb-analysis: --dir <folder of per-night export dirs>, or --selftest');
     process.exit(2);
   }
-  runDir(dir);
+  if (pair !== 'all' && !PAIRS[pair]) {
+    console.error(`beat-comb-analysis: --pair must be one of ${Object.keys(PAIRS).join(', ')}, all`);
+    process.exit(2);
+  }
+  runDir(dir, pair);
 }
