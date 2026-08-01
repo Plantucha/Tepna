@@ -67,3 +67,31 @@ Wellue / ViATOM oximeters, Polar H10 + Verity Sense via the Polar Sensor Logger
 app, NSRR EDF/XML polysomnography exports). Supporting a vendor's file *format*
 is interoperability and creates no licensing obligation; no vendor code is
 included.
+
+---
+
+## Device protocols (interoperability implementations — no vendor code included)
+
+The **capture host** (`capture-host/`, out-of-suite — it is not part of any
+shipped `Foo.html` bundle) talks to sensors directly over BLE. Those protocol
+implementations are original Apache-2.0 code written for interoperability; no
+vendor source is copied or redistributed.
+
+| Protocol | Our implementation | Provenance |
+|---|---|---|
+| **Polar PMD** (Polar Measurement Data — streaming ECG/ACC/PPG/PPI/gyro/mag over service `FB005C80`) | `capture-host/polar_pmd.py` | Wire format per Polar's published PMD specification, distributed with the Polar BLE SDK. |
+| **Polar PS-FTP** (RFC60/RFC76 framing over characteristic `FB005C51` — read-only listing + fetch of onboard recordings, and `SET_LOCAL_TIME`) | `capture-host/polar_psftp.py` | Wire format per the Polar BLE SDK's protocol definitions (`pftp_request.proto` field numbering and the RFC60/RFC76 framing rules). |
+| **Wellue / ViATOM "OxyII"** (0xA5 framing, CRC-8, live SpO₂/PR + finger PPG, stored `.dat` transfer) | `capture-host/oxyii.py`, `capture-host/pull_session.py` | Reverse-engineered from device traffic; documented in `briefs/O2RING-PROTOCOL-2026-07-17-BRIEF.md`. |
+
+**Polar BLE SDK** (`github.com/polarofficial/polar-ble-sdk`) — **not a
+dependency.** It is proprietary (`spdx_id: NOASSERTION`;
+`Polar_SDK_License.txt`), not an OSS licence, and Tepna does not link,
+redistribute, or vendor any part of it. It is named here only because Polar's
+protocol documentation ships with it and is the reference for the two rows
+above. Polar's terms additionally state that its SDK and devices are "not
+intended to be used in life critical, life supporting or medical purpose" —
+consistent with Tepna's own non-device intended-use disclaimer.
+
+Polar, Polar H10 and Verity Sense are trademarks of Polar Electro Oy; Wellue
+and ViATOM are trademarks of their respective owners. Used for identification
+only, with no affiliation or endorsement implied.

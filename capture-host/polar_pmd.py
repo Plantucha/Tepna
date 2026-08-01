@@ -2,12 +2,18 @@
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 #
 # Polar Measurement Data (PMD) service: control-point start commands + data-frame decoders for
-# ECG / ACC / PPG. Reference: the official Polar BLE SDK (PMD spec). This decodes the COMMON,
-# uncompressed frame types fully (ECG type-0 especially — the mandatory stream).
+# ECG / ACC / PPG. This decodes the COMMON, uncompressed frame types fully (ECG type-0 especially —
+# the mandatory stream).
+#
+# WIRE FORMAT, not vendor code. Original interoperability implementation written against the PMD
+# specification Polar publishes with its BLE SDK (`NOASSERTION` / `Polar_SDK_License.txt` —
+# proprietary, and NOT a dependency of this repo: nothing here links to, vendors, or redistributes
+# it). UUIDs, opcodes and frame layouts are protocol facts. See `THIRD-PARTY.md` § Device protocols.
 #
 # ⚠️ UNVERIFIED ON HARDWARE in this environment (no BLE / no Python runtime here). Before trusting
 #    it: (1) some firmware emits COMPRESSED (delta) frames (frame_type >= 1 for ACC/PPG) that need
-#    the SDK's delta decoder — handle_* below warns on an unexpected frame_type instead of guessing;
+#    a delta decoder we have not written — handle_* below warns on an unexpected frame_type instead of
+#    guessing (this is the one open gap, and the only thing that would reopen the SDK question);
 #    (2) the start-command TLVs (sample rate / resolution / range) must match what the device's
 #    requestStreamSettings (control op 0x01) reports for YOUR firmware. Query first if start fails.
 #    Capture a few frames raw and diff against PSL output before relying on a night.
