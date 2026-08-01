@@ -3,9 +3,17 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-01 · **Routed-from:** `CPAP-AUTOHARVEST-FOLLOWUPS-2026-07-28-BRIEF.md` §2.1 (route-or-decline → **ROUTED**)
+**Status:** DONE — 2026-08-01 (executed; **premise REFUTED — there is no second SpO₂ source**) · **Created:** 2026-08-01 · **Routed-from:** `CPAP-AUTOHARVEST-FOLLOWUPS-2026-07-28-BRIEF.md` §2.1 (route-or-decline → **ROUTED**)
 
 # The CPAP has been recording a second, wired SpO₂ channel on 194 nights, and nothing reads it
+
+> **EXECUTED 2026-08-01 — the title is wrong, and this brief is the record of why.**
+> `SA2.edf` is written on every therapy night whether or not the optional oximeter accessory is
+> attached. When it is not, both channels are filled with the physical value **−1** for the entire
+> session. **193 of the 194 nights are entirely that fill.** The accessory was attached exactly once —
+> 2026-06-13, for 2.50 h. Total real SpO₂ in the corpus: **2.50 h**, not 194 nights × 6.83 h.
+> Reproduce with `node tools/cpap-sa2-agreement.mjs --cpap <tree> --ring <exports>`.
+> **Everything in §1 below is accurate and still misleading — see §7.**
 
 ## 1 · The premise, verified rather than inherited
 
@@ -79,17 +87,91 @@ is the work, not the premise.
 - The CPAP's own `SA2` is **therapy-time** oximetry. On a night where the mask comes off, the ring is the
   only source — so this supplements the ring, it does not replace it.
 
+## 7 · What was actually found (2026-08-01)
+
+### The premise measured the wrong thing
+
+§1 is not wrong about anything it states. The files exist, the channels are as described, the
+durations are real, the dedup and session-summing warnings are correct. **It measured the presence of
+a FILE and reported it as the presence of DATA.**
+
+```
+── SA2 coverage ──                          ── the same files, as DATA ──
+distinct files (deduped) : 250              entirely the -1 "no sensor" fill : 193 of 194
+distinct nights          : 194              carrying ANY real saturation     : 1
+median hours/night       : 6.83             total REAL SpO2 in the corpus    : 2.50 h
+nights under 4 h         : 7 of 194         the night with data              : 2026-06-13
+```
+
+A full-length, well-formed, perfectly readable 7.2 h session containing no measurement at all still
+reads as 7.2 h of coverage. The overstatement is a factor of ~194.
+
+### One correction to §1's channel table, too
+
+`SA2.edf` carries **three** signals, not two: `Crc16` at 1/60 Hz sits alongside `SpO2.1s` and
+`Pulse.1s` in **249 of the 250** files. A gate written from §1's text would have redded on 249 of them.
+
+### The irony, which is the useful part
+
+§1's "one caution, recorded because it nearly misled this brief" names
+`20260613_231433_SA2.edf` — 2.50 h against a 7.35 h ring night — and warns that generalising from it
+would **understate** the source ~3×, so always sum a night's sessions.
+
+That file is the only one in the corpus with data. Generalising from it would have **overstated**
+nothing; generalising from the other 249 is what produced this brief. The one file singled out as
+unrepresentative was the only representative one.
+
+### CPAPDex already knew — nothing is broken
+
+The suite has read SA2 all along (`CpapDsp.oximetryLane`, `oximetrySource: 'CPAPDex-SA2 (peer of
+O2Ring)'`), and it handles this correctly. `_spo2Valid` admits only 50–100 %, so −1 never enters a
+computation, and the lane returns a named reason:
+
+```
+2026-07-27 (sentinel) → { available:false, reason:'oximeter-not-connected', coverage:0 }
+2026-06-13 (real)     → { available:true,  coverage:1, odi:1.6, events:4 }
+```
+
+**No node ever consumed a sentinel, no published number is affected, and no fix is required.** The
+information that refutes this brief was already in the codebase, in a branch someone had named
+`oximeter-not-connected` before the brief was written.
+
+### Decision on §5's open question
+
+**Nothing consumes SA2 as a cross-validation source, because there is nothing to consume.** This is
+not "the agreement is not good enough" — no agreement can be computed. 2026-06-13 is the sole
+candidate night and it has no concurrent ring export, so the sample size for a comparison is **zero**.
+
+Reopening this requires a hardware change, not analysis: **attach the ResMed's oximeter accessory.**
+If that happens, `tools/cpap-sa2-agreement.mjs` performs the whole comparison as specified —
+alignment by lag sweep, then Bland–Altman + ODI-4 + nadir/T90, never Pearson — and its `--selftest`
+already pins that machinery against planted answers.
+
+### A note on the statistic, sharper than §2 put it
+
+§2 says Pearson r "will look poor even for two sensors that agree perfectly". That is half true, and
+the half matters. What r tracks is how much variance the two traces **share**, which depends on the
+night rather than on the sensors: shared *physiological* wander keeps r high (0.88 on flat windows of
+the selftest pair), while independent *sensor noise* collapses it (−0.01) — **with the planted bias
+identical in both cases**. So r is not pessimistic, it is **uninformative about agreement**, because
+it moves with something that is not agreement. Bland–Altman returns 1.80 % in every case. That is the
+assertion the tool gates, and it is stronger than the one the brief asked for.
+
 ## 5 · Done when
 
-- [ ] A committed `SA2.edf` fixture + a gate pinning the two channels, their 1 Hz rate, and the
-      session-summing rule (the 2.5 h-vs-6.85 h trap in §1 is exactly what a fixture should freeze).
-- [ ] A coverage report over all 194 nights: SA2 hours vs ring hours, and the overlap after the
-      `fitClockOffsetPooled` correction — not raw stamps.
-- [ ] Agreement measured with the right instruments (Bland–Altman bias + LoA, ODI-4 agreement, nadir/T90),
-      **not** Pearson r on the raw trace.
-- [ ] An explicit decision, recorded here, on whether anything consumes SA2 — and "the agreement is not
-      good enough to use it" is a legitimate outcome that must not be argued away.
-- [ ] Gates green; changeset dropped.
+- [x] ~~A committed `SA2.edf` fixture~~ — **superseded.** A fixture would freeze a container, and a
+      container is exactly what misled this brief. The gate that matters is the one in
+      `tools/cpap-sa2-agreement.mjs --selftest`: a full-length all-sentinel session must read as
+      **zero** coverage and must not be rescued by being long. Committing one of the user's real
+      SA2 EDFs was also declined on privacy grounds — synthetic known-answers do the job.
+- [x] A coverage report over all 194 nights — delivered, in **two** forms: hours-of-file (which is what
+      §1 measured) and hours-of-data (which is what matters). The clock-fit overlap was not reached
+      because no night has both real SA2 saturations and a ring export.
+- [x] Agreement instruments implemented and gated against planted answers (Bland–Altman bias + LoA,
+      ODI-4 under one shared rule, nadir/T90; alignment by lag sweep). **Not run on real data — n = 0.**
+- [x] Explicit decision recorded (§7): **nothing consumes SA2.** Not "the agreement is too poor" —
+      no agreement is computable.
+- [x] Gates green; changeset dropped.
 
 ## 6 · Guardrail
 
