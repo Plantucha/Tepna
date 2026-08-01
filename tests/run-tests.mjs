@@ -1021,6 +1021,13 @@ async function main() {
     // sd · mean) + DOM guards so it loads headless. It is INLINED by build-analysis, so the .html was
     // re-bundled (build-analysis --check is the staleness net). Load failure → env.QrsEquiv undefined → red.
     'qrs-equiv-analysis.js',
+    /* MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §2/§3/§4 — the ACC↔flow clock-recovery + resampling layer
+       (`window.RespAccAnalysis`). It was in NEITHER lane: `nativeHz`, `toGrid` and the channel
+       constructors each carry a separately-documented SILENT failure, all three fixed and none of them
+       gated — so every one of those fixes rested on a comment. DOM-free and side-effect-free at load.
+       Load failure → env.RespAccAnalysis undefined → that group's availability assert reds rather than
+       the group quietly vanishing. */
+    'resp-acc-analysis.js',
     // TEST-COVERAGE-FOLLOWUPS-II §1b — HRVDex's personalization already leaks its pure cited kernels as
     // bare globals (Object.assign(window,{…})) and loads headless, so NO source edit / NO re-bundle is
     // owed (the brief's "no seam" premise was wrong). Load it last so env can grab calcVo2Cat/getAgeBand.
@@ -1169,6 +1176,7 @@ async function main() {
     CohortGen: ctx.CohortGen,
     CohortFull: ctx.CohortFull,
     AnalysisStats: ctx.AnalysisStats,
+    RespAccAnalysis: ctx.RespAccAnalysis,
     docs: readDocs(),
     docsLedger: readDocsLedger(),
     sources: readSources(),
