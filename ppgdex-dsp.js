@@ -2748,6 +2748,8 @@
       hrvConfidence,
       nn,
       tt: corr.tt,
+      // Aligned with nn/tt: correctRR returns flags for exactly the series it emitted.
+      ppiFlags: corr.flags,
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,
@@ -3348,7 +3350,17 @@
           }),
           ms: r.nn.map(function (v) {
             return Math.round(v);
-          })
+          }),
+          /* WHICH INTERVALS ARE MEASUREMENTS. 1 = interpolated by correctRR, not observed. Without it
+             the series mixes the two and a consumer cannot tell — and rMSSD over interpolated beats is
+             not a measurement of anything. This one is not hypothetical here: the first four PPI of a
+             real night read 1190, 1190, 1190, 1190 — the running median, not four identical heartbeats. */
+          corrected:
+            r.ppiFlags && r.ppiFlags.length === r.nn.length
+              ? Array.prototype.map.call(r.ppiFlags, function (f) {
+                  return f ? 1 : 0;
+                })
+              : null
         };
       }
     }

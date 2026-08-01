@@ -2216,7 +2216,12 @@
     // it no longer inflates RMSSD/SDNN/epochs. Reported as artifactSec.
     const _conf = beatConfidence(peaks, sqi, fs, rec.t0Ms || 0);
     const nn = [],
-      tt = [];
+      tt = [],
+      /* Aligned with nn/tt BY CONSTRUCTION. `nnRes.corrected` is the UNFILTERED per-beat flag, and the
+         loop below drops low-confidence beats — so exporting nnRes.corrected directly would hand a
+         consumer a mask one length and a series another, silently mis-attributing every correction
+         after the first drop. Pushed in the same pass instead. */
+      nnCorr = [];
     let artifactSec = 0,
       _pSec = null;
     for (let i = 0; i < nnRes.nn.length; i++) {
@@ -2225,6 +2230,7 @@
       if (c >= 0.5) {
         nn.push(nnRes.nn[i]);
         tt.push(nnRes.tt[i]);
+        nnCorr.push(nnRes.corrected[i] ? 1 : 0);
       } else if (secAbs !== _pSec) {
         artifactSec++;
         _pSec = secAbs;
@@ -2508,6 +2514,8 @@
       nn,
       tt,
       corrected: Array.from(nnRes.corrected),
+      // Filter-aligned twin of `corrected`, safe to publish beside nn/tt (see the loop above).
+      nnCorrected: nnCorr,
       // quality
       analyzablePct: nnRes.analyzablePct,
       correctionRate: nnRes.correctionRate,
@@ -4318,8 +4326,15 @@
           }),
           ms: r.nn.map(function (v) {
             return Math.round(v);
-          })
+          }),
+          /* WHICH INTERVALS ARE MEASUREMENTS. 1 = the value was interpolated by the Malik/ectopy gate,
+             not observed. Without it the series mixes the two and a consumer cannot tell — and rMSSD
+             over interpolated beats is not a measurement of anything. It also exposes an honest quirk
+             this export made visible: `rr[0] = rr[1] || 1000` (computeSQI), because beat 0 has no
+             predecessor, so the FIRST interval is a copy and is flagged as such. */
+          corrected: r.nnCorrected && r.nnCorrected.length === r.nn.length ? r.nnCorrected.slice() : null
         };
+        if (out.timeseries.rr.corrected) out.timeseries.rr.corrected[0] = 1;
       }
       out.sleep = amb
         ? { suppressed: true, suppressedReason: (r.sleepSuppressed && r.sleepSuppressed.suppressedReason) || 'high-activity / ambulatory', stages: null }

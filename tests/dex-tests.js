@@ -1940,6 +1940,18 @@
         T.ok(label + ' · beat times are strictly increasing (not a cumulative sum of intervals)', mono);
         T.ok(label + ' · intervals are physiological, not raw samples', blk.ms.every(function (v) { return v > 150 && v < 4000; }),
           Math.min.apply(null, blk.ms) + '…' + Math.max.apply(null, blk.ms));
+        /* WHICH INTERVALS ARE MEASUREMENTS. Both nodes interpolate rejected beats (Malik/ectopy gate,
+           correctRR) and both TRACKED it internally while exporting a series that mixed the two. On a
+           real night that is 0.3 % of ECGDex intervals and 2.5 % of PpgDex's — and the first six PPI
+           read 1190, 1190, 1190, 1190, 1190, 1190, which is the running median, not six identical
+           heartbeats. rMSSD over interpolated beats is not a measurement of anything. */
+        T.ok(label + ' · a corrected/interpolated mask rides alongside', Array.isArray(blk.corrected), typeof blk.corrected);
+        if (Array.isArray(blk.corrected)) {
+          T.eq(label + ' · the mask aligns with the series (not the pre-filter array)', blk.corrected.length, blk.ms.length);
+          T.ok(label + ' · the mask is 0/1 only', blk.corrected.every(function (v) { return v === 0 || v === 1; }));
+          T.ok(label + ' · not everything is flagged (a mask that says "all interpolated" says nothing)',
+            blk.corrected.some(function (v) { return v === 0; }));
+        }
         if (extra) extra(blk);
       };
 
