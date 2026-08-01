@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED — 2026-07-18 · **Created:** 2026-07-18
+**Status:** DONE — 2026-07-31 · **Created:** 2026-07-18 · **Closed:** all three classes closed — §RN 7/7, §EP-rest 9/9, §AD 7/7 (21/21 gates), every one both-direction mutation-verified
 
 # Deep-scout hollow gates — follow-ups (the residue that needs a HARNESS, not an assertion)
 
@@ -34,8 +34,23 @@ does not yet have. This brief carries the three surviving classes.
 > `2026-07-18-render-harness-hoisted-classifiers`; **build-docs.mjs refresh of `docs/{HRVDex,OxyDex,PulseDex}
 > .html` required** — the deploy drift guard reds otherwise). Suite 2983.
 >
-> **REMAINING §RN (1):** ecgdex canvas minute-tick (`t/60` axis label, LOW) — pure `getContext('2d')` canvas
-> draw with no value seam; not worth a canvas shim. Deferred (a 2× axis label; document only).
+> **§RN COMPLETE 7/7 — 2026-07-31.** The last finding (ecgdex canvas minute-tick, `t/60` axis label, LOW)
+> was deferred above as "pure `getContext('2d')` canvas draw with no value seam; not worth a canvas shim".
+> **It never needed a shim.** The arithmetic was pure all along — only its LOCATION, between a
+> `getContext('2d')` and a `fillText`, was untestable. `scopeAxisTick`/`scopeAxisLabel` are hoisted out of
+> `ECGScope.draw()` and exposed, which is the **same extraction path (ii) this section already used three
+> times** in wave 2 (`tanakaHRmax` · `hrvRmssdClass` · `oxySpo2NightCV`). Behaviour-identical, so
+> compute-inert. 20 legs in `ecgdex-render · render-harness · known-answer`: all three label regimes
+> (tenths / whole seconds / minutes), both label boundaries pinned on BOTH sides, the full tick ladder
+> including its narrow 0.5 s middle rung, and a consistency leg asserting a 1 h view produces no duplicate
+> labels — which is *why* the minute tick rounds up (600/8 = 75 s would print a repeated integer).
+> Six mutations verified: the planted `t/60 → t/30`, both `> 120 → >= 120` boundaries, `> 12 → >= 12`,
+> the `0.5 → 0.25` rung, and `ceil → round` on the minute tick.
+>
+> **A hole in the gate itself, found by mutating it.** The first draft's `> 120 → >= 120` mutation red
+> NOTHING — because `scopeAxisTick` and `scopeAxisLabel` each carry their own `> 120` boundary, and every
+> tick leg sat far from 120 while only the *label* boundary had a pair. A boundary is pinned only by legs
+> on either side of it, per function. Fixed with a tick pair at 120/121; both mutations now red.
 
 **[original analysis, retained]** `tests/run-tests.mjs` loads every `*-render.js` **only as raw text into `env.sources`** (verified in the
 `wanted[]` block, ~lines 216–286): the render modules are parsed as strings for source-grep gates, but
@@ -267,24 +282,20 @@ silently produced an empty table for as long as the bare-global defect stood.
 §AD each have their harness + both-direction pins (or are explicitly dispositioned). Each lands as its own
 gated PR. When all three classes are closed, flip the parent brief to `DONE`.
 
-### Status 2026-07-31 — 20 of 21 gates closed; ONE item left, and it is not this brief's to close
+### Status 2026-07-31 — 21 of 21 gates closed; brief CLOSED
 
 | class | state |
 |---|---|
+| **§RN** | **7/7 — CLOSED** |
 | **§EP-rest** | **9/9 — CLOSED** |
 | **§AD** | **7/7 — CLOSED** |
-| **§RN** | 6/7 — the ecgdex canvas minute-tick (`t/60` axis label, **LOW**) remains |
 
-**This brief stays `PROPOSED`, deliberately.** Its own Done-when states §RN strictly — *"its 7 findings
-become asserted pins"* — and the seventh is not a pin but a **disposition**: a pure `getContext('2d')`
-draw with no value seam, judged not worth a canvas shim. That disposition is defensible and was made
-here, but flipping the header to `DONE` while a listed finding has no pin would be exactly the
-"reads authoritative and is not" failure this whole wave exists to remove. Closing it is one of:
-(a) build the canvas shim, (b) hoist the axis-label arithmetic to a pure function and pin THAT — the
-extraction path §RN wave 2 already used three times — or (c) an owner ruling that a 2× axis label is
-below the pin threshold, recorded here. **(b) is cheap and is the recommendation.**
+The Done-when is met on its own strict terms: §RN's seven findings are **asserted pins**, not
+dispositions. An earlier revision of this section held the brief at `PROPOSED` precisely because the
+seventh was still a disposition, and named option **(b) — hoist the axis arithmetic and pin that** — as
+the cheap close. That is what shipped, so the header now flips honestly rather than by waiver.
 
-**A note on the three deferrals this brief made, since all three were re-opened and none held:**
+**A note on the FIVE deferrals this brief made, since every one was re-opened and none held:**
 
 | deferred as | actually was |
 |---|---|
@@ -292,9 +303,10 @@ below the pin threshold, recorded here. **(b) is cheap and is the recommendation
 | §EP-rest EDR window — *"needs a slow-respiration ECG synthesizer"* | one additive optional parameter, on the route **this brief itself named** |
 | §EP-rest SQI weights — *"needs a borderline-SQI waveform generator"* | unnecessary: **differencing** recovers a weight from any beat, so nothing had to sit near the threshold |
 | §EP-rest SampEn tolerance — *"without a tolerance-sensitive synthetic found"* | unnecessary: a **default** is pinned by equality against the explicit argument |
+| §RN canvas minute-tick — *"no value seam; not worth a canvas shim"* | no shim needed — the arithmetic was pure, only its LOCATION was untestable; the extraction path this very section used three times |
 
-Three of the four were blocked on a fixture that did not need building, and the fourth on one the brief
-had already described. The pattern is worth carrying forward: **a recorded deferral is a hypothesis about
+Four of the five were blocked on a fixture that did not need building; the fifth on one the brief had
+already described. The pattern is worth carrying forward: **a recorded deferral is a hypothesis about
 cost, not a finding** — re-derive it before inheriting it. Two of these re-derivations also turned up
 defects (`NSRR.analyzeRecord` dead in production; `crc.respFromEDR` halving at 24/min) that only appeared
 because something finally executed the path.

@@ -19381,6 +19381,69 @@
        load) and exposes their globals. This group closes the 3 HIGH §RN findings by calling / driving the
        real render code and asserting the surfaced value. Node-lane only (the browser suite runs the render
        modules in its iframe rigs, not the shared realm) — SKIPs there like docs-ledger/release-ledger. */
+    /* ════ ECGScope TIME-AXIS — §RN's LAST finding, the one it deferred ════
+       §RN planted 7 render defects and all 7 shipped green. Six became pins (3 by driving the real render
+       code, 3 by extraction). The seventh — the ECGScope minute-tick label — was deferred as "a pure
+       getContext('2d') canvas draw with no value seam; not worth a canvas shim".
+
+       It never needed one. The arithmetic was pure all along; only its LOCATION was untestable. Hoisting
+       `scopeAxisTick`/`scopeAxisLabel` out of `draw()` — the same extraction §RN wave 2 already used for
+       tanakaHRmax, hrvRmssdClass and oxySpo2NightCV — makes the surfaced label an ordinary known-answer.
+       The planted defect was a doubled divisor (`t/60 → t/30`), which these legs catch directly.
+
+       The axis has THREE presentation regimes, and a boundary is where a label goes wrong, so each
+       boundary is pinned on BOTH sides rather than sampled in the middle. */
+    group('ECGScope time-axis ticks and labels — §RN finding 7, extracted', 'ecgdex-render · render-harness · known-answer', function (T) {
+      var U = env.ECGUI;
+      if (!U || typeof U.scopeAxisLabel !== 'function' || typeof U.scopeAxisTick !== 'function') {
+        T.skip('env.ECGUI.scopeAxisTick + scopeAxisLabel available', 'ECGUI not co-loaded in this runner');
+        return;
+      }
+      // ── labels · regime 3: span > 120 s ⇒ MINUTES. This is the planted defect's home.
+      T.eq('a 600 s span labels 300 s as "5m" — the /60 seconds→minutes conversion', U.scopeAxisLabel(300, 600), '5m');
+      T.eq('…and 1800 s as "30m" (a t/60 → t/30 slip would read "60m")', U.scopeAxisLabel(1800, 3600), '30m');
+      T.eq('…minutes print whole, never fractional', U.scopeAxisLabel(330, 600), '6m');
+      // ── labels · regime 2: 12 s < span ≤ 120 s ⇒ WHOLE seconds.
+      T.eq('a 60 s span labels in whole seconds', U.scopeAxisLabel(30, 60), '30s');
+      // ── labels · regime 1: span ≤ 12 s ⇒ TENTHS (the default 10 s scope view needs the resolution).
+      T.eq('a 10 s span labels in tenths', U.scopeAxisLabel(2.5, 10), '2.5s');
+      // ── the two boundaries, pinned on BOTH sides: the switches are > 120 and > 12, not ≥.
+      T.eq('boundary · exactly 120 s is still SECONDS', U.scopeAxisLabel(60, 120), '60s');
+      T.eq('boundary · …and 121 s is minutes', U.scopeAxisLabel(60, 121), '1m');
+      T.eq('boundary · exactly 12 s still gets tenths', U.scopeAxisLabel(6, 12), '6.0s');
+      T.eq('boundary · …and 13 s gets whole seconds', U.scopeAxisLabel(6, 13), '6s');
+
+      // ── ticks · the spacing ladder that decides which labels exist at all.
+      T.eq('a 600 s span ticks every 2 MINUTES — ceil(600/8/60)·60 = 120 s', U.scopeAxisTick(600), 120);
+      T.eq('…and a 3600 s span every 8 min, still a whole minute', U.scopeAxisTick(3600), 480);
+      T.eq('an 80 s span aims at ~8 gridlines — ceil(80/8) = 10 s', U.scopeAxisTick(80), 10);
+      T.eq('a 10 s span takes the ceil rung — ceil(10/8) = 2 s', U.scopeAxisTick(10), 2);
+      // The 0.5 s rung is narrow: it needs secSpan/8 in (0.2, 1], i.e. a span of 1.6–8 s. Sampling only
+      // the wide rungs would leave it unpinned, which is how a ladder loses a step unnoticed.
+      T.eq('a 4 s span falls to the 0.5 s rung (the ladder’s narrow middle step)', U.scopeAxisTick(4), 0.5);
+      T.eq('an 8 s span is still the 0.5 s rung — the > 1 switch is on secSpan/8, not on secSpan', U.scopeAxisTick(8), 0.5);
+      T.eq('a 1 s span falls to the finest 0.2 s rung', U.scopeAxisTick(1), 0.2);
+      /* The TICK function has its own > 120 boundary, separate from the label's, and it needs its own
+         pair. (Found by mutation: `> 120 → >= 120` in scopeAxisTick reds nothing without these, because
+         every other tick leg sits far from 120. A boundary is only pinned by legs either side of it.) */
+      T.eq('boundary · a tick at exactly 120 s is still the SECONDS ladder — ceil(120/8) = 15 s', U.scopeAxisTick(120), 15);
+      T.eq('boundary · …and at 121 s it becomes a whole-minute tick', U.scopeAxisTick(121), 60);
+
+      /* ── and the two functions must AGREE on the regime, which is the point of the minute rounding:
+            600/8 = 75 s, so an un-rounded tick would label 1m, 3m, 4m, 5m, 6m, 6m, … — a repeated integer.
+            This leg is the one that would survive a refactor of either function on its own. */
+      var seen = {},
+        dup = 0,
+        tk = U.scopeAxisTick(3600);
+      for (var t = tk; t < 3600; t += tk) {
+        var l = U.scopeAxisLabel(t, 3600);
+        if (seen[l]) dup++;
+        seen[l] = 1;
+      }
+      T.eq('a 1 h view produces NO duplicate axis labels — tick and label agree on the regime', dup, 0);
+      T.ok('…because minute ticks are whole minutes', U.scopeAxisTick(600) % 60 === 0 && U.scopeAxisTick(3600) % 60 === 0, 'ticks: ' + U.scopeAxisTick(600) + ', ' + U.scopeAxisTick(3600));
+    });
+
     group('Render execution — surfaced-value known-answer (§RN harness)', 'glucodex-render · oxydex-render · cpapdex-render · render-harness', function (T) {
       if (!env.GluDisp || !env.OxyDex || typeof env.OxyDex.reviewView !== 'function' || !env.CpapRender || typeof env.CpapRender.renderReviewView !== 'function') {
         T.skip(
