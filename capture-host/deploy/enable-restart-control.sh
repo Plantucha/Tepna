@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# tepna-capture — deploy/enable-restart-control.sh
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # Let a deploy finish itself — restart the capture daemon WITHOUT an interactive password,
 # and without opening a root hole.
 #   sudo bash enable-restart-control.sh

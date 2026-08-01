@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# tepna-capture — deploy/fix-clock-write.sh
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 set -uo pipefail
 [ "$(id -u)" = 0 ] || { echo "run with sudo: sudo bash $0"; exit 1; }
 install -d /etc/systemd/system/tepna-capture.service.d

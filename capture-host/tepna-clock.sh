@@ -26,11 +26,20 @@
 # verb is implemented for both. Mirrors host_clock.parse_chrony_tracking on the read side.
 set -eu
 
-DROPIN=/etc/systemd/timesyncd.conf.d/tepna-ntp.conf
+# TEST SEAM, AND IT IS INERT UNDER SUDO BY CONSTRUCTION. This script exists to hold a NOPASSWD root
+# grant, so an environment-controlled write path would be a privilege-escalation hole: whoever holds the
+# grant could point root's `>` at any file on the box. sudo's default `env_reset` already scrubs this
+# variable, but defence in depth must not depend on someone else's sudoers. So it is honoured ONLY when
+# we are not root — i.e. exactly the case the tests run in, and never the case the grant creates.
+# (Same seam, same reason, as TEPNA_ETC_SYSTEMD/TEPNA_ETC_NETWORKD in deploy/enable-cpap-wifi.sh.)
+ETC_ROOT=""
+if [ "$(id -u)" -ne 0 ] && [ -n "${TEPNA_ETC_ROOT:-}" ]; then ETC_ROOT="$TEPNA_ETC_ROOT"; fi
+
+DROPIN="$ETC_ROOT/etc/systemd/timesyncd.conf.d/tepna-ntp.conf"
 # chrony reads `sourcedir /etc/chrony/sources.d` (servers, reloadable WITHOUT a restart via
 # `chronyc reload sources`) and `confdir /etc/chrony/conf.d`. Writing sources rather than a full config
 # means we never clobber the distro's own chrony.conf.
-CHRONY_SOURCES=/etc/chrony/sources.d/tepna.sources
+CHRONY_SOURCES="$ETC_ROOT/etc/chrony/sources.d/tepna.sources"
 
 # Which daemon is actually steering the clock? Prefer what is RUNNING over what is installed — a box can
 # have both packages present with only one active.

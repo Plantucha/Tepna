@@ -383,7 +383,18 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #   • `networkctl reload` and `systemctl daemon-reload` are each gated on their OWN real-host path,
     #     the same §E6 shape check-system-files.sh uses, so a redirected run reloads nothing;
     #   • the only other command is `ip route show` — read-only, and stubbed on PATH by the tests.
-    assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh"}, (
+    # The three NOPASSWD helpers added 2026-08-01 (test_tepna_{clock,restart,rssi}_sh.py), each with the
+    # confirmation this list demands. All three are driven with their ENTIRE external command surface
+    # stubbed onto PATH — not just the read-only calls — so no real host command can be reached:
+    #   • tepna-clock.sh   — writes only under $TEPNA_ETC_ROOT, redirected into tmp_path; its whole
+    #     command set is systemctl / chronyc / timedatectl, all stubbed. The one test that deliberately
+    #     leaves the seam unset (proving it is off by default) asserts the write FAILS as non-root, and
+    #     is skipped outright when euid == 0 so it can never write a real /etc even in a root container.
+    #   • tepna-restart.sh — writes nothing at all; systemctl and sleep are its only commands, stubbed.
+    #   • tepna-rssi.sh    — writes nothing at all; hcitool is its only command, stubbed. The rest is
+    #     awk/grep/printf on strings the test supplies.
+    assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
+                        "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 
