@@ -2059,6 +2059,47 @@
       T.ok('at least one interval series was actually exercised', checked > 0 || !eqP, checked + ' block(s)');
     });
 
+    /* A TIMING FIDUCIAL IS NOT THE CLINICAL DEFINITION.
+       OxyDex's `desat_event` is artifact-gated and thresholded to the ODI drop, ~7-15 a night, because
+       ODI must be a defensible index. Timing wants the opposite trade: many well-localised edges,
+       shallower ones kept. Measured on the corpus the apnea→desat transit resolved 3 nights of 39 off
+       `desat_event` and 10 off a rule like this one — a rule that lived in an analysis script, ungated
+       and unswept, while a 29 s median was quoted on its authority. */
+    group('Desaturation onsets as a timing fiducial, without inventing falls', 'integrator-dsp · desat-onset', function (T) {
+      var D = env.IntegratorDSP || env.D || null;
+      var f = D && D.desatOnsetsFromSeries;
+      T.ok('desatOnsetsFromSeries exported', typeof f === 'function');
+      if (typeof f !== 'function') return;
+      var t0 = U(2026, 5, 12, 22, 0, 0);
+      var mk = function (vals) { return { hz: 1, t0Ms: t0, values: vals }; };
+      var flat = function (n, v) { var a = []; for (var i = 0; i < n; i++) a.push(v); return a; };
+
+      // One planted desaturation: 60 s at 97, a 5-point fall to 92, then recovery.
+      var one = flat(60, 97).concat([96, 95, 94, 93, 92], flat(60, 97));
+      var got = f(mk(one), {});
+      T.eq('one desaturation yields ONE onset, not one per sample of the fall', got.length, 1);
+      /* The instant must be the LAST SAMPLE BEFORE the descent — the nadir is a desaturation-duration
+         later, and timing against it measures the coupling plus that duration. */
+      T.eq('…stamped at the onset, not the nadir', got[0], t0 + 59000);
+
+      T.eq('a flat series yields nothing', f(mk(flat(300, 96)), {}).length, 0);
+      T.eq('a fall shallower than the threshold is not an onset', f(mk(flat(30, 97).concat([96, 95], flat(30, 95))), {}).length, 0);
+      T.eq('…and IS one when the threshold allows it', f(mk(flat(30, 97).concat([96, 95], flat(30, 95))), { dropPct: 2 }).length, 1);
+
+      /* THE FABRICATION THIS GUARDS. A dropout spanning a recovery would otherwise produce a fall from
+         the pre-gap value to the post-gap one: a desaturation that never happened, at an instant that
+         never happened. The hole must break the window, not be interpolated across. */
+      var gap = flat(10, 97).concat([null, null, null, null, null], flat(10, 88));
+      T.eq('a hole does not manufacture a fall across it', f(mk(gap), {}).length, 0);
+      var noGap = flat(10, 97).concat(flat(10, 88));
+      T.ok('…while the SAME drop with no hole is detected (so the guard is not just always-off)', f(mk(noGap), {}).length > 0, f(mk(noGap), {}).length);
+
+      // Degenerate inputs must return nothing rather than throw or invent an origin.
+      T.eq('no series -> no onsets', f(null, {}).length, 0);
+      T.eq('no anchor -> no onsets (an instant needs an origin)', f({ hz: 1, values: flat(60, 97).concat(flat(5, 90)) }, {}).length, 0);
+      T.eq('the detector is deterministic', JSON.stringify(f(mk(one), {})), JSON.stringify(got));
+    });
+
     group('The Integrator carries OxyDex SpO₂, holes and all', 'integrator-dsp · spo2-series', function (T) {
       var A = env.adaptEnvelopeNode;
       T.ok('adaptEnvelopeNode present', typeof A === 'function');
