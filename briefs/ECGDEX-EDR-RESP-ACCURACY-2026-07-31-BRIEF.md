@@ -158,9 +158,30 @@ is **not** evidence the change is safe: the fixture is the **LIGHT** export — 
 ganglior_events reserved` — and carries no `hrv` block, so it does not contain `respFromEDR` at all.
 
 This is the same gap `INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS` §1 closed for PpgDex on 2026-08-01 (a
-committed **rich**-export golden). **ECGDex has the identical hole and it is still open.** Worth its own
-unit, mirroring the PpgDex one; noted here so the next reader does not mistake a green GATE B for coverage
-of the CRC block.
+committed **rich**-export golden).
+
+**✅ CLOSED the same day.** `uploads/synthetic_ecgdex_rich_golden.node-export.json` is minted from the
+**same committed input** as the clean twin (`synthetic_ecgdex_h10.txt`), so the two goldens differ by
+`opts.rich` alone. Registered through `tools/regen-ecgdex-goldens.mjs`; no hash hand-written. Gated by
+`ecgdex-dsp · equiv · integrator-facing`, 13 legs:
+
+- byte-for-byte equivalence, volatile keys aside;
+- **anti-vacuity** — `hrv.frequency.respFromEDR` asserted present and typed (it is **the** field §7.1
+  changed), alongside `respFromEDRMethod`, `respRate`, `hrv.time.sdnn`, `quality`, `timeseries`;
+- the **honest-null contract**: `sleep`/`apnea`/`hrvStability` are legitimately `null` on a 59 s record,
+  and the leg uses `in` rather than truthiness so a *dropped key* cannot pass as a null;
+- a **control** proving the LIGHT export on the same input carries none of it — which is precisely why
+  the equiv fixture could not have caught §7.1.
+
+**Mutation-verified, and the second one is the point:** suppressing the rich block reds 10 legs, and
+nulling `respFromEDR` *alone* reds **6** — the exact change that slipped past the light-export fixture
+now fails loudly. GATE B coverage 15 → 16.
+
+**One measurement the fixture pins that is worth reading.** The synthetic's beat train carries a
+deliberate RSA of one cycle per 4.5 beats — ~13.3 breaths/min at its ~1 s RR. `respRate` (the RSA
+estimate) recovers it at **13.2**. `respFromEDR` reads **16.3, a +23 % over-read** — the low-band-edge
+bias §7.2 explicitly left unfixed. So the golden now pins that bias against a **known truth** rather than
+against itself, and the day option 3 steepens the band this leg moves and someone has to say why.
 
 The evidence for this change is therefore the sweep in §7.1 plus the mutation-verified pins — not the
 fixture.

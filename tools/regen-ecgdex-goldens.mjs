@@ -120,6 +120,14 @@ const fromECG = (file) => {
   return ECGDex.compute({ text: fs.readFileSync(p, 'utf8') });
 };
 
+/* The RICH export — `compute(input, { rich: true })`. Only `signal-orchestrate.emitEcgNodeExport`
+   passes that flag in production, and it is the shape the INTEGRATOR consumes. */
+const fromECGRich = (file) => {
+  const p = path.join(UP, file);
+  if (!fs.existsSync(p)) return null;
+  return ECGDex.compute({ text: fs.readFileSync(p, 'utf8') }, { rich: true });
+};
+
 const FIXTURES = [
   { name: 'ECGDex_2026-06-27_equiv.node-export.json', real: true, build: () => fromECG('Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt') },
   { name: 'synthetic_ecgdex_golden.node-export.json', build: () => fromECG('synthetic_ecgdex_h10.txt') },
@@ -133,6 +141,22 @@ const FIXTURES = [
       added: '2026-07-28',
       inputs: ['synthetic_ecgdex_h10_gapped.txt'],
       note: 'INTEGRATOR-GAP-AWARE-OVERLAP part 2 — the FRAGMENTED committed twin. Three ~6.7 s recorded segments inside a 60 s envelope, so recording.coverage must declare 3 segments / ~20 s recorded. Every other equiv fixture is gapless, which is why the gap-aware apnea-denominator defect shipped green.'
+    }
+  },
+  /* The RICH export, which is what the INTEGRATOR actually reads — and had NO committed fixture, exactly
+     as PpgDex did until INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §1 closed it on 2026-08-01. Every other
+     ECGDex golden is the LIGHT export (`kernel schema recording ganglior_events reserved`), so
+     `hrv.time.*`, `hrv.frequency.*` — including `respFromEDR` — `quality`, `timeseries`, `sleep`,
+     `apnea` and `hrvStability` had no committed leg at all. #634 changed `respFromEDR` and the equiv
+     fixture reproduced byte-for-byte WITHOUT covering it, which is precisely the blind spot this closes.
+     Same committed input as the clean twin — only the `rich` flag differs. */
+  {
+    name: 'synthetic_ecgdex_rich_golden.node-export.json',
+    build: () => fromECGRich('synthetic_ecgdex_h10.txt'),
+    newRecord: {
+      added: '2026-08-01',
+      inputs: ['synthetic_ecgdex_h10.txt'],
+      note: 'ECGDEX-EDR-RESP-ACCURACY §7.4 — the INTEGRATOR-FACING rich export (compute(input,{rich:true})), which had no committed fixture. Pins hrv.time.*, hrv.frequency.* (incl. respFromEDR, the field #634 changed), quality, timeseries, sleep, apnea and hrvStability. Shares the clean twin input with synthetic_ecgdex_golden.node-export.json, so the pair isolates exactly what opts.rich adds.'
     }
   }
 ];

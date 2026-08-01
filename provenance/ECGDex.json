@@ -55,6 +55,19 @@
       "inputHashes": {
         "synthetic_ecgdex_h10_gapped.txt": "89e723c69d352f0a"
       }
+    },
+    "synthetic_ecgdex_rich_golden.node-export.json": {
+      "bundle": "ECGDex.html",
+      "manifestHash": "e7d9f9cf1a73",
+      "added": "2026-08-01",
+      "note": "ECGDEX-EDR-RESP-ACCURACY §7.4 — the INTEGRATOR-FACING rich export (compute(input,{rich:true})), which had no committed fixture. Pins hrv.time.*, hrv.frequency.* (incl. respFromEDR, the field #634 changed), quality, timeseries, sleep, apnea and hrvStability. Shares the clean twin input with synthetic_ecgdex_golden.node-export.json, so the pair isolates exactly what opts.rich adds.",
+      "inputs": [
+        "synthetic_ecgdex_h10.txt"
+      ],
+      "outputHash": "799d9997dc9be536",
+      "inputHashes": {
+        "synthetic_ecgdex_h10.txt": "59acb4e481f070b5"
+      }
     }
   }
 }

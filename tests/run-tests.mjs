@@ -514,6 +514,9 @@ function readEquiv() {
   /* INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §1 — the INTEGRATOR-FACING rich export. Same committed
      input as `ppgdex_synth`; only `compute`'s `{rich:true}` differs, so the pair isolates that flag. */
   pairCommitted('ppgdex_rich', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_rich_golden.node-export.json');
+  /* ECGDEX-EDR-RESP-ACCURACY §7.4 — the ECGDex half of the same hole. Same committed input as
+     `ecgdex_synth`; only `compute`'s `{rich:true}` differs, so the pair isolates that flag. */
+  pairCommitted('ecgdex_rich', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_rich_golden.node-export.json');
   pair('ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json');
   // ADVERSARIAL ECGDex twin — a COMMITTED FRAGMENTED recording (INTEGRATOR-GAP-AWARE-OVERLAP part 2).
   // The clean twin above is contiguous, so nothing committed exercised `recording.coverage` — which is

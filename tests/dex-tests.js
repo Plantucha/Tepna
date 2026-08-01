@@ -4975,6 +4975,74 @@
       );
     });
 
+    /* ════ ECGDex's RICH EXPORT HAS A COMMITTED GOLDEN — ECGDEX-EDR-RESP-ACCURACY §7.4 ════
+       The same hole PpgDex had, one node over, found by its own consequence. #634 changed
+       `crc.respFromEDR` — and `verify-fixtures` reproduced `ECGDex_2026-06-27_equiv` byte-for-byte and
+       stamped it, which looked like coverage and was not: that fixture is the LIGHT export
+       (`kernel schema recording ganglior_events reserved`) and carries no `hrv` block, so it does not
+       contain the changed field at all. A green GATE B said nothing about the change.
+
+       `synthetic_ecgdex_rich_golden.node-export.json` closes it, from the SAME committed input as the
+       clean twin, so the pair isolates exactly what `opts.rich` adds. Committed input ⇒ CI re-runs it
+       from committed bytes every push. */
+    group('ECGDex rich export ≡ its committed golden — Integrator-facing surface', 'ecgdex-dsp · equiv · integrator-facing', function (T) {
+      var eq = env.equiv && env.equiv.ecgdex_rich;
+      var E = env.ECGDex;
+      if (!(eq && eq.input && eq.fixture && E && typeof E.compute === 'function')) {
+        T.skip('committed ECGDex rich-export pair present', 'synthetic_ecgdex_h10.txt / _rich_golden absent — both are COMMITTED, so this must run everywhere including CI');
+        return;
+      }
+      var rich = E.compute({ text: eq.input }, { rich: true });
+      function strip(o) {
+        var c = JSON.parse(JSON.stringify(o));
+        delete c.kernel;
+        if (c.schema) { delete c.schema.generated; delete c.schema.provenance; }
+        delete c.provenance;
+        if (c.recording) delete c.recording.contentId;
+        return c;
+      }
+      T.eq('compute({rich:true}) reproduces the committed golden byte-for-byte (volatile keys aside)', JSON.stringify(strip(rich)), JSON.stringify(strip(eq.fixture)));
+
+      /* ANTI-VACUITY — the equality would pass just as happily if BOTH sides lost the rich block, which
+         is exactly how the light-export fixture managed to look like coverage. Assert the fields are
+         THERE and typed. */
+      var f = rich.hrv && rich.hrv.frequency;
+      T.ok('the golden carries hrv.frequency — where respFromEDR lives', !!f, f ? '' : 'ABSENT — rich block suppressed?');
+      if (f) {
+        T.ok('…respFromEDR is a number, not null — THE field #634 changed', typeof f.respFromEDR === 'number', 'respFromEDR=' + f.respFromEDR);
+        T.ok('…and it names its method, so a consumer knows it is EDR and not the RSA estimate', f.respFromEDRMethod === 'EDR (R-peak amplitude modulation)');
+        T.ok('…respRate (the independent RSA estimate) is also present', typeof f.respRate === 'number', 'respRate=' + f.respRate);
+      }
+      T.ok('the golden carries hrv.time', !!(rich.hrv && rich.hrv.time && typeof rich.hrv.time.sdnn === 'number'));
+      T.ok('the golden carries quality + timeseries', !!rich.quality && !!rich.timeseries);
+      /* `sleep`, `apnea` and `hrvStability` are NULL on a 59 s record, and correctly so — there is no
+         staging, no event and no stability trend in one minute. What matters is that the keys are
+         PRESENT and null rather than missing: a consumer can then tell "not computed on this record"
+         from "this export shape does not carry the field", which is the distinction
+         INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §2 turned on one node over. Asserted with `in`, since
+         `!!null` and `!!undefined` are indistinguishable and would let a dropped key pass. */
+      T.ok('…and DECLARES sleep / apnea / hrvStability as null rather than omitting them', 'sleep' in rich && 'apnea' in rich && 'hrvStability' in rich, JSON.stringify({ sleep: rich.sleep, apnea: rich.apnea, hrvStability: rich.hrvStability }));
+
+      /* THE TWO ESTIMATES DISAGREE, AND THAT IS THE POINT OF PINNING THEM TOGETHER.
+         The synthetic's beat train carries a deliberate RSA of one cycle per 4.5 beats — about 13.3
+         breaths/min at its ~1 s RR. The RSA estimate recovers that (13.2). The EDR estimate reads 16.3,
+         a +23 % over-read — the LOW-band bias ECGDEX-EDR-RESP-ACCURACY §7.2 explicitly left unfixed
+         (options 1+2 addressed the harmonic and the quantisation, not the band edge).
+         Pinned against a KNOWN truth rather than against itself, so the day the band is steepened this
+         leg moves and someone has to say why. */
+      if (f) {
+        T.approx('the synthetic RSA truth (~13.3/min) is recovered by respRate', f.respRate, 13.2, 0.3);
+        T.approx('KNOWN BIAS · respFromEDR over-reads it as 16.3 (+23 %) — the low-band edge, still unfixed', f.respFromEDR, 16.3, 0.4);
+      }
+
+      /* CONTROL — the LIGHT export on the SAME input carries none of it, which is what makes this a test
+         of `opts.rich` and is the exact reason the equiv fixture could not have caught #634. */
+      var light = E.compute({ text: eq.input });
+      T.ok('CONTROL · the LIGHT export on the same input has NO hrv block', !light.hrv, 'light.hrv=' + JSON.stringify(light.hrv));
+      T.ok('CONTROL · …so the pre-existing ECGDex goldens could not pin respFromEDR at all', !light.hrv && !light.quality);
+      T.ok('CONTROL · …while still carrying recording + ganglior_events', !!light.recording && Array.isArray(light.ganglior_events));
+    });
+
     /* ════ THE INTEGRATOR-FACING RICH EXPORT HAS A COMMITTED GOLDEN — §1 (and the parent's §5) ════
        The Integrator does not read PpgDex's LIGHT export. `adaptPpgDex` reads `hrv.time.{sdnn,rmssd}`,
        `apnea.cvhrIndex` and `recording.site` — and `compute({text})` emits NONE of them. The rich block is
