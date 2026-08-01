@@ -508,6 +508,9 @@ function readEquiv() {
   // which is weaker in exactly the way the parent brief's §5 warns about. pairCommitted (not pair):
   // a repo artifact, so a DEX_UPLOADS real-corpus override cannot turn this gate into a silent skip.
   pairCommitted('ppgdex_gapped', 'synthetic_ppgdex_verity_gapped.txt', 'synthetic_ppgdex_gapped_golden.node-export.json');
+  /* INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §1 — the INTEGRATOR-FACING rich export. Same committed
+     input as `ppgdex_synth`; only `compute`'s `{rich:true}` differs, so the pair isolates that flag. */
+  pairCommitted('ppgdex_rich', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_rich_golden.node-export.json');
   pair('ecgdex_synth', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_golden.node-export.json');
   // ADVERSARIAL ECGDex twin — a COMMITTED FRAGMENTED recording (INTEGRATOR-GAP-AWARE-OVERLAP part 2).
   // The clean twin above is contiguous, so nothing committed exercised `recording.coverage` — which is

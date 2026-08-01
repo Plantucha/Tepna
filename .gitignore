@@ -84,6 +84,7 @@ uploads/*
 # …and its FRAGMENTED sibling (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2) — the golden for the
 # two-hole Verity twin, so recording.coverage has a committed equiv/GATE-C leg like ECGDex's.
 !uploads/synthetic_ppgdex_gapped_golden.node-export.json
+!uploads/synthetic_ppgdex_rich_golden.node-export.json
 !uploads/synthetic_ecgdex_golden.node-export.json
 !uploads/synthetic_ecgdex_gapped_golden.node-export.json
 !uploads/synthetic_motiondex_acc.txt

@@ -122,6 +122,14 @@ const fromPPG = (file) => {
   return PpgDex.compute({ text: fs.readFileSync(p, 'utf8') });
 };
 
+/* The RICH export — `compute(input, { rich: true })`. Only `signal-orchestrate.emitPpgNodeExport`
+   passes that flag in production, and it is the shape the INTEGRATOR consumes. */
+const fromPPGRich = (file) => {
+  const p = path.join(UP, file);
+  if (!fs.existsSync(p)) return null;
+  return PpgDex.compute({ text: fs.readFileSync(p, 'utf8') }, { rich: true });
+};
+
 const FIXTURES = [
   { name: 'PpgDex_2026-06-27_equiv.node-export.json', real: true, build: () => fromPPG('Polar_Sense_BBBBBBBB_20260621_060523_PPG.txt') },
   { name: 'synthetic_ppgdex_golden.node-export.json', build: () => fromPPG('synthetic_ppgdex_verity.txt') },
@@ -138,6 +146,22 @@ const FIXTURES = [
       added: '2026-07-31',
       inputs: ['synthetic_ppgdex_verity_gapped.txt'],
       note: 'INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2 — the FRAGMENTED committed Verity twin. Two arm-off holes (6 s + 4 s) cut out of the clean 40 s twin, so recording.coverage must declare 3 segments / ~30 s recorded inside a 40 s envelope, source ble-dropout. Every other PpgDex equiv input is gapless, so the coverage emitter had no committed leg; the clean twin is retained as the control that must still declare nothing.'
+    }
+  },
+  /* The RICH export, which is what the INTEGRATOR actually reads — and had NO committed fixture at all
+     (INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §1, carried over from the parent's §5). Every other PpgDex
+     golden is the LIGHT export: `compute({text})` emits `recording` + `ganglior_events` and NOTHING else,
+     so `hrv.time.*`, `apnea.cvhrIndex` and the whole OXYDEX-PULSE-RESOURCING §Phase 2-4 wiring built on
+     them were exercised only by in-test recompute. A drift in the rich block reproduced byte-identically
+     on all three existing goldens, because none of them contains it. Same committed input as the clean
+     twin — only the `rich` flag differs, which makes this fixture a pure test of that flag's output. */
+  {
+    name: 'synthetic_ppgdex_rich_golden.node-export.json',
+    build: () => fromPPGRich('synthetic_ppgdex_verity.txt'),
+    newRecord: {
+      added: '2026-08-01',
+      inputs: ['synthetic_ppgdex_verity.txt'],
+      note: 'INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §1 — the INTEGRATOR-FACING rich export (compute(input,{rich:true})), which had no committed fixture. Pins hrv.time.{sdnn,rmssd,sdnnRobust}, hrv.frequency, hrv.confidence, apnea.cvhrIndex and recording.site — every field integrator-dsp adaptPpgDex reads. Shares the clean twin input with synthetic_ppgdex_golden.node-export.json, so the pair isolates exactly what opts.rich adds.'
     }
   }
 ];
