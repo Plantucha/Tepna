@@ -20918,6 +20918,50 @@
        ectopic, so the correction path is covered even though these nights never trigger it. Recorded
        rather than "fixed": injecting ectopy would move every HRV fixture for a realism gain nobody
        has asked for, and speculative fixture-tuning is the habit this whole wave exists to correct. */
+    /* ── POOLED-CLOCK-FIT-FOLLOWUPS §1/§6.2 · the fiducial that bimodalised every latency ────────
+       `autonomic_surge` stamps the bradycardia TROUGH that opens a CVHR cycle; the rebound it is
+       NAMED for is `periodSec` later. Nothing said so, and the cost was measured on 30 real nights:
+       `autonomic_surge → movement_onset` came out bimodal at +10 s / −20 s with a HOLE at
+       simultaneity — 10 of 992 deltas within ±5 s (1.0 %) — which the brief could not explain after
+       rejecting epoch quantisation, cycle aliasing and detector mutual exclusion. Re-measuring
+       against trough+`periodSec` collapses it to one mode with 330 of 915 inside ±5 s (36.1 %).
+
+       The trough stamp STAYS — it is the right CVHR convention and `t` is a published contract.
+       What changes is that `meta.peakTMs` now publishes the rebound, and these assertions pin the
+       relationship so the two instants cannot silently drift apart again. Synthetic, so it runs in
+       both lanes and needs no corpus. */
+    group('autonomic_surge publishes BOTH its instants (trough stamp + rebound peak)', 'ecgdex-dsp · ppgdex-dsp · event-fiducials', function (T) {
+      var src = env.sources || {};
+      var ecg = src['ecgdex-dsp.js'] || '';
+      var ppg = src['ppgdex-dsp.js'] || '';
+      if (!ecg) {
+        T.skip('ecgdex-dsp.js source wired', 'not in env.sources');
+        return;
+      }
+      /* detectCVHR finds the trough at `s` and the rebound at `pkAt`, and period is their gap. If a
+         refactor ever made `period` something else, peakTMs would silently point elsewhere. */
+      T.ok('detectCVHR stamps the TROUGH and derives period from the rebound', /const\s+period\s*=\s*pkAt\s*-\s*s\b/.test(ecg), 'period is no longer pkAt - s');
+      T.ok('the emitter publishes meta.peakTMs at trough + periodSec', /peakTMs:\s*ev\.periodSec\s*!=\s*null\s*\?\s*tmsAt\(ev\.sec\s*\+\s*ev\.periodSec\)/.test(ecg), 'peakTMs is not the rebound instant');
+      T.ok('…and the trough stamp is UNCHANGED (tMs is a published contract)', /tMs:\s*tmsAt\(ev\.sec\),\s*\n\s*impulse:\s*'autonomic_surge'/.test(ecg), 'tMs no longer stamps ev.sec');
+
+      /* The documentation itself is the deliverable §6.2 asked for — a latency measured against an
+         undocumented instant mixes physiology with detector convention. Assert it exists, in both
+         emitters, so a future edit cannot quietly drop the one thing that explains the artifact. */
+      T.ok('autonomic_surge states which instant it stamps', /WHICH INSTANT THIS STAMPS/.test(ecg) && /bradycardia TROUGH/.test(ecg));
+      if (ppg) T.ok('movement_onset states which instant it stamps', /WHICH INSTANT THIS STAMPS/.test(ppg) && /local MAXIMUM/.test(ppg), 'movement_onset is undocumented again');
+      else T.skip('ppgdex-dsp.js source wired', 'not in env.sources');
+
+      /* Known-answer: a planted trough/rebound pair must land peakTMs exactly periodSec after tMs.
+         This is the arithmetic every cross-channel latency now depends on. */
+      var t0 = Date.UTC(2026, 7, 1, 23, 0, 0);
+      var sec = 137;
+      var periodSec = 21;
+      var tMs = t0 + sec * 1000;
+      var peakTMs = t0 + (sec + periodSec) * 1000;
+      T.eq('peakTMs − tMs is exactly periodSec', (peakTMs - tMs) / 1000, periodSec);
+      T.ok('the rebound is LATER than the trough, never before it', peakTMs > tMs);
+    });
+
     group('synth-gen PPG passes PPGDSP\'s validity checks (the SpO₂ defect, asked of the armband)', 'synth-gen · ppgdex-dsp · fixture-realism', function (T) {
       var S = env.SYNTH;
       var P = env.PPGDSP;

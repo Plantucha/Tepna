@@ -296,6 +296,34 @@ ECGDex `autonomic_surge` gave 38.0. Those were never in conflict. They are two r
 > The ladder was inferred from separate CPAP fits under the now-deprecated estimator, so it is the
 > weaker evidence of the two. See `POOLED-CLOCK-FIT-FOLLOWUPS-2026-07-31-BRIEF.md` §1 — unresolved, and
 > deliberately not resolved by guessing.
+>
+> **RESOLVED 2026-08-01 — the bimodality was the FIDUCIAL, not physiology, and the ladder's autonomic
+> rung is off by one CVHR half-cycle.** `autonomic_surge` stamps the **bradycardia trough** that opens
+> a cyclic-variation cycle; the tachycardic rebound the event is named for occurs `periodSec` later
+> (median 20 s, IQR 17–28). `detectCVHR` computes both — the trough at `s`, the rebound at `pkAt` — and
+> stamps `s`. Nothing said so. Re-measuring the same 30 nights against trough + `periodSec`:
+>
+> | surge stamped at | shape | deltas within ±5 s |
+> |---|---|---|
+> | bradycardia trough (as shipped) | bimodal +10 s / −20 s, hole at simultaneity | **10 of 992 · 1.0 %** |
+> | rebound peak (`+periodSec`) | **single mode** | **330 of 915 · 36.1 %** |
+>
+> A 36× improvement in coincidence, and the depletion at zero disappears — it existed because under
+> the trough stamp the true partner is *never* near zero, so nearest-neighbour matching kept picking
+> the neighbouring movement instead. §1's three rejected hypotheses were all rejected correctly; the
+> mechanism was a fourth nobody had, because the stamp's meaning was undocumented.
+>
+> **What this does and does not settle.** The two channels are coupled at a single latency, not one
+> that changes sign — so the ladder is not contradicted by a bimodal measurement any more. It IS still
+> contradicted on ordering: measured from the rebound, the surge and the movement are near-simultaneous
+> (mode at −5 s), where the ladder puts movement 30 s ahead. **The ladder is still not rewritten**, for
+> the reason §2 of the follow-up gives: it was inferred under a deprecated estimator, and replacing one
+> asserted ordering with another measured on one fiducial pair would repeat the original mistake. What
+> has changed is that the *obstacle* to measuring it is gone.
+>
+> `meta.peakTMs` now publishes the rebound instant alongside the trough stamp (`tMs` unchanged — it is
+> a published contract, and the trough is the correct CVHR convention). Any latency quoted against this
+> channel must now say which instant it used.
 
 ### Per-night, and why the corroboration flag is the whole story
 

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-31 · **Found while executing:** `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` · **Affects:** `ecgdex-dsp.js` / `ppgdex-dsp.js` event fiducials, `CROSS-DEVICE-CLOCK-SKEW` §2d's latency ladder, `PAPERS-ROADMAP`
+**Status:** IN-PROGRESS · **Created:** 2026-07-31 · **§1 + §6.2 RESOLVED 2026-08-01** · **Found while executing:** `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` · **Affects:** `ecgdex-dsp.js` / `ppgdex-dsp.js` event fiducials, `CROSS-DEVICE-CLOCK-SKEW` §2d's latency ladder, `PAPERS-ROADMAP`
 
 # Once the clock is pinned, every channel is on one timeline — and the pairs do not say what the ladder says
 
@@ -68,6 +68,55 @@ events, nearest partner within ±60 s, 30 nights) shows the real shape:
 Two clean modes at **+12 s** and **−22 s**, and a **depletion at simultaneity**. The two events almost
 never co-occur. A bimodal split alone could be a detector quirk; a *hole at zero* is a structural
 signature and is the part worth explaining.
+
+### RESOLVED 2026-08-01 — a fourth explanation, and it is the fiducial
+
+**All three hypotheses below were rejected correctly. The mechanism was a fourth nobody had, because
+the stamp's meaning was undocumented — which is precisely what §6's second item asked for.**
+
+`autonomic_surge` stamps the **bradycardia TROUGH** that opens a CVHR cycle. `detectCVHR` finds the
+trough at `s` and the tachycardic rebound at `pkAt`, sets `periodSec = pkAt − s`, and stamps `s`. The
+rebound — the instant the event is *named* for — is `periodSec` later, median **20 s**, IQR 17–28.
+
+Re-measuring the identical pair on the identical 30 nights, changing nothing but which instant the
+anchor uses:
+
+```
+AS SHIPPED — trough                      RE-STAMPED — trough + periodSec
+ -30s   64 ███████████████                -30s    7 ██
+ -25s  122 ████████████████████████████   -25s   10 ██
+ -20s  140 ████████████████████████████   -20s    4 █
+ -15s   74 █████████████████              -15s   51 ███████████
+ -10s   11 ███                            -10s  139 ███████████████████████████████
+  -5s    3 █                               -5s  226 ██████████████████████████████████████████████████
+   0s    7 ██                               0s  104 ███████████████████████
+   5s   70 ████████████████                 5s   31 ███████
+  10s  216 ██████████████████████████████  10s    9 ██
+  15s  140 ████████████████████████████    15s    4 █
+  20s   61 ██████████████                  20s    2
+within ±5 s: 10 of 992 = 1.0 %           within ±5 s: 330 of 915 = 36.1 %
+```
+
+**Bimodal with a hole at zero → one mode. A 36× improvement in coincidence.** The depletion at
+simultaneity existed *because* of the wrong fiducial: under the trough stamp the true partner is never
+near zero, so nearest-neighbour matching within ±60 s kept selecting the neighbouring movement instead,
+which places a second mode one inter-movement interval away. That is the "structural signature" §1
+called out — and it was a signature of the measurement, not of the body.
+
+**The fix is documentation plus a new field, not a re-stamp.** `tMs` keeps the trough: it is a
+published contract, and the bradycardia is the correct CVHR fiducial. `meta.peakTMs` now publishes the
+rebound. Gated by *autonomic_surge publishes BOTH its instants*. `movement_onset` is likewise now
+documented as stamping a jerk local **maximum** — the peak of a movement burst, not its start.
+
+**Consequences recorded:** `CROSS-DEVICE-CLOCK-SKEW` §2d amended with this result. The ladder is
+**still not rewritten** — §2's reasoning stands, it was inferred under a deprecated estimator — but the
+obstacle to measuring it is gone, and the "latency that changes sign" language is withdrawn: the two
+channels are coupled at one latency, near-simultaneous when measured rebound-to-movement.
+
+**Not claimed:** that the −5 s mode is a physiological latency. It is measured against a movement
+fiducial that is itself a burst *peak*, so it still mixes convention with physiology — less than
+before, but not zero. Conditioning on arousal intensity (§1's "next test") is now worth running,
+because it is no longer confounded by a 20 s fiducial offset.
 
 ### Three explanations, all tested, all rejected
 
@@ -179,10 +228,10 @@ tool every other analysis also uses, so it needs its own gate work rather than a
 
 ## 6 · Done when
 
-- [ ] The bimodal latency of §1 is either explained (conditioned on arousal intensity / apnea proximity)
-      or attributed to fiducial definition — and whichever it is, written back into §2d of
-      `CROSS-DEVICE-CLOCK-SKEW`, which currently says only that the ordering is in doubt.
-- [ ] `autonomic_surge` and `movement_onset` each document the instant they stamp, in their emitter.
+- [x] The bimodal latency of §1 is **attributed to fiducial definition** (2026-08-01) — the anchor was
+      stamped one CVHR half-cycle early — and written back into `CROSS-DEVICE-CLOCK-SKEW` §2d.
+- [x] `autonomic_surge` and `movement_onset` each document the instant they stamp, in their emitter,
+      and `meta.peakTMs` publishes the rebound so a latency can name its fiducial.
 - [ ] If §1 resolves to physiology: a `papers/` entry with the null calibration alongside, per
       `LITERATURE-USE-POLICY`. If it resolves to an artifact: a detector fix and a gate.
 - [ ] The window/grid sweep of §5 is run, and the chosen values carry a reason.
