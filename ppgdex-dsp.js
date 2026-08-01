@@ -1607,6 +1607,8 @@
     const fNyq = _meanPPIs > 0 ? 1 / (2 * _meanPPIs) : fmax;
     const fCal = Math.max(fmax, Math.min(fNyq, 2));
     let vlf = 0,
+      hfPeakP = 0,
+      hfPeakF = null,
       lf = 0,
       hf = 0,
       totalFull = 0; // full-support total — the Parseval denominator
@@ -1638,7 +1640,22 @@
       // The band arms are explicit ranges, so they stay bounded without further guarding.
       if (f >= bands.vlf[0] && f < bands.vlf[1]) vlf += pw;
       else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;
-      else if (f >= bands.hf[0] && f < bands.hf[1]) hf += pw;
+      else if (f >= bands.hf[0] && f < bands.hf[1]) {
+        hf += pw;
+        /* ENGINE-VERIFICATION §1.6 link 1 — RETAIN THE HF ARGMAX, not just its power.
+           This loop accumulated band power and threw the frequency away, so `respRate` was null on
+           every PpgDex export while the modulation was demonstrably present: executed on synthetic
+           135 Hz PPG with RSA planted at 0.25 Hz, respRate came back null on all 3 epochs with
+           hf = 5758 / 5729 / 5657 ms². The information was measured and discarded at the last step.
+           Argmax on the RAW periodogram bin `P` — deliberately not on `pw = P * df`, nor on the
+           Parseval-scaled band. `df` is constant across bins and `scF` is a single scalar applied
+           afterwards, so neither can change WHICH bin is largest; comparing pre-scaling keeps the peak
+           independent of a calibration whose job is to make POWERS comparable, not to rank bins. */
+        if (P > hfPeakP) {
+          hfPeakP = P;
+          hfPeakF = f;
+        }
+      }
     }
     let total = vlf + lf + hf;
     // Parseval calibration — ∫PSD = signal variance, so band powers land in ms²
@@ -1669,7 +1686,13 @@
       totalPower: _v + _l + _h,
       lfhf: lfhf != null ? r2(lfhf) : null,
       lfnu: lfnu != null ? Math.round(lfnu) : null,
-      hfnu: hfnu != null ? Math.round(hfnu) : null
+      hfnu: hfnu != null ? Math.round(hfnu) : null,
+      /* §1.6 link 1 — the HF peak as a RESPIRATION RATE, breaths/min. Same method and same name as
+         ECGDex's (`RSA (HF-peak of RR spectrum)`), so the Integrator's existing
+         `summary.respRateBrpm = _hf.respRate` branch picks PpgDex up with no consumer change — link 3
+         was already in place and had nothing to read. null when the HF band held no bin at all. */
+      respRate: hfPeakF != null ? r2(hfPeakF * 60) : null,
+      respRateMethod: hfPeakF != null ? 'RSA (HF-peak of RR spectrum)' : null
     };
   }
   function dfaAlpha1(nn) {
@@ -2335,7 +2358,9 @@
         vlf: ls ? ls.vlf : null,
         tp: ls ? ls.totalPower : null,
         lfhf: ls ? ls.lfhf : null,
-        respRate: null,
+        // §1.6 link 2 — was a hardcoded `null` sitting among computed siblings, which is why the
+        // modulation showed up as hf power on every epoch and never as a rate.
+        respRate: ls ? ls.respRate : null,
         pi,
         motionIndex: mi,
         ledAgreementPct,
@@ -3332,7 +3357,16 @@
             hfRobustLowMotion: nz(r.hfRobustLowMotion),
             wholeRecordLf: nz(fq.lf),
             wholeRecordHf: nz(fq.hf),
-            wholeRecordLfhf: nz(fq.lfhf)
+            wholeRecordLfhf: nz(fq.lfhf),
+            /* §1.6 link 2 — the field the Integrator already reads. `integrator-dsp` has assigned
+               `summary.respRateBrpm = _hf.respRate` all along (link 3 was never missing); it simply had
+               nothing to read, because this block carried no frequency-valued key at any level.
+               WHOLE-RECORD deliberately, not the epoch median: respiration is being reported as ONE
+               number for the recording, and `fq` is the whole-record spectrum — the same scale ECGDex
+               reports its `respRate` on, which is what makes the two comparable in the fusion. The
+               epoch-scale values stay available per-epoch in `timeseries.epochs[].respRate`. */
+            respRate: nz(fq.respRate),
+            respRateMethod: fq && fq.respRate != null ? 'RSA (HF-peak of RR spectrum)' : null
           };
         })(),
         confidence: r.hrvConfidence || null
