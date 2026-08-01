@@ -95,32 +95,14 @@
    * @returns {{ sec:number, byType:Object<string,{sec:number,type:string,file:string}> }[]}
    */
   function groupSessionSets(names) {
-    var stamps = /** @type {{ sec:number, type:string, file:string }[]} */ ((names || []).map(stampOf).filter(Boolean)).sort(function (a, b) {
-      return a.sec - b.sec;
-    });
-
-    var clusters = [];
-    for (var i = 0; i < stamps.length; i++) {
-      var s = stamps[i],
-        hit = null;
-      for (var j = 0; j < clusters.length; j++) {
-        var c = clusters[j];
-        // ±60 s of the anchor AND this type is not already taken → it joins.
-        if (Math.abs(c.sec - s.sec) <= 60 && !c.byType[s.type]) {
-          hit = c;
-          break;
-        }
-      }
-      if (hit) {
-        hit.byType[s.type] = s;
-      } else {
-        /** @type {Object<string,{sec:number,type:string,file:string}>} */
-        var byType = {};
-        byType[s.type] = s;
-        clusters.push({ sec: s.sec, byType: byType }); // a repeated type lands HERE — a new set
-      }
-    }
-    return clusters;
+    /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-III — SINGLE-SOURCED. The rule now lives on `CpapEdf`
+       (cpapdex-edf.js), the shared reader BOTH grouping surfaces already load, because cpapdex-app.js
+       carried a second, DIFFERENT rule (>15 min gap, last-wins on duplicate type) that silently
+       discarded 76 files across 16 of 199 real nights. One rule, one place; this stays as the
+       adapter's public name so `SignalAdapters.byId('resmed-edf').groupSessionSets` keeps working. */
+    var E = root.CpapEdf;
+    if (!(E && typeof E.groupSessionSets === 'function')) throw new Error('resmed-edf: CpapEdf.groupSessionSets unavailable — co-load cpapdex-edf.js');
+    return E.groupSessionSets(names);
   }
 
   REG.registerAdapter({

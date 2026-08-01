@@ -8899,8 +8899,70 @@ const OxyDex = window.OxyDex;
   }
 
   /* ── exports + CLI ──────────────────────────────────────────────────────── */
+  /* ── THE SESSION-GROUPING RULE (CPAP-REAL-CORPUS §F4) — single-sourced here ──────────────────
+     Lives in the shared EDF reader because BOTH surfaces that group ResMed files load it, and until
+     now each had its OWN rule (EXPORT-PATH-UNREACHABLE-FOLLOWUPS-III):
+
+       adapters/resmed-edf.js : ±60 s of the anchor AND a repeated type opens a NEW set  ← correct
+       cpapdex-app.js         : a >15 MINUTE gap opens a new cluster, `files[type] = e`   ← lossy
+                                with the comment "last-wins on duplicate type"
+
+     The app's `last-wins` IS silent data loss, and the 15-minute window makes it fire far more often
+     than the naive ±60 s cluster the §F4 note was written about. Measured over the real SD card —
+     199 night folders, 1008 EDF files — the app rule silently DISCARDS 76 files across 16 nights
+     (8.0 %), and the two rules disagree on session count on those same 16. Worst night 2026-04-23:
+     the app sees 2 sessions where the rule sees 6, dropping 14 files.
+
+     The `!byType[type]` clause is the load-bearing one: a second EVE/CSL inside the same minute is a
+     SEPARATE therapy session, and overwriting it makes its scored apneas vanish with no error.
+     Pure: names in, clusters out — no filesystem, no I/O, so it is unit-testable anywhere. */
+  var _F4_RE = /^(\d{8})_(\d{6})_([A-Z0-9]+)\.edf$/i;
+  function sessionStampOf(name) {
+    var base =
+      String(name || '')
+        .split('/')
+        .pop() || '';
+    var m = _F4_RE.exec(base);
+    if (!m) return null;
+    var d = m[1],
+      t = m[2];
+    // Clock Contract: components as written → Date.UTC (floating wall-clock). Never Date.parse.
+    var sec = Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)) / 1000;
+    if (!isFinite(sec)) return null;
+    return { sec: sec, type: m[3].toUpperCase(), file: name };
+  }
+  function groupSessionSets(names) {
+    var stamps = (names || [])
+      .map(sessionStampOf)
+      .filter(Boolean)
+      .sort(function (a, b) {
+        return a.sec - b.sec;
+      });
+    var clusters = [];
+    for (var i = 0; i < stamps.length; i++) {
+      var s = stamps[i],
+        hit = null;
+      for (var j = 0; j < clusters.length; j++) {
+        var c = clusters[j];
+        if (Math.abs(c.sec - s.sec) <= 60 && !c.byType[s.type]) {
+          hit = c;
+          break;
+        }
+      }
+      if (hit) hit.byType[s.type] = s;
+      else {
+        var byType = {};
+        byType[s.type] = s;
+        clusters.push({ sec: s.sec, byType: byType }); // a repeated type lands HERE — a new set
+      }
+    }
+    return clusters;
+  }
+
   var api = {
     readEDF: readEDF,
+    groupSessionSets: groupSessionSets,
+    sessionStampOf: sessionStampOf,
     parseEdfClock: parseEdfClock,
     sampleTMs: sampleTMs,
     parseTAL: parseTAL,

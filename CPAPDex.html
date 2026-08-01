@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Bwa/N+qRzyDsjOZpmfdHYhAreF5CgmWplQccV4x1M1Y=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-INDmFC4U2OrZVupRX9+3cwIABHnKIUHZmUuRaAOx5FI=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-UEKo8q6oDlx+nVLthNAe7RbwjyJyrvNlro9P8mjjnKQ=' 'sha256-aEfZQR6fGbh0Ow231H86nQj4MBDK3qxz5NzQsq3muNI=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-r6dnw1/a2DwgyuhnKF2QN2JZvS0hOeFIb3T3caRoJi8=' 'sha256-w56liyD+J4Y6woJEiHFgm5oxvNiL4/r0LZpYJddXEDg='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Bwa/N+qRzyDsjOZpmfdHYhAreF5CgmWplQccV4x1M1Y=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-INDmFC4U2OrZVupRX9+3cwIABHnKIUHZmUuRaAOx5FI=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LQaAefJZ9GDlZMKMY/0DvM5J3goijDaQPbatu/W/GLE=' 'sha256-UEKo8q6oDlx+nVLthNAe7RbwjyJyrvNlro9P8mjjnKQ=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-w56liyD+J4Y6woJEiHFgm5oxvNiL4/r0LZpYJddXEDg='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPAPDex — PAP Therapy Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -5343,8 +5343,70 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   }
 
   /* ── exports + CLI ──────────────────────────────────────────────────────── */
+  /* ── THE SESSION-GROUPING RULE (CPAP-REAL-CORPUS §F4) — single-sourced here ──────────────────
+     Lives in the shared EDF reader because BOTH surfaces that group ResMed files load it, and until
+     now each had its OWN rule (EXPORT-PATH-UNREACHABLE-FOLLOWUPS-III):
+
+       adapters/resmed-edf.js : ±60 s of the anchor AND a repeated type opens a NEW set  ← correct
+       cpapdex-app.js         : a >15 MINUTE gap opens a new cluster, `files[type] = e`   ← lossy
+                                with the comment "last-wins on duplicate type"
+
+     The app's `last-wins` IS silent data loss, and the 15-minute window makes it fire far more often
+     than the naive ±60 s cluster the §F4 note was written about. Measured over the real SD card —
+     199 night folders, 1008 EDF files — the app rule silently DISCARDS 76 files across 16 nights
+     (8.0 %), and the two rules disagree on session count on those same 16. Worst night 2026-04-23:
+     the app sees 2 sessions where the rule sees 6, dropping 14 files.
+
+     The `!byType[type]` clause is the load-bearing one: a second EVE/CSL inside the same minute is a
+     SEPARATE therapy session, and overwriting it makes its scored apneas vanish with no error.
+     Pure: names in, clusters out — no filesystem, no I/O, so it is unit-testable anywhere. */
+  var _F4_RE = /^(\d{8})_(\d{6})_([A-Z0-9]+)\.edf$/i;
+  function sessionStampOf(name) {
+    var base =
+      String(name || '')
+        .split('/')
+        .pop() || '';
+    var m = _F4_RE.exec(base);
+    if (!m) return null;
+    var d = m[1],
+      t = m[2];
+    // Clock Contract: components as written → Date.UTC (floating wall-clock). Never Date.parse.
+    var sec = Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)) / 1000;
+    if (!isFinite(sec)) return null;
+    return { sec: sec, type: m[3].toUpperCase(), file: name };
+  }
+  function groupSessionSets(names) {
+    var stamps = (names || [])
+      .map(sessionStampOf)
+      .filter(Boolean)
+      .sort(function (a, b) {
+        return a.sec - b.sec;
+      });
+    var clusters = [];
+    for (var i = 0; i < stamps.length; i++) {
+      var s = stamps[i],
+        hit = null;
+      for (var j = 0; j < clusters.length; j++) {
+        var c = clusters[j];
+        if (Math.abs(c.sec - s.sec) <= 60 && !c.byType[s.type]) {
+          hit = c;
+          break;
+        }
+      }
+      if (hit) hit.byType[s.type] = s;
+      else {
+        var byType = {};
+        byType[s.type] = s;
+        clusters.push({ sec: s.sec, byType: byType }); // a repeated type lands HERE — a new set
+      }
+    }
+    return clusters;
+  }
+
   var api = {
     readEDF: readEDF,
+    groupSessionSets: groupSessionSets,
+    sessionStampOf: sessionStampOf,
     parseEdfClock: parseEdfClock,
     sampleTMs: sampleTMs,
     parseTAL: parseTAL,
@@ -10260,7 +10322,6 @@ const { CpapRender } = __require('cpapdex-render.js');
   'use strict';
 
   var FILE_TYPES = ['BRP', 'PLD', 'SA2', 'EVE', 'CSL'];
-  var SESSION_GAP_MS = 15 * 60 * 1000; // files >15 min apart start a new session cluster
   var NIGHT_GAP_MS = 12 * 60 * 60 * 1000; // clusters >12 h apart belong to DIFFERENT nights
 
   function $(id) {
@@ -10302,14 +10363,32 @@ const { CpapRender } = __require('cpapdex-render.js');
       .sort(function (a, b) {
         return (a.prefixMs || 0) - (b.prefixMs || 0);
       });
-    var clusters = [];
+    /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-III — the local rule below was SILENT DATA LOSS and is gone.
+       It clustered on a >15 MINUTE gap and then did `c.files[e.type] = e` — "last-wins on duplicate
+       type" — so a second therapy session started within 15 minutes of the first overwrote it and its
+       scored apneas vanished with no error. Measured over the real SD card (199 night folders, 1008
+       EDF files): 76 files silently discarded across 16 nights (8.0 %). Worst night 2026-04-23 — this
+       rule saw 2 sessions where the correct one sees 6.
+
+       The correct rule (CPAP-REAL-CORPUS §F4) is ±60 s of the anchor AND a repeated type opens a NEW
+       set, and it is now single-sourced on `CpapEdf.groupSessionSets` — the same function
+       `adapters/resmed-edf.js` calls, so the app, the Data Unifier and OverDex cannot drift again. */
+    var byName = {};
     parsed.forEach(function (e) {
-      var c = clusters[clusters.length - 1];
-      if (!c || (e.prefixMs != null && c.anchorMs != null && e.prefixMs - c.anchorMs > SESSION_GAP_MS)) {
-        c = { anchorMs: e.prefixMs, files: {} };
-        clusters.push(c);
-      }
-      c.files[e.type] = e; // last-wins on duplicate type within a cluster
+      byName[e.name] = e;
+    });
+    var sets = CpapEdf.groupSessionSets(
+      parsed.map(function (e) {
+        return e.name;
+      })
+    );
+    var clusters = sets.map(function (set) {
+      var files = {};
+      Object.keys(set.byType).forEach(function (ty) {
+        var ent = byName[set.byType[ty].file];
+        if (ent) files[ty] = ent;
+      });
+      return { anchorMs: set.sec * 1000, files: files };
     });
     return clusters;
   }

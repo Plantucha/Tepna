@@ -134,6 +134,13 @@
 <script type="module" src="glucodex-dsp.js"></script>
 <script type="module" src="ppgdex-dsp.js"></script>
 <script type="module" src="ecgdex-dsp.js"></script>
+<!-- CPAP (EXPORT-PATH-UNREACHABLE-FOLLOWUPS-III §3): the sibling orchestrator carried the identical
+     gap OverDex had — it registers `resmed-edf` through signal-adapters but never booted the node
+     behind it, so a dropped ResMed night could not compute here either. Fixed together, because
+     patching one sibling and not the other is exactly how the two drift. -->
+<script src="cpapdex-edf.js"></script>
+<script type="module" src="cpapdex-dsp.js"></script>
+<script src="cpapdex-fusion.js"></script>
 <!-- shared file-ingest classifiers (deviceKey/foreignVendor/…) — load BEFORE signal-orchestrate (§1 ECG-INGEST-FOLLOWUPS-II: pairCompanions consults DexIngest) -->
 <script src="dex-ingest.js"></script>
 <!-- shared node orchestration (co-loaded compute() hosts + node-export emit) — reused by OverDex -->
