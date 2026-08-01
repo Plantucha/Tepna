@@ -133,6 +133,18 @@ const FORCE = flag('--force');
 // Internal: a child told to compute exactly ONE node of one night (see the node-split dispatch).
 const ONLY_NODE = opt('--only-node', null);
 const TRIO_NODES = ['ECGDex', 'PpgDex', 'OxyDex'];
+/* COUNT THE TRIO, NOT EVERY .json IN THE FOLDER. Completeness used to be
+   `readdirSync(dir).filter(f => f.endsWith('.json')).length === 3`, which silently made the trio test
+   mean "exactly three JSON files exist" — so the moment a night gained a FOURTH export (the O2Ring
+   finger site, below) every night would read incomplete, re-fold on every run, and never write its
+   stamp. The test is about the three trio nodes; say that. */
+const countTrioExports = (dir) => {
+  try {
+    return readdirSync(dir).filter((f) => TRIO_NODES.some((n) => f.startsWith(n + '_')) && f.endsWith('.node-export.json')).length;
+  } catch {
+    return 0;
+  }
+};
 const wantNode = (n) => !ONLY_NODE || ONLY_NODE === n;
 // Nocturnal band, floating wall clock. Wraps midnight when start > end, which is the normal case.
 const [BAND_A, BAND_B] = (() => {
@@ -443,6 +455,13 @@ const RE_O2_DAT = /^(\d{14})\.dat$/;
 const RE_POLAR_CH = /^Polar_(H10|VeritySense)_([0-9A-Fa-f]+)_(\d{14})_([A-Z0-9]+)\.txt$/;
 const RE_O2_CH = /^Wellue_O2Ring-S_[^_]+_(\d{14})_SPO2\.csv$/;
 const RE_O2_DAT_CH = /^Wellue_O2Ring-S_[^_]+_(\d{14})_STORED\.dat$/; // onboard backup (full session)
+/* THE O2RING'S OWN PLETHYSMOGRAM — ~125 Hz finger optical, live-BLE only.
+   `dex-ingest` has always called this "PpgDex's legitimate finger PRIMARY" and routed it there; this
+   fold never fed it, so every corpus run was Verity-only and PpgDex's finger site — the one whose
+   morphology tier `ppgdex-registry` already grades separately — has never been computed at scale.
+   Absent from the onboard `.dat` backup, which carries 1 Hz SpO2/HR/motion and no waveform, so this
+   exists only on nights the capture host was listening. */
+const RE_O2_PPG_CH = /^Wellue_O2Ring-S_[^_]+_(\d{14})_PPG\.txt$/;
 
 // Clock Contract: floating wall-clock ms — components verbatim through Date.UTC, never new Date(str).
 const utc = (y, mo, d, h, mi, s) => Date.UTC(y, mo - 1, d, h, mi, s);
@@ -455,7 +474,7 @@ const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600e3).toISOString().slice(0, 1
 
 const nights = new Map();
 const bump = (key) => {
-  if (!nights.has(key)) nights.set(key, { key, ecg: [], acc_h10: [], ppg: [], acc_ver: [], gyro: [], magn: [], oxy: [] });
+  if (!nights.has(key)) nights.set(key, { key, ecg: [], acc_h10: [], ppg: [], acc_ver: [], gyro: [], magn: [], oxy: [], o2ppg: [] });
   return nights.get(key);
 };
 
@@ -505,6 +524,15 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
   if (m) {
     t0 = parse14(m[1]);
     bump(nightKeyOf(t0)).oxy.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'csv', stamp: m[1] });
+    continue;
+  }
+  // O2Ring finger plethysmogram → PpgDex's FINGER site (not OxyDex: it is an optical waveform, and
+  // OxyDex consumes the 1 Hz SpO2 summary). Checked BEFORE the _SPO2/_STORED patterns cannot match it,
+  // but kept adjacent so the three O2Ring streams read as one group.
+  m = RE_O2_PPG_CH.exec(name);
+  if (m) {
+    t0 = parse14(m[1]);
+    bump(nightKeyOf(t0)).o2ppg.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'PPG', kind: 'txt', stamp: m[1] });
     continue;
   }
   // O2Ring onboard binary — bare "<14>.dat" OR capture-host "Wellue_O2Ring-S_…_STORED.dat".
@@ -672,7 +700,13 @@ for (const n of plan) {
     ppg: concurrentSet(n.ppg, anchorIv, 'PPG', n.key, MIN_OVERLAP),
     accVer: concurrentSet(n.acc_ver, anchorIv, 'Verity ACC', n.key, 0),
     gyro: concurrentSet(n.gyro, anchorIv, 'GYRO', n.key, 0),
-    magn: concurrentSet(n.magn, anchorIv, 'MAGN', n.key, 0)
+    magn: concurrentSet(n.magn, anchorIv, 'MAGN', n.key, 0),
+    /* The O2Ring's own pleth, held to the SAME concurrency rule as the Verity's — it has to overlap
+       the ring's SpO2 anchor to be this night's sleep, or a 15:00 nap joins the record.
+       MIN_OVERLAP 0, like the IMU companions: this stream is a SECOND optical opinion, not a
+       precondition for the night, so a short finger session should contribute what it has rather than
+       be dropped — and unlike ECG/PPG it gates nothing downstream. */
+    o2ppg: concurrentSet(n.o2ppg, anchorIv, 'O2Ring PPG', n.key, 0)
   };
   const have = [pick.ecg && 'ECG', pick.ppg && 'PPG', pick.oxy.length && 'SpO2'].filter(Boolean);
   if (have.length < 3) {
@@ -755,6 +789,7 @@ for (const n of plan) {
   pick.ecg = inSleep(pick.ecg);
   pick.ppg = inSleep(pick.ppg);
   pick.accH10 = inSleep(pick.accH10);
+  pick.o2ppg = inSleep(pick.o2ppg);
   pick.accVer = inSleep(pick.accVer);
   pick.gyro = inSleep(pick.gyro);
   pick.magn = inSleep(pick.magn);
@@ -821,7 +856,7 @@ if (SKIP_EXISTING && !FORCE && !DRY) {
         st = 'BAD';
       }
     }
-    const nJson = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.json')).length : 0;
+    const nJson = countTrioExports(dir);
     const why = redoReason(st, nJson, inputDigest(p), CODE_DIGEST);
     if (why) {
       // SAY WHY. "code changed" is the line that matters while the engine is being tuned: it is the
@@ -949,7 +984,7 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
           nightOutcome.set(p.key, o);
           if (o.ok === o.total) {
             const dir = join(OUT, p.key);
-            const nJson = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.json')).length : 0;
+            const nJson = countTrioExports(dir);
             if (nJson === TRIO_NODES.length)
               writeFileSync(join(dir, STAMP), JSON.stringify({ inputsDigest: inputDigest(p), codeDigest: CODE_DIGEST, nodes: TRIO_NODES.slice().sort() }, null, 2) + '\n');
             // …and the clock fit, for the same reason the stamp is here: it reads all THREE exports,
@@ -970,7 +1005,7 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
   await Promise.all(workers);
 
   const secs = (Date.now() - t0) / 1000;
-  const complete = readdirSync(OUT, { withFileTypes: true }).filter((d) => d.isDirectory() && readdirSync(join(OUT, d.name)).filter((f) => f.endsWith('.json')).length === 3).length;
+  const complete = readdirSync(OUT, { withFileTypes: true }).filter((d) => d.isDirectory() && countTrioExports(join(OUT, d.name)) === TRIO_NODES.length).length;
   console.log(`\n${'─'.repeat(64)}`);
   console.log(`nights        : ${work.length} planned · ${complete} complete trio(s) on disk${failed ? ` · ${failed} child failure(s)` : ''}`);
   console.log(`wall-clock    : ${secs.toFixed(0)}s  (${(secs / Math.max(1, work.length)).toFixed(0)}s/night at ${plan.jobs}×${splitNodes ? `, nodes split ${TRIO_NODES.length}-way` : ''})`);
@@ -1310,6 +1345,41 @@ for (const p of work) {
       else row.nodes.push(writeExport(dir, 'PpgDex', p.key, ex));
     } catch (e) {
       console.log(`    ✗ PpgDex  ${e.message}`);
+    }
+
+  /* ── PpgDexFinger — the O2RING'S OWN plethysmogram through the SAME node ───────────────────────
+     `dex-ingest` has always routed `Wellue_*_PPG.txt` to PpgDex as its "legitimate finger PRIMARY",
+     and `ppgdex-registry` already grades finger morphology on its own tier — but this fold never fed
+     it, so the finger site had never been computed at scale and every corpus run was Verity-only.
+
+     SAME node, SAME code, different site: PpgDex detects the site from the column count (one
+     reflectance path = O2Ring finger, three LED columns = Verity), so nothing here has to declare it
+     — the export's `recording.site` is derived, not asserted.
+
+     Written under a distinct name rather than as a fourth trio member: the trio is what
+     `tch-multinight` and the clock fit consume, and a night without the capture host still has to be
+     a complete trio. `countTrioExports` above exists so this file cannot be mistaken for one.
+
+     THE POINT is the comparison it unlocks. The finger and the wrist see the SAME heart through two
+     different optical paths, so their PPI series are two independent estimates of one truth — the
+     only cross-device interval check this suite can make, since neither device publishes usable
+     firmware intervals (the Verity's `_PPI.txt` is often header-only, its `_HR.txt` all-zero, and the
+     O2Ring publishes none at all). */
+  if (wantNode('PpgDex') && p.o2ppg && p.o2ppg.length)
+    try {
+      const frec = mergePpg(p.o2ppg.map((f) => PpgDex.parsePPG(readFileSync(f.full, 'utf8'))));
+      const fex = PpgDex.compute(frec, { ...COMMON, source: 'o2ring-finger-ppg' });
+      const fh = hoursOf(fex);
+      if (!KEEP_DAYTIME && fh != null && fh < MIN_HOURS) console.log(`    ⊘ PpgDexFinger  ${fh.toFixed(1)} h < --min-hours ${MIN_HOURS} (daytime/short) — skipped`);
+      else {
+        writeExport(dir, 'PpgDexFinger', p.key, fex);
+        const site = fex.recording && fex.recording.site;
+        // The site is DERIVED from the waveform's column count. If it did not come out 'finger' the
+        // file was not what this branch assumed, and saying so beats publishing it as one.
+        if (site !== 'finger') console.log(`    ⚠ PpgDexFinger  site detected as '${site}', expected 'finger' — check the input layout`);
+      }
+    } catch (e) {
+      console.log(`    ✗ PpgDexFinger  ${e.message}`);
     }
 
   /* OxyDex — O2Ring CSV (HH:MM:SS DD/MM/YYYY → Clock Contract rule 4, preferDMY). The Motion

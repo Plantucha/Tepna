@@ -215,6 +215,9 @@ const SHIPPED_INLINED = new Set(); // every .js the owned bundles inline — the
 function readSources() {
   const wanted = [
     'tools/regen-goldens.mjs', // §F1.5 — the dispatcher must keep naming every node with a regen path
+    // The fold itself is gated by source scan: it routes the O2Ring finger pleth and owns the trio
+    // completeness count, and neither is reachable by executing anything from here.
+    'tools/trio-batch.mjs',
     'tools/regen-integrator-goldens.mjs',
     'clock.js',
     'oxydex-util.js',
