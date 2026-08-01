@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-07-31 · **§1 + §6.2 RESOLVED 2026-08-01** · **Found while executing:** `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` · **Affects:** `ecgdex-dsp.js` / `ppgdex-dsp.js` event fiducials, `CROSS-DEVICE-CLOCK-SKEW` §2d's latency ladder, `PAPERS-ROADMAP`
+**Status:** IN-PROGRESS · **Created:** 2026-07-31 · **§1 + §3 + §6.2 RESOLVED 2026-08-01** · **Found while executing:** `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` · **Affects:** `ecgdex-dsp.js` / `ppgdex-dsp.js` event fiducials, `CROSS-DEVICE-CLOCK-SKEW` §2d's latency ladder, `PAPERS-ROADMAP`
 
 # Once the clock is pinned, every channel is on one timeline — and the pairs do not say what the ladder says
 
@@ -189,6 +189,67 @@ corpus, which is the error this brief chain keeps finding.
 **Do not special-case "movement vs autonomic".** §1 argues against that class of channel-name rule, and
 the same half-period mechanism would arise on any anchor train with a stable period.
 
+### RESOLVED 2026-08-01 — the guard is REJECTED, with the measurement that rejects it
+
+§6 allows exactly this outcome: *"or rejected in writing with the measurement that rejected it."*
+
+**1 · The proposed guard fires on every correct night.** Implemented as specified — cluster the usable
+channels' `ownOffsetSec`, flag when the clusters are separated by more than the peak's support width —
+and scored against all 36 reproducible nights:
+
+```
+on the 22 CONFIDENT nights:
+  correctly flags a wrong night       :  0
+  FALSELY flags a correct night       : 22    ← 100 %
+  correctly stays silent on a correct :  0
+```
+
+A refined variant restricted to *agreeing* channels (z ≥ 1 at the chosen peak) scores identically:
+22 of 22. §3's own acceptance criterion was that it *"must not cost any of the 26 correct confident
+nights"*. It costs all of them.
+
+**2 · Why, and it is not a tuning problem.** Among the **agreeing** channels on **correct** nights, the
+own-argmax range runs **70 s to 9425 s**, against a peak support width of **0–65 s**:
+
+```
+2026-07-09  n=4  range     70 s   support   5 s   offset 37.82
+2026-06-16  n=6  range    150 s   support   5 s   offset 38.14
+2026-06-12  n=6  range   7805 s   support   0 s   offset 38.17
+2026-07-27  n=7  range   9425 s   support  15 s   offset 38.54
+```
+
+Individual channel argmaxes are **noise** — which is the whole reason pooling replaced the vote. The
+guard proposes to reinstate the vote's own statistic as a detector, and that statistic was replaced
+because it was bad. No threshold rescues it: the separation it keys on is two orders of magnitude
+larger than the support on nights that are right.
+
+**3 · There is no positive class to calibrate against, at all.** 2026-07-23's raw data is gone from
+every tree (§5), so the one night that motivated the guard **cannot be reproduced**. Among the 36
+nights that can be, there are **zero confident-but-wrong** nights. Any guard calibrated here would be
+fitted to a single night that no longer exists — precisely the error §3 itself warns of.
+
+**4 · The mechanism is already caught, at its source.** Half-period aliasing is a property of the
+**anchor train**, not of channel disagreement, and `ambiguous`/`alternativesSec` detect it before any
+guard is reached. Planted known-answers, now gated (*a periodic anchor train is flagged ambiguous, not
+confidently aliased*):
+
+| planted anchor train | result |
+|---|---|
+| aperiodic (CV 0.42) | **confident**, offset recovered within 5 s, no alternatives |
+| perfectly periodic | **ambiguous**, confidence withheld, rivals one period either side |
+| periodic + responders also firing at anchor + P/2 (§3's exact scenario) | **not confident** — and the **true** offset comes back, not the alias |
+
+**5 · And this corpus was never at risk.** The apnea trains are strongly **aperiodic** — interval
+CV **1.04–2.18** across 36 nights, with only 6–25 % of anchors having another one period away. An
+aperiodic train cannot form a comb, which is the same structure `IBI-ALIGNMENT-LIMIT` found between
+two beat trains. That is *why* there are no confident-wrong nights here, and it means a periodicity
+test — a property of the input, needing no positive class — is the right shape for a guard if one is
+ever wanted. It is not implemented, because on this corpus it would never fire and an unfireable guard
+is not evidence of anything.
+
+**Recommendation: do not implement a disagreement guard.** Re-open only if a confident-but-wrong night
+appears whose inputs still exist.
+
 ## 4 · The fusion gate is stricter than the clock fit needs
 
 `trio-batch` rejects a night with less than `--min-overlap 1` hour of three-way concurrency, because
@@ -235,8 +296,10 @@ tool every other analysis also uses, so it needs its own gate work rather than a
 - [ ] If §1 resolves to physiology: a `papers/` entry with the null calibration alongside, per
       `LITERATURE-USE-POLICY`. If it resolves to an artifact: a detector fix and a gate.
 - [ ] The window/grid sweep of §5 is run, and the chosen values carry a reason.
-- [ ] The §3 disagreement guard is designed, validated against all 45 nights (it must not cost any of
-      the 26 correct confident nights to catch 2026-07-23), and gated — or rejected in writing with the
-      measurement that rejected it.
+- [x] The §3 disagreement guard is **rejected in writing with the measurement that rejected it**
+      (2026-08-01): 22 of 22 correct confident nights falsely flagged, because agreeing-channel
+      argmax range (70–9425 s) dwarfs the support width (0–65 s). The motivating night is
+      unreproducible and the reproducible corpus has no confident-wrong nights, so no guard can be
+      calibrated. The mechanism is already caught by `ambiguous`, now pinned by planted known-answers.
 - [ ] `trio-batch` grows an `--allow-partial` path (§4) so a 2-device night can be fitted, or the four
       unreachable nights are recorded as permanently out of corpus.
