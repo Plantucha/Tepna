@@ -20726,6 +20726,84 @@
      Gates the June-2026 coherence change: GlucoDex's generator is the SHARED patient (so it
      fuses with OxyDex/HRVDex/etc.), and the additive cfg.glucBaseMmol override expresses
      pre-diabetes WITHOUT changing the frozen corpus (omitted field → 5.4 default, byte-safe). */
+    /* ── SYNTH-GEN-DESAT-KINETICS ────────────────────────────────────────────────────────────────
+       The generator plants the oracle that OxyDex's ODI-4 is characterised against, so its
+       desaturations must be able to PASS OxyDex's own validity checks. They could not: an
+       exponential glide at k=0.28 falls at k × depth on its first second, so a 15 % event started at
+       4.2 %/s against a 1.5 %/s physiological ceiling, and `selfGateDesat` correctly rejected it as
+       probe artifact — 232 of 242 events on night 2, ODI-4 1.4/h against a planted AHI of 38.
+
+       Because severe nights plant deeper events, the rejection scaled with severity, which on its
+       own reproduced the "severity-dependent ODI-4 deficit" that papers/odi4-ahi-bias.html reports.
+       That deficit did not survive the fix: r vs planted AHI went 0.370 → 0.998.
+
+       Gating the GENERATOR rather than a committed corpus is deliberate. The five nights are 3.7 MB
+       and gitignored, so pinning them means pinning bytes that CI never re-derives; rendering here
+       re-derives them every run and cannot drift. The ceiling is written out rather than imported
+       from oxydex-dsp for the same reason the standalone tool hard-codes it — a fixture that tracks
+       the gate it is judged by passes by construction. */
+    group('synth-gen plants desaturations that can pass OxyDex\'s own artifact gate', 'synth-gen · oxydex-dsp · desat-kinetics', function (T) {
+      var S = env.SYNTH;
+      var OX = (env.OxyDex && env.OxyDex._bare) || env.OxyDex;
+      if (!S || typeof S.renderOxy !== 'function' || typeof S.buildTimelines !== 'function') {
+        T.skip('SYNTH.renderOxy available', 'synth-gen not loaded into env');
+        return;
+      }
+      var CEILING = 1.5; // SELFGATE.FALL_RATE_MAX, restated on purpose (see above)
+      var tls = S.buildTimelines();
+      T.ok('the SubjectA timelines build', tls && tls.length >= 2, 'got ' + (tls ? tls.length : 0));
+
+      /* The two severest nights are the ones that failed; test those. */
+      var bySeverity = tls.slice().sort(function (a, b) {
+        return (b.cfg && b.cfg.ahi ? b.cfg.ahi : 0) - (a.cfg && a.cfg.ahi ? a.cfg.ahi : 0);
+      });
+      for (var i = 0; i < Math.min(2, bySeverity.length); i++) {
+        var tl = bySeverity[i];
+        var ahi = tl.cfg && tl.cfg.ahi;
+        var csv = S.renderOxy(tl);
+        var lines = csv.split('\n');
+        var prev = null;
+        var falls = 0;
+        var over = 0;
+        var maxFall = 0;
+        for (var k = 1; k < lines.length; k++) {
+          var col = lines[k].split(',');
+          if (col.length < 2) continue;
+          var v = parseFloat(col[1]);
+          if (!isFinite(v)) {
+            prev = null;
+            continue;
+          }
+          if (prev != null && prev - v > 0) {
+            var d = prev - v;
+            falls++;
+            if (d > maxFall) maxFall = d;
+            if (d > CEILING) over++;
+          }
+          prev = v;
+        }
+        var overFrac = falls ? over / falls : 0;
+        T.ok('night AHI ' + ahi + ': the steepest 1 s fall is within the ' + CEILING + ' %/s ceiling', maxFall <= CEILING, 'max ' + maxFall + ' %/s over ' + falls + ' falls');
+        T.ok('night AHI ' + ahi + ': ≤1 % of falls exceed the ceiling', overFrac <= 0.01, (100 * overFrac).toFixed(1) + '% of ' + falls);
+
+        /* The consequence, measured through the real detector: a fixture the gate mostly throws
+           away must not sit quietly in uploads/. Before the fix this was 232/242 = 96 %. */
+        if (OX && typeof OX.parseCSV === 'function' && typeof OX.processNight === 'function') {
+          var rows = OX.parseCSV(csv, { name: 'synth.csv' });
+          var night = OX.processNight(rows, 'synth.csv');
+          var o = (night && night.odi4) || {};
+          var kept = o.count || 0;
+          var excl = o.artifactExcluded || 0;
+          var found = kept + excl;
+          T.ok('night AHI ' + ahi + ': OxyDex finds desaturations at all', found > 0, 'found ' + found);
+          T.ok('night AHI ' + ahi + ': the artifact gate excludes <10 % of them', found === 0 || excl / found < 0.1, excl + ' of ' + found + ' excluded');
+          /* And the point of the whole exercise: ODI-4 must now track the planted AHI rather than
+             the gate's rejection rate. Night 2 was 1.4/h against a planted 38. */
+          if (ahi >= 20) T.ok('night AHI ' + ahi + ': ODI-4 is within 25 % of the planted AHI', o.rate != null && Math.abs(o.rate - ahi) / ahi < 0.25, 'ODI-4 ' + o.rate + ' vs AHI ' + ahi);
+        }
+      }
+    });
+
     group('GlucoDex synthetic coherence (DexPatientGen → renderGlucoAll → parseCSV)', 'dex-patient-gen · synth-gen · glucodex-dsp', function (T) {
       var DPG = env.DexPatientGen,
         S = env.SYNTH,

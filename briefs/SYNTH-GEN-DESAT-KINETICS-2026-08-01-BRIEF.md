@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-01 · **Spawned-by:** `PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md` §2
+**Status:** DONE — 2026-08-01 · **Created:** 2026-08-01 · **Spawned-by:** `PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md` §2
 
 # `synth-gen` plants desaturations that fall faster than physiology allows, so the detector correctly throws them away
 
@@ -77,21 +77,88 @@ where a 97 → 90 % ramp over 10 s (0.7 %/s) is detected and its square-edged tw
 - Check the PPG/ECG generators for the same class of defect while there — nothing has measured their
   event morphology against the gates that consume them either.
 
+## 6 · Executed 2026-08-01
+
+### The measurement the brief refused to inherit
+
+§3 asked for the ramp to be set from the REAL distribution rather than from its own ~10–30 s estimate.
+Measured over the 36-night `trio-onset` corpus — 1 Hz `timeseries.spo2` plus 342 events carrying
+`onsetTMs`:
+
+```
+1 s fall rate            p50 1.00 %/s · p90 1.00 · p99 1.00 · max 14.00
+  exceeding 1.5 %/s      43 of 21 609  =  0.20 %        (synthetic nights 1-2: 16.3 %, 32.0 %)
+onset → nadir            p50 7 s · p90 25 s · p99 71 s
+nadir → end              p50 14 s · p90 38 s
+event depth              p50 5 % · p90 8 %
+implied mean fall rate   0.714 %/s
+```
+
+The brief's "~10–30 s" is the p90 of the real distribution, not its centre — the median event ramps in
+**7 s**. Real data passes the judge comfortably at 0.20 %, which also validates the tool's 5 % threshold
+in the one direction that mattered.
+
+### The defect was a model choice, not a constant
+
+`renderOxy` glided SpO₂ toward its target with `spo2f += (target − spo2f) × k`, `k = 0.28`. A first-order
+lag's *initial* rate is `k × depth`, so a 10 % event opened at 2.8 %/s and a 15 % one at 4.2 %/s — which
+is exactly the 3 and 4 %/s maxima on nights 1 and 2.
+
+Shrinking `k` was the wrong fix: it would also flatten the shallow events that were never the problem,
+and it keeps a model that is wrong in kind. Saturation is **rate-limited** by circulation and lung oxygen
+stores, not exponentially relaxing, so the limit is now imposed directly — `±1.0 %/s` falling, `1.5 %/s`
+rising (resaturation is the slower limb, 14 s vs 7 s, and clamping it hard would merge events that should
+separate). Depth is untouched: a 7 % desaturation is still 7 % deep, it just takes 7 s.
+
+### The result, with the detector unchanged
+
+```
+planted AHI              3     4     7    22    38     slope    R²
+ODI-4 before           0.8   0.5   1.5   5.6   1.4     0.051   0.137
+ODI-4 after            0.8   0.9   2.4  17.7  33.1     0.946   0.997
+deficit before         2.2   3.5   5.5  16.4  36.6     ← the paper's severity gradient
+deficit after          2.2   3.1   4.6   4.3   4.9     ← flat
+```
+
+OxyDex finds **242** desaturations on night 2 in *both* cases. The entire difference is that
+`selfGateDesat` rejected **232** of them from the old fixture and **none** from the repaired one.
+
+**The severity-dependent ODI-4 deficit does not survive a physiological fixture.** §4's sixth item
+anticipated this outcome explicitly, and it is the outcome. The residual ~3–5 events/h carries no
+severity gradient and is the ordinary consequence of not every apnea desaturating ≥4 %.
+
+### On pinning — the brief asked for bytes; it gets something stronger
+
+§4 wanted the corpus committed or seed-pinned. The five nights are **3.7 MB** and gitignored, so pinning
+bytes means pinning something CI never re-derives. Instead the **generator** is gated: the new
+`tests/dex-tests.js` group renders the two severest nights through `SYNTH.renderOxy` **in-realm on every
+run** and asserts the ceiling, the artifact-exclusion ratio (<10 %), and that ODI-4 lands within 25 % of
+the planted AHI. Restoring the old glide reds all eight assertions with exactly the brief's Table 1
+numbers (32.0 %, 16.3 %, 232/242, 92/135). A re-derived fixture cannot drift the way frozen bytes can.
+
+The ceiling is written out in both the tool and the gate rather than imported from `oxydex-dsp`, per §5 —
+a fixture that tracks the gate it is judged by passes by construction.
+
+### Not done here
+
+The PPG/ECG generators were **not** checked for the same class of defect (§3, last bullet). That needs its
+own measurement against the gates that consume them, and asserting it in passing would be the kind of
+unverified claim this brief exists to correct. Carried to the follow-up.
+
 ## 4 · Done when
 
-- [ ] `synth-gen` emits ramped desaturations; `node tools/synth-desat-kinetics.mjs uploads/synthetic/`
-      exits **0** on a freshly generated corpus (it exits 1 today).
-- [ ] The regenerated corpus is **pinned** — committed, or generated from a recorded seed + generator
-      version with input hashes in the ledger. Pinning must come AFTER the fix; pinning the current
-      corpus would enshrine the defect.
-- [ ] `artifactExcluded` is a small fraction of events found on every night, and that ratio is asserted —
-      a fixture the detector mostly rejects should red a gate, not sit quietly in `uploads/`.
-- [ ] The parent brief's Table 1 question is re-run on the fixed corpus.
-- [ ] The generator's onset→nadir ramp is set from the REAL distribution (`onsetTMs`/`endTMs`, or
-      `timeseries.spo2`), and the source of that number is recorded — not carried over from this brief.
-- [ ] The paper's status banner is updated with whatever the re-run shows — including, if that is the
-      outcome, that the severity-dependent under-count does **not** survive a physiological fixture.
-- [ ] Gates green; changeset dropped.
+- [x] `synth-gen` emits ramped desaturations; the judge exits **0** on the regenerated corpus (all five
+      nights max 1 %/s, 0.0 % over ceiling). The pre-fix corpus is preserved at
+      `/tmp/synthetic-backup-preramp` for anyone re-checking the before/after.
+- [x] Pinned — **as a re-derived fixture rather than frozen bytes**, see §6. 3.7 MB of gitignored CSV
+      that CI never re-derives is a weaker guarantee than rendering in-realm every run.
+- [x] `artifactExcluded` asserted: <10 % of events found, on both severe nights. It was 96 % (232/242).
+- [x] Parent brief's Table 1 re-run — slope 0.051 → 0.946, R² 0.137 → 0.997.
+- [x] Ramp set from the real distribution (36 nights, 342 `onsetTMs` events) and the numbers recorded
+      in §6 and in the `synth-gen.js` comment, not carried over from this brief's estimate.
+- [x] Paper banner updated — and the outcome is the one §4 anticipated: the severity-dependent
+      under-count does **not** survive.
+- [x] Gates green; changeset dropped.
 
 ## 5 · Guardrail
 
