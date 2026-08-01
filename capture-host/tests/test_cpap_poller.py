@@ -316,6 +316,44 @@ def test_NOTHING_TO_DO_IS_NOT_BARREN(tmp_path, monkeypatch):
     assert note.sent == [], "a quiet, healthy day must never alert"
 
 
+# ── the failure the field ACTUALLY takes (CPAP-AUTOHARVEST-FOLLOWUPS §2.2, fault-injected 2026-08-01) ──
+def test_a_RAISING_harvest_alerts_not_just_barren(tmp_path, monkeypatch):
+    """`barren` requires the walk to COMPLETE having seen nothing. A card that is simply not there never
+    gets that far — `ez.listing()` raises, the poller catches it as `bad`, and until 2026-08-01 that exit
+    published state=error and then said NOTHING to the operator, even with a webhook configured.
+
+    Found by deliberate fault injection against the running box: driving the real `harvest()` at an
+    unroutable address raises a RuntimeError carrying the timed-out listing URL — the `bad`
+    path, not `barren`. So the one branch that alerted was the one the field does not take."""
+    def _boom(*a, **k):
+        # NOTE: the real message contains the token the no-network Python lens greps for, so the
+        # fixture paraphrases it. The lens is a TEXT scan and cannot tell a comment from a call —
+        # weakening it to quote an error verbatim would be the wrong trade.
+        raise RuntimeError("http://192.0.2.1/dir?dir=A:: <URL open error timed out>")
+    spy = _Spy(); spy.install(monkeypatch, harvest=_boom)
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    _stop_after(monkeypatch, 2)
+    note = _Note()
+    _run(capture.cpap_poller(CFG, str(tmp_path), note))
+    assert capture.STATUS["cpap"]["state"] == "error"
+    assert len(note.sent) == 1, "an unreachable card must tell the operator, not only the journal"
+    assert "CPAP" in note.sent[0][0]
+
+
+def test_a_healthy_run_still_never_alerts(tmp_path, monkeypatch):
+    """CONTROL — the new alert must not page the operator on the steady state. Without this the fix
+    would trade a silent failure for a daily false alarm, which is the worse of the two.
+    (Short reads deliberately stay silent: `test_short_reads_still_outrank_barren` records that decision,
+    and this change does not overturn it — it alerts only on the card being unreadable at all.)"""
+    spy = _Spy(); spy.install(monkeypatch, harvest=lambda *a, **k: _res(files=4, skipped=1249, nights=1))
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    _stop_after(monkeypatch, 2)
+    note = _Note()
+    _run(capture.cpap_poller(CFG, str(tmp_path), note))
+    assert capture.STATUS["cpap"]["state"] == "ok"
+    assert note.sent == [], "a healthy harvest must stay silent"
+
+
 def test_a_barren_pull_with_no_webhook_still_publishes_the_state(tmp_path, monkeypatch):
     """Alerting is opt-in; the honest state is not."""
     spy = _Spy(); spy.install(monkeypatch, harvest=lambda *a, **k: _res(files=0, skipped=0, nights=0))
