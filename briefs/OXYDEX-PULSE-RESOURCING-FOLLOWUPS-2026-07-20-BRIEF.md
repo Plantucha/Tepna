@@ -60,6 +60,34 @@ but that is a synthetic, not a measurement. Run `fusePulseCrossCheck` across the
 and record the real bias distribution — a legitimate negative result if they agree
 (`papers/dead-ends.html` precedent).
 
+**◐ ATTEMPTED 2026-08-01 — NOT ANSWERED, and the reason is worth more than a number would have been.**
+
+The data exists: **7 nights** of real O2Ring finger PPG (2026-07-25…31), **117 fragments**, all with real
+samples, each with an SpO₂ CSV carrying the 1 Hz vendor `Pulse Rate` on the same date. `tools/pulse-agreement.mjs`
+ships with this note.
+
+**What it can honestly report today: ONE validly-compared night, Δ = −3 bpm.** Five were skipped because
+the PPG fragment and the vendor file share **zero** overlapping samples — they are *different capture
+sessions on the same date*. Per-night pairing is not enough; this needs **session-level** alignment across
+the 117 fragments.
+
+**Two wrong answers were produced on the way, and both looked fine:**
+
+1. Comparing the largest PPG fragment against the **whole-night** vendor median gave bias **−0.83 bpm,
+   SD 4.58, LoA −9.8…+8.1** — a publishable-looking Bland–Altman from series covering *different spans*.
+2. Restricting to a matched window appeared to change nothing, because the window filter used
+   `Date.parse` on the O2Ring's `HH:MM:SS DD/MM/YYYY` stamp. That returns **NaN**, matched zero samples,
+   and fell silently back to (1). The Clock Contract §2.4 forbids exactly this, and the tool now uses
+   `DexClock.parseTimestamp` on both sides.
+
+The tool therefore **skips** a night it cannot window-match and reports the skip count, rather than
+estimating. A silent fallback converts *"these files do not overlap"* into a bias — the same shape as
+reporting a sentinel-filled file as coverage, which `CPAP-SA2-OXIMETRY-SOURCE` was refuted for the same day.
+
+**What a sound answer needs:** session-level pairing (the `pairCompanions` / `trio-batch` fold already
+solves this shape for the trio corpus), then the bias distribution over however many nights survive. Until
+then §3 stays open, and **no bias figure from this corpus should be quoted** — including the two above.
+
 ## Cross-references
 - Parent: `OXYDEX-PULSE-RESOURCING-2026-07-18-BRIEF.md` (DONE 2026-07-20).
 - Method reuse: `ecgdex-dsp.js` `detectCVHR` (CVHR), the audited PulseDex HRV path.
