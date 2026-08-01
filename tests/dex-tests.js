@@ -1905,6 +1905,47 @@
        Every assertion here comes in a PAIR with its control. A planted-offset recovery on its own would
        pass on a function that always answers "yes, aligned"; a null control on its own would pass on one
        that never fires. Neither is evidence alone — the brief's §7 demands both or neither. */
+    /* THE FUSION CAN NOW SEE SpO₂ AT ALL.
+       OxyDex exported SpO₂ nowhere until 2026-07-31 — 89 five-minute epochs of {hr, motionIndex} for a
+       night in which the device recorded ~26,500 samples. The series now ships at 1 Hz, but until this
+       reader existed the Integrator still could not see it: it reads `timeseries.epochs`, `.acc` and
+       `.cells`, and nothing read `.spo2`. A producer with no consumer is half a change. */
+    group('The Integrator carries OxyDex SpO₂, holes and all', 'integrator-dsp · spo2-series', function (T) {
+      var A = env.adaptEnvelopeNode;
+      T.ok('adaptEnvelopeNode present', typeof A === 'function');
+      if (typeof A !== 'function') return;
+      var t0 = U(2026, 5, 12, 22, 0, 0);
+      var mk = function (ts) {
+        return { schema: { name: 'ganglior.node-export', node: 'OxyDex' }, recording: { startEpochMs: t0, durationMin: 10 }, ganglior_events: [], timeseries: ts };
+      };
+      var recs = A(mk({ epochs: [{ tMin: 0, hr: 58, motionIndex: 0.2 }], spo2: { hz: 1, n: 6, values: [97, 96, null, null, 94, 95] } }), 'OxyDex', 'f.json');
+      var r = recs && recs[0];
+      T.ok('a record is produced', !!r);
+      if (!r) return;
+      var sp = r.series && r.series.spo2;
+      T.ok('the SpO₂ series reaches the fusion at all', !!sp, JSON.stringify(Object.keys((r.series || {}))));
+      if (!sp) return;
+      T.eq('the sample rate is carried', sp.hz, 1);
+      T.eq('the grid anchor is the recording start', sp.t0Ms, t0);
+      T.eq('every sample is carried, not resampled or trimmed', sp.values.length, 6);
+      T.eq('values survive intact', sp.values[0] + '|' + sp.values[5], '97|95');
+      /* The two silent corruptions. A hole is not 0 — that is the most severe desaturation physically
+         possible — and not the previous value, which reads as stable oxygen through a dropout. */
+      T.ok('a hole stays null, never 0', sp.values[2] === null && sp.values[3] === null, JSON.stringify(sp.values));
+      T.ok('…and is never carried forward from the last good sample',
+        sp.values[2] !== 96 && sp.values[3] !== 96, sp.values[2] + ',' + sp.values[3]);
+      /* A NaN in an export would otherwise propagate silently through anything that consumes this. */
+      var nan = A(mk({ epochs: [{ tMin: 0, hr: 58 }], spo2: { hz: 1, n: 3, values: [97, Number.NaN, 95] } }), 'OxyDex', 'f.json')[0];
+      T.ok('a non-finite entry becomes an explicit hole', nan.series.spo2.values[1] === null, nan.series.spo2.values[1]);
+
+      // ADDITIVE: the epoch series the fusion already depended on must not move.
+      T.ok('epochs still adapt alongside it', Array.isArray(r.series.hrvEpochs) && r.series.hrvEpochs.length === 1, JSON.stringify(r.series.hrvEpochs));
+      /* An export predating the field, or a night with no usable SpO₂, carries none — rather than an
+         empty array a consumer would read as "measured, and flat". */
+      var old = A(mk({ epochs: [{ tMin: 0, hr: 58 }] }), 'OxyDex', 'f.json')[0];
+      T.ok('an export without the field carries NO series, not an empty one', old.series.spo2 == null, JSON.stringify(old.series.spo2));
+    });
+
     group('The pooled clock fit beats voting, and knows when it has found nothing', 'integrator-dsp · clock-fit-pooled', function (T) {
       var D = env.IntegratorDSP || env.D || null;
       var pooled = D && D.fitClockOffsetPooled,
