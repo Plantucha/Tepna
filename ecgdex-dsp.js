@@ -2042,6 +2042,24 @@
     // into 0.45–0.95 so a strong cyclic surge scores higher than a weak one. SQI no
     // longer leaks into conf — it rides alongside as its own field.
     const surgeConf = (ampBpm) => +Math.max(0.45, Math.min(0.95, 0.45 + Math.min(ampBpm || 0, 24) / 48)).toFixed(2);
+    /* ── WHICH INSTANT THIS STAMPS (POOLED-CLOCK-FIT-FOLLOWUPS §6.2) ────────────────────────────
+       `t`/`tMs` are the **bradycardia TROUGH** — the local minimum of the HR residual that OPENS a
+       cyclic-variation cycle. The tachycardic rebound this event is named for occurs `periodSec`
+       LATER, at the residual maximum; `detectCVHR` finds both (`s` and `pkAt`) and stamps `s`.
+
+       That is the right convention — the bradycardia is the diagnostic feature of CVHR, and moving
+       the stamp now would change a published event's `t` for every consumer. But nothing said so,
+       and the cost of that silence was measured: `autonomic_surge → movement_onset` came out
+       BIMODAL at +10 s / −20 s with a hole at simultaneity (10 of 992 deltas within ±5 s, 1.0 %),
+       which POOLED-CLOCK-FIT-FOLLOWUPS §1 could not explain after rejecting three hypotheses.
+       Re-measuring against trough+`periodSec` collapses it to ONE mode with 330 of 915 inside ±5 s
+       (36.1 %) — a 36× improvement. The structure was the fiducial, not physiology.
+
+       `periodSec` was always exported, so the information was technically present; what was missing
+       was any statement of what the stamp meant. `peakTMs` now publishes the rebound instant
+       directly, as a NEW meta field so no existing consumer changes: use `tMs` for the cycle's
+       start and `peakTMs` for the autonomic surge itself, and say which one a latency is measured
+       against. */
     for (const ev of cvhr.events) {
       events.push({
         t: clock(ev.sec),
@@ -2054,6 +2072,10 @@
         meta: {
           ampBpm: ev.ampBpm,
           periodSec: ev.periodSec,
+          // The tachycardic rebound — the instant the event's NAME refers to. `tMs` is the trough
+          // that opens the cycle; see the block above for why they are not the same and why that
+          // silently bimodalised every cross-channel latency measured against this channel.
+          peakTMs: ev.periodSec != null ? tmsAt(ev.sec + ev.periodSec) : null,
           position: posAt(ev.sec), // supine posture worsens OSA → fusion can weight osaConf/AHI
           osaLabel: null,
           osaConf: null, // reserved: Almarshad 2026 transformer (Phase 2)

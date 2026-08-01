@@ -2962,6 +2962,14 @@
       }
     }
     /* movement_onset — the AROUSAL fiducial, straight off the inertial grid.
+
+       WHICH INSTANT THIS STAMPS (POOLED-CLOCK-FIT-FOLLOWUPS §6.2): a local MAXIMUM of the jerk grid
+       above mean+3·SD, i.e. the PEAK of the movement, not the moment it began. The name is
+       historical. `movementOnsets` suppresses within ±5 s and enforces a 30 s minimum gap, so the
+       stamp is the strongest sample of a movement burst — which for a burst with a fast rise is
+       close to its start, and for a slow roll can trail it by seconds. Any cross-channel latency
+       quoted against this channel inherits that, and should say so.
+
        Independent of beat detection on purpose (see movementOnsets): a movement large enough to matter
        is a movement large enough to blind the PPG, so anything gated on beats thins out exactly where
        the signal is strongest. Carries which inertial streams contributed, because a cross-device fit
