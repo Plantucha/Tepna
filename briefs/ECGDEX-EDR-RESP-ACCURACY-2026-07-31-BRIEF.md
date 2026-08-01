@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-31 · **Spawned-by:** `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md` §EP-rest
+**Status:** IN-PROGRESS — 2026-08-01 · **Created:** 2026-07-31 · §4 options 1+2 EXECUTED; the 8–12/min band remains (option 3, deliberately not taken) · **Spawned-by:** `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md` §EP-rest
 
 # `crc.respFromEDR` reads exactly HALF at 24 breaths/min — the estimator degrades at both edges of its own declared window
 
@@ -98,3 +98,79 @@ sinusoid; real EDR is neither clean nor stationary, and `REM-STAGING-REDESIGN` �
 synthetic oracle is circular applies directly here. Any fix should also be checked against the real
 trio-corpus ECG, where the truth is unknown but the *stability* of the estimate across a night is
 observable.
+
+
+---
+
+## 7 · Executed 2026-08-01 — options 1 + 2
+
+### 7.1 · What shipped, and what it bought
+
+Both changes are local to `_autocorrPeriod`; neither touches `_bandResp`, so no other CRC metric moves.
+
+- **Harmonic check** — after picking `bestLag`, if HALF that lag is admissible and carries ≥ 0.8× the
+  correlation, prefer the shorter period. The 0.8 is deliberately permissive: an *attenuated* fundamental
+  will not match its harmonic's peak, which is precisely the failure mode, so requiring equality would
+  leave the defect in place.
+- **Parabolic interpolation** — fit a parabola through the peak and its two neighbours to recover the
+  sub-sample maximum, removing the 0.25 s lag quantisation of the 4 Hz grid. Guarded on a real
+  negative-curvature maximum, and clamped to the neighbouring bins.
+
+Re-running §1's sweep (three seeds, identical values):
+
+| true /min | 6 | 7 | 8 | 9 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | **24** |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **before** | 6.9 | 6.9 | 11.4 | 11.4 | 12 | 13.3 | 15.0 | 16.0 | 18.5 | 20 | 21.8 | **12** |
+| **after** | 6.8 | 6.8 | 11.3 | 11.4 | 12 | 13.3 | **14.7** | 16.4 | **18.2** | 20 | 21.7 | **23.4** |
+
+**The period-doubling is gone: 24/min goes from −50 % to −2.5 %.** Interpolation also fixes the 14/min
+quantisation error (15.0 → 14.7) and improves 18/min. Mean absolute error over the sweep halves,
+1.98 → 1.02 — but that is almost entirely the one catastrophic point, and saying so matters more than the
+headline: **excluding 24/min the MAE is essentially unchanged (1.07 → 1.05).** 16/min is marginally worse
+(16.0 → 16.4); it was exact before by coincidence of the grid.
+
+### 7.2 · What did NOT improve, and why option 3 was not taken
+
+**The 8–12/min over-read is untouched** (8/min still reads 11.3, +43 %). §2 named two mechanisms; this is
+a **third** — the fundamental attenuated at the LOW band edge, where there is no harmonic to substitute
+and no peak to interpolate, because the peak itself is not there. Fixing it needs **option 3**, a steeper
+`_bandResp`, which moves every CRC metric and forces a fleet-wide fixture re-record. That is a separate,
+larger work-unit and was deliberately left.
+
+So the trustworthy range widens at the top (≈14–24/min) and is unchanged at the bottom. Two legs now pin
+the 8–12/min error as explicit characterization, the same discipline the 24/min pin used before it was
+fixed.
+
+### 7.3 · The pins were updated in the same commit, as §5 required
+
+The two `KNOWN LIMITATION` legs pinning 24/min → 12 red on this fix — which is what they were for. They
+now assert 23.6 ± 0.5, and two new characterization legs pin the surviving 8–12/min error.
+
+Both halves of the fix are **independently mutation-verified**: disabling the harmonic check sends 24/min
+back to 12; disabling the interpolation sends 14/min back to 15.0. That second check initially passed
+under mutation because the tolerance was ±0.4 and 15.0 sits inside it — the tolerance is now ±0.15. Found
+by mutating the fix, not by reading the test.
+
+### 7.4 · ⚠ The ECGDex equiv fixture does NOT evidence this change
+
+`verify-fixtures` reproduced `ECGDex_2026-06-27_equiv.node-export.json` byte-for-byte and stamped it. That
+is **not** evidence the change is safe: the fixture is the **LIGHT** export — `kernel schema recording
+ganglior_events reserved` — and carries no `hrv` block, so it does not contain `respFromEDR` at all.
+
+This is the same gap `INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS` §1 closed for PpgDex on 2026-08-01 (a
+committed **rich**-export golden). **ECGDex has the identical hole and it is still open.** Worth its own
+unit, mirroring the PpgDex one; noted here so the next reader does not mistake a green GATE B for coverage
+of the CRC block.
+
+The evidence for this change is therefore the sweep in §7.1 plus the mutation-verified pins — not the
+fixture.
+
+### 7.5 · Still open
+
+- §4 option 3 (steeper `_bandResp`) for the 8–12/min band — the larger unit.
+- §5's CPC/PLV consequence: `f0 = respFromEDR/60` centres `_narrowPhase`, so a corrected `f0` at 24/min
+  should move `crcPLV` and the CPC band shares. **Unmeasured.** It was the more serious half when the
+  rate was wrong by 2×; now that 24/min is right, the question becomes whether the old values were
+  distorted — which is a re-measurement, not a fix.
+- `ECGDEX-CARDIOPULMONARY-COUPLING`'s validated `cpc.hfcPct` (r = −0.408, p = 0.009) must be re-checked
+  against this change before the brief closes.
