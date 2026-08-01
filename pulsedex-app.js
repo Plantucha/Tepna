@@ -564,6 +564,15 @@ document.getElementById('btnJSON').addEventListener('click', exportJSON);
   var _b = document.getElementById('btnSumCSV');
   if (_b) _b.addEventListener('click', exportSummaryCSV);
 })();
+// EXPORT-PATH-UNREACHABLE §4: exportGanglior() (the ganglior.node-export builder, shared with
+// pdBuildNodeExport so the app / Unifier / OverDex emit byte-identical envelopes) was reachable from
+// no control at all. ⬇ JSON is NOT a substitute: on the ≤1-recording branch — the single-night case,
+// i.e. the common one — it serialises `lastResult` verbatim, with no schema and no ganglior_events,
+// so the Integrator loaded it as 0 events and told the user to press a button that did not exist.
+(function () {
+  var _g = document.getElementById('btnGanglior');
+  if (_g) _g.addEventListener('click', exportGanglior);
+})();
 
 // ── Synthetic patient generator (shared coherence engine · dex-patient-gen.js) ──
 // Renders N consecutive nights for one patient as Polar RR streams → multi-day.

@@ -76,9 +76,40 @@
   // ── classify one walked file (cheap: route by name + head, then JSON sniff) ──
   // Returns { file, relPath, klass, route?, node?, json?, signalType?, note? }
   // klass ∈ 'raw' (adapter-routed) | 'export' (ready node-export) | 'ambiguous' | 'unknown' | 'error'
+  /* EXPORT-PATH-UNREACHABLE §5 — which node OWNS each signal type. This was an inline ternary
+     (`spo2 ? OxyDex : hrv ? HRVDex : PulseDex`), so ecg / ppg / cgm / cpap ALL displayed
+     "→ PulseDex" in the routing manifest. Display-only — runAndFuse() dispatches on signalType, so
+     the 208 MB H10 ECG did run through ECGDex and emit 62 correct events while the manifest said
+     PulseDex — but a manifest whose whole job is "tell the user what will run" must not lie. */
+  var NODE_FOR_SIGNAL = { spo2: 'OxyDex', hrv: 'HRVDex', rr: 'PulseDex', ecg: 'ECGDex', ppg: 'PpgDex', cgm: 'GlucoDex', cpap: 'CPAPDex' };
+
   function classify(file, text) {
     var relPath = WALK.relOf(file);
     var head = (text || '').slice(0, 2048);
+    /* A ganglior.node-export DECLARES what it is in `schema.name`; a vendor adapter only ever GUESSES
+       from a filename and a 2 KB head. The self-describing artifact must therefore be asked FIRST —
+       it used to be asked only after every adapter had declined, and `adapters/oxydex-spo2.js` claims
+       /oxydex/i on the NAME at 0.95. So `OxyDex_<night>_summary.json` matched the raw-SpO₂ adapter,
+       died in the CSV row parser ("no usable SpO₂ rows parsed"), and was never retried as an export:
+       OxyDex vanished from every OverDex fusion while the Integrator fused the same file with 57
+       events. `adapters/libre-cgm.js` carries the identical /glucodex/i rule.
+       Gated on a cheap head sniff so a 208 MB ECG text is never handed to JSON.parse. */
+    var sawJSON = false;
+    if (/^\s*\{/.test(head)) {
+      var early = null;
+      try {
+        early = JSON.parse(text);
+      } catch (e) {
+        early = null;
+      }
+      if (early && typeof early === 'object') {
+        sawJSON = true;
+        var eres = D.normalizeFile(early, file.name);
+        if (eres.recs && eres.recs.length) {
+          return { file: file, relPath: relPath, klass: 'export', json: early, node: eres.recs[0].node, nRecs: eres.recs.length, warnings: eres.warnings || [] };
+        }
+      }
+    }
     var r = REG.route({ name: file.name }, head);
     if (r.best) {
       if (r.ambiguous) {
@@ -96,26 +127,14 @@
         klass: 'raw',
         route: r,
         signalType: r.best.signalType,
-        node: r.best.signalType === 'spo2' ? 'OxyDex' : r.best.signalType === 'hrv' ? 'HRVDex' : 'PulseDex',
+        node: NODE_FOR_SIGNAL[r.best.signalType] || 'PulseDex',
         adapter: r.best.adapter,
         vendor: r.best.vendor
       };
     }
-    // not adapter-routable → is it an already-exported ganglior.node-export?
-    var json = null;
-    try {
-      json = JSON.parse(text);
-    } catch (e) {
-      json = null;
-    }
-    if (json && typeof json === 'object') {
-      var res = D.normalizeFile(json, file.name);
-      if (res.recs && res.recs.length) {
-        var node = res.recs[0].node;
-        return { file: file, relPath: relPath, klass: 'export', json: json, node: node, nRecs: res.recs.length, warnings: res.warnings || [] };
-      }
-      return { file: file, relPath: relPath, klass: 'unknown', note: 'JSON, but not a recognized node-export (no fusible records)' };
-    }
+    // Neither a node-export nor adapter-routable. Keep the two reasons distinct — "JSON we could not
+    // fuse" and "nothing recognised it" are different problems for whoever reads the manifest.
+    if (sawJSON) return { file: file, relPath: relPath, klass: 'unknown', note: 'JSON, but not a recognized node-export (no fusible records)' };
     return { file: file, relPath: relPath, klass: 'unknown', note: 'no adapter matched and not a node-export JSON — set aside, never guessed' };
   }
 

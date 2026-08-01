@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+9P7vj/uLfk2+pI/6G7pCavMQVyiB8foJblbUY5HQos=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-ZwczRIIZLSbd3jG6S/jAs0JHxLUCxEzQs/s61M8noUA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fywur0IkfvjRQOUdifGebc6OQo4bQ/DJGniXGcyoQUA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+9P7vj/uLfk2+pI/6G7pCavMQVyiB8foJblbUY5HQos=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-J3PZv2fvVc+3oKTDb1+foarJRsnXbGeB7fRBBY4AeuM=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-oo2UpEAFlF4dcwBF8xh2gGoRK9AfdNKgdFS6bWx6IUM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MotionDex — Motion / IMU Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M18%2062%20L34%2040%20L46%2058%20L62%2028%20L74%2050%20L84%2038%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -5903,8 +5903,16 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   // ════════════════════════════════════════════════════════════════════════
   //  EXPORT — ganglior.node-export (node:"MotionDex")
   // ════════════════════════════════════════════════════════════════════════
-  function buildNodeExport(summary) {
+  /* EXPORT-PATH-UNREACHABLE §2 — `opts` is additive and LAST (CLAUDE.md contract rule), so every
+     existing 1-arg call still works. MotionDex's envelope was the only one in the fleet with NO
+     `kernel` block at all, so the moment its export became reachable the Integrator greeted it with
+     "Kernel drift: MotionDex (missing) — built against a different physiology rulebook". It was not
+     built against a different rulebook; it just never said which one. Resolution order mirrors
+     hrvdex-dsp.js: explicit opts.kernel → the realm's DexKernel → null (never fabricated). */
+  function buildNodeExport(summary, opts) {
     summary = summary || {};
+    opts = opts || {};
+    var kfmt = opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : typeof DexKernel !== 'undefined' && DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null;
     var t0 = summary.t0Ms;
     var events = [];
     // position-transition events (impulse per posture change) — the fusion currency
@@ -5927,6 +5935,7 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       }
     }
     return {
+      kernel: kfmt,
       schema: { name: 'ganglior.node-export', version: 1, node: 'MotionDex' },
       recording: { startEpochMs: t0, durSec: summary.durSec },
       motion: {
@@ -5975,6 +5984,13 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     motionSQI: motionSQI,
     compute: compute,
     genSyntheticACC: genSyntheticACC,
+    /* EXPORT-PATH-UNREACHABLE §8 — found by the new export-bar leg the moment MotionDex's bundle was
+       booted in the rig for the first time. `window.MotionDex` published this function as
+       `genSynthetic` while `MOTIONDSP` published it ONLY as `genSyntheticACC`, and motiondex-app.js's
+       runDemo() calls `MOTIONDSP.genSynthetic` — so the ▶ Demo button had thrown
+       "MOTIONDSP.genSynthetic is not a function" since birth. Two namespaces over one function must
+       not disagree about its name; aliased rather than renamed so both spellings keep working. */
+    genSynthetic: genSyntheticACC,
     buildNodeExport: buildNodeExport,
     parseTimestamp: parseTimestamp
   };
@@ -6275,7 +6291,7 @@ const { MOTIONUI } = __require('motiondex-render.js');
       RESULT = MOTIONDSP.compute(input);
       MOTIONUI.renderSummary(RESULT);
       setStatus(names.length + ' file(s): ' + names.join(', '));
-      if ($('mxExport')) $('mxExport').disabled = false;
+      setExportReady(true);
     });
   }
 
@@ -6286,12 +6302,24 @@ const { MOTIONUI } = __require('motiondex-render.js');
     RESULT = MOTIONDSP.compute({ acc: acc, chestAcc: chest });
     MOTIONUI.renderSummary(RESULT);
     setStatus('Demo — deterministic synthetic (supine, 15 br/min).');
-    if ($('mxExport')) $('mxExport').disabled = false;
+    setExportReady(true);
+  }
+
+  /* EXPORT-PATH-UNREACHABLE §2 — `ans-design.css` ships `#exportBar{display:none}` and reveals it with
+     `#exportBar.show`. MotionDex is the one node whose bar is STATIC markup in its .src.html rather than
+     written by JS, so it never inherited the `.show` call every other node makes in the same statement
+     that writes its buttons: `#mxExport` was being enabled inside a container with a 0x0 rect, and a real
+     click was rejected "Element is not visible". Enabling the button and revealing its bar are one act. */
+  function setExportReady(on) {
+    var btn = $('mxExport'),
+      bar = $('exportBar');
+    if (btn) btn.disabled = !on;
+    if (bar) bar.classList.toggle('show', !!on);
   }
 
   function exportJSON() {
     if (!RESULT) return;
-    var env = MOTIONDSP.buildNodeExport(RESULT);
+    var env = MOTIONDSP.buildNodeExport(RESULT, { kernel: window.DexKernel || null });
     if (MOTIONDSP && window.MotionDex && typeof window.MotionDex.scrubExport === 'function') env = window.MotionDex.scrubExport(env);
     var blob = new Blob([JSON.stringify(env, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
@@ -6352,7 +6380,7 @@ const { MOTIONUI } = __require('motiondex-render.js');
           var el = $(id);
           if (el) el.style.display = 'none';
         });
-        if ($('mxExport')) $('mxExport').disabled = true;
+        setExportReady(false);
         if ($('mxInput')) $('mxInput').value = '';
         setStatus('Cleared.');
       });

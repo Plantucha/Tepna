@@ -680,6 +680,12 @@ if (window.DexActions)
     exportJSONL: function () {
       window.exportJSONL();
     },
+    // EXPORT-PATH-UNREACHABLE §4: exportGanglior() has existed since Phase-9 and was reachable from
+    // NO control — no id, no data-act, no listener — so the only JSON a user could take out of HRVDex
+    // was exportJSONL's bare view rows, which the Integrator loads as "date unknown · 0 events".
+    exportGanglior: function () {
+      window.exportGanglior();
+    },
     exportCSV: function () {
       window.exportCSV();
     },
