@@ -67,9 +67,60 @@ exactly how the ECG→PPG deltas come out uniform.
 - **The published 0.2–0.4 ms IBI synchronisation** (doi:10.1088/1361-6501/ae6a09) is not contradicted.
   It rests on beat correspondence this corpus does not have; a chest ECG against a clinical-grade
   peripheral channel is a different signal from a wrist PPG on a sleeping subject.
-- **2026-07-27 is an outlier worth chasing** — wrist and finger disagree by 326 ms at the median and
-  only 5 % of beats correspond. Every other night is inside ±36 ms. That is a per-night defect, not a
-  method limit.
+- ~~**2026-07-27 is an outlier worth chasing**~~ — **withdrawn 2026-08-01. There is no defective
+  night; see the next section.** It is the *best* night in the set.
+
+## Diagnosed 2026-08-01 — the wrist↔finger table was measuring the wrong thing too
+
+Chasing the 07-27 "defect" showed the fault was in my instrument, one level below where I had already
+found one. `tools/beat-comb-analysis.mjs` (committed with this update; `--selftest` for the
+known-answer, `--dir` for the corpus) replaces nearest-beat matching with a **lag sweep** — for each
+candidate offset τ, count the wrist beats having a finger beat within ±100 ms of (t + τ).
+
+**Why the sweep and not a better statistic.** Nearest-beat matching is bounded by ±RR/2, so its output
+is a **circular** quantity; a linear median of it is undefined near the wrap. τ is unbounded, so the
+sweep has no wrap to be undefined at.
+
+What it shows is worse than a resolution limit:
+
+```
+night          meanRR   @lag0%   peak%   floor%   ratio   teeth   spacing (ms)
+2026-07-25        979     19.8    20.1     16.6    1.21       0
+2026-07-26       1177     16.5    18.4     15.4    1.19       0
+2026-07-27       1164      4.7    39.7     15.6    2.54       6   1185 1145 1115 1150 1240
+2026-07-28       1168     10.5    23.5     14.4    1.63       4   1245 1255 1580
+2026-07-29       1174     23.5    33.9     15.3    2.21       5   1290 1280 1290 1270
+2026-07-30       1141     16.4    23.9     14.0    1.70       1
+```
+
+**The coincidence curve is a comb whose period is the mean RR, with teeth of equal height.** On 07-27
+the teeth stand at −3000, −1860, −720, **+420**, +1560, +2820 ms, each reaching 37–40 %, and the
+tallest non-peak tooth is 94–100 % as tall as the peak on every night that has teeth at all. **The
+offset is therefore identifiable only modulo one heartbeat.** No statistic escapes that — it is a
+property of correlating two periodic trains, not of the estimator, the fiducial, or the data.
+
+Three consequences, and they retire the two open items below:
+
+1. **The old table's `|Δ|<100 ms` column was the comb sampled at zero lag.** The sweep's `@lag0`
+   reproduces it to within 2 points on all six nights (19.8/21, 16.5/16, 4.7/5, 10.5/12, 23.5/26,
+   16.4/16). It varies from 5 % to 26 % purely by where zero falls on the comb — it never measured
+   correspondence.
+2. **2026-07-27 has the highest correspondence of the six nights**, 39.7 % against a 15.6 % chance
+   floor (2.54×). Its 5 % was zero landing in a trough, and its 326 ms median / 420 ms mode was the
+   +420 ms tooth — a real tooth, and no more the true offset than the other five. Nothing about that
+   night is defective.
+3. **The claim that near-zero medians "prove the timebase and the export are sound" does not hold
+   either.** The three nights whose peak sits near zero (07-25, 07-26, 07-30) are exactly the nights
+   with almost no beat sharing — ratios 1.19–1.70, too low for teeth to form. A flat curve is centred
+   at zero because it is flat. That is consistent with a sound timebase but is not evidence of one;
+   the ACC↔ACC concentration test remains the thing that actually establishes it.
+
+**The structural reason ACC↔ACC works and this cannot.** An activity envelope is **aperiodic**, so its
+cross-correlation has one peak. A beat train is periodic by construction, so its coincidence curve
+cannot have one, however good the fiducial gets. The design rule for anything downstream: **align on
+aperiodic features.** This also sharpens the note on doi:10.1088/1361-6501/ae6a09 — a method reaching
+0.2–0.4 ms from intervals must be resolving the comb ambiguity by some other means (a coarse prior
+under one beat, or continuous tracking from a known start), not by matching beat times alone.
 
 ## The general lesson, which is the reason this is a brief and not a commit message
 
@@ -79,11 +130,26 @@ disagreement between two methods was the evidence that one of them was being rea
 and it was visible immediately — it was reported as an open question rather than treated as a
 falsification.
 
+**And the same mistake was one level down, in the control I used to make the point.** The wrist↔finger
+table was offered as the thing that *proved* the timebase sound, and it was built from a linear median
+of a circular quantity. The tell was there in the published numbers: a column ranging 5–26 % with no
+mechanism proposed for the spread, and one row flagged as a defect purely because it was furthest from
+the others. **An unexplained outlier is more often a broken instrument than a broken night** — and the
+cheapest check is to ask what the statistic does when its assumptions fail, before going to look for
+the defect it implies.
+
 ## Done when
 
 - [x] The 1.3 s IBI-vs-ACC disagreement is resolved, with the control that distinguishes a
       reconstruction fault from a physiological limit.
 - [x] The 2026-07-31 claim that IBI is "the stronger alignment signal" is corrected in place.
-- [ ] 2026-07-27's 326 ms wrist↔finger median is diagnosed — the only night outside ±36 ms.
-- [ ] If sub-second alignment is wanted from intervals, the fiducial has to improve first: foot
-      detection at 5–26 % correspondence cannot support it regardless of the statistic applied.
+- [x] 2026-07-27's 326 ms wrist↔finger median is diagnosed — **2026-08-01: not a defect.** It is the
+      +420 ms tooth of a comb with period = mean RR, and the night has the *highest* beat
+      correspondence of the six (2.54× chance). The measurement is now reproducible via
+      `tools/beat-comb-analysis.mjs`, which the original table was not.
+- [x] ~~If sub-second alignment is wanted from intervals, the fiducial has to improve first~~ —
+      **superseded 2026-08-01: a better fiducial would not help.** Beat-time matching identifies the
+      offset only modulo one heartbeat regardless of fiducial quality, because both trains are
+      periodic. Sub-second alignment must come from an aperiodic feature (ACC envelope, desaturation
+      onset), with intervals at best refining *within* a beat once a coarser method has picked which
+      beat.
