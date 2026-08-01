@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-07-31 · **§1 + §3 + §4 + §5-window + §6.2 RESOLVED 2026-08-01** — only §5's smaller items remain · **Found while executing:** `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` · **Affects:** `ecgdex-dsp.js` / `ppgdex-dsp.js` event fiducials, `CROSS-DEVICE-CLOCK-SKEW` §2d's latency ladder, `PAPERS-ROADMAP`
+**Status:** DONE — 2026-08-01 · **Created:** 2026-07-31 · **Found while executing:** `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` · **Affects:** `ecgdex-dsp.js` / `ppgdex-dsp.js` event fiducials, `CROSS-DEVICE-CLOCK-SKEW` §2d's latency ladder, `PAPERS-ROADMAP`
 
 # Once the clock is pinned, every channel is on one timeline — and the pairs do not say what the ladder says
 
@@ -354,14 +354,43 @@ reachable clock-fit corpus; it does not add 41 confident offsets, and the output
   (note `-p` before the package for tsc). Worth a line in `CONTRIBUTING.md`, since an exit-0 no-op is the
   most expensive kind of false green.
 
+## 7 · What surfaced while executing this brief
+
+Per §📌, the follow-up obligations, recorded here rather than spawned as a separate brief because two
+of the three are already closed and the third is a question, not a work item:
+
+- **§4's count was an order of magnitude low** — 4 estimated, **42** actual, every one with CPAP data.
+  A reminder that "how many nights does this cost us" is worth measuring before it is written down.
+- **Two hollow-feature near-misses inside the §4 change itself**, both caught only by running it:
+  `printClockFit` was gated on a full trio, so `--allow-partial` would have admitted 42 nights and the
+  fit would never have run on any of them; and the flag was parsed by the parent and never forwarded
+  to the child. The flag-forwarding boundary is now gated for the whole night-selection flag set.
+- **OPEN — the partial nights' offsets sit high.** The 16 that clear their own null land at
+  **39.3–42.0 min**, against a 36-night consensus of **38.28**. These are May/early-June nights, so
+  this is consistent with a genuine slow drift of the CPAP's clock over the corpus, and equally
+  consistent with single-channel fits being biased. **Not claimed either way** — it needs the
+  offsets plotted against date across the full 78-night reachable corpus, which is now possible for
+  the first time *because* of §4. That is the natural next measurement, and it is a physiology/
+  hardware question rather than an estimator one.
+
 ## 6 · Done when
 
 - [x] The bimodal latency of §1 is **attributed to fiducial definition** (2026-08-01) — the anchor was
       stamped one CVHR half-cycle early — and written back into `CROSS-DEVICE-CLOCK-SKEW` §2d.
 - [x] `autonomic_surge` and `movement_onset` each document the instant they stamp, in their emitter,
       and `meta.peakTMs` publishes the rebound so a latency can name its fiducial.
-- [ ] If §1 resolves to physiology: a `papers/` entry with the null calibration alongside, per
-      `LITERATURE-USE-POLICY`. If it resolves to an artifact: a detector fix and a gate.
+- [x] §1 resolved to an **artifact**, so the second branch applies: a fix and a gate, delivered
+      2026-08-01. The fix is in the **emitter, not the detector** — `detectCVHR` is correct and the
+      bradycardia trough is the right CVHR fiducial, so `tMs` is unchanged (it is also a published
+      contract). What was wrong was that nothing said which instant it marked and the rebound was
+      never published; `meta.peakTMs` now does, and *autonomic_surge publishes BOTH its instants*
+      gates the relationship. **No `papers/` entry**, because the physiological reading was withdrawn.
+      **Caveat recorded rather than left for a reader to find: `peakTMs` currently has no consumer.**
+      The obvious one — feeding the clock fit the rebound instead of the trough — was tested and does
+      **not** help (22 → 21 confident nights, MAD 15.6 → 13.2 s; pooling absorbs one channel's 20 s
+      offset, which is what pooling is for). It is published because cross-channel *physiology* needs
+      it, where 20 s is the entire signal. That it is unused today is a measured decision, not an
+      oversight.
 - [x] The window/grid sweep of §5 is run (2026-08-01), and the chosen values carry a reason:
       `matchSec` 45 → **30** (dominates on every metric), `stepSec` stays **5**. The relationship is
       gated; the one-deployment calibration limit is recorded rather than glossed.
