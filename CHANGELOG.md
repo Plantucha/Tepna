@@ -30,6 +30,69 @@ changesets.)
 
 ---
 
+## [2.0.0] — 2026-08-01
+
+### Added
+- `tools/trio-batch.mjs` gains **`--force`**, a visible **redo reason**, and a core-aware **node split**.
+- The Integrator can now tell a node with a wrong clock from a node that observed nothing — which it previously could not, and the difference is invisible: `runFusion` pairs events within `toleranceSec` (default **120 s**), and the reference deployment's CPAP runs **~39 min slow**, so no CPAP event has ever co-occurred with any other node's. `alsoObservedBy`, the apnea-confirmation path and the redundancy accounting `INTEGRATOR-FUSION-ISSUES` §3.1 protects have all been running on an empty intersection, silently. (`CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md`)
+- Extracts the anchor-based inter-device aligner out of `pat-feasibility-worker.js` into **`pat-align.js`** — pure maths that was previously reachable only by loading a web worker, so no gate could execute it. `TEST-COVERAGE-FOLLOWUPS` §3 flags exactly this class: *"4 analysis kernels appear only in `.html` static lists, their math never executed"*. (`CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md`)
+- The Integrator now **fits** a wrong device clock to seconds and **names which sensor found it**, instead of quoting a 30 s scan grid as if it were a measurement. (`CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md`)
+- Promote the Deep/VLF contamination probe to a standing tool and stratify it by clock quality — §10 unparked and closed. (`DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md`)
+- Compute cardiopulmonary coupling (Thomas 2005) — HFC/LFC/VLFC from HR↔EDR coherence, not yet exported. (`ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md`)
+- Publish all four HRV bands per epoch (vlf · lf · hf · totalPower), not just the lfhf ratio. (`DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md`)
+- ECGDex and PpgDex now emit **`movement_onset`** — the arousal fiducial an apnea leaves on an accelerometer. (`CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md`)
+- The watchdog now checks whether the radio can still **hear**, and restarts bluetoothd when it cannot. `UP RUNNING` was never the same thing as receiving.
+- `desat_event.meta` now carries **`onsetTMs`** and **`endTMs`**. `tMs` remains the nadir — the contract does not move. (`DESAT-ONSET-FIDUCIAL-2026-07-31-BRIEF.md`)
+- Add an optional `genSynthetic({respHz})` carrier so a slow-breathing ECG can be generated, and gate the EDR respiration autocorrelation window that had no test. (`DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md`)
+- Commit a fragmented Verity twin and gate both PpgDex's and OxyDex's `recording.coverage` emitters against it. (`INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS-2026-07-28-BRIEF.md`)
+- Surface `apnea.overlapCoverage` as a badged "Overlap coverage" KPI — the denominator the confirmed apnea index is divided by was export-only. (`INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS-2026-07-28-BRIEF.md`)
+- OxyDex now exports **SpO₂ at its recorded 1 Hz** — `timeseries.spo2 = { hz, n, values[] }`, a uniform grid from `recording.startEpochMs`. It exported SpO₂ nowhere before: the whole timeseries block was 89 five-minute epochs of `{hr, motionIndex}` for a night containing ~26,500 samples, a **~300× reduction applied at the export boundary, not by the sensor**. Measured on 2026-07-26: 26,546 samples, 98.7 % non-null, **298× the epoch count**. (`OXYDEX-SPO2-SERIES-2026-07-31-BRIEF.md`)
+- Re-run §1.1 at night level (κ = −0.039 over 39 nights) and commit the harness — the episode-level comparison is unanswerable from the device's export. (`CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md`)
+- Pin the six profile-derived fields that had no assertion — including `rhrEff`, which divides every VO₂max on the fleet. (`ECGDEX-CARDIOPULMONARY-COUPLING-FOLLOWUPS-2026-07-31-BRIEF.md`)
+- Expose `PPGDSP.sampEn` so its default Richman-Moorman tolerance can be gated, and pin the NSRR adapter's junk-HR-channel baseline. (`DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md`)
+- Expose `ECGDSP.computeSQI` so the composite per-beat SQI weights can be gated, and pin all four exactly. (`DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md`)
+- `IntegratorDSP.activityEnvelope` + `IntegratorDSP.alignEnvelopes` measure the clock offset **and drift (ppm)** between two body-worn accelerometers, by windowed normalized cross-correlation of accelerometer norms with lag regressed against time (Straczkiewicz 2021, doi:10.3390/s21144777; BMAR arXiv:2501.16015). `tools/wearable-sync.mjs` runs it over a capture tree, per night. (`WEARABLE-SYNC-2026-07-31-BRIEF.md`)
+
+### Changed
+- `ppgdex-dsp.js sampEn` counts the same pairs **7.8–8.7× faster**, by an EXACT prune — not an approximation, and not a threading change.
+- Hoist ECGScope's time-axis tick and label arithmetic out of the canvas draw so it can be gated, closing the deep-scout wave's last hollow gate. (`DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md`)
+- Identify the O2Ring motion fault as a `[7]`/`[11]` byte-offset swap, and move four operational gate lessons into CONTRIBUTING. (`MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS-2026-07-29-BRIEF.md`)
+- The CPAP↔wearable clock offset is now fitted by **pooling every channel at one candidate offset** (`IntegratorDSP.fitClockOffsetPooled`) instead of estimating each channel separately and voting on distinct-node counts. On the 31-night corpus this puts **29/29** pre-correction nights in the expected band against **22/25** for the vote, and resolves four nights where no single channel could be fitted at all — eight weak channels together carry what none carries alone. (`POOLED-CLOCK-FIT-2026-07-31-BRIEF.md`)
+- Record that `surgeEscalationPct` does NOT track apnea burden (r = −0.095 vs device AHI), and commit the correlation harness that re-checks §9's published results on every run. (`ECGDEX-CARDIOPULMONARY-COUPLING-FOLLOWUPS-2026-07-31-BRIEF.md`)
+- Applies the measured H10↔Verity offsets (33 of 37 nights, 27 of them >1 s) to every cross-device figure that assumed the wearables shared a timeline, and restates the results. (`WEARABLE-SYNC-APPLIED-2026-07-31-BRIEF.md`)
+
+### Removed
+- Withdraw the Integrator's obstructive-vs-central apnea type — chest-ACC effort amplitude does not separate the two classes, so the split is now null and every desat is untyped. (`INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22-BRIEF.md`)
+- Retire `apnea.estimatedAHI` and `apnea.riskCategory` — both were the CVHR index re-labelled with AHI's units and clinical cut-points, measured at r = −0.151 against device-scored AHI. (`ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md`)
+
+### Fixed
+- The chest-ACC leg now uses **every** concurrent session instead of only the longest, so ECGDex's per-epoch `motionIndex` covers **100 % of the corpus (was 64 %)**.
+- Gate two DEEP-AUDIT-III fixes that were guarding nothing — the autonomic⟷glycemic coupling could have silently gone back to an ECG-only number, and MotionDex's native sample rate to a coverage-depressed average that moves a published Effort amplitude by 25 %. (`DEEP-AUDIT-III-2026-07-26-BRIEF.md`)
+- CPAPDex now measures periodic breathing on the encoding a real device writes. It had reported **`0.00` on all 197 nights of the reference corpus**, including 15 the machine itself scored as Cheyne-Stokes. (`MULTINIGHT-CORPUS-FINDINGS-2026-07-29-BRIEF.md`)
+- `reraIndex` reported **`0.00` on all 197 nights** of the reference corpus — and not because the subject had no respiratory-effort-related arousals. **This device does not score them at all.** (`MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS-2026-07-29-BRIEF.md`)
+- Executes `DEEP-AUDIT-FOLLOWUPS` **§C2**. `fuseStagingConsensus` was subtracting two REM fractions that denominate on **different clocks** and calling the result a "REM gap": `integrator-dsp.js:351` divides REM by **total sleep** (ECGDex), `:955` divides by the **recording span** (OxyDex, via `oxydex-dsp computeSleepStageProxy`'s `remSec / n`), and `:3107` differenced them. That is a unit error — the gap it measured was arithmetic, not physiology. (`DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md`)
+- `capture-host/nightqc.py` decides cross-midnight pooling by **contiguity with the neighbour**, not by how close to midnight the folder happened to open — so a night whose device takes more than an hour to reconnect is no longer judged as two broken halves.
+- The offline alert stays quiet for an `optional: true` device that never joined — the box no longer contradicts itself about a strap nobody is wearing.
+- OxyDex's clinical impression opened with the words **"Moderate burden" on all 37 nights of the corpus** — including its quietest (2026-07-21: ODI3 0.8/h, ODI4 0.0, T90 0.2 %, nadir 90 %) and its worst (2026-06-15: ODI3 8.7, ODI4 5.2, nadir 84 %, T90 1.0 %). The label was a formatting artifact reading as a verdict. (`MULTINIGHT-CORPUS-FINDINGS-2026-07-29-BRIEF.md`)
+- OxyDex now rejects a faulted motion column instead of integrating it. On 2026-07-16 and 07-17 it published `motionPct 100`, `sleepEff 0`, `arousalIndex 100`, `wasoPct 100` — **a confident description of a night that did not happen** — with nothing in the export marking it, while every motion-*gated* metric silently ran on an empty sample set. (`MULTINIGHT-CORPUS-FINDINGS-2026-07-29-BRIEF.md`)
+- Executes `DEEP-AUDIT-FOLLOWUPS` **§C1**, parked 17 days on "needs the gitignored real corpus". Four surfaced OxyDex metrics reported on the **last 30–60 minutes** of a 6–10 h night. The section listed them as "**not** proven to move a surfaced number" — which is why they sat in the follow-up rather than the parent audit. Measured, they move a great deal. (`DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md`)
+- The PAT coupler was pairing an R-peak with the **next beat's** foot whenever a foot was missing, and the go/no-go gate that governs whether PAT ever ships was rejecting it on the resulting artifact. (`INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md`)
+- PpgDex now flags the HRV failure its confidence gate was structurally unable to see. **Six of 37 corpus nights published whole-record rMSSD of 91–188 ms — against a chest ECG reading 26–42 ms on the same night, same window — every one of them stamped `lowConfidence: false`.** (`MULTINIGHT-CORPUS-FINDINGS-2026-07-29-BRIEF.md`)
+- Model respiration as stage-dependent in the synthetic oracle — it breathed identically in REM and NREM, so the one feature that gives REM a positive signature could be neither built nor validated — and measure per-epoch respiratory-rate variability against it. (`REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`)
+- The device clock is now re-synced on **every reconnect**, never while the device is on its charger, and a fresh sync retracts a previous `clock_uncorrectable` verdict.
+- `wpa_cli` can now reach the supplicant from inside the unit's sandbox, so the CPAP harvest stops leaking a root `wpa_supplicant` per run — and a teardown that fails says so instead of reporting success.
+- Four `_wpa_up` tests asked the machine they ran on which branch they covered. They now pin the `/sys` association verdict, and the primary/fallback precedence gets asserted instead of inherited.
+- `analyzeMotion` no longer trusts the caller to have re-based `relNs` — it detects a per-fragment counter and falls back to the absolute stamp.
+- The offline alert now fires on **data**, not on a link — and a lost BlueZ bond is **retried** instead of being terminal.
+- `trio-batch` fed PpgDex **one fragment** of each night's inertial data and discarded the rest — 99 % of it. Plus a root-owned restart helper, so a deploy can finish itself.
+- `fitClockOffset` broke an exact tie by picking the numerically smaller offset and reported it as *the* answer. A tie is now reported as ambiguous, with the rival named. (`CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md`)
+- Settle the `gaps[].idx` convention on "first sample after the dropout" and correct `mergeEcg`, which wrote the last sample before it. (`INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS-2026-07-28-BRIEF.md`)
+- Stop trusting a LEGACY ECGDex `apnea.estimatedAHI` — a non-CPAP fusion no longer surfaces the retired proxy as the night's AHI. (`ECGDEX-CARDIOPULMONARY-COUPLING-FOLLOWUPS-2026-07-31-BRIEF.md`)
+- Fix `NSRR.analyzeRecord` and the ODI-bias analysis page, both dead since oxydex-dsp's bare-global spray was removed — they reached `processNight`/`parseCSV` as globals that no longer exist. (`DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md`)
+- `trio-batch`'s CPAP clock fit ran in each `--only-node` child, so it read whichever sibling exports happened to exist — the same night printed three different answers. Plus `--cpap` now accepts the card root.
+
+---
+
 ## [1.19.0] — 2026-07-29
 
 ### Added
@@ -719,7 +782,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v1.19.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/Plantucha/Tepna/compare/v1.19.0...v2.0.0
 [1.19.0]: https://github.com/Plantucha/Tepna/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/Plantucha/Tepna/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/Plantucha/Tepna/compare/v1.16.0...v1.17.0
