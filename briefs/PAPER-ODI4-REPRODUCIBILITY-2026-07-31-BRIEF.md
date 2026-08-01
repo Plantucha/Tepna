@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-31 · **Spawned-by:** `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md` §AD-1a
+**Status:** IN-PROGRESS — 2026-08-01 · **Created:** 2026-07-31 · **Spawned-by:** `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md` §AD-1a · **Spawns:** `SYNTH-GEN-DESAT-KINETICS-2026-08-01-BRIEF.md` (the fix; this brief cannot close until that one does)
 
 # `papers/odi4-ahi-bias.html` Table 1 does not reproduce, and its input corpus is gitignored
 
@@ -81,3 +81,94 @@ five numbers.
 - The ×1.1 surrogate is now gated by a known-answer leg (`nsrr-adapter · ingest · known-answer`), so any
   change to it will red the suite. That gate is not evidence about the pilot's numbers, only about the
   constant.
+
+
+---
+
+## 6 · §2 ANSWERED — 2026-08-01. It is **(a), the inputs**, and the mechanism is now measured.
+
+### 6.1 · The discriminating experiment
+
+§2 listed two candidates and excluded neither. One experiment separates them, by holding the inputs fixed
+and varying only the code: **run the repository's earliest committed detector against today's corpus.**
+
+| | night 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| detector at `176ea8c` (2026-07-01) on today's inputs | 5.6 | 1.4 | 1.5 | 0.5 | 0.8 |
+| detector today on today's inputs | 5.6 | 1.4 | 1.5 | 0.5 | 0.8 |
+| **published Table 1** | **12.0** | **14.9** | **1.9** | **0.8** | **0.8** |
+
+**Identical.** The ODI-4 path has not moved since the repo's first commit, so candidate **(b) detector
+drift is excluded** and **(a) the inputs changed** is what remains. Consistent with it: the corpus was
+**never tracked in git at any point** — `git log --all -- uploads/synthetic/` is empty — so there is no
+version of these files to recover, and the ground-truth JSONs record `ahiTarget` but **no seed and no
+generator version**.
+
+### 6.2 · The corpus is internally COHERENT — which is what makes the next part serious
+
+A regenerated corpus could simply be mismatched to its ground truths. It is not:
+
+| night | ahiTarget | planted events | min SpO₂ (raw) | % below 90 % |
+|---|---|---|---|---|
+| 1 | 22 | 169 | 85 | 3.4 % |
+| 2 | 38 | 279 | 81 | 24.7 % |
+| 3 | 7 | 55 | 89 | 0.1 % |
+| 4 | 4 | 31 | 90 | 0.0 % |
+| 5 | 3 | 23 | 91 | 0.0 % |
+
+Severity ranks agree across every column. Night 2 really is the severe night. So the question becomes:
+why does a night that spends **a quarter of itself below 90 %** score **ODI-4 1.4/h**?
+
+### 6.3 · Because the detector rejects it — correctly
+
+| night | desats found | excluded as artifact | kept | ODI-4 |
+|---|---|---|---|---|
+| 1 | 135 | **92** | 43 | 5.6 |
+| 2 | 242 | **232 (96 %)** | 10 | 1.4 |
+
+The synthetic desaturations fall too fast to be real. `SELFGATE.FALL_RATE_MAX` is 1.5 %/s because a
+systemic desaturation is rate-limited by circulation and lung O₂ stores; the corpus reaches **4 %/s**, with
+**32 % of one-second falls on night 2** past the ceiling (16 % on night 1, ≤ 4 % on the three mild
+nights). A 4 %/s edge is a probe squeeze, and `selfGateDesat` is right to drop it.
+
+Standing tool, so this is re-checkable rather than a one-off: **`tools/synth-desat-kinetics.mjs`** (raw
+CSV only — no DSP, no bundle — so it cannot drift with the code it judges; `--selftest` pins its mirrored
+constant against `oxydex-dsp`).
+
+### 6.4 · The consequence for the paper, stated carefully
+
+The generator plants more events on severe nights, so the artifact rejection **scales with severity** —
+which reproduces a severity-dependent ODI-4 deficit *with no detector bias present at all*. That deficit
+is the paper's central finding.
+
+**This does not show the paper is wrong.** Its corpus is gone; whether it had the same defect is
+unknowable. What is established is narrower and still serious: **on the corpus that exists today, the
+paper's headline result is fully explained by an artifact gate correctly rejecting an unphysiological
+fixture.** So the pilot no longer demonstrates the thing it claims, and a status banner now says so at the
+top of `papers/odi4-ahi-bias.html`.
+
+### 6.5 · Why Table 1 was NOT "corrected" to the new numbers
+
+The obvious move — republish Table 1 as 5.6 / 1.4 / 1.5 / 0.5 / 0.8 — would be a **worse** false claim
+than leaving it. Those numbers measure the self-gate rejecting a bad fixture; presenting them as the
+pilot's ODI-4 result would dress a fixture defect as a physiological finding. Same reasoning as §5's
+guardrail, one level up: don't tune the detector to the oracle, and don't publish the oracle's failure as
+a result.
+
+For the same reason **the corpus was not pinned in this pass**, though §4 asks for it: pinning is right,
+but pinning *this* corpus would enshrine the defect as a content-addressed known-answer. Fix the
+generator, regenerate, then pin — the order now specified in
+`SYNTH-GEN-DESAT-KINETICS-2026-08-01-BRIEF.md` §4.
+
+### 6.6 · Status against §4's Done-when
+
+- [x] **(a) vs (b) decided** — inputs, by the era experiment in §6.1.
+- [x] The §6 "Run it" recipe verified end-to-end (it was broken; fixed in the parent brief's work).
+- [x] Paper carries an honest status banner naming what is and is not established.
+- [ ] Corpus pinned — **deliberately deferred** behind the generator fix, per §6.5.
+- [ ] Table 1 reproduced or corrected — **blocked** on the same; a re-run against a defective fixture
+      would answer nothing.
+- [ ] Smoke leg for the SubjectA path — still open; belongs with the pinned corpus.
+
+**This brief stays open** and is now downstream of `SYNTH-GEN-DESAT-KINETICS`. The question it was
+spawned to answer is answered; the remedy it prescribed turned out to have a prerequisite.
