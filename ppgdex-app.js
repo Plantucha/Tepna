@@ -546,7 +546,14 @@ import { PPGUI } from './ppgdex-render.js';
     const v = r.validation;
     let body;
     if (!v || !v.hasData) {
-      body = `<div class="q-note" style="padding:20px 8px">No device <code>*_PPI.txt</code> loaded (or it's empty — the Polar Sense streams PP-intervals only on some firmware). PpgDex's <b>self-PPI</b> from the raw waveform stands alone; load the device PPI file to cross-validate. <span class="dim">This is a validation lane only — self-PPI is never replaced by device PPI, and PPI is never handed to PulseDex.</span></div>`;
+      /* Absent and empty need DIFFERENT text. One is a user action item, the other is a device fact
+         with nothing to do about it — and telling someone to load a file they already loaded is
+         worse than saying nothing. Measured on this corpus, the second case is universal: 107 of 107
+         Verity `_PPI.txt` files are header-only. */
+      body =
+        v && v.filePresent
+          ? `<div class="q-note" style="padding:20px 8px">A device <code>*_PPI.txt</code> was loaded and is <b>empty</b> — the Polar Sense wrote a header and no intervals. Nothing to cross-validate against, and no action will change that on this firmware. PpgDex's <b>self-PPI</b> from the raw waveform is not a second opinion here, it is the only one. <span class="dim">Its two fiducials (foot vs peak) still cross-check each other — see PPI fiducials above.</span></div>`
+          : `<div class="q-note" style="padding:20px 8px">No device <code>*_PPI.txt</code> loaded. PpgDex's <b>self-PPI</b> from the raw waveform stands alone; load the device PPI file to cross-validate — though on the Polar Sense it is usually header-only. <span class="dim">This is a validation lane only — self-PPI is never replaced by device PPI, and PPI is never handed to PulseDex.</span></div>`;
     } else if (!v.usable) {
       body = `<div class="q-note" style="padding:20px 8px">Device PPI present (${v.nDevice} interval${v.nDevice === 1 ? '' : 's'}) but too sparse / blocker-flagged to validate against. Showing self-PPI only.</div>`;
     } else {
