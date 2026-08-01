@@ -18,6 +18,16 @@ It is false. Measured from the raw accelerometers:
 | phone (Polar Sensor Logger), 06-10 → 07-13 | 24 | **1.8 – 4.9 s, median 3.3 s — not one inside 1 s** |
 | vigil box, 07-25 → 07-30 | 6 | **0.10 – 0.39 s, median 0.27 s** |
 
+> **PRECISION FIX 2026-08-01.** This brief says "the H10 and Verity are ~3.3 s apart", which is true of
+> the timeline the whole suite consumes but implies **device clocks**. It is not that. The measurement
+> is taken on the `Phone timestamp` column — the HOST's receive stamp — while the devices' own
+> `sensor timestamp [ns]` values live in **different device-local epochs** (599628… vs 834455…) and
+> yield only per-device *rate*, never a shared origin. The phone stamp is the ONLY cross-device
+> timeline that exists, which is why the offset matters and also why it cannot be side-stepped by
+> "just use the sensor stamps". The mechanism is **host-stamping**, not quartz divergence — consistent
+> with `papers/wearable-clock-drift.html` v2, which measured inter-device rate at ~1.5 ppm and
+> correctly refuted a drift explanation for a different (beat-level) failure.
+
 A **systematic** bias on one capture path, eliminated by the box. Systematic is better news than
 random — it is correctable retroactively — but it means every cross-device timing result computed on
 a phone-captured night carries an unbudgeted ~3.3 s error, including the latency ladder, the

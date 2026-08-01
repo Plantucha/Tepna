@@ -7,6 +7,12 @@
 
 # The offsets are applied. One finding survives, one does not, and one cannot be checked.
 
+> **⚠ AMENDED 2026-08-01.** A claim made the same evening — that IBI sequences are a *better* alignment
+> signal than ACC↔ACC (r = 0.532 vs 0.032 null, a 16× margin) — is **corrected** in
+> `IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md`. The correlation is real and measures slow HR co-variation;
+> it cannot resolve sub-second lag, because beat-level correspondence between these devices is only
+> **5–26 %**. ACC↔ACC remains the better sub-second instrument on this corpus.
+
 `WEARABLE-SYNC` measured what nothing had measured — the H10 and the Verity are **1.8–5.0 s apart on
 every phone-captured night** — and left an obligation: every cross-device figure in this repo was
 computed assuming they agreed. This brief discharges it.
