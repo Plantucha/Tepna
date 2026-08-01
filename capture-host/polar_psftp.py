@@ -6,7 +6,12 @@
 # phone. This is the Polar sibling of pull_session.py (which does the same for the Wellue O2Ring over
 # the OxyII protocol): the device's own backstop record, pulled straight off flash over BLE.
 #
-# Protocol is verbatim from the official Polar BLE SDK (BlePsFtpUtils.kt / pftp_request.proto):
+# WIRE FORMAT, not vendor code. This module is an original interoperability implementation of Polar's
+# PS-FTP transport, written against the protocol Polar publishes with its BLE SDK (`NOASSERTION` /
+# `Polar_SDK_License.txt` — proprietary, and NOT a dependency of this repo: nothing here links to,
+# vendors, or redistributes it). What is reproduced below are protocol facts — characteristic UUIDs,
+# framing rules, protobuf field numbers — which is what interoperability requires. See `THIRD-PARTY.md`
+# § Device protocols. The format:
 #   * All request+response traffic rides ONE characteristic — the PFTP MTU char FB005C51 (write the
 #     framed request, reassemble the response from its notifications). FB005C52/53 are unused here.
 #   * A request is wrapped twice: an RFC60 2-byte little-endian length prefix over the protobuf, then
@@ -410,7 +415,7 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
     os.makedirs(out_dir, exist_ok=True)
     manifest = {"session": session, "out_dir": out_dir, "files": [], "total_bytes": 0}
     async def _once():
-        m = {"files": [], "total_bytes": 0}
+        m = {"files": [], "new_files": [], "short": [], "total_bytes": 0}
         async with PolarPsFtp(address, adapter) as fs:
             files = [(f, s) async for f, s, is_dir in fs.walk(session) if not is_dir and s >= 0]
             total = sum(sz for _, sz in files) or 1     # PS-FTP has no per-chunk hook, so report
@@ -419,11 +424,41 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
                 rel = full[len(session):]
                 dst = os.path.join(out_dir, rel)
                 os.makedirs(os.path.dirname(dst) or out_dir, exist_ok=True)
+                # SKIP WHAT WE ALREADY HAVE, COMPLETE. `pull_polar_offline_all` has always DOCUMENTED
+                # this ("Idempotent: pull_recording skips a file already on disk at the same size"), and
+                # it was never implemented: every on-charger auto-pull re-downloaded the device's whole
+                # flash over BLE with live capture paused, and reported every file as new. The `.part`
+                # of a short read deliberately does NOT satisfy this, or a truncation is never repaired.
+                if os.path.exists(dst) and os.path.getsize(dst) == size:
+                    m["files"].append({"name": rel, "bytes": size, "declared": size,
+                                       "ok": True, "skipped": True, "dst": dst})
+                    m["total_bytes"] += size
+                    done += size
+                    if on_progress:
+                        try:
+                            on_progress(done, total)
+                        except Exception:
+                            pass
+                    continue
                 data = await fs.get(full, timeout=180.0)
-                with open(dst, "wb") as fh:
+                # A SHORT READ IS NOT A VALID FILE — the standard `cpap_harvest.short_read` states for
+                # the identical condition ("accepting one writes a corrupt EDF that parses far enough to
+                # look real"), and the posture it uses: land in `.part`, promote to the real name only
+                # once the length checks out. This used to write the truncated bytes straight to `dst`
+                # and record `ok: False` in a manifest no caller read, so a cut-short backup of a night
+                # the live link had already lost looked like a successful pull.
+                part = dst + ".part"
+                with open(part, "wb") as fh:
                     fh.write(data)
+                short = len(data) != size
+                if short:
+                    m["short"].append(f"{rel}: declared {size}, got {len(data)} bytes — "
+                                      f"left as {os.path.basename(part)}")
+                else:
+                    os.replace(part, dst)
+                    m["new_files"].append(rel)
                 m["files"].append({"name": rel, "bytes": len(data), "declared": size,
-                                   "ok": len(data) == size, "dst": dst})
+                                   "ok": not short, "dst": dst if not short else part})
                 m["total_bytes"] += len(data)
                 done += len(data)
                 if on_progress:
@@ -434,6 +469,11 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
         return m
     got = await _with_retry(_once)
     manifest["files"] = got["files"]
+    manifest["new_files"] = got["new_files"]
+    manifest["short"] = got["short"]
+    # ONE verdict a caller can branch on. The per-file `ok` existed before and was read by nobody;
+    # `pull_polar_offline_all` and the /api pull handler now both surface this.
+    manifest["ok"] = not got["short"]
     manifest["total_bytes"] = got["total_bytes"]
     # a small sidecar so the pull is self-describing (mirrors pull_session.py's .meta.json)
     meta = {**_session_meta(session), **{k: manifest[k] for k in ("session", "total_bytes")},

@@ -148,6 +148,17 @@ archive:
   enabled: false
   dest: ""                # e.g. /mnt/nas/tepna  or  /srv/tepna/app/captures
   poll_sec: 3600
+  # Non-night trees under captures/ to mirror as well. Nights are the obvious case; these two are not,
+  # and they sat outside the backup entirely until 2026-08-01 (audit F2):
+  #   stored/  the ONBOARD device-flash pulls — the backup that exists BECAUSE the live BLE link is
+  #            lossy. The O2Ring's flash is a small FIFO, so once it rotates the box copy is the only
+  #            one that exists anywhere. Measured 1.5 MB.
+  #   cpap/    199 nights of harvested ResMed EDFs. Measured 534 MB, and the SD card in the machine is
+  #            a de-facto second copy, so this one is the weaker case — drop it if space is tight.
+  # For scale: ONE night is ~942 MB, so both together are ~0.4 % of a single night.
+  # `incoming/` (partial in-flight downloads) is refused in code and cannot be added here — a mirrored
+  # partial looks like data. Mirrored trees are still NEVER pruned; see nightarchive.mirror_subtree.
+  include_subtrees: [stored, cpap]
 pull:                     # AUTO-PULL the O2Ring's onboard .dat off flash — the belt-and-suspenders backup
   auto: false             #   for a lossy live BLE link (weak signal / dongle in another room). Off by default.
   auto_interval_sec: 3600 #   how often to check; it only pulls while the ring is OFF the finger (never

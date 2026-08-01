@@ -2786,6 +2786,10 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
     acfg = cfg.get("archive") or {}
     archive_enabled = bool(acfg.get("enabled")) and bool(acfg.get("dest"))
     archive_dest = acfg.get("dest") or "(no dest configured)"
+    # Mirrors archive_poller's own default so the "uncovered" report subtracts what is actually being
+    # mirrored — a reporter that keeps naming handled subtrees stops being read (audit F2).
+    _sub = acfg.get("include_subtrees", ["stored", "cpap"])
+    archive_subtrees = [s for s in _sub if isinstance(s, str)] if isinstance(_sub, list) else []
     low_alerted = False
     _retention_block_warned = False
     while not _STOP.is_set():
@@ -2839,6 +2843,13 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
             # The monitor must be able to distinguish "retention has nothing to do" from "retention is
             # being HELD" — they look identical in `pruned: []`, and only one of them fills the disk.
             rep["retention_held"] = held
+            # WHAT THE MIRROR DOES NOT COVER (audit F2). The card's only backup signal was a count of
+            # mirrored NIGHTS, which reads as "the backup is working" on a box where the onboard
+            # device-flash pulls and the CPAP EDFs have exactly one copy. Reported, not fixed — see
+            # nightarchive.uncovered_subtrees.
+            rep["uncovered"] = await asyncio.to_thread(
+                nightarchive.uncovered_subtrees, captures, tuple(archive_subtrees)) \
+                if archive_enabled else []
             rep["retention_held_reason"] = (
                 f"{len(held)} night(s) past the {keep_nights}-night policy are unmirrored "
                 f"({archive_dest} absent or failing) — a night is never deleted while it exists on one disk"
@@ -3079,6 +3090,11 @@ async def archive_poller(cfg: dict, root: str):
     if not acfg.get("enabled") or not (acfg.get("dest") or transfer):
         return
     dest = acfg.get("dest")
+    # Non-night trees to mirror (audit F2). Defaults ON for the two that exist — the exposure they left
+    # is real and they cost 0.4 % of a night — and `nightarchive` refuses `incoming/` and any night dir
+    # regardless of what lands here. A non-list config value is ignored rather than crashing the poller.
+    subtrees = acfg.get("include_subtrees", ["stored", "cpap"])
+    subtrees = [s for s in subtrees if isinstance(s, str)] if isinstance(subtrees, list) else []
     interval = float(acfg.get("poll_sec", 3600))
     settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
     captures = os.path.join(root, "captures")
@@ -3136,6 +3152,17 @@ async def archive_poller(cfg: dict, root: str):
                 n = await asyncio.to_thread(nightarchive.archive_night, captures, night, dest)
                 log.info("archive: mirrored %s (%d file(s)) → %s", night, n, dest)
                 STATUS.setdefault("archive", {}).update({"last": night, "dest": dest})
+            # THE APPEND-FOREVER TREES (audit F2). `stored/` is the onboard device-flash pulls — the
+            # backup that exists BECAUSE the live BLE link is lossy — and the O2Ring's flash is a small
+            # FIFO, so once it rotates the box copy is the only one anywhere. `cpap/` is 199 nights of
+            # harvested EDFs. Together 0.4 % of a single night's bytes, so the disk-budget question
+            # this was deferred for does not exist. Same to_thread reasoning as the night loop above.
+            # These are NEVER pruned — see mirror_subtree's warning before changing that.
+            for name in subtrees:
+                n = await asyncio.to_thread(nightarchive.mirror_subtree, captures, name, dest)
+                if n:
+                    log.info("archive: mirrored %d new file(s) from %s/ → %s", n, name, dest)
+                    STATUS.setdefault("archive", {}).setdefault("subtrees", {})[name] = n
         except Exception as e:                             # offload is best-effort — never take capture down
             log.warning("archive failed: %r", e)
 
@@ -3144,7 +3171,11 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
     """Pull ALL of a Polar device's ONBOARD offline recordings off flash (POLAR-OFFLINE-DOWNLOAD) — the
     Polar sibling of pull_oxyii_session. Runs under polar_offline_op so it owns the device's single BLE
     link (capture pauses, then resumes). Idempotent: pull_recording skips a file already on disk at the
-    same size, so a repeat pull only fetches genuinely new bytes. Returns {sessions, pulled, new_files}."""
+    same size, so a repeat pull only fetches genuinely new bytes — true as of 2026-08-01; this docstring
+    asserted it for months while the code re-downloaded the whole flash every time (audit F3b).
+    Returns {sessions, pulled, new_files, short, ok}. A truncated file is reported, never counted as
+    pulled: these onboard recordings are the backup for a lossy live link, so one that looks complete
+    and is not is the worst outcome available here."""
     import polar_psftp        # runtime-only (pulls bleak) — keeps `import capture` stdlib-clean for CI
     address = dev["address"]
     did = dev.get("device_id") or address.replace(":", "")
@@ -3153,7 +3184,7 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
     async def _op():
         hci = await adapter_hci()
         sessions = await polar_psftp.list_recordings(address, adapter=hci)
-        pulled, new_files = 0, []
+        pulled, new_files, short = 0, [], []
         for sess in sessions:
             path = sess.get("path")
             if not path:
@@ -3162,8 +3193,16 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
             out_dir = os.path.join(out_base, f"Polar_Offline_{did}_{stamp}")
             m = await polar_psftp.pull_recording(address, path, out_dir, adapter=hci)
             pulled += 1
-            new_files.extend((m or {}).get("new_files") or (m or {}).get("files") or [])
-        return {"sessions": len(sessions), "pulled": pulled, "new_files": new_files}
+            new_files.extend((m or {}).get("new_files") or [])
+            short.extend((m or {}).get("short") or [])
+        if short:
+            # LOUD, because the journal is the only alerting surface a box with no webhook has, and a
+            # truncated backup is exactly the thing you want to know about before the disk guard prunes
+            # the live copy of the same night.
+            log.warning("%s: %d offline file(s) came back SHORT and were left as .part — the next pull "
+                        "re-fetches them: %s", dev.get("name") or address, len(short), "; ".join(short[:3]))
+        return {"sessions": len(sessions), "pulled": pulled, "new_files": new_files,
+                "short": short, "ok": not short}
 
     return await polar_offline_op(address, _op, timeout=_OFFLINE_OP_TIMEOUT_S)
 

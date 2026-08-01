@@ -22,6 +22,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import capture  # noqa: E402
+import nightarchive  # noqa: E402
 
 _GLOBAL_SNAPSHOT = {k: getattr(capture, k) for k in
                     ("_DROP_NOT_WORN_SEC", "_NOT_WORN_RECHECK_S", "_OXYII_RTC_RESYNC_SEC",
@@ -545,8 +546,9 @@ class _FakePsFtp:
     """Stands in for the polar_psftp module inside pull_polar_offline_all (imported at call time, so a
     sys.modules injection is what reaches it)."""
 
-    def __init__(self, sessions, files=None):
+    def __init__(self, sessions, files=None, short=None):
         self._sessions, self._files = sessions, files or {}
+        self._short = short or {}
         self.pulled = []
 
     async def list_recordings(self, address, adapter=None):
@@ -554,7 +556,10 @@ class _FakePsFtp:
 
     async def pull_recording(self, address, path, out_dir, adapter=None):
         self.pulled.append((path, out_dir))
-        return {"new_files": self._files.get(path, [])}
+        # Mirrors the real manifest shape: a truncated file is reported under `short` and is NOT in
+        # `new_files` (audit F3) — a short read is not a valid file, so it was never pulled.
+        sh = self._short.get(path, [])
+        return {"new_files": self._files.get(path, []), "short": sh, "ok": not sh}
 
 
 def test_every_onboard_recording_is_pulled_into_its_own_stamped_directory(tmp_path, monkeypatch):
@@ -576,7 +581,8 @@ def test_every_onboard_recording_is_pulled_into_its_own_stamped_directory(tmp_pa
         return await op()
     monkeypatch.setattr(capture, "polar_offline_op", run_op)
     res = _run(capture.pull_polar_offline_all(_dev(device_id="0C301E3F"), str(tmp_path)))
-    assert res == {"sessions": 3, "pulled": 2, "new_files": ["ECG.txt", "ACC.txt"]}
+    assert res == {"sessions": 3, "pulled": 2, "new_files": ["ECG.txt", "ACC.txt"],
+                   "short": [], "ok": True}
     outs = [o for _p, o in fake.pulled]
     assert outs[0].endswith(os.path.join("captures", "stored", "Polar_Offline_0C301E3F_20260725220000"))
     assert outs[1].endswith("Polar_Offline_0C301E3F_20260726010000")
@@ -1206,3 +1212,76 @@ def test_a_nameless_device_is_skipped_without_a_status_card(tmp_path, monkeypatc
         _run(go())
     assert any("skipping device — missing" in r.getMessage() for r in caplog.records)
     assert capture.STATUS["devices"] == {}, "no card may be created for a device with no name"
+
+
+def test_a_short_offline_file_is_reported_and_warned_not_counted_as_pulled(tmp_path, monkeypatch, caplog):
+    """Audit F3. These onboard recordings are the BACKUP for a lossy live link, so a truncated one that
+    reads as a success is the worst outcome available. The verdict has to reach a surface: the journal
+    is the only alerting channel a box with no webhook has."""
+    fake = _FakePsFtp(
+        sessions=[{"path": "/U/0/20260725/R/220000/", "date": "20260725", "time": "220000"}],
+        files={"/U/0/20260725/R/220000/": ["ECG.txt"]},
+        short={"/U/0/20260725/R/220000/": ["PLETH.GZ: declared 34, got 9 bytes — left as PLETH.GZ.part"]})
+    monkeypatch.setitem(sys.modules, "polar_psftp", fake)
+
+    async def fake_hci():
+        return "hci0"
+    monkeypatch.setattr(capture, "adapter_hci", fake_hci)
+
+    async def run_op(address, op, timeout=None):
+        return await op()
+    monkeypatch.setattr(capture, "polar_offline_op", run_op)
+
+    with caplog.at_level("WARNING"):
+        res = _run(capture.pull_polar_offline_all(_dev(device_id="0C301E3F"), str(tmp_path)))
+    assert res["ok"] is False
+    assert res["short"] and "PLETH.GZ" in res["short"][0]
+    assert res["new_files"] == ["ECG.txt"], "the short file is not among the files we pulled"
+    assert any("SHORT" in r.message or "SHORT" in r.getMessage() for r in caplog.records), \
+        "a truncated backup must be visible in the journal, not only in a returned dict"
+
+
+def test_the_archive_poller_mirrors_the_configured_subtrees(tmp_path, monkeypatch):
+    """Audit F2, landed. The night loop and the subtree loop are separate passes with separate rules —
+    a night has a finished state and a marker, an append-forever tree has neither."""
+    root = tmp_path / "root"
+    caps = root / "captures"
+    (caps / "stored").mkdir(parents=True)
+    (caps / "stored" / "o2ring.dat").write_text("flash")
+    (caps / "cpap").mkdir()
+    (caps / "cpap" / "night.edf").write_text("edf")
+    (caps / "incoming").mkdir()
+    (caps / "incoming" / "half.dat").write_text("partial")
+    dest = tmp_path / "backup"
+    dest.mkdir()
+
+    cfg = {"archive": {"enabled": True, "dest": str(dest), "poll_sec": 0.01}}
+    calls = []
+    real = nightarchive.mirror_subtree
+
+    def spy(captures_dir, name, dst, **kw):
+        calls.append(name)
+        return real(captures_dir, name, dst, **kw)
+    monkeypatch.setattr(nightarchive, "mirror_subtree", spy)
+
+    async def go():
+        task = asyncio.ensure_future(capture.archive_poller(cfg, str(root)))
+        for _ in range(200):
+            await asyncio.sleep(0.005)
+            if (dest / "cpap" / "night.edf").exists():
+                break
+        capture._STOP.set()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    try:
+        _run(go())
+    finally:
+        capture._STOP.clear()
+
+    assert (dest / "stored" / "o2ring.dat").read_text() == "flash"
+    assert (dest / "cpap" / "night.edf").read_text() == "edf"
+    assert not (dest / "incoming").exists(), "a transient tree must never reach the mirror"
+    assert "incoming" not in calls, "and it must not even be offered"

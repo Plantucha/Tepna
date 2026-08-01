@@ -244,3 +244,203 @@ def test_re_archiving_a_grown_night_copies_only_the_new_files(tmp_path):
         f.write("y" * 50)
     assert nightarchive.archive_night(cap, "2026-07-20", dest) == 1, "only the new file"
     assert nightarchive.unarchived_nights(cap, dest) == set(), "and now the mirror is complete"
+
+
+# ── the copier and the confirmer must agree about what a night CONTAINS (audit F1, 2026-08-01) ────────
+#
+# Every other branch in this module fails SAFE: an unreadable marker, an absent destination, any OSError
+# all report the night unconfirmed so the doubt protects the data. `_mirror_matches` had one branch that
+# failed OPEN. It skipped anything that was not a plain file, and so did `archive_night` — so a night
+# holding a subdirectory was CONFIRMED mirrored while the subdirectory's contents had never been copied,
+# which released it to `prune_old_nights`. The two functions agreeing was a coincidence of both skipping
+# the same thing, not a property; now they share one enumerator and cannot disagree.
+
+def _deep_night(cap, name):
+    d = _night(cap, name, {"Polar_H10_1_20260701010101_ECG.txt": "x" * 100})
+    sub = os.path.join(d, "Polar_Offline_1"); os.makedirs(sub, exist_ok=True)
+    with open(os.path.join(sub, "SAMPLES.BPB"), "w") as f:
+        f.write("irreplaceable device flash")
+    return d
+
+
+def test_a_nested_file_is_mirrored_not_silently_skipped(tmp_path):
+    cap, dest = str(tmp_path / "captures"), str(tmp_path / "backup")
+    _deep_night(cap, "2026-07-01")
+    nightarchive.archive_night(cap, "2026-07-01", dest)
+    mirrored = os.path.join(dest, "2026-07-01", "Polar_Offline_1", "SAMPLES.BPB")
+    assert os.path.exists(mirrored), "the nested file was never copied"
+    assert open(mirrored).read() == "irreplaceable device flash"
+
+
+def test_a_night_whose_nested_file_is_missing_at_the_destination_is_NOT_confirmed(tmp_path):
+    """THE data-loss path. Confirmation is what licenses `prune_old_nights` to delete the local copy."""
+    cap, dest = str(tmp_path / "captures"), str(tmp_path / "backup")
+    _deep_night(cap, "2026-07-01")
+    nightarchive.archive_night(cap, "2026-07-01", dest)
+    os.remove(os.path.join(dest, "2026-07-01", "Polar_Offline_1", "SAMPLES.BPB"))
+    assert nightarchive.unarchived_nights(cap, dest) == {"2026-07-01"}, (
+        "a night missing a nested file at the destination was confirmed as fully mirrored"
+    )
+
+
+def test_a_short_nested_file_is_not_confirmed_either(tmp_path):
+    """Size parity applies at every depth, not just the top level."""
+    cap, dest = str(tmp_path / "captures"), str(tmp_path / "backup")
+    _deep_night(cap, "2026-07-01")
+    nightarchive.archive_night(cap, "2026-07-01", dest)
+    with open(os.path.join(dest, "2026-07-01", "Polar_Offline_1", "SAMPLES.BPB"), "w") as f:
+        f.write("trunc")
+    assert nightarchive.unarchived_nights(cap, dest) == {"2026-07-01"}
+
+
+def test_growth_inside_a_subdirectory_re_offers_the_night(tmp_path):
+    """`_grew_since_marker` scanned only the top level, so a night that gained data ONLY inside a
+    subdirectory after being marked looked finished and was never re-offered."""
+    cap = str(tmp_path / "captures")
+    d = _deep_night(cap, "2026-07-01")
+    marker = os.path.join(d, nightarchive._MARKER)
+    open(marker, "w").close()
+    old = os.stat(marker).st_mtime
+    os.utime(os.path.join(d, "Polar_H10_1_20260701010101_ECG.txt"), (old - 100, old - 100))
+    nested = os.path.join(d, "Polar_Offline_1", "SAMPLES.BPB")
+    os.utime(nested, (old + 100, old + 100))            # the ONLY thing newer than the marker
+    assert nightarchive.pending_nights(cap, set()) == ["2026-07-01"]
+
+
+# ── the exposure the archive does NOT cover must be reported, not implied (audit F2) ─────────────────
+
+def test_uncovered_subtrees_names_the_data_that_has_only_one_copy(tmp_path):
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-07-01", {"a_b_c_20260701010101_ECG.txt": "x"})
+    for name, payload in (("stored", "onboard flash"), ("cpap", "edf bytes")):
+        d = os.path.join(cap, name); os.makedirs(d)
+        with open(os.path.join(d, "payload.bin"), "w") as f:
+            f.write(payload)
+    got = nightarchive.uncovered_subtrees(cap)
+    assert [g["name"] for g in got] == ["cpap", "stored"], (
+        "the subtrees outside the mirror must be named — 'backup working' otherwise means "
+        "'backup working for some of your data'"
+    )
+    assert got[1] == {"name": "stored", "files": 1, "bytes": len("onboard flash")}
+
+
+def test_a_night_only_box_reports_no_exposure(tmp_path):
+    """No false alarm on the ordinary case, or the signal stops meaning anything."""
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-07-01", {"a_b_c_20260701010101_ECG.txt": "x"})
+    assert nightarchive.uncovered_subtrees(cap) == []
+
+
+def test_an_empty_or_hidden_directory_is_not_an_exposure(tmp_path):
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-07-01", {"a_b_c_20260701010101_ECG.txt": "x"})
+    os.makedirs(os.path.join(cap, "incoming"))            # ineligible by name, holds nothing
+    os.makedirs(os.path.join(cap, "scratch"))             # eligible by name, but genuinely empty —
+    os.makedirs(os.path.join(cap, "scratch", "sub"))      # ...even with a subdirectory in it
+    os.makedirs(os.path.join(cap, ".tmp"))
+    with open(os.path.join(cap, ".tmp", "x"), "w") as f:
+        f.write("scratch")
+    assert nightarchive.uncovered_subtrees(cap) == []
+
+
+def test_uncovered_subtrees_is_best_effort_on_an_unreadable_tree(tmp_path):
+    assert nightarchive.uncovered_subtrees(str(tmp_path / "nope")) == []
+
+
+def test_an_unreadable_subtree_is_skipped_not_reported_as_empty(tmp_path):
+    """Best-effort means SKIP, not "0 files" — a count of zero for a directory we could not read would
+    be the same fabricated-absence this suite exists to reject."""
+    cap = str(tmp_path / "captures")
+    _night(cap, "2026-07-01", {"a_b_c_20260701010101_ECG.txt": "x"})
+    bad = os.path.join(cap, "stored"); os.makedirs(bad)
+    with open(os.path.join(bad, "payload.bin"), "w") as f:
+        f.write("data")
+    os.chmod(bad, 0o000)
+    try:
+        assert nightarchive.uncovered_subtrees(cap) == []
+    finally:
+        os.chmod(bad, 0o755)
+
+
+# ── the append-forever subtrees: mirrored, never pruned (audit F2, landed 2026-08-01) ────────────────
+#
+# `stored/` (onboard device-flash pulls) and `cpap/` (harvested EDFs) sat outside the mirror entirely.
+# Measured before landing this: 1.5 MB and 534 MB respectively — 0.16 % and 0.28 % of ONE night — so the
+# disk-budget question the exposure was deferred for turned out not to exist. `stored/` is the strong
+# case: the O2Ring's flash is a small FIFO, so once it rotates the box copy is the only one anywhere.
+
+def test_a_subtree_is_mirrored_file_for_file(tmp_path):
+    cap, dest = str(tmp_path / "captures"), str(tmp_path / "backup")
+    st = os.path.join(cap, "stored"); os.makedirs(st)
+    with open(os.path.join(st, "Wellue_O2Ring-S_20260716154350_STORED.dat"), "w") as f:
+        f.write("flash bytes")
+    os.makedirs(os.path.join(st, "Polar_Offline_1"))
+    with open(os.path.join(st, "Polar_Offline_1", "SAMPLES.BPB"), "w") as f:
+        f.write("nested")
+    assert nightarchive.mirror_subtree(cap, "stored", dest) == 2
+    assert open(os.path.join(dest, "stored", "Polar_Offline_1", "SAMPLES.BPB")).read() == "nested"
+
+
+def test_mirroring_a_subtree_is_size_diffed_so_a_repeat_copies_only_what_is_new(tmp_path):
+    """These trees are APPEND-FOREVER, unlike a night — there is no 'finished' moment, so there is no
+    `.archived` marker and the diff runs every cycle. It must therefore be cheap and idempotent."""
+    cap, dest = str(tmp_path / "captures"), str(tmp_path / "backup")
+    st = os.path.join(cap, "stored"); os.makedirs(st)
+    with open(os.path.join(st, "a.dat"), "w") as f:
+        f.write("one")
+    assert nightarchive.mirror_subtree(cap, "stored", dest) == 1
+    assert nightarchive.mirror_subtree(cap, "stored", dest) == 0, "a repeat must copy nothing"
+    with open(os.path.join(st, "b.dat"), "w") as f:
+        f.write("two")
+    assert nightarchive.mirror_subtree(cap, "stored", dest) == 1
+    assert not os.path.exists(os.path.join(cap, "stored", nightarchive._MARKER)), (
+        "an append-forever tree must not be marked done — there is no such state"
+    )
+
+
+def test_a_transient_tree_is_never_eligible_however_it_is_configured(tmp_path):
+    """`incoming/` holds partial downloads. A mirrored partial is worse than no mirror: it looks like
+    data. This is a code-level refusal, not a default someone can configure away."""
+    cap, dest = str(tmp_path / "captures"), str(tmp_path / "backup")
+    inc = os.path.join(cap, "incoming"); os.makedirs(inc)
+    with open(os.path.join(inc, "half.dat"), "w") as f:
+        f.write("partial")
+    assert nightarchive.mirror_subtree(cap, "incoming", dest) == 0
+    assert not os.path.exists(os.path.join(dest, "incoming"))
+
+
+def test_a_night_directory_is_never_mirrored_as_a_subtree(tmp_path):
+    """Nights go through archive_night, which has the marker + growth logic. Routing one through here
+    would mirror an ACTIVE night."""
+    cap, dest = str(tmp_path / "captures"), str(tmp_path / "backup")
+    _night(cap, "2026-07-01", {"a_b_c_20260701010101_ECG.txt": "x"})
+    assert nightarchive.mirror_subtree(cap, "2026-07-01", dest) == 0
+
+
+def test_an_absent_subtree_is_a_no_op(tmp_path):
+    cap, dest = str(tmp_path / "captures"), str(tmp_path / "backup")
+    os.makedirs(cap)
+    assert nightarchive.mirror_subtree(cap, "stored", dest) == 0
+
+
+def test_mirrored_subtrees_are_still_not_prunable(tmp_path):
+    """THE constraint. 'We mirror it now' is exactly the reasoning that would later license deleting
+    it — the same loop the F1 fix just removed. plan_prune only ever sees list_nights; assert it."""
+    cap = str(tmp_path / "captures")
+    os.makedirs(os.path.join(cap, "stored"))
+    _night(cap, "2026-01-01", {"a_b_c_20260101010101_ECG.txt": "x"})
+    _night(cap, "2026-07-01", {"a_b_c_20260701010101_ECG.txt": "x"})
+    assert "stored" not in diskguard.list_nights(cap)
+    assert "stored" not in diskguard.plan_prune(diskguard.list_nights(cap), 1, set())
+
+
+def test_uncovered_subtrees_stops_reporting_what_is_now_covered(tmp_path):
+    """The reporter becomes the guard for the NEXT subtree someone adds, so it must subtract the ones
+    actually being mirrored — otherwise it cries wolf forever and stops being read."""
+    cap = str(tmp_path / "captures")
+    for name in ("stored", "cpap", "surprise"):
+        d = os.path.join(cap, name); os.makedirs(d)
+        with open(os.path.join(d, "x.bin"), "w") as f:
+            f.write("data")
+    got = [g["name"] for g in nightarchive.uncovered_subtrees(cap, covered=("stored", "cpap"))]
+    assert got == ["surprise"]

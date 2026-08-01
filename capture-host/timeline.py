@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import datetime as _dt
 import os
-import re
 
 import nightqc
 import writers
@@ -49,7 +48,7 @@ DEFAULT_BUCKETS = 240
 # healthy capture amber at every session boundary.
 DEGRADED_BELOW = 0.6
 
-_STAMP_RE = re.compile(r"_(\d{14})_")
+# Stamp parsing moved to writers.file_stamp (audit F5) — anchored, year-validated, one implementation.
 # The filename's id field and a device's full identity (current id + corrected-away
 # predecessors) live in writers, next to the capture_filename they invert.
 _file_device_id = writers.file_device_id
@@ -78,11 +77,11 @@ def _stamp_ms(name: str) -> float | None:
 
     The stamp is `YYYYMMDDHHMMSS` written by writers.capture_filename from a naive local datetime, so it
     is parsed back the same way — never through a timezone-aware path that would shift it."""
-    m = _STAMP_RE.search(name)
-    if not m:
+    stamp = writers.file_stamp(name)
+    if not stamp:
         return None
     try:
-        return _dt.datetime.strptime(m.group(1), "%Y%m%d%H%M%S").timestamp()
+        return _dt.datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
     except ValueError:
         return None
 

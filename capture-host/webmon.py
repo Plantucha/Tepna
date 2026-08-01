@@ -814,10 +814,16 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # Default to the night being WRITTEN, which is the folder with the newest activity — not
             # the newest NAME. After midnight the sensor writers stay in their session's start-date
             # folder while only the sidecars roll, so the newest name holds two files and no data.
+            # `sorted(... if _timeline._STAMP_RE.search(n + "_00000000000000_") or True)` stood here
+            # until 2026-08-01: an `or True` makes the whole condition constant, so the filter selected
+            # nothing and the sort was thrown away by the `max` on the next line. It existed only as a
+            # reference to a regex that has since moved into writers.file_stamp (audit F5) — and it
+            # broke outright when that regex went away, in a path whose two tests were the only thing
+            # that noticed. Replaced with what it actually did: pick the directory with the newest
+            # activity.
             try:
-                nights = sorted(n for n in os.listdir(captures)
-                                if _timeline._STAMP_RE.search(n + "_00000000000000_") or True)
-                nights = [n for n in nights if os.path.isdir(os.path.join(captures, n))]
+                nights = [n for n in os.listdir(captures)
+                          if os.path.isdir(os.path.join(captures, n))]
                 night = max(nights, key=lambda n: os.path.getmtime(os.path.join(captures, n)),
                             default="")
             except OSError:
@@ -917,7 +923,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     address, session, out_dir, on_progress=_prog))
             finally:
                 status.get("devices", {}).get((dev or {}).get("name") or address, {}).pop("pull_progress", None)
-            return web.json_response({"ok": True, "manifest": manifest})
+            # `ok` mirrors the MANIFEST's verdict, not merely "the request completed". A pull that came
+            # back short must not render as a success in the monitor (audit F3).
+            return web.json_response({"ok": bool((manifest or {}).get("ok", True)),
+                                      "manifest": manifest})
         except offline_lock.OfflineBusy as e:
             return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
         except Exception as e:

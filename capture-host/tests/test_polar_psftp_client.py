@@ -475,3 +475,100 @@ def test_main_pull_prints_the_file_manifest(monkeypatch, tmp_path, capsys):
     ps.main()
     out = capsys.readouterr().out
     assert "BPM.GZ" in out and "OK" in out
+
+
+# ── a truncated download must not occupy the real filename (audit F3, 2026-08-01) ────────────────────
+#
+# `pull_recording` computed `ok: len(data) == size` per file and then wrote the bytes under the final
+# name regardless — and NOTHING anywhere read that field. Its sibling harvester states the standard for
+# the identical condition (`cpap_harvest.short_read`): "A short read is NOT a valid file; accepting one
+# writes a corrupt EDF that parses far enough to look real." These recordings are the reliability net
+# for a lossy live link, so a truncated one that looks complete is the worst available outcome.
+
+def _fs_with_a_short_file():
+    """The device declares 34 bytes for PLETH.GZ and delivers 9 — a transfer cut short."""
+    c = _fs_with_one_session()
+    c.files["/U/0/20260719/E/034500/PLETH.GZ"] = b"B" * 9
+    return c
+
+
+def test_a_short_file_is_left_as_part_not_under_its_real_name(monkeypatch, tmp_path):
+    c = _fs_with_a_short_file()
+    _install(monkeypatch, c)
+    _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    names = {p.name for p in tmp_path.rglob("*") if p.is_file()}
+    assert "PLETH.GZ" not in names, "a truncated file must not occupy the name a reader will trust"
+    assert "PLETH.GZ.part" in names, "the fetched bytes are kept — refused, not destroyed"
+    assert "BPM.GZ" in names, "the complete sibling still lands"
+
+
+def test_a_short_file_is_reported_in_the_manifest(monkeypatch, tmp_path):
+    c = _fs_with_a_short_file()
+    _install(monkeypatch, c)
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    assert m["ok"] is False, "the manifest must carry a verdict a caller can branch on"
+    assert len(m["short"]) == 1 and "PLETH.GZ" in m["short"][0]
+    assert "declared 34" in m["short"][0] and "got 9" in m["short"][0]
+
+
+def test_a_complete_pull_reports_ok(monkeypatch, tmp_path):
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    assert m["ok"] is True and m["short"] == []
+
+
+# ── the idempotency the caller's docstring already promised (audit F3b) ──────────────────────────────
+#
+# `pull_polar_offline_all` says "Idempotent: pull_recording skips a file already on disk at the same
+# size, so a repeat pull only fetches genuinely new bytes." It did not skip: every on-charger auto-pull
+# re-downloaded the device's entire flash over BLE, with live capture paused for the duration, and
+# reported every file as new.
+
+def test_a_file_already_on_disk_at_the_same_size_is_not_refetched(monkeypatch, tmp_path):
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    fetched = []
+    orig = ps.PolarPsFtp.get
+
+    async def counting_get(self, path, timeout=180.0):
+        if not path.endswith("/"):          # a directory GET is the walk listing, not a file download
+            fetched.append(path)
+        return await orig(self, path, timeout=timeout)
+    monkeypatch.setattr(ps.PolarPsFtp, "get", counting_get)
+
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    assert fetched == [], f"a second pull re-downloaded {fetched}"
+    assert m["new_files"] == [], "nothing was new, so nothing may be reported as new"
+    assert m["total_bytes"] == 46, "the manifest still describes the whole session"
+
+
+def test_a_part_file_from_a_short_read_is_refetched_next_run(monkeypatch, tmp_path):
+    """The `.part` must not satisfy the skip — otherwise a truncated file is never repaired."""
+    c = _fs_with_a_short_file()
+    _install(monkeypatch, c)
+    _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    c.files["/U/0/20260719/E/034500/PLETH.GZ"] = b"B" * 34      # the link recovers
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    assert m["ok"] is True
+    names = {p.name for p in tmp_path.rglob("*") if p.is_file()}
+    assert "PLETH.GZ" in names and "PLETH.GZ.part" not in names
+
+
+def test_progress_is_reported_for_skipped_files_and_survives_a_raising_callback(monkeypatch, tmp_path):
+    """A resumed pull must still drive the progress bar to 100% — a skipped file is progress, not a
+    gap. And the UI hook must never be able to break a transfer, on this path as on the download one."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+
+    seen = []
+    _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path),
+                           on_progress=lambda d, t: seen.append((d, t))))
+    assert seen and seen[-1] == (46, 46), f"a fully-skipped pull must still reach 100%: {seen}"
+
+    def boom(done, total):
+        raise RuntimeError("the monitor went away")
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path), on_progress=boom))
+    assert m["ok"] is True and m["total_bytes"] == 46

@@ -342,3 +342,27 @@ def test_prev_probe_window_is_a_cost_guard_only():
     assert nightqc.prev_probe_window(mid + 15 * 3600, mid) is False       # 15:00 — never pays for the scan
     assert nightqc.prev_probe_window(mid - 1, mid) is False               # before this folder's midnight
     assert nightqc.prev_probe_window(mid, None) is False                  # undatable folder name
+
+
+# ── the stamp regex must be the ANCHORED sibling, not a bare 14-digit run (audit F5, 2026-08-01) ──────
+#
+# `writers._DATE14` solves the identical problem with `^(?:19|20)\d{12}$` after parsing the field from
+# the right, and its comment states why: "Anchoring the stamp to a plausible YEAR is what makes it
+# decidable — an 8-digit serial like 02849638 is not a date." `_STAMP_RE` was the lone divergent sibling:
+# an unanchored `_(\d{14})_` that takes the FIRST 14-digit run in the name, wherever it sits.
+
+def test_a_14_digit_device_serial_is_not_read_as_the_session_stamp(tmp_path):
+    import nightqc
+    # A device whose serial happens to be 14 digits, followed by the real capture stamp.
+    fname = "Polar_H10_20250101000000_20260725225058_ECG.txt"
+    got = nightqc._session_of(fname, mtime=1.0)
+    from datetime import datetime
+    expect = datetime.strptime("20260725225058", "%Y%m%d%H%M%S").timestamp()
+    assert got == expect, "the SERIAL was taken for the stamp — the session key is a different night"
+
+
+def test_a_run_of_digits_that_is_not_a_plausible_year_is_ignored(tmp_path):
+    import nightqc
+    assert nightqc._session_of("Polar_H10_99999999999999_ECG.txt", mtime=7.0) == 7.0, (
+        "a 14-digit run with an impossible year must fall back to mtime, not be strptime'd"
+    )
