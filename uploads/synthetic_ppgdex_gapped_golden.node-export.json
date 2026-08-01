@@ -18,6 +18,7 @@
     "sessions": 1,
     "events": 0,
     "site": "wrist",
+    "siteSource": "device-default",
     "coverage": {
       "kind": "sparse",
       "spanSec": 40,

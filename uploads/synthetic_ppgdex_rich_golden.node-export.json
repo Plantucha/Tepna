@@ -17,7 +17,8 @@
     "durSec": 39.992592592592594,
     "sessions": 1,
     "events": 0,
-    "site": "wrist"
+    "site": "wrist",
+    "siteSource": "device-default"
   },
   "ganglior_events": [],
   "reserved": {
