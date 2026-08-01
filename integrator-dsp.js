@@ -4341,6 +4341,75 @@ function alignEnvelopes(a, b, fsHz, opts) {
   return out;
 }
 
+/* DESATURATION ONSETS AS A TIMING FIDUCIAL, from the carried SpO2 series.
+
+   OxyDex already detects desaturations and it is right not to use those here. `desat_event` is the
+   CLINICAL definition — artifact-gated, thresholded to the ODI drop, ~7-15 events a night — because
+   ODI has to be a defensible index. A timing measurement wants the opposite trade: many
+   well-localised edges, shallower ones accepted, no artifact gate that removes a real fall for being
+   small. Forcing one definition to serve both is how a node ends up exporting a number nobody can use
+   for the other purpose, which is exactly why `timeseries.spo2` was added.
+
+   Measured on the corpus, the apnea->desaturation transit resolved 3 nights of 39 off `desat_event`
+   and 10 off a rule like this one. That rule lived in an analysis script — ungated, unswept, and
+   quoting a 29 s median on its authority. This is that rule, made inspectable.
+
+   ONSET, NOT NADIR (DESAT-ONSET-FIDUCIAL): the fall begins where the timing information is. The
+   returned instant is the last sample BEFORE the descent, which is the fiducial an anchor should be
+   compared against.
+
+   HOLES BREAK THE WINDOW rather than being interpolated across. A dropout spanning a recovery would
+   otherwise manufacture a fall from the pre-gap value to the post-gap one — a desaturation that never
+   happened, at an instant that never happened. */
+function desatOnsetsFromSeries(spo2, opts) {
+  opts = opts || {};
+  var dropPct = opts.dropPct != null ? opts.dropPct : 3;
+  var winSec = opts.windowSec != null ? opts.windowSec : 30;
+  var out = [];
+  if (!spo2 || !Array.isArray(spo2.values) || spo2.t0Ms == null) return out;
+  var hz = spo2.hz != null && isFinite(spo2.hz) && spo2.hz > 0 ? spo2.hz : 1;
+  var v = spo2.values,
+    W = Math.max(1, Math.round(winSec * hz));
+  for (var i = 0; i + 1 < v.length; i++) {
+    var a = v[i];
+    if (a == null || !isFinite(a)) continue;
+    var mn = a,
+      mnAt = i,
+      hole = false,
+      lim = Math.min(v.length - 1, i + W);
+    for (var j = i + 1; j <= lim; j++) {
+      var b = v[j];
+      if (b == null || !isFinite(b)) {
+        hole = true;
+        break;
+      }
+      if (b < mn) {
+        mn = b;
+        mnAt = j;
+      }
+    }
+    if (hole) continue;
+    if (a - mn >= dropPct) {
+      /* WALK BACK TO THE TOP OF THE DESCENT. `i` is merely the first index whose forward window
+         happens to reach the nadir, which can be a whole window EARLY — on the planted fixture it
+         stamped 27 s before the fall began, i.e. a fiducial placed in flat signal. The onset is the
+         last sample before the decline, so retreat from the nadir while the series is strictly
+         falling and stop at the first non-decrease. Strict `>` is deliberate: `>=` would walk back
+         through the flat pre-fall plateau to the start of the recording. */
+      var on = mnAt;
+      while (on > 0 && v[on - 1] != null && isFinite(v[on - 1]) && v[on - 1] > v[on]) on--;
+      // `on` IS the last sample before the descent — v[on] still sits at the pre-fall level and
+      // v[on+1] is the first lower one. Subtracting a further sample would step into flat signal.
+      out.push(spo2.t0Ms + (on * 1000) / hz);
+      /* Resume PAST the nadir, not one sample on. Every index inside a long fall satisfies the drop
+         test, so scanning through one desaturation would emit it dozens of times and hand a
+         correlation a burst that looks like dozens of independent coincidences. */
+      i = mnAt;
+    }
+  }
+  return out;
+}
+
 function fitClockOffsetPooled(anchorTimes, channels, opts) {
   opts = opts || {};
   var maxSec = opts.maxLagSec != null ? opts.maxLagSec : 5400; // +/-90 min
@@ -5212,6 +5281,8 @@ window.IntegratorDSP = {
      fit; do not add callers here. */
   fitClockOffset,
   fitClockOffsetPooled,
+  // Timing fiducial over timeseries.spo2 — deliberately NOT OxyDex's clinical desat_event.
+  desatOnsetsFromSeries,
   // Wearable-to-wearable alignment (see the ACC block above): offset + drift in ppm.
   activityEnvelope,
   alignEnvelopes,
