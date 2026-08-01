@@ -30,6 +30,33 @@ changesets.)
 
 ---
 
+## [2.1.0] — 2026-08-01
+
+### Added
+- `IntegratorDSP.desatOnsetsFromSeries` — a **timing fiducial** over `timeseries.spo2`, deliberately not OxyDex's clinical `desat_event`. (`OXYDEX-SPO2-SERIES-2026-07-31-BRIEF.md`)
+- The Integrator now reads **`timeseries.spo2`**. OxyDex started emitting SpO₂ at 1 Hz, but nothing consumed it — `adaptEnvelopeNode` read `timeseries.epochs`, `.acc` and `.cells`, and the oximeter's primary signal still could not reach the fusion. A producer with no consumer is half a change. (`OXYDEX-SPO2-SERIES-2026-07-31-BRIEF.md`)
+- ECGDex and PpgDex now export **per-beat intervals** on the bus: `timeseries.rr` (chest ECG, Pan–Tompkins R-peaks, Malik-corrected) and `timeseries.ppi` (optical spine — 3-LED consensus → `buildPPI` → `correctRR`, with `spine` naming which fiducial won).
+- `trio-batch` now feeds the **O2Ring's own plethysmogram** to PpgDex, writing a fourth per-night export: **`PpgDexFinger_<date>.node-export.json`**.
+- Add `tools/oxydex-export-staleness.mjs` — re-runs OxyDex on each export's own named source and reports every field that no longer reproduces. (`INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS-2026-07-22-BRIEF.md`)
+- Add `tools/pb-operating-point.mjs` and record what the periodic-breathing detector actually tracks — hypoxemia burden (r = 0.893), not periodicity. (`OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md`)
+- Commit a golden for PpgDex's Integrator-facing rich export — every prior golden was the light export, so the fields the Integrator reads had no fixture at all. (`INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS-2026-07-22-BRIEF.md`)
+- `recording.siteSource` now says whether the optical site was **observed or assumed**.
+
+### Changed
+- Route §2.1 to its own brief after verifying the premise — the CPAP's SA2.edf carries 1 Hz SpO2 on 194 nights at a median 6.85 h. (`CPAP-AUTOHARVEST-FOLLOWUPS-2026-07-28-BRIEF.md`)
+- Corrects a claim made hours earlier: that IBI sequences are a **better alignment signal** than ACC↔ACC (r = 0.532 against a 0.032 null — a 16× margin, versus ACC's 0.29/0.065). The correlation is real; the conclusion was not. (`IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md`)
+- Close MOTIONDEX-BUILD-FOLLOWUPS on its own bar, correct its agenda for the withdrawn apnea typing, and spawn a hollow-gate finding in docs-ledger check3b. (`MOTIONDEX-BUILD-FOLLOWUPS-2026-07-18-BRIEF.md`)
+- Close the companion-parse optimization as NOT ACTIONABLE — all nine consumers of `parseSensorXYZ` read `tMs`, so the proposed opt-out has nowhere to go. (`PPGDEX-PI-AND-PARSE-FOLLOWUPS-2026-07-12-BRIEF.md`)
+
+### Fixed
+- `IBI-ALIGNMENT-LIMIT` flagged 2026-07-27 as "an outlier worth chasing — a per-night defect, not a method limit": wrist and finger disagreed by 326 ms at the median where every other night sat inside ±36 ms. Chasing it found the fault in the instrument, one level below where the brief had already found one. (`IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md`)
+- Alert when the CPAP harvest cannot read the card — `barren` was the only exit that notified, and an absent card never reaches it. (`CPAP-AUTOHARVEST-FOLLOWUPS-2026-07-28-BRIEF.md`)
+- The device-PPI validation lane collapsed **"you didn't load the file"** and **"you loaded it and the device wrote nothing"** into one `hasData: false`, so the UI advised *"load the device PPI file to cross-validate"* — actionable in the first case, misleading in the second, because the user already had.
+- Diagnose why the ODI-4 pilot stopped reproducing — the synthetic corpus desaturates at 4 %/s, so the detector correctly rejects 232 of 242 events on the severe night. (`PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`)
+- `fitClockOffsetPooled` quantised **every** answer it has ever returned to one second. The centroid did `Math.round(wLag / wSum)` on a value in **seconds**, discarding exactly the precision `stepSec` exists to provide. (`IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md`)
+
+---
+
 ## [2.0.0] — 2026-08-01
 
 ### Added
@@ -782,7 +809,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/Plantucha/Tepna/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/Plantucha/Tepna/compare/v1.19.0...v2.0.0
 [1.19.0]: https://github.com/Plantucha/Tepna/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/Plantucha/Tepna/compare/v1.17.0...v1.18.0
