@@ -365,13 +365,33 @@ of the three are already closed and the third is a question, not a work item:
   `printClockFit` was gated on a full trio, so `--allow-partial` would have admitted 42 nights and the
   fit would never have run on any of them; and the flag was parsed by the parent and never forwarded
   to the child. The flag-forwarding boundary is now gated for the whole night-selection flag set.
-- **OPEN — the partial nights' offsets sit high.** The 16 that clear their own null land at
-  **39.3–42.0 min**, against a 36-night consensus of **38.28**. These are May/early-June nights, so
-  this is consistent with a genuine slow drift of the CPAP's clock over the corpus, and equally
-  consistent with single-channel fits being biased. **Not claimed either way** — it needs the
-  offsets plotted against date across the full 78-night reachable corpus, which is now possible for
-  the first time *because* of §4. That is the natural next measurement, and it is a physiology/
-  hardware question rather than an estimator one.
+- **The partial nights' offsets sit high — MEASURED 2026-08-01, and the answer is "drift, magnitude
+  unresolved".** The 16 that clear their own null land at **39.3–42.0 min** against a 36-night
+  consensus of 38.28. Plotting all 31 confident offsets against date — May 3 → July 27, possible for
+  the first time because §4 doubled the reachable corpus — shows a monotonic decline from ~41 min in
+  early May to ~38 min in late July. Theil–Sen (the repo's existing robust fit):
+
+  | subset | span | slope | residual MAD |
+  |---|---|---|---|
+  | trio only (the trusted fits) | Jun 10 – Jul 27 | **−0.77 s/day = −9.0 ppm** | 18.4 s |
+  | partial only (single-channel) | May 3 – Jun 23 | **−2.51 s/day = −29.1 ppm** | 20.6 s |
+  | all | May 3 – Jul 27 | −2.21 s/day = −25.6 ppm | 31.8 s |
+
+  **What this supports:** a negative drift is present in *both* subsets independently, so it is not an
+  artifact of mixing them. Both magnitudes are inside the plausible range for an uncompensated crystal.
+
+  **What it does NOT support:** any particular rate. The two subsets differ 3× and cover different
+  spans, so this cannot separate genuine non-linear drift from the single-channel bias flagged above —
+  which is precisely the caveat that motivated recording the question rather than answering it. The
+  trio slope is only ~2× its own residual scatter over 47 days. **No ppm figure should be quoted.**
+
+  **Why nothing needs fixing:** `38.28` appears nowhere as a computed constant — only in a console
+  message in `pb-agreement.mjs` and as a *planted* offset in synthetic tests. Every consumer uses the
+  per-night fit, so a drifting clock invalidates nothing shipped. This is a hardware observation, and
+  pinning it needs a longer trusted-fit span, not more estimator work.
+
+  **Unexplained:** 2026-05-31 fits confidently at **25.08 min**, 13 min below its neighbours. Excluded
+  from the fits above as out-of-range; recorded so it is not silently dropped twice.
 
 ## 6 · Done when
 
