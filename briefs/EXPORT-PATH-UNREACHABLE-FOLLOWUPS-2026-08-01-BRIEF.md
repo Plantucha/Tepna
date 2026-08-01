@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-01 · **Created:** 2026-08-01 · **Follows:** `EXPORT-PATH-UNREACHABLE-2026-08-01-BRIEF.md` · **Affects:** `Dex-Test-Suite.html`
+**Status:** DONE — 2026-08-01 · **Created:** 2026-08-01 · **Follows:** `EXPORT-PATH-UNREACHABLE-2026-08-01-BRIEF.md` · **Affects:** `Dex-Test-Suite.html`
 
 # The hollow leg was not one leg — two of six were vacuous and a third missed by a single token.
 
@@ -76,9 +76,32 @@ what the generic legs should eventually adopt if the export-bar guard ever prove
 - **Rewriting `minNums`/`minChars` into value-cell counts** for the six generic legs. The export-bar
   settle already makes them non-vacuous *in sequence* (they only run once a result is committed), so
   this would be churn for no measured gain. Recorded because it is the principled end state.
-- **`OxyDex .dat` emits no `recording.coverage`** (parent §11) — deliberately deferred while **#634**
-  is open: fixing it means touching `oxydex-dsp.js`, which forces `OverDex.html` / `Data Unifier.html`
-  re-bundles, and #634 carries both. Serialise behind it.
+## 3.1 · WITHDRAWN — `OxyDex .dat` emits no `recording.coverage`
+
+Parent §11 recorded this as a defect. **It is not one, and no fix should be made.** `oxyCoverage`
+returns `null` when a night is contiguous — deliberately, and documented in place: *"Null when the
+night is contiguous — the common case, and the one that keeps every clean export byte-identical"*, and
+`segs.length < 2` ⇒ *"contiguous ⇒ no claim to make (DexExport contract)"*.
+
+The two paths were compared on the **same night**, and they differ because the **recordings** differ,
+not because the code differs:
+
+| ingest | durationMin | `recording.coverage` |
+|---|---|---|
+| O2Ring `_STORED.dat` (device memory) | 442.9 | `null` — genuinely contiguous, nothing to declare |
+| O2Ring BLE `_SPO2.csv` | 149.4 | `{kind:'sparse', segments:[…2…]}` — the BLE stream really did drop |
+
+So the Integrator's *"OVERLAP COVERAGE 100 % · envelope basis — no node declared coverage"* on the
+`.dat` night is **correct**: for a contiguous recording the envelope *is* the recorded time. Emitting a
+`coverage` block there would be a claim with no content, and would move every clean export's bytes for
+nothing.
+
+**The generalisable error:** the parent inferred a defect from a DIFFERENCE BETWEEN TWO OUTPUTS without
+checking whether the two INPUTS differed. Two ingest paths producing different provenance is only a bug
+if they were given the same recording. Here the `.dat` is 7.4 h of uninterrupted device memory and the
+CSV is 2.5 h of a BLE stream that dropped — the exports are each right about their own night.
+
+## 3.2 · Still not taken
 - **The ~42 min CPAP clock skew** (parent §7) and **OverDex's binary-EDF path** — unchanged, still
   owner's call / own work-unit.
 
@@ -88,4 +111,6 @@ what the generic legs should eventually adopt if the export-bar guard ever prove
       recorded as a number rather than an impression.
 - [x] An unguarded full leg reds instead of passing quietly.
 - [x] `Dex-Test-Suite.html?full` all-green · re-gated · changeset dropped.
-- [ ] *(open)* Value-cell counting for the generic legs, if the export-bar guard ever proves too weak.
+- [x] The parent's `OxyDex .dat` coverage item checked before acting on it — and **withdrawn** (§3.1).
+- **§4 DEFERRED** — value-cell counting for the generic legs. Not needed while the export-bar guard
+  holds; recorded as the principled end state, not as owed work.
