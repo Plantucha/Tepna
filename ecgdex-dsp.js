@@ -4238,6 +4238,17 @@
           respFromEDRMethod: 'EDR (R-peak amplitude modulation)'
         }
       };
+      /* PER-BEAT INTERVALS ON THE BUS (INTERVAL-SERIES-EXPORT).
+         ECGDex computed RR for every beat and let it leave only through the app's ⬇ RR button — a
+         human clicking, producing a file. Nothing headless could reach it: not the Integrator, not
+         trio-batch, not any analysis. The cross-node feed was 5-minute epoch aggregates, so every
+         question about beat timing had to re-run the DSP.
+
+         That matters beyond convenience. The published joint clock-skew framework
+         (doi:10.1088/1361-6501/ae6a09) synchronises independently-clocked sensors to 0.2-0.4 ms from
+         IBI SEQUENCES ALONE — and this suite has three interval sources (chest RR, arm PPI, finger
+         PPI) and exported none of them, which is why its alignment work has been fighting +/-45 s
+         plateaus. */
       out.timeseries = {
         doc: 'Per-5-min-epoch aggregates — the primary cross-node feed (posture rides on epochs[].position; motionIndex = chest-ACC activity, night-normalised median→0 p95→100, null where the ACC did not observe that epoch; vlf·lf·hf·totalPower are absolute band powers in ms² on ONE scale, mirroring the night-level frequency block, so tp = vlf+lf+hf holds per epoch and a consumer can form VLF/LF or normalized units without a collapsed denominator — lfhf alone cannot see the VLF band where CVHR lives).',
         // §D2: the internal epoch already carried `resp` (ls.respRate) — this map dropped it, so no
@@ -4296,6 +4307,20 @@
               })
             : null
       };
+      /* ATTACHED ONLY WHEN NON-EMPTY, so a record without beats carries no field rather than an empty
+         array a consumer would read as "measured, and flat" — and so existing fixtures stay inert. */
+      if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {
+        out.timeseries.rr = {
+          doc: "Per-beat RR intervals from SELF-COMPUTED, sub-sample-refined Pan-Tompkins R-peaks, Malik-corrected (the same series the app's ⬇ RR button writes). tSec[i] is the beat time in seconds from startEpochMs; ms[i] is the interval ENDING at that beat. Beat times are EXPLICIT, never reconstructed by cumulative sum: a dropout would otherwise be closed silently and every later beat shifted. Device firmware RR is deliberately NOT this series — the H10 _HR.txt is smoothed and under-states variance.",
+          n: r.nn.length,
+          tSec: r.tt.map(function (v) {
+            return +v.toFixed(3);
+          }),
+          ms: r.nn.map(function (v) {
+            return Math.round(v);
+          })
+        };
+      }
       out.sleep = amb
         ? { suppressed: true, suppressedReason: (r.sleepSuppressed && r.sleepSuppressed.suppressedReason) || 'high-activity / ambulatory', stages: null }
         : lng
