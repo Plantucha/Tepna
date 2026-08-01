@@ -4414,7 +4414,37 @@ function fitClockOffsetPooled(anchorTimes, channels, opts) {
   opts = opts || {};
   var maxSec = opts.maxLagSec != null ? opts.maxLagSec : 5400; // +/-90 min
   var stepSec = opts.stepSec != null ? opts.stepSec : 5;
-  var matchSec = opts.matchSec != null ? opts.matchSec : 45;
+  /* matchSec 45 -> 30 (POOLED-CLOCK-FIT-FOLLOWUPS §5, swept 2026-08-01). Both numbers were
+     INHERITED, never chosen; §5 asked for a sweep so they could be. Swept 6 windows x 5 grids
+     against a planted control (truth known) and all 36 reproducible corpus nights:
+
+       PLANTED: accuracy is FLAT — median |error| ~0 s at every combination, confirming the
+       centroid removes the window's bias. What the window buys is RESOLUTION: the peak's support
+       runs ~1.5x matchSec (0-1 s at 10, 16 at 20, 36 at 30, 67 at 45, 158 at 90). On planted data
+       alone the answer would be "use 10".
+
+       CORPUS: and that answer would be WRONG, which is why the planted leg cannot decide this.
+       Real responder jitter exceeds a 10 s window and it loses SEVEN nights.
+
+         matchSec   confident   support   cross-night MAD
+             10        15          4 s        17 s     <- too narrow, drops nights
+             20        21          8 s        10 s
+             30        22         15 s        17 s     <- chosen
+             45        22         20 s        22 s     <- inherited
+             90        23         46 s        33 s
+
+       30 strictly dominates 45: the same 22 confident nights, 25 % narrower support, and a 23 %
+       better MAD across nights — which is the meaningful check, since the CPAP's offset is
+       physically near-constant, so agreement BETWEEN nights is the only accuracy proxy available
+       without a reference clock. Nothing gets worse.
+
+     THE HONEST LIMIT: this is calibrated on 36 nights from ONE deployment, and §3 of the same brief
+     warns against fitting the estimator to its own corpus. The defence is that matchSec is a
+     PHYSICAL parameter — how far a responder may lag its anchor — so setting it from measured
+     responder behaviour is calibration rather than curve-fitting. It is still one deployment's
+     physiology. `stepSec` stays 5: 1 vs 5 vs 10 differ by under a second of accuracy, and 5 is
+     5x cheaper than 1. */
+  var matchSec = opts.matchSec != null ? opts.matchSec : 30;
   var minEvents = opts.minEvents != null ? opts.minEvents : 5;
   var nullIters = opts.nullIters != null ? opts.nullIters : 30;
   // Two peaks closer than this are the same answer seen twice, not a disagreement.
