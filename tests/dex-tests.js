@@ -1930,6 +1930,35 @@
 
        Gated as a PRODUCER↔CONSUMER pair, the same discipline as registry-defs-parity: the DSP must keep
        emitting it and the app must keep showing it. Either half going missing is the failure. */
+    /* THE FOLD MUST FEED THE FINGER SITE, AND MUST NOT MISCOUNT THE TRIO WHILE DOING IT.
+       `dex-ingest` has always routed the O2Ring's own `Wellue_*_PPG.txt` to PpgDex as its "legitimate
+       finger PRIMARY", and `ppgdex-registry` grades finger morphology on its own tier — but the fold
+       never fed it, so every corpus run was Verity-only and the finger site had never been computed at
+       scale. Wiring it exposed a second hazard: trio completeness was `readdirSync(dir).filter(f =>
+       f.endsWith('.json')).length === 3`, i.e. "exactly three JSON files exist", so a FOURTH export
+       would make every night read incomplete, re-fold forever and never write its stamp. */
+    group('trio-batch feeds the O2Ring finger site without breaking the trio count', 'trio-batch · o2ring-finger', function (T) {
+      var src = env.sources || {};
+      var tb = src['tools/trio-batch.mjs'] || src['trio-batch.mjs'] || '';
+      if (!tb) { T.ok('trio-batch source wired (skipped — not in env.sources)', true); return; }
+
+      T.ok('the O2Ring pleth has its own pattern', /RE_O2_PPG_CH\s*=/.test(tb) && /_PPG\\\.txt\$/.test(tb), 'no finger-pleth pattern');
+      T.ok('…routed to its own bucket, not into oxy[]', /\.o2ppg\.push\(/.test(tb));
+      T.ok('…carried through the pick projection (the bucket alone is not enough)', /o2ppg: concurrentSet\(/.test(tb),
+        'indexed but never projected — the night object and the work entry are different objects');
+      T.ok('…and held to the same nocturnal trim as the other streams', /pick\.o2ppg = inSleep\(/.test(tb));
+      T.ok('PpgDexFinger is written under its own name', /writeExport\(dir, 'PpgDexFinger'/.test(tb));
+
+      /* The completeness test must count the TRIO, not every .json in the folder. */
+      T.ok('trio completeness counts the trio nodes explicitly', /countTrioExports/.test(tb), 'still counting any .json');
+      T.ok('…and no longer greps for a bare .json count against 3',
+        !/filter\(\(f\) => f\.endsWith\('\.json'\)\)\.length === 3/.test(tb),
+        'a fourth export would make every night read incomplete');
+      /* The site is DERIVED from the waveform layout, so a wrong input must be reported, not published
+         as a finger record. */
+      T.ok('a non-finger site is flagged rather than published silently', /expected 'finger'/.test(tb));
+    });
+
     group('PpgDex shows its PPI fiducial agreement, not just computes it', 'ppgdex-dsp · ppgdex-app · ppi-agreement', function (T) {
       var src = env.sources || {};
       var dsp = src["ppgdex-dsp.js"] || "";
