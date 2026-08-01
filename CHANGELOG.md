@@ -30,6 +30,31 @@ changesets.)
 
 ---
 
+## [2.3.0] — 2026-08-01
+
+### Added
+- `docs-ledger` **check3c** — within one brief, a section must not be claimed both closed and still open. (`DOCS-LEDGER-CHECK3B-BLIND-ROW-2026-08-01-BRIEF.md`)
+- §4 item 4 asked whether OxyDex's always-on `periodic_breathing` channel inflates an Integrator corroboration count, and allowed "shown inert" as an answer. **It is not inert.** (`OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md`)
+- PpgDex now reports a respiration rate — `lombScargle` accumulated the HF band power and threw the peak frequency away. (`ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md`)
+- Add `tools/pulse-agreement.mjs` — and record that §3 is NOT answered: 5 of 6 finger nights share zero overlapping samples with their vendor pulse file. (`OXYDEX-PULSE-RESOURCING-FOLLOWUPS-2026-07-20-BRIEF.md`)
+- §2 of that brief opens: *"Sample-rate precision is this codebase's recurring failure mode — it bit three times in one work-unit, in three different places, each time silently."* All three were fixed in `resp-acc-analysis.js`. **The module was loaded by neither test lane**, so `nativeHz`, `toGrid` and the channel constructors had zero coverage and every one of those fixes rested on the comment written above it — the same shape as the defect: plausible, unexercised, silent. (`MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS-2026-07-22-BRIEF.md`)
+- `trio-batch` refused any night without all three of ECG+PPG+SpO2 (`have.length < 3`, hard-coded). That is a **fusion** precondition — `tch-multinight` needs a genuine three-way overlap — and the **clock fit needs no such thing**: it consumes CPAP anchors plus whatever wearable channels exist, and each node's export is full-length however little the three coincide. (`POOLED-CLOCK-FIT-FOLLOWUPS-2026-07-31-BRIEF.md`)
+
+### Changed
+- `POOLED-CLOCK-FIT-FOLLOWUPS` §3 proposed a guard for half-period aliasing: flag a night when the channels' own argmaxes split into clusters wider than the peak's support. It insisted the guard be validated against the whole corpus first, and must not cost any correct confident night. (`POOLED-CLOCK-FIT-FOLLOWUPS-2026-07-31-BRIEF.md`)
+- `fitClockOffsetPooled`'s ±45 s match window and 5 s grid were **inherited, never chosen**. §5 asked for a sweep so they could be. Swept 6 windows × 5 grids against a planted control (truth known) and all 36 reproducible corpus nights. (`POOLED-CLOCK-FIT-FOLLOWUPS-2026-07-31-BRIEF.md`)
+- `POOLED-CLOCK-FIT-FOLLOWUPS` §7 recorded an open question: the partial nights that clear their null land at 39.3–42.0 min against a 38.28 min consensus — genuine CPAP clock drift, or single-channel bias? (`POOLED-CLOCK-FIT-FOLLOWUPS-2026-07-31-BRIEF.md`)
+- `IBI-ALIGNMENT-LIMIT` closed beat-derived alignment but left one escape route open: an aperiodic channel picks the beat, then intervals refine inside it. Measured, and the route is closed too. (`IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md`)
+- Closes `POOLED-CLOCK-FIT-FOLLOWUPS` — all six done-when items resolved. (`POOLED-CLOCK-FIT-FOLLOWUPS-2026-07-31-BRIEF.md`)
+
+### Fixed
+- Reconcile ENGINE-VERIFICATION's header with §1.7's closure — the same brief's third stale status line in one day. (`ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md`)
+- Apply the pooled clock fit the Integrator already computed instead of gating it behind a weaker detector. (`INTEGRATOR-POOLED-CLOCK-APPLY-2026-08-01-BRIEF.md`)
+- Stop PpgDex exporting an O2Ring finger night as a wrist-worn Polar Verity. (`EXPORT-PATH-UNREACHABLE-FOLLOWUPS-IV-2026-08-01-BRIEF.md`)
+- `POOLED-CLOCK-FIT-FOLLOWUPS` §1 found `autonomic_surge → movement_onset` strongly coupled across 29 of 30 nights but with a **bimodal** latency — +10 s and −20 s, and a pronounced hole at simultaneity (**10 of 992** deltas within ±5 s). It tested three explanations, rejected all three correctly, and declined to guess. (`POOLED-CLOCK-FIT-FOLLOWUPS-2026-07-31-BRIEF.md`)
+
+---
+
 ## [2.2.0] — 2026-08-01
 
 ### Added
@@ -832,7 +857,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/Plantucha/Tepna/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/Plantucha/Tepna/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/Plantucha/Tepna/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/Plantucha/Tepna/compare/v1.19.0...v2.0.0
