@@ -1937,6 +1937,38 @@
        scale. Wiring it exposed a second hazard: trio completeness was `readdirSync(dir).filter(f =>
        f.endsWith('.json')).length === 3`, i.e. "exactly three JSON files exist", so a FOURTH export
        would make every night read incomplete, re-fold forever and never write its stamp. */
+    /* ── POOLED-CLOCK-FIT-FOLLOWUPS §4 · a flag the child never sees does nothing, silently ──────
+       trio-batch's parent dispatches one child per night, and the CHILD computes the night. The
+       source already carries a warning at that boundary — "Forgetting to forward a flag across this
+       boundary is silent: the parent parses it, the child never sees it, and the feature simply does
+       not happen while every night still reports success." This gates the class rather than the one
+       instance: every flag that influences which nights are SELECTED must be forwarded. */
+    group('trio-batch forwards its night-selection flags to the child', 'trio-batch · cli-plumbing', function (T) {
+      var _src = env.sources || {};
+      var tb = _src['tools/trio-batch.mjs'] || _src['trio-batch.mjs'] || '';
+      if (!tb) {
+        T.skip('trio-batch source wired', 'not in env.sources');
+        return;
+      }
+      /* Anchor on the args ARRAY, not on `'--child'` — that string first appears in the flag parser
+         hundreds of lines earlier, and slicing from there reads the wrong region entirely. */
+      var at = tb.indexOf("__filename, '--src'");
+      var argsBlock = at >= 0 ? tb.slice(at, at + 1400) : '';
+      T.ok('the child argv array is locatable', at >= 0, 'the dispatch shape changed — this gate is reading nothing');
+      /* Flags that change WHICH nights or how much of one is kept. A flag here that is not in the
+         child's argv is a feature that runs in the parent and evaporates. */
+      var mustForward = ['--keep-daytime', '--allow-partial', '--cpap', '--min-hours', '--min-overlap', '--only-node'];
+      for (var i = 0; i < mustForward.length; i++) {
+        T.ok(mustForward[i] + ' reaches the child', argsBlock.indexOf("'" + mustForward[i] + "'") >= 0, 'parsed by the parent, never forwarded — the feature would silently not happen');
+      }
+      /* And the flag itself does what it says: three is a FUSION precondition, so the gate must be
+         conditional on it rather than hard-coded. */
+      T.ok('the trio requirement is conditional on --allow-partial', /have\.length\s*<\s*\(\s*ALLOW_PARTIAL\s*\?\s*1\s*:\s*3\s*\)/.test(tb), 'have.length < 3 is hard-coded again');
+      T.ok('…and the sleep window intersects only the legs that EXIST', /\[pick\.ecg,\s*pick\.ppg\]\.filter\(/.test(tb), 'a missing leg would empty the intersection and drop the night');
+      T.ok('…and a partial night is announced, not slipped in as a trio', /PARTIAL night/.test(tb));
+      T.ok('default is OFF so every existing analysis is unchanged', /const ALLOW_PARTIAL = flag\('--allow-partial'\)/.test(tb));
+    });
+
     group('trio-batch feeds the O2Ring finger site without breaking the trio count', 'trio-batch · o2ring-finger', function (T) {
       var src = env.sources || {};
       var tb = src['tools/trio-batch.mjs'] || src['trio-batch.mjs'] || '';
