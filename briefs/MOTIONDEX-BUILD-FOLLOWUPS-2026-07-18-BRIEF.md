@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-18 · **Follows:** `MOTIONDEX-BUILD-2026-07-17-BRIEF.md` (DONE)
+**Status:** DONE — 2026-08-01 · **Created:** 2026-07-18 · **Follows:** `MOTIONDEX-BUILD-2026-07-17-BRIEF.md` (DONE) · **Closed:** on its own bar — §4 executed, §1/§2/§3 each carry an explicit park reason, §5 is an agenda (now corrected: apnea typing was withdrawn)
 
 # MotionDex — build follow-ups (what shipping the node surfaced)
 
@@ -18,6 +18,31 @@ The browser lane boots each app bundle in an iframe (render-coverage group) — 
 (`renderSummary` → badged KPI grid + position bar) is covered only by the Node-side render smoke, not by a
 real booted `MotionDex.html`. Add a MotionDex rig to the Dex-Test-Suite render-coverage set (drive the demo,
 assert the KPI grid + `.ev` badges paint, `__rcState` reaches done). Low risk, mirrors the existing rigs.
+
+**⏸ PARKED 2026-08-01, with a reason about the WORK rather than about who is holding it.**
+
+An iframe rig asserts *"the rig booted and something painted"*. `DEEP-SCOUT-HOLLOW-GATES` §RN is the
+verdict on that class: it planted 7 render defects — including a ~325× mmol glucose error, a hypoxic 88 %
+SpO₂ painted green, and "well controlled" on AHI 40 — and **all 7 shipped green** past exactly this kind
+of coverage, because booting is not a value assertion. Six of the seven were eventually closed in the NODE
+lane, three of them by **extraction** (`tanakaHRmax` · `hrvRmssdClass` · `oxySpo2NightCV`) and the last one
+(2026-08-01) by hoisting ECGScope's axis arithmetic out of a canvas draw. The lesson that wave ends on is
+that a rig is worth building only for genuine canvas/SVG *drawing*; for surfaced VALUES, extraction is both
+cheaper and stronger.
+
+**MotionDex cannot take that route today**, and that is the substantive blocker: `motiondex-render.js`
+exposes **nothing** — it is a page-scoped IIFE with no `window.*` surface, so `renderSummary` is reachable
+only through `$('mxKpiGrid')` + `innerHTML`. Its current node-lane coverage is therefore source-text scans
+(`env.sources['motiondex-render.js']`), not execution. Closing §1 *properly* means first hoisting the
+KPI-classifier arithmetic to exposed pure functions — a `motiondex-render.js` change, hence a MotionDex
+re-bundle and fixture re-verification — and only then deciding whether an iframe rig adds anything beyond it.
+
+**So the ordering is: extract first, rig second (or never).** Building the rig now would spend the
+browser lane's slowest asset on the weakest assertion available, and would look like coverage while
+pinning no number. Re-open as an extraction item, not as a rig item.
+
+*(Disclosure: this session runs headless, so a browser rig is also one I could not execute — but that is
+not the reason above. The reason stands independent of who writes it.)*
 
 ## 2 · Body-position frame calibration (experimental → measured)
 `bodyPosition` classifies supine/prone/lateral/upright from the gravity vector in the **raw device frame**,
@@ -52,6 +77,20 @@ MotionDex's export is the prerequisite `MULTI-SENSOR-DERIVATIONS-2026-07-16` §0
 Tier-1/2 items (apnea typing · body-position OSA · sleep staging · RR fusion · motion-gated HRV) can now be
 spawned as Integrator-fusion executable briefs that consume `node:"MotionDex"` events + the motion series.
 Each is its own gated brief (literature-use policy); this is the agenda, not a commitment.
+
+**⚠ AGENDA CORRECTION 2026-08-01 — one of the five has been WITHDRAWN, not merely deferred.**
+**Apnea typing** was executed (`APNEA-TYPING-FUSION-2026-07-18`) and then **retired**
+(`INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22`, DONE 2026-07-31): 26 nights / 172 h of H10 chest ACC against
+device-scored AASM events put effort during **central** apnea at **0.99× that night's own baseline** — not
+absent, *normal* — so the absolute `EFFORT_FLOOR_G` gate typed 83.5–95.4 % of centrals as OBSTRUCTIVE, and
+best achievable discrimination is AUC 0.691 even re-based as a relative measure. `typeApneaByEffort` now
+reports chest-ACC **coverage** and asserts no type; `obstructive`/`central` are `null`.
+
+This matters to the agenda specifically: MotionDex's effort series is **not** discredited — it is a real
+signal and Phase 1 stands untouched — but **an amplitude-derived apnea TYPE is off the table**, and
+re-opening it needs a second effort sensor (thorax + abdomen) or a second modality (PAT), not a better
+constant. A reader working this list top-down would otherwise rebuild a foundation that has been removed.
+The other four items are unaffected.
 
 ## Done-when
 Each item above is either executed (its own gated change) or carries an explicit park reason. No item blocks
