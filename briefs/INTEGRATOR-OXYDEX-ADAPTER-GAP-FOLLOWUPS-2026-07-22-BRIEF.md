@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-22 · Supersedes: none · Follows: INTEGRATOR-OXYDEX-ADAPTER-GAP-2026-07-21-BRIEF.md
+**Status:** IN-PROGRESS — 2026-08-01 · **Created:** 2026-07-22 · Supersedes: none · Follows: INTEGRATOR-OXYDEX-ADAPTER-GAP-2026-07-21-BRIEF.md · **§2 ANSWERED 2026-08-01** — it was neither of the two hypotheses
 
 What surfaced while executing `INTEGRATOR-OXYDEX-ADAPTER-GAP-2026-07-21-BRIEF.md` §4.1 that is still owed.
 The parent's headline finding was disproven on the real corpus and its two *live* defects (the `n.hb` key
@@ -15,13 +15,65 @@ OXYDEX-PULSE-RESOURCING §Phase 2–4 wiring built on them — are exercised onl
 in the rich export is caught by **no fixture**. Proposal unchanged: commit a rich-export golden + an equiv leg
 for the Integrator-facing surface. This is the same class as the parent's own bug — a path nothing pins.
 
-## 2 · `hrv.rmssd` is null on 2 of 7 corpus nights — an OxyDex-side question, not an Integrator one
+## 2 · `hrv.rmssd` is null on 2 of 7 corpus nights — **ANSWERED 2026-08-01: the exports are STALE**
 
-With the reconcile in place the proxy leg fires on 5 of 7 nights and stays null on
-`OxyDex_2026-07-02_2205` and `oxydex-2026-06-12`, because those exports carry `hrv.rmssd: null` at source.
-That is honest (never fabricate), but **why** those two nights produce no 1 Hz RMSSD is unexamined — it may be
-a legitimate quality gate in `oxydex-dsp.js` or a silent computation failure. Trace the OxyDex side and, if it
-is a gate, record the reason in the export so a consumer can tell "gated" from "missing".
+> *Original text: "it may be a legitimate quality gate in `oxydex-dsp.js` or a silent computation failure.
+> Trace the OxyDex side and, if it is a gate, record the reason in the export so a consumer can tell
+> 'gated' from 'missing'."*
+
+**It is neither hypothesis, and the third option is worse than both.** The two nights differ from each
+other, and only one of them is about HRV at all:
+
+**`OxyDex_2026-07-02_2205_summary.json` — a stale export.** It carries `hrv: null` with
+`artifact.hrSamplesCleaned: 22083` on a 368-minute night, i.e. essentially **every** HR sample flagged as
+artifact, which empties `computeHRV`'s `motion === 0 && !hrArtifact` filter and trips its `n < 120` floor.
+So a gate did fire — but re-running **today's** code on the very file that export NAMES
+(`nights[0].file` = `O2Ring S 2100_20260702220521.csv`) gives:
+
+| field | in the export | recomputed today |
+|---|---|---|
+| `hrv.rmssd` | `null` | **0.5** |
+| `hrv.n` | `null` | **22013** |
+| `stats.minSpo2` | 84 | **87** |
+| `stats.durationMin` | 368.4 | 368 |
+
+The export was generated **2026-07-03** and never regenerated after the code that produced it changed.
+`t0Ms` also moves by exactly **25 s**, consistent with a `trimSensorWarmup` difference — plausibly the same
+change that stopped the artifact cleaner condemning the whole night, though **which commit fixed it is not
+established here** and should not be asserted.
+
+Note `minSpo2` 84 → 87: the staleness is not confined to a null. A consumer reading that export sees a
+nadir **3 points lower** than the current code computes.
+
+**`oxydex-2026-06-12.summary.json` — a different export SHAPE, not a null value.** Its keys are
+`kernel date t0Ms stats odi4 hypoxicBurden comp ganglior_events` — there is no `hrv` field at all, and no
+`file` naming its input. It is a reduced/legacy summary, so "`hrv.rmssd` is null" is really "this shape
+never carried HRV". Lumping it with the first night hid two unrelated causes under one symptom.
+
+### 2.1 · So the ask changes: not a reason field, a staleness check
+
+Recording "gated" vs "missing" in the export would have been the right fix for the hypothesis, and the
+wrong fix for the fact. A reason field cannot help here — the export's `hrv: null` was *correct when
+written*; what a consumer cannot tell is that it was written by code that no longer exists.
+
+**`tools/oxydex-export-staleness.mjs`** (committed with this) re-runs OxyDex on each export's own named
+source and reports every field that no longer reproduces. It is possible only because each night records
+`file` — the tool never guesses a pairing — and it exits 1, so a corpus run can gate on it.
+
+**The class matters more than the two nights.** `GATE B` content-addresses the *committed* fixtures, so
+those cannot rot unseen. These `uploads/` exports are **gitignored working artifacts** that corpus
+analyses and the Integrator read directly — outside every gate. Any analysis consuming them inherits
+whatever the code did on the day they were written, silently. That is the same shape as
+`PAPER-ODI4-REPRODUCIBILITY`'s finding one floor down: an unpinned input behind a computed claim.
+
+### 2.2 · What is still owed
+
+- The stale export is a **gitignored working file belonging to whoever generated it** — regenerating it is
+  a local action and was NOT done here (§👥.2: don't step on another session's artifacts). Whoever owns
+  the corpus should re-run it; the tool says which.
+- Wire the staleness check into the corpus-run path, so a stale input reds before an analysis reads it.
+- 7 of 8 exports in `uploads/` were skipped because their named source is not on disk. The check is only
+  as good as the raw files present, and it says so rather than reporting a clean sweep.
 
 ## 3 · `hypoxicBurden` was null for the entire life of the field — check for other renamed-on-export keys
 
