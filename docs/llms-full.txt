@@ -55,17 +55,21 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 |---|---|
 | 🧠 **Analyzers** | **7 live** single-signal nodes · **1 planned** (EEGDex) |
 | 🔀 **Fusion** | **Integrator** (cross-signal) + 2 ingest front doors — **Data Unifier** · **OverDex** — all live |
-| 🧪 **Tests** | **3,500+ assertions** across **230 groups**, run as **6 partitioned CI shards** — green on every push |
+| 🧪 **Tests** | **4,650+ assertions** across **305 groups**, run as **6 partitioned CI shards** — green on every push |
 | 🛡️ **CI gates** | `no-network` · `tests` · `types` · `biome` · `CodeQL` — the privacy claim is **enforced, not asserted** |
 | 🎫 **Honesty** | every surfaced number carries an **evidence grade** — nothing ships unlabelled |
 | 🔬 **Reproducible** | every preprint **regenerates from its live tool**; every bundle is **content-addressed** |
 
 **Roadmap** &nbsp; `▰▰▰▰▰▰▰▱` &nbsp; **7 of 8** planned analyzers live — EEGDex (Muse) is next.
 
-> **Momentum.** `v1.16.0` landed a fleet-wide **DEEP-AUDIT-II** hardening pass: cross-signal
-> ECG↔apnea corroboration anchored to the right night, presence-gated HRV math (no more `null`
-> arithmetic publishing confident numbers), and duration-scoped norms. Full history in the
-> **[changelog](CHANGELOG.md)**.
+> **Momentum.** `v2.0.0` is the suite's first **MAJOR** release, and the break is a *retirement*:
+> ECGDex's `apnea.estimatedAHI` and `apnea.riskCategory` were the CVHR index wearing AHI's units and
+> clinical cut-points — measured at **r = −0.151** against device-scored AHI — so they were withdrawn
+> rather than relabelled. The same release closes a cross-device timing gap nobody had measured: the
+> two wearables were never compared to *each other* and turn out to sit **~3.3 s apart on every
+> phone-captured night**, the CPAP clock offset is now a **pooled fit** across all channels (29/29
+> nights in band, against 22/25 for the previous vote), and OxyDex — which exported SpO₂ **nowhere** —
+> now ships the full 1 Hz series. Full history in the **[changelog](CHANGELOG.md)**.
 
 ### Node status
 
@@ -110,7 +114,7 @@ the gate, so a vacuous "all clear" can never pass. It runs headless in CI on **e
 | CI gate | What it guarantees |
 |---|---|
 | **no-network** | No shipped surface reaches the network — privacy is enforced, not asserted |
-| **tests** | 3,500+ assertions over the real DSP modules, run as 6 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
+| **tests** | 4,650+ assertions over the real DSP modules, run as 6 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
 | **types** | JSDoc type-checking (`tsc --checkJs`) across the signal contracts |
 | **biome** | Format + house-invariant lint (frozen names, Clock Contract, SPDX, evidence vocabulary) |
 | **CodeQL** | Static security analysis on every push |
