@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-07-31 · **§1 + §3 + §5-window + §6.2 RESOLVED 2026-08-01** · **Found while executing:** `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` · **Affects:** `ecgdex-dsp.js` / `ppgdex-dsp.js` event fiducials, `CROSS-DEVICE-CLOCK-SKEW` §2d's latency ladder, `PAPERS-ROADMAP`
+**Status:** IN-PROGRESS · **Created:** 2026-07-31 · **§1 + §3 + §4 + §5-window + §6.2 RESOLVED 2026-08-01** — only §5's smaller items remain · **Found while executing:** `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` · **Affects:** `ecgdex-dsp.js` / `ppgdex-dsp.js` event fiducials, `CROSS-DEVICE-CLOCK-SKEW` §2d's latency ladder, `PAPERS-ROADMAP`
 
 # Once the clock is pinned, every channel is on one timeline — and the pairs do not say what the ladder says
 
@@ -266,6 +266,40 @@ the estimator degrades by design — so this is a tool limit, not a data limit. 
 `--allow-partial` flag so the clock-fit corpus is not bounded by a fusion precondition; but it changes a
 tool every other analysis also uses, so it needs its own gate work rather than a quick edit here.
 
+### DONE 2026-08-01 — and it is 42 nights, not 4
+
+The count was an order of magnitude low. Measured over the whole capture tree, **42** nights are
+dropped by that gate — more than the 36-night corpus itself — and **every one of them has CPAP data**:
+
+```
+39 nights   have: SpO2          (one device)
+ 2 nights   have: ECG+SpO2      (two devices)
+```
+
+Verified that no existing flag reaches it: on unmodified `main`,
+`--only-node OxyDex --min-overlap 0 --min-hours 0 --keep-daytime` still prints
+`⊘ not a concurrent trio night`.
+
+**`--allow-partial`, default OFF** so every existing analysis is byte-unchanged. Three things had to
+change together, and the last two are the ones that would have made it a hollow flag:
+
+1. the gate becomes `have.length < (ALLOW_PARTIAL ? 1 : 3)`;
+2. the sleep window intersects **the legs that exist** with the anchor — with both present this is
+   byte-identical to the old `ECG ∩ PPG ∩ anchor`, with one missing it degrades instead of emptying;
+3. `printClockFit` was gated on `nJson === TRIO_NODES.length`, i.e. **the fit never ran on the very
+   nights the flag admits**. The flag would have reported success while doing nothing.
+
+Two further defects surfaced only by running it: the flag was parsed by the parent and never forwarded
+to the child (the source carries a warning about exactly that boundary — now gated for the whole
+night-selection flag set), and the absent nodes were *attempted*, throwing
+`Cannot read properties of null` **80 times** across the corpus. A missing leg is a fact about the
+night, not a failure; those nodes are skipped now.
+
+**Payoff, measured rather than asserted:** all **41** foldable partial nights produce a clock fit, and
+**16** clear their own null. The rest are flagged `⚠ indistinguishable from this night's own null` —
+the estimator degrading honestly, exactly as "degrades by design" promises. This roughly doubles the
+reachable clock-fit corpus; it does not add 41 confident offsets, and the output says so per night.
+
 ## 5 · Smaller items
 
 - **`spreadSec` changed meaning at the cutover.** Under the vote it was "how far apart the agreeing
@@ -336,5 +370,7 @@ tool every other analysis also uses, so it needs its own gate work rather than a
       argmax range (70–9425 s) dwarfs the support width (0–65 s). The motivating night is
       unreproducible and the reproducible corpus has no confident-wrong nights, so no guard can be
       calibrated. The mechanism is already caught by `ambiguous`, now pinned by planted known-answers.
-- [ ] `trio-batch` grows an `--allow-partial` path (§4) so a 2-device night can be fitted, or the four
-      unreachable nights are recorded as permanently out of corpus.
+- [x] `trio-batch` grows an `--allow-partial` path (2026-08-01), default OFF. It is **42** nights, not
+      4, and all of them have CPAP data; 41 fold, 41 fit, **16** clear their own null. Three coupled
+      changes were needed — the gate, the sleep-window intersection, and the clock fit's own
+      trio-gate, without which the flag admitted nights and the fit never ran on them.

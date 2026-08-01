@@ -126,6 +126,9 @@ const CPAP_DIR = (() => {
   const inner = join(raw, 'DATALOG');
   return existsSync(inner) && statSync(inner).isDirectory() ? inner : raw;
 })();
+/* §4 — admit nights that are not full trios. OFF by default: this tool feeds every other analysis
+   in the repo, and a night that is not a fusion trio must not silently start appearing in one. */
+const ALLOW_PARTIAL = flag('--allow-partial');
 const SKIP_EXISTING = flag('--skip-existing');
 // --force recomputes everything, stamp or no stamp. The engine is still being tuned, so "redo it all
 // under today's code" has to be one flag away — and it must BEAT --skip-existing when both are given.
@@ -709,14 +712,30 @@ for (const n of plan) {
     o2ppg: concurrentSet(n.o2ppg, anchorIv, 'O2Ring PPG', n.key, 0)
   };
   const have = [pick.ecg && 'ECG', pick.ppg && 'PPG', pick.oxy.length && 'SpO2'].filter(Boolean);
-  if (have.length < 3) {
+  /* THREE IS A FUSION PRECONDITION, NOT A DATA ONE (POOLED-CLOCK-FIT-FOLLOWUPS §4).
+     `tch-multinight` needs a genuine three-way overlap, so this tool has always required one. The
+     CLOCK FIT needs no such thing — it consumes CPAP anchors plus whatever wearable channels exist,
+     and each node's export is full-length however little the three coincide. So a rule that exists
+     for the fusion path was silently bounding the clock-fit corpus.
+     Measured over the whole capture tree: 42 nights are dropped here, and every one of them HAS
+     CPAP data. That is not the 4 the brief estimated — it is more than the 36-night corpus itself.
+     `--allow-partial` admits them; default OFF, so every existing analysis is byte-unchanged. */
+  if (have.length < (ALLOW_PARTIAL ? 1 : 3)) {
     console.log(`  ⊘ ${n.key} — not a concurrent trio night (have: ${have.join('+') || 'none'})`);
     continue;
   }
+  if (ALLOW_PARTIAL && have.length < 3) console.log(`    · ${n.key}: PARTIAL night — ${have.join('+')} only; fittable for the clock, NOT a fusion trio`);
   // The gate is the genuine THREE-WAY intersection of the merged sets, not the smaller of two
   // pairwise overlaps — the previous form could pass a night where ECG and PPG each overlapped the
   // ring but at different times.
-  const threeIvAll = ivIntersect(ivIntersect(mergeIv(pick.ecg), mergeIv(pick.ppg)), anchorIv);
+  /* The sleep window is the intersection of the legs that EXIST with the ring anchor. With both
+     ECG and PPG present this is byte-identical to the previous `ECG ∩ PPG ∩ anchor`; with one
+     missing it degrades to the pair, and with both missing to the anchor's own nocturnal blocks —
+     rather than intersecting with an empty set and silently losing the night. */
+  const legIv = [pick.ecg, pick.ppg].filter((l) => l && l.length).map(mergeIv);
+  const threeIvAll = legIv.reduce(function (acc, l) {
+    return ivIntersect(acc, l);
+  }, anchorIv);
   // ONE NIGHT IS ONE SLEEP, NOT EVERYTHING THAT SHARES A DATE KEY. Merging every session of the
   // night restored the data the single-file rule threw away — but it also let a DAYTIME ring
   // capture into the anchor, and the ECG/PPG sets are chosen against the anchor, so the daytime
@@ -793,7 +812,10 @@ for (const n of plan) {
   pick.accVer = inSleep(pick.accVer);
   pick.gyro = inSleep(pick.gyro);
   pick.magn = inSleep(pick.magn);
-  console.log(`  ✓ ${n.key} — concurrent trio, ${ov.toFixed(1)} h three-way overlap (merged sessions)` + (KEEP_DAYTIME ? '' : `, ${(noctFrac * 100).toFixed(0)}% nocturnal`));
+  console.log(
+    `  ✓ ${n.key} — ${have.length < 3 ? 'PARTIAL (' + have.join('+') + ')' : 'concurrent trio'}, ${ov.toFixed(1)} h ${have.length < 3 ? 'overlap' : 'three-way overlap'} (merged sessions)` +
+      (KEEP_DAYTIME ? '' : `, ${(noctFrac * 100).toFixed(0)}% nocturnal`)
+  );
   trio.push(pick);
 }
 
@@ -942,6 +964,7 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
       const args = [`--max-old-space-size=${heapMB}`, __filename, '--src', SRC, '--out', OUT, '--night', p.key, '--child', '--min-hours', String(MIN_HOURS), '--min-overlap', String(MIN_OVERLAP)];
       if (node) args.push('--only-node', node);
       if (KEEP_DAYTIME) args.push('--keep-daytime');
+      if (ALLOW_PARTIAL) args.push('--allow-partial');
       // The CHILD computes the night, so the child is what needs the CPAP path. Forgetting to forward
       // a flag across this boundary is silent: the parent parses it, the child never sees it, and the
       // feature simply does not happen while every night still reports success.
@@ -990,7 +1013,11 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
             // …and the clock fit, for the same reason the stamp is here: it reads all THREE exports,
             // so no --only-node child can compute it correctly. Printed under its own heading because
             // by now the per-node blocks above have already been flushed.
-            if (CPAP_DIR && nJson === TRIO_NODES.length) {
+            /* §4: the fit needs CPAP anchors plus WHATEVER wearable channels exist, so gating it on
+               a full trio is the same fusion-precondition confusion `--allow-partial` exists to
+               undo. Without this the flag admits the night and the one thing it was admitted FOR
+               never runs — a feature that reports success while doing nothing. */
+            if (CPAP_DIR && (nJson === TRIO_NODES.length || (ALLOW_PARTIAL && nJson >= 1))) {
               console.log(`\n▸ ${p.key} · clock fit`);
               printClockFit(dir, p.key);
             }
@@ -1229,7 +1256,11 @@ for (const p of work) {
 
   /* ECGDex — raw H10 _ECG is the HONEST H10 leg (device _HR.txt is smoothed; CLAUDE.md).
      Build the parsed rec, then attach the _ACC companion so posture/accExtras run. */
-  if (wantNode('ECGDex'))
+  /* `--allow-partial` admits nights that have no ECG or no PPG at all, so a node whose input is
+     absent must be SKIPPED, not attempted. Without this the compute throws "Cannot read properties
+     of null" twice per partial night — 80 times over the corpus — and prints a ✗ for a node that was
+     never going to exist. A missing leg is a fact about the night, not a failure. */
+  if (wantNode('ECGDex') && p.ecg && p.ecg.length)
     try {
       const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECG(readFileSync(f.full, 'utf8'))));
       if (p.accH10 && p.accH10.length) {
@@ -1303,7 +1334,8 @@ for (const p of work) {
 
   /* PpgDex — Verity HR MUST come from raw _PPG (device _HR.txt is all-zero; _PPI is header-only).
      ACC+GYRO drive the per-epoch motionIndex. */
-  if (wantNode('PpgDex'))
+  // Same as ECGDex above: a night with no PPG is a partial night, not a broken one.
+  if (wantNode('PpgDex') && p.ppg && p.ppg.length)
     try {
       const rec = mergePpg(p.ppg.map((f) => PpgDex.parsePPG(readFileSync(f.full, 'utf8'))));
       // The IMU companions stay single-session: they only drive the per-epoch motionIndex, and the
