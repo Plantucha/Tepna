@@ -281,8 +281,36 @@ for (const rel of assetFiles) syncAsset(rel);
 //   re-read the file. Phase NUMBERS are stable identities (briefs cite "build-docs Phase 3") — this
 //   moves the DECLARATION, not the phase.
 const VERSION = manifest.version;
+/* The RELEASE COUNT is machine-known too, and it rotted for the same reason the version badge did:
+   nothing projected it. Read from the append-only ledger rather than counted by hand. */
+const RELEASES = (() => {
+  try {
+    const m = JSON.parse(readFileSync(join(ROOT, 'RELEASE-MANIFEST.json'), 'utf8'));
+    const r = Array.isArray(m) ? m : m.releases || m.records || [];
+    return r.length || null;
+  } catch {
+    return null;
+  }
+})();
+/* THE BADGE IS A SURFACE TOO — it read `v1.16.0` through FOUR releases while the prose one line below
+   it read the truth, because only the prose was in this list. A number a tool maintains stays correct;
+   the one beside it rots silently, and the badge is the first thing anyone sees. Anything on the front
+   page that is derivable from a ledger belongs here, not in a human's memory. */
 const stampRules = [
-  ['README.md', [[/(\*\*Suite version:\*\*\s*)\d+\.\d+\.\d+/g, `$1${VERSION}`]]],
+  [
+    'README.md',
+    [
+      [/(\*\*Suite version:\*\*\s*)\d+\.\d+\.\d+/g, `$1${VERSION}`],
+      [/(!\[Suite v)\d+\.\d+\.\d+/g, `$1${VERSION}`],
+      [/(badge\/suite-v)\d+\.\d+\.\d+/g, `$1${VERSION}`],
+      ...(RELEASES
+        ? [
+            [/(badge\/releases-)\d+(_shipped)/g, `$1${RELEASES}$2`],
+            [/(\*\*)\d+(\*\* ledger-backed releases)/g, `$1${RELEASES}$2`]
+          ]
+        : [])
+    ]
+  ],
   [
     'index.html',
     [
