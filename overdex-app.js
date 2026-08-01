@@ -53,6 +53,28 @@
       r.readAsText(file);
     });
   }
+  /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-II §1 — OverDex read EVERY file as text, so the one adapter it advertises
+     that is BINARY could never be fed. `adapters/resmed-edf.js` documents its own escape hatch —
+     "ctx.buffers (raw) or ctx.edfSets (pre-decoded); the text argument is not used" — and OverDex
+     supplied neither, so a dropped ResMed night routed correctly and then died as "unusable frame".
+     Text is still read for every file (classify's head sniff + the adapter registry need it); the
+     bytes are read ALONGSIDE it, only for the files that could plausibly want them. */
+  function readBuffer(file) {
+    return new Promise(function (resolve) {
+      var r = new FileReader();
+      r.onload = function () {
+        resolve(r.result || null);
+      };
+      r.onerror = function () {
+        resolve(null); // a byte read that fails must not fail the text classify
+      };
+      r.readAsArrayBuffer(file);
+    });
+  }
+  function wantsBytes(file) {
+    return /\.edf$/i.test((file && file.name) || '');
+  }
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c];
@@ -156,7 +178,11 @@
         return readText(f).then(
           function (t) {
             f.__text = t;
-            return classify(f, t);
+            if (!wantsBytes(f)) return classify(f, t);
+            return readBuffer(f).then(function (buf) {
+              f.__buffer = buf;
+              return classify(f, t);
+            });
           },
           function (e) {
             return { file: f, relPath: WALK.relOf(f), klass: 'error', note: 'read error: ' + e.message };
@@ -222,6 +248,7 @@
     setStatus('routing → running nodes → fusing…', 'run');
 
     var exports = []; // { json, label, from }
+    var _cpapRan = false; // one night = one EDF set, run once (see the cpap branch below)
     for (var i = 0; i < ITEMS.length; i++) {
       var it = ITEMS[i];
       try {
@@ -235,6 +262,32 @@
           if (sigType === 'rr' && wins.rr) ctx.parseRRInput = wins.rr.parseRRInput;
           if (sigType === 'spo2' && wins.spo2) ctx.parseCSV = wins.spo2.parseCSV;
           if (sigType === 'hrv' && wins.hrv && wins.hrv.HRVDex) ctx.parseRows = wins.hrv.HRVDex.parseRows;
+          /* CPAP is BINARY and MULTI-FILE: one night is a set of EDFs (BRP/PLD/SA2 + EVE/CSL) that the
+             adapter groups by its own §F4 session rule. So hand it EVERY dropped EDF's bytes at once and
+             run it ONCE — running per-file would re-decode the same night N times and emit N duplicate
+             exports for the Integrator to dedupe. The remaining EDF items are marked as folded rather
+             than left blank: a file that was consumed must say so, never vanish from the manifest. */
+          if (sigType === 'cpap') {
+            if (_cpapRan) {
+              it.runNote = 'folded into the CPAP session run above (one night = one EDF set)';
+              continue;
+            }
+            var _bufs = [];
+            for (var bi = 0; bi < ITEMS.length; bi++) {
+              var bit = ITEMS[bi];
+              var bsig = bit && (bit.klass === 'raw' ? bit.signalType : bit.resolvedTo && bit.resolvedTo.signalType);
+              if (bsig === 'cpap' && bit.file && bit.file.__buffer) _bufs.push({ name: bit.file.name, buffer: bit.file.__buffer });
+            }
+            if (!_bufs.length) {
+              it.runNote = 'EDF bytes unavailable (file could not be read as an ArrayBuffer)';
+              continue;
+            }
+            ctx.buffers = _bufs;
+            ctx.files = _bufs.map(function (b) {
+              return b.name;
+            });
+            _cpapRan = true;
+          }
           // companion-bundle ingest (ECG/PPG multi-file): pair matched device sidecars by filename
           // stamp across the walked drop so the adapter attaches them to the frame (HANDOFF §2(b)).
           if ((sigType === 'ecg' || sigType === 'ppg') && ORCH && typeof ORCH.pairCompanions === 'function') {
