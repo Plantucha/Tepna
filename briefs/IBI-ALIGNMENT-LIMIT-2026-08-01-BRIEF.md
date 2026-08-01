@@ -191,3 +191,34 @@ the defect it implies.
       periodic. Sub-second alignment must come from an aperiodic feature (ACC envelope, desaturation
       onset), with intervals at best refining *within* a beat once a coarser method has picked which
       beat.
+
+## Postscript 2026-08-01 — the two-stage escape route is measured, and it is not open
+
+The line above names a way out: let an aperiodic channel pick the beat, then let intervals refine
+inside it. That requires the coarse stage to land inside **half a mean RR (~0.6 s)**, or it cannot say
+which beat. The pooled clock fit's published resolution on this corpus is **15 s median support**
+(`matchSec` 30, 22 confident nights). **The gap is ~25×.**
+
+Both obvious ways to sharpen the coarse stage were tested against the same 36 nights, changing only
+which instant a channel stamps. **Neither helps:**
+
+| change | confident | median support | cross-night MAD |
+|---|---|---|---|
+| *as shipped* | **22**/36 | **15.0 s** | 15.6 s |
+| `autonomic_surge` at its rebound (`+periodSec`) instead of the bradycardia trough | 21/36 | 15.0 s | 13.2 s |
+| `desat_event` at `onsetTMs` instead of the nadir | 21/36 | **20.0 s** *(worse)* | 14.4 s |
+
+Two reasons, and they are worth separating:
+
+- **Pooling absorbs a single channel's offset.** `autonomic_surge` is one of ~12 channels; a
+  systematic 20 s shift on it barely moves a statistic built from all of them. That is what pooling
+  is *for*, and it is why the fiducial correction that mattered enormously for cross-channel
+  *physiology* (bimodal → unimodal, 1.0 % → 36.1 %) is invisible to the clock.
+- **A conceptually sharper instant can be an empirically noisier one.** The desaturation onset is the
+  top of a gradual descent; the nadir is a well-defined extremum. Sharper in principle, harder to
+  detect consistently, and the fit gets *worse*.
+
+**So sub-second alignment is not reachable by refining fiducials on the channels this suite already
+emits.** It would need a categorically sharper anchor — something with a step change rather than a
+slow excursion. Recorded so the two-stage idea is not re-proposed on the strength of the sentence
+above, which this postscript exists to qualify.
