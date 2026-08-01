@@ -266,6 +266,32 @@ read anywhere.
 Two stale prose items to fix in the same pass: `integrator-longitudinal.js:7` says *"envelopes that every node
 now emits"* (5 of 9), and `docs/CROSSNIGHT-ENVELOPE-SPEC.md §7` omits CPAPDex, which does emit.
 
+**✅ §1.7 RE-VERIFIED AND CLOSED 2026-08-01 — in the tree, not from this section.** All three claims checked:
+
+| claim | verdict |
+|---|---|
+| exactly 5 `*-cross.js`; hrvdex/glucodex/motiondex emit none | **CONFIRMED** — 5 files; 0 `crossNight` refs in all three |
+| `integrator-longitudinal.js` says *"every node now emits"* | **CONFIRMED STALE** — and now corrected |
+| `CROSSNIGHT-ENVELOPE-SPEC §7` omits CPAPDex | **REFUTED — already fixed.** §7 now carries a full 8-node adoption table with CPAPDex marked emitting, the three non-producers marked ✗, and MotionDex named "the unmitigated case" |
+
+So the finding itself stands (5 of 8 emit; MotionDex is blind) and **one** of the two prose items was owed,
+not both. Note the count in this section's own text is wrong too: it says "5 of 9" — there are **eight**
+nodes.
+
+The corrected header now names the producer set explicitly and says which non-producers are *degraded*
+(HRVDex, GlucoDex retain native intra-file trending) versus *blind* (MotionDex).
+
+**And it is gated, because prose is exactly what rots unnoticed.** `integrator-longitudinal · docs ·
+source-scan` (5 legs) bans the specific false phrase in any casing, requires an explicit producer count,
+requires the three non-producers to stay named, and carries a non-vacuity floor on the loaded `*-cross.js`
+set. Mutation-verified: restoring "every node now emits" reds it. This is the same rot §1.2's status line
+suffered — a claim true when written, with nothing to notice when it stopped being true.
+
+⚠️ Recorded for the next reader: a **comment-only** edit to `integrator-longitudinal.js` still moves
+`computeHash` (`15de362e159d → 9d217398e024`), because the compute closure is a DENYLIST — an unknown
+asset counts as compute. That is the documented design (over-flag rather than go blind), so the fixture
+was re-verified via `verify-fixtures`, not asserted inert.
+
 ---
 
 ### 1.8 🟢 LOW/LATENT — MotionDex misclassifies the Gauss magnetometer header — ✅ CLOSED 2026-07-22
@@ -333,8 +359,8 @@ below-`COUPLING_MIN` negative).
 retains the HF argmax. ⚠️ `ppgdex-dsp.js` is heavily contended — check open PRs before touching it.
 
 **Phase 5 — crossnight + mag unit (§1.7, §1.8). ◐ HALF.** **§1.8 CLOSED 2026-07-22** — the Gauss→µT fix
-shipped as `DEEP-AUDIT-II §7.9` (PR #332) with a both-direction gate. **§1.7 is NOT re-verified**, and is
-therefore not claimed closed — that check is the remaining work here, not a fix.
+shipped as `DEEP-AUDIT-II §7.9` (PR #332) with a both-direction gate. **§1.7 RE-VERIFIED AND CLOSED 2026-08-01** — the finding stands (5 of 8 emit), one of its two prose items
+was already fixed, the other is corrected and now gated. See §1.7.
 
 **Also still open: §1.4**, blocked on `PPGDEX-O2RING-FINGER-SITE` and explicitly out of scope below.
 
