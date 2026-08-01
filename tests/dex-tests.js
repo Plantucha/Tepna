@@ -21685,6 +21685,25 @@
         T.eq('control · 61 s apart → 2 separate sets', rm.groupSessionSets(['20260612_220000_EVE.edf', '20260612_220101_CSL.edf']).length, 2);
         // a REPEATED type opens a new set even when close (the load-bearing !byType[type] clause)
         T.eq('control · a repeated type (EVE, EVE) opens a new set even 30 s apart', rm.groupSessionSets(['20260612_220000_EVE.edf', '20260612_220030_EVE.edf']).length, 2);
+        /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-III — ONE RULE, ONE PLACE. cpapdex-app.js used to carry a
+           SECOND, different grouping (>15 min gap, `files[type] = e` "last-wins on duplicate type"),
+           which silently discarded 76 files across 16 of 199 real SD-card nights — 8.0 % — because a
+           therapy session starting <15 min after the previous one overwrote it and its scored apneas
+           vanished with no error. Both surfaces now call CpapEdf.groupSessionSets. Pin the identity so
+           a future edit cannot fork them again, and pin the real-corpus shape that exposed it. */
+        var CE = env.CpapEdf;
+        if (!CE || typeof CE.groupSessionSets !== 'function') {
+          T.skip('env.CpapEdf.groupSessionSets available (the single source)', 'CpapEdf not co-loaded in this runner');
+        } else {
+          T.ok('the adapter DELEGATES to CpapEdf.groupSessionSets (one rule, not two)', rm.groupSessionSets(['20260612_220000_EVE.edf', '20260612_220100_CSL.edf']).length === CE.groupSessionSets(['20260612_220000_EVE.edf', '20260612_220100_CSL.edf']).length);
+          /* The real 2026-07-26 shape: two full ResMed sets 5 m 48 s apart. The retired 15-minute rule
+             merged them into ONE cluster and dropped the first set's five files; the night lost an
+             apnea, 0.06 therapy hours, and 5 m 54 s off its start. */
+          var night = ['20260726_210217_CSL.edf', '20260726_210217_EVE.edf', '20260726_210225_BRP.edf', '20260726_210225_PLD.edf', '20260726_210225_SA2.edf', '20260726_210813_CSL.edf', '20260726_210813_EVE.edf', '20260726_210819_BRP.edf', '20260726_210819_PLD.edf', '20260726_210819_SA2.edf'];
+          var sets = CE.groupSessionSets(night);
+          T.eq('real-corpus shape · two sessions 5m48s apart stay TWO sets (the 15-min rule merged them)', sets.length, 2);
+          T.eq('…and no file is dropped — both sets are complete (5 streams each)', sets.map(function (c) { return Object.keys(c.byType).length; }).join(','), '5,5');
+        }
       }
     });
 

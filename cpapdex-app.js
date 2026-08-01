@@ -22,7 +22,6 @@ import { CpapRender } from './cpapdex-render.js';
   'use strict';
 
   var FILE_TYPES = ['BRP', 'PLD', 'SA2', 'EVE', 'CSL'];
-  var SESSION_GAP_MS = 15 * 60 * 1000; // files >15 min apart start a new session cluster
   var NIGHT_GAP_MS = 12 * 60 * 60 * 1000; // clusters >12 h apart belong to DIFFERENT nights
 
   function $(id) {
@@ -64,14 +63,32 @@ import { CpapRender } from './cpapdex-render.js';
       .sort(function (a, b) {
         return (a.prefixMs || 0) - (b.prefixMs || 0);
       });
-    var clusters = [];
+    /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS-III — the local rule below was SILENT DATA LOSS and is gone.
+       It clustered on a >15 MINUTE gap and then did `c.files[e.type] = e` — "last-wins on duplicate
+       type" — so a second therapy session started within 15 minutes of the first overwrote it and its
+       scored apneas vanished with no error. Measured over the real SD card (199 night folders, 1008
+       EDF files): 76 files silently discarded across 16 nights (8.0 %). Worst night 2026-04-23 — this
+       rule saw 2 sessions where the correct one sees 6.
+
+       The correct rule (CPAP-REAL-CORPUS §F4) is ±60 s of the anchor AND a repeated type opens a NEW
+       set, and it is now single-sourced on `CpapEdf.groupSessionSets` — the same function
+       `adapters/resmed-edf.js` calls, so the app, the Data Unifier and OverDex cannot drift again. */
+    var byName = {};
     parsed.forEach(function (e) {
-      var c = clusters[clusters.length - 1];
-      if (!c || (e.prefixMs != null && c.anchorMs != null && e.prefixMs - c.anchorMs > SESSION_GAP_MS)) {
-        c = { anchorMs: e.prefixMs, files: {} };
-        clusters.push(c);
-      }
-      c.files[e.type] = e; // last-wins on duplicate type within a cluster
+      byName[e.name] = e;
+    });
+    var sets = CpapEdf.groupSessionSets(
+      parsed.map(function (e) {
+        return e.name;
+      })
+    );
+    var clusters = sets.map(function (set) {
+      var files = {};
+      Object.keys(set.byType).forEach(function (ty) {
+        var ent = byName[set.byType[ty].file];
+        if (ent) files[ty] = ent;
+      });
+      return { anchorMs: set.sec * 1000, files: files };
     });
     return clusters;
   }
