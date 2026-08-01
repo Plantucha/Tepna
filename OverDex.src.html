@@ -205,6 +205,16 @@
 <script type="module" src="glucodex-dsp.js"></script>
 <script type="module" src="ppgdex-dsp.js"></script>
 <script type="module" src="ecgdex-dsp.js"></script>
+<!-- CPAP (EXPORT-PATH-UNREACHABLE-FOLLOWUPS-II §2): OverDex ADVERTISED `resmed-edf` in its own adapter list and
+     routed dropped ResMed nights to it, but never booted the node behind it — so the run died with
+     "CPAPDex namespaced DSP not found on host". signal-orchestrate's cpapHost()/emitCpapNodeExport()
+     were already wired and gated on canEmit('cpap'); only the realm was missing the modules.
+     cpapdex-edf.js = the binary EDF reader the adapter references BY NAME (root.CpapEdf); the DSP is
+     an IIFE that leaks nothing bare, so it co-exists with integrator-dsp's globals; cpapdex-fusion.js
+     carries cpapBuildExport, the SAME builder the CPAPDex app's own export uses. -->
+<script src="cpapdex-edf.js"></script>
+<script type="module" src="cpapdex-dsp.js"></script>
+<script src="cpapdex-fusion.js"></script>
 <!-- shared file-ingest classifiers (deviceKey/foreignVendor/…) — load BEFORE signal-orchestrate (§1 ECG-INGEST-FOLLOWUPS-II: pairCompanions consults DexIngest) -->
 <script src="dex-ingest.js"></script>
 <!-- shared node orchestration (co-loaded compute() hosts + node-export emit), reused from the Unifier -->
