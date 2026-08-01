@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# tepna-capture — deploy/install-services.sh
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # Installs BOTH services as root:  sudo bash install-services.sh
 #   tepna-capture — the BLE capture daemon (systemd-managed, survives reboot)
 #   tepna-web     — Caddy serving the bundled Dex apps at ONE pinned origin
@@ -19,7 +21,11 @@ install -m644 "$UNIT_SRC" /etc/systemd/system/tepna-capture.service
 systemctl daemon-reload
 systemctl enable --now tepna-capture
 sleep 5
-systemctl is-active tepna-capture >/dev/null && echo "  ✓ active" || { echo "  ✗ NOT active:"; journalctl -u tepna-capture -n 15 --no-pager | sed 's/^/    /'; }
+if systemctl is-active tepna-capture >/dev/null; then
+  echo "  ✓ active"
+else
+  echo "  ✗ NOT active:"; journalctl -u tepna-capture -n 15 --no-pager | sed 's/^/    /'
+fi
 
 say "2/5  mDNS so the origin is a NAME, not an IP"
 # PIN ONE ORIGIN. localStorage is per-origin, so http://vigil.local, http://localhost and
@@ -66,7 +72,8 @@ command -v ufw >/dev/null && ufw status | head -2 | sed 's/^/  /' || echo "  (uf
 say "5/5  result"
 echo "  capture : $(systemctl is-active tepna-capture) / $(systemctl is-enabled tepna-capture 2>/dev/null)"
 echo "  web     : $(systemctl is-active caddy 2>/dev/null || systemctl is-active tepna-web 2>/dev/null)"
-echo "  apps    : $(ls /srv/tepna/app/*.html | wc -l) file(s) in /srv/tepna/app"
+served=(/srv/tepna/app/*.html); [ -e "${served[0]}" ] || served=()
+echo "  apps    : ${#served[@]} file(s) in /srv/tepna/app"
 echo
 echo "  Open  http://vigil.local/   — and ALWAYS use that name, never the IP:"
 echo "  browser storage is per-origin, so the IP would be a second, separate history."

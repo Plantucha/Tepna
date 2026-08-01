@@ -64,14 +64,20 @@ def test_grew_since_marker_is_true_when_one_entry_cannot_be_stated(tmp_path, mon
     (night / ".archived").write_text("")
     (night / "x_ECG.txt").write_text("data")
 
-    class _BadEntry:
-        name = "x_ECG.txt"
+    # Retargeted 2026-08-01 (audit F1): the guard still exists and still means the same thing, but it now
+    # lives on the `os.stat` of each walked path rather than on a scandir entry's `is_file()` — the walk
+    # is shared with archive_night so the copier and the confirmer cannot disagree. Faking `os.stat` for
+    # this one file exercises the real guard; the old fake returned a plain list where os.walk expects a
+    # scandir context manager, i.e. it pinned an implementation detail rather than the behaviour.
+    real_stat = os.stat
+    target = os.path.abspath(str(night / "x_ECG.txt"))
 
-        def is_file(self):
+    def flaky_stat(p, *a, **k):
+        if os.path.abspath(str(p)) == target:
             raise OSError("simulated stat failure")
+        return real_stat(p, *a, **k)
 
-    monkeypatch.setattr(os, "scandir", lambda p, *a, **k: [_BadEntry()]
-                        if os.path.abspath(str(p)) == os.path.abspath(str(night)) else os.scandir(p))
+    monkeypatch.setattr(os, "stat", flaky_stat)
     assert nightarchive._grew_since_marker(str(night), ".archived") is True
 
 

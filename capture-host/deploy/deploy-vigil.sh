@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# tepna-capture — deploy/deploy-vigil.sh
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # Tepna Vigil — one-shot deploy for a fresh Ubuntu Server box. Idempotent; safe to re-run.
 # Run ON THE BOX as the `vigil` user:  bash deploy-vigil.sh
 set -euo pipefail

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# tepna-capture — deploy/enable-clock-control.sh
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # Option B — let the monitor set the clock/NTP again, WITHOUT opening a root hole.
 #   sudo bash enable-clock-control.sh
 set -uo pipefail
@@ -55,6 +57,8 @@ sleep 5
 say "4/4  verify"
 echo "  unit           : $(systemctl is-active tepna-capture) / NoNewPrivileges=$(systemctl show tepna-capture -p NoNewPrivileges --value)"
 echo "  helper resolved: $(sudo -u $USER_ $SRC/.venv/bin/python -c "import sys;sys.path.insert(0,'$SRC');import helper_path as h;p=h.resolve('tepna-clock.sh');print(p,'| safely-owned:',h.is_safely_owned(p))" 2>/dev/null)"
+# shellcheck disable=SC2016  # the backticks are PROSE — Markdown-style emphasis inside a message we
+# print, not a command substitution we forgot to escape. Single quotes are exactly right here.
 echo "  sudo -n works  : $(sudo -u $USER_ sudo -n $DST/tepna-clock.sh status >/dev/null 2>&1 && echo yes || echo 'no (check the helper accepts `status`)')"
 code=$(curl -s -o /tmp/cs.json -w '%{http_code}' --max-time 20 -X POST http://127.0.0.1:8760/api/clock/sync)
 echo "  POST /api/clock/sync -> HTTP $code"

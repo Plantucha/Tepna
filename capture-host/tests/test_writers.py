@@ -297,3 +297,19 @@ def test_both_spo2_producers_write_a_blank_for_an_unreadable_pulse(tmp_path):
     rows = p.read_text().splitlines()[1:]
     assert rows[0] == "02:03:04 26/07/2026,96,,3", "blank, never 0"
     assert rows[1] == "02:03:05 26/07/2026,96,61,3"
+
+
+def test_spo2_writer_blanks_an_absent_reading_rather_than_writing_the_word_None(tmp_path):
+    """Audit F6. `write` defended `pr=None` (blank, never 0 — "a fabricated 0 is indistinguishable from
+    a real reading") and left `spo2` undefended, so an absent SpO2 would have been formatted as the
+    literal string `None` into the Oxygen Level column. Both call sites guard today; the writer is the
+    place the rule is stated, so it is the place it has to hold."""
+    p = str(tmp_path / "spo2.csv")
+    w = writers.Spo2CsvWriter(p, fsync=False)
+    w.write(_dt.datetime(2026, 7, 1, 23, 0, 0), None, None, 0)
+    w.write(_dt.datetime(2026, 7, 1, 23, 0, 1), 97, 58, 0)
+    w.close()
+    rows = open(p).read().strip().split("\n")
+    assert rows[1] == "23:00:00 01/07/2026,,,0", f"absent must be BLANK, got {rows[1]!r}"
+    assert "None" not in rows[1], "the string 'None' in a CSV is a value, and it is not a measurement"
+    assert rows[2] == "23:00:01 01/07/2026,97,58,0"

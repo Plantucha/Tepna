@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# tepna-capture — deploy/sse-frames.sh
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # Count the SSE `data:` frames a URL delivers within a time budget.
 #
 #   sse-frames.sh <url> [seconds] [extra curl args...]

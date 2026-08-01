@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# tepna-capture — deploy/expose-monitor.sh
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # Put apps + monitor + captures on the LAN at one origin, behind browser-native auth.
 #   sudo bash expose-monitor.sh
 #
@@ -112,10 +114,15 @@ fi
 
 systemctl reload caddy || systemctl restart caddy
 sleep 2
+# `$A` below is DELIBERATELY unquoted at its use sites: it carries two separate curl arguments
+# (`-u` and `user:pass`) and must word-split into them. Quoting it would hand curl the single argument
+# `-u vigil:hunter2`, which it rejects — and the empty case must expand to NOTHING, which a quoted ""
+# does not. Hence the SC2086 suppressions at those two lines rather than here.
 A=""; [ -n "$P" ] && A="-u $U:$P"
 echo
 echo "  caddy    : $(systemctl is-active caddy)"
 for path in "/" "/monitor/" "/api/state" "/captures/"; do
+  # shellcheck disable=SC2086  # $A must split into `-u` + `user:pass`, or vanish entirely. See above.
   printf "  %-11s HTTP %s\n" "$path" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 6 $A -H 'Host: vigil.local' "http://127.0.0.1$path")"
 done
 [ -n "$P" ] && echo "  unauthed   HTTP $(curl -s -o /dev/null -w '%{http_code}' --max-time 6 -H 'Host: vigil.local' http://127.0.0.1/api/state)  (401 = auth enforced)"
@@ -130,6 +137,7 @@ for s in _all ecg; do
   # Counting is delegated to sse-frames.sh, which is tested. Doing it inline here is what produced a
   # permanent false "0 frames": pipefail plus a deliberately timed-out curl makes the pipeline
   # non-zero every run, so an `|| N=0` fallback clobbers the real count. See that script's header.
+  # shellcheck disable=SC2086  # $A must split into `-u` + `user:pass`, or vanish entirely. See above.
   N=$(bash "$(dirname "$0")/sse-frames.sh" "http://127.0.0.1/api/stream/$s" 9 $A -H 'Host: vigil.local')
   if [ "${N:-0}" -ge 3 ]; then
     printf "    ✓ /api/stream/%-5s %s frames in 9 s\n" "$s" "$N"

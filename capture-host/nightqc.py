@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import os
-import re
 
 import writers
 from datetime import datetime, timedelta
@@ -32,19 +31,19 @@ _SESSION_GAP_SEC = 3600.0
 # How far into a day a capture may open and still be ASKED whether it continues last night. A cost
 # guard on the probe, not a correctness threshold — see prev_probe_window.
 _PREV_PROBE_SEC = 12 * 3600.0
-_STAMP_RE = re.compile(r"_(\d{14})_")
+# Stamp parsing moved to writers.file_stamp (audit F5) — anchored, year-validated, one implementation.
 
 
 def _session_of(fname: str, mtime: float) -> float:
     """The capture SESSION a file belongs to, as an epoch — the `_YYYYMMDDHHMMSS_` START stamp
     writers.capture_filename() embeds (the instant the connection opened). Falls back to the file's mtime
     when the name carries no such stamp, so a legacy/stampless file is simply its own one-file session."""
-    m = _STAMP_RE.search(fname)
-    if m:
+    stamp = writers.file_stamp(fname)
+    if stamp:
         try:
-            return datetime.strptime(m.group(1), "%Y%m%d%H%M%S").timestamp()
+            return datetime.strptime(stamp, "%Y%m%d%H%M%S").timestamp()
         except ValueError:
-            pass                                       # a 14-digit run that is not a real datetime → mtime
+            pass                                       # a plausible-year run that is not a real datetime
     return mtime
 
 

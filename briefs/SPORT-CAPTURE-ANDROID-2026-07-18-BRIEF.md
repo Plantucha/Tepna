@@ -37,23 +37,59 @@ NOT a Dex node, NOT bundled by `tools/build.mjs`, NOT covered by `Dex-Test-Suite
    (stop writing rows), never a fabricated `now()`**. A capturer that free-runs across a phone
    NTP/DST step must re-anchor on a monotonic clock and log the step — the direct Android analogue of
    `capture.py`'s `_now()` monotonic anchor.
-2. **Emit existing vendor layouts + device-id filenames → no new parser branch**
+2. **Discipline the DEVICE clocks, not just the phone's — this is the app's reason to exist.**
+   `capture-host` sets each Polar sensor's clock over PS-FTP `SET_LOCAL_TIME`
+   (`polar_psftp.set_local_time` — LOCAL civil time, per the Clock Contract) on **every connect**,
+   re-reads the skew every `time.drift_check_sec`, and re-syncs on a JUMP (`capture.py
+   clock_watchdog`). Polar stamps every sample with *device* time, and an unset H10 falls back to its
+   2019-01-01 firmware default whenever it leaves the strap — so without this the sensors share no
+   origin. **Measured 2026-07-31 (PR #601) from the raw accelerometers:** phone-captured (PSL) nights
+   put H10 and Verity **1.8–5.0 s apart, median 3.3 s, not one inside 1 s**; vigil-box nights
+   **0.10–0.39 s**. PSL does not set device clocks; the box does. **That gap is the entire delta
+   between this app and a PSL export** — file-layout parity (invariant 3) buys nothing the suite does
+   not already have for free.
+   - Set both Polar clocks on **every** connect, not once per session: the H10 drops the link on
+     skin-contact loss mid-bout, which §7 already treats as expected.
+   - Re-anchor each reconnect fragment to the phone clock and log the applied skew. A **constant**
+     offset is recorded once and left alone; a **jump** triggers a re-sync. Do not chase a fixed
+     offset — that is `clock_watchdog`'s documented lesson, and the Verity's +4 h PMD stamp is the
+     known example of an offset no amount of re-syncing moves.
+   - **The anchor itself.** The phone clock is NTP-disciplined at ms level, already an order of
+     magnitude inside the ≤ 0.5 s bar in §12. A **GNSS** anchor is a legitimate upgrade — the receiver
+     is on anyway for the §4 `.gpx` track — but only via `GnssClock` raw measurements with the
+     `leapSecond` correction applied; NMEA UTC is ~1 s, and `System.currentTimeMillis()` is not
+     GNSS-disciplined at all. **Never step the system clock** (it needs root and would break every
+     monotonic anchor) — carry an offset. Mishandling the 18 s GPS↔UTC leap correction is exactly the
+     silently-plausible-but-wrong instant that §🔒.7 exists to reject.
+   - **Record the provenance; never fabricate it.** Write a per-session clock sidecar naming what
+     disciplined the phone (`gnss` / `ntp` / `none`) and the per-sensor sync outcome — the Android
+     analogue of `host_clock.classify`'s `disciplined | holdover | unknown` ladder and the
+     `Tepna_*_CLOCK.csv` sidecar. An untrusted anchor must **not** stop the device sync (a
+     common-but-wrong base still beats a 2019 default); it must be **stamped**.
+3. **Emit existing vendor layouts + device-id filenames → no new parser branch**
    (`CAPTURE-HOST §7`, `writers.py`). Filenames are
    `<Vendor>_<Model>_<DeviceId>_<YYYYMMDDHHMMSS>_<STREAM>.<ext>`; one device-id per physical sensor so
    the suite's companion-pairing (`signal-orchestrate.js pairCompanions`, device-id + nearest stamp)
    works and a Verity `_ACC` never cross-pairs onto an H10 `_ECG`. The `timestamp [ms]` column is
    **relative-to-first-sample AND fractional** — never rounded (ECGDex infers `fs` from its step; the
    ~10 % HR bug in `CAPTURE-HOST-FOLLOWUPS-2026-07-16 §1` was exactly this).
-3. **Zero network egress.** The app captures and writes files **locally**; it does not phone home, no
+4. **Zero network egress.** The app captures and writes files **locally**; it does not phone home, no
    cloud sync, no analytics, no CDN. "100 % local" applies to any producer we ship
    (`POLAR-SDK-CAPTURE §4 rule 2`). GPS/route data (new here, §3) makes this *stricter*, not looser.
-4. **No new persistent identifiers.** Use the Polar/O2Ring device-id for pairing only; never stamp a
+5. **No new persistent identifiers.** Use the Polar/O2Ring device-id for pairing only; never stamp a
    subject ID or hardware serial into exports (`EXPORT-IDENTITY-2026-06-27-BRIEF`).
-5. **SPDX + Apache-2.0** on every authored source file. The Polar BLE SDK is a **build dependency
-   (BSD-3-Clause, Apache-2.0-compatible)** — record it in `THIRD-PARTY.md` and the `docs/COMPLIANCE/`
-   SOUP list if it enters a shipped artifact. Do **not** copy SDK source verbatim into any file that
-   carries our SPDX header.
-6. **Compute lives in the Dex apps, never on the capturer** (`MULTI-SENSOR-DERIVATIONS §0`). The app
+6. **SPDX + Apache-2.0** on every authored source file. ⚠️ **The Polar BLE SDK is PROPRIETARY, not
+   BSD-3** — corrected 2026-08-01 against the upstream repo: `spdx_id: NOASSERTION`, licence file
+   `Polar_SDK_License.txt`, GitHub classification "Other". Its terms: use/copy/modify permitted **only
+   with Polar's copyright and licence notice retained**; redistribution limited to *object code bundled
+   with your app, for the purpose of moving data between a Polar device and that app* (§3.1);
+   commercial use permitted; attribution on the product required (§4.3); and an explicit field-of-use
+   denial — **"not intended to be used in life critical, life supporting or medical purpose"** (§3.2).
+   It is **not copyleft**: taking it would not push our own code off Apache-2.0. If it ever enters a
+   shipped artifact it needs a `THIRD-PARTY.md` row, a `docs/COMPLIANCE/` SOUP entry, and the notices
+   above. Do **not** copy SDK source verbatim into any file that carries our SPDX header — and see §9
+   for the attribution the *existing* `capture-host/` protocol modules already owe.
+7. **Compute lives in the Dex apps, never on the capturer** (`MULTI-SENSOR-DERIVATIONS §0`). The app
    captures RAW and may *display* a live monitor (§5), but it computes **no analysis metric** that a
    Dex node owns. The files it writes are the deliverable; the analysis happens later in
    ECGDex/PpgDex/HRVDex/MotionDex.
@@ -73,18 +109,25 @@ sport — and different enough that a naïve port of the daemon would be wrong.
 | Session | Unattended **overnight**, ~8 h, systemd `Restart=always` | User-started **bouts** (minutes–hours), explicit start/stop, foreground service |
 | Dominant signal concern | Quiet, low-motion; artifact is the exception | **Motion is the point** — IMU/ACC is first-class, not a sidecar |
 | New signals | none (ECG/PPG/SpO₂/IMU) | **GPS track, barometric altitude, phone IMU, cadence/pace** |
-| Decode path | Reverse-engineered PMD in Python (`polar_pmd.py`, has caveats) | **Official Polar BLE SDK** — authoritative decode, SDK mode, offline fetch |
+| Decode path | Own PMD + PS-FTP in Python (`polar_pmd.py` / `polar_psftp.py`; delta frames unhandled) | **The same protocol work ported to Kotlin** over raw `BluetoothGatt` — the SDK is a fallback, not the foundation (§2) |
 | Connectivity | LAN, served apps at `http://tepna.local` | Off-network in the field; the **phone is the store** |
 | Reliability enemy | BlueZ wedge, skin-contact drops | Android **Doze / background-execution limits**, battery, thermal |
 
 Two consequences fall out of this table and shape the whole design:
 
-- **The Polar BLE SDK is native Android/iOS only** (`POLAR-SDK-CAPTURE §2`). On the phone there is **no
-  reverse-engineering tax** — the SDK gives official ECG/ACC/PPG/PPI/gyro/mag decode (including the
-  compressed/delta frames `polar_pmd.py` flags as its weakest paths), SDK mode, and first-class
-  offline-recording fetch **for free**. This is the single biggest reason the sport host is a *better*
-  place to be than the Pi for Polar hardware, and it directly retires the daemon's decode caveats for
-  anything captured here.
+- **The Polar BLE SDK is available on the phone and not on the Pi** (`POLAR-SDK-CAPTURE §2`) — but the
+  reverse-engineering tax it would buy off has **already been paid**, in this repo, under Apache-2.0.
+  `polar_pmd.py` decodes ECG/ACC/PPG/PPI/gyro/mag; `polar_psftp.py` lists **and pulls** the onboard
+  offline recordings over PS-FTP (RFC60/RFC76). Both are hardware-validated. Porting our own modules to
+  Kotlin is a translation, not a reimplementation. **Decision (2026-08-01): we do not take the SDK
+  unless something forces us to.** It is proprietary (§0.6) and it is not needed for the capture path.
+  - **The one genuine gap** is the compressed/**delta** PMD frame types (`frame_type >= 1` for ACC/PPG),
+    which `polar_pmd.py` explicitly refuses to guess at and defers to the SDK's decoder. That is bounded,
+    well-specified decoding work — the *only* thing that would reopen the SDK question. Establish early
+    (Phase 0) which frame types your firmware actually emits; if it is uncompressed throughout, the
+    question never arises.
+  - **SDK mode** (device-specific rates/ranges) and connection management are conveniences, not
+    blockers; the daemon negotiates settings today via PMD control op `0x01`.
 - **Motion is signal, not noise, but it is still not ours to analyse on the box.** Sport wants
   cadence, pace, HR-zone feedback, effort — but those are Dex-node outputs (ECGDex ambulatory mode
   already emits `activity:{steps, briskPct, …}`; MotionDex is scoped for actigraphy/position). The app
@@ -94,16 +137,25 @@ Two consequences fall out of this table and shape the whole design:
 
 ## 2 · Platform & foundation
 
-- **Native Android, Kotlin.** minSdk 24 (the Polar SDK floor); target a current API level for the
-  foreground-service + storage rules. Kotlin + coroutines (or RxJava3 as the SDK ships) — the SDK is
-  Kotlin/RxJava3 on Android.
-- **Foundation: the official Polar BLE SDK** (`github.com/polarofficial/polar-ble-sdk`, BSD-3-Clause).
-  Use it for Polar H10 / Verity Sense: online streaming (ECG · ACC · PPG · PPI · gyro · mag · HR),
-  **SDK mode** (device-specific rates/ranges), **offline-recording** start/stop/list/fetch, feature
-  discovery, Battery/DIS reads. This is Track B1 of `POLAR-SDK-CAPTURE` made real.
-- **Non-Polar sensors reuse the reverse-engineered protocols already proven in `capture-host/`, ported
-  to Android BLE** — the byte-level work is done and hardware-validated; only the transport changes
-  (Android `BluetoothGatt` / the SDK's generic BLE, not BlueZ/bleak):
+- **Native Android, Kotlin + coroutines.** minSdk 24 — no longer "the Polar SDK floor" (the SDK is out,
+  §1) but still the right floor: it is where `GnssClock` raw measurements arrive, which §0.2 wants for
+  the optional GNSS anchor. Target a current API level for the foreground-service + storage rules.
+  Coroutines throughout; there is no RxJava3 dependency to inherit now.
+- **Foundation: our own protocol modules, ported — NOT the Polar SDK** (decided 2026-08-01, see §1).
+  `polar_pmd.py` (PMD service: control point, ECG · ACC · PPG · PPI · gyro · mag) and `polar_psftp.py`
+  (PS-FTP over RFC60/RFC76: list + fetch onboard offline recordings) are Apache-2.0 and
+  hardware-validated; port them to Kotlin over raw `BluetoothGatt`. This keeps the Android app free of
+  a proprietary dependency and its notice/field-of-use obligations (§0.6, §9). The SDK is reconsidered
+  **only** if compressed/delta PMD frame decoding proves intractable — nothing else in the capture path
+  needs it. This is still Track B1 of `POLAR-SDK-CAPTURE` made real; only the decode foundation changed.
+- **All sensors reuse the protocols already proven in `capture-host/`, ported to Android BLE** — the
+  byte-level work is done and hardware-validated; only the transport changes (Android `BluetoothGatt`,
+  not BlueZ/bleak):
+  - **Polar H10 / Verity Sense** (`polar_pmd.py` + `polar_psftp.py` + `bonding.py` → Kotlin): PMD
+    service `FB005C80` (control `…81`, data `…82`) — `GET_SETTINGS 0x01` / `START 0x02` / `STOP 0x03`,
+    the per-type frame decoders, and the status-code table incl. the "no answer is not a rejection"
+    rule; PS-FTP `FB005C51` for offline-recording list + GET; and `SET_LOCAL_TIME` for the clock
+    discipline §0.2 makes mandatory. Bonding first — Polar gates PS-FTP behind an encrypted link.
   - **O2Ring-S / T8520 "OxyII"** (`oxyii.py` → Kotlin): the 0xA5/CRC-8 framing, auth `0xFF` → setup
     `0x10` → poll `0x04`, `SET_UTC_TIME 0xC0`, and the validated **live ~125 Hz finger-PPG body**
     (`parse_ppg`) + stored `.dat` transfer (`0xF1–0xF4`). Reference: `O2RING-PROTOCOL-2026-07-17-BRIEF.md`
@@ -116,21 +168,23 @@ Two consequences fall out of this table and shape the whole design:
   like `.github/workflows/capture-host-ci.yml` runs only on `capture-host/**`. The JS gates are
   untouched. (Monorepo, not a split repo — same reasoning as the capture-host CI decision: the
   vendor-file-format + Clock-Contract producer/consumer coupling wants atomic same-repo PRs.)
-- **iOS is explicitly out of scope** for this brief (the SDK supports it; a second platform is a later
-  call). One platform, shipped and validated, first.
+- **iOS is explicitly out of scope** for this brief (a second platform is a later call — and one that
+  would re-raise the SDK question on its own terms). One platform, shipped and validated, first.
 
 ---
 
 ## 3 · Signals captured — the sport signal set
 
-Every stream is written RAW in its existing PSL layout (§4). Rates are the SDK/device defaults the
-capture-host already requests; SDK mode can unlock higher ones where a downstream node benefits.
+Every stream is written RAW in its existing PSL layout (§4). Rates are the device defaults the
+capture-host already requests over PMD control op `0x01`; the device's extended ("SDK") mode can unlock
+higher ones where a downstream node benefits — that is a **device** capability negotiated on the
+control point, not something the Polar SDK is required for (§2).
 
 **Inherited streams (existing PSL layouts — no new adapter):**
 
 | Sensor | Stream(s) | Rate / shape | Notes |
 |---|---|---|---|
-| Polar H10 | `_ECG` (14-bit) · `_ACC` (chest, mg) · `_HR`/RR | ECG 130 Hz · ACC 200 Hz (or SDK-mode) · HR 1 Hz, RR 1/1024 s | ECG is the honest-HR leg. RR in 1/1024 s → convert to ms explicitly. |
+| Polar H10 | `_ECG` (14-bit) · `_ACC` (chest, mg) · `_HR`/RR | ECG 130 Hz · ACC 200 Hz (or extended-mode) · HR 1 Hz, RR 1/1024 s | ECG is the honest-HR leg. RR in 1/1024 s → convert to ms explicitly. |
 | Polar Verity Sense | `_PPG` (4-ch: 3 LED + ambient) · `_ACC` (wrist) · `_GYRO` · `_MAGN` · `_PPI` | PPG 55 Hz · ACC/GYRO 52 Hz · MAG 50 Hz | PPI is often empty on this unit — derive HR from raw PPG, not `_PPI`. |
 | Wellue O2Ring-S (optional) | `_SpO2` CSV · finger `_PPG` (~125 Hz) | 1 Hz SpO₂/PR · 125 Hz pleth | Finger site; ring clock is unsynced (`SET_UTC_TIME` fixes it, else back-time from arrival). |
 
@@ -153,14 +207,37 @@ Integrator ingestion) is out of scope for THIS brief (§6, §10).
 **Inherited streams:** write the **byte-identical PSL vendor layouts** `writers.py` already emits, so
 they route with **zero new parser branch**:
 
+⚠️ **Corrected 2026-08-01 (audit F4) — the block below now matches `writers.StreamWriter.HEADERS`
+verbatim, verified against real corpus files.** It previously carried a `timestamp [ms]` column on
+**acc/gyro/mag** that neither Polar Sensor Logger nor the box emits, named the PPG columns `ppg0/1/2`
+instead of `channel 0/1/2`, and merged HR and RR into one file that PSL splits into two. An implementer
+following it would have written a 6-column ACC file into parsers that expect 5 — every axis shifted one
+column left, reading the sensor-ns column as X. Do not re-derive this table by hand: it is
+`writers.HEADERS`, and that is the source of truth.
+
 ```
 ecg:  Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]
-acc:  Phone timestamp;sensor timestamp [ns];timestamp [ms];X [mg];Y [mg];Z [mg]
-ppg:  Phone timestamp;sensor timestamp [ns];timestamp [ms];ppg0;ppg1;ppg2;ambient
-hr:   Phone timestamp;sensor timestamp [ns];HR [bpm];RR-interval [ms]
-gyro: Phone timestamp;sensor timestamp [ns];timestamp [ms];X [dps];Y [dps];Z [dps]
-mag:  Phone timestamp;sensor timestamp [ns];timestamp [ms];X [G];Y [G];Z [G]
+acc:  Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]
+ppg:  Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient
+ppg1: Phone timestamp;sensor timestamp [ns];channel 0          ← single-optical-path sites (see below)
+hr:   Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];
+rr:   Phone timestamp;RR-interval [ms]
+gyro: Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]
+mag:  Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]
+ppi:  Phone timestamp;sensor timestamp [ns];HR [bpm];PP-interval [ms];error estimate [ms];blocker;skin contact;skin contact supported
 ```
+
+Three consequences that are easy to get wrong and expensive to find later:
+
+- **`timestamp [ms]` exists on ECG only.** It is relative-to-first-sample and **fractional** — emitting
+  it integer or absolute made ECGDex infer `fs=143` instead of 130, a silent ~10 % HR error.
+- **HR and RR are two files.** PSL writes `_HR.txt` (HR only; the HRV/Breathing columns exist in the
+  header and stay empty) and a sibling `_RR.txt` for the per-beat intervals. `PulseDex.parseRRInput` and
+  ECGDex's `_RR` routing both expect the split.
+- **A single-photodiode site uses `ppg1`, never `ppg` with the value replicated.** Fanning one optical
+  path across three channels is what let PpgDex's consensus vote report a fabricated `ledAgreementPct:
+  100` at `measured` tier (AUDIT-PROMPT class 11). The header and the row shape share one stream key so
+  they cannot drift apart.
 plus the ViHealth SpO₂ CSV `Time,Oxygen Level,Pulse Rate,Motion` with `%H:%M:%S %d/%m/%Y` stamps for
 the O2Ring. Same filename convention. Same fractional un-rounded `timestamp [ms]`. Same per-frame
 host-arrival back-timing. **A capture parity harness (the Android analogue of
@@ -242,7 +319,7 @@ version of a lost overnight:
 - **Doze / App-Standby / background-execution limits** are the enemy `CAPTURE-HOST-FOLLOWUPS` never
   faced. Hold a partial wake lock for the session; request battery-optimisation exemption; validate the
   screen-off, pocketed, long-run case explicitly (this is where Android silently kills capture).
-- **BLE robustness** — the SDK handles reconnection, but the sport envelope adds body-attenuation
+- **BLE robustness** — reconnection is now ours to own (§2), and the sport envelope adds body-attenuation
   dropouts and **H10 skin-contact gating** (it drops the link after ~20–30 s of no skin contact and
   advertises only on contact — `POLAR-SDK-CAPTURE §5`). Treat that auto-disconnect as **expected**:
   reconnect on contact-resume, and record the gap **as a gap** (Clock Contract — never fabricate rows
@@ -253,10 +330,13 @@ version of a lost overnight:
 - **Session lifecycle** — explicit start (arm devices, negotiate settings, begin files) and stop
   (flush + fsync + close, like `writers.py`'s `FLUSH_INTERVAL_S` auto-flush so a crash/kill bounds the
   at-risk tail). A crash mid-session must leave a valid, gap-honest partial folder.
-- **Offline-recording fetch as a backstop** — the SDK makes it first-class. If a live BLE link drops
-  during a bout, the H10/Verity **onboard recording** (started via SDK) is the reliability net; fetch
-  it on session-stop and reconcile. This is the sport analogue of the bedside "morning fetch" idea and
-  the strongest argument for the SDK over generic BLE here.
+- **Offline-recording fetch as a backstop.** If a live BLE link drops during a bout, the H10/Verity
+  **onboard recording** is the reliability net; fetch it on session-stop and reconcile. This is the
+  sport analogue of the bedside "morning fetch". ⚠️ **Corrected 2026-08-01:** this used to be listed as
+  "the strongest argument for the SDK over generic BLE" — it is not an argument for the SDK at all.
+  `capture-host/polar_psftp.py` already lists and pulls those recordings over PS-FTP, on real hardware,
+  under Apache-2.0. Port it (§2). What the SDK adds here is *starting/stopping* a recording remotely,
+  which a button press and a session-stop fetch cover.
 
 ---
 
@@ -274,18 +354,33 @@ version of a lost overnight:
   route preview is shown, render the polyline locally with no network map.
 - **Clock across a run.** A long outdoor bout can cross a network-time correction; the monotonic
   re-anchor (§0.1) must hold, and GPS time must not be silently substituted for the local-civil wall
-  clock the Clock Contract mandates.
+  clock the Clock Contract mandates. A **GNSS-disciplined anchor** (§0.2) is compatible with that and
+  is the point: GNSS may set *what the anchor believes the time is*, after the leap-second correction;
+  the bytes written to disk stay zone-free local civil.
 
 ---
 
 ## 9 · Privacy & licensing
 
-- **Zero network egress** (§0.3) — reinforced by GPS: nothing leaves the phone without an explicit
+- **Zero network egress** (§0.4) — reinforced by GPS: nothing leaves the phone without an explicit
   user share. No analytics SDKs, no crash-reporting-to-cloud, no map/tile fetch.
-- **No persistent identifiers in exports** (§0.4, `EXPORT-IDENTITY`).
-- **SPDX / Apache-2.0** on all authored source; **Polar BLE SDK = BSD-3 build dependency** →
-  `THIRD-PARTY.md` + `docs/COMPLIANCE/` SOUP entry if shipped. Do not vendor SDK source into
-  SPDX-headered files.
+- **No persistent identifiers in exports** (§0.5, `EXPORT-IDENTITY`).
+- **SPDX / Apache-2.0** on all authored source. **The Polar BLE SDK is proprietary, not BSD-3** (§0.6)
+  — and as of the §2 decision it is **not a dependency at all**, so no `THIRD-PARTY.md` row or SOUP
+  entry is owed for it unless that decision is reversed.
+- **Attribution the existing protocol modules already owe (open, found 2026-08-01).** This is a
+  `capture-host/` debt, surfaced here because the port inherits it. `polar_psftp.py`'s header states the
+  protocol is *"verbatim from the official Polar BLE SDK (BlePsFtpUtils.kt / pftp_request.proto)"* and
+  `polar_pmd.py` cites the SDK's PMD spec — i.e. **derived by reading Polar's source, not clean-room**,
+  while carrying only Tepna's SPDX header. Polar's licence permits use and modification *provided its
+  copyright and licence notice is retained* (§3.1) and requires product attribution (§4.3). Two things
+  are owed, and neither is a code change: (1) reword those headers to describe **the wire format** —
+  the framing, the characteristics, the protobuf field numbers — rather than naming the file they were
+  read from; a protocol is a fact and reimplementing one for interoperability is well-established, but
+  "verbatim from `BlePsFtpUtils.kt`" describes a copy; (2) add a Polar row to `THIRD-PARTY.md` recording
+  the protocol provenance. The GPL clean-room discipline the format-contract brief applies to
+  `open-polar-h10-ecg-logger` was never applied to the SDK, because its terms were an open question
+  until now.
 - **Intended-use / non-device disclaimer** carries onto any user-facing surface, same as the apps
   (`CLAUDE.md §📜`, `docs/COMPLIANCE/` is 62304/13485-*aligned*, not conformant).
 
@@ -311,14 +406,20 @@ version of a lost overnight:
 
 Each phase is independently useful and independently validatable on real hardware.
 
-1. **Phase 0 — skeleton + one stream.** Gradle project `capture-android/`, foreground service, Polar
-   SDK wired, **H10 ECG only** → PSL `_ECG.txt` to app storage. Validate the **parity harness** (§12):
+1. **Phase 0 — skeleton + one stream.** Gradle project `capture-android/`, foreground service,
+   `polar_pmd.py` ported to Kotlin over raw `BluetoothGatt` (§2), **H10 ECG only** → PSL `_ECG.txt` to
+   app storage. **Record which PMD frame types the firmware actually emits** — uncompressed throughout
+   retires the delta-decoder question (§1) before it can shape the design. Validate the **parity harness** (§12):
    byte-diff vs a PSL export, `fs=130`, `0.0` first ms, gap-honest across a deliberate skin-contact
    drop. This proves the Clock-Contract + filename + fractional-ms contract on Android before anything
    else is added.
-2. **Phase 1 — full Polar streams.** Add H10 ACC + RR, Verity PPG (4-ch) + ACC/GYRO/MAG. SDK mode
-   exposed. Multi-device concurrent capture. Confirm each routes into ECGDex/PpgDex/(MotionDex-input)
-   with no new parser branch.
+2. **Phase 1 — full Polar streams + device-clock discipline.** Add H10 ACC + RR, Verity PPG (4-ch) +
+   ACC/GYRO/MAG. SDK mode exposed. Multi-device concurrent capture. Confirm each routes into
+   ECGDex/PpgDex/(MotionDex-input) with no new parser branch. **Implement §0.2 here** — `SET_LOCAL_TIME`
+   to both Polars on every connect, per-fragment re-anchor, skew logged, clock-provenance sidecar
+   written — and clear the cross-device agreement gate (§12). Adding a second sensor without this is
+   the phase that produces a PSL clone: the file layout is the easy half, the shared origin is the
+   half that justifies the build.
 3. **Phase 2 — reliability.** Wake lock, battery-exemption, Doze survival on a real long screen-off
    pocketed run; flush/fsync tail-bounding; crash-leaves-valid-partial; **offline-recording fetch on
    stop** as the backstop.
@@ -343,6 +444,16 @@ Its own bar:
 - **Capture-parity harness** (blocking, the Android `ecg_parity_harness.py` analogue): decode → write →
   re-parse; a real-hardware ~30 s H10 ECG window byte-diffs against a Polar-Sensor-Logger export of the
   same window; `parseECGText` infers `fs=130`, first `timestamp [ms]` = `0.0`, no spurious gaps.
+- **Cross-device clock agreement** (blocking — the acceptance test for §0.2, and the one number that
+  says whether this app beat PSL): capture one real session with H10 **and** Verity both worn, then
+  `node tools/wearable-sync.mjs --src <session> --night <date> --fs 4 --json <ledger>`. The measured
+  H10↔Verity offset must land **≤ 0.5 s** — inside the vigil box's 0.10–0.39 s band, not PSL's
+  1.8–5.0 s (median 3.3 s). A session the tool cannot resolve is **excluded, never defaulted to zero**
+  (PR #601's own rule). Re-run it whenever the connect/reconnect path changes: this regresses silently,
+  because every file still parses and every stream still looks healthy.
+- **Clock-provenance sidecar present and honest** — names `gnss`/`ntp`/`none` for the phone anchor and
+  a per-sensor sync outcome, with no fabricated value when the state is unreadable (`unknown` is a
+  legal, expected answer — `host_clock.classify`'s rule).
 - **Clock-Contract verification** (the §🔒 checklist): first/last written rows match wall time;
   re-render under a changed device TZ → identical clock (floating `tMs` invariance); overnight/long
   run monotonic, no 24 h jump; a deliberate disconnect leaves a **gap**, not fabricated rows.
@@ -363,8 +474,26 @@ Its own bar:
 - **Greenlight a native Android build track at all?** (This is the Track-B1 decision
   `POLAR-SDK-CAPTURE §6` left open — now scoped for sport.) If yes, this flips to IN-PROGRESS and
   Phase 0 opens.
-- **O2Ring in scope for sport?** (Finger site + unsynced clock; nice-to-have, not core — Phase 3 is
-  optional.)
+- ~~**Polar SDK or our own protocol modules?**~~ **RESOLVED 2026-08-01: our own** (§2). The SDK is
+  proprietary with notice + field-of-use obligations (§0.6), and the capture path does not need it —
+  PMD decode and PS-FTP offline fetch are already ours. Reopens only if compressed/delta PMD frames
+  prove intractable.
+- **Monorepo or a separate repo? — the two briefs disagree, and this needs a call.** §2 here says
+  `capture-android/` as an out-of-suite sibling *in this repo* ("Monorepo, not a split repo"), while
+  `ANDROID-CAPTURE-FORMAT-CONTRACT` §1 assumes "a separate Android capture app in its own repo under
+  its own licence". The SDK decision above removes the *licence* reason to split — with no proprietary
+  dependency the app can simply be Apache-2.0 — so what remains is a pure toolchain/ecosystem call
+  (Gradle + Play Store cadence vs atomic same-repo PRs on the vendor-format coupling). Whichever wins,
+  the losing brief's paragraph must be corrected, not left to drift.
+- **Anchor the phone clock to GNSS, or trust network time?** `GnssClock` raw measurements (+ the
+  `leapSecond` correction) give a checkable reference and the receiver is already on for the §4 `.gpx`
+  track; NTP alone already clears the §12 ≤ 0.5 s bar, so this is an accuracy/provenance upgrade, not
+  the fix. Either way the provenance is recorded (§0.2). Note the ranking: a perfect anchor that is
+  never written to the sensors changes nothing — **distributing** the anchor is what closes the 3.3 s
+  gap, not sharpening it.
+- **O2Ring in scope for sport?** (Finger site; nice-to-have, not core — Phase 3 is optional. Its clock
+  *is* settable: OxyII `SET_UTC_TIME`, already ported in `capture-host/oxyii.py`, so if it lands it
+  falls under §0.2 like the Polars.)
 - **Do the sport-native streams (GPS/baro/phone-IMU) get a consumer node now, or capture-only until a
   SportDex/MotionDex ingests them?** (This brief assumes capture-only.)
 - **iOS ever?** (Out of scope here; the SDK supports it.)
@@ -379,7 +508,10 @@ This is a proposal; it flips to **IN-PROGRESS** when a human greenlights the And
 phase (§11) flips its own acceptance. **Phase 0 is done when:** a native Android app captures real H10
 ECG to a PSL `_ECG.txt`, the file passes the capture-parity harness (byte-diff vs PSL, `fs=130`, `0.0`
 first ms, gap-honest), and the file opens in `ECGDex.html` yielding R-peaks + a sane HR — all on real
-hardware. The brief flips to **DONE** when the capture host reliably produces routable, Clock-Contract-
+hardware. **Phase 1 is done when** that holds for every Polar stream concurrently **and** the §12
+cross-device agreement gate passes on real hardware (H10↔Verity ≤ 0.5 s, `wearable-sync.mjs`-measured)
+with the clock-provenance sidecar written: a phone capture that does not discipline the sensor clocks
+is a PSL clone and does not justify the build. The brief flips to **DONE** when the capture host reliably produces routable, Clock-Contract-
 correct sport sessions validated end-to-end into the Dex apps, with the Android CI green and a
 `how-to-collect/sport-android.md` written. Follow-ups →
 `SPORT-CAPTURE-ANDROID-FOLLOWUPS-YYYY-MM-DD-BRIEF.md`.
@@ -402,7 +534,16 @@ correct sport sessions validated end-to-end into the Dex apps, with the Android 
 - `O2RING-PROTOCOL-2026-07-17-BRIEF.md` (REFERENCE) · `O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md` —
   the OxyII protocol + live finger-PPG this would port to Android.
 - `EXPORT-IDENTITY-2026-06-27-BRIEF.md` — no subject-id/serial in exports.
+- `ANDROID-CAPTURE-FORMAT-CONTRACT-2026-07-26-BRIEF.md` (REFERENCE) — the file-level interface a phone
+  must write. Complementary: it owns the *bytes*, §0.2 here owns the *shared origin* behind them.
+- `docs/papers/wearable-clock-drift.html` · `tools/wearable-sync.mjs` — the measurement behind §0.2
+  (PR #601, 2026-07-31): H10↔Verity 1.8–5.0 s on phone capture vs 0.10–0.39 s on the vigil box, and the
+  tool that measures it per session.
 - `docs/ADD-AN-ADAPTER.md` — the sanctioned path for the new sport-native streams (GPS/baro/phone-IMU).
 - `CLAUDE.md` §🎙️ Capture provenance · §🔒 Clock Contract · §📜 Licensing — law; wins on conflict.
-- Upstream: `github.com/polarofficial/polar-ble-sdk` (BSD-3) · `create-mobile-app-for-polar-sensors`
-  (H10 operating-logic primer).
+- Upstream: `github.com/polarofficial/polar-ble-sdk` — **`NOASSERTION` / `Polar_SDK_License.txt`,
+  proprietary** (verified 2026-08-01; the earlier "BSD-3" in this brief was wrong) ·
+  `create-mobile-app-for-polar-sensors` (H10 operating-logic primer).
+- `capture-host/polar_pmd.py` · `capture-host/polar_psftp.py` · `capture-host/bonding.py` ·
+  `capture-host/oxyii.py` — the Apache-2.0 protocol work this port translates, and the reason §2 needs
+  no SDK.

@@ -121,10 +121,26 @@ jobs:
         # a guard that isn't there. Installing them is also what lets those modules report real coverage.
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov ruff
+          pip install pytest pytest-cov ruff shellcheck-py
           pip install -r requirements.txt
       - name: Lint (ruff — real errors only)
         run: ruff check .
+      # ⚠️ THE SHELL FLOOR IS `style` — the STRICTEST level, and it is a floor for the same reason the
+      # coverage number is. Python coverage here is 100% statement+branch, but that denominator is .py
+      # files: the ~16 shell scripts beside them — including the three holding NOPASSWD root grants and
+      # the two that write /etc/sudoers.d — were outside every gate until 2026-08-01.
+      #
+      # The tree is CLEAN at this level today (it was: 0 error, 0 warning, 13 info). Getting there fixed
+      # real things and suppressed nothing silently: the `A && B || C` counter updates in sync-apps.sh /
+      # install-services.sh became if/else, and the five remaining suppressions are INLINE
+      # `# shellcheck disable=SCxxxx` with a comment proving why at the line — the same house rule as
+      # `# pragma: no cover`. If a finding cannot be fixed, prove it at the line; never relax this flag.
+      #
+      # shellcheck-py is pip-installed above rather than apt-installed so the version is the same one a
+      # developer's `pytest` uses (tests/test_shell_surface.py runs the identical check), and so this
+      # does not depend on what the runner image happens to ship.
+      - name: Lint (shellcheck — every .sh, strictest level)
+        run: shellcheck --severity=style $(find . -name '*.sh' -not -path './.venv*')
       - name: Unit tests + coverage (pytest)
         # Bare `--cov` (no path) on purpose — it defers to pyproject's `source = [".", "deploy"]`. An
         # explicit `--cov=.` OVERRIDES that list and silently drops deploy/ back out of the denominator,

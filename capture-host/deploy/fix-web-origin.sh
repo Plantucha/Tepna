@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
+# tepna-capture — deploy/fix-web-origin.sh
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # The IP answered 200-with-an-empty-body (Caddy's default for an unmatched Host), which is
 # indistinguishable from "server down". Redirect it to the pinned name instead of serving a blank page.
+#
+# WRITES ATOMICALLY: composes to a temp file, validates THAT, and only then replaces the live config.
+# It used to overwrite /etc/caddy/Caddyfile FIRST and validate after — so a syntax error left the box
+# holding a config it could not reload, while the script printed "not reloading" and reverted nothing.
+# That is the identical bug expose-monitor.sh's header records having fixed; this script kept it until
+# 2026-08-01. A failed validation must change nothing.
 set -uo pipefail
 [ "$(id -u)" = 0 ] || { echo "run with sudo: sudo bash $0"; exit 1; }
-cat > /etc/caddy/Caddyfile <<'CADDY'
+TMP="$(mktemp)"
+trap 'rm -f "$TMP"' EXIT
+cat > "$TMP" <<'CADDY'
 # Tepna web — the bundled Dex apps at ONE pinned origin.
 #
 # PIN ONE ORIGIN. localStorage/IndexedDB are per-origin, so http://vigil.local, http://localhost and
@@ -26,8 +36,12 @@ http://vigil.local, http://vigil {
 	redir http://vigil.local{uri} permanent
 }
 CADDY
-caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 \
-  && echo "  ✓ Caddyfile valid" || { echo "  ✗ INVALID — not reloading"; exit 1; }
+if caddy validate --config "$TMP" --adapter caddyfile >/dev/null 2>&1; then
+  install -o root -g root -m 0644 "$TMP" /etc/caddy/Caddyfile
+  echo "  ✓ Caddyfile valid — installed"
+else
+  echo "  ✗ INVALID — not installed (nothing changed)"; exit 1
+fi
 systemctl reload caddy || systemctl restart caddy
 sleep 2
 echo "  caddy: $(systemctl is-active caddy)"

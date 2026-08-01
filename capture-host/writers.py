@@ -120,6 +120,24 @@ _DATE8 = _re.compile(r"^(?:19|20)\d{6}$")
 _TIME6 = _re.compile(r"^\d{6}$")
 
 
+def file_stamp(fname: str) -> str | None:
+    """The `YYYYMMDDHHMMSS` START stamp of a capture filename, or None when it carries none.
+
+    THE ANCHORED SIBLING, and it exists because two callers had the unanchored one (audit F5,
+    2026-08-01). `nightqc._session_of` and `timeline._stamp_ms` both searched a bare `_(\\d{14})_`,
+    which takes the FIRST 14-digit run anywhere in the name. On
+    `Polar_H10_20250101000000_20260725225058_ECG.txt` that is the device SERIAL, and it strptime's
+    cleanly — so the file was silently keyed to a session eighteen months away rather than falling back
+    to mtime. Same decidability argument `file_device_id` already makes below: parse the field from the
+    RIGHT (the stamp is the token before the stream tag) and require a plausible year."""
+    base = fname.rpartition(".")[0] or fname
+    parts = base.split("_")
+    if len(parts) < 2:
+        return None
+    tok = parts[-2]                          # parts[-1] is the stream tag
+    return tok if _DATE14.match(tok) else None
+
+
 def file_device_id(fname: str) -> str | None:
     """The device_id FIELD of a capture filename — the exact inverse of capture_filename's id slot.
 
@@ -606,16 +624,24 @@ class Spo2CsvWriter:
         self._counted = True
         _writer_opened()
 
-    def write(self, when: _dt.datetime, spo2: int, pr, motion: int) -> None:
-        """`pr` may be None — the ring reports a pulse rate outside 20-250 when it cannot read one.
+    def write(self, when: _dt.datetime, spo2, pr, motion: int) -> None:
+        """`spo2` and `pr` may both be None — the ring reports values outside the physiologic range when
+        it cannot read one (off the finger, poor perfusion).
         BLANK, never 0, for an absent value: a fabricated 0 is indistinguishable from a real reading
         (the rule OxyFrameLogWriter's docstring states, which this writer did not follow — capture.py
         passed `live["pr"] or 0`). Measured against the shipped OxyDex reader, `0` and blank are
         rejected IDENTICALLY (`parseInt('')` → NaN and `0 < 20` both `continue`), so this changes no
         downstream number — it stops the FILE asserting a pulse of zero that the ring never measured.
-        Latent in practice: 0 occurrences across 110k rows of the real 2026-07-20..25 corpus."""
+        Latent in practice: 0 occurrences across 110k rows of the real 2026-07-20..25 corpus.
+
+        ⚠️ THE RULE APPLIES TO BOTH COLUMNS (audit F6, 2026-08-01). It was stated for `pr` and enforced
+        only for `pr`: an absent SpO2 would have been formatted as the literal string `None` into the
+        Oxygen Level column — not a fabricated 0, but not a blank either, and `parseInt('None')` is the
+        same NaN by luck rather than by design. Both call sites in capture.py guard with
+        `if spo2 is not None`, so this was never reached; the writer is where the rule is DOCUMENTED, so
+        it is where it has to hold — the next caller does not read this docstring first."""
         stamp = when.strftime("%H:%M:%S %d/%m/%Y")   # LOCAL civil (Clock Contract) — O2Ring/ViHealth format
-        self._fh.write(f"{stamp},{spo2},{'' if pr is None else pr},{motion}\n")
+        self._fh.write(f"{stamp},{'' if spo2 is None else spo2},{'' if pr is None else pr},{motion}\n")
         self._n += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:

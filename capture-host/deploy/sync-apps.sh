@@ -92,10 +92,12 @@ for f in "${bundles[@]}"; do
       continue
     fi
     [ "$CHECK" = "1" ] && { echo "  ✗ STALE  $b"; changed=$((changed + 1)); continue; }
-    cp -p "$f" "$DEST/$b" && changed=$((changed + 1)) || { echo "  ✗ failed to copy $b"; failed=$((failed + 1)); }
+    if cp -p "$f" "$DEST/$b"; then changed=$((changed + 1))
+    else echo "  ✗ failed to copy $b"; failed=$((failed + 1)); fi
   else
     [ "$CHECK" = "1" ] && { echo "  ✗ MISSING $b"; added=$((added + 1)); continue; }
-    cp -p "$f" "$DEST/$b" && added=$((added + 1)) || { echo "  ✗ failed to add $b"; failed=$((failed + 1)); }
+    if cp -p "$f" "$DEST/$b"; then added=$((added + 1))
+    else echo "  ✗ failed to add $b"; failed=$((failed + 1)); fi
   fi
 done
 
@@ -110,11 +112,12 @@ for a in "${ASSETS[@]}"; do
     continue
   fi
   if [ "$CHECK" = "1" ]; then
-    [ -e "$d" ] && { echo "  ✗ STALE  $a"; changed=$((changed + 1)); } \
-                || { echo "  ✗ MISSING $a"; added=$((added + 1)); }
+    if [ -e "$d" ]; then echo "  ✗ STALE  $a"; changed=$((changed + 1))
+    else echo "  ✗ MISSING $a"; added=$((added + 1)); fi
     continue
   fi
-  cp -p "$SRC/$a" "$d" && changed=$((changed + 1)) || { echo "  ✗ failed to copy $a"; failed=$((failed + 1)); }
+  if cp -p "$SRC/$a" "$d"; then changed=$((changed + 1))
+  else echo "  ✗ failed to copy $a"; failed=$((failed + 1)); fi
 done
 for a in "${ASSET_DIRS[@]}"; do
   [ -d "$SRC/$a" ] || continue
@@ -126,8 +129,8 @@ for a in "${ASSET_DIRS[@]}"; do
     fi
     continue
   fi
-  mkdir -p "$DEST/$a" && cp -pr "$SRC/$a/." "$DEST/$a/" \
-    && changed=$((changed + 1)) || { echo "  ✗ failed to copy $a/"; failed=$((failed + 1)); }
+  if mkdir -p "$DEST/$a" && cp -pr "$SRC/$a/." "$DEST/$a/"; then changed=$((changed + 1))
+  else echo "  ✗ failed to copy $a/"; failed=$((failed + 1)); fi
 done
 
 # Present in the served set, absent from the repo — reported, never removed (see the header).
