@@ -1920,6 +1920,36 @@
        Both blocks ride under `rich`, which only the orchestrate/trio path sets, so no committed fixture
        exercises them — the suite stays green either way. These assertions are the only thing defending
        the shape. */
+    /* PPI SELF-VALIDATION MUST BE VISIBLE, NOT MERELY COMPUTED.
+       ECGDex validates against firmware — the H10 writes its own RR and the app tabulates self-vs-device
+       rMSSD/SDNN with a verdict. PpgDex cannot: the Verity's `_PPI.txt` is often header-only, its
+       `_HR.txt` all-zero, and the O2Ring publishes no intervals at all. Its only possible cross-check is
+       internal — every beat timed TWICE, at the pulse foot and at the peak, each corrected separately.
+       That agreement was computed and EXPORTED all along (quality.ppiAgreementPct) and rendered nowhere,
+       so a night where the two fiducials disagreed looked exactly like a night where they agreed.
+
+       Gated as a PRODUCER↔CONSUMER pair, the same discipline as registry-defs-parity: the DSP must keep
+       emitting it and the app must keep showing it. Either half going missing is the failure. */
+    group('PpgDex shows its PPI fiducial agreement, not just computes it', 'ppgdex-dsp · ppgdex-app · ppi-agreement', function (T) {
+      var src = env.sources || {};
+      var dsp = src["ppgdex-dsp.js"] || "";
+      var app = src['ppgdex-app.js'] || '';
+      T.ok('both sources loaded', dsp.length > 0 && app.length > 0, dsp.length + '/' + app.length);
+      if (!dsp.length || !app.length) return;
+
+      // PRODUCER — the DSP computes the two fiducials, corrects each, and publishes the comparison.
+      T.ok('DSP times every beat twice (foot AND peak)', /buildPPI\(footSec\)/.test(dsp) && /buildPPI\(peakSec\)/.test(dsp), 'one fiducial only — there is no second opinion left');
+      T.ok('DSP corrects each independently', /correctRR\(_ppiFoot\.rr/.test(dsp) && /correctRR\(_ppiPeak\.rr/.test(dsp));
+      T.ok('DSP publishes ppiAgreementPct + which spine won', /ppiAgreementPct:/.test(dsp) && /ppiSpine,/.test(dsp));
+
+      // CONSUMER — and the app actually surfaces it.
+      T.ok('the app renders the agreement', /ppiAgreementPct/.test(app), 'computed and exported, shown nowhere');
+      T.ok('…names which fiducial won, so two nights are comparable', /ppiSpine/.test(app));
+      T.ok('…and carries the per-spine repair rates as its evidence', /ppiCorrFootPct/.test(app) && /ppiCorrPeakPct/.test(app));
+      /* A KPI that is always green is decoration. The thresholds must actually be able to fire. */
+      T.ok('the agreement KPI can go warn AND bad, not just ok', /ppiAgreementPct >= 97 \? 'ok'/.test(app) && /'warn' : 'bad'/.test(app), 'no failing band — the panel could never report a problem');
+    });
+
     group('RR and PPI reach the bus, with beat times that are not reconstructed', 'ecgdex-dsp · ppgdex-dsp · interval-series', function (T) {
       var E = env.ECGDex, P = env.PpgDex;
       var eqP = env.equiv && env.equiv.ppgdex && env.equiv.ppgdex.input;
