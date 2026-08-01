@@ -57,13 +57,13 @@
     },
     "synthetic_ppgdex_rich_golden.node-export.json": {
       "bundle": "PpgDex.html",
-      "manifestHash": "dc938e0c20d2",
+      "manifestHash": "60d6dbf38dcb",
       "added": "2026-08-01",
       "note": "INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §1 — the INTEGRATOR-FACING rich export (compute(input,{rich:true})), which had no committed fixture. Pins hrv.time.{sdnn,rmssd,sdnnRobust}, hrv.frequency, hrv.confidence, apnea.cvhrIndex and recording.site — every field integrator-dsp adaptPpgDex reads. Shares the clean twin input with synthetic_ppgdex_golden.node-export.json, so the pair isolates exactly what opts.rich adds.",
       "inputs": [
         "synthetic_ppgdex_verity.txt"
       ],
-      "outputHash": "8c861a3e51e218d1",
+      "outputHash": "05d2ce894dc82cd1",
       "inputHashes": {
         "synthetic_ppgdex_verity.txt": "277cb71eed902d44"
       }
