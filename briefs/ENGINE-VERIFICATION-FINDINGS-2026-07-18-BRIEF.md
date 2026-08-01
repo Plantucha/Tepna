@@ -302,22 +302,41 @@ change what the vendor writes.
 
 ## 2 · Phases (each atomic, each independently gateable)
 
-**Phase 1 — filename identity (§1.1 + §1.2). ~~§1.1 DONE~~ — §1.2 still owed.** ✅ `fnameStampMs` anchored + gated (see §1.1). ⬜ Still to do: widen `dex-ingest.js` `deviceKey`/`stampMs` to accept the contiguous capture-host stamp, and correct `writers.py:28` + the `test_writers.py:10` name. Original text: anchor `fnameStampMs` in `signal-orchestrate.js:398` and
-`ppgdex-app.js:47` after the device id. Widen `dex-ingest.js` `deviceKey`/`stampMs` to accept both the
-underscore and contiguous stamp forms. Correct `writers.py:28`'s comment and rename
-`test_writers.py:10`. Add a known-answer test asserting both forms resolve, and that two H10 nights three days
-apart yield **different** stamps.
+> **⚠ 2026-08-01 — THIS SECTION WAS STALE, AND IT COST A SESSION.** Phases 1–3 below read as *owed* while
+> the header above records §1.1, §1.2, §1.3 and §1.5 as **EXECUTED + gated**, re-verified against `main`.
+> A session on 2026-08-01 read this block, went to the tree to check §1.2, and found `dex-ingest.js`
+> `deviceKey`/`stampMs` already widened — with four gate legs already asserting it (`§1.2 PSL underscore
+> stamp → deviceKey`, `§1.2 capture-host CONTIGUOUS stamp → same deviceKey (was null)`, `§1.2 both shapes
+> resolve to the SAME instant`, and the anchoring guard). That is the SECOND time this brief's status text
+> sent someone to redo landed work; the header's own warning records the first. Reconciled below against
+> the code, with the evidence that settles each.
 
-**Phase 2 — pleth honesty (§1.3).** Take option (b): mark the O2Ring capture so `consensusBeats` takes the
-`nCh < 2` path, making `ledAgreementPct` honestly `null`. Assert in the suite that a replicated-channel input
-does **not** yield `ledAgreementPct === 100`.
+**Phase 1 — filename identity (§1.1 + §1.2). ✅ DONE.** `fnameStampMs` anchored after the device id; both
+the PSL underscore and contiguous capture-host stamp shapes resolve via `dex-ingest.js` `deviceKey`
+(`(?:\d{8}_\d{6}|\d{14})`) and `stampMs` (optional separator). Gated by four legs, including the one that
+keeps the widening honest — *"a 14-digit DEVICE ID is not read as the date"*. The prose items are corrected
+too: `capture-host/writers.py` carries the PSL-vs-contiguous explanation, and the test is named
+`test_capture_filename_is_contiguous_stamp_not_psl_shape`.
 
-**Phase 3 — PAT tool correctness (§1.5).** Re-gate on `cpCorr` when it exists (or state in the UI that the
-tier reflects uncorrected drift), lift the three thresholds + the `physical` window into named constants, and
-add the first executed test of `verdict()`. **Do this before `INTEGRATOR-PAT-VASCULAR` Phase 0.**
+**Phase 2 — pleth honesty (§1.3). ✅ DONE** (PR #225). `ppgdex-dsp.js` dedupes bit-identical channels before
+the consensus vote, so a replicated single sensor reports `ledAgreementPct: null` rather than a
+`measured`-tier 100. Gated both directions — the suite carries an explicit leg noting that hard-coding
+`null` would pass the first assertion alone.
 
-**Phase 4 — respiration chain (§1.6)** and **Phase 5 — crossnight + mag unit (§1.7, §1.8)** are independent
-and can land in any order.
+**Phase 3 — PAT tool correctness (§1.5). ✅ DONE** (PR #217). `pat-gate.js` single-sources the promotion
+gate, evaluates it on the drift-corrected `cpCorr` and publishes `vdCorr`; the thresholds are named
+constants, and `verdict()` has its first executed test (`§1.5 published bar met ⇒ FEASIBLE`, plus the
+below-`COUPLING_MIN` negative).
+
+**Phase 4 — respiration chain (§1.6). ◐ HALF.** The Integrator half is closed by
+`MULTI-SENSOR-DERIVATIONS` (`summary.respRateBrpm`). **The PpgDex half is open**: `lombScargle` still never
+retains the HF argmax. ⚠️ `ppgdex-dsp.js` is heavily contended — check open PRs before touching it.
+
+**Phase 5 — crossnight + mag unit (§1.7, §1.8). ◐ HALF.** **§1.8 CLOSED 2026-07-22** — the Gauss→µT fix
+shipped as `DEEP-AUDIT-II §7.9` (PR #332) with a both-direction gate. **§1.7 is NOT re-verified**, and is
+therefore not claimed closed — that check is the remaining work here, not a fix.
+
+**Also still open: §1.4**, blocked on `PPGDEX-O2RING-FINGER-SITE` and explicitly out of scope below.
 
 **Not in scope here:** the O2Ring adapter tie (§1.4). It belongs to
 `PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md` and must not ship before that brief's single-channel path.
