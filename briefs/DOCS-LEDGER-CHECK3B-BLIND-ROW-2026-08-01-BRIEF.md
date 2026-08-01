@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-01 · **Found-by:** `MOTIONDEX-BUILD-FOLLOWUPS-2026-07-18-BRIEF.md` (while closing it)
+**Status:** DONE — 2026-08-01 · **Created:** 2026-08-01 · **Found-by:** `MOTIONDEX-BUILD-FOLLOWUPS-2026-07-18-BRIEF.md` (while closing it)
 
 # `docs-ledger` check3b reports "in sync" for a DOCS-INDEX row that carries no status at all
 
@@ -72,6 +72,70 @@ old row can be backfilled by whichever work-unit next edits that row anyway.
 - [ ] The scope decision and the 48-row count are recorded here, so a later reader knows the gate is
       deliberately partial rather than accidentally so.
 - [ ] If (1) is taken, each backfilled status is read from the brief header, never inferred from the row.
+
+## 6 · Executed 2026-08-01 — option (1), and there was a second hole
+
+### Option (1), not the recommended (2)
+
+§3 recommended a dated cutoff because a 48-row edit "wants a quiet window". The window existed — **one**
+open PR at the time — and the backfill turns out to be mechanical: every status is *read from the brief
+header* by script, which is what §4's last item requires and is strictly more reliable than a human
+transcribing 36 of them. A cutoff would also have left the gate permanently partial for no lasting reason.
+
+### The 48 were not all the same thing
+
+Re-measuring before touching anything (rather than inheriting the count) split them:
+
+```
+single-brief rows examined  : 255
+  carrying a status marker  : 207
+  NO marker (blind)         :  48   ← §2's number, confirmed
+    …genuinely status-less  :  36
+    …stating a status the regex could not see : 12
+  actual mismatches         :   0
+```
+
+The second group is a **distinct defect the brief did not identify**. The marker regex was
+`\*\(\s*(DONE|…)`, so it missed every row that stated its status slightly differently:
+
+```
+Brief *(**DONE 2026-07-14**)*        bold inside the parens
+Brief *(✅ DONE 2026-07-05 …)*        emoji first
+Brief (**DONE 2026-06-30** …)        plain paren, not *(
+Brief (§3 DONE 2026-06-30 · …)       qualifier first
+```
+
+Those twelve rows **had data to compare and were never compared**. Recovering them surfaced **zero** new
+mismatches — the index was honest — but the gate could not have known that, which is exactly the
+objection §1 raises. A checker blind to correct-but-differently-spelled data is the same class of hollow
+as one blind to absent data; it just fails to notice agreement instead of failing to notice silence.
+
+### What changed
+
+1. **Matcher loosened** to tolerate `**`, a leading emoji/tick/qualifier, and a bare `(`. +12 rows now
+   compared.
+2. **36 rows backfilled** by script from their brief headers, date included where the header carries one.
+3. **A missing marker is now a failure** — a second assertion, deliberately separate from the equality
+   one, so the failure message says which of the two things went wrong.
+
+### Mutation-verified in both directions (§4's second item)
+
+```
+delete a status cell  → ✕ "…every such row STATES a status"   (and the equality check still says "in sync"
+                          — which is precisely the original bug, visible in the same run)
+wrong status in cell  → ✕ "row status ≡ brief header status"  (and the presence check stays green)
+```
+
+Each assertion catches its own failure and neither covers for the other. The equality check reporting
+"in sync" next to a red presence check is the clearest possible statement of what was wrong before.
+
+### Scope, recorded per §4's third item
+
+The gate is now **total over single-brief rows with an executable header status** — 219 of them, no
+exemptions, no cutoff date, no grandfather list. It remains deliberately partial in exactly two places,
+both unchanged and both structural rather than accidental: **multi-brief rows** (one shared status cell —
+nothing unambiguous to compare) and **non-executable statuses** (`REFERENCE`/`CHECKPOINT`, which §📌 does
+not date-stamp). §5's observation stands: `check3` is total, `check3b` is total over that scope.
 
 ## 5 · Note
 

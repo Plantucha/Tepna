@@ -9969,6 +9969,25 @@
       }
       var idxLines = indexText.split('\n');
       var statusMismatch = [];
+      var statusBlind = [];
+      /*  DOCS-LEDGER-CHECK3B-BLIND-ROW — check3b used to report "in sync" about rows it never read.
+          Two separate holes, both measured before either was touched:
+
+          (a) `if (!m) return;` SKIPPED a row with no status marker, so a deleted status cell left the
+              gate green. That is how it was found: a shell-quoting slip ate a cell, every gate stayed
+              green, and only reading the diff caught it. 36 rows were genuinely status-less.
+          (b) The marker regex `\*\(\s*(DONE|…)` was too strict, so 12 further rows that DID state a
+              status were silently skipped for stating it differently — `*(**DONE 2026-07-14**)*`
+              (bold inside the parens), `*(✅ DONE 2026-07-05 …)*` (emoji first), `(**DONE …**)`
+              (plain paren). Those rows had data to compare and were never compared. Recovering them
+              surfaced ZERO new mismatches, so the index was honest — but the gate could not have
+              known that, which is the whole objection.
+
+          Now: the matcher tolerates `**`, a leading emoji/tick and a bare `(`, and a single-brief row
+          with an executable header status MUST carry a marker. Both directions are mutation-verified
+          in the group below — a check being fixed because it passed when it should have failed cannot
+          itself be asserted without proof. */
+      var STATUS_MARK = /\(\s*[^A-Za-z]{0,4}\s*\*{0,2}\s*(DONE|PROPOSED|IN-PROGRESS)\b/;
       names.forEach(function (n) {
         var hs = headerStatus(DL.briefs[n]);
         if (hs !== 'DONE' && hs !== 'PROPOSED' && hs !== 'IN-PROGRESS') return;
@@ -9984,8 +10003,11 @@
               return c;
             });
           var last = cells[cells.length - 1] || '';
-          var m = last.match(/\*\(\s*(DONE|PROPOSED|IN-PROGRESS)\b/);
-          if (!m) return; // no brief-status marker in the role cell → nothing to compare
+          var m = last.match(STATUS_MARK);
+          if (!m) {
+            statusBlind.push(n + ' [header ' + hs + ', row says nothing]');
+            return;
+          }
           if (m[1] !== hs) statusMismatch.push(n + ' [index ' + m[1] + ' ≠ header ' + hs + ']');
         });
       });
@@ -9993,6 +10015,11 @@
         'check3b · DOCS-INDEX row status ≡ brief header status (header is source of truth)',
         statusMismatch.length === 0,
         statusMismatch.length ? 'stale rows (' + statusMismatch.length + '): ' + statusMismatch.slice(0, 8).join('; ') : 'in sync'
+      );
+      T.ok(
+        'check3b · …and every such row STATES a status (a silent row is not "in sync")',
+        statusBlind.length === 0,
+        statusBlind.length ? 'blind rows (' + statusBlind.length + '): ' + statusBlind.slice(0, 8).join('; ') : 'all rows state one'
       );
 
       // ── CHECK 4a · briefs-link integrity (the 2026-07-03 repoint guard) — resolve ](briefs/…) against the
