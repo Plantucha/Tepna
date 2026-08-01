@@ -61,6 +61,31 @@ over the identical interval** — a real cross-validation opportunity for OxyDex
 exactly the nights the ring loses. Flagged in the parent as out of scope; still unclaimed. Probably
 deserves its own brief rather than a section here.
 
+**✅ ROUTED 2026-08-01 → `CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF.md`.** The premise was verified before
+routing rather than taken on trust, and the measurement both confirms it and corrects its shape:
+
+| | |
+|---|---|
+| distinct `*_SA2.edf` (deduped by filename) | **250** |
+| distinct nights | **194** |
+| median SA2 coverage | **6.85 h/night** (p10 5.23 · p90 8.68) |
+| nights under 4 h | 7 of 194 |
+
+`SpO2.1s` and `Pulse.1s` are both present at exactly 1 Hz and parse with the **shipped**
+`CpapEdf.readEDF`, unchanged — so the first step is small.
+
+Two corrections worth carrying, because either would have skewed the routing:
+
+- **A night can be several sessions.** 39 nights have 2 and 7 have ≥3. The first file sampled here reads
+  2.50 h against a 7.35 h ring night (34 %) — generalising from it would have understated the source by
+  ~3×. Sum a night's sessions; never read one `SA2.edf` as "the night".
+- **The obvious agreement analysis is a trap.** A naive alignment of that night against the concurrent
+  O2Ring gives r = 0.296 at a −79 min lag. That is not sensor disagreement: the CPAP clock runs ~39 min
+  slow (`CROSS-DEVICE-CLOCK-SKEW`, which shipped `fitClockOffsetPooled` to fit it), and Pearson r is the
+  wrong statistic for a trace that sits flat near 96 % all night. The routed brief carries Bland–Altman +
+  ODI-4 agreement instead, and states explicitly that it claims an **opportunity, not a validated
+  agreement**.
+
 ### 2.2 The harvest has never been observed failing in the field
 
 Every failure path — barren, short read, deadline-capped partial, a refused association — is unit
@@ -147,7 +172,7 @@ only in conversation:
 
 ## 6 · Done when
 
-- [ ] §2.1 routed to its own brief (CPAP `SA2.edf` as a second SpO₂ source) or explicitly declined
+- [x] §2.1 **routed** 2026-08-01 → `CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF.md` (premise verified first: 194 nights, median 6.85 h)
 - [ ] §2.2 one deliberate fault injection against the running box, with the webhook actually delivering
 - [x] **§4 CLOSED 2026-07-29 — `DEEP-AUDIT-III` is DONE.** Not by splitting a MotionDex brief: all four
       items were already fixed, and what they actually lacked was gates. §3.6 had none, §4.1's was
