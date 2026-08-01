@@ -1,0 +1,108 @@
+{
+  "kernel": null,
+  "schema": {
+    "name": "ganglior.node-export",
+    "version": "2.0",
+    "node": "PpgDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior",
+    "generated": "2026-08-01T08:08:11.034Z",
+    "provenance": null,
+    "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated."
+  },
+  "recording": {
+    "source": "ppg",
+    "contentId": "47f59e23cb68",
+    "startEpochMs": 1782021923891,
+    "durSec": 39.992592592592594,
+    "sessions": 1,
+    "events": 0,
+    "site": "wrist"
+  },
+  "ganglior_events": [],
+  "reserved": {
+    "doc": "Awaiting other fleet nodes; null until available."
+  },
+  "quality": {
+    "analyzablePct": 56,
+    "cleanBeatPct": 56,
+    "coveragePct": 56,
+    "motionRejectedPct": 0,
+    "correctionRatePct": 4.8,
+    "ledAgreementPct": 100,
+    "ppiSpine": "foot",
+    "ppiAgreementPct": 100,
+    "ppiCorrFootPct": 4.8,
+    "ppiCorrPeakPct": 0
+  },
+  "hrv": {
+    "time": {
+      "meanRR": 910,
+      "hr": 66,
+      "sdnn": 19.4,
+      "rmssd": 2.1,
+      "pnn50": 0,
+      "sdnnIndex": 19.4,
+      "sdnnRobust": 19.4,
+      "sd2Robust": 27.4,
+      "window": "wholeRecord",
+      "units": "ms",
+      "lowConfidence": true,
+      "lowConfidenceReason": "low coverage — analyzable 56% / correction 4.8% → whole-record short-term HRV down-weighted; use per-5-min epochs[] + ledAgreementPct",
+      "windowNote": "sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node’s wholeRecord SDNN/RMSSD.",
+      "sdnnNote": "whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison."
+    },
+    "frequency": {
+      "vlf": 245,
+      "lf": 88,
+      "hf": 24,
+      "totalPower": 357,
+      "lfhf": 3.65,
+      "window": "wholeRecord",
+      "method": "Lomb-Scargle",
+      "lowConfidence": true,
+      "hfRobustLowMotion": null,
+      "wholeRecordLf": 88,
+      "wholeRecordHf": 24,
+      "wholeRecordLfhf": 3.65
+    },
+    "confidence": {
+      "beatToBeat": 0.45,
+      "sdnn": 0.45,
+      "lf": 0.45,
+      "hf": 0.56,
+      "vlf": 0.01,
+      "drivers": {
+        "analyzableFrac": 0.56,
+        "correctionOK": 0.81,
+        "lowMotionFrac": 1,
+        "postureStableFrac": 1
+      },
+      "note": "0..1 per-metric confidence from measured drivers (motion→hf, posture/baseline→vlf/sdnn, coverage+correction→beat-to-beat). vlf capped 0.7 — single-site optical VLF stays baseline-wander-limited even when clean; not a defect to \"fix\"."
+    }
+  },
+  "apnea": {
+    "cvhrIndex": 0,
+    "cvhrEvents": 0,
+    "cvhrMethod": "CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)",
+    "cvhrTier": "emerging"
+  },
+  "timeseries": {
+    "doc": "5-min epochs — primary cross-node feed (posture rides on epochs[].position).",
+    "epochs": [
+      {
+        "tMin": 0,
+        "hr": 66,
+        "rmssd": 2.1,
+        "sdnn": 19.4,
+        "lfhf": 3.65,
+        "motionIndex": null,
+        "ledAgreementPct": 100,
+        "position": "unknown",
+        "positionConf": null,
+        "headingDeg": null,
+        "magInterference": false
+      }
+    ]
+  }
+}

@@ -4797,6 +4797,66 @@
       );
     });
 
+    /* ════ THE INTEGRATOR-FACING RICH EXPORT HAS A COMMITTED GOLDEN — §1 (and the parent's §5) ════
+       The Integrator does not read PpgDex's LIGHT export. `adaptPpgDex` reads `hrv.time.{sdnn,rmssd}`,
+       `apnea.cvhrIndex` and `recording.site` — and `compute({text})` emits NONE of them. The rich block is
+       gated behind `opts.rich`, which only `signal-orchestrate.emitPpgNodeExport` passes in production.
+
+       So every committed PpgDex golden was the light export, and a drift in the rich block reproduced
+       BYTE-IDENTICALLY on all three of them, because none contains it. The whole
+       OXYDEX-PULSE-RESOURCING §Phase 2-4 wiring built on those fields was exercised only by in-test
+       recompute — the same "a path nothing pins" class as the parent brief's own bug.
+
+       `synthetic_ppgdex_rich_golden.node-export.json` closes it, from the SAME committed input as the
+       clean twin. Only `opts.rich` differs between the two goldens, so the pair isolates exactly what
+       that flag adds — and because the input is committed, CI re-runs it from committed bytes every push
+       (the FIXTURE-VERIFICATION-GATE argument for why a committed twin beats a corpus one). */
+    group('PpgDex rich export ≡ its committed golden — Integrator-facing surface', 'ppgdex-dsp · equiv · integrator-facing', function (T) {
+      var eq = env.equiv && env.equiv.ppgdex_rich;
+      var P = env.PpgDex;
+      if (!(eq && eq.input && eq.fixture && P && typeof P.compute === 'function')) {
+        T.skip('committed rich-export pair present', 'synthetic_ppgdex_verity.txt / _rich_golden absent — both are COMMITTED, so this must run everywhere including CI');
+        return;
+      }
+      var rich = P.compute({ text: eq.input }, { rich: true });
+
+      /* Volatile keys the equiv gate excludes fleet-wide: they move on every run by design and say
+         nothing about compute. Same exclusion list the other equiv legs use. */
+      function strip(o) {
+        var c = JSON.parse(JSON.stringify(o));
+        delete c.kernel;
+        if (c.schema) { delete c.schema.generated; delete c.schema.provenance; }
+        delete c.provenance;
+        if (c.recording) delete c.recording.contentId;
+        return c;
+      }
+      T.eq('compute({rich:true}) reproduces the committed golden byte-for-byte (volatile keys aside)', JSON.stringify(strip(rich)), JSON.stringify(strip(eq.fixture)));
+
+      /* ANTI-VACUITY. The equality above would pass just as happily if BOTH sides lost the rich block —
+         which is precisely the failure mode that let this go unpinned for so long. Assert each
+         Integrator-read field is actually THERE, so an emitter that stops emitting reds instead of
+         agreeing with a golden that also stopped. */
+      var ht = rich.hrv && rich.hrv.time;
+      T.ok('the golden carries hrv.time (adaptPpgDex reads sdnn/rmssd from it)', !!ht, ht ? '' : 'ABSENT — rich block suppressed?');
+      if (ht) {
+        T.ok('…hrv.time.sdnn is a number, not null', typeof ht.sdnn === 'number', 'sdnn=' + ht.sdnn);
+        T.ok('…hrv.time.rmssd is a number, not null', typeof ht.rmssd === 'number', 'rmssd=' + ht.rmssd);
+        T.ok('…and it names its window, so a consumer knows what scale it is', !!ht.window, 'window=' + ht.window);
+      }
+      T.ok('the golden carries hrv.frequency', !!(rich.hrv && rich.hrv.frequency));
+      T.ok('the golden carries hrv.confidence', !!(rich.hrv && rich.hrv.confidence));
+      T.ok('the golden carries apnea.cvhrIndex (a number — 0 is a measurement, null is not)', !!rich.apnea && typeof rich.apnea.cvhrIndex === 'number', JSON.stringify(rich.apnea));
+      T.eq('the golden carries recording.site, the field that routes wrist vs finger', rich.recording && rich.recording.site, 'wrist');
+
+      /* CONTROL — the LIGHT export on the SAME input must carry none of it. This is what makes the
+         fixture a test of `opts.rich` rather than of the input, and it is the leg that would have
+         exposed the gap in the first place. */
+      var light = P.compute({ text: eq.input });
+      T.ok('CONTROL · the LIGHT export on the same input has NO hrv block', !light.hrv, 'light.hrv=' + JSON.stringify(light.hrv));
+      T.ok('CONTROL · …and no apnea block — so the three pre-existing goldens could not have pinned either', !light.apnea);
+      T.ok('CONTROL · …while still carrying recording + ganglior_events', !!light.recording && Array.isArray(light.ganglior_events));
+    });
+
     group('ECGDex stampless events — stamped control gets a real clock (Clock §2.6)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {

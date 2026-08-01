@@ -1,19 +1,39 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-01 · **Created:** 2026-07-22 · Supersedes: none · Follows: INTEGRATOR-OXYDEX-ADAPTER-GAP-2026-07-21-BRIEF.md · **§2 ANSWERED 2026-08-01** — it was neither of the two hypotheses
+**Status:** IN-PROGRESS — 2026-08-01 · **Created:** 2026-07-22 · Supersedes: none · Follows: INTEGRATOR-OXYDEX-ADAPTER-GAP-2026-07-21-BRIEF.md · **§1 CLOSED + §2 ANSWERED 2026-08-01**
 
 What surfaced while executing `INTEGRATOR-OXYDEX-ADAPTER-GAP-2026-07-21-BRIEF.md` §4.1 that is still owed.
 The parent's headline finding was disproven on the real corpus and its two *live* defects (the `n.hb` key
 mismatch and the dead `rmssd1Hz` proxy leg) are fixed and gated; everything below is what that work did NOT
 close.
 
-## 1 · The parent's §5 is untouched — the Integrator-facing PpgDex **rich** export has no committed golden
+## 1 · ~~The parent's §5 is untouched~~ — **CLOSED 2026-08-01: the rich export now has a committed golden**
 
-Carried over verbatim, still true. The Integrator consumes PpgDex's RICH export (`hrv.time.*`,
+Carried over verbatim, still true *until 2026-08-01*. The Integrator consumes PpgDex's RICH export (`hrv.time.*`,
 `apnea.cvhrIndex`, `recording.site`), but the equiv/GATE-C surface pins only the **light** export
 (`compute({text})` → recording + `ganglior_events`). The exact fields the Integrator reads — and the whole
 OXYDEX-PULSE-RESOURCING §Phase 2–4 wiring built on them — are exercised only by in-test recompute, so a drift
 in the rich export is caught by **no fixture**. Proposal unchanged: commit a rich-export golden + an equiv leg
 for the Integrator-facing surface. This is the same class as the parent's own bug — a path nothing pins.
+
+**EXECUTED 2026-08-01.** `uploads/synthetic_ppgdex_rich_golden.node-export.json` is minted from the
+**same committed input** as the clean twin (`synthetic_ppgdex_verity.txt`), so the two goldens differ by
+`opts.rich` and nothing else — the pair isolates exactly what that flag emits. Registered through
+`tools/regen-ppgdex-goldens.mjs` (the sanctioned recorder; no hash was hand-written) and gated by
+`ppgdex-dsp · equiv · integrator-facing`, 12 legs:
+
+- **byte-for-byte equivalence** — `compute({text}, {rich:true})` ≡ the golden, volatile keys aside.
+- **anti-vacuity**, because the equality alone would pass just as happily if BOTH sides lost the rich
+  block — which is the exact failure mode that let this stay unpinned. Each Integrator-read field is
+  asserted present and typed: `hrv.time.sdnn` 19.4, `hrv.time.rmssd` 2.1, a named `window`,
+  `hrv.frequency`, `hrv.confidence`, `apnea.cvhrIndex` (a **number**; 0 is a measurement, null is not),
+  and `recording.site` = `wrist`.
+- **control** — the LIGHT export on the same input carries no `hrv` and no `apnea` at all, which is what
+  makes this a test of `opts.rich` rather than of the input, and is the leg that would have exposed the
+  gap in the first place.
+
+Mutation-verified: suppressing the `if (opts.rich)` block reds **10 of 12** legs. Because the input is
+committed, CI re-runs it from committed bytes on every push — the FIXTURE-VERIFICATION-GATE argument for
+why a committed twin beats a corpus one. GATE B now covers **15** fixtures (was 14).
 
 ## 2 · `hrv.rmssd` is null on 2 of 7 corpus nights — **ANSWERED 2026-08-01: the exports are STALE**
 
