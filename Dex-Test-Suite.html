@@ -1684,6 +1684,18 @@ async function renderCoverageApp(cfg){
       }
       return g;
     }
+    /* EXPORT-PATH-UNREACHABLE-FOLLOWUPS §1 — NO UNGUARDED FULL LEG. Measured on the bare bundles with
+       no data at all, this leg's OWN settle predicate (body-text token count + a label regex) is
+       satisfiable by the EMPTY app for GlucoDex (16 tokens vs minNums 15, all four labels matched in
+       its help text) and PpgDex (17 vs 12) — and HRVDex misses by ONE token (11 vs 12), OxyDex by two,
+       PulseDex by three. A threshold with a one-token margin is not a gate. `#exportBar.show` is the
+       data-dependent condition (set only where a result is committed; false on every bare bundle
+       measured), so a full leg that declares no exportBar has re-opened the hole — say so, loudly,
+       rather than let it pass quietly. Bespoke legs (ECGDex / CPAPDex / IntegratorPB) don't come
+       through here; they were audited too and settle on populated value cells, a revealed results
+       view, or a named finding — all genuinely data-dependent. */
+    add(g, 'leg declares an export-bar guard (its token/label settle alone is satisfiable by the empty app)', !!cfg.exportBar,
+      cfg.exportBar ? '' : 'add exportBar:{want:[…]} to this cfg — see EXPORT-PATH-UNREACHABLE-FOLLOWUPS §1');
     add(g, 'dashboard rendered substantial content', txt.length>(cfg.minChars||1500), txt.length+' chars');
     add(g, 'renders an expected metric label', (cfg.labels||[]).some(l=>new RegExp(l.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i').test(txt)),
       'looked for '+(cfg.labels||[]).join(' / '));
