@@ -2748,6 +2748,8 @@
       hrvConfidence,
       nn,
       tt: corr.tt,
+      // Aligned with nn/tt: correctRR returns flags for exactly the series it emitted.
+      ppiFlags: corr.flags,
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,
@@ -3308,6 +3310,16 @@
         cvhrMethod: 'CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)',
         cvhrTier: 'emerging'
       };
+      /* PER-BEAT INTERVALS ON THE BUS (INTERVAL-SERIES-EXPORT).
+         PpgDex computed PPI twice — once from pulse FEET, once from PEAKS — voted a spine between
+         them, Malik-corrected it, and exported neither. Unlike ECGDex there was not even an app
+         button: the only interval series this sensor has was unreachable except by re-running the DSP.
+         That is worse than it sounds, because the device's own `_PPI.txt` is often header-only and its
+         `_HR.txt` is all-zero, so the computed series is not a second opinion — it is the ONLY one.
+
+         Same motivation as ECGDex's block: the published joint clock-skew framework
+         (doi:10.1088/1361-6501/ae6a09) reaches 0.2-0.4 ms between independently-clocked sensors from
+         IBI sequences alone, and this suite exported none of its three. */
       out.timeseries = {
         doc: '5-min epochs — primary cross-node feed (posture rides on epochs[].position).',
         epochs: (r.epochs || []).map(function (e) {
@@ -3326,6 +3338,31 @@
           };
         })
       };
+      /* ATTACHED ONLY WHEN NON-EMPTY, so a record without beats carries no field rather than an empty
+         array a consumer would read as "measured, and flat" — and so existing fixtures stay inert. */
+      if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {
+        out.timeseries.ppi = {
+          doc: 'Per-beat PPI from the SELF-COMPUTED optical spine (3-LED consensus → buildPPI → Malik correctRR) — the device _PPI.txt is often header-only and its _HR.txt all-zero, so this is the ONLY interval series for this sensor, not a second opinion. `spine` names which fiducial won (foot or peak). tSec[i] is the beat time in seconds from startEpochMs; ms[i] is the interval ENDING at that beat. Beat times are EXPLICIT, never reconstructed by cumulative sum — a dropout would otherwise be closed silently and every later beat shifted.',
+          spine: r.ppiSpine || null,
+          n: r.nn.length,
+          tSec: r.tt.map(function (v) {
+            return +v.toFixed(3);
+          }),
+          ms: r.nn.map(function (v) {
+            return Math.round(v);
+          }),
+          /* WHICH INTERVALS ARE MEASUREMENTS. 1 = interpolated by correctRR, not observed. Without it
+             the series mixes the two and a consumer cannot tell — and rMSSD over interpolated beats is
+             not a measurement of anything. This one is not hypothetical here: the first four PPI of a
+             real night read 1190, 1190, 1190, 1190 — the running median, not four identical heartbeats. */
+          corrected:
+            r.ppiFlags && r.ppiFlags.length === r.nn.length
+              ? Array.prototype.map.call(r.ppiFlags, function (f) {
+                  return f ? 1 : 0;
+                })
+              : null
+        };
+      }
     }
     return out;
   }

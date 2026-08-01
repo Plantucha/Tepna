@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C5PsyUZJPRO9MCaibVwbiMOdWNLds3tX5RLIwuBiNDw=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-Hq13iClqAIGfQxZKE6gCctF8u4Irlo1t8ruIWUSBEGU=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-t7laccvvvHrdIOkE4PV7Yf95WaVWGVlZBsMk7JZnXo4='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1IouWe3v+sFgNFBeDDqVM3wpv6qy8fTZ35tln5HzYBQ=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-C5PsyUZJPRO9MCaibVwbiMOdWNLds3tX5RLIwuBiNDw=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pZWJDowIHGAoRSiNTxfH7A3EMaKUueFMdCYwYu6iUec=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -17409,6 +17409,8 @@ __exports.GlucoDex = window.GlucoDex;
       hrvConfidence,
       nn,
       tt: corr.tt,
+      // Aligned with nn/tt: correctRR returns flags for exactly the series it emitted.
+      ppiFlags: corr.flags,
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,
@@ -17969,6 +17971,16 @@ __exports.GlucoDex = window.GlucoDex;
         cvhrMethod: 'CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)',
         cvhrTier: 'emerging'
       };
+      /* PER-BEAT INTERVALS ON THE BUS (INTERVAL-SERIES-EXPORT).
+         PpgDex computed PPI twice — once from pulse FEET, once from PEAKS — voted a spine between
+         them, Malik-corrected it, and exported neither. Unlike ECGDex there was not even an app
+         button: the only interval series this sensor has was unreachable except by re-running the DSP.
+         That is worse than it sounds, because the device's own `_PPI.txt` is often header-only and its
+         `_HR.txt` is all-zero, so the computed series is not a second opinion — it is the ONLY one.
+
+         Same motivation as ECGDex's block: the published joint clock-skew framework
+         (doi:10.1088/1361-6501/ae6a09) reaches 0.2-0.4 ms between independently-clocked sensors from
+         IBI sequences alone, and this suite exported none of its three. */
       out.timeseries = {
         doc: '5-min epochs — primary cross-node feed (posture rides on epochs[].position).',
         epochs: (r.epochs || []).map(function (e) {
@@ -17987,6 +17999,31 @@ __exports.GlucoDex = window.GlucoDex;
           };
         })
       };
+      /* ATTACHED ONLY WHEN NON-EMPTY, so a record without beats carries no field rather than an empty
+         array a consumer would read as "measured, and flat" — and so existing fixtures stay inert. */
+      if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {
+        out.timeseries.ppi = {
+          doc: 'Per-beat PPI from the SELF-COMPUTED optical spine (3-LED consensus → buildPPI → Malik correctRR) — the device _PPI.txt is often header-only and its _HR.txt all-zero, so this is the ONLY interval series for this sensor, not a second opinion. `spine` names which fiducial won (foot or peak). tSec[i] is the beat time in seconds from startEpochMs; ms[i] is the interval ENDING at that beat. Beat times are EXPLICIT, never reconstructed by cumulative sum — a dropout would otherwise be closed silently and every later beat shifted.',
+          spine: r.ppiSpine || null,
+          n: r.nn.length,
+          tSec: r.tt.map(function (v) {
+            return +v.toFixed(3);
+          }),
+          ms: r.nn.map(function (v) {
+            return Math.round(v);
+          }),
+          /* WHICH INTERVALS ARE MEASUREMENTS. 1 = interpolated by correctRR, not observed. Without it
+             the series mixes the two and a consumer cannot tell — and rMSSD over interpolated beats is
+             not a measurement of anything. This one is not hypothetical here: the first four PPI of a
+             real night read 1190, 1190, 1190, 1190 — the running median, not four identical heartbeats. */
+          corrected:
+            r.ppiFlags && r.ppiFlags.length === r.nn.length
+              ? Array.prototype.map.call(r.ppiFlags, function (f) {
+                  return f ? 1 : 0;
+                })
+              : null
+        };
+      }
     }
     return out;
   }
@@ -20340,7 +20377,12 @@ __exports.PpgDex = window.PpgDex;
     // it no longer inflates RMSSD/SDNN/epochs. Reported as artifactSec.
     const _conf = beatConfidence(peaks, sqi, fs, rec.t0Ms || 0);
     const nn = [],
-      tt = [];
+      tt = [],
+      /* Aligned with nn/tt BY CONSTRUCTION. `nnRes.corrected` is the UNFILTERED per-beat flag, and the
+         loop below drops low-confidence beats — so exporting nnRes.corrected directly would hand a
+         consumer a mask one length and a series another, silently mis-attributing every correction
+         after the first drop. Pushed in the same pass instead. */
+      nnCorr = [];
     let artifactSec = 0,
       _pSec = null;
     for (let i = 0; i < nnRes.nn.length; i++) {
@@ -20349,6 +20391,7 @@ __exports.PpgDex = window.PpgDex;
       if (c >= 0.5) {
         nn.push(nnRes.nn[i]);
         tt.push(nnRes.tt[i]);
+        nnCorr.push(nnRes.corrected[i] ? 1 : 0);
       } else if (secAbs !== _pSec) {
         artifactSec++;
         _pSec = secAbs;
@@ -20632,6 +20675,8 @@ __exports.PpgDex = window.PpgDex;
       nn,
       tt,
       corrected: Array.from(nnRes.corrected),
+      // Filter-aligned twin of `corrected`, safe to publish beside nn/tt (see the loop above).
+      nnCorrected: nnCorr,
       // quality
       analyzablePct: nnRes.analyzablePct,
       correctionRate: nnRes.correctionRate,
@@ -22362,6 +22407,17 @@ __exports.PpgDex = window.PpgDex;
           respFromEDRMethod: 'EDR (R-peak amplitude modulation)'
         }
       };
+      /* PER-BEAT INTERVALS ON THE BUS (INTERVAL-SERIES-EXPORT).
+         ECGDex computed RR for every beat and let it leave only through the app's ⬇ RR button — a
+         human clicking, producing a file. Nothing headless could reach it: not the Integrator, not
+         trio-batch, not any analysis. The cross-node feed was 5-minute epoch aggregates, so every
+         question about beat timing had to re-run the DSP.
+
+         That matters beyond convenience. The published joint clock-skew framework
+         (doi:10.1088/1361-6501/ae6a09) synchronises independently-clocked sensors to 0.2-0.4 ms from
+         IBI SEQUENCES ALONE — and this suite has three interval sources (chest RR, arm PPI, finger
+         PPI) and exported none of them, which is why its alignment work has been fighting +/-45 s
+         plateaus. */
       out.timeseries = {
         doc: 'Per-5-min-epoch aggregates — the primary cross-node feed (posture rides on epochs[].position; motionIndex = chest-ACC activity, night-normalised median→0 p95→100, null where the ACC did not observe that epoch; vlf·lf·hf·totalPower are absolute band powers in ms² on ONE scale, mirroring the night-level frequency block, so tp = vlf+lf+hf holds per epoch and a consumer can form VLF/LF or normalized units without a collapsed denominator — lfhf alone cannot see the VLF band where CVHR lives).',
         // §D2: the internal epoch already carried `resp` (ls.respRate) — this map dropped it, so no
@@ -22420,6 +22476,27 @@ __exports.PpgDex = window.PpgDex;
               })
             : null
       };
+      /* ATTACHED ONLY WHEN NON-EMPTY, so a record without beats carries no field rather than an empty
+         array a consumer would read as "measured, and flat" — and so existing fixtures stay inert. */
+      if (r.nn && r.nn.length && r.tt && r.tt.length === r.nn.length) {
+        out.timeseries.rr = {
+          doc: "Per-beat RR intervals from SELF-COMPUTED, sub-sample-refined Pan-Tompkins R-peaks, Malik-corrected (the same series the app's ⬇ RR button writes). tSec[i] is the beat time in seconds from startEpochMs; ms[i] is the interval ENDING at that beat. Beat times are EXPLICIT, never reconstructed by cumulative sum: a dropout would otherwise be closed silently and every later beat shifted. Device firmware RR is deliberately NOT this series — the H10 _HR.txt is smoothed and under-states variance.",
+          n: r.nn.length,
+          tSec: r.tt.map(function (v) {
+            return +v.toFixed(3);
+          }),
+          ms: r.nn.map(function (v) {
+            return Math.round(v);
+          }),
+          /* WHICH INTERVALS ARE MEASUREMENTS. 1 = the value was interpolated by the Malik/ectopy gate,
+             not observed. Without it the series mixes the two and a consumer cannot tell — and rMSSD
+             over interpolated beats is not a measurement of anything. It also exposes an honest quirk
+             this export made visible: `rr[0] = rr[1] || 1000` (computeSQI), because beat 0 has no
+             predecessor, so the FIRST interval is a copy and is flagged as such. */
+          corrected: r.nnCorrected && r.nnCorrected.length === r.nn.length ? r.nnCorrected.slice() : null
+        };
+        if (out.timeseries.rr.corrected) out.timeseries.rr.corrected[0] = 1;
+      }
       out.sleep = amb
         ? { suppressed: true, suppressedReason: (r.sleepSuppressed && r.sleepSuppressed.suppressedReason) || 'high-activity / ambulatory', stages: null }
         : lng

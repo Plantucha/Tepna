@@ -1910,6 +1910,68 @@
        night in which the device recorded ~26,500 samples. The series now ships at 1 Hz, but until this
        reader existed the Integrator still could not see it: it reads `timeseries.epochs`, `.acc` and
        `.cells`, and nothing read `.spo2`. A producer with no consumer is half a change. */
+    /* PER-BEAT INTERVALS FINALLY LEAVE THEIR NODES (INTERVAL-SERIES-EXPORT).
+       ECGDex computed RR for every beat and let it out only through the app's ⬇ RR button — a human
+       clicking, producing a file no headless caller could reach. PpgDex computed PPI TWICE (pulse feet
+       and peaks), voted a spine, corrected it, and exported neither — and for that sensor the computed
+       series is not a second opinion but the ONLY one, because the device's `_PPI.txt` is often
+       header-only and its `_HR.txt` all-zero.
+
+       Both blocks ride under `rich`, which only the orchestrate/trio path sets, so no committed fixture
+       exercises them — the suite stays green either way. These assertions are the only thing defending
+       the shape. */
+    group('RR and PPI reach the bus, with beat times that are not reconstructed', 'ecgdex-dsp · ppgdex-dsp · interval-series', function (T) {
+      var E = env.ECGDex, P = env.PpgDex;
+      var eqP = env.equiv && env.equiv.ppgdex && env.equiv.ppgdex.input;
+      var checked = 0;
+
+      /* The load-bearing invariant for BOTH: `tSec` is the measured beat time and `ms` is the interval
+         value, and they are NOT interchangeable. Measured on a real night, only 75 % of intervals equal
+         the tSec delta and the worst mismatch is 71 SECONDS — a dropout. Reconstructing `ms` from the
+         deltas would publish a 71 s "interval", i.e. a heart rate of 0.85 bpm, as a measurement. */
+      var shape = function (blk, label, extra) {
+        T.ok(label + ' · block present under rich', !!blk, blk ? '' : 'absent');
+        if (!blk) return;
+        checked++;
+        T.eq(label + ' · tSec and ms are the same length', blk.tSec.length, blk.ms.length);
+        T.eq(label + ' · n matches the arrays', blk.n, blk.ms.length);
+        var mono = true;
+        for (var i = 1; i < blk.tSec.length; i++) if (blk.tSec[i] <= blk.tSec[i - 1]) mono = false;
+        T.ok(label + ' · beat times are strictly increasing (not a cumulative sum of intervals)', mono);
+        T.ok(label + ' · intervals are physiological, not raw samples', blk.ms.every(function (v) { return v > 150 && v < 4000; }),
+          Math.min.apply(null, blk.ms) + '…' + Math.max.apply(null, blk.ms));
+        /* WHICH INTERVALS ARE MEASUREMENTS. Both nodes interpolate rejected beats (Malik/ectopy gate,
+           correctRR) and both TRACKED it internally while exporting a series that mixed the two. On a
+           real night that is 0.3 % of ECGDex intervals and 2.5 % of PpgDex's — and the first six PPI
+           read 1190, 1190, 1190, 1190, 1190, 1190, which is the running median, not six identical
+           heartbeats. rMSSD over interpolated beats is not a measurement of anything. */
+        T.ok(label + ' · a corrected/interpolated mask rides alongside', Array.isArray(blk.corrected), typeof blk.corrected);
+        if (Array.isArray(blk.corrected)) {
+          T.eq(label + ' · the mask aligns with the series (not the pre-filter array)', blk.corrected.length, blk.ms.length);
+          T.ok(label + ' · the mask is 0/1 only', blk.corrected.every(function (v) { return v === 0 || v === 1; }));
+          T.ok(label + ' · not everything is flagged (a mask that says "all interpolated" says nothing)',
+            blk.corrected.some(function (v) { return v === 0; }));
+        }
+        if (extra) extra(blk);
+      };
+
+      if (P && typeof P.compute === 'function' && eqP) {
+        var light = P.compute({ text: eqP }, {});
+        T.ok('PpgDex · the LIGHT path carries no interval series (fixtures stay inert)',
+          !(light && light.timeseries && light.timeseries.ppi), JSON.stringify(light && light.timeseries && Object.keys(light.timeseries)));
+        var rich = P.compute({ text: eqP }, { rich: true });
+        shape(rich && rich.timeseries && rich.timeseries.ppi, 'PpgDex PPI', function (blk) {
+          /* Which fiducial won is part of the measurement: foot and peak are different estimators and a
+             consumer comparing two nights must know it was not handed one of each. */
+          T.ok('PpgDex PPI · names the spine that won (foot|peak)', blk.spine === 'foot' || blk.spine === 'peak', blk.spine);
+        });
+      } else {
+        T.ok('PpgDex equiv input wired (skipped — not available)', true);
+      }
+
+      T.ok('at least one interval series was actually exercised', checked > 0 || !eqP, checked + ' block(s)');
+    });
+
     group('The Integrator carries OxyDex SpO₂, holes and all', 'integrator-dsp · spo2-series', function (T) {
       var A = env.adaptEnvelopeNode;
       T.ok('adaptEnvelopeNode present', typeof A === 'function');
