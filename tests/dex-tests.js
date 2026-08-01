@@ -2098,6 +2098,15 @@
          rather than taking the argmax — measured, the argmax lands 37 s low and the centroid within a
          second. `spreadSec` publishes that plateau; the point estimate must sit at its middle. */
       T.ok('a planted offset is recovered to the second', Math.abs(got.offsetSec - 2302) <= 15, got.offsetSec);
+      /* SUB-SECOND RESOLUTION IS REAL, and was silently absent. The centroid used to be
+         `Math.round(seconds)`, quantising every answer to 1 s no matter how fine `stepSec` was — which
+         no clock test could see, because a ±45 s window makes a ~90 s plateau and 1 s is deep inside
+         it. Pointed at a sub-second question it returned 6000 / −2000 / 10000 / 16000 ms: exact
+         multiples of 1000, a quantiser wearing a measurement's clothes. */
+      var fine = pooled(anchor, [{ node: 'A', channel: 'x', times: anchor.map(function (t) { return t + 250; }) }],
+        { maxLagSec: 10, stepSec: 0.02, matchSec: 0.15, nullIters: 20, minEvents: 8 });
+      T.ok('a planted 250 ms offset is not quantised to a whole second', Math.abs(fine.offsetSec - 0.25) < 0.05, fine.offsetSec);
+      T.ok('…and the answer is not an exact multiple of one second', Math.abs(fine.offsetSec - Math.round(fine.offsetSec)) > 1e-6, fine.offsetSec);
       T.ok('…and the night is confident', got.confident === true, got.confident + ' p=' + got.pValue);
       T.ok('…with the plateau published as the resolution, not hidden', got.spreadSec > 0 && got.spreadSec <= 4 * 45, got.spreadSec);
 

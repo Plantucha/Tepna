@@ -4471,7 +4471,16 @@ function fitClockOffsetPooled(anchorTimes, channels, opts) {
     wSum += w;
     wLag += w * lagOf(p2);
   }
-  var bestSec = wSum > 0 ? Math.round(wLag / wSum) : bestLag;
+  /* ROUNDED TO THE GRID, NOT TO WHOLE SECONDS. `Math.round(wLag / wSum)` quantised every answer this
+     function has ever returned to 1 s — the value is in SECONDS, so rounding it to an integer throws
+     away exactly the precision `stepSec` exists to provide. Invisible for the clock work it was built
+     for (a +/-45 s match window makes a ~90 s plateau, so a 1 s quantum is far inside the noise) and
+     fatal the first time it was pointed at a sub-second question: beat-train lags came back as 6000,
+     -2000, 10000, 16000 ms — every one an exact multiple of 1000, which is a quantiser, not a
+     measurement. The centroid legitimately interpolates BETWEEN grid points, so it is kept to
+     millisecond resolution rather than snapped to `stepSec`; anything finer would be false precision
+     against a 20 ms grid, and anything coarser discards a real interpolation. */
+  var bestSec = wSum > 0 ? +(wLag / wSum).toFixed(3) : bestLag;
 
   /* RIVALS. Under a continuous statistic an exact tie is vanishingly unlikely, so the vote's tie rule
      does not port — but a NEAR tie is real and must still be reported rather than resolved. A rival is
