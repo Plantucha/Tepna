@@ -812,7 +812,10 @@ for (const n of plan) {
   pick.accVer = inSleep(pick.accVer);
   pick.gyro = inSleep(pick.gyro);
   pick.magn = inSleep(pick.magn);
-  console.log(`  ✓ ${n.key} — ${have.length < 3 ? 'PARTIAL (' + have.join('+') + ')' : 'concurrent trio'}, ${ov.toFixed(1)} h ${have.length < 3 ? "overlap" : "three-way overlap"} (merged sessions)` + (KEEP_DAYTIME ? '' : `, ${(noctFrac * 100).toFixed(0)}% nocturnal`));
+  console.log(
+    `  ✓ ${n.key} — ${have.length < 3 ? 'PARTIAL (' + have.join('+') + ')' : 'concurrent trio'}, ${ov.toFixed(1)} h ${have.length < 3 ? 'overlap' : 'three-way overlap'} (merged sessions)` +
+      (KEEP_DAYTIME ? '' : `, ${(noctFrac * 100).toFixed(0)}% nocturnal`)
+  );
   trio.push(pick);
 }
 
