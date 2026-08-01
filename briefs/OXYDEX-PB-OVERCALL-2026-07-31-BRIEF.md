@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-01 · **Created:** 2026-07-31 · **Found while executing:** `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md` §3.4 · **Relates:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 (same family)
+**Status:** IN-PROGRESS — 2026-08-01 (**§4 items 1, 2 and 4 ANSWERED** — items 1–2 in §5, item 4 in §6, each verified in the tree rather than from this line. §6: the fusion blast radius is **not inert** — over 24 OxyDex↔CPAPDex paired nights, `fusePeriodicBreathing` corroborates on 3 and **0 of those 3 survive removing the OxyDex leg**, so a 96 %-on channel makes `nObservers >= 2` a one-observer rule wearing a two-observer label; the effect is bounded to the PB path (`fuseApneaEvents` pools by impulse and never sees PB) and the ECGDex CVHR leg is **unexercised, not inert** (corpus predates `11091ef`). Pinned by a characterization gate, mutation-verified both directions; no behaviour changed. **Still open: §4 item 3 only** — the user-facing string, an owner surface decision it shares with §5.4 and §6.4.) · **Created:** 2026-07-31 · **Found while executing:** `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md` §3.4 · **Relates:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 (same family)
 
 # OxyDex emits periodic breathing on 92 % of nights; the machine scores it on 13 %
 
@@ -76,7 +76,10 @@ count, the same way a second oximeter must not double the apnea index (`integrat
 - [x] The operating-point sweep is run and published (`tools/pb-operating-point.mjs`) — and it lands on
       the honest possibility the item allowed: no threshold on this corpus is defensible (§5.2).
 - [ ] The user-facing string states an observation rather than prescribing a therapy review.
-- [ ] The fusion path is checked for an always-on-channel effect, and either fixed or shown inert.
+- [x] The fusion path is checked for an always-on-channel effect, and either fixed or shown inert —
+      **it is NOT inert** (§6). Measured, not reasoned: 0 of 3 corroborated nights survive removing
+      the OxyDex leg. Pinned by a characterization gate; the remedy is the same owner surface
+      decision as item 3, so it is escalated with it rather than guessed at here.
 - [ ] Whatever lands is gated, and mutation-verified against a revert.
 
 
@@ -153,7 +156,9 @@ Twice already the answer was to withdraw the claim rather than retune it.
   is an imperative resting on a hypoxemia proxy. Changing it is a small, defensible edit — but it is a
   **surface** decision (withdraw the instruction? withdraw the label? keep an unlabelled oscillation
   count?) and it belongs with the owner, not with a sweep.
-- **§4 item 4** (the fusion always-on channel) — unmeasured here.
+- ~~**§4 item 4** (the fusion always-on channel) — unmeasured here.~~ **MEASURED 2026-08-01 → §6.** Not
+  inert: 0 of 3 corroborated nights survive removing the OxyDex leg. Its remedy turned out to be *this
+  same* surface decision, not a separate one — see §6.4.
 - A redesign that would earn the name needs baseline-relative crossings + a 40–90 s cycle-length
   criterion + ≥ 3 consecutive cycles. That is a new detector, and it should be its own brief with its own
   validation, not a patch to this one.
@@ -161,3 +166,84 @@ Twice already the answer was to withdraw the claim rather than retune it.
 **Guardrail restated, because the sweep makes it tempting:** do not tune any of these three constants to
 improve agreement with the CPAP's PB scoring on 39 nights of one subject. The device is not ground truth,
 n = 1, and the earlier night-level agreement was κ = −0.039.
+
+---
+
+## 6 · Answered 2026-08-01 — item 4, the fusion blast radius (§3.4)
+
+**It is not inert.** `tools/pb-fusion-blast.mjs --cpap <cpap-exports.json>` (committed here; drives the
+SHIPPED `adaptEnvelopeNode` + `fusePeriodicBreathing` in a co-loaded realm — no reimplementation of the
+fusion rule) over the **24 nights** where a trio OxyDex export pairs with a CPAPDex export:
+
+| | |
+|---|---|
+| OxyDex emits `periodic_breathing` | **23 / 24 (96 %)** — §5.2's 36/37, reproduced on the paired subset |
+| `fusePeriodicBreathing` corroborates | 3 / 24 |
+| …still corroborates with the **OxyDex leg removed** | **0 / 24** |
+| block `conf` on the corroborated nights | 0.86 · 0.86 · 0.858 |
+
+### 6.1 · The measurement had to be a counterfactual, not a head-count
+
+"PB corroborated on 3 of 24 nights" answers nothing — 3/24 looks *conservative*. The informative quantity
+is how many of those 3 survive **removing the always-on observer and changing nothing else**, and the
+answer is none. Each night is therefore fused twice: as recorded, and with OxyDex's `periodic_breathing`
+events stripped. The gap between the two runs is the leg's entire contribution to the decision.
+
+`corroborated` is `nObservers >= 2`. With one leg on 96 % of nights, that is arithmetically a **one-observer
+rule wearing a two-observer label**: the verdict is decided by whichever *other* node fires, and here that is
+the CPAP's own device-scored PB — the very rater §1 measured κ = −0.039 against. The KPI
+(`integrator-render.js:480`) publishes `nObservers` as its headline value with *"signals corroborate"*
+underneath, and the fused note says *"corroborated across 2 independent signals"*. Both are literally true
+and both overstate the independent evidence by one.
+
+The leg is also not free on confidence. It joins the noisy-OR at `median(conf) × PB_TIER_WEIGHT.experimental`
+= 0.5 × 0.6 = 0.30, lifting a device-only 0.80 to **0.86** — an uplift that is unconditional in practice,
+because the leg is essentially always present.
+
+### 6.2 · What is bounded, and what was NOT measured
+
+- **The blast radius stops at the PB path.** `fuseApneaEvents` pools by IMPULSE over
+  `['spo2_desaturation','desat_event']` only, so `periodic_breathing` reaches neither the confirmed-apnea
+  rule nor `confirmedAHI`. The §3.4 analogy to §3.1's double-counted apnea index does **not** extend: this
+  is an evidence-count and confidence effect inside `fusePeriodicBreathing` and the finding it emits, not
+  an index inflation.
+- **The ECGDex cardiac-CVHR leg was UNEXERCISED, which is not the same as inert.** It reads
+  `apnea.cvhrIndex`, and 0 of the 24 committed trio ECGDex exports carry an `apnea` block at all — but
+  that block landed **2026-07-23** (`11091ef`), *after* this corpus was generated (2026-07-12). The corpus
+  is stale; the leg is not dead. Re-running `tools/trio-batch.mjs` would bring the third observer into
+  scope. Directionally it can only *amplify* what §6.1 measured — a third way for the second observer to
+  appear, with the same always-on leg underneath — but that is a prediction, not a measurement, and it is
+  written here as one.
+- **n = 1 subject**, 24 nights. Same bar as §2: nothing here is a population claim.
+
+### 6.3 · Gated, and mutation-verified in both directions
+
+`tests/dex-tests.js`, group *Integrator periodic-breathing corroboration (§2)*: a metamorphic pair holding
+the OxyDex leg byte-identical and firing while toggling only CPAPDex, plus the 0.80 → 0.86 conf uplift as a
+number. Reverting the production code reds it:
+
+```
+drop 'OxyDex' from _pbObserver's direct-node test  → ✕ corroborated/nObservers 2 · ✕ conf uplift
+PB_TIER_WEIGHT.experimental 0.6 → 0.3              → ✕ conf uplift (0.86 → 0.83)
+```
+
+It is a **characterization** gate and is labelled as one in the source. It does not assert the behaviour is
+right; it pins the shape of a defect that is currently shipping so it cannot drift unnoticed while the
+remedy waits on §6.4.
+
+### 6.4 · Why no fix landed with the measurement
+
+Every available remedy is the **same surface decision as §5.4**, not a separate one:
+
+1. **Withdraw the OxyDex leg from PB corroboration.** Defensible — the leg supplies no discrimination. But
+   measured against this corpus it silences the fused finding entirely (0/24 would corroborate: the only
+   other live observer is the CPAP, and one observer never surfaces). That is a real loss of a surfaced
+   finding with no measured compensating gain.
+2. **Keep the leg, stop calling it corroboration** — report the CPAP's device-scored PB and note the
+   oximetry channel as concurrent-but-uninformative. This is wording, and wording is §5.4's question.
+3. **Fix the detector** so the leg earns its place — baseline-relative crossings, a 40–90 s cycle-length
+   criterion, ≥ 3 consecutive cycles. §5.4 already routes that to its own brief with its own validation.
+
+Choosing among these is the owner's call for the same reason §5.4 is: it changes what a user is told about
+their therapy. Item 4 asked for the effect to be *measured*, and it is — with the counterfactual, the
+bound, and the caveat all recorded rather than a number produced.

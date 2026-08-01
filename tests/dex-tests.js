@@ -1539,6 +1539,66 @@
         T.eq('#7: ECGDex CVHR observer graded emerging, obs.conf 0.80', (ecgSrc && ecgSrc.tier) + '/' + (ecgSrc && ecgSrc.conf), 'emerging/0.8');
         T.ok('#7: tier-weighted conf uses emerging=0.8 → 0.834 (0.4 → 0.687)', Math.abs(b7.conf - 0.834) < 0.003, 'conf=' + b7.conf);
       }
+
+      /* ── OXYDEX-PB-OVERCALL §3.4 — THE ALWAYS-ON CHANNEL, PINNED AS A MEASURED PROPERTY ──────
+         OxyDex emits `periodic_breathing` on 23 of 24 corpus nights (that brief's §5.2 reports
+         36/37 on its own run), because the detector carries no periodicity criterion and is closer
+         to a hypoxemia-burden readout than a PB one. `corroborated` is `nObservers >= 2`, so a leg
+         that is on almost always cannot discriminate: the verdict is decided by whichever OTHER
+         node fires. Measured with `tools/pb-fusion-blast.mjs --cpap …` over 24 paired nights —
+         corroborated 3/24, and 0/24 survive removing the OxyDex leg.
+
+         This is a CHARACTERIZATION gate, deliberately: the remedy is a user-facing surface decision
+         (withdraw the label? the instruction? the leg?) that belongs with the owner alongside the
+         brief's §5.4, and §4 item 4 asked for the effect to be "fixed OR shown inert". It is not
+         inert, and this pins the shape of the non-inertness so it cannot drift unnoticed.
+
+         Mutation-verified both directions:
+           drop 'OxyDex' from _pbObserver's direct-node test → the corroboration + uplift asserts RED
+           PB_TIER_WEIGHT.experimental 0.6 → 0.3                → the uplift assert REDs (0.86 → 0.83) */
+      var alwaysOnOxy = function (tag) {
+        return A(
+          {
+            schema: { node: 'OxyDex' },
+            recording: { startEpochMs: t0, durationMin: 480, offsetMin: null },
+            ganglior_events: [
+              { t: '22:30:00', tMs: t0 + 1800000, impulse: 'periodic_breathing', node: 'OxyDex', conf: 0.5, meta: { cycleLen: 50 } },
+              { t: '23:30:00', tMs: t0 + 5400000, impulse: 'periodic_breathing', node: 'OxyDex', conf: 0.5, meta: { cycleLen: 50 } }
+            ]
+          },
+          'OxyDex',
+          tag
+        );
+      };
+      var cpapLeg = function (fires, tag) {
+        return A(
+          {
+            schema: { node: 'CPAPDex' },
+            recording: { startEpochMs: t0, durationMin: 480, offsetMin: null, sessions: [{ mode: 'CPAP' }] },
+            metrics: { residualAHI: 5, periodicBreathingPct: fires ? 7.5 : 0 },
+            ganglior_events: fires ? [{ t: '22:35:00', tMs: t0 + 2100000, impulse: 'periodic_breathing', node: 'CPAPDex', conf: 0.8, meta: {} }] : []
+          },
+          'CPAPDex',
+          tag
+        );
+      };
+      /* Metamorphic: the ONLY difference between these two runs is whether CPAPDex fired. OxyDex is
+         byte-identical and firing in both — exactly the corpus situation. Held together they are the
+         finding: with OxyDex on either way, the verdict is a function of the OTHER observer alone,
+         so `nObservers: 2` overstates the independent evidence by one. */
+      var onSilent = FPB(alwaysOnOxy('oxy-on-a.json').concat(cpapLeg(false, 'cpap-silent.json')));
+      var onFires = FPB(alwaysOnOxy('oxy-on-b.json').concat(cpapLeg(true, 'cpap-fires.json')));
+      T.ok('§3.4: always-on OxyDex + SILENT CPAPDex → no corroborated block', onSilent === null);
+      T.ok(
+        '§3.4: always-on OxyDex + FIRING CPAPDex → corroborated, nObservers 2 (verdict tracks CPAPDex alone)',
+        !!(onFires && onFires.blocks && onFires.blocks.length === 1 && onFires.blocks[0].nObservers === 2),
+        JSON.stringify(onFires && onFires.blocks && onFires.blocks[0] && onFires.blocks[0].observerNodes)
+      );
+      /* And the always-on leg is not free — it lifts every block it joins. Device leg 0.8 × 1.0 =
+         0.80; OxyDex median(0.5) × 0.6 = 0.30; 1 − (1−0.80)(1−0.30) = 0.86. The corpus run reports
+         0.86 / 0.86 / 0.858 across its three blocks, so the uplift is unconditional in practice. */
+      if (onFires && onFires.blocks && onFires.blocks[0])
+        T.ok('§3.4: the always-on leg lifts block conf 0.80 → 0.86 (unconditional uplift)', Math.abs(onFires.blocks[0].conf - 0.86) < 0.003, 'conf=' + onFires.blocks[0].conf);
     });
 
     /* DEEP-AUDIT-III §6.1 — an ABSTENTION IS NOT AN AGREEMENT.
