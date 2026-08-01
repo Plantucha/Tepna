@@ -2085,6 +2085,11 @@
     hhmm,
     parseNutrition,
     pearson,
+    // EXPORT-PATH-UNREACHABLE §1: glucodex-app.js builds timeseries.cells with GLUDSP.glucoCells.
+    // It was single-sourced here (71b89df) to stop the app's copy drifting from the DSP's, but never
+    // PUBLISHED — so the app threw `GLUDSP.glucoCells is not a function` and ⬇ JSON downloaded
+    // nothing, while glucoBuildNodeExport (which calls it in lexical scope) kept the gates green.
+    glucoCells,
     _ckParse // exposed for the Clock Contract §2.7 range-validation regression gate
   };
   // ONE namespaced global (brief §1A). GlucoDex leaks nothing bare (whole DSP is in

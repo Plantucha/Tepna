@@ -65,7 +65,7 @@ import { MOTIONUI } from './motiondex-render.js';
       RESULT = MOTIONDSP.compute(input);
       MOTIONUI.renderSummary(RESULT);
       setStatus(names.length + ' file(s): ' + names.join(', '));
-      if ($('mxExport')) $('mxExport').disabled = false;
+      setExportReady(true);
     });
   }
 
@@ -76,12 +76,24 @@ import { MOTIONUI } from './motiondex-render.js';
     RESULT = MOTIONDSP.compute({ acc: acc, chestAcc: chest });
     MOTIONUI.renderSummary(RESULT);
     setStatus('Demo — deterministic synthetic (supine, 15 br/min).');
-    if ($('mxExport')) $('mxExport').disabled = false;
+    setExportReady(true);
+  }
+
+  /* EXPORT-PATH-UNREACHABLE §2 — `ans-design.css` ships `#exportBar{display:none}` and reveals it with
+     `#exportBar.show`. MotionDex is the one node whose bar is STATIC markup in its .src.html rather than
+     written by JS, so it never inherited the `.show` call every other node makes in the same statement
+     that writes its buttons: `#mxExport` was being enabled inside a container with a 0x0 rect, and a real
+     click was rejected "Element is not visible". Enabling the button and revealing its bar are one act. */
+  function setExportReady(on) {
+    var btn = $('mxExport'),
+      bar = $('exportBar');
+    if (btn) btn.disabled = !on;
+    if (bar) bar.classList.toggle('show', !!on);
   }
 
   function exportJSON() {
     if (!RESULT) return;
-    var env = MOTIONDSP.buildNodeExport(RESULT);
+    var env = MOTIONDSP.buildNodeExport(RESULT, { kernel: window.DexKernel || null });
     if (MOTIONDSP && window.MotionDex && typeof window.MotionDex.scrubExport === 'function') env = window.MotionDex.scrubExport(env);
     var blob = new Blob([JSON.stringify(env, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
@@ -142,7 +154,7 @@ import { MOTIONUI } from './motiondex-render.js';
           var el = $(id);
           if (el) el.style.display = 'none';
         });
-        if ($('mxExport')) $('mxExport').disabled = true;
+        setExportReady(false);
         if ($('mxInput')) $('mxInput').value = '';
         setStatus('Cleared.');
       });

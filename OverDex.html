@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+x52OmjNSO1Iy8Xkm2euCbNod1Z0pplANqqQ8Gqcrmk=' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-C5PsyUZJPRO9MCaibVwbiMOdWNLds3tX5RLIwuBiNDw=' 'sha256-EOKRuE/GkDUR4P5IwjyYm9MEEvSQD1EXJqzC61MZea4=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-irqCc4+5dhqaRPdZw+qJe/7twXLWGrlF2a61O+ToWQI=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-m7UkuedMLKSntYws1Ug4cpYuAPl2TQFlBvuBAWt9q4E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pZWJDowIHGAoRSiNTxfH7A3EMaKUueFMdCYwYu6iUec=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-usni84aK+rz/zHDyyq5UGBBttoKdgOjbpscJOrtWqXE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zk3KOEsqmEMxbpzVVLaxsrYJ7o1WRXn9EbyU5wARu4=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-4Qa/bNXFtLalt3sC48D2aEeKbsN170tGebdgRVLTWxY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-C5PsyUZJPRO9MCaibVwbiMOdWNLds3tX5RLIwuBiNDw=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-GXJYZ1iyp1st6PtD7giFTCiLoR8KIj76b046DJ8ZJLM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-c6QRLqcNFym+nsJ80vmlTRtnr0ht3ikvwAGw4+pfXmY=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-m7UkuedMLKSntYws1Ug4cpYuAPl2TQFlBvuBAWt9q4E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pZWJDowIHGAoRSiNTxfH7A3EMaKUueFMdCYwYu6iUec=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-usni84aK+rz/zHDyyq5UGBBttoKdgOjbpscJOrtWqXE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -16483,6 +16483,12 @@ __exports.OxyDex = window.OxyDex;
           '<button class="eb-btn eb-json" type="button" data-act="exportJSONL">⬇ JSON</button>' +
           '<button class="eb-btn eb-csv" type="button" data-act="exportCSV">⬇ CSV</button>' +
           '<button class="eb-btn eb-pdf" type="button" data-act="print">⬇ PDF</button>' +
+          // EXPORT-PATH-UNREACHABLE §4 — the Integrator's own remediation text tells the user to
+          // "re-export via the node's Ganglior button"; until now that button did not exist in HRVDex.
+          // Distinct from ⬇ JSON on purpose: JSON is the human VIEW (last-7-days, per the hint below),
+          // Ganglior is the machine BUS export and always covers the FULL ingested recording.
+          '<span class="eb-div"></span>' +
+          '<button class="eb-btn eb-extra" type="button" data-act="exportGanglior" title="ganglior.node-export — the full recording, for the Integrator">⬇ Ganglior</button>' +
           '</div>' +
           // SIGNAL-ADAPTER-FOLLOWUPS-X §2: visible scope hint (filled by _hrvUpdateExportHint).
           // Inline-styled so no .src.html <style> edit is needed → buildHash stays put.
@@ -21195,6 +21201,11 @@ __exports.PulseDex = window.PulseDex;
     hhmm,
     parseNutrition,
     pearson,
+    // EXPORT-PATH-UNREACHABLE §1: glucodex-app.js builds timeseries.cells with GLUDSP.glucoCells.
+    // It was single-sourced here (71b89df) to stop the app's copy drifting from the DSP's, but never
+    // PUBLISHED — so the app threw `GLUDSP.glucoCells is not a function` and ⬇ JSON downloaded
+    // nothing, while glucoBuildNodeExport (which calls it in lexical scope) kept the gates green.
+    glucoCells,
     _ckParse // exposed for the Clock Contract §2.7 range-validation regression gate
   };
   // ONE namespaced global (brief §1A). GlucoDex leaks nothing bare (whole DSP is in
@@ -30629,9 +30640,40 @@ __exports.ECGDex = window.ECGDex;
   // ── classify one walked file (cheap: route by name + head, then JSON sniff) ──
   // Returns { file, relPath, klass, route?, node?, json?, signalType?, note? }
   // klass ∈ 'raw' (adapter-routed) | 'export' (ready node-export) | 'ambiguous' | 'unknown' | 'error'
+  /* EXPORT-PATH-UNREACHABLE §5 — which node OWNS each signal type. This was an inline ternary
+     (`spo2 ? OxyDex : hrv ? HRVDex : PulseDex`), so ecg / ppg / cgm / cpap ALL displayed
+     "→ PulseDex" in the routing manifest. Display-only — runAndFuse() dispatches on signalType, so
+     the 208 MB H10 ECG did run through ECGDex and emit 62 correct events while the manifest said
+     PulseDex — but a manifest whose whole job is "tell the user what will run" must not lie. */
+  var NODE_FOR_SIGNAL = { spo2: 'OxyDex', hrv: 'HRVDex', rr: 'PulseDex', ecg: 'ECGDex', ppg: 'PpgDex', cgm: 'GlucoDex', cpap: 'CPAPDex' };
+
   function classify(file, text) {
     var relPath = WALK.relOf(file);
     var head = (text || '').slice(0, 2048);
+    /* A ganglior.node-export DECLARES what it is in `schema.name`; a vendor adapter only ever GUESSES
+       from a filename and a 2 KB head. The self-describing artifact must therefore be asked FIRST —
+       it used to be asked only after every adapter had declined, and `adapters/oxydex-spo2.js` claims
+       /oxydex/i on the NAME at 0.95. So `OxyDex_<night>_summary.json` matched the raw-SpO₂ adapter,
+       died in the CSV row parser ("no usable SpO₂ rows parsed"), and was never retried as an export:
+       OxyDex vanished from every OverDex fusion while the Integrator fused the same file with 57
+       events. `adapters/libre-cgm.js` carries the identical /glucodex/i rule.
+       Gated on a cheap head sniff so a 208 MB ECG text is never handed to JSON.parse. */
+    var sawJSON = false;
+    if (/^\s*\{/.test(head)) {
+      var early = null;
+      try {
+        early = JSON.parse(text);
+      } catch (e) {
+        early = null;
+      }
+      if (early && typeof early === 'object') {
+        sawJSON = true;
+        var eres = D.normalizeFile(early, file.name);
+        if (eres.recs && eres.recs.length) {
+          return { file: file, relPath: relPath, klass: 'export', json: early, node: eres.recs[0].node, nRecs: eres.recs.length, warnings: eres.warnings || [] };
+        }
+      }
+    }
     var r = REG.route({ name: file.name }, head);
     if (r.best) {
       if (r.ambiguous) {
@@ -30649,26 +30691,14 @@ __exports.ECGDex = window.ECGDex;
         klass: 'raw',
         route: r,
         signalType: r.best.signalType,
-        node: r.best.signalType === 'spo2' ? 'OxyDex' : r.best.signalType === 'hrv' ? 'HRVDex' : 'PulseDex',
+        node: NODE_FOR_SIGNAL[r.best.signalType] || 'PulseDex',
         adapter: r.best.adapter,
         vendor: r.best.vendor
       };
     }
-    // not adapter-routable → is it an already-exported ganglior.node-export?
-    var json = null;
-    try {
-      json = JSON.parse(text);
-    } catch (e) {
-      json = null;
-    }
-    if (json && typeof json === 'object') {
-      var res = D.normalizeFile(json, file.name);
-      if (res.recs && res.recs.length) {
-        var node = res.recs[0].node;
-        return { file: file, relPath: relPath, klass: 'export', json: json, node: node, nRecs: res.recs.length, warnings: res.warnings || [] };
-      }
-      return { file: file, relPath: relPath, klass: 'unknown', note: 'JSON, but not a recognized node-export (no fusible records)' };
-    }
+    // Neither a node-export nor adapter-routable. Keep the two reasons distinct — "JSON we could not
+    // fuse" and "nothing recognised it" are different problems for whoever reads the manifest.
+    if (sawJSON) return { file: file, relPath: relPath, klass: 'unknown', note: 'JSON, but not a recognized node-export (no fusible records)' };
     return { file: file, relPath: relPath, klass: 'unknown', note: 'no adapter matched and not a node-export JSON — set aside, never guessed' };
   }
 

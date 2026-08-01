@@ -410,6 +410,12 @@
           '<button class="eb-btn eb-json" type="button" data-act="exportJSONL">⬇ JSON</button>' +
           '<button class="eb-btn eb-csv" type="button" data-act="exportCSV">⬇ CSV</button>' +
           '<button class="eb-btn eb-pdf" type="button" data-act="print">⬇ PDF</button>' +
+          // EXPORT-PATH-UNREACHABLE §4 — the Integrator's own remediation text tells the user to
+          // "re-export via the node's Ganglior button"; until now that button did not exist in HRVDex.
+          // Distinct from ⬇ JSON on purpose: JSON is the human VIEW (last-7-days, per the hint below),
+          // Ganglior is the machine BUS export and always covers the FULL ingested recording.
+          '<span class="eb-div"></span>' +
+          '<button class="eb-btn eb-extra" type="button" data-act="exportGanglior" title="ganglior.node-export — the full recording, for the Integrator">⬇ Ganglior</button>' +
           '</div>' +
           // SIGNAL-ADAPTER-FOLLOWUPS-X §2: visible scope hint (filled by _hrvUpdateExportHint).
           // Inline-styled so no .src.html <style> edit is needed → buildHash stays put.

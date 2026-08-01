@@ -2654,6 +2654,10 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
       <button class="eb-btn eb-csv" type="button" id="btnSumCSV">⬇ CSV</button>
       <button class="eb-btn eb-pdf" type="button" data-act="print">⬇ PDF</button>
       <span class="eb-div"></span>
+      <!-- EXPORT-PATH-UNREACHABLE §4 — the bus export. ⬇ JSON above is the raw analysis object on the
+           single-recording branch (no schema, no events); this is the ganglior.node-export the
+           Integrator actually fuses, and the button its warning text already tells users to press. -->
+      <button class="eb-btn eb-extra" type="button" id="btnGanglior" title="ganglior.node-export — for the Integrator">⬇ Ganglior</button>
       <button class="eb-btn eb-extra" type="button" id="btnCSV">⬇ HRVDex</button>
     </div>
     <span class="eb-spacer"></span>

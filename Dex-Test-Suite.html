@@ -1423,7 +1423,7 @@ function _eqClone(x){ return x==null?null:JSON.parse(JSON.stringify(x)); }
    PLUS cross-cutting: every leg's profileEditProbe bumps the unified tepna_profile — also covered by the
    same whole-store snapshot, so no per-leg key list is required. */
 const APP_COVERAGE = [
-  { name:'OxyDex', file:'OxyDex.html', waitMs:5000, labels:['ODI','SpO','desat','AHI'], minNums:15,
+  { name:'OxyDex', file:'OxyDex.html', waitMs:5000, labels:['ODI','SpO','desat','AHI'], minNums:15, exportBar:{ want:['JSON','CSV'] },
     prep:(doc,win)=>{ const tls=window.SYNTH.buildTimelines(); return injectFiles(win,doc,'fileInput',[{name:'O2Ring_demo.csv',text:window.SYNTH.renderOxy(tls[0])}]); },
     extraProbe:async (g,win,doc,add)=>{
       // Phase-9 (SIGNAL-ADAPTER-FOLLOWUPS §4): the headless public surface must produce a
@@ -1484,7 +1484,7 @@ const APP_COVERAGE = [
         add(g, 'OxyDex reviewView(events-only, nights=[]) renders honest placeholder without throwing', !eoErr && !!(eoR&&eoR.ok) && /Review mode/i.test(eoHtml) && /nothing to review/i.test(eoHtml) && /not a medical device/i.test(eoHtml), eoErr||((eoHtml||'').length+' chars'));
       }
     } },
-  { name:'PulseDex', file:'PulseDex.html', waitMs:4500, labels:['rMSSD','SDNN','HRV'], minNums:15,
+  { name:'PulseDex', file:'PulseDex.html', waitMs:4500, labels:['rMSSD','SDNN','HRV'], minNums:15, exportBar:{ want:['JSON','CSV','Ganglior'] },
     review:{ node:'PulseDex', card:'pulseReviewCard' },
     prep:(doc,win)=>{ const tls=window.SYNTH.buildTimelines(); const ta=doc.getElementById('rawPaste'); if(!ta) return false;
       ta.value=window.SYNTH.renderRR(tls[0]); ta.dispatchEvent(new win.Event('input',{bubbles:true}));
@@ -1515,7 +1515,7 @@ const APP_COVERAGE = [
         }
       }
     } },
-  { name:'HRVDex', file:'HRVDex.html', waitMs:4500, labels:['rMSSD','SDNN','HRV'], minNums:12,
+  { name:'HRVDex', file:'HRVDex.html', waitMs:4500, labels:['rMSSD','SDNN','HRV'], minNums:12, exportBar:{ want:['JSON','CSV','Ganglior'] },
     review:{ node:'HRVDex', card:'hrvReviewCard' },
     prep:(doc,win)=>{ const tls=window.SYNTH.buildTimelines(); const ta=doc.getElementById('pasteArea'); if(!ta) return false;
       // XI §1/§2: the operator's HRV running log (hrvdex_rows_v1) — and every other key any leg's
@@ -1575,9 +1575,14 @@ const APP_COVERAGE = [
         }
       }
     } },
-  { name:'GlucoDex', file:'GlucoDex.html', hash:'#demo', waitMs:5500, labels:['CV','GMI','range','glucose'], minNums:15, prep:null,
+  { name:'GlucoDex', file:'GlucoDex.html', hash:'#demo', waitMs:5500, labels:['CV','GMI','range','glucose'], minNums:15, prep:null, exportBar:{ want:['JSON','CSV'] },
     review:{ node:'GlucoDex', card:'glucoReviewCard' } },
-  { name:'PpgDex', file:'PpgDex.html', waitMs:6500, labels:['rMSSD','SDNN','pulse','HRV'], minNums:12,
+  /* EXPORT-PATH-UNREACHABLE §8 — MotionDex had NO render-coverage leg: its bundle was never booted in
+     the rig, which is precisely how a permanently `display:none` export bar survived from birth. #demo
+     runs the deterministic synthetic (motiondex-app.js runDemo), same pattern as GlucoDex. */
+  { name:'MotionDex', file:'MotionDex.html', hash:'#demo', waitMs:4500, labels:['supine','respirat','immobile','movement'], minNums:8, prep:null,
+    exportBar:{ want:['JSON'] }, profileProbe:false, minChars:600 },
+  { name:'PpgDex', file:'PpgDex.html', waitMs:6500, labels:['rMSSD','SDNN','pulse','HRV'], minNums:12, exportBar:{ want:['JSON','CSV'] },
     review:{ node:'PpgDex', card:'ppgReviewCard' },
     prep:(doc,win)=>{ const tls=window.SYNTH.buildTimelines(); const tl=tls[0]; const w=window.SYNTH.pickWindow(tl);
       return injectFiles(win,doc,'fileInput',[{name:'Polar_Sense_demo_PPG.txt',text:window.SYNTH.renderPPG(tl,w)}]); } },
@@ -1596,6 +1601,42 @@ const APP_COVERAGE = [
         {name:'ecgdex_demo.json',text:env('ECGDex',40,58),type:'application/json'},
         {name:'hrvdex_demo.json',text:env('HRVDex',44,60),type:'application/json'}]); } },
 ];
+/* EXPORT-PATH-UNREACHABLE §8 — THE GATE THAT PRESSES THE BUTTONS.
+   Every gate in this repo verifies compute(): the equivalence legs re-run the DSP against a committed
+   export and compare bytes. NONE of them had ever asked whether a user can REACH the export, and the
+   app-layer path rotted in five places at once while the suite stayed 4668/4668 green —
+     · MotionDex enabled #mxExport inside a `display:none` bar it never .show()ed (and had no leg here
+       at all, so its bundle was never even booted);
+     · HRVDex's permanent .mobile-nav (z 500) covered #exportBar (z 400) above 1080px, so every button
+       was pointer-intercepted — the #rig is 1280px wide, so this probe sees exactly that;
+     · PulseDex and HRVDex both had exportGanglior() wired to no control whatsoever.
+   Reaching a button is a DOM fact, so assert it as one: is the bar displayed, and does a hit-test at
+   each button's own centre land on that button? `elementFromPoint` is the whole point — a z-index
+   regression is invisible to `offsetParent`/`getBoundingClientRect`, which is why CSS stacking bugs
+   walk past structural checks. `want` names the controls the fusion contract needs to exist. */
+async function exportBarProbe(g, win, doc, add, spec){
+  const bar = doc.getElementById('exportBar');
+  add(g, 'export bar exists', !!bar);
+  if(!bar) return;
+  const disp = win.getComputedStyle(bar).display;
+  add(g, 'export bar is DISPLAYED after a committed result', disp!=='none', 'display:'+disp);
+  if(disp==='none') return;
+  const btns = Array.prototype.slice.call(bar.querySelectorAll('button'));
+  add(g, 'export bar has buttons', btns.length>0, btns.length+' button(s)');
+  const blocked=[];
+  btns.forEach(function(b){
+    const r=b.getBoundingClientRect();
+    if(!r.width || !r.height){ blocked.push(b.textContent.trim()+' (0×0)'); return; }
+    const hit=doc.elementFromPoint(r.left+r.width/2, r.top+r.height/2);
+    if(!(hit===b || b.contains(hit))) blocked.push(b.textContent.trim()+' ← '+(hit?(hit.tagName+'.'+(hit.className||'')).slice(0,40):'null'));
+  });
+  add(g, 'every export button is hit-testable (nothing overlays it)', blocked.length===0, blocked.join(' · '));
+  (spec&&spec.want||[]).forEach(function(label){
+    add(g, 'export bar offers "'+label+'"', btns.some(function(b){ return b.textContent.trim().indexOf(label)>=0; }),
+      btns.map(function(b){ return b.textContent.trim(); }).join(' | '));
+  });
+}
+
 async function renderCoverageApp(cfg){
   const g = mkGroup('Render coverage — '+cfg.name+' computed → DOM', 'browser-only · '+cfg.file);
   const rig = document.getElementById('rig');
@@ -1613,7 +1654,17 @@ async function renderCoverageApp(cfg){
       let ok=false; try{ ok=cfg.prep(doc,win); }catch(e){ errored=errored||e.message; }
       add(g, 'synthetic data injected (demo path)', ok!==false, ok===false?'injection hook not found':'');
     }
-    await waitForRender(doc, d=>_numTokens(d)>=(cfg.minNums||12) && (cfg.labels||[]).some(l=>new RegExp(l,'i').test((d.body&&d.body.innerText)||'')), Math.max(14000,(cfg.waitMs||4500)+9000));
+    /* EXPORT-PATH-UNREACHABLE §8 — when a leg declares an export bar, SETTLE ON IT. Two reasons, both
+       found the day this probe was added. (1) It removes a race: GlucoDex's #demo lands asynchronously
+       (load → 300ms → genSynthetic → 30ms → runPipeline → setTimeout), so a probe that fired on the
+       token count alone read the bar before the pipeline revealed it. (2) It de-HOLLOWS the leg, which
+       matters far more: measured on a bare GlucoDex.html with NO data loaded, the old predicate scored
+       16 numeric tokens against minNums 15, matched all four of CV/GMI/range/glucose in the empty
+       state's own help text, and cleared minChars 1500 at 2832 chars — so every assertion in that leg
+       passed with the app showing nothing at all. `.show` on #exportBar is the one condition an empty
+       app cannot fake: it is set only where a result is committed. */
+    const _barSettled = d=>{ const b=d.getElementById('exportBar'); return !!b && b.classList.contains('show'); };
+    await waitForRender(doc, d=>_numTokens(d)>=(cfg.minNums||12) && (cfg.labels||[]).some(l=>new RegExp(l,'i').test((d.body&&d.body.innerText)||'')) && (!cfg.exportBar || _barSettled(d)), Math.max(14000,(cfg.waitMs||4500)+9000));
     const txt=(doc.body&&doc.body.innerText)||'';
     add(g, 'no uncaught error during demo', !errored, errored);
     if(cfg.controls){
@@ -1643,6 +1694,8 @@ async function renderCoverageApp(cfg){
     // (CLAUDE.md §3 "14 numeric tokens"). Single tokenizer, read live from the doc — bar unchanged.
     const numTokens=_numTokens(doc);
     add(g, 'computed numeric output reaches the DOM', numTokens>=(cfg.minNums||12), numTokens+' numeric tokens');
+    // EXPORT-PATH-UNREACHABLE §8 — before any node-specific probe: can the user actually reach the export?
+    if(cfg.exportBar){ try{ await exportBarProbe(g, win, doc, add, cfg.exportBar); }catch(e){ add(g, cfg.name+' export-bar probe ran without throwing', false, e.message); } }
     if(cfg.extraProbe){ try{ await cfg.extraProbe(g, win, doc, add); }catch(e){ add(g, cfg.name+' extra probe ran without throwing', false, e.message); } }
     // F2 (SELF-INGEST-FOLLOWUPS-II): drive the review renderer (loadOwnExport → reviewView rich+light → renderReview)
     if(cfg.review){ try{ await reviewProbe(g, win, add, cfg.review.node, cfg.review.card); }catch(e){ add(g, cfg.review.node+' review probe ran without throwing', false, e.message); } }
