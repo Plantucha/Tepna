@@ -641,6 +641,35 @@ function adaptEnvelopeNode(json, node, filename) {
         return x;
       });
   }
+  /* THE OXIMETER'S PRIMARY SIGNAL, NOW THAT IT LEAVES THE NODE (OXYDEX-SPO2-SERIES).
+
+     OxyDex exported SpO2 nowhere until 2026-07-31: the timeseries block was 89 five-minute epochs of
+     {hr, motionIndex} for a night in which the device recorded ~26,500 samples. The series now ships
+     at 1 Hz — and until this reader existed the fusion still could not see it, so the field benefited
+     analysis scripts only. A producer with no consumer is half a change.
+
+     CARRIED, NOT RESAMPLED. The grid is uniform from `startEpochMs` at `hz`, so a consumer derives an
+     absolute stamp by index and nothing here needs to interpolate. `null` is preserved as `null`: a
+     second the device never reported is not 0 — which reads as the most severe desaturation physically
+     possible — and not the previous value, which reads as stable oxygen. Resampling onto some other
+     grid HERE would have to invent a rule for those holes, and the honest rule is to hand the caller
+     the holes.
+
+     NULL-TOLERANT AND ADDITIVE, like every series above: a node without the block (an export predating
+     the field, or a night with no usable SpO2) simply carries none. */
+  var _sp = json.timeseries && json.timeseries.spo2;
+  if (_sp && Array.isArray(_sp.values) && _sp.values.length && t0Ms != null) {
+    var _hz = _sp.hz != null && isFinite(_sp.hz) && _sp.hz > 0 ? _sp.hz : 1;
+    seriesOut.spo2 = {
+      hz: _hz,
+      t0Ms: t0Ms,
+      // Sanitised on the way in: a non-finite entry becomes an explicit hole rather than a NaN that
+      // would propagate silently through whatever consumes it.
+      values: _sp.values.map(function (v) {
+        return v != null && isFinite(v) ? v : null;
+      })
+    };
+  }
   return [
     {
       node: node,
