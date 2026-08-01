@@ -4410,6 +4410,186 @@ function desatOnsetsFromSeries(spo2, opts) {
   return out;
 }
 
+/* ── DRIFT-AWARE BEAT ALIGNMENT (WEARABLE-DRIFT-FIT) ────────────────────────────────────────────
+   Two body-worn devices agree on ~90 % of heartbeats — and a CONSTANT-offset fit reports 16 %,
+   because they do not share a timebase across a night. Measured on 2026-07-26:
+
+     median local correspondence, 5-min blocks   90.6 %   (chance control, +1 h: 21.3 %)
+     linear drift                                5.2 ms/min = 87 ppm  →  2,264 ms over 435 min
+
+   Two seconds exceeds an RR interval, so one offset walks off the correct beat partway through the
+   night and every later beat is matched to the wrong one. Fitting ONE number to a pair that needs TWO
+   is what produced the retracted "beat trains cannot align these devices" conclusion.
+
+   So: fit the offset LOCALLY in short blocks, then regress block offset against block time — the same
+   shape `alignEnvelopes` uses for accelerometer envelopes, applied to beat times, which are already
+   in the node-export (`timeseries.rr.tSec` / `timeseries.ppi.tSec`) and need no contract change.
+
+   PURE: numbers in, numbers out. `chanceCorrespondence` runs the identical search on a deliberately
+   wrong alignment, because the block fit maximises the very statistic it reports — without that
+   control a flat, meaningless sweep still returns a confident-looking best block. */
+function fitClockDrift(aTimes, bTimes, opts) {
+  opts = opts || {};
+  var blockMs = opts.blockMs != null ? opts.blockMs : 300000;
+  var searchMs = opts.searchMs != null ? opts.searchMs : 3000;
+  var stepMs = opts.stepMs != null ? opts.stepMs : 20;
+  var tolMs = opts.tolMs != null ? opts.tolMs : 80;
+  var minBeats = opts.minBeats != null ? opts.minBeats : 30;
+  var minBlocks = opts.minBlocks != null ? opts.minBlocks : 5;
+  var A = (aTimes || [])
+    .filter(function (t) {
+      return t != null && isFinite(t);
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+  var B = (bTimes || [])
+    .filter(function (t) {
+      return t != null && isFinite(t);
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+  if (A.length < minBeats * 2 || B.length < minBeats * 2) return { offsetMs: null, driftPpm: null, confident: false, reason: 'too few beats' };
+
+  /* Correspondence of one block at one offset: fraction of A-beats whose nearest B-beat sits within
+     tolMs of the block's OWN median delta. Centring on the median rather than zero is what makes this
+     measure agreement instead of the acceptance window's width. */
+  function corrAt(bA, off) {
+    if (bA.length < minBeats) return null;
+    var dl = [];
+    for (var i = 0; i < bA.length; i++) {
+      var x = bA[i] + off,
+        bd = null;
+      var lo = 0,
+        hi = B.length - 1;
+      while (lo < hi) {
+        var mid = (lo + hi) >> 1;
+        if (B[mid] < x) lo = mid + 1;
+        else hi = mid;
+      }
+      for (var k = Math.max(0, lo - 2); k < Math.min(B.length, lo + 2); k++) {
+        var q = B[k] - x;
+        if (bd == null || Math.abs(q) < Math.abs(bd)) bd = q;
+      }
+      if (bd != null) dl.push(bd);
+    }
+    if (dl.length < minBeats) return null;
+    dl.sort(function (x2, y2) {
+      return x2 - y2;
+    });
+    var med = dl[Math.floor(dl.length / 2)];
+    var hit = 0;
+    for (var j = 0; j < dl.length; j++) if (Math.abs(dl[j] - med) <= tolMs) hit++;
+    return { frac: hit / bA.length, med: med, iqr: dl[Math.floor(dl.length * 0.75)] - dl[Math.floor(dl.length * 0.25)] };
+  }
+
+  function runBlocks(bias) {
+    var rows = [];
+    for (var s = A[0]; s + blockMs < A[A.length - 1]; s += blockMs) {
+      var bA = [];
+      for (var i = 0; i < A.length; i++) if (A[i] >= s && A[i] < s + blockMs) bA.push(A[i]);
+      /* SUPPORT CENTROID, not argmax. Correspondence is FLAT over a plateau roughly `tolMs` wide —
+         every offset inside it keeps the same beats matched — so the argmax lands arbitrarily within
+         it and a planted control shows the resulting bias (measured: ~330 ms on a 20 ms grid).
+         Averaging the offsets that share the peak takes the plateau's centre instead. Same fix
+         POOLED-CLOCK-FIT applied after its own planted-offset control caught a 37 s argmax bias. */
+      var peak = -1,
+        acc = 0,
+        accN = 0,
+        pIqr = null;
+      for (var o = bias - searchMs; o <= bias + searchMs; o += stepMs) {
+        var r = corrAt(bA, o);
+        if (!r) continue;
+        if (r.frac > peak + 1e-9) {
+          peak = r.frac;
+          acc = o;
+          accN = 1;
+          pIqr = r.iqr;
+        } else if (Math.abs(r.frac - peak) <= 1e-9) {
+          acc += o;
+          accN++;
+        }
+      }
+      /* The offset is fitted from the block's beats, so it describes the block's MIDPOINT, not its
+         start — regressing it against the start would tilt the drift by half a block. */
+      if (accN > 0) rows.push({ tMs: s + blockMs / 2, off: acc / accN, frac: peak, iqr: pIqr });
+    }
+    return rows;
+  }
+
+  var rows = runBlocks(0);
+  if (rows.length < minBlocks) return { offsetMs: null, driftPpm: null, confident: false, reason: 'too few usable blocks', blocks: rows.length };
+  var fr = rows
+    .map(function (r) {
+      return r.frac;
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+  var medFrac = fr[Math.floor(fr.length / 2)];
+  // CHANCE CONTROL — identical search on a deliberately wrong alignment.
+  var ctlRows = runBlocks(opts.controlMs != null ? opts.controlMs : 3600000);
+  var cf = ctlRows
+    .map(function (r) {
+      return r.frac;
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+  var chance = cf.length ? cf[Math.floor(cf.length / 2)] : null;
+
+  // Linear regression of block offset on block time → offset at t0 + drift.
+  var n = rows.length,
+    mx = 0,
+    my = 0;
+  for (var i2 = 0; i2 < n; i2++) {
+    mx += rows[i2].tMs;
+    my += rows[i2].off;
+  }
+  mx /= n;
+  my /= n;
+  var num = 0,
+    den = 0;
+  for (var i3 = 0; i3 < n; i3++) {
+    num += (rows[i3].tMs - mx) * (rows[i3].off - my);
+    den += (rows[i3].tMs - mx) * (rows[i3].tMs - mx);
+  }
+  var slope = den ? num / den : 0; // ms of offset per ms of elapsed time
+  /* `pIqr` starts null, so a block that scored no offset can carry one through. Collected with an
+     explicit loop rather than map/filter/sort: a null reaching the comparator silently reorders the
+     median, and the filter does not narrow the type for the checker either. */
+  /** @type {number[]} */
+  var iq = [];
+  for (var i4 = 0; i4 < rows.length; i4++) {
+    var iv = rows[i4].iqr;
+    if (iv != null && isFinite(iv)) iq.push(iv);
+  }
+  iq.sort(function (x, y) {
+    return x - y;
+  });
+  return {
+    offsetMs: my + slope * (A[0] - mx),
+    driftPpm: slope * 1e6,
+    medianCorrespondence: medFrac,
+    chanceCorrespondence: chance,
+    medianIqrMs: iq.length ? iq[Math.floor(iq.length / 2)] : null,
+    blocks: n,
+    spanMin: Math.round((A[A.length - 1] - A[0]) / 60000),
+    /* The search window BOUNDS what drift can be seen: a pair drifting faster than this walks out of
+       range mid-night and the regression flattens toward zero (measured: a planted 250 ppm reads 49).
+       Published so a caller can tell "no drift" from "drift beyond my reach" — the distinction a bare
+       number hides. */
+    maxDriftPpm: A[A.length - 1] > A[0] ? (searchMs / (A[A.length - 1] - A[0])) * 1e6 : null,
+    /* Correspondence must beat its OWN chance control by a clear margin — the block fit maximises the
+       statistic it reports, so "high" alone means nothing. 2x is deliberately conservative: the
+       measured pair sits at 90.6 % vs 21.3 %, a 4.3x margin. */
+    confident: chance != null && medFrac >= 2 * chance && medFrac >= 0.5,
+    reason: chance == null ? 'no control blocks' : medFrac < 2 * chance ? 'correspondence does not clear its own chance control' : null,
+    perBlock: rows
+  };
+}
+
 function fitClockOffsetPooled(anchorTimes, channels, opts) {
   opts = opts || {};
   var maxSec = opts.maxLagSec != null ? opts.maxLagSec : 5400; // +/-90 min
@@ -5436,6 +5616,7 @@ window.IntegratorDSP = {
      fit; do not add callers here. */
   fitClockOffset,
   fitClockOffsetPooled,
+  fitClockDrift,
   // Timing fiducial over timeseries.spo2 — deliberately NOT OxyDex's clinical desat_event.
   desatOnsetsFromSeries,
   // Wearable-to-wearable alignment (see the ACC block above): offset + drift in ppm.

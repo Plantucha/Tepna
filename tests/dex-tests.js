@@ -22221,6 +22221,41 @@
        within ±60 s of a set's anchor, opening a new set when a TYPE repeats. The ±60 s window is INCLUSIVE
        (`<= 60`) — a stream stamped EXACTLY 60 s from the anchor belongs to the same night. No leg pinned the
        edge, so a `<= → <` slip would split a legitimate single session into two. */
+    /* WEARABLE-DRIFT-FIT — two body-worn devices agree on ~90 % of heartbeats, and a CONSTANT-offset
+       fit reports 16 %, because they drift (measured 87 ppm = 2.26 s across a night, which exceeds an
+       RR interval). fitClockDrift fits the offset locally and regresses it against time. Gated by
+       PLANTED recovery, because a correspondence number is meaningless without knowing the instrument
+       can recover a known answer — and by its own chance control, because the block fit maximises the
+       statistic it reports. */
+    group('fitClockDrift recovers a planted offset AND drift', 'integrator-dsp · clock · planted-control', function (T) {
+      var D = env.IntegratorDSP;
+      if (!D || typeof D.fitClockDrift !== 'function') { T.skip('IntegratorDSP.fitClockDrift available', 'not loaded'); return; }
+      var t0 = 1785102000000, A = [], t = t0, i = 0;
+      while (t < t0 + 7 * 3600e3) { A.push(t); t += 900 + 180 * Math.sin(i / 40) + 40 * Math.sin(i / 7); i++; }
+      var plant = function (offMs, ppm) {
+        var B = [];
+        for (var k = 0; k < A.length; k++) { if (k % 13 === 0) continue; B.push(A[k] + offMs + (A[k] - A[0]) * ppm / 1e6); } // 8 % of beats dropped, as real detectors do
+        return D.fitClockDrift(A, B, {});
+      };
+      var r0 = plant(-500, 0);
+      T.ok('zero drift · offset recovered within 100 ms', Math.abs(r0.offsetMs + 500) <= 100, 'got ' + Math.round(r0.offsetMs));
+      T.ok('zero drift · drift recovered within 10 ppm', Math.abs(r0.driftPpm) <= 10, 'got ' + r0.driftPpm.toFixed(1));
+      var r1 = plant(300, -60);
+      T.ok('negative drift · offset within 150 ms', Math.abs(r1.offsetMs - 300) <= 150, 'got ' + Math.round(r1.offsetMs));
+      T.ok('negative drift · drift within 20 ppm', Math.abs(r1.driftPpm + 60) <= 20, 'got ' + r1.driftPpm.toFixed(1));
+      /* THE CONTROL THAT MATTERS. The block fit picks the best offset per block, so a high
+         correspondence proves nothing on its own — it must beat the SAME search run on a deliberately
+         wrong alignment. Measured on the real pair: 90.6 % vs 21.3 %. */
+      T.ok('correspondence clears its own chance control by >=2x', r0.medianCorrespondence >= 2 * r0.chanceCorrespondence, r0.medianCorrespondence.toFixed(2) + ' vs chance ' + r0.chanceCorrespondence.toFixed(2));
+      T.ok('…and that is what `confident` reports', r0.confident === true);
+      /* A drift beyond the search window walks out of range mid-night and the regression flattens
+         toward zero. The bound must be PUBLISHED, so a caller can tell "no drift" from "drift beyond
+         my reach" — a bare number hides exactly that. */
+      var r2 = plant(0, 250);
+      T.ok('maxDriftPpm is published and bounds the search', r2.maxDriftPpm > 100 && r2.maxDriftPpm < 140, 'got ' + r2.maxDriftPpm.toFixed(0));
+      T.ok('control · a drift beyond maxDriftPpm is NOT recovered (it flattens, as documented)', Math.abs(r2.driftPpm) < 250 * 0.5, 'got ' + r2.driftPpm.toFixed(0) + ' for a planted 250');
+    });
+
     group('ResMed EDF session grouping — ±60 s inclusive (§AD)', 'resmed-edf · adapters · known-answer', function (T) {
       var SA = env.SignalAdapters;
       var rm = SA && typeof SA.byId === 'function' ? SA.byId('resmed-edf') : null;

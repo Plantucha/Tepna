@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BKN+oFj/529G2XjwMvVNKSuRiX/S4+v4vRG1pIuDGsc=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RK11tyQyDBtEyhQJ0+zOjxL8BHLFD+YzRTebrcyFvBs=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ixrpBVG0uOw56hZiQGsTHpGxTdk8xbOMJn+cKydqiu4=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RK11tyQyDBtEyhQJ0+zOjxL8BHLFD+YzRTebrcyFvBs=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dBrWQvBuSRTAVN76WReIVBkZmzMsgHy/aqOgyCZY2oo=' 'sha256-ixrpBVG0uOw56hZiQGsTHpGxTdk8xbOMJn+cKydqiu4=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -9800,6 +9800,186 @@ function desatOnsetsFromSeries(spo2, opts) {
   return out;
 }
 
+/* ── DRIFT-AWARE BEAT ALIGNMENT (WEARABLE-DRIFT-FIT) ────────────────────────────────────────────
+   Two body-worn devices agree on ~90 % of heartbeats — and a CONSTANT-offset fit reports 16 %,
+   because they do not share a timebase across a night. Measured on 2026-07-26:
+
+     median local correspondence, 5-min blocks   90.6 %   (chance control, +1 h: 21.3 %)
+     linear drift                                5.2 ms/min = 87 ppm  →  2,264 ms over 435 min
+
+   Two seconds exceeds an RR interval, so one offset walks off the correct beat partway through the
+   night and every later beat is matched to the wrong one. Fitting ONE number to a pair that needs TWO
+   is what produced the retracted "beat trains cannot align these devices" conclusion.
+
+   So: fit the offset LOCALLY in short blocks, then regress block offset against block time — the same
+   shape `alignEnvelopes` uses for accelerometer envelopes, applied to beat times, which are already
+   in the node-export (`timeseries.rr.tSec` / `timeseries.ppi.tSec`) and need no contract change.
+
+   PURE: numbers in, numbers out. `chanceCorrespondence` runs the identical search on a deliberately
+   wrong alignment, because the block fit maximises the very statistic it reports — without that
+   control a flat, meaningless sweep still returns a confident-looking best block. */
+function fitClockDrift(aTimes, bTimes, opts) {
+  opts = opts || {};
+  var blockMs = opts.blockMs != null ? opts.blockMs : 300000;
+  var searchMs = opts.searchMs != null ? opts.searchMs : 3000;
+  var stepMs = opts.stepMs != null ? opts.stepMs : 20;
+  var tolMs = opts.tolMs != null ? opts.tolMs : 80;
+  var minBeats = opts.minBeats != null ? opts.minBeats : 30;
+  var minBlocks = opts.minBlocks != null ? opts.minBlocks : 5;
+  var A = (aTimes || [])
+    .filter(function (t) {
+      return t != null && isFinite(t);
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+  var B = (bTimes || [])
+    .filter(function (t) {
+      return t != null && isFinite(t);
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+  if (A.length < minBeats * 2 || B.length < minBeats * 2) return { offsetMs: null, driftPpm: null, confident: false, reason: 'too few beats' };
+
+  /* Correspondence of one block at one offset: fraction of A-beats whose nearest B-beat sits within
+     tolMs of the block's OWN median delta. Centring on the median rather than zero is what makes this
+     measure agreement instead of the acceptance window's width. */
+  function corrAt(bA, off) {
+    if (bA.length < minBeats) return null;
+    var dl = [];
+    for (var i = 0; i < bA.length; i++) {
+      var x = bA[i] + off,
+        bd = null;
+      var lo = 0,
+        hi = B.length - 1;
+      while (lo < hi) {
+        var mid = (lo + hi) >> 1;
+        if (B[mid] < x) lo = mid + 1;
+        else hi = mid;
+      }
+      for (var k = Math.max(0, lo - 2); k < Math.min(B.length, lo + 2); k++) {
+        var q = B[k] - x;
+        if (bd == null || Math.abs(q) < Math.abs(bd)) bd = q;
+      }
+      if (bd != null) dl.push(bd);
+    }
+    if (dl.length < minBeats) return null;
+    dl.sort(function (x2, y2) {
+      return x2 - y2;
+    });
+    var med = dl[Math.floor(dl.length / 2)];
+    var hit = 0;
+    for (var j = 0; j < dl.length; j++) if (Math.abs(dl[j] - med) <= tolMs) hit++;
+    return { frac: hit / bA.length, med: med, iqr: dl[Math.floor(dl.length * 0.75)] - dl[Math.floor(dl.length * 0.25)] };
+  }
+
+  function runBlocks(bias) {
+    var rows = [];
+    for (var s = A[0]; s + blockMs < A[A.length - 1]; s += blockMs) {
+      var bA = [];
+      for (var i = 0; i < A.length; i++) if (A[i] >= s && A[i] < s + blockMs) bA.push(A[i]);
+      /* SUPPORT CENTROID, not argmax. Correspondence is FLAT over a plateau roughly `tolMs` wide —
+         every offset inside it keeps the same beats matched — so the argmax lands arbitrarily within
+         it and a planted control shows the resulting bias (measured: ~330 ms on a 20 ms grid).
+         Averaging the offsets that share the peak takes the plateau's centre instead. Same fix
+         POOLED-CLOCK-FIT applied after its own planted-offset control caught a 37 s argmax bias. */
+      var peak = -1,
+        acc = 0,
+        accN = 0,
+        pIqr = null;
+      for (var o = bias - searchMs; o <= bias + searchMs; o += stepMs) {
+        var r = corrAt(bA, o);
+        if (!r) continue;
+        if (r.frac > peak + 1e-9) {
+          peak = r.frac;
+          acc = o;
+          accN = 1;
+          pIqr = r.iqr;
+        } else if (Math.abs(r.frac - peak) <= 1e-9) {
+          acc += o;
+          accN++;
+        }
+      }
+      /* The offset is fitted from the block's beats, so it describes the block's MIDPOINT, not its
+         start — regressing it against the start would tilt the drift by half a block. */
+      if (accN > 0) rows.push({ tMs: s + blockMs / 2, off: acc / accN, frac: peak, iqr: pIqr });
+    }
+    return rows;
+  }
+
+  var rows = runBlocks(0);
+  if (rows.length < minBlocks) return { offsetMs: null, driftPpm: null, confident: false, reason: 'too few usable blocks', blocks: rows.length };
+  var fr = rows
+    .map(function (r) {
+      return r.frac;
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+  var medFrac = fr[Math.floor(fr.length / 2)];
+  // CHANCE CONTROL — identical search on a deliberately wrong alignment.
+  var ctlRows = runBlocks(opts.controlMs != null ? opts.controlMs : 3600000);
+  var cf = ctlRows
+    .map(function (r) {
+      return r.frac;
+    })
+    .sort(function (x, y) {
+      return x - y;
+    });
+  var chance = cf.length ? cf[Math.floor(cf.length / 2)] : null;
+
+  // Linear regression of block offset on block time → offset at t0 + drift.
+  var n = rows.length,
+    mx = 0,
+    my = 0;
+  for (var i2 = 0; i2 < n; i2++) {
+    mx += rows[i2].tMs;
+    my += rows[i2].off;
+  }
+  mx /= n;
+  my /= n;
+  var num = 0,
+    den = 0;
+  for (var i3 = 0; i3 < n; i3++) {
+    num += (rows[i3].tMs - mx) * (rows[i3].off - my);
+    den += (rows[i3].tMs - mx) * (rows[i3].tMs - mx);
+  }
+  var slope = den ? num / den : 0; // ms of offset per ms of elapsed time
+  /* `pIqr` starts null, so a block that scored no offset can carry one through. Collected with an
+     explicit loop rather than map/filter/sort: a null reaching the comparator silently reorders the
+     median, and the filter does not narrow the type for the checker either. */
+  /** @type {number[]} */
+  var iq = [];
+  for (var i4 = 0; i4 < rows.length; i4++) {
+    var iv = rows[i4].iqr;
+    if (iv != null && isFinite(iv)) iq.push(iv);
+  }
+  iq.sort(function (x, y) {
+    return x - y;
+  });
+  return {
+    offsetMs: my + slope * (A[0] - mx),
+    driftPpm: slope * 1e6,
+    medianCorrespondence: medFrac,
+    chanceCorrespondence: chance,
+    medianIqrMs: iq.length ? iq[Math.floor(iq.length / 2)] : null,
+    blocks: n,
+    spanMin: Math.round((A[A.length - 1] - A[0]) / 60000),
+    /* The search window BOUNDS what drift can be seen: a pair drifting faster than this walks out of
+       range mid-night and the regression flattens toward zero (measured: a planted 250 ppm reads 49).
+       Published so a caller can tell "no drift" from "drift beyond my reach" — the distinction a bare
+       number hides. */
+    maxDriftPpm: A[A.length - 1] > A[0] ? (searchMs / (A[A.length - 1] - A[0])) * 1e6 : null,
+    /* Correspondence must beat its OWN chance control by a clear margin — the block fit maximises the
+       statistic it reports, so "high" alone means nothing. 2x is deliberately conservative: the
+       measured pair sits at 90.6 % vs 21.3 %, a 4.3x margin. */
+    confident: chance != null && medFrac >= 2 * chance && medFrac >= 0.5,
+    reason: chance == null ? 'no control blocks' : medFrac < 2 * chance ? 'correspondence does not clear its own chance control' : null,
+    perBlock: rows
+  };
+}
+
 function fitClockOffsetPooled(anchorTimes, channels, opts) {
   opts = opts || {};
   var maxSec = opts.maxLagSec != null ? opts.maxLagSec : 5400; // +/-90 min
@@ -10826,6 +11006,7 @@ window.IntegratorDSP = {
      fit; do not add callers here. */
   fitClockOffset,
   fitClockOffsetPooled,
+  fitClockDrift,
   // Timing fiducial over timeseries.spo2 — deliberately NOT OxyDex's clinical desat_event.
   desatOnsetsFromSeries,
   // Wearable-to-wearable alignment (see the ACC block above): offset + drift in ppm.
