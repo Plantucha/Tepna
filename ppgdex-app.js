@@ -357,6 +357,25 @@ import { PPGUI } from './ppgdex-render.js';
       { l: 'Mean SQI', v: r.meanSQI, sub: '0–1 · conf', s: r.meanSQI >= 0.7 ? 'ok' : r.meanSQI >= 0.5 ? 'warn' : 'bad' },
       { l: 'DFA α1', v: r.dfa1 == null ? '—' : r.dfa1, sub: '0.9–1.2', s: r.dfa1 == null ? 'neutral' : r.dfa1 >= 0.9 && r.dfa1 <= 1.2 ? 'ok' : 'warn' }
     );
+    /* PPI SELF-VALIDATION — the PpgDex analogue of ECGDex's self-RR-vs-device-RR check.
+       ECGDex can validate against firmware: the H10 writes its own RR and the app tabulates
+       self-vs-device rMSSD/SDNN with a verdict. PpgDex has no such luxury — the Verity's `_PPI.txt`
+       is often header-only and its `_HR.txt` all-zero, and the O2Ring publishes no intervals at all.
+       So the second opinion has to be internal, and it already exists: every beat is timed TWICE,
+       once at the pulse FOOT and once at the PEAK, each corrected independently. Their agreement is
+       the only cross-check this sensor can offer, it was computed and exported all along
+       (quality.ppiAgreementPct), and nothing rendered it — so a night where the two fiducials
+       disagreed looked exactly like a night where they did not. */
+    if (r.ppiAgreementPct != null)
+      items.push({
+        l: 'PPI fiducials',
+        v: r.ppiAgreementPct + '%',
+        sub: (r.ppiSpine ? r.ppiSpine + ' spine' : 'foot vs peak') + (r.ppiCorrFootPct != null && r.ppiCorrPeakPct != null ? ' · ' + r.ppiCorrFootPct + '/' + r.ppiCorrPeakPct + '% fixed' : ''),
+        /* Thresholds mirror ECGDex's self-vs-device bands (within-a-few-% = good). Two fiducials on
+           the SAME beats should agree far better than two devices do; anything under 90 % means the
+           optical waveform is ambiguous enough that foot and peak found different beats. */
+        s: r.ppiAgreementPct >= 97 ? 'ok' : r.ppiAgreementPct >= 90 ? 'warn' : 'bad'
+      });
     if (r.ledAgreementPct != null)
       items.push({
         l: '3-LED agree',
