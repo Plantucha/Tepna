@@ -88,11 +88,26 @@ export function makeRerecord({ repo, node, bundle, uploadsDir, ManifestGate }) {
     // EVERY fixture each run (including ones whose output did not move), which is what lets an
     // INPUT-ONLY change reach the ledger — see the caller in runRegen().
     const inputsSame = !Object.keys(inputHashes).length || JSON.stringify(rec.inputHashes || {}) === JSON.stringify(inputHashes);
-    if (wasOut === outputHash && inputsSame) return;
+    /* CODE IDENTITY IS REFRESHED HERE TOO, and it has to be. `build.mjs` owns manifestHash but writes
+       it only when the BUNDLE MOVES (`if (oldHash === newHash) return`), so a fixture minted against
+       an already-stale hash can never be repaired by a rebuild — the bundle is not going to move
+       again on its own. That is not hypothetical: PR #616 minted the PpgDex rich golden recording
+       dc938e0c20d2 while the shipped bundle was already 60d6dbf38dcb (#615 had re-bundled it), and
+       GATE B read code-drift on a green tree with a correct fixture.
+       This function has just RE-RUN the real modules under the CURRENT bundle, so the current
+       manifestHash is the honest answer to "which code produced these bytes" — the one thing a
+       regeneration is actually entitled to assert. */
+    const mhNow = frag.manifestHash || null;
+    const mhSame = !mhNow || rec.manifestHash === mhNow;
+    if (wasOut === outputHash && inputsSame && mhSame) return;
+    const wasMh = rec.manifestHash;
     rec.outputHash = outputHash;
     if (Object.keys(inputHashes).length) rec.inputHashes = inputHashes;
+    if (mhNow) rec.manifestHash = mhNow;
     fs.writeFileSync(fragPath, JSON.stringify(frag, null, 2) + '\n');
-    console.log(`      ↻ ledger re-recorded — outputHash ${wasOut}${wasOut === outputHash ? ' (unchanged)' : ' → ' + outputHash}${inputsSame ? '' : ' · inputHashes updated'}`);
+    console.log(
+      `      ↻ ledger re-recorded — outputHash ${wasOut}${wasOut === outputHash ? ' (unchanged)' : ' → ' + outputHash}${inputsSame ? '' : ' · inputHashes updated'}${mhSame ? '' : ` · manifestHash ${wasMh} → ${mhNow}`}`
+    );
   };
 }
 
