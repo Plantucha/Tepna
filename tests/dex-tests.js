@@ -5863,6 +5863,62 @@
       T.eq('hr is not re-scoped by site (same pipeline, same grade)', R.idForSite('hr', 'finger'), 'hr');
       T.eq('rmssd is not re-scoped by site', R.idForSite('rmssd', 'finger'), 'rmssd');
       T.eq('wrist site resolves to the base ids', R.idForSite('ai', 'wrist'), 'ai');
+
+      /* ── PPGDEX-SITE-WIRING · the resolver above had NO CALLER ────────────────────────────────
+         Every assertion before this one passed while the O2Ring finger downgrade reached zero
+         rendered badges: the render path is evBadge → badgeForLabel → idForLabel → the BASE id,
+         and it never consulted a site. A resolver nobody calls is the same failure class as a test
+         that reports "(skipped)" green. These assertions gate the WIRING, not the mapping. */
+      if (typeof R.setActiveSite === 'function' && typeof R.badgeForLabel === 'function' && env.MetricRegistry) {
+        var probe = function (label, site, src) {
+          R.setActiveSite(site, src);
+          var out = R.badgeForLabel(label);
+          R.setActiveSite(null, null);
+          return out || '';
+        };
+        // Same label, two sites → the badge must differ. If badgeForLabel ignores the active site
+        // (the shipped bug) these are byte-identical and this reds.
+        var wristB = probe('Dicrotic notch', 'wrist', 'declared');
+        var fingerB = probe('Dicrotic notch', 'finger', 'device-default');
+        var ankleB = probe('Dicrotic notch', 'ankle', 'declared');
+        var assumedB = probe('Dicrotic notch', 'wrist', 'device-default');
+        T.ok('badgeForLabel HONOURS the active site — finger ≠ declared wrist', fingerB !== wristB && !!fingerB, 'the render path ignores site again');
+        T.ok('…and an ANKLE declaration differs from a wrist one', ankleB !== wristB && !!ankleB);
+        T.ok('…and an ASSUMED wrist differs from a DECLARED wrist', assumedB !== wristB && !!assumedB, 'an unobserved site is carrying a wrist-validated tier');
+        T.ok('a rate metric is site-invariant through the render path', probe('Pulse HR', 'ankle', 'declared') === probe('Pulse HR', 'wrist', 'declared'));
+        T.ok('no active site → identical to the legacy label-only badge', probe('Dicrotic notch', null, null) === wristB);
+
+        // The asymmetry: finger needs no declaration (a 1-column pleth IS a ring), wrist does.
+        T.eq('finger re-scopes WITHOUT a declaration', R.idForSite('ai', 'finger', 'device-default'), 'aiFinger');
+        T.eq('an UNDECLARED wrist does not keep the wrist id', R.idForSite('ai', 'wrist', 'device-default'), 'aiAssumed');
+        T.eq('a DECLARED wrist keeps it', R.idForSite('ai', 'wrist', 'declared'), 'ai');
+        T.eq('two-arg calls are unchanged (back-compat)', R.idForSite('ai', 'wrist'), 'ai');
+
+        // Every site-scoped variant must exist at experimental — a missing entry silently falls
+        // back to the base id, i.e. silently restores the bug for that one metric.
+        var bases = ['dicrotic', 'ai', 'reflectionIdx', 'sdppgBA', 'agingIdx', 'notchTime', 'pulseWidth'];
+        for (var q = 0; q < bases.length; q++) {
+          T.eq(bases[q] + 'Ankle exists at experimental', REG[bases[q] + 'Ankle'] && REG[bases[q] + 'Ankle'].evidence, 'experimental');
+          T.eq(bases[q] + 'Assumed exists at experimental', REG[bases[q] + 'Assumed'] && REG[bases[q] + 'Assumed'].evidence, 'experimental');
+        }
+      } else {
+        T.skip('PpgRegistry.setActiveSite available', 'registry/MetricRegistry not loaded in this lane');
+      }
+
+      /* And the app must actually CALL it — the source check that would have caught the original
+         hole. renderSession sets the ambient site before any render*, so a refactor that drops the
+         call reds here rather than silently reverting every badge to the wrist grade. */
+      var _src = env.sources || {}; // group-local: `src` elsewhere in this file is another group's
+      var appSrc = _src['ppgdex-app.js'] || '';
+      if (appSrc) {
+        T.ok('ppgdex-app.js calls PpgRegistry.setActiveSite', /PpgRegistry\.setActiveSite\(/.test(appSrc), 'the resolver is unwired again');
+        var rs = appSrc.indexOf('function renderSession');
+        var setAt = appSrc.indexOf('setActiveSite', rs);
+        var firstRender = appSrc.indexOf('renderMorph(', rs);
+        T.ok('…and does so BEFORE the morphology render', rs >= 0 && setAt > rs && setAt < firstRender, 'set at ' + setAt + ', renderMorph at ' + firstRender);
+      } else {
+        T.skip('ppgdex-app.js source wired', 'not in env.sources');
+      }
     } else {
       T.skip('PpgRegistry.idForSite available', 'registry not loaded in this lane');
     }

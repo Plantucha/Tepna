@@ -165,6 +165,143 @@
       evidence: 'experimental',
       cite: 'Pulse width at half systolic amplitude, O2Ring FINGER site — amplitude-referenced, so on-device gain normalisation moves the half-amplitude crossing (PPGDEX-O2RING-FINGER-SITE §5)'
     },
+    /* ── ANKLE site (PPGDEX-SITE-WIRING §2) ──────────────────────────────────────────────────────
+       A Verity Sense is a STRAP. On this deployment it is worn on the LEFT ANKLE, and the parser
+       cannot recover that from the waveform — three optical columns say "Verity", not "wrist".
+
+       The ankle is not a milder wrist. It sits much further along the arterial tree, so the
+       reflected wave returns at a different delay relative to the systolic peak, and the vessels
+       are stiffer and smaller. Every quantity below is DEFINED by that relationship, so a
+       wrist-validated grade does not survive the move — the same §5 reasoning that put the O2Ring
+       finger entries below the wrist, for a different physical reason (there it was an unknown
+       on-device filter; here it is a genuinely different pulse). Timing/rate metrics are again
+       untouched: HR, PPI and rate-domain HRV come off the same audited pipeline and do not care
+       where on the body the beat was seen. */
+    dicroticAnkle: {
+      label: 'Dicrotic notch (ankle)',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Dicrotic-notch detection at an ANKLE site — notch visibility falls with distance from the heart and rising vessel stiffness; the wrist grade is not inherited (PPGDEX-SITE-WIRING §2)'
+    },
+    aiAnkle: {
+      label: 'Aug. index (ankle)',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Augmentation index at an ANKLE site — AI is DEFINED by reflected-wave arrival relative to the systolic peak, and that timing is exactly what moves down the arterial tree; not the wrist-validated quantity (PPGDEX-SITE-WIRING §2)'
+    },
+    reflectionIdxAnkle: {
+      label: 'Reflection index (ankle)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'PPG reflection index at an ANKLE site — diastolic÷systolic amplitude ratio, and the reflection it measures is site-determined (PPGDEX-SITE-WIRING §2)'
+    },
+    sdppgBAAnkle: {
+      label: 'SDPPG b/a (ankle)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: '2nd-derivative PPG b/a (Takazawa 1998) at an ANKLE site — Takazawa\u2019s norms are finger-derived and a 2nd derivative amplifies any waveform difference; the wrist grade is not inherited (PPGDEX-SITE-WIRING §2)'
+    },
+    agingIdxAnkle: {
+      label: 'Aging index (ankle)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'SDPPG aging index (b−c−d−e)/a (Takazawa 1998) at an ANKLE site — same site-transfer caveat as sdppgBAAnkle (PPGDEX-SITE-WIRING §2)'
+    },
+    notchTimeAnkle: {
+      label: 'Notch time (ankle)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Foot→dicrotic-notch timing at an ANKLE site — the wrist entry is `measured`, which a site change does NOT confer: notch timing is the single quantity most directly moved by arterial distance (PPGDEX-SITE-WIRING §2)'
+    },
+    pulseWidthAnkle: {
+      label: 'Pulse width (ankle)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Pulse width at half systolic amplitude, ANKLE site — peripheral pulses broaden and steepen with distance, so the wrist `measured` grade does not transfer (PPGDEX-SITE-WIRING §2)'
+    },
+    /* ── ASSUMED site — the site was NEVER OBSERVED (PPGDEX-SITE-WIRING §3) ──────────────────────
+       `site` is derived from the file LAYOUT: 3 optical columns ⇒ "wrist". That identifies the
+       DEVICE (a Verity Sense), not the limb. A strap goes where the wearer puts it, and this
+       deployment's went on an ankle while being labelled wrist throughout.
+
+       So when `siteSource` is not `declared`, the site is an assumption, and a site-sensitive
+       metric cannot hold a site-validated tier on an assumption. These entries are what an
+       undeclared wrist resolves to. They sit at `experimental` because an unknown site could be
+       ANY site, so the honest grade is the weakest the metric could deserve.
+
+       Note the deliberate asymmetry with the FINGER entries, which do NOT require a declaration:
+       a 1-column O2Ring pleth comes from a finger ring, so there the layout really does fix the
+       site. Wrist is the only site this suite infers that the hardware does not guarantee. */
+    dicroticAssumed: {
+      label: 'Dicrotic notch (site assumed)',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Dicrotic-notch detection with the optical site ASSUMED, not observed — the wrist grade rests on a limb nobody confirmed; declare the site to earn it back (PPGDEX-SITE-WIRING §3)'
+    },
+    aiAssumed: {
+      label: 'Aug. index (site assumed)',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Augmentation index with the optical site ASSUMED — AI is site-defined, so a wrist tier on an unconfirmed limb is a grade the metric did not earn (PPGDEX-SITE-WIRING §3)'
+    },
+    reflectionIdxAssumed: {
+      label: 'Reflection index (site assumed)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'PPG reflection index with the optical site ASSUMED — the reflection it measures is site-determined (PPGDEX-SITE-WIRING §3)'
+    },
+    sdppgBAAssumed: {
+      label: 'SDPPG b/a (site assumed)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: '2nd-derivative PPG b/a with the optical site ASSUMED — Takazawa norms are site-specific (PPGDEX-SITE-WIRING §3)'
+    },
+    agingIdxAssumed: {
+      label: 'Aging index (site assumed)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'SDPPG aging index with the optical site ASSUMED — same site-transfer caveat as sdppgBAAssumed (PPGDEX-SITE-WIRING §3)'
+    },
+    notchTimeAssumed: {
+      label: 'Notch time (site assumed)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Foot→dicrotic-notch timing with the optical site ASSUMED — `measured` is a claim about a KNOWN fiducial at a KNOWN site (PPGDEX-SITE-WIRING §3)'
+    },
+    pulseWidthAssumed: {
+      label: 'Pulse width (site assumed)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Pulse width at half systolic amplitude with the optical site ASSUMED — pulse shape is site-determined (PPGDEX-SITE-WIRING §3)'
+    },
     sd1sd2: { label: 'SD1/SD2', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Poincaré SD1/SD2 ratio — nonlinear short/long-term HRV balance' },
     ellArea: { label: 'Ellipse area', unit: 'ms²', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Poincaré ellipse area — overall HRV dispersion (geometric)' },
     cvhrIndex: { label: 'CVHR index', unit: '/h', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Cyclical-variation-of-HR index — PPI apnea surrogate' },
@@ -373,6 +510,8 @@
     tier: 1
   };
 
+  /* Site-aware: resolves the label to its id, then re-scopes that id onto the ACTIVE site before
+     asking MetricRegistry for a disc. With no active site set this is identical to the old path. */
   function badgeForLabel(label, fallback) {
     if (!global.MetricRegistry) return '';
     var id = idForLabel(label);
@@ -380,7 +519,7 @@
       if (fallback && !_META_DENY[_norm(label)]) return global.MetricRegistry.badge('experimental', '');
       return '';
     }
-    var d = global.MetricRegistry.entry(PPG_REGISTRY, id);
+    var d = global.MetricRegistry.entry(PPG_REGISTRY, idForSite(id, ACTIVE.site, ACTIVE.siteSource));
     return global.MetricRegistry.badge(d.evidence, d.cite);
   }
 
@@ -397,18 +536,49 @@
   //  else — HR, PPI, rate-domain HRV, the quality statistics — falls through to the base id on
   //  purpose, because those come off the same audited pipeline and a site change does not weaken
   //  them. The failure this prevents runs one way only: a finger number wearing a wrist grade.
-  var SITE_SUFFIX = { finger: 'Finger' };
-  function idForSite(id, site) {
+  var SITE_SUFFIX = { finger: 'Finger', ankle: 'Ankle' };
+
+  /*  `siteSource` is the third arg and OPTIONAL, per CLAUDE.md's back-compat rule — an existing
+      two-arg call keeps its exact former meaning.
+
+      THE ASYMMETRY, which is the whole point. `site` is derived from the file LAYOUT, and that
+      identifies the DEVICE, not the limb:
+        · 1 optical column  ⇒ an O2Ring, which IS a finger ring. The layout really does fix the
+          site, so `finger` re-scopes with or without a declaration.
+        · 3 optical columns ⇒ a Verity Sense, which is a STRAP and goes wherever the wearer puts
+          it. On this deployment that is the LEFT ANKLE, labelled `wrist` throughout. So `wrist`
+          is the one site this suite infers that the hardware does not guarantee, and it must be
+          DECLARED before it can carry a wrist-validated tier.
+      Hence: an undeclared wrist resolves to the `<id>Assumed` entry, not the base id. */
+  function idForSite(id, site, siteSource) {
     if (!id || !site) return id;
     var suffix = SITE_SUFFIX[site];
+    if (!suffix && site === 'wrist' && siteSource && siteSource !== 'declared') suffix = 'Assumed';
     if (!suffix) return id;
     var scoped = id + suffix;
     return Object.prototype.hasOwnProperty.call(PPG_REGISTRY, scoped) ? scoped : id;
   }
-  function badgeForSite(id, site) {
+  function badgeForSite(id, site, siteSource) {
     if (!global.MetricRegistry) return '';
-    var d = global.MetricRegistry.entry(PPG_REGISTRY, idForSite(id, site));
+    var d = global.MetricRegistry.entry(PPG_REGISTRY, idForSite(id, site, siteSource));
     return global.MetricRegistry.badge(d.evidence, d.cite);
+  }
+
+  /*  AMBIENT ACTIVE SITE — the fix for the defect that motivated all of the above.
+      `idForSite` existed, was gated by the suite, and had NO CALLER: every rendered badge went
+      through `badgeForLabel` → `idForLabel` → the BASE id, so an O2Ring finger recording drew the
+      wrist grade and the §5 downgrade reached exactly zero pixels. Threading a site argument
+      through every `evBadge(label)` call site would have missed the ones nobody enumerated — which
+      is how the first hole opened. An ambient site consulted INSIDE `badgeForLabel` closes all of
+      them at once, including call sites added later. PpgDex renders one session at a time, so the
+      app sets this once per render; `null` restores the pre-existing label-only behaviour. */
+  var ACTIVE = { site: null, siteSource: null };
+  function setActiveSite(site, siteSource) {
+    ACTIVE.site = site || null;
+    ACTIVE.siteSource = siteSource || null;
+  }
+  function activeSite() {
+    return { site: ACTIVE.site, siteSource: ACTIVE.siteSource };
   }
 
   global.PPG_REGISTRY = PPG_REGISTRY;
@@ -419,6 +589,8 @@
     badgeForLabel: badgeForLabel,
     depthForLabel: depthForLabel,
     idForSite: idForSite,
-    badgeForSite: badgeForSite
+    badgeForSite: badgeForSite,
+    setActiveSite: setActiveSite,
+    activeSite: activeSite
   };
 })(window);

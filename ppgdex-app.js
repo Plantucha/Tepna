@@ -244,6 +244,13 @@ import { PPGUI } from './ppgdex-render.js';
   //  RENDER one session
   // ════════════════════════════════════════════════════════════════════════
   function renderSession(r) {
+    /* SITE-SCOPED BADGES (PPGDEX-SITE-WIRING §1). Must run BEFORE any render*, because every one of
+       them resolves badges through evBadge → PpgRegistry.badgeForLabel, which now consults this.
+       Until this line existed, `idForSite` had no caller at all: the O2Ring finger downgrade was
+       written, gated by the suite, and reached zero rendered badges — every morphology metric drew
+       the WRIST grade whatever the site. */
+    applyDeclaredSite(r);
+    if (window.PpgRegistry && PpgRegistry.setActiveSite) PpgRegistry.setActiveSite(r.site, r.siteSource);
     $('scopeSection').style.display = 'block';
     if (!SCOPE) {
       SCOPE = new UI.PPGScope($('ppgCanvas'), $('ppgMini'));
@@ -298,6 +305,65 @@ import { PPGUI } from './ppgdex-render.js';
   const sc = (v, ok, warn) => (v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
   const hrStat = (v) => (v < 40 ? 'bad' : v <= 90 ? 'ok' : v <= 100 ? 'warn' : 'bad');
 
+  /* ── OPTICAL SITE DECLARATION (PPGDEX-SITE-WIRING §2/§3) ─────────────────────────────────────
+     The parser can only read the file LAYOUT, which names the DEVICE: 3 optical columns = a Verity
+     Sense. A Verity is a strap and goes where the wearer puts it — on this deployment, the left
+     ankle, while every export said `wrist`. Nothing in the waveform recovers that, so it is never
+     guessed; the wearer declares it once and it sticks per device layout.
+
+     Scope note: the choice is stored per SITE-LAYOUT ('wrist' = the 3-column strap), not per file,
+     because a strap does not move between files in a session. It is NOT applied retroactively to
+     already-exported JSON — those keep the siteSource they were written with, which is the honest
+     record of what was known at export time. */
+  const SITE_DECL_KEY = 'ppgdex_site_declared';
+  const SITE_CHOICES = [
+    { v: 'wrist', l: 'Wrist' },
+    { v: 'ankle', l: 'Ankle' },
+    { v: 'upper-arm', l: 'Upper arm' }
+  ];
+  function declaredSite(r) {
+    // The finger site is device-determined (a 1-column pleth IS an O2Ring ring) — nothing to
+    // declare there. `!== 'finger'` rather than `=== 'wrist'` so a record already stamped 'ankle'
+    // on a previous render still resolves its declaration instead of falling back to the default.
+    if (!r || r.site === 'finger') return null;
+    try {
+      const v = localStorage.getItem(SITE_DECL_KEY);
+      return SITE_CHOICES.some((c) => c.v === v) ? v : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  /* Stamp the declaration onto the RECORD, so the render path and the export cannot disagree about
+     the site — buildNodeExport reads r.site / r.siteSource, and this is the single place either is
+     allowed to become 'declared'. With no declaration stored this is a no-op, which is why the
+     committed fixtures and the equiv gate are untouched by any of this. */
+  function applyDeclaredSite(r) {
+    const v = declaredSite(r);
+    if (!v) return;
+    r.site = v;
+    r.siteSource = 'declared';
+  }
+  function setDeclaredSite(v) {
+    try {
+      if (v) localStorage.setItem(SITE_DECL_KEY, v);
+      else localStorage.removeItem(SITE_DECL_KEY);
+    } catch (e) {
+      /* private mode — the declaration simply does not persist */
+    }
+  }
+  function siteControlHtml(r) {
+    // Same `!== 'finger'` test as declaredSite: once a declaration has stamped r.site to 'ankle',
+    // a `=== 'wrist'` gate here would make the control vanish and the choice unchangeable.
+    if (!r || r.site === 'finger') return '';
+    const cur = declaredSite(r);
+    const opts = SITE_CHOICES.map((c) => `<option value="${c.v}"${cur === c.v ? ' selected' : ''}>${c.l}</option>`).join('');
+    const warn = cur
+      ? ''
+      : ' <span class="dim">— until you say, pulse-wave morphology (notch, AI, pulse width) is graded <b>experimental</b>: a wrist tier rests on wrist literature, and nothing here confirms a wrist.</span>';
+    return `<div class="ctx-note" id="siteDeclRow">Optical site:
+      <select id="siteDecl" style="margin:0 6px"><option value=""${cur ? '' : ' selected'}>not declared</option>${opts}</select>${warn}</div>`;
+  }
+
   function renderContext(r) {
     const tierColor = { 'ultra-short': 'warn', short: 'ok', overnight: 'ok' }[r.tier] || 'neutral';
     let notes = '';
@@ -310,8 +376,14 @@ import { PPGUI } from './ppgdex-render.js';
     $('ctxBanner').innerHTML = `<div class="ctx-main">
       <div><div class="ctx-mode">${{ ['ultra-short']: 'Spot / ultra-short', short: '5-min standard', overnight: 'Overnight' }[r.tier]} recording</div>
       <div class="ctx-why">${r.durMin} min · ${r.nPulses.toLocaleString()} pulses · ${r.fs} Hz · ch${r.channel} (best SNR) · ${r.epochs.length} × 5-min epoch${r.epochs.length === 1 ? '' : 's'}</div></div>
-      <div class="ctx-conf ${tierColor}">${r.tierMsg}</div></div>${notes}`;
+      <div class="ctx-conf ${tierColor}">${r.tierMsg}</div></div>${notes}${siteControlHtml(r)}`;
     $('ctxBanner').style.display = 'flex';
+    const sel = $('siteDecl');
+    if (sel)
+      sel.onchange = () => {
+        setDeclaredSite(sel.value || null);
+        renderSession(r); // re-render: the badges are what the declaration changes
+      };
   }
 
   function renderKPI(r) {

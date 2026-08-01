@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-aSS2iaQVFAAwjCONyPP2Rime78HgAktXoklaZVdipx8=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-m7UkuedMLKSntYws1Ug4cpYuAPl2TQFlBvuBAWt9q4E=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-wGXWUQAwayWkz16xD3eeIZkA7OIoUO9DjimmjQLVmPY=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CeHXGp+/GksOWjDBnGRn8UfpOWFV5IIDSTIN12Sd7Bo=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-lLE3ChuuD+h8YOsosYQVpNHlnRsA0xSJ00vPiVHh81I=' 'sha256-m7UkuedMLKSntYws1Ug4cpYuAPl2TQFlBvuBAWt9q4E=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6084,6 +6084,143 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       evidence: 'experimental',
       cite: 'Pulse width at half systolic amplitude, O2Ring FINGER site — amplitude-referenced, so on-device gain normalisation moves the half-amplitude crossing (PPGDEX-O2RING-FINGER-SITE §5)'
     },
+    /* ── ANKLE site (PPGDEX-SITE-WIRING §2) ──────────────────────────────────────────────────────
+       A Verity Sense is a STRAP. On this deployment it is worn on the LEFT ANKLE, and the parser
+       cannot recover that from the waveform — three optical columns say "Verity", not "wrist".
+
+       The ankle is not a milder wrist. It sits much further along the arterial tree, so the
+       reflected wave returns at a different delay relative to the systolic peak, and the vessels
+       are stiffer and smaller. Every quantity below is DEFINED by that relationship, so a
+       wrist-validated grade does not survive the move — the same §5 reasoning that put the O2Ring
+       finger entries below the wrist, for a different physical reason (there it was an unknown
+       on-device filter; here it is a genuinely different pulse). Timing/rate metrics are again
+       untouched: HR, PPI and rate-domain HRV come off the same audited pipeline and do not care
+       where on the body the beat was seen. */
+    dicroticAnkle: {
+      label: 'Dicrotic notch (ankle)',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Dicrotic-notch detection at an ANKLE site — notch visibility falls with distance from the heart and rising vessel stiffness; the wrist grade is not inherited (PPGDEX-SITE-WIRING §2)'
+    },
+    aiAnkle: {
+      label: 'Aug. index (ankle)',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Augmentation index at an ANKLE site — AI is DEFINED by reflected-wave arrival relative to the systolic peak, and that timing is exactly what moves down the arterial tree; not the wrist-validated quantity (PPGDEX-SITE-WIRING §2)'
+    },
+    reflectionIdxAnkle: {
+      label: 'Reflection index (ankle)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'PPG reflection index at an ANKLE site — diastolic÷systolic amplitude ratio, and the reflection it measures is site-determined (PPGDEX-SITE-WIRING §2)'
+    },
+    sdppgBAAnkle: {
+      label: 'SDPPG b/a (ankle)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: '2nd-derivative PPG b/a (Takazawa 1998) at an ANKLE site — Takazawa\u2019s norms are finger-derived and a 2nd derivative amplifies any waveform difference; the wrist grade is not inherited (PPGDEX-SITE-WIRING §2)'
+    },
+    agingIdxAnkle: {
+      label: 'Aging index (ankle)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'SDPPG aging index (b−c−d−e)/a (Takazawa 1998) at an ANKLE site — same site-transfer caveat as sdppgBAAnkle (PPGDEX-SITE-WIRING §2)'
+    },
+    notchTimeAnkle: {
+      label: 'Notch time (ankle)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Foot→dicrotic-notch timing at an ANKLE site — the wrist entry is `measured`, which a site change does NOT confer: notch timing is the single quantity most directly moved by arterial distance (PPGDEX-SITE-WIRING §2)'
+    },
+    pulseWidthAnkle: {
+      label: 'Pulse width (ankle)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Pulse width at half systolic amplitude, ANKLE site — peripheral pulses broaden and steepen with distance, so the wrist `measured` grade does not transfer (PPGDEX-SITE-WIRING §2)'
+    },
+    /* ── ASSUMED site — the site was NEVER OBSERVED (PPGDEX-SITE-WIRING §3) ──────────────────────
+       `site` is derived from the file LAYOUT: 3 optical columns ⇒ "wrist". That identifies the
+       DEVICE (a Verity Sense), not the limb. A strap goes where the wearer puts it, and this
+       deployment's went on an ankle while being labelled wrist throughout.
+
+       So when `siteSource` is not `declared`, the site is an assumption, and a site-sensitive
+       metric cannot hold a site-validated tier on an assumption. These entries are what an
+       undeclared wrist resolves to. They sit at `experimental` because an unknown site could be
+       ANY site, so the honest grade is the weakest the metric could deserve.
+
+       Note the deliberate asymmetry with the FINGER entries, which do NOT require a declaration:
+       a 1-column O2Ring pleth comes from a finger ring, so there the layout really does fix the
+       site. Wrist is the only site this suite infers that the hardware does not guarantee. */
+    dicroticAssumed: {
+      label: 'Dicrotic notch (site assumed)',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Dicrotic-notch detection with the optical site ASSUMED, not observed — the wrist grade rests on a limb nobody confirmed; declare the site to earn it back (PPGDEX-SITE-WIRING §3)'
+    },
+    aiAssumed: {
+      label: 'Aug. index (site assumed)',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Augmentation index with the optical site ASSUMED — AI is site-defined, so a wrist tier on an unconfirmed limb is a grade the metric did not earn (PPGDEX-SITE-WIRING §3)'
+    },
+    reflectionIdxAssumed: {
+      label: 'Reflection index (site assumed)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'PPG reflection index with the optical site ASSUMED — the reflection it measures is site-determined (PPGDEX-SITE-WIRING §3)'
+    },
+    sdppgBAAssumed: {
+      label: 'SDPPG b/a (site assumed)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: '2nd-derivative PPG b/a with the optical site ASSUMED — Takazawa norms are site-specific (PPGDEX-SITE-WIRING §3)'
+    },
+    agingIdxAssumed: {
+      label: 'Aging index (site assumed)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'SDPPG aging index with the optical site ASSUMED — same site-transfer caveat as sdppgBAAssumed (PPGDEX-SITE-WIRING §3)'
+    },
+    notchTimeAssumed: {
+      label: 'Notch time (site assumed)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Foot→dicrotic-notch timing with the optical site ASSUMED — `measured` is a claim about a KNOWN fiducial at a KNOWN site (PPGDEX-SITE-WIRING §3)'
+    },
+    pulseWidthAssumed: {
+      label: 'Pulse width (site assumed)',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Pulse width at half systolic amplitude with the optical site ASSUMED — pulse shape is site-determined (PPGDEX-SITE-WIRING §3)'
+    },
     sd1sd2: { label: 'SD1/SD2', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Poincaré SD1/SD2 ratio — nonlinear short/long-term HRV balance' },
     ellArea: { label: 'Ellipse area', unit: 'ms²', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Poincaré ellipse area — overall HRV dispersion (geometric)' },
     cvhrIndex: { label: 'CVHR index', unit: '/h', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Cyclical-variation-of-HR index — PPI apnea surrogate' },
@@ -6292,6 +6429,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     tier: 1
   };
 
+  /* Site-aware: resolves the label to its id, then re-scopes that id onto the ACTIVE site before
+     asking MetricRegistry for a disc. With no active site set this is identical to the old path. */
   function badgeForLabel(label, fallback) {
     if (!global.MetricRegistry) return '';
     var id = idForLabel(label);
@@ -6299,7 +6438,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       if (fallback && !_META_DENY[_norm(label)]) return global.MetricRegistry.badge('experimental', '');
       return '';
     }
-    var d = global.MetricRegistry.entry(PPG_REGISTRY, id);
+    var d = global.MetricRegistry.entry(PPG_REGISTRY, idForSite(id, ACTIVE.site, ACTIVE.siteSource));
     return global.MetricRegistry.badge(d.evidence, d.cite);
   }
 
@@ -6316,18 +6455,49 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   //  else — HR, PPI, rate-domain HRV, the quality statistics — falls through to the base id on
   //  purpose, because those come off the same audited pipeline and a site change does not weaken
   //  them. The failure this prevents runs one way only: a finger number wearing a wrist grade.
-  var SITE_SUFFIX = { finger: 'Finger' };
-  function idForSite(id, site) {
+  var SITE_SUFFIX = { finger: 'Finger', ankle: 'Ankle' };
+
+  /*  `siteSource` is the third arg and OPTIONAL, per CLAUDE.md's back-compat rule — an existing
+      two-arg call keeps its exact former meaning.
+
+      THE ASYMMETRY, which is the whole point. `site` is derived from the file LAYOUT, and that
+      identifies the DEVICE, not the limb:
+        · 1 optical column  ⇒ an O2Ring, which IS a finger ring. The layout really does fix the
+          site, so `finger` re-scopes with or without a declaration.
+        · 3 optical columns ⇒ a Verity Sense, which is a STRAP and goes wherever the wearer puts
+          it. On this deployment that is the LEFT ANKLE, labelled `wrist` throughout. So `wrist`
+          is the one site this suite infers that the hardware does not guarantee, and it must be
+          DECLARED before it can carry a wrist-validated tier.
+      Hence: an undeclared wrist resolves to the `<id>Assumed` entry, not the base id. */
+  function idForSite(id, site, siteSource) {
     if (!id || !site) return id;
     var suffix = SITE_SUFFIX[site];
+    if (!suffix && site === 'wrist' && siteSource && siteSource !== 'declared') suffix = 'Assumed';
     if (!suffix) return id;
     var scoped = id + suffix;
     return Object.prototype.hasOwnProperty.call(PPG_REGISTRY, scoped) ? scoped : id;
   }
-  function badgeForSite(id, site) {
+  function badgeForSite(id, site, siteSource) {
     if (!global.MetricRegistry) return '';
-    var d = global.MetricRegistry.entry(PPG_REGISTRY, idForSite(id, site));
+    var d = global.MetricRegistry.entry(PPG_REGISTRY, idForSite(id, site, siteSource));
     return global.MetricRegistry.badge(d.evidence, d.cite);
+  }
+
+  /*  AMBIENT ACTIVE SITE — the fix for the defect that motivated all of the above.
+      `idForSite` existed, was gated by the suite, and had NO CALLER: every rendered badge went
+      through `badgeForLabel` → `idForLabel` → the BASE id, so an O2Ring finger recording drew the
+      wrist grade and the §5 downgrade reached exactly zero pixels. Threading a site argument
+      through every `evBadge(label)` call site would have missed the ones nobody enumerated — which
+      is how the first hole opened. An ambient site consulted INSIDE `badgeForLabel` closes all of
+      them at once, including call sites added later. PpgDex renders one session at a time, so the
+      app sets this once per render; `null` restores the pre-existing label-only behaviour. */
+  var ACTIVE = { site: null, siteSource: null };
+  function setActiveSite(site, siteSource) {
+    ACTIVE.site = site || null;
+    ACTIVE.siteSource = siteSource || null;
+  }
+  function activeSite() {
+    return { site: ACTIVE.site, siteSource: ACTIVE.siteSource };
   }
 
   global.PPG_REGISTRY = PPG_REGISTRY;
@@ -6338,7 +6508,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     badgeForLabel: badgeForLabel,
     depthForLabel: depthForLabel,
     idForSite: idForSite,
-    badgeForSite: badgeForSite
+    badgeForSite: badgeForSite,
+    setActiveSite: setActiveSite,
+    activeSite: activeSite
   };
 })(window);
 </script>
@@ -13861,6 +14033,13 @@ const { PPGUI } = __require('ppgdex-render.js');
   //  RENDER one session
   // ════════════════════════════════════════════════════════════════════════
   function renderSession(r) {
+    /* SITE-SCOPED BADGES (PPGDEX-SITE-WIRING §1). Must run BEFORE any render*, because every one of
+       them resolves badges through evBadge → PpgRegistry.badgeForLabel, which now consults this.
+       Until this line existed, `idForSite` had no caller at all: the O2Ring finger downgrade was
+       written, gated by the suite, and reached zero rendered badges — every morphology metric drew
+       the WRIST grade whatever the site. */
+    applyDeclaredSite(r);
+    if (window.PpgRegistry && PpgRegistry.setActiveSite) PpgRegistry.setActiveSite(r.site, r.siteSource);
     $('scopeSection').style.display = 'block';
     if (!SCOPE) {
       SCOPE = new UI.PPGScope($('ppgCanvas'), $('ppgMini'));
@@ -13915,6 +14094,65 @@ const { PPGUI } = __require('ppgdex-render.js');
   const sc = (v, ok, warn) => (v >= ok ? 'ok' : v >= warn ? 'warn' : 'bad');
   const hrStat = (v) => (v < 40 ? 'bad' : v <= 90 ? 'ok' : v <= 100 ? 'warn' : 'bad');
 
+  /* ── OPTICAL SITE DECLARATION (PPGDEX-SITE-WIRING §2/§3) ─────────────────────────────────────
+     The parser can only read the file LAYOUT, which names the DEVICE: 3 optical columns = a Verity
+     Sense. A Verity is a strap and goes where the wearer puts it — on this deployment, the left
+     ankle, while every export said `wrist`. Nothing in the waveform recovers that, so it is never
+     guessed; the wearer declares it once and it sticks per device layout.
+
+     Scope note: the choice is stored per SITE-LAYOUT ('wrist' = the 3-column strap), not per file,
+     because a strap does not move between files in a session. It is NOT applied retroactively to
+     already-exported JSON — those keep the siteSource they were written with, which is the honest
+     record of what was known at export time. */
+  const SITE_DECL_KEY = 'ppgdex_site_declared';
+  const SITE_CHOICES = [
+    { v: 'wrist', l: 'Wrist' },
+    { v: 'ankle', l: 'Ankle' },
+    { v: 'upper-arm', l: 'Upper arm' }
+  ];
+  function declaredSite(r) {
+    // The finger site is device-determined (a 1-column pleth IS an O2Ring ring) — nothing to
+    // declare there. `!== 'finger'` rather than `=== 'wrist'` so a record already stamped 'ankle'
+    // on a previous render still resolves its declaration instead of falling back to the default.
+    if (!r || r.site === 'finger') return null;
+    try {
+      const v = localStorage.getItem(SITE_DECL_KEY);
+      return SITE_CHOICES.some((c) => c.v === v) ? v : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  /* Stamp the declaration onto the RECORD, so the render path and the export cannot disagree about
+     the site — buildNodeExport reads r.site / r.siteSource, and this is the single place either is
+     allowed to become 'declared'. With no declaration stored this is a no-op, which is why the
+     committed fixtures and the equiv gate are untouched by any of this. */
+  function applyDeclaredSite(r) {
+    const v = declaredSite(r);
+    if (!v) return;
+    r.site = v;
+    r.siteSource = 'declared';
+  }
+  function setDeclaredSite(v) {
+    try {
+      if (v) localStorage.setItem(SITE_DECL_KEY, v);
+      else localStorage.removeItem(SITE_DECL_KEY);
+    } catch (e) {
+      /* private mode — the declaration simply does not persist */
+    }
+  }
+  function siteControlHtml(r) {
+    // Same `!== 'finger'` test as declaredSite: once a declaration has stamped r.site to 'ankle',
+    // a `=== 'wrist'` gate here would make the control vanish and the choice unchangeable.
+    if (!r || r.site === 'finger') return '';
+    const cur = declaredSite(r);
+    const opts = SITE_CHOICES.map((c) => `<option value="${c.v}"${cur === c.v ? ' selected' : ''}>${c.l}</option>`).join('');
+    const warn = cur
+      ? ''
+      : ' <span class="dim">— until you say, pulse-wave morphology (notch, AI, pulse width) is graded <b>experimental</b>: a wrist tier rests on wrist literature, and nothing here confirms a wrist.</span>';
+    return `<div class="ctx-note" id="siteDeclRow">Optical site:
+      <select id="siteDecl" style="margin:0 6px"><option value=""${cur ? '' : ' selected'}>not declared</option>${opts}</select>${warn}</div>`;
+  }
+
   function renderContext(r) {
     const tierColor = { 'ultra-short': 'warn', short: 'ok', overnight: 'ok' }[r.tier] || 'neutral';
     let notes = '';
@@ -13927,8 +14165,14 @@ const { PPGUI } = __require('ppgdex-render.js');
     $('ctxBanner').innerHTML = `<div class="ctx-main">
       <div><div class="ctx-mode">${{ ['ultra-short']: 'Spot / ultra-short', short: '5-min standard', overnight: 'Overnight' }[r.tier]} recording</div>
       <div class="ctx-why">${r.durMin} min · ${r.nPulses.toLocaleString()} pulses · ${r.fs} Hz · ch${r.channel} (best SNR) · ${r.epochs.length} × 5-min epoch${r.epochs.length === 1 ? '' : 's'}</div></div>
-      <div class="ctx-conf ${tierColor}">${r.tierMsg}</div></div>${notes}`;
+      <div class="ctx-conf ${tierColor}">${r.tierMsg}</div></div>${notes}${siteControlHtml(r)}`;
     $('ctxBanner').style.display = 'flex';
+    const sel = $('siteDecl');
+    if (sel)
+      sel.onchange = () => {
+        setDeclaredSite(sel.value || null);
+        renderSession(r); // re-render: the badges are what the declaration changes
+      };
   }
 
   function renderKPI(r) {
