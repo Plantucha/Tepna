@@ -711,6 +711,35 @@
         "SYNTH-GEN-FIXTURE-REALISM-FOLLOWUPS-2026-08-01-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.3.0",
+      "date": "2026-08-01",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "878b7b9890ec",
+        "OxyDex": "604ecc4b8976",
+        "PulseDex": "512b1b490391",
+        "GlucoDex": "70831ccda0cb",
+        "PpgDex": "3cf2bab1cf06",
+        "HRVDex": "c4f4ff342c34",
+        "CPAPDex": "f17e19ab29b2",
+        "Integrator": "46e8a522803b",
+        "MotionDex": "31f747a1eb49"
+      },
+      "briefs": [
+        "POOLED-CLOCK-FIT-FOLLOWUPS-2026-07-31-BRIEF.md",
+        "DOCS-LEDGER-CHECK3B-BLIND-ROW-2026-08-01-BRIEF.md",
+        "ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md",
+        "IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md",
+        "INTEGRATOR-POOLED-CLOCK-APPLY-2026-08-01-BRIEF.md",
+        "OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md",
+        "EXPORT-PATH-UNREACHABLE-FOLLOWUPS-IV-2026-08-01-BRIEF.md",
+        "OXYDEX-PULSE-RESOURCING-FOLLOWUPS-2026-07-20-BRIEF.md",
+        "MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS-2026-07-22-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
