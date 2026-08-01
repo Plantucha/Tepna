@@ -24935,6 +24935,111 @@
       T.ok('KNOWN LIMITATION — a 30 s pause (shorter than the window) does NOT trigger abstention', anyAbstain === false, 'a short pause now abstains — behaviour changed, update this assertion deliberately');
     });
 
+    /* ════ resp-acc-analysis.js — THREE SILENT SAMPLE-RATE FAILURES, EACH FIXED AND NONE GATED ══════
+     MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §2 opens: *"Sample-rate precision is this codebase's recurring
+     failure mode — it bit three times in one work-unit, in three different places, each time silently."*
+     All three are fixed in `resp-acc-analysis.js`. None of them had a test, and the module was loaded by
+     NEITHER lane — so each fix rested on the comment sitting above it. A fix with no failing-first test
+     is exactly what this repo keeps discovering it cannot rely on.
+
+     Every number below was MEASURED against the shipped module first and matches the figures the brief
+     published independently (1.2 % rate error · −36.6 dB at 0.8 Hz), which is why they are pinned as
+     known answers rather than as tolerances someone guessed. */
+    group('resp-acc clock/resample layer — the three silent rate failures §2·§3·§4', 'resp-acc-analysis · rate · known-answer', function (T) {
+      var R = env.RespAccAnalysis;
+      if (!(R && typeof R.nativeHz === 'function' && typeof R.toGrid === 'function' && typeof R.flowChannel === 'function')) {
+        T.ok('RespAccAnalysis (nativeHz · toGrid · flowChannel) available', false, 'resp-acc-analysis.js not wired into this lane — add it to BOTH runners');
+        return;
+      }
+      var FSC = R._const.FSC; // 5 Hz correlation grid
+
+      /* ── §2.3 · nativeHz must read the SENSOR counter, not the phone's millisecond stamp ──────────
+         The phone stamp is quantised to whole ms, so a true 25.34 Hz stream (39.4633 ms spacing) has a
+         median interval of 39 ms → 25.641 Hz. That 1.19 % error accumulated ~18 s of skew over a 25-min
+         correlation chunk and moved recovered clock offsets by TENS OF MINUTES (−1592/−3379/+4852 s
+         where the drift-consistent truth is ≈−2360 s). Both directions are asserted in one place: the
+         relNs path is exact, AND the tMs fallback is pinned as measurably wrong — so if someone deletes
+         the relNs branch, the first assert reds instead of the suite quietly accepting 25.64. */
+      var TRUE_HZ = 25.34,
+        dtMs = 1000 / TRUE_HZ,
+        rows = [],
+        i;
+      for (i = 0; i < 4000; i++) rows.push({ relNs: Math.round(i * dtMs * 1e6), tMs: Math.round(i * dtMs) });
+      var hzNs = R.nativeHz(rows);
+      T.ok('§2.3 · nativeHz from the relNs sensor counter is exact (25.34 Hz)', Math.abs(hzNs - TRUE_HZ) < 0.001, 'hz=' + hzNs);
+      var hzMs = R.nativeHz(
+        rows.map(function (r) {
+          return { tMs: r.tMs };
+        })
+      );
+      T.ok('§2.3 · …and the ms-stamp fallback really IS lossy — 25.641 Hz, +1.19 %', Math.abs(hzMs - 25.641) < 0.01 && Math.abs((hzMs - TRUE_HZ) / TRUE_HZ) > 0.01, 'hz=' + hzMs);
+      // Never derive a rate from count ÷ duration: that silently absorbs every dropout. Drop 20 % of
+      // samples and the interval-median rate must not budge, where n/dur would read ~20 % low.
+      var gappy = rows.filter(function (_, k) {
+        return k % 5 !== 0;
+      });
+      T.ok('§2 · a 20 % dropout does NOT move the rate (n÷duration would read ~20 % low)', Math.abs(R.nativeHz(gappy) - TRUE_HZ) < 0.02, 'hz=' + R.nativeHz(gappy));
+
+      /* ── §3 · toGrid must INTERPOLATE onto the exact grid, not decimate by a whole factor ─────────
+         Integer decimation left a 25.35 Hz stream at 5.07 Hz rather than 5 Hz — same class, equally
+         silent. A 0.25 Hz sine peaks at t = 1 + 4k s; after resampling, the peak near the end of a
+         300 s record must land on the TRUE second. At a 5.07 Hz grid the same sample index would read
+         292.90 s instead of 297.00 s — 4.1 s of drift, which is what flattened the correlation peak. */
+      var fsIn = 25.35,
+        DUR = 300,
+        x = new Float64Array(Math.round(DUR * fsIn));
+      for (i = 0; i < x.length; i++) x[i] = Math.sin(2 * Math.PI * 0.25 * (i / fsIn));
+      var g = R.toGrid(x, fsIn);
+      T.eq('§3 · toGrid lands on the exact FSC grid (length)', g.length, Math.floor(((x.length - 1) / fsIn) * FSC) + 1);
+      /* The invariant is that resampling preserves ABSOLUTE TIME, so the test compares the last peak's
+         time in the OUTPUT against the same peak's time in the INPUT, measured independently at fsIn.
+         An earlier version of this assertion snapped the output peak to the nearest crest of the known
+         4 s-period sine and checked the residual — which PASSED under an integer-decimation mutation,
+         because decimation slides the peak onto a DIFFERENT crest and the snap-to-nearest hid the whole
+         error. A test that survives the bug it was written for is worse than no test; that was found by
+         mutating, not by reading. */
+      /* The LAST crest, not the tallest one. Sample phase makes some crests land marginally closer to
+         the true maximum than others, so picking by value returns an arbitrary earlier peak and the
+         two series get compared at different cycles. */
+      var lastPeak = function (s, hz, from) {
+        var k,
+          idx = -1;
+        for (k = Math.max(1, Math.floor(s.length * from)); k < s.length - 1; k++) if (s[k] > 0.5 && s[k] > s[k - 1] && s[k] >= s[k + 1]) idx = k;
+        return idx < 0 ? null : idx / hz;
+      };
+      var tIn = lastPeak(x, fsIn, 0.9),
+        tOut = lastPeak(g, FSC, 0.9);
+      T.ok(
+        '§3 · the last peak keeps its ABSOLUTE time through the resample (a 5.07 Hz grid does not)',
+        tIn != null && tOut != null && Math.abs(tOut - tIn) < 0.05,
+        'input t=' + (tIn == null ? '—' : tIn.toFixed(2)) + 's output t=' + (tOut == null ? '—' : tOut.toFixed(2)) + 's'
+      );
+
+      /* ── §4 · flowChannel is ONE band-pass, not two (the double-filtering footgun) ────────────────
+         `recoverOffset` used to band-pass input its callers had already band-passed, producing an
+         effective 16th order. Measured at 0.8 Hz (just outside the 0.13–0.50 Hz band): one pass
+         attenuates −36.7 dB — matching the −36.6 dB the brief §8 published from the other direction —
+         while a second pass takes it to −64.7 dB. Pinning the SINGLE-pass figure is what catches a
+         re-introduced double filter, because a doubled order is a 28 dB move, not a rounding one. */
+      var f8 = new Float64Array(Math.round(DUR * fsIn));
+      for (i = 0; i < f8.length; i++) f8[i] = Math.sin(2 * Math.PI * 0.8 * (i / fsIn));
+      var rms = function (s) {
+        var a = 0;
+        for (var k = 0; k < s.length; k++) a += s[k] * s[k];
+        return Math.sqrt(a / s.length);
+      };
+      var edge = 200,
+        inRms = rms(f8);
+      var one = R.flowChannel(f8, fsIn),
+        dB1 = 20 * Math.log10(rms(one.subarray(edge, one.length - edge)) / inRms);
+      var two = R.flowChannel(one, FSC),
+        dB2 = 20 * Math.log10(rms(two.subarray(edge, two.length - edge)) / inRms);
+      T.ok('§4 · ONE flowChannel pass attenuates 0.8 Hz by −36.7 dB (4th-order zero-phase)', Math.abs(dB1 + 36.69) < 0.5, 'dB=' + dB1.toFixed(2));
+      T.ok('§4 · a SECOND pass would take it to −64.7 dB — a 28 dB tell, not a rounding one', dB2 < dB1 - 20, 'dB1=' + dB1.toFixed(2) + ' dB2=' + dB2.toFixed(2));
+      var inBand = R.flowChannel(x, fsIn);
+      T.ok('§4 · …and the 0.25 Hz passband survives essentially unattenuated', Math.abs(20 * Math.log10(rms(inBand.subarray(edge, inBand.length - edge)) / rms(x))) < 0.5, 'dB=' + (20 * Math.log10(rms(inBand.subarray(edge, inBand.length - edge)) / rms(x))).toFixed(2));
+    });
+
     /* ════ The new rate fields are ADDITIVE — every legacy effort field survives (CLAUDE.md §🧪) ════ */
     group('MotionDex effort keeps its legacy return shape while adding the rate series', 'motiondex-dsp · effort · back-compat', function (T) {
       var MD = env.MOTIONDSP;

@@ -276,6 +276,9 @@ async function main(){
   { const _cr = await fetchText('cohort-regression.js'); if(_cr) (0, eval)(esmClassicify(_cr)); }
   // TEST-COVERAGE-FOLLOWUPS-II Item 3 (Route A): qrs-equiv exposes window.QrsEquiv (pearson · Bland-Altman).
   { const _qe = await fetchText('qrs-equiv-analysis.js'); if(_qe) (0, eval)(esmClassicify(_qe)); }
+  // MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §2/§3/§4: the ACC↔flow clock-recovery + resampling layer
+  // (window.RespAccAnalysis — nativeHz · toGrid · respChannel/flowChannel). DOM-free; was in no lane.
+  { const _ra = await fetchText('resp-acc-analysis.js'); if(_ra) (0, eval)(esmClassicify(_ra)); }
   // TEST-COVERAGE-FOLLOWUPS-II Item 1b: HRVDex personalization leaks calcVo2Cat/getAgeBand as bare globals
   // (Object.assign(window,{…})) and loads headless — no re-bundle owed. Load it so env can grab them.
   { const _hp = await fetchText('hrvdex-profile.js'); if(_hp) (0, eval)(esmClassicify(_hp)); }
@@ -524,6 +527,7 @@ async function main(){
     OverDexWalk: window.OverDexWalk,
     CohortRegression: window.CohortRegression,
     QrsEquiv: window.QrsEquiv,
+    RespAccAnalysis: window.RespAccAnalysis,
     HrvCalcVo2Cat: window.calcVo2Cat,
     HrvGetAgeBand: window.getAgeBand,
     OxyKarvonenZone: window.upKarvonenZone,
