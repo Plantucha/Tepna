@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RK11tyQyDBtEyhQJ0+zOjxL8BHLFD+YzRTebrcyFvBs=' 'sha256-UxTRWz+mt/NyFqqOfz0WizbfTGzuLbsHQG8bTXVMDXs=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ixrpBVG0uOw56hZiQGsTHpGxTdk8xbOMJn+cKydqiu4=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BKN+oFj/529G2XjwMvVNKSuRiX/S4+v4vRG1pIuDGsc=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RK11tyQyDBtEyhQJ0+zOjxL8BHLFD+YzRTebrcyFvBs=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ixrpBVG0uOw56hZiQGsTHpGxTdk8xbOMJn+cKydqiu4=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -9804,7 +9804,37 @@ function fitClockOffsetPooled(anchorTimes, channels, opts) {
   opts = opts || {};
   var maxSec = opts.maxLagSec != null ? opts.maxLagSec : 5400; // +/-90 min
   var stepSec = opts.stepSec != null ? opts.stepSec : 5;
-  var matchSec = opts.matchSec != null ? opts.matchSec : 45;
+  /* matchSec 45 -> 30 (POOLED-CLOCK-FIT-FOLLOWUPS §5, swept 2026-08-01). Both numbers were
+     INHERITED, never chosen; §5 asked for a sweep so they could be. Swept 6 windows x 5 grids
+     against a planted control (truth known) and all 36 reproducible corpus nights:
+
+       PLANTED: accuracy is FLAT — median |error| ~0 s at every combination, confirming the
+       centroid removes the window's bias. What the window buys is RESOLUTION: the peak's support
+       runs ~1.5x matchSec (0-1 s at 10, 16 at 20, 36 at 30, 67 at 45, 158 at 90). On planted data
+       alone the answer would be "use 10".
+
+       CORPUS: and that answer would be WRONG, which is why the planted leg cannot decide this.
+       Real responder jitter exceeds a 10 s window and it loses SEVEN nights.
+
+         matchSec   confident   support   cross-night MAD
+             10        15          4 s        17 s     <- too narrow, drops nights
+             20        21          8 s        10 s
+             30        22         15 s        17 s     <- chosen
+             45        22         20 s        22 s     <- inherited
+             90        23         46 s        33 s
+
+       30 strictly dominates 45: the same 22 confident nights, 25 % narrower support, and a 23 %
+       better MAD across nights — which is the meaningful check, since the CPAP's offset is
+       physically near-constant, so agreement BETWEEN nights is the only accuracy proxy available
+       without a reference clock. Nothing gets worse.
+
+     THE HONEST LIMIT: this is calibrated on 36 nights from ONE deployment, and §3 of the same brief
+     warns against fitting the estimator to its own corpus. The defence is that matchSec is a
+     PHYSICAL parameter — how far a responder may lag its anchor — so setting it from measured
+     responder behaviour is calibration rather than curve-fitting. It is still one deployment's
+     physiology. `stepSec` stays 5: 1 vs 5 vs 10 differ by under a second of accuracy, and 5 is
+     5x cheaper than 1. */
+  var matchSec = opts.matchSec != null ? opts.matchSec : 30;
   var minEvents = opts.minEvents != null ? opts.minEvents : 5;
   var nullIters = opts.nullIters != null ? opts.nullIters : 30;
   // Two peaks closer than this are the same answer seen twice, not a disagreement.

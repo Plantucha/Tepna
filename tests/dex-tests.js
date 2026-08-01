@@ -2202,6 +2202,60 @@
        known answers, so they need no corpus and cannot be fitted to the one lost night that
        motivated §3 (2026-07-23's raw data is gone; among the 36 reproducible nights there are ZERO
        confident-but-wrong nights, so there is no positive class to calibrate against at all). */
+    /* ── POOLED-CLOCK-FIT-FOLLOWUPS §5 · the window was inherited; now it is chosen ──────────────
+       `matchSec` moved 45 -> 30 after a 6x5 sweep against a planted control and all 36 corpus
+       nights. What this group pins is the RELATIONSHIP the sweep established, not the number: the
+       peak's support scales with the window (so a wider window costs resolution), while accuracy
+       does not (the centroid removes the window's bias). Anyone re-running the sweep on a different
+       deployment — which the change's own comment says is warranted, since it is calibrated on one —
+       needs those two properties to still hold, or the sweep means something else. */
+    group('the match window buys resolution, not accuracy', 'integrator-dsp · clock-fit-pooled · window-sweep', function (T) {
+      var D = env.IntegratorDSP || env.D || null;
+      var pooled = D && D.fitClockOffsetPooled;
+      if (typeof pooled !== 'function') {
+        T.skip('fitClockOffsetPooled available', 'integrator-dsp not loaded');
+        return;
+      }
+      var seed = 99;
+      var rnd = function () {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      };
+      var T0 = Date.UTC(2026, 7, 1, 23, 0, 0);
+      var OFF = 137;
+      function trial(matchSec) {
+        seed = 99; // identical input for every window — only the window varies
+        var A = [];
+        var t = T0;
+        for (var i = 0; i < 40; i++) {
+          A.push(t);
+          t += 208000 * (0.3 + 1.4 * rnd());
+        }
+        var ch = [];
+        for (var k = 0; k < 6; k++)
+          ch.push({
+            node: 'N' + k,
+            channel: 'c' + k,
+            times: A.map(function (x) {
+              return x + OFF * 1000 + (rnd() - 0.5) * 24000;
+            })
+          });
+        return pooled(A, ch, { matchSec: matchSec, stepSec: 5 });
+      }
+      var narrow = trial(20);
+      var mid = trial(30);
+      var wide = trial(90);
+
+      T.ok('accuracy does NOT degrade with a wider window (the centroid removes its bias)', Math.abs(narrow.offsetSec - OFF) <= 5 && Math.abs(mid.offsetSec - OFF) <= 5 && Math.abs(wide.offsetSec - OFF) <= 5, [narrow.offsetSec, mid.offsetSec, wide.offsetSec].join(' / ') + ' vs planted ' + OFF);
+      T.ok('but RESOLUTION does — support widens with the window', narrow.spreadSec < mid.spreadSec && mid.spreadSec < wide.spreadSec, narrow.spreadSec + ' < ' + mid.spreadSec + ' < ' + wide.spreadSec);
+      T.ok('…roughly in proportion to it', wide.spreadSec >= 2 * mid.spreadSec, 'match 90 support ' + wide.spreadSec + ' vs match 30 support ' + mid.spreadSec);
+
+      /* And the default is the swept value, not the inherited one. A silent revert to 45 would undo
+         the sweep without anything saying so. */
+      var dflt = trial(undefined);
+      T.eq('the shipped default is the swept window', dflt.spreadSec, mid.spreadSec);
+    });
+
     group('a periodic anchor train is flagged ambiguous, not confidently aliased', 'integrator-dsp · clock-fit-pooled · aliasing', function (T) {
       var D = env.IntegratorDSP || env.D || null;
       var pooled = D && D.fitClockOffsetPooled;
@@ -2371,8 +2425,15 @@
          seconds against a failure mode measured in tens of minutes. Asserting bit-equality here would
          be asserting a coincidence, not a property. */
       var clean = pooled(anchor, [{ node: 'OxyDex', channel: 'desat_event', times: exact }], {});
-      T.ok('a junk channel moves the answer by less than its own resolution',
-        Math.abs(buried.offsetSec - clean.offsetSec) <= 5, buried.offsetSec + ' vs ' + clean.offsetSec);
+      /* Against the fit's OWN published resolution, not a hardcoded 5 s. The comment above already
+         says what this means — "only INSIDE the plateau it publishes" — and the plateau is exactly
+         `spreadSec`. The literal 5 was a number that happened to hold while `matchSec` was 45; the
+         §5 sweep moved it to 30 and the shift became 16.8 s, still comfortably inside the published
+         support. Keying the assertion to the published quantity makes it independent of the window,
+         which is the property actually being claimed. */
+      T.ok('a junk channel moves the answer by less than its own published resolution',
+        Math.abs(buried.offsetSec - clean.offsetSec) <= Math.max(clean.spreadSec, buried.spreadSec, 5),
+        Math.abs(buried.offsetSec - clean.offsetSec).toFixed(1) + ' s shift vs published support ' + clean.spreadSec + '/' + buried.spreadSec + ' s');
 
       /* §5.3 / §6 — POOLING MUST NOT HIDE A DISAGREEING SENSOR. The vote made disagreement visible by
          leaving a channel out of the agreeing set; if the per-channel table did not survive, pooling

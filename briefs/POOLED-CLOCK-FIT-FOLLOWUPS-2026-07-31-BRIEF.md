@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-07-31 · **§1 + §3 + §6.2 RESOLVED 2026-08-01** · **Found while executing:** `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` · **Affects:** `ecgdex-dsp.js` / `ppgdex-dsp.js` event fiducials, `CROSS-DEVICE-CLOCK-SKEW` §2d's latency ladder, `PAPERS-ROADMAP`
+**Status:** IN-PROGRESS · **Created:** 2026-07-31 · **§1 + §3 + §5-window + §6.2 RESOLVED 2026-08-01** · **Found while executing:** `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` · **Affects:** `ecgdex-dsp.js` / `ppgdex-dsp.js` event fiducials, `CROSS-DEVICE-CLOCK-SKEW` §2d's latency ladder, `PAPERS-ROADMAP`
 
 # Once the clock is pinned, every channel is on one timeline — and the pairs do not say what the ladder says
 
@@ -273,9 +273,42 @@ tool every other analysis also uses, so it needs its own gate work rather than a
   `spreadSec`. The Integrator UI and `trio-batch` were updated to render it as `± resolution`, but any
   *stored* historical value carries the old meaning. No fixture stores one today; if one ever does, it
   needs a distinct field name rather than a comment.
-- **The ±45 s window and 5 s grid are still unswept** (parent §6). The planted-offset control shows the
-  centroid removes the window's bias, so the cost of the coarse window is resolution, not accuracy — but
-  a sweep would let the window be chosen rather than inherited.
+- ~~**The ±45 s window and 5 s grid are still unswept**~~ — **SWEPT 2026-08-01; `matchSec` 45 → 30.**
+  6 windows × 5 grids, against a planted control (truth known) and all 36 reproducible nights.
+
+  **The planted leg confirms the prediction and cannot decide the question.** Accuracy is flat —
+  median |error| ≈ 0 s at every combination, so the centroid does remove the window's bias, exactly as
+  this bullet guessed. What the window buys is resolution: support ≈ 1.5 × `matchSec` (0–1 s at 10,
+  16 at 20, 36 at 30, 67 at 45, 158 at 90). On planted data alone the answer is "use 10".
+
+  **The corpus says that answer is wrong**, which is why the planted leg alone could not have chosen
+  the value. Real responder jitter exceeds a 10 s window and it loses **seven** nights:
+
+  | matchSec | confident | support | cross-night MAD |
+  |---|---|---|---|
+  | 10 | **15** | 4 s | 17 s |
+  | 20 | 21 | 8 s | **10 s** |
+  | **30** | **22** | 15 s | 17 s |
+  | 45 *(inherited)* | 22 | 20 s | 22 s |
+  | 60 | 22 | 27 s | 27 s |
+  | 90 | 23 | 46 s | 33 s |
+
+  **30 strictly dominates 45**: same 22 confident nights, 25 % narrower support, 23 % better MAD
+  across nights — and MAD is the meaningful check, since the CPAP's offset is physically near-constant,
+  so agreement *between* nights is the only accuracy proxy available without a reference clock. Nothing
+  gets worse. `stepSec` stays **5**: 1 vs 5 vs 10 differ by under a second, and 5 is 5× cheaper than 1.
+
+  **The honest limit, stated because §3 of this brief warns about exactly it:** this is calibrated on
+  36 nights from ONE deployment. The defence is that `matchSec` is a *physical* parameter — how far a
+  responder may lag its anchor — so setting it from measured responder behaviour is calibration rather
+  than curve-fitting. It is still one deployment's physiology. The gate pins the *relationship* the
+  sweep established (accuracy flat, support ∝ window) rather than the number, so re-running it
+  elsewhere is cheap.
+
+  One existing assertion moved with it: *"a junk channel moves the answer by less than its own
+  resolution"* hardcoded 5 s, which held only while the window was 45. Its own comment already said it
+  meant "inside the plateau it publishes", so it now compares against the published `spreadSec` — the
+  shift is 16.8 s against a 30–55 s support.
 - **9 nights (2026-07-16 … 07-24) remain unfoldable**, raw data gone from every tree. The corpus is 31
   nights and will not grow backwards.
 - **`npx biome …` and `npx tsc …` silently do the wrong thing in this repo.** Biome and TypeScript are
@@ -295,7 +328,9 @@ tool every other analysis also uses, so it needs its own gate work rather than a
       and `meta.peakTMs` publishes the rebound so a latency can name its fiducial.
 - [ ] If §1 resolves to physiology: a `papers/` entry with the null calibration alongside, per
       `LITERATURE-USE-POLICY`. If it resolves to an artifact: a detector fix and a gate.
-- [ ] The window/grid sweep of §5 is run, and the chosen values carry a reason.
+- [x] The window/grid sweep of §5 is run (2026-08-01), and the chosen values carry a reason:
+      `matchSec` 45 → **30** (dominates on every metric), `stepSec` stays **5**. The relationship is
+      gated; the one-deployment calibration limit is recorded rather than glossed.
 - [x] The §3 disagreement guard is **rejected in writing with the measurement that rejected it**
       (2026-08-01): 22 of 22 correct confident nights falsely flagged, because agreeing-channel
       argmax range (70–9425 s) dwarfs the support width (0–65 s). The motivating night is
