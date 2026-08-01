@@ -20769,6 +20769,54 @@
        re-derives them every run and cannot drift. The ceiling is written out rather than imported
        from oxydex-dsp for the same reason the standalone tool hard-codes it — a fixture that tracks
        the gate it is judged by passes by construction. */
+    /* ── SYNTH-GEN-DESAT-KINETICS §3, last bullet: the SAME question, asked of PPG ───────────────
+       The SpO₂ generator planted desaturations OxyDex threw away as probe artifact, and nothing had
+       ever asked whether the PPG generator does the equivalent. Measured, and it does NOT: the
+       synthetic armband waveform passes PPGDSP's validity checks comfortably, sitting *inside* the
+       real corpus's quality envelope rather than outside it.
+
+           metric            synthetic (5 nights)   real (36 nights, trio-onset)
+           correctionRate         1.5 – 3.5          median 4.25 · p10 0.8 · p90 11.2
+           analyzablePct           98 – 99           median 97   · p10 94
+           cleanBeatPct            98 – 99           median 98   · p10 96
+           ppiCorrFootPct         1.5 – 3.5          median 5.55 · p90 47.4
+
+       The bounds below are the REAL p10/p90, cited above, and they gate the direction that actually
+       broke on the SpO₂ side: a fixture the DSP mostly REJECTS. They deliberately do not gate the
+       other direction — the RR generator is *cleaner* than real (0.00 % Malik-corrected across all
+       five nights, against a real median of 4.73 %), which is a realism gap rather than a defect:
+       those intervals are accepted, not discarded, so no measurement returns the gate's behaviour
+       instead of the metric's. `correctRR` itself keeps its own known-answer gate with an injected
+       ectopic, so the correction path is covered even though these nights never trigger it. Recorded
+       rather than "fixed": injecting ectopy would move every HRV fixture for a realism gain nobody
+       has asked for, and speculative fixture-tuning is the habit this whole wave exists to correct. */
+    group('synth-gen PPG passes PPGDSP\'s validity checks (the SpO₂ defect, asked of the armband)', 'synth-gen · ppgdex-dsp · fixture-realism', function (T) {
+      var S = env.SYNTH;
+      var P = env.PPGDSP;
+      if (!S || typeof S.renderPPG !== 'function' || typeof S.pickWindow !== 'function' || !P || typeof P.parsePPG !== 'function' || typeof P.analyze !== 'function') {
+        T.skip('SYNTH.renderPPG + PPGDSP available', 'not loaded into env');
+        return;
+      }
+      var tls = S.buildTimelines();
+      var checked = 0;
+      for (var i = 0; i < Math.min(2, tls.length); i++) {
+        var tl = tls[i];
+        var res;
+        try {
+          res = P.analyze(P.parsePPG(S.renderPPG(tl, S.pickWindow(tl)), { name: 'synth_PPG.txt' }));
+        } catch (e) {
+          T.ok('night ' + tl.cfg.n + ': synthetic PPG parses + analyzes', false, String(e && e.message).slice(0, 90));
+          continue;
+        }
+        checked++;
+        T.ok('night ' + tl.cfg.n + ': correction stays under the real p90 (11.2 %)', res.correctionRate != null && res.correctionRate <= 11.2, 'correctionRate ' + res.correctionRate);
+        T.ok('night ' + tl.cfg.n + ': analyzable stays above the real p10 (94 %)', res.analyzablePct != null && res.analyzablePct >= 94, 'analyzablePct ' + res.analyzablePct);
+        T.ok('night ' + tl.cfg.n + ': clean beats stay above the real p10 (96 %)', res.cleanBeatPct != null && res.cleanBeatPct >= 96, 'cleanBeatPct ' + res.cleanBeatPct);
+        T.ok('night ' + tl.cfg.n + ': foot-fiducial correction under the real p90 (47.4 %)', res.ppiCorrFootPct != null && res.ppiCorrFootPct <= 47.4, 'ppiCorrFootPct ' + res.ppiCorrFootPct);
+      }
+      T.ok('at least one synthetic night was actually analyzed', checked > 0, 'checked ' + checked);
+    });
+
     group('synth-gen plants desaturations that can pass OxyDex\'s own artifact gate', 'synth-gen · oxydex-dsp · desat-kinetics', function (T) {
       var S = env.SYNTH;
       var OX = (env.OxyDex && env.OxyDex._bare) || env.OxyDex;
