@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RK11tyQyDBtEyhQJ0+zOjxL8BHLFD+YzRTebrcyFvBs=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-XtIgeiiGEz2UwCxpHmgfVC3QJVq7u+H3d8V7Xk75vM8=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60=' 'sha256-usni84aK+rz/zHDyyq5UGBBttoKdgOjbpscJOrtWqXE=' 'sha256-yoEnD8GKoVFN78+Xb8MCYRQPN5D1Bf8F/f/6YQ59RhE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-9ykSPAfrydvi6HRW0oDHLuodxb3zpnkw95zybpMhST0=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RK11tyQyDBtEyhQJ0+zOjxL8BHLFD+YzRTebrcyFvBs=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-XtIgeiiGEz2UwCxpHmgfVC3QJVq7u+H3d8V7Xk75vM8=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60=' 'sha256-usni84aK+rz/zHDyyq5UGBBttoKdgOjbpscJOrtWqXE='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -11197,6 +11197,11 @@ window.IntegratorDSP = {
     const lines = ['Time,Oxygen Level,Pulse Rate,Motion'];
     const N = tl.durSec;
     const baseSpo2 = 96;
+    /* Physiological rate limits, %/s. See the glide below for the measurement these come from.
+       Deliberately NOT imported from oxydex-dsp's SELFGATE: the generator must not track the gate
+       it is judged by, or the fixture passes by construction (SYNTH-GEN-DESAT-KINETICS §5). */
+    const SPO2_FALL_MAX_PCT_S = 1.0;
+    const SPO2_RISE_MAX_PCT_S = 1.5;
     let spo2f = baseSpo2,
       prf = 58;
     // circulatory delay: desat begins ~8 s after event onset → use a delayed apnea probe
@@ -11210,9 +11215,33 @@ window.IntegratorDSP = {
       const arouse = apneaStateAt(tl, s - 8).arousal;
       if (arouse > 0) target += 1.2 * arouse; // mild recovery overshoot
       target += pb.amp * 0.7; // periodic-breathing ripple
-      // glide spo2 toward target (desat fast, resaturate a touch slower)
+      /* Glide toward the target, then RATE-LIMIT the step (SYNTH-GEN-DESAT-KINETICS).
+         The glide alone is a first-order lag, so its INITIAL rate is k × depth: at k = 0.28 a 10 %
+         event fell 2.8 %/s and a 15 % one 4.2 %/s. `SELFGATE.FALL_RATE_MAX` is 1.5 %/s because a
+         real systemic desaturation is limited by circulation and lung oxygen stores, so OxyDex
+         correctly classified those edges as probe artifact and threw them away — 232 of 242 events
+         on night 2, giving ODI-4 1.4/h against a planted AHI of 38. The rejection scaled with
+         severity purely because severe nights plant deeper events, which on its own reproduced the
+         "severity-dependent ODI-4 deficit" that papers/odi4-ahi-bias.html reports.
+
+         A lag is the wrong model: saturation is rate-limited, not exponentially-relaxing, so the
+         limit is imposed directly rather than by shrinking k (which would also flatten shallow
+         events that were never the problem).
+
+         The caps are MEASURED, not inherited from the brief that asked for them — 36 real nights of
+         `timeseries.spo2` plus 342 events carrying `onsetTMs`:
+             1 s falls exceeding 1.5 %/s : 0.20 % of 21 609   (synthetic nights 1-2: 16.3 %, 32.0 %)
+             onset → nadir               : p50 7 s · p90 25 s · p99 71 s
+             nadir → end                 : p50 14 s · p90 38 s
+             event depth                 : p50 5 % · p90 8 %
+             implied mean fall rate      : 0.714 %/s
+         1.0 %/s sits above that median and still leaves 0.5 %/s of headroom under the gate; the
+         rise cap is looser because resaturation is the slower limb (14 s vs 7 s) and clamping it
+         hard would merge events that should separate. Depth is untouched: a 7 % desaturation is
+         still 7 % deep, it just takes 7 s to get there. */
       const k = target < spo2f ? 0.28 : 0.16;
-      spo2f += (target - spo2f) * k;
+      const step = (target - spo2f) * k;
+      spo2f += Math.max(-SPO2_FALL_MAX_PCT_S, Math.min(SPO2_RISE_MAX_PCT_S, step));
       let spo2 = Math.round(Math.max(60, Math.min(100, spo2f)));
       // pulse rate: nocturnal floor + arousal/apnea surges + drift
       const cyc = tl.remWeight(s);

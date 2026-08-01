@@ -19,8 +19,38 @@
   <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
   <h1 class="title">Rolling-baseline ODI-4 systematically under-estimates the apnea–hypopnea index in severe sleep apnea: a quantified bias, its mechanism, and a detector-level correction</h1>
   <div class="callout" style="border:2px solid #a33;background:#fdf3f3">
-    <b>⚠ Status — 1 August 2026: this pilot does NOT currently reproduce, and its headline result is not
-    presently supported by a runnable fixture.</b>
+    <b>⚠ Status — 1 August 2026 (updated later the same day): the fixture has been repaired, and this
+    paper's central finding does NOT survive it.</b>
+    <p style="margin:.6em 0 0">The generator now plants desaturations that respect the physiological
+    fall-rate limit (<code>synth-gen.js</code>, rate-limited to 1.0 %/s; the caps are measured from 36
+    real nights of 1 Hz SpO₂ and 342 events carrying <code>onsetTMs</code> — onset→nadir p50 <b>7 s</b>,
+    depth p50 <b>5 %</b>, implied <b>0.714 %/s</b>, with only <b>0.20 %</b> of real one-second falls
+    exceeding the 1.5 %/s ceiling). Re-running §6's recipe on the repaired corpus, with the detector
+    unchanged:</p>
+    <table style="margin:.6em 0;border-collapse:collapse;font-size:.92em">
+      <tr><th style="text-align:left;padding:.15em .8em .15em 0">planted AHI</th><th style="padding:0 .8em">3</th><th style="padding:0 .8em">4</th><th style="padding:0 .8em">7</th><th style="padding:0 .8em">22</th><th style="padding:0 .8em">38</th><th style="padding:0 .8em">slope</th><th style="padding:0 .8em">R²</th></tr>
+      <tr><td style="padding:.15em .8em .15em 0">ODI-4, square-edged fixture</td><td style="text-align:center">0.8</td><td style="text-align:center">0.5</td><td style="text-align:center">1.5</td><td style="text-align:center">5.6</td><td style="text-align:center"><b>1.4</b></td><td style="text-align:center">0.051</td><td style="text-align:center">0.137</td></tr>
+      <tr><td style="padding:.15em .8em .15em 0">ODI-4, physiological fixture</td><td style="text-align:center">0.8</td><td style="text-align:center">0.9</td><td style="text-align:center">2.4</td><td style="text-align:center">17.7</td><td style="text-align:center"><b>33.1</b></td><td style="text-align:center">0.946</td><td style="text-align:center">0.997</td></tr>
+    </table>
+    <p style="margin:.6em 0 0">The under-count deficit goes from <b>2.2 → 3.5 → 5.5 → 16.4 → 36.6</b>
+    events/h across the severity range — the severity gradient this paper reports — to a roughly
+    <b>constant 2.2–4.9</b>. OxyDex finds the same <b>242</b> desaturations on night 2 in both cases;
+    the difference is entirely that <code>selfGateDesat</code> rejected <b>232</b> of them as probe
+    artifact from the old fixture and <b>none</b> from the repaired one. <b>The severity-dependent
+    under-count was the artifact gate correctly discarding an unphysiological oracle.</b> A residual
+    ~3–5 events/h remains, which is the ordinary consequence of not every scored apnea producing a
+    ≥4 % desaturation — it carries no severity gradient and does not support a detector-level bias.</p>
+    <p style="margin:.6em 0 0"><b>What this does and does not settle.</b> It settles that <em>on any
+    corpus this repository can produce today</em>, the headline result is not reproducible and its
+    apparent mechanism is a fixture defect. It does not establish that the original 2026-06 corpus —
+    gitignored and gone — had the same defect, and it does not prove the trailing-mean
+    baseline-self-suppression mechanism in the green note below is unreal; that mechanism is simply no
+    longer evidenced here. Every number below the fold remains unverified. Regression-gated in
+    <code>tests/dex-tests.js</code> (<i>synth-gen plants desaturations that can pass OxyDex's own
+    artifact gate</i>), which renders the nights in-realm each run rather than pinning 3.7 MB of
+    gitignored bytes.</p>
+    <hr style="margin:1em 0;border:0;border-top:1px solid #d9b3b3">
+    <b>The original 1 August status, retained:</b>
     <p style="margin:.6em 0 0">Three findings, in order of how much they matter:</p>
     <ol style="margin:.4em 0 0;padding-left:1.4em">
       <li><b>§6's recipe was broken.</b> <code>odi-bias-analysis.js</code> reached OxyDex's

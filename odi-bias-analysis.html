@@ -9143,6 +9143,11 @@ const OxyDex = window.OxyDex;
     const lines = ['Time,Oxygen Level,Pulse Rate,Motion'];
     const N = tl.durSec;
     const baseSpo2 = 96;
+    /* Physiological rate limits, %/s. See the glide below for the measurement these come from.
+       Deliberately NOT imported from oxydex-dsp's SELFGATE: the generator must not track the gate
+       it is judged by, or the fixture passes by construction (SYNTH-GEN-DESAT-KINETICS §5). */
+    const SPO2_FALL_MAX_PCT_S = 1.0;
+    const SPO2_RISE_MAX_PCT_S = 1.5;
     let spo2f = baseSpo2,
       prf = 58;
     // circulatory delay: desat begins ~8 s after event onset → use a delayed apnea probe
@@ -9156,9 +9161,33 @@ const OxyDex = window.OxyDex;
       const arouse = apneaStateAt(tl, s - 8).arousal;
       if (arouse > 0) target += 1.2 * arouse; // mild recovery overshoot
       target += pb.amp * 0.7; // periodic-breathing ripple
-      // glide spo2 toward target (desat fast, resaturate a touch slower)
+      /* Glide toward the target, then RATE-LIMIT the step (SYNTH-GEN-DESAT-KINETICS).
+         The glide alone is a first-order lag, so its INITIAL rate is k × depth: at k = 0.28 a 10 %
+         event fell 2.8 %/s and a 15 % one 4.2 %/s. `SELFGATE.FALL_RATE_MAX` is 1.5 %/s because a
+         real systemic desaturation is limited by circulation and lung oxygen stores, so OxyDex
+         correctly classified those edges as probe artifact and threw them away — 232 of 242 events
+         on night 2, giving ODI-4 1.4/h against a planted AHI of 38. The rejection scaled with
+         severity purely because severe nights plant deeper events, which on its own reproduced the
+         "severity-dependent ODI-4 deficit" that papers/odi4-ahi-bias.html reports.
+
+         A lag is the wrong model: saturation is rate-limited, not exponentially-relaxing, so the
+         limit is imposed directly rather than by shrinking k (which would also flatten shallow
+         events that were never the problem).
+
+         The caps are MEASURED, not inherited from the brief that asked for them — 36 real nights of
+         `timeseries.spo2` plus 342 events carrying `onsetTMs`:
+             1 s falls exceeding 1.5 %/s : 0.20 % of 21 609   (synthetic nights 1-2: 16.3 %, 32.0 %)
+             onset → nadir               : p50 7 s · p90 25 s · p99 71 s
+             nadir → end                 : p50 14 s · p90 38 s
+             event depth                 : p50 5 % · p90 8 %
+             implied mean fall rate      : 0.714 %/s
+         1.0 %/s sits above that median and still leaves 0.5 %/s of headroom under the gate; the
+         rise cap is looser because resaturation is the slower limb (14 s vs 7 s) and clamping it
+         hard would merge events that should separate. Depth is untouched: a 7 % desaturation is
+         still 7 % deep, it just takes 7 s to get there. */
       const k = target < spo2f ? 0.28 : 0.16;
-      spo2f += (target - spo2f) * k;
+      const step = (target - spo2f) * k;
+      spo2f += Math.max(-SPO2_FALL_MAX_PCT_S, Math.min(SPO2_RISE_MAX_PCT_S, step));
       let spo2 = Math.round(Math.max(60, Math.min(100, spo2f)));
       // pulse rate: nocturnal floor + arousal/apnea surges + drift
       const cyc = tl.remWeight(s);
