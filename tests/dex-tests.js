@@ -2188,6 +2188,93 @@
       T.ok('an export without the field carries NO series, not an empty one', old.series.spo2 == null, JSON.stringify(old.series.spo2));
     });
 
+    /* ── POOLED-CLOCK-FIT-FOLLOWUPS §3 · half-period aliasing is caught AT ITS SOURCE ────────────
+       §3 proposed a guard: flag a night when the channels' own argmaxes split into clusters wider
+       than the peak's support. Validated against the whole reproducible corpus, it fires on 22 of
+       22 CORRECT confident nights — a 100 % false-positive rate — because even among AGREEING
+       channels on correct nights the own-argmax range runs 70 s to 9425 s against a support width of
+       0–65 s. Channel argmaxes are noise; that is precisely why pooling replaced the vote, and the
+       guard proposes to reinstate the vote's statistic as a detector. Rejected on the brief's own
+       criterion ("it must not cost any of the correct confident nights").
+
+       The aliasing it worried about is a property of the ANCHOR TRAIN, not of channel disagreement,
+       and `ambiguous`/`alternativesSec` already detect it before any guard is needed. These are
+       known answers, so they need no corpus and cannot be fitted to the one lost night that
+       motivated §3 (2026-07-23's raw data is gone; among the 36 reproducible nights there are ZERO
+       confident-but-wrong nights, so there is no positive class to calibrate against at all). */
+    group('a periodic anchor train is flagged ambiguous, not confidently aliased', 'integrator-dsp · clock-fit-pooled · aliasing', function (T) {
+      var D = env.IntegratorDSP || env.D || null;
+      var pooled = D && D.fitClockOffsetPooled;
+      if (typeof pooled !== 'function') {
+        T.skip('fitClockOffsetPooled available', 'integrator-dsp not loaded');
+        return;
+      }
+      var seed = 42;
+      var rnd = function () {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      };
+      var T0 = Date.UTC(2026, 7, 1, 23, 0, 0);
+      var OFF = 137000;
+      var P = 208000; // one anchor period
+      function chans(A, alsoAtHalf) {
+        var out = [];
+        for (var k = 0; k < 3; k++) {
+          var times = [];
+          for (var i = 0; i < A.length; i++) {
+            times.push(A[i] + OFF + (rnd() - 0.5) * 4000);
+            if (alsoAtHalf) times.push(A[i] + OFF + P / 2 + (rnd() - 0.5) * 4000);
+          }
+          times.sort(function (a, b) {
+            return a - b;
+          });
+          out.push({ node: 'N' + k, channel: 'c' + k, times: times });
+        }
+        return out;
+      }
+      var periodic = [];
+      for (var i = 0; i < 40; i++) periodic.push(T0 + i * P);
+      var aperiodic = [];
+      var t = T0;
+      for (var j = 0; j < 40; j++) {
+        aperiodic.push(t);
+        t += P * (0.3 + 1.4 * rnd());
+      }
+
+      /* An APERIODIC train — which is what this corpus's apnea trains are, CV 1.04–2.18 measured
+         over 36 nights — has one peak, and the fit should commit to it. */
+      var ap = pooled(aperiodic, chans(aperiodic, false), {});
+      T.ok('aperiodic anchors → confident', ap.confident === true, 'confident=' + ap.confident + ' reason=' + ap.reason);
+      T.ok('…and the planted offset is recovered within 5 s', Math.abs(ap.offsetSec - OFF / 1000) <= 5, 'got ' + ap.offsetSec + ' s, planted ' + OFF / 1000);
+      T.ok('…with no rival alternatives', !ap.alternativesSec || ap.alternativesSec.length === 0, JSON.stringify(ap.alternativesSec));
+
+      /* A PERFECTLY periodic train makes the coincidence curve a comb — the same structure
+         IBI-ALIGNMENT-LIMIT found between two beat trains — so rival teeth exist at ±k·period and
+         no estimator can prefer one. The fit must SAY so rather than pick. */
+      var pe = pooled(periodic, chans(periodic, false), {});
+      T.ok('periodic anchors → ambiguous', pe.ambiguous === true, 'ambiguous=' + pe.ambiguous);
+      T.ok('…so confidence is WITHHELD', pe.confident === false, 'confident=' + pe.confident);
+      /* The rivals sit one period either side. The tolerance is the MATCH WINDOW's half-width (the
+         default `matchSec`, 45 s), not a number picked to make this pass: a hard ±matchSec window
+         makes each tooth a plateau that wide, so the argmax inside a rival tooth can legitimately
+         sit anywhere in it while the chosen peak is reported as its centroid. Measured here the two
+         rivals land 245 s and 185 s from a 208 s period — both inside 45 s, and 430 s apart from
+         each other, which is two periods. A tighter tolerance would be asserting a precision the
+         estimator does not claim. */
+      var MATCH_SEC = 45;
+      T.ok('…and the rivals are one period away, not arbitrary', (pe.alternativesSec || []).some(function (a) {
+        return Math.abs(Math.abs(a - pe.offsetSec) - P / 1000) <= MATCH_SEC;
+      }), JSON.stringify(pe.alternativesSec) + ' vs period ' + P / 1000 + ' s, offset ' + pe.offsetSec);
+      T.ok('…and there is a rival on EACH side, spanning two periods', (pe.alternativesSec || []).length >= 2 && Math.abs(Math.abs(pe.alternativesSec[pe.alternativesSec.length - 1] - pe.alternativesSec[0]) - 2 * (P / 1000)) <= 2 * MATCH_SEC, JSON.stringify(pe.alternativesSec));
+
+      /* §3's actual scenario: responders firing at the anchor AND at anchor+P/2, i.e. "the movement
+         channels locked onto the apnea train offset by half a period". The fit must not return the
+         alias as confident — and in fact it still recovers the TRUE offset. */
+      var half = pooled(periodic, chans(periodic, true), {});
+      T.ok('a planted HALF-PERIOD alias does not produce a confident answer', half.confident === false, 'confident=' + half.confident);
+      T.ok('…and the true offset is still what comes back, not the alias', Math.abs(half.offsetSec - OFF / 1000) <= 10, 'got ' + half.offsetSec + ' s; the alias sits at ' + (OFF / 1000 + P / 2000) + ' s');
+    });
+
     group('The pooled clock fit beats voting, and knows when it has found nothing', 'integrator-dsp · clock-fit-pooled', function (T) {
       var D = env.IntegratorDSP || env.D || null;
       var pooled = D && D.fitClockOffsetPooled,
