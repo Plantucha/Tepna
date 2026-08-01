@@ -615,6 +615,44 @@
         "QC-SCOPE-RESOLUTION-2026-07-28-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.0.0",
+      "date": "2026-08-01",
+      "bump": "major",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "cda2089dab32",
+        "OxyDex": "cde55e957564",
+        "PulseDex": "1455646f8a24",
+        "GlucoDex": "29e009b125a0",
+        "PpgDex": "dc938e0c20d2",
+        "HRVDex": "b192a6c4c969",
+        "CPAPDex": "46e1fa01b20d",
+        "Integrator": "9629d4538527",
+        "MotionDex": "212c2ef9af56"
+      },
+      "briefs": [
+        "DEEP-AUDIT-III-2026-07-26-BRIEF.md",
+        "MULTINIGHT-CORPUS-FINDINGS-2026-07-29-BRIEF.md",
+        "MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS-2026-07-29-BRIEF.md",
+        "CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md",
+        "DEEP-AUDIT-FOLLOWUPS-2026-07-12-BRIEF.md",
+        "INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md",
+        "REM-STAGING-REDESIGN-2026-07-28-BRIEF.md",
+        "DEEP-STAGE-DESAT-CONFOUND-2026-07-29-BRIEF.md",
+        "ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md",
+        "INTEGRATOR-APNEA-TYPING-REVIEW-2026-07-22-BRIEF.md",
+        "DESAT-ONSET-FIDUCIAL-2026-07-31-BRIEF.md",
+        "DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md",
+        "INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS-2026-07-28-BRIEF.md",
+        "ECGDEX-CARDIOPULMONARY-COUPLING-FOLLOWUPS-2026-07-31-BRIEF.md",
+        "OXYDEX-SPO2-SERIES-2026-07-31-BRIEF.md",
+        "POOLED-CLOCK-FIT-2026-07-31-BRIEF.md",
+        "WEARABLE-SYNC-APPLIED-2026-07-31-BRIEF.md",
+        "WEARABLE-SYNC-2026-07-31-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
