@@ -269,6 +269,57 @@
       T.ok('floating tMs via Date.UTC (TZ-independent)', (P('2026-06-07 03:00', {}) || {}).tMs === U(2026, 5, 7, 3, 0));
     });
 
+    /* ════ 1a-ter · A DRAWN AXIS DECLARES ITSELF (WEARABLE-HOST-AXIS-FOLLOWUPS §F1) ════
+       An O2Ring session up to 2026-07-27 reports `sample_index × 7,953,045 ns` — a constant increment
+       standing in for an assumed 125.738 Hz — so the column carries NO timing information and must not
+       be spent as a clock leg. This group locks the discriminator AND locks out the one that doesn't
+       work, so it cannot be re-proposed: `first sensor timestamp == 0` is true for EVERY O2Ring file
+       including the measured post-2026-07-28 ones (1574–1861 distinct deltas), because it separates
+       relative-epoch from absolute-epoch, not drawn from measured. */
+    group('a drawn time axis is detected and declared, not silently corrected', 'ppgdex · axis-provenance', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PPGDSP.parsePPG available', 'not loaded');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+      // step(i) returns the ns value for row i; host stamps advance at a true 125.9 Hz either way.
+      // 2000 rows so host anchors (1 in 500) actually resolve — otherwise the drawn case reports
+      // timingSource 'none' for want of anchors and the 'host' branch is never exercised.
+      function o2rows(step) {
+        var out = '';
+        for (var i = 0; i < 2000; i++) {
+          var hostMs = Math.round((i / 125.9) * 1000);
+          var d = new Date(Date.UTC(2026, 6, 26, 22, 0, 0) + hostMs);
+          out +=
+            d.toISOString().replace('T', 'T').slice(0, 23) +
+            ';' +
+            step(i) +
+            ';' +
+            (124 + (i % 7)) +
+            '\n';
+        }
+        return out;
+      }
+      // DRAWN: one constant increment, exactly the shipped 7,953,045 ns.
+      var drawn = P.parsePPG(HDR + o2rows(function (i) { return i * 7953045; }));
+      // MEASURED: the same nominal rate with per-sample jitter, i.e. a real oscillator.
+      /* Jitter must be INDEPENDENT per sample, not a sawtooth: a sawtooth's FIRST DIFFERENCE is
+         near-constant, so `(i*7919)%4001` produced only two distinct deltas and scored 0.979 —
+         itself a drawn-looking axis, nearly failing this test for the opposite of the real reason.
+         Real oscillators land at 0.1-8.8 %. Deterministic (no Math.random — a flaky gate is worse
+         than no gate). */
+      var meas = P.parsePPG(HDR + o2rows(function (i) { return i * 7953045 + Math.floor(Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 4001) * 97; }));
+      T.ok('a constant-increment axis is flagged drawn', drawn.hostAxis && drawn.hostAxis.drawn === true, 'share=' + JSON.stringify(drawn.hostAxis && drawn.hostAxis.quantizedShare));
+      T.ok('a jittering axis is NOT flagged drawn', meas.hostAxis && meas.hostAxis.drawn === false, 'share=' + JSON.stringify(meas.hostAxis && meas.hostAxis.quantizedShare));
+      T.ok('the share is reported as a NUMBER, not just a verdict', typeof drawn.hostAxis.quantizedShare === 'number' && drawn.hostAxis.quantizedShare >= 0.99);
+      /* BOTH files start at ns 0 — the test that was proposed and measured NOT to work. If someone
+         re-implements `first ns == 0`, this assertion is what tells them it condemns the good sessions. */
+      T.ok('drawn and measured are INDISTINGUISHABLE by first-timestamp-is-zero', drawn.hostAxis.drawn !== meas.hostAxis.drawn, 'both axes start at ns 0, so only the delta distribution separates them');
+      // timingSource is the field consumers branch on: a drawn axis contributes sample ORDER only.
+      T.ok('a drawn axis with host anchors declares its timing came from the HOST', drawn.hostAxis.ok !== true || drawn.hostAxis.timingSource === 'host', 'got ' + drawn.hostAxis.timingSource);
+    });
+
     /* ════ 1a-bis · HOST-DISCIPLINED AXIS — DexClock.hostAxis (WEARABLE-HOST-AXIS-2026-08-02) ════
        Every capture row carries BOTH clocks (host "Phone timestamp", device "sensor timestamp [ns]"),
        and PpgDex/ECGDex used to anchor on the host once and then ride the DEVICE crystal for the whole

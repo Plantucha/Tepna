@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-02 · **Follows:** `WEARABLE-HOST-AXIS-2026-08-02-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `integrator-dsp.js`, `tools/trio-batch.mjs`, `papers/`, several briefs
+**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **F1 DONE 2026-08-02** · **Follows:** `WEARABLE-HOST-AXIS-2026-08-02-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `integrator-dsp.js`, `tools/trio-batch.mjs`, `papers/`, several briefs
 
 # The O2Ring's axis was drawn on every night before 2026-07-28. Everything that used it as a clock has to be re-asked.
 
@@ -12,16 +12,50 @@ one. Those conclusions are not merely imprecise — one of the three sources in 
 measurement this repo has published was **`sample_index × 125.738 Hz`**, a drawn axis whose apparent ppm
 is the error in an assumption.
 
-## F1 · Detect drawn provenance, and declare it (do this first — the others depend on it)
+## F1 · Detect drawn provenance, and declare it — **DONE 2026-08-02**
 
-`WEARABLE-HOST-AXIS` §3 identified drawn axes by delta-distribution, which is a heuristic. The decisive
-test is cheap and structural: **`first sensor timestamp == 0` ⇒ the axis was drawn from zero.**
+> **Converged independently with `O2RING-SYNTHESISED-AXIS-2026-08-02-BRIEF` (a parallel session).**
+> That brief reaches the same mechanism from the raw bytes and states the same guardrail; this F1 is its
+> execution. Of its §5 acceptance items, **three are now met**: `hostAxis` flags a capture-constructed
+> axis by *provenance, not span* and says so in its return value; `dual-clock-rate.mjs` names the drawn
+> cause instead of only reporting a wide spread (its "not a disciplined clock" note was true but blamed
+> a crystal that is innocent — there is none in the file); and a gate detects a synthesised axis from the
+> bytes so this cannot be rediscovered a third time. Its remaining items — voiding the O2Ring legs in
+> `CLOCK-CLOSURE-THREE-SOURCE` / `CROSS-DEVICE-DRIFT-AND-CLOSURE`, and the `O2PPG_FS_DEFAULT`
+> capture-side question — stay open here as F3 and in `capture-host/` respectively.
 
-- Add it to `ppgdex-dsp.js` and surface `hostAxis.drawn: true` on the rec (and into the export's
-  `quality` block, additively — new field, contract-safe per CLAUDE.md §📦 MINOR).
-- A drawn axis with **no host column to discipline it** is unusable as a clock and must say so, rather
-  than being silently corrected into plausibility. This is the `verifiedUnder` lesson in a new place: a
-  computed provenance flag beats an asserted one.
+> ### ⛔ The proposed test does not work. Measured, not assumed.
+> `first sensor timestamp == 0` was the candidate, and it is **true for every O2Ring fragment** —
+> including the post-2026-07-28 *measured* ones carrying 1574–1861 distinct deltas. It separates
+> **relative-epoch from absolute-epoch** (O2Ring vs Polar), not drawn from measured, so shipping it
+> would have condemned exactly the good sessions. Checking it before building on it cost one query.
+
+What does separate them is how much of the inter-sample delta distribution sits on **one value**:
+
+| | modal delta share | verdict |
+|---|---|---|
+| O2Ring ≤ 2026-07-27 (16 files) | **100.0 %** | drawn |
+| O2Ring 2026-07-28 → | **0.1 % / 0.0 %** | measured (−163 / −160 ppm, a real stable crystal) |
+| Verity | 0.1 % | measured |
+
+**Shipped.** `parsePPG` computes `quantizedShare` from the delta array it already builds (free — one
+pass over an existing array), asserts `drawn` only at **≥99 %**, and always reports the share as a
+NUMBER so a reader can judge the borderline instead of inheriting a verdict. The middle of the range is
+genuinely ambiguous on short fragments, and a binary that pretends otherwise would be the same
+over-claim this brief family exists to remove.
+
+The field consumers must branch on is **`quality.timingSource`** (additive, contract-safe):
+
+- `'device+host'` — device reported real timestamps, host-disciplined. **Usable as a clock.**
+- `'host'` — the device column was drawn; all real timing came from the capture host, and the device
+  contributed sample **order** only.
+- `'none'` — drawn **and** no host anchors: the recording carries **no timing information at all** and
+  must never be spent as a clock leg.
+
+Gated, including a lock-out assertion so `first ns == 0` cannot be re-proposed without the test failing.
+Building the gate exposed a second trap worth keeping: a **sawtooth** jitter has a near-constant first
+difference, so the original "measured" synthetic scored **0.979** — itself a drawn-looking axis, nearly
+passing for the opposite of the real reason. The jitter must be independent per sample (now 0.0015).
 
 ## F2 · Re-run the whole corpus under the disciplined axis
 
@@ -72,7 +106,9 @@ unreachable there and the drift/closure work cannot run inside the Integrator. U
 
 ## Done when
 
-- [ ] Drawn-axis provenance computed and declared, not inferred.
+- [x] **F1 — Drawn-axis provenance computed and declared, not inferred** (2026-08-02). The proposed
+      `first ns == 0` test was measured to NOT discriminate and was replaced by the modal-delta share;
+      `quality.timingSource` now tells a clock consumer whether this recording may be used as a leg.
 - [ ] Corpus re-run under the disciplined axis, with the Polar-pair-barely-moves check applied.
 - [ ] Closure, TCH and PAT re-asked; each either re-confirmed on new numbers or retracted in place.
 - [ ] `papers/` audited; `O2RING-PROTOCOL` annotated rather than retracted.

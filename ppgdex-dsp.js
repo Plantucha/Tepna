@@ -377,9 +377,32 @@
       const d = nsArr[i] - nsArr[i - 1];
       if (isFinite(d) && d > 0) deltas.push(d);
     }
+    /* ── IS THIS AXIS DRAWN OR MEASURED? (WEARABLE-HOST-AXIS-FOLLOWUPS §F1) ──────────────────────
+       An O2Ring session up to 2026-07-27 does not report a clock: its `sensor timestamp [ns]` is
+       `sample_index × 7,953,045 ns` — a CONSTANT increment standing in for an assumed 125.738 Hz. Such
+       an axis has no timing information in it at all, so its apparent drift is the error in that
+       assumption rather than anything about the device, and it must not be spent as a clock (a
+       three-cornered hat fed a drawn leg is measuring a constant, not a third source).
+
+       ⛔ THE PROPOSED TEST `first sensor timestamp == 0` DOES NOT WORK — measured, not assumed. Every
+       O2Ring fragment starts at 0, including the post-2026-07-28 ones carrying 1574–1861 distinct
+       deltas. It separates O2Ring from Polar (relative vs absolute epoch), NOT drawn from measured, so
+       it would condemn the good nights too.
+
+       What DOES separate them is how much of the delta distribution sits on ONE value:
+         drawn (16 files, ≤07-27) …… 100.0 %      measured (07-28 →) …… 0.6 – 8.8 %
+       Reported as a NUMBER, with `drawn` asserted only at ≥99 %. The middle of that range is genuinely
+       ambiguous on short fragments (a 15-min file has few deltas to be diverse with), and a binary that
+       pretends otherwise would be the same over-claim this whole brief family exists to remove. */
+    let quantizedShare = null;
     if (deltas.length > 20) {
       const md = median(deltas);
       if (md > 0) fs = 1e9 / md;
+      if (md > 0) {
+        let same = 0;
+        for (let i = 0; i < deltas.length; i++) if (deltas[i] === md) same++;
+        quantizedShare = same / deltas.length;
+      }
     } else {
       // Lazy `lastTs` (§P1): scan BACKWARD for the last row that the loop above would have accepted AND
       // whose stamp parses — byte-identical to the old eager `lastTs`, but paid for only on this
@@ -406,6 +429,12 @@
     const hostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? DexClock.hostAxis(axisAnchors, {}) : { ok: false };
     if (hostAx.ok && isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);
     fs = Math.round(fs * 100) / 100;
+    /* `timingSource` is the field a consumer should actually branch on, and the reason this is computed
+       rather than assumed. DRAWN + host anchors ⇒ every bit of real timing came from the host, and the
+       device contributed only sample ORDER. DRAWN + no anchors ⇒ `'none'`: the recording carries no
+       timing information whatsoever and must never be spent as a clock leg — closure, three-cornered hat
+       and PAT all silently accept such a leg today and measure a constant. */
+    const axisDrawn = quantizedShare != null && quantizedShare >= 0.99;
     // relSec per sample from ns, DISCIPLINED to the host clock (WEARABLE-HOST-AXIS §2); else index/fs.
     // The device crystal keeps the fine structure (the correction's own slope is ~30 ppm, i.e. 30 µs
     // per second, so RR/PPI intervals are untouched) while its RATE error is removed. If too few
@@ -491,7 +520,9 @@
       /* What the host discipline actually did, so a consumer can SEE it rather than infer it.
          `maxStepMs` is the one to read: a large value is a real clock STEP smeared across one anchor
          gap, not a rate — the 2026-07-26 corpus carries a 1.90 s O2Ring step and a 3.22 s H10 one. */
-      hostAxis: hostAx.ok ? { ok: true, anchors: hostAx.n, totalMs: hostAx.totalMs, ppm: hostAx.ppm, maxStepMs: hostAx.maxStepMs } : { ok: false, reason: hostAx.reason || 'no host anchors' }
+      hostAxis: hostAx.ok
+        ? { ok: true, anchors: hostAx.n, totalMs: hostAx.totalMs, ppm: hostAx.ppm, maxStepMs: hostAx.maxStepMs, drawn: axisDrawn, quantizedShare, timingSource: axisDrawn ? 'host' : 'device+host' }
+        : { ok: false, reason: hostAx.reason || 'no host anchors', drawn: axisDrawn, quantizedShare, timingSource: axisDrawn ? 'none' : 'device' }
     };
   }
 
@@ -2919,6 +2950,22 @@
          LIMB, and a strap goes where the wearer puts it. 'device-default' means nobody has said, so a
          grader must not award a site-validated morphology tier on the strength of it. */
       siteSource: rec.siteSource || 'device-default',
+      /* ── WHERE THIS RECORDING'S TIMING CAME FROM (WEARABLE-HOST-AXIS-FOLLOWUPS §F1) ──
+         Additive, so no consumer breaks; but a consumer that spends this export as a CLOCK LEG —
+         three-cornered hat, three-source closure, PAT — must read `timingSource` first:
+           'device+host'  the device reported real timestamps, host-disciplined. Usable as a clock.
+           'host'         the device's column was DRAWN (a constant increment standing in for an
+                          assumed rate); ALL timing here came from the capture host, and the device
+                          contributed sample ORDER only.
+           'none'         drawn AND no host anchors — the recording carries no timing information at
+                          all. Never use it as a clock leg: TCH assumes three INDEPENDENT sources and
+                          a drawn axis is a constant, so it would be measuring its own assumption.
+         `axisQuantizedShare` is the evidence (fraction of inter-sample deltas on one value: ~1.0 drawn,
+         0.001-0.088 measured), reported as a number so a reader can judge the borderline rather than
+         inherit a verdict. */
+      timingSource: (rec.hostAxis && rec.hostAxis.timingSource) || null,
+      axisDrawn: rec.hostAxis ? rec.hostAxis.drawn === true : null,
+      axisQuantizedShare: rec.hostAxis && rec.hostAxis.quantizedShare != null ? +rec.hostAxis.quantizedShare.toFixed(4) : null,
       // Sentinel bookkeeping — BOTH classes surfaced, because rejecting every 156 would punch ~7 %
       // of holes into valid signal and reporting only rejections would hide that judgement call.
       sentinelRejected: rec.sentinelRejected || 0,
@@ -3376,7 +3423,22 @@
         ppiSpine: r.ppiSpine || null,
         ppiAgreementPct: nz(r.ppiAgreementPct),
         ppiCorrFootPct: nz(r.ppiCorrFootPct),
-        ppiCorrPeakPct: nz(r.ppiCorrPeakPct)
+        ppiCorrPeakPct: nz(r.ppiCorrPeakPct),
+        /* ── TIMING PROVENANCE (WEARABLE-HOST-AXIS-FOLLOWUPS §F1) — additive, contract-safe ──
+           A consumer that spends this export as a CLOCK LEG (three-cornered hat, three-source closure,
+           PAT) must branch on `timingSource` BEFORE using ppi.tSec as a time base:
+             'device+host'  device reported real timestamps, host-disciplined — usable as a clock.
+             'host'         the device column was DRAWN (a constant increment standing in for an
+                            assumed rate); all real timing came from the capture host and the device
+                            contributed sample ORDER only.
+             'none'         drawn AND no host anchors — NO timing information exists in this recording.
+           TCH assumes three INDEPENDENT sources; a drawn axis is a constant, so feeding one in measures
+           the assumption rather than a third clock. That is exactly how six nights of closure failed.
+           `axisQuantizedShare` is the evidence (deltas on one value: ~1.0 drawn, 0.001-0.088 measured),
+           reported as a NUMBER so a reader judges the borderline instead of inheriting a verdict. */
+        timingSource: r.timingSource || null,
+        axisDrawn: r.axisDrawn == null ? null : r.axisDrawn,
+        axisQuantizedShare: nz(r.axisQuantizedShare)
       };
       out.hrv = {
         time: {
