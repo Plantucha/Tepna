@@ -54,7 +54,8 @@
  *   node tools/mutate.mjs --changed                 # files changed vs origin/main (default)
  *   node tools/mutate.mjs --file ppgdex-dsp.js      # one file (repeatable)
  *   node tools/mutate.mjs --file X --limit 40       # cap mutants per file (default 60)
- *   node tools/mutate.mjs --file X --jobs 12        # parallel workers (default: min(8, cores-2))
+ *   node tools/mutate.mjs --file X --jobs 12        # parallel workers (default: ~⅔ of cores; 1 at ≤2 cores)
+ *   node tools/mutate.mjs --budget 120              # skip a file whose estimate exceeds 120 s/file
  *   node tools/mutate.mjs --file X --full           # run the WHOLE suite per mutant
  *   node tools/mutate.mjs --json                    # NDJSON, one line per file, streamed
  *   node tools/mutate.mjs --selftest                # known-answer, no repo mutation
@@ -83,12 +84,37 @@ const opt = (f, d) => {
 };
 const LIMIT = +opt('--limit', 60);
 const FULL = has('--full');
+/* Per-file wall-clock ceiling in seconds. A sweep across 71 modules is dominated by a handful of
+   pathologically expensive tags, and skipping them LOUDLY beats discovering them at minute forty. */
+const BUDGET = +opt('--budget', '0');
 const AS_JSON = has('--json');
 /* Mutants are independent, so this is embarrassingly parallel — but every mutant rewrites the SAME
-   file, so they cannot share a tree. Each worker gets its own `git worktree` (a few hundred ms, shares
-   the object store) and mutates its own copy: the isolation CLAUDE.md §👥 already prescribes, applied
-   to the harness itself. `--jobs 1` keeps the in-place serial path, for debugging the tool. */
-const JOBS = Math.max(1, +opt('--jobs', String(Math.min(8, Math.max(1, cpus().length - 2)))));
+   file, so they cannot share a tree. Each worker gets its own `git worktree` (shares the object store)
+   and mutates its own copy: the isolation CLAUDE.md §👥 already prescribes, applied to the harness
+   itself. `--jobs 1` keeps the in-place serial path, for debugging the tool.
+
+   THE DEFAULT IS MEASURED, NOT REASONED. It was `min(8, cores-2)`, and a contention argument talked me
+   into going LOWER still. Both were wrong. On a 24-core box, `pulsedex-dsp.js` × 12 mutants:
+
+       jobs  4 → 23 s     jobs  8 → 17 s     jobs 16 → 14 s     jobs 24 → 20 s     jobs 32 → 19 s
+
+   Monotonically faster to ~⅔ of the cores, then it degrades — each worker is a full `node` running a
+   real suite, so past that they fight for cores and page cache. One suite run for that module is
+   6.58 s, so 16 jobs buys ~5.6× over serial. `cores × 2/3` reproduces the measured optimum here and
+   degrades sanely on smaller machines; re-measure before trusting it on very different hardware.
+
+   LOW-CORE MACHINES GET THE SERIAL PATH, deliberately. At 1–2 cores parallelism buys nothing (the
+   workers just fight for the same core) and costs real resources: each worktree is a FULL checkout —
+   71 MB here — so a 2-worker split on a 2-core laptop spends 142 MB of disk and a chunk of page cache
+   to run no faster. `--jobs 1` also skips worktrees entirely and mutates in place, which is the right
+   trade when there is nothing to parallelise over. An explicit `--jobs N` always wins, so a small box
+   can still opt in. */
+export function defaultJobs(cores) {
+  if (!(cores > 0)) return 1; // cpus() can report an empty list in constrained containers
+  if (cores <= 2) return 1; // serial: no worktrees, no extra disk, no oversubscription
+  return Math.max(2, Math.round((cores * 2) / 3));
+}
+const JOBS = Math.max(1, +opt('--jobs', String(defaultJobs(cpus().length))));
 
 /* ── the operators ───────────────────────────────────────────────────────────────────────────
    Deliberately small and high-signal. Each is a change that a competent test SHOULD catch, and
@@ -221,9 +247,9 @@ function groupsForFile(file) {
 }
 
 /* Async twin of runSuite, for the worker pool. Same classification, non-blocking. */
-function runSuiteAsync(filter, cwd) {
+function runSuiteAsync(filter, cwd, timeoutMs) {
   return new Promise((resolve) => {
-    const ch = spawn('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd, stdio: 'ignore', timeout: 900000 });
+    const ch = spawn('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd, stdio: 'ignore', timeout: timeoutMs || 900000 });
     ch.on('error', () => resolve('INVALID'));
     ch.on('close', (code) => resolve(code === 0 ? 'SURVIVED' : 'KILLED'));
   });
@@ -241,8 +267,16 @@ function workerPool() {
   _pool = [];
   for (let w = 0; w < JOBS; w++) {
     const dir = join(ROOT, '..', '.mutate-w' + w + '-' + process.pid);
-    execFileSync('git', ['worktree', 'add', '--detach', '--quiet', dir, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
-    _pool.push(dir);
+    try {
+      execFileSync('git', ['worktree', 'add', '--detach', '--quiet', dir, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
+      _pool.push(dir);
+    } catch (e) {
+      /* Out of disk, or git cannot add a worktree here. Do NOT abort the run: carry on with however
+         many workers were created, and fall back to the serial in-place path if that is none. Each
+         worktree is a full checkout, so a small machine hitting this is expected, not exceptional. */
+      if (!AS_JSON) console.error('  ⚠ worker ' + w + ' unavailable (' + ((e && e.message) || e).toString().split('\n')[0].slice(0, 80) + ') — continuing with ' + _pool.length);
+      break;
+    }
   }
   return _pool;
 }
@@ -255,9 +289,9 @@ function dropPool() {
   _pool = null;
 }
 
-function runSuite(filter, cwd) {
+function runSuite(filter, cwd, timeoutMs) {
   try {
-    execFileSync('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd: cwd || ROOT, stdio: 'ignore', timeout: 900000 });
+    execFileSync('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd: cwd || ROOT, stdio: 'ignore', timeout: timeoutMs || 900000 });
     return 'SURVIVED'; // suite green with broken code → nothing tests this line
   } catch (e) {
     return e.status === undefined ? 'INVALID' : 'KILLED';
@@ -271,6 +305,40 @@ async function runFile(file) {
   const filter = FULL ? null : g && g.count ? g.stem : null;
   if (!FULL && (!g || !g.count)) return { file, error: 'NO GROUPS tagged "' + (g ? g.stem : '?') + '" — every mutant would survive trivially. Use --full, or give this file a tagged group.' };
 
+  /* TIME ONE CLEAN RUN FIRST. Two things depend on it and both were guesses before.
+     (a) THE TIMEOUT. It was a flat 900 s, which is not a timeout so much as a promise never to
+         notice a hang: a mutant that wedges the suite stalled a worker for fifteen minutes, and with
+         every worker able to do that a single module could eat an hour. Bound it at 5x the clean run
+         (floor 30 s) — anything slower than that is not "slow", it is broken, and a broken mutant is
+         INVALID, not a survivor.
+     (b) THE ESTIMATE. The dominant cost is simply what this module's tagged groups cost to run, and
+         that varies by three orders of magnitude across the roster: `quantity` is 0.21 s, `oxydex-dsp`
+         16.3 s, `clock` **3 m 11 s** — because `clock` is loaded by everything and its tag selects 16
+         heavy groups. Knowing that BEFORE spending twelve mutants on it is the difference between a
+         sweep you can plan and one you watch. */
+  const t0 = Date.now();
+  runSuite(filter, ROOT, 600000);
+  const baseMs = Math.max(1, Date.now() - t0);
+  const timeoutMs = Math.max(30000, baseMs * 5);
+  const estMs = (baseMs * Math.min(mutantsFor(readFileSync(abs, 'utf8')).length, LIMIT)) / Math.max(1, JOBS);
+  if (BUDGET && estMs > BUDGET * 1000)
+    return {
+      file,
+      error:
+        'SKIPPED — one clean run of `' +
+        filter +
+        '` costs ' +
+        (baseMs / 1000).toFixed(1) +
+        ' s, so ' +
+        LIMIT +
+        ' mutants ≈ ' +
+        (estMs / 1000).toFixed(0) +
+        ' s > --budget ' +
+        BUDGET +
+        ' s. Raise --budget, lower --limit, or give this module cheaper groups.'
+    };
+  if (!AS_JSON) process.stderr.write('  ' + file + '  baseline ' + (baseMs / 1000).toFixed(1) + ' s/run → est ' + (estMs / 1000).toFixed(0) + ' s\n');
+
   const original = readFileSync(abs, 'utf8');
   const all = mutantsFor(original);
   const picked = thin(all, LIMIT);
@@ -279,33 +347,25 @@ async function runFile(file) {
      that edits your source must survive being killed the way people actually kill things. So: an
      on-disk backup exists for the whole window (recoverable even from SIGKILL, which no handler can
      catch), and every catchable fatal signal restores. */
+  /* The on-disk backup is only meaningful on the SERIAL path — with `--jobs > 1` the caller's tree is
+     never mutated, so writing one there left a stray `*.mutate-backup` in the working tree after every
+     parallel run for no benefit. Observed after a killed sweep: a lone `ppgdex-dsp.js.mutate-backup`
+     beside a perfectly clean source. */
   const bak = abs + '.mutate-backup';
-  writeFileSync(bak, original);
+  if (JOBS === 1) {
+    writeFileSync(bak, original);
+    _dirty.set(abs, original);
+  }
   const restore = () => {
+    if (JOBS !== 1) return; // nothing was written here
     try {
       writeFileSync(abs, original);
     } catch {}
     try {
       rmSync(bak, { force: true });
     } catch {}
+    _dirty.delete(abs);
   };
-  /* Signal handlers are BEST-EFFORT here and must not be relied on: the serial path blocks in
-     `execFileSync`, so the event loop cannot run a handler while a suite is executing, and SIGKILL
-     is uncatchable regardless. Verified, not assumed — a SIGTERM mid-run left the file mutated even
-     with all four handlers registered. The GUARANTEE is therefore the on-disk backup plus the
-     recovery sweep at startup (see `recoverStale`), which needs no cooperation from the dying
-     process at all. The handlers stay because when they DO fire they clean up immediately. */
-  const onSig = (sig) => () => {
-    restore();
-    process.exit(sig === 'SIGINT' ? 130 : 143);
-  };
-  const SIGS = ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'];
-  SIGS.forEach((sg) => process.on(sg, onSig(sg)));
-  process.on('uncaughtException', (e) => {
-    restore();
-    throw e;
-  });
-
   const survivors = [];
   let killed = 0,
     invalid = 0,
@@ -327,6 +387,29 @@ async function runFile(file) {
          file, so no two mutants ever race on the same bytes — and the caller's tree is never written
          to at all on this path. */
       trees.push(...workerPool());
+      if (!trees.length) {
+        /* No worker could be created — degrade to the serial in-place path rather than doing nothing.
+           The backup/recovery machinery is keyed on JOBS === 1, so mark this file dirty explicitly. */
+        writeFileSync(bak, original);
+        _dirty.set(abs, original);
+        for (const mu of picked) {
+          writeFileSync(abs, mu.apply());
+          classify(runSuite(filter, ROOT, timeoutMs), mu);
+        }
+        writeFileSync(abs, original);
+        rmSync(bak, { force: true });
+        _dirty.delete(abs);
+        return {
+          file,
+          groupsRun: filter || 'FULL SUITE',
+          groupCount: g ? g.count : null,
+          generated: all.length,
+          tested: picked.length,
+          killed,
+          invalid,
+          survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after }))
+        };
+      }
       let next = 0;
       const worker = async (dir) => {
         const wAbs = join(dir, file);
@@ -334,14 +417,14 @@ async function runFile(file) {
           const i = next++;
           if (i >= picked.length) return;
           writeFileSync(wAbs, picked[i].apply());
-          classify(await runSuiteAsync(filter, dir), picked[i]);
+          classify(await runSuiteAsync(filter, dir, timeoutMs), picked[i]);
         }
       };
       await Promise.all(trees.map(worker));
     } else {
       for (const mu of picked) {
         writeFileSync(abs, mu.apply());
-        classify(runSuite(filter, ROOT), mu);
+        classify(runSuite(filter, ROOT, timeoutMs), mu);
       }
     }
   } finally {
@@ -408,6 +491,20 @@ function selftest() {
         .map((m) => m.op)
         .join(',')
   );
+  /* Low-core behaviour is a CORRECTNESS property, not a tuning detail: at 1-2 cores the tool must
+     take the serial in-place path, because each parallel worker is a full 71 MB checkout that buys
+     nothing when there is one core to share. Pinned so a future tuning pass cannot quietly hand a
+     2-core laptop a 2-worktree split. */
+  ok('1 core → serial (no worktrees)', defaultJobs(1) === 1, 'got ' + defaultJobs(1));
+  ok('2 cores → serial (no worktrees)', defaultJobs(2) === 1, 'got ' + defaultJobs(2));
+  ok('an empty cpus() list → serial, not a crash', defaultJobs(0) === 1 && defaultJobs(undefined) === 1);
+  ok('3 cores → 2 workers (parallel begins)', defaultJobs(3) === 2, 'got ' + defaultJobs(3));
+  ok('24 cores → 16, the measured optimum on this box', defaultJobs(24) === 16, 'got ' + defaultJobs(24));
+  ok(
+    'scales monotonically and never exceeds core count',
+    [4, 6, 8, 12, 16, 32].every((c, i, a) => defaultJobs(c) <= c && (i === 0 || defaultJobs(c) >= defaultJobs(a[i - 1])))
+  );
+
   // Thinning must be deterministic and order-preserving — a survivor has to be reproducible.
   const big = Array.from({ length: 100 }, (_, i) => ({ i }));
   const t1 = thin(big, 10),
@@ -417,6 +514,34 @@ function selftest() {
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
+
+/* HANDLERS ARE REGISTERED ONCE, FOR THE PROCESS — not per file.
+   The per-file version leaked five listeners per file and a 71-file sweep tripped Node's
+   MaxListenersExceededWarning at 11 uncaughtException listeners. Same restore semantics, one
+   registration, and an explicit registry of what is currently dirty. */
+const _dirty = new Map(); // absolute path → original text
+function restoreAll() {
+  for (const [abs, original] of _dirty) {
+    try {
+      writeFileSync(abs, original);
+    } catch {}
+    try {
+      rmSync(abs + '.mutate-backup', { force: true });
+    } catch {}
+  }
+  _dirty.clear();
+}
+for (const sg of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'])
+  process.on(sg, () => {
+    restoreAll();
+    dropPool();
+    process.exit(sg === 'SIGINT' ? 130 : 143);
+  });
+process.on('uncaughtException', (e) => {
+  restoreAll();
+  dropPool();
+  throw e;
+});
 
 /* RECOVER FIRST, ALWAYS. A previous run killed mid-mutation leaves `<file>.mutate-backup` beside a
    mutated source. Restore it before doing anything, so the damage window closes on the next
@@ -437,6 +562,31 @@ function recoverStale() {
     }
   };
   scan(ROOT);
+  /* Orphaned worker worktrees from a killed sweep. `dropPool()` cannot run when the process is
+     SIGKILLed or reaped by `timeout`, and each tree is a FULL checkout — 34 of them survived one
+     killed run here, ~2.4 GB. Reap any that no live process owns before starting. */
+  try {
+    for (const e of readdirSync(join(ROOT, '..'), { withFileTypes: true })) {
+      const m = e.name.match(/^\.mutate-w\d+-(\d+)$/);
+      if (!m) continue;
+      let alive = false;
+      try {
+        process.kill(+m[1], 0);
+        alive = true;
+      } catch {}
+      if (alive) continue;
+      const dir = join(ROOT, '..', e.name);
+      try {
+        execFileSync('git', ['worktree', 'remove', '--force', dir], { cwd: ROOT, stdio: 'ignore' });
+      } catch {
+        try {
+          rmSync(dir, { recursive: true, force: true });
+        } catch {}
+      }
+      out.push(e.name + ' (orphaned worktree)');
+    }
+    execFileSync('git', ['worktree', 'prune'], { cwd: ROOT, stdio: 'ignore' });
+  } catch {}
   try {
     scan(join(ROOT, 'tools'));
   } catch {}
