@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-02 (**§5 items 1 and 2 EXECUTED — see §7.** The mask is regex-aware and the three documented guards are gated, each mutant verified killed. §5.3's re-run is running; §5.4 and §5.5 remain, and §5.5 is being audited next per the owner's call.) · **Created:** 2026-08-02 · **Follows:** `TOOL-INVOCABILITY-SWEEP-2026-08-02-BRIEF.md` §6 · **Tool:** `tools/mutate.mjs`
+**Status:** DONE — 2026-08-02 (**all five §5 items executed — see §7.** The mask is regex-aware; the three documented guards are gated and measured at zero survivors; the exhaustive re-run is **86/123 = 70 %** with a valid **59 % → 70 %** like-for-like delta; both zero-kill modules are diagnosed and asserted; the 40 "unmeasurable" files were 7 tags. Follow-up: `CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS-2026-08-02-BRIEF.md`.) · **Created:** 2026-08-02 · **Follows:** `TOOL-INVOCABILITY-SWEEP-2026-08-02-BRIEF.md` §6 · **Tool:** `tools/mutate.mjs`
 
 # The Clock Contract is the least-tested module in the suite — 41 % of mutations go unnoticed
 
@@ -130,15 +130,17 @@ report noise. Tracked as the first item in §5.
 
 ## 6 · Done when
 
-- [ ] `codeMask()` handles regex literals, or detects desync and refuses; verified on `clock.js`.
-- [ ] §2.7 component-range, §3 DMY boundary and §2.1 epoch-band mutants are killed by new assertions,
-      each verified by re-applying the exact mutant.
-- [ ] `clock.js` re-run exhaustively; the before/after rate recorded in this brief.
+- [x] `codeMask()` handles regex literals, or detects desync and refuses; verified on `clock.js`. — §7.1 (PR #713).
+- [x] §2.7 component-range, §3 DMY boundary and §2.1 epoch-band mutants are killed by new assertions,
+      each verified by re-applying the exact mutant. — §7.2 (PR #713); **§7.6 confirms zero survivors on all five guard lines.**
+- [x] `clock.js` re-run exhaustively; the before/after rate recorded in this brief. — **§7.6: 86/123 = 70 %**,
+      and a valid like-for-like pair after all: **59 % → 70 %, +13 mutants**, on a byte-identical `clock.js`
+      and the same 123 mutants, differing by exactly the 19 guard assertions.
 - [x] The two zero-kill modules diagnosed (no test, or mis-tagged test). — **§7.4: neither.** Both had a
       real, correctly-tagged group aimed at a sliver of the file (`olsR2` = 5 of 65 mutants;
       `renderReviewView` = 0 of 319, while 76 % sat behind already-exported builders). Now 11/65 and
       61/319 exhaustive.
-- [ ] A note here on whether the 40 untagged files are untested or merely unselectable.
+- [x] A note here on whether the 40 untagged files are untested or merely unselectable. — `TOOL-INVOCABILITY-SWEEP` §7 (PR #717): 7 mis-tagged · 4 other-harness · 28 DOM-bound · **0 genuine gaps**.
 
 
 ## 7 · EXECUTED 2026-08-02 — §5 items 1 and 2
@@ -205,6 +207,13 @@ computed against the pre-fix suite. Neither is a valid before/after pair, and in
 would be exactly the kind of laundered number this brief exists to object to. What IS established is
 narrower and solid: **seven specific survivors, each re-applied and confirmed killed** (§7.2). The
 authoritative exhaustive rate is owed one more run on a committed tree, and is left open in §6.
+
+> **Amended by §7.6 — "void" was too strong, and this section's own verdict needed correcting.**
+> The 73/123 run measured `HEAD`, i.e. the tree **without** the uncommitted guard assertions. That is
+> the *wrong* answer to the question asked at the time ("how does the suite do WITH my new tests"), but
+> it is the *right* answer to a different one: **how the suite did BEFORE them**. Because `clock.js` is
+> byte-identical across every commit involved, that figure turns out to be usable as the before-leg
+> after all. See §7.6.
 
 ### 7.4 · The two zero-kill modules — neither was untested, and neither was mis-tagged
 
@@ -362,3 +371,57 @@ catch before believing it.
 are `renderHistory` (29) and `cpapClinicalSummary` (20). `renderHistory` needs a `CPAPCross.buildLongitudinal`
 fixture of ≥ 2 nights, which is a fixture-construction job rather than more of the same; it is the obvious
 wave 3 and is left open here rather than claimed.
+
+### 7.6 · The exhaustive re-run — 86/123 = 70 %, and the "void" number was recoverable
+
+`node tools/mutate.mjs --file clock.js --limit 500`, exhaustive, **123 mutants, 78.5 min, 16 workers**,
+run from a committed worktree at `89cc76b` under the `syncDirty` fix.
+
+| | |
+|---|---|
+| mutants generated | 123 (every one tested; 0 invalid) |
+| killed | **86** |
+| survived | 37 |
+| **kill rate** | **86 / 123 = 70 %** |
+
+**All five documented-guard lines now have ZERO survivors** — §2.1's epoch band (`clock.js:37-38`),
+§3's file-level lock (`:56`), §3's *day-component > 12* rule (`:59`), and §2.7's `_ckMk` validator
+(`:113`). That is the direct measurement of §7.2's work, rather than the hand-verification §7.2 had to
+settle for.
+
+**There IS a valid before/after pair here, and it is not the one this brief kept refusing to draw.**
+§7.3 called the 73/123 figure "void". That was too strong. The run measured `HEAD` — the tree
+*without* the then-uncommitted guard assertions — so it is a wrong answer to the question asked at the
+time and an accurate answer to a different one: *how the suite performed before the guards*. The
+comparison holds because every confounder was checked rather than assumed:
+
+- **`clock.js` is byte-identical** across all the commits involved — `d1bfb75` at `6b65e02^`, `6b65e02`,
+  `89cc76b` and `origin/main`. The guards landed as **tests**, not as a code change, so the mutant
+  population is not merely the same size, it is the same 123 mutants.
+- **The `clock` tag's group set moved by exactly the two guard groups** — 17 groups at `6b65e02^`,
+  19 from `6b65e02` onward. PR #717's retagging sweep added none, so nothing else entered or left the
+  suite the mutator runs for this file.
+- Both runs used the **regex-aware mask**, which is why both generate 123 rather than 81.
+
+So, on an unchanged `clock.js` and an identical mutant population, differing by exactly 19 assertions in
+two groups:
+
+**73 / 123 = 59 %  →  86 / 123 = 70 %  ·  +13 mutants killed.**
+
+That is the delta §5 item 3 asked for. It is worth noting that 13 > 7: the guards killed the seven
+survivors §7.2 targeted **and six more**, because asserting a rejection *and* its adjacent boundary
+closes mutants either side of a cut, not just the one that motivated the test.
+
+**41 % remains outside this comparison** and is not upgraded by it. It was measured on 81 mutants from
+the desynchronised mask — a population wrong in both directions — and no arithmetic recovers a
+like-for-like leg from it. The honest ladder is: *41 % on a broken population · 59 % → 70 % on a sound
+one.*
+
+**The 37 survivors, by region.** 20 sit in the **host-axis fit** (`clock.js:260-370`) — the anchor
+collection, the ≥3-anchor guard, the sliding-window median, the ppm sanity bound and the binary search.
+15 are in parse/epoch and 2 in the middle. The axis block is now the module's weakest region by a wide
+margin, and unlike the §2.x guards it has no `CLAUDE.md` sentence to test against — the Clock Contract
+documents the *parser*, not the host-axis fit, which arrived later with the capture-host work. That is
+the shape of the next piece of work and it is a **specification** question before it is a testing one:
+several of those survivors are loop bounds and `|| {}` defaults where the correct behaviour is genuinely
+unstated. Carried into the follow-up brief rather than asserted here on a guess.
