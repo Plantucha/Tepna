@@ -210,6 +210,27 @@ see a contradiction phrased without a `§`, and it does not read prose meaning �
 as §4a proposed. `check3` is total, `check3b` is total over its scope, and `check3c` is a guard with no
 current subject.
 
+## 4b · A THIRD limit, found by walking into it (2026-08-01)
+
+check3b enforces **row ≡ header**. It is therefore blind to a status that is wrong in *both* places —
+consistent, and consistently false. `DEEP-STAGE-DESAT-CONFOUND` sat at `PROPOSED` in the brief AND in its
+DOCS-INDEX row while **five of its six Done-when boxes were checked** and its body carried five executed
+sections (§3b, §7, §8, §9, §11). Every gate was green throughout, because the two things being compared
+agreed with each other.
+
+The sibling limit on the same row: **check3b compares the status CELL, never the row's PROSE.** The
+`ENGINE-VERIFICATION-FINDINGS` row asserted *"§1.2 … still owed"* for weeks while that brief's own header
+recorded §1.2 as executed in PR #221 — and the code agrees with the header (`dex-ingest.js` `deviceKey`
+matches `(?:\d{8}_\d{6}|\d{14})`, `stampMs` carries an optional separator). Worse, PR #670 edited that
+very row and **carried the false clause forward verbatim**, because the edit appended to the cell without
+re-reading the sentence beside it.
+
+Both are recorded rather than fixed with a gate. A prose-vs-body checker needs judgement, which is the
+objection §4a already ruled out for check3c — and check3c's own scope note (a string matcher cannot tell a
+quoted historical claim from a live one) is the same wall. What *is* cheap and worth doing is the habit:
+**when you edit a DOCS-INDEX row, read the whole cell, not just the end of it** — and when you flip a
+status, check the Done-when boxes rather than inheriting the line above.
+
 ## 5 · Note
 
 `check3` (every brief appears in DOCS-INDEX) and `check3b` (statuses agree) are complementary, and only
