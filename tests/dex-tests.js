@@ -658,6 +658,56 @@
      Truth cancels in every difference, so recovery depends only on injected noise.
      Also: external-ρ correlated solve, inverse-variance weights, culprit, degrade,
      epoch alignment. (INTEGRATOR-THREE-CORNERED-HAT-2026-07-02-BRIEF §1–§3.) */
+    /* ════ THE "NEED THREE SERIES" GUARDS, FOUND UNTESTED BY `tools/mutate.mjs` ════════════════
+     Both TCH entry points open with the same precondition:
+
+         if (!seriesA || !seriesB || !seriesC) return …        // threeCorneredHat + allanTriplet
+
+     The sweep rewrote the second `||` to `&&` in each and the suite stayed green. The reason is
+     ordinary and worth naming: every existing test passes all THREE series, so the guard is only ever
+     exercised in its satisfied state. Nothing had ever called it with exactly one corner missing —
+     which is the case that actually happens (a night where one device did not record).
+
+     With `&&` the expression `!seriesB && !seriesC` is false whenever only ONE is absent, so the
+     function proceeds into `pairDiffVar` on a missing series instead of refusing. Killing it needs
+     each corner omitted in turn, which is also the honest test: three corners, three ways to be
+     incomplete. */
+    group('TCH refuses a triplet with any ONE corner missing (mutate.mjs survivor)', 'integrator-tch · guard · known-answer', function (T) {
+      var K = env.IntegratorTCH;
+      if (!(K && K.threeCorneredHat)) {
+        T.skip('IntegratorTCH present', 'load integrator-tch.js + wire env.IntegratorTCH in both runners');
+        return;
+      }
+      var S = function (seed) {
+        var a = [];
+        for (var i = 0; i < 40; i++) a.push(60 + ((i * 7 + seed * 13) % 11) * 0.3);
+        return a;
+      };
+      var A = S(1),
+        B = S(2),
+        C = S(3);
+      // Sanity: the complete triplet is accepted, so a refusal below is about the MISSING corner and
+      // not about the fixture being unusable.
+      T.ok('control · a complete triplet is accepted', K.threeCorneredHat(A, B, C, { labels: ['A', 'B', 'C'] }).ok !== false);
+      [
+        ['A', null, B, C],
+        ['B', A, null, C],
+        ['C', A, B, null]
+      ].forEach(function (t) {
+        var r = K.threeCorneredHat(t[1], t[2], t[3], { labels: ['A', 'B', 'C'] });
+        T.ok('threeCorneredHat refuses when corner ' + t[0] + ' is absent', !!(r && r.ok === false && /three series/.test(r.reason || '')), JSON.stringify(r && { ok: r.ok, reason: r.reason }));
+      });
+      if (typeof K.allanTriplet === 'function') {
+        [
+          ['A', null, B, C],
+          ['B', A, null, C],
+          ['C', A, B, null]
+        ].forEach(function (t) {
+          T.eq('allanTriplet returns null when corner ' + t[0] + ' is absent', K.allanTriplet(t[1], t[2], t[3], {}), null);
+        });
+      }
+    });
+
     group('Integrator three-cornered-hat — per-sensor error (TCH)', 'integrator-tch', function (T) {
       var K = env.IntegratorTCH;
       T.ok('IntegratorTCH present', !!(K && K.threeCorneredHat), 'load integrator-tch.js + wire env.IntegratorTCH in both runners');
@@ -8079,6 +8129,43 @@
       // The block stays ADDITIVE: `epochs` is what adaptEnvelopeNode reads and must not move.
       var blk = OB.oxyBuildSpo2Series ? true : false;
       T.ok('the series is a sibling of epochs, not a replacement for it', blk === true);
+    });
+
+    /* ════ THE PHYSIOLOGICAL SANITY FILTER, FOUND UNTESTED BY `tools/mutate.mjs` ════════════════
+     `oxydex-dsp.js` drops any parsed row outside a plausible range:
+
+         if (spo2 < 50 || spo2 > 100 || hr < 20 || hr > 250) continue;   // sanity check
+
+     The mutation sweep changed the FIRST `||` to `&&` and the whole suite stayed green — so nothing
+     tested the guard standing between a garbage CSV row and every downstream statistic. It is the
+     kind of line that looks self-evidently correct and is therefore never asserted.
+
+     Killing that mutant needs a row that trips EXACTLY ONE disjunct: with `&&` the pair
+     `spo2 < 50 && spo2 > 100` is unsatisfiable, so a low-SpO₂ row survives the filter. Hence one
+     out-of-range row per axis — and, separately, the four BOUNDARY values, because `<`→`<=` mutants
+     are only killed by a row that must be KEPT at exactly 50 / 100 / 20 / 250. */
+    group('OxyDex sanity filter drops out-of-range rows, one axis at a time (mutate.mjs survivor)', 'oxydex-dsp · parse · known-answer', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      if (!(OB && typeof OB.parseCSV === 'function')) {
+        T.skip('OxyDex._bare.parseCSV exposed', 'not on the bare surface');
+        return;
+      }
+      var HEAD = 'Time,SpO2(%),Pulse Rate(bpm),Motion\n';
+      var row = function (t, spo2, hr) {
+        return '2026-07-20 19:07:' + String(t).padStart(2, '0') + ',' + spo2 + ',' + hr + ',0\n';
+      };
+      // One row per REJECTED axis. Each is in range on the other three, so with the guard's `||`
+      // rewritten to `&&` anywhere, the corresponding row leaks through and the count moves.
+      var bad = OB.parseCSV(HEAD + row(1, 30, 60) + row(2, 120, 60) + row(3, 96, 10) + row(4, 96, 300), { fname: 'sanity.csv' });
+      T.eq('all four out-of-range rows are dropped (low SpO₂ · high SpO₂ · low HR · high HR)', bad.length, 0, 'kept ' + JSON.stringify(bad.map(function (r) { return [r.spo2, r.hr]; })));
+      // …and the boundaries themselves are VALID and must survive. 50 % SpO₂ and 250 bpm are real
+      // readings at the edge of the plausible band; a `<`→`<=` mutant silently discards them.
+      var edge = OB.parseCSV(HEAD + row(1, 50, 60) + row(2, 100, 60) + row(3, 96, 20) + row(4, 96, 250), { fname: 'edge.csv' });
+      T.eq('the four boundary values are KEPT (50 · 100 · 20 · 250 are real readings)', edge.length, 4, 'kept ' + edge.length + ' of 4');
+      // A plain in-range row still parses — so a green result above cannot be "the parser returns
+      // nothing on this fixture", which would satisfy the first assertion for the wrong reason.
+      var okRows = OB.parseCSV(HEAD + row(1, 96, 60), { fname: 'ok.csv' });
+      T.eq('control: an ordinary in-range row parses', okRows.length, 1);
     });
 
     group('OxyDex perfusion index from the OXYFRAME sidecar (OXYDEX-PULSE-RESOURCING §4)', 'oxydex-dsp · oxydex-registry', function (T) {
