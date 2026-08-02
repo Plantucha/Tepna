@@ -4590,6 +4590,107 @@ function fitClockDrift(aTimes, bTimes, opts) {
   };
 }
 
+/* ── CLOSURE TEST over three or more beat sources (WEARABLE-DRIFT-FIT-FOLLOWUPS) ─────────────────
+   For any three clocks the pairwise drifts must sum to zero identically:
+
+       d(A,B) + d(B,C) + d(C,A) ≡ 0        because (dA−dB)+(dB−dC)+(dC−dA) = 0
+
+   So a non-zero CLOSURE ERROR proves at least one pairwise fit is wrong — **with no reference clock
+   and no ground truth**, which is precisely what a pairwise fit cannot do for itself. On the real
+   2026-07-26 trio it reads 100.9 ppm against an identity of 0, and independently condemns the two
+   O2Ring legs that a correspondence check also flags (47 % / 49 % against a ~20 % chance floor).
+
+   THE BLIND SPOT, found by a planted control that REFUSED to fire. Closure tests the MEASUREMENTS,
+   never the clocks. A device whose clock is genuinely wrong — stepped mid-night by a re-sync, say —
+   is measured FAITHFULLY by both of its pairs, and the error cancels: the identity holds for any dC
+   whatsoever. A planted 900 ms step left closure at −0.10 ppm. So closure catches a BAD FIT and is
+   structurally incapable of catching a bad clock that both pairs agree about; only degrading a
+   source until its fits became unreliable made it fire (−50.6 ppm, both weak legs named).
+
+   It is a CONSISTENCY test, not an attribution: with three clocks a closure violation says "one of
+   these MEASUREMENTS is wrong" and cannot say which. Pair it with each leg's own `confident` flag — the leg
+   that fails both is the suspect. Attempting more (a three-cornered-hat variance decomposition) on
+   legs this weak returns a NEGATIVE variance and a reconstruction that disagrees with its own input;
+   that was tried and is not shipped. */
+function fitClockClosure(sources, opts) {
+  opts = opts || {};
+  var src = (sources || []).filter(function (s) {
+    return s && s.name && s.times && s.times.length;
+  });
+  if (src.length < 3) return { ok: false, reason: 'need >=3 sources with beats', sources: src.length };
+  var pairs = [];
+  for (var i = 0; i < src.length; i++)
+    for (var j = i + 1; j < src.length; j++) {
+      var r = fitClockDrift(src[i].times, src[j].times, opts);
+      pairs.push({
+        a: src[i].name,
+        b: src[j].name,
+        driftPpm: r.driftPpm,
+        offsetMs: r.offsetMs,
+        confident: !!r.confident,
+        correspondence: r.medianCorrespondence,
+        chance: r.chanceCorrespondence,
+        reason: r.reason
+      });
+    }
+  var byKey = {};
+  pairs.forEach(function (p) {
+    byKey[p.a + '|' + p.b] = p;
+  });
+  var dOf = function (a, b) {
+    var p = byKey[a + '|' + b];
+    if (p) return p.driftPpm;
+    p = byKey[b + '|' + a];
+    return p ? -p.driftPpm : null; // d(B,A) = -d(A,B)
+  };
+  var triples = [];
+  for (var x = 0; x < src.length; x++)
+    for (var y = x + 1; y < src.length; y++)
+      for (var z = y + 1; z < src.length; z++) {
+        var A = src[x].name,
+          B = src[y].name,
+          C = src[z].name;
+        var d1 = dOf(A, B),
+          d2 = dOf(B, C),
+          d3 = dOf(C, A);
+        if (d1 == null || d2 == null || d3 == null || !isFinite(d1) || !isFinite(d2) || !isFinite(d3)) continue;
+        var err = d1 + d2 + d3;
+        var conf = [byKey[A + '|' + B], byKey[B + '|' + C], byKey[A + '|' + C]].filter(Boolean);
+        /* The tolerance is the LEGS' own scale, not a constant: a triple of weak fits is allowed a
+           looser closure than a triple of sharp ones, and a fixed threshold would either excuse the
+           first or condemn the second. */
+        var _tol = opts.closureTolPpm != null ? opts.closureTolPpm : Math.max(5, 0.25 * Math.max(Math.abs(d1), Math.abs(d2), Math.abs(d3)));
+        triples.push({
+          nodes: [A, B, C],
+          closurePpm: err,
+          tolPpm: _tol,
+          // Declared at construction, not assigned afterwards — a later `t.consistent = …` leaves the
+          // checker with no such property on the object's inferred shape.
+          consistent: Math.abs(err) <= _tol,
+          allLegsConfident:
+            conf.length === 3 &&
+            conf.every(function (p) {
+              return p.confident;
+            }),
+          weakLegs: conf
+            .filter(function (p) {
+              return !p.confident;
+            })
+            .map(function (p) {
+              return p.a + '-' + p.b;
+            })
+        });
+      }
+  return {
+    ok: true,
+    pairs: pairs,
+    triples: triples,
+    anyInconsistent: triples.some(function (t) {
+      return !t.consistent;
+    })
+  };
+}
+
 function fitClockOffsetPooled(anchorTimes, channels, opts) {
   opts = opts || {};
   var maxSec = opts.maxLagSec != null ? opts.maxLagSec : 5400; // +/-90 min
@@ -5617,6 +5718,7 @@ window.IntegratorDSP = {
   fitClockOffset,
   fitClockOffsetPooled,
   fitClockDrift,
+  fitClockClosure,
   // Timing fiducial over timeseries.spo2 — deliberately NOT OxyDex's clinical desat_event.
   desatOnsetsFromSeries,
   // Wearable-to-wearable alignment (see the ACC block above): offset + drift in ppm.
