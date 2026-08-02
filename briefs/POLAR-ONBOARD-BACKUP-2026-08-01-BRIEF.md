@@ -118,12 +118,106 @@ connection. That is the one genuine refactor here:
   `REQUEST_START_RECORDING (14)` beside `PREPARE_FIRMWARE_UPDATE` is correct and stays correct for
   everything else.
 
-⚠️ **The wire format of the start op is NOT established.** The SDK sources carry it
-(`sources/Android/.../PolarOfflineRecordingApi.kt`, `PolarH10OfflineExerciseApi.kt`, and their impls);
-read it there rather than guessing a query id and its protobuf params. A wrong id on this path does
-something far worse than set a clock, which is precisely why the allowlist exists.
+⚠️ **CORRECTED 2026-08-02 — the two legs do not share a mechanism, and the Verity's is not PS-FTP at
+all.** The paragraph above is right for the H10 and wrong for the Verity. Established from the SDK
+sources (see §4a): the Verity's offline recording is started over the **PMD control point**, which
+`capture.py` ALREADY owns and already writes to for every live stream. So for the Verity leg there is
+**no `_ALLOWED_QUERIES` widening, and no PS-FTP-on-the-live-client refactor** — the "one genuine
+refactor" above applies only to the H10. That deletes the hardest-looking piece of this brief for the
+leg that matters most.
 
 ---
+
+## 4a · The wire format, established 2026-08-02 (protocol facts, read not guessed)
+
+Read out of `polarofficial/polar-ble-sdk` (proprietary, `NOASSERTION` — **not** a dependency; what is
+recorded here are protocol facts: enum numbers, field numbers, a bit position. Same standing as the
+`pftp_request.proto` field numbering `polar_psftp.py` already documents, see `THIRD-PARTY.md`).
+
+**Verity — PMD control point, one bit.** `BDBleApiImpl.kt:2011`:
+
+```kotlin
+client.startMeasurement(mapPolarFeatureToPmdClientMeasurementType(feature),
+                        mapPolarSettingsToPmdSettings(settings), PmdRecordingType.OFFLINE, pmdSecret)
+```
+
+and `PmdRecordingType.kt` is the whole encoding:
+
+```kotlin
+enum class PmdRecordingType(val numVal: UByte) { ONLINE(0u), OFFLINE(1u);
+    fun asBitField(): UByte = (this.numVal.toUInt() shl 7).toUByte() }   // OFFLINE => 0x80
+```
+
+So an offline start is the **ordinary `START_MEASUREMENT` capture.py already sends, with the
+measurement-type byte OR'd with `0x80`** — same settings payload, same characteristic, same client.
+`STOP_MEASUREMENT` mirrors it. This is a flag on an existing call, not a new subsystem.
+
+**H10 — PS-FTP, and RR is real.** `REQUEST_START_RECORDING = 14`, `REQUEST_STOP_RECORDING = 15`,
+`REQUEST_RECORDING_STATUS = 16` (`pftp_request.proto`), with:
+
+```proto
+message PbPFtpRequestStartRecordingParams {
+  required PbSampleType sample_type        = 1;
+  required PbDuration   recording_interval = 2;
+  optional string       sample_data_identifier = 3;
+}
+```
+
+`types.proto` carries `SAMPLE_TYPE_HEART_RATE = 1` and **`SAMPLE_TYPE_RR_INTERVAL = 16`**, and
+`PbDuration { hours=1, minutes=2, seconds=3, millis=4 }`. **This settles §1's tension**: RR is
+expressible on the wire even though the H10 product page says only *"Recording supports HR with one
+second sampletime."* Whether the device ACCEPTS it is still a hardware question — but the leg is worth
+attempting rather than scoping as HR-only on the strength of a doc sentence.
+
+### The constraint that changes the design: you cannot read the device while it records
+
+> *"Any file transfer is **prohibited** when Polar Verity Sense is in internal recording or swimming
+> mode. Attempting to list, fetch or delete any offline recording will return `SYSTEM_BUSY` error."*
+> — `documentation/products/PolarVeritySense.md`
+
+Device-specific, and it **conflicts with** the generic `SdkOfflineRecordingExplained.md`, which says
+read/delete *"can be called while the offline recording is recording, but that is not recommended."*
+Take the device page for the Verity. Consequences, both load-bearing:
+
+1. **The morning pull must STOP the recording first** — a pull attempted against a still-recording
+   device does not merely block, it errors. §7 must sequence stop → list → pull → (re)start.
+2. **§5's stronger form gets more expensive than it looks.** "Record PPG offline as the primary" means
+   the device is *unlistable and unpullable for the whole night* — no mid-night verification, and any
+   monitoring must come from the live HR/GYRO channel §3 already argues for.
+
+It is also a standing trap for diagnosis: once recording is in use, a `SYSTEM_BUSY` refusal will look
+exactly like the hang §6b describes. (It was **not** the cause of the 2026-08-02 hang — that was the
+unpruned walk, fixed in #710, and the device held no sessions at all.)
+
+### Triggers — a start path that needs no BLE call at all
+
+`setOfflineRecordingTrigger` supports **`TRIGGER_SYSTEM_START`** ("started every time the Polar device
+is switched on") and **`TRIGGER_EXERCISE_START`**, disabled with `TRIGGER_DISABLED`. A trigger set once
+makes the device record on power-up **by itself** — which sidesteps §4's entire "start it without
+dropping the stream" problem for the always-record case. Known limitation: `TRIGGER_EXERCISE_START`
+with PPI returns `ERROR_NOT_SUPPORTED`. Worth evaluating BEFORE building the runtime start path, since
+it may make it unnecessary.
+
+### Two more facts that answer §6's open questions
+
+* **Memory (§6 Q2).** Two limits, both device-side: **Limit 1** (~2 MB) — a new recording or trigger
+  returns `ERROR_DISK_FULL`; **Limit 2** (300 KB–2 MB) — **all active offline recordings are stopped
+  automatically and triggered recordings are disabled**. The auto-stop is the §0.2 fabricated-absence
+  case: the night ends early and the file still looks fine.
+* **Encryption.** Offline records may be AES-128 encrypted by passing a key to `startOfflineRecording`;
+  the same key is needed to read them back. It is **optional**, and the SDK notes that without it
+  "it might be possible by others to read out recordings". Default for Tepna: **unencrypted**, because
+  the decoder has to read it and the threat model is physical possession of the armband — but say so
+  deliberately rather than by omission.
+
+### Prior art: there is none to borrow
+
+No third-party implementation of Polar offline recording exists to copy or check against.
+**BleakHeart** (`fsmeraldi/bleakheart`, the closest Python work) explicitly does not support it, and
+its author opened `polar-ble-sdk#600` asking Polar for the packet format; `#556` asks the same for
+Python offline access. `rsc-dev/loophole` (MIT) is read-only file access over USB for the older
+watches. So this leg is written from the protocol facts above, first — which raises the bar on
+gating it, not the ambition.
 
 ## 5 · What each leg actually buys
 
@@ -255,9 +349,27 @@ ballgame:
 * **If no** (the window fits only one small reply) — USB is a fast directory lister and nothing more,
   and the BLE leg has to be made to work regardless.
 
-A watcher is armed on vigil (`/tmp/usbwatch2.py` → `/tmp/usbwatch2.log`) that fires on the next replug
-and reads a 70-byte file (`/U/0/USERID.BPB`) to answer exactly this. **Do not plan §7 around USB until
-that log shows a file coming back.**
+**ANSWERED 2026-08-02 16:16 — it is NO, and it is not close.** A watcher armed on vigil burst requests
+the instant the dock re-enumerated:
+
+```
+16:16:52 REPLUG
+  +0.09s OK /U/0/           -> DBDC.DAT(1) · USERID.BPB(70) · S/ · 20260621/
+  +0.30s -- /U/0/USERID.BPB       the 70-byte FILE: nothing
+  +0.51s -- /U/0/20260621/        a DIRECTORY: nothing
+  … 38 further requests, all nothing        => 1 successful request in this window
+```
+
+The window is **exactly ONE request**, not a short time slice — it closed within 210 ms of the first
+reply, and request #2 fails whether it asks for a file or a directory, so it is not a file-vs-directory
+distinction. And because a multi-packet reply obliges the host to ACK each packet — and every ACK is
+itself a write — **nothing larger than a single 64-byte report can ever complete over this transport.**
+
+So the "re-enumerate → one GET" pull loop is dead: it would need one physical re-enumeration per
+*packet*, not per file. **USB is a fast lister for one small directory and nothing more.** It keeps a
+narrow diagnostic value (it reads the device tree in 90 ms without touching the BLE link, and it is how
+the unpruned-walk bug in §6b was found), and no further USB work is warranted. The BLE leg is the only
+pull path — which is why it was fixed on its own merits in #710 rather than waiting on this answer.
 
 Two consequences regardless of the answer: the daemon needs a **root-capable re-enumeration hook**
 (the daemon runs as `vigil`; toggling `authorized` needs root, so a sudoers entry or a tiny unit), and
