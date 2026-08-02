@@ -4719,10 +4719,49 @@ function _wrappedSlopeFit(rows, rrMs, opts) {
 
 function fitClockClosure(sources, opts) {
   opts = opts || {};
-  var src = (sources || []).filter(function (s) {
+  var withBeats = (sources || []).filter(function (s) {
     return s && s.name && s.times && s.times.length;
   });
-  if (src.length < 3) return { ok: false, reason: 'need >=3 sources with beats', sources: src.length };
+  /* ── A LEG WITH NO TIMING IS NOT A CLOCK (WEARABLE-HOST-AXIS-FOLLOWUPS §F3) ──────────────────
+     Closure's whole claim is that three INDEPENDENT measurements over-determine each other. A source
+     whose time axis was DRAWN — `sample_index x an assumed rate`, which is what every O2Ring session up
+     to 2026-07-27 reports — contributes a constant, not a clock: its apparent drift is the error in
+     that assumption. Fed in anyway, both of its pairs faithfully measure a fiction, and closure returns
+     a confident number about nothing. That is exactly how six nights of CLOCK-CLOSURE-THREE-SOURCE
+     failed with "all legs confident".
+
+     A caller passes `timingSource` straight through from a node export's `quality.timingSource`:
+       'device+host'  real device timestamps, host-disciplined  → usable
+       'host'         axis drawn, but the capture host disciplined it → usable, and REPORTED, because
+                      two such legs share one timebase and are correspondingly less independent
+       'none'         drawn AND no host anchors → NO timing information exists → EXCLUDED
+     OMITTED is treated as usable, so every existing caller is byte-unchanged (no fixture moves). This
+     refuses by a COMPUTED provenance flag rather than asking anyone to remember which nights were bad. */
+  var excluded = [];
+  var src = withBeats.filter(function (s) {
+    if (s.timingSource === 'none') {
+      excluded.push(s.name);
+      return false;
+    }
+    return true;
+  });
+  if (src.length < 3) {
+    return {
+      ok: false,
+      reason: excluded.length
+        ? 'need >=3 sources with a real time axis — excluded ' + excluded.join(', ') + ' (drawn axis, no host anchors: no timing information exists)'
+        : 'need >=3 sources with beats',
+      sources: src.length,
+      excluded: excluded
+    };
+  }
+  var hostOnly = src
+    .filter(function (s) {
+      return s.timingSource === 'host';
+    })
+    .map(function (s) {
+      return s.name;
+    });
   var pairs = [];
   for (var i = 0; i < src.length; i++)
     for (var j = i + 1; j < src.length; j++) {
@@ -4794,7 +4833,13 @@ function fitClockClosure(sources, opts) {
     triples: triples,
     anyInconsistent: triples.some(function (t) {
       return !t.consistent;
-    })
+    }),
+    // Legs dropped for having no time axis at all, and legs whose timing is the HOST's rather than the
+    // device's. `sharedHostTimebase` is a caveat, not a failure: two host-disciplined legs still close,
+    // but they are less independent than the identity's derivation assumes, so a reader should know.
+    excluded: excluded,
+    hostTimedLegs: hostOnly,
+    sharedHostTimebase: hostOnly.length >= 2
   };
 }
 

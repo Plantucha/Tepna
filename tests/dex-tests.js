@@ -22615,6 +22615,35 @@
       T.ok('control · an unreliable leg is CAUGHT (closure breaks, or the leg is flagged weak)', Math.abs(tri2.closurePpm) > 5 || tri2.weakLegs.length > 0 || tri2.consistent === false,
         'closure ' + tri2.closurePpm.toFixed(2) + ' ppm · weak [' + tri2.weakLegs.join(',') + '] · consistent ' + tri2.consistent);
       T.ok('fewer than three sources refuses rather than guesses', D.fitClockClosure([{ name: 'A', times: A }, { name: 'B', times: B }], {}).ok === false);
+
+      /* ── A DRAWN LEG IS REFUSED, NOT MEASURED (WEARABLE-HOST-AXIS-FOLLOWUPS §F3) ──
+         Closure's claim is that three INDEPENDENT measurements over-determine each other. A source whose
+         axis was drawn (`sample_index x an assumed rate` — every O2Ring session up to 2026-07-27)
+         contributes a CONSTANT, not a clock, so both of its pairs faithfully measure a fiction and
+         closure returns a confident number about nothing. That is how six nights failed with "all legs
+         confident". `timingSource` comes straight from a node export's `quality.timingSource`. */
+      var drawn = D.fitClockClosure(
+        [{ name: 'A', times: A }, { name: 'B', times: B }, { name: 'C', times: C, timingSource: 'none' }],
+        {}
+      );
+      T.ok('a leg with timingSource "none" is REFUSED, not silently measured', drawn.ok === false, 'ok=' + drawn.ok);
+      T.ok('…and it names which leg it dropped, and why', /C/.test(String(drawn.reason)) && /no timing information/.test(String(drawn.reason)), 'reason=' + drawn.reason);
+      T.ok('…via an explicit excluded list, not just prose', Array.isArray(drawn.excluded) && drawn.excluded.indexOf('C') >= 0);
+      // OMITTED timingSource must stay usable, or every existing caller changes behaviour (and fixtures move).
+      var noFlag = D.fitClockClosure([{ name: 'A', times: A }, { name: 'B', times: B }, { name: 'C', times: C }], {});
+      T.ok('a source that declares no timingSource is still accepted (back-compat)', noFlag.ok === true);
+      /* A HOST-disciplined leg is usable — but two of them share one timebase and are less independent
+         than the closure identity's derivation assumes, so that is reported rather than hidden. */
+      var hosted = D.fitClockClosure(
+        [
+          { name: 'A', times: A, timingSource: 'host' },
+          { name: 'B', times: B, timingSource: 'host' },
+          { name: 'C', times: C, timingSource: 'device+host' }
+        ],
+        {}
+      );
+      T.ok('host-disciplined legs are accepted', hosted.ok === true);
+      T.ok('…and two of them raise sharedHostTimebase as a caveat', hosted.sharedHostTimebase === true && hosted.hostTimedLegs.length === 2, JSON.stringify(hosted.hostTimedLegs));
     });
 
     group('ResMed EDF session grouping — ±60 s inclusive (§AD)', 'resmed-edf · adapters · known-answer', function (T) {

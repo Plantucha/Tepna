@@ -108,19 +108,67 @@ which is the signature of a corner the fix could not reach.
 the two runs cover different night sets (37 vs 28 estimated), so the medians are not matched. Resolving
 it needs a per-night matched comparison, and the old per-night σ values were never recorded. Open.
 
+## F3-ter · PAT re-run, and the refusal wired — **DONE 2026-08-02**
+
+### PAT is not alignment-limited. That is the answer, and it is a negative one.
+
+Per-block PAT re-run on the disciplined axis, scored by the repo's own `pat-gate.js`, 9 measurable
+nights of the fresh fold:
+
+| | measured | gate bar |
+|---|---|---|
+| beat-to-beat residual IQR | **130–215 ms** | ≤ 60 ms |
+| drift range across blocks | **355–462 ms** | ≤ 60 ms |
+| median lag | 406–498 ms | ✓ inside [60, 700] |
+
+**WEAK COUPLING on every night.** `PAT-UNDER-PERBLOCK-ALIGNMENT` measured 139–197 ms before the fix;
+this is 130–215 after. **Essentially unchanged** — so host-disciplining the axis, which removed up to
+18.5 s of error, moved the PAT residual by nothing. The obstacle was never alignment precision, and no
+further clock work will unlock PAT. That closes the open question in that brief's §5 as a NO on
+single-site optical, on evidence rather than fatigue.
+
+(The coupling leg remains weak in the way that brief already flagged: matchRate 86–96 % against a
+**52–69 %** chance control, so the margin is small and the `matchRate` floor is still the wrong statistic.)
+
+### A leg with no timing is now refused, by a computed flag
+
+`fitClockClosure` accepts `timingSource` per source and **excludes** a `'none'` leg — drawn axis *and*
+no host anchors, i.e. no timing information exists — refusing with the leg named rather than returning a
+confident number about nothing. An omitted `timingSource` stays usable, so every existing caller is
+byte-unchanged. Two `'host'` legs raise `sharedHostTimebase`: they still close, but they are less
+independent than the identity's derivation assumes, and a reader should be told.
+
+`trio-batch` passes it through from each export's `quality.timingSource`, and prints the refusal —
+because printing nothing is how a drawn leg stayed invisible for six nights.
+
+### Two defects found by wiring it to real data, not by inspection
+
+1. **The field was null on every folded night.** `mergePpg` rebuilt the rec and dropped `hostAxis`, so
+   `quality.timingSource` existed and was never populated — the hollow-gate failure class again. Only
+   running it against the corpus showed it; the unit test was green throughout.
+2. **A worst-case merge rule refused a good night.** Taking the weakest fragment's verdict voided
+   2026-07-28 — a night whose O2Ring genuinely reports real timestamps and which closes at −11.4 ppm —
+   because one short fragment had too few host anchors to judge. Now **sample-weighted**, which makes the
+   merged verdict equal to what the single-file detector would say on the concatenated fragments.
+
+Verified end-to-end against the raw-file finding, which it reproduces independently:
+
+| night | `timingSource` | drawn | quantized share |
+|---|---|---|---|
+| 2026-07-26 O2Ring | `host` | **true** | **1.00** |
+| 2026-07-28 O2Ring | `device+host` | false | 0.0074 |
+| 2026-07-26 Verity | `device+host` | false | 0.0188 |
+
 ## F3-bis · Still open after the re-run
 
 - **`CLOCK-CLOSURE-THREE-SOURCE-2026-08-01` §1 is now superseded by measurement** — its six-night table
   is the pre-fix regime. Two of its nights have been re-measured above; the other four need re-folding
   with a third source present, and the table should be annotated rather than silently left standing.
-- **PAT** (`PAT-UNDER-PERBLOCK-ALIGNMENT`, `pat-feasibility.js`, `pat-gate.js`) — NOT yet re-run. A
-  pulse-arrival delay measured against a drawn axis inherits its error, and the post-2026-07-28 nights
-  are the clean ones to trust. This is the remaining leg of F3.
 - **`CROSS-DEVICE-CLOCK-SKEW-2026-07-29`**, **`MULTINIGHT-CORPUS-FINDINGS-2026-07-29`** — still to be
   audited for O2Ring-timing dependence; the latter is also the source of the TCH baseline used above.
 - **`integrator-tch.js` / `TCH-REFERENCE-VALIDATION`** — the *kernel's* independence assumption is
-  unaffected by the drawn axis (see F3), but nothing yet refuses a leg whose `timingSource` is `'none'`.
-  Wiring that refusal is the durable fix, and it is not done.
+  unaffected by the drawn axis (see F3). The closure refusal is wired; the TCH kernel itself still does
+  not consult `timingSource`, which matters only if a future caller feeds it beat-derived legs.
 
 ## F4 · `papers/` audit
 
@@ -156,6 +204,9 @@ unreachable there and the drift/closure work cannot run inside the Integrator. U
       101.2→−15.5 and 58.4→−11.4 ppm while ECGDex's TCH σ stayed identical at 0.91 bpm.
 - [ ] A per-night MATCHED TCH comparison — the 2.71→3.44 PpgDex σ shift spans different night sets and
       is therefore unattributed. The old per-night σ values were never recorded; record them this time.
-- [ ] Closure, TCH and PAT re-asked; each either re-confirmed on new numbers or retracted in place.
+- [x] **Closure, TCH and PAT re-asked.** Closure improved ~7x; TCH shown structurally unexposed; PAT
+      re-run and answered NO — 130-215 ms residual against a 60 ms bar, unchanged by the fix, so PAT is
+      not alignment-limited.
+- [x] **A leg with no time axis is refused** by a computed `timingSource`, wired through `trio-batch`.
 - [ ] `papers/` audited; `O2RING-PROTOCOL` annotated rather than retracted.
 - [ ] No ppm quoted anywhere without a span and a closure beside it.
