@@ -85,6 +85,14 @@
   // per-signal (see ppgdex-dsp.js + DEX-DSP-AUDIT-BEATS-ARTIFACT.md) and likewise stay node-local.
   var CFG = {
     HR_SPIKE_MIN_PEAK: 75, // node-local: sensitivity floor of OxyDex's oximeter-pulse arousal/spike detector (no other node detects HR "spikes")
+    /* Physiologic ceiling on 1 s cardiac acceleration, applied at the SPIKE level as a backstop behind
+       HR_ARTIFACT_JUMP/_SOFT above (which clean the impossible SAMPLES first). Same value as _SOFT on
+       purpose — the physiology is identical; what differs is that this one is NOT gated on clock
+       position, so it also catches an artifact that drifted off the hour. Measured over 37 O2Ring
+       nights: genuine arousals peak at 7 BPM/s, artifact onsets run 15-56, so this separates them with
+       >2x headroom and zero false rejections on the post-firmware-fix control.
+       See detectSpikes + O2RING-HOURLY-HR-ARTIFACT-2026-08-02-BRIEF. */
+    HR_SPIKE_MAX_PHYSIOLOGIC_RISE: 15, // BPM per 1 s sample
     SPIKE_COOLDOWN_SEC: 30, // node-local: spike-detector refractory window (algorithmic, not a physiology grade)
     SPO2_OSC_THRESHOLD: 95, // node-local: SpO2 oscillation crossing level — SpO2 is an OxyDex-only signal; not referenced by any cross-node/fusion logic
     OSC_WINDOW_SEC: 300, // node-local: 5-min oscillation-analysis window (algorithmic)
@@ -801,14 +809,41 @@
   // ±2 min of ANY clock hour (the :58–:02 window — v14; no hour gate, matching
   // cleanArtifactHR's soft-artifact rule). Catches gradual-ramp artifacts that the
   // single-sample HR cleaner cannot see.
+  /* Reject the O2Ring's firmware HR artifact by WHAT IT IS, not by WHEN IT HAPPENS.
+     (O2RING-HOURLY-HR-ARTIFACT-2026-08-02-BRIEF; vendor-confirmed by Wellue 2026-05-14 as a
+     timer-driven routine that transiently double-counts cardiac cycles.)
+
+     The previous rule dropped every spike landing within ±2 min of a clock hour — the vendor's own
+     advice, and the obvious thing to do before the mechanism was understood. Measured across the
+     corpus's 37 O2Ring nights (79 detected spikes; "artifact" = an onset no heart can produce):
+
+         rule                    artifacts missed    GENUINE AROUSALS DELETED
+         ±2 min clock window      1 of 44             11 of 35   (31 %)
+         onset ≥ 15 BPM/s         0 of 44              0 of 35
+
+     ±4 minutes of every hour is 6.7 % of the night, so the window rule was discarding real events for
+     the crime of occurring near a clock hour — and still missed an artifact that drifted outside it.
+     The onset test is what actually distinguishes them: a heart cannot gain 20 BPM in one second, an
+     algorithm double-counting cycles can. Genuine arousals on post-firmware-fix nights top out at
+     7 BPM/s (13 spikes, ≥2026-05-28) — that control is the non-circular evidence, since on the
+     affected nights "impossible onset" is the definition of artifact rather than an independent test.
+
+     `clockAligned` is still computed and reported, because the hourly pattern is the signature that
+     identified this in the first place — but it is EVIDENCE, never the criterion. */
   function filterArtifactSpikes(spikes) {
-    // v14: clock artifacts occur at ANY hour within ±2min of XX:00 (:58-:02 window)
-    return spikes.filter(function (sp) {
-      var m = parseInt(sp.time.substr(3, 2), 10);
-      var s = parseInt(sp.time.substr(6, 2), 10);
-      var minsec = m + s / 60.0;
-      return !(minsec <= 2.0 || minsec >= 58.0);
-    });
+    /* This is also the boundary between DETECTION INTERNALS and what the rest of the system sees.
+       `onsetRise`/`clockAligned`/`artifact`/`artifactReason` are why a spike was judged; they are not
+       properties of a surviving arousal, and every survivor carries `artifact:false` by construction —
+       zero information, serialized into `hr_spikes.events` for every consumer forever. So the survivor
+       keeps its original shape EXACTLY (which also means this change moves no export byte), and the
+       verdict is published once per night as `stats.artifactSpikesRemoved` instead. */
+    var kept = [];
+    for (var i = 0; i < spikes.length; i++) {
+      var sp = spikes[i];
+      if (sp.artifact) continue;
+      kept.push({ time: sp.time, baseline: sp.baseline, peak: sp.peak, duration: sp.duration, spo2: sp.spo2, mfm: sp.mfm });
+    }
+    return kept;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -2256,6 +2291,12 @@
     var rawSpikes = detectSpikes(rows);
     var spikes = filterArtifactSpikes(rawSpikes);
     stats.artifactSpikesRemoved = rawSpikes.length - spikes.length;
+    /* How many of the rejected ones sat near a clock hour — the vendor-confirmed firmware signature.
+       Reported, not acted on: a night where these two counts diverge is either a device whose artifact
+       has moved off the hour, or a genuine arousal cluster, and both are worth a human noticing. */
+    var clockAlignedRejected = 0;
+    for (var si = 0; si < rawSpikes.length; si++) if (rawSpikes[si].artifact && rawSpikes[si].clockAligned) clockAlignedRejected++;
+    if (clockAlignedRejected > 0) stats.artifactSpikesClockAligned = clockAlignedRejected;
     var period = detectPeriodicity(spikes);
     var osc = detectOscillations(rows);
     // OXYDEX-NODE-EXPORT-ENVELOPE §2b: lift the per-episode PB onsets OFF n.osc (keeping its 5-key
@@ -2899,7 +2940,54 @@
       var dur = 0;
       for (var j = i; j < Math.min(i + 30, n); j++) if (rows[j].hr >= CFG.HR_SPIKE_MIN_PEAK) dur++;
       var mfm = rows[i].t.getUTCHours() * 60 + rows[i].t.getUTCMinutes() + rows[i].t.getUTCSeconds() / 60;
-      spikes.push({ time: fmtTimeFull(rows[i].t), baseline: Math.round(bl), peak: localMax40, duration: dur, spo2: rows[i].spo2, mfm: mfm });
+      /* ── FIRMWARE ARTIFACT REJECTION (O2RING-HOURLY-HR-ARTIFACT-2026-08-02) ──────────────────
+         A heart cannot accelerate 20 BPM in one second. The vendor (Wellue, 2026-05-14) confirmed a
+         timer-driven firmware routine near the top of each clock hour that transiently double-counts
+         cardiac cycles, producing a step of +21..25 BPM in a SINGLE 1 Hz sample with SpO2 flat and
+         motion zero.
+
+         THIS IS A BACKSTOP, NOT THE PRIMARY DEFENCE — and saying so matters, because the obvious
+         reading of the raw CSV (the spike clears MIN_PEAK, motion is 0, and the 8-13 s plateau passes
+         `sustain`) suggests it reaches hrSpikes. It does not: `cleanArtifactHR` runs FIRST and removes
+         the impossible SAMPLES (HR_ARTIFACT_JUMP = 20 BPM/s unconditionally, or 15 within ±2 min of an
+         hour), so `detectSpikes` normally never sees the excursion at all. What this catches is the
+         residue that upstream pass misses: an onset in [15, 20) BPM/s occurring AWAY from a clock hour,
+         where the soft clock-gated threshold does not apply — 1 of 44 artifacts in the corpus.
+
+         The discriminator is the ONSET RATE, not the clock alignment. Measured over the corpus's 37
+         O2Ring nights, per detected spike (on RAW rows, i.e. before cleanArtifactHR):
+             affected nights (<= 2026-05-27): median 22 BPM/s, max 56   — 45 of 75 at >= 15
+             clean nights    (>= 2026-05-28): median  5 BPM/s, max  7   —  0 of 13 at >= 15
+         So a >=15 BPM/s bar has better than 2x headroom over the fastest genuine arousal this device
+         has ever reported, and rejects NOTHING on the clean control. Onset is preferred over "within
+         60 s of the hour" deliberately: clock alignment is corroborating evidence, but a real arousal
+         may fall near an hour by chance (1.7 % of the time) and must not be deleted for it. 30 of the
+         75 affected-night spikes have normal onsets and are kept — this rejects events, not nights.
+
+         REJECTED, NOT SILENTLY DROPPED. The vendor's advice was "ignore +-60 s around each hour";
+         that is a silent correction, and this repo declares instead (cf. quality.timingSource). The
+         event is returned with `artifact:true` so a caller can still see it, and the honest count is
+         published beside the raw one. */
+      var onsetRise = 0;
+      for (var j = Math.max(1, i - 2); j < Math.min(i + 14, n); j++) {
+        var stepUp = rows[j].hr - rows[j - 1].hr;
+        if (stepUp > onsetRise) onsetRise = stepUp;
+      }
+      var secPastHour = rows[i].t.getUTCMinutes() * 60 + rows[i].t.getUTCSeconds();
+      var isArtifact = onsetRise >= CFG.HR_SPIKE_MAX_PHYSIOLOGIC_RISE;
+      spikes.push({
+        time: fmtTimeFull(rows[i].t),
+        baseline: Math.round(bl),
+        peak: localMax40,
+        duration: dur,
+        spo2: rows[i].spo2,
+        mfm: mfm,
+        onsetRise: onsetRise,
+        // Corroborating only — never the rejection criterion. 60 s of 3600 = 1.7 % by chance.
+        clockAligned: secPastHour <= 60 || secPastHour >= 3540,
+        artifact: isArtifact,
+        artifactReason: isArtifact ? 'onset ' + onsetRise + ' BPM/s exceeds the ' + CFG.HR_SPIKE_MAX_PHYSIOLOGIC_RISE + ' BPM/s physiologic ceiling — firmware double-count, not a heart' : null
+      });
       lastIdx = i;
     }
     return spikes;

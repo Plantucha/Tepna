@@ -269,6 +269,74 @@
       T.ok('floating tMs via Date.UTC (TZ-independent)', (P('2026-06-07 03:00', {}) || {}).tMs === U(2026, 5, 7, 3, 0));
     });
 
+    /* ════ 1a-quater · THE O2RING HOURLY HR ARTIFACT IS REJECTED BY PHYSIOLOGY, NOT BY THE CLOCK ════
+       Wellue confirmed (2026-05-14) a timer-driven firmware routine near the top of each clock hour
+       that transiently double-counts cardiac cycles: HR steps +21..25 BPM in ONE 1 Hz sample, SpO2
+       flat, motion zero, plateau ~8-13 s. It clears every guard in detectSpikes and was counted as a
+       genuine arousal, feeding hrSpikes -> nsi/sfi/sleep-stability/vagalIndex.
+       The rule that shipped was the vendor's advice — drop anything within +-2 min of an hour. Measured
+       over 37 O2Ring nights it missed 1 of 44 artifacts and DELETED 11 of 35 genuine arousals (31 %),
+       because +-4 min of every hour is 6.7 % of the night. This group locks the physiologic rule that
+       replaced it, and specifically locks the regression that the time-window rule caused. */
+    group('an impossible HR onset is rejected; a real arousal near a clock hour is NOT', 'oxydex · hr-artifact', function (T) {
+      var OD = env.OxyDSP || env.OXYDSP || env.OxyDex;
+      if (!OD || typeof OD.compute !== 'function') {
+        T.skip('OxyDSP.compute available', 'not loaded');
+        return;
+      }
+      var p2 = function (v) {
+        return v < 10 ? '0' + v : '' + v;
+      };
+      /* One night, 22:00 -> 02:00 on 15 Jun 2026 (day 15 > 12 ⇒ DMY locked). Baseline HR 50, SpO2 97,
+         motion 0 throughout. `mk` plants one HR excursion at an absolute second offset:
+           rise = BPM added on the FIRST sample (the artifact signature: 26 in one second)
+           ramp = seconds taken to reach the peak (a genuine arousal climbs over several seconds) */
+      function night(events) {
+        var L = ['Time,Oxygen Level,Pulse Rate,Motion'];
+        var t0 = Date.UTC(2026, 5, 15, 22, 0, 0);
+        var N = 4 * 3600;
+        var hr = new Array(N);
+        for (var i = 0; i < N; i++) hr[i] = 50;
+        for (var e = 0; e < events.length; e++) {
+          var ev = events[e],
+            peak = 80;
+          for (var k = 0; k < ev.ramp; k++) hr[ev.at + k] = Math.round(50 + ((peak - 50) * (k + 1)) / ev.ramp);
+          for (var h = 0; h < 14; h++) hr[ev.at + ev.ramp + h] = peak; // plateau, so `sustain` passes
+          for (var d = 0; d < 6; d++) hr[ev.at + ev.ramp + 14 + d] = Math.round(peak - ((peak - 50) * (d + 1)) / 6);
+        }
+        for (var s = 0; s < N; s++) {
+          var dt = new Date(t0 + s * 1000);
+          L.push(
+            p2(dt.getUTCHours()) + ':' + p2(dt.getUTCMinutes()) + ':' + p2(dt.getUTCSeconds()) + ' ' +
+              p2(dt.getUTCDate()) + '/' + p2(dt.getUTCMonth() + 1) + '/' + dt.getUTCFullYear() + ',97,' + hr[s] + ',0'
+          );
+        }
+        return L.join('\n');
+      }
+      var spikesOf = function (txt, name) {
+        var r = OD.compute({ text: txt, filename: name });
+        var n = r && r.nights && r.nights[0];
+        // Spikes are published under `hr_spikes.events` (the same path the equivalence gate names).
+        var ev = n && n.hr_spikes && n.hr_spikes.events;
+        return { n: n, count: ev ? ev.length : 0, removed: n && n.stats ? n.stats.artifactSpikesRemoved || 0 : 0 };
+      };
+      // 23:00:40 is 40 s past a clock hour = 3600+40 s after 22:00. rise in ONE sample ⇒ artifact.
+      var art = spikesOf(night([{ at: 3640, ramp: 1 }]), 'o2ring_artifact.csv');
+      T.eq('a +30 BPM one-second onset is rejected as a firmware artifact', art.count, 0, 'kept ' + art.count + ' spike(s)');
+      /* The artifact never even reaches the spike detector: `cleanArtifactHR` removes the impossible
+         SAMPLES first (18 of them here), so `detectSpikes` sees no excursion at all. That upstream
+         cleaner — not the spike-level filter — is what actually neutralises this firmware fault. */
+      T.ok('the impossible samples are cleaned upstream, and the cleaning is COUNTED', (art.n.artifact && art.n.artifact.hrSamplesCleaned > 0) || art.removed >= 1, 'hrSamplesCleaned=' + (art.n.artifact ? art.n.artifact.hrSamplesCleaned : '?') + ' spikesRemoved=' + art.removed);
+      /* THE REGRESSION THE OLD RULE CAUSED: same position near the hour, but a physiologically
+         plausible 10-second climb. The ±2 min window deleted this; the onset rule must keep it. */
+      var realNearHour = spikesOf(night([{ at: 3640, ramp: 10 }]), 'o2ring_real_near_hour.csv');
+      T.eq('a REAL arousal 40 s past a clock hour survives (the ±2 min rule deleted these)', realNearHour.count, 1, 'kept ' + realNearHour.count);
+      T.eq('…and nothing is counted as removed for it', realNearHour.removed, 0);
+      // Control: the same real arousal far from any hour must behave identically — position is not evidence.
+      var realMidHour = spikesOf(night([{ at: 3600 + 1800, ramp: 10 }]), 'o2ring_real_mid_hour.csv');
+      T.eq('the same arousal mid-hour is kept too — position never decides', realMidHour.count, 1, 'kept ' + realMidHour.count);
+    });
+
     /* ════ 1a-ter · A DRAWN AXIS DECLARES ITSELF (WEARABLE-HOST-AXIS-FOLLOWUPS §F1) ════
        An O2Ring session up to 2026-07-27 reports `sample_index × 7,953,045 ns` — a constant increment
        standing in for an assumed 125.738 Hz — so the column carries NO timing information and must not

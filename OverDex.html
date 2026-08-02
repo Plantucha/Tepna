@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-4BCLWr6X92TsW/ko/w2iX02RczLxNfih3nz479/lehg=' 'sha256-5M/8WmuOpxn2ya+AHNFLnQfX5BmCp5jejy9wQKxp4JU=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-C5PsyUZJPRO9MCaibVwbiMOdWNLds3tX5RLIwuBiNDw=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bw6rfr4B0CUwSUGUdE6p6SkGWH+3xW0BfuNMDL9M7BA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-f2HGHVm/1zjp3NNSub0EQGQCUNni9ug30nt4PCO02rA=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-4BCLWr6X92TsW/ko/w2iX02RczLxNfih3nz479/lehg=' 'sha256-5M/8WmuOpxn2ya+AHNFLnQfX5BmCp5jejy9wQKxp4JU=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8E+4bOVWpGDIvQEwzVWOb/HUOa4RpfKqQPqaZtNQFoY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bw6rfr4B0CUwSUGUdE6p6SkGWH+3xW0BfuNMDL9M7BA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-f2HGHVm/1zjp3NNSub0EQGQCUNni9ug30nt4PCO02rA=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -10213,6 +10213,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // per-signal (see ppgdex-dsp.js + DEX-DSP-AUDIT-BEATS-ARTIFACT.md) and likewise stay node-local.
   var CFG = {
     HR_SPIKE_MIN_PEAK: 75, // node-local: sensitivity floor of OxyDex's oximeter-pulse arousal/spike detector (no other node detects HR "spikes")
+    /* Physiologic ceiling on 1 s cardiac acceleration, applied at the SPIKE level as a backstop behind
+       HR_ARTIFACT_JUMP/_SOFT above (which clean the impossible SAMPLES first). Same value as _SOFT on
+       purpose — the physiology is identical; what differs is that this one is NOT gated on clock
+       position, so it also catches an artifact that drifted off the hour. Measured over 37 O2Ring
+       nights: genuine arousals peak at 7 BPM/s, artifact onsets run 15-56, so this separates them with
+       >2x headroom and zero false rejections on the post-firmware-fix control.
+       See detectSpikes + O2RING-HOURLY-HR-ARTIFACT-2026-08-02-BRIEF. */
+    HR_SPIKE_MAX_PHYSIOLOGIC_RISE: 15, // BPM per 1 s sample
     SPIKE_COOLDOWN_SEC: 30, // node-local: spike-detector refractory window (algorithmic, not a physiology grade)
     SPO2_OSC_THRESHOLD: 95, // node-local: SpO2 oscillation crossing level — SpO2 is an OxyDex-only signal; not referenced by any cross-node/fusion logic
     OSC_WINDOW_SEC: 300, // node-local: 5-min oscillation-analysis window (algorithmic)
@@ -10929,14 +10937,41 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   // ±2 min of ANY clock hour (the :58–:02 window — v14; no hour gate, matching
   // cleanArtifactHR's soft-artifact rule). Catches gradual-ramp artifacts that the
   // single-sample HR cleaner cannot see.
+  /* Reject the O2Ring's firmware HR artifact by WHAT IT IS, not by WHEN IT HAPPENS.
+     (O2RING-HOURLY-HR-ARTIFACT-2026-08-02-BRIEF; vendor-confirmed by Wellue 2026-05-14 as a
+     timer-driven routine that transiently double-counts cardiac cycles.)
+
+     The previous rule dropped every spike landing within ±2 min of a clock hour — the vendor's own
+     advice, and the obvious thing to do before the mechanism was understood. Measured across the
+     corpus's 37 O2Ring nights (79 detected spikes; "artifact" = an onset no heart can produce):
+
+         rule                    artifacts missed    GENUINE AROUSALS DELETED
+         ±2 min clock window      1 of 44             11 of 35   (31 %)
+         onset ≥ 15 BPM/s         0 of 44              0 of 35
+
+     ±4 minutes of every hour is 6.7 % of the night, so the window rule was discarding real events for
+     the crime of occurring near a clock hour — and still missed an artifact that drifted outside it.
+     The onset test is what actually distinguishes them: a heart cannot gain 20 BPM in one second, an
+     algorithm double-counting cycles can. Genuine arousals on post-firmware-fix nights top out at
+     7 BPM/s (13 spikes, ≥2026-05-28) — that control is the non-circular evidence, since on the
+     affected nights "impossible onset" is the definition of artifact rather than an independent test.
+
+     `clockAligned` is still computed and reported, because the hourly pattern is the signature that
+     identified this in the first place — but it is EVIDENCE, never the criterion. */
   function filterArtifactSpikes(spikes) {
-    // v14: clock artifacts occur at ANY hour within ±2min of XX:00 (:58-:02 window)
-    return spikes.filter(function (sp) {
-      var m = parseInt(sp.time.substr(3, 2), 10);
-      var s = parseInt(sp.time.substr(6, 2), 10);
-      var minsec = m + s / 60.0;
-      return !(minsec <= 2.0 || minsec >= 58.0);
-    });
+    /* This is also the boundary between DETECTION INTERNALS and what the rest of the system sees.
+       `onsetRise`/`clockAligned`/`artifact`/`artifactReason` are why a spike was judged; they are not
+       properties of a surviving arousal, and every survivor carries `artifact:false` by construction —
+       zero information, serialized into `hr_spikes.events` for every consumer forever. So the survivor
+       keeps its original shape EXACTLY (which also means this change moves no export byte), and the
+       verdict is published once per night as `stats.artifactSpikesRemoved` instead. */
+    var kept = [];
+    for (var i = 0; i < spikes.length; i++) {
+      var sp = spikes[i];
+      if (sp.artifact) continue;
+      kept.push({ time: sp.time, baseline: sp.baseline, peak: sp.peak, duration: sp.duration, spo2: sp.spo2, mfm: sp.mfm });
+    }
+    return kept;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -12384,6 +12419,12 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var rawSpikes = detectSpikes(rows);
     var spikes = filterArtifactSpikes(rawSpikes);
     stats.artifactSpikesRemoved = rawSpikes.length - spikes.length;
+    /* How many of the rejected ones sat near a clock hour — the vendor-confirmed firmware signature.
+       Reported, not acted on: a night where these two counts diverge is either a device whose artifact
+       has moved off the hour, or a genuine arousal cluster, and both are worth a human noticing. */
+    var clockAlignedRejected = 0;
+    for (var si = 0; si < rawSpikes.length; si++) if (rawSpikes[si].artifact && rawSpikes[si].clockAligned) clockAlignedRejected++;
+    if (clockAlignedRejected > 0) stats.artifactSpikesClockAligned = clockAlignedRejected;
     var period = detectPeriodicity(spikes);
     var osc = detectOscillations(rows);
     // OXYDEX-NODE-EXPORT-ENVELOPE §2b: lift the per-episode PB onsets OFF n.osc (keeping its 5-key
@@ -13027,7 +13068,54 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       var dur = 0;
       for (var j = i; j < Math.min(i + 30, n); j++) if (rows[j].hr >= CFG.HR_SPIKE_MIN_PEAK) dur++;
       var mfm = rows[i].t.getUTCHours() * 60 + rows[i].t.getUTCMinutes() + rows[i].t.getUTCSeconds() / 60;
-      spikes.push({ time: fmtTimeFull(rows[i].t), baseline: Math.round(bl), peak: localMax40, duration: dur, spo2: rows[i].spo2, mfm: mfm });
+      /* ── FIRMWARE ARTIFACT REJECTION (O2RING-HOURLY-HR-ARTIFACT-2026-08-02) ──────────────────
+         A heart cannot accelerate 20 BPM in one second. The vendor (Wellue, 2026-05-14) confirmed a
+         timer-driven firmware routine near the top of each clock hour that transiently double-counts
+         cardiac cycles, producing a step of +21..25 BPM in a SINGLE 1 Hz sample with SpO2 flat and
+         motion zero.
+
+         THIS IS A BACKSTOP, NOT THE PRIMARY DEFENCE — and saying so matters, because the obvious
+         reading of the raw CSV (the spike clears MIN_PEAK, motion is 0, and the 8-13 s plateau passes
+         `sustain`) suggests it reaches hrSpikes. It does not: `cleanArtifactHR` runs FIRST and removes
+         the impossible SAMPLES (HR_ARTIFACT_JUMP = 20 BPM/s unconditionally, or 15 within ±2 min of an
+         hour), so `detectSpikes` normally never sees the excursion at all. What this catches is the
+         residue that upstream pass misses: an onset in [15, 20) BPM/s occurring AWAY from a clock hour,
+         where the soft clock-gated threshold does not apply — 1 of 44 artifacts in the corpus.
+
+         The discriminator is the ONSET RATE, not the clock alignment. Measured over the corpus's 37
+         O2Ring nights, per detected spike (on RAW rows, i.e. before cleanArtifactHR):
+             affected nights (<= 2026-05-27): median 22 BPM/s, max 56   — 45 of 75 at >= 15
+             clean nights    (>= 2026-05-28): median  5 BPM/s, max  7   —  0 of 13 at >= 15
+         So a >=15 BPM/s bar has better than 2x headroom over the fastest genuine arousal this device
+         has ever reported, and rejects NOTHING on the clean control. Onset is preferred over "within
+         60 s of the hour" deliberately: clock alignment is corroborating evidence, but a real arousal
+         may fall near an hour by chance (1.7 % of the time) and must not be deleted for it. 30 of the
+         75 affected-night spikes have normal onsets and are kept — this rejects events, not nights.
+
+         REJECTED, NOT SILENTLY DROPPED. The vendor's advice was "ignore +-60 s around each hour";
+         that is a silent correction, and this repo declares instead (cf. quality.timingSource). The
+         event is returned with `artifact:true` so a caller can still see it, and the honest count is
+         published beside the raw one. */
+      var onsetRise = 0;
+      for (var j = Math.max(1, i - 2); j < Math.min(i + 14, n); j++) {
+        var stepUp = rows[j].hr - rows[j - 1].hr;
+        if (stepUp > onsetRise) onsetRise = stepUp;
+      }
+      var secPastHour = rows[i].t.getUTCMinutes() * 60 + rows[i].t.getUTCSeconds();
+      var isArtifact = onsetRise >= CFG.HR_SPIKE_MAX_PHYSIOLOGIC_RISE;
+      spikes.push({
+        time: fmtTimeFull(rows[i].t),
+        baseline: Math.round(bl),
+        peak: localMax40,
+        duration: dur,
+        spo2: rows[i].spo2,
+        mfm: mfm,
+        onsetRise: onsetRise,
+        // Corroborating only — never the rejection criterion. 60 s of 3600 = 1.7 % by chance.
+        clockAligned: secPastHour <= 60 || secPastHour >= 3540,
+        artifact: isArtifact,
+        artifactReason: isArtifact ? 'onset ' + onsetRise + ' BPM/s exceeds the ' + CFG.HR_SPIKE_MAX_PHYSIOLOGIC_RISE + ' BPM/s physiologic ceiling — firmware double-count, not a heart' : null
+      });
       lastIdx = i;
     }
     return spikes;
