@@ -80,6 +80,11 @@ def test_the_teardown_runs_three_privileged_commands_in_order(monkeypatch, tmp_p
     ]
     assert all(c["sudo"] is True for c in rec.calls), \
         f"every teardown step is sudo -n: {[(c['argv'][0], c['sudo']) for c in rec.calls]}"
+    # BOUNDED, all three. `_sh` passes this straight to subprocess.run, where None means WAIT FOREVER —
+    # and the teardown is the one part of the harvest with a documented history of hanging (wpa_cli
+    # could not reach its control socket under ProtectSystem=strict and failed rc=255 for days). An
+    # unbounded terminate does not fail loudly; it holds the poller open until something else kills it.
+    assert [c["timeout"] for c in rec.calls] == [10, 10, 10]
 
 
 def test_the_teardown_talks_to_our_control_directory_not_the_system_one(monkeypatch, tmp_path):
