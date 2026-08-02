@@ -572,3 +572,116 @@ def test_progress_is_reported_for_skipped_files_and_survives_a_raising_callback(
         raise RuntimeError("the monitor went away")
     m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path), on_progress=boom))
     assert m["ok"] is True and m["total_bytes"] == 46
+
+
+# ── pruning the session walk (2026-08-02) ────────────────────────────────────────────────────────────
+#
+# `list_recordings` always knew a session is exactly `/U/0/<8-digit>/<E|R>/<6-digit>/` — it just applied
+# that filter AFTER walking everything. The real Verity's `/U/0/` also holds `S/`, so the walk descended
+# a subtree that cannot contain a session and discarded the result. Every directory is a PS-FTP round
+# trip on a link stuck at MTU 23, which is why the waste is measured in minutes, not milliseconds.
+
+def _fs_with_a_big_unrelated_subtree():
+    """The measured Verity layout: two files, a session dir, and `S/` holding a deep tree."""
+    c = _fs_with_one_session()
+    c.dirs["/U/0/"] = [("DBDC.DAT", 1), ("USERID.BPB", 70), ("S/", 0), ("20260719/", 0)]
+    c.dirs["/U/0/S/"] = [(f"{i:04d}/", 0) for i in range(20)]
+    for i in range(20):
+        c.dirs[f"/U/0/S/{i:04d}/"] = [("BLOB.BPB", 999)]
+    return c
+
+
+def test_the_session_walk_does_not_descend_the_unrelated_subtree(monkeypatch):
+    c = _fs_with_a_big_unrelated_subtree()
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            return [row async for row in fs.walk("/U/0/", descend=ps._session_descend)]
+    rows = _run(go())
+    paths = {p for p, _sz, _d in rows}
+    assert "/U/0/S/" in paths, "the directory itself is still reported"
+    assert not [p for p in paths if p.startswith("/U/0/S/0")], "must not have recursed into it"
+    assert "/U/0/20260719/E/034500/BPM.GZ" in paths, "the real session is still found"
+
+
+def test_an_unpruned_walk_still_visits_everything(monkeypatch):
+    """The prune is opt-in: `walk`'s existing callers (pull_recording) must be unaffected."""
+    c = _fs_with_a_big_unrelated_subtree()
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            return [row async for row in fs.walk("/U/0/")]
+    paths = {p for p, _sz, _d in _run(go())}
+    assert "/U/0/S/0000/BLOB.BPB" in paths
+
+
+def test_list_recordings_still_finds_the_session_through_the_prune(monkeypatch):
+    c = _fs_with_a_big_unrelated_subtree()
+    _install(monkeypatch, c)
+    got = _run(ps.list_recordings("AA:BB"))
+    assert [s["path"] for s in got] == ["/U/0/20260719/E/034500/"]
+    assert got[0]["total_bytes"] == 12 + 34
+
+
+def test_the_prune_accepts_exactly_the_session_shape():
+    ok = ps._session_descend
+    assert ok("/U/0/") is True                          # the root itself
+    assert ok("/U/0/20260719/") is True                 # a date
+    assert ok("/U/0/20260719/E/") is True               # exercise
+    assert ok("/U/0/20260719/R/") is True               # offline recording
+    assert ok("/U/0/20260719/E/034500/") is True        # the session
+    assert ok("/U/0/20260719/E/034500/sub/") is True    # inside a session, take everything
+
+
+def test_the_prune_rejects_what_cannot_hold_a_session():
+    no = ps._session_descend
+    assert no("/U/0/S/") is False                       # the measured real-world cost
+    assert no("/U/0/SYS/") is False
+    assert no("/U/0/2026071/") is False, "7 digits is not a date"
+    assert no("/U/0/20260719/X/") is False, "only E and R"
+    assert no("/U/0/20260719/E/03450/") is False, "5 digits is not a time"
+
+
+def test_an_unknown_future_sibling_is_pruned_by_default():
+    """Shape-based, not a name blocklist: a new sibling of `S/` must not silently reintroduce the cost."""
+    assert ps._session_descend("/U/0/WHATEVER/") is False
+
+
+# ── the retry actually gets to retry (2026-08-02) ────────────────────────────────────────────────────
+
+def test_a_hanging_attempt_is_bounded_so_the_later_attempts_still_run():
+    """Without a per-attempt bound the retry is dead code in the case it exists for: a wedged link does
+    not raise, it hangs, so attempt 1 eats the whole budget and attempts 2 and 3 never happen."""
+    calls = []
+
+    async def hang():
+        calls.append(1)
+        await asyncio.sleep(30)
+
+    async def go():
+        with pytest.raises(asyncio.TimeoutError):
+            await ps._with_retry(hang, attempts=3, backoff=0.0, per_attempt_timeout=0.02)
+    _run(go())
+    assert len(calls) == 3, "every attempt must get its turn"
+
+
+def test_a_transient_failure_still_succeeds_on_a_later_attempt():
+    state = {"n": 0}
+
+    async def flaky():
+        state["n"] += 1
+        if state["n"] < 3:
+            raise RuntimeError("device disconnected")
+        return "ok"
+
+    assert _run(ps._with_retry(flaky, attempts=3, backoff=0.0, per_attempt_timeout=5.0)) == "ok"
+
+
+def test_without_a_timeout_the_retry_behaves_exactly_as_before():
+    """Back-compat: the parameter is optional and last, and its absence must not change the path."""
+    async def boom():
+        raise RuntimeError("nope")
+    with pytest.raises(RuntimeError):
+        _run(ps._with_retry(boom, attempts=2, backoff=0.0))
