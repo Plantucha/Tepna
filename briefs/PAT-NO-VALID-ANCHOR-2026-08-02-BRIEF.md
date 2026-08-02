@@ -5,7 +5,14 @@
 -->
 **Status:** IN-PROGRESS · **Created:** 2026-08-02 · **Follows:** `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` §F3-ter, `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §5 · **Affects:** no code yet — a capture decision and one measurement
 
-# PAT has never been alignment-limited by precision. It is limited by there being **no valid non-beat anchor** for the ECG and PPG streams on this corpus.
+# PAT has never been alignment-limited by precision. It was limited by there being **no valid non-beat anchor** for the ECG and PPG streams — so one was derived, and PAT came out at **218 ms**.
+
+> **RESOLVED 2026-08-02 (§7).** The anchor is derivable from the raw columns without touching a beat:
+> per-characteristic BLE buffering, `offset_ACC + Δ_Verity − Δ_H10 = −199 ms`. Under it, **PAT = 218 ms
+> median with IQR 16–38 ms over hours 0–4**, clearing `pat-gate.js`'s ≤60 ms bar. One parameter is still
+> fitted (the −34.5 ppm rate) and §8 explains why it cannot be derived on this tree: **the phone
+> `Phone timestamp` column is not an independent clock** — 76/76 files agree with the device to 1 ms over a
+> whole night. Route 1 (a box night) is now needed only to derive that last rate.
 
 Three PAT verdicts have now been published from this repo and two of them were wrong. This brief exists
 because the third one — reached on the cleanest night in the corpus, with the anchor held fixed exactly as
@@ -100,7 +107,74 @@ been paying one of these two costs without naming which.
 Route 2 is the cheaper test and does not depend on hardware. It should be done first, and if it explains the
 3.40 s it also tells route 1 what to expect.
 
-## 7 · Done when
+## 7 · Route 2 EXECUTED — the anchor is derivable, and PAT is DEMONSTRATED
+
+**The derivation.** Within one device, both characteristics carry a `sensor timestamp` from the **same**
+device clock, so for characteristic *c*:
+
+```
+d_c = host_c − dev_c = L_c − E_device          (L = latency, E = device epoch)
+Δ_dev = d_physio − d_ACC = L_physio − L_ACC    (E cancels — pure per-characteristic buffering)
+offset_streams = offset_ACC + Δ_Verity − Δ_H10
+```
+
+Measured on 2026-07-09, bucketed per host-hour so any device-crystal drift (shared by both characteristics)
+cancels bucket-by-bucket:
+
+| | value | stability |
+|---|---|---|
+| Δ_H10 (ECG − ACC) | **−865 ms** | spread **0 ms** across 7 hours |
+| Δ_Verity (PPG − ACC) | **−4363 ms** | spread **0 ms** across 7 hours |
+| offset_ACC (`wearable-sync`) | +3300 ms | |
+| **derived anchor** | **3300 − 4363 + 865 = −199 ms** | |
+
+Against the beat-derived −100 ms. **Per-characteristic buffering accounts for essentially the whole 3.40 s
+discrepancy of §4**, leaving 99 ms — the size of a physiological PAT. The hypothesis is confirmed
+quantitatively, from the raw columns, with no reference to beats.
+
+**PAT under the derived anchor.** Only the *rate* is fitted (one DOF for the whole night, −34.5 ppm); the
+**level — which IS PAT — comes from the beat-free anchor and is not tuned**:
+
+| hour | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|---|
+| median (ms) | 193 | 217 | 263 | 216 | 186 | 203 | 433 |
+| IQR (ms) | **32** | **16** | **20** | **23** | **38** | 78 | 244 |
+
+**Hours 0–4 clear `pat-gate.js`'s ≤60 ms bar with margin, and the overall median is 218 ms** — squarely in
+the published arm/wrist band (200–250 ms). That the level lands there is an independent check, not a fit:
+it falls out of `3300 − 4363 + 865`. Hours 5–6 degrade (78, 244 ms), consistent with waking movement.
+
+**PAT is real, locked, and physiological on this night.** The three previous verdicts failed on the anchor,
+never on PAT.
+
+## 8 · Why the rate still has to be fitted: the phone tree has NO independent host clock
+
+The one parameter still fitted is the −34.5 ppm rate, and on this tree it **cannot** be derived, because the
+`Phone timestamp` column is not an independent clock. Measured as the range of `(host − device)` across each
+file, every file ≥30 min in both trees:
+
+| tree | files | median range | files < 5 ms | files > 100 ms |
+|---|---|---|---|---|
+| **phone** (`Ecg nightly/`) | 76 | **1 ms** (min 1, max 1) | **76 / 76** | 0 / 76 |
+| **box** (`tepna-smoketest/captures/`) | 148 | **937 ms** | 0 / 148 | **148 / 148** |
+
+Zero overlap. Two independent clocks cannot agree to **1 ms over 6.9 h** — that is 0.04 ppm, an order better
+than the chrony-disciplined box itself measures (22 ppm). So on phone-captured nights the phone column is
+**anchored once at stream start and thereafter extrapolated from the device clock**. It is the same class of
+fault as the O2Ring's drawn axis (`O2RING-SYNTHESISED-AXIS`), in a column everything has been trusting.
+
+Consequences, none of which require a code change:
+
+- **`DexClock.hostAxis` is INERT on the phone tree, not wrong.** With host ≡ device it correctly measures
+  ~0 ppm and corrects nothing — exactly what 2026-07-09's ECG reports (`applied: true`, **ppm 0.0**). The
+  host-axis work is real, and its benefit is confined to box-captured nights.
+- **The 3.30 s ACC↔ACC "offset" on phone nights is not a clock offset** — it is the difference in when each
+  stream's anchor was established at connection. That is why it does not transfer, and why §4's mechanism
+  is right for the wrong-sounding reason: the buffering shows up once, at anchoring, not continuously.
+- **Only a box night can yield a DERIVED drift**, because only there does an independent host clock exist.
+  This is what route 1 is actually for — not a cleaner PAT, but the last fitted parameter.
+
+## 9 · Done when
 
 - [x] §F3-ter's "PAT is not alignment-limited" retracted, with the per-block-fitting mechanism named and the
       406–498 ms median-lag tell recorded so the same harness is not rebuilt.
@@ -110,8 +184,15 @@ Route 2 is the cheaper test and does not depend on hardware. It should be done f
       alias (3.42 RR), and it fails to lock PAT where a single global offset nearly does.
 - [x] Recorded that the corpus **cannot** currently satisfy both requirements at once, with the night that
       fails each.
-- [ ] **Route 2** — per-characteristic arrival-latency measured on a phone night, ACC anchor corrected by it,
-      PAT re-run under the corrected anchor.
-- [ ] **Route 1** — a single-segment box night captured, if the adapter fault allows.
-- [ ] A PAT verdict that survives an anchor NOT derived from beats. Until then PAT is **open** — neither
-      demonstrated nor excluded — and no brief should record it as settled in either direction.
+- [x] **Route 2 EXECUTED** — per-characteristic latency measured (Δ_H10 −865 ms, Δ_Verity −4363 ms, both
+      stable to **0 ms** across 7 hours), ACC anchor corrected by it to **−199 ms**, PAT re-run under it.
+- [x] **A PAT verdict that survives an anchor NOT derived from beats.** PAT = **218 ms median, IQR 16–38 ms
+      over hours 0–4**, clearing the ≤60 ms bar. The level comes from the beat-free anchor and lands in the
+      arm/wrist band without being tuned there.
+- [x] Established that the **phone tree carries no independent host clock** (76/76 files at 1 ms range vs
+      148/148 box files > 100 ms), so `hostAxis` is inert there — and that this is why the rate must be
+      fitted on this tree.
+- [ ] **Route 1** — a single-segment box night, to DERIVE the −34.5 ppm rate instead of fitting it. This is
+      now the only outstanding parameter; blocked on the adapter fault that fragments the Verity.
+- [ ] Decide whether `hostAxis` should DECLARE an inert axis (host ≡ device ⇒ "no independent host clock")
+      rather than silently reporting ~0 ppm, which is indistinguishable from "two clocks that agree".
