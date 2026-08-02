@@ -80,6 +80,14 @@ async function rateOf(file) {
   return { file: path.basename(file), spanMin, ppm: (slope - 1) * 1e6, samples: kept };
 }
 
+/* A ppm slope needs TIME LEVERAGE, and file size is not a proxy for it — a high-rate ECG
+   fragment can exceed 3 MB while spanning eleven minutes. Measured on 2026-07-27 with this
+   tool: the 373-minute H10 fragment gives -20.3 ppm, the 10.9-minute one gives -65.8. Both
+   pass a 3 MB filter; only one is a rate. Fragments under MIN_SPAN_MIN are still printed —
+   silently dropping them would hide how few long fragments a night actually has — but they
+   are marked, and excluded from any summary a reader would quote. */
+const MIN_SPAN_MIN = 60;
+
 const files = fs.readdirSync(DIR).filter((f) => /(H10.*_ECG|VeritySense.*_PPG|O2Ring.*_PPG)\.txt$/.test(f));
 const big = files
   .map((f) => ({ f, sz: fs.statSync(path.join(DIR, f)).size }))
@@ -87,6 +95,7 @@ const big = files
   .sort((a, b) => b.sz - a.sz)
   .slice(0, 6);
 console.log('DEVICE RATE vs HOST CLOCK — measured directly from the two columns in each raw file\n');
+const byDev = {};
 console.log('device   spanMin   ppm vs host   samples   file');
 for (const { f } of big) {
   const r = await rateOf(path.join(DIR, f));
@@ -95,5 +104,19 @@ for (const { f } of big) {
     continue;
   }
   const dev = /H10/.test(f) ? 'H10   ' : /Verity/.test(f) ? 'VERITY' : 'O2RING';
-  console.log(`${dev}  ${r.spanMin.toFixed(1).padStart(7)}   ${r.ppm.toFixed(1).padStart(11)}   ${String(r.samples).padStart(7)}   ${r.file}`);
+  const short = r.spanMin < MIN_SPAN_MIN;
+  if (!short) (byDev[dev.trim()] ||= []).push(r.ppm);
+  console.log(`${dev}  ${r.spanMin.toFixed(1).padStart(7)}   ${r.ppm.toFixed(1).padStart(11)}   ${String(r.samples).padStart(7)}   ${r.file}${short ? `   ← under ${MIN_SPAN_MIN} min, not a rate` : ''}`);
+}
+
+/* Summary over the long fragments only. The spread across fragments is the honest error bar
+   on a device's rate, and it is what separates a disciplined crystal from a counter that is
+   not one: the two Polars hold a few ppm across a night, the O2Ring does not. */
+console.log('\n            fragments ≥' + MIN_SPAN_MIN + ' min   median ppm   spread');
+for (const [dev, vals] of Object.entries(byDev)) {
+  if (!vals.length) continue;
+  const s2 = vals.slice().sort((a, b) => a - b);
+  const md = s2[s2.length >> 1];
+  const spread = s2[s2.length - 1] - s2[0];
+  console.log(`  ${dev.padEnd(8)} ${String(vals.length).padStart(12)}   ${md.toFixed(1).padStart(10)}   ${spread.toFixed(1).padStart(6)}${spread > 50 ? '   ← not a disciplined clock' : ''}`);
 }
