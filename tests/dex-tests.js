@@ -23591,6 +23591,68 @@
         T.eq('matchRecall · truths but no detections ⇒ 0', mr([], [1000], -10, 60), 0);
       }
 
+      /* ── CROSS-SITE · matchRecall is implemented TWICE, and the assertions above gate ONE of them ────
+         `cohort-regression.js:226` and `cohort-runner.html:293` carry INDEPENDENT implementations of the
+         same greedy one-to-one desat-recall matcher — same [−10 s, +60 s] window, same semantics,
+         different code and different return shapes (a bare ratio vs an object with recall/precision/
+         matched). Neither is generated from the other, and the RUNNER's copy is the one that actually
+         drives the cohort. No executable entry spans both, so agreement is asserted by source scan —
+         the same rationale (and the same anti-vacuity discipline) as the DesSev band scan, DA-II §2.2.
+
+         Both files must be in `env.sources` in BOTH lanes. If a lane forgets one, the scan reads nothing
+         and would pass by silence — which is exactly the hole `Dex-Test-Suite.html`'s own motiondex-dsp
+         comment records. The first assertion below refuses that outcome. */
+      var _crSites = [
+        { file: 'cohort-regression.js', src: (env.sources || {})['cohort-regression.js'] },
+        { file: 'cohort-runner.html', src: (env.sources || {})['cohort-runner.html'] }
+      ];
+      var _crSeen = _crSites.filter(function (s) {
+        return s.src && /function\s+matchRecall\s*\(/.test(s.src);
+      });
+      // ANTI-VACUITY: a scan that finds nothing must FAIL, not pass by silence.
+      T.eq(
+        'matchRecall cross-site · BOTH implementations are visible to this scan (a lane missing one would pass by silence)',
+        _crSeen.length,
+        2,
+        'found: ' +
+          JSON.stringify(
+            _crSites.map(function (s) {
+              return s.file + (s.src ? (/function\s+matchRecall\s*\(/.test(s.src) ? ':ok' : ':no-matchRecall') : ':NOT-IN-env.sources');
+            })
+          )
+      );
+      if (_crSeen.length === 2) {
+        // isolate each matchRecall body, then normalise whitespace so formatting differences do not matter
+        var _crBody = function (s) {
+          var i = s.src.search(/function\s+matchRecall\s*\(/);
+          return s.src.slice(i, i + 900).replace(/\s+/g, ' ');
+        };
+        var _bodies = _crSeen.map(function (s) {
+          return { file: s.file, body: _crBody(s) };
+        });
+        var _bothMatch = function (re) {
+          return _bodies.filter(function (b) {
+            return re.test(b.body);
+          });
+        };
+        // (1) both convert SECONDS → ms on BOTH bounds. Dropping one ×1000 shrinks the window 1000-fold.
+        var _ms = _bothMatch(/lo\s*=\s*loSec\s*\*\s*1000/).length === 2 && _bothMatch(/hi\s*=\s*hiSec\s*\*\s*1000/).length === 2;
+        T.ok('matchRecall cross-site · both sites convert loSec/hiSec seconds→ms on BOTH bounds', _ms, JSON.stringify(_bodies.map(function (b) { return b.file + ':' + /lo\s*=\s*loSec\s*\*\s*1000/.test(b.body) + '/' + /hi\s*=\s*hiSec\s*\*\s*1000/.test(b.body); })));
+        // (2) both test the SIGNED window with BOTH edges inclusive. |d| would silently double the
+        //     tolerance; a strict edge would drop a detection exactly on it.
+        var _win = _bothMatch(/d\s*>=\s*lo\s*&&\s*d\s*<=\s*hi/);
+        T.eq('matchRecall cross-site · both test `d >= lo && d <= hi` — signed, both edges inclusive, never |d|', _win.length, 2, JSON.stringify(_bodies.map(function (b) { return b.file + ':' + /d\s*>=\s*lo\s*&&\s*d\s*<=\s*hi/.test(b.body); })));
+        // (3) both carry a used-set so a detection cannot satisfy two truth events (the inflating bug)
+        var _used = _bothMatch(/new Set\(\)/).length === 2 && _bothMatch(/\.has\(/).length === 2 && _bothMatch(/\.add\(/).length === 2;
+        T.ok('matchRecall cross-site · both carry a used-set (new Set + .has + .add) keeping the match one-to-one', _used, JSON.stringify(_bodies.map(function (b) { return b.file + ':' + /new Set\(\)/.test(b.body) + '/' + /\.has\(/.test(b.body) + '/' + /\.add\(/.test(b.body); })));
+        // (4) both CALL SITES pass the same window. Agreement inside the function is worthless if the
+        //     two pages grade on different tolerances.
+        var _calls = _crSeen.map(function (s) {
+          return { file: s.file, win: /matchRecall\([\s\S]{0,220}?-10\s*,\s*60\s*\)/.test(s.src) };
+        });
+        T.ok('matchRecall cross-site · both call sites use the SAME [−10 s, +60 s] window', _calls.every(function (c) { return c.win; }), JSON.stringify(_calls));
+      }
+
       // ── qrs-equiv: Pearson r + Bland-Altman (the rMSSD three-way equivalence stats) ──
       var QE = env.QrsEquiv;
       T.ok('QrsEquiv.pearson + ba are wired into env (both lanes)', !!(QE && typeof QE.pearson === 'function' && typeof QE.ba === 'function'), 'window.QrsEquiv missing');
