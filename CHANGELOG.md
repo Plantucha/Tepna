@@ -30,6 +30,32 @@ changesets.)
 
 ---
 
+## [2.4.0] — 2026-08-02
+
+### Added
+- Bring capture-host's shell surface under test and lint — the three NOPASSWD root helpers had neither.
+- Check a pairwise clock fit against itself: three sources must close to zero, and on six real nights they never do. (`CLOCK-CLOSURE-THREE-SOURCE-2026-08-01-BRIEF.md`)
+- Records a finding reached three times independently tonight — twice by sessions that retracted their own earlier conclusions getting there — and generalises it beyond the analysis that produced it. (`CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md`)
+- `adapters/o2ring-ppg.js` — the O2Ring finger pleth now routes, and is analyzed at its true site. (`ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md`)
+- Add the Phase-0 recon probe for Polar onboard recording, and the brief it answers. (`POLAR-ONBOARD-BACKUP-2026-08-01-BRIEF.md`)
+- `tools/ppg-gap-bridge-scan.mjs` — §4 was deferred on a counter that cannot respond. (`O2RING-PPG-GAP-2026-07-22-BRIEF.md`)
+- `tools/tch-degeneracy-stats.mjs` — the residual TCH degeneracy measured, and two of the brief's three claims about it do not survive. (`TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md`)
+- Fit wearable clock DRIFT, not just offset — the pair is 87 ppm apart and one number cannot hold a night. (`WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md`)
+- Locate why drift unwrapping fails — per-block offset precision, not the algorithm — and make the constant-offset precondition checkable. (`JOINT-UNWRAP-ATTEMPT-2026-08-02-BRIEF.md`)
+
+### Changed
+- Corrects §2.5's account of *why* the drift corpus is six nights. The original reason — "the O2Ring's live PPG capture began 2026-07-25" — is true but incomplete, and would send a reader looking in the wrong place. (`CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md`)
+- Adds §3.6 — a trap found while trying to verify `PAT-PERBLOCK-ALIGNMENT`'s correction of §3.2, and distinct from what that correction identifies. (`CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md`)
+- Adds §2.6 — the two steps past closure that three devices allow, both run through the suite's **own** `integrator-tch.js` rather than a hand-rolled decomposition. (`CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md`)
+
+### Fixed
+- **`IBI-ALIGNMENT-LIMIT`'s title claim is retracted. RR↔PPI *can* align these devices.** (`IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md`)
+- Record that fitClockDrift does not phase-unwrap, so its ppm figures are not quotable without closure. (`CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md`)
+- Two stale claims corrected in place, and the two gate limits that let them survive recorded. (`DOCS-LEDGER-CHECK3B-BLIND-ROW-2026-08-01-BRIEF.md`)
+- Correct a wrong-quantity comparison: PAT is limited by pulse transit time, not by clock alignment. (`PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md`)
+
+---
+
 ## [2.3.0] — 2026-08-01
 
 ### Added
@@ -857,7 +883,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/Plantucha/Tepna/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/Plantucha/Tepna/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/Plantucha/Tepna/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/Plantucha/Tepna/compare/v2.0.0...v2.1.0
