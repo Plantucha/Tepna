@@ -22260,6 +22260,25 @@
        proves a pairwise fit is wrong WITHOUT any reference clock. Planted three-clock control, then a
        deliberately corrupted leg, because a consistency test that has never been seen to fire is not
        evidence it would fire. */
+    /* The constant-offset precondition (CROSS-DEVICE-DRIFT-AND-CLOSURE §3.1). Pinned because the
+       CPAP-vs-wearable distinction was previously implicit, and §3.1 called its safety "luck, not
+       design". It is not luck — it is three orders of magnitude, and this makes that checkable. */
+    group('constant-offset precondition scales with the CONSUMER resolution', 'integrator-dsp · clock · precondition', function (T) {
+      var D = env.IntegratorDSP;
+      if (!D || typeof D.maxTolerableDriftPpm !== 'function') { T.skip('maxTolerableDriftPpm available', 'not loaded'); return; }
+      var night = 7 * 3600;
+      var coarse = D.maxTolerableDriftPpm(night, 120); // runFusion event pairing
+      var beat = D.maxTolerableDriftPpm(night, 0.08); // fitClockDrift beat matching
+      var pat = D.maxTolerableDriftPpm(night, 0.06); // pat-gate.js
+      T.ok('event pairing tolerates thousands of ppm', coarse > 4000 && coarse < 5000, Math.round(coarse) + ' ppm');
+      T.ok('beat matching tolerates only a few ppm', beat > 2 && beat < 4, beat.toFixed(1) + ' ppm');
+      T.ok('the PAT bar is tighter still', pat < beat, pat.toFixed(1) + ' ppm');
+      /* THE POINT: measured wearable drift (order 100 ppm) is safe for the first and not the second,
+         and the ratio is what makes the CPAP path safe by design rather than by luck. */
+      T.ok('a 100 ppm wearable pair is SAFE for event pairing and UNSAFE at beat resolution', 100 < coarse && 100 > beat);
+      T.ok('degenerate inputs refuse rather than return a number', D.maxTolerableDriftPpm(0, 1) === null && D.maxTolerableDriftPpm(1, 0) === null);
+    });
+
     group('fitClockClosure — three clocks must close to zero', 'integrator-dsp · clock · closure', function (T) {
       var D = env.IntegratorDSP;
       if (!D || typeof D.fitClockClosure !== 'function') { T.skip('IntegratorDSP.fitClockClosure available', 'not loaded'); return; }

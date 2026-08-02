@@ -4576,6 +4576,20 @@ function fitClockDrift(aTimes, bTimes, opts) {
      explicit loop rather than map/filter/sort: a null reaching the comparator silently reorders the
      median, and the filter does not narrow the type for the checker either. */
   /** @type {number[]} */
+  /* The wrapped-residual fit (see _wrappedSlopeFit) — reported BESIDE the raw regression rather than
+     replacing it, so the two can be compared on real data and the raw one stays available for the
+     nights where the phase is undersampled and wrapping buys nothing. */
+  var _d2 = [];
+  for (var u2 = 1; u2 < A.length; u2++) {
+    var dd2 = A[u2] - A[u2 - 1];
+    if (dd2 > 200 && dd2 < 3000) _d2.push(dd2);
+  }
+  _d2.sort(function (x, y) {
+    return x - y;
+  });
+  var _rrMs = _d2.length ? _d2[Math.floor(_d2.length / 2)] : null;
+  var _wrapped = _rrMs ? _wrappedSlopeFit(rows, _rrMs, opts) : null;
+
   var iq = [];
   for (var i4 = 0; i4 < rows.length; i4++) {
     var iv = rows[i4].iqr;
@@ -4591,6 +4605,13 @@ function fitClockDrift(aTimes, bTimes, opts) {
     chanceCorrespondence: chance,
     medianIqrMs: iq.length ? iq[Math.floor(iq.length / 2)] : null,
     blocks: n,
+    rrMs: _rrMs,
+    /* PHASE-AWARE alternative to `driftPpm`: same blocks, scored modulo one RR so a whole-RR argmax
+       fallback costs nothing. `wrappedConcentration` near 1 means every block agrees on the phase;
+       low values are the undersampled case where the number is not a measurement. */
+    wrappedDriftPpm: _wrapped ? _wrapped.driftPpm : null,
+    wrappedConcentration: _wrapped ? _wrapped.concentration : null,
+    wrappedResidRmsMs: _wrapped ? _wrapped.residRmsMs : null,
     spanMin: Math.round((A[A.length - 1] - A[0]) / 60000),
     /* The search window BOUNDS what drift can be seen: a pair drifting faster than this walks out of
        range mid-night and the regression flattens toward zero (measured: a planted 250 ppm reads 49).
@@ -4628,6 +4649,74 @@ function fitClockDrift(aTimes, bTimes, opts) {
    that fails both is the suspect. Attempting more (a three-cornered-hat variance decomposition) on
    legs this weak returns a NEGATIVE variance and a reconstruction that disagrees with its own input;
    that was tried and is not shipped. */
+/* ── WRAPPED-RESIDUAL SLOPE FIT — the unwrap that cannot propagate ───────────────────────────────
+   The per-block offset is a PHASE on a comb one RR wide (CROSS-DEVICE-DRIFT-AND-CLOSURE §2.2), so a
+   raw slope measures the sawtooth. The obvious repair — walk the series and step each block by whole
+   RRs to minimise its jump — was implemented and MEASURED TO BE WORSE: three-source closure went from
+   101/101/58 ppm to −266/209/−202, because a single wrong multiple on a weakly-locking pair rides the
+   cumulative sum for the rest of the night.
+
+   The defect is sequential accumulation, so remove it. Do not unwrap at all: grid-search the SLOPE and
+   score each candidate by its residuals taken MODULO one RR. A whole-RR fallback then costs nothing —
+   it wraps to the same residual — while a wrong slope misaligns every block at once. No step can
+   propagate because no step is ever taken.
+
+   MEASURED, AND IT DOES NOT YET WORK ON THIS CORPUS — shipped as a DIAGNOSTIC, not as the answer.
+   `concentration` is the falsifier: 1 means every block agrees on the phase, and on real nights it
+   reads 0.15-0.59. Wrapped residuals that near-uniform have nothing to lock onto, so the wrapped slope
+   is no better than the raw one (three-source closure across a 3x3 sweep of blockMs x tolMs came out
+   77, -164, -44, -10, 268, 0, 70, -142, -451 ppm — one value lands on zero, and picking it from nine
+   tries scattered +-450 would be cherry-picking). Concentration rises with block length (0.29 at 5 min
+   to 0.59 at 15 min) exactly as more beats per block predicts, which locates the blocker: it is the
+   PRECISION OF THE PER-BLOCK OFFSET relative to one RR, not the unwrap algorithm. Until a block offset
+   is good to well under an RR, no unwrap — sequential or phase-regressed — has a signal to unwrap.
+
+   So `driftPpm` remains the raw regression and `wrappedDriftPpm` rides beside it with its own
+   concentration, so a caller can see both and trust neither without a closure residual.
+
+   This is ordinary phase regression, and it leaves CLOSURE INTACT AS A FREE CHECK: each pair is fitted
+   independently, so d(A,B)+d(B,C)+d(C,A) is still an over-determined constraint that the fit never
+   used and therefore cannot have fabricated. (Enforcing closure inside the fit would make it exact by
+   construction and destroy it as evidence — the reason the joint solve below is reported SEPARATELY.) */
+function _wrappedSlopeFit(rows, rrMs, opts) {
+  opts = opts || {};
+  if (!rows || rows.length < 4 || !(rrMs > 0)) return null;
+  var t0 = rows[0].tMs;
+  var maxPpm = opts.maxSlopePpm != null ? opts.maxSlopePpm : 400;
+  var stepPpm = opts.slopeStepPpm != null ? opts.slopeStepPpm : 0.5;
+  var wrap = function (v) {
+    var w = v - rrMs * Math.round(v / rrMs);
+    return w;
+  };
+  var best = null;
+  for (var ppm = -maxPpm; ppm <= maxPpm; ppm += stepPpm) {
+    var sl = ppm / 1e6; // ms of offset per ms of elapsed time
+    /* The intercept is itself only known modulo RR, so it must be fitted too — solved as a circular
+       mean of the wrapped residuals rather than a second grid, which keeps this O(slopes × blocks). */
+    var sx = 0,
+      sy = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var ang = (2 * Math.PI * (rows[i].off - sl * (rows[i].tMs - t0))) / rrMs;
+      sx += Math.cos(ang);
+      sy += Math.sin(ang);
+    }
+    var phase = (Math.atan2(sy, sx) / (2 * Math.PI)) * rrMs;
+    var cost = 0;
+    for (var j = 0; j < rows.length; j++) {
+      var r = wrap(rows[j].off - sl * (rows[j].tMs - t0) - phase);
+      cost += r * r;
+    }
+    /* Concentration of the wrapped residuals — 1 = every block agrees, 0 = uniform around the circle.
+       Reported because a low-concentration "best" slope is the undersampled-phase case §2.3 warns
+       about, where the answer is a broken unwrap wearing ppm units. */
+    var R = Math.sqrt(sx * sx + sy * sy) / rows.length;
+    if (!best || cost < best.cost) best = { ppm: ppm, cost: cost, phaseMs: phase, concentration: R };
+  }
+  if (!best) return null;
+  var rms = Math.sqrt(best.cost / rows.length);
+  return { driftPpm: best.ppm, offsetMs: best.phaseMs, residRmsMs: rms, concentration: best.concentration, blocks: rows.length };
+}
+
 function fitClockClosure(sources, opts) {
   opts = opts || {};
   var src = (sources || []).filter(function (s) {
@@ -4646,7 +4735,9 @@ function fitClockClosure(sources, opts) {
         confident: !!r.confident,
         correspondence: r.medianCorrespondence,
         chance: r.chanceCorrespondence,
-        reason: r.reason
+        reason: r.reason,
+        wrappedDriftPpm: r.wrappedDriftPpm,
+        wrappedConcentration: r.wrappedConcentration
       });
     }
   var byKey = {};
@@ -4705,6 +4796,26 @@ function fitClockClosure(sources, opts) {
       return !t.consistent;
     })
   };
+}
+
+/* ── THE CONSTANT-OFFSET PRECONDITION (CROSS-DEVICE-DRIFT-AND-CLOSURE §3.1/§5) ───────────────────
+   Every consumer of a per-night CONSTANT offset inherits an assumption nothing states: that the pair's
+   relative drift, times the night, is small against that consumer's OWN resolution. The tolerance is
+   therefore a property of the CONSUMER, not of the fit — which is why one number cannot be baked in:
+
+     consumer                        resolution     max drift over a 7 h night
+     runFusion event pairing         +-120 s        ~4,700 ppm     safe
+     desat<->apnea coupling          -15..+60 s     ~2,400 ppm     safe
+     fitClockOffsetPooled support     ~30 s         ~1,200 ppm     safe for CPAP (-9..-29 ppm)
+     fitClockDrift beat matching     +-80 ms        ~3 ppm         NOT safe (wearables run 100+)
+     pat-gate.js                     <=60 ms        ~2.4 ppm       NOT safe
+
+   So the CPAP path is not safe by luck, as §3.1 supposed — it is safe by three orders of magnitude.
+   What is unsafe is anything at BEAT resolution, which is exactly the two consumers that matter for
+   PAT. Exported so a caller can ask rather than assume. */
+function maxTolerableDriftPpm(spanSec, resolutionSec) {
+  if (!(spanSec > 0) || !(resolutionSec > 0)) return null;
+  return (resolutionSec / spanSec) * 1e6;
 }
 
 function fitClockOffsetPooled(anchorTimes, channels, opts) {
@@ -5733,8 +5844,10 @@ window.IntegratorDSP = {
      fit; do not add callers here. */
   fitClockOffset,
   fitClockOffsetPooled,
+  maxTolerableDriftPpm,
   fitClockDrift,
   fitClockClosure,
+  _wrappedSlopeFit,
   // Timing fiducial over timeseries.spo2 — deliberately NOT OxyDex's clinical desat_event.
   desatOnsetsFromSeries,
   // Wearable-to-wearable alignment (see the ACC block above): offset + drift in ppm.
