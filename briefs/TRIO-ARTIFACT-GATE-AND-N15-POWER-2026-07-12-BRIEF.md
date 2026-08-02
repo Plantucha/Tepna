@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (still LIVE — **do NOT retire this as superseded**; re-checked 2026-07-19) · **Created:** 2026-07-12 · **⚠️ NOT superseded by [`TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md`](TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md), despite its header saying it "executes its intent with a better estimator"** — that line describes the ESTIMATOR only (§3's cross-corner consensus gate is indeed replaced by the fused weighted-variance hat), and reading it as a full supersession is a trap this note exists to close: an open-brief review on 2026-07-19 did exactly that and nearly retired a brief that is on the critical path. TCH-FUSED's own "Done when" **routes work BACK here** — its second box is still open on the power tool's REAL overlay, which needs a **confidence-carrying (`ms;hr;c`) corpus re-derivation** that THIS brief owns, and the same re-derivation is what [`TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`](TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md) is blocked on. Retiring this brief would orphan that leg and leave both the paper chain and the fused hat stuck with no owner. · **Follows:** `PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md` §2 · **Feeds:** `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md` · `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md` · `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md`
+**Status:** PROPOSED (still LIVE — **do NOT retire this as superseded**; re-checked 2026-07-19; **Done-when reconciled with the ⚠️ DISPROVEN-§3 banner + degeneracy measured 2026-08-01, see §6**. Two Done-when boxes asked for exactly the cross-corner consensus gate the banner above declares dead — the banner landed 2026-07-18 and the list was never reconciled with it, so a reader working the list top-to-bottom would have built the forbidden thing; both are now RETIRED in place with the substance re-homed, not dropped. The residual-degeneracy box is ANSWERED: **8 of 39 nights (21 %)**, not "several" — but its two attributions do **not** survive measurement (the boundary corner is not attributable at n=8, p=0.088; and degenerate nights carry *less* co-motion ρ, 0.26 vs 0.41, which inverts the correlated-error reading). §1/§2's findings and the N=15 power material are untouched) · **Created:** 2026-07-12 · **⚠️ NOT superseded by [`TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md`](TCH-FUSED-ROBUST-HAT-2026-07-14-BRIEF.md), despite its header saying it "executes its intent with a better estimator"** — that line describes the ESTIMATOR only (§3's cross-corner consensus gate is indeed replaced by the fused weighted-variance hat), and reading it as a full supersession is a trap this note exists to close: an open-brief review on 2026-07-19 did exactly that and nearly retired a brief that is on the critical path. TCH-FUSED's own "Done when" **routes work BACK here** — its second box is still open on the power tool's REAL overlay, which needs a **confidence-carrying (`ms;hr;c`) corpus re-derivation** that THIS brief owns, and the same re-derivation is what [`TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md`](TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md) is blocked on. Retiring this brief would orphan that leg and leave both the paper chain and the fused hat stuck with no owner. · **Follows:** `PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md` §2 · **Feeds:** `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md` · `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md` · `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md`
 
 # The three-cornered hat is not robust to artifact — two σ estimates were wrong in opposite directions
 
@@ -146,16 +146,81 @@ most stable corner in the trio** (SD 0.49 across nights) — the opposite of wha
 - [ ] **Raise/relativise `buildNN`'s epoch-level guard.** `sqiThr = 0.30` is too low: burst beats at 0.37–0.45
       pass it. Prefer an epoch-level **relative** test (epoch mean SQI well below the record's own median)
       over raising the absolute per-beat threshold, which would reject good beats on quiet records.
-- [ ] **Add the cross-corner consensus gate to the TCH path** (`IntegratorTCH` / `tools/tch-multinight.mjs`):
-      drop an epoch where one corner disagrees with both others by >10 bpm, and **report the count dropped**
-      (CLAUDE.md: no silent caps). Gate on quality, never on rhythm — see the AF trap in §1.
-- [ ] **Re-run `SENSOR-TRIO-NIGHTS` with the gate on** and restate its deliverable. The paper currently answers
-      *"how many windows?"*; the honest answer is **"how many, and is your gate censoring the hard ones, and is
-      your epoch hygiene clean?"** Both corrections must be stated — they push in opposite directions.
-- [ ] **Diagnose the residual TCH degeneracy** — several nights still yield negative variance (σ = null) or
-      implausibly small σ (0.05–0.17 bpm) even after gating. That is the known quiet-order / correlated-error
-      regime (`INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III` §1), and it is a **separate** defect from artifact
-      contamination. Do not conflate them.
+- [x] ~~**Add the cross-corner consensus gate to the TCH path**~~ — **RETIRED 2026-08-01, do not build.**
+      This box asked for exactly the thing the ⚠️ banner at the top of this brief says is **DISPROVEN**:
+      `TCH-FUSED-ROBUST-HAT` prototyped the gate on the real corpus and found it *"either unreliable or
+      biases the noisiest corner"*. The banner was added 2026-07-18 and this list was never reconciled with
+      it, so a reader working the Done-when list top-to-bottom would have built the thing the header
+      forbids. Its validated replacement is the fused-weight hat (per-second `c = density_trust ×
+      quality_trust` driving a weighted-variance TCH) — build that, in `TCH-FUSED-ROBUST-HAT`.
+- [x] ~~**Re-run `SENSOR-TRIO-NIGHTS` with the gate on**~~ — **RETIRED 2026-08-01 with the box above**: it is
+      conditioned on "with the gate on", and there is no gate. The *substance* survives and is NOT dropped —
+      the paper must still state both corrections (censoring of hard nights, and epoch hygiene), which push
+      in opposite directions. That obligation now belongs to the re-run under the FUSED hat, and is tracked
+      by `TCH-FUSED-ROBUST-HAT`'s own second Done-when box (the real-overlay re-derivation this brief owns
+      the `ms;hr;c` corpus for).
+- [x] **Diagnose the residual TCH degeneracy — MEASURED 2026-08-01, see §6.** It is **8 of 39 nights (21 %)**,
+      not "several"; the boundary corner is **not attributable** at this n; and the correlated-error reading
+      is **not supported by the one proxy available** — degenerate nights carry *less* co-motion ρ, not more.
+      It remains a defect distinct from artifact contamination, as this box said.
+
+## §6 — The residual degeneracy, MEASURED 2026-08-01 (and two of its three claims do not survive)
+
+The last Done-when box asserted three things. Only one of them was a measurement.
+
+**Reproduce:**
+```sh
+node tools/tch-multinight.mjs --dir uploads/trio > /tmp/tch.txt
+node tools/tch-degeneracy-stats.mjs /tmp/tch.txt      # --selftest runs with no corpus
+```
+The estimation is entirely `tch-multinight`'s (the shipped `IntegratorTCH.threeCorneredHat`); the new tool
+only counts and tests, so nothing here re-estimates σ.
+
+### 6.1 "several nights" → **8 of 39 (21 %)**
+
+A fifth of the corpus, not a handful. Every one is the same failure: negative classic variance, so the
+correlated fit lands on the non-negativity boundary and the boundary member's σ is ~0 **by construction,
+not by measurement** — which `tch-multinight` already says in its own excluded-night banner.
+
+### 6.2 "which corner" → **not attributable at this n**
+
+| boundary member | nights |
+|---|---|
+| OxyDex | 5 |
+| PpgDex | 2 |
+| ECGDex | 1 |
+
+OxyDex leads, and it is tempting: it is the 1 Hz-quantised corner, so a quiet-order story writes itself.
+But `P(X ≥ 5 | n = 8, uniform ⅓) = 0.088`. **That is not a finding**, and recording it as one would be the
+`estimatedAHI` mistake in miniature — a plausible mechanism resting on a correlation nobody tested.
+
+### 6.3 "the known quiet-order / correlated-error regime" → **the one available proxy points the other way**
+
+`ρ` is the per-night co-motion correlation (mean of the positive pairwise motion Pearsons, clamped to
+[0, 0.9]) — and it is precisely the parameter the correlated fit uses to *rescue* these nights; the tool's
+own header says the motion-ρ "RESCUES the quiet-order nights".
+
+| | n | median ρ |
+|---|---|---|
+| degenerate | 8 | **0.26** |
+| estimated | 31 | **0.41** |
+
+Two-sided permutation p = **0.090** — suggestive, not significant. Two-sided **on purpose**: the direction
+was chosen after seeing the medians, and a one-sided p there is the garden of forking paths.
+
+So the honest reading, offered as a hypothesis and not a result: these nights may fail **not** because they
+carry more correlated error, but because they carry **too little co-motion for the ρ-correction to grip** —
+the rescue mechanism has nothing to work with, so the solve stays on the boundary. That inverts the box's
+attribution. At n = 8 it cannot be settled either way, and the deliverable is saying so rather than
+producing a number.
+
+### 6.4 What would settle it
+
+More degenerate nights — which means more nights, since the rate is ~1 in 5. The corner attribution needs
+roughly n ≥ 25 degenerate nights to separate 5/8-style leads from chance at this effect size, i.e. ~125
+trio nights against the 40 available. Until then §6.2 and §6.3 stay open questions, and the fused-weight
+hat (`TCH-FUSED-ROBUST-HAT`) is the path that does not depend on answering them: it replaces the
+boundary-prone solve rather than diagnosing when it fails.
 
 ## Inputs (already committed)
 
