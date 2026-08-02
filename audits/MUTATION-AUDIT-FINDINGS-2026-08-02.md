@@ -291,11 +291,70 @@ residue changes what the box does.
 
 ---
 
+## Fourth pass — `writers.py`, closed (2026-08-02)
+
+The module that writes the corpus. **No shipped source changed.**
+
+| module | kill rate | survivors | killed this pass | regressions |
+|---|---|---|---|---|
+| `writers.py` | 76 % → **90 %** | 137 → 54 | 83 | 0 |
+
+* **`fsync: bool = True` was unpinned in all five writers at once.** Every test in
+  `test_writers_sidecars.py` constructs with `fsync=False` — correctly, to stay fast — so nothing held
+  the default, and flipping it writes a whole night into page cache and calls it recorded. The audit
+  made this exact finding once already on `alerts.Notifier(enabled=False)`; that it recurs is the
+  point. A fail-safe default is invisible to a suite that always passes the argument.
+* **Twenty-four survivors in one `";".join(...)`** in `HostClockLogWriter.write` — `st.get("stratum")`
+  → `st.get(None)`, `"reference"` → `"REFERENCE"` — under assertions that read `cells[1]`, `[2]`, `[3]`
+  and the last. The six columns in between were free to be anything, in the sidecar whose whole purpose
+  is telling "stratum-1 PPS all night" from "the box free-ran on its RTC".
+* The **`_RR` sibling**: `is not None` → `is None` in both `flush()` and `close()`, so the per-beat
+  intervals never leave a 1 MiB buffer. Every existing RR assertion read the file *after* `close()`,
+  which is the one moment that hides. Also the `rsplit("_HR.", 1)` the source comments at length and
+  nothing tested.
+* **`max(0, n-1)` → `max(1, n-1)`** on the open-writer counter: it floors at one and never reaches zero,
+  so `capture`'s empty-writers health check believes the box is recording forever.
+* PPI flag bits unpacked from the wrong positions ("skin contact supported" stuck at 1 turns an
+  unknowable into a positive claim), and `file_stamp`/`file_device_id` over the filename shapes their
+  own docstrings name.
+
+### A test of mine broke the harness, in the way §2 predicts
+
+`test_the_open_writer_count_returns_to_zero` first asserted the AMBIENT module global
+(`open_sample_writers() == 0`) rather than resetting it. Plain `pytest` passed; mutmut's stats phase
+orders tests differently, hit `assert 2 == 0`, and **the whole module reported "not checked"** — which
+reads as a broken environment rather than a broken test, exactly the harness defect recorded above. It
+now resets the counter via `monkeypatch`. Two lessons worth keeping: a test that reads ambient global
+state is order-dependent even when it passes, and a `mutmut results` read while a run is still going
+prints "not checked" for every mutant, which is indistinguishable from the real failure.
+
+### What is left, and why it is not worth grinding
+
+**54 survivors.** Twenty are `buffering=` sizes (byte-identical output), ten are `newline=None` — which
+on Linux translates `\n` to `os.linesep` = `\n`, so it is equivalent on the only platform this ships
+to — five are the `>=` → `>` float boundary on the flush cadence, four are `self._counted = None` vs
+`False` (both falsy), and the rest are `rstrip("XX0XX")`-style literals that strip the same characters
+plus an `X` that never appears in a formatted float. Nothing in the residue changes a written byte.
+
+---
+
 ## Where to go next (highest value first)
 
-1. **`webmon.py` — 954 survivors at the second-pass measurement**, and **926 of them in `make_app`**;
-   #716 has since taken it to 82 % / 417. Do it a route at a time:
-   `--only 'webmon.x_make_app__mutmut_*'`. Re-measure first.
+1. **`webmon.py` — re-measured 2026-08-02 after #716: 2 345 mutants, 395 survivors + 25 timeouts,
+   82 % killed, and 386 of the 395 in `make_app`.** So "webmon is weakly tested" is really "the aiohttp
+   route table is weakly tested" — the unit of work is a ROUTE, not the function. Triaged into six
+   clusters: error-response bodies (`{"ok": False}` → `{"ok": True}` at status 400/409/502, invisible
+   to tests that assert only `resp.status`), arguments discarded by helper doubles, the config
+   atomic-write, the SSE stream handler, default paths, and six real guard inversions. 85 are pure
+   string literals.
+
+   ⚠️ **Its mutant file cannot be parsed.** ~2 000 mutants of one ~900-line function makes
+   `mutants/webmon.py` **113 MB / 1.9 M lines**; `ast.parse` does not finish, so the AST-based
+   survivor-differ used for every other module is useless here. Diff by scanning for `def
+   x_<fn>__mutmut_N(` headers and slicing the raw source — linear, one second. `capture.py` (7 177
+   mutants) will hit the same wall.
+
+   Budget **~70 min per full run** (measured 4 204 s, `rc: 0`, cap 6 570 s), and a pass needs three.
 2. **`pull_session.py` — 179 survivors remain.** The residue is dominated by log prose and
    `asyncio.sleep` durations; `x_main`'s argparse wiring is the largest untouched cluster with real
    content.

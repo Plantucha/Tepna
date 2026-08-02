@@ -4,6 +4,8 @@
 # else the ECGDex fs inference reads 143 Hz instead of 130.
 import datetime as _dt
 
+import pytest
+
 import writers
 
 
@@ -313,3 +315,196 @@ def test_spo2_writer_blanks_an_absent_reading_rather_than_writing_the_word_None(
     assert rows[1] == "23:00:00 01/07/2026,,,0", f"absent must be BLANK, got {rows[1]!r}"
     assert "None" not in rows[1], "the string 'None' in a CSV is a value, and it is not a measurement"
     assert rows[2] == "23:00:01 01/07/2026,97,58,0"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+# MUTATION PASS 2026-08-02 — the _RR sibling's path, and the filename fields parsed from the right
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+def test_the_rr_sibling_replaces_only_the_LAST_hr_token(tmp_path):
+    """`"_RR.".join(path.rsplit("_HR.", 1))` — the source comments that the `rsplit` and the maxsplit
+    are what stop a *containing* path from being rewritten, and nothing tested it: `split` instead of
+    `rsplit`, and the maxsplit dropped or raised to 2, all survived.
+
+    A path holds more than the filename. A session directory named for its stream — which is exactly
+    what an operator organising a night by hand produces — puts a second `_HR.` earlier in the path,
+    and rewriting that one sends the RR file into a directory that does not exist."""
+    d = tmp_path / "sess_HR.d"
+    d.mkdir()
+    p = str(d / "Polar_H10_02849638_20260620031641_HR.txt")
+    w = writers.StreamWriter(p, "hr", fsync=False)
+    try:
+        expected = str(d / "Polar_H10_02849638_20260620031641_RR.txt")
+        assert w._rr_path == expected, "only the filename's token is rewritten, never the directory's"
+        assert sorted(w.paths) == sorted([p, expected]), \
+            "and the sibling is reported, so discard() and the archiver can both see it"
+    finally:
+        w.close()
+
+
+def test_an_hr_path_with_no_hr_token_still_gets_a_sibling_beside_it(tmp_path):
+    """The fallback arm: `rpartition` (not `partition`) on the extension, and `path + "_RR"` when there
+    is no extension at all. Four mutants lived here — `partition` puts the suffix before the first dot
+    rather than the last, so `night.2.txt` yields `night_RR.2.txt`."""
+    p = str(tmp_path / "night.2.txt")
+    w = writers.StreamWriter(p, "hr", fsync=False)
+    try:
+        assert w._rr_path == str(tmp_path / "night.2_RR.txt"), "the LAST dot is the extension"
+    finally:
+        w.close()
+    q = str(tmp_path / "extensionless")
+    w2 = writers.StreamWriter(q, "hr", fsync=False)
+    try:
+        assert w2._rr_path == q + "_RR", "no extension to split — append, in the same case as the token"
+    finally:
+        w2.close()
+
+
+def test_a_stream_writer_remembers_which_stream_it_is(tmp_path):
+    """`self.stream = None`. It is what `capture` reads back to route a sample to the right appender;
+    None there sends every stream to whichever branch tests None first."""
+    w = writers.StreamWriter(str(tmp_path / "a_ECG.txt"), "ecg", fsync=False)
+    try:
+        assert w.stream == "ecg"
+    finally:
+        w.close()
+
+
+def test_closing_an_hr_writer_alone_still_lands_the_rr_intervals(tmp_path):
+    """`if self._rr_fh is not None` → `is None` in close(), and `os.fsync(None)` on the sibling handle.
+    The flush test below calls flush() explicitly; this one never does, so close() is the only thing
+    that can get the per-beat intervals out of a 1 MiB buffer — and it is what the capture path
+    actually does at end of night."""
+    p = str(tmp_path / "Polar_H10_02849638_20260620031641_HR.txt")
+    w = writers.StreamWriter(p, "hr", fsync=True)          # fsync on: the sibling's fsync too
+    w.write_hr(_dt.datetime(2026, 6, 20, 3, 16, 41), 1_000_000, 62, [968])
+    w.close()                                              # no flush() — close must do it all
+    rr = open(str(tmp_path / "Polar_H10_02849638_20260620031641_RR.txt")).read().splitlines()
+    assert rr[1:] == ["2026-06-20T03:16:41.000;968"], "close() alone must land the RR file"
+
+
+def test_the_rr_sibling_is_flushed_and_closed_with_its_parent(tmp_path):
+    """`if self._rr_fh is not None` → `is None` in both flush() and close(), so the RR handle is never
+    flushed and never closed — the per-beat intervals sit in a 1 MiB buffer until the process exits.
+    Every assertion on RR content read the file AFTER close(), which is the one moment the bug hides."""
+    p = str(tmp_path / "Polar_H10_02849638_20260620031641_HR.txt")
+    w = writers.StreamWriter(p, "hr", fsync=False)
+    w.write_hr(_dt.datetime(2026, 6, 20, 3, 16, 41), 1_000_000, 62, [968, 972])
+    w.flush()                                    # flush alone, WITHOUT closing
+    rr = open(str(tmp_path / "Polar_H10_02849638_20260620031641_RR.txt")).read().splitlines()
+    assert rr[1:] == ["2026-06-20T03:16:41.000;968", "2026-06-20T03:16:41.000;972"], \
+        "flush() must reach the sibling too — the RR file is where the HRV actually is"
+    w.close()
+
+
+def test_the_ppi_flag_bits_are_unpacked_from_their_own_positions(tmp_path):
+    """`flags >> 1 & 1` → `flags << 1 & 1`, and `flags >> 2 & 1` → `flags >> 2 | 1` (which is stuck at 1
+    forever). Blocker / skin-contact / skin-contact-supported are three independent bits and the tests
+    used flag values that could not tell them apart. 'Skin contact supported' reading 1 when the device
+    said 0 turns an unknowable into a positive claim."""
+    p = str(tmp_path / "Polar_VS_1_20260620031641_PPI.txt")
+    w = writers.StreamWriter(p, "ppi", fsync=False)
+    when = _dt.datetime(2026, 6, 20, 3, 16, 41)
+    for flags, expected in ((0b000, "0;0;0"), (0b001, "1;0;0"),
+                            (0b010, "0;1;0"), (0b100, "0;0;1"), (0b111, "1;1;1")):
+        w.write_ppi(when, 1_000_000, 62, 968, 4, flags)
+    w.close()
+    rows = [ln.split(";")[-3:] for ln in open(p).read().splitlines()[1:]]
+    assert [";".join(r) for r in rows] == ["0;0;0", "1;0;0", "0;1;0", "0;0;1", "1;1;1"], \
+        "each bit lands in its own column, independently"
+
+
+def test_a_ppg_row_takes_exactly_three_optical_columns(tmp_path):
+    """`cols[:3]` → `cols[:4]`. With exactly three channels the two slices are identical, which is every
+    fixture; a device offering a fourth then raises `too many values to unpack` mid-capture rather than
+    writing the three the header promises."""
+    p = str(tmp_path / "Polar_VS_1_20260620031641_PPG.txt")
+    w = writers.StreamWriter(p, "ppg", fsync=False)
+    w.write_ppg(_dt.datetime(2026, 6, 20, 3, 16, 41), 1_000_000, 0.0, [11, 22, 33, 44], 7)
+    w.close()
+    row = open(p).read().splitlines()[1]
+    assert row.split(";")[2:] == ["11", "22", "33", "7"], \
+        "three optical columns and the ambient, matching the header, whatever the device offers"
+
+
+def test_the_open_writer_count_returns_to_zero(tmp_path, monkeypatch):
+    """`max(0, n - 1)` → `max(1, n - 1)`: the counter floors at ONE and never reaches zero again. It is
+    what `capture` reads to decide whether any sample file is open at all — the "empty writers" health
+    check — so a floor of 1 makes the box permanently believe it is recording.
+
+    The counter is a MODULE GLOBAL, so it must be reset rather than assumed: reading the ambient value
+    makes the test depend on every test that ran before it, and the `max(0, …)` floor can only be seen
+    from exactly zero. (Asserting the ambient value instead cost a measurement run — a test that fails
+    inside mutmut's copy makes the whole module report 'not checked', which reads as a broken harness
+    rather than a broken test.)"""
+    monkeypatch.setattr(writers, "_open_sample_writers", 0)
+    assert writers.open_sample_writers() == 0
+    w = writers.StreamWriter(str(tmp_path / "a_ECG.txt"), "ecg", fsync=False)
+    assert writers.open_sample_writers() == 1
+    w.close()
+    assert writers.open_sample_writers() == 0, "closing the last writer means none are open"
+    w.close()                                    # idempotent — a second close must not go negative
+    assert writers.open_sample_writers() == 0
+
+
+def test_polar_device_nanoseconds_convert_to_whole_milliseconds():
+    """`/ 1e6` → `/ 1000001.0`. A 1-ppm error is invisible on one sample and is ~30 ms over an 8 h
+    night — the same order as the cross-device offsets this host exists to measure."""
+    assert writers.polar_ns_to_t_ms(1_000_000) == 1.0
+    assert writers.polar_ns_to_t_ms(28_800_000_000_000) == 28_800_000.0
+
+
+def test_a_capture_filename_defaults_to_the_txt_extension():
+    """The `ext: str = "txt"` default. Every call site passes it explicitly today, which is why the
+    default went unpinned — and it is the extension every PSL-compatible reader keys on."""
+    t = _dt.datetime(2026, 7, 16, 21, 34, 51)
+    assert writers.capture_filename("Polar", "H10", "02849638", t, "ecg") \
+        == "Polar_H10_02849638_20260716213451_ECG.txt"
+
+
+def test_a_device_with_no_id_yields_no_ids():
+    """`str(dev.get("device_id") or "")` — the empty-string fallback that the blank filter then drops.
+    Mutated to a non-empty literal, a device with no configured id claims a phantom one, and
+    `file_device_id` attribution starts matching it."""
+    assert writers.device_ids({}) == ()
+    assert writers.device_ids({"device_id": "  "}) == ()
+    assert writers.device_ids({"device_id": "02849638"}) == ("02849638",)
+
+
+# ── the filename field parsers, over the shapes a real corpus actually holds ─────────────────────────
+@pytest.mark.parametrize("fname,stamp,device_id", [
+    # this host: contiguous stamp
+    ("Polar_H10_02849638_20260716213451_ECG.txt", "20260716213451", "02849638"),
+    # Polar Sensor Logger: split stamp — file_stamp has no 14-digit token to find, the id still resolves
+    ("Polar_H10_02849638_20260617_010616_ACC.txt", None, "02849638"),
+    # date-only, as older fixtures and hand-named files carry
+    ("Polar_H10_02849638_20260617_ACC.txt", None, "02849638"),
+    # the sidecars have NO id field — reporting 'Tepna' as one would let a device named Tepna claim
+    # every night's link log
+    ("Tepna_20260716213451_LINK.csv", "20260716213451", None),
+    # a serial that looks like nothing: parsed from the right, so it is never mistaken for the stamp
+    ("Polar_H10_20250101000000_20260725225058_ECG.txt", "20260725225058", "20250101000000"),
+    # no extension at all — the `or fname` fallback, which a mutant turns into `and fname`
+    ("Polar_H10_02849638_20260716213451_ECG", "20260716213451", "02849638"),
+    # too few fields to carry either
+    ("20260716213451_ECG.txt", "20260716213451", None),
+    ("ECG.txt", None, None),
+    # a dot INSIDE a field: the extension is the LAST dot, so `partition` would truncate the name at
+    # the model and lose both fields
+    ("Polar_H10.5_02849638_20260716213451_ECG.txt", "20260716213451", "02849638"),
+    # a blank id field is not an id — the truthiness check reads parts[i-1], the field itself
+    ("Polar_H10__20260716213451_ECG.txt", "20260716213451", None),
+    # six digits that are not a time-after-a-date: the split-stamp branch must not fire, or the token
+    # two places left gets reported as a device id
+    ("Vendor_Model_Sub_Part_123456_ECG.txt", None, None),
+])
+def test_the_filename_fields_are_parsed_from_the_right(fname, stamp, device_id):
+    """Eighteen survivors across `file_stamp` and `file_device_id` — the length guards, the
+    `rpartition`, and the ±1 arithmetic on the index walk. The functions' own docstrings name the three
+    stamp shapes and the sidecar case; this asserts that list rather than one example of it.
+
+    Both functions exist because the unanchored versions lied: `nightqc._session_of` keyed
+    `Polar_H10_20250101000000_20260725225058_ECG.txt` to the device SERIAL, eighteen months from the
+    night it belongs to (audit F5)."""
+    assert writers.file_stamp(fname) == stamp
+    assert writers.file_device_id(fname) == device_id
