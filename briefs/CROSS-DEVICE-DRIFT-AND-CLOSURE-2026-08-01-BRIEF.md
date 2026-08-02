@@ -126,6 +126,53 @@ all three raw streams but its `Wellue_..._SPO2.csv` is **zero rows**, so the fol
 a file-present-but-empty case, the same class as `CPAP-SA2-OXIMETRY-SOURCE`'s sentinel channel. Six is
 the whole corpus and it will not grow backwards.
 
+## 2.6 · Normalised, and put through the repo's own three-cornered hat
+
+Closure is not all three devices give. Two further steps, both using code the suite already ships
+(`integrator-tch.js`, written for amplitude σ and never pointed at timing):
+
+**Normalisation.** Where closure holds, pairwise rates are exact differences, so picking a reference
+device and expressing the others against it is lossless. On 2026-07-27 with the chest ECG as
+reference: **Verity +97 ppm, O2Ring +71 ppm** — both wearables run fast against the strap. This is
+only ever *relative*; no wearable triple yields an absolute rate. The capture host could — chrony on
+the vigil box holds 0.008 ppm — which is §3.3's argument, strengthened.
+
+Normalisation is also what makes the data *shaped* for TCH: `threeCorneredHat` and `allanTriplet`
+want three per-device series, not three pairwise differences. The two steps are one step.
+
+**Three-cornered hat — and it must be detrended first.** TCH decomposes **noise** variance. A 100 ppm
+drift is a deterministic trend, and feeding the raw offset series in makes the tool measure the trend:
+done that way the repo's implementation returns `ok:false — negative variance; no non-negative
+correlated fit ≤ rhoMax` on **both** closing nights. Detrend each normalised series first (Theil–Sen,
+as the drift fit already does) and it resolves:
+
+| night | closure | method | ρ | σ ECG | σ Verity | σ O2Ring |
+|---|---|---|---|---|---|---|
+| **2026-07-27** | **−2.2** ✓ | **classic** | **0** | **128 ms** | **29 ms** | **81 ms** |
+| 2026-07-28 | −7.0 ✓ | correlated | **0.79** | 6 | 244 | 615 |
+| 2026-07-25 | 264.8 ✗ | correlated | 0.45 | 177 | 2 | 868 |
+| 2026-07-26 | −99.1 ✗ | correlated | 0.47 | 92 | 1 | 1012 |
+| 2026-07-29 | 38.5 ✗ | correlated | 0.79 | 179 | 318 | 4 |
+| 2026-07-30 | −142.3 ✗ | classic | 0 | 127 | 121 | 998 |
+
+**Exactly one night decomposes cleanly.** On 2026-07-27 the classic solution is valid at ρ = 0 — the
+module's own precondition (*"the well-posed application is CROSS-NODE, where the noise is largely
+independent"*) is met and no common-mode correction is invoked. Everywhere else the solver needs
+ρ = 0.45–0.79, i.e. it can only fit by assuming half to four-fifths of the residual is shared.
+
+### What those numbers are NOT
+
+**σ_ECG = 128 ms is not the ECG's clock.** Both ECG-containing pairs carry **pulse arrival time**, so
+TCH assigns variance common to them to the ECG — and per-block PAT IQR on this corpus is 43–112 ms,
+the same order. What TCH returns here is *residual variance attributable to each device*, and for
+beat-derived offsets that residual is dominated by physiology, which is not a device property.
+
+That is the tool working, not failing. Its assumption is independent per-device noise, and
+**beat-derived offsets cannot satisfy it, because the pulse is common to all three devices by
+construction.** A well-posed timing TCH needs three channels with independent timing paths — three
+IMUs (movement is mechanical, no transit delay) or a host reference. This hardware has two IMUs and a
+ring whose motion column is not one, so **it is not available on this corpus.**
+
 ## 3 · Where this bites in the project — the part that is not about this analysis
 
 ### 3.1 · Anything that fuses two nodes over a night
@@ -166,7 +213,17 @@ The alternative — carrying an envelope in the node-export — is costed in `EN
 and no option is obviously right: 4 Hz is ~700 KB, 1 Hz is affordable but not sub-second, and anchors
 (measured) are too sparse at 3 usable pairs per night.
 
-### 3.4 · The over-determined check generalises beyond clocks
+### 3.4 · `inverseVarianceWeights` is exported, and the pooled fit does not use it
+
+`fitClockOffsetPooled` pools channels by summing per-channel z over √n — **equal weighting**.
+`integrator-tch.js` exports `inverseVarianceWeights`, the principled alternative once per-channel
+precision is known. No new machinery is needed; the estimator already computes each channel's curve.
+
+It should **not** be wired on this brief's evidence. Per-device σ resolves on one night of six, and
+what it resolves to is contaminated by physiology. But the connection is worth recording: a fit that
+weights equally and an exported weighting function have been sitting one file apart without meeting.
+
+### 3.5 · The over-determined check generalises beyond clocks
 
 Closure worked here because three pairwise measurements of a three-body system have one constraint.
 The suite already uses the same idea for **amplitude** — `integrator-tch.js` decomposes per-device σ
@@ -213,8 +270,16 @@ The defence is redundancy in the measurement, not more surrogates.
       107 files and the O2Ring writes no PPI at all, so the optical spine is currently **unvalidatable
       against hardware**. Either a device that emits real PPI, or an accepted statement that the
       optical intervals are checked only against each other and the ECG.
-- [ ] Per-device timing jitter via three-cornered hat — **only after** closure holds on more than two
-      nights. Applying TCH to mutually inconsistent inputs would be the same error one level up.
+- [x] Per-device timing jitter via three-cornered hat — **attempted 2026-08-01 through the repo's own
+      `integrator-tch.js`, and the answer is bounded** (§2.6). It decomposes cleanly on exactly one
+      night (classic, ρ = 0); elsewhere the solver needs ρ = 0.45–0.79. And the σ it returns is **not
+      clock jitter**: beat-derived offsets carry pulse arrival time into both ECG pairs, so TCH
+      attributes physiology to a device.
+- [ ] If per-device timing σ is genuinely wanted, get a third **mechanical** channel — or measure
+      against the capture host, which is an independent timing path by construction. Two IMUs is one
+      short.
+- [ ] Consider inverse-variance weighting in `fitClockOffsetPooled` (§3.4). **Not** on this evidence —
+      it needs a σ that is not physiology.
 
 ## 6 · Guardrail
 
