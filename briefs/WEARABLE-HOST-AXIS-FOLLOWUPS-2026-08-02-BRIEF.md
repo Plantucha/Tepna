@@ -259,6 +259,27 @@ whose `fs` the gate changed (4.28 % – 44.14 % per night — every night affect
 worst single fragment's timeline was off by **3.21 s across 138 s**. Against H10↔Verity offsets of 0.20 s,
 a 3.2 s error is not a rounding difference — it is larger than the quantity this whole brief is measuring.
 
+### …but the COMMITTED corpus does not need re-folding for it, and that had to be checked separately
+
+The obvious inference from 21.95 % is that `uploads/trio/` is stale and F2's deferred re-fold is now owed.
+**Measured, it is not.** That 21.95 % is the **box tree** (`tepna-smoketest/captures`, 2026-07-16..30);
+`uploads/trio/` was folded from the **older tree** (`Ecg nightly/`, 2026-06-10..07-12), and the two
+fragment completely differently:
+
+| | box tree | old tree (`uploads/trio` source) |
+|---|---|---|
+| fragments the gate changes | — | 22.0 % (50 parsed) |
+| **share of SAMPLES affected** | **21.95 %** | **1.16 %** |
+| worst per-fragment timeline drift | 3210 ms | **1 ms** |
+| median fragment span | 31–233 s | **19 976 s (5.5 h)** |
+
+The same *fraction of fragments* moves in both, but on the phone-captured tree those fragments are slivers
+beside 5½-hour continuous recordings, whereas the box tree reconnects constantly — consistent with the
+known capture-host BLE adapter fault — so its stubs carry real sample weight. **A re-fold on account
+of the span gate would move the committed exports by ~1 ms.** F2's re-commit work-unit stands on its own
+export-profile grounds; it is NOT owed to this fix. Percentages measured on one tree do not transfer to
+another whose capture topology differs — the same trap as the unmatched 2.71 → 3.44 σ comparison in F3.
+
 `mergeEcg` also tightened: the fs bound 0.5 Hz → 0.05 Hz (the old one was loose enough to admit the bad
 fragment yet tight enough to throw on it, so good nights failed to fold for the wrong reason); the imposed
 `fs` now comes from the **longest** fragment, not `recs[0]` — routinely a seconds-long reconnect stub
