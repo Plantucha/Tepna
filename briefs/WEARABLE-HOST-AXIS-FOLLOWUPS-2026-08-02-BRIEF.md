@@ -231,11 +231,33 @@ rate divides by the span; on a short fragment the denominator collapses and ordi
 The real H10 crystal is ~−25 ppm. Gate at **2400 s**, where max |ppm| reaches 52 and nothing exceeds 100.
 Fleet `fs` spread falls **129.9072–133.2017 Hz (25341 ppm) → 52 ppm**.
 
-**Why it is not cosmetic:** `fs` is not only the beat clock. `detectPeaks`, the bandpass coefficients
-(`aHp`/`aLp` are built from `1/fs`), `refinePeaks` and `computeSQI` all read it as a rate, so the 133.2 Hz
-value — produced from a 62 s stub — mis-designed the filter and the sub-sample refinement. Refused ⇒ `fs`
-keeps the device crystal (~25 ppm wrong) instead of the ungated correction (up to 24036 ppm wrong).
-**`hostAxis.ok` no longer implies the correction reached the axis; consumers must read `applied`.**
+Refused ⇒ `fs` keeps the device crystal (~25 ppm wrong) instead of the ungated correction (up to 24036 ppm
+wrong). **`hostAxis.ok` no longer implies the correction reached the axis; consumers must read `applied`.**
+
+### How much this actually changes — MEASURED, after the claim was made without measuring
+
+The commit and the `ecgdex-dsp.js` comment justify this fix by saying `fs` also builds the bandpass
+coefficients and drives `detectPeaks`/`refinePeaks`, so a wrong rate mis-designs the filter. **That leg is
+wrong.** Run gated vs ungated through `analyze` on 238 analyzable real fragments (197 with `fs` changed):
+
+| | fragments differing | max delta |
+|---|---|---|
+| HR | 45 / 197 (23 %) | **2.10 bpm** |
+| SDNN | 39 / 197 (20 %) | 1.00 ms |
+| rMSSD | 29 / 197 (15 %) | 0.90 ms |
+| **beat count** | **0 / 197** | — |
+| durSec | — | median 38 ms, **max 3.21 s** |
+
+**Peak detection is robust to a 2.5 % rate error — not one fragment gained or lost a beat.** The real
+consequence is the **time axis and the HRV values riding on it**, not the detector. The mechanism was
+asserted rather than measured, which is the habit `ui-export-paths-broken` names; the numbers above are
+the correction. `ecgdex-dsp.js`'s comment still carries the overstated version — fix it on the next edit
+to that file rather than spending a bundle + regen + re-verify cycle on a comment.
+
+What survives, and is the case for the fix: **21.95 % of all ECG samples in the corpus** sit in fragments
+whose `fs` the gate changed (4.28 % – 44.14 % per night — every night affected, not a rare tail), and the
+worst single fragment's timeline was off by **3.21 s across 138 s**. Against H10↔Verity offsets of 0.20 s,
+a 3.2 s error is not a rounding difference — it is larger than the quantity this whole brief is measuring.
 
 `mergeEcg` also tightened: the fs bound 0.5 Hz → 0.05 Hz (the old one was loose enough to admit the bad
 fragment yet tight enough to throw on it, so good nights failed to fold for the wrong reason); the imposed
