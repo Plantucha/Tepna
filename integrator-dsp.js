@@ -4520,6 +4520,22 @@ function fitClockDrift(aTimes, bTimes, opts) {
 
   var rows = runBlocks(0);
   if (rows.length < minBlocks) return { offsetMs: null, driftPpm: null, confident: false, reason: 'too few usable blocks', blocks: rows.length };
+  /* NOT UNWRAPPED — a KNOWN LIMITATION, measured rather than assumed.
+     CROSS-DEVICE-DRIFT-AND-CLOSURE §2.2 showed the per-block offset is a PHASE: two periodic beat
+     trains give a coincidence comb one RR apart, so as the true offset drifts past a tooth the argmax
+     falls back exactly one RR and the raw series saws. Confirmed here — 3 jumps of one-to-two RR
+     across 87 blocks on 2026-07-27, where the drift reads 45.9 ppm unwrapped-not and 97.2 unwrapped.
+
+     A naive per-pair unwrap was implemented and MEASURED TO BE WORSE: greedily stepping each block by
+     whole RRs to minimise its jump degraded three-source closure from 101/101/58 ppm to
+     -266/209/-202. A single wrong multiple on a weakly-locking pair propagates through the cumulative
+     sum forever. That is §2.3's point — where a pair locks poorly the phase is undersampled and the
+     unwrap picks the wrong tooth — and §5's open item: the unwrap must use the closure constraint
+     across all three pairs JOINTLY, which is over-determined and can reject a bad multiple.
+
+     So this returns a drift that may carry sawtooth, and `unwrapSteps` is NOT reported because no
+     unwrap is performed. Per that brief's §6 guardrail, a ppm figure from this function is not
+     evidence unless a closure residual is quoted beside it. */
   var fr = rows
     .map(function (r) {
       return r.frac;
