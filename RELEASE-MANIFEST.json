@@ -740,6 +740,37 @@
         "MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS-2026-07-22-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.4.0",
+      "date": "2026-08-02",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "878b7b9890ec",
+        "OxyDex": "604ecc4b8976",
+        "PulseDex": "512b1b490391",
+        "GlucoDex": "70831ccda0cb",
+        "PpgDex": "0b5938e075c0",
+        "HRVDex": "c4f4ff342c34",
+        "CPAPDex": "f17e19ab29b2",
+        "Integrator": "bbfeebec6847",
+        "MotionDex": "31f747a1eb49"
+      },
+      "briefs": [
+        "IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md",
+        "CLOCK-CLOSURE-THREE-SOURCE-2026-08-01-BRIEF.md",
+        "CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md",
+        "ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md",
+        "POLAR-ONBOARD-BACKUP-2026-08-01-BRIEF.md",
+        "O2RING-PPG-GAP-2026-07-22-BRIEF.md",
+        "TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md",
+        "WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md",
+        "DOCS-LEDGER-CHECK3B-BLIND-ROW-2026-08-01-BRIEF.md",
+        "JOINT-UNWRAP-ATTEMPT-2026-08-02-BRIEF.md",
+        "PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
