@@ -34,11 +34,22 @@ function parsePhone(s) {
 
 async function rateOf(file) {
   const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity });
-  let header = null, n = 0, kept = 0;
-  let sx = 0, sy = 0, sxx = 0, sxy = 0;
-  let t0 = null, d0 = null, lastT = null, lastD = null;
+  let header = null,
+    n = 0,
+    kept = 0;
+  let sx = 0,
+    sy = 0,
+    sxx = 0,
+    sxy = 0;
+  let t0 = null,
+    d0 = null,
+    lastT = null,
+    lastD = null;
   for await (const line of rl) {
-    if (header === null) { header = line; continue; }
+    if (header === null) {
+      header = line;
+      continue;
+    }
     n++;
     if (n % 200 !== 0) continue; // subsample: the SLOPE needs spread, not every row
     const f = line.split(';');
@@ -46,12 +57,20 @@ async function rateOf(file) {
     const ph = parsePhone(f[0]);
     const dv = Number(f[1]);
     if (ph == null || !isFinite(dv) || dv <= 0) continue;
-    if (t0 == null) { t0 = ph; d0 = dv; }
+    if (t0 == null) {
+      t0 = ph;
+      d0 = dv;
+    }
     const x = (dv - d0) / 1e6; // device ms elapsed
     const y = ph - t0; // host ms elapsed
     if (!isFinite(x) || !isFinite(y)) continue;
-    sx += x; sy += y; sxx += x * x; sxy += x * y; kept++;
-    lastT = ph; lastD = dv;
+    sx += x;
+    sy += y;
+    sxx += x * x;
+    sxy += x * y;
+    kept++;
+    lastT = ph;
+    lastD = dv;
   }
   if (kept < 50) return null;
   const den = kept * sxx - sx * sx;
@@ -62,12 +81,19 @@ async function rateOf(file) {
 }
 
 const files = fs.readdirSync(DIR).filter((f) => /(H10.*_ECG|VeritySense.*_PPG|O2Ring.*_PPG)\.txt$/.test(f));
-const big = files.map((f) => ({ f, sz: fs.statSync(path.join(DIR, f)).size })).filter((x) => x.sz > 3e6).sort((a, b) => b.sz - a.sz).slice(0, 6);
+const big = files
+  .map((f) => ({ f, sz: fs.statSync(path.join(DIR, f)).size }))
+  .filter((x) => x.sz > 3e6)
+  .sort((a, b) => b.sz - a.sz)
+  .slice(0, 6);
 console.log('DEVICE RATE vs HOST CLOCK — measured directly from the two columns in each raw file\n');
 console.log('device   spanMin   ppm vs host   samples   file');
 for (const { f } of big) {
   const r = await rateOf(path.join(DIR, f));
-  if (!r) { console.log('  (unreadable)', f); continue; }
+  if (!r) {
+    console.log('  (unreadable)', f);
+    continue;
+  }
   const dev = /H10/.test(f) ? 'H10   ' : /Verity/.test(f) ? 'VERITY' : 'O2RING';
   console.log(`${dev}  ${r.spanMin.toFixed(1).padStart(7)}   ${r.ppm.toFixed(1).padStart(11)}   ${String(r.samples).padStart(7)}   ${r.file}`);
 }
