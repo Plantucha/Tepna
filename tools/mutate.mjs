@@ -56,7 +56,7 @@
  *   node tools/mutate.mjs --file X --limit 40       # cap mutants per file (default 60)
  *   node tools/mutate.mjs --file X --jobs 12        # parallel workers (default: min(8, cores-2))
  *   node tools/mutate.mjs --file X --full           # run the WHOLE suite per mutant
- *   node tools/mutate.mjs --json                    # machine-readable
+ *   node tools/mutate.mjs --json                    # NDJSON, one line per file, streamed
  *   node tools/mutate.mjs --selftest                # known-answer, no repo mutation
  *
  * SAFETY — and this was got WRONG first, so it is spelled out. With `--jobs > 1` (the default) the
@@ -229,6 +229,32 @@ function runSuiteAsync(filter, cwd) {
   });
 }
 
+/* THE WORKER POOL IS CREATED ONCE PER PROCESS, not once per file.
+   The first version built it inside runFile(), which was fine for a single module and catastrophic
+   for a sweep: `git worktree add` checks out the WHOLE tree — 71 MB here — so 12 workers × 71 files
+   is 852 full checkouts, ~850 MB copied per file. Measured on this external volume: one file took
+   ~12 minutes, projecting to ~14 h for the roster, and essentially all of it was checkout I/O rather
+   than test execution. Hoisted, the same sweep pays for 12 checkouts total. */
+let _pool = null;
+function workerPool() {
+  if (_pool) return _pool;
+  _pool = [];
+  for (let w = 0; w < JOBS; w++) {
+    const dir = join(ROOT, '..', '.mutate-w' + w + '-' + process.pid);
+    execFileSync('git', ['worktree', 'add', '--detach', '--quiet', dir, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
+    _pool.push(dir);
+  }
+  return _pool;
+}
+function dropPool() {
+  for (const d of _pool || []) {
+    try {
+      execFileSync('git', ['worktree', 'remove', '--force', d], { cwd: ROOT, stdio: 'ignore' });
+    } catch {}
+  }
+  _pool = null;
+}
+
 function runSuite(filter, cwd) {
   try {
     execFileSync('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd: cwd || ROOT, stdio: 'ignore', timeout: 900000 });
@@ -300,11 +326,7 @@ async function runFile(file) {
       /* One disposable worktree per worker, detached at HEAD. Each worker mutates ITS OWN copy of the
          file, so no two mutants ever race on the same bytes — and the caller's tree is never written
          to at all on this path. */
-      for (let w = 0; w < JOBS; w++) {
-        const dir = join(ROOT, '..', '.mutate-w' + w + '-' + process.pid);
-        execFileSync('git', ['worktree', 'add', '--detach', '--quiet', dir, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
-        trees.push(dir);
-      }
+      trees.push(...workerPool());
       let next = 0;
       const worker = async (dir) => {
         const wAbs = join(dir, file);
@@ -323,12 +345,7 @@ async function runFile(file) {
       }
     }
   } finally {
-    restore();
-    for (const d of trees) {
-      try {
-        execFileSync('git', ['worktree', 'remove', '--force', d], { cwd: ROOT, stdio: 'ignore' });
-      } catch {}
-    }
+    restore(); // the shared pool is torn down once, by dropPool() at the end of the run
   }
   if (!AS_JSON) process.stderr.write('\r' + ' '.repeat(78) + '\r');
   return {
@@ -445,17 +462,20 @@ if (!files.length) {
   process.exit(2);
 }
 
-const results = [];
-for (const f of files) results.push(await runFile(f));
-if (AS_JSON) {
-  console.log(JSON.stringify(results, null, 2));
-  process.exit(0);
-}
-console.log('MUTATION SWEEP — a surviving mutant means the suite cannot see a change there\n');
-for (const r of results) {
+/* REPORT PER FILE, AS IT COMPLETES — never buffer a long run to the end.
+   The first version accumulated every result and printed once, so a 71-file sweep showed NOTHING for
+   its entire duration and a kill (or a timeout) lost the lot. That is the same shape as a gate whose
+   output you cannot see until it is too late to act on. `--json` now emits NDJSON: one compact object
+   per line, per file, flushed as it lands — greppable, `jq`-able line by line, and whatever finished
+   before an interrupt is still on disk. */
+function reportOne(r) {
+  if (AS_JSON) {
+    process.stdout.write(JSON.stringify(r) + '\n');
+    return;
+  }
   if (r.error) {
     console.log('  ' + r.file + '\n    ⊘ ' + r.error + '\n');
-    continue;
+    return;
   }
   const score = r.tested - r.invalid ? ((r.killed / (r.tested - r.invalid)) * 100).toFixed(0) : '—';
   console.log('  ' + r.file + '   groups: ' + r.groupsRun + ' (' + r.groupCount + ')');
@@ -463,4 +483,39 @@ for (const r of results) {
   for (const s of r.survivors.slice(0, 25)) console.log('      SURVIVED ' + r.file + ':' + s.line + '  [' + s.op + ']\n        ' + s.before + '\n        ' + s.after);
   if (r.survivors.length > 25) console.log('      … and ' + (r.survivors.length - 25) + ' more');
   console.log('');
+}
+
+if (!AS_JSON) console.log('MUTATION SWEEP — a surviving mutant means the suite cannot see a change there\n');
+const results = [];
+try {
+  for (const f of files) {
+    const r = await runFile(f);
+    results.push(r);
+    reportOne(r);
+  }
+} finally {
+  dropPool();
+}
+/* A one-line roll-up at the end, so a sweep does not have to be re-aggregated by hand to answer the
+   only question that spans files: how much of this codebase can the suite actually see? */
+if (!AS_JSON) {
+  const ok = results.filter((r) => !r.error);
+  const k = ok.reduce((a, r) => a + r.killed, 0);
+  const n = ok.reduce((a, r) => a + (r.tested - r.invalid), 0);
+  const gen = ok.reduce((a, r) => a + r.generated, 0);
+  console.log(
+    '  ── ' +
+      ok.length +
+      ' file(s) measured, ' +
+      (results.length - ok.length) +
+      ' skipped ── ' +
+      k +
+      '/' +
+      n +
+      ' killed = ' +
+      (n ? ((k / n) * 100).toFixed(0) : '—') +
+      ' %  (of ' +
+      gen +
+      ' mutants that exist)'
+  );
 }
