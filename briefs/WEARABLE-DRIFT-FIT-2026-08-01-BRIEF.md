@@ -83,7 +83,10 @@ control changed a conclusion, and the second time it changed the *code*.
   shipped beside every result. The fit maximises the statistic it reports, so a high number alone
   means nothing; `confident` requires it to beat its own control by **≥2×** (measured pair: 89 % vs
   21 %, a 4.2× margin).
-- **`medianIqrMs`** — 52 ms on the real pair, inside `pat-gate.js`'s ≤60 ms bar. **This is not a PAT
+- **`medianIqrMs`** — 52 ms on the real pair. ⛔ **DO NOT compare this to `pat-gate.js`'s ≤60 ms bar —
+  it is the WRONG QUANTITY** (`PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02`). This is the block-OFFSET FIT
+  residual; the gate scores the beat-to-beat PULSE-ARRIVAL IQR, measured at **139–197 ms** across six
+  nights. A fit residual and a physiological interval share units and nothing else. **This is not a PAT
   pass:** the gate also wants `coupling ≥ 55 %` and a median lag in [60,700] ms measured as a real
   pulse-arrival delay. It does mean the alignment precision PAT needs is reachable on this pair.
 
