@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-28 · **Follows:** `QC-SCOPE-RESOLUTION-2026-07-28-BRIEF.md`
+**Status:** DONE — 2026-08-02 · **Created:** 2026-07-28 · **Follows:** `QC-SCOPE-RESOLUTION-2026-07-28-BRIEF.md` · **Outcome:** a MEASURED NEGATIVE — the redesign was built and stopped by measurement, not shipped; REM remains blocked on ground-truth labels, not on effort (§8, §9)
 
 # REM is under-called 4× — and the rule's shape, not its thresholds, is why
 
@@ -191,7 +191,8 @@ literature policy the citation has to be checkable, not gestured at.
       REM% 4.8 → 6.5, no night regressed. The bout guard (b) was built, measured, and **not shipped**: inert
       on the synthetic, and it took the real night from 10 min of REM to zero because there the only two
       candidates are isolated singletons
-- [ ] §3 the weighted-score detector — **now the sole remaining blocker.** Ordering is fixed and the
+- [⛔] ~~§3 the weighted-score detector — the sole remaining blocker.~~ **RETIRED IN PLACE 2026-08-02, see §9** — built offline and measured on 41 nights: no threshold satisfies §5's falsifiers, and at every threshold that lands REM % in band the desat ratio is **0.00**. It is a stability detector, and REM is the least stable thing on the night. Original text kept below for the record:
+- [⛔] §3 (superseded) Ordering is fixed and the
       spectrum works, but on real data the CONJUNCTION still under-selects: 2026-07-27 has 26 epochs
       clearing the LF/HF gate, 10 clearing RMSSD, and 2 clearing both. Corpus median REM% is 6.5 against a
       physiological 15–25%
@@ -213,7 +214,7 @@ literature policy the citation has to be checkable, not gestured at.
       AC −10.26 → −9.87, SampEn 1.03 → 0.962, with the /2-slip discrimination re-verified by mutation.
       Export-inert by measurement: both committed ECGDex goldens are byte-unchanged (`respCv` is an
       internal epoch field), so no fixture moved.
-- [ ] **§3b the REM score itself — still open. Executed, measured against all three of §5's
+- [⛔] **§3b the REM score itself — RETIRED IN PLACE 2026-08-02 (§9): built, measured, FAILED at every threshold.** Original text: Executed, measured against all three of §5's
       falsifiers, and NOT SHIPPED: it passes two and fails the third, and the third shows the passes
       are partly an artifact.** (2026-07-29 run; supersedes the p=0.845 reading below.)
 
@@ -330,10 +331,10 @@ literature policy the citation has to be checkable, not gestured at.
       accuracy. (2) The planted-truth losses are **motion-veto** losses: REM epochs whose phasic
       twitches exceed the veto's fixed threshold of 60. A night-relative veto is the obvious next thing
       to measure, and it is cheap.
-- [ ] Bout-structure constraint; the minority-stage exemption from `9f1edbc` retired in favour of it
-- [ ] §5 acceptance run over the 11-night corpus — median REM % inside 15–25 %, cycle structure present
-- [ ] Finer staging grid (1 min) — sequenced after the score lands, own re-bundle
-- [ ] Evidence tier re-checked against what was actually demonstrated
+- [⛔] ~~Bout-structure constraint; the minority-stage exemption retired in favour of it~~ — **MOOT (§9)**: it was to constrain the score's output, and the score is not shipping. The exemption stands.
+- [x] §5 acceptance run — **RUN 2026-08-02 on 41 nights, not 11 (§9), and it FAILS.** REM % can be put in band (top 18 % → 17.4 %) but bout max reaches 35 min with 10 over-long bouts and the desat ratio is 0.00. The acceptance run is the thing that killed the redesign.
+- [⛔] ~~Finer staging grid (1 min) — sequenced after the score lands~~ — **MOOT (§9)**: sequenced after a score that is not landing. A finer grid on a detector that is anti-correlated with the falsifier would refine the wrong thing.
+- [x] Evidence tier re-checked — **nothing to re-tier**: no detector change shipped, so no metric's evidence grade moved. The staging metrics keep the tier they had.
 
 ---
 
@@ -474,3 +475,42 @@ left over.
 **Both halves of the staging investigation now terminate in measured negatives.** That is a result: two
 plausible, well-motivated redesigns were stopped by measurement before they shipped metrics that would
 have been worse.
+
+## 9 · §3's weighted score itself — MEASURED, and it fails (2026-08-02)
+
+§8.4 disposed of the score with an argument, not a measurement: the three remaining terms *"are all
+features the conjunction ALREADY uses; a score over the same inputs redistributes the same information
+and has no new signal to add. **That is the honest prior.**"* A prior is not a result, and §6 still listed
+the score as "the sole remaining blocker" — so a reader working the checklist top-to-bottom would have
+built it. It has now been built (offline, nothing shipped) and measured.
+
+**Construction.** Per night, over sleep epochs only (Wake excluded), night-normalised:
+`score = z(LF/HF) − z(RMSSD) − z(motionIndex)` — exactly §3's three surviving terms, `respCv` excluded per
+§8. Swept both as a top-N% band and as an absolute z threshold. Scored on **41 nights** across both capture
+trees against §5's falsifiers, with the desat ratio computed from OxyDex `desat_event` timestamps mapped
+onto the ECG epoch grid.
+
+| rule | REM % | bout med | bout max | bouts > 25 min | desat ratio |
+|---|---|---|---|---|---|
+| SHIPPED (reference) | 7.4 | — | — | 0 | — |
+| score top 40 % | 39.5 | 10 | 70 | 49 | 0.12 |
+| score top 25 % | 24.5 | 5 | 45 | 23 | 0.00 |
+| score top 18 % | **17.4** ✓ | 5 | 35 | 10 | **0.00** |
+| score top 15 % | 14.3 | 5 | 35 | 4 | **0.00** |
+| score > 1.5z | 15.4 ✓ | 5 | 35 | 6 | **0.00** |
+| score > 2.0z | 9.9 | 5 | 35 | 4 | **0.00** |
+
+**No row passes**, and the failure is worse than §8.4 predicted. The prior said the score would merely
+*redistribute* existing information — neutral. Measured, it is **anti-correlated with the independent
+falsifier**: at every threshold that lands REM % in the physiological band, **zero** desaturations fall in
+the score-selected epochs, across 41 nights. With ~12 desat events a night and ~20 % of epochs selected,
+a median of exactly 0 is not chance (P(0 | one night) ≈ 0.07).
+
+**Why, and it is obvious in hindsight:** `high LF/HF + low RMSSD + low motion` selects the *most
+physiologically stable* epochs of the night. Desaturations arrive with arousal and movement. The score is
+therefore a **stability detector**, and REM is being asked to be the least stable thing it can find. The
+conjunction's three inputs do not merely lack new signal for REM — two of them point the wrong way once
+combined into a band.
+
+This closes §3 by measurement rather than by prior, and it strengthens §8.4's conclusion: **what would
+move REM is a label, not a feature or a combining rule.**
