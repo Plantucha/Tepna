@@ -17,6 +17,40 @@
 <div class="sheet">
   <a class="toplink" href="papers.html">← Tepna preprints</a>
   <div class="banner">Tepna Working Preprint · not peer-reviewed</div>
+  <div class="callout" style="border:2px solid #b8860b;background:#fffdf5">
+    <b>Addendum — 2026-08-02: a second way a null instrument fails, and this paper's controls do not
+    catch it.</b>
+    <p style="margin:.6em 0 0">The failure characterised here is an instrument <i>structurally
+    incapable</i> of returning a positive — and the remedy is a known-answer control: plant a signal,
+    confirm the instrument finds it. On 2026-08-01 three independent sessions produced the same wrong
+    null with that remedy <b>in place and passing</b>.</p>
+    <p style="margin:.6em 0 0">The claim was that two wearables share too few beats to align
+    (5–26 % correspondence, called a physiological limit). Each session ran an honest chance control —
+    circular shift, +1 h shift, shuffled surrogates — and each correctly reported that the measurement
+    beat chance. The measurement was nonetheless meaningless: it fitted <b>one constant offset to a
+    pair whose clocks separate by more than a heartbeat across a night</b>. Refitting locally takes
+    correspondence to <b>43–98.8 %</b>.</p>
+    <p style="margin:.6em 0 0"><b>The known-answer control passed because it was planted under the
+    model's own assumption.</b> A synthetic pair offset by a <i>constant</i> 137 ms was recovered to
+    99.94 ms — proving the estimator works on the world the estimator assumes. It took planting a pair
+    that <i>drifts</i> to expose the defect. So:</p>
+    <blockquote style="margin:.6em 0 0 1em;padding-left:.9em;border-left:3px solid #b8860b">
+      A control tells you whether you beat chance. A known-answer tells you whether the estimator
+      recovers a planted truth. <b>Neither can tell you the model is too simple</b> — and a
+      known-answer planted under the model's own assumptions is guaranteed to pass, however wrong the
+      model is.
+    </blockquote>
+    <p style="margin:.6em 0 0">What exposed it was not a better statistic. Two things did:
+    <b>refitting a supposedly-constant parameter locally and watching it march</b> (a constant that
+    will not stay constant is a missing term), and an <b>over-determined consistency check</b> — with
+    three devices, the three pairwise rates must satisfy <code>d(A↔B) ≡ d(A↔C) − d(B↔C)</code>, which
+    has no free parameter to absorb an error. Both are redundancy in the <i>measurement</i>, not more
+    surrogates around it.</p>
+    <p style="margin:.6em 0 0">This is a companion failure mode to the paper's, not a correction of it:
+    there the instrument could not return a positive; here it could, did, and was still wrong. The
+    practical addition to the checklist is <b>plant your known-answer under a model you are not
+    assuming.</b> Recorded in <code>briefs/CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md</code> §4.</p>
+  </div>
   <h1 class="title">Calibrating a null: a negative result is only as strong as the proof that the instrument could have found a positive</h1>
   <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
   <p class="affil">Methods note, Tepna physiological-signal suite</p>
