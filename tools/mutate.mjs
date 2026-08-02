@@ -108,21 +108,76 @@ const OPS = [
   { name: 'num → 0', re: /\b(\d+\.\d+|\d{2,})\b/g, to: '0' }
 ];
 
-/* Skip lines that cannot carry behaviour: comments, imports, and license headers. A mutant inside a
-   comment is always a survivor and would be pure noise in the report. */
-const SKIP_LINE = /^\s*(\/\/|\/\*|\*|import\s|export\s+\{)/;
+/* Skip lines that cannot carry behaviour: imports and license headers. */
+const SKIP_LINE = /^\s*(import\s|export\s+\{)/;
+
+/* A PER-CHARACTER MASK OF WHAT IS ACTUALLY CODE.
+   The first version skipped lines that *began* with a comment marker, which is not the same thing at
+   all — and the first real sweep proved it. Roughly a third of the reported "survivors" were mutations
+   of prose: a `<` inside a block-comment body whose continuation line starts with a letter, a trailing `// 90 min`
+   after a real statement, digits inside an HTML string. Those are guaranteed survivors, they are
+   pure noise, and — worse — they DEPRESS THE KILL RATE, so the headline number was wrong in the
+   pessimistic direction. Coverage of prose is not a gate hole.
+
+   So walk the file once and mark every character that is inside a line comment, a block comment, or a
+   string/template literal. Mutations are only generated at unmasked positions. This is a scanner, not
+   a parser: it does not know about regex literals, which are rare in these DSPs and at worst
+   reintroduce a little of the noise this removes. */
+function codeMask(src) {
+  const m = new Uint8Array(src.length); // 1 = real code
+  let i = 0;
+  const N = src.length;
+  let state = 0; // 0 code · 1 line-comment · 2 block-comment · 3 '…' · 4 "…" · 5 `…`
+  while (i < N) {
+    const c = src[i],
+      d = src[i + 1];
+    if (state === 0) {
+      if (c === '/' && d === '/') (state = 1), (i += 2);
+      else if (c === '/' && d === '*') (state = 2), (i += 2);
+      else if (c === "'") (state = 3), i++;
+      else if (c === '"') (state = 4), i++;
+      else if (c === '`') (state = 5), i++;
+      else (m[i] = 1), i++;
+    } else if (state === 1) {
+      if (c === '\n') (state = 0), (m[i] = 1);
+      i++;
+    } else if (state === 2) {
+      if (c === '*' && d === '/') (state = 0), (i += 2);
+      else i++;
+    } else {
+      const q = state === 3 ? "'" : state === 4 ? '"' : '`';
+      if (c === '\\') i += 2;
+      else if (c === q) (state = 0), i++;
+      else i++;
+    }
+  }
+  return m;
+}
 
 function mutantsFor(src) {
   const lines = src.split('\n');
+  const mask = codeMask(src);
+  const lineStart = [];
+  let acc = 0;
+  for (const L of lines) {
+    lineStart.push(acc);
+    acc += L.length + 1;
+  }
   const out = [];
   for (let i = 0; i < lines.length; i++) {
     const L = lines[i];
     if (!L.trim() || SKIP_LINE.test(L)) continue;
     if (L.includes('eslint') || L.includes('biome-ignore')) continue;
+    const base = lineStart[i];
+    const isCode = (off, len) => {
+      for (let k = 0; k < len; k++) if (!mask[base + off + k]) return false;
+      return true;
+    };
     for (const op of OPS) {
       const re = new RegExp(op.re.source, op.re.flags);
       let m;
       while ((m = re.exec(L)) !== null) {
+        if (!isCode(m.index, m[0].length)) continue; // inside a comment or a string literal
         const mutatedLine = L.slice(0, m.index) + m[0].replace(new RegExp(op.re.source), op.to) + L.slice(m.index + m[0].length);
         if (mutatedLine === L) continue;
         out.push({
@@ -297,11 +352,29 @@ function selftest() {
     console.log((c ? '  ok   ' : '  FAIL ') + n + (d != null && !c ? '  — ' + d : ''));
     if (!c) fail++;
   };
-  const src = ['// a comment with >= in it', 'const a = x >= 3 && y !== 2;', '  * doc line with ===', 'if (!ready) return 0;'].join('\n');
+  const src = [
+    '// a line comment with >= in it', // 1
+    'const a = x >= 3 && y !== 2;', // 2
+    '/* a block comment', // 3
+    '   whose body mentions < and 42 on a plain line */', // 4
+    'if (!ready) return 0;', // 5
+    'const msg = "read >= 10 files";', // 6  string literal
+    'const EPOCH = 5400; // 90 min' // 7  trailing comment after real code
+  ].join('\n');
   const ms = mutantsFor(src);
   const lines = [...new Set(ms.map((m) => m.line))].sort((a, b) => a - b);
-  ok('comment and doc lines are not mutated', !lines.includes(1) && !lines.includes(3), 'lines=' + lines.join(','));
-  ok('code lines are mutated', lines.includes(2) && lines.includes(4), 'lines=' + lines.join(','));
+  ok('a whole-line comment is not mutated', !lines.includes(1), 'lines=' + lines.join(','));
+  ok('a BLOCK-comment body is not mutated, even on a plain continuation line', !lines.includes(4), 'lines=' + lines.join(','));
+  ok('a STRING literal is not mutated', !lines.includes(6), 'lines=' + lines.join(','));
+  ok('code lines are mutated', lines.includes(2) && lines.includes(5), 'lines=' + lines.join(','));
+  // Line 7 is the sharp one: real code AND a trailing comment. The 5400 must mutate, the 90 must not.
+  const l7 = ms.filter((m) => m.line === 7);
+  ok(
+    'a trailing comment does not shield the statement before it',
+    l7.some((m) => m.after.includes('const EPOCH = 0')),
+    l7.map((m) => m.after).join(' | ') || 'no mutant on line 7'
+  );
+  ok('…and the number INSIDE that trailing comment is left alone', !l7.some((m) => /\/\/ 0 min/.test(m.after)), l7.map((m) => m.after).join(' | '));
   const ops = new Set(ms.filter((m) => m.line === 2).map((m) => m.op));
   ok('line 2 yields the >=, && and !== operators', ops.has('cmp >= → >') && ops.has('bool && → ||') && ops.has('eq !== → ==='), [...ops].join(' | '));
   ok(
@@ -311,10 +384,10 @@ function selftest() {
   );
   ok(
     'the ! drop fires on `if (!ready)`',
-    ms.some((m) => m.line === 4 && m.op === 'negate: drop !'),
-    'ops@4=' +
+    ms.some((m) => m.line === 5 && m.op === 'negate: drop !'),
+    'ops@5=' +
       ms
-        .filter((m) => m.line === 4)
+        .filter((m) => m.line === 5)
         .map((m) => m.op)
         .join(',')
   );
