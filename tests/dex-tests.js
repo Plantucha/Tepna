@@ -394,6 +394,75 @@
        night. Measured cost on 2026-07-26: −0.70 s (H10), −0.34 s (Verity), −18.49 s (O2Ring, and
        NON-LINEAR so no single rate removes it). This group locks the recovery, the two properties that
        make the correction safe to apply, and the refusal that stops it fabricating a timebase. */
+    /* ════ THE CLOCK CONTRACT'S OWN GUARDS, FOUND UNTESTED BY `tools/mutate.mjs` ═══════════════
+     An exhaustive mutation run on `clock.js` (CLOCK-MUTATION-AUDIT) killed 31 of 75 — the WEAKEST
+     module in the fleet, and the one `CLAUDE.md` opens by calling non-negotiable. The mechanism is
+     uncomfortable rather than mysterious: `clock.js` is also the most EXPENSIVE module to test
+     (191 s per `--group=clock` run, because everything loads it), and expensive-to-test correlates
+     with under-tested. No coverage report could show it — clock's line coverage is near-total by
+     construction, since every test in the suite loads it.
+
+     These three guards are the survivors that map onto DOCUMENTED contract text. Each assertion pair
+     is a rejection AND its adjacent boundary, because a one-sided test kills the `||`→`&&` mutant but
+     leaves every `<`→`<=` alive — which is exactly the state the audit found. */
+    group('Clock Contract §2.1 · the numeric-epoch plausibility band (mutate.mjs survivors)', 'clock · known-answer', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C._ckNumEpoch !== 'function') {
+        T.skip('DexClock._ckNumEpoch available', 'clock.js not loaded');
+        return;
+      }
+      var ok = function (n) {
+        var r = C._ckNumEpoch(n);
+        return !!(r && isFinite(r.tMs));
+      };
+      // A 2026 instant, both ways round: seconds get scaled by 1000, ms pass through.
+      T.ok('a 10-digit seconds epoch is accepted (scaled to ms)', ok(1.78e9));
+      T.ok('a 13-digit millisecond epoch is accepted', ok(1.78e12));
+      // THE BAND'S EDGES ARE VALID. `<`→`<=` and `>`→`>=` mutants are killed only by a value that
+      // must be KEPT at exactly the limit — a rejection test alone leaves both alive.
+      T.ok('the lower edge 1e11 is INSIDE the band', ok(1e11), 'rejected 1e11');
+      T.ok('the upper edge 4e12 is INSIDE the band', ok(4e12), 'rejected 4e12');
+      // …and outside it is null, never a fabricated instant (§2.6: a missing stamp must be visible).
+      T.eq('above the band → null', C._ckNumEpoch(5e12), null);
+      T.eq('far below the band → null (1e6 s scales to 1e9, still implausible)', C._ckNumEpoch(1e6), null);
+      T.eq('a non-finite input → null', C._ckNumEpoch(Number.NaN), null);
+      /* The `||`→`&&` mutant needs a value tripping exactly ONE disjunct: with `&&` the pair
+         `n < 1e11 && n > 4e12` is unsatisfiable, so 5e12 would sail through as a valid instant. That
+         is the case the assertion above pins, and it is the one that matters — a serial number read
+         as a date is precisely the defect ENGINE-VERIFICATION §1.1 found in `fnameStampMs`. */
+    });
+
+    group('Clock Contract §3 · a locked DMY order refuses the row it cannot explain (mutate.mjs survivors)', 'clock · known-answer', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C._ckDMY !== 'function') {
+        T.skip('DexClock._ckDMY available', 'clock.js not loaded');
+        return;
+      }
+      var L = function (a, b) {
+        return C._ckDMY(a, b, true, true);
+      }; // locked, preferDMY ⇒ a=day, b=month
+      T.eq('a locked DMY row resolves day/month in the proven order', JSON.stringify(L(15, 6)), JSON.stringify({ d: 15, mo: 6 }));
+      /* THE CONTRADICTION. §3: "A row the lock cannot explain (its month field lands outside 1..12)
+         is a contradiction, and a contradiction is null — never a guess." Under `&&`→`||` the guard
+         accepts it and the file silently flips order mid-way, which is the defect §1.1 of this
+         function's own doc-comment describes: a proven-MDY night moved 2026-06-12 → 2026-12-06. */
+      T.eq('month 15 under a DMY lock is a CONTRADICTION → null', L(6, 15), null);
+      T.eq('month 0 → null', L(6, 0), null);
+      T.eq('day 0 → null', L(0, 6), null);
+      T.eq('day 32 → null', L(32, 6), null);
+      // Every edge of the accepted box must be KEPT — these kill the four boundary mutants.
+      T.ok('month 1 is valid', !!L(15, 1), 'rejected month 1');
+      T.ok('month 12 is valid', !!L(15, 12), 'rejected month 12');
+      T.ok('day 1 is valid', !!L(1, 6), 'rejected day 1');
+      T.ok('day 31 is valid', !!L(31, 6), 'rejected day 31');
+      /* §3's UNLOCKED rule: "any row with day-component > 12 ⇒ the file is unambiguous". 12 is the
+         ambiguous case and 13 the decisive one, so both are asserted — the `>`→`>=` mutant lives
+         entirely in the gap between them. */
+      T.eq('unlocked · b = 13 proves b is the day', JSON.stringify(C._ckDMY(5, 13, true, false)), JSON.stringify({ d: 13, mo: 5 }));
+      T.eq('unlocked · b = 12 is still AMBIGUOUS, so preferDMY decides', JSON.stringify(C._ckDMY(5, 12, true, false)), JSON.stringify({ d: 5, mo: 12 }));
+      T.eq('unlocked · a = 13 proves a is the day', JSON.stringify(C._ckDMY(13, 5, true, false)), JSON.stringify({ d: 13, mo: 5 }));
+    });
+
     group('hostAxis — recover a planted device drift without disturbing the intervals', 'clock · host-axis', function (T) {
       var C = env.DexClock;
       if (!C || typeof C.hostAxis !== 'function') {

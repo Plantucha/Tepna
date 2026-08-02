@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-02 · **Follows:** `TOOL-INVOCABILITY-SWEEP-2026-08-02-BRIEF.md` §6 · **Tool:** `tools/mutate.mjs`
+**Status:** IN-PROGRESS — 2026-08-02 (**§5 items 1 and 2 EXECUTED — see §7.** The mask is regex-aware and the three documented guards are gated, each mutant verified killed. §5.3's re-run is running; §5.4 and §5.5 remain, and §5.5 is being audited next per the owner's call.) · **Created:** 2026-08-02 · **Follows:** `TOOL-INVOCABILITY-SWEEP-2026-08-02-BRIEF.md` §6 · **Tool:** `tools/mutate.mjs`
 
 # The Clock Contract is the least-tested module in the suite — 41 % of mutations go unnoticed
 
@@ -39,19 +39,25 @@ this asks *would anyone notice if it were wrong*.
 
 ## 2 · The survivors that matter — two are documented invariants
 
-### 2.1 §2.7's component-range validation is essentially untested
+### 2.1 §3's locked-order contradiction check is essentially untested
 
-`CLAUDE.md` §2.7 exists because **`Date.UTC`'s silent roll is a fabricated instant** — `2026-13-45` must
-return `null`, not "next January". The whole guard is one line (`clock.js:56`):
+*(This section originally called `clock.js:56` "§2.7's component-range validation". That was wrong and is
+corrected here: §2.7's validator is `_ckMk` (line 113), which round-trips the date through `Date.UTC`
+and IS gated. Line 56 is §3's FILE-LEVEL LOCK — the check that refuses a row the proven order cannot
+explain. The mutants and the argument stand; only the section reference was mislabelled.)*
+
+§3's lock exists so a single anomalous row cannot flip a file's date order mid-way. `_ckDMY`'s own
+doc-comment records what happens when it fails: *"a proven-MDY O2Ring night 2026-06-12 → 2026-12-06,
+with the date, `t0Ms`, `exportName()`, the crossnight axis and the Integrator's date join all
+confidently wrong."* The whole guard is one line (`clock.js:56`):
 
 ```js
 return lmo >= 1 && lmo <= 12 && ld >= 1 && ld <= 31 ? { d: ld, mo: lmo } : null;
 ```
 
 **Seven mutants of that single line survive** — every boundary (`>=`→`>`, `<=`→`<` on both month and
-day) and three of the `&&`→`||` rewrites. So the suite does not check that month 0 is refused, that
-month 13 is refused, that day 0 or day 32 is refused, or that the conjunction is a conjunction. The
-§2.7 note says the ranges are validated; nothing verifies that they are.
+day) and three of the `&&`→`||` rewrites. So the suite did not check that month 0 is refused, that
+month 13 is refused, that day 0 or day 32 is refused, or that the conjunction is a conjunction.
 
 ### 2.2 §3's DMY/MDY disambiguation rule
 
@@ -130,3 +136,69 @@ report noise. Tracked as the first item in §5.
 - [ ] `clock.js` re-run exhaustively; the before/after rate recorded in this brief.
 - [ ] The two zero-kill modules diagnosed (no test, or mis-tagged test).
 - [ ] A note here on whether the 40 untagged files are untested or merely unselectable.
+
+
+## 7 · EXECUTED 2026-08-02 — §5 items 1 and 2
+
+### 7.1 · The mask is regex-aware, and the old numbers were wrong in BOTH directions
+
+`codeMask()` now lexes regex literals: a `/` opens one only in expression position (decided by the last
+significant character — after an identifier, number, `)` or `]` it is division), and inside one, `/`
+terminates only outside a character class, with backslash escapes honoured.
+
+The correction is bigger than "six comment survivors go away". Mutant generation on `clock.js` moved
+**81 → 123**. The desync had marked large stretches of real code as *string*, so the audit was
+**suppressing legitimate mutants** as well as inventing noise. The published 38 % rested on a
+population that was wrong in both directions — which is why the re-run in §7.3 is the number that
+counts, not a patch to the old one.
+
+Pinned in `--selftest`: a regex containing both quote characters does not desync the scanner, the
+comment *after* it is still protected, and a division slash is still division. Also added `--dry-run`,
+which lists a module's mutants without running anything — proving "no mutant lands in a comment"
+should not cost 40 minutes of suite execution.
+
+### 7.2 · The three guards are gated (19 assertions, 2 groups)
+
+`Clock Contract §2.1 · the numeric-epoch plausibility band` and `Clock Contract §3 · a locked DMY order
+refuses the row it cannot explain`. Each guard is asserted as a **rejection AND its adjacent
+boundary**, because a one-sided test kills the `||`→`&&` mutant and leaves every `<`→`<=` alive —
+which is precisely the state the audit found.
+
+Every survivor re-applied and confirmed killed:
+
+```
+§2.1  || → &&              → ✕ above the band → null      (got a fabricated instant)
+§2.1  lower edge < → <=    → ✕ 1e11 is INSIDE the band
+§2.1  upper edge > → >=    → ✕ 4e12 is INSIDE the band
+§3    lock && → ||         → ✕ month 15 is a CONTRADICTION → null
+§3    month >= 1 → > 1     → ✕ month 1 is valid
+§3    day <= 31 → < 31     → ✕ day 31 is valid
+§3    unlocked b > 12 → >= → ✕ b = 12 is still AMBIGUOUS
+```
+
+The last one is the sharpest: §3's rule is *"any row with day-component > 12"*, so 12 is the ambiguous
+case and 13 the decisive one. The mutant lives entirely in the gap between them, and only asserting
+both closes it.
+
+### 7.3 · The re-run measured the WRONG TREE — a third tool defect, and the worst
+
+The exhaustive re-run finished (123 mutants, 79 min) at **73/123 = 59 %** — and the number is **void**.
+It listed as SURVIVORS the seven mutants §7.2 had just proven killed by hand.
+
+The cause: `workerPool()` created each worker with `git worktree add --detach HEAD`. **HEAD**, not the
+working tree. So every uncommitted change — including the tests written minutes earlier — was invisible
+to the run. It fails in the worst possible way: silently, with a plausible number, **about the wrong
+code**. A harness whose entire purpose is "can the suite see my change?" was answering about the last
+commit.
+
+Fixed: each fresh worker is now mirrored from the caller's dirty files (`git status --porcelain -z`,
+covering modified and untracked alike, deletions applied as deletions). Verified directly rather than
+inferred — a worker checked out at HEAD contains **0** occurrences of an uncommitted assertion; after
+`syncDirty` it contains **1**.
+
+**So the honest position on the delta:** the before-figure (41 %) and the after-figure (59 %) are
+measured on different mutant populations (81 vs 123, after the mask fix) AND the after-figure was
+computed against the pre-fix suite. Neither is a valid before/after pair, and inventing one from them
+would be exactly the kind of laundered number this brief exists to object to. What IS established is
+narrower and solid: **seven specific survivors, each re-applied and confirmed killed** (§7.2). The
+authoritative exhaustive rate is owed one more run on a committed tree, and is left open in §6.
