@@ -121,10 +121,41 @@ pairs lock poorly. The control bounds one failure mode; it does not certify the 
 
 ### 2.5 · The corpus is exactly six nights, and that is a hard bound
 
-Three-source nights require the O2Ring's live PPG, which capture began **2026-07-25**. 2026-07-31 has
-all three raw streams but its `Wellue_..._SPO2.csv` is **zero rows**, so the fold has no ring anchor —
-a file-present-but-empty case, the same class as `CPAP-SA2-OXIMETRY-SOURCE`'s sentinel channel. Six is
-the whole corpus and it will not grow backwards.
+Six is the whole corpus and it will not grow backwards. The reason is worth stating exactly, because
+the obvious version is wrong and would send someone looking in the wrong place.
+
+**It is not that the O2Ring started late. It is that ALL optical raw starts late.** Counted across
+every tree on disk:
+
+```
+raw H10 ECG        40 dates
+raw Verity PPG      7 dates   2026-07-25 … 07-31
+raw O2Ring PPG      7 dates   2026-07-25 … 07-31
+pair ECG + Verity   7
+trio, all three     7
+```
+
+The chest ECG is plentiful; the binding constraint is the **optical waveform**, and both optical
+devices begin on the same date. 2026-07-31 then falls out because its `Wellue_..._SPO2.csv` is **zero
+rows**, so the fold has no ring anchor — a file-present-but-empty case, the same class as
+`CPAP-SA2-OXIMETRY-SOURCE`'s sentinel channel. Seven raw, six foldable.
+
+**And `trio-onset`'s 36 nights are not a larger corpus in disguise.** They look like one: 36 PpgDex
+exports spanning 2026-06-10 → 07-30. But **0 of 36 carry `timeseries.ppi`** — they were folded before
+the beat series existed. A beat series can only come from a fresh fold, a fresh fold needs raw
+waveforms, and the June raw is **gone from every tree**. What survives June is exports that predate
+the field this analysis needs.
+
+That is the third time in one night a measurement has been bounded by raw data discarded after
+folding — with 2026-07-23's clock-fit night and the ODI-4 paper's corpus (`PAPER-ODI4-REPRODUCIBILITY`
+§2). The pattern is worth naming: **an export is not a substitute for its input.** Once a new field is
+added, every night whose raw is gone is permanently out of reach for it, and no amount of re-analysis
+recovers that. Nothing here proposes a retention policy; it does argue that one is a real question and
+that "we still have the exports" is not an answer to it.
+
+Nor can anything else substitute. A drift measurement needs **two beat sources**; the second is always
+optical, so it is capped at the same 7 dates. Event channels will not do it either —
+`ENVELOPE-ANCHOR-EXPORT` measured exactly that and got **3 usable pairs a night from 75 movements**.
 
 ## 2.6 · Normalised, and put through the repo's own three-cornered hat
 
