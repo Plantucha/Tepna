@@ -75,6 +75,40 @@ three orders of magnitude:
 assuming. **Only beat-resolution consumers are affected** — which is precisely the two that matter for
 PAT, and nothing coarser needs changing.
 
+## 3.5 · The bound, and a refuted hypothesis — added 2026-08-02
+
+§2 located the blocker as per-block offset precision. Here is the number, and it closes the question.
+
+**Hypothesis tested and REFUTED.** An ECG↔optical offset is clock + pulse-arrival-time(t), and PTT was
+measured wandering 325–535 ms across a night — a large fraction of one RR. So an optical↔optical pair,
+carrying PTT on both sides, should partially cancel it and concentrate better. **It does not:** pooled
+over legs with ≥70 % correspondence, optical↔optical is **0.61×** — *wider*, not tighter. (n = 1
+qualifying optical pair, so this is directional, not settled; it is recorded because it is the obvious
+explanation and it is wrong.)
+
+**The bound that matters.** Per-block offset scatter about the fitted drift line — drift removed, so
+this is noise not trend — is **315–1034 ms** across the six nights:
+
+```
+07-26 H10↔VER  315 ms      07-20  473 ms      07-28  562 ms
+07-23          688 ms      07-25  865 ms      07-22 1034 ms
+```
+
+**Half an RR is ~450 ms.** So on every night except the best one or two, consecutive blocks disagree by
+around a whole comb tooth. **There is no phase to unwrap** — not because the algorithm is wrong, but
+because the quantity being unwrapped is not determined to better than the tooth spacing. That is why
+attempt 1 propagated errors and attempt 2 found concentration 0.15–0.59.
+
+> **A metric flaw worth recording.** The first version of this measurement used the MAD of the RAW
+> per-block offsets, which **conflates the drift trend with the scatter** — a pair drifting 2 s across a
+> night has a large raw MAD by construction, and 2026-07-20 duly showed MAD 730 ms alongside the *best*
+> concentration seen (0.79). The residual about the fitted line is the right quantity and is what the
+> numbers above report.
+
+**The concrete target this sets:** get per-block residual scatter well below ~450 ms and the unwrap
+becomes possible; until then no search strategy helps. That is an estimator problem — more beats per
+block trades against drift *within* the block — and `concentration` is the metric to optimise against.
+
 ## 4 · Done when
 
 - [x] Joint/robust unwrap attempted — twice — and both attempts measured rather than asserted.
@@ -82,6 +116,9 @@ PAT, and nothing coarser needs changing.
 - [x] `_wrappedSlopeFit` shipped as a diagnostic beside the raw slope, never replacing it.
 - [x] The constant-offset precondition made checkable, and §3.1's "luck" corrected to "three orders of
       magnitude".
-- [ ] *(open, and now better specified)* The joint unwrap needs per-block offsets good to well under
-      one RR. That is an estimator problem — more beats per block trades against drift within the
-      block — not a search problem. Concentration is the metric to optimise against.
+- [x] The bound quantified (§3.5): per-block residual scatter is **315–1034 ms** against a **~450 ms**
+      half-RR tooth spacing, so most nights have no phase to unwrap at all.
+- [x] The obvious explanation (PTT contamination) tested and **refuted** — optical↔optical is wider,
+      not tighter.
+- [ ] *(open, now with a target)* Get per-block residual scatter well below ~450 ms. Estimator problem:
+      more beats per block trades against drift within the block. `concentration` is the metric.
