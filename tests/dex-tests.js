@@ -3255,7 +3255,7 @@
      the link; (a) no retired badge vocabulary; (b) every reference metric the
      node's OWN resolver (OxyRegistry.idForLabel) maps MUST carry the same grade
      as its registry. No hand crosswalk. */
-    group('Cohesion single-source — evidence badges', 'cohesion-badges', function (T) {
+    group('Cohesion single-source — evidence badges', 'cohesion-badges · cpapdex-registry · glucodex-registry · hrvdex-registry', function (T) {
       var M = env.MetricRegistry,
         docs = env.docs || {};
       var engineCss = M && M.BADGE_CSS,
@@ -4810,7 +4810,7 @@
        metadata (Date) stays bare. Finding J: six cuffless-BP columns (SBP/DBP Est, SBP Lo/Hi, BP Risk, dSBP)
        whose DSP producers were removed (WP-A) still declared TABLE_COLS entries → permanent unbadged '—mmHg';
        delete them. Source-parsed (TABLE_COLS is page-scoped) + resolved via the executed HrvRegistry. */
-    group('HRVDex full-metrics table — coverage-mandate badges + dead-BP-column removal (Findings I/J)', 'sources · cohesion-badges', function (T) {
+    group('HRVDex full-metrics table — coverage-mandate badges + dead-BP-column removal (Findings I/J)', 'sources · cohesion-badges · hrvdex-registry', function (T) {
       var rnd = (env.sources || {})['hrvdex-render.js'];
       var R = env.HrvRegistry,
         MR = env.MetricRegistry;
@@ -9687,7 +9687,7 @@
      rec.deviceACC → analyze() stamps epochs[].position (posture). Lock: (1) nearest-by-stamp pairing,
      (2) the adapter attaches the sidecars (and a no-companion call leaves the single-text frame
      unchanged), (3) compute() turns deviceACC into REAL postures (vs all-'unknown' without). ════ */
-    group('Companion-bundle ingest — ECG/PPG sidecars reach compute() via ctx.companions (HANDOFF §2(b))', 'polar-h10-ecg · polar-sense-ppg · signal-orchestrate', function (T) {
+    group('Companion-bundle ingest — ECG/PPG sidecars reach compute() via ctx.companions (HANDOFF §2(b))', 'polar-h10-ecg · polar-sense-ppg · signal-orchestrate · pat-gate · signal-adapters', function (T) {
       var SA = env.SignalAdapters,
         SF = env.SignalFrame,
         ORCH = env.SignalOrchestrate,
@@ -15483,7 +15483,7 @@
      beats — i.e. the synthetic waveform is faithful enough that detected/true is ≈1.
      Closes the hole that let a renderPPG dropout-step bug drive PPGDSP into 2:1
      beat-halving (recovery ~0.6) while every existing group stayed green. */
-    group('FULL-lane waveform fidelity — synthetic → real DSP beat recovery', 'cohort-full · ppgdex-dsp · ecgdex-dsp', function (T) {
+    group('FULL-lane waveform fidelity — synthetic → real DSP beat recovery', 'cohort-full · ppgdex-dsp · ecgdex-dsp · cohort-gen', function (T) {
       var SY = env.SYNTH,
         CG = env.CohortGen,
         CF = env.CohortFull,
@@ -16381,7 +16381,7 @@
       T.ok('elapsed span is one night (~420 min), not a month (MDY artifact)', r.recording.durationMin > 400 && r.recording.durationMin < 480, 'durationMin=' + r.recording.durationMin);
     });
 
-    group('OxyDex Phase-9 — compute() surface + spo2 adapter', 'oxydex-dsp · adapters · signal-orchestrate', function (T) {
+    group('OxyDex Phase-9 — compute() surface + spo2 adapter', 'oxydex-dsp · adapters · signal-orchestrate · signal-adapters', function (T) {
       var src = env.sources || {};
       var dsp = src['oxydex-dsp.js'],
         app2 = src['oxydex-app.js'],
@@ -18176,7 +18176,7 @@
       T.eq('…and that row is all-night', viaSleep.d_all_night, true);
     });
 
-    group('HRVDex Phase-9 — compute() surface + summary adapter', 'hrvdex-dsp · adapters · signal-orchestrate', function (T) {
+    group('HRVDex Phase-9 — compute() surface + summary adapter', 'hrvdex-dsp · adapters · signal-orchestrate · hrvdex-registry · signal-adapters', function (T) {
       var src = env.sources || {};
       var dsp = src['hrvdex-dsp.js'],
         app2 = src['hrvdex-app.js'],
@@ -18368,7 +18368,7 @@
      too — not just the browser render-coverage rig (-II §3). This complements the
      source-mirror groups above (which only check the wiring strings): it proves
      compute() actually executes the pipeline and returns the right shape. */
-    group('Phase-9 compute() — headless functional floor', 'pulsedex-dsp · oxydex-dsp · hrvdex-dsp · co-load', function (T) {
+    group('Phase-9 compute() — headless functional floor', 'pulsedex-dsp · oxydex-dsp · hrvdex-dsp · co-load · signal-spec', function (T) {
       var P = env.PulseDex,
         O = env.OxyDex,
         H = env.HRVDex;
@@ -19344,7 +19344,7 @@
      export HERE — so a node that goes emittable via canEmit + a SignalSpec entry WITHOUT a classic
      sample-stream adapter (the CPAPDex EDF/flow risk) still reds, regardless of how it lands. Needs
      SignalOrchestrate + the namespaced DSP hosts co-loaded (both present in this realm). */
-    group('Phase-9 generic adapter → emit → schema-valid export (every signalType)', 'co-load · signal-orchestrate · equivalence', function (T) {
+    group('Phase-9 generic adapter → emit → schema-valid export (every signalType)', 'co-load · signal-orchestrate · equivalence · signal-adapters · signal-spec', function (T) {
       var SO = env.SignalOrchestrate,
         SF = env.SignalFrame,
         SA = env.SignalAdapters,
@@ -19722,7 +19722,7 @@
      OverDex · Dex-Test-Suite · run-tests.mjs) co-loads every module in it — so a future add that
      misses a host is a RED, not a silent drop. (Hosts keep static <script> tags for robust load
      ordering; a later pass MAY have them generate the tags from this manifest — ECGDEX-FOLLOWUPS.) */
-    group('Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)', 'co-load · sources · purity', function (T) {
+    group('Co-load manifest — single source vs host realms (PPGDEX-FOLLOWUPS §5)', 'co-load · sources · purity · signal-adapters', function (T) {
       var M = env.DexCoload,
         SA = env.SignalAdapters;
       T.ok('dex-coload.js manifest co-loaded (env.DexCoload)', !!(M && Array.isArray(M.adapters) && Array.isArray(M.dsps) && Array.isArray(M.all)), M ? '' : 'load dex-coload.js into both runners');
@@ -21995,7 +21995,7 @@
      unlisted drift HARD-FAILS. KNOWN_DRIFT is itself checked for staleness (a fixed entry MUST be
      pruned — the check reds if a baseline item no longer drifts). No env wiring added: env.OXYCross/
      PPGCross/CPAPCross + the *Registry resolvers are already fed to BOTH runners. ════ */
-    group('Registry ↔ _DEFS parity (registry is the source)', 'registry-defs-parity · cohesion', function (T) {
+    group('Registry ↔ _DEFS parity (registry is the source)', 'registry-defs-parity · cohesion · cpapdex-registry', function (T) {
       var norm = function (s) {
         return String(s == null ? '' : s)
           .toLowerCase()
@@ -22179,7 +22179,7 @@
       }
     });
 
-    group('Integrator evidence-grade mirror ≡ node registries', 'integrator-dsp · cohesion', function (T) {
+    group('Integrator evidence-grade mirror ≡ node registries', 'integrator-dsp · cohesion · cpapdex-registry · glucodex-registry', function (T) {
       var I = env.IntegratorDSP;
       if (!(I && I.GRADE_MIRROR && Array.isArray(I.GRADE_SOURCES) && typeof I.gradeFor === 'function')) {
         T.ok('IntegratorDSP grade resolver available', false, 'not loaded');
@@ -22778,7 +22778,7 @@
       T.ok('…and two of them raise sharedHostTimebase as a caveat', hosted.sharedHostTimebase === true && hosted.hostTimedLegs.length === 2, JSON.stringify(hosted.hostTimedLegs));
     });
 
-    group('ResMed EDF session grouping — ±60 s inclusive (§AD)', 'resmed-edf · adapters · known-answer', function (T) {
+    group('ResMed EDF session grouping — ±60 s inclusive (§AD)', 'resmed-edf · adapters · known-answer · signal-adapters', function (T) {
       var SA = env.SignalAdapters;
       var rm = SA && typeof SA.byId === 'function' ? SA.byId('resmed-edf') : null;
       if (!rm || typeof rm.groupSessionSets !== 'function') {
@@ -23356,7 +23356,7 @@
      already instantiated), drive its init/job message protocol, and assert it (a) reports ready with NO
      err, (b) returns a `done` with NO error (the throw class), (c) reproduces a deterministic known-answer,
      (d) is byte-identical across two runs (a worker changes WHEN work runs, never WHAT it computes). */
-    group('qrs-equiv worker EXECUTES + reproduces a known-answer (TEST-COVERAGE-FOLLOWUPS-II §4)', 'qrs-equiv-worker · worker · regression', function (T) {
+    group('qrs-equiv worker EXECUTES + reproduces a known-answer (TEST-COVERAGE-FOLLOWUPS-II §4)', 'qrs-equiv-worker · worker · regression · cohort-gen', function (T) {
       var wsrc = (env.sources && env.sources['qrs-equiv-worker.js']) || '';
       var ready = !!(wsrc && env.SYNTH && env.CohortGen && env.CohortFull && env.ECGDSP && env.PPGDSP);
       T.ok('worker source + deps (SYNTH/CohortGen/CohortFull/ECGDSP/PPGDSP) available', ready, 'wsrc=' + !!wsrc);
@@ -23448,7 +23448,7 @@
      reconstructed realm and reproduces a deterministic known-answer. (cohort-worker is KIND-parameterized
      and pat-feasibility-worker uses a ping/result protocol needing real PPG input — both materially
      heavier + lower value; left as documented gaps in the II brief.) */
-    group('qrs-yield worker EXECUTES + reproduces a known-answer (TEST-COVERAGE-FOLLOWUPS-II §4)', 'qrs-yield-worker · worker · regression', function (T) {
+    group('qrs-yield worker EXECUTES + reproduces a known-answer (TEST-COVERAGE-FOLLOWUPS-II §4)', 'qrs-yield-worker · worker · regression · cohort-gen', function (T) {
       var wsrc = (env.sources && env.sources['qrs-yield-worker.js']) || '';
       var have = !!(wsrc && env.SYNTH && env.CohortGen && env.CohortFull && env.ECGDSP && env.PPGDSP);
       T.ok('worker source + deps available', have, 'wsrc=' + !!wsrc);
@@ -23538,7 +23538,7 @@
      inputs (brief §6 — let the agent state a property, let the machine enumerate
      edge cases). Self-contained HRV math (mirrors pulsedex-dsp's rmssd/std, which
      aren't headless-loadable as bare globals) + the loaded CORE adapter spine. */
-    group('Property / metamorphic — HRV + SignalFrame', 'property-metamorphic', function (T) {
+    group('Property / metamorphic — HRV + SignalFrame', 'property-metamorphic · signal-adapters · signal-spec', function (T) {
       // seeded RNG (mulberry32) — deterministic counterexample hunt, zero deps.
       function rng(seed) {
         var s = seed >>> 0;
@@ -24702,7 +24702,7 @@
      no single-channel and no finger-site path" — is STALE: `PPGDEX-O2RING-FINGER-SITE-2026-07-18`
      is DONE (2026-07-20), verified on hardware, and `parsePPG` returns `site:'finger'` with a
      single-channel beat lane. Verified in the tree before acting, not read off a status line. */
-    group('o2ring-ppg adapter — the finger pleth routes unambiguously (§1.4)', 'adapters · o2ring-ppg · routing', function (T) {
+    group('o2ring-ppg adapter — the finger pleth routes unambiguously (§1.4)', 'adapters · o2ring-ppg · routing · signal-adapters', function (T) {
       var SA = env.SignalAdapters;
       var A = SA && SA.byId ? SA.byId('o2ring-ppg') : null;
       T.ok('o2ring-ppg adapter registered', !!A, A ? '' : 'adapters/o2ring-ppg.js not co-loaded — add it to BOTH runners + both .src.html');
@@ -24904,7 +24904,7 @@
       T.ok('no tool hardcodes a checkout root (worktrees must not load the main tree’s code)', hardRoot.length === 0, hardRoot.length ? 'hardcoded checkout root in: ' + hardRoot.join(', ') : 'none of ' + names.length);
     });
 
-    group('resmed-edf adapter — SD-card session grouping (CPAP-REAL-CORPUS §F4)', 'adapters · resmed-edf · cpap', function (T) {
+    group('resmed-edf adapter — SD-card session grouping (CPAP-REAL-CORPUS §F4)', 'adapters · resmed-edf · cpap · signal-adapters', function (T) {
       var SA = env.SignalAdapters;
       var A = SA && SA.byId ? SA.byId('resmed-edf') : null;
       T.ok('resmed-edf adapter registered', !!A, A ? '' : 'adapters/resmed-edf.js not co-loaded');
@@ -26779,7 +26779,7 @@
        §2.2 An unrecognised ACC unit silently defaulted to milli-g. A default is not a measurement:
             gravity is, so the parse boundary now cross-examines the declared unit against it.
        §2.3 `SignalSpec.cgm.unit` declared mmol/L for frames every producer emits in mg/dL. */
-    group('Units and parsers: §1.3 · §2.1 · §2.2 · §2.3', 'clock · units · parsers', function (T) {
+    group('Units and parsers: §1.3 · §2.1 · §2.2 · §2.3', 'clock · units · parsers · signal-spec', function (T) {
       // ── §1.3 · truncate, never round
       var P = env.PPGDSP,
         C = env.DexClock;
