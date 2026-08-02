@@ -159,3 +159,45 @@ wave away, and they have NOT been examined. And some survivors mean *"no test re
 at all"* rather than *"the assertion is weak"*: `pulsedex-dsp.js:208`'s `acc / 1000` → `acc / 0`
 survives, making timestamps `Infinity` unnoticed, which points at an unexercised path. Different
 problem, same symptom, and the tool cannot tell them apart.
+
+
+## 7 · The 40 unmeasurable files, audited (2026-08-02) — the real number is ZERO
+
+§6's residue read *"29 of 43 tools have no `--selftest`"* and, for the shipped roster, *"40 of 111 files
+have no tagged group"*. The second was audited on the owner's instruction, and the raw count was
+misleading in the reassuring direction once each file was classified rather than counted.
+
+| | n | what it actually is |
+|---|---|---|
+| **A · mis-tagged** | **7** | Already reachable via `env.X` in `dex-tests.js` — the groups exercise them, the tag just did not name the module, so the mutator could not select them. |
+| **B · other harness** | 4 | Covered by `verify-manifest` / `build-core-tests` / the browser gates: `provenance-ledger`, `provenance-banner`, `dex-actions`, `overdex-app`. |
+| **C · DOM-bound** | 28 | app / render / chart / analysis-UI. The headless suite structurally cannot drive them; that is the browser lane's job (`Dex-Test-Suite.html?full`). |
+| **D · genuine gap** | **0** | `dex-contracts.js` was the lone candidate — and it is **types-only**: 126 lines of JSDoc `@typedef`, not inlined in any bundle, exporting a version stamp. It is listed in `tsconfig.json` and checked by `tsc --noEmit --checkJs`. There is no behaviour to mutate. |
+
+**So "40 files the mutator cannot see" was never 40 files without tests.** It was 7 tags, 4 files under a
+different harness, 28 files in the wrong lane, and one file with no runtime behaviour at all. Counting
+is not classifying, and the raw number invited exactly the wrong conclusion.
+
+### 7.1 · The 7 tags, added mechanically
+
+Not hand-picked: for each module, every group whose body references its `env` symbol had the module
+stem appended to its tag — **18 groups** across `signal-adapters` (9), `signal-spec` (4), `cohort-gen`
+(3), `hrvdex-registry` (3), `cpapdex-registry` (3), `glucodex-registry` (2), `pat-gate` (1). Measurable
+files: **71 → 78**.
+
+Measured immediately, because a tag that selects the wrong groups is worse than no tag:
+
+```
+ 41 %  signal-adapters.js    5/12  ( 27 mutants, 9 groups)
+ 50 %  cpapdex-registry.js   6/12  ( 15 mutants, 3 groups)
+ 50 %  glucodex-registry.js  6/12  ( 12 mutants, 2 groups)
+ 66 %  signal-spec.js        8/12  ( 13 mutants, 4 groups)
+ 66 %  cohort-gen.js         8/12  (236 mutants, 3 groups)
+ 77 %  hrvdex-registry.js    7/ 9  (  9 mutants, 3 groups)
+ 83 %  pat-gate.js          10/12  ( 32 mutants, 1 group)
+ ──    50/81 = 61 % across the seven
+```
+
+Nothing catastrophic, and `pat-gate` — the promotion gate `ENGINE-VERIFICATION` §1.5 single-sourced —
+is among the strongest in the fleet. The residue is now **C alone**: 28 DOM-bound files whose coverage
+question belongs to the browser render lane, not to this tool.
