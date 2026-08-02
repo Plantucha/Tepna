@@ -437,7 +437,7 @@ async def list_recordings(address: str, adapter: str | None = None) -> list[dict
         async with PolarPsFtp(address, adapter) as fs:
             rows = []
             t0 = time.monotonic()
-            async for r in fs.walk(USER_ROOT, descend=_session_descend):
+            async for r in fs.walk(descend=_session_descend):
                 rows.append(r)
                 # Progress, because the alternative is what actually happened on 2026-08-02: the op ran
                 # for the full 300 s watchdog and was killed having logged NOTHING, so "device busy",
