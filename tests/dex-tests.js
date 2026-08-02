@@ -21141,6 +21141,154 @@
       T.ok('cpapEventTimeline · no events ⇒ an explicit empty state, not a blank strip', CR.cpapEventTimeline([], false).length > 0);
     });
 
+    /* ════ CPAPDex CARD SURFACE II — the rest of the reachable builders (CLOCK-MUTATION-AUDIT §7.4) ════
+     Wave 1 (the group above) took `cpapdex-render.js` from 0/12 sampled to 61/319 exhaustive and recorded a
+     ceiling: "150 pure HTML builders still unasserted, 108 canvas/DOM unreachable". **That split was wrong
+     and is corrected here.** `renderHistory` (29 survivors) and `renderNight` were bucketed as DOM-mutating;
+     both are in fact PURE — each returns an HTML string and mutates nothing. Only `hydrate`,
+     `hydrateHistory` and `_cpapInjectSelfIngestCSS` touch the DOM, and they carry **7** survivors between
+     them, not 39. Recomputed: of the 258 survivors, **69 are canvas · 7 are DOM-only · 182 are reachable as
+     HTML**. The reachable surface was a third larger than wave 1 claimed.
+
+     `renderNight` matters most, because it is the only route to `heroCard` (25 survivors) — the single
+     largest surviving function and the node's headline clinical verdict. It is not on the export list, but
+     `renderNight` is, and it is pure, so the hero's tier bands are drivable after all. */
+    group('CPAPDex card surface II — hero, oximetry, sessions, stream (CLOCK-MUTATION-AUDIT §7.4)', 'cpapdex-render · render-harness · known-answer', function (T) {
+      var CR = env.CpapRender;
+      if (!CR || typeof CR.renderNight !== 'function' || typeof CR.oximetryCard !== 'function') {
+        T.skip('CpapRender.renderNight + oximetryCard wired', 'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs');
+        return;
+      }
+
+      /* ── heroCard · the headline verdict, reached through the exported renderNight ────────────────────
+         Four tiers on residual AHI: unavailable · <5 well-controlled · <15 borderline · else poorly
+         controlled. Each tier carries a DIFFERENT clinical instruction ("therapy is suppressing events"
+         vs "a pressure/fit review is warranted"), so a widened band does not just mis-colour a number —
+         it tells the reader to do the wrong thing. Asserted on both sides of both edges. */
+      var hero = function (ahi, extra) {
+        var n = { metrics: { residualAHI: ahi }, therapyHours: 6, nSessions: 1, t0Ms: 0 };
+        for (var k in extra || {}) n[k] = extra[k];
+        return CR.renderNight(n);
+      };
+      var heroTier = function (html) {
+        var m = /<div class="readiness-tier">([^·<]*)/.exec(html);
+        return m ? m[1].trim() : 'NONE';
+      };
+      T.eq('heroCard · AHI 4.9 → "Well-controlled"', heroTier(hero(4.9)), 'Well-controlled');
+      T.eq('heroCard · AHI exactly 5 crosses to "Borderline control" (the edge is < 5, not <= 5)', heroTier(hero(5)), 'Borderline control');
+      T.eq('heroCard · AHI 14.9 is still "Borderline control"', heroTier(hero(14.9)), 'Borderline control');
+      T.eq('heroCard · AHI exactly 15 crosses to "Poorly controlled"', heroTier(hero(15)), 'Poorly controlled');
+      T.eq('heroCard · an absent AHI says so rather than picking a tier', heroTier(hero(null)), 'AHI unavailable');
+      // …and the tier's ADVICE moves with it — the tier string and the note are separate expressions
+      T.ok('heroCard · the poorly-controlled note asks for a pressure/fit review, not reassurance', /pressure\/fit review is warranted/.test(hero(20)) && !/suppressing events effectively/.test(hero(20)));
+      T.ok('heroCard · the well-controlled note reassures and does NOT ask for a review', /suppressing events effectively/.test(hero(2)) && !/review is warranted/.test(hero(2)));
+      T.ok('heroCard · an absent AHI never claims a controlled range', /No device-scored events parsed/.test(hero(null)) && !/controlled range/.test(hero(null)));
+
+      /* the compliance chip is a SECOND, independent 4 h threshold (the summary's findings line is the
+         first). Both must agree, and >= is inclusive: exactly 4 h is compliant. */
+      T.ok('heroCard · exactly 4 h reads "≥4 h compliant" — the chip threshold is inclusive', /✓ ≥4 h compliant/.test(hero(3, { therapyHours: 4 })));
+      T.ok('heroCard · 3.9 h reads "under 4 h"', /⚠ under 4 h/.test(hero(3, { therapyHours: 3.9 })));
+      /* the CA>OA chip: central-predominant events are the clinically notable pattern, so the chip warns
+         only when central EXCEEDS obstructive. Equal indices are not a warning. */
+      var chipCls = function (html) {
+        var m = /<div class="readiness-zone-chip ([a-z]+)">OA /.exec(html);
+        return m ? m[1] : 'NONE';
+      };
+      T.eq('heroCard · CA 8 vs OA 4 warns (central-predominant)', chipCls(hero(12, { metrics: { residualAHI: 12, obstructiveIndex: 4, centralIndex: 8 } })), 'warn');
+      T.eq('heroCard · CA 4 vs OA 8 does not warn', chipCls(hero(12, { metrics: { residualAHI: 12, obstructiveIndex: 8, centralIndex: 4 } })), 'ok');
+      T.eq('heroCard · equal indices do not warn — the chip fires on strictly greater', chipCls(hero(12, { metrics: { residualAHI: 12, obstructiveIndex: 6, centralIndex: 6 } })), 'ok');
+      /* the PB chip has its own three-band ladder (2, 10) distinct from every /hr index */
+      var pbCls = function (pct) {
+        var m = /<div class="readiness-zone-chip ([a-z]+)">Periodic breathing/.exec(hero(3, { metrics: { residualAHI: 3, periodicBreathingPct: pct } }));
+        return m ? m[1] : 'NONE';
+      };
+      T.eq('heroCard · PB chip 1.9 % ok · 2 % warn · 10 % bad (edges are < , so 2 and 10 cross)', pbCls(1.9) + ',' + pbCls(2) + ',' + pbCls(10), 'ok,warn,bad');
+      /* the hero prints its own value at 1 dp below 100 and 0 dp at/above it — a units-independent rule
+         that exists so a 3-digit pressure does not render five characters wide */
+      T.ok('heroCard · a subscore ≥ 100 drops to 0 dp while a smaller one keeps 1 dp', /100<\/div>/.test(hero(3, { metrics: { residualAHI: 3, medianPressure: 100 } })) && /9\.5<\/div>/.test(hero(3, { metrics: { residualAHI: 3, medianPressure: 9.5 } })));
+
+      /* ── oximetryCard · the honest-absence branch is the point of this card ──────────────────────────
+         With no oximeter it must say "not fabricated" rather than render zeros. With one, five tiles:
+         odi (5,15 lower) · t90Pct (1,5 lower) · spo2Nadir (90,85 HIGHER) · spo2Mean (94,92 HIGHER) ·
+         pulseMedian (unbanded). Two lower-better and two higher-better in one grid is exactly where a
+         polarity slip hides. */
+      var oxiCard = function (o) {
+        return CR.oximetryCard({ sessions: [{ oximetry: o }] });
+      };
+      var mSev2 = function (html) {
+        var re = /<div class="m-val ([a-z]*)">/g,
+          m,
+          o = [];
+        while ((m = re.exec(html))) o.push(m[1] || 'neutral');
+        return o;
+      };
+      T.ok('oximetryCard · no oximeter ⇒ the n/a shield that says the values are NOT fabricated', /not fabricated/.test(CR.oximetryCard({ sessions: [] })) && /No oximeter connected/.test(CR.oximetryCard({ sessions: [] })));
+      T.ok('oximetryCard · an oximetry block present but marked unavailable takes the SAME honest branch', /No oximeter connected/.test(oxiCard({ available: false, odi: 20 })));
+      var ox = mSev2(oxiCard({ available: true, coverage: 0.876, odi: 20, t90Pct: 8, spo2Nadir: 88, spo2Mean: 93, pulseMedian: 60 }));
+      T.eq('oximetryCard · ODI 20 bad · T90 8 % bad · nadir 88 % warn · mean 93 % warn · pulse unbanded', ox.join(','), 'bad,bad,warn,warn,neutral');
+      // a GOOD night must not read the same — nadir/mean are higher-better, so high values are ok
+      T.eq('oximetryCard · nadir 92 % and mean 96 % are ok — high is good for these two, unlike ODI/T90', mSev2(oxiCard({ available: true, coverage: 1, odi: 2, t90Pct: 0.5, spo2Nadir: 92, spo2Mean: 96 })).slice(0, 4).join(','), 'ok,ok,ok,ok');
+      T.ok('oximetryCard · coverage renders as a rounded PERCENT (0.876 → 88%), not a fraction', /88% coverage/.test(oxiCard({ available: true, coverage: 0.876, odi: 1 })));
+      T.ok('oximetryCard · one self-gated artifact is singular', /1 desaturation self-gated/.test(oxiCard({ available: true, coverage: 1, odi: 1, artifactCount: 1 })));
+      T.ok('oximetryCard · two are plural', /2 desaturations self-gated/.test(oxiCard({ available: true, coverage: 1, odi: 1, artifactCount: 2 })));
+      T.ok('oximetryCard · zero artifacts states the self-gate ran — silence would be ambiguous', /no perfusion-collapse artifacts/.test(oxiCard({ available: true, coverage: 1, odi: 1, artifactCount: 0 })));
+
+      /* ── sessionsCard · off-mask gaps are the thing this card exists to preserve ─────────────────── */
+      var sess = CR.sessionsCard({
+        nSessions: 2,
+        sessions: [
+          { t0Ms: 0, endMs: 3600000, durMin: 60, usageHours: 1, mode: 'APAP', nEvents: 3, oximetry: { available: true } },
+          { t0Ms: 7200000, endMs: 9000000, durMin: 30, usageHours: 0.5, mode: 'APAP', nEvents: 0, truncated: true, recordsRead: 5, numRecords: 9 }
+        ],
+        offMaskGaps: [{ afterIdx: 0, gapMin: 60 }]
+      });
+      T.ok('sessionsCard · the off-mask gap is rendered between the sessions it separates', /off-mask gap 60\.0 min before next session/.test(sess));
+      T.ok('sessionsCard · a truncated session is flagged with how much was read', /partial 5\/9/.test(sess));
+      T.ok('sessionsCard · a complete session carries no partial pill', (sess.match(/partial /g) || []).length === 1);
+      T.ok('sessionsCard · per-session SpO₂ presence is stated either way', /SpO₂ ✓/.test(sess) && /no SpO₂/.test(sess));
+      T.ok('sessionsCard · sessions are tagged S1, S2 in order', /S1<\/span>/.test(sess) && /S2<\/span>/.test(sess));
+      // count the gap ROWS, not the phrase — the card header also says "off-mask gaps preserved"
+      T.eq('sessionsCard · exactly one gap row for one gap', (sess.match(/class="sess-gap"/g) || []).length, 1);
+      /* …and it must sit after the session it FOLLOWS. Counting rows cannot see `afterIdx === i` becoming
+         `!== i`: with two sessions and one gap that still renders exactly one row, just under the wrong
+         session. Found by mutation — position is the only thing that distinguishes them. */
+      T.ok('sessionsCard · the gap row sits between S1 and S2, i.e. under the session afterIdx names', sess.indexOf('>S1<') < sess.indexOf('class="sess-gap"') && sess.indexOf('class="sess-gap"') < sess.indexOf('>S2<'), 'S1@' + sess.indexOf('>S1<') + ' gap@' + sess.indexOf('class="sess-gap"') + ' S2@' + sess.indexOf('>S2<'));
+
+      /* ── cpapEventTimeline · the export's chronology, capped at 40 ───────────────────────────────── */
+      var ev = function (i, impulse, meta) {
+        return { tMs: i * 1000, t: '0' + (i % 10) + ':00:00', impulse: impulse || 'apnea', conf: 0.9, meta: meta };
+      };
+      // events arrive in export order; the timeline SORTS them by tMs
+      var tl = CR.cpapEventTimeline([ev(3, 'hypopnea'), ev(1, 'apnea', { class: 'central' }), ev(2, 'rera')], false);
+      var order = (tl.match(/class="tl-name">(?:<span[^>]*>[^<]*<\/span>)?([^<]*)/g) || []).join('|');
+      T.ok('cpapEventTimeline · rows are chronological by tMs even when the export is not', tl.indexOf('Central apnea') < tl.indexOf('RERA') && tl.indexOf('RERA') < tl.indexOf('Hypopnea'), order);
+      // the apnea CLASS decides the name and the badge id — central and obstructive are not interchangeable
+      T.ok('cpapEventTimeline · a central apnea is named Central apnea', /Central apnea/.test(CR.cpapEventTimeline([ev(1, 'apnea', { class: 'central' })], false)));
+      T.ok('cpapEventTimeline · an obstructive apnea is named Obstructive apnea', /Obstructive apnea/.test(CR.cpapEventTimeline([ev(1, 'apnea', { class: 'obstructive' })], false)));
+      T.ok('cpapEventTimeline · an unclassified apnea stays the generic "Apnea" — never guessed into a class', /Apnea/.test(CR.cpapEventTimeline([ev(1, 'apnea', {})], false)) && !/Central|Obstructive/.test(CR.cpapEventTimeline([ev(1, 'apnea', {})], false)));
+      // per-impulse meta formatting: a desat shows depth/nadir/duration, a large leak shows % night / p95
+      T.ok('cpapEventTimeline · a desaturation renders depth, nadir and duration', /−4% · nadir 88% · 20s/.test(CR.cpapEventTimeline([ev(1, 'desat_event', { depthPct: 4, nadir: 88, durSec: 20 })], false)));
+      T.ok('cpapEventTimeline · a large leak renders its night-percentage and p95, not a depth', /12% night · p95 40 L\/min/.test(CR.cpapEventTimeline([ev(1, 'large_leak', { pctNight: 12, p95Lpm: 40 })], false)));
+      T.ok('cpapEventTimeline · periodic breathing renders total seconds and percent', /300s total · 7%/.test(CR.cpapEventTimeline([ev(1, 'periodic_breathing', { totalSec: 300, pct: 7 })], false)));
+      // the 40-row cap must state what it hid, and count the apnea/hypopnea subset correctly
+      /* The subset count is apnea OR hypopnea, so the fixture must contain BOTH — 20 apnea + 10 hypopnea
+         + 15 rera = 30 of 45. Found by mutation: an all-apnea fixture still counts 30 when the
+         `|| e.impulse === 'hypopnea'` half is deleted, so it proves nothing about the disjunction. */
+      var many = [];
+      for (var i = 1; i <= 45; i++) many.push(ev(i, i <= 20 ? 'apnea' : i <= 30 ? 'hypopnea' : 'rera'));
+      var capped = CR.cpapEventTimeline(many, false);
+      T.ok('cpapEventTimeline · past 40 rows it says how many it hid and the true total (20 apnea + 10 hypopnea = 30, RERAs excluded)', /\+ 5 more · 45 events total \(30 apnea\/hypopnea\)/.test(capped), (/\+ [^<]*/.exec(capped) || [''])[0]);
+      T.ok('cpapEventTimeline · exactly 40 events shows no "more" line', !/more ·/.test(CR.cpapEventTimeline(many.slice(0, 40), false)));
+      // multiNight prepends the date; single-night does not
+      T.ok('cpapEventTimeline · multiNight prepends a MM-DD to each row; single-night does not', /01-01 /.test(CR.cpapEventTimeline([ev(1)], true)) && !/01-01 /.test(CR.cpapEventTimeline([ev(1)], false)));
+      T.ok('cpapEventTimeline · a missing confidence renders an em-dash, never a fabricated number', /conf —/.test(CR.cpapEventTimeline([{ tMs: 1000, t: '01:00:00', impulse: 'apnea' }], false)));
+
+      /* ── eventStream · the bus view, capped at 60 ─────────────────────────────────────────────────── */
+      if (typeof CR.eventStream === 'function' && env.CpapFusion) {
+        T.ok('eventStream · a night with no events says so rather than rendering an empty card', /No events emitted this night/.test(CR.eventStream({ metrics: {}, sessions: [] })));
+      }
+    });
+
     /* ════ RENDER EXECUTION — hoisted classifiers (§RN wave 2) ════
        The remaining §RN findings were inline expressions inside non-exported DOM-mutating render functions
        (renderHero / renderAll / reRender) the harness can't drive. Each is now HOISTED to a pure, exposed
