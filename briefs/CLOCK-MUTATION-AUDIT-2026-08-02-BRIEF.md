@@ -300,3 +300,65 @@ that spans both). The same treatment fits here — assert that both sites conver
 `d >= lo && d <= hi` signed-and-inclusive, and carry a used-set guard — but it needs `cohort-runner.html`
 and `cohort-regression.js` added to `readSources()`'s whitelist in **both** runners, which is a wider
 change than this test-only unit and is deliberately left as the next step rather than folded in here.
+
+### 7.5 · Wave 2 — and a CORRECTION to §7.4's ceiling, which understated the reachable surface
+
+**§7.4's split was wrong.** It reported "150 pure HTML builders still unasserted; 108 canvas/DOM a headless
+harness cannot reach", bucketing **`renderHistory` (29 survivors) and `renderNight`** as DOM-mutating. Both
+are **pure** — each returns an HTML string and mutates nothing; only `hydrate`, `hydrateHistory` and
+`_cpapInjectSelfIngestCSS` touch the DOM, and they carry **7** survivors between them, not 39. The honest
+split of §7.4's 258 survivors is:
+
+| | §7.4 said | actually |
+|---|---|---|
+| canvas drawing | 69 | 69 |
+| DOM-mutating | 39 | **7** |
+| reachable as HTML | 150 | **182** |
+
+The reachable surface was a **third larger** than the number this brief published. Recorded here rather
+than quietly amended, because the understated figure is exactly the kind of thing a later reader would
+inherit as the ceiling and stop at.
+
+The correction has a consequence: `renderNight` is exported and pure, and it is the **only** route to
+`heroCard` (25 survivors — the largest single surviving function, and the node's headline clinical
+verdict). `heroCard` is not on the export list, so §7.4 treated it as out of reach; through `renderNight`
+it is not.
+
+**Wave 2 result: 61/319 → 118/319 = 36 %**, still test-only, still no source change and no re-bundle.
+
+What it pins, beyond more of the same bands:
+
+- **`heroCard`'s four tiers**, on both sides of both edges (`< 5` well-controlled, `< 15` borderline). Each
+  tier carries a *different clinical instruction* — "therapy is suppressing events effectively" versus "a
+  pressure/fit review is warranted" — so a widened band does not merely mis-colour a number, it tells the
+  reader to do the opposite thing. The tier string and its note are separate expressions, so both are
+  asserted.
+- **The compliance chip's 4 h threshold**, which is a *second, independent* copy of the adherence rule the
+  clinical summary already applies. Both are now pinned inclusive at exactly 4 h.
+- **The CA > OA chip**, which fires on strictly-greater: equal indices are not a warning.
+- **`oximetryCard`'s two-polarity grid** — `odi` and `t90Pct` lower-better beside `spo2Nadir` and
+  `spo2Mean` higher-better, in one tile row. That is precisely where a polarity slip hides, so a bad night
+  and a good night are both asserted across all four.
+- **The honest-absence branch**: no oximeter must render the "*not fabricated*" shield, and an oximetry
+  block present but `available: false` must take the **same** branch rather than rendering zeros.
+- **`cpapEventTimeline`'s chronology** (it sorts; the export order is not authoritative), the apnea
+  **class** naming (central / obstructive / unclassified are not interchangeable, and an unclassified
+  apnea is never guessed into a class), the per-impulse meta formats, and the 40-row cap's disclosure.
+
+**Two more of my own assertions were wrong, and mutation found both again:**
+
+- *The 40-row cap counts apnea **or** hypopnea.* Asserted with an all-apnea fixture, which still counts 30
+  when the `|| e.impulse === 'hypopnea'` half is deleted. A disjunction needs both disjuncts present.
+- *An off-mask gap attaches to its own session.* Asserted by counting gap rows — which cannot see
+  `afterIdx === i` become `!== i`, because that still renders exactly one row, just under the **wrong
+  session**. Position was the only distinguishing evidence.
+
+That is four wrong-but-passing assertions across the two waves, all four found the same way. The pattern is
+consistent enough to state plainly: **an assertion written from reading the code tends to encode the code's
+shape rather than its contract**, and the cheapest correction is to re-apply the mutant it is supposed to
+catch before believing it.
+
+**Remaining, honestly:** 201 survivors — 69 canvas, 7 DOM-only, **125 still reachable**. The two biggest
+are `renderHistory` (29) and `cpapClinicalSummary` (20). `renderHistory` needs a `CPAPCross.buildLongitudinal`
+fixture of ≥ 2 nights, which is a fixture-construction job rather than more of the same; it is the obvious
+wave 3 and is left open here rather than claimed.
