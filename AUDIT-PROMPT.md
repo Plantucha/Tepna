@@ -196,6 +196,15 @@ at a time.
   adapter (`adapters/*.js`) → `SignalFrame` (`signal-frame.js validateFrame`) → `compute()` → export →
   `integrator-dsp.js` fusion. At each hop: units? clock? `null` vs fabricated? badge? **and does the file's
   shape honestly reflect the hardware?**
+- **Run the mutation harness — `node tools/mutate.mjs --file <module>.js`.** This is the fastest way to
+  find a hollow gate, and it replaces the by-hand pass that produced `TEST-AUDIT-FINDINGS`' 42. It breaks
+  one line at a time and reports the mutants the suite did **not** notice; a survivor is proof that
+  nothing tests that line, whatever coverage says. It runs only the groups tagged for that module, so it
+  is seconds, not minutes (`--jobs` is parallel by default, `--full` runs the whole suite per mutant).
+  **A survivor is a lead, not a finding** — some are legitimately untestable (unreachable defensive
+  branch, log string, float boundary). Triage them, and file the ones that name real behaviour.
+  It is **JavaScript only**: `capture-host/` is Python under pytest and remains un-mutation-audited
+  (`TEST-AUDIT-FINDINGS` §34 — use `mutmut`/`cosmic-ray` there).
 - **Build the coverage matrix** (class 13): roster × cross-cutting surface, and report the empty cells. This
   takes ten minutes and finds defects no amount of reading will.
 - **Grep the siblings** (class 14) the moment you find anything. Divergence between near-clone nodes is the
