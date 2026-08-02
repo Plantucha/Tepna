@@ -29,10 +29,31 @@
 #    `.sh` files and fails unconditionally, which would mark every mutant "killed" and report a
 #    beautiful, meaningless 100%. Per-module test selection avoids it; a whole-suite run does not.
 #
+# ── Bounding a run, added 2026-08-02 after webmon went unmeasured ────────────────────────────────────
+#
+# 4. THE PER-MODULE CAP WAS A FLAT `--timeout 3600`, and a flat number fits nothing here: it is ~15000x
+#    pull_session's clean run and not quite 2x what webmon needs. webmon blew it TWICE and, because
+#    TimeoutExpired propagated straight out of run_one, each attempt died with a traceback and left no
+#    measurement at all — so the audit recorded webmon as simply unmeasured rather than as "ran this
+#    long, got this far". The cap is now DERIVED from the module's own clean run (300x, floor 1800 s);
+#    a cap that IS hit still reports its partial counts, behind an explicit `timed_out` flag; and
+#    `--budget` skips an over-budget module loudly. Ported from the JS sibling tools/mutate.mjs (#702),
+#    which reached the same conclusions on the same day from the same failure.
+# 5. MEASURE FIRST, THEN DECIDE. `--estimate` times one clean run of the selection and prints what the
+#    module will cost, without generating a single mutant. Measured 2026-08-02 on 24 cores:
+#      pull_session     5 test files,  45 tests →  0.2-6.3 s clean ·  466 mutants
+#      storage_targets  4 test files            →  ~0.4 s clean    · 1073 mutants
+#      webmon          11 test files, 518 tests → 22.3 s clean     · 2345 mutants → 6680 s cap
+#    The spread is the point: the dominant cost is the test SELECTION, and mutmut pays it once for
+#    stats collection (a coverage pass over every selected test) before testing a single mutant.
+# 6. A SKIP IS NOT A PASS — `main` exits non-zero when any module was skipped, for the same reason the
+#    tool refuses to present a timed-out module as complete.
+#
 # Each run happens in a scratch copy under /tmp so the live pyproject.toml is never rewritten (the
 # capture-host tree is shared with a running daemon and other sessions).
 #
 #   python tools/mutate.py diskguard alerts bonding clockcfg
+#   python tools/mutate.py webmon --estimate         # what will this cost, before it costs it?
 #   python tools/mutate.py --list
 
 from __future__ import annotations
@@ -43,6 +64,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
@@ -99,8 +121,39 @@ def tests_for(module: str) -> list[str]:
     return found
 
 
+def clean_run_seconds(tests: list[str]) -> float:
+    """Time ONE clean run of this module's test selection, in the live tree.
+
+    This is the number that decides what a module costs, and it spans two orders of magnitude across
+    this repo — measured 2026-08-02: pull_session 0.23 s (5 files, 45 tests) · storage_targets 0.4 s ·
+    webmon 21.5 s (11 files, 518 tests). mutmut then pays it once for stats collection (a coverage
+    pass over the whole selection) before a single mutant is tested, which is why a module can blow a
+    fixed cap during SETUP and report nothing at all.
+
+    Borrowed from tools/mutate.mjs (#702), which reached the same conclusion on the JS side: measure
+    the clean run, then derive the bound from it rather than guessing a flat number."""
+    t0 = time.monotonic()
+    subprocess.run([str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider", *tests],
+                   cwd=HERE, capture_output=True, text=True, timeout=3600)
+    return time.monotonic() - t0
+
+
+def budget_for(clean_sec: float) -> int:
+    """Seconds to allow one module, derived from its own clean run rather than picked.
+
+    A FLAT 3600 was not a cap so much as a promise never to notice — it is 15000x pull_session's clean
+    run and barely 2x what webmon needs once stats collection is paid, which is exactly how webmon
+    "exceeded the per-module timeout twice" and stayed the one unmeasured module in the audit.
+
+    300x the clean run, floor 1800 s: mutmut tests each mutant against only the tests covering the
+    mutated function, so the per-mutant cost is a fraction of the full selection — the multiplier is
+    dominated by mutant COUNT (~2-3 per statement here), and 300 leaves room for both. Slower than
+    that is not slow, it is stuck."""
+    return max(1800, int(clean_sec * 300))
+
+
 def run_one(module: str, only: str | None = None, tests_override: list[str] | None = None,
-            timeout: int = 3600) -> dict:
+            timeout: int | None = None, budget: int = 0, estimate_only: bool = False) -> dict:
     """`only` is a mutant-name glob, `tests_override` a hand-picked selection.
 
     Both exist for capture.py, where the name-substring heuristic in `tests_for` is useless — "capture"
@@ -110,6 +163,18 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     tests = tests_override or tests_for(module)
     if not tests:
         return {"module": module, "error": "no test file names this module"}
+    clean = clean_run_seconds(tests)
+    cap = timeout if timeout is not None else budget_for(clean)
+    plan = {"module": module, "tests": tests, "clean_run_sec": round(clean, 2),
+            "timeout_sec": cap, "derived": timeout is None}
+    if budget and clean > budget:
+        # LOUD, with the numbers and the way out — the mjs sibling's --budget, same reasoning: a module
+        # silently skipped is indistinguishable from one that passed.
+        return {**plan, "skipped": f"clean run {clean:.1f}s exceeds --budget {budget}s",
+                "advice": f"narrow it: --tests '{tests[0]},...' (currently {len(tests)} files), "
+                          f"or scope it: --only '{module[:-3]}.x_<func>__mutmut_*'"}
+    if estimate_only:
+        return {**plan, "estimate_only": True}
     scratch = Path(tempfile.mkdtemp(prefix=f"mut-{module[:-3]}-"))
     work = scratch / "work"
     # Copy the tree WITHOUT .venv/mutants — 7.7 MB, so this is cheaper than being clever.
@@ -132,13 +197,30 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         source=module, also_copy=also, tests=", ".join(repr(t) for t in tests)), encoding="utf-8")
     env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     stem = module[:-3]
-    proc = subprocess.run([str(VENV_PY), "-m", "mutmut", "run", only or f"{stem}.*"],
-                          cwd=work, capture_output=True, text=True, env=env, timeout=timeout)
+    t0 = time.monotonic()
+    # ⚠️ A CAP THAT IS HIT MUST STILL PRODUCE A MEASUREMENT. Before this, `timeout=` raised
+    # TimeoutExpired straight out of run_one and the tool died with a traceback — so the two runs that
+    # blew the cap on webmon left NOTHING behind, not even "webmon ran for an hour and got this far",
+    # and webmon went into the audit as simply unmeasured. mutmut writes its results incrementally, so
+    # the partial verdict is on disk and worth reading; what is not honest is presenting it as
+    # complete, hence the explicit `timed_out` flag on the record.
+    timed_out = False
+    try:
+        proc = subprocess.run([str(VENV_PY), "-m", "mutmut", "run", only or f"{stem}.*"],
+                              cwd=work, capture_output=True, text=True, env=env, timeout=cap)
+        rc, tail = proc.returncode, (proc.stdout[-2000:] or proc.stderr[-2000:])
+    except subprocess.TimeoutExpired as e:
+        timed_out, rc = True, None
+        tail = (e.stdout or b"").decode("utf-8", "replace")[-2000:] if isinstance(e.stdout, bytes) \
+            else (e.stdout or "")[-2000:]
+    elapsed = time.monotonic() - t0
     res = subprocess.run([str(VENV_PY), "-m", "mutmut", "results"],
                          cwd=work, capture_output=True, text=True, env=env, timeout=300)
-    out = {"module": module, "tests": tests, "rc": proc.returncode,
-           "results": res.stdout, "tail": proc.stdout[-2000:] or proc.stderr[-2000:],
-           "work": str(work)}
+    out = {**plan, "rc": rc, "elapsed_sec": round(elapsed, 1), "timed_out": timed_out,
+           "results": res.stdout, "tail": tail, "work": str(work)}
+    if timed_out:
+        out["partial"] = ("PARTIAL — the cap was hit, so the counts below cover only the mutants that "
+                          "finished. Do not read an unrun mutant as a survivor.")
     return out
 
 
@@ -148,21 +230,31 @@ def main(argv=None) -> int:
     ap.add_argument("--list", action="store_true", help="list mutatable modules and their test files")
     ap.add_argument("--only", default=None, help="mutant-name glob, e.g. 'capture.x__now__*'")
     ap.add_argument("--tests", default=None, help="comma-separated test files, overriding the heuristic")
-    ap.add_argument("--timeout", type=int, default=3600,
-                    help="seconds per module; webmon (524 stmts x 12 test files) needs more than the default")
+    ap.add_argument("--timeout", type=int, default=None,
+                    help="seconds per module; default is DERIVED from the module's own clean run "
+                         "(300x, floor 1800) instead of a flat number that fits nothing")
+    ap.add_argument("--budget", type=int, default=0,
+                    help="skip a module whose clean run exceeds this many seconds, loudly")
+    ap.add_argument("--estimate", action="store_true",
+                    help="time the clean run and print what the module will cost, then stop")
     a = ap.parse_args(argv)
     if a.list:
         for m in modules():
             print(f"{m:24s} {len(tests_for(m))} test file(s)")
         return 0
     targets = [m if m.endswith(".py") else m + ".py" for m in a.modules]
+    skipped = 0
     for m in targets:
         print(f"\n=== {m} ===", flush=True)
-        r = run_one(m, only=a.only, timeout=a.timeout,
+        r = run_one(m, only=a.only, timeout=a.timeout, budget=a.budget, estimate_only=a.estimate,
                     tests_override=[x.strip() for x in a.tests.split(",")] if a.tests else None)
-        print(json.dumps({k: v for k, v in r.items() if k != "results"}, indent=2)[:1200], flush=True)
+        if r.get("skipped"):
+            skipped += 1
+        print(json.dumps({k: v for k, v in r.items() if k != "results"}, indent=2)[:1600], flush=True)
         print(r.get("results", "")[:4000], flush=True)
-    return 0
+    # A skip is not a pass. Exit non-zero so a caller that skipped everything cannot mistake the run
+    # for a clean one — the same reason the tool refuses to report a timed-out module as complete.
+    return 1 if skipped else 0
 
 
 if __name__ == "__main__":

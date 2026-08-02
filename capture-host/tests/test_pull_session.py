@@ -56,10 +56,14 @@ def test_wait_times_out_when_only_the_wrong_opcode_arrives():
 class FakeRing:
     """Answers FILE_LIST / FILE_START / FILE_DATA with genuine oxyii-encoded frames."""
 
-    def __init__(self, sessions, blob=b"", declared=None, chunk=512, split_frames=False):
+    def __init__(self, sessions, blob=b"", declared=None, chunk=512, split_frames=False,
+                 declared_seq=None):
         self.sessions = sessions
         self.blob = blob
         self.declared = len(blob) if declared is None else declared
+        # Per-session declared sizes, consumed in target order — needed to put a BAD session in front of
+        # a good one, which is the only way to tell "skip this session" apart from "abandon the pull".
+        self.declared_seq = list(declared_seq) if declared_seq else None
         self.chunk = chunk
         self.split_frames = split_frames
         self.notify = None
@@ -76,18 +80,30 @@ class FakeRing:
         self.ended = True
         return False
 
-    async def start_notify(self, _char, cb):
+    async def start_notify(self, char, cb):
+        # The characteristic is part of the contract, not decoration: subscribing on the wrong one
+        # yields a link that connects and then never delivers a single frame.
+        assert char == oxyii.OXYII_NOTIFY, "notifications must be subscribed on the OxyII notify char"
         self.notify = cb
 
-    async def write_gatt_char(self, _char, frame, response=False):
-        assert response is False, "this device requires write-without-response"
+    # `response` deliberately defaults to None, NOT False — so omitting the kwarg entirely trips the
+    # assert instead of silently inheriting the value the code is supposed to be passing.
+    async def write_gatt_char(self, char, frame, response=None):
+        assert char == oxyii.OXYII_WRITE, "file ops must be written to the OxyII write characteristic"
+        assert response is False, "this device requires write-without-response, stated explicitly"
         self.writes.append(frame)
         op = frame[1]
         if op == oxyii.OP_FILE_LIST:
             slots = b"".join(s.encode() + b"\x00\x00" for s in self.sessions)
             self._reply(oxyii.OP_FILE_LIST, bytes([len(self.sessions)]) + slots)
         elif op == oxyii.OP_FILE_START:
-            self._reply(oxyii.OP_FILE_START, self.declared.to_bytes(4, "little") + b"\x00" * 4)
+            self.off = 0                                  # each session streams from its own start
+            if self.declared_seq:
+                self.declared = self.declared_seq.pop(0)
+            # The size is the FIRST FOUR bytes; the meta bytes that follow are NOT zero on real
+            # hardware. Keeping them nonzero is what makes an off-by-one read width (meta[:5]) decode a
+            # wildly wrong size rather than coincidentally the same number.
+            self._reply(oxyii.OP_FILE_START, self.declared.to_bytes(4, "little") + b"\xab\xcd\xef\x12")
         elif op == oxyii.OP_FILE_DATA:
             chunk = self.blob[self.off:self.off + self.chunk]
             self.off += len(chunk)
@@ -109,18 +125,48 @@ class FakeDevice:
         self.address, self.name = address, name
 
 
-def _install(monkeypatch, ring, device=None):
-    device = device or FakeDevice()
+class FakeAdv:
+    """The AdvertisementData half of the scan callback — the code reads .local_name off it."""
 
-    async def find(*a, **k):
-        return device
+    def __init__(self, local_name=None):
+        self.local_name = local_name
+
+
+def _install(monkeypatch, ring, device=None, adv=None, capture=None):
+    """Install the fake BLE stack.
+
+    The scanner APPLIES the real match predicate instead of ignoring it, and that is the whole point.
+    A `find(*a, **k)` that just hands the device back never runs the lambda that decides WHICH radio
+    peer we connect to — so every mutation of it is invisible, however green the suite is. Applying it
+    puts that decision under every test in this file.
+    """
+    device = device or FakeDevice()
+    adv = adv if adv is not None else FakeAdv(device.name)
+
+    async def find(predicate, *a, **k):
+        if capture is not None:
+            capture["predicate"], capture["scan_kwargs"] = predicate, k
+        return device if predicate(device, adv) else None
 
     monkeypatch.setattr(pull_session.BleakScanner, "find_device_by_filter", find)
-    monkeypatch.setattr(pull_session, "BleakClient", lambda dev, **kw: ring)
+
+    def client(dev, **kw):
+        if capture is not None:
+            capture["device"] = dev
+        return ring
+    monkeypatch.setattr(pull_session, "BleakClient", client)
 
     async def no_sleep(_s):
         return None
     monkeypatch.setattr(pull_session.asyncio, "sleep", no_sleep)
+
+
+def _predicate(monkeypatch, tmp_path, address="D1:98:62:7C:92:B3"):
+    """Return the real device-match lambda `_pull_once` builds, for direct interrogation."""
+    cap = {}
+    _install(monkeypatch, FakeRing([], b""), capture=cap)
+    _run(pull_session._pull_once(address, str(tmp_path), "latest", 0, None, "0000"))
+    return cap["predicate"]
 
 
 def _dat(tmp_path):
@@ -173,6 +219,10 @@ def test_adapter_pin_reaches_bleak_in_the_bluez_form(tmp_path, monkeypatch):
     monkeypatch.setattr(pull_session.asyncio, "sleep", no_sleep)
     _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, "hci1", "0000"))
     assert seen["client"] == {"bluez": {"adapter": "hci1"}}
+    assert seen["scan"] == {"timeout": 25, "bluez": {"adapter": "hci1"}}, (
+        "the adapter pin must reach the SCAN too — scanning on the default radio and then connecting on "
+        "hci1 finds a device the pinned adapter may not see. 25 s is measured, not arbitrary: FILE_LIST "
+        "alone answers in ~4 s and the old 6 s window left no margin.")
 
 
 # ── session selection ───────────────────────────────────────────────────────────────────────────────
@@ -393,3 +443,205 @@ def test_pull_skips_a_contained_but_nonstamp_which(tmp_path, monkeypatch):
     _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
     got = _run(pull_session._pull_once("A", str(tmp_path), "notadate", 0, None, "0000"))
     assert got == [], "a non-stamp `which` must be skipped"
+
+
+# ── the device-match predicate ──────────────────────────────────────────────────────────────────────
+# This lambda decides WHICH radio peer the pull connects to. Until the fake scanner started applying it
+# (see _install), nothing in this file ran it at all: every mutation of it survived a 100 %-covered
+# suite, including `or` → `and`, which would strand the pull whenever the ring's MAC had rotated.
+def test_the_scan_matches_the_ring_by_address(tmp_path, monkeypatch):
+    match = _predicate(monkeypatch, tmp_path, address="D1:98:62:7C:92:B3")
+    # advertises nothing recognisable, but it is the exact MAC we asked for
+    assert match(FakeDevice("D1:98:62:7C:92:B3", "BLE-4C21"), FakeAdv(None)) is True
+
+
+def test_the_scan_matches_the_ring_by_name_when_its_mac_has_rotated(tmp_path, monkeypatch):
+    """The two arms are an OR precisely because a BLE MAC can rotate. Requiring BOTH — the `and` this
+    kills — means a re-randomised ring is never found, and the pull reports 'ring never appeared'."""
+    match = _predicate(monkeypatch, tmp_path, address="D1:98:62:7C:92:B3")
+    assert match(FakeDevice("FF:FF:FF:FF:FF:FF", "junk"), FakeAdv("O2Ring S8AW")) is True
+
+
+def test_the_scan_is_case_insensitive_on_both_sides_of_the_mac(tmp_path, monkeypatch):
+    """A MAC typed in lowercase on the command line must match the uppercase one BlueZ reports — which
+    is why both sides are upper()ed, not just one."""
+    match = _predicate(monkeypatch, tmp_path, address="d1:98:62:7c:92:b3")
+    assert match(FakeDevice("D1:98:62:7C:92:B3", "junk"), FakeAdv(None)) is True
+
+
+def test_the_scan_lowercases_the_advertised_name_before_matching(tmp_path, monkeypatch):
+    """The hints are lowercase, so the advertised name is folded down to meet them — a ring shouting
+    O2RING must match as readily as one whispering o2ring."""
+    match = _predicate(monkeypatch, tmp_path, address="FF:FF:FF:FF:FF:FF")
+    assert match(FakeDevice("11:22:33:44:55:66", "junk"), FakeAdv("O2RING S8AW")) is True
+
+
+def test_the_scan_falls_back_to_the_device_name_when_the_advert_carries_none(tmp_path, monkeypatch):
+    """Plenty of adverts carry no local_name; the cached device name is the fallback, and a device with
+    neither must be a clean no-match rather than an AttributeError that aborts the whole scan."""
+    match = _predicate(monkeypatch, tmp_path, address="FF:FF:FF:FF:FF:FF")
+    assert match(FakeDevice("11:22:33:44:55:66", "O2Ring S8AW"), FakeAdv(None)) is True
+    assert match(FakeDevice("11:22:33:44:55:66", None), FakeAdv(None)) is False
+
+
+def test_the_scan_ignores_an_unrelated_device(tmp_path, monkeypatch):
+    """The predicate must be a filter, not a rubber stamp: connecting to the first peer that answers is
+    how a pull ends up talking to somebody's earbuds."""
+    match = _predicate(monkeypatch, tmp_path, address="D1:98:62:7C:92:B3")
+    assert match(FakeDevice("11:22:33:44:55:66", "Galaxy Buds"), FakeAdv("Galaxy Buds")) is False
+
+
+def test_the_connection_targets_the_device_the_scan_found(tmp_path, monkeypatch):
+    cap = {}
+    device = FakeDevice("D1:98:62:7C:92:B3", "O2Ring S8AW")
+    _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90),
+             device=device, capture=cap)
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
+    assert cap["device"] is device, "connect to the peer the scan matched, not to some other handle"
+
+
+def test_the_real_mtu_is_acquired_before_it_is_reported(tmp_path, monkeypatch):
+    """On BlueZ, bleak reports a PLACEHOLDER mtu_size of 23 until a characteristic has been acquired.
+    Printing that straight after connect once cost a long misdiagnosis (a phantom 'needs MTU >= 517'
+    fault; the real negotiated value is 247). The acquire is best-effort, but it must be ATTEMPTED."""
+    ring = FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90)
+    acquired = []
+
+    class Backend:
+        async def _acquire_mtu(self):
+            acquired.append(True)
+            ring.mtu_size = 247
+
+    ring._backend = Backend()
+    ring.mtu_size = 23
+    _install(monkeypatch, ring)
+    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert acquired == [True], "the placeholder MTU must be refreshed before it is reported"
+
+
+# ── one bad session must not end the pull ───────────────────────────────────────────────────────────
+def test_one_implausible_session_does_not_abandon_the_rest_of_the_flash(tmp_path, monkeypatch):
+    """`which='all'` walks every onboard session, so a single unusable entry must be SKIPPED rather than
+    treated as the end of the flash. Breaking out instead hides every night behind the bad one, and it
+    fails silently — the caller gets a shorter list, not an error."""
+    blob = b"\x01\x03" + b"z" * 90
+    ring = FakeRing(["20260719010000", "20260720010000"], blob,
+                    declared_seq=[0, len(blob)])          # the FIRST session reports a nonsense size
+    _install(monkeypatch, ring)
+    got = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    assert len(got) == 1 and got[0].endswith("20260720010000_STORED.dat"), \
+        "the good session behind the bad one must still be pulled"
+
+
+def test_a_session_already_on_disk_does_not_abandon_the_rest_of_the_flash(tmp_path, monkeypatch):
+    """The same hazard on the idempotency path, and the likelier one in production: the auto-pull re-lists
+    the whole flash every cycle, so the FIRST session is nearly always already on disk. Stopping there
+    would mean a new night is never collected at all."""
+    blob = b"\x01\x03" + b"z" * 90
+    first, second = "20260719010000", "20260720010000"
+    _install(monkeypatch, FakeRing([first], blob))
+    assert len(_run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))) == 1
+    _install(monkeypatch, FakeRing([first, second], blob))
+    got = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    assert len(got) == 1 and got[0].endswith(f"{second}_STORED.dat"), \
+        "the already-present session is skipped, and the genuinely new one is still pulled"
+
+
+# ── the stamp-shape guard's boundaries ──────────────────────────────────────────────────────────────
+def test_a_date_only_session_id_is_still_a_plausible_stamp(tmp_path, monkeypatch):
+    """8 is the LOW boundary of `8 <= len(ts) <= 14` — a date-only id. It must be accepted; whether such
+    a session exists is the device's answer to give, not this guard's."""
+    blob = b"\x01\x03" + b"z" * 90
+    _install(monkeypatch, FakeRing(["20260719010000"], blob))
+    got = _run(pull_session._pull_once("A", str(tmp_path), "20260719", 0, None, "0000"))
+    assert len(got) == 1 and got[0].endswith("20260719_STORED.dat")
+
+
+def test_an_over_long_session_id_is_rejected(tmp_path, monkeypatch):
+    """14 is the HIGH boundary — a full YYYYMMDDhhmmss stamp. Fifteen digits is not a stamp, and this
+    value reaches a filesystem path, so the guard must not stretch to fit it."""
+    _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
+    got = _run(pull_session._pull_once("A", str(tmp_path), "202607190100001", 0, None, "0000"))
+    assert got == [] and _dat(tmp_path) == []
+
+
+def test_a_single_byte_session_is_still_pulled(tmp_path, monkeypatch):
+    """Boundary: the size guard is `0 < size`, so one byte is the smallest thing the ring can legitimately
+    report. Rejecting it would silently discard the shortest recordings as 'implausible'."""
+    _install(monkeypatch, FakeRing(["20260719010000"], b"\x7f", declared=1, chunk=1))
+    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert len(got) == 1 and os.path.getsize(got[0]) == 1
+
+
+# ── the sidecar's numbers ───────────────────────────────────────────────────────────────────────────
+def test_the_sidecar_reports_whole_samples_and_a_fixed_width_header(tmp_path, monkeypatch):
+    """approx_samples is a COUNT: a `/` where `//` belongs puts `1234.0` into the sidecar and every
+    consumer of it. The header is a fixed 10-byte prefix, so its hex is exactly 20 characters."""
+    blob = b"\x01\x03" + b"s" * 200
+    _install(monkeypatch, FakeRing(["20260719010000"], blob))
+    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    meta = json.load(open(got[0] + ".meta.json"))
+    assert isinstance(meta["approx_samples"], int), "a sample count must not be a float"
+    assert meta["approx_samples"] == (len(blob) - 10 - 48) // 3
+    assert meta["header"] == blob[:10].hex() and len(meta["header"]) == 20
+
+
+def test_exactly_forty_eight_bytes_still_yields_a_trailer(tmp_path, monkeypatch):
+    """Boundary: the trailer is kept when `len(data) >= 48`. At exactly 48 the whole file IS the trailer,
+    and one request covered it — asking for a chunk past the declared size costs a BLE round trip on a
+    link slow enough that the round trips are the cost."""
+    blob = bytes(range(48))
+    ring = FakeRing(["20260719010000"], blob, chunk=48)
+    _install(monkeypatch, ring)
+    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    meta = json.load(open(got[0] + ".meta.json"))
+    assert meta["trailer"] == blob.hex() and len(meta["trailer"]) == 96
+    assert len([w for w in ring.writes if w[1] == oxyii.OP_FILE_DATA]) == 1
+
+
+def test_progress_reports_once_per_20_kb_with_the_offset_and_the_total(tmp_path, monkeypatch):
+    """The cadence is `off % (512*40) < len(chunk)` — one report per 20 480 B. Not one per chunk (118 UI
+    updates for this transfer) and not none. The callback's ARGUMENTS are the whole payload: bytes so
+    far, then the total expected — swapped or blanked, a progress bar reads as finished or stuck."""
+    seen = []
+    blob = b"\x01\x03" + b"n" * 60000                     # 60 002 B in 512 B chunks
+    _install(monkeypatch, FakeRing(["20260719010000"], blob, chunk=512))
+    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000",
+                                 on_progress=lambda off, size: seen.append((off, size))))
+    assert seen == [(20480, len(blob)), (40960, len(blob))]
+
+
+# ── pull(): the retry wrapper's wiring ──────────────────────────────────────────────────────────────
+# Every test above calls _pull_once directly, and the three that exercise pull() stub _pull_once with a
+# lambda that ignores its arguments — so pull()'s job, which is to pass seven values through in the
+# right order, was entirely unasserted. It could have handed out_dir as the address.
+def test_pull_hands_every_argument_to_the_attempt_in_order(tmp_path, monkeypatch):
+    seen = {}
+
+    def cb(off, size):
+        pass
+
+    async def record(*a, **k):
+        seen["args"], seen["kwargs"] = a, k
+        return []
+    monkeypatch.setattr(pull_session, "_pull_once", record)
+    _run(pull_session.pull("D1:98:62:7C:92:B3", str(tmp_path), "20260719010000", 3, "hci1", "1234",
+                           0, on_progress=cb))
+    assert seen["args"] == ("D1:98:62:7C:92:B3", str(tmp_path), "20260719010000", 3, "hci1", "1234", cb)
+    assert seen["kwargs"] == {}
+
+
+def test_pull_defaults_are_the_ones_the_cli_documents(tmp_path, monkeypatch):
+    """These defaults ARE the behaviour for every caller that omits them — the webmon auto-pull included.
+    `wait=0` in particular is what makes an unattended poll one attempt rather than a retry loop."""
+    seen = {}
+    calls = {"n": 0}
+
+    async def record(*a, **k):
+        calls["n"] += 1
+        seen["args"] = a
+        raise pull_session.BleakDeviceNotFoundError("A", "not advertising")
+    monkeypatch.setattr(pull_session, "_pull_once", record)
+    assert _run(pull_session.pull("D1:98:62:7C:92:B3", str(tmp_path))) == []
+    assert seen["args"][2:] == ("latest", 0, None, "0000", None)
+    assert calls["n"] == 1, "wait defaults to 0 — one attempt, no retry"
