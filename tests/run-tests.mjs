@@ -219,6 +219,13 @@ function readSources() {
     // completeness count, and neither is reachable by executing anything from here.
     'tools/trio-batch.mjs',
     'tools/regen-integrator-goldens.mjs',
+    /* CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS §3 — the cohort desat-recall matcher is implemented TWICE
+       (cohort-regression.js + cohort-runner.html), independently, with the same [-10s,+60s] window. No
+       executable entry spans both, so cross-site agreement is asserted by source scan (the DA-II §2.2
+       DesSev pattern). MUST be listed in BOTH lanes: the browser lane's SOURCE_FILES needs the same two
+       entries or the scan reads nothing there — exactly the motiondex-dsp.js hole noted in that file. */
+    'cohort-regression.js',
+    'cohort-runner.html',
     'clock.js',
     'oxydex-util.js',
     'pulsedex-dsp.js',
