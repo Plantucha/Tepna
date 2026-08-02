@@ -57,27 +57,70 @@ Building the gate exposed a second trap worth keeping: a **sawtooth** jitter has
 difference, so the original "measured" synthetic scored **0.979** — itself a drawn-looking axis, nearly
 passing for the opposite of the real reason. The jitter must be independent per sample (now 0.0015).
 
-## F2 · Re-run the whole corpus under the disciplined axis
+## F2 · Re-run the whole corpus under the disciplined axis — **DONE 2026-08-02**
 
-Every trio/fold artefact predates the fix. `tools/trio-batch.mjs` is the sanctioned entry point (a
-hand-rolled harness gets four signatures wrong). Expect the O2Ring legs to change the most and the Polar
-pair barely at all — **and treat that asymmetry as the check**: if the H10↔Verity leg moves materially,
-something else is wrong.
+Re-folded both source trees through `tools/trio-batch.mjs --force` (25 + 14 nights → **34 complete
+trios**, 268 s).
 
-## F3 · Re-ask three-cornered hat, closure, and PAT — they shared one broken assumption
+> ### ⚠ The re-folded corpus is deliberately NOT committed, and that is a finding in itself
+> A `--force` re-fold does not produce "the same exports with better timestamps". Measured on
+> `ECGDex_2026-06-10`: the committed export is **32 KB / 1,694 lines**, the fresh one **1,007 KB /
+> 68,158 lines** — 30× larger, and carrying two top-level keys the committed one does not have
+> (`apnea`, `hrvStability`). Across the corpus that is **3.46 M inserted lines and 44 MB of new night
+> directories**. The committed corpus was produced by an older, slimmer export profile, so re-committing
+> now would fuse a timing correction with a wholesale shape-and-volume change in one commit, and nobody
+> reading the history afterwards could separate them.
+>
+> The tracked files were therefore restored and only the *findings* land here. **Re-committing the
+> corpus is its own work-unit**: decide the export profile first, land that alone, and only then re-fold
+> for timing. The closure numbers below were measured from the fresh run before it was reverted.
 
-- **`CLOCK-CLOSURE-THREE-SOURCE-2026-08-01`** — all six nights use the O2Ring as leg C. Its §1 table
-  reports closure "never zero" and calls it unexplained. **It is now explained**: leg C rode a drawn
-  axis, so both of its pairs measured a fiction faithfully and the linear fits were bad *fits*, not just
-  a bad clock. Re-run; expect the Polar-only legs to survive and the O2Ring legs to move.
-- **Three-cornered hat** (`integrator-tch.js`, `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II`,
-  `TCH-REFERENCE-VALIDATION`) — TCH assumes three *independent* sources. A drawn axis is not an
-  independent clock; it is a constant. Check whether any published TCH result used the finger PPI leg.
-- **PAT** (`PAT-UNDER-PERBLOCK-ALIGNMENT`, `pat-feasibility.js`, `pat-gate.js`) — a pulse-arrival delay
-  measured against a drawn axis inherits its error. Re-run per-block PAT on the disciplined axis; the
-  post-2026-07-28 nights are the clean ones to trust.
-- **`CROSS-DEVICE-CLOCK-SKEW-2026-07-29`**, **`MULTINIGHT-CORPUS-FINDINGS-2026-07-29`** — audit for
-  O2Ring-timing dependence.
+### The asymmetry check held — and it is the result, not a formality
+
+The brief predicted the O2Ring legs would move and the Polar pair barely would. **Closure moved by an
+order of magnitude on both nights that have a directly comparable before/after** (same nights, same
+tool, baseline = `CLOCK-CLOSURE-THREE-SOURCE` §1):
+
+| night | closure BEFORE | closure AFTER | H10↔Verity BEFORE | AFTER |
+|---|---|---|---|---|
+| 2026-07-25 | **101.2 ppm** | **−15.5 ppm** — now `consistent` | 93.9 | 73 |
+| 2026-07-28 | **58.4 ppm** | **−11.4 ppm** | 39.2 | 22 |
+
+2026-07-25 now *passes* its own consistency test. 2026-07-28 is still flagged INCONSISTENT, but against
+a tolerance that scales with leg drift and has tightened to 5 ppm — a stricter bar than it previously
+failed at 58 ppm.
+
+Best night of the fold: **2026-07-09 — 100 % beat correspondence vs a 24 % chance control, IQR 10 ms.**
+
+## F3 · Three-cornered hat — the exposure was NARROWER than this brief claimed
+
+**Correction to §F3 below.** `tools/tch-multinight.mjs`'s three corners are **ECGDex / PpgDex /
+OxyDex**, and OxyDex ingests the O2Ring **CSV** — a 1 Hz series with real wall-clock `Time` stamps —
+**not** the drawn `sensor timestamp [ns]` PPG axis. TCH also consumes **5-minute epoch medians**, which
+an axis error of ≤18 s cannot materially move. So the HR-σ three-cornered hat was never exposed to the
+drawn axis the way the *clock* work was, and the claim that "TCH is the most exposed" was wrong.
+
+Measured, 28 estimated of 39 nights: median σ **ECGDex 0.91 / OxyDex 1.19 / PpgDex 3.44 bpm** against
+the `MULTINIGHT-CORPUS-FINDINGS-2026-07-29` baseline of **0.91 / 1.09 / 2.71**. ECGDex is *identical*,
+which is the signature of a corner the fix could not reach.
+
+⚠ **PpgDex's 2.71 → 3.44 is NOT attributable to this change** and must not be reported as its effect:
+the two runs cover different night sets (37 vs 28 estimated), so the medians are not matched. Resolving
+it needs a per-night matched comparison, and the old per-night σ values were never recorded. Open.
+
+## F3-bis · Still open after the re-run
+
+- **`CLOCK-CLOSURE-THREE-SOURCE-2026-08-01` §1 is now superseded by measurement** — its six-night table
+  is the pre-fix regime. Two of its nights have been re-measured above; the other four need re-folding
+  with a third source present, and the table should be annotated rather than silently left standing.
+- **PAT** (`PAT-UNDER-PERBLOCK-ALIGNMENT`, `pat-feasibility.js`, `pat-gate.js`) — NOT yet re-run. A
+  pulse-arrival delay measured against a drawn axis inherits its error, and the post-2026-07-28 nights
+  are the clean ones to trust. This is the remaining leg of F3.
+- **`CROSS-DEVICE-CLOCK-SKEW-2026-07-29`**, **`MULTINIGHT-CORPUS-FINDINGS-2026-07-29`** — still to be
+  audited for O2Ring-timing dependence; the latter is also the source of the TCH baseline used above.
+- **`integrator-tch.js` / `TCH-REFERENCE-VALIDATION`** — the *kernel's* independence assumption is
+  unaffected by the drawn axis (see F3), but nothing yet refuses a leg whose `timingSource` is `'none'`.
+  Wiring that refusal is the durable fix, and it is not done.
 
 ## F4 · `papers/` audit
 
@@ -109,7 +152,10 @@ unreachable there and the drift/closure work cannot run inside the Integrator. U
 - [x] **F1 — Drawn-axis provenance computed and declared, not inferred** (2026-08-02). The proposed
       `first ns == 0` test was measured to NOT discriminate and was replaced by the modal-delta share;
       `quality.timingSource` now tells a clock consumer whether this recording may be used as a leg.
-- [ ] Corpus re-run under the disciplined axis, with the Polar-pair-barely-moves check applied.
+- [x] **Corpus re-run** under the disciplined axis (34 trios); the asymmetry check held — closure moved
+      101.2→−15.5 and 58.4→−11.4 ppm while ECGDex's TCH σ stayed identical at 0.91 bpm.
+- [ ] A per-night MATCHED TCH comparison — the 2.71→3.44 PpgDex σ shift spans different night sets and
+      is therefore unattributed. The old per-night σ values were never recorded; record them this time.
 - [ ] Closure, TCH and PAT re-asked; each either re-confirmed on new numbers or retracted in place.
 - [ ] `papers/` audited; `O2RING-PROTOCOL` annotated rather than retracted.
 - [ ] No ppm quoted anywhere without a span and a closure beside it.
