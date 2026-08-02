@@ -5,7 +5,14 @@
 -->
 **Status:** IN-PROGRESS · **Created:** 2026-08-02 · **Follows:** `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` §F3-ter, `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §5 · **Affects:** no code yet — a capture decision and one measurement
 
-# PAT has never been alignment-limited by precision. It was limited by there being **no valid non-beat anchor** for the ECG and PPG streams — so one was derived, and PAT came out at **218 ms**.
+# PAT has never been alignment-limited by precision. It was limited by there being **no valid non-beat anchor** for the ECG and PPG streams — one was derived, and it still does not recover PAT on most nights.
+
+> ### ⚠️ §7's "RESOLVED" is OVERSTATED — corrected at §10 after a corpus-wide run
+> §7 measured **one night**. Run across **38 nights** of both trees, the derived anchor recovers a locked,
+> plausible PAT on **6** of them (**0 of 13** box nights), at levels 64 · 81 · 91 · 103 · 209 · 521 ms —
+> median 91 ms, below the arm band and inconsistent with the reference night's 209 ms. **PAT is NOT
+> established.** The anchor derivation itself survives; the PAT conclusion drawn from it does not.
+> Fourth retraction in this brief family from the same habit: concluding from the best available case.
 
 > **RESOLVED 2026-08-02 (§7).** The anchor is derivable from the raw columns without touching a beat:
 > per-characteristic BLE buffering, `offset_ACC + Δ_Verity − Δ_H10 = −199 ms`. Under it, **PAT = 218 ms
@@ -174,6 +181,47 @@ Consequences, none of which require a code change:
 - **Only a box night can yield a DERIVED drift**, because only there does an independent host clock exist.
   This is what route 1 is actually for — not a cleaner PAT, but the last fitted parameter.
 
+## 10 · The corpus-wide run — PAT is NOT established, and §7 is corrected
+
+All nights of both trees re-folded (`trio-batch --force`: 25 old + 16 box, incl. 2026-07-31/08-01), Δ
+derived per night, ACC offsets measured on all of them (26 of 31 old nights confident, median offset
+**3.31 s**, range 1.75–5.45 s). 38 nights had everything needed.
+
+| | nights | majority of hours ≤60 ms | hours ≤60 ms |
+|---|---|---|---|
+| phone (old) | 25 | **6** | **45 / 269 (17 %)** |
+| box | 13 | **0** | |
+
+Passing nights: 2026-06-15 (81 ms, 8/8) · 06-30 (521 ms, 4/6) · 07-04 (91 ms, 4/4) · 07-06 (103 ms, 7/7) ·
+07-07 (64 ms, 5/7) · 07-09 (209 ms, 5/7). The reference night reproduces (209 vs 218 ms — a rate-grid
+difference), but the rest cluster near 90 ms, **below** the arm band, and 64–209 ms is wider between-night
+scatter than one subject at one site should show. ±50 ms of that is the ACC offset's 100 ms grid; the rest
+is unexplained. **PAT is not established.**
+
+### Two things this run settled, both negative and both worth keeping
+
+1. **Box nights fail uniformly (0/13) because of fragmentation.** One carries 24 ECG and 68 PPG fragments;
+   a single Δ per stream cannot describe a timeline reassembled from dozens of separately-anchored ones.
+   But fragmentation does **not** explain the phone failures — single-fragment nights pass 3/12, multi
+   3/26, far too weak at this n. Route 1 (a single-segment box night) therefore no longer looks like the
+   fix it was billed as at §6; per-fragment Δ is the more likely requirement.
+2. **A tight residual cannot validate an anchor — tested and confirmed.** We searched k ∈ [−4,4] over the
+   measured 384 ms quantum to see whether each failure was a one-quantum error. It "improved" nights that
+   were already right: 07-04 moved 91 → 859 ms and 07-06 103 → 395 ms **with the same passing-hour count**,
+   because shifting by whole beats re-pairs each R with a neighbouring foot and barely moves the IQR.
+   Selecting on dispersion cannot separate aliases; selecting on plausibility is circular. **The quantum
+   search is recorded as FAILED**, and the comb degeneracy is now demonstrated rather than argued.
+
+### On publishing this
+
+A standalone paper was drafted and **discarded**. Stripped of a working PAT, the timing result is one
+subject, one device pair, one phone, one logging app, with the batching mechanism inferred from the 768 ms
+spacing rather than confirmed against the BLE stack — a bug report at n=1, not a contribution. It belongs
+**folded into existing papers**: `timestamp-pathology.html` gains a new specimen class (a column that
+parses perfectly and carries no clock), and `wearable-clock-drift.html` needs its mechanism section
+corrected. What would make it publishable is a **second logging app or phone** showing the same quantized
+Δ — that is a short capture, not an analysis.
+
 ## 9 · Done when
 
 - [x] §F3-ter's "PAT is not alignment-limited" retracted, with the per-block-fitting mechanism named and the
@@ -186,13 +234,15 @@ Consequences, none of which require a code change:
       fails each.
 - [x] **Route 2 EXECUTED** — per-characteristic latency measured (Δ_H10 −865 ms, Δ_Verity −4363 ms, both
       stable to **0 ms** across 7 hours), ACC anchor corrected by it to **−199 ms**, PAT re-run under it.
-- [x] **A PAT verdict that survives an anchor NOT derived from beats.** PAT = **218 ms median, IQR 16–38 ms
-      over hours 0–4**, clearing the ≤60 ms bar. The level comes from the beat-free anchor and lands in the
-      arm/wrist band without being tuned there.
+- [ ] **A PAT verdict that survives an anchor NOT derived from beats — NOT ACHIEVED (§10).** The beat-free
+      anchor works, but corpus-wide it recovers PAT on only **6 of 38** nights (0 of 13 box), at 64–209 ms
+      with median 91 ms — below the arm band and inconsistent with the reference night's 209 ms. The single
+      night reported at §7 was the best case, not the typical one.
 - [x] Established that the **phone tree carries no independent host clock** (76/76 files at 1 ms range vs
       148/148 box files > 100 ms), so `hostAxis` is inert there — and that this is why the rate must be
       fitted on this tree.
-- [ ] **Route 1** — a single-segment box night, to DERIVE the −34.5 ppm rate instead of fitting it. This is
-      now the only outstanding parameter; blocked on the adapter fault that fragments the Verity.
+- [ ] **Per-fragment Δ**, not one per night — the likeliest fix, since box nights fail uniformly (0/13)
+      with 24 ECG / 68 PPG fragments while a single Δ describes the whole timeline. Supersedes Route 1 as
+      the next step; a single-segment box night would still be needed to DERIVE the rate rather than fit it.
 - [ ] Decide whether `hostAxis` should DECLARE an inert axis (host ≡ device ⇒ "no independent host clock")
       rather than silently reporting ~0 ppm, which is indistinguishable from "two clocks that agree".
