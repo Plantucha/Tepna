@@ -2,14 +2,21 @@
 # tepna-capture — probe_polar_usb.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 #
-# PS-FTP RIDES POLAR'S USB HID PIPE. Proven on the real Verity Sense, 2026-08-02 — a read-only probe.
+# PS-FTP RIDES POLAR'S USB HID PIPE — but the window is ONE REQUEST WIDE, so it can never pull a file.
+# Read-only probe. Both halves of that sentence were measured on the real Verity Sense, 2026-08-02.
 #
-# WHY THIS MATTERS. Every onboard-recording pull today goes over BLE, and the repo has measured both of
-# its costs: a Polar holds ONE BLE link, so pulling PAUSES live capture (POLAR-OFFLINE-DOWNLOAD §Known
-# caveat), and "MTU stays 23 here", so transfers crawl at 20-byte air packets — the same brief calls
-# that "slow for a large .REC". USB sidesteps both: it is a separate channel from the radio, so a pull
-# could run WHILE capture continues, at 64-byte reports instead of 20. That is the single hardest
-# constraint in POLAR-ONBOARD-BACKUP-2026-08-01, which is why this was worth chasing to the end.
+# WHY IT WAS WORTH CHASING. Every onboard-recording pull goes over BLE, and the repo has measured both
+# of its costs: a Polar holds ONE BLE link, so pulling PAUSES live capture (POLAR-OFFLINE-DOWNLOAD
+# §Known caveat), and "MTU stays 23 here", so transfers crawl at 20-byte air packets — the same brief
+# calls that "slow for a large .REC". USB is a separate channel from the radio, so a pull over it could
+# have run WHILE capture continued, at 64-byte reports instead of 20 — the single hardest constraint in
+# POLAR-ONBOARD-BACKUP-2026-08-01.
+#
+# WHY IT IS NOT THE ANSWER. See "SETTLED" below: the device answers exactly ONE request per USB
+# re-enumeration, and a multi-packet reply needs host ACKs, which are themselves requests. So the
+# transport tops out at a single 64-byte report. It is a fast directory lister with real diagnostic
+# value and no future as a pull path. Keep the file for that, and for the framing, which took two
+# wrong turns to get right.
 #
 # ── WHAT IS MEASURED AND CERTAIN ────────────────────────────────────────────────────────────────────
 #
@@ -41,6 +48,19 @@
 #      `packet[3] = request.length() + 4`. A bare length is accepted by the pipe and simply answered
 #      with nothing, so the mistake is silent.
 #
+# ── INDEPENDENTLY CORROBORATED, and under a better licence (2026-08-02) ─────────────────────────────
+#
+# `rsc-dev/loophole` (MIT, Python) documents the SAME constants for the same wire format, and for an
+# Apache-2.0 repo it is a better citation than v800_downloader (GPL-3.0) — protocol facts are not
+# copyrightable and this implementation is our own, but pointing at MIT is belt-and-braces:
+#     p.append(total + 8 << 2)              # our (len + 8) << 2 size/flags byte
+#     p.append(len(path) + 4)               # our len + 4 RFC60 length
+#     return [01, 05, packet_no] + [0]*61   # our build_ack, byte for byte
+# It targets the A360 / **Loop** / M400 — and `0da4:0008` is literally the *Loop* product id this dock
+# enumerates as. Its `init()` is only "open the HID device, find the output report": NO handshake and
+# no magic sequence. So there is no init to reverse, which SUPPORTS the enumeration-window finding
+# below rather than contradicting it. See `THIRD-PARTY.md` § Device protocols.
+#
 # The framing below is therefore NOT the BLE RFC76 one. Per request:
 #     [0]    0x01                HID report id
 #     [1]    (len + 8) << 2      size in the upper 6 bits, flags in the low 2
@@ -50,9 +70,29 @@
 # and the host must ACK each non-final reply with `01 05 <packet_num>`, incrementing and wrapping at
 # 0xFF. On the reply, the FIRST packet carries 5 bytes of header and later ones carry 3.
 #
-# ── WHAT IS STILL OPEN: the server does not answer on demand ────────────────────────────────────────
+# ── SETTLED: the window is ONE REQUEST WIDE, so this can never be a pull path ───────────────────────
 #
-# The listing above was obtained ONCE and has not reproduced since. Everything tried afterwards gets
+# Measured 2026-08-02 16:16 by bursting requests the instant the dock re-enumerated:
+#
+#     16:16:52 REPLUG
+#       +0.09s OK /U/0/           -> DBDC.DAT(1) · USERID.BPB(70) · S/ · 20260621/
+#       +0.30s -- /U/0/USERID.BPB       the 70-byte FILE: nothing
+#       +0.51s -- /U/0/20260621/        a DIRECTORY: nothing
+#       … 38 further requests, all nothing      => 1 successful request in this window
+#
+# Not a short TIME slice — exactly one request. It closed within 210 ms of the first reply, and request
+# #2 fails whether it asks for a file or a directory, so it is not a file-vs-directory distinction.
+# And because a multi-packet reply obliges the host to ACK every packet — and each ACK is itself a
+# write — NOTHING LARGER THAN ONE 64-BYTE REPORT CAN EVER COMPLETE here. A "re-enumerate -> one GET"
+# pull loop would need a physical re-enumeration per PACKET.
+#
+# So: USB is a fast lister for one small directory, and nothing more. Its remaining value is
+# diagnostic — it reads the device tree in ~90 ms without touching the BLE link, and that is how the
+# unpruned-walk bug (#710) was found. BLE is the only pull path; do not spend more on USB.
+#
+# ── HOW THAT WAS NARROWED (kept: each of these looks like "USB doesn't work") ────────────────────────
+#
+# Before the replug test, the listing had been obtained ONCE and everything afterwards got
 # `11 04 00` — a 1-byte null payload — forever. Ruled OUT by measurement:
 #
 #   * NOT a desynced ACK counter — sweeping `01 05 <n>` across all 256 values unstuck nothing.
@@ -61,15 +101,17 @@
 #   * NOT a wrong path — `/`, `/U/`, `/U/0/`, `/SYS/` all behave identically.
 #   * NOT a transient — 171 attempts at 1 Hz over 3 minutes returned 0 real replies.
 #
-# The surviving hypothesis, which fits every observation: the device serves a **window after USB
-# re-enumeration** and is charge-only outside it. The successful run happened minutes after the dock
-# re-enumerated (bus id 007 -> 009); nothing has re-enumerated since, and nothing has worked since.
-# Testing it needs a re-enumeration, i.e. a physical replug or root (`authorized` toggle / usbreset).
+# What was left standing — and then confirmed twice by replug — is that the device serves a window
+# opened by USB RE-ENUMERATION and is charge-only outside it. The first success happened minutes after
+# the dock re-enumerated (bus id 007 -> 009); the second and third came 0.09 s after a deliberate
+# physical replug by the operator. `tepna-usbreset.sh` is written to open that window in software, but
+# it is NOT DEPLOYED (it needs `install -o root` plus a sudoers line), so every measurement here came
+# from a human at the dock. Do not read the helper's existence as "this is automatable today".
 #
-# A second hypothesis is NOT yet excluded: that USB is refused while the BLE link is up. The 3-minute
-# correlation run could not exercise it — the daemon's `link_epoch` held at 5 and `connected` stayed
-# true throughout, so no BLE-down sample was ever taken. It does establish that with a STABLE BLE
-# link, USB never serves.
+# One hypothesis was never excluded, and no longer needs to be: that USB is refused while the BLE link
+# is up. The 3-minute correlation run could not exercise it — `link_epoch` held at 5 and `connected`
+# stayed true throughout, so no BLE-down sample was taken. It is moot now: the successful replug bursts
+# happened WITH the BLE link up, so BLE state plainly does not gate the window.
 #
 # ⚠️ DO NOT SWEEP OPCODES. An exploratory sweep of byte1 across 0x00..0xFF caused the device to
 # RE-ENUMERATE mid-run (and left the node in EIO). `polar_psftp._ALLOWED_QUERIES` exists because a

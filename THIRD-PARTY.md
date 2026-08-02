@@ -82,15 +82,29 @@ vendor source is copied or redistributed.
 | **Polar PMD** (Polar Measurement Data — streaming ECG/ACC/PPG/PPI/gyro/mag over service `FB005C80`) | `capture-host/polar_pmd.py` | Wire format per Polar's published PMD specification, distributed with the Polar BLE SDK. |
 | **Polar PS-FTP** (RFC60/RFC76 framing over characteristic `FB005C51` — read-only listing + fetch of onboard recordings, and `SET_LOCAL_TIME`) | `capture-host/polar_psftp.py` | Wire format per the Polar BLE SDK's protocol definitions (`pftp_request.proto` field numbering and the RFC60/RFC76 framing rules). |
 | **Wellue / ViATOM "OxyII"** (0xA5 framing, CRC-8, live SpO₂/PR + finger PPG, stored `.dat` transfer) | `capture-host/oxyii.py`, `capture-host/pull_session.py` | Reverse-engineered from device traffic; documented in `briefs/O2RING-PROTOCOL-2026-07-17-BRIEF.md`. |
+| **Polar PS-FTP over USB HID** (the same PS-FTP protobufs carried in 64-byte HID reports on the dock, `0da4:0008`) | `capture-host/probe_polar_usb.py` (read-only probe) | Framing corroborated against **`rsc-dev/loophole`** (MIT) — see the note below. |
 
 **Polar BLE SDK** (`github.com/polarofficial/polar-ble-sdk`) — **not a
 dependency.** It is proprietary (`spdx_id: NOASSERTION`;
 `Polar_SDK_License.txt`), not an OSS licence, and Tepna does not link,
 redistribute, or vendor any part of it. It is named here only because Polar's
-protocol documentation ships with it and is the reference for the two rows
+protocol documentation ships with it and is the reference for the rows
 above. Polar's terms additionally state that its SDK and devices are "not
 intended to be used in life critical, life supporting or medical purpose" —
 consistent with Tepna's own non-device intended-use disclaimer.
+
+**`rsc-dev/loophole`** (`github.com/rsc-dev/loophole`, **MIT**, © Radoslaw
+Matusiak) — **not a dependency, and no code is copied.** It is a Python
+read-only file-access tool for older Polar watches over USB (A360, Loop, M400 —
+and `0da4:0008` is literally the *Loop* product id our dock enumerates as). It
+is cited because it independently documents the same USB framing Tepna derived
+for `probe_polar_usb.py`: the `(len + 8) << 2` size/flags byte, the `len + 4`
+RFC60 length, and the `[0x01, 0x05, packet_no]` host ACK. Being able to point at
+an **MIT** implementation of those constants — rather than only at
+`profanum429/v800_downloader` (**GPL-3.0**), which the probe consulted first —
+keeps the provenance of Tepna's Apache-2.0 code clean. Protocol facts are not
+themselves copyrightable, and the implementation is Tepna's own; the MIT
+corroboration is belt-and-braces, not a licence grant either way.
 
 Polar, Polar H10 and Verity Sense are trademarks of Polar Electro Oy; Wellue
 and ViATOM are trademarks of their respective owners. Used for identification
