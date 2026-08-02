@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-4BCLWr6X92TsW/ko/w2iX02RczLxNfih3nz479/lehg=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8E+4bOVWpGDIvQEwzVWOb/HUOa4RpfKqQPqaZtNQFoY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bw6rfr4B0CUwSUGUdE6p6SkGWH+3xW0BfuNMDL9M7BA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-f2HGHVm/1zjp3NNSub0EQGQCUNni9ug30nt4PCO02rA=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q3OJ6/E5DEDomqLbxDocpXZqn+LcULFvv3BnYc7F+TQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-4BCLWr6X92TsW/ko/w2iX02RczLxNfih3nz479/lehg=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8E+4bOVWpGDIvQEwzVWOb/HUOa4RpfKqQPqaZtNQFoY=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bw6rfr4B0CUwSUGUdE6p6SkGWH+3xW0BfuNMDL9M7BA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-hxtclF7doYfS5TM+OYHTmTgzyGrLpT7Qibfg1M7SvBA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q3OJ6/E5DEDomqLbxDocpXZqn+LcULFvv3BnYc7F+TQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -29860,9 +29860,43 @@ __exports.PpgDex = window.PpgDex;
        Unlike PpgDex — which carries a per-sample relSec and takes the full piecewise correction — an
        ECG rec is (int16, fs), and one scalar can express a RATE but not a STEP. A step is therefore
        REPORTED via hostAxis.maxStepMs and deliberately NOT corrected: absorbing a 3.22 s jump into fs
-       would spread it across 434 min of otherwise good signal. */
+       would spread it across 434 min of otherwise good signal.
+
+       SPAN GATE — a RATE needs a BASELINE, and `hostAxis` deliberately does not enforce one.
+       That omission is correct for PpgDex, which consumes `correctionAt()`: an interpolation through
+       measured anchors, whose residual is bounded by the jitter that caused it. It is NOT correct
+       here, because this is the one consumer that reads `.ppm` — a rate — and a rate divides by the
+       span. Short fragment ⇒ tiny denominator ⇒ host-stamp jitter is amplified into a fabricated
+       crystal. Measured over 260 ECG fragments of the 2026-07-16..29 capture corpus, |ppm| against
+       fragment span:
+
+           <60 s   median 1208, max 16512   |   600-1200 s  median 43, max  196
+          60-120   median  714, max 24036   |  1200-2400 s  median 42, max  151
+         120-300   median  177, max 23235   |  2400-4800 s  median 20, max   52
+         300-600   median   74, max   464   |     >4800 s   median 22, max   31
+
+       The H10's real crystal is ~-25 ppm (the >2400 s fragments agree on that to within 30 ppm). Above
+       2400 s no fragment exceeds 100 ppm; below 120 s, 86-89 % of them do. So 2400 s is where the
+       estimate stops being a measurement of the crystal and starts being a measurement of the jitter.
+
+       Why this matters beyond the time axis: `fs` is not only the beat clock. `detectPeaks`, the
+       bandpass coefficients (aHp/aLp are built from 1/fs), `refinePeaks` and `computeSQI` all consume
+       it as a RATE, so an uncorrected 133.2 Hz — which this corpus produced from a 62 s fragment —
+       mis-designs the filter and the sub-sample refinement, not merely the timestamps.
+       Refused ⇒ fs keeps the DEVICE crystal, the pre-WEARABLE-HOST-AXIS behaviour: wrong by ~25 ppm,
+       where the ungated correction was wrong by up to 24036. The refusal is REPORTED, never silent. */
+    var ECG_AXIS_MIN_SPAN_MS = 2400e3; // 40 min — the knee in the table above
     var ecgHostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? DexClock.hostAxis(ecgAxisAnchors, {}) : { ok: false };
-    if (ecgHostAx.ok && isFinite(ecgHostAx.ppm)) fs = fs / (1 + ecgHostAx.ppm / 1e6);
+    /* Span from the anchors themselves — they are pushed in row order, so first→last IS the baseline
+       the rate was divided by. Computed here rather than added to `DexClock.hostAxis` on purpose:
+       clock.js is inlined into every bundle, so a field only ECGDex reads would re-stamp all eight
+       provenance fragments to carry it. */
+    var ecgAxisSpanMs = ecgAxisAnchors.length >= 2 ? ecgAxisAnchors[ecgAxisAnchors.length - 1].devMs - ecgAxisAnchors[0].devMs : 0;
+    var ecgAxisApplied = false;
+    if (ecgHostAx.ok && isFinite(ecgHostAx.ppm) && ecgAxisSpanMs >= ECG_AXIS_MIN_SPAN_MS) {
+      fs = fs / (1 + ecgHostAx.ppm / 1e6);
+      ecgAxisApplied = true;
+    }
     // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
     // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
     // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
@@ -29880,10 +29914,24 @@ __exports.PpgDex = window.PpgDex;
       endEpochMs: endEpochMs,
       firstRelMs: firstRelMs,
       lastRelMs: lastRelMs,
-      // See the fs block above. `maxStepMs` is the one to read: a step is reported, never corrected.
+      /* See the fs block above. `maxStepMs` is the one to read: a step is reported, never corrected.
+         `applied` is the field that says whether `fs` actually moved — `ok` alone does NOT mean the
+         correction reached the axis, because the span gate can measure a rate and still decline to
+         trust it. A consumer asking "is this recording host-disciplined?" must read `applied`. */
       hostAxis: ecgHostAx.ok
-        ? { ok: true, anchors: ecgHostAx.n, totalMs: ecgHostAx.totalMs, ppm: ecgHostAx.ppm, maxStepMs: ecgHostAx.maxStepMs }
-        : { ok: false, reason: ecgHostAx.reason || 'no host anchors' }
+        ? {
+            ok: true,
+            applied: ecgAxisApplied,
+            anchors: ecgHostAx.n,
+            totalMs: ecgHostAx.totalMs,
+            ppm: ecgHostAx.ppm,
+            maxStepMs: ecgHostAx.maxStepMs,
+            spanMs: ecgAxisSpanMs,
+            reason: ecgAxisApplied
+              ? undefined
+              : 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock'
+          }
+        : { ok: false, applied: false, reason: ecgHostAx.reason || 'no host anchors' }
     };
   }
 
