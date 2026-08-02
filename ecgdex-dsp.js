@@ -3905,9 +3905,43 @@
        Unlike PpgDex — which carries a per-sample relSec and takes the full piecewise correction — an
        ECG rec is (int16, fs), and one scalar can express a RATE but not a STEP. A step is therefore
        REPORTED via hostAxis.maxStepMs and deliberately NOT corrected: absorbing a 3.22 s jump into fs
-       would spread it across 434 min of otherwise good signal. */
+       would spread it across 434 min of otherwise good signal.
+
+       SPAN GATE — a RATE needs a BASELINE, and `hostAxis` deliberately does not enforce one.
+       That omission is correct for PpgDex, which consumes `correctionAt()`: an interpolation through
+       measured anchors, whose residual is bounded by the jitter that caused it. It is NOT correct
+       here, because this is the one consumer that reads `.ppm` — a rate — and a rate divides by the
+       span. Short fragment ⇒ tiny denominator ⇒ host-stamp jitter is amplified into a fabricated
+       crystal. Measured over 260 ECG fragments of the 2026-07-16..29 capture corpus, |ppm| against
+       fragment span:
+
+           <60 s   median 1208, max 16512   |   600-1200 s  median 43, max  196
+          60-120   median  714, max 24036   |  1200-2400 s  median 42, max  151
+         120-300   median  177, max 23235   |  2400-4800 s  median 20, max   52
+         300-600   median   74, max   464   |     >4800 s   median 22, max   31
+
+       The H10's real crystal is ~-25 ppm (the >2400 s fragments agree on that to within 30 ppm). Above
+       2400 s no fragment exceeds 100 ppm; below 120 s, 86-89 % of them do. So 2400 s is where the
+       estimate stops being a measurement of the crystal and starts being a measurement of the jitter.
+
+       Why this matters beyond the time axis: `fs` is not only the beat clock. `detectPeaks`, the
+       bandpass coefficients (aHp/aLp are built from 1/fs), `refinePeaks` and `computeSQI` all consume
+       it as a RATE, so an uncorrected 133.2 Hz — which this corpus produced from a 62 s fragment —
+       mis-designs the filter and the sub-sample refinement, not merely the timestamps.
+       Refused ⇒ fs keeps the DEVICE crystal, the pre-WEARABLE-HOST-AXIS behaviour: wrong by ~25 ppm,
+       where the ungated correction was wrong by up to 24036. The refusal is REPORTED, never silent. */
+    var ECG_AXIS_MIN_SPAN_MS = 2400e3; // 40 min — the knee in the table above
     var ecgHostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? DexClock.hostAxis(ecgAxisAnchors, {}) : { ok: false };
-    if (ecgHostAx.ok && isFinite(ecgHostAx.ppm)) fs = fs / (1 + ecgHostAx.ppm / 1e6);
+    /* Span from the anchors themselves — they are pushed in row order, so first→last IS the baseline
+       the rate was divided by. Computed here rather than added to `DexClock.hostAxis` on purpose:
+       clock.js is inlined into every bundle, so a field only ECGDex reads would re-stamp all eight
+       provenance fragments to carry it. */
+    var ecgAxisSpanMs = ecgAxisAnchors.length >= 2 ? ecgAxisAnchors[ecgAxisAnchors.length - 1].devMs - ecgAxisAnchors[0].devMs : 0;
+    var ecgAxisApplied = false;
+    if (ecgHostAx.ok && isFinite(ecgHostAx.ppm) && ecgAxisSpanMs >= ECG_AXIS_MIN_SPAN_MS) {
+      fs = fs / (1 + ecgHostAx.ppm / 1e6);
+      ecgAxisApplied = true;
+    }
     // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
     // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
     // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
@@ -3925,10 +3959,24 @@
       endEpochMs: endEpochMs,
       firstRelMs: firstRelMs,
       lastRelMs: lastRelMs,
-      // See the fs block above. `maxStepMs` is the one to read: a step is reported, never corrected.
+      /* See the fs block above. `maxStepMs` is the one to read: a step is reported, never corrected.
+         `applied` is the field that says whether `fs` actually moved — `ok` alone does NOT mean the
+         correction reached the axis, because the span gate can measure a rate and still decline to
+         trust it. A consumer asking "is this recording host-disciplined?" must read `applied`. */
       hostAxis: ecgHostAx.ok
-        ? { ok: true, anchors: ecgHostAx.n, totalMs: ecgHostAx.totalMs, ppm: ecgHostAx.ppm, maxStepMs: ecgHostAx.maxStepMs }
-        : { ok: false, reason: ecgHostAx.reason || 'no host anchors' }
+        ? {
+            ok: true,
+            applied: ecgAxisApplied,
+            anchors: ecgHostAx.n,
+            totalMs: ecgHostAx.totalMs,
+            ppm: ecgHostAx.ppm,
+            maxStepMs: ecgHostAx.maxStepMs,
+            spanMs: ecgAxisSpanMs,
+            reason: ecgAxisApplied
+              ? undefined
+              : 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock'
+          }
+        : { ok: false, applied: false, reason: ecgHostAx.reason || 'no host anchors' }
     };
   }
 

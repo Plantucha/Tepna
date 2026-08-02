@@ -5472,6 +5472,69 @@
       }
     });
 
+    /* ════ 12a-bis · ECGDex HOST-AXIS SPAN GATE — a RATE needs a BASELINE ════════════════════════
+       WEARABLE-HOST-AXIS-FOLLOWUPS §F7. `DexClock.hostAxis` deliberately carries NO span gate, and
+       that is right for PpgDex, which consumes `correctionAt()` — an interpolation whose residual is
+       bounded by the jitter that produced it. ECGDex is the ONE consumer that reads `.ppm`, a rate,
+       and a rate divides by the span: on a short fragment the denominator collapses and ordinary
+       host-stamp wander (measured up to 287 ms on this corpus) is amplified into a fabricated crystal.
+       Ungated, the 2026-07-16..29 capture corpus produced fs values from 129.9072 to 133.2017 Hz —
+       25341 ppm of spread — with every wild value on a fragment under 300 s and every fragment over
+       2400 s inside 52 ppm. That is not cosmetic: `fs` also builds the bandpass coefficients, drives
+       detectPeaks and refinePeaks, and sets computeSQI's rate, so a 2.5 % error mis-designs the filter.
+       Both directions are asserted — a refusal-only test would pass against a gate that never applies. */
+    group('ECGDex host-axis span gate — a short fragment cannot name a crystal (WEARABLE-HOST-AXIS-FOLLOWUPS §F7)', 'ecgdex-dsp · host-axis', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG available', false, 'not loaded');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      // Host stamps are built from a floating base, formatted as the no-zone ISO the Clock Contract
+      // parses verbatim (§2.3). `devStep` stays under 50 ms so parseECG's mean-interval fs engages.
+      var BASE = Date.UTC(2026, 5, 17, 1, 6, 17, 0);
+      var iso = function (ms) {
+        var d = new Date(BASE + ms);
+        var p2 = function (v) { return (v < 10 ? '0' : '') + v; };
+        return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + 'T' +
+          p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + '.' +
+          ('00' + d.getUTCMilliseconds()).slice(-3);
+      };
+      var devStep = 49; // → fs = round(1000/49) = 20 Hz
+      var build = function (rows, hostExcessAtEnd) {
+        var L = [HDR];
+        for (var i = 0; i < rows; i++) {
+          var dev = i * devStep;
+          var host = dev + (hostExcessAtEnd * i) / (rows - 1); // linear host↔device divergence
+          L.push(iso(host) + ';0;' + dev + ';' + (100 + (i % 50)));
+        }
+        return L.join('\n');
+      };
+
+      // ── REFUSED · 3000 rows = 147 s of span, with 200 ms of host wander across it ───────────────
+      // 200 ms over 147 s is ~1360 ppm — absurd for a crystal, and entirely ordinary as host jitter.
+      var recShort = D.parseECG(build(3000, 200));
+      T.eq('a 147 s fragment leaves fs on the DEVICE clock, exactly', recShort.fs, 20);
+      T.ok('…and says so — hostAxis.applied is false', recShort.hostAxis && recShort.hostAxis.applied === false, JSON.stringify(recShort.hostAxis));
+      T.ok('…with a reason naming the span, not a silent no-op', /span .* too short/.test((recShort.hostAxis && recShort.hostAxis.reason) || ''), (recShort.hostAxis || {}).reason);
+      /* The rate is still REPORTED. Refusing to apply it is not the same as hiding it — this is the
+         number the ungated code would have divided fs by, and it stays visible as evidence. */
+      T.ok('…while the implausible rate remains visible as evidence', recShort.hostAxis.ok === true && Math.abs(recShort.hostAxis.ppm) > 300, 'ppm=' + (recShort.hostAxis || {}).ppm);
+      T.ok('…and the span it was measured over is reported too', recShort.hostAxis.spanMs > 0 && recShort.hostAxis.spanMs < 2400e3, 'spanMs=' + (recShort.hostAxis || {}).spanMs);
+
+      // ── APPLIED · 52000 rows = 2548 s of span, +250 ppm planted ─────────────────────────────────
+      // The positive leg. Without it, a gate that always refused would pass every assertion above.
+      var rows = 52000,
+        spanMs = (rows - 1) * devStep;
+      var recLong = D.parseECG(build(rows, spanMs * 250e-6));
+      T.ok('a 2548 s fragment DOES take the correction', recLong.hostAxis && recLong.hostAxis.applied === true, JSON.stringify(recLong.hostAxis && { applied: recLong.hostAxis.applied, ppm: recLong.hostAxis.ppm, spanMs: recLong.hostAxis.spanMs }));
+      /* ~250 ppm, read back a few percent low BY DESIGN: hostAxis's running median is centred, so the
+         last smoothed anchor sits ~win/2 anchors back from the end. Asserting a band, not a point. */
+      T.ok('…recovering the planted rate to within a few percent', recLong.hostAxis.ppm > 200 && recLong.hostAxis.ppm < 260, 'ppm=' + recLong.hostAxis.ppm);
+      T.ok('…and fs actually MOVES (host faster ⇒ fs below the device rate)', recLong.fs < 20 && recLong.fs > 19.98, 'fs=' + recLong.fs);
+      T.ok('…so the two fragments are decided differently by span alone', recShort.hostAxis.applied === false && recLong.hostAxis.applied === true);
+    });
+
     /* ════ 12b · ECGDex STAMPLESS DETERMINISM — events never carry a fabricated now() ════ */
     // NOTE (CI-SHARDING): split from one 3-analyze group into two so the shard planner can place the
     // stampless-path work and the stamped-control work on different shards (each half already used its

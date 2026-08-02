@@ -110,6 +110,20 @@ it needs a per-night matched comparison, and the old per-night σ values were ne
 
 ## F3-ter · PAT re-run, and the refusal wired — **DONE 2026-08-02**
 
+> ### ⚠️ RETRACTED 2026-08-02 (same day) — see F7. The conclusion below does not hold.
+>
+> "PAT is not alignment-limited" was drawn from a harness that **fitted a free offset per block**, which
+> absorbs exactly the quantity PAT is. Its own tell was in the table: a median lag of 406–498 ms is not
+> physiological for an arm site. Re-run with the offset held fixed at the ACC anchor, PAT is **locked** —
+> within-hour IQR 102–197 ms and a starting lag of 236 ms, squarely in the arm band — under a ramp of
+> ~188 ms/h that the fitted harness had been silently eating.
+>
+> The ramp is **not** explained, and the two instruments that should adjudicate it are both unfit:
+> `alignEnvelopes.driftPpm` is not identifiable on this corpus (F7), and the night the ramp was measured
+> on is a 21-hour daytime capture with 5.2 h of gaps, not a sleep night. **The honest state is: PAT is
+> reachable and unresolved.** It needs re-measuring on a clean single-segment sleep night with the ACC
+> anchor carried end-to-end and no beat-derived offset at any stage. The `Done when` box is un-ticked.
+
 ### PAT is not alignment-limited. That is the answer, and it is a negative one.
 
 Per-block PAT re-run on the disciplined axis, scored by the repo's own `pat-gate.js`, 9 measurable
@@ -195,6 +209,58 @@ guardrail. `printDriftFit`/`printClockFit` have **zero test coverage** — every
 Inherited from `WEARABLE-DRIFT-FIT` §5 and still open: `runFusion` drops `timeseries`, so beat times are
 unreachable there and the drift/closure work cannot run inside the Integrator. Unchanged by this work.
 
+## F7 · A host-axis RATE needs a BASELINE — **DONE 2026-08-02**
+
+Chasing the retracted PAT ramp found a defect this brief's own parent shipped. `DexClock.hostAxis`
+deliberately carries no span gate, and the justification is sound — it interpolates measured divergence
+rather than quoting a rate, so its residual is self-limiting. **That reasoning covers PpgDex, which
+consumes `correctionAt()`. It does not cover ECGDex, which is the one consumer that reads `.ppm`.** A
+rate divides by the span; on a short fragment the denominator collapses and ordinary host-stamp wander
+(287 ms measured) is amplified into a fabricated crystal. It is the same size-not-span defect fixed in
+`tools/dual-clock-rate.mjs`, reintroduced two weeks later in the one place that tool's fix did not reach.
+
+|ppm| by fragment span, 260 ECG fragments of the 2026-07-16..29 corpus:
+
+| span | median | max | | span | median | max |
+|---|---|---|---|---|---|---|
+| <60 s | 1208 | 16512 | | 600–1200 s | 43 | 196 |
+| 60–120 s | 714 | 24036 | | 1200–2400 s | 42 | 151 |
+| 120–300 s | 177 | 23235 | | 2400–4800 s | 20 | **52** |
+| 300–600 s | 74 | 464 | | >4800 s | 22 | **31** |
+
+The real H10 crystal is ~−25 ppm. Gate at **2400 s**, where max |ppm| reaches 52 and nothing exceeds 100.
+Fleet `fs` spread falls **129.9072–133.2017 Hz (25341 ppm) → 52 ppm**.
+
+**Why it is not cosmetic:** `fs` is not only the beat clock. `detectPeaks`, the bandpass coefficients
+(`aHp`/`aLp` are built from `1/fs`), `refinePeaks` and `computeSQI` all read it as a rate, so the 133.2 Hz
+value — produced from a 62 s stub — mis-designed the filter and the sub-sample refinement. Refused ⇒ `fs`
+keeps the device crystal (~25 ppm wrong) instead of the ungated correction (up to 24036 ppm wrong).
+**`hostAxis.ok` no longer implies the correction reached the axis; consumers must read `applied`.**
+
+`mergeEcg` also tightened: the fs bound 0.5 Hz → 0.05 Hz (the old one was loose enough to admit the bad
+fragment yet tight enough to throw on it, so good nights failed to fold for the wrong reason); the imposed
+`fs` now comes from the **longest** fragment, not `recs[0]` — routinely a seconds-long reconnect stub
+carrying the raw crystal; and a negative session boundary is counted and warned rather than dropped
+(0 occurrences on the corpus — a tripwire, not a live correction).
+
+### The instrument that was supposed to check this is itself unfit
+
+`alignEnvelopes.driftPpm` **is not identifiable on this corpus** and should not be used or quoted:
+
+- Three fits of the *same* usable windows span 0 → 720 ppm on several nights (2026-07-29: Theil–Sen 0.0,
+  OLS −485.5, endpoint −720.4).
+- **7 of 14 nights return exactly `0.0` ppm** — an atom at zero, produced when the pairwise-slope median
+  lands inside a tie block of within-plateau pairs. Not a measurement.
+- `madSec` is degenerate alongside it: on 2026-07-26, 15 of 28 windows sit exactly on the median, so MAD
+  reports `0.00` while two windows sit 1.2 s away. It is presented as precision and is not.
+- `−181.8 ppm` shipped as `MEASURED` on 2026-07-17.
+
+The *offsets* are unaffected and remain trustworthy (median 0.20 s; |offset| > 1 s on 0 of 13 nights). A
+tested-and-rejected explanation, recorded so it is not re-proposed: the lag changes are **not** caused by
+BLE reconnections — median |Δlag| 0.20 s with a reconnection between windows vs 0.10 s without, n=41 vs
+172, Mann–Whitney z=0.22, **p=0.83**. Fixing `driftPpm` is NOT in this brief; it is written up here
+because two conclusions in this file were built on it.
+
 ## Done when
 
 - [x] **F1 — Drawn-axis provenance computed and declared, not inferred** (2026-08-02). The proposed
@@ -204,9 +270,15 @@ unreachable there and the drift/closure work cannot run inside the Integrator. U
       101.2→−15.5 and 58.4→−11.4 ppm while ECGDex's TCH σ stayed identical at 0.91 bpm.
 - [ ] A per-night MATCHED TCH comparison — the 2.71→3.44 PpgDex σ shift spans different night sets and
       is therefore unattributed. The old per-night σ values were never recorded; record them this time.
-- [x] **Closure, TCH and PAT re-asked.** Closure improved ~7x; TCH shown structurally unexposed; PAT
-      re-run and answered NO — 130-215 ms residual against a 60 ms bar, unchanged by the fix, so PAT is
-      not alignment-limited.
+- [x] **Closure and TCH re-asked.** Closure improved ~7x; TCH shown structurally unexposed.
+- [ ] **PAT — RE-OPENED, see the retraction at F3-ter.** The NO was produced by a harness that fitted a
+      free offset per block, absorbing the very quantity being measured. Held fixed at the ACC anchor,
+      PAT is locked (IQR 102-197 ms, starting lag 236 ms) under an unexplained ~188 ms/h ramp. Re-measure
+      on a clean single-segment sleep night, ACC anchor carried end-to-end, no beat-derived offset.
+- [x] **F7 — the host-axis rate is span-gated** (2026-08-02). Fleet `fs` spread 25341 → 52 ppm; gated
+      both directions and verified to fail against the pre-fix parser.
+- [ ] `alignEnvelopes.driftPpm` is not identifiable and is quoted nowhere until it refuses or is fixed
+      (F7). Its offsets are fine; only the drift term and `madSec` are affected.
 - [x] **A leg with no time axis is refused** by a computed `timingSource`, wired through `trio-batch`.
 - [ ] `papers/` audited; `O2RING-PROTOCOL` annotated rather than retracted.
 - [ ] No ppm quoted anywhere without a span and a closure beside it.

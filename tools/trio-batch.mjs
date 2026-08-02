@@ -1275,15 +1275,26 @@ for (const p of work) {
   const mergeEcg = (recs) => {
     recs = recs.filter((r) => r && r.int16 && r.int16.length && r.t0Ms != null).sort((a, b) => a.t0Ms - b.t0Ms);
     if (recs.length <= 1) return recs[0] || null;
-    const fs = recs[0].fs;
-    // A rate change mid-night would make one sample index mean two different durations. It does not
-    // happen on an H10 (130 Hz fixed), but assuming it cannot is how a silent corruption starts.
-    const odd = recs.find((r) => Math.abs((r.fs || fs) - fs) > 0.5);
+    /* The LONGEST fragment's fs, not the first one's. Both are `130 Hz + host-axis correction`, but the
+       correction is only applied to fragments that clear ECGDex's span gate (40 min), so `recs[0]` is
+       routinely a 5-second reconnect stub carrying the raw device crystal while a 7-hour fragment on the
+       same night carries the disciplined rate. Sample-index → duration is imposed on every fragment
+       here, so it should come from the fragment that owns most of the samples. */
+    const fs = recs.reduce((a, b) => (b.int16.length > a.int16.length ? b : a), recs[0]).fs;
+    /* A rate change mid-night would make one sample index mean two different durations. It does not
+       happen on an H10 (130 Hz fixed), but assuming it cannot is how a silent corruption starts.
+       0.05 Hz = 385 ppm. The old bound was 0.5 Hz = 3846 ppm, which was never a guard on anything real:
+       an H10 crystal lives within ~30 ppm, and the widest per-night spread across the 2026-07-16..29
+       corpus is 52 ppm. It was loose enough to admit a 133.2 Hz fragment (an ungated host-axis rate off
+       a 62 s stub — the defect this bound could not see, fixed at source in `ecgdex-dsp.js`) while still
+       being tight enough to THROW on it, so a good night failed to fold for the wrong reason. */
+    const odd = recs.find((r) => Math.abs((r.fs || fs) - fs) > 0.05);
     if (odd) throw new Error(`ECG sessions disagree on fs (${fs} vs ${odd.fs}) — refusing to merge`);
     let n = 0;
     for (const r of recs) n += r.int16.length;
     const out = new Int16Array(n);
     const gaps = [];
+    const overlaps = [];
     let idx = 0,
       prevEndMs = null;
     for (const r of recs) {
@@ -1300,14 +1311,27 @@ for (const p of work) {
            dead time. Under last-before it was credited to the beat immediately BEFORE the hole too —
            one sample, 7.7 ms at 130 Hz, immaterial against hour-scale segments (which is why it went
            unnoticed) but wrong in the direction that inflates elapsed time. */
-        if (d > 0) gaps.push({ idx, ms: d }); // the real off-link silence
+        if (d > 0)
+          gaps.push({ idx, ms: d }); // the real off-link silence
+        /* d < 0 = this session starts BEFORE the previous one is predicted to end: either the two
+           overlap in wall-clock, or `fs` over-states the previous fragment's duration. Samples are
+           concatenated contiguously, so the merged timeline is longer than reality by |d| and there is
+           no honest single-scalar repair. COUNTED rather than silently dropped: measured 0 of 33
+           boundaries on 2026-07-26 and 0 across the 2026-07-16..29 corpus, so this is a tripwire for a
+           regime we have not seen, not a live correction. If it ever fires, the merge is lying about
+           elapsed time and the fold should be treated as suspect. */
+        else if (d < 0) overlaps.push({ idx, ms: d });
       }
       for (const g of r.gaps || []) gaps.push({ idx: g.idx + idx, ms: g.ms });
       out.set(r.int16, idx);
       idx += r.int16.length;
       prevEndMs = r.t0Ms + (r.int16.length / fs) * 1000;
     }
-    return { int16: out, fs, gaps, t0Ms: recs[0].t0Ms, offsetMin: recs[0].offsetMin, source: 'file', durSec: n / fs };
+    if (overlaps.length)
+      console.warn(
+        `  ⚠ ECG merge: ${overlaps.length} negative session boundary(ies), total ${(overlaps.reduce((a, o) => a + o.ms, 0) / 1000).toFixed(2)} s — merged elapsed time is OVER-stated by that much`
+      );
+    return { int16: out, fs, gaps, overlaps, t0Ms: recs[0].t0Ms, offsetMin: recs[0].offsetMin, source: 'file', durSec: n / fs };
   };
   const mergePpg = (recs) => {
     recs = recs.filter((r) => r && r.n && r.t0Ms != null).sort((a, b) => a.t0Ms - b.t0Ms);
