@@ -215,6 +215,61 @@ recording applies to the next session, and the card says so.
 
 ---
 
+## 6b · Measured 2026-08-02 — the BLE pull path has never once worked, and USB does
+
+Hardware findings from the real Verity (`0C301E3F`) on vigil. These change the build order in §7, so
+read them before starting: this brief was written assuming the BLE pull works and USB is at best an
+optimisation. **Both halves of that assumption are wrong.**
+
+**The BLE leg has a 0% success rate.** Across 7 days of `/api/polar/recordings` on the Verity: 27 ×
+`409 busy`, 2 × `502`, **zero successes** — and `ls /srv/tepna/captures/stored/*offline*` is **empty**,
+so no offline pull has ever landed on disk for *either* Polar. Today's attempt acquired the offline
+lock at 14:17:12 and was killed by the 300 s watchdog at 14:22:12 (`offline op exceeded 300s and was
+abandoned`). Caveat, stated honestly: most of those 29 attempts are from this session, and the device
+was **docked and charging** throughout, which is already known to disable PMD streams — so "BLE
+listing is broken" is not yet separable from "BLE listing is broken *while charging*". Re-run it with
+the sensor off the dock before treating the 0% as unconditional. What is not in doubt is the negative:
+**nothing has ever been retrieved by the shipped path.**
+
+**PS-FTP rides the USB HID pipe, and listed the same directory in under a second.** The dock
+(`0da4:0008`, two 64-byte interrupt endpoints) serves the real filesystem — `DBDC.DAT`, `USERID.BPB`,
+`S/`, and a date-named session dir `20260621/`. `polar_psftp`'s protobuf layer parses the payload
+unchanged; only the framing differs (v800_downloader's, **not** BLE RFC76 — see
+`probe_polar_usb.py`'s header for the two off-by-one details that make a working pipe look dead).
+
+**The catch, and the open question that decides everything.** The USB server only answers in a window
+that opens on **USB re-enumeration**, proven by replug: unplug 14:08:52 → replug 14:09:07 → first GET
+returned the listing → the next request one second later was back to 1-byte filler. Ruled out first by
+measurement: ACK-counter desync (all 256 values swept), stale handles (incl. the 500 ms double-open
+ritual), wrong paths, and transience (171 attempts at 1 Hz → 0 replies).
+
+So the question is **whether a multi-packet FILE read fits inside that window**, and it is the whole
+ballgame:
+
+* **If yes** — a pull is one GET, and re-enumeration is **software-triggerable without touching the
+  hardware** (`echo 0 > /sys/bus/usb/devices/1-1/authorized; sleep 2; echo 1 > …`, as root). A
+  "re-enumerate → one GET" loop then pulls a whole session over a channel that is **independent of the
+  radio**, which is the constraint §2 calls the one that shapes everything: the pull would run **while
+  live capture continues**, at 64-byte reports instead of 20. USB stops being an optimisation and
+  becomes the **primary** path.
+* **If no** (the window fits only one small reply) — USB is a fast directory lister and nothing more,
+  and the BLE leg has to be made to work regardless.
+
+A watcher is armed on vigil (`/tmp/usbwatch2.py` → `/tmp/usbwatch2.log`) that fires on the next replug
+and reads a 70-byte file (`/U/0/USERID.BPB`) to answer exactly this. **Do not plan §7 around USB until
+that log shows a file coming back.**
+
+Two consequences regardless of the answer: the daemon needs a **root-capable re-enumeration hook**
+(the daemon runs as `vigil`; toggling `authorized` needs root, so a sudoers entry or a tiny unit), and
+`probe_polar_onboard.py`'s four known defects (§ its header) are now blocking rather than cosmetic.
+
+⚠️ **Do not sweep opcodes on the USB pipe.** An exploratory sweep of byte1 across `0x00..0xFF`
+re-enumerated the device mid-run. `polar_psftp._ALLOWED_QUERIES` exists because a wrong query id
+"would do something far worse than set a clock"; that hazard is identical on this transport, on
+hardware that may be nowhere near anyone who could recover it.
+
+---
+
 ## 7 · Build order (after the probe)
 
 1. **Phase 1 — lifecycle, no recording.** `status → stop → remove` over the live link, plus the
