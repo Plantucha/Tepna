@@ -343,9 +343,12 @@
     document.getElementById('nights').innerHTML = html;
   }
 
-  // TEST-COVERAGE-FOLLOWUPS-II §3 (Route A): expose the pure statistical kernel so a known-answer group
+  // TEST-COVERAGE-FOLLOWUPS-II §3 (Route A): expose the pure statistical kernels so a known-answer group
   // can assert the SHIPPED function (not a copy). Additive — no behavior change on the page.
-  (typeof window !== 'undefined' ? window : this).CohortRegression = { olsR2: olsR2 };
+  // `matchRecall` joins `olsR2` per CLOCK-MUTATION-AUDIT §6 item 4: the mutation audit killed 0 of 12
+  // sampled mutants here because only 5 of the file's 65 live inside olsR2. matchRecall is the other
+  // pure kernel — it computes the desat recall that the page grades pass/fail — and it was unassertable.
+  (typeof window !== 'undefined' ? window : this).CohortRegression = { olsR2: olsR2, matchRecall: matchRecall };
   // Guard the top-level DOM wiring so the module also loads headlessly (getElementById → null in the
   // test realm). Behavior-preserving in the browser; defensive if the button is ever absent.
   var _crRunBtn = document.getElementById('runBtn');
