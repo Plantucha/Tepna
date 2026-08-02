@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-22 (**night 1 of ≥10 recorded** — §2.1: on consolidated sleep the finger PPI-jitter **3.16 ms beats the Verity wrist** and RMSSD/SDNN sit within the ~±3.5 % offset; whole-record RMSSD & CVHR stay `emerging`; the `sdnnRobust`/jitter-robust family = strong single-night evidence toward `validated`. Nothing enacted; ≥10 nights still owed.) · **Created:** 2026-07-21 · **Executes:** `OXYDEX-PULSE-RESOURCING-FOLLOWUPS-2026-07-20-BRIEF.md` §1 · **Method-parent:** `PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md` · **Data:** `O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-08-02 (**≥10-night DATA precondition now MET, and the tool that reads it was DEAD — §5b.** `tools/o2ring-finger-validate-batch.mjs` hardcoded `ROOT` to a throwaway worktree removed the day it was made, so it had been unrunnable *for everyone including its author* since the commit that added it; its sibling `o2ring-finger-roundtrip.mjs` carried the same defect. Repaired and swept: **12 paired finger+ECG nights, 237 windows, 64.4 h, 222 PASS / 15 FAIL (93.7 %)**, ΔHR vs ECG median **0.40 bpm** (IQR 0.10–0.80). **NO TIER MOVES ON THIS** — it is the three-way HR round-trip, not §3's per-epoch RMSSD/SDNN alignment nor §6's PPI-jitter primary endpoint; HR agreement says the detector finds the right beats, not that the intervals between them reproduce ECG HRV. What changed is that §3 can now be run at all. Previously: **night 1 of ≥10 recorded** — §2.1: on consolidated sleep the finger PPI-jitter **3.16 ms beats the Verity wrist** and RMSSD/SDNN sit within the ~±3.5 % offset; whole-record RMSSD & CVHR stay `emerging`; the `sdnnRobust`/jitter-robust family = strong single-night evidence toward `validated`. Nothing enacted; ≥10 nights still owed.) · **Created:** 2026-07-21 · **Executes:** `OXYDEX-PULSE-RESOURCING-FOLLOWUPS-2026-07-20-BRIEF.md` §1 · **Method-parent:** `PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md` · **Data:** `O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md`
 
 # O2Ring finger-PPI HRV — ECG validation, and the emerging→validated tier call
 
@@ -195,10 +195,49 @@ in `integrator-dsp.js` (`fuseHrvResource` / `fuseCvhrCorroboration` `tier`).
 - **No fabricated authority** (`LITERATURE-USE-POLICY`): a `validated` tier needs the real corpus write-up,
   not a synthetic and not the wrist's grade.
 
+## 5b · 2026-08-02 — the corpus is sufficient, and the tool that reads it was DEAD
+
+**The blocker was never the data.** `tools/o2ring-finger-validate-batch.mjs` — the sweep this brief and
+`PPGDEX-O2RING-FINGER-SITE` §6 both point at — hardcoded `ROOT` to the author's throwaway worktree
+(`…/wt-fingerval`). That worktree was removed the day it was made, so the tool had thrown
+`ERR_MODULE_NOT_FOUND` on its first import **since the commit that added it**, for everyone including its
+author. Its sibling `o2ring-finger-roundtrip.mjs` carried the same defect (`…/wt-fingerrt`).
+
+Nothing caught it: both are operator sweeps over gitignored captures, so no gate runs them — and a tool no
+gate runs is a tool nobody notices is dead. `ROOT` is now derived from the file's own location. A second
+defect surfaced on first use: the batch tool assumed every argument was a directory, so the obvious
+`captures/*` invocation died on `ENOTDIR` against the `status.json` beside the session folders, before one
+row printed.
+
+**Repaired, then run over the whole capture corpus:**
+
+| | |
+|---|---|
+| paired finger + H10-ECG nights | **12** |
+| comparison windows | 237 |
+| total compared time | **64.4 h** |
+| verdict | **222 PASS / 15 FAIL (93.7 %)** |
+| ΔHR vs ECG on PASS rows | median **0.40 bpm**, IQR 0.10–0.80, max 3.00 |
+| ΔHR vs the ring's own 1 Hz field | median **0.50 bpm**, IQR 0.20–0.90, max 2.60 |
+
+**§6's first Done-when box is about DATA, and the data is there: 12 nights ≥ 10.** The 15 failures are
+concentrated in short windows and in two high-HR/motion segments (2026-07-25 and -26 read ΔECG 17–22 bpm),
+which is the expected finger-pleth failure mode, not a surprise.
+
+**What this does NOT do, stated plainly.** This is the **three-way HR round-trip** (`PPGDEX-O2RING-FINGER-SITE`
+§6's endpoint), **not** §3's per-epoch RMSSD/SDNN alignment, and **not** the PPI-jitter sd that §6 names as
+*the primary endpoint*. HR agreement at 0.4 bpm says the beat detector finds the right beats; it says
+nothing about whether the *intervals between them* reproduce chest-ECG HRV, which is the entire question
+this brief exists to answer. **No box below is ticked and no tier moves on this.** What changed is that the
+≥10-night precondition is satisfied and the instrument to process those nights now executes — the two
+things that were blocking §3 from being run at all.
+
 ## 6 · Done-when
 
 - [ ] ≥ 10 paired finger+ECG **sleep** nights processed with the §3 per-epoch alignment; the active capture
-      never touched.
+      never touched. — **Data precondition MET 2026-08-02 (§5b): 12 paired nights, 237 windows, 64.4 h.**
+      Still unticked on purpose: §3's per-epoch alignment has NOT been run. §5b is the HR round-trip, a
+      different endpoint.
 - [ ] **PPI-jitter sd** reported as median + IQR across those nights (the primary endpoint), in the deep-dive
       table format, alongside RMSSD bias, `sdnnRobust` vs SDNN, and CVHR agreement — whole-record AND per-5-min
       `epochs[]`.

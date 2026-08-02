@@ -5,9 +5,18 @@
 //   node tools/o2ring-finger-roundtrip.mjs <ppg.txt> <ecg.txt> <spo2.csv>
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
-const ROOT = '/run/media/michal/647A504F7A50205A/wt-fingerrt';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+/* ROOT is derived from THIS FILE's location, never hardcoded. Both O2Ring finger tools shipped with an
+   absolute path to the author's throwaway worktree (`…/wt-fingerval`, `…/wt-fingerrt`) baked in. Those
+   worktrees were removed the day they were made, so both tools have been UNRUNNABLE ANYWHERE since the
+   commit that added them — including for the author — while two briefs cite them as the evidence for a
+   hardware round-trip and for the ≥10-night tier call. Nothing caught it: they are operator sweeps over
+   gitignored captures, so no gate runs them, and a tool that no gate runs is a tool nobody notices is
+   dead. (ENGINE-VERIFICATION §0: a comment is not a measurement; a committed tool is not a working one.) */
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const [ppgPath, ecgPath, spo2Path] = process.argv.slice(2);
 const B = await import(join(ROOT, 'tools/build-core.js'));
 const classicify = B.classicify || B.default?.classicify;
