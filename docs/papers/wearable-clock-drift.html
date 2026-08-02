@@ -33,6 +33,46 @@
     Full account in §7; v1's numbers are retained throughout so the correction is checkable.
   </div>
 
+  <div class="callout" style="border:2px solid #b8860b;background:#fffdf5">
+    <b>⚠ SCOPE — 2026-08-02: v2's rate bound holds for PHONE-captured sessions and does not generalise
+    to the vigil capture host.</b>
+    <p style="margin:.6em 0 0">v2 bounds the inter-device rate at a <b>median 1.46 ppm</b> and excludes
+    v1's 47.7 ppm on 51 of 54 nights, on the argument that the ~1.15 s per-night excursion is
+    <i>one RR interval — beat slip, not clock wander</i>. On this paper's corpus (20 overnight sessions,
+    one Android phone via Polar Sensor Logger) that argument stands, and the beat-slip mechanism it
+    identifies is real: it was independently rediscovered on 2026-08-01 as a comb of coincidence peaks
+    one RR apart, and as a per-block offset that falls back exactly one RR when it drifts past a tooth
+    boundary (<code>IBI-ALIGNMENT-LIMIT</code> §Retraction).</p>
+    <p style="margin:.6em 0 0"><b>But six nights captured on the vigil host behave differently.</b>
+    Refitting the H10↔Verity offset in 5-minute blocks and unwrapping the one-RR slips, the remaining
+    series is a <b>straight line</b> on four of six nights:</p>
+    <table style="margin:.6em 0;border-collapse:collapse;font-size:.92em">
+      <tr><th style="text-align:left;padding:.15em .9em .15em 0">night</th><th style="padding:0 .9em">R² of linear fit</th><th style="padding:0 .9em">slope</th><th style="padding:0 .9em">1st half</th><th style="padding:0 .9em">2nd half</th></tr>
+      <tr><td style="padding:.15em .9em .15em 0">2026-07-25</td><td style="text-align:center"><b>0.991</b></td><td style="text-align:center">216 ppm</td><td style="text-align:center">178</td><td style="text-align:center">244</td></tr>
+      <tr><td style="padding:.15em .9em .15em 0">2026-07-26</td><td style="text-align:center"><b>0.983</b></td><td style="text-align:center">89 ppm</td><td style="text-align:center">74</td><td style="text-align:center">97</td></tr>
+      <tr><td style="padding:.15em .9em .15em 0">2026-07-27</td><td style="text-align:center"><b>0.976</b></td><td style="text-align:center">104 ppm</td><td style="text-align:center">87</td><td style="text-align:center">137</td></tr>
+      <tr><td style="padding:.15em .9em .15em 0">2026-07-28</td><td style="text-align:center"><b>0.924</b></td><td style="text-align:center">102 ppm</td><td style="text-align:center">56</td><td style="text-align:center">65</td></tr>
+      <tr><td style="padding:.15em .9em .15em 0">2026-07-29</td><td style="text-align:center">0.108</td><td style="text-align:center">−25</td><td style="text-align:center">−1</td><td style="text-align:center">−105</td></tr>
+      <tr><td style="padding:.15em .9em .15em 0">2026-07-30</td><td style="text-align:center">0.459</td><td style="text-align:center">22</td><td style="text-align:center">31</td><td style="text-align:center">11</td></tr>
+    </table>
+    <p style="margin:.6em 0 0"><b>A random walk of beat slips does not fit a line at R² 0.99 with
+    agreeing half-slopes.</b> The two nights that do not fit (R² 0.11, 0.46) are precisely the two that
+    fail an independent falsifier — three-source closure, <code>d(A↔B) ≡ d(A↔C) − d(B↔C)</code>, which
+    holds at <b>−2.2 and −7.0 ppm</b> on 07-27 and 07-28 and fails by 99–265 ppm elsewhere. Three
+    independently-unwrapped pairwise fits do not close to 2 ppm by accident.</p>
+    <p style="margin:.6em 0 0"><b>What this does and does not say.</b> It does <i>not</i> reinstate v1:
+    v1's 47.7 ppm was derived from the beat-slip artifact v2 correctly identified, and its causal
+    account remains wrong. It says the <b>rate bound is a property of the capture path, not of the
+    devices</b> — v2's own §Methods scopes it to one phone and one logger, and the conclusion should
+    carry that scope explicitly. On a host that stamps and re-syncs differently, a linear 90–216 ppm
+    ramp is present and is not beat slip. Anything downstream that assumes a single constant offset per
+    night inherits the difference. See
+    <code>briefs/CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md</code>.</p>
+    <p style="margin:.6em 0 0"><b>Unresolved:</b> which capture path is at fault, and why. The two
+    corpora differ in host, stamping and re-sync behaviour at once, so this cannot attribute the ramp
+    to a device oscillator rather than to the host's timestamping. That needs a capture-side
+    measurement, not more analysis of exports.</p>
+  </div>
   <h1 class="title">One phone is not one clock — but the clock was never the problem: a corrected account of why beat-level fusion of two consumer wearables fails</h1>
   <p class="byline">Michal Planicka &nbsp;·&nbsp; <span style="color:#888">corresponding author — Tepna Project</span></p>
   <p class="affil">Single-subject methods case study, Tepna physiological-signal suite</p>
