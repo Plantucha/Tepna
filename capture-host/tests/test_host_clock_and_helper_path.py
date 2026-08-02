@@ -14,6 +14,7 @@
 
 import asyncio
 import os
+import pathlib
 
 import pytest
 
@@ -199,7 +200,12 @@ def test_resolve_falls_back_to_the_in_repo_copy(monkeypatch, tmp_path):
     """Returned even when absent, so callers keep their existing 'missing helper' handling."""
     monkeypatch.setattr(helper_path, "SYSTEM_DIRS", (str(tmp_path / "nowhere"),))
     got = helper_path.resolve("tepna-rssi.sh")
-    assert got.endswith("tepna-rssi.sh") and "capture-host" in got
+    # Assert against the module's OWN directory, not the literal string "capture-host". The contract is
+    # "falls back to the copy beside helper_path.py"; the checkout's directory NAME is not part of it,
+    # and pinning it broke in every copy of the tree — a git worktree, a vendored checkout, and the
+    # scratch copy tools/mutate.py runs mutants in, where it failed unconditionally and made three
+    # modules unmutatable (found 2026-08-02 by the mutation audit).
+    assert got == str(pathlib.Path(helper_path.__file__).resolve().parent / "tepna-rssi.sh")
 
 
 def test_resolve_tries_system_dirs_in_order(monkeypatch, tmp_path):

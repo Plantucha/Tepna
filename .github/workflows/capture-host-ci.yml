@@ -146,3 +146,52 @@ jobs:
         # explicit `--cov=.` OVERRIDES that list and silently drops deploy/ back out of the denominator,
         # which is how deploy/ezparse.py sat untested and invisible.
         run: pytest -q --cov --cov-branch --cov-report=term-missing --cov-fail-under=100
+
+  # ── DIFF-SCOPED MUTATION GATE ──────────────────────────────────────────────────────────────────────
+  # Coverage answers "did this line run?". This answers "would any test NOTICE if it were wrong?", and
+  # the 2026-08-02 audit showed those are different questions on this tree: diskguard.py sat at 100%
+  # statement+branch while `min_free_gb > 0 and free_gb < min_free_gb` could be flipped to `or` — making
+  # the low-disk alert fire on every poll forever — with the whole suite green.
+  #
+  # ⚠️ SCOPED TO THE DIFF ON PURPOSE, AND IT MUST STAY THAT WAY. A whole-tree kill-rate threshold would
+  # red on survivors that are legitimately untestable (log prose, unreachable defensive branches, float
+  # boundaries) — measured: 29 of 33 survivors on capture.py's `_now` were log-message wording. A gate
+  # that reds on those gets switched off, which is worse than not having one. This one never judges
+  # pre-existing code: it mutates only the functions the PR touched, so it cannot inherit a backlog and
+  # it enforces exactly one rule — if you changed this line, some test can see it.
+  #
+  # Separate job, NOT a step in `test`: it is slower and less certain than the suite, and a flaky-ish
+  # signal must never be able to mask a deterministic one. It is deliberately NOT in the required set
+  # while it earns trust — see the note above `on:` about required checks needing to report.
+  mutation-diff:
+    needs: changes
+    if: needs.changes.outputs.run == 'true' && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    name: mutation (diff-scoped)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0            # the gate diffs against the merge base; a shallow clone has none
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'    # the box's version; see the matrix note above
+      - name: Install tooling + runtime deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest mutmut
+          pip install -r requirements.txt
+      - name: Mutate only what this PR changed
+        # `tools/mutate.py` shells out to `.venv/bin/python`; on the runner the venv is the ambient
+        # environment, so point it at the interpreter actually installed here.
+        run: |
+          mkdir -p .venv/bin && ln -sf "$(command -v python)" .venv/bin/python
+          python tools/mutate_diff.py \
+            --base "origin/${{ github.event.pull_request.base.ref }}" \
+            --json mutation-diff.json
+      - name: Upload the verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-diff
+          path: capture-host/mutation-diff.json
+          if-no-files-found: ignore

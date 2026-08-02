@@ -12,3 +12,9 @@ htmlcov/
 # config.yaml itself is already ignored above; its snapshots were not, so they accumulated as permanent
 # `git status` noise. Nothing tracked matches this glob (the shipped sample is config.example.yaml).
 config.yaml.*
+
+# mutmut copies the tree here to run mutants (audit tool, never committed — see the
+# [tool.mutmut] section in pyproject.toml). It contains copies of every .sh, which would
+# otherwise trip test_shell_surface.py's inventory gate as unclassified scripts.
+mutants/
+.mutmut-cache

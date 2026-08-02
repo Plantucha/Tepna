@@ -49,3 +49,14 @@ target-version = "py311"
 # Deliberately NOT the style rules yet, so it flags bugs without churning the reverse-engineered code.
 [tool.ruff.lint]
 select = ["E9", "F"]
+
+# ── Mutation testing (AUDIT TOOL, not a gate — TEST-AUDIT-FINDINGS §34) ────────────────────────────
+# Driven by tools/mutate.py, which writes mutmut's config into a /tmp scratch copy PER MODULE. There is
+# deliberately no [tool.mutmut] section here: mutmut 3.x applies `source_paths` BEFORE any mutant-name
+# filter, so a tree-wide section makes every run generate mutants for all 27 modules (and with "." it
+# walks into .venv and dies generating invalid syntax for aiohttp). One module per run is the only fast
+# shape, and it cannot be expressed in a static config. See tools/mutate.py's header for the three
+# mutmut-3.x gotchas that cost an hour each.
+#
+#   .venv/bin/python tools/mutate.py --list
+#   .venv/bin/python tools/mutate.py diskguard alerts
