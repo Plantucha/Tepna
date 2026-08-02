@@ -27,8 +27,10 @@
 #         python polar_psftp.py --address 24:AC:AC:0C:30:1E pull --session /U/0/20260716/E/170114/ \
 #                               --out /srv/tepna/captures/incoming/verity-offline
 from __future__ import annotations
-import argparse, asyncio, json, os
+import argparse, asyncio, json, logging, os, time
 from bleak import BleakClient, BleakScanner
+
+log = logging.getLogger(__name__)
 
 
 async def _bt_disconnect(address: str):
@@ -43,6 +45,11 @@ async def _bt_disconnect(address: str):
         await asyncio.sleep(2.0)   # let the controller settle before re-connecting
     except Exception:
         pass
+
+# Three attempts must fit inside the caller's 300 s offline-op watchdog (capture._OFFLINE_OP_TIMEOUT_S)
+# with room for the backoffs, or the retry cannot run and the watchdog reports "abandoned" instead of the
+# real fault. 3 x 75 + 2 x 2 = 229 s.
+_LIST_ATTEMPT_TIMEOUT_S = 75.0
 
 MTU_CHAR = "fb005c51-02e7-f387-1cad-8acd2d8df0c8"   # RFC77_PFTP_MTU_CHARACTERISTIC
 GET = 0                                             # PbPFtpOperation.Command.GET
@@ -337,8 +344,13 @@ class PolarPsFtp:
         except (KeyError, TypeError, ValueError):
             return None
 
-    async def walk(self, path: str = USER_ROOT, maxdepth: int = 6, _depth: int = 0):
-        """Yield (full_path, size, is_dir) for everything under `path`."""
+    async def walk(self, path: str = USER_ROOT, maxdepth: int = 6, _depth: int = 0, descend=None):
+        """Yield (full_path, size, is_dir) for everything under `path`.
+
+        `descend(full_path) -> bool` (optional, added last to keep the existing signature) decides
+        whether to RECURSE into a directory; it never suppresses the directory's own row. Every level
+        costs a PS-FTP round trip over a 23-byte-MTU link, so on a device with a large unrelated
+        subtree the difference between pruning and not is minutes, not milliseconds."""
         try:
             entries = await self.list_dir(path)
         except Exception:
@@ -347,22 +359,33 @@ class PolarPsFtp:
             full = path + name
             is_dir = name.endswith("/")
             yield (full, size, is_dir)
-            if is_dir and _depth < maxdepth:
-                async for row in self.walk(full, maxdepth, _depth + 1):
+            if is_dir and _depth < maxdepth and (descend is None or descend(full)):
+                async for row in self.walk(full, maxdepth, _depth + 1, descend):
                     yield row
 
     @property
     def mtu(self): return getattr(self._client, "mtu_size", None)
 
 
-async def _with_retry(coro_factory, attempts: int = 3, backoff: float = 2.0):
-    """Retry a PS-FTP op on transient BLE faults (BlueZ 'device disconnected' mid-discovery is common)."""
+async def _with_retry(coro_factory, attempts: int = 3, backoff: float = 2.0,
+                      per_attempt_timeout: float | None = None):
+    """Retry a PS-FTP op on transient BLE faults (BlueZ 'device disconnected' mid-discovery is common).
+
+    `per_attempt_timeout` (optional, added last) bounds ONE attempt. Without it the retry is dead code
+    in the case it exists for: a wedged link does not raise, it hangs, so attempt 1 consumes the
+    caller's entire budget and attempts 2 and 3 never run. Measured 2026-08-02 — a Verity listing held
+    the offline lock for the full 300 s watchdog and was killed mid-first-attempt."""
     last = None
     for i in range(attempts):
         try:
-            return await coro_factory()
+            if per_attempt_timeout is None:
+                return await coro_factory()
+            return await asyncio.wait_for(coro_factory(), timeout=per_attempt_timeout)
         except Exception as e:
             last = e
+            if isinstance(e, asyncio.TimeoutError):
+                log.warning("PS-FTP attempt %d/%d exceeded %.0fs — retrying",
+                            i + 1, attempts, per_attempt_timeout)
             if i < attempts - 1:
                 await asyncio.sleep(backoff)
     raise last
@@ -382,13 +405,51 @@ def _session_meta(path: str) -> dict:
     return {"kind": kind, "date": date, "time": time, "start_local": start_local}
 
 
+def _session_descend(full: str) -> bool:
+    """Should `walk` recurse into this directory when hunting for sessions?
+
+    A session is exactly `/U/0/<8-digit date>/<E|R>/<6-digit time>/`, and the filter at the bottom of
+    `list_recordings` has always known that — it just applied it AFTER walking everything. On the real
+    Verity `/U/0/` also holds `S/` (plus `DBDC.DAT`, `USERID.BPB`), so the old walk descended a large
+    subtree that cannot contain a session and threw the result away. Every directory costs a PS-FTP
+    round trip on a link stuck at MTU 23, which is why that waste is measured in minutes.
+
+    Shape-based rather than a name blocklist: an unknown future sibling of `S/` is pruned by default
+    instead of silently re-introducing the cost."""
+    segs = [s for s in full.split("/") if s]
+    root = [s for s in USER_ROOT.split("/") if s]
+    rel = segs[len(root):]
+    if not rel:
+        return True                                  # USER_ROOT itself
+    if len(rel) == 1:
+        return len(rel[0]) == 8 and rel[0].isdigit()          # a date folder
+    if len(rel) == 2:
+        return rel[1] in ("E", "R")                           # exercise / offline recording
+    if len(rel) == 3:
+        return len(rel[2]) == 6 and rel[2].isdigit()          # a time folder = the session
+    return True                                               # inside a session: take everything
+
+
 async def list_recordings(address: str, adapter: str | None = None) -> list[dict]:
     """Enumerate real recordings on the device: exercise sessions (/U/0/DATE/E/TIME/) and offline
     recordings (/U/0/DATE/R/TIME/). Returns one dict per session with its files + total bytes."""
     async def _once():
         async with PolarPsFtp(address, adapter) as fs:
-            return [r async for r in fs.walk(USER_ROOT)]
-    rows = await _with_retry(_once)
+            rows = []
+            t0 = time.monotonic()
+            async for r in fs.walk(descend=_session_descend):
+                rows.append(r)
+                # Progress, because the alternative is what actually happened on 2026-08-02: the op ran
+                # for the full 300 s watchdog and was killed having logged NOTHING, so "device busy",
+                # "tree too large" and "link wedged" were indistinguishable after the fact. A hang must
+                # name where it hung.
+                if len(rows) % 25 == 0:
+                    log.info("PS-FTP %s: walked %d entries in %.0fs (last: %s)",
+                             address, len(rows), time.monotonic() - t0, r[0])
+            log.info("PS-FTP %s: walk complete — %d entries in %.1fs",
+                     address, len(rows), time.monotonic() - t0)
+            return rows
+    rows = await _with_retry(_once, per_attempt_timeout=_LIST_ATTEMPT_TIMEOUT_S)
     # a session dir = a time-folder (6 digits) directly under an E/ or R/ segment
     sessions: dict[str, dict] = {}
     for full, size, is_dir in rows:

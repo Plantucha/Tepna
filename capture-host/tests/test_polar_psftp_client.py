@@ -53,6 +53,7 @@ class FakeClient:
         self.dirs = {}
         self.files = {}
         self.time_reply = None           # bytes for a GET_LOCAL_TIME query, or None
+        self.requested = []              # every path the client actually asked for, in order
         self.fail_connect = False
 
     async def connect(self):
@@ -92,6 +93,7 @@ class FakeClient:
         # REQUEST: [len_lo, len_hi] + protobuf(op). field 2 = path.
         proto = stream[2:]
         path = ps._parse_pb_fields(proto).get(2, b"").decode("utf-8", "replace")
+        self.requested.append(path)
         if path in self.files:
             for p in _response_data_packets(self.files[path]):
                 self.notify(0, p)
@@ -572,3 +574,444 @@ def test_progress_is_reported_for_skipped_files_and_survives_a_raising_callback(
         raise RuntimeError("the monitor went away")
     m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path), on_progress=boom))
     assert m["ok"] is True and m["total_bytes"] == 46
+
+
+# ── pruning the session walk (2026-08-02) ────────────────────────────────────────────────────────────
+#
+# `list_recordings` always knew a session is exactly `/U/0/<8-digit>/<E|R>/<6-digit>/` — it just applied
+# that filter AFTER walking everything. The real Verity's `/U/0/` also holds `S/`, so the walk descended
+# a subtree that cannot contain a session and discarded the result. Every directory is a PS-FTP round
+# trip on a link stuck at MTU 23, which is why the waste is measured in minutes, not milliseconds.
+
+def _fs_with_a_big_unrelated_subtree():
+    """The measured Verity layout: two files, a session dir, and `S/` holding a deep tree."""
+    c = _fs_with_one_session()
+    c.dirs["/U/0/"] = [("DBDC.DAT", 1), ("USERID.BPB", 70), ("S/", 0), ("20260719/", 0)]
+    c.dirs["/U/0/S/"] = [(f"{i:04d}/", 0) for i in range(20)]
+    for i in range(20):
+        c.dirs[f"/U/0/S/{i:04d}/"] = [("BLOB.BPB", 999)]
+    return c
+
+
+def test_the_session_walk_does_not_descend_the_unrelated_subtree(monkeypatch):
+    c = _fs_with_a_big_unrelated_subtree()
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            return [row async for row in fs.walk("/U/0/", descend=ps._session_descend)]
+    rows = _run(go())
+    paths = {p for p, _sz, _d in rows}
+    assert "/U/0/S/" in paths, "the directory itself is still reported"
+    assert not [p for p in paths if p.startswith("/U/0/S/0")], "must not have recursed into it"
+    assert "/U/0/20260719/E/034500/BPM.GZ" in paths, "the real session is still found"
+
+
+def test_an_unpruned_walk_still_visits_everything(monkeypatch):
+    """The prune is opt-in: `walk`'s existing callers (pull_recording) must be unaffected."""
+    c = _fs_with_a_big_unrelated_subtree()
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            return [row async for row in fs.walk("/U/0/")]
+    paths = {p for p, _sz, _d in _run(go())}
+    assert "/U/0/S/0000/BLOB.BPB" in paths
+
+
+def test_list_recordings_still_finds_the_session_through_the_prune(monkeypatch):
+    c = _fs_with_a_big_unrelated_subtree()
+    _install(monkeypatch, c)
+    got = _run(ps.list_recordings("AA:BB"))
+    assert [s["path"] for s in got] == ["/U/0/20260719/E/034500/"]
+    assert got[0]["total_bytes"] == 12 + 34
+
+
+def test_the_prune_accepts_exactly_the_session_shape():
+    ok = ps._session_descend
+    assert ok("/U/0/") is True                          # the root itself
+    assert ok("/U/0/20260719/") is True                 # a date
+    assert ok("/U/0/20260719/E/") is True               # exercise
+    assert ok("/U/0/20260719/R/") is True               # offline recording
+    assert ok("/U/0/20260719/E/034500/") is True        # the session
+    assert ok("/U/0/20260719/E/034500/sub/") is True    # inside a session, take everything
+
+
+def test_the_prune_rejects_what_cannot_hold_a_session():
+    no = ps._session_descend
+    assert no("/U/0/S/") is False                       # the measured real-world cost
+    assert no("/U/0/SYS/") is False
+    assert no("/U/0/2026071/") is False, "7 digits is not a date"
+    assert no("/U/0/20260719/X/") is False, "only E and R"
+    assert no("/U/0/20260719/E/03450/") is False, "5 digits is not a time"
+
+
+def test_an_unknown_future_sibling_is_pruned_by_default():
+    """Shape-based, not a name blocklist: a new sibling of `S/` must not silently reintroduce the cost."""
+    assert ps._session_descend("/U/0/WHATEVER/") is False
+
+
+# ── the retry actually gets to retry (2026-08-02) ────────────────────────────────────────────────────
+
+def test_a_hanging_attempt_is_bounded_so_the_later_attempts_still_run():
+    """Without a per-attempt bound the retry is dead code in the case it exists for: a wedged link does
+    not raise, it hangs, so attempt 1 eats the whole budget and attempts 2 and 3 never happen."""
+    calls = []
+
+    async def hang():
+        calls.append(1)
+        await asyncio.sleep(30)
+
+    async def go():
+        with pytest.raises(asyncio.TimeoutError):
+            await ps._with_retry(hang, attempts=3, backoff=0.0, per_attempt_timeout=0.02)
+    _run(go())
+    assert len(calls) == 3, "every attempt must get its turn"
+
+
+def test_a_transient_failure_still_succeeds_on_a_later_attempt():
+    state = {"n": 0}
+
+    async def flaky():
+        state["n"] += 1
+        if state["n"] < 3:
+            raise RuntimeError("device disconnected")
+        return "ok"
+
+    assert _run(ps._with_retry(flaky, attempts=3, backoff=0.0, per_attempt_timeout=5.0)) == "ok"
+
+
+def test_without_a_timeout_the_retry_behaves_exactly_as_before():
+    """Back-compat: the parameter is optional and last, and its absence must not change the path."""
+    async def boom():
+        raise RuntimeError("nope")
+    with pytest.raises(RuntimeError):
+        _run(ps._with_retry(boom, attempts=2, backoff=0.0))
+
+
+# ── the prune is WIRED IN, not merely available ──────────────────────────────────────────────────────
+#
+# The mutation gate caught this gap on 2026-08-02: `descend=_session_descend` could be replaced with
+# `descend=None` and every test still passed, because the tests drove `walk(descend=...)` directly and
+# then asserted only list_recordings' RESULT — which is identical with or without pruning. What makes
+# the fix a fix is the round trips NOT taken, so that is what has to be asserted.
+
+def test_list_recordings_actually_prunes_the_unrelated_subtree(monkeypatch):
+    c = _fs_with_a_big_unrelated_subtree()
+    _install(monkeypatch, c)
+    _run(ps.list_recordings("AA:BB"))
+    assert "/U/0/" in c.requested, "the root is still listed"
+    assert not [p for p in c.requested if p.startswith("/U/0/S/")], (
+        "list_recordings walked into S/ — the prune is not wired in, only available")
+    assert "/U/0/20260719/E/034500/" in c.requested, "the real session is still visited"
+
+
+def test_the_prune_is_propagated_into_the_recursion(monkeypatch):
+    """A prune applied only at the top level would still pass the S/ test — S/ is pruned at depth 0.
+    This one can only pass if `descend` reaches the recursive call."""
+    c = _fs_with_one_session()
+    c.dirs["/U/0/20260719/"] = [("E/", 0), ("X/", 0)]        # X/ sits one level DOWN
+    c.dirs["/U/0/20260719/X/"] = [("JUNK/", 0)]
+    c.dirs["/U/0/20260719/X/JUNK/"] = [("BIG.BPB", 9999)]
+    _install(monkeypatch, c)
+    _run(ps.list_recordings("AA:BB"))
+    assert not [p for p in c.requested if p.startswith("/U/0/20260719/X/")], (
+        "descend was not passed down — pruning stops at the first level")
+
+
+def test_maxdepth_still_bounds_the_walk(monkeypatch):
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            return [row async for row in fs.walk("/U/0/", maxdepth=1)]
+    paths = {p for p, _s, _d in _run(go())}
+    assert "/U/0/20260719/E/" in paths, "depth 1 is still walked"
+    # The FRONTIER, not just "something deep is missing": with `<=` the cut-off moves exactly one
+    # level, so an assertion two levels down passes either way and sees nothing.
+    assert "/U/0/20260719/E/034500/" not in paths, "depth 2 must be cut off"
+
+
+# ── the progress logging is the diagnostic, so it is pinned ─────────────────────────────────────────
+#
+# The whole argument for adding it: when the op was killed at 300 s having logged nothing, "device
+# busy", "tree too large" and "link wedged" were indistinguishable after the fact. A log nobody
+# asserts can regress silently, which would put us straight back there.
+
+def test_the_walk_reports_progress_and_completion(monkeypatch, caplog):
+    c = _fs_with_one_session()
+    # 60 entries in one directory → crosses the 25-entry progress threshold twice
+    c.dirs["/U/0/20260719/E/034500/"] = [(f"F{i:03d}.GZ", 1) for i in range(60)]
+    _install(monkeypatch, c)
+    with caplog.at_level("INFO", logger="polar_psftp"):
+        _run(ps.list_recordings("AA:BB"))
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("walked 25 entries" in m for m in msgs), "progress must appear every 25 entries"
+    assert any("walked 50 entries" in m for m in msgs)
+    assert any("walk complete" in m for m in msgs), "and a completion line, so a hang is visible"
+
+
+def test_a_bounded_attempt_logs_which_attempt_timed_out(caplog):
+    """`i + 1` — the human-readable attempt number. Off by one and the log points at the wrong try."""
+    async def hang():
+        await asyncio.sleep(30)
+
+    async def go():
+        with pytest.raises(asyncio.TimeoutError):
+            await ps._with_retry(hang, attempts=2, backoff=0.0, per_attempt_timeout=0.01)
+    with caplog.at_level("WARNING", logger="polar_psftp"):
+        _run(go())
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("attempt 1/2" in m for m in msgs), "attempts are numbered from 1 for humans"
+    assert any("attempt 2/2" in m for m in msgs)
+
+
+# ── the retry constants are load-bearing, not decoration ────────────────────────────────────────────
+
+def test_the_defaults_keep_three_attempts_inside_the_offline_watchdog():
+    """3 x _LIST_ATTEMPT_TIMEOUT_S + 2 x backoff must fit in capture._OFFLINE_OP_TIMEOUT_S (300 s), or
+    the retry cannot run and the watchdog reports "abandoned" instead of the real fault."""
+    import inspect
+    sig = inspect.signature(ps._with_retry)
+    attempts = sig.parameters["attempts"].default
+    backoff = sig.parameters["backoff"].default
+    assert attempts == 3 and backoff == 2.0
+    assert attempts * ps._LIST_ATTEMPT_TIMEOUT_S + (attempts - 1) * backoff < 300.0
+
+
+def test_the_default_attempt_count_is_what_actually_runs():
+    calls = []
+
+    async def boom():
+        calls.append(1)
+        raise RuntimeError("nope")
+    with pytest.raises(RuntimeError):
+        _run(ps._with_retry(boom, backoff=0.0))
+    assert len(calls) == 3, "the default must be the count that runs, not just the annotation"
+
+
+def test_no_backoff_is_slept_after_the_final_attempt():
+    """`i < attempts - 1`: an off-by-one here sleeps a pointless backoff while holding the offline
+    lock and the paused-capture flag — the failure mode the 300 s bound exists to stop."""
+    slept = []
+
+    async def fake_sleep(d):
+        slept.append(d)
+
+    async def boom():
+        raise RuntimeError("nope")
+
+    async def go():
+        real = asyncio.sleep
+        asyncio.sleep = fake_sleep
+        try:
+            with pytest.raises(RuntimeError):
+                await ps._with_retry(boom, attempts=3, backoff=1.5)
+        finally:
+            asyncio.sleep = real
+    _run(go())
+    assert slept == [1.5, 1.5], "one backoff BETWEEN attempts, none after the last"
+
+
+def test_list_recordings_bounds_each_attempt(monkeypatch):
+    """The bound is the whole point of the retry fix; dropping the argument restores the hang."""
+    seen = {}
+    real = ps._with_retry
+
+    async def spy(factory, **kw):
+        seen.update(kw)
+        return await real(factory, **kw)
+    monkeypatch.setattr(ps, "_with_retry", spy)
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    _run(ps.list_recordings("AA:BB"))
+    assert seen.get("per_attempt_timeout") == ps._LIST_ATTEMPT_TIMEOUT_S
+
+
+def test_the_progress_log_names_the_device(monkeypatch, caplog):
+    """With three Polars on one box, progress that does not say WHICH device is not diagnostic."""
+    c = _fs_with_one_session()
+    c.dirs["/U/0/20260719/E/034500/"] = [(f"F{i:03d}.GZ", 1) for i in range(30)]
+    _install(monkeypatch, c)
+    with caplog.at_level("INFO", logger="polar_psftp"):
+        _run(ps.list_recordings("24:AC:AC:0C:30:1E"))
+    assert any("24:AC:AC:0C:30:1E" in r.getMessage() for r in caplog.records)
+
+
+def _fs_with_two_sessions():
+    c = _fs_with_one_session()
+    c.dirs["/U/0/"] = [("20260719/", 0), ("20260716/", 0)]      # deliberately out of order
+    c.dirs["/U/0/20260716/"] = [("R/", 0)]
+    c.dirs["/U/0/20260716/R/"] = [("170114/", 0)]
+    c.dirs["/U/0/20260716/R/170114/"] = [("ACC.GZ", 7), ("PPG.GZ", 5)]
+    return c
+
+
+def test_sessions_come_back_in_chronological_order(monkeypatch):
+    c = _fs_with_two_sessions()
+    _install(monkeypatch, c)
+    got = _run(ps.list_recordings("AA:BB"))
+    assert [s["path"] for s in got] == ["/U/0/20260716/R/170114/", "/U/0/20260719/E/034500/"]
+
+
+def test_each_session_carries_its_own_files_and_byte_total(monkeypatch):
+    c = _fs_with_two_sessions()
+    _install(monkeypatch, c)
+    got = {s["path"]: s for s in _run(ps.list_recordings("AA:BB"))}
+    r = got["/U/0/20260716/R/170114/"]
+    assert sorted(f["name"] for f in r["files"]) == ["ACC.GZ", "PPG.GZ"]
+    assert r["total_bytes"] == 12
+    assert got["/U/0/20260719/E/034500/"]["total_bytes"] == 46, "totals must not pool across sessions"
+
+
+def test_both_recording_kinds_are_found(monkeypatch):
+    """E/ is an exercise session, R/ an offline recording — the backup path depends on R/."""
+    c = _fs_with_two_sessions()
+    _install(monkeypatch, c)
+    kinds = {s["path"].split("/")[4] for s in _run(ps.list_recordings("AA:BB"))}
+    assert kinds == {"E", "R"}
+
+
+def test_the_adapter_is_passed_through_to_the_client(monkeypatch):
+    """The box has three BLE radios and one of them is known to go deaf. A listing that silently
+    ignores the requested adapter would talk over the wrong one."""
+    seen = {}
+    real_init = ps.PolarPsFtp.__init__
+
+    def spy(self, address, adapter=None, *a, **kw):
+        seen["adapter"] = adapter
+        return real_init(self, address, adapter, *a, **kw)
+    monkeypatch.setattr(ps.PolarPsFtp, "__init__", spy)
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    _run(ps.list_recordings("AA:BB", "hci2"))
+    assert seen["adapter"] == "hci2"
+
+
+def test_the_progress_line_itself_names_the_device_and_where_it_is(monkeypatch, caplog):
+    """Asserted on the PROGRESS line specifically: the completion line also carries the address, so a
+    test that accepts any record cannot tell the two apart — and it is the progress line that has to
+    be readable while the thing is still hanging."""
+    c = _fs_with_one_session()
+    c.dirs["/U/0/20260719/E/034500/"] = [(f"F{i:03d}.GZ", 1) for i in range(30)]
+    _install(monkeypatch, c)
+    with caplog.at_level("INFO", logger="polar_psftp"):
+        _run(ps.list_recordings("24:AC:AC:0C:30:1E"))
+    prog = [r.getMessage() for r in caplog.records if "walked" in r.getMessage()]
+    assert prog, "no progress line at all"
+    assert "24:AC:AC:0C:30:1E" in prog[0], "which device"
+    assert "/U/0/20260719/E/034500/F0" in prog[0], "and how far it got"
+
+
+def test_the_default_depth_limit_stops_a_runaway_tree(monkeypatch):
+    """maxdepth is a real bound, not decoration: a device that reports a cyclic or very deep tree
+    must not walk forever while holding the offline lock."""
+    c = FakeClient()
+    c.dirs = {"/U/0/": [("a/", 0)]}
+    path = "/U/0/a/"
+    for _ in range(12):                       # far deeper than the limit
+        c.dirs[path] = [("a/", 0)]
+        path += "a/"
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            return [row async for row in fs.walk("/U/0/")]
+    depths = [p.count("/") for p, _s, _d in _run(go())]
+    assert max(depths) == 10, "6 levels below /U/0/ (3 slashes) inclusive of the leaf row"
+
+
+def test_the_default_backoff_is_the_one_that_actually_sleeps():
+    """A signature assertion cannot see this: mutmut swaps the function BODY, so `inspect.signature`
+    still reports the original default. Only a behavioural check pins it."""
+    slept = []
+
+    async def fake_sleep(d):
+        slept.append(d)
+
+    async def boom():
+        raise RuntimeError("nope")
+
+    async def go():
+        real = asyncio.sleep
+        asyncio.sleep = fake_sleep
+        try:
+            with pytest.raises(RuntimeError):
+                await ps._with_retry(boom)          # no backoff argument
+        finally:
+            asyncio.sleep = real
+    _run(go())
+    assert slept == [2.0, 2.0]
+
+
+def test_the_listing_asks_for_the_address_it_was_given(monkeypatch):
+    seen = {}
+    real_init = ps.PolarPsFtp.__init__
+
+    def spy(self, address, adapter=None, *a, **kw):
+        seen["address"] = address
+        return real_init(self, address, adapter, *a, **kw)
+    monkeypatch.setattr(ps.PolarPsFtp, "__init__", spy)
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    _run(ps.list_recordings("24:AC:AC:0C:30:1E"))
+    assert seen["address"] == "24:AC:AC:0C:30:1E"
+
+
+def test_both_log_lines_carry_an_elapsed_time(monkeypatch, caplog):
+    """Elapsed is the half of the progress line that says whether it is moving or wedged."""
+    import re as _re
+    c = _fs_with_one_session()
+    c.dirs["/U/0/20260719/E/034500/"] = [(f"F{i:03d}.GZ", 1) for i in range(30)]
+    _install(monkeypatch, c)
+    with caplog.at_level("INFO", logger="polar_psftp"):
+        _run(ps.list_recordings("AA:BB"))
+    msgs = [r.getMessage() for r in caplog.records]
+    prog = next(m for m in msgs if "walked" in m)
+    done = next(m for m in msgs if "walk complete" in m)
+    # PLAUSIBLE, not merely present: `monotonic() - t0` mutated to `+ t0` still prints digits and
+    # still matches a shape regex — it prints ~2x the machine uptime. A wall-clock instant rendered as
+    # an elapsed time is exactly the kind of log that makes a hang harder to read, not easier.
+    for label, m in (("progress", prog), ("completion", done)):
+        hit = _re.search(r"in (\d+(?:\.\d+)?)s", m)
+        assert hit, f"no elapsed in {label} line: {m}"
+        assert float(hit.group(1)) < 60.0, f"{label} elapsed is not an elapsed: {m}"
+    assert "30 entries" in done or "entries" in done
+
+
+def test_sessions_on_the_same_day_are_ordered_by_time(monkeypatch):
+    """Pins the TIME half of the sort key; a date-only comparison passes the two-date test."""
+    c = _fs_with_one_session()
+    c.dirs["/U/0/"] = [("20260719/", 0)]
+    c.dirs["/U/0/20260719/"] = [("E/", 0)]
+    c.dirs["/U/0/20260719/E/"] = [("034500/", 0), ("011500/", 0)]      # out of order
+    c.dirs["/U/0/20260719/E/011500/"] = [("EARLY.GZ", 3)]
+    _install(monkeypatch, c)
+    got = [s["path"] for s in _run(ps.list_recordings("AA:BB"))]
+    assert got == ["/U/0/20260719/E/011500/", "/U/0/20260719/E/034500/"]
+
+
+def test_a_zero_byte_file_is_listed_rather_than_silently_dropped(monkeypatch):
+    """`size >= 0`, not `> 0`. A zero-byte file in a session is precisely the case the backup exists
+    to make visible — an aborted or auto-stopped recording. Dropping it reports a session as having
+    fewer files than it has, which is POLAR-ONBOARD-BACKUP §0.2's fabricated-absence class: "the file
+    is fine, it is just shorter than the night"."""
+    c = _fs_with_one_session()
+    c.dirs["/U/0/20260719/E/034500/"] = [("BPM.GZ", 12), ("EMPTY.GZ", 0)]
+    _install(monkeypatch, c)
+    got = _run(ps.list_recordings("AA:BB"))
+    names = sorted(f["name"] for f in got[0]["files"])
+    assert names == ["BPM.GZ", "EMPTY.GZ"], "the empty recording must still be reported"
+    assert got[0]["total_bytes"] == 12
+
+
+def test_the_completion_line_also_names_the_device(monkeypatch, caplog):
+    """Both lines, not just the progress one: the completion line is what lands in the journal for a
+    run that finished, and 'walk complete' without a device is unattributable on a three-Polar box."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    with caplog.at_level("INFO", logger="polar_psftp"):
+        _run(ps.list_recordings("24:AC:AC:0C:30:1E"))
+    done = next(r.getMessage() for r in caplog.records if "walk complete" in r.getMessage())
+    assert "24:AC:AC:0C:30:1E" in done
