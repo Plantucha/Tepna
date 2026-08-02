@@ -37,18 +37,34 @@ def _post(app, body=None):
     return _serve(app, go)
 
 
-def _stub(monkeypatch, harvest=None, up=True, calls=None, reachable=False):
+def _stub(monkeypatch, harvest=None, up=True, calls=None, reachable=False, seen=None):
     """`reachable` defaults False so these tests keep exercising the ASSOCIATION path they were written
     for. The doubles take the same optional args the real functions grew (`root`, `addr`) — a double
-    that cannot accept what the caller passes tests the double, not the caller."""
-    monkeypatch.setattr(cpap_harvest, "reachable", lambda base, timeout=5.0: reachable)
+    that cannot accept what the caller passes tests the double, not the caller.
+
+    ACCEPTING an argument is not OBSERVING it, and the gap was measurable: these doubles took `root=`
+    and dropped it, so `wifi_up(profile, 45.0, guard, root=root)` → `wifi_up(profile, 45.0, guard)`
+    survived mutation with the suite green. That argument is the one this handler's own comment calls
+    load-bearing — without it the wpa control dir falls back to /tmp, which is READ-ONLY under
+    `ProtectSystem=strict`. Pass `seen=[]` to capture every argument of every call."""
+    def _rec(op, **kw):
+        if seen is not None:
+            seen.append({"op": op, **kw})
+
+    monkeypatch.setattr(cpap_harvest, "reachable",
+                        lambda base, timeout=5.0: (_rec("reachable", base=base, timeout=timeout),
+                                                   reachable)[1])
     monkeypatch.setattr(cpap_harvest, "default_route_dev", lambda: "eno1")
     monkeypatch.setattr(cpap_harvest, "wifi_up",
                         lambda p, t=45.0, g=None, ssid=None, psk=None, iface=None, addr=None, root=None:
-                        (calls.append(("up", g)) if calls is not None else None) or up)
+                        (_rec("up", profile=p, timeout=t, guard=g, iface=iface, root=root),
+                         calls.append(("up", g)) if calls is not None else None, up)[2])
     monkeypatch.setattr(cpap_harvest, "wifi_down",
-                        lambda p, t=30.0, iface=None, root=None: (calls.append(("down", p)) if calls is not None else None) or True)
-    monkeypatch.setattr(cpap_harvest, "harvest", harvest or (lambda *a, **k: _res()))
+                        lambda p, t=30.0, iface=None, root=None:
+                        (_rec("down", profile=p, timeout=t, iface=iface, root=root),
+                         calls.append(("down", p)) if calls is not None else None, True)[2])
+    monkeypatch.setattr(cpap_harvest, "harvest",
+                        harvest or (lambda *a, **k: (_rec("harvest", args=a, kw=k), _res())[1]))
 
 
 # ── refusals ────────────────────────────────────────────────────────────────────────────────────────
@@ -189,3 +205,85 @@ def test_a_reachable_card_is_pulled_without_associating(tmp_path, monkeypatch):
     assert status == 200 and body["ok"] is True
     assert not any(c[0] == "up" for c in calls), "a reachable card must not be associated to"
     assert not any(c[0] == "down" for c in calls), "…and nothing torn down that was never brought up"
+
+
+# ── what the handler actually passes down ───────────────────────────────────────────────────────────
+# The tests above prove the SEQUENCE (associate, harvest, tear down). These prove the ARGUMENTS, which
+# is where the failures on real hardware have been: a dropped `root=`, a profile read from the wrong
+# config key, a destination assembled from the wrong root.
+def test_the_capture_root_reaches_both_wifi_calls(tmp_path):
+    """`root=` is load-bearing, and the handler says so in its own comment: omitting it falls through to
+    /tmp for the wpa control dir, which is READ-ONLY under ProtectSystem=strict. Measured — the
+    scheduled path worked and this one failed with
+    "Failed to initialize control interface '/tmp/tepna-wpa-1000'". It must reach the teardown too,
+    or `wpa_cli terminate` resolves through the SYSTEM supplicant's socket directory."""
+    seen = []
+    app = _app(tmp_path)
+    with pytest.MonkeyPatch.context() as mp:
+        _stub(mp, seen=seen)
+        status, _body = _post(app)
+    assert status == 200
+    ups = [c for c in seen if c["op"] == "up"]
+    downs = [c for c in seen if c["op"] == "down"]
+    assert ups and downs
+    assert ups[0]["root"] == str(tmp_path), f"the capture root must reach wifi_up: {ups[0]}"
+    assert downs[0]["root"] == str(tmp_path), f"…and wifi_down: {downs[0]}"
+
+
+def test_the_configured_profile_and_route_guard_reach_the_association(tmp_path):
+    seen = []
+    app = _app(tmp_path, cpap={**CFG, "wifi_profile": "cardnet"})
+    with pytest.MonkeyPatch.context() as mp:
+        _stub(mp, seen=seen)
+        _post(app)
+    up = next(c for c in seen if c["op"] == "up")
+    assert up["profile"] == "cardnet", "the profile comes from cpap.wifi_profile, not a literal"
+    assert up["guard"] == "eno1", "the pre-association default route is passed as the guard"
+    assert up["timeout"] == 45.0
+    down = next(c for c in seen if c["op"] == "down")
+    assert down["profile"] == "cardnet", "tear down the profile that was raised"
+
+
+def test_the_harvest_is_aimed_at_the_configured_destination_and_base(tmp_path):
+    """`dest` is root + cpap.dest_subdir, and `base` is cpap.base_url. Assembled from the wrong keys
+    the pull still reports 200 with files copied — into the wrong directory, or from the wrong host."""
+    seen = []
+    app = _app(tmp_path, cpap={**CFG, "dest_subdir": "captures/resmed",
+                               "base_url": "http://192.168.4.1"})
+    with pytest.MonkeyPatch.context() as mp:
+        _stub(mp, seen=seen)
+        status, _ = _post(app)
+    assert status == 200
+    h = next(c for c in seen if c["op"] == "harvest")
+    assert h["args"][0] == os.path.join(str(tmp_path), "captures/resmed")
+    assert h["args"][1] == "http://192.168.4.1"
+    probe = next(c for c in seen if c["op"] == "reachable")
+    assert probe["base"] == "http://192.168.4.1", "the reachability probe must ask the same host"
+
+
+def test_the_scope_selects_the_nights_that_are_harvested(tmp_path, monkeypatch):
+    """`scope` is the whole point of the button — "last" is one night, "week" is seven. It reaches
+    `nights_for`, and its answer reaches `harvest`; a scope that is accepted and then ignored looks
+    identical to one that worked."""
+    seen = []
+    monkeypatch.setattr(cpap_harvest, "nights_for", lambda scope, now: {f"nights-for-{scope}"})
+    _stub(monkeypatch, seen=seen)
+    status, body = _post(_app(tmp_path), {"scope": "week"})
+    assert status == 200 and body["scope"] == "week"
+    h = next(c for c in seen if c["op"] == "harvest")
+    assert h["args"][2] == {"nights-for-week"}
+
+
+def test_the_run_is_bounded_by_the_configured_max_run_sec(tmp_path):
+    """A deadline, not a duration: `harvest` takes an absolute monotonic cap. Unbounded, a card that
+    stalls mid-transfer holds the interlock — and the sensors it blocks — until something else kills it."""
+    import time as _t
+    seen = []
+    app = _app(tmp_path, cpap={**CFG, "max_run_sec": 120})
+    with pytest.MonkeyPatch.context() as mp:
+        _stub(mp, seen=seen)
+        before = _t.monotonic()
+        _post(app)
+        after = _t.monotonic()
+    deadline = next(c for c in seen if c["op"] == "harvest")["args"][3]
+    assert before + 120 <= deadline <= after + 120, f"deadline {deadline} is not now+max_run_sec"
