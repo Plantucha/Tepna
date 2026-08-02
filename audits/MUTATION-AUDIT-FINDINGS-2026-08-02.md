@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living — re-measure with `capture-host/tools/mutate.py`) · **last-verified:** 2026-08-02
+**Status:** REFERENCE (living — re-measure with `capture-host/tools/mutate.py`) · **last-verified:** 2026-08-02 (second pass: three targets closed, webmon measured)
 
 # Mutation audit — `capture-host/` (Python)
 
@@ -46,9 +46,39 @@ link is lossy.
 | `settings_schema.py` | **97%** | 77/79 | 2 | `x_set_nested` (2) |
 | `helper_path.py` | **100%** | 21/21 | 0 | — |
 
-`webmon.py` is not in the table: it exceeded the driver's per-module timeout twice and is the one
-module still unmeasured. `capture.py` was sampled on its `_now` clock path only (69 of ~7 177 mutants,
-52 % killed).
+`capture.py` was sampled on its `_now` clock path only (69 of ~7 177 mutants, 52 % killed).
+
+> **The table above is the FIRST-PASS measurement and four rows are now stale by design** — see
+> *Second pass* below for the current numbers on `pull_session`, `storage_targets` and `cpap_harvest`,
+> and for webmon, which this pass measured for the first time. The original figures are kept as
+> written because they are what the findings below were derived from.
+
+### webmon, measured — and why it took two attempts to find out
+
+`webmon.py` was the one module the first pass could not measure: it "exceeded the driver's per-module
+timeout twice". Measured on the second pass it takes **3 857 s** — against a cap hard-coded at
+**3 600 s**. It was never pathological. It was 7 % over an arbitrary number.
+
+Two things had to be fixed before the number could exist at all (both in `tools/mutate.py`):
+
+* the flat `--timeout 3600` is ~15 000× the clean run of the cheapest module here and 0.93× what
+  webmon needs. The cap is now **derived from the module's own clean run**, and `--estimate` prices a
+  module before it costs anything.
+* `subprocess.TimeoutExpired` propagated straight out of `run_one`, so each attempt died with a
+  traceback and left **no measurement whatsoever** — which is how a module 7 % over budget came to be
+  recorded as unmeasurable. A cap that IS hit now reports its partial counts behind an explicit
+  `timed_out` flag, because "ran this long, got this far" is a result and a traceback is not.
+
+| module | kill rate | killed / total | survivors | worst functions |
+|---|---|---|---|---|
+| `webmon.py` | **59%** | 1402/2356 | 954 | `x_make_app` (926), `x__warn_comment_loss` (12), `x__has_comments` (10) |
+
+That makes webmon the second-weakest module in the suite — below `storage_targets`, above only
+`pull_session`'s original 47 %. The shape is unusually concentrated: **926 of its 954 survivors are in
+`make_app` alone**, one very large function holding the whole aiohttp route table. So "webmon is
+weakly tested" is really "the route table is weakly tested". Triage it a route at a time with
+`--only 'webmon.x_make_app__mutmut_*'`, and do not read the module-level percentage as a property of
+the module.
 
 ---
 
@@ -106,16 +136,79 @@ mutant "killed" and hand back a meaningless 100 %.
 
 ---
 
+## Second pass — the three named targets, closed (2026-08-02)
+
+Same method: triage first, write the test failing-first, then re-measure and confirm the specific
+mutant flipped to killed **by ID**. **No shipped source changed** — every survivor below was closed by
+asserting something the tests already had in front of them and never looked at.
+
+| module | kill rate | survivors | killed this pass | regressions |
+|---|---|---|---|---|
+| `pull_session.py` | 47 % → **62 %** | 250 → 179 | 71 | 0 |
+| `storage_targets.py` | 65 % → **81 %** | 373 → 209 | 164 | 0 |
+| `cpap_harvest.py` | 72 % → **77 %** | 348 → 282 | 66 | 0 |
+
+**The finding worth the audit on its own.** `test_pull_session.py`'s `_install` stubbed
+`BleakScanner.find_device_by_filter` with a `find(*a, **k)` that returned the device and **never
+invoked the filter** — so the lambda deciding *which BLE peer the pull connects to* had no test at
+all. Twelve of its mutations survived, including
+
+```python
+d.address.upper() == address.upper() or any(h in name for h in _NAME_HINTS)   # or → and
+```
+
+which strands the pull whenever the ring's MAC has rotated — the exact case the `or` exists for. The
+fake scanner now applies the real predicate, which puts that decision under every test in the file.
+This is the general shape: **a fake that ignores an argument makes the code that computes it
+untestable**, and coverage cannot see the difference.
+
+Others of the same kind:
+
+* `_pull_once`'s `continue` → `break` in the per-session loop. With `which="all"` the *first* session
+  is nearly always the one already on disk, so breaking there means a genuinely new night is never
+  collected — and it fails silently, returning a shorter list rather than an error.
+* `mount_unit` emits a systemd unit installed into `/etc/systemd/system` plus commands the operator
+  pastes as **root**, and the tests asserted substrings of it. So `default_opts += ",credentials=…"`
+  could become `=`, replacing the whole option set — dropping `uid/gid/file_mode/dir_mode` and mounting
+  the share as root — with everything green. The unit body, its systemd-escaped filename and the root
+  steps are now asserted whole.
+* `rsync_argv`'s `dry_run: bool = False`. That default is what `push_night` uses for the **real** copy;
+  flipped, every offload transfers nothing while the verify pass — itself a `--dry-run` finding nothing
+  pending — reports "copied and verified byte-for-byte".
+* `cpap_harvest`'s teardown ran `sudo=True` → `sudo=False` on all three commands undetected, because
+  the tests recorded `argv[0]` and nothing else. Same for `_wpa_dir(root)` → `_wpa_dir(None)`, which
+  aims `wpa_cli terminate` at the **system** supplicant's socket directory, and for the `timeout`
+  argument, where `None` reaches `subprocess.run` as *wait forever*.
+
+### Equivalent mutants, recorded so nobody re-derives them
+
+Confirmed **still surviving** after the pass, which is the correct outcome for all three:
+
+* `_pull_once`'s two `continue` → `break` on the traversal / non-stamp reject paths. Those are only
+  reachable via `which=<specific>`, which makes `targets` a single-element list — and
+  `oxyii.parse_file_list` only ever emits exactly-14-digit stamps, so they cannot be reached from
+  `which="all"`. `continue` and `break` are indistinguishable there by construction.
+* `pull()`'s `loop.time() >= deadline` → `>`: a timing boundary that monotonic time makes unreachable.
+
+---
+
 ## Where to go next (highest value first)
 
-1. **`pull_session.py` — 47 %, 242 survivors**, 156 of them in `_pull_once`. It is the onboard-recording
-   backup path; a wrong answer there is silent by construction.
-2. **`storage_targets.py` — 373 survivors**, concentrated in `mount_unit` / `validate` / `test_target`
-   (the offload destination validators).
-3. **`cpap_harvest.py` — 343 survivors**, concentrated in `_wpa_up` / `wifi_up` — the Wi-Fi association
-   path whose default-route guard is what stops the box stranding itself.
-4. **`webmon.py`** — still unmeasured; needs a narrower test selection or a longer cap.
+1. **`webmon.py` — 59 %, 954 survivors**, and **926 of them in `make_app`**. Now measurable (see above)
+   and the weakest thing left. Do it a route at a time: `--only 'webmon.x_make_app__mutmut_*'`.
+2. **`polar_psftp.py` — 69 %, 318 survivors** (`x_pull_recording`, `x_main`, `x_list_recordings`) — the
+   Polar onboard puller, the same "backup path for a lossy live link" shape as `pull_session`, and now
+   the weakest of the untouched modules.
+3. **`pull_session.py` — 179 survivors remain.** The residue is dominated by log prose and
+   `asyncio.sleep` durations; `x_main`'s argparse wiring is the largest untouched cluster with real
+   content.
+4. **`storage_targets.py` — 209 survivors remain**, now concentrated in `test_target` (the live rsync
+   probe) rather than the validators.
 5. **`capture.py`** — sample it one subsystem at a time (`--only 'capture.x__now__*'`), never whole.
+
+**Do not wire a whole-tree kill-rate threshold into CI.** The gate that exists — `tools/mutate_diff.py`,
+the `mutation-diff` job — is diff-scoped on purpose and must stay that way; a gate that reds on the
+legitimately untestable is a gate someone switches off.
 
 Per-module survivor lists are reproducible with `tools/mutate.py <module>`; they are NOT committed,
 because they are a measurement of a moment and go stale the instant a test changes.
