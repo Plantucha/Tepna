@@ -1129,7 +1129,8 @@ function printDriftFit(dir, key) {
     return out;
   };
   const A = rd('ECGDex', 'rr'),
-    B = rd('PpgDex', 'ppi');
+    B = rd('PpgDex', 'ppi'),
+    C = rd('PpgDexFinger', 'ppi');
   if (!A || !B || A.length < 500 || B.length < 500) {
     console.log('    ⏱ wearable drift: need ECGDex rr + PpgDex ppi beat series');
     return null;
@@ -1146,7 +1147,32 @@ function printDriftFit(dir, key) {
       (r.confident ? '' : `  — ⚠ ${r.reason}`) +
       (Math.abs(r.driftPpm) > r.maxDriftPpm * 0.8 ? `  — ⚠ near the ${r.maxDriftPpm.toFixed(0)} ppm search bound` : '')
   );
-  return { driftPpm: r.driftPpm, offsetMs: r.offsetMs, corr: r.medianCorrespondence, chance: r.chanceCorrespondence, iqrMs: r.medianIqrMs, confident: r.confident };
+  /* CLOSURE, when a third interval source is present. d(A,B)+d(B,C)+d(C,A) is identically zero, so a
+     non-zero result proves one of the three MEASUREMENTS is wrong — with no reference clock and no
+     ground truth. Measured across six nights it is never zero, and on 2026-07-28 it misses by 58 ppm
+     even though all three legs individually clear their own chance control: per-leg confidence is NOT
+     sufficient, which is the whole reason this prints beside the per-leg line. */
+  let closure = null;
+  if (C && C.length >= 500) {
+    const cl = ctx.IntegratorDSP.fitClockClosure(
+      [
+        { name: 'H10', times: A },
+        { name: 'VER', times: B },
+        { name: 'O2R', times: C }
+      ],
+      {}
+    );
+    if (cl.ok && cl.triples.length) {
+      const tri = cl.triples[0];
+      closure = { closurePpm: tri.closurePpm, consistent: tri.consistent, weakLegs: tri.weakLegs };
+      console.log(
+        `    ⏱ 3-source closure: ${tri.closurePpm.toFixed(1)} ppm (identity 0, tol ${tri.tolPpm.toFixed(0)})` +
+          `   ${tri.consistent ? 'consistent' : '⚠ INCONSISTENT — at least one pairwise fit is wrong'}` +
+          (tri.weakLegs.length ? `   weak legs: ${tri.weakLegs.join(', ')}` : '   (all legs confident)')
+      );
+    }
+  }
+  return { driftPpm: r.driftPpm, offsetMs: r.offsetMs, corr: r.medianCorrespondence, chance: r.chanceCorrespondence, iqrMs: r.medianIqrMs, confident: r.confident, closure };
 }
 
 function printClockFit(dir, key) {

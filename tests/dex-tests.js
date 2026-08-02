@@ -22256,6 +22256,51 @@
       T.ok('control · a drift beyond maxDriftPpm is NOT recovered (it flattens, as documented)', Math.abs(r2.driftPpm) < 250 * 0.5, 'got ' + r2.driftPpm.toFixed(0) + ' for a planted 250');
     });
 
+    /* CLOSURE — for any three clocks d(A,B)+d(B,C)+d(C,A) is identically zero, so a non-zero result
+       proves a pairwise fit is wrong WITHOUT any reference clock. Planted three-clock control, then a
+       deliberately corrupted leg, because a consistency test that has never been seen to fire is not
+       evidence it would fire. */
+    group('fitClockClosure — three clocks must close to zero', 'integrator-dsp · clock · closure', function (T) {
+      var D = env.IntegratorDSP;
+      if (!D || typeof D.fitClockClosure !== 'function') { T.skip('IntegratorDSP.fitClockClosure available', 'not loaded'); return; }
+      var t0 = 1785102000000, base = [], t = t0, i = 0;
+      while (t < t0 + 7 * 3600e3) { base.push(t); t += 900 + 180 * Math.sin(i / 40) + 40 * Math.sin(i / 7); i++; }
+      var mk = function (off, ppm, drop) {
+        var o = [];
+        for (var k = 0; k < base.length; k++) { if (k % drop === 0) continue; o.push(base[k] + off + (base[k] - base[0]) * ppm / 1e6); }
+        return o;
+      };
+      var A = mk(0, 0, 17), B = mk(300, -60, 13), C = mk(-800, 40, 11);
+      var r = D.fitClockClosure([{ name: 'A', times: A }, { name: 'B', times: B }, { name: 'C', times: C }], {});
+      T.ok('three sources produce three pairwise fits', r.ok === true && r.pairs.length === 3, r.ok ? r.pairs.length + ' pairs' : r.reason);
+      var tri = r.triples[0];
+      T.ok('planted three-clock set CLOSES to ~zero', Math.abs(tri.closurePpm) <= 5, 'closure ' + tri.closurePpm.toFixed(2) + ' ppm');
+      T.ok('…and is reported consistent', tri.consistent === true);
+      T.ok('…with every leg confident', tri.allLegsConfident === true && tri.weakLegs.length === 0);
+      /* THE CONTROL THAT MATTERS. Corrupt ONE leg by scrambling its beats — closure must break. A
+         consistency test that cannot fail would pass on the real 2026-07-26 trio, where it reads
+         100.9 ppm and correctly condemns the two weak O2Ring legs. */
+      /* A MID-NIGHT RE-SYNC, not noise. Per-beat jitter is what the block fit is built to survive —
+         corrupting that way moved closure by 0.3 ppm and proved nothing. A clock STEPPED partway
+         through (exactly what the capture host does on reconnect) makes one linear drift wrong for
+         the whole night, which is the failure closure exists to catch. */
+      /* CORRUPT THE MEASUREMENT, not the clock — and the difference is the method's own blind spot,
+         found by trying the other thing first. A clock STEPPED mid-night is measured FAITHFULLY by
+         both of its pairs, so the error cancels: closure is (dA-dB)+(dB-dC)+(dC-dA) === 0 no matter
+         what dC actually is, and a planted 900 ms step left closure at -0.10 ppm. Closure detects an
+         inconsistent MEASUREMENT SET; it can NEVER detect a wrong clock both pairs agree about.
+         So degrade one source until its FITS become unreliable — the real 2026-07-26 case, where two
+         weak O2Ring legs drove closure to 100.9 ppm. */
+      var bad = [];
+      for (var q = 0; q < C.length; q++) { if (q % 5 !== 0) continue; bad.push(C[q] + (((q * 7919) % 1600) - 800)); }
+      bad.sort(function (x, y) { return x - y; });
+      var r2 = D.fitClockClosure([{ name: 'A', times: A }, { name: 'B', times: B }, { name: 'C', times: bad }], {});
+      var tri2 = r2.triples[0];
+      T.ok('control · an unreliable leg is CAUGHT (closure breaks, or the leg is flagged weak)', Math.abs(tri2.closurePpm) > 5 || tri2.weakLegs.length > 0 || tri2.consistent === false,
+        'closure ' + tri2.closurePpm.toFixed(2) + ' ppm · weak [' + tri2.weakLegs.join(',') + '] · consistent ' + tri2.consistent);
+      T.ok('fewer than three sources refuses rather than guesses', D.fitClockClosure([{ name: 'A', times: A }, { name: 'B', times: B }], {}).ok === false);
+    });
+
     group('ResMed EDF session grouping — ±60 s inclusive (§AD)', 'resmed-edf · adapters · known-answer', function (T) {
       var SA = env.SignalAdapters;
       var rm = SA && typeof SA.byId === 'function' ? SA.byId('resmed-edf') : null;
