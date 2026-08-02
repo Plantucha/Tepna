@@ -216,6 +216,150 @@
     return null;
   }
 
-  root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, resolveDMY: resolveDMY, parseTimestamp: parseTimestamp };
+  // ══════════════════════════════════════════════════════════════════════════════════════
+  //  HOST-DISCIPLINED TIME AXIS — hostAxis()      (WEARABLE-HOST-AXIS-2026-08-02-BRIEF)
+  // ══════════════════════════════════════════════════════════════════════════════════════
+  //  Every Polar-Sensor-Logger / capture-host stream carries TWO clocks on EVERY row:
+  //      col 0  "Phone timestamp"        — the capture HOST (vigil box: chrony local-stratum-1, 0.008 ppm)
+  //      col 1  "sensor timestamp [ns]"  — the DEVICE's own crystal
+  //  The nodes historically read the host stamp ONCE (to anchor t0Ms) and then rode the DEVICE
+  //  crystal for the rest of the night — ppgdex `relSec = ns/1e9`, ecgdex `t0 + i/fs` with fs from
+  //  the device's own ms column. That puts an uncorrected crystal on the EXPORTED axis while a
+  //  disciplined clock sat unused in column 0 of every row.
+  //
+  //  Measured on 2026-07-26 by deciles of (host − device), with NO fitting of any kind:
+  //      H10 ECG       −0.70 s over 434 min   −27 ppm, smooth
+  //      Verity PPG    −0.34 s over 189 min   −30 ppm, smooth
+  //      O2Ring PPG   −18.49 s over 190 min   NON-LINEAR — −3035 ppm decaying to −1622 ppm
+  //  A counter reset was ruled out first (it would fake any global slope): the O2Ring ramp is
+  //  smooth, so it is a genuine rate error — and because it is non-linear, NO single ppm and no
+  //  linear fit describes it. That is why this interpolates a measured curve instead of fitting.
+  //
+  //  TWO properties of the correction, neither optional:
+  //    • SLOW.   Its own slope is ~30 ppm (30 µs per second), so RR/PPI intervals keep the device's
+  //      fine structure. The crystal is excellent at short scales; only its RATE is wrong. Correcting
+  //      the rate must not disturb the intervals HRV is computed from.
+  //    • ROBUST. Host stamps carry BLE delivery jitter (~0.1 s here — visible as the Verity's
+  //      −0.15/−0.08/−0.26 wobble). Interpolating RAW anchors would inject that jitter straight into
+  //      beat times, which for HRV is worse than the drift it fixes. A running median rejects it.
+  //
+  //  NO SPAN GATE HERE — and that is deliberate, because the sibling tool needed one. A ppm QUOTED
+  //  from a short fragment is unreliable (dual-clock-rate.mjs measured the same H10 at −20.3 ppm over
+  //  373 min and −65.8 ppm over 10.9 min), so that tool gates on span. This function is not quoting a
+  //  rate: it INTERPOLATES the measured divergence, so the correction it applies is bounded by what it
+  //  actually observed over that fragment. On a short H10 fragment the noise is ~12 ms; on a short
+  //  O2Ring one the real error is ~3 s and very much worth removing. Gating on span would refuse
+  //  exactly the case that needs it most. `ppm` is REPORTED for diagnosis — do not quote it from a
+  //  short fragment without the span beside it.
+  //
+  //  ⚠ This does NOT claim the host is absolutely right. It places every device on ONE timebase, so
+  //  they become mutually consistent; whether that timebase is itself correct is the host's business
+  //  (0.008 ppm on the capture box — UNVERIFIED on phone captures, where the column is a real phone).
+  //  Reported, never assumed: `maxStepMs` surfaces a genuine clock STEP smeared across one anchor gap
+  //  (2026-07-26 carries a 1.90 s O2Ring step and a 3.22 s H10 one) rather than hiding it in a slope.
+  //  Window CHOSEN BY MEASUREMENT, not taste — planted recovery against ±100 ms jitter over the real
+  //  190 min / 2873-anchor O2Ring geometry (worst / rms residual, ms):
+  //      win  9 → 77 / 36.3      win 21 → 57 / 18.7      win 41 → 168 / 16.5      win 81 → 245 / 24.8
+  //  21 halves the jitter without over-smoothing; 41+ starts flattening the O2Ring's real curvature,
+  //  which is the one thing this must follow. Step recovery is unaffected across the whole range.
+  var CK_AXIS_WIN = 21; // running-median width in anchors; odd so the median is a real sample
+  var CK_AXIS_MAX_PPM = 50000; // 5 % — refusal bound, see the plausibility check in hostAxis()
+
+  function _ckMedian(v) {
+    var s = v.slice().sort(function (a, b) {
+      return a - b;
+    });
+    var m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+
+  /* anchors: [{ devMs, hostMs }, …] — BOTH relative to the same first row, in device order.
+     Returns { ok, correctionAt(devMs) → ms to ADD to the device axis, n, maxStepMs, totalMs, ppm }.
+     ok:false ⇒ caller keeps the raw device axis (honest: no correction beats a fabricated one). */
+  function hostAxis(anchors, opts) {
+    opts = opts || {};
+    var win = opts.window > 0 ? opts.window | 0 : CK_AXIS_WIN;
+    var pts = [];
+    for (var i = 0; i < (anchors ? anchors.length : 0); i++) {
+      var a = anchors[i];
+      if (!a) continue;
+      var d = Number(a.devMs),
+        h = Number(a.hostMs);
+      if (!isFinite(d) || !isFinite(h)) continue;
+      pts.push({ d: d, r: h - d });
+    }
+    if (pts.length < 3) return { ok: false, reason: 'need ≥3 host anchors, got ' + pts.length, n: pts.length };
+    pts.sort(function (x, y) {
+      return x.d - y.d;
+    });
+    // Divergence is measured RELATIVE to the first anchor: the node has already anchored t0Ms there,
+    // so the correction must be 0 at the start and grow. An absolute offset here would double-count it.
+    var r0 = pts[0].r;
+    var n = pts.length;
+    var sm = new Array(n);
+    for (var k = 0; k < n; k++) {
+      var lo = k - (win >> 1),
+        hi = k + (win >> 1);
+      if (lo < 0) lo = 0;
+      if (hi > n - 1) hi = n - 1;
+      var w = [];
+      for (var j = lo; j <= hi; j++) w.push(pts[j].r - r0);
+      sm[k] = _ckMedian(w);
+    }
+    var maxStep = 0;
+    for (var s = 1; s < n; s++) {
+      var st = Math.abs(sm[s] - sm[s - 1]);
+      if (st > maxStep) maxStep = st;
+    }
+    var span = pts[n - 1].d - pts[0].d;
+    var ppm = span > 0 ? (sm[n - 1] / span) * 1e6 : 0;
+    /* PLAUSIBILITY BOUND — refuse, never "correct", an implausible rate. Caught by the ECGDex §4.3
+       fixture, whose synthetic ms column advances at 2× its host stamps: unbounded, that is a −500000
+       ppm "correction" that doubled fs from 130 to 259.9. A device crystal is wrong by ppm; the worst
+       REAL one in this corpus is the O2Ring at −3035 ppm, which this admits with 16× headroom. Beyond
+       5 % the two columns are not the two clocks we think they are — a misparse, a unit mismatch, a
+       shifted column — and applying it would fabricate a timebase. §2.6's rule, one level up: when the
+       input cannot be trusted the answer is "no correction", not a confident wrong one. */
+    if (!(Math.abs(ppm) <= CK_AXIS_MAX_PPM)) {
+      return { ok: false, reason: 'implausible host/device rate ' + Math.round(ppm) + ' ppm (bound ±' + CK_AXIS_MAX_PPM + ') — columns are probably not host+device', n: n, ppm: ppm };
+    }
+    return {
+      ok: true,
+      n: n,
+      maxStepMs: maxStep,
+      totalMs: sm[n - 1],
+      ppm: ppm,
+      /* Linear between anchors; FLAT outside them. Flat, not extrapolated: past the last anchor there
+         is no measurement, and extending a slope there would fabricate one — the same rule as §2.6. */
+      correctionAt: function (devMs) {
+        var x = Number(devMs);
+        if (!isFinite(x)) return 0;
+        if (x <= pts[0].d) return sm[0];
+        if (x >= pts[n - 1].d) return sm[n - 1];
+        var lo2 = 0,
+          hi2 = n - 1;
+        while (hi2 - lo2 > 1) {
+          var mid = (lo2 + hi2) >> 1;
+          if (pts[mid].d <= x) lo2 = mid;
+          else hi2 = mid;
+        }
+        var dx = pts[hi2].d - pts[lo2].d;
+        if (!(dx > 0)) return sm[lo2];
+        return sm[lo2] + ((sm[hi2] - sm[lo2]) * (x - pts[lo2].d)) / dx;
+      }
+    };
+  }
+
+  root.DexClock = {
+    tzOffset: tzOffset,
+    _ckP2: _ckP2,
+    _ckNumEpoch: _ckNumEpoch,
+    _ckZoneMin: _ckZoneMin,
+    _ckDMY: _ckDMY,
+    resolveDMY: resolveDMY,
+    parseTimestamp: parseTimestamp,
+    hostAxis: hostAxis,
+    _ckMedian: _ckMedian
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

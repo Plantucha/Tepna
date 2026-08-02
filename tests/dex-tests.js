@@ -269,6 +269,97 @@
       T.ok('floating tMs via Date.UTC (TZ-independent)', (P('2026-06-07 03:00', {}) || {}).tMs === U(2026, 5, 7, 3, 0));
     });
 
+    /* ════ 1a-bis · HOST-DISCIPLINED AXIS — DexClock.hostAxis (WEARABLE-HOST-AXIS-2026-08-02) ════
+       Every capture row carries BOTH clocks (host "Phone timestamp", device "sensor timestamp [ns]"),
+       and PpgDex/ECGDex used to anchor on the host once and then ride the DEVICE crystal for the whole
+       night. Measured cost on 2026-07-26: −0.70 s (H10), −0.34 s (Verity), −18.49 s (O2Ring, and
+       NON-LINEAR so no single rate removes it). This group locks the recovery, the two properties that
+       make the correction safe to apply, and the refusal that stops it fabricating a timebase. */
+    group('hostAxis — recover a planted device drift without disturbing the intervals', 'clock · host-axis', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.hostAxis !== 'function') {
+        T.skip('DexClock.hostAxis available', 'clock.js not loaded');
+        return;
+      }
+      var SPAN = 190 * 60 * 1000,
+        N = 2873;
+      // Deterministic pseudo-jitter — no Math.random (a flaky gate is worse than no gate).
+      var jit = function (i) {
+        return ((Math.sin(i * 12.9898) * 43758.5453) % 1) * 100;
+      };
+      var build = function (fn) {
+        var a = [];
+        for (var i = 0; i < N; i++) {
+          var d = (i / (N - 1)) * SPAN;
+          a.push({ devMs: d, hostMs: d + fn(d) + jit(i) });
+        }
+        return a;
+      };
+      var worstOf = function (ax, fn) {
+        var w = 0;
+        for (var i = 0; i < N; i += 7) {
+          var d = (i / (N - 1)) * SPAN,
+            e = Math.abs(ax.correctionAt(d) - fn(d));
+          if (e > w) w = e;
+        }
+        return w;
+      };
+      // The REAL O2Ring shape: a decaying ramp to −18.49 s. A linear fit cannot express this, which is
+      // the whole reason the correction interpolates a measured curve instead of fitting a rate.
+      var o2 = function (t) {
+        var f = t / SPAN;
+        return -(18490 * (1 - Math.pow(1 - f, 2.2)));
+      };
+      var axO2 = C.hostAxis(build(o2), {});
+      T.ok('non-linear 18.5 s device error is recovered', axO2.ok && Math.abs(axO2.totalMs - o2(SPAN)) < 120, 'total=' + (axO2.totalMs || 0).toFixed(0) + ' want≈' + o2(SPAN).toFixed(0));
+      T.ok('…and pointwise, not just at the endpoint', axO2.ok && worstOf(axO2, o2) < 150, 'worst=' + (axO2.ok ? worstOf(axO2, o2).toFixed(0) : 'n/a') + ' ms');
+      /* THE property that makes this safe on HRV data: the correction is SLOW, so two beats 1 s apart
+         stay 1 s apart. If it tracked the raw host stamps it would inject their ~100 ms BLE jitter
+         straight into every RR/PPI interval — worse than the drift it removes. */
+      var a1 = SPAN / 2,
+        b1 = a1 + 1000;
+      var iv = b1 + axO2.correctionAt(b1) - (a1 + axO2.correctionAt(a1));
+      T.ok('a 1 s interval survives the correction (jitter is NOT injected into RR/PPI)', Math.abs(iv - 1000) < 1, 'interval=' + iv.toFixed(3) + ' ms');
+      // A null case must not invent drift out of jitter.
+      var axNull = C.hostAxis(
+        build(function () {
+          return 0;
+        }),
+        {}
+      );
+      T.ok('no drift planted ⇒ no drift reported', axNull.ok && Math.abs(axNull.totalMs) < 60, 'total=' + (axNull.totalMs || 0).toFixed(0) + ' ms');
+      /* A transient spike is NOT a step. 2026-07-26's H10 carries a 3.22 s single-anchor excursion whose
+         level returns within one anchor (mean of the 30 before vs after differs by 0.010 s) — the
+         running median must reject it rather than bend the axis around it. */
+      var axSpike = C.hostAxis(
+        build(function (t) {
+          return Math.abs(t - 0.6 * SPAN) < SPAN / N ? -3220 : 0;
+        }),
+        {}
+      );
+      T.ok('a one-anchor 3.22 s SPIKE is rejected, not tracked', axSpike.ok && Math.abs(axSpike.totalMs) < 60 && axSpike.maxStepMs < 300, 'total=' + (axSpike.totalMs || 0).toFixed(0) + ' maxStep=' + (axSpike.maxStepMs || 0).toFixed(0));
+      // A sustained step IS real: reported via maxStepMs so a caller can see it (ECGDex cannot correct it).
+      var axStep = C.hostAxis(
+        build(function (t) {
+          return t > 0.6 * SPAN ? -1900 : 0;
+        }),
+        {}
+      );
+      T.ok('a SUSTAINED 1.9 s step is followed and surfaced via maxStepMs', axStep.ok && Math.abs(axStep.totalMs + 1900) < 80 && axStep.maxStepMs > 500, 'total=' + (axStep.totalMs || 0).toFixed(0) + ' maxStep=' + (axStep.maxStepMs || 0).toFixed(0));
+      /* REFUSAL, not a confident wrong answer. Caught by the ECGDex §4.3 fixture, whose synthetic ms
+         column runs at 2× its host stamps: unbounded, that became a −500000 ppm "correction" that
+         doubled fs from 130 to 259.9 Hz. Beyond the bound the two columns are not host+device. */
+      var axBad = C.hostAxis(
+        build(function (t) {
+          return -t / 2;
+        }),
+        {}
+      );
+      T.ok('an implausible 2× rate is REFUSED (not applied)', axBad.ok === false && /implausible/.test(String(axBad.reason)), 'reason=' + axBad.reason);
+      T.ok('fewer than 3 anchors refuses rather than guesses', C.hostAxis([{ devMs: 0, hostMs: 0 }, { devMs: 1, hostMs: 1 }], {}).ok === false);
+      T.ok('no anchors at all refuses', C.hostAxis([], {}).ok === false);
+    });
+
     /* ════ 1b · CLOCK §2.7 — NODE-LOCAL parsers reject out-of-range components ════
        clock.js `_ckMk` (used by the DexClock-delegating nodes) validates component ranges by ROUND-TRIP.
        The three DELIBERATE node-local Clock variants (GlucoDex `_ckParse`, PpgDex `parseTimestamp`,

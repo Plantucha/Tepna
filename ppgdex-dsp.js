@@ -261,6 +261,9 @@
     }
     return { gap, rejected, kept };
   }
+  // Host-anchor spacing, in accepted rows. 500 ≈ 2.8 s at 176 Hz, giving ~2400 anchors on a 190 min
+  // file — the geometry the running-median window was tuned against (clock.js CK_AXIS_WIN).
+  const PPG_AXIS_EVERY = 500;
   function parsePPG(text) {
     const lines = text.split(/\r?\n/);
     const ch0 = [],
@@ -268,6 +271,7 @@
       ch2 = [],
       amb = [];
     const nsArr = []; // BigInt deltas avoided — store as Number of (ns - ns0)/1 via BigInt math
+    const axisAnchors = []; // { devMs, hostMs } — host-disciplined axis, see PPG_AXIS_EVERY
     let ns0 = null,
       t0Ms = null,
       firstTs = null; // lastTs is resolved lazily in the fs fallback (§P1)
@@ -339,7 +343,7 @@
         relNs = NaN;
       }
       nsArr.push(relNs);
-      // Clock Contract: only the FIRST stamp is load-bearing here (t0Ms + offsetMin). The LAST stamp is
+      // Clock Contract: the FIRST stamp is load-bearing (t0Ms + offsetMin). The LAST stamp is
       // read ONLY by the degenerate `deltas.length<=20` fs fallback below, which a real capture (190k
       // valid ns deltas) never takes — so resolve it lazily there instead of parsing every one of ~190k
       // rows for a value that is then discarded. parseTimestamp was ~half of parsePPG's entire cost.
@@ -350,6 +354,15 @@
           t0Ms = ts.tMs;
           firstTs = ts;
         }
+      }
+      // HOST-DISCIPLINED AXIS (WEARABLE-HOST-AXIS-2026-08-02 §2) — sample the host clock as we go.
+      // §P1 above removed the per-row parseTimestamp because it was ~half of parsePPG; this restores
+      // it on 1 row in PPG_AXIS_EVERY (0.2 %), so that finding stands. Without these anchors the
+      // exported axis is the DEVICE crystal alone: −0.34 s/night on a Verity and −18.49 s on an
+      // O2Ring, whose error is non-linear and therefore not removable by any single rate.
+      if (t0Ms !== null && (nsArr.length === 1 || nsArr.length % PPG_AXIS_EVERY === 0)) {
+        const at = parseTimestamp(p[0]);
+        if (at && isFinite(relNs)) axisAnchors.push({ devMs: relNs / 1e6, hostMs: at.tMs - t0Ms });
       }
     }
     const n = ch0.length;
@@ -386,11 +399,28 @@
         fs = (n - 1) / ((lastTs.tMs - firstTs.tMs) / 1000);
       }
     }
+    // `fs` is derived from the DEVICE's ns deltas, so it is samples per DEVICE second. Once relSec is
+    // host-disciplined, it must become samples per HOST second or `1/fs` no longer matches the spacing
+    // of the very axis it indexes. ≤0.03 % on a Polar, 0.16 % on the O2Ring — small, but a self-
+    // inconsistent rec is the kind of thing that is only ever found much later, in something else.
+    const hostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? DexClock.hostAxis(axisAnchors, {}) : { ok: false };
+    if (hostAx.ok && isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);
     fs = Math.round(fs * 100) / 100;
-    // relSec per sample from ns (most accurate), else index/fs
+    // relSec per sample from ns, DISCIPLINED to the host clock (WEARABLE-HOST-AXIS §2); else index/fs.
+    // The device crystal keeps the fine structure (the correction's own slope is ~30 ppm, i.e. 30 µs
+    // per second, so RR/PPI intervals are untouched) while its RATE error is removed. If too few
+    // anchors resolved, `ok:false` and the raw device axis is kept — an uncorrected axis is honest,
+    // a fabricated correction is not.
     const relSec = new Float64Array(n);
     if (deltas.length > 20) {
-      for (let i = 0; i < n; i++) relSec[i] = isFinite(nsArr[i]) ? nsArr[i] / 1e9 : i / fs;
+      for (let i = 0; i < n; i++) {
+        if (!isFinite(nsArr[i])) {
+          relSec[i] = i / fs;
+          continue;
+        }
+        const devMs = nsArr[i] / 1e6;
+        relSec[i] = (devMs + (hostAx.ok ? hostAx.correctionAt(devMs) : 0)) / 1000;
+      }
     } else {
       for (let i = 0; i < n; i++) relSec[i] = i / fs;
     }
@@ -457,7 +487,11 @@
       // Per-sample missing mask (1 = rejected sentinel). Null for the wrist layout. Never filled.
       gap: sent ? sent.gap : null,
       sentinelRejected: sent ? sent.rejected : 0,
-      sentinelKept: sent ? sent.kept : 0
+      sentinelKept: sent ? sent.kept : 0,
+      /* What the host discipline actually did, so a consumer can SEE it rather than infer it.
+         `maxStepMs` is the one to read: a large value is a real clock STEP smeared across one anchor
+         gap, not a rate — the 2026-07-26 corpus carries a 1.90 s O2Ring step and a 3.22 s H10 one. */
+      hostAxis: hostAx.ok ? { ok: true, anchors: hostAx.n, totalMs: hostAx.totalMs, ppm: hostAx.ppm, maxStepMs: hostAx.maxStepMs } : { ok: false, reason: hostAx.reason || 'no host anchors' }
     };
   }
 
