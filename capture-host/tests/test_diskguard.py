@@ -135,3 +135,32 @@ def test_prune_old_nights_swallows_a_delete_error(tmp_path):
     removed = diskguard.prune_old_nights(str(cap), keep_nights=1, _rm=boom)
     assert removed == []                                        # nothing removed, nothing raised
     assert diskguard.list_nights(str(cap)) == ["2026-07-01", "2026-07-02", "2026-07-03"]
+
+
+# ── mutation-audit leads, 2026-08-02 (tools/mutate.py) ───────────────────────────────────────────────
+# diskguard.py measured 73/106 mutants killed at 100% statement+branch coverage. The survivor below is
+# the one that matters: it is the flag the low-disk alert reads, and the alert is what tells an operator
+# the box is about to stop recording.
+
+def test_low_is_FALSE_when_a_threshold_is_set_and_the_disk_is_healthy(tmp_path):
+    """Kills `min_free_gb > 0 and free_gb < min_free_gb` → `or`.
+
+    The two existing low-flag tests cover both outcomes and still miss this: one uses the DEFAULT
+    threshold of 0.0 (so `min_free_gb > 0` is False either way) and the other uses 1e9 (so it is True
+    either way). Neither exercises the only configuration the box actually runs — `min_free_gb: 2`
+    against a disk with plenty free. Under the mutant `low` is True whenever a threshold is set at all,
+    i.e. the low-disk alert fires on every poll, forever, and the suite cannot see it."""
+    r = diskguard.disk_report(str(tmp_path), min_free_gb=0.001)   # a threshold no real disk trips
+    assert r["free_gb"] > 0.001, "precondition: this filesystem has room"
+    assert r["low"] is False, "a healthy disk with a threshold set must not read as low"
+
+
+def test_free_gb_keeps_two_decimals(tmp_path):
+    """Kills `round(free_gb, 2)` → `round(free_gb, None)`, which returns an int.
+
+    Small, but `free_gb` is a SURFACED number — it goes into status.json, the storage card and the
+    low-disk alert text. Nothing asserted its shape, so the suite would not notice it losing its
+    fractional part."""
+    r = diskguard.disk_report(str(tmp_path))
+    assert isinstance(r["free_gb"], float), f"free_gb must stay fractional, got {r['free_gb']!r}"
+    assert round(r["free_gb"], 2) == r["free_gb"]

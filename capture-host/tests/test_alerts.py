@@ -105,3 +105,41 @@ def test_offline_alert_suppressed():
     # `optional` arrives straight from YAML, so absent/None must read as "not optional" — a required
     # device silently demoted to quiet would be the worst possible way to get this wrong.
     assert alerts.offline_alert_suppressed(None, False) is False
+
+
+# ── mutation-audit leads, 2026-08-02 (tools/mutate.py) ───────────────────────────────────────────────
+# alerts.py measured 87/110 mutants killed at 100% statement+branch coverage. Two survivors were real
+# gaps rather than untestable noise, and both are on the fail-safe side of the module — the side that
+# decides whether a box with no webhook configured stays silent. Each test below kills one named mutant.
+
+def test_a_notifier_constructed_without_a_flag_defaults_to_DISABLED():
+    """Kills Notifier.__init__ `enabled: bool = False` → `True`.
+
+    Every existing test passes `enabled=` explicitly, so nothing pinned the DEFAULT — and the default
+    is what stands between "no webhook configured" (the shipped state, and the box's state until
+    2026-08-01) and every install quietly attempting POSTs. A caller that forgets the kwarg must get
+    silence, not traffic."""
+    n = alerts.Notifier(url="https://hook")
+    assert n.enabled is False, "the default must be OFF — opt in to sending, never opt out"
+    assert _run(n.send("t", "m")) is False
+
+
+def test_un_keyed_alerts_do_not_dedupe_against_each_other():
+    """Kills Notifier.send `key is not None and dedupe_sec > 0` → `or`.
+
+    With `or`, a `key=None` alert enters the dedupe block and stores itself under the None key — so the
+    NEXT un-keyed alert, of an entirely different kind, is suppressed as a repeat of it. Two unrelated
+    events collapse into one delivery. Dedupe is supposed to be opt-in per key; without a key there is
+    nothing to dedupe against."""
+    sent = []
+
+    async def fake_post(url, payload):
+        sent.append(payload["title"])
+        return True
+
+    n = alerts.Notifier(url="https://hook", enabled=True, _post=fake_post)
+    assert _run(n.send("disk low", "m", dedupe_sec=300, now=1000.0)) is True
+    assert _run(n.send("sensor offline", "m", dedupe_sec=300, now=1001.0)) is True
+    assert sent == ["disk low", "sensor offline"], (
+        f"an un-keyed alert suppressed an unrelated one: {sent}"
+    )
