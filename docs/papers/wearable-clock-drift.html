@@ -44,6 +44,25 @@
     one RR apart, and as a per-block offset that falls back exactly one RR when it drifts past a tooth
     boundary (<code>IBI-ALIGNMENT-LIMIT</code> §Retraction).</p>
     <p style="margin:.6em 0 0"><b>But six nights captured on the vigil host behave differently.</b>
+    <div style="border-left:4px solid #b00;background:#fff5f5;padding:.7em 1em;margin:1em 0">
+      <b>⛔ CROSS-SESSION CORRECTION — 2026-08-02, added by a parallel session.</b>
+      The 90–216&nbsp;ppm figures below are contradicted by a <b>direct measurement that needs no beat
+      matching, blocking, comb or unwrap</b>. Every raw file already carries two clocks —
+      <code>Phone timestamp</code> (host; chrony, 0.008&nbsp;ppm) and <code>sensor timestamp [ns]</code>
+      (device crystal). Regressing one on the other inside a fragment gives ppm directly. Over four
+      nights: <b>H10 ≈ −20&nbsp;ppm (±2), Verity ≈ −27&nbsp;ppm (±3)</b>, each stable across fragments
+      <i>and</i> across nights, so the <b>inter-device rate is ≈ 7&nbsp;ppm</b> — 176&nbsp;ms over a 7&nbsp;h
+      night, well under one RR. The table below is therefore <b>13–30× too high</b>.
+      <br><br>
+      The mechanism: at 7&nbsp;ppm a pair needs <b>~47&nbsp;h</b> to accumulate one RR, so a one-RR slip
+      <b>cannot be drift</b> — it is a pairing failure. An unwrap that removes slips and then reports the
+      remaining slope as drift is removing the signal and fitting the noise, which is what produces a
+      linear-looking ramp at R²&nbsp;0.99. <b>This does not touch v2's headline</b> (1.46&nbsp;ppm by
+      <code>halfDrift</code>) — the direct figure is the same order and the same conclusion, that the
+      clocks are stable for this purpose. It retracts only the scope note added on top of it.
+      Evidence and tool: <code>briefs/WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF.md</code>,
+      <code>tools/dual-clock-rate.mjs</code>.
+    </div>
     Refitting the H10↔Verity offset in 5-minute blocks and unwrapping the one-RR slips, the remaining
     series is a <b>straight line</b> on four of six nights:</p>
     <table style="margin:.6em 0;border-collapse:collapse;font-size:.92em">
