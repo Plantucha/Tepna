@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-22 (**§1 + §2 shipped (PR #352 / #355); §3 EXECUTED + gated this brief** — foot-anchored gapBeats, validated against paired chest ECG; **§4 PROPOSED** (deferred — the bridged-interval exclusion is not yet exercised by a real gappy segment, so it is not landed).) · **Created:** 2026-07-22 · **Method-parent:** `PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md` · **Data:** `O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-07-22 (**§1 + §2 shipped (PR #352 / #355); §3 EXECUTED + gated this brief** — foot-anchored gapBeats, validated against paired chest ECG; **§4 PROPOSED — UNBLOCKED 2026-08-01, still NOT landed** (§4a). The deferral rested on `nGapSpanIntervals: 0 → 0`, but that counter is blind to a dropped beat *by construction* — a beat removed by `gapBeats` leaves no discontinuity in `relSec`. The real trigger is `nGapBeats`, and it fires on **14 of the 22** largest O2Ring finger captures (**88** beats dropped, max **25** in one file), measured with the committed `tools/ppg-gap-bridge-scan.mjs`. §4's Done-when was already satisfied when the item was parked. It stays NOT landed because it touches HRV and still owes §5's paired-ECG validation on those files — the blocker was wrong, the validation is not optional.) · **Created:** 2026-07-22 · **Method-parent:** `PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md` · **Data:** `O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md`
 
 # O2Ring finger PPG — honest handling of lost time and held samples (the `O2RING-PPG-GAP` charter)
 
@@ -88,20 +88,64 @@ epochs; SDNN ~neutral). The residual finger error on *movement* epochs (RMSSD 90
   edit moves `computeHash`) — a release-time re-stamp is owed and `release.mjs` blocks on it. The output
   is provably inert for that Verity input (gap=null), but the gate is a conservative denylist by design.
 
-## §4 · Bridged-interval exclusion  *(PROPOSED — deferred, NOT landed)*
+## §4 · Bridged-interval exclusion  *(PROPOSED — UNBLOCKED 2026-08-01, still NOT landed)*
 The other half of the stranded WIP (`claude/ppgdex-bridged-intervals`, `a9c03cf`): when `gapBeats` *does*
 drop a beat, its two surviving neighbours become adjacent in the array but **not in time**, so the
 interval between them silently spans the removed beat and reads ~2× true — a bridge that `correctRR`
 median-fills. §4 records those bridges and feeds them into the §2 `cleanMask` so the interval is
 **excluded** rather than corrected into a plausible lie.
 
-**Why deferred, not landed with §3.** After §3 the foot-anchored window drops **so few** beats that on
+**Why it WAS deferred.** After §3 the foot-anchored window drops **so few** beats that on
 every real segment measured here the bridged path fired **zero times** (`nGapSpanIntervals: 0 → 0`) — so
 it is **unexercised by real data** and cannot be validated the way §3 was. Landing an HRV-touching path
 with no segment that trips it is exactly the "ship a fourth unsupervised change" the WIP author refused.
 **Done-when:** a real gappy finger night on which foot-anchored `gapBeats` still drops ≥1 beat, showing
 the bridged interval excluded and HRV unmoved-or-improved vs ECG. Until then it stays PROPOSED; the WIP
 branch holds the implementation.
+
+### 4a · UNBLOCKED 2026-08-01 — the deferral measured the WRONG COUNTER
+
+The paragraph above rests on `nGapSpanIntervals: 0 → 0`, and **that counter cannot move for this
+reason, by construction.**
+
+- **`nGapSpanIntervals` (§2)** counts intervals straddling a **time discontinuity in the source** —
+  `intervalsSpanningTimeGap(rec.relSec, …)`. It reads 0 whenever the capture grid is contiguous.
+- **`nGapBeats` (§3)** counts beats **dropped** because their foot→peak span touched a gap. *Each such
+  drop is what creates a §4 bridge*: the two survivors become adjacent in the array but not in time.
+
+A beat dropped by `gapBeats` leaves **no discontinuity in `relSec`** — every sample is still present,
+only the beat is gone — so `spansGap` is blind to it *by design*. Watching `nGapSpanIntervals` to decide
+whether §4 fires is watching the one quantity guaranteed not to respond.
+
+**Measured with `tools/ppg-gap-bridge-scan.mjs` (drives the shipped `parsePPG` + `analyze`, no
+reimplementation) over the 22 largest O2Ring finger captures:**
+
+| | |
+|---|---|
+| files scanned | 22 |
+| **files where `gapBeats` dropped ≥1 beat** | **14** |
+| total beats dropped | **88** (max **25** in one file) |
+| files where `nGapSpanIntervals` ≠ 0 | 11 |
+
+So §4's Done-when — *"a real gappy finger night on which foot-anchored `gapBeats` still drops ≥1 beat"* —
+is satisfied **fourteen times over**, and was already satisfied when the item was parked. Note the last
+row too: even §2's counter is non-zero on 11 of 22 files, so the *"0 → 0"* observation came from a
+narrower sample than the corpus offers.
+
+**A committed adversarial twin makes this falsifiable without the corpus.** The tool's `--selftest`
+plants two `156` sentinel runs straddling a foot in a synthetic single-channel record and asserts
+`nGapBeats > 0` **while** `nGapSpanIntervals === 0` — the two counters separated in one run, on a machine
+with no medical data. Placement is load-bearing: a first draft planted the runs mid-rise, clear of the
+foot, and `nGapBeats` came back 0 — a twin that would have "confirmed" the very deferral it exists to
+disprove. `gapBeats` fires only within `GAP_FOOT_SPAN` (±3 samples, ~24 ms) of the **foot**.
+
+**What is NOT done here, deliberately.** The implementation is still on the WIP branch and is **not**
+landed. §4 touches HRV, and this brief's own standard (§5) is per-epoch RMSSD/SDNN agreement against
+paired chest ECG — the evidence that settled §3. This unit supplies the *segments* that standard needs
+and the tool to find them; it does not ship the change. Landing §4 now needs: the WIP implementation
+rebased, run over the 14 firing files, and HRV shown unmoved-or-improved vs ECG on each. Shipping it on
+the strength of "the trigger fires" alone would be the fourth unsupervised change the WIP author refused
+— the reason to act is that the *blocker* was wrong, not that the validation is optional.
 
 ## §5 · Validation method & evidence  `[CORPUS]`
 The finger↔ECG comparison that settled §3 is **per-epoch HRV metric agreement**, not cross-modality beat
@@ -120,5 +164,10 @@ call, pending its ≥10-night replication.
 - [x] §2 time-discontinuity interval exclusion (PR #355).
 - [x] §3 foot-anchored `gapBeats`, validated vs paired chest ECG; suite green, GATE A/B PASS, re-bundled,
       changeset dropped.
-- [ ] §4 bridged-interval exclusion — deferred until a real segment exercises it (WIP branch holds it).
-- [ ] release-time `verifiedUnder` re-stamp of the PpgDex corpus fixture (needs the curated corpus).
+- [ ] §4 bridged-interval exclusion — **UNBLOCKED 2026-08-01 (§4a)**: the deferral watched
+      `nGapSpanIntervals`, which cannot respond to a dropped beat; the real trigger `nGapBeats` fires on
+      **14 of the 22** largest finger captures (88 beats, max 25 in one file). Still NOT landed — the WIP
+      implementation owes the §5 paired-ECG HRV validation on those 14 files.
+- [x] release-time `verifiedUnder` re-stamp of the PpgDex corpus fixture — **done 2026-08-01** (PR #670):
+      `PpgDex_2026-06-27_equiv.node-export.json` carries `verifiedUnder: 2acf0985e625`, stamped by
+      `tools/verify-fixtures.mjs` after a green real-corpus run.
