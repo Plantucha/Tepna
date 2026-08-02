@@ -56,7 +56,7 @@
  *   node tools/mutate.mjs --file X --limit 40       # cap mutants per file (default 60)
  *   node tools/mutate.mjs --file X --jobs 12        # parallel workers (default: min(8, cores-2))
  *   node tools/mutate.mjs --file X --full           # run the WHOLE suite per mutant
- *   node tools/mutate.mjs --json                    # machine-readable
+ *   node tools/mutate.mjs --json                    # NDJSON, one line per file, streamed
  *   node tools/mutate.mjs --selftest                # known-answer, no repo mutation
  *
  * SAFETY — and this was got WRONG first, so it is spelled out. With `--jobs > 1` (the default) the
@@ -462,21 +462,20 @@ if (!files.length) {
   process.exit(2);
 }
 
-const results = [];
-try {
-  for (const f of files) results.push(await runFile(f));
-} finally {
-  dropPool();
-}
-if (AS_JSON) {
-  console.log(JSON.stringify(results, null, 2));
-  process.exit(0);
-}
-console.log('MUTATION SWEEP — a surviving mutant means the suite cannot see a change there\n');
-for (const r of results) {
+/* REPORT PER FILE, AS IT COMPLETES — never buffer a long run to the end.
+   The first version accumulated every result and printed once, so a 71-file sweep showed NOTHING for
+   its entire duration and a kill (or a timeout) lost the lot. That is the same shape as a gate whose
+   output you cannot see until it is too late to act on. `--json` now emits NDJSON: one compact object
+   per line, per file, flushed as it lands — greppable, `jq`-able line by line, and whatever finished
+   before an interrupt is still on disk. */
+function reportOne(r) {
+  if (AS_JSON) {
+    process.stdout.write(JSON.stringify(r) + '\n');
+    return;
+  }
   if (r.error) {
     console.log('  ' + r.file + '\n    ⊘ ' + r.error + '\n');
-    continue;
+    return;
   }
   const score = r.tested - r.invalid ? ((r.killed / (r.tested - r.invalid)) * 100).toFixed(0) : '—';
   console.log('  ' + r.file + '   groups: ' + r.groupsRun + ' (' + r.groupCount + ')');
@@ -484,4 +483,39 @@ for (const r of results) {
   for (const s of r.survivors.slice(0, 25)) console.log('      SURVIVED ' + r.file + ':' + s.line + '  [' + s.op + ']\n        ' + s.before + '\n        ' + s.after);
   if (r.survivors.length > 25) console.log('      … and ' + (r.survivors.length - 25) + ' more');
   console.log('');
+}
+
+if (!AS_JSON) console.log('MUTATION SWEEP — a surviving mutant means the suite cannot see a change there\n');
+const results = [];
+try {
+  for (const f of files) {
+    const r = await runFile(f);
+    results.push(r);
+    reportOne(r);
+  }
+} finally {
+  dropPool();
+}
+/* A one-line roll-up at the end, so a sweep does not have to be re-aggregated by hand to answer the
+   only question that spans files: how much of this codebase can the suite actually see? */
+if (!AS_JSON) {
+  const ok = results.filter((r) => !r.error);
+  const k = ok.reduce((a, r) => a + r.killed, 0);
+  const n = ok.reduce((a, r) => a + (r.tested - r.invalid), 0);
+  const gen = ok.reduce((a, r) => a + r.generated, 0);
+  console.log(
+    '  ── ' +
+      ok.length +
+      ' file(s) measured, ' +
+      (results.length - ok.length) +
+      ' skipped ── ' +
+      k +
+      '/' +
+      n +
+      ' killed = ' +
+      (n ? ((k / n) * 100).toFixed(0) : '—') +
+      ' %  (of ' +
+      gen +
+      ' mutants that exist)'
+  );
 }
