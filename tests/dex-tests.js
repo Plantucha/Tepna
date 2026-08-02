@@ -20966,6 +20966,181 @@
       }
     });
 
+    /* ════ CPAPDex CARD SURFACE — the 21 exported builders (CLOCK-MUTATION-AUDIT §6 item 4) ════
+     `cpapdex-render.js` was one of the mutation audit's two ZERO-KILL modules: 0 of 12 sampled mutants
+     died, on a 1286-line file carrying 319. The diagnosis is NOT "no test" and NOT "mis-tagged" — the
+     `cpapdex-render` tag is accurate and the §RN group above really runs. It drives ONE of the module's
+     21 exported entry points (`renderReviewView`) and asserts two substrings of it. Measured: 242 of the
+     319 mutants (76 %) sit inside functions the module ALREADY exports as pure, deterministic,
+     HTML-returning builders. So the whole surface was reachable the entire time and merely unasserted —
+     this group is test-only: no source change, no re-bundle.
+
+     What it pins is the severity BANDS, because that is where a silent mutation is clinically loud: a
+     widened cut paints a badly-controlled night green. Wherever two metrics differ only by their band,
+     they are asserted on the SAME input, so a copy-paste between them cannot survive. */
+    group('CPAPDex card surface — exported builders known-answer (CLOCK-MUTATION-AUDIT §6.4)', 'cpapdex-render · render-harness · known-answer', function (T) {
+      var CR = env.CpapRender;
+      if (!CR || typeof CR.residualCard !== 'function') {
+        T.skip('CpapRender card builders wired (env.CpapRender.residualCard)', 'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs');
+        return;
+      }
+
+      // metricTile emits `<div class="m-val SEV">VALUE`; a neutral tile emits an empty class.
+      var mSev = function (html) {
+        var re = /<div class="m-val ([a-z]*)">/g,
+          m,
+          o = [];
+        while ((m = re.exec(html))) o.push(m[1] || 'neutral');
+        return o;
+      };
+      var mVal = function (html) {
+        var re = /<div class="m-val [a-z]*">([^<]*)/g,
+          m,
+          o = [];
+        while ((m = re.exec(html))) o.push(m[1]);
+        return o;
+      };
+      var night = function (metrics, extra) {
+        var n = { metrics: metrics || {} };
+        for (var k in extra || {}) n[k] = extra[k];
+        return n;
+      };
+
+      /* ── residualCard · the CENTRAL band is deliberately TIGHTER than the obstructive one ──────────
+         obstructive/hypopnea/rera grade on (5,15); central grades on (5,10) — treatment-emergent central
+         apnea is escalated sooner. Feeding the SAME 12 /hr to every index is what makes that difference
+         assertable: central must read bad while its neighbours read warn. A copy-paste of the (5,15)
+         band onto centralIndex — the likeliest edit in this file — flips exactly one character of this
+         array and dies here. Tile order is residual · obstructive · central · hypopnea · rera · PB. */
+      var residualCardSevs = function (m) {
+        return mSev(CR.residualCard(night(m)));
+      };
+      var r12 = residualCardSevs({ residualAHI: 12, obstructiveIndex: 12, centralIndex: 12, hypopneaIndex: 12, reraIndex: 12, periodicBreathingPct: 12 });
+      T.eq('residualCard · at 12 /hr the central index is bad while obstructive/hypopnea/rera are warn (central band is 5,10 — not 5,15)', r12.join(','), 'warn,warn,bad,warn,warn,bad');
+      // …and the low end: 4 /hr is inside every band's "ok", so a band that started at 0 would show here.
+      T.eq('residualCard · 4 /hr is ok on every index (the good edge is 5, not 0)', residualCardSevs({ residualAHI: 4, obstructiveIndex: 4, centralIndex: 4, hypopneaIndex: 4, reraIndex: 4 }).slice(0, 5).join(','), 'ok,ok,ok,ok,ok');
+      // the ok/warn edge is INCLUSIVE (`val <= good`) — 5 is still ok, 5.1 is warn. A <= → < slip lives
+      // entirely between these two assertions.
+      T.eq('residualCard · AHI exactly 5 is still ok (the edge is inclusive: val <= good)', residualCardSevs({ residualAHI: 5 })[0], 'ok');
+      T.eq('residualCard · AHI 5.1 crosses to warn', residualCardSevs({ residualAHI: 5.1 })[0], 'warn');
+      T.eq('residualCard · AHI exactly 15 is still warn; 15.1 is bad', residualCardSevs({ residualAHI: 15 })[0] + '/' + residualCardSevs({ residualAHI: 15.1 })[0], 'warn/bad');
+      // periodicBreathingPct is a PERCENT on a much tighter (2,10) band than the /hr indices
+      T.eq('residualCard · PB 3 % is warn (band 2,10) while an AHI of 3 would be ok — the two are not the same scale', residualCardSevs({ residualAHI: 3, periodicBreathingPct: 3 })[0] + '/' + residualCardSevs({ residualAHI: 3, periodicBreathingPct: 3 })[5], 'ok/warn');
+      // absent metric ⇒ neutral tile with an em-dash, never a fabricated 0 graded "ok"
+      T.eq('residualCard · an absent index renders "—" and grades neutral (not 0.00/ok)', mVal(CR.residualCard(night({})))[0] + '|' + residualCardSevs({})[0], '—|neutral');
+      /* An explicit `null` is a DIFFERENT case from `undefined` and only it catches the real bug: a JSON
+         export carries an absent metric as `null`, and `isFinite(null)` is TRUE (null coerces to 0). So
+         `fnum`'s guard must test `v == null` FIRST — drop that half and a missing AHI renders "0.00" and
+         grades "ok", i.e. the most reassuring possible reading of no data. Found by mutation: the
+         undefined-only assertion above survives that edit. */
+      T.eq('residualCard · an EXPLICIT null renders "—" too — isFinite(null) is true, so the == null half of the guard is what carries this', mVal(CR.residualCard(night({ residualAHI: null })))[0], '—');
+      T.eq('residualCard · …and a null index still grades neutral, never a reassuring "ok" on absent data', residualCardSevs({ residualAHI: null })[0], 'neutral');
+      T.eq('residualCard · a present value is fixed to 2 dp (the card is finer than the 1 dp KPI)', mVal(CR.residualCard(night({ residualAHI: 3.456 })))[0], '3.46');
+
+      /* ── leakCard · three DIFFERENT bands that a tidy-up would collapse ────────────────────────────
+         medianLeak (12,24) · p95Leak (18,24) · largeLeakPct (2,5). Feeding 15 to the first two grades
+         them differently — median warn, p95 ok — which is the whole point: p95 is allowed to run higher
+         than the median before it counts. Order: median · p95 · largeLeakPct · leakCV. */
+      var lk = mSev(CR.leakCard(night({ medianLeak: 15, p95Leak: 15, largeLeakPct: 3, leakCV: 20 })));
+      T.eq('leakCard · 15 L/min is warn as a MEDIAN but ok as a P95 (12,24 vs 18,24 — the bands are not shared)', lk[0] + '/' + lk[1], 'warn/ok');
+      T.eq('leakCard · largeLeak 3 % is warn (band 2,5) and leakCV carries no band at all (neutral)', lk[2] + '/' + lk[3], 'warn/neutral');
+      T.eq('leakCard · largeLeak 6 % is bad — above the 5 % warn edge', mSev(CR.leakCard(night({ largeLeakPct: 6 })))[2], 'bad');
+
+      /* ── ventCard · flow limitation (10,25) vs snoring (5,15) on one shared input ─────────────────
+         8 % is ok as flow-limitation but already warn as snoring. Order: respRate · breathRate · ieRatio
+         · tidVol · minVent · flowLimitedPct · snorePct — only the last two are graded. */
+      var vt = mSev(CR.ventCard(night({}, { sessions: [{ metrics: { flowLimitedPct: 8, snorePct: 8 } }] })));
+      T.eq('ventCard · 8 % is ok for flow-limitation but warn for snoring (10,25 vs 5,15)', vt[5] + '/' + vt[6], 'ok/warn');
+      T.eq('ventCard · the five unbanded ventilation metrics stay neutral — no fabricated grading', vt.slice(0, 5).join(','), 'neutral,neutral,neutral,neutral,neutral');
+      T.eq('ventCard · reads its metrics from sessions[0], not from night.metrics (an absent session ⇒ every tile "—")', mVal(CR.ventCard(night({ flowLimitedPct: 8 }))).join(''), '———————');
+
+      /* ── renderKPIs · sev()'s POLARITY, which is the one flag in the whole signature ──────────────
+         `sev(good, warn, val, lower)`: therapy HOURS pass sev(4,2,h) with NO lower flag — higher is
+         better — while every clinical index passes `true`. Dropping the flag from residualAHI, or adding
+         one to usageHours, inverts a verdict without changing a number. Both directions are pinned on
+         inputs where the inversion is unambiguous. Tile order: residualAHI · usageHours · medianPressure
+         · largeLeakPct · odi · periodicBreathingPct. */
+      var kSev = function (html) {
+        var re = /<div class="kpi-val ([a-z]*)">/g,
+          m,
+          o = [];
+        while ((m = re.exec(html))) o.push(m[1] || 'neutral');
+        return o;
+      };
+      var k = kSev(CR.renderKPIs({ metrics: { residualAHI: 3, largeLeakPct: 1, periodicBreathingPct: 1 }, therapyHours: 6, nSessions: 1 }));
+      T.eq('renderKPIs · a good night: AHI 3 ok (lower-better) AND 6 h ok (higher-better) — the polarities are opposite', k[0] + '/' + k[1], 'ok/ok');
+      var kBad = kSev(CR.renderKPIs({ metrics: { residualAHI: 20, largeLeakPct: 1 }, therapyHours: 1, nSessions: 2 }));
+      T.eq('renderKPIs · a bad night: AHI 20 bad AND 1 h bad — dropping the `lower` flag would make ONE of these read ok', kBad[0] + '/' + kBad[1], 'bad/bad');
+      T.eq('renderKPIs · 3 h therapy is warn (the 4 h adherence edge, 2 h warn edge)', kSev(CR.renderKPIs({ metrics: {}, therapyHours: 3, nSessions: 1 }))[1], 'warn');
+      T.eq('renderKPIs · therapy exactly 4 h is ok — the adherence threshold is inclusive', kSev(CR.renderKPIs({ metrics: {}, therapyHours: 4, nSessions: 1 }))[1], 'ok');
+      // KPI_CLS remaps the tile wrapper (ok → "good") while the value keeps "ok". Two different
+      // vocabularies in one tile; collapsing them would silently unstyle every good KPI.
+      var kpiHtml = CR.renderKPIs({ metrics: { residualAHI: 3 }, therapyHours: 6, nSessions: 1 });
+      T.ok('renderKPIs · KPI_CLS maps ok → "good" on the tile while the value stays "ok" (the two vocabularies are not interchangeable)', /<div class="kpi good"/.test(kpiHtml) && /<div class="kpi-val ok">/.test(kpiHtml), kpiHtml.slice(0, 120));
+      // the session count pluralises on ===1; a !== slip reads "1 sessions"
+      T.ok('renderKPIs · 1 session is singular', /1 session</.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 })));
+      T.ok('renderKPIs · 2 sessions is plural', /2 sessions</.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 2 })));
+      // no oximeter ⇒ an HONEST n/a tile, never a 0.0 ODI graded ok
+      var noOxi = CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1 });
+      T.ok('renderKPIs · with no oximeter the ODI tile reads "n/a · no oximeter" — not a fabricated 0.0/hr', /n\/a<\/div>/.test(noOxi) && /no oximeter/.test(noOxi), (/(n\/a|0\.0)/.exec(noOxi) || [''])[0]);
+      // the mode string reaches a tile sub — and goes through esc()
+      T.ok('renderKPIs · the device mode string is HTML-escaped on its way to the tile sub', /&lt;b&gt;/.test(CR.renderKPIs({ metrics: {}, therapyHours: 5, nSessions: 1, sessions: [{ mode: '<b>' }] })));
+
+      /* ── cpapClinicalSummary · a SECOND `sev` with a different signature, and the sort that picks
+         "latest night" ────────────────────────────────────────────────────────────────────────────
+         The summary defines its own local `sev(v, good, warn, lowerBetter)` — argument order reversed
+         from the module-level one and lower-better by DEFAULT (opt out with an explicit `false`). Two
+         same-named functions with incompatible signatures in one file is a live trap, so both are
+         asserted independently. */
+      var kVal = function (html) {
+        var re = /<div class="k-val ([a-z]*)">([^<]*)/g,
+          m,
+          o = [];
+        while ((m = re.exec(html))) o.push({ sev: m[1] || 'neutral', val: m[2] });
+        return o;
+      };
+      var summary = function (metrics, hours, extra) {
+        var el = { recording: { startEpochMs: 1, therapyHours: hours }, metrics: metrics || {} };
+        for (var kk in extra || {}) el[kk] = extra[kk];
+        return CR.cpapClinicalSummary({ elements: [el] });
+      };
+      var sk = kVal(summary({ residualAHI: 12, obstructiveIndex: 12, centralIndex: 12 }, 6));
+      T.eq('clinicalSummary · the local sev keeps the same tighter central band (5,10 vs 5,15) as the card', sk[0].sev + ',' + sk[1].sev + ',' + sk[2].sev, 'warn,warn,bad');
+      // therapy hours opt OUT of lower-better via an explicit `false`; 6 h must be ok, 1 h bad
+      var skHrs = function (h) {
+        return kVal(summary({}, h))[0];
+      };
+      T.eq('clinicalSummary · therapy 6 h is ok and 1 h is bad — the explicit lowerBetter=false is load-bearing', skHrs(6).sev + '/' + skHrs(1).sev, 'ok/bad');
+      T.eq('clinicalSummary · …and the value renders with its unit at 1 dp', skHrs(6).val, '6.0 h');
+      // SpO₂ nadir is the other higher-better metric (90,85,false): 88 % must be warn, not ok
+      var oxiKpis = kVal(summary({}, 6, { oximetry: [{ available: true, odi: 20, t90Pct: 8, spo2Nadir: 88 }] }));
+      T.eq('clinicalSummary · oximetry row: ODI 20 bad · T90 8 % bad · nadir 88 % warn (nadir is higher-better, the other two are not)', oxiKpis.slice(1).map(function (x) { return x.sev; }).join(','), 'bad,bad,warn');
+      T.eq('clinicalSummary · an oximetry block marked unavailable contributes NO tiles (never a fabricated ODI)', kVal(summary({}, 6, { oximetry: [{ available: false, odi: 20 }] })).length, 1);
+
+      /* the findings list — each threshold is a distinct clinical statement, and each is one comparison */
+      T.ok('clinicalSummary · large-leak > 5 % raises the seal finding (a >= slip would fire at exactly 5)', /Large-leak 6\.0%/.test(summary({ largeLeakPct: 6 }, 6)) && !/Large-leak/.test(summary({ largeLeakPct: 5 }, 6)));
+      T.ok('clinicalSummary · central index > 5 raises the treatment-emergent finding; exactly 5 does not', /Central apnea index 6\.0/.test(summary({ centralIndex: 6 }, 6)) && !/Central apnea index/.test(summary({ centralIndex: 5 }, 6)));
+      T.ok('clinicalSummary · therapy < 4 h raises the adherence finding; exactly 4 h does not', /below the 4 h adherence threshold/.test(summary({}, 3.9)) && !/adherence threshold/.test(summary({}, 4)));
+      T.ok('clinicalSummary · with no metrics at all it says so rather than printing an empty findings block', /No summary metrics in this export/.test(CR.cpapClinicalSummary({ elements: [] })));
+
+      /* "latest night" is the LAST element after sorting by startEpochMs — the elements arrive in
+         whatever order the export carried them. A flipped comparator reports the FIRST night's AHI
+         under the words "Latest night", which is the kind of wrong that reads perfectly plausible. */
+      var twoNights = CR.cpapClinicalSummary({
+        elements: [
+          { recording: { startEpochMs: 200000, therapyHours: 7 }, metrics: { residualAHI: 22 } },
+          { recording: { startEpochMs: 100000, therapyHours: 7 }, metrics: { residualAHI: 2 } }
+        ]
+      });
+      T.ok('clinicalSummary · "latest night" is the one with the GREATEST startEpochMs even when the export lists it first', /Latest night: residual AHI 22\.0/.test(twoNights), (/Latest night: residual AHI [\d.]+/.exec(twoNights) || [''])[0]);
+      T.ok('clinicalSummary · two nights pluralise the header and total their therapy hours (14.0 h)', /2 nights/.test(twoNights) && /14\.0 h therapy total/.test(twoNights), (/[\d.]+ h therapy[^<]*/.exec(twoNights) || [''])[0]);
+      T.ok('clinicalSummary · one night is singular and carries no "total"', /1 night</.test(summary({}, 7)) && !/total/.test(summary({}, 7)));
+
+      /* ── cpapGreyedPanel / cpapEventTimeline · the honest-absence surfaces ───────────────────────── */
+      T.ok('cpapGreyedPanel · escapes its label rather than injecting it', /&lt;img&gt;/.test(CR.cpapGreyedPanel('<img>')));
+      T.ok('cpapEventTimeline · no events ⇒ an explicit empty state, not a blank strip', CR.cpapEventTimeline([], false).length > 0);
+    });
+
     /* ════ RENDER EXECUTION — hoisted classifiers (§RN wave 2) ════
        The remaining §RN findings were inline expressions inside non-exported DOM-mutating render functions
        (renderHero / renderAll / reRender) the harness can't drive. Each is now HOISTED to a pure, exposed
@@ -23232,6 +23407,41 @@
       T.eq('olsR2 · fewer than 3 points ⇒ null (not a fabricated fit)', CR.olsR2([1, 2], [1, 2]), null);
       T.eq('olsR2 · zero variance in x ⇒ null', CR.olsR2([3, 3, 3], [1, 2, 3]), null);
       T.eq('olsR2 · zero variance in y ⇒ null', CR.olsR2([1, 2, 3], [5, 5, 5]), null);
+
+      /* ── matchRecall — the desat recall the page GRADES pass/fail (CLOCK-MUTATION-AUDIT §6 item 4) ──
+         `olsR2` is 5 of this file's 65 mutants, which is why the audit killed 0 of 12 sampled here. The
+         other pure kernel is `matchRecall(detTMs, truthTMs, loSec, hiSec)`: greedy one-to-one matching of
+         detections to truth events inside a SIGNED window (d = detection − truth, so `lo` is normally
+         negative — the page uses [−10 s, +60 s]). Every property below is one comparison or one line, and
+         each is separately wrong in a way that inflates the recall the gate then reads as green. */
+      T.ok('CohortRegression.matchRecall is wired into env', typeof CR.matchRecall === 'function', 'window.CohortRegression.matchRecall missing');
+      if (typeof CR.matchRecall === 'function') {
+        var mr = CR.matchRecall;
+        T.eq('matchRecall · every truth event matched ⇒ 1', mr([1000, 2000, 3000], [1000, 2000, 3000], -10, 60), 1);
+        T.eq('matchRecall · nothing within the window ⇒ 0 (not null — the run happened, it just missed)', mr([999000], [1000], -10, 60), 0);
+        T.eq('matchRecall · two of four truths matched ⇒ 0.5', mr([1000, 2000], [1000, 2000, 500000, 600000], -10, 60), 0.5);
+        // ONE-TO-ONE: a single detection may not satisfy two truth events. Dropping the `used` set is the
+        // classic recall-inflating bug — here it would report 1 instead of 0.5.
+        T.eq('matchRecall · one detection cannot match two truths (the used-set keeps it one-to-one)', mr([1000], [1000, 1005], -10, 60), 0.5);
+        /* …and the converse: one TRUTH event cannot consume two detections. The inner loop must `break`
+           on its first hit; without it a truth surrounded by several detections increments `matched`
+           once per detection and the ratio exceeds 1 — a recall of 2.0 on a night the gate then reads as
+           comfortably green. Found by mutation: the 0.5 case above coincidentally still reads 0.5 when
+           the break is dropped, so only an unmatched-detection surplus exposes it. */
+        T.eq('matchRecall · two detections around ONE truth still count as one match — recall can never exceed 1', mr([1000, 2000], [1000], -10, 60), 1);
+        // the window is SIGNED and asymmetric: a detection 30 s AFTER truth is inside [−10,+60];
+        // 30 s BEFORE it is not. Taking |d| would accept both and quietly double the tolerance.
+        T.eq('matchRecall · a detection +30 s after truth is inside [−10,+60]', mr([31000], [1000], -10, 60), 1);
+        T.eq('matchRecall · …but −30 s before it is OUTSIDE — the window is signed, not |d|', mr([1000], [31000], -10, 60), 0);
+        // both edges inclusive (`d >= lo && d <= hi`); the seconds→ms conversion is what makes them land
+        T.eq('matchRecall · the +60 s edge is inclusive (and loSec/hiSec really are SECONDS)', mr([61000], [1000], -10, 60), 1);
+        T.eq('matchRecall · 60.001 s is outside', mr([61001], [1000], -10, 60), 0);
+        T.eq('matchRecall · the −10 s edge is inclusive', mr([1000], [11000], -10, 60), 1);
+        T.eq('matchRecall · −10.001 s is outside', mr([999], [11000], -10, 60), 0);
+        // no truth events ⇒ null, never 0/0 = NaN and never a fabricated 1.0
+        T.eq('matchRecall · no truth events ⇒ null (not NaN, not a fabricated 1.0)', mr([1000], [], -10, 60), null);
+        T.eq('matchRecall · truths but no detections ⇒ 0', mr([], [1000], -10, 60), 0);
+      }
 
       // ── qrs-equiv: Pearson r + Bland-Altman (the rMSSD three-way equivalence stats) ──
       var QE = env.QrsEquiv;

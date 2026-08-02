@@ -134,7 +134,10 @@ report noise. Tracked as the first item in §5.
 - [ ] §2.7 component-range, §3 DMY boundary and §2.1 epoch-band mutants are killed by new assertions,
       each verified by re-applying the exact mutant.
 - [ ] `clock.js` re-run exhaustively; the before/after rate recorded in this brief.
-- [ ] The two zero-kill modules diagnosed (no test, or mis-tagged test).
+- [x] The two zero-kill modules diagnosed (no test, or mis-tagged test). — **§7.4: neither.** Both had a
+      real, correctly-tagged group aimed at a sliver of the file (`olsR2` = 5 of 65 mutants;
+      `renderReviewView` = 0 of 319, while 76 % sat behind already-exported builders). Now 11/65 and
+      61/319 exhaustive.
 - [ ] A note here on whether the 40 untagged files are untested or merely unselectable.
 
 
@@ -202,3 +205,98 @@ computed against the pre-fix suite. Neither is a valid before/after pair, and in
 would be exactly the kind of laundered number this brief exists to object to. What IS established is
 narrower and solid: **seven specific survivors, each re-applied and confirmed killed** (§7.2). The
 authoritative exhaustive rate is owed one more run on a committed tree, and is left open in §6.
+
+### 7.4 · The two zero-kill modules — neither was untested, and neither was mis-tagged
+
+§6 item 4 offered two explanations for a module that kills 0 of 12 sampled mutants: *no test*, or a
+*mis-tagged* one. Both are wrong here, and the real answer is a third thing worth naming, because it is
+the shape a coverage number cannot show you.
+
+**`cohort-regression.js` — 65 mutants, 0/12.** The `cohort-regression` tag is accurate and its group
+runs 20 real known-answer assertions. They cover `olsR2`, which is **5 of the file's 65 mutants**. A
+12-mutant sample expects *one* to land inside the tested function, and an equivalent mutant there costs
+nothing to miss. The group was never weak; it was aimed at one twenty-fifth of the file.
+
+**`cpapdex-render.js` — 319 mutants, 0/12.** Same shape, larger. The §RN harness group drives
+`renderReviewView` and asserts two substrings of it. But `renderReviewView` contains **zero** mutants —
+it is pure composition — and the module exports **21** entry points, all pure, deterministic,
+HTML-returning builders. Measured: **242 of the 319 mutants (76 %) sit inside functions the module was
+already exporting.** The surface was reachable the entire time. Nothing was blocking it; nobody had
+pointed a test at it.
+
+So the third explanation, and the one that actually applied to both: **a real test, correctly tagged,
+covering a sliver — with a tag that makes the whole file look gated.** This is precisely what the tag
+sweep in §7 of `TOOL-INVOCABILITY-SWEEP` could not detect, because a tag records *which module a group
+is about*, not *how much of it the group reaches*. It is also invisible to line coverage: `olsR2` is
+100 %-covered, and so is the 8 % of the file it represents.
+
+**What was done.** Both are now asserted through their existing exported surface:
+
+| module | before | after | source change |
+|---|---|---|---|
+| `cohort-regression.js` | 0/12 sampled | **11/65 exhaustive** | one line — `matchRecall` joins `olsR2` on the namespace |
+| `cpapdex-render.js` | 0/12 sampled | **61/319 exhaustive** | **none** — test-only |
+
+`matchRecall(detTMs, truthTMs, loSec, hiSec)` is the other pure kernel in the cohort page: the greedy
+one-to-one matcher whose output the page grades pass/fail against `TOL.desatRecallMin`. An unexercised
+recall calculator deciding a green verdict is the house failure class, so it is pinned on the properties
+that are each separately wrong in a recall-*inflating* direction — the one-to-one `used` set, the signed
+asymmetric window (`d = det − truth`, not `|d|`), both inclusive edges, the seconds→ms conversion, and
+empty-truth ⇒ `null` rather than a fabricated 1.0.
+
+The CPAPDex group pins the severity **bands**, because that is where a silent mutation is clinically
+loud — a widened cut paints a badly-controlled night green. Wherever two metrics differ *only* by their
+band they are asserted on the **same input**, so a copy-paste between them cannot survive: 12 /hr must
+read `bad` for central apnea and `warn` for obstructive (5,10 vs 5,15); 15 L/min must read `warn` as a
+median and `ok` as a p95 (12,24 vs 18,24); 8 % must read `ok` for flow-limitation and `warn` for snoring
+(10,25 vs 5,15). `sev()`'s polarity flag gets the same treatment in both directions at once — a good
+night is AHI 3 `ok` *and* 6 h `ok`, which are opposite polarities, so dropping the `lower` flag from
+either flips exactly one of them.
+
+**Two assertions were written wrong and mutation found both** — worth recording, because in each case
+the test passed and looked convincing:
+
+- *An absent metric renders "—".* Asserted with `{}`, i.e. `undefined`. The real guard is
+  `v == null || !isFinite(v)`, and deleting the `v == null` half still passes that test, because
+  `isFinite(undefined)` is false. Only an **explicit `null`** exposes it — `isFinite(null)` is **true**,
+  so a mutated `fnum` renders a missing AHI as **`0.00`, graded `ok`**: the most reassuring possible
+  reading of no data, on the shape a JSON export actually carries.
+- *One detection cannot match two truths.* Asserted with a 0.5 case that, by coincidence, **still reads
+  0.5** when the inner `break` is deleted. The exposing case needs surplus unmatched detections: two
+  detections around one truth, where a missing `break` returns a recall of **2.0**.
+
+Both now carry the case that kills the mutant, with the coincidence written down next to them.
+
+**The honest ceiling.** Of the 258 surviving CPAPDex mutants, **69 are canvas drawing** (`drawAhiByHour`,
+`drawPressure`, `drawNightTrend`) and **39 are DOM-mutating** (`renderHistory`, `hydrate*`) — 108 that a
+headless HTML-string harness cannot reach without a canvas stub or a jsdom, which is a different piece of
+work. The remaining **150 are pure HTML builders that are still unasserted** (`heroCard` 25,
+`cpapClinicalSummary` 20, `cpapEventTimeline` 17, `oximetryCard` 11, `crossCard` 11, …). 19 % is a floor
+worth landing, not a finish line; the follow-up is mechanical and needs no source change.
+
+**One incidental finding, not fixed here.** In `cpapClinicalSummary` the `else if (ahi != null)` fallback
+is **unreachable by construction**: the preceding `if (ahi != null)` unconditionally pushes a finding, so
+`findings.length` is non-zero whenever that condition could hold. Its "well controlled; leak and usage
+within range" string can never render. It is dead, not wrong, and removing it is a render change owing a
+re-bundle — recorded here rather than smuggled into a test-only PR.
+
+**A second finding that BOUNDS the claim above, found while checking that nothing inlines the edited
+file.** `cohort-runner.html:293` carries an **independent second implementation of `matchRecall`** — same
+[−10 s, +60 s] window, same greedy one-to-one semantics, different code and a different return shape (an
+object with `recall`/`precision`/`matched` versus a bare ratio). Neither is generated from the other; the
+runner's copy is what actually drives the cohort, and `cohort-regression.js`'s copy is what the page
+re-derives. So the assertions above gate **one of the two sites**, and the honest statement of coverage
+is exactly that — not "the recall matcher is now gated".
+
+The two are structurally different in a way that matters to the mutant this brief already recorded: the
+runner tracks a `hit` index and commits *after* the inner loop (`if (hit >= 0) { usedDet.add(hit);
+matched++; }`), so its one-to-one property is structural and cannot be broken by deleting a `break`. The
+`cohort-regression.js` copy increments *inside* the loop and depends on the `break` for the same
+guarantee — which is the weaker construction, and the one whose deletion returns a recall of 2.0.
+
+This is the *cross-site agreement* class the suite already gates elsewhere by source scan (the DesSev
+band scan, DA-II §2.2, on the same rationale: two sites grading the same number, with no executable entry
+that spans both). The same treatment fits here — assert that both sites convert seconds→ms, test
+`d >= lo && d <= hi` signed-and-inclusive, and carry a used-set guard — but it needs `cohort-runner.html`
+and `cohort-regression.js` added to `readSources()`'s whitelist in **both** runners, which is a wider
+change than this test-only unit and is deliberately left as the next step rather than folded in here.
