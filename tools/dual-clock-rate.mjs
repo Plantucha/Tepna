@@ -49,12 +49,35 @@ async function rateOf(file) {
     d0 = null,
     lastT = null,
     lastD = null;
+  /* Delta distribution, to name the CAUSE rather than only the symptom (O2RING-SYNTHESISED-AXIS §5).
+     A drawn axis is `sample_index x constant`, so essentially every consecutive delta is identical.
+     Counted on EVERY row (not the subsample the slope uses) because quantization is a property of
+     adjacent samples — subsampling every 200th row would compare non-adjacent ones and see jitter
+     that is not there. Reference delta is the first observed; for a drawn axis that IS the modal one. */
+  let prevRaw = null,
+    dRef = null,
+    dSame = 0,
+    dTot = 0;
   for await (const line of rl) {
     if (header === null) {
       header = line;
       continue;
     }
     n++;
+    {
+      const rawNs = Number(line.split(';')[1]);
+      if (isFinite(rawNs)) {
+        if (prevRaw !== null) {
+          const dd = rawNs - prevRaw;
+          if (dd > 0) {
+            if (dRef === null) dRef = dd;
+            if (dd === dRef) dSame++;
+            dTot++;
+          }
+        }
+        prevRaw = rawNs;
+      }
+    }
     if (n % 200 !== 0) continue; // subsample: the SLOPE needs spread, not every row
     const f = line.split(';');
     if (f.length < 2) continue;
@@ -81,7 +104,8 @@ async function rateOf(file) {
   if (!den) return null;
   const slope = (kept * sxy - sx * sy) / den; // host ms per device ms
   const spanMin = (lastT - t0) / 60000;
-  return { file: path.basename(file), spanMin, ppm: (slope - 1) * 1e6, samples: kept };
+  const quantizedShare = dTot > 20 ? dSame / dTot : null;
+  return { file: path.basename(file), spanMin, ppm: (slope - 1) * 1e6, samples: kept, quantizedShare, drawn: quantizedShare != null && quantizedShare >= 0.99 };
 }
 
 /* A ppm slope needs TIME LEVERAGE, and file size is not a proxy for it — a high-rate ECG
@@ -100,6 +124,7 @@ const big = files
   .slice(0, 6);
 console.log('DEVICE RATE vs HOST CLOCK — measured directly from the two columns in each raw file\n');
 const byDev = {};
+const drawnBy = {}; // device -> count of long fragments whose axis is drawn
 console.log('device   spanMin   ppm vs host   samples   file');
 for (const { f } of big) {
   const r = await rateOf(path.join(DIR, f));
@@ -114,19 +139,27 @@ for (const { f } of big) {
     if (!byDev[k]) byDev[k] = [];
     byDev[k].push(r.ppm);
   }
-  console.log(
-    `${dev}  ${r.spanMin.toFixed(1).padStart(7)}   ${r.ppm.toFixed(1).padStart(11)}   ${String(r.samples).padStart(7)}   ${r.file}${short ? `   ← under ${MIN_SPAN_MIN} min, not a rate` : ''}`
-  );
+  if (r.drawn) drawnBy[dev.trim()] = (drawnBy[dev.trim()] || 0) + 1;
+  /* A DRAWN axis outranks every other note on the row: `under 60 min, not a rate` is about
+     precision, but a drawn axis has no rate to be imprecise about. */
+  const note = r.drawn
+    ? `   ← DRAWN axis (${(100 * r.quantizedShare).toFixed(1)}% of deltas identical) — this ppm is the assumed-rate error, not a clock`
+    : short
+      ? `   ← under ${MIN_SPAN_MIN} min, not a rate`
+      : '';
+  console.log(`${dev}  ${r.spanMin.toFixed(1).padStart(7)}   ${r.ppm.toFixed(1).padStart(11)}   ${String(r.samples).padStart(7)}   ${r.file}${note}`);
 }
 
-/* Summary over the long fragments only. The spread across fragments is the honest error bar
-   on a device's rate, and it is what separates a disciplined crystal from a counter that is
-   not one: the two Polars hold a few ppm across a night, the O2Ring does not. */
+/* Summary over the long fragments only. A wide spread is the SYMPTOM; where the axis is drawn, the
+   CAUSE is named instead — `not a disciplined clock` is true of the O2Ring but points at its crystal,
+   which is innocent. There is no crystal in the file at all (O2RING-SYNTHESISED-AXIS §5). */
 console.log('\n            fragments ≥' + MIN_SPAN_MIN + ' min   median ppm   spread');
 for (const [dev, vals] of Object.entries(byDev)) {
   if (!vals.length) continue;
   const s2 = vals.slice().sort((a, b) => a - b);
   const md = s2[s2.length >> 1];
   const spread = s2[s2.length - 1] - s2[0];
-  console.log(`  ${dev.padEnd(8)} ${String(vals.length).padStart(12)}   ${md.toFixed(1).padStart(10)}   ${spread.toFixed(1).padStart(6)}${spread > 50 ? '   ← not a disciplined clock' : ''}`);
+  const nDrawn = drawnBy[dev] || 0;
+  const why = nDrawn ? `   ← ${nDrawn}/${vals.length} fragments have a DRAWN axis: no device clock in the file, so these ppm are drawing error` : spread > 50 ? '   ← not a disciplined clock' : '';
+  console.log(`  ${dev.padEnd(8)} ${String(vals.length).padStart(12)}   ${md.toFixed(1).padStart(10)}   ${spread.toFixed(1).padStart(6)}${why}`);
 }

@@ -34,7 +34,10 @@
     "ppiSpine": "foot",
     "ppiAgreementPct": 100,
     "ppiCorrFootPct": 4.8,
-    "ppiCorrPeakPct": 0
+    "ppiCorrPeakPct": 0,
+    "timingSource": "device+host",
+    "axisDrawn": false,
+    "axisQuantizedShare": 0.5925
   },
   "hrv": {
     "time": {
