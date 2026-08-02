@@ -469,3 +469,104 @@ def test_decode_delta_still_decodes_a_valid_boundary_sample():
     payload = _packbits([(0, 16), (16, 8), (1, 8), (32767, 16)])
     got = pmd._decode_delta(payload, channels=1, ref_bits=16)
     assert got == [(0,), (32767,)]                  # 32767 is in range (< 32768) → kept
+
+
+# ── offline recording: one bit on the measurement byte (2026-08-02) ──────────────────────────────────
+#
+# The Verity's onboard recording is not a new subsystem — it is the SAME negotiated START command with
+# bit 7 set on the measurement-type byte (PmdRecordingType.OFFLINE = 1, `asBitField() = numVal shl 7`).
+# That makes the bit position the entire contract: off by one and the device is told to record a
+# DIFFERENT measurement type, or to stream live when we meant to record.
+
+def test_offline_sets_bit_seven_of_the_measurement_byte_and_nothing_else():
+    online = pmd.START[pmd.PPG]
+    offline = pmd.as_offline(online)
+    assert offline[1] == online[1] | 0x80
+    assert offline[0] == online[0], "the op byte is untouched"
+    assert offline[2:] == online[2:], "the negotiated settings payload is carried verbatim"
+    assert len(offline) == len(online)
+
+
+def test_the_offline_bit_does_not_collide_with_any_real_measurement_type():
+    """0x80 is safe only because every PMD type fits in the low bits. If a future type used bit 7 this
+    encoding would be ambiguous — assert the assumption rather than trusting it."""
+    for meas in pmd.MEAS_NAME:
+        assert meas & 0x80 == 0, f"measurement {meas:#04x} collides with the recording-type bit"
+
+
+def test_meas_of_strips_the_bit_so_a_recording_command_still_names_its_type():
+    for meas in pmd.MEAS_NAME:
+        cmd = pmd.as_offline(bytes([0x02, meas]))
+        assert pmd.meas_of(cmd) == meas
+        assert pmd.is_offline_cmd(cmd) is True
+
+
+def test_an_online_command_is_not_mistaken_for_a_recording_one():
+    assert pmd.is_offline_cmd(pmd.START[pmd.ACC]) is False
+    assert pmd.meas_of(pmd.START[pmd.ACC]) == pmd.ACC
+
+
+def test_stop_never_carries_the_recording_type_bit():
+    """Measured on hardware: `03 82` (stop ACC|0x80) is refused by a real Verity with GATT
+    `Unlikely Error 0x0E`. START is asymmetric with STOP — one STOP serves both, and it takes the bare
+    measurement type (BlePMDClient.kt:475). Pinned because the symmetry is the intuitive wrong guess."""
+    for meas in pmd.MEAS_NAME:
+        cmd = pmd.stop_cmd(meas)
+        assert cmd == bytes([0x03, meas])
+        assert not pmd.is_offline_cmd(cmd), "a stop must never look like an offline command"
+
+
+def test_a_truncated_command_is_rejected_rather_than_silently_reindexed():
+    """A 1-byte command has no measurement byte; setting 'bit 7 of cmd[1]' on it would either crash in
+    a device write or, worse, corrupt the op byte."""
+    import pytest
+    for bad in (b"", b"\x02"):
+        with pytest.raises(ValueError):
+            pmd.as_offline(bad)
+        with pytest.raises(ValueError):
+            pmd.meas_of(bad)
+    assert pmd.is_offline_cmd(b"\x02") is False
+
+
+# ── measurement status (command 5): the only honest confirmation a recording started ────────────────
+
+def test_status_command_is_the_bare_opcode():
+    assert pmd.status_cmd() == bytes([0x05])
+
+
+def _status_byte(meas, state):
+    return bytes([(state << 6) | meas])
+
+
+def test_the_top_two_bits_carry_the_active_state():
+    payload = (_status_byte(pmd.PPG, pmd.OFFLINE_ACTIVE)
+               + _status_byte(pmd.ACC, pmd.ONLINE_ACTIVE)
+               + _status_byte(pmd.GYRO, pmd.ONLINE_AND_OFFLINE)
+               + _status_byte(pmd.MAG, pmd.NO_MEASUREMENT))
+    got = pmd.parse_status_response(payload)
+    assert got[pmd.PPG] == pmd.OFFLINE_ACTIVE
+    assert got[pmd.ACC] == pmd.ONLINE_ACTIVE
+    assert got[pmd.GYRO] == pmd.ONLINE_AND_OFFLINE
+    assert got[pmd.MAG] == pmd.NO_MEASUREMENT
+
+
+def test_is_recording_counts_both_offline_and_online_plus_offline():
+    """A device streaming AND recording the same type must still read as recording — reporting it as
+    'not recording' is how a backup silently never happens."""
+    assert pmd.is_recording({pmd.PPG: pmd.OFFLINE_ACTIVE}, pmd.PPG) is True
+    assert pmd.is_recording({pmd.PPG: pmd.ONLINE_AND_OFFLINE}, pmd.PPG) is True
+    assert pmd.is_recording({pmd.PPG: pmd.ONLINE_ACTIVE}, pmd.PPG) is False
+    assert pmd.is_recording({pmd.PPG: pmd.NO_MEASUREMENT}, pmd.PPG) is False
+    assert pmd.is_recording({}, pmd.PPG) is False, "absent means not recording, not unknown-therefore-yes"
+
+
+def test_the_0xf0_envelope_is_stripped_rather_than_parsed_as_data():
+    """Reading the envelope as measurement bytes reports garbage states — and the failure mode is the
+    dangerous direction: it would claim streams are active that are not."""
+    payload = _status_byte(pmd.PPG, pmd.OFFLINE_ACTIVE)
+    assert pmd.parse_status_response(b"\xf0\x05\x00" + payload)[pmd.PPG] == pmd.OFFLINE_ACTIVE
+
+
+def test_an_empty_or_unknown_status_reply_yields_nothing_rather_than_a_guess():
+    assert pmd.parse_status_response(b"") == {}
+    assert pmd.parse_status_response(_status_byte(0x3F, pmd.ONLINE_ACTIVE)) == {}, "unknown type ignored"

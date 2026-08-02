@@ -91,8 +91,97 @@ def get_settings_cmd(meas: int) -> bytes:
 
 def stop_cmd(meas: int) -> bytes:
     """Control-point STOP — clears any stale stream left running from a prior session (BLE PMD state
-    persists across BleakClient reconnects, so a fresh START returns 'already_streaming' as a no-op)."""
+    persists across BleakClient reconnects, so a fresh START returns 'already_streaming' as a no-op).
+
+    ⚠️ STOP IS NOT SYMMETRIC WITH START, and the device is emphatic about it. START carries the
+    recording-type bit (`as_offline`); STOP does NOT — there is exactly one STOP per measurement type
+    and it takes the BARE type. Measured 2026-08-02: sending `03 82` (stop, ACC | 0x80) to a real
+    Verity is rejected at the GATT layer with `Unlikely Error (0x0E)` — not a control-point ACK with an
+    error status, an outright protocol refusal. The SDK agrees (BlePMDClient.kt:475,
+    `stopMeasurement(type) -> byteArrayOf(type.numVal)`); the symmetry was an inference, and the
+    hardware disproved it before any of this shipped."""
     return bytes([_OP_STOP, meas])
+
+
+# ── OFFLINE RECORDING (record to the device's own flash) ────────────────────────────────────────────
+#
+# The Verity's onboard recording is NOT PS-FTP — it is the ordinary control-point START/STOP with ONE
+# BIT set on the measurement-type byte. From the SDK (BDBleApiImpl.kt:2011 →
+# `client.startMeasurement(type, settings, PmdRecordingType.OFFLINE, secret)`), and PmdRecordingType.kt
+# is the entire encoding:
+#     enum class PmdRecordingType(val numVal: UByte) { ONLINE(0u), OFFLINE(1u);
+#         fun asBitField(): UByte = (this.numVal.toUInt() shl 7).toUByte() }   // OFFLINE => 0x80
+# So the same negotiated START command that drives a live stream records to flash instead, and the
+# settings payload is unchanged. See POLAR-ONBOARD-BACKUP-2026-08-01-BRIEF §4a.
+#
+# ⚠️ ONE DATA TYPE CANNOT BE BOTH (brief §2). Starting an offline recording of PPG means there is no
+# live PPG — `ERROR_ALREADY_IN_STATE`. HR is the documented exception, and it rides the Heart Rate
+# Service rather than PMD, so it is not expressible here at all.
+OFFLINE_BIT = 0x80
+
+
+def as_offline(cmd: bytes) -> bytes:
+    """Retarget a control-point START/STOP at the device's flash instead of the live link.
+
+    Pure and total: it sets bit 7 of the measurement-type byte (cmd[1]) and touches nothing else, so a
+    command built by `build_start`/`START`/`stop_cmd` keeps its negotiated settings verbatim."""
+    if len(cmd) < 2:
+        raise ValueError("not a control-point measurement command")
+    return bytes([cmd[0], cmd[1] | OFFLINE_BIT]) + cmd[2:]
+
+
+def is_offline_cmd(cmd: bytes) -> bool:
+    """True when a control-point command targets onboard recording rather than the live stream."""
+    return len(cmd) >= 2 and bool(cmd[1] & OFFLINE_BIT)
+
+
+def meas_of(cmd: bytes) -> int:
+    """The measurement type a control-point command targets, with the recording-type bit stripped."""
+    if len(cmd) < 2:
+        raise ValueError("not a control-point measurement command")
+    return cmd[1] & ~OFFLINE_BIT
+
+
+# ── measurement status (command 5) — what is the device ACTUALLY doing right now? ───────────────────
+#
+# The only honest way to confirm a recording started: ask the device, rather than trusting the ACK.
+# Response layout mirrors the other control-point replies ([0xF0, op, ...]); each measurement byte
+# carries the type in its low bits and the ACTIVE STATE in its top two (PmdActiveMeasurement.kt:
+# `MEASUREMENT_BIT_MASK = 0xC0`, value `shr 6`).
+_OP_STATUS = 0x05
+NO_MEASUREMENT, ONLINE_ACTIVE, OFFLINE_ACTIVE, ONLINE_AND_OFFLINE = 0, 1, 2, 3
+ACTIVE_NAME = {NO_MEASUREMENT: "none", ONLINE_ACTIVE: "online",
+               OFFLINE_ACTIVE: "offline", ONLINE_AND_OFFLINE: "online+offline"}
+
+
+def status_cmd() -> bytes:
+    """Control-point write asking which measurements are active, online and/or offline."""
+    return bytes([_OP_STATUS])
+
+
+def parse_status_response(value: bytes) -> dict[int, int]:
+    """Parse a control-point status reply → {measurement type: active state}.
+
+    Tolerates the two framings the control point uses — a bare payload, and the `0xF0 op [status]`
+    envelope the settings reply carries — because reading the envelope wrong would report every stream
+    as inactive, which is exactly the false "it did not start" this command exists to rule out."""
+    if not value:
+        return {}
+    body = value
+    if body[0] == 0xF0:
+        # [0xF0, op, status, ...] — skip the envelope; older firmware omits the status byte.
+        body = body[3:] if len(body) > 2 and body[1] == _OP_STATUS else body[2:]
+    out: dict[int, int] = {}
+    for b in body:
+        meas, state = b & 0x3F, (b & 0xC0) >> 6
+        if meas in MEAS_NAME:
+            out[meas] = state
+    return out
+
+
+def is_recording(status: dict[int, int], meas: int) -> bool:
+    """True when `meas` is recording to flash (whether or not it is also streaming live)."""
+    return status.get(meas, NO_MEASUREMENT) in (OFFLINE_ACTIVE, ONLINE_AND_OFFLINE)
 
 
 def parse_settings_response(value: bytes) -> dict[int, list[int]]:
