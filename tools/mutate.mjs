@@ -58,6 +58,7 @@
  *   node tools/mutate.mjs --budget 120              # skip a file whose estimate exceeds 120 s/file
  *   node tools/mutate.mjs --file X --full           # run the WHOLE suite per mutant
  *   node tools/mutate.mjs --json                    # NDJSON, one line per file, streamed
+ *   node tools/mutate.mjs --file X --dry-run       # list the mutants; run nothing, write nothing
  *   node tools/mutate.mjs --selftest                # known-answer, no repo mutation
  *
  * SAFETY — and this was got WRONG first, so it is spelled out. With `--jobs > 1` (the default) the
@@ -69,7 +70,7 @@
  * on-disk `<file>.mutate-backup` that exists for the whole window, plus `recoverStale()` at startup
  * which restores any leftover before doing anything else and says so.
  */
-import { readFileSync, writeFileSync, existsSync, rmSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, rmSync, readdirSync, copyFileSync, mkdirSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { execFileSync, execSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -87,6 +88,11 @@ const FULL = has('--full');
 /* Per-file wall-clock ceiling in seconds. A sweep across 71 modules is dominated by a handful of
    pathologically expensive tags, and skipping them LOUDLY beats discovering them at minute forty. */
 const BUDGET = +opt('--budget', '0');
+/* List what WOULD be mutated and exit — no suite runs, no worktrees, no writes. Added while proving
+   the regex-aware mask fix: verifying "no mutant lands in a comment" should not cost 40 minutes of
+   test execution. It is also the honest way to inspect a module's mutation surface before committing
+   to a run. */
+const DRY = has('--dry-run');
 const AS_JSON = has('--json');
 /* Mutants are independent, so this is embarrassingly parallel — but every mutant rewrites the SAME
    file, so they cannot share a tree. Each worker gets its own `git worktree` (shares the object store)
@@ -149,21 +155,51 @@ const SKIP_LINE = /^\s*(import\s|export\s+\{)/;
    string/template literal. Mutations are only generated at unmasked positions. This is a scanner, not
    a parser: it does not know about regex literals, which are rare in these DSPs and at worst
    reintroduce a little of the noise this removes. */
+/* IS A `/` HERE A REGEX, OR DIVISION?
+   The classic JS lexing ambiguity, and the reason the previous scanner corrupted `clock.js`. A regex
+   literal may only appear where an EXPRESSION is expected, so the preceding significant character
+   decides it: after an identifier, a number, `)` or `]` a slash is division; after an operator, a
+   comma, a paren, `=`, `:`, `{`, `;` — or at the start of a file — it opens a regex.
+   `}` is genuinely ambiguous (end of a block → regex may follow; end of an object literal → division).
+   Block is far commoner in this codebase, so `}` is treated as expression-position; the cost of being
+   wrong is a little noise, never a missed mutation. */
+function regexCanStart(prevSig) {
+  return prevSig === '' || !/[\w$)\]]/.test(prevSig);
+}
+
 function codeMask(src) {
   const m = new Uint8Array(src.length); // 1 = real code
   let i = 0;
   const N = src.length;
-  let state = 0; // 0 code · 1 line-comment · 2 block-comment · 3 '…' · 4 "…" · 5 `…`
+  let state = 0; // 0 code · 1 line-comment · 2 block-comment · 3 '…' · 4 "…" · 5 `…` · 6 /regex/
+  let prevSig = ''; // last significant (non-space) code character — decides regex vs division
+  let inClass = false; // inside a regex character class, where `/` is literal
   while (i < N) {
     const c = src[i],
       d = src[i + 1];
     if (state === 0) {
       if (c === '/' && d === '/') (state = 1), (i += 2);
       else if (c === '/' && d === '*') (state = 2), (i += 2);
+      else if (c === '/' && regexCanStart(prevSig)) (state = 6), (m[i] = 1), i++, (inClass = false);
       else if (c === "'") (state = 3), i++;
       else if (c === '"') (state = 4), i++;
       else if (c === '`') (state = 5), i++;
-      else (m[i] = 1), i++;
+      else {
+        m[i] = 1;
+        if (!/\s/.test(c)) prevSig = c;
+        i++;
+      }
+    } else if (state === 6) {
+      /* Inside a regex literal. `/` only terminates outside a character class, and a backslash escapes
+         the next character — otherwise `/[a-z/]/` or `/\//` would end it early. The body is marked as
+         CODE (it is), but crucially the scanner no longer treats the quotes inside it as string
+         delimiters, which is the whole bug. */
+      m[i] = 1;
+      if (c === '\\') i += 2;
+      else if (c === '[') (inClass = true), i++;
+      else if (c === ']') (inClass = false), i++;
+      else if (c === '/' && !inClass) (state = 0), (prevSig = '/'), i++;
+      else i++;
     } else if (state === 1) {
       if (c === '\n') (state = 0), (m[i] = 1);
       i++;
@@ -261,6 +297,39 @@ function runSuiteAsync(filter, cwd, timeoutMs) {
    is 852 full checkouts, ~850 MB copied per file. Measured on this external volume: one file took
    ~12 minutes, projecting to ~14 h for the roster, and essentially all of it was checkout I/O rather
    than test execution. Hoisted, the same sweep pays for 12 checkouts total. */
+/* A WORKER MUST TEST *YOUR TREE*, NOT YOUR LAST COMMIT.
+   `git worktree add --detach HEAD` checks out the committed state, so every UNCOMMITTED change — the
+   tests you just wrote, the fix you are validating — is invisible to the run. It fails in the worst
+   possible way: silently, with a plausible number, about the wrong code. It cost a 79-minute
+   exhaustive `clock.js` run that reported seven mutants as SURVIVORS which had already been verified
+   killed by hand, because the workers were running the pre-fix suite.
+   So mirror the caller's dirty files into each fresh worker. `git status --porcelain` covers modified
+   and untracked alike; deletions are applied as deletions. This is the whole point of the harness —
+   it exists to tell you whether YOUR change is visible to the suite. */
+function syncDirty(dir) {
+  let out = '';
+  try {
+    out = execFileSync('git', ['status', '--porcelain', '-z'], { cwd: ROOT, encoding: 'utf8' });
+  } catch {
+    return;
+  }
+  for (const rec of out.split('\0')) {
+    if (!rec || rec.length < 4) continue;
+    const path = rec.slice(3);
+    if (!path || path.endsWith('.mutate-backup')) continue;
+    const from = join(ROOT, path),
+      to = join(dir, path);
+    try {
+      if (!existsSync(from)) {
+        rmSync(to, { force: true });
+        continue;
+      }
+      mkdirSync(dirname(to), { recursive: true });
+      copyFileSync(from, to);
+    } catch {}
+  }
+}
+
 let _pool = null;
 function workerPool() {
   if (_pool) return _pool;
@@ -269,6 +338,7 @@ function workerPool() {
     const dir = join(ROOT, '..', '.mutate-w' + w + '-' + process.pid);
     try {
       execFileSync('git', ['worktree', 'add', '--detach', '--quiet', dir, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
+      syncDirty(dir);
       _pool.push(dir);
     } catch (e) {
       /* Out of disk, or git cannot add a worktree here. Do NOT abort the run: carry on with however
@@ -491,6 +561,25 @@ function selftest() {
         .map((m) => m.op)
         .join(',')
   );
+  /* THE REGEX-LITERAL CASE, which corrupted a real audit before it was handled.
+     `clock.js:81` is `s.replace(/^["']|["']$/g, '')` — a regex containing BOTH quote characters. A
+     scanner that is not regex-aware sees `/`, stays in code state, then meets `"` and enters string
+     state, and every quote after that flips it wrongly for the REST OF THE FILE. The damage runs both
+     ways: six mutants landed inside a comment (noise), and real code was suppressed as "string" —
+     mutant count went 81 → 123 once fixed. So the published 38 % was wrong in both directions. */
+  const rx = ['const RE = /^["\']|["\']$/g;', 'if (a >= 3) return 1;', '// a comment with >= in it'].join('\n');
+  const rxm = mutantsFor(rx);
+  const rxl = [...new Set(rxm.map((m) => m.line))];
+  ok('a regex literal containing quotes does not desync the scanner', rxl.includes(2), 'lines=' + rxl.join(','));
+  ok('…and the comment AFTER it is still protected', !rxl.includes(3), 'lines=' + rxl.join(','));
+  // Division must still be division: `a / b` is not a regex opening.
+  const div = mutantsFor('const r = total / count >= 2;');
+  ok(
+    'a division slash is not mistaken for a regex opener',
+    div.some((m) => m.op.startsWith('cmp >=')),
+    div.map((m) => m.op).join(',')
+  );
+
   /* Low-core behaviour is a CORRECTNESS property, not a tuning detail: at 1-2 cores the tool must
      take the serial in-place path, because each parallel worker is a full 71 MB checkout that buys
      nothing when there is one core to share. Pinned so a future tuning pass cannot quietly hand a
@@ -636,6 +725,20 @@ function reportOne(r) {
 }
 
 if (!AS_JSON) console.log('MUTATION SWEEP — a surviving mutant means the suite cannot see a change there\n');
+if (DRY) {
+  for (const f of files) {
+    const abs = join(ROOT, f);
+    if (!existsSync(abs)) {
+      console.log('  ' + f + '  ⊘ not found');
+      continue;
+    }
+    const ms = mutantsFor(readFileSync(abs, 'utf8'));
+    console.log('  ' + f + '  ' + ms.length + ' mutant(s)');
+    for (const mu of thin(ms, LIMIT)) console.log('    L' + mu.line + '  [' + mu.op + ']  ' + mu.before.slice(0, 88));
+  }
+  process.exit(0);
+}
+
 const results = [];
 try {
   for (const f of files) {
