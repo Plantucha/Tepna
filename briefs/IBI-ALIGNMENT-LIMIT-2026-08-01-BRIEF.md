@@ -7,6 +7,12 @@
 
 # IBI sequences correlate strongly and cannot align these devices to under a second
 
+> **⛔ THE TITLE IS WRONG — RETRACTED 2026-08-01 (see §Retraction). They CAN.** Every measurement in
+> this brief fitted a **single constant offset to a pair that drifts by up to 123 ppm**, i.e. by more
+> than one RR interval across a night. Refitting locally in 5-minute blocks takes beat correspondence
+> from the 5–26 % reported below to **43–98.8 %**, against a same-degrees-of-freedom chance control of
+> 22–27 %. The comb is real; the conclusion drawn from it is not.
+
 On 2026-07-31, immediately after exporting per-beat intervals, this project reported that the IBI
 sequence is a **better alignment signal than ACC↔ACC** — r = 0.532 against a circular-shift null of
 0.032, a 16× margin, versus ACC's r ≈ 0.29 against 0.065 on the same night. That measurement is real.
@@ -54,8 +60,8 @@ host — so if the fault were in the time reconstruction they would be just as s
 sites on one body sharing a host clock must do, and it proves the timebase and the export are sound.
 But only **5–26 %** of beats land within 100 ms of their counterpart.
 
-So beat-level correspondence is genuinely poor in consumer PPG during sleep, in *both* optical streams
-independently. "Nearest following foot" therefore picks the wrong beat most of the time, which is
+~~So beat-level correspondence is genuinely poor in consumer PPG during sleep, in *both* optical
+streams independently.~~ **⛔ RETRACTED — this measured DRIFT, not correspondence. See §Retraction.** "Nearest following foot" therefore picks the wrong beat most of the time, which is
 exactly how the ECG→PPG deltas come out uniform.
 
 ## What this means
@@ -176,6 +182,59 @@ the others. **An unexplained outlier is more often a broken instrument than a br
 cheapest check is to ask what the statistic does when its assumptions fail, before going to look for
 the defect it implies.
 
+## Retraction — 2026-08-01, later the same day: the devices are not on one timeline
+
+Prompted by `ENVELOPE-ANCHOR-EXPORT-2026-08-01-BRIEF` §3.7, which reached the same conclusion from the
+other end and retracted itself twice getting there. Verified independently here, on this brief's own
+corpus and tool.
+
+**Every number in this brief came from a lag sweep with ONE offset per night.** The two optical devices
+drift relative to each other. Re-running the identical measurement, changing only that — refit the
+offset in 5-minute blocks instead of once per night:
+
+| night | one offset (this brief) | refit per 5 min | measured drift |
+|---|---|---|---|
+| 2026-07-25 | 20.2 % | **43.0 %** | ~0 ppm |
+| 2026-07-26 | 18.5 % | **55.3 %** | −4 ppm |
+| 2026-07-27 | 39.9 % | **98.8 %** | −29 ppm |
+| 2026-07-28 | 23.6 % | **90.0 %** | **+123 ppm** |
+| 2026-07-29 | 34.0 % | **92.5 %** | +10 ppm |
+| 2026-07-30 | 21.1 % | **62.5 %** | +37 ppm |
+
+**Chance control**, same procedure and the same per-block ±3 s search — finger series shifted +1 hour:
+**22.4–27.1 %** on every night. Real beats control on all six, by ~4× on three. The gain is not the
+extra degrees of freedom.
+
+**The mechanism.** At 123 ppm a night accumulates ~3.2 s of relative drift — nearly **three RR
+intervals**. A constant-offset scan is correct at the start of the night and comparing against the
+wrong beat by the end, so most pairs are mismatched and the measured "correspondence" is mostly a
+statement about how far the clocks have separated.
+
+### What this retracts, and what survives
+
+**Retracted:**
+- *"Beat-level correspondence is genuinely poor in consumer PPG during sleep"* — it is 43–98.8 %.
+- *"IBI sequences cannot align these devices to under a second"* — the title. They can, with a
+  drift-aware fit; per-block IQR elsewhere measures 43–112 ms.
+- The **postscript closing the two-stage route** (added the same day): its premise was that beat
+  correspondence is ~16 % and cannot be improved by a better search. It can — by a better *model*.
+
+**Survives, and is worth separating from the error:**
+- **The comb is real.** Under a *constant* offset, two periodic trains give teeth one RR apart. That
+  is mathematics, and it is why the offset must be re-fit locally rather than searched harder.
+- **The `autonomic_surge` fiducial finding** (bimodal → unimodal, 1.0 % → 36.1 %). Those are event
+  channels matched over ±60 s windows; 2–3 s of drift cannot manufacture a 34 s bimodality.
+- **The CPAP work** (`matchSec` sweep, the rejected aliasing guard). Different pairing, and intra-night
+  CPAP drift (~0.24–0.78 s) is far below that fit's 15 s support.
+
+### The lesson, which is not the one this brief originally taught
+
+It closed by saying *"a stronger correlation was taken as a better instrument"* and *"an unexplained
+outlier is more often a broken instrument than a broken night."* Both stand. This adds a third, and it
+is the one that cost the most: **a control tells you whether you beat chance; it cannot tell you the
+model is too simple.** The circular-shift null in the original work was honest and passed — while the
+whole measurement was fitting one number to a system that needs two.
+
 ## Done when
 
 - [x] The 1.3 s IBI-vs-ACC disagreement is resolved, with the control that distinguishes a
@@ -186,7 +245,9 @@ the defect it implies.
       correspondence of the six (2.54× chance). The measurement is now reproducible via
       `tools/beat-comb-analysis.mjs`, which the original table was not.
 - [x] ~~If sub-second alignment is wanted from intervals, the fiducial has to improve first~~ —
-      **superseded 2026-08-01: a better fiducial would not help.** Beat-time matching identifies the
+      superseded 2026-08-01, then **that supersession itself RETRACTED** (see §Retraction): what was
+      needed was neither a better fiducial nor a better search but a **drift term**. Original text
+      kept below for the record. ~~**a better fiducial would not help.**~~ Beat-time matching identifies the
       offset only modulo one heartbeat regardless of fiducial quality, because both trains are
       periodic. Sub-second alignment must come from an aperiodic feature (ACC envelope, desaturation
       onset), with intervals at best refining *within* a beat once a coarser method has picked which
