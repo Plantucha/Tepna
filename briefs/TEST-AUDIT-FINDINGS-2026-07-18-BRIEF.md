@@ -31,6 +31,12 @@ reproduction by construction. Rendered dashboard (private artifact):
 
 - **Lane:** the JS Dex suite via **`tests/run-tests.mjs`** under the real corpus. "Hollow" = **green even
   with the corpus present**, not merely on a fresh clone.
+> **2026-08-02 — the JS pass is now a TOOL, not a one-off.** `tools/mutate.mjs` does automatically what
+> this brief's 40 mutations were applied by hand to do: it mutates a module, runs only the groups tagged
+> for it, and reports the survivors. So the JS side is re-checkable on demand instead of once. **The
+> Python gap below is unchanged** — different runner, different mutation grammar — and the note still
+> stands as written.
+
 - **The Python side (`capture-host/`) was NOT mutation-audited.** It has its own `capture-host-ci`
   (`ruff --select E9,F` + **pytest**, 47 tests) but this audit did not plant defects in `polar_pmd`,
   `oxyii`, `writers`, `clockcfg`, `viatom`, `telemetry`, etc. That is a **separate, still-open** audit
