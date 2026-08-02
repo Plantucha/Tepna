@@ -75,7 +75,45 @@ three orders of magnitude:
 assuming. **Only beat-resolution consumers are affected** — which is precisely the two that matter for
 PAT, and nothing coarser needs changing.
 
-## 3.5 · The bound, and a refuted hypothesis — added 2026-08-02
+## 3.4 · ⛔ §3.5's BOUND IS RETRACTED — it was slip-inflated and used the wrong RR
+
+Reconciling with `papers/wearable-clock-drift.html`'s scope note, which reports residual SD **91–241 ms**
+against a **~1190 ms** tooth on the same pair and the same nights. That is 3–4× tighter than §3.5's
+315–1034 ms, on identical data — so one of the two is measuring wrong, and it is this one.
+
+**Error 1 — the residual was slip-inflated.** §3.5 used RMS about the fitted line, computed on the
+**un-unwrapped** series. RMS counts each one-RR slip at its full ~1190 ms. So the number is dominated
+by exactly the artifact unwrapping exists to remove, and was then used to argue that unwrapping is
+impossible. **Circular.** A robust spread (1.4826 × MAD of residuals) separates them:
+
+| night | RMS (§3.5) | **robust** | slipped blocks |
+|---|---|---|---|
+| 2026-07-20 | 473 ms | **127 ms** | 2 / 91 |
+| 2026-07-26 | 315 ms | **274 ms** | 3 / 88 |
+| 2026-07-28 | 562 ms | 362 ms | 20 / 96 |
+| 2026-07-25 | 865 ms | 482 ms | 33 / 102 |
+| 2026-07-23 | 688 ms | 795 ms | 27 / 62 |
+| 2026-07-22 | 1034 ms | 1014 ms | 67 / 108 |
+
+**Error 2 — the tooth was wrong.** §3.5 said "half an RR is ~450 ms", assuming RR ≈ 900 ms. The
+measured RR on these nights is **990–1286 ms** (this subject runs ~50 bpm, matching the paper's
+51.9 bpm), so the half-tooth is **~595 ms**. The bound was compared against a threshold 25 % too tight.
+
+**Corrected reading.** Robust scatter is **127–274 ms on the low-slip nights** — inside the paper's
+91–241 ms — and 795–1014 ms on 07-22/07-23, where 25–62 % of blocks are displaced and the scatter is
+genuine. So unwrapping is **viable on 3–4 of 6 nights and hopeless on two**, which is exactly the split
+the paper reports (R² 0.92–0.99 on 07-25…07-28; R² 0.11/0.46 on the two that fail, and those are the
+same two that fail closure).
+
+**So the paper's 87–216 ppm figures are NOT overturned.** §3.5's "there is no phase to unwrap" is false
+as a general statement — true for the high-slip nights, false for the rest.
+
+> **The same mistake twice in one brief.** §3.5 already flagged that raw MAD conflates the drift TREND
+> with scatter, and corrected it. It then shipped a residual that conflates SLIPS with scatter. Both are
+> the same failure — a summary statistic absorbing the very artifact under investigation — and the
+> second one survived because fixing the first felt like having dealt with it.
+
+## 3.5 · The (retracted) bound, and a refuted hypothesis — added 2026-08-02
 
 §2 located the blocker as per-block offset precision. Here is the number, and it closes the question.
 
@@ -116,8 +154,9 @@ block trades against drift *within* the block — and `concentration` is the met
 - [x] `_wrappedSlopeFit` shipped as a diagnostic beside the raw slope, never replacing it.
 - [x] The constant-offset precondition made checkable, and §3.1's "luck" corrected to "three orders of
       magnitude".
-- [x] The bound quantified (§3.5): per-block residual scatter is **315–1034 ms** against a **~450 ms**
-      half-RR tooth spacing, so most nights have no phase to unwrap at all.
+- [⛔] ~~The bound quantified (§3.5)~~ — **RETRACTED, see §3.4.** The residual was slip-inflated and the
+      tooth was 25 % too tight. Corrected: robust scatter **127–274 ms** on low-slip nights against a
+      **~595 ms** half-tooth, so unwrapping is viable on 3–4 of 6 nights.
 - [x] The obvious explanation (PTT contamination) tested and **refuted** — optical↔optical is wider,
       not tighter.
 - [ ] *(open, now with a target)* Get per-block residual scatter well below ~450 ms. Estimator problem:
