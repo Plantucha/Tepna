@@ -6,9 +6,18 @@
 //   node tools/o2ring-finger-validate-batch.mjs <dir> [<dir> ...]
 import vm from 'node:vm';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 
-const ROOT = '/run/media/michal/647A504F7A50205A/wt-fingerval';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+/* ROOT is derived from THIS FILE's location, never hardcoded. Both O2Ring finger tools shipped with an
+   absolute path to the author's throwaway worktree (`…/wt-fingerval`, `…/wt-fingerrt`) baked in. Those
+   worktrees were removed the day they were made, so both tools have been UNRUNNABLE ANYWHERE since the
+   commit that added them — including for the author — while two briefs cite them as the evidence for a
+   hardware round-trip and for the ≥10-night tier call. Nothing caught it: they are operator sweeps over
+   gitignored captures, so no gate runs them, and a tool that no gate runs is a tool nobody notices is
+   dead. (ENGINE-VERIFICATION §0: a comment is not a measurement; a committed tool is not a working one.) */
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const B = await import(join(ROOT, 'tools/build-core.js'));
 const classicify = B.classicify || B.default?.classicify;
 
@@ -88,7 +97,20 @@ function ringHRSeries(path) {
   return out;
 }
 
-const dirs = process.argv.slice(2);
+/* Accept a shell glob without dying on it. `captures/*` expands to the session directories AND any
+   stray file beside them (`status.json` here), and `readdirSync` on a file throws ENOTDIR — so the
+   obvious invocation killed the whole sweep before a single row printed. Filter, don't assume. */
+const dirs = process.argv.slice(2).filter((d) => {
+  try {
+    return statSync(d).isDirectory();
+  } catch {
+    return false;
+  }
+});
+if (!dirs.length) {
+  console.error('no directories given — usage: node tools/o2ring-finger-validate-batch.mjs <captures-dir> [...]');
+  process.exit(2);
+}
 const rows = [];
 for (const d of dirs) {
   const files = readdirSync(d).map((f) => join(d, f));
