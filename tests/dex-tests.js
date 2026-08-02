@@ -24343,6 +24343,109 @@
       T.eq('§1.4 · three DISTINCT channels remain "wrist" (no regression for Verity)', siteOf([one, b, c]), 'wrist');
     });
 
+    /* ════ A TOOL MUST FIND ITS OWN CHECKOUT — the dead-tool class, gated ═══════════════════════
+     Three committed tools resolved repo CODE from a literal absolute path to the author's machine:
+
+       o2ring-finger-validate-batch.mjs   ROOT = '…/wt-fingerval'   (worktree deleted the same day)
+       o2ring-finger-roundtrip.mjs        ROOT = '…/wt-fingerrt'    (same)
+       acc-acc-control.mjs                REPO = argv[2] || '…/Tepna'
+
+     The first two threw ERR_MODULE_NOT_FOUND on their first import ever since the commit that added
+     them — for everyone, including their author — while two briefs cited them as evidence (PR #686).
+     The third is worse, because it RUNS: with no argv it loaded `build-core.js` and every DSP from the
+     MAIN checkout, so running it inside a worktree measured a DIFFERENT TREE'S CODE and reported the
+     answer as this one's. Several sessions work this repo in parallel worktrees (CLAUDE.md §👥) and
+     that section exists because one of them "spent an hour debugging a broken build that was actually
+     another session's in-flight clock.js" — this makes the same confusion silent.
+
+     None of it was caught, because these are operator sweeps over gitignored captures: no gate runs
+     them, and a tool no gate runs is a tool nobody notices is dead.
+
+     THE INVARIANT: a tool that loads repo code must derive its root from its OWN location. Measured
+     before it was written — 22 tools reference `build-core.js` and all 22 satisfy it, so this ships
+     with ZERO exemptions and zero grandfathering. Scope is read from `tools/` on disk, never curated. */
+    group('every tool resolves repo code from its OWN checkout (PR #686 class)', 'tools · source-scan · portability', function (T) {
+      var TS = env.toolSources;
+      if (!TS) {
+        T.skip('env.toolSources provided to the runner', 'Node-lane only (run-tests.mjs readToolSources, fs truth) — the browser lane can’t list tools/ so it SKIPs; CI runs the Node lane');
+        return;
+      }
+      var names = Object.keys(TS).sort();
+      T.ok('tools/ discovered from disk (derived scope, not a curated list)', names.length > 20, names.length + ' tool(s)');
+
+      // (1) loads repo code ⇒ derives its root from import.meta.url.
+      var loaders = names.filter(function (n) {
+        return /build-core\.js/.test(TS[n]);
+      });
+      /* Check the ROOT/REPO ASSIGNMENT, not merely that the substring appears somewhere. A first
+         draft tested `/import\.meta\.url/.test(source)` and was almost hollow: nearly every tool
+         already writes `createRequire(import.meta.url)`, so the original `acc-acc-control.mjs` —
+         hardcoded root AND that call — would have sailed through. Mutation found it: replacing the
+         root's own `fileURLToPath(import.meta.url)` left the second occurrence behind and the
+         assertion stayed green. A root must be derived on the line that DEFINES it. */
+      var rootRe = /\b(?:const|let|var)\s+(?:ROOT|REPO|SELF_REPO)\s*=\s*([^;\n]+)/g;
+      var notDerived = loaders.filter(function (n) {
+        var m,
+          defs = [],
+          re = new RegExp(rootRe.source, 'g');
+        while ((m = re.exec(TS[n])) !== null) defs.push(m[1]);
+        if (!defs.length) return false; // resolves inline (e.g. require('./build-core.js')) — fine
+        /* Follow ONE level of indirection. The idiomatic form here is
+             const __dirname = dirname(fileURLToPath(import.meta.url));
+             const ROOT = join(__dirname, '..');
+           so the defining line names a variable rather than the URL. Collect every identifier the
+           file assigns FROM import.meta.url and accept a root that references one. (A stricter draft
+           demanded the URL on the defining line itself and flagged four correct tools — build.mjs,
+           pb-fusion-blast, ppg-gap-bridge-scan, trio-batch. Measured, not assumed: the fix is
+           indirection, not an exemption list.) */
+        /* TRANSITIVE closure, not a fixed depth. trio-batch.mjs chains three hops —
+             import.meta.url → __filename → __dirname → ROOT
+           and a one-hop rule flagged it. Seed with identifiers assigned directly from the URL, then
+           keep adding any identifier assigned from an already-derived one until nothing new appears. */
+        var derivedIds = [],
+          dm,
+          assigns = [],
+          are = /\b(?:const|let|var)\s+(\w+)\s*=\s*([^;\n]+)/g;
+        while ((dm = are.exec(TS[n])) !== null) assigns.push({ id: dm[1], rhs: dm[2] });
+        assigns.forEach(function (a) {
+          if (/import\.meta\.url/.test(a.rhs)) derivedIds.push(a.id);
+        });
+        for (var pass = 0; pass < 8; pass++) {
+          var before = derivedIds.length;
+          assigns.forEach(function (a) {
+            if (derivedIds.indexOf(a.id) >= 0) return;
+            if (
+              derivedIds.some(function (id) {
+                return new RegExp('\\b' + id + '\\b').test(a.rhs);
+              })
+            )
+              derivedIds.push(a.id);
+          });
+          if (derivedIds.length === before) break;
+        }
+        return !defs.some(function (d) {
+          if (/import\.meta\.url/.test(d)) return true;
+          return derivedIds.some(function (id) {
+            return new RegExp('\\b' + id + '\\b').test(d);
+          });
+        });
+      });
+      T.ok('every tool that loads repo code DERIVES its root (on the defining line, not just anywhere)', notDerived.length === 0, notDerived.length ? 'hardcoded-root tool(s): ' + notDerived.join(', ') : loaders.length + ' loader(s), all derived');
+
+      // (2) …and none carries a literal absolute REPO path. Data paths are a different thing and are
+      //     NOT flagged: a captures/corpus default under /home is overridable (DEX_CAPTURES) and does
+      //     not decide which code runs. What is banned is a checkout root — `/run/media/…` or `…/Tepna`.
+      /* A CHECKOUT root, specifically — not any absolute path. The first draft banned every
+         `/run/media/…` literal and immediately flagged `tch-reference-validation.mjs`'s
+         `Ecg nightly` corpus default, which is DATA: it is env-overridable and does not decide
+         which code runs. The rule the comment above states is "a checkout root", so that is what
+         it now matches: a literal ending in the repo directory name, or naming a `wt-` worktree. */
+      var hardRoot = names.filter(function (n) {
+        return /['"][^'"]*\/Tepna['"]|['"][^'"]*\/wt-[a-z0-9-]+['"]/.test(TS[n]);
+      });
+      T.ok('no tool hardcodes a checkout root (worktrees must not load the main tree’s code)', hardRoot.length === 0, hardRoot.length ? 'hardcoded checkout root in: ' + hardRoot.join(', ') : 'none of ' + names.length);
+    });
+
     group('resmed-edf adapter — SD-card session grouping (CPAP-REAL-CORPUS §F4)', 'adapters · resmed-edf · cpap', function (T) {
       var SA = env.SignalAdapters;
       var A = SA && SA.byId ? SA.byId('resmed-edf') : null;
