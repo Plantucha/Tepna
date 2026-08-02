@@ -26,13 +26,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 // ESM-MIGRATION: shed cpapdex-dsp.js's top-level export/import via the single classicify source before
 // vm-loading (else "Unexpected token 'export'"). build-core.js is required relative to THIS tool (not
 // the stale REPO below), so it always resolves to the real sibling. No-op on classic files.
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
-const REPO = '/media/michal/647A504F7A50205A/GENOME/Michal/Tepna';
-const EN = '/media/michal/647A504F7A50205A/Ecg nightly';
+/* REPO is THIS TOOL'S OWN CHECKOUT. It used to be a literal `/media/…/GENOME/Michal/Tepna`, a mount
+   that does not exist — so every module load ENOENT'd and the tool did nothing but print warnings.
+   The comment directly above already called it "the stale REPO below" and routed `build-core.js`
+   around it; the DSP loads were left pointing at the dead path anyway. A comment recording a defect
+   is not a fix (ENGINE-VERIFICATION §0), and gated now by `tools · source-scan · portability`. */
+const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+/* DATA, not code — overridable, and defaulted to where the corpus actually lives on this deployment. */
+const EN = process.env.DEX_ECG_NIGHTLY || '/run/media/michal/647A504F7A50205A/Ecg nightly';
 const CLIP_MIN = +(process.env.CLIP_MIN || 30); // minutes of each raw signal to analyse
 const EPOCH_MIN = 5;
 

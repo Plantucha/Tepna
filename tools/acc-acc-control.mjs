@@ -43,8 +43,27 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 
-const REPO = process.argv[2] || '/run/media/michal/647A504F7A50205A/Tepna';
-const ROOT = process.argv[3] || process.env.DEX_CAPTURES || '/home/michal/tepna-smoketest/captures';
+import { fileURLToPath } from 'node:url';
+
+/* REPO defaults to THIS FILE's own repo root, never to an absolute path.
+   It used to default to `/run/media/…/Tepna`, and that is worse than a crash: run from a WORKTREE the
+   tool silently loaded `build-core.js` and every DSP from the MAIN checkout, so it measured a different
+   tree's code and reported the answer as if it were this one's. Several sessions work this repo in
+   parallel worktrees (CLAUDE.md §👥), which is exactly the "spent an hour debugging another session's
+   in-flight clock.js" failure that section exists to prevent — here it would be silent, because the
+   tool runs fine and just answers about the wrong code. Two sibling tools carried the same class of
+   defect as a hard constant and were dead outright (PR #686); this one ran, which is why it survived.
+   An explicit argv[2] still overrides, for pointing it at another checkout ON PURPOSE. */
+const SELF_REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const argRepo = process.argv[2] && !process.argv[2].startsWith('-') ? process.argv[2] : null;
+const REPO = argRepo || SELF_REPO;
+const argRoot = process.argv[3] && !process.argv[3].startsWith('-') ? process.argv[3] : null;
+const ROOT = argRoot || process.env.DEX_CAPTURES || '/home/michal/tepna-smoketest/captures';
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log('usage: node tools/acc-acc-control.mjs [<repo-root>] [<captures-dir>]');
+  console.log("  repo-root defaults to this tool's own checkout; captures-dir to $DEX_CAPTURES.");
+  process.exit(0);
+}
 const require = createRequire(import.meta.url);
 const DexBuild = require(path.join(REPO, 'tools/build-core.js'));
 

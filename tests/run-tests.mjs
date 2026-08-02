@@ -773,6 +773,20 @@ function readBundleCsp() {
 // recompute the whole-tree path inventory from disk. No committed list mirror: the browser lane can't list
 // a directory, so it SKIPs this gate rather than carry a snapshot every PR would have to regenerate
 // (CPAP-REAL-CORPUS-FOLLOWUPS-II §4).
+/* TOOL-INVOCABILITY SCOPE — DERIVED from the filesystem, never hand-curated (DEEP-AUDIT-III §1.4:
+   a curated scope silently stops covering what it was written for). Node-lane only, like docsLedger:
+   the browser lane cannot list a directory, so that group SKIPs there. */
+function readToolSources() {
+  const tdir = join(ROOT, 'tools');
+  if (!existsSync(tdir)) return null;
+  const out = {};
+  for (const n of readdirSync(tdir)
+    .filter((f) => f.endsWith('.mjs'))
+    .sort())
+    out[n] = readFileSync(join(tdir, n), 'utf8');
+  return out;
+}
+
 function readDocsLedger() {
   const bdir = join(ROOT, 'briefs');
   if (!existsSync(bdir)) return null;
@@ -1182,6 +1196,7 @@ async function main() {
     RespAccAnalysis: ctx.RespAccAnalysis,
     docs: readDocs(),
     docsLedger: readDocsLedger(),
+    toolSources: readToolSources(),
     sources: readSources(),
     // §F1.5 — the TCH golden's input builder, shared with tools/regen-integrator-goldens.mjs
     tchGoldenInputs: (() => {
