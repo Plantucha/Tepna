@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-08-01 · **Created:** 2026-08-01 · **Follows:** `WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md` · **Affects:** `integrator-dsp.js`, `tools/trio-batch.mjs`, `tests/dex-tests.js`
+**Status:** DONE — 2026-08-01 (⚠ §1 drift columns superseded — see §5) · **Created:** 2026-08-01 · **Follows:** `WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md` · **Affects:** `integrator-dsp.js`, `tools/trio-batch.mjs`, `tests/dex-tests.js`
 
 # Three clocks must close to zero. On six real nights they never do — and once with every leg confident.
 
@@ -78,6 +78,14 @@ control, and the boundary is documented in the function rather than discovered a
 - [x] The blind spot found by a control that refused to fire, and documented in the code.
 - [x] A real caller, not a gated function with no consumer.
 - [x] 4892/4892 zero skips on the real corpus · typecheck · biome · all three drift guards current.
-- [ ] *(open)* Closure is never zero on any real night. Whether that is residual fit error or a real
+- [x] **ANSWERED by `CROSS-DEVICE-DRIFT-AND-CLOSURE` §2.2/§2.3 — it was a missing PHASE UNWRAP.** The
+      per-block offset is a phase on a comb one RR wide; the argmax falls back a whole RR as the offset
+      drifts past a tooth, so a raw slope measures the sawtooth. That brief unwraps first and closure
+      then holds to **≤7 ppm** on the nights with high correspondence and enough blocks (07-27: −2.2;
+      07-28: −7.0). **Every closure figure in §1 above is therefore the BEFORE-unwrap regime**, and the
+      drift columns beside them are not quotable per that brief's §6 guardrail.
+      A naive per-pair unwrap was tried here and made closure **worse** (−266/209/−202 ppm), which is
+      evidence for their §5 open item that the unwrap must use the closure constraint **jointly**.
+- [ ] *(open, inherited)* Joint three-pair unwrap. Whether that is residual fit error or a real
       non-linearity (a clock that is stepped **and** drifting) is unresolved — it needs a night where
       an independent reference exists, which this corpus does not have.

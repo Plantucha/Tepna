@@ -5,7 +5,28 @@
 -->
 **Status:** DONE — 2026-08-01 · **Created:** 2026-08-01 · **Executes:** `ENVELOPE-ANCHOR-EXPORT-2026-08-01-BRIEF.md` §3.7 · **Affects:** `integrator-dsp.js`, `tools/trio-batch.mjs`, `tests/dex-tests.js`
 
-# One number cannot hold a night: the wearables drift 87 ppm, and fitting for it takes correspondence from 16 % to 89 %.
+# One number cannot hold a night: the wearables drift, and fitting for it takes correspondence from 16 % to 89 %.
+
+> ## ⚠ THE ppm FIGURES IN THIS BRIEF DO NOT CLOSE — corrected 2026-08-02
+>
+> A parallel session's `CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF` §2.2 shows the per-block
+> offset is a **PHASE**: two periodic beat trains give a coincidence comb one RR apart, so as the true
+> offset drifts past a tooth the argmax falls back exactly one RR and the raw series saws. **Confirmed
+> in this brief's own data** — 3 jumps of one-to-two RR across 87 blocks on 2026-07-27, where the drift
+> reads **45.9 ppm** unwrapped-not against their **97.2** unwrapped.
+>
+> `fitClockDrift` does **not** unwrap, so **every ppm figure below is partly sawtooth** — including the
+> 80 ppm headline for 2026-07-26, whose three-source closure is **100.9 ppm** and therefore fails.
+> Per that brief's §6 guardrail — *"do not quote a ppm figure that has not closed"* — the drift numbers
+> here should not be cited. **What survives unchanged** is the correspondence result (89 % vs a 21 %
+> chance control) and its cause: a single constant offset cannot hold a night. The *existence* and
+> *sign* of drift stand; the *magnitude* does not.
+>
+> A naive per-pair unwrap was then implemented here and **measured to be worse** — closure degraded
+> from 101/101/58 ppm to **−266/209/−202** — because one wrong multiple on a weakly-locking pair
+> propagates through the cumulative sum. That is direct evidence for their §5 open item: the unwrap
+> must use the closure constraint across all three pairs **jointly**. Reverted; the limitation is now
+> documented in `fitClockDrift` itself.
 
 `ENVELOPE-ANCHOR-EXPORT` §3.7 measured that the H10 and the Verity agree on ~90 % of heartbeats once
 the offset is refitted locally — and that a **constant-offset** fit reports 16 % on the same data,
