@@ -102,19 +102,33 @@ _CFG_BANNER = (
 
 _comment_loss_warned = False
 
+# The banner's own lines, derived FROM the banner rather than restated as substrings. The previous
+# version listed three phrases to skip and missed the fourth line ("# controlled and never written by
+# the box."), so a freshly machine-written config.yaml — one with no operator comments in it at all —
+# was reported as carrying comments, and the box warned about losing notes nobody had written. Deriving
+# the set means it cannot drift from the banner again.
+_BANNER_LINES = frozenset(ln.strip() for ln in _CFG_BANNER.splitlines() if ln.strip())
+
 
 def _has_comments(path: str) -> bool:
     """True when the file on disk carries operator comments this save is about to drop. Cheap, and
-    deliberately ignores the banner we wrote ourselves."""
+    deliberately ignores the banner we wrote ourselves.
+
+    ADVISORY ONLY, SO IT MUST NOT BE ABLE TO FAIL A SAVE. `_save()` calls this inside its own
+    try/except, so anything raised here is swallowed into `return False` and surfaces to the operator
+    as "config write failed (disk?)" — a wrong reason for an unwritable disk that is fine. A
+    non-UTF-8 byte anywhere in config.yaml (an accented device name typed in a Latin-1 editor) used to
+    do exactly that and made the whole settings UI unusable until somebody found the byte."""
     try:
         with open(path, encoding="utf-8") as fh:
             for line in fh:
                 t = line.strip()
-                if t.startswith("#") and not t.startswith("# WRITTEN BY THE TEPNA MONITOR") \
-                        and "config.example.yaml" not in t and "comment round-trip" not in t \
-                        and "Every save (settings" not in t:
+                # `# WRITTEN BY THE TEPNA MONITOR` is matched by prefix as well, so a banner emitted by
+                # an older build — whose wording differs from today's — is still not mistaken for prose.
+                if t.startswith("#") and t not in _BANNER_LINES \
+                        and not t.startswith("# WRITTEN BY THE TEPNA MONITOR"):
                     return True
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return False
     return False
 

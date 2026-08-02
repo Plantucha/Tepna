@@ -1,0 +1,148 @@
+# tepna-capture — tests/test_webmon_state_contract.py
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+"""`GET /api/state` — the WHOLE body, field by field.
+
+`/api/state` is the monitor's only source of truth: every card, dot and number in `monitor.html` is a
+field of this response, and the daemon is the only writer. The tests next door assert a handful of them
+(`name`, `connected`, `battery`, `rssi`, `link_epoch`) and prove the projection works. What they leave
+free is every OTHER key — and the mutation audit measured the size of that gap: 50 surviving mutants in
+`_remembered` alone, each one renaming a `status` lookup so the field silently becomes `null`.
+
+That failure is invisible from the daemon's side. Nothing raises; the key is simply absent from the
+dict `status` publishes, `.get()` answers `None`, and the card renders empty as though the device had
+never reported. `worn`, `charging`, `clock_skew_sec` and `pull_progress` are exactly the fields where an
+empty reading is indistinguishable from a real one.
+
+So this asserts the projection as a CONTRACT: the exact key set, and every value round-tripped from a
+status block where no two fields share a value — because a test whose fixture uses `True` twice cannot
+tell two transposed fields apart.
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from tests.test_webmon_api import _mk, _serve, telemetry, webmon  # noqa: E402
+
+# Every value distinct, and distinct from the CONFIG values below — a transposition has to change
+# something for a test to be able to see it.
+FULL_STATUS = {
+    "connected": True,
+    "battery": 88,
+    "rssi": -55,
+    "clock_synced": True,
+    "device_time": "2026-08-02 14:31:07",
+    "clock_skew_sec": -1.25,
+    "pull_progress": {"done": 3, "total": 7, "pct": 42},
+    "link_epoch": 7,
+    "worn": True,
+    "charging": True,
+    "last_error": "gatt write failed",
+}
+
+DEV = {"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "12345678",
+       "device_id_aliases": ["1234-5678"], "name_aliases": ["Polar H10 12345678"],
+       "address": "AA:BB:CC:DD:EE:FF", "streams": ["ecg", "acc"], "rates": {}}
+
+# The projection's key set, in full. `rates` is deliberately NOT here: it is a config-only concern the
+# monitor does not render, and adding it would be a new contract rather than an assertion about this one.
+DEVICE_KEYS = {
+    "name", "vendor", "model", "device_id", "device_id_aliases", "name_aliases", "address", "streams",
+    "connected", "battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
+    "link_epoch", "worn", "charging", "last_error",
+}
+
+
+def _state(tmp_path, devices, status):
+    app, *_ = _mk(tmp_path, devices=devices, status=status)
+
+    async def go(c):
+        return await (await c.get("/api/state")).json()
+    return _serve(app, go)
+
+
+def test_a_device_projects_every_field_it_promises(tmp_path):
+    d = _state(tmp_path, [DEV], {"H10": FULL_STATUS})["devices"][0]
+    assert set(d) == DEVICE_KEYS, "the device projection's key set is the monitor's contract"
+    # config half
+    assert d["name"] == "H10" and d["vendor"] == "Polar" and d["model"] == "H10"
+    assert d["device_id"] == "12345678"
+    assert d["device_id_aliases"] == ["1234-5678"]
+    assert d["name_aliases"] == ["Polar H10 12345678"]
+    assert d["address"] == "AA:BB:CC:DD:EE:FF"
+    assert d["streams"] == ["ecg", "acc"]
+    # live half — every one read from `status`, and every one a field the UI renders
+    assert d["connected"] is True
+    assert d["battery"] == 88
+    assert d["rssi"] == -55
+    assert d["clock_synced"] is True
+    assert d["device_time"] == "2026-08-02 14:31:07"
+    assert d["clock_skew_sec"] == -1.25
+    assert d["pull_progress"] == {"done": 3, "total": 7, "pct": 42}
+    assert d["link_epoch"] == 7
+    assert d["worn"] is True
+    assert d["charging"] is True
+    assert d["last_error"] == "gatt write failed"
+
+
+def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
+    """The empty case must have the SAME shape. A card that reads a key the response never sent gets
+    `undefined`, which renders identically to a real null — so the absence has to be impossible, not
+    merely unlikely."""
+    d = _state(tmp_path, [DEV], {})["devices"][0]
+    assert set(d) == DEVICE_KEYS
+    assert d["connected"] is False, "never reported is a definite NO, not unknown"
+    assert d["charging"] is False
+    for k in ("battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
+              "link_epoch", "worn", "last_error"):
+        assert d[k] is None, f"{k} must be null when the device has never reported"
+
+
+def test_status_is_matched_to_a_device_by_NAME_not_by_position(tmp_path):
+    """`status['devices']` is keyed by device name. Two configured devices with one status block between
+    them is the case that catches a positional read — the unreported one must not inherit the other's
+    battery and dot."""
+    ring = {"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S", "device_id": "S8AW",
+            "address": "D1:98:62:7C:92:B3", "streams": ["spo2"], "rates": {}}
+    devs = _state(tmp_path, [DEV, ring], {"Ring": FULL_STATUS})["devices"]
+    by_name = {d["name"]: d for d in devs}
+    assert by_name["Ring"]["battery"] == 88 and by_name["Ring"]["connected"] is True
+    assert by_name["H10"]["battery"] is None and by_name["H10"]["connected"] is False
+
+
+def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
+    """Each of these is a whole UI panel, and each is null until its poller has run once. Reading the
+    wrong status key gives a permanently-empty panel with nothing logged — the same silent shape as the
+    per-device fields above."""
+    # `_mk` only threads `devices` into status, so build the app directly to set the sibling blocks.
+    # Every value distinct, so a lookup reading the wrong key cannot land on the right answer.
+    st = {"devices": {},
+          "host_clock": {"source": "chrony", "stratum": 1},
+          "storage": {"free_gb": 83.4},
+          "qc": {"nights": 3},
+          "host": {"started_at": 1750000000},
+          "archive": {"verified": True},
+          "cpap": {"state": "ok", "files": 5}}
+    cfg = {"root": str(tmp_path), "clock": {"sudo": False}, "devices": [dict(DEV)]}
+    app = webmon.make_app(telemetry.TelemetryBus(), cfg, str(tmp_path / "config.yaml"),
+                          "AA:AA:AA:AA:AA:AA", st, None)
+
+    async def go(c):
+        return await (await c.get("/api/state")).json()
+    body = _serve(app, go)
+    assert body["adapter"] == "AA:AA:AA:AA:AA:AA"
+    assert body["host_clock"] == {"source": "chrony", "stratum": 1}
+    assert body["storage"] == {"free_gb": 83.4}
+    assert body["qc"] == {"nights": 3}
+    assert body["host"] == {"started_at": 1750000000}
+    assert body["archive"] == {"verified": True}
+    assert body["cpap"] == {"state": "ok", "files": 5}
+    assert set(body) == {"adapter", "devices", "streams", "host_clock", "storage", "qc", "host",
+                         "archive", "cpap"}
+
+
+def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):
+    body = _state(tmp_path, [DEV], {})
+    for k in ("host_clock", "storage", "qc", "host", "archive", "cpap"):
+        assert k in body, f"{k} must be present-and-null, never absent"
+    for k in ("storage", "qc", "host", "archive", "cpap"):
+        assert body[k] is None
