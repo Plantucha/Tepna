@@ -3802,6 +3802,14 @@
       msStep = null,
       stepSum = 0,
       stepN = 0;
+    /* HOST-DISCIPLINED AXIS (WEARABLE-HOST-AXIS-2026-08-02 §3). `fs` above is derived from the DEVICE's
+       own `timestamp [ms]` column, so the exported axis has always been the H10's crystal — measured at
+       −27 ppm, i.e. −0.70 s across a 434 min night. Anchoring host↔device 1 row in ECG_AXIS_EVERY makes
+       that removable. A two-point estimate (endEpochMs − t0Ms over lastRelMs − firstRelMs) is already
+       free here and was rejected on purpose: this corpus contains an H10 file with a 3.22 s STEP, which
+       two points cannot distinguish from a rate and would silently smear across the whole recording. */
+    var ecgAxisAnchors = [];
+    var ECG_AXIS_EVERY = 500; // ≈3.8 s at 130 Hz → ~4000 anchors on a 434 min file
     var gaps = [];
     // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — the SESSION BOUNDARIES, in the file's own relative-ms
     // frame. `gaps[i].idx` alone would force a consumer to reconstruct wall-clock from `idx/fs`, which
@@ -3872,6 +3880,14 @@
           lastRelMs = ms;
         }
       }
+      // Host anchor, sampled — see ECG_AXIS_EVERY. Placed at the END of the body so `firstRelMs` is
+      // already set on the very first row, which makes anchor 0 exactly (0,0) and keeps the correction
+      // zero at t0Ms — the node has already anchored there, so a non-zero start would double-count it.
+      if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 || n % ECG_AXIS_EVERY === 0)) {
+        var aRel = parseFloat(p[2]);
+        var aTs = parseTimestamp(p[0]);
+        if (aTs && aTs.tMs != null && isFinite(aRel)) ecgAxisAnchors.push({ devMs: aRel - firstRelMs, hostMs: aTs.tMs - t0Ms });
+      }
     }
     // DEEP-AUDIT-II §4.3 (#5): derive fs from the MEAN non-gap sample interval — a stamp-span
     // cross-check, NOT a single delta. The Polar Sensor Logger's `timestamp [ms]` column loses float
@@ -3880,6 +3896,18 @@
     // jitter back to ~7.69 ms → 130, and gap dropouts are excluded. Falls back to the provisional step.
     if (stepN > 0) fs = Math.round((1000 * stepN) / stepSum);
     else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
+    /* Discipline `fs` to the host clock. Every beat time in this file is `peaks[k] / fs`, so correcting
+       fs is what actually reaches the export — a separate `fsExact` nothing consumed would have been a
+       fix in name only. Applied AFTER the integer rounding above, deliberately: that rounding exists to
+       make the ESTIMATE robust (§4.3 — a single delta misreads 130 Hz as 125), and it must not then
+       round the correction away. Result is a non-integer fs on real captures (130 → 130.0035) and an
+       exactly unchanged one whenever the two clocks agree or too few anchors resolved.
+       Unlike PpgDex — which carries a per-sample relSec and takes the full piecewise correction — an
+       ECG rec is (int16, fs), and one scalar can express a RATE but not a STEP. A step is therefore
+       REPORTED via hostAxis.maxStepMs and deliberately NOT corrected: absorbing a 3.22 s jump into fs
+       would spread it across 434 min of otherwise good signal. */
+    var ecgHostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? DexClock.hostAxis(ecgAxisAnchors, {}) : { ok: false };
+    if (ecgHostAx.ok && isFinite(ecgHostAx.ppm)) fs = fs / (1 + ecgHostAx.ppm / 1e6);
     // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
     // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
     // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
@@ -3896,7 +3924,11 @@
       durSec: n / fs,
       endEpochMs: endEpochMs,
       firstRelMs: firstRelMs,
-      lastRelMs: lastRelMs
+      lastRelMs: lastRelMs,
+      // See the fs block above. `maxStepMs` is the one to read: a step is reported, never corrected.
+      hostAxis: ecgHostAx.ok
+        ? { ok: true, anchors: ecgHostAx.n, totalMs: ecgHostAx.totalMs, ppm: ecgHostAx.ppm, maxStepMs: ecgHostAx.maxStepMs }
+        : { ok: false, reason: ecgHostAx.reason || 'no host anchors' }
     };
   }
 

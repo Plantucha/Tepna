@@ -14,8 +14,12 @@
  * MEASURED (WEARABLE-DRIFT-DIRECT-2026-08-02): H10 -20 ppm and Verity -27 ppm against the host, each
  * stable to +-2-3 ppm across fragments AND across four nights, so the inter-device rate is ~7 ppm —
  * 176 ms over a 7 h night, comfortably under one RR. Beat-derived estimates of 89-216 ppm are an
- * unwrap artifact. The O2Ring's `sensor timestamp` column is NOT a clock (-1441 to +141 ppm between
- * fragments of one night) and must never be used as one.
+ * unwrap artifact. The O2Ring's `sensor timestamp` column is NOT a clock and must never be used as one:
+ * it is DRAWN (WEARABLE-HOST-AXIS-2026-08-02 §3) — `sample_index x 7,953,045 ns` on every session up to
+ * 2026-07-27, one delta value at 100 % across 16 files. Its apparent ppm is the error in that assumed
+ * rate, not a crystal property, which is why it is erratic and occasionally near-perfect. Do NOT respond
+ * by re-calibrating the constant: a better number makes a drawn axis more plausible without making it a
+ * measurement, and erases the evidence that it is drawn.
  *
  * Usage: node tools/dual-clock-rate.mjs <capture-night-dir>
  */

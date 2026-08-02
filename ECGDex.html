@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0WivyiORxaVcwqTma7kgRQNo2R8pugsrCjBfwq0026k=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-HFDSXcBDW8u7XD7M1mWyyx1aMdalHFgIYSeJ6kXEWU8=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-W9TlargHDgYSCDALxgH9CGwNJXsDIE0BNYauc9UZEDo=' 'sha256-WrGuswl1CVDir7LQSJvyOiKt8Hje2JvBJMTu2EChdGw=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-pxidPRuVbOj71Q0lE6O/Yh/e/5FTEsECIwZPkqnUwnE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0WivyiORxaVcwqTma7kgRQNo2R8pugsrCjBfwq0026k=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-HFDSXcBDW8u7XD7M1mWyyx1aMdalHFgIYSeJ6kXEWU8=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-bw6rfr4B0CUwSUGUdE6p6SkGWH+3xW0BfuNMDL9M7BA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-f2HGHVm/1zjp3NNSub0EQGQCUNni9ug30nt4PCO02rA=' 'sha256-pxidPRuVbOj71Q0lE6O/Yh/e/5FTEsECIwZPkqnUwnE='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6669,7 +6669,151 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return null;
   }
 
-  root.DexClock = { tzOffset: tzOffset, _ckP2: _ckP2, _ckNumEpoch: _ckNumEpoch, _ckZoneMin: _ckZoneMin, _ckDMY: _ckDMY, resolveDMY: resolveDMY, parseTimestamp: parseTimestamp };
+  // ══════════════════════════════════════════════════════════════════════════════════════
+  //  HOST-DISCIPLINED TIME AXIS — hostAxis()      (WEARABLE-HOST-AXIS-2026-08-02-BRIEF)
+  // ══════════════════════════════════════════════════════════════════════════════════════
+  //  Every Polar-Sensor-Logger / capture-host stream carries TWO clocks on EVERY row:
+  //      col 0  "Phone timestamp"        — the capture HOST (vigil box: chrony local-stratum-1, 0.008 ppm)
+  //      col 1  "sensor timestamp [ns]"  — the DEVICE's own crystal
+  //  The nodes historically read the host stamp ONCE (to anchor t0Ms) and then rode the DEVICE
+  //  crystal for the rest of the night — ppgdex `relSec = ns/1e9`, ecgdex `t0 + i/fs` with fs from
+  //  the device's own ms column. That puts an uncorrected crystal on the EXPORTED axis while a
+  //  disciplined clock sat unused in column 0 of every row.
+  //
+  //  Measured on 2026-07-26 by deciles of (host − device), with NO fitting of any kind:
+  //      H10 ECG       −0.70 s over 434 min   −27 ppm, smooth
+  //      Verity PPG    −0.34 s over 189 min   −30 ppm, smooth
+  //      O2Ring PPG   −18.49 s over 190 min   NON-LINEAR — −3035 ppm decaying to −1622 ppm
+  //  A counter reset was ruled out first (it would fake any global slope): the O2Ring ramp is
+  //  smooth, so it is a genuine rate error — and because it is non-linear, NO single ppm and no
+  //  linear fit describes it. That is why this interpolates a measured curve instead of fitting.
+  //
+  //  TWO properties of the correction, neither optional:
+  //    • SLOW.   Its own slope is ~30 ppm (30 µs per second), so RR/PPI intervals keep the device's
+  //      fine structure. The crystal is excellent at short scales; only its RATE is wrong. Correcting
+  //      the rate must not disturb the intervals HRV is computed from.
+  //    • ROBUST. Host stamps carry BLE delivery jitter (~0.1 s here — visible as the Verity's
+  //      −0.15/−0.08/−0.26 wobble). Interpolating RAW anchors would inject that jitter straight into
+  //      beat times, which for HRV is worse than the drift it fixes. A running median rejects it.
+  //
+  //  NO SPAN GATE HERE — and that is deliberate, because the sibling tool needed one. A ppm QUOTED
+  //  from a short fragment is unreliable (dual-clock-rate.mjs measured the same H10 at −20.3 ppm over
+  //  373 min and −65.8 ppm over 10.9 min), so that tool gates on span. This function is not quoting a
+  //  rate: it INTERPOLATES the measured divergence, so the correction it applies is bounded by what it
+  //  actually observed over that fragment. On a short H10 fragment the noise is ~12 ms; on a short
+  //  O2Ring one the real error is ~3 s and very much worth removing. Gating on span would refuse
+  //  exactly the case that needs it most. `ppm` is REPORTED for diagnosis — do not quote it from a
+  //  short fragment without the span beside it.
+  //
+  //  ⚠ This does NOT claim the host is absolutely right. It places every device on ONE timebase, so
+  //  they become mutually consistent; whether that timebase is itself correct is the host's business
+  //  (0.008 ppm on the capture box — UNVERIFIED on phone captures, where the column is a real phone).
+  //  Reported, never assumed: `maxStepMs` surfaces a genuine clock STEP smeared across one anchor gap
+  //  (2026-07-26 carries a 1.90 s O2Ring step and a 3.22 s H10 one) rather than hiding it in a slope.
+  //  Window CHOSEN BY MEASUREMENT, not taste — planted recovery against ±100 ms jitter over the real
+  //  190 min / 2873-anchor O2Ring geometry (worst / rms residual, ms):
+  //      win  9 → 77 / 36.3      win 21 → 57 / 18.7      win 41 → 168 / 16.5      win 81 → 245 / 24.8
+  //  21 halves the jitter without over-smoothing; 41+ starts flattening the O2Ring's real curvature,
+  //  which is the one thing this must follow. Step recovery is unaffected across the whole range.
+  var CK_AXIS_WIN = 21; // running-median width in anchors; odd so the median is a real sample
+  var CK_AXIS_MAX_PPM = 50000; // 5 % — refusal bound, see the plausibility check in hostAxis()
+
+  function _ckMedian(v) {
+    var s = v.slice().sort(function (a, b) {
+      return a - b;
+    });
+    var m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+
+  /* anchors: [{ devMs, hostMs }, …] — BOTH relative to the same first row, in device order.
+     Returns { ok, correctionAt(devMs) → ms to ADD to the device axis, n, maxStepMs, totalMs, ppm }.
+     ok:false ⇒ caller keeps the raw device axis (honest: no correction beats a fabricated one). */
+  function hostAxis(anchors, opts) {
+    opts = opts || {};
+    var win = opts.window > 0 ? opts.window | 0 : CK_AXIS_WIN;
+    var pts = [];
+    for (var i = 0; i < (anchors ? anchors.length : 0); i++) {
+      var a = anchors[i];
+      if (!a) continue;
+      var d = Number(a.devMs),
+        h = Number(a.hostMs);
+      if (!isFinite(d) || !isFinite(h)) continue;
+      pts.push({ d: d, r: h - d });
+    }
+    if (pts.length < 3) return { ok: false, reason: 'need ≥3 host anchors, got ' + pts.length, n: pts.length };
+    pts.sort(function (x, y) {
+      return x.d - y.d;
+    });
+    // Divergence is measured RELATIVE to the first anchor: the node has already anchored t0Ms there,
+    // so the correction must be 0 at the start and grow. An absolute offset here would double-count it.
+    var r0 = pts[0].r;
+    var n = pts.length;
+    var sm = new Array(n);
+    for (var k = 0; k < n; k++) {
+      var lo = k - (win >> 1),
+        hi = k + (win >> 1);
+      if (lo < 0) lo = 0;
+      if (hi > n - 1) hi = n - 1;
+      var w = [];
+      for (var j = lo; j <= hi; j++) w.push(pts[j].r - r0);
+      sm[k] = _ckMedian(w);
+    }
+    var maxStep = 0;
+    for (var s = 1; s < n; s++) {
+      var st = Math.abs(sm[s] - sm[s - 1]);
+      if (st > maxStep) maxStep = st;
+    }
+    var span = pts[n - 1].d - pts[0].d;
+    var ppm = span > 0 ? (sm[n - 1] / span) * 1e6 : 0;
+    /* PLAUSIBILITY BOUND — refuse, never "correct", an implausible rate. Caught by the ECGDex §4.3
+       fixture, whose synthetic ms column advances at 2× its host stamps: unbounded, that is a −500000
+       ppm "correction" that doubled fs from 130 to 259.9. A device crystal is wrong by ppm; the worst
+       REAL one in this corpus is the O2Ring at −3035 ppm, which this admits with 16× headroom. Beyond
+       5 % the two columns are not the two clocks we think they are — a misparse, a unit mismatch, a
+       shifted column — and applying it would fabricate a timebase. §2.6's rule, one level up: when the
+       input cannot be trusted the answer is "no correction", not a confident wrong one. */
+    if (!(Math.abs(ppm) <= CK_AXIS_MAX_PPM)) {
+      return { ok: false, reason: 'implausible host/device rate ' + Math.round(ppm) + ' ppm (bound ±' + CK_AXIS_MAX_PPM + ') — columns are probably not host+device', n: n, ppm: ppm };
+    }
+    return {
+      ok: true,
+      n: n,
+      maxStepMs: maxStep,
+      totalMs: sm[n - 1],
+      ppm: ppm,
+      /* Linear between anchors; FLAT outside them. Flat, not extrapolated: past the last anchor there
+         is no measurement, and extending a slope there would fabricate one — the same rule as §2.6. */
+      correctionAt: function (devMs) {
+        var x = Number(devMs);
+        if (!isFinite(x)) return 0;
+        if (x <= pts[0].d) return sm[0];
+        if (x >= pts[n - 1].d) return sm[n - 1];
+        var lo2 = 0,
+          hi2 = n - 1;
+        while (hi2 - lo2 > 1) {
+          var mid = (lo2 + hi2) >> 1;
+          if (pts[mid].d <= x) lo2 = mid;
+          else hi2 = mid;
+        }
+        var dx = pts[hi2].d - pts[lo2].d;
+        if (!(dx > 0)) return sm[lo2];
+        return sm[lo2] + ((sm[hi2] - sm[lo2]) * (x - pts[lo2].d)) / dx;
+      }
+    };
+  }
+
+  root.DexClock = {
+    tzOffset: tzOffset,
+    _ckP2: _ckP2,
+    _ckNumEpoch: _ckNumEpoch,
+    _ckZoneMin: _ckZoneMin,
+    _ckDMY: _ckDMY,
+    resolveDMY: resolveDMY,
+    parseTimestamp: parseTimestamp,
+    hostAxis: hostAxis,
+    _ckMedian: _ckMedian
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
 </script>
@@ -10478,6 +10622,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       msStep = null,
       stepSum = 0,
       stepN = 0;
+    /* HOST-DISCIPLINED AXIS (WEARABLE-HOST-AXIS-2026-08-02 §3). `fs` above is derived from the DEVICE's
+       own `timestamp [ms]` column, so the exported axis has always been the H10's crystal — measured at
+       −27 ppm, i.e. −0.70 s across a 434 min night. Anchoring host↔device 1 row in ECG_AXIS_EVERY makes
+       that removable. A two-point estimate (endEpochMs − t0Ms over lastRelMs − firstRelMs) is already
+       free here and was rejected on purpose: this corpus contains an H10 file with a 3.22 s STEP, which
+       two points cannot distinguish from a rate and would silently smear across the whole recording. */
+    var ecgAxisAnchors = [];
+    var ECG_AXIS_EVERY = 500; // ≈3.8 s at 130 Hz → ~4000 anchors on a 434 min file
     var gaps = [];
     // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — the SESSION BOUNDARIES, in the file's own relative-ms
     // frame. `gaps[i].idx` alone would force a consumer to reconstruct wall-clock from `idx/fs`, which
@@ -10548,6 +10700,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           lastRelMs = ms;
         }
       }
+      // Host anchor, sampled — see ECG_AXIS_EVERY. Placed at the END of the body so `firstRelMs` is
+      // already set on the very first row, which makes anchor 0 exactly (0,0) and keeps the correction
+      // zero at t0Ms — the node has already anchored there, so a non-zero start would double-count it.
+      if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 || n % ECG_AXIS_EVERY === 0)) {
+        var aRel = parseFloat(p[2]);
+        var aTs = parseTimestamp(p[0]);
+        if (aTs && aTs.tMs != null && isFinite(aRel)) ecgAxisAnchors.push({ devMs: aRel - firstRelMs, hostMs: aTs.tMs - t0Ms });
+      }
     }
     // DEEP-AUDIT-II §4.3 (#5): derive fs from the MEAN non-gap sample interval — a stamp-span
     // cross-check, NOT a single delta. The Polar Sensor Logger's `timestamp [ms]` column loses float
@@ -10556,6 +10716,18 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // jitter back to ~7.69 ms → 130, and gap dropouts are excluded. Falls back to the provisional step.
     if (stepN > 0) fs = Math.round((1000 * stepN) / stepSum);
     else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
+    /* Discipline `fs` to the host clock. Every beat time in this file is `peaks[k] / fs`, so correcting
+       fs is what actually reaches the export — a separate `fsExact` nothing consumed would have been a
+       fix in name only. Applied AFTER the integer rounding above, deliberately: that rounding exists to
+       make the ESTIMATE robust (§4.3 — a single delta misreads 130 Hz as 125), and it must not then
+       round the correction away. Result is a non-integer fs on real captures (130 → 130.0035) and an
+       exactly unchanged one whenever the two clocks agree or too few anchors resolved.
+       Unlike PpgDex — which carries a per-sample relSec and takes the full piecewise correction — an
+       ECG rec is (int16, fs), and one scalar can express a RATE but not a STEP. A step is therefore
+       REPORTED via hostAxis.maxStepMs and deliberately NOT corrected: absorbing a 3.22 s jump into fs
+       would spread it across 434 min of otherwise good signal. */
+    var ecgHostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? DexClock.hostAxis(ecgAxisAnchors, {}) : { ok: false };
+    if (ecgHostAx.ok && isFinite(ecgHostAx.ppm)) fs = fs / (1 + ecgHostAx.ppm / 1e6);
     // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
     // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
     // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
@@ -10572,7 +10744,11 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       durSec: n / fs,
       endEpochMs: endEpochMs,
       firstRelMs: firstRelMs,
-      lastRelMs: lastRelMs
+      lastRelMs: lastRelMs,
+      // See the fs block above. `maxStepMs` is the one to read: a step is reported, never corrected.
+      hostAxis: ecgHostAx.ok
+        ? { ok: true, anchors: ecgHostAx.n, totalMs: ecgHostAx.totalMs, ppm: ecgHostAx.ppm, maxStepMs: ecgHostAx.maxStepMs }
+        : { ok: false, reason: ecgHostAx.reason || 'no host anchors' }
     };
   }
 
