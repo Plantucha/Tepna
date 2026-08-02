@@ -105,8 +105,14 @@ for (const { f } of big) {
   }
   const dev = /H10/.test(f) ? 'H10   ' : /Verity/.test(f) ? 'VERITY' : 'O2RING';
   const short = r.spanMin < MIN_SPAN_MIN;
-  if (!short) (byDev[dev.trim()] ||= []).push(r.ppm);
-  console.log(`${dev}  ${r.spanMin.toFixed(1).padStart(7)}   ${r.ppm.toFixed(1).padStart(11)}   ${String(r.samples).padStart(7)}   ${r.file}${short ? `   ← under ${MIN_SPAN_MIN} min, not a rate` : ''}`);
+  if (!short) {
+    const k = dev.trim();
+    if (!byDev[k]) byDev[k] = [];
+    byDev[k].push(r.ppm);
+  }
+  console.log(
+    `${dev}  ${r.spanMin.toFixed(1).padStart(7)}   ${r.ppm.toFixed(1).padStart(11)}   ${String(r.samples).padStart(7)}   ${r.file}${short ? `   ← under ${MIN_SPAN_MIN} min, not a rate` : ''}`
+  );
 }
 
 /* Summary over the long fragments only. The spread across fragments is the honest error bar
