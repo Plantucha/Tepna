@@ -32,7 +32,19 @@
  * This is also the structural reason ACC↔ACC envelope correlation DOES work:
  * an activity envelope is APERIODIC, so its cross-correlation has one peak.
  * A beat train is periodic by construction, so its coincidence curve cannot.
- * The general rule for anything downstream: align on aperiodic features.
+ *
+ * ⛔ BUT THE CONCLUSION DRAWN FROM THAT WAS WRONG — corrected 2026-08-01.
+ * This tool sweeps ONE offset across a whole night. The two optical devices
+ * DRIFT relative to each other, by up to 123 ppm measured — over 7 h that is
+ * ~3 s, nearly three RR intervals. So a constant-offset scan is right at the
+ * start of the night and comparing against the wrong beat by the end, and the
+ * "% corresponding" it reports is mostly a statement about how far the clocks
+ * have separated. Refitting in 5-minute blocks takes the same nights from
+ * 18–40 % to 43–98.8 % (chance control, same search: 22–27 %). Use --local.
+ *
+ * The comb is still real, and is still why you cannot simply search harder:
+ * under a CONSTANT offset the teeth are one RR apart and no statistic picks
+ * between them. What resolves it is a drift term, not a finer search.
  *
  * USAGE
  *   node tools/beat-comb-analysis.mjs --selftest
@@ -46,6 +58,12 @@
  *     PpgDexFinger_<night>.node-export.json (finger); both need timeseries.ppi,
  *     which node exports carry from v2.0.0 on. Prints the per-night table.
  *
+ *   --local       refit the offset per 5-minute block instead of once per night.
+ *                 This is the honest measurement of beat CORRESPONDENCE; without
+ *                 it the number is confounded with relative clock drift.
+ *   --control     shift the partner series by +1 h and re-run, with identical
+ *                 degrees of freedom — because a per-block search is exactly the
+ *                 kind of added freedom that manufactures a result.
  *   --pair <p>    optical | ecg-wrist | ecg-finger | all   (default optical)
  *                 `optical` is wrist↔finger, the brief's CONTROL table. The two
  *                 `ecg-*` pairs are the brief's FIRST table, which turns out to be
@@ -66,6 +84,12 @@ const opt = (n, d) => {
 };
 
 const TOL = parseFloat(opt('--tol', '100'));
+/* Refit per block rather than once per night. See the ⛔ note in the header: without this the
+   reported correspondence is confounded with relative clock drift, which is how this tool's own
+   first conclusion came out wrong. `--control` shifts the partner +1 h with identical degrees of
+   freedom, because a per-block search is exactly the kind of added freedom that manufactures one. */
+const LOCAL = flag('--local');
+const CONTROL = flag('--control');
 const SPAN_RR = parseFloat(opt('--span', '3'));
 
 /* ── the instrument ────────────────────────────────────────────────────── */
@@ -156,11 +180,55 @@ const PAIRS = {
   'ecg-finger': { label: 'ECG→finger', a: ['ECGDex', 'rr'], b: ['PpgDexFinger', 'ppi'] }
 };
 
+/**
+ * Beat correspondence with the offset REFIT PER BLOCK — the measurement the whole-night
+ * sweep cannot make. Returns the median per-block coincidence and the drift implied by
+ * how the per-block offset marches, via a Theil–Sen slope over block pairs ≥30 min apart.
+ */
+function localCorrespondence(A, B, tol, blockMs, shiftMs) {
+  const b = shiftMs ? B.map((x) => x + shiftMs) : B;
+  const t0 = A[0];
+  const t1 = A[A.length - 1];
+  const fracs = [];
+  const pts = [];
+  for (let bs = t0; bs < t1; bs += blockMs) {
+    const wb = A.filter((t) => t >= bs && t < bs + blockMs);
+    if (wb.length < 60) continue;
+    const fb = b.filter((t) => t >= bs - 4000 && t < bs + blockMs + 4000);
+    if (fb.length < 60) continue;
+    let best = 0;
+    let bl = 0;
+    for (let tau = -3000; tau <= 3000; tau += 20) {
+      const c = coincidence(wb, fb, tau, tol);
+      if (c > best) {
+        best = c;
+        bl = tau;
+      }
+    }
+    fracs.push((100 * best) / wb.length);
+    pts.push([(bs - t0) / 60000, bl]);
+  }
+  if (!fracs.length) return null;
+  const med = (a) => {
+    const x = a.slice().sort((p, q) => p - q);
+    return x[x.length >> 1];
+  };
+  const sl = [];
+  for (let i = 0; i < pts.length; i++)
+    for (let j = i + 1; j < pts.length; j++) {
+      const dx = pts[j][0] - pts[i][0];
+      if (dx > 30) sl.push((pts[j][1] - pts[i][1]) / dx);
+    }
+  const driftMsPerMin = sl.length ? med(sl) : null;
+  return { blocks: fracs.length, median: med(fracs), best: Math.max(...fracs), driftMsPerMin, ppm: driftMsPerMin == null ? null : (driftMsPerMin / 60000) * 1e6 };
+}
+
 function runDir(dir, which) {
   const nights = readdirSync(dir).sort();
   const pairs = which === 'all' ? Object.keys(PAIRS) : [which];
   console.log(`beat-comb — ${dir}   tol ±${TOL} ms, sweep ±${SPAN_RR} RR\n`);
-  console.log('night          pair            meanRR   @lag0%   peak%   floor%   ratio   teeth   spacing (ms)');
+  if (LOCAL) console.log('night          pair            whole-night   per-block   best     ppm' + (CONTROL ? '     control' : ''));
+  else console.log('night          pair            meanRR   @lag0%   peak%   floor%   ratio   teeth   spacing (ms)');
   let seen = 0;
   for (const night of nights) {
     for (const key of pairs) {
@@ -171,6 +239,20 @@ function runDir(dir, which) {
       seen++;
       const meanRR = mean(A.ms);
       const s = sweep(A.t, B.t, meanRR, TOL, SPAN_RR);
+      if (LOCAL) {
+        const L = localCorrespondence(A.t, B.t, TOL, 5 * 60 * 1000, 0);
+        const C = CONTROL ? localCorrespondence(A.t, B.t, TOL, 5 * 60 * 1000, 3600000) : null;
+        console.log(
+          night.padEnd(14),
+          P.label.padEnd(15),
+          ((100 * s.best.n) / A.t.length).toFixed(1).padStart(9) + '%',
+          (L ? L.median.toFixed(1) : '—').padStart(11) + '%',
+          (L ? L.best.toFixed(1) : '—').padStart(8) + '%',
+          (L && L.ppm != null ? L.ppm.toFixed(0) : '—').padStart(9),
+          C ? (C.median.toFixed(1) + '%').padStart(11) : ''
+        );
+        continue;
+      }
       const sp = [];
       for (let i = 1; i < s.teeth.length; i++) sp.push(Math.round(s.teeth[i].lag - s.teeth[i - 1].lag));
       console.log(
@@ -188,6 +270,13 @@ function runDir(dir, which) {
   }
   if (!seen) {
     console.log('\n(no night carried both halves of the requested pair with a beat timeseries)');
+    return;
+  }
+  if (LOCAL) {
+    console.log(`\n${seen} row(s). PER-BLOCK is the honest correspondence; WHOLE-NIGHT is that number`);
+    console.log('confounded with relative clock drift, which the ppm column quantifies. Compare each');
+    console.log('row against its own CONTROL (partner shifted +1 h, identical per-block search) — the');
+    console.log('gain has to survive that, or it is just the extra degrees of freedom.');
     return;
   }
   console.log(`\n${seen} row(s). Read the SPACING column: where it is ≈ meanRR the curve is a comb,`);
@@ -269,6 +358,38 @@ function selftest() {
   const zeroPct = (100 * r.zero) / A.length;
   const peakPct = (100 * r.best.n) / A.length;
   ok('coincidence at lag 0 badly understates correspondence when zero is off-tooth', zeroPct < 0.5 * peakPct, `@0 ${zeroPct.toFixed(1)} % vs peak ${peakPct.toFixed(1)} %`);
+
+  /* ── THE ONE THIS TOOL'S FIRST CONCLUSION NEEDED (2026-08-01) ─────────
+     Plant a pair that SHARES EVERY BEAT but drifts, and the whole-night sweep
+     reports poor correspondence anyway — which is exactly what was measured on
+     the real corpus and read as physiology. The local refit recovers it. Without
+     this assertion the tool can report 20 % on a pair that shares 100 %. */
+  const DRIFT_PPM = 123; // the worst measured on the real corpus (2026-07-28)
+  const dA = [];
+  let dt = 0;
+  for (let i = 0; i < 25000; i++) {
+    dA.push(dt);
+    dt += MEAN_RR * (0.92 + 0.16 * rnd());
+  }
+  // partner sees THE SAME beats, on a clock running DRIFT_PPM fast
+  const dB = dA.map((t) => t * (1 + DRIFT_PPM / 1e6) + 250);
+  const span = (dA[dA.length - 1] - dA[0]) / 1000;
+  const accrued = (span * DRIFT_PPM) / 1e6;
+  ok('the planted night accrues more than one RR of drift', accrued * 1000 > MEAN_RR, `${accrued.toFixed(1)} s over ${(span / 60).toFixed(0)} min vs RR ${MEAN_RR} ms`);
+
+  let gBest = 0;
+  for (let tau = -3000; tau <= 3000; tau += 10) gBest = Math.max(gBest, coincidence(dA, dB, tau, 100));
+  const gPct = (100 * gBest) / dA.length;
+  const loc = localCorrespondence(dA, dB, 100, 5 * 60 * 1000, 0);
+  const ctl = localCorrespondence(dA, dB, 100, 5 * 60 * 1000, 3600000);
+  ok('ONE offset badly understates a pair that shares every beat', gPct < 60, `whole-night ${gPct.toFixed(1)} % on a 100 %-shared pair`);
+  ok('…and refitting per block recovers it', loc && loc.median > 90, loc ? `per-block ${loc.median.toFixed(1)} %` : 'null');
+  ok('…and that gain survives the +1 h control', loc && ctl && loc.median > 3 * ctl.median, loc && ctl ? `${loc.median.toFixed(1)} % vs control ${ctl.median.toFixed(1)} %` : 'null');
+  ok(
+    '…and the drift is recovered to within 15 ppm',
+    loc && loc.ppm != null && Math.abs(loc.ppm - DRIFT_PPM) < 15,
+    loc && loc.ppm != null ? `${loc.ppm.toFixed(0)} ppm vs planted ${DRIFT_PPM}` : 'null'
+  );
 
   /* Control: against an INDEPENDENT train there is no comb above chance —
      so the comb above is beat sharing, not an artifact of the sweep itself. */
