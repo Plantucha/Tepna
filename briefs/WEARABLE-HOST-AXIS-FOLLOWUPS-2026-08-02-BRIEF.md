@@ -121,8 +121,16 @@ it needs a per-night matched comparison, and the old per-night σ values were ne
 > The ramp is **not** explained, and the two instruments that should adjudicate it are both unfit:
 > `alignEnvelopes.driftPpm` is not identifiable on this corpus (F7), and the night the ramp was measured
 > on is a 21-hour daytime capture with 5.2 h of gaps, not a sleep night. **The honest state is: PAT is
-> reachable and unresolved.** It needs re-measuring on a clean single-segment sleep night with the ACC
-> anchor carried end-to-end and no beat-derived offset at any stage. The `Done when` box is un-ticked.
+> reachable and unresolved.** The `Done when` box is un-ticked.
+>
+> ⚠️ **The remedy first written here — "re-measure on a clean single-segment sleep night with the ACC
+> anchor carried end-to-end" — was itself wrong, and was executed and disproved the same day.** Run on
+> 2026-07-09 (6.86 h, ZERO gaps, not drawn — the cleanest night the corpus has), the ACC anchor does not
+> lock PAT at all (hourly IQR 177–925 ms), while a single global beat offset nearly reaches the bar
+> (67–138 ms vs ≤60). The ACC and beat anchors are **3.40 s** apart — far more than PAT can explain, and
+> not a comb alias (3.42 RR). The ACC↔ACC offset is not valid for the ECG/PPG streams, most likely because
+> they are different BLE characteristics with different phone-side buffering.
+> **Continued in `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md`, which owns PAT from here.**
 
 ### PAT is not alignment-limited. That is the answer, and it is a negative one.
 
@@ -314,10 +322,11 @@ because two conclusions in this file were built on it.
 - [ ] A per-night MATCHED TCH comparison — the 2.71→3.44 PpgDex σ shift spans different night sets and
       is therefore unattributed. The old per-night σ values were never recorded; record them this time.
 - [x] **Closure and TCH re-asked.** Closure improved ~7x; TCH shown structurally unexposed.
-- [ ] **PAT — RE-OPENED, see the retraction at F3-ter.** The NO was produced by a harness that fitted a
-      free offset per block, absorbing the very quantity being measured. Held fixed at the ACC anchor,
-      PAT is locked (IQR 102-197 ms, starting lag 236 ms) under an unexplained ~188 ms/h ramp. Re-measure
-      on a clean single-segment sleep night, ACC anchor carried end-to-end, no beat-derived offset.
+- [ ] **PAT — RE-OPENED and HANDED OFF.** The NO was produced by a harness that fitted a free offset per
+      block, absorbing the very quantity being measured. The clean-night re-run then disproved this brief's
+      own replacement remedy: the ACC anchor does not transfer to the ECG/PPG streams (3.40 s apart, not a
+      comb alias). PAT now belongs to `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md`; nothing further is owed
+      here.
 - [x] **F7 — the host-axis rate is span-gated** (2026-08-02). Fleet `fs` spread 25341 → 52 ppm; gated
       both directions and verified to fail against the pre-fix parser.
 - [ ] `alignEnvelopes.driftPpm` is not identifiable and is quoted nowhere until it refuses or is fixed
