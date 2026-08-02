@@ -393,8 +393,20 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #   • tepna-restart.sh — writes nothing at all; systemctl and sleep are its only commands, stubbed.
     #   • tepna-rssi.sh    — writes nothing at all; hcitool is its only command, stubbed. The rest is
     #     awk/grep/printf on strings the test supplies.
+    # tepna-usbreset.sh added 2026-08-02 — the fourth NOPASSWD helper, and the first that writes to
+    # SYSFS rather than under /etc, so the confirmation is worth spelling out:
+    #   • it writes ONLY under $TEPNA_USB_SYSFS, which every test redirects into tmp_path — `_run()`
+    #     sets it unconditionally, so the real /sys/bus/usb/devices default is never reachable;
+    #   • it runs no external command that can mutate anything — cat / basename / sleep only. No
+    #     systemctl, no udevadm, no mount, no ip, no install;
+    #   • the VID:PID allowlist is enforced BEFORE any write, so even an unredirected run could only
+    #     bounce a docked Polar dock — never a disk, never a BLE adapter (asserted directly by
+    #     test_the_bluetooth_adapter_cannot_be_deauthorized);
+    #   • the non-root test asserts the write FAILS, and skips when euid == 0 so it cannot touch a real
+    #     sysfs even in a root container.
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
-                        "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh"}, (
+                        "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
+                        "tepna-usbreset.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 
