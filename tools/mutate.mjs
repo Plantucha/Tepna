@@ -229,6 +229,32 @@ function runSuiteAsync(filter, cwd) {
   });
 }
 
+/* THE WORKER POOL IS CREATED ONCE PER PROCESS, not once per file.
+   The first version built it inside runFile(), which was fine for a single module and catastrophic
+   for a sweep: `git worktree add` checks out the WHOLE tree — 71 MB here — so 12 workers × 71 files
+   is 852 full checkouts, ~850 MB copied per file. Measured on this external volume: one file took
+   ~12 minutes, projecting to ~14 h for the roster, and essentially all of it was checkout I/O rather
+   than test execution. Hoisted, the same sweep pays for 12 checkouts total. */
+let _pool = null;
+function workerPool() {
+  if (_pool) return _pool;
+  _pool = [];
+  for (let w = 0; w < JOBS; w++) {
+    const dir = join(ROOT, '..', '.mutate-w' + w + '-' + process.pid);
+    execFileSync('git', ['worktree', 'add', '--detach', '--quiet', dir, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
+    _pool.push(dir);
+  }
+  return _pool;
+}
+function dropPool() {
+  for (const d of _pool || []) {
+    try {
+      execFileSync('git', ['worktree', 'remove', '--force', d], { cwd: ROOT, stdio: 'ignore' });
+    } catch {}
+  }
+  _pool = null;
+}
+
 function runSuite(filter, cwd) {
   try {
     execFileSync('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd: cwd || ROOT, stdio: 'ignore', timeout: 900000 });
@@ -300,11 +326,7 @@ async function runFile(file) {
       /* One disposable worktree per worker, detached at HEAD. Each worker mutates ITS OWN copy of the
          file, so no two mutants ever race on the same bytes — and the caller's tree is never written
          to at all on this path. */
-      for (let w = 0; w < JOBS; w++) {
-        const dir = join(ROOT, '..', '.mutate-w' + w + '-' + process.pid);
-        execFileSync('git', ['worktree', 'add', '--detach', '--quiet', dir, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
-        trees.push(dir);
-      }
+      trees.push(...workerPool());
       let next = 0;
       const worker = async (dir) => {
         const wAbs = join(dir, file);
@@ -323,12 +345,7 @@ async function runFile(file) {
       }
     }
   } finally {
-    restore();
-    for (const d of trees) {
-      try {
-        execFileSync('git', ['worktree', 'remove', '--force', d], { cwd: ROOT, stdio: 'ignore' });
-      } catch {}
-    }
+    restore(); // the shared pool is torn down once, by dropPool() at the end of the run
   }
   if (!AS_JSON) process.stderr.write('\r' + ' '.repeat(78) + '\r');
   return {
@@ -446,7 +463,11 @@ if (!files.length) {
 }
 
 const results = [];
-for (const f of files) results.push(await runFile(f));
+try {
+  for (const f of files) results.push(await runFile(f));
+} finally {
+  dropPool();
+}
 if (AS_JSON) {
   console.log(JSON.stringify(results, null, 2));
   process.exit(0);
