@@ -300,3 +300,186 @@ def test_a_missing_address_is_blank_not_fabricated(tmp_path):
     w.write(WHEN, "H10", False, None, None)
     w.close()
     assert p.read_text().strip().split("\n")[1].split(";")[-1] == ""
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+# MUTATION PASS 2026-08-02 — the durability default, and the columns nobody read past the third
+#
+# Measured: 568 mutants, 137 surviving (76 % killed). Two shapes account for most of it.
+#
+# 1. `fsync: bool = True` is a FAIL-SAFE DEFAULT and every test in this file passes `fsync=False`
+#    explicitly — so nothing pinned it, in any of the five writers. Flipped, the box writes a whole
+#    night into page cache and calls it recorded. This is the same finding the audit already made once
+#    on `alerts.Notifier(enabled=False)`; it is worth stating that it recurs.
+# 2. A row is a delimited record and the assertions read the first three cells. Twenty-four mutants of
+#    `HostClockLogWriter.write` rename or null a column key — `st.get("stratum")` → `st.get(None)` —
+#    and every one survived, because no test ever looked past `cells[3]`.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+import os as _os
+
+import writers as _w
+
+
+ALL_WRITERS = [
+    (_w.StreamWriter, {"stream": "ecg"}),
+    (OxyFrameLogWriter, {}),
+    (HostClockLogWriter, {}),
+    (LinkLogWriter, {}),
+    (Spo2CsvWriter, {}),
+]
+
+
+@pytest.mark.parametrize("cls,kw", ALL_WRITERS, ids=lambda v: getattr(v, "__name__", ""))
+def test_every_writer_fsyncs_by_default(tmp_path, monkeypatch, cls, kw):
+    """The `fsync=True` default in all five writers, plus `self._fsync` being stored at all.
+
+    This is the difference between "the night is on the disk" and "the night is in page cache", and it
+    is the whole reason these writers exist rather than a bare `open()`. The box loses power; the
+    capture is the only copy. Every test in this file constructs with `fsync=False` — correctly, to
+    stay fast — which is exactly how the default came to be unpinned in five places at once."""
+    # patch the real os module: LinkLogWriter.flush does its own `import os` inside the function, so
+    # patching writers.os alone would miss it
+    synced = []
+    monkeypatch.setattr(_os, "fsync", lambda fd: synced.append(fd))
+    w = cls(str(tmp_path / "x.dat"), **kw)          # no fsync= — the default is the subject
+    try:
+        assert w._fsync is True, "durability is opt-OUT, never opt-in"
+        w.flush()
+        assert synced, "flush() must actually reach the platform, not just the buffer"
+        assert all(isinstance(fd, int) for fd in synced), \
+            "os.fsync is handed a real descriptor — `os.fsync(None)` raises TypeError past the " \
+            "OSError/ValueError the flush catches"
+    finally:
+        w._fsync = False
+        w.close()
+
+
+def test_the_host_clock_row_carries_every_column_it_promises(tmp_path):
+    """Twenty-four survivors lived in this one `";".join(...)`: `st.get("stratum")` → `st.get(None)`,
+    `"reference"` → `"REFERENCE"`, a whole field replaced by None. The existing assertions read
+    `cells[1]`, `[2]`, `[3]` and the last one — so the six columns in between were free to be anything.
+
+    This sidecar is the evidence that lets a future reader tell "stratum-1 PPS all night" from "the box
+    free-ran on its RTC". Every column silently blank is that question becoming unanswerable again."""
+    p = tmp_path / "c.csv"
+    w = HostClockLogWriter(str(p), fsync=False)
+    w.write(WHEN, {"trust": "ntp", "absolute_ok": True, "synchronized": False,
+                   "server": "192.168.0.61", "stratum": 2, "reference": "PPS",
+                   "root_dispersion_ms": 3.5, "jitter_us": 120, "packet_count": 9,
+                   "reason": "normal"})
+    w.close()
+    header, row = _lines(str(p))[0], _rows(str(p))[0]
+    assert header.split(";") == ["Phone timestamp", "trust", "absolute_ok", "synchronized", "server",
+                                "stratum", "reference", "root_dispersion_ms", "jitter_us",
+                                "packet_count", "reason"]
+    assert row.split(";") == ["2026-07-19T03:04:05.678", "ntp", "1", "0", "192.168.0.61", "2", "PPS",
+                             "3.5", "120", "9", "normal"], \
+        "every column, in the header's order — a reader keys on position"
+
+
+def test_the_link_row_carries_every_column_it_promises(tmp_path):
+    """The sibling assertion, for the sidecar that answers 'were the RADIO conditions degrading' when
+    there is a gap at 03:00."""
+    p = tmp_path / "l.csv"
+    w = LinkLogWriter(str(p), fsync=False)
+    w.write(WHEN, "Polar H10", True, -56, 80, link_epoch=3)
+    w.close()
+    header, row = _lines(str(p))[0], _rows(str(p))[-1]
+    assert row.split(";")[:len(header.split(";"))] == row.split(";"), \
+        "the row may not carry more fields than the header names"
+    assert len(row.split(";")) == len(header.split(";")), \
+        "nor fewer — a positional reader cannot tell a short row from a blank field"
+
+
+def test_the_link_header_records_which_radio_captured_the_night(tmp_path):
+    """Mutants 24/25: `hci or 'unknown'` → `'UNKNOWN'` / a mangled literal. The provenance comment is
+    the only record of WHICH of the box's three BLE adapters a night came off — and 'unknown' is a
+    deliberate honest value, not a placeholder to be restyled."""
+    p = tmp_path / "l.csv"
+    LinkLogWriter(str(p), fsync=False, adapter="hci1", hci="00:1A:7D:DA:71:13").close()
+    assert _lines(str(p))[0] == "# adapter=hci1 hci=00:1A:7D:DA:71:13"
+    # the honest half-known case: an adapter was pinned but never resolved to an address
+    q = tmp_path / "m.csv"
+    LinkLogWriter(str(q), fsync=False, adapter="hci1", hci=None).close()
+    assert _lines(str(q))[0] == "# adapter=hci1 hci=unknown", \
+        "'unknown' is a deliberate honest value, not a placeholder to restyle"
+    # and no pin at all writes no comment, rather than a comment full of defaults
+    r = tmp_path / "n.csv"
+    LinkLogWriter(str(r), fsync=False).close()
+    assert _lines(str(r))[0].startswith("Phone timestamp;")
+
+
+@pytest.mark.parametrize("cls,kw", ALL_WRITERS, ids=lambda v: getattr(v, "__name__", ""))
+def test_a_writer_remembers_the_path_it_opened(tmp_path, cls, kw):
+    """`self.path = None` survived in every writer. `nightqc`, the archiver and the monitor all ask a
+    live writer where it is writing; None there is a night that cannot be found while it is being
+    recorded."""
+    p = str(tmp_path / "x.dat")
+    w = cls(p, **kw, fsync=False)
+    try:
+        assert w.path == p
+    finally:
+        w.close()
+
+
+@pytest.mark.parametrize("cls,writer", [
+    (HostClockLogWriter, lambda w: w.write(WHEN, {"trust": "ntp"})),
+    (LinkLogWriter, lambda w: w.write(WHEN, "d", True, -50, 90, link_epoch=1)),
+    (Spo2CsvWriter, lambda w: w.write(WHEN, 97, 60, 0)),
+], ids=lambda v: getattr(v, "__name__", ""))
+def test_the_row_counter_starts_at_zero_and_counts_one_per_row(tmp_path, cls, writer):
+    """`self.rows = 0` → `1`, `rows += 1` → `+= 2` / `-= 1`. Nothing asserted the counter's ORIGIN, so
+    an off-by-one that persists for the whole night was invisible. `nightqc` reads it to decide whether
+    a sidecar has content."""
+    w = cls(str(tmp_path / "x.csv"), fsync=False)
+    try:
+        assert w.rows == 0, "an open, unwritten sidecar has written nothing"
+        for _ in range(3):
+            writer(w)
+        assert w.rows == 3
+    finally:
+        w.close()
+
+
+@pytest.mark.parametrize("cls,writer", [
+    (HostClockLogWriter, lambda w: w.write(WHEN, {"trust": "ntp"})),
+    (LinkLogWriter, lambda w: w.write(WHEN, "d", True, -50, 90, link_epoch=1)),
+    (OxyFrameLogWriter, lambda w: w.write(WHEN, {"spo2": 97})),
+    (Spo2CsvWriter, lambda w: w.write(WHEN, 97, 60, 0)),
+], ids=lambda v: getattr(v, "__name__", ""))
+def test_the_flush_clock_survives_more_than_one_flush(tmp_path, cls, writer):
+    """`self._last_flush = now` → `None`, in four writers. The FIRST flush still works, which is all any
+    test exercised; the SECOND write then evaluates `now - None` and raises out of the write path,
+    taking the capture with it. A cadence variable has to survive being used."""
+    w = cls(str(tmp_path / "x.csv"), flush_interval=0, fsync=False)
+    try:
+        writer(w)
+        writer(w)                    # the write after the first flush is where None detonates
+        writer(w)
+    finally:
+        w.close()
+    assert len(_rows(str(tmp_path / "x.csv"))) == 3, "all three rows survived the flush cadence"
+
+
+@pytest.mark.parametrize("cls,writer", [
+    (HostClockLogWriter, lambda w: w.write(WHEN, {"trust": "ntp"})),
+    (LinkLogWriter, lambda w: w.write(WHEN, "d", True, -50, 90, link_epoch=1)),
+    (OxyFrameLogWriter, lambda w: w.write(WHEN, {"spo2": 97})),
+    (Spo2CsvWriter, lambda w: w.write(WHEN, 97, 60, 0)),
+], ids=lambda v: getattr(v, "__name__", ""))
+def test_a_long_flush_interval_really_does_defer_the_flush(tmp_path, monkeypatch, cls, writer):
+    """`now - self._last_flush` → `now + self._last_flush`, in five places. Monotonic time is a large
+    positive number, so the sum always clears any interval and every single row is flushed and fsynced
+    — the pathological case these writers are buffered to avoid. Nothing noticed, because a flush that
+    happens too OFTEN produces byte-identical output."""
+    flushes = []
+    w = cls(str(tmp_path / "x.csv"), flush_interval=3600.0, fsync=False)
+    monkeypatch.setattr(w, "flush", lambda: flushes.append(1))
+    try:
+        writer(w)
+        writer(w)
+        assert flushes == [], "an hour-long interval must not flush on the first two rows"
+    finally:
+        monkeypatch.undo()
+        w.close()
