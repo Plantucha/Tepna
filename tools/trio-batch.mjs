@@ -1117,6 +1117,19 @@ function cpapApneaTimes(dayDir) {
    (PpgDex) are already in the node-export. Prints the chance control beside every number, because the
    block fit maximises the statistic it reports. */
 function printDriftFit(dir, key) {
+  /* Timing PROVENANCE for a closure leg (WEARABLE-HOST-AXIS-FOLLOWUPS §F3). A drawn axis
+     (`sample_index x an assumed rate`) is a constant, not a clock — passing one to fitClockClosure
+     yields a confident number about nothing, which is how six nights failed with "all legs confident".
+     Read straight from the node export the leg came from; absent ⇒ undefined ⇒ treated as usable. */
+  const timingOf = (node) => {
+    const f = join(dir, `${node}_${key}.node-export.json`);
+    if (!existsSync(f)) return undefined;
+    try {
+      return (JSON.parse(readFileSync(f, 'utf8')).quality || {}).timingSource || undefined;
+    } catch {
+      return undefined;
+    }
+  };
   const rd = (node, path) => {
     const f = join(dir, `${node}_${key}.node-export.json`);
     if (!existsSync(f)) return null;
@@ -1156,19 +1169,24 @@ function printDriftFit(dir, key) {
   if (C && C.length >= 500) {
     const cl = ctx.IntegratorDSP.fitClockClosure(
       [
-        { name: 'H10', times: A },
-        { name: 'VER', times: B },
-        { name: 'O2R', times: C }
+        { name: 'H10', times: A, timingSource: timingOf('ECGDex') },
+        { name: 'VER', times: B, timingSource: timingOf('PpgDex') },
+        { name: 'O2R', times: C, timingSource: timingOf('PpgDexFinger') }
       ],
       {}
     );
+    if (!cl.ok && cl.excluded && cl.excluded.length) {
+      // A refusal is a RESULT — printing nothing here is how a drawn leg stayed invisible for six nights.
+      console.log(`    ⏱ 3-source closure: REFUSED — ${cl.reason}`);
+    }
     if (cl.ok && cl.triples.length) {
       const tri = cl.triples[0];
       closure = { closurePpm: tri.closurePpm, consistent: tri.consistent, weakLegs: tri.weakLegs };
       console.log(
         `    ⏱ 3-source closure: ${tri.closurePpm.toFixed(1)} ppm (identity 0, tol ${tri.tolPpm.toFixed(0)})` +
           `   ${tri.consistent ? 'consistent' : '⚠ INCONSISTENT — at least one pairwise fit is wrong'}` +
-          (tri.weakLegs.length ? `   weak legs: ${tri.weakLegs.join(', ')}` : '   (all legs confident)')
+          (tri.weakLegs.length ? `   weak legs: ${tri.weakLegs.join(', ')}` : '   (all legs confident)') +
+          (cl.sharedHostTimebase ? `   ⚠ ${cl.hostTimedLegs.join('+')} share the HOST timebase — less independent than the identity assumes` : '')
       );
     }
   }
@@ -1323,7 +1341,41 @@ for (const p of work) {
       site: base.site,
       gap: null,
       sentinelRejected: recs.reduce((t, r) => t + (r.sentinelRejected || 0), 0),
-      sentinelKept: recs.reduce((t, r) => t + (r.sentinelKept || 0), 0)
+      sentinelKept: recs.reduce((t, r) => t + (r.sentinelKept || 0), 0),
+      /* Carry the TIMING PROVENANCE across the merge (WEARABLE-HOST-AXIS-FOLLOWUPS §F3). Without this
+         the merged rec has no `hostAxis`, so the export's `quality.timingSource` came out null on every
+         folded night — the field existed and was never populated, which is precisely the hollow-gate
+         failure this repo keeps hitting.
+
+         SAMPLE-WEIGHTED, not worst-case. A worst-case rule was tried first and measured to be wrong: it
+         refused 2026-07-28, a night whose O2Ring genuinely reports real timestamps and which closes at
+         -11.4 ppm, because one short fragment carried too few host anchors to judge. Weighting by
+         samples makes the merged verdict identical to what the single-file detector would say if the
+         fragments were concatenated — which is the thing being approximated. */
+      hostAxis: (() => {
+        const parts = recs.filter((r) => r.hostAxis && r.n > 0);
+        if (!parts.length) return undefined;
+        let tot = 0,
+          acc = 0,
+          anyOk = false;
+        for (const r of parts) {
+          if (r.hostAxis.quantizedShare != null) {
+            acc += r.hostAxis.quantizedShare * r.n;
+            tot += r.n;
+          }
+          if (r.hostAxis.ok) anyOk = true;
+        }
+        const share = tot > 0 ? acc / tot : null;
+        const drawn = share != null && share >= 0.99;
+        return {
+          ok: anyOk,
+          fragments: parts.length,
+          quantizedShare: share,
+          drawn,
+          // Mirrors parsePPG: a drawn axis with host anchors is host-timed; with none, it has no timing.
+          timingSource: drawn ? (anyOk ? 'host' : 'none') : 'device+host'
+        };
+      })()
     };
   };
 
