@@ -238,3 +238,98 @@ def test_build_query_packets_frames_the_header_and_params():
 def test_psftp_passes_the_adapter_pin_in_the_bluez_form():
     assert ps.PolarPsFtp("AA:BB:CC:DD:EE:FF", adapter="hci3")._kw == {"bluez": {"adapter": "hci3"}}
     assert ps.PolarPsFtp("AA:BB:CC:DD:EE:FF")._kw == {}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+# MUTATION PASS 2026-08-02 — the codec's second byte, and the fields nobody decoded
+#
+# Every test below was written against a specific surviving mutant. The shape they share: an assertion
+# that looked at PART of a wire message — one bit of the header, the field that happened to be first,
+# the low byte of a two-byte number — and therefore could not see the rest change. The protocol is a
+# byte string; asserting a substring of it is asserting almost nothing.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+def test_the_query_header_is_exactly_two_bytes_of_id_and_marker():
+    """`_encode_query_header` mutants 10 and 14 changed byte 1 from 0x80 to 0xFF / 0x81 and survived,
+    because the only assertion on it was `header[1] & 0x80` — a mask that ignores every other bit. The
+    device reads the whole byte: the low 7 bits are the query id's high half."""
+    for qid in sorted(ps._ALLOWED_QUERIES):
+        assert ps._encode_query_header(qid) == bytes([qid, 0x80]), \
+            "byte0 = id low, byte1 = id high (7 bits) with the QUERY marker on top — nothing else"
+
+
+def test_a_request_longer_than_255_bytes_carries_its_length_in_two_bytes():
+    """`_build_request_packets` mutants 11-13 corrupt the RFC60 length header's HIGH byte, which is
+    zero for every message the suite happened to build. A GET of a long path is the ordinary case that
+    exercises it, and framing it wrong desynchronises the device for the whole session."""
+    protobuf = ps._encode_operation(ps.GET, "/U/0/" + "d" * 400 + "/")
+    n = len(protobuf)
+    assert n > 255, "the point of the test is a length that does not fit in one byte"
+    stream = b"".join(p[1:] for p in ps._build_request_packets(protobuf, frame_mtu=20))
+    assert stream[:2] == bytes([n & 0xFF, (n >> 8) & 0x7F]), "length low, then high with the top bit clear"
+    assert stream[2:] == protobuf
+
+
+def test_a_stream_the_exact_size_of_one_packet_still_splits():
+    """`_chunk_rfc76` mutants 8 (`> frame_mtu + 1`) and 13 (`take = frame_mtu - 2`) both survived: the
+    suite only ever chunked streams at mtu-1 or far beyond it, never at the boundary itself. A packet
+    carries frame_mtu-1 payload bytes because byte 0 is the RFC76 header, so a stream of exactly
+    frame_mtu bytes MUST become two packets — and mutant 8 emits one oversized packet the link drops."""
+    mtu = 20
+    packets = ps._chunk_rfc76(b"x" * mtu, frame_mtu=mtu)
+    assert len(packets) == 2, "frame_mtu payload bytes do not fit in one frame_mtu-sized packet"
+    assert all(len(p) <= mtu for p in packets), "no packet may exceed the negotiated MTU"
+    assert len(packets[0]) == mtu, \
+        "a MORE packet is FULL — mutant 13 takes frame_mtu-2 and merely uses more round trips, " \
+        "which the joined payload cannot see"
+    assert b"".join(p[1:] for p in packets) == b"x" * mtu
+    assert (packets[0][0] >> 1) & 3 == 0x03 and (packets[1][0] >> 1) & 3 == 0x01, "MORE then LAST"
+
+
+def test_a_fixed64_field_is_eight_bytes_and_the_reader_moves_on_by_eight():
+    """`_iter_fields` mutants 41/44 read and skip NINE bytes for wire type 1. Invisible while the
+    fixed64 is the last field in the buffer — the slice clamps and the loop ends — so the mutants need
+    a field AFTER it to be seen at all. Polar sends no fixed64 today; the reader claims to handle it."""
+    buf = bytes([(1 << 3) | 1]) + b"\x01\x02\x03\x04\x05\x06\x07\x08" + bytes([(2 << 3) | 0]) + b"\x2a"
+    assert list(ps._iter_fields(buf)) == [(1, b"\x01\x02\x03\x04\x05\x06\x07\x08"), (2, 42)]
+
+
+def test_set_system_time_encodes_every_clock_component_in_the_right_field():
+    """Six `encode_set_system_time` mutants survived — one moved PbTime from field 2 to field 3, four
+    DROPPED a component (so minute lands in the seconds slot and so on), one broke the millis divisor.
+    `test_set_system_time_marks_the_host_as_trusted` decoded field 3 and stopped. This is what is
+    written to the device clock; every sample it stamps afterwards inherits whatever it says."""
+    when = dt.datetime(2026, 7, 19, 3, 4, 5, 678_000)
+    f = ps._parse_pb_fields(ps.encode_set_system_time(when))
+    assert ps._parse_pb_fields(f[1]) == {1: 2026, 2: 7, 3: 19}, "PbDate in field 1"
+    assert ps._parse_pb_fields(f[2]) == {1: 3, 2: 4, 3: 5, 4: 678}, "PbTime in field 2, millis not micros"
+    assert f[3] == 1, "trusted=True — the host is NTP-disciplined"
+
+
+def test_set_local_time_encodes_every_clock_component_in_the_right_field():
+    """The sibling assertion for the encoder the H10 actually accepts (SET_SYSTEM_TIME answers
+    NOT_IMPLEMENTED there), so a dropped component would strand the H10 alone."""
+    when = dt.datetime(2026, 7, 19, 23, 58, 59, 123_000)
+    f = ps._parse_pb_fields(ps.encode_set_local_time(when, 0))
+    assert ps._parse_pb_fields(f[1]) == {1: 2026, 2: 7, 3: 19}
+    assert ps._parse_pb_fields(f[2]) == {1: 23, 2: 58, 3: 59, 4: 123}
+    assert f[3] == 0
+
+
+def test_the_millisecond_field_defaults_to_zero_when_a_caller_omits_it():
+    """`_pb_time`'s `ms` default (mutant 1 makes it 1). Only the tests call the three-argument form
+    today, but it is a public encoder for a device clock: a future caller that omits millis must send
+    zero, not one."""
+    assert ps._parse_pb_fields(ps._pb_time(3, 4, 5)) == {1: 3, 2: 4, 3: 5, 4: 0}
+
+
+def test_a_directory_entry_ignores_fields_that_are_not_name_or_size():
+    """`_parse_directory` mutants 3, 9 and 21 all turn an `and` into an `or`, so a field the parser
+    should ignore is read as a name or a size. Every existing fixture had exactly the two fields, which
+    is precisely the input that cannot tell `and` from `or`. Polar's PbPFtpEntry has more members than
+    we read, so an unknown field IS the realistic input."""
+    entry = (ps._pb_msg(1, b"BPM.GZ") + ps._pb_uint(2, 12)
+             + ps._pb_msg(3, b"/not/a/name") + ps._pb_uint(4, 999))
+    # a length-delimited NON-entry field at the top level must not become an entry either
+    buf = ps._pb_msg(7, b"not an entry") + ps._pb_msg(1, entry)
+    assert ps._parse_directory(buf) == [("BPM.GZ", 12)]

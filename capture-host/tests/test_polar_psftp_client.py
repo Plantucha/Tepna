@@ -8,6 +8,8 @@
 # the walk/list_recordings/pull_recording flows are all exercised — no BLE hardware, no protocol stub.
 
 import asyncio
+import json
+import os
 
 import pytest
 
@@ -55,6 +57,25 @@ class FakeClient:
         self.time_reply = None           # bytes for a GET_LOCAL_TIME query, or None
         self.requested = []              # every path the client actually asked for, in order
         self.fail_connect = False
+        # ── WHAT THE DOUBLE WAS HANDED ──────────────────────────────────────────────────────────────
+        # A fake that accepts an argument and DISCARDS it makes the code computing that argument
+        # unobservable, while coverage still reads 100 % because the line ran. That is the failure
+        # class this repo keeps producing, and it is why 24 of __aenter__'s mutants survived a suite
+        # with four tests pointed straight at it: `lambda dev, **kw: client` threw away the device
+        # object whose selection IS the scan-then-fall-back logic, and `start_notify(_char, cb)` threw
+        # away the characteristic UUID — so subscribing to the wrong characteristic was invisible.
+        # Every argument this double receives is kept, and the tests below read them.
+        self.ctor_dev = None             # what BleakClient(...) was constructed with
+        self.ctor_kw = {}
+        self.scan_addr = None            # what BleakScanner.find_device_by_address was asked for
+        self.scan_timeout = None
+        self.scan_kw = {}
+        self.cleared_addr = None         # the address _bt_disconnect was told to clear
+        self.notify_char = None          # the characteristic actually subscribed
+        self.stopped_char = None         # ... and the one unsubscribed
+        self.acquired = 0                # how many times _acquire_mtu was called
+        self.writes = []                 # [(char, response)] for every GATT write
+        self.queries = []                # [(query_id, params)] for every PS-FTP QUERY sent
 
     async def connect(self):
         if self.fail_connect:
@@ -65,15 +86,19 @@ class FakeClient:
         self.connected = False
 
     async def _acquire_mtu(self):
-        pass
+        self.acquired += 1
 
-    async def start_notify(self, _char, cb):
+    async def start_notify(self, char, cb):
+        self.notify_char = char
         self.notify = cb
 
-    async def stop_notify(self, _char):
-        pass
+    async def stop_notify(self, char):
+        self.stopped_char = char
 
-    async def write_gatt_char(self, _char, pkt, response=False):
+    # `response=None` as the default, NOT the real `False`: mirroring the production default here is
+    # what let `write_gatt_char(MTU_CHAR, pkt)` — the kwarg dropped entirely — survive the first pass.
+    async def write_gatt_char(self, char, pkt, response=None):
+        self.writes.append((char, response))
         # reassemble RFC76 request packets: status bits (b0 & 0x06) == 0x02 marks LAST
         self._rx += pkt[1:]
         if (pkt[0] & 0x06) != 0x02:       # MORE — wait for the rest
@@ -84,6 +109,7 @@ class FakeClient:
     def _answer(self, stream: bytes):
         if len(stream) >= 2 and (stream[1] & 0x80):        # QUERY (top bit of byte1 set)
             query_id = stream[0]
+            self.queries.append((query_id, stream[2:]))    # the params ARE the device's new clock
             if query_id == ps.GET_LOCAL_TIME and self.time_reply is not None:
                 for p in _response_data_packets(self.time_reply):
                     self.notify(0, p)
@@ -105,12 +131,20 @@ class FakeClient:
 
 
 def _install(monkeypatch, client, device="dev"):
-    async def find(addr, timeout=15.0, **kw):
+    # `timeout=None` as the stub's default, deliberately: with the real 15.0 mirrored here, dropping
+    # `timeout=15.0` from the call site would be indistinguishable from passing it.
+    async def find(addr, timeout=None, **kw):
+        client.scan_addr, client.scan_timeout, client.scan_kw = addr, timeout, kw
         return device
     monkeypatch.setattr(ps.BleakScanner, "find_device_by_address", find)
-    monkeypatch.setattr(ps, "BleakClient", lambda dev, **kw: client)
+
+    def mk(dev, **kw):
+        client.ctor_dev, client.ctor_kw = dev, kw
+        return client
+    monkeypatch.setattr(ps, "BleakClient", mk)
+
     async def no_disc(addr):
-        return None
+        client.cleared_addr = addr
     monkeypatch.setattr(ps, "_bt_disconnect", no_disc)
 
 
@@ -1004,6 +1038,10 @@ def test_a_zero_byte_file_is_listed_rather_than_silently_dropped(monkeypatch):
     names = sorted(f["name"] for f in got[0]["files"])
     assert names == ["BPM.GZ", "EMPTY.GZ"], "the empty recording must still be reported"
     assert got[0]["total_bytes"] == 12
+    # the record's shape, not just its name: mutants 94-97 rename `path` / `size`, and the monitor's
+    # pull button reads both to decide what it is about to fetch
+    assert {f["name"]: f for f in got[0]["files"]}["BPM.GZ"] == {
+        "name": "BPM.GZ", "path": "/U/0/20260719/E/034500/BPM.GZ", "size": 12}
 
 
 def test_the_completion_line_also_names_the_device(monkeypatch, caplog):
@@ -1015,3 +1053,666 @@ def test_the_completion_line_also_names_the_device(monkeypatch, caplog):
         _run(ps.list_recordings("24:AC:AC:0C:30:1E"))
     done = next(r.getMessage() for r in caplog.records if "walk complete" in r.getMessage())
     assert "24:AC:AC:0C:30:1E" in done
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+# MUTATION PASS 2026-08-02 — what the doubles were throwing away
+#
+# Re-measured on this tree: 1154 mutants, 280 surviving (75 % killed). The survivors were not spread
+# evenly — they clustered on exactly the arguments the test doubles accepted and discarded. `__aenter__`
+# had 24 survivors under four tests aimed at it, because `lambda dev, **kw: client` discards the device
+# object whose SELECTION is the entire scan-then-fall-back logic. `_bt_disconnect` had 22 out of 22 —
+# every mutant of the whole function — under a test whose fake was `async def fake(*a, **k)`.
+#
+# Coverage read 100 % throughout, correctly: the lines ran. Nothing looked at what they produced.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+
+# ── _bt_disconnect: the command it runs is the whole function ───────────────────────────────────────
+def test_the_bluez_link_is_cleared_for_the_address_with_a_real_command(monkeypatch):
+    """All 22 of this function's mutants survived. `p = None`, `bluetoothctl` → None, `disconnect` →
+    `DISCONNECT`, the address → None: under any of them the pre-connect clear silently does nothing and
+    bleak goes on fighting BlueZ for the device's single BLE slot — the failure this function exists to
+    prevent. A double that takes `*a, **k` cannot see any of it."""
+    seen = {}
+
+    class _P:
+        def __init__(self):
+            self.waited = 0
+
+        async def wait(self):
+            self.waited += 1
+            return 0
+
+    proc = _P()
+
+    async def fake_exec(*argv, **kw):
+        seen["argv"], seen["kw"] = argv, kw
+        return proc
+    monkeypatch.setattr(ps.asyncio, "create_subprocess_exec", fake_exec)
+
+    slept = []
+
+    async def fake_sleep(s):
+        slept.append(s)
+    monkeypatch.setattr(ps.asyncio, "sleep", fake_sleep)
+
+    waited_with = []
+    real_wait_for = asyncio.wait_for
+
+    async def spy_wait_for(aw, timeout=None):
+        waited_with.append(timeout)
+        return await real_wait_for(aw, timeout)
+    monkeypatch.setattr(ps.asyncio, "wait_for", spy_wait_for)
+
+    _run(ps._bt_disconnect("24:AC:AC:0C:30:1E"))
+
+    assert seen["argv"] == ("bluetoothctl", "disconnect", "24:AC:AC:0C:30:1E"), \
+        "the exact argv — bluetoothctl's subcommand is case-sensitive and the address is the point"
+    assert proc.waited == 1, "the process must be reaped, not merely spawned"
+    assert seen["kw"]["stdout"] is asyncio.subprocess.DEVNULL, "bluetoothctl chatter stays out of the log"
+    assert seen["kw"]["stderr"] is asyncio.subprocess.DEVNULL
+    # BOUNDED, and by these numbers. bluetoothctl talking to a wedged BlueZ does not return; this runs
+    # on the connect path, so an unbounded wait here is a hung pull, not a slow one.
+    assert waited_with == [6.0], "the wait on bluetoothctl is bounded"
+    assert slept == [2.0], "and the controller is given a fixed settle window before re-connecting"
+
+
+# ── __aenter__: which device connects, on which characteristic ──────────────────────────────────────
+def test_the_scan_and_the_client_are_given_the_address_and_its_result(monkeypatch):
+    """Mutants 1, 2, 3, 9, 12: clear the wrong address, scan for None, hand BleakClient None or the bare
+    address when the scan DID return a rich device. All 24 survivors of this method trace to doubles
+    that ignored the argument under test."""
+    c = FakeClient()
+    _install(monkeypatch, c, device="rich-device-object")
+
+    async def go():
+        async with ps.PolarPsFtp("24:AC:AC:0C:30:1E"):
+            pass
+    _run(go())
+
+    assert c.cleared_addr == "24:AC:AC:0C:30:1E", "the link cleared is the link we are about to take"
+    assert c.scan_addr == "24:AC:AC:0C:30:1E"
+    assert c.ctor_dev == "rich-device-object", \
+        "a scan that HIT must connect to the device object it found, not fall back to the address"
+
+
+def test_a_missed_scan_connects_to_the_bare_address(monkeypatch):
+    """The other arm, and the reason the fallback exists: a bonded Polar idle on the nightstand is not
+    advertising, so `find_device_by_address` misses it while BlueZ still knows it by path. Mutants 9 and
+    10 invert or void this and were invisible — the old test asserted only that SOMETHING connected."""
+    c = FakeClient()
+    _install(monkeypatch, c, device=None)
+
+    async def go():
+        async with ps.PolarPsFtp("24:AC:AC:0C:30:1E"):
+            pass
+    _run(go())
+    assert c.ctor_dev == "24:AC:AC:0C:30:1E", "a missed scan falls back to the address itself"
+
+
+def test_the_connect_timeouts_are_the_tuned_ones(monkeypatch):
+    """Mutants 4, 6, 8, 13, 15, 17 drop or nudge them. Unbounded is the dangerous direction: this runs
+    with live capture paused and the offline lock held, so a connect that never returns costs the night,
+    and the caller's watchdog reports 'abandoned' rather than the real fault."""
+    c = FakeClient()
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB"):
+            pass
+    _run(go())
+    assert c.scan_timeout == 15.0, "the advertisement scan is bounded"
+    assert c.ctor_kw.get("timeout") == 25.0, "and so is the connect"
+
+
+def test_the_adapter_pin_reaches_both_the_scan_and_the_client(monkeypatch):
+    """Mutants 7 and 16 drop `**self._kw` from one call each. `_kw` being correct (already tested) is
+    only half the contract — a pin that is built and then not passed is a pin that does nothing, and on
+    a three-radio box it means the pull goes out of whichever adapter BlueZ picks."""
+    c = FakeClient()
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB", adapter="hci1"):
+            pass
+    _run(go())
+    assert c.scan_kw == {"bluez": {"adapter": "hci1"}}, "the scan is pinned to the adapter"
+    assert c.ctor_kw.get("bluez") == {"adapter": "hci1"}, "and so is the connection"
+
+
+def test_the_notifications_are_taken_on_the_pftp_characteristic(monkeypatch):
+    """Mutant 43 subscribes to None. All PS-FTP traffic rides FB005C51 in both directions, so the
+    characteristic is not decoration — subscribing elsewhere means every response is lost. The double
+    signature was `start_notify(self, _char, cb)`: the underscore is the bug."""
+    c = FakeClient()
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB"):
+            pass
+    _run(go())
+    assert c.notify_char == ps.MTU_CHAR
+    assert c.stopped_char == ps.MTU_CHAR, "and teardown unsubscribes the same one"
+
+
+def test_the_mtu_is_acquired_before_the_frame_size_is_derived(monkeypatch):
+    """Mutants 18-23 all stop `_acquire_mtu` being called (wrong attribute name, hasattr on None, a
+    dropped argument that raises into the swallowing except). Without it BlueZ reports the default 23
+    and every transfer runs at 20-byte frames — minutes instead of seconds, on the path whose whole
+    problem is that it is slow."""
+    c = FakeClient()
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            assert fs._frame_mtu == 247          # 250 - 3
+    _run(go())
+    assert c.acquired == 1, "_acquire_mtu is called exactly once, before the frame size is read"
+
+
+def test_a_client_that_reports_no_mtu_falls_back_to_the_23_byte_default(monkeypatch):
+    """Mutants 37 (no default at all — raises, and the raise is caught by the connect cleanup, so the
+    pull fails outright) and 40 (default 24 — a 21-byte frame the link will not carry). Every existing
+    fixture had `mtu_size`, which is the one input that cannot distinguish them.
+
+    Mutant 34 (`getattr(..., None) or 23`) is EQUIVALENT — `None or 23` and `23 or 23` are the same
+    value on every input — and is expected to survive."""
+    c = FakeClient()
+    del c.mtu_size
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            assert fs._frame_mtu == 20, "BLE's default ATT MTU 23, minus the 3-byte notification header"
+            assert c.connected is True, "a client with no mtu_size must still connect"
+    _run(go())
+    assert c.notify_char == ps.MTU_CHAR, "setup ran to completion — mutant 37 raises out of it instead"
+
+
+# ── __aexit__: teardown must be bounded, which the module says in a comment and nothing asserted ─────
+def test_a_wedged_teardown_cannot_hold_the_caller_open(monkeypatch):
+    """Mutant 5 replaces the teardown's `wait_for` timeout with None, and mutant 1 drops the
+    `stop_notify` call entirely. The module carries a five-line comment about exactly this: teardown
+    runs while the caller's `wait_for` is CANCELLING the op, both awaits go to the same wedged BlueZ
+    that caused the timeout, so unbounded here means the caller's timeout can never fire — capture stays
+    paused and the connect lock stays held for the rest of the night. A comment is not a gate."""
+    import time as _time
+    c = FakeClient()
+
+    async def hangs():
+        await asyncio.sleep(3600)
+    c.disconnect = hangs
+    _install(monkeypatch, c)
+    monkeypatch.setattr(ps.PolarPsFtp, "_TEARDOWN_TIMEOUT_S", 0.05)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB"):
+            pass
+    t0 = _time.monotonic()
+    _run(asyncio.wait_for(go(), timeout=5.0))       # the outer bound only catches a total hang
+    elapsed = _time.monotonic() - t0
+    assert elapsed < 1.0, f"a hung disconnect must be abandoned at the teardown bound, took {elapsed:.2f}s"
+    assert c.stopped_char == ps.MTU_CHAR, "and the notification subscription is still dropped first"
+
+
+# ── _read_response: the response timeout, and the second byte of an error code ──────────────────────
+class _SilentClient(FakeClient):
+    """Answers nothing at all — the wedged link that does not raise, it just stops talking."""
+    def _answer(self, stream):
+        return None
+
+
+def test_a_device_that_stops_answering_times_out_rather_than_hanging(monkeypatch):
+    """Mutant 6 passes `timeout=None` to the queue wait. A silent link is the ordinary Polar failure —
+    it does not disconnect, it stops notifying — so an unbounded wait there is an op that never returns
+    and a retry that never gets its turn."""
+    import time as _time
+    _install(monkeypatch, _SilentClient())
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            await fs.get("/U/0/", timeout=0.05)
+    t0 = _time.monotonic()
+    with pytest.raises(asyncio.TimeoutError):
+        _run(asyncio.wait_for(go(), timeout=5.0))
+    elapsed = _time.monotonic() - t0
+    assert elapsed < 1.0, f"the read must give up at ITS timeout, not the caller's: took {elapsed:.2f}s"
+
+
+def test_a_two_byte_psftp_error_code_is_decoded_whole(monkeypatch):
+    """Mutants 37 and 39 corrupt the HIGH byte of the error code, which is zero for the single-byte
+    error 12 the suite used. Polar's PbPFtpError runs past 255 (NOT_IMPLEMENTED is 201, and the H10
+    answers it for SET_SYSTEM_TIME), so a two-byte code is the realistic one to misreport."""
+    class _BigError(FakeClient):
+        def _answer(self, stream):
+            self.notify(0, bytes([(0 << 4) | (0x00 << 1) | 0, 0x01, 0x02]))     # 0x0201 = 513
+
+    _install(monkeypatch, _BigError())
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            await fs.get("/U/0/")
+    with pytest.raises(RuntimeError, match=r"PS-FTP error 513$"):
+        _run(go())
+
+
+def test_a_bare_terminator_with_no_error_bytes_is_success_not_failure(monkeypatch):
+    """Mutant 42 makes a too-short terminator packet default to error code 1 instead of 0, turning a
+    successful empty response into a raised RuntimeError. Every SET_* query the clock path sends is
+    acknowledged by exactly such a packet."""
+    class _BareAck(FakeClient):
+        def _answer(self, stream):
+            self.notify(0, bytes([(0 << 4) | (0x00 << 1) | 0]))                  # no err bytes at all
+
+    _install(monkeypatch, _BareAck())
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            return await fs.get("/U/0/")
+    assert _run(go()) == b"", "a bare terminator means 'done, nothing to send', not 'error 1'"
+
+
+# ── get / query: the characteristic, the write mode, and the read bound ─────────────────────────────
+def _spy_read_timeouts(monkeypatch):
+    """Record the timeout each `_read_response` is handed — the argument `get`/`query` compute and no
+    test observed, so `self._read_response(None)` survived on both."""
+    seen = []
+    orig = ps.PolarPsFtp._read_response
+
+    async def spy(self, timeout):
+        seen.append(timeout)
+        return await orig(self, timeout)
+    monkeypatch.setattr(ps.PolarPsFtp, "_read_response", spy)
+    return seen
+
+
+def test_a_get_writes_without_response_on_the_pftp_char_and_bounds_its_read(monkeypatch):
+    """Mutants 10, 12, 15, 16, 17 and the 61.0 default. PS-FTP requires write-WITHOUT-response: an
+    acknowledged write per air packet halves the throughput of a link that is already the slow path."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    reads = _spy_read_timeouts(monkeypatch)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            return await fs.get("/U/0/20260719/E/034500/BPM.GZ")
+    assert _run(go()) == b"A" * 12
+    assert c.writes and all(char == ps.MTU_CHAR for char, _ in c.writes), "all traffic rides FB005C51"
+    assert all(response is False for _, response in c.writes), "write without response, explicitly"
+    assert reads == [60.0], "the default read bound a caller relies on when it passes no timeout"
+
+
+def test_a_query_writes_without_response_on_the_pftp_char_and_bounds_its_read(monkeypatch):
+    """The same contract on the only path that WRITES to the device (the time queries)."""
+    c = FakeClient()
+    _install(monkeypatch, c)
+    reads = _spy_read_timeouts(monkeypatch)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            await fs.query(ps.SET_LOCAL_TIME, b"\x01")
+    _run(go())
+    assert c.writes and all(char == ps.MTU_CHAR for char, _ in c.writes)
+    assert all(response is False for _, response in c.writes)
+    assert reads == [20.0], "a query answers fast or not at all; 20 s is the bound"
+
+
+# ── set_local_time: the clock we actually write ─────────────────────────────────────────────────────
+def test_setting_the_clock_sends_the_encoded_time_not_an_empty_query(monkeypatch):
+    """Mutants 11 and 19 drop the `params` argument from both queries — the device is told 'set your
+    clock' with no clock attached. Nothing asserted the payload, only that the call completed, so both
+    survived. Polar stamps every sample with device time; an unset H10 runs from 2019-01-01."""
+    import datetime as dt
+    c = FakeClient()
+    _install(monkeypatch, c)
+    when = dt.datetime(2026, 7, 19, 3, 4, 5, 678_000)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            await fs.set_local_time(when)
+    _run(go())
+
+    assert [qid for qid, _ in c.queries] == [ps.SET_LOCAL_TIME, ps.SET_SYSTEM_TIME], \
+        "with_system_time defaults to True — mutant 1 flips that default and no caller passed it"
+    local, system = dict(c.queries)[ps.SET_LOCAL_TIME], dict(c.queries)[ps.SET_SYSTEM_TIME]
+    assert local == ps.encode_set_local_time(when, 0)
+    assert system == ps.encode_set_system_time(when)
+    # tz_offset = 0 ON PURPOSE (mutant 7 makes it 1): the device derives its SYSTEM clock from
+    # local+tz_offset and PMD stamps every sample with the SYSTEM clock, so a non-zero offset here is
+    # what put the Verity 4 h ahead of the H10 on 2026-07-18. Zero is the common timebase PAT needs.
+    assert ps._parse_pb_fields(local)[3] == 0, "the declared tz offset is zero, deliberately"
+
+
+def test_the_clock_written_when_no_time_is_given_is_utc(monkeypatch):
+    """Mutant 4 replaces `datetime.now(timezone.utc)` with `datetime.now(None)` — naive LOCAL time. On
+    a UTC box the two agree, which is why it survived; on the capture host they do not, and the device
+    would be set hours off while GET_LOCAL_TIME cheerfully reports back what we sent. Pinned under an
+    explicitly non-UTC TZ so the assertion means something wherever it runs."""
+    import datetime as dt
+    import time as _time
+    monkeypatch.setenv("TZ", "America/New_York")
+    _time.tzset()
+    try:
+        c = FakeClient()
+        _install(monkeypatch, c)
+
+        async def go():
+            async with ps.PolarPsFtp("AA:BB") as fs:
+                await fs.set_local_time()
+        _run(go())
+        sent = ps._parse_pb_fields(dict(c.queries)[ps.SET_LOCAL_TIME])
+        d, t = ps._parse_pb_fields(sent[1]), ps._parse_pb_fields(sent[2])
+        wrote = dt.datetime(d[1], d[2], d[3], t[1], t[2], t[3])
+        drift = abs((wrote - dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)).total_seconds())
+        assert drift < 120, f"the device clock is set from UTC, not local civil time (off by {drift:.0f}s)"
+    finally:
+        monkeypatch.undo()
+        _time.tzset()
+
+
+# ── get_local_time: reading the clock back ──────────────────────────────────────────────────────────
+def test_reading_the_clock_back_round_trips_every_component(monkeypatch):
+    """Twenty-three survivors, almost all of them in this one `datetime(...)` call: seconds read from
+    the wrong field, minutes defaulted to 1, millis dropped or scaled by 1001. The old assertion looked
+    at `.year`, `.hour` and `.minute` and stopped — so the three components after the ones it checked
+    were free to be anything. This read-back is how we verify the clock we just set actually took."""
+    import datetime as dt
+    c = FakeClient()
+    when = dt.datetime(2026, 7, 19, 23, 58, 59, 123_000)
+    c.time_reply = (ps._pb_msg(1, ps._pb_date(when.year, when.month, when.day))
+                    + ps._pb_msg(2, ps._pb_time(when.hour, when.minute, when.second, 123)))
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            return await fs.get_local_time()
+    assert _run(go()) == when, "every field, not the three the old test happened to name"
+
+
+def test_a_clock_reply_that_omits_components_defaults_them_to_zero(monkeypatch):
+    """Thirteen survivors sat in the `tt.get(field, DEFAULT)` defaults — minute defaulting to 1, second
+    read from field 4, millis defaulted to None. A reply carrying every field cannot see any of them,
+    which is exactly what the round-trip test above supplies. PbTime is proto2 and every member is
+    OPTIONAL: the H10 answers GET_LOCAL_TIME without millis, so a partial reply is the ordinary one."""
+    import datetime as dt
+    c = FakeClient()
+    c.time_reply = ps._pb_msg(1, ps._pb_date(2026, 7, 19)) + ps._pb_msg(2, b"")   # date only, no PbTime
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            return await fs.get_local_time()
+    assert _run(go()) == dt.datetime(2026, 7, 19, 0, 0, 0, 0), "midnight, not 00:01 and not a crash"
+    assert dict(c.queries)[ps.GET_LOCAL_TIME] == b"", \
+        "a read carries no params — mutant 1 gives `query` a non-empty default nobody passes"
+
+
+def test_a_reply_with_only_the_date_is_refused(monkeypatch):
+    """Mutant 11 turns the `and` in the shape check into `or`, so a reply carrying a date but no time
+    passes the guard and reaches `_parse_pb_fields(None)`. Both existing malformed-reply fixtures broke
+    BOTH fields at once, which is the one input an `and`/`or` swap cannot be seen through."""
+    c = FakeClient()
+    c.time_reply = ps._pb_msg(1, ps._pb_date(2026, 7, 19)) + ps._pb_uint(2, 5)   # field 2 is a varint
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            return await fs.get_local_time()
+    assert _run(go()) is None, "half a clock is not a clock"
+
+
+# ── _session_meta: the sidecar's contents ───────────────────────────────────────────────────────────
+def test_the_session_metadata_names_the_kind_the_date_and_the_start():
+    """Nine survivors: `offline` → `OFFLINE`, `/R/` → `/r/`, the `time` key renamed. These land in
+    `recording.meta.json`, which is how a pulled session describes itself to everything downstream."""
+    m = ps._session_meta("/U/0/20260719/E/034500/")
+    assert m == {"kind": "exercise", "date": "20260719", "time": "034500",
+                 "start_local": "2026-07-19T03:45:00"}
+    assert ps._session_meta("/U/0/20260720/R/221500/")["kind"] == "offline", \
+        "R/ is a button-pressed offline recording, E/ is an exercise session"
+    assert ps._session_meta("/U/0/20260720/S/221500/")["kind"] == "other"
+
+
+def test_a_path_with_a_date_but_no_time_has_no_start_rather_than_raising():
+    """Mutant 27 turns `if date and time` into `or`, and the branch then indexes `None` — an outright
+    crash on the directory rows `walk` yields above the session level."""
+    assert ps._session_meta("/U/0/20260719/")["start_local"] is None
+    assert ps._session_meta("/U/0/20260719/")["date"] == "20260719"
+
+
+# ── pull_recording: the manifest and the sidecar nobody read ────────────────────────────────────────
+def test_the_manifest_describes_every_file_it_wrote(monkeypatch, tmp_path):
+    """Mutants 151/152 assign the file list to a MISPELLED key, so `manifest["files"]` keeps the empty
+    list it was initialised with — a pull that fetched a whole session reports zero files, and the CLI
+    and the /api handler both print nothing. Sixteen more mutants rename a per-file key or flip its
+    value. Nothing asserted the record's shape; only its byte total."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+
+    # the exact key set, because mutants 17-20 misspell an INITIAL key: the later assignment then adds
+    # the correct one beside the junk, so every individual lookup still works and only the shape shows it
+    assert set(m) == {"session", "out_dir", "files", "new_files", "short", "ok", "total_bytes"}
+    assert m["session"] == "/U/0/20260719/E/034500/"
+    assert m["out_dir"] == str(tmp_path)
+    assert sorted(m["new_files"]) == ["BPM.GZ", "PLETH.GZ"], "a first pull reports both files as new"
+    by_name = {f["name"]: f for f in m["files"]}
+    assert sorted(by_name) == ["BPM.GZ", "PLETH.GZ"]
+    assert by_name["BPM.GZ"] == {"name": "BPM.GZ", "bytes": 12, "declared": 12, "ok": True,
+                                 "dst": str(tmp_path / "BPM.GZ")}
+
+
+def test_a_skipped_file_is_recorded_as_skipped_and_complete(monkeypatch, tmp_path):
+    """The resume path's record, mutants 65-81: `ok` flipped to False, `skipped` flipped to False, the
+    destination renamed. `pull_polar_offline_all` branches on these to decide what it just did."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    by_name = {f["name"]: f for f in m["files"]}
+    assert by_name["PLETH.GZ"] == {"name": "PLETH.GZ", "bytes": 34, "declared": 34, "ok": True,
+                                   "skipped": True, "dst": str(tmp_path / "PLETH.GZ")}
+
+
+def test_a_short_file_points_its_record_at_the_part_it_actually_wrote(monkeypatch, tmp_path):
+    """Mutant 137 inverts the `dst` conditional, so a truncated file's record names the clean path it
+    was deliberately NOT written to — a reader that trusts `dst` then reports a file that is not there,
+    which is the same fabricated-completeness the `.part` scheme exists to prevent."""
+    c = _fs_with_a_short_file()
+    _install(monkeypatch, c)
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    short = next(f for f in m["files"] if f["name"] == "PLETH.GZ")
+    assert short["ok"] is False and short["bytes"] == 9 and short["declared"] == 34
+    assert short["dst"] == str(tmp_path / "PLETH.GZ.part"), "the record names the file that exists"
+    assert m["new_files"] == ["BPM.GZ"], "a truncated file is not a new file"
+
+
+def test_the_sidecar_is_written_into_the_output_directory_and_describes_the_pull(monkeypatch, tmp_path):
+    """Eleven survivors covered the whole sidecar: `meta = None`, the filename uppercased, and — mutant
+    192 — `os.path.join('recording.meta.json')`, which drops `out_dir` and writes it into whatever
+    directory the process happens to be in. No test opened the file. It is the only thing that makes a
+    pulled session self-describing once it is off the box."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    m = _run(ps.pull_recording("24:AC:AC:0C:30:1E", "/U/0/20260719/E/034500/", str(tmp_path),
+                               adapter="hci1"))
+
+    # mutants 32-35: the address or the adapter dropped on the way into PolarPsFtp. A pull that opens
+    # the session on the default radio is a pull of whichever Polar BlueZ picks.
+    assert c.cleared_addr == "24:AC:AC:0C:30:1E" and c.scan_addr == "24:AC:AC:0C:30:1E"
+    assert c.ctor_kw.get("bluez") == {"adapter": "hci1"}
+
+    sidecar = tmp_path / "recording.meta.json"
+    assert sidecar.is_file(), "written beside the recording, not into the working directory"
+    meta = json.loads(sidecar.read_text())
+    assert meta == {"kind": "exercise", "date": "20260719", "time": "034500",
+                    "start_local": "2026-07-19T03:45:00",
+                    "session": "/U/0/20260719/E/034500/", "total_bytes": m["total_bytes"],
+                    "device": "24:AC:AC:0C:30:1E", "n_files": 2}
+    assert "\n" in sidecar.read_text(), "indented, because a human reads this one"
+
+
+def test_a_zero_byte_file_is_still_downloaded(monkeypatch, tmp_path):
+    """Mutants 40 and 41 tighten `size >= 0` to `> 0` / `>= 1`, silently dropping an empty file from the
+    pull; mutant 38 loosens the `and` to `or` and tries to download the directories too. A Polar session
+    that was started and stopped without data has exactly this shape, and `list_recordings` already
+    refuses to hide it — the pull must not either."""
+    c = _fs_with_one_session()
+    c.dirs["/U/0/20260719/E/034500/"] = [("BPM.GZ", 12), ("EMPTY.GZ", 0)]
+    c.files["/U/0/20260719/E/034500/EMPTY.GZ"] = b""
+    _install(monkeypatch, c)
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    assert sorted(f["name"] for f in m["files"]) == ["BPM.GZ", "EMPTY.GZ"]
+    assert (tmp_path / "EMPTY.GZ").is_file() and (tmp_path / "EMPTY.GZ").stat().st_size == 0
+    assert m["ok"] is True, "zero declared, zero received — that is a complete file"
+
+
+def test_a_session_of_nothing_but_empty_files_still_reports_full_progress(monkeypatch, tmp_path):
+    """Mutant 45 changes the zero-division guard `or 1` to `or 2`, so a session whose bytes sum to zero
+    reports 0/2 — a progress bar stuck at half on a pull that finished."""
+    c = _fs_with_one_session()
+    c.dirs["/U/0/20260719/E/034500/"] = [("EMPTY.GZ", 0)]
+    c.files["/U/0/20260719/E/034500/EMPTY.GZ"] = b""
+    _install(monkeypatch, c)
+    seen = []
+    _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path),
+                           on_progress=lambda d, t: seen.append((d, t))))
+    assert seen == [(0, 1)], "no bytes to move is 100 %, not 0 %"
+
+
+def test_progress_accumulates_across_files_and_reaches_the_total(monkeypatch, tmp_path):
+    """Mutants 142/143 replace the accumulator with an assignment or a subtraction, and 144/145 pass
+    `None` where the counts go. The existing download-path test asserted only that the callback FIRED —
+    the arguments it was handed went unread, which is the same discarding-double failure one level up."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    seen = []
+    _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path),
+                           on_progress=lambda d, t: seen.append((d, t))))
+    assert seen == [(12, 46), (46, 46)], "monotonic, cumulative, and it ends at the total"
+
+
+def test_a_file_download_is_bounded(monkeypatch, tmp_path):
+    """Mutants 95/97/98 unbind or nudge the per-file read timeout. Unbounded is the one that matters:
+    the caller's watchdog is what stops a wedged pull from holding the offline lock all night, and it
+    cannot fire while this await never returns."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+    reads = []
+    orig = ps.PolarPsFtp.get
+
+    async def spy(self, path, timeout=60.0):
+        reads.append((path, timeout))
+        return await orig(self, path, timeout)
+    monkeypatch.setattr(ps.PolarPsFtp, "get", spy)
+    _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    file_reads = [t for p, t in reads if not p.endswith("/")]
+    assert file_reads == [180.0, 180.0], "each file download carries the 180 s bound"
+
+
+def test_a_nested_file_lands_in_its_own_subdirectory(monkeypatch, tmp_path):
+    """Mutant 58 turns `os.path.dirname(dst) or out_dir` into `and`, so the parent directory created is
+    `out_dir` itself and a nested file's open() fails outright. Every fixture was flat, which is the one
+    layout where `and` and `or` agree. `pull_recording` documents that it MIRRORS the on-device tree."""
+    c = _fs_with_one_session()
+    c.dirs["/U/0/20260719/E/034500/"] = [("BPM.GZ", 12), ("SUB/", 0)]
+    c.dirs["/U/0/20260719/E/034500/SUB/"] = [("INNER.GZ", 5)]
+    c.files["/U/0/20260719/E/034500/SUB/INNER.GZ"] = b"inner"
+    _install(monkeypatch, c)
+    m = _run(ps.pull_recording("AA:BB", "/U/0/20260719/E/034500/", str(tmp_path)))
+    assert (tmp_path / "SUB" / "INNER.GZ").read_bytes() == b"inner"
+    assert sorted(f["name"] for f in m["files"]) == ["BPM.GZ", "SUB/INNER.GZ"]
+
+
+# ── main(): the CLI's arguments and its output ──────────────────────────────────────────────────────
+def _argv(monkeypatch, *args):
+    import sys as _sys
+    monkeypatch.setattr(_sys, "argv", ["polar_psftp.py", *args])
+
+
+def test_the_cli_refuses_to_run_without_the_arguments_it_needs(monkeypatch, tmp_path):
+    """Mutants 14, 35 and 60 make `--address`, the subcommand and `--out` optional. The module's own
+    comment leans on the subcommand being required ('argparse has already exited on anything else, so
+    the both-false arm cannot be reached') — with `required=False` that arm IS reached and the CLI
+    exits 0 having done nothing at all, which is the worst way to fail a backup."""
+    async def unused_list(addr, adapter=None):
+        raise AssertionError("argparse should have exited before any device work")
+    monkeypatch.setattr(ps, "list_recordings", unused_list)
+
+    for missing in (["list"],                                        # no --address
+                    ["--address", "AA:BB"],                          # no subcommand
+                    ["--address", "AA:BB", "pull", "--session", "/U/0/"]):   # no --out
+        _argv(monkeypatch, *missing)
+        with pytest.raises(SystemExit) as e:
+            ps.main()
+        assert e.value.code == 2, f"argparse must reject {missing!r}"
+
+
+def test_the_listing_cli_passes_the_address_and_adapter_through(monkeypatch, capsys):
+    """Mutants 68-71: the address or the adapter silently dropped on the way to `list_recordings`. On a
+    box with three BLE radios an unpinned adapter is a listing of the wrong device, or of nothing."""
+    seen = {}
+
+    async def fake_list(addr, adapter=None):
+        seen["args"] = (addr, adapter)
+        return [{"path": "/U/0/20260719/E/034500/", "total_bytes": 46}]
+    monkeypatch.setattr(ps, "list_recordings", fake_list)
+    _argv(monkeypatch, "--address", "24:AC:AC:0C:30:1E", "--adapter", "hci1", "list")
+    ps.main()
+    assert seen["args"] == ("24:AC:AC:0C:30:1E", "hci1")
+    out = capsys.readouterr().out
+    assert json.loads(out.split("\n\n")[0]) == [{"path": "/U/0/20260719/E/034500/", "total_bytes": 46}]
+    assert out.rstrip().endswith("1 recording(s).")
+
+
+def test_a_pull_of_every_session_gives_each_one_its_own_directory(monkeypatch, tmp_path, capsys):
+    """Mutants 89/92/93 and 100/101 corrupt the per-session output path — `os.path.join(a.out)` drops
+    the session component entirely, so pulling ALL recordings unpacks every session on top of the last
+    one and the box ends up with a single mixed directory. Mutants 85-88 and 104-111 drop the address or
+    the adapter on the way in. The old test read one field of one call."""
+    seen = []
+
+    listed = []
+
+    async def fake_list(addr, adapter=None):
+        listed.append((addr, adapter))     # mutants 85-88 drop these, and the first pass did not look
+        return [{"path": "/U/0/20260719/E/034500/"}, {"path": "/U/0/20260720/R/221500/"}]
+
+    async def fake_pull(addr, session, out, adapter=None):
+        seen.append((addr, session, out, adapter))
+        return {"files": [], "total_bytes": 0}
+    monkeypatch.setattr(ps, "list_recordings", fake_list)
+    monkeypatch.setattr(ps, "pull_recording", fake_pull)
+    _argv(monkeypatch, "--address", "24:AC:AC:0C:30:1E", "--adapter", "hci1", "pull",
+          "--out", str(tmp_path))
+    ps.main()
+
+    assert listed == [("24:AC:AC:0C:30:1E", "hci1")], \
+        "the enumeration that decides WHICH sessions to pull is pinned to the same device and radio"
+    assert seen == [
+        ("24:AC:AC:0C:30:1E", "/U/0/20260719/E/034500/",
+         os.path.join(str(tmp_path), "U_0_20260719_E_034500"), "hci1"),
+        ("24:AC:AC:0C:30:1E", "/U/0/20260720/R/221500/",
+         os.path.join(str(tmp_path), "U_0_20260720_R_221500"), "hci1"),
+    ]
+    out = capsys.readouterr().out
+    assert f"pulling /U/0/20260719/E/034500/ -> {os.path.join(str(tmp_path), 'U_0_20260719_E_034500')}" in out
+    assert "0 files, 0 bytes" in out
+
+
+def test_the_pull_cli_marks_a_truncated_file_as_a_mismatch(monkeypatch, tmp_path, capsys):
+    """Mutants 119/123/124: `'OK'` → `'XXOKXX'` survived an assertion of `"OK" in out` — a substring
+    check cannot see a longer string containing it — and the MISMATCH arm was never printed at all.
+    This line is the only place the operator learns a backup came back short."""
+    async def fake_pull(addr, session, out, adapter=None):
+        return {"files": [{"name": "BPM.GZ", "bytes": 12, "ok": True},
+                          {"name": "PLETH.GZ", "bytes": 9, "ok": False}], "total_bytes": 21}
+    monkeypatch.setattr(ps, "pull_recording", fake_pull)
+    _argv(monkeypatch, "--address", "AA:BB", "pull", "--session", "/U/0/20260719/E/034500/",
+          "--out", str(tmp_path))
+    ps.main()
+    lines = capsys.readouterr().out.splitlines()
+    assert "        12  BPM.GZ  OK" in lines
+    assert "         9  PLETH.GZ  MISMATCH" in lines
+    assert "  2 files, 21 bytes" in lines

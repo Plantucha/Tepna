@@ -48,10 +48,19 @@ link is lossy.
 
 `capture.py` was sampled on its `_now` clock path only (69 of ~7 177 mutants, 52 % killed).
 
-> **The table above is the FIRST-PASS measurement and four rows are now stale by design** — see
-> *Second pass* below for the current numbers on `pull_session`, `storage_targets` and `cpap_harvest`,
-> and for webmon, which this pass measured for the first time. The original figures are kept as
-> written because they are what the findings below were derived from.
+> **The table above is the FIRST-PASS measurement and five rows are now stale by design** — see
+> *Second pass* and *Third pass* below for the current numbers on `pull_session`, `storage_targets`,
+> `cpap_harvest` and `polar_psftp`, and for webmon, which the second pass measured for the first time.
+> The original figures are kept as written because they are what the findings below were derived from.
+>
+> ⚠️ **A survivor list goes stale the moment the MODULE changes, not just the tests — and it goes stale
+> silently, because the mutant IDs are still valid names.** `polar_psftp.py` was re-measured for the
+> third pass and had 1 154 mutants where the table records 1 052: PR #710 landed 81 new source lines
+> between the two runs. Mutant numbering is per-function and positional, so every ID in a function that
+> PR touched now points at a *different* mutation — reading the old list's `x_list_recordings__mutmut_50`
+> against the new tree hands you a plausible, wrong diff. IDs in functions the PR did NOT touch remain
+> exactly valid, which is what makes the staleness hard to see. **Re-measure the module before triaging
+> it**, then diff the ID sets.
 
 ### webmon, measured — and why it took two attempts to find out
 
@@ -192,19 +201,107 @@ Confirmed **still surviving** after the pass, which is the correct outcome for a
 
 ---
 
+## Third pass — `polar_psftp.py`, closed (2026-08-02)
+
+Same method, and the same result in a starker form. **No shipped source changed.**
+
+| module | kill rate | survivors | killed this pass | regressions |
+|---|---|---|---|---|
+| `polar_psftp.py` | 75 % → **94 %** | 280 → 57 | 223 | 0 |
+
+The starting figure is **not** the 69 % / 318 in the headline table: re-measuring first (see the
+staleness note above) put the module at 1 154 mutants, 280 surviving, because #710 had already closed
+`walk` and `_session_descend` to zero survivors apiece.
+
+**Every one of the 223 traces to a double that accepted an argument and threw it away.** The two
+extremes make the point better than a percentage:
+
+* **`_bt_disconnect`: 22 survivors out of 22 mutants** — the entire function, under a test named
+  `test_bt_disconnect_runs_and_swallows_errors` that was pointed straight at it. Its fake was
+  `async def fake(*a, **k)`. So `p = None`, `"bluetoothctl"` → `None`, `"disconnect"` → `"DISCONNECT"`
+  and the address → `None` were all invisible: under any of them the pre-connect BlueZ clear silently
+  does nothing, and bleak goes back to losing the fight for the device's single BLE slot that this
+  function exists to win.
+* **`__aenter__`: 24 survivors under four tests aimed at it**, because `BleakClient` was stubbed
+  `lambda dev, **kw: client`. `dev` is the *entire content* of the scan-then-fall-back logic — a rich
+  device object when the advertisement scan hits, the bare address when it misses — and the stub
+  discarded it, so inverting the fallback (`if not dev` → `if dev`) changed nothing any test could see.
+  `start_notify(self, _char, cb)` discarded the characteristic UUID the same way: subscribing to `None`
+  instead of the one characteristic all PS-FTP traffic rides was equally invisible.
+
+The fix is one shared change plus assertions: `FakeClient` now **keeps every argument it is handed**
+(constructor device, scan address and timeout, adapter kwargs, notify/write characteristic, write mode,
+`_acquire_mtu` calls, query params) and `_install` records instead of ignoring. Two stub defaults were
+deliberately set to *not* mirror production — `find(addr, timeout=None)` and
+`write_gatt_char(..., response=None)` — because a double that repeats the real default cannot
+distinguish "passed correctly" from "not passed at all". That one detail was worth two more mutants:
+the first pass of this very audit missed `write_gatt_char(MTU_CHAR, pkt)` for exactly that reason, and
+so did a `fake_list(addr, adapter=None)` I wrote whose arguments I then never read.
+
+Others of the same kind, all now asserted:
+
+* `set_local_time` sent **`query(SET_LOCAL_TIME)` with the params dropped** — the device told to set
+  its clock with no clock attached — undetected, because the test asserted only that the call
+  completed. Same for the deliberate `tz_offset_min = 0`, the constant the whole common-timebase
+  argument rests on (a non-zero offset is what put the Verity 4 h ahead of the H10 on 2026-07-18).
+* `get_local_time` had **23 survivors in one `datetime(...)` call** — seconds read from field 4,
+  minutes defaulting to 1, millis scaled by 1001 — under an assertion that checked `.year`, `.hour`
+  and `.minute` and stopped. The components *after* the ones it named were free to be anything.
+* `pull_recording`'s sidecar: `meta = None`, and `os.path.join('recording.meta.json')` — `out_dir`
+  dropped, so the file that makes a pulled session self-describing is written into whatever directory
+  the process happens to be in. No test had ever opened it.
+* `manifest["files"]` assigned to a **misspelled key**, leaving the empty list it was initialised
+  with: a pull that fetched a whole session reports zero files, and both readers print nothing.
+* `main`: `--address`, `--out` and the **subcommand** all made optional. The module's own comment leans
+  on the subcommand being required ("argparse has already exited, so the both-false arm cannot be
+  reached"); with `required=False` that arm *is* reached and the CLI exits 0 having done nothing — the
+  worst available way to fail a backup. And `'OK'` → `'XXOKXX'` survived `assert "OK" in out`, which a
+  substring check cannot see.
+* Three teardown/read bounds the module documents at length and nothing asserted: `__aexit__`'s
+  `wait_for` timeout (five lines of comment explain that unbounded there means the caller's timeout can
+  *never* fire — capture stays paused and the connect lock held for the rest of the night),
+  `_read_response`'s queue wait, and the 180 s per-file download bound.
+
+### Equivalent mutants, recorded so nobody re-derives them
+
+Predicted before the run and confirmed **still surviving**, which is the correct outcome:
+
+* `path.encode('UTF-8')` and `ev.decode('UTF-8', ...)` — Python codec names are case-insensitive.
+* `_encode_query_header`'s three high-byte variants (`<< 8`, `>> 9`, `& 128`). Every allowlisted query
+  id is < 256, so the expression is 0 under all of them and the original.
+* `_pb_int32`'s `value < 0` → `<= 0` / `< 1`: the branches differ only at `value == 0`, where both
+  produce `_uvarint(0)`.
+* `__aenter__`'s `getattr(..., 'mtu_size', None) or 23` — identical to `..., 23) or 23` on every input.
+  Likewise `get_local_time`'s `tt.get(4, None) or 0`.
+* `_frame_mtu`'s initial value (`__init__` 9/10) and `pull_recording`'s initial `total_bytes`
+  (mutant 21): both are unconditionally overwritten before anything reads them.
+* `_with_retry`'s `last = None` → `''`: reachable only with `attempts=0`, where both `raise` the same
+  `TypeError`.
+* `list_recordings`' `idx >= 1` → `> 1` / `>= 2`: a session at index 1 would need the path `/E/HHMMSS/`,
+  unreachable under `USER_ROOT = "/U/0/"`.
+
+### What is left, and why it is not worth grinding
+
+**57 survivors, and 28 of them are prose** — argparse `help=`/`description=` strings (20 of `main`'s
+28), four `log.info` walk-progress formats, two `log.warning` texts, two `RuntimeError` messages.
+Another 17 are the equivalents above. The rest is formatting (`json.dumps` indent width, the sidecar's
+indent, the sort-key sentinel for a session with no date) and `list_recordings`' session-shape guard,
+which needs a stray non-time entry directly under `E/` to distinguish `and` from `or`. Nothing in the
+residue changes what the box does.
+
+---
+
 ## Where to go next (highest value first)
 
-1. **`webmon.py` — 59 %, 954 survivors**, and **926 of them in `make_app`**. Now measurable (see above)
-   and the weakest thing left. Do it a route at a time: `--only 'webmon.x_make_app__mutmut_*'`.
-2. **`polar_psftp.py` — 69 %, 318 survivors** (`x_pull_recording`, `x_main`, `x_list_recordings`) — the
-   Polar onboard puller, the same "backup path for a lossy live link" shape as `pull_session`, and now
-   the weakest of the untouched modules.
-3. **`pull_session.py` — 179 survivors remain.** The residue is dominated by log prose and
+1. **`webmon.py` — 954 survivors at the second-pass measurement**, and **926 of them in `make_app`**;
+   #716 has since taken it to 82 % / 417. Do it a route at a time:
+   `--only 'webmon.x_make_app__mutmut_*'`. Re-measure first.
+2. **`pull_session.py` — 179 survivors remain.** The residue is dominated by log prose and
    `asyncio.sleep` durations; `x_main`'s argparse wiring is the largest untouched cluster with real
    content.
-4. **`storage_targets.py` — 209 survivors remain**, now concentrated in `test_target` (the live rsync
+3. **`storage_targets.py` — 209 survivors remain**, now concentrated in `test_target` (the live rsync
    probe) rather than the validators.
-5. **`capture.py`** — sample it one subsystem at a time (`--only 'capture.x__now__*'`), never whole.
+4. **`capture.py`** — sample it one subsystem at a time (`--only 'capture.x__now__*'`), never whole.
 
 **Do not wire a whole-tree kill-rate threshold into CI.** The gate that exists — `tools/mutate_diff.py`,
 the `mutation-diff` job — is diff-scoped on purpose and must stay that way; a gate that reds on the
