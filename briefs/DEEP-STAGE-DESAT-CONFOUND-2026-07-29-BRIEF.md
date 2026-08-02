@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-29 · **Found-by:** running `REM-STAGING-REDESIGN` §5's cross-signal falsifier for the first time · **Relates:** `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` §7
+**Status:** IN-PROGRESS — 2026-08-01 (**corrected from PROPOSED, which had been wrong since §3b executed on 2026-07-29.** Five of six Done-when boxes are checked — §3b's settling test, `tools/deep-desat-falsifier.mjs`, the real-AHI re-run (§8), the CVHR/vagal separability re-examination (§9), and its re-measurement on properly merged nights (§11). The sixth, *a better LABEL*, is explicitly **not a code change** and needs a reference this corpus does not contain, so the brief cannot be DONE — but a brief with five executed sections is not PROPOSED either. Status verified against the boxes, not inherited.) · **Created:** 2026-07-29 · **Found-by:** running `REM-STAGING-REDESIGN` §5's cross-signal falsifier for the first time · **Relates:** `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` §7
 
 # Called-Deep carries 3.4× the desaturations of Light — N3 should carry the fewest
 
