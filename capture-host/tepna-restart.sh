@@ -22,12 +22,20 @@ set -uo pipefail
 
 UNIT=tepna-capture.service
 
-usage() { echo "usage: $0 {restart|status|radio}" >&2; exit 2; }
-[ $# -eq 1 ] || usage
+usage() { echo "usage: $0 {restart|status|radio|stop [minutes]}" >&2; exit 2; }
+# Arity is PER VERB: only `stop` takes a second argument. A blanket "1 or 2 args" would quietly accept
+# `restart extra`, and a verb that ignores trailing junk is one that will eventually be handed a typo
+# for the thing the caller actually meant.
+[ $# -ge 1 ] && [ $# -le 2 ] || usage
+[ "$1" = stop ] || [ $# -eq 1 ] || usage
 
 case "$1" in
   restart)
     # `restart`, never `start`: an operator asking for a restart on a stopped unit means "make it run".
+    # Cancel any pending deadman first — coming back early is the normal case, and leaving the timer
+    # armed would "start" an already-running unit later, which is harmless but makes the logs lie about
+    # why the daemon came up.
+    systemctl stop tepna-capture-deadman.timer 2>/dev/null || true
     systemctl restart "$UNIT" || exit 1
     # Report the outcome rather than assuming it. A restart that failed to come up must not look like
     # a success to whatever automated deploy called this.
@@ -35,6 +43,35 @@ case "$1" in
     state=$(systemctl is-active "$UNIT" 2>/dev/null)
     echo "$UNIT: $state"
     [ "$state" = active ] || exit 1
+    ;;
+  stop)
+    # A STOPPED CAPTURE DAEMON IS A DARK NIGHT. This exists because a Polar holds exactly ONE BLE link,
+    # so any tool that must talk to a sensor directly (the offline-recording probe) has to take the link
+    # off the daemon first. That is a legitimate need and a genuinely dangerous verb: the failure mode is
+    # not "the command errored", it is "someone stopped it at 22:00, got distracted, and the night was
+    # never recorded" — silent, total, and only discovered in the morning.
+    #
+    # So this stop is DEADMAN-TIMED and cannot be left indefinitely. It arms a transient one-shot timer
+    # that starts the unit again whether or not the caller ever comes back, whether or not their ssh
+    # session survives, and whether or not they remember. The window is bounded at 60 minutes because a
+    # maintenance task needing longer should be scheduled, not improvised against a live capture box.
+    # `${2-15}` not `${2:-15}`: an EMPTY argument is a mistake to reject, not a request for
+    # the default. The colon form would turn `stop ""` into a silent 15-minute stop.
+    mins="${2-15}"
+    [[ "$mins" =~ ^[0-9]+$ ]] || { echo "bad minutes: $mins" >&2; exit 2; }
+    [ "$mins" -ge 1 ] && [ "$mins" -le 60 ] || { echo "minutes must be 1..60 (got $mins)" >&2; exit 2; }
+    # CLEAR A SPENT DEADMAN FIRST. A transient unit that has already fired stays LOADED, and
+    # `systemd-run --unit=` then refuses with "Unit ... was already loaded or has a fragment file".
+    # Measured 2026-08-02: the second stop of the evening failed for exactly this reason. The refusal
+    # was safe (the guard below kept the daemon running) but it made the verb single-use per boot,
+    # which for a maintenance tool is indistinguishable from broken.
+    systemctl stop tepna-capture-deadman.timer 2>/dev/null || true
+    systemctl reset-failed tepna-capture-deadman.timer tepna-capture-deadman.service 2>/dev/null || true
+    # Arm the restart BEFORE stopping: if arming fails we must not have a stopped daemon and no timer.
+    systemd-run --quiet --on-active="${mins}min" --unit=tepna-capture-deadman \
+      systemctl start "$UNIT" || { echo "could not arm the deadman timer — refusing to stop" >&2; exit 1; }
+    systemctl stop "$UNIT" || exit 1
+    echo "$UNIT: stopped — automatic restart armed in ${mins}m (tepna-capture-deadman.timer)"
     ;;
   status)
     echo "$UNIT: $(systemctl is-active "$UNIT" 2>/dev/null) since $(systemctl show "$UNIT" -p ActiveEnterTimestamp --value 2>/dev/null)"

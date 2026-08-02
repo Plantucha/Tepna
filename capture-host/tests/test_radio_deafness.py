@@ -145,7 +145,10 @@ def test_the_radio_verb_exists_in_the_helper():
     sh = open(os.path.join(here, "tepna-restart.sh"), encoding="utf-8").read()
     assert "radio)" in sh, "tepna-restart.sh must expose the radio verb the watchdog calls"
     assert "systemctl restart bluetooth" in sh
-    assert "{restart|status|radio}" in sh, "usage must list it, or an operator cannot discover it"
+    # Asserts the verb is DISCOVERABLE, not the exact usage string — `stop [minutes]` joined the
+    # surface on 2026-08-02 and a literal match made an unrelated addition look like a regression here.
+    usage = next(l for l in sh.splitlines() if l.startswith("usage()"))
+    assert "radio" in usage, "usage must list it, or an operator cannot discover it"
 
 
 # ---------------------------------------------------------------- driven through the real watchdog
