@@ -264,6 +264,37 @@ Once closure holds on more nights, the same three-cornered hat gives **per-devic
 just how pairs differ, but *which* clock is unstable. That is the question a fleet operator actually
 has, and it is unanswerable from any pair.
 
+## 3.6 · A trap in USING any of this: an alignment fitted to beats cannot then measure PAT
+
+Found while trying to verify `PAT-PERBLOCK-ALIGNMENT`'s correction of §3.2, and worth recording
+separately because it is not the same mistake and anyone re-measuring will meet it.
+
+The obvious way to get pulse arrival time from this work is: take the per-block offset the drift fit
+produces, apply it, then for each R-peak find the first pulse foot after it. Done that way on
+2026-07-27 the answer looks superb — **beat-to-beat IQR 12 ms, median lag 73 ms**, comfortably inside
+`pat-gate.js`'s ≤ 60 ms IQR bar.
+
+It is meaningless. The lag histogram for a single block:
+
+```
+  50 ms  199 ####################################################################################
+```
+
+**Every one of 199 lags in one 50 ms bin, hard against the search window's 60 ms lower edge.** The
+block offset was fitted by *maximising beat coincidence* — which is to say it aligned R-peaks onto
+pulse feet, absorbing the transit into the offset. What remains is not PAT; it is the residue after
+the fit already removed it.
+
+**So the alignment used to measure a physiological delay must not have been fitted on the two channels
+whose delay is being measured.** It has to come from a channel with no physiological path between the
+devices — the ACC envelope — or from a host reference. This is the same circularity `REM-STAGING-
+REDESIGN` §8 warns about for oracles, in a place nobody had looked for it.
+
+Concretely: §3.2's claim that PAT is reachable was wrong for the reason
+`PAT-PERBLOCK-ALIGNMENT` gives (a fit residual and a beat-to-beat interval are different quantities
+that happen to share units), **and** it cannot be rescued by measuring the right quantity through this
+alignment, for the reason above. Both routes close.
+
 ## 4 · The method lesson, which is the most portable part
 
 Three sessions reached the same wrong conclusion tonight — *"beat correspondence is physiologically
@@ -277,6 +308,10 @@ What exposed it was not a better statistic. It was:
    missing term), and
 2. **an over-determined consistency check** — closure — which has no free parameters to absorb the
    error.
+
+A third, added after §3.6: **check where your answer sits inside its own search window.** A result
+piled against a window edge is the window, not the signal — and it is visible in one histogram, before
+any statistic is computed.
 
 `AUDIT-PROMPT.md` and the deep-audit charter already hunt hollow gates. This adds a sibling class worth
 naming: **a model that is too simple passes every control you can build out of its own assumptions.**
