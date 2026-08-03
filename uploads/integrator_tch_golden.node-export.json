@@ -57,6 +57,8 @@
           "method": "correlated-external",
           "rho": 0.356,
           "negative": false,
+          "externalRhoRejected": false,
+          "externalRho": null,
           "n": 22,
           "sigma2": {
             "ECGDex": 7.211351487379374,
