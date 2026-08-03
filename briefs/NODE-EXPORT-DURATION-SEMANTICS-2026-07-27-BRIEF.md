@@ -92,8 +92,11 @@ work-unit to schedule, not a drive-by.
 
 - [x] ECGDex publishes both; read-not-derived; `null` when stampless; gated (`ecgdex-dsp` group **ECGDex recording bounds**, incl. a dropout stub where data and wall span provably disagree).
 - [x] A coverage definition exists (`986d17e` §6.2 `recording.coverage`) — adopt it rather than inventing a second one.
-- [ ] `endEpochMs` on the remaining nodes (additive; may land before the coverage model). — **PpgDex
-      DONE 2026-08-03 (§6); 6 remain** (OxyDex · MotionDex · PulseDex · HRVDex · GlucoDex · CPAPDex).
+- [x] `endEpochMs` where it CORRECTS something — **ECGDex + PpgDex, both DONE.** §7 audits the other
+      six and finds none of them has the defect: each already derives a SPAN, so `t0 + dur` lands on
+      the clock end by construction (±1–3 s of rounding). The field there is uniformity, not a fix,
+      and §7.3 recommends it ride each node's next behavioural re-bundle rather than churn six
+      bundles and every fixture for seconds.
 - [ ] `durSec` normalised to data-seconds on PpgDex/OxyDex (**not** additive — needs the coverage definition + a CHANGELOG note that the field's meaning changed).
 - [ ] `bump: minor` — the export gains a field. The ECGDex-only step is already `minor` for that reason.
 - [ ] Per node: regen goldens, re-bundle, `build.mjs --check`, `verify-manifest.mjs` GATE A+B, and — since `computeHash` moves — `DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs`.
@@ -156,3 +159,60 @@ The equiv gate reds on sight, which is the GATE-C surface doing its job: the exp
 four PpgDex goldens were **regenerated** (never hand-edited) — one field moved in each,
 `recording.endEpochMs: undefined → …` — and `verify-fixtures` re-stamped the real corpus fixture
 `verifiedUnder → e38a8746cead` after a green run. `bump: minor`, per §5: the export gains a field.
+
+
+---
+
+## §7 · AUDITED 2026-08-03 — the remaining six do NOT have this defect
+
+§5's item reads *"`endEpochMs` on the remaining 7 nodes (additive)"*, which treats them as uniform work.
+They are not. Reading each node's derivation and measuring it against the real corpus:
+
+| node | duration field | derived from | is `t0 + dur` the clock end? |
+|---|---|---|---|
+| **ECGDex** | `durSec` | `n / fs` — **DATA seconds** | **NO** — short by every dropout (+8…+326 min). **DONE 2026-07-27** |
+| **PpgDex** | `durSec` | `(n−1)/fs` over a gap-filled grid | **NO** — short by up to **6.6 min** (§6.1). **DONE 2026-08-03** |
+| OxyDex | `durationMin` | `rows[n−1].tMs − rows[0].tMs` | **yes**, ±3 s (0.1-min rounding) |
+| MotionDex | `durSec` | last row's `relSec`, `Math.round` | **yes**, ±1 s |
+| PulseDex | `durationMin` | `times[N−1]` (last beat time) | **yes** |
+| GlucoDex | `durSec` | `spanMs / 1000` | **yes**, by definition |
+| CPAPDex | `durSec` | `max(session.t0Ms + durMin)` − `t0Ms` | **yes**, by construction |
+| HRVDex | per-row `durSec` | explicit per row | already span-shaped (§1136 comment) |
+
+**Only the two nodes that declare DATA seconds had the defect, and both are now fixed.** The other six
+already compute a span, so the clock end is recoverable from what they publish today to within the
+rounding of the field itself.
+
+### 7.1 · Measured, not inferred
+
+- **OxyDex** — `durationMin` is `rows[n−1].tMs − rows[0].tMs`, so it *is* the wall span. Over the 37-night
+  corpus the residual against the true last stamp is **max 3.0 s, median 2.0 s** — purely the `.toFixed(1)`
+  rounding to 0.1 min. The `_durBad` guard (non-monotonic **or** inflated) would null `durationMin` while
+  the last stamp is still known, which is the one case where `endEpochMs` would carry real information —
+  and it fires on **0 of 37** nights.
+- **MotionDex** — `durationOf` returns the last row's `relSec`, rounded to the second. One caveat worth
+  keeping: it falls back to `rows.length / 26` when `relSec` is unavailable, which is a **fabricated**
+  duration (an assumed 26 Hz). On that path `t0 + durSec` is a guess and `endEpochMs` *would* be honest —
+  so MotionDex is the strongest of the six, conditional on that fallback actually firing.
+
+### 7.2 · What this costs, weighed honestly
+
+Adding the field to a node is not free: it moves the export, which reds the equiv gate, which requires
+regenerating every one of that node's goldens, re-bundling, re-running three build systems, and
+re-stamping `verifiedUnder` under a moved `computeHash`. That is the right price for ECGDex's +326 min and
+PpgDex's 6.6 min. It is a poor trade for **2–3 seconds**.
+
+`CLAUDE.md` already carries this exact economics twice — the inert `BADGE_CSS` export and the deferred
+version stamp both say *"re-bundle only when runtime behavior changes"*. The same reasoning applies here.
+
+### 7.3 · Recommendation
+
+**Let `endEpochMs` ride each remaining node's next behavioural re-bundle** rather than scheduling six
+bundle-and-regenerate cycles for uniformity. The Integrator needs no change either way: `normalizeFile`
+already prefers `endEpochMs` over every duration key and falls through to `durSec`/`durationMin`, so a node
+that has not gained the field behaves exactly as today — which is the property §3 relied on to call this
+additive in the first place.
+
+**The one to prioritise is MotionDex**, and only if its `rows.length / 26` fallback is shown to fire on
+real captures: that is the sole remaining path where the published duration is fabricated rather than
+measured, and it is the same honest-null argument the Clock Contract makes everywhere else.
