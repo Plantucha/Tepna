@@ -8,6 +8,7 @@ the states that accuse the box of a fault — `wedged` most of all, because a re
 died" and both of its false-positive modes were found on real data before they were fixed.
 """
 import datetime as dt
+import datetime as _dt
 
 import timeline
 
@@ -569,3 +570,131 @@ def test_file_span_sec_survives_a_partial_trailing_write(tmp_path):
     with open(p, "a") as fh:
         fh.write("2026-07-16T22:00:10.0")     # torn mid-row
     assert round(_nightqc.file_span_sec(str(p)), 1) == 10.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+# MUTATION PASS 2026-08-03 — the LINK sidecar reader's column bounds
+#
+# `timeline.py` measured 639 mutants, 141 surviving (77 %). Forty-three of those sat in
+# `read_link_samples`, and they are almost all OFF-BY-ONE ON A COLUMN INDEX: `len(p) > i_c` → `<`,
+# `> i_dev` → `>=`, `> i_r` → `or`. Every existing fixture writes a FULL row, and a full row cannot
+# tell `>` from `>=` — the guards only speak when a row is SHORT.
+#
+# Short rows are not hypothetical here. The sidecar is appended live by `writers.LinkLogWriter` while
+# the daemon runs, so the last line of a night interrupted by a power cut is torn mid-row — the exact
+# case `_nightqc.file_span_sec` already has a fixture for a few hundred lines above. And the `address`
+# column arrived mid-corpus, so a single night is routinely half name-keyed and half address-keyed.
+#
+# This is the READER of the format whose WRITER was hardened in the 2026-08-02 writers pass. A reader
+# and a writer that disagree about a column produce a night that looks fine and is not.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+_LINK_HEAD = ("Phone timestamp;device;connected;rssi_dbm;battery_pct;"
+              "frames_dropped;frames_duplicated;link_epoch;address")
+
+
+def _link(tmp_path, *rows, head=_LINK_HEAD, comment=None):
+    p = tmp_path / "Tepna_20260803220000_LINK.csv"
+    body = ("" if comment is None else comment + "\n") + head + "\n" + "\n".join(rows) + "\n"
+    p.write_text(body)
+    return p
+
+
+def test_the_connected_column_is_read_the_right_way_round(tmp_path):
+    """`1 if p[i_c] == "1" else 0` → `!= "1"`. The whole link timeline inverts: a night that held its
+    link all the way through renders as one continuous dropout, and one that never connected renders
+    as perfect. Nothing asserted BOTH polarities from the file, so the inversion was free."""
+    _link(tmp_path,
+          "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;AA:BB:CC:DD:EE:FF",
+          "2026-08-03T22:00:10.000;H10;0;;90;0;0;1;AA:BB:CC:DD:EE:FF")
+    got = timeline.read_link_samples(str(tmp_path))["AA:BB:CC:DD:EE:FF"]
+    assert [c for _ts, c, _r in got] == [1, 0], "connected=1 means connected, and 0 means not"
+
+
+def test_a_row_torn_mid_write_is_skipped_not_half_read(tmp_path):
+    """`len(p) <= i_c` → `<`. The sidecar is appended live, so the last line of a night cut by a power
+    cut is truncated. Under the mutant a row with exactly `i_c` fields survives the guard and
+    `p[i_c]` raises IndexError out of the reader, taking the whole timeline with it."""
+    _link(tmp_path,
+          "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;AA:BB:CC:DD:EE:FF",
+          "2026-08-03T22:00:10.000;H10")                      # torn before `connected`
+    got = timeline.read_link_samples(str(tmp_path))
+    assert [c for _ts, c, _r in got["AA:BB:CC:DD:EE:FF"]] == [1], "the complete row still reads"
+
+
+def test_a_row_that_stops_before_the_rssi_column_reads_a_blank_not_a_crash(tmp_path):
+    """`len(p) > i_r and p[i_r].strip()` → `or`. With `or`, a row shorter than the rssi column takes
+    the branch and `p[i_r]` raises. A blank rssi is the ordinary case — `LinkLogWriter` writes one
+    whenever the read failed — so this is not an exotic input."""
+    _link(tmp_path,
+          "2026-08-03T22:00:00.000;H10;1",                     # no rssi column at all
+          "2026-08-03T22:00:10.000;H10;1;;90;0;0;1;AA:BB:CC:DD:EE:FF")   # present but blank
+    got = timeline.read_link_samples(str(tmp_path))
+    rssis = sorted((r for v in got.values() for _ts, _c, r in v), key=lambda x: (x is not None, x))
+    assert rssis == [None, None], "an absent or blank rssi is None, never a fabricated number"
+
+
+def test_a_row_that_stops_before_the_device_column_is_still_bounded(tmp_path):
+    """`len(p) > i_dev` → `>=`, and the same on `i_a`. Off by one in the permissive direction is an
+    IndexError on a torn row; in the strict direction it silently drops a device name that is present."""
+    _link(tmp_path, "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;AA:BB:CC:DD:EE:FF")
+    got = timeline.read_link_samples(str(tmp_path))
+    assert list(got) == ["AA:BB:CC:DD:EE:FF"], "a full row keys on its address"
+
+
+def test_a_name_only_row_folds_onto_the_address_learned_later_in_the_file(tmp_path):
+    """The documented behaviour: the `address` column arrived mid-corpus, so a night is routinely half
+    name-keyed. A name seen BESIDE an address folds onto it; a name never seen with one is left under
+    its name rather than guessed at. Both halves asserted, because the fold is what stops one physical
+    sensor being reported as two devices for the same night."""
+    _link(tmp_path,
+          "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;",                  # name only, address blank
+          "2026-08-03T22:00:10.000;H10;1;-56;90;0;0;1;AA:BB:CC:DD:EE:FF",  # both -> teaches the map
+          "2026-08-03T22:00:20.000;Ghost;1;-70;80;0;0;1;")                 # never seen with an address
+    got = timeline.read_link_samples(str(tmp_path))
+    assert sorted(got) == ["AA:BB:CC:DD:EE:FF", "Ghost"]
+    assert len(got["AA:BB:CC:DD:EE:FF"]) == 2, "the name-only row folded onto the address"
+    assert len(got["Ghost"]) == 1, "a name never seen beside an address is NOT invented onto one"
+
+
+def test_the_provenance_comment_lines_are_skipped_before_the_header(tmp_path):
+    """`LinkLogWriter` writes `# adapter=… hci=…` above the column line, and older sidecars have none.
+    Both shapes must read — if the comment is taken as the header, every column index is wrong and the
+    night reads empty."""
+    _link(tmp_path,
+          "2026-08-03T22:00:00.000;H10;1;-55;90;0;0;1;AA:BB:CC:DD:EE:FF",
+          comment="# adapter=hci1 hci=00:1A:7D:DA:71:13")
+    got = timeline.read_link_samples(str(tmp_path))
+    assert got and list(got) == ["AA:BB:CC:DD:EE:FF"], "the comment line is not the header"
+
+
+def test_the_columns_are_found_by_NAME_not_by_position(tmp_path):
+    """`idx.get("Phone timestamp", 0)` and its four siblings. Every existing fixture writes the standard
+    header in the standard order, and that is the one input where a name lookup and a positional
+    fallback agree — so case-flipping the key, or changing the fallback, changed nothing.
+
+    Looking columns up by name is the whole reason the header is parsed at all. A reordered header is
+    the input that proves it: if the name lookup breaks, every fallback lands on the wrong column."""
+    head = "device;connected;address;Phone timestamp;rssi_dbm"      # deliberately not the write order
+    _link(tmp_path, "H10;1;AA:BB:CC:DD:EE:FF;2026-08-03T22:00:00.000;-55", head=head)
+    got = timeline.read_link_samples(str(tmp_path))
+    assert list(got) == ["AA:BB:CC:DD:EE:FF"], "the address column was found by name"
+    (ts, c, r), = got["AA:BB:CC:DD:EE:FF"]
+    assert c == 1 and r == -55.0, "connected and rssi too"
+    assert _dt.datetime.fromtimestamp(ts).strftime("%H:%M:%S") == "22:00:00", "and the timestamp"
+
+
+def test_a_legacy_header_that_names_nothing_reads_at_the_documented_positions(tmp_path):
+    """The FALLBACKS — `0, 1, 2, 3` — which are the pre-header column order. They exist so an old
+    sidecar still reads, and nothing exercised them because every fixture has a modern header.
+
+    This is not hypothetical: the address column arrived mid-corpus, and this reader carries explicit
+    machinery for sidecars written before it. A fallback nobody tests is a legacy file nobody can read."""
+    head = "a;b;c;d"                                   # names none of the columns
+    _link(tmp_path,
+          "2026-08-03T22:00:00.000;H10;1;-55",
+          "2026-08-03T22:00:10.000;H10;0;-70", head=head)
+    got = timeline.read_link_samples(str(tmp_path))
+    assert list(got) == ["H10"], "no address column at all — the row keys on the device name"
+    assert [(c, r) for _ts, c, r in got["H10"]] == [(1, -55.0), (0, -70.0)], \
+        "ts/device/connected/rssi read at positions 0/1/2/3"
