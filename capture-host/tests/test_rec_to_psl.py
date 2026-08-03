@@ -1,0 +1,231 @@
+# tepna-capture — tests/test_rec_to_psl.py
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# The `.REC` → PSL converter. Tests are built from SYNTHESISED containers rather than a captured file so
+# they run without the corpus, and because the properties worth pinning are the ones that were learned
+# the expensive way against real bytes:
+#
+#   * the frame BOUNDARY. A 281-byte record is 10 header + 269 payload + 2 trailing, and slicing to the
+#     next frame's offset feeds those 2 bytes to the delta decoder, which reads them as a block header
+#     that cannot complete and discards all 52 good samples. That failure produced a plausible-looking
+#     0.55 s of output from a 283 s recording.
+#   * the TIMEBASE. Stamps are UTC; the Clock Contract stores floating LOCAL. Writing UTC through must be
+#     declared, not silent, because the wrong answer is a plausible one.
+#   * timing comes from `sensor_ns`, never a frame index — cadence varies with stream bandwidth.
+
+import datetime as _dt
+import struct
+
+import polar_pmd as pmd
+import rec_to_psl as r2p
+
+STAMP = "2026-08-03 12:01:20"
+POLAR_EPOCH = _dt.datetime(2000, 1, 1)
+
+
+def _ns(dt):
+    return int((dt - POLAR_EPOCH).total_seconds() * 1e9)
+
+
+def _header(stamp=STAMP, rate=55, res=22, ch=4):
+    """17-byte header, ASCII stamp at 0x11, then a 2-byte field, then the settings TLVs at 0x26."""
+    b = bytearray(b"\x00\x2b\x4c\x7c\x3d\x01" + b"\x00" * 7 + b"\x75\xba\x6d\xf9")
+    assert len(b) == 0x11, len(b)
+    b += stamp.encode("ascii")
+    b += b"\x00\x0b"                                   # the 2-byte field at 0x24
+    assert len(b) == 0x26, len(b)
+    b += bytes([0x00, 0x01]) + struct.pack("<H", rate)
+    b += bytes([0x01, 0x01]) + struct.pack("<H", res)
+    b += bytes([0x04, 0x01, ch])
+    return bytes(b)
+
+
+def _acc_frame(ns, n=5, pad=2):
+    """An UNCOMPRESSED ACC frame (frame_type 1) plus the trailing bytes a real record carries."""
+    body = b"".join(struct.pack("<hhh", 10 + i, 20 + i, 1000 + i) for i in range(n))
+    return bytes([pmd.ACC]) + struct.pack("<Q", ns) + b"\x01" + body + b"\xAB" * pad
+
+
+def _build(stamp=STAMP, nframes=3, gap_ms=2400, n=5, pad=2):
+    t0 = _dt.datetime.fromisoformat(stamp) + _dt.timedelta(seconds=2)
+    out = bytearray(_header(stamp, rate=52, res=16, ch=3))
+    for k in range(nframes):
+        out += _acc_frame(_ns(t0 + _dt.timedelta(milliseconds=gap_ms * k)), n, pad)
+    return bytes(out)
+
+
+def _write(tmp_path, data, name="ACC.REC"):
+    p = tmp_path / name
+    p.write_bytes(data)
+    return str(p)
+
+
+# ── header ───────────────────────────────────────────────────────────────────────────────────────────
+
+def test_the_header_declares_the_recording_settings():
+    h = r2p.parse_header(_header())
+    assert h["stamp_utc"] == STAMP
+    assert h["fs"] == 55 and h["resolution_bits"] == 22 and h["channels"] == 4
+
+
+def test_an_unreadable_stamp_is_none_rather_than_a_guess():
+    bad = bytearray(_header())
+    bad[0x11:0x11 + 4] = b"\xff\xfe\xfd\xfc"
+    assert r2p.parse_header(bytes(bad))["stamp_utc"] is None
+
+
+def test_tlv_parsing_stops_at_the_first_unknown_setting_id():
+    """The block is not length-prefixed, so parsing must stop on something it does not recognise rather
+    than walk into the sample data and report interleaved ids as values."""
+    h = r2p.parse_header(_header() + bytes([0x7F, 0x01, 0x00, 0x00]))
+    assert set(h["settings"]) <= {0x00, 0x01, 0x04}
+
+
+# ── frames ───────────────────────────────────────────────────────────────────────────────────────────
+
+def test_frames_are_found_and_are_all_one_stream(tmp_path):
+    res = r2p.convert(_write(tmp_path, _build()))
+    assert res["n_frames"] == 3
+    assert res["meas"] == "acc"
+
+
+def test_no_anchor_means_no_frames_rather_than_a_wild_search():
+    """Without a header stamp there is no window to constrain the search, and an unconstrained scan over
+    delta-compressed payload matches by chance."""
+    assert r2p.find_frames(b"\x02" + b"\x00" * 200, None) == []
+
+
+def test_frames_outside_the_recording_window_are_rejected(tmp_path):
+    data = bytearray(_build(nframes=2))
+    data += _acc_frame(_ns(_dt.datetime(2033, 5, 1)))          # a spurious far-future match
+    res = r2p.convert(_write(tmp_path, bytes(data)))
+    assert res["n_frames"] == 2, "a timestamp outside the 24 h window must not be accepted"
+
+
+# ── the boundary, which is the whole point ──────────────────────────────────────────────────────────
+
+def test_the_two_trailing_bytes_do_not_cost_the_frame(tmp_path):
+    """With pad=2 the naive slice (to the next frame's offset) hands the decoder 2 extra bytes. Every
+    sample must still be recovered — this is the bug that turned 283 s of PPG into 0.55 s."""
+    res = r2p.convert(_write(tmp_path, _build(nframes=3, n=5, pad=2)))
+    assert len(res["rows"]) == 15, f"expected 3x5 samples, got {len(res['rows'])}"
+    assert not res["warnings"]
+
+
+def test_a_record_with_no_padding_also_decodes(tmp_path):
+    res = r2p.convert(_write(tmp_path, _build(nframes=2, n=4, pad=0)))
+    assert len(res["rows"]) == 8
+
+
+def test_an_undecodable_frame_is_reported_not_silently_dropped(tmp_path, monkeypatch):
+    def boom(*a, **k):
+        raise ValueError("frame_type 0x7f not decoded")
+    monkeypatch.setattr(r2p.pmd, "decode_frame", boom)
+    res = r2p.convert(_write(tmp_path, _build(nframes=2)))
+    assert res["rows"] == []
+    assert len(res["warnings"]) == 2 and "not decoded" in res["warnings"][0]
+
+
+def test_a_frame_that_decodes_to_nothing_counts_as_a_gap(tmp_path, monkeypatch):
+    monkeypatch.setattr(r2p.pmd, "decode_frame", lambda *a, **k: (pmd.ACC, []))
+    res = r2p.convert(_write(tmp_path, _build(nframes=3)))
+    assert res["rows"] == []
+    assert any("treated as gaps" in w for w in res["warnings"])
+
+
+def test_a_file_with_no_frames_says_so(tmp_path):
+    res = r2p.convert(_write(tmp_path, _header()))
+    assert res["rows"] == [] and "no PMD frames" in res["warnings"][0]
+
+
+# ── timebase ────────────────────────────────────────────────────────────────────────────────────────
+
+def test_the_offset_is_applied_to_every_row(tmp_path):
+    """The device stamps UTC; the Clock Contract stores floating LOCAL. The shift happens once, at this
+    boundary, or a night lands hours off and looks entirely plausible."""
+    utc = r2p.convert(_write(tmp_path, _build()), tz_offset_min=0)
+    loc = r2p.convert(_write(tmp_path, _build()), tz_offset_min=-240)
+    assert (utc["rows"][0][0] - loc["rows"][0][0]).total_seconds() == 240 * 60
+    assert utc["rows"][0][1] == loc["rows"][0][1], "sensor_ns is the device's own and must not shift"
+
+
+def test_timing_comes_from_sensor_ns_not_from_a_frame_index(tmp_path):
+    """Cadence varies with stream bandwidth (PPG ~944 ms, ACC ~2.4 s) because the device batches by
+    BYTES. A consumer that assumed even spacing would mis-time every frame after the first."""
+    res = r2p.convert(_write(tmp_path, _build(nframes=3, gap_ms=2400)))
+    ns = [row[1] for row in res["rows"]]
+    assert ns == sorted(ns)
+    assert (ns[-1] - ns[0]) / 1e9 > 4.0, "frames must be placed by their own stamps"
+
+
+# ── writing + CLI ───────────────────────────────────────────────────────────────────────────────────
+
+def test_the_psl_header_matches_the_stream(tmp_path):
+    src = _write(tmp_path, _build())
+    res = r2p.convert(src)
+    dest = str(tmp_path / "out.txt")
+    n = r2p.write_psl(res, dest)
+    lines = open(dest).read().splitlines()
+    assert n == 15
+    assert lines[0] == r2p.HEADERS[pmd.ACC]
+    assert lines[1].count(";") == 4, "timestamp, sensor_ns, then 3 axes"
+
+
+def test_an_unknown_stream_still_gets_a_usable_header(tmp_path):
+    res = {"meas": "ppi", "rows": [(_dt.datetime(2026, 8, 3, 1, 2, 3), 1, (1, 2, 3))]}
+    dest = str(tmp_path / "o.txt")
+    r2p.write_psl(res, dest)
+    assert open(dest).read().splitlines()[0].startswith("Phone timestamp;sensor timestamp")
+
+
+def test_main_writes_the_file_and_declares_the_timebase(tmp_path, capsys):
+    src = _write(tmp_path, _build())
+    out = str(tmp_path / "converted.txt")
+    assert r2p.main([src, "-o", out, "--tz-offset-min", "-240"]) == 0
+    printed = capsys.readouterr().out
+    assert "local civil" in printed, "the timebase actually written must be stated"
+    assert "delivered_fs" in printed
+    assert open(out).read().count("\n") == 16
+
+
+def test_main_declares_utc_when_no_offset_is_given(tmp_path, capsys):
+    assert r2p.main([_write(tmp_path, _build()), "-o", str(tmp_path / "o.txt")]) == 0
+    assert "UTC (device stamps, unshifted)" in capsys.readouterr().out
+
+
+def test_main_writes_a_report_when_asked(tmp_path, capsys):
+    rp = str(tmp_path / "r.json")
+    r2p.main([_write(tmp_path, _build()), "-o", str(tmp_path / "o.txt"), "--json", rp])
+    capsys.readouterr()
+    import json
+    assert json.load(open(rp))["n_samples"] == 15
+
+
+def test_main_exits_nonzero_when_nothing_decoded(tmp_path, capsys):
+    assert r2p.main([_write(tmp_path, _header()), "-o", str(tmp_path / "o.txt")]) == 1
+    capsys.readouterr()
+
+
+def test_a_tlv_truncated_mid_value_stops_rather_than_reading_past_the_end():
+    """A count that promises more bytes than the header holds must not walk off the end."""
+    h = r2p.parse_header(_header()[:0x26] + bytes([0x00, 0x04, 0x37]))   # says 4 values, supplies 1
+    assert h["settings"].get(0x00) in ([], [0x37], None) or len(h["settings"][0x00]) < 4
+
+
+def test_a_stamp_that_parses_as_text_but_not_as_a_date_yields_no_anchor(tmp_path):
+    """`fromisoformat` is the only validator; 19 printable bytes that are not a date must degrade to
+    "no frames" rather than raise."""
+    bad = bytearray(_build())
+    bad[0x11:0x11 + 19] = b"not-a-date---------"
+    res = r2p.convert(_write(tmp_path, bytes(bad)))
+    assert res["n_frames"] == 0 and "no PMD frames" in res["warnings"][0]
+
+
+def test_convert_on_a_file_whose_stamp_is_unreadable_bytes(tmp_path):
+    """Not the same path as an unparseable DATE: here `stamp_utc` is None, so the anchor block is
+    skipped entirely rather than raising inside it."""
+    bad = bytearray(_build())
+    bad[0x11:0x11 + 6] = b"\xff\xfe\xfd\xfc\xfb\xfa"
+    res = r2p.convert(_write(tmp_path, bytes(bad)))
+    assert res["header"]["stamp_utc"] is None
+    assert res["n_frames"] == 0
