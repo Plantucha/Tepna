@@ -75,17 +75,25 @@
     },
     "confidence": {
       "beatToBeat": 0.45,
-      "sdnn": 0.45,
+      "sdnn": null,
       "lf": 0.45,
-      "hf": 0.56,
-      "vlf": 0.01,
+      "hf": null,
+      "vlf": null,
+      "evidence": {
+        "motion": "none",
+        "posture": "none",
+        "motionEpochs": 0,
+        "posturePairs": 0,
+        "epochs": 1
+      },
       "drivers": {
         "analyzableFrac": 0.56,
         "correctionOK": 0.81,
-        "lowMotionFrac": 1,
-        "postureStableFrac": 1
+        "lowMotionFrac": null,
+        "postureStableFrac": null,
+        "motionCoveredFrac": null
       },
-      "note": "0..1 per-metric confidence from measured drivers (motion→hf, posture/baseline→vlf/sdnn, coverage+correction→beat-to-beat). vlf capped 0.7 — single-site optical VLF stays baseline-wander-limited even when clean; not a defect to \"fix\"."
+      "note": "0..1 per-metric confidence from measured drivers (motion→hf, posture/baseline→vlf/sdnn, coverage+correction→beat-to-beat). vlf capped 0.7 — single-site optical VLF stays baseline-wander-limited even when clean; not a defect to \"fix\". A metric is null when its driver was NOT MEASURED (see `evidence`): a session with no accelerometer has no motion-graded hf, and publishing one would be a grade resting on nothing."
     }
   },
   "apnea": {
@@ -108,7 +116,7 @@
         "position": "unknown",
         "positionConf": null,
         "headingDeg": null,
-        "magInterference": false
+        "magInterference": null
       }
     ],
     "ppi": {
