@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-03 · **Follows:** `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8/§8.6 · **Verdict doc:** `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` · **Apparatus:** `tools/ppi-jitter-vs-ecg.mjs`
+**Status:** IN-PROGRESS — 2026-08-03 (**§6: 2 of 4 closed** — the jitter bound is re-based on a re-derivation, and CVHR is adjudicated at 7/7 sleep nights inside the band but n=7 < the ≥10 bar. Open: the shipped sdnnNote string and the RMSSD-surfacing decision, both owner calls.) · **Created:** 2026-08-03 · **Follows:** `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8/§8.6 · **Verdict doc:** `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` · **Apparatus:** `tools/ppi-jitter-vs-ecg.mjs`
 
 # Two published PPG reference figures do not reproduce, and the jitter budget says why nothing can promote
 
@@ -62,12 +62,69 @@ single-device validation here should run a second device for that reason alone.
 
 ## 5 · Done when
 
-- [ ] 5.92 ms and ~+3.5 % either re-derived on the current corpus, or the gap explained; the shipped
-      `sdnnNote` string corrected if it cannot be, and `PPGDEX-ALGORITHM-DEEP-DIVE` §5's regression bound
-      re-based on whatever survives.
-- [ ] CVHR agreement measured on sleep nights and the §4 criterion adjudicated.
+- [x] **§5's regression bound RE-BASED 2026-08-03 (§6.1)** — and re-based to a *procedure*, not a number.
+      Both figures were re-derived (Verity 8.36 ms · `sdnnRobust` +18.7 %); the **gap remains
+      unattributable** and is recorded as such. The shipped `sdnnNote` string is **still open** — a
+      compute-path edit to a user-facing accuracy claim, owner's call.
+- [x] **CVHR measured on sleep nights and adjudicated (§6.2): 7/7 finger nights inside the Integrator
+      band, median |Δ| 1.80 /h, IQR 1.50–2.65 entirely inside ±5.** The criterion's substance is met
+      decisively. **n = 7 < §3.1's ≥10-night bar**, so this is a recommendation to ratify, not a pass.
 - [ ] A decision recorded on whether whole-record RMSSD should be surfaced at all for these devices, given
       it cannot promote until jitter halves.
 - [ ] If any tier string moves: `Dex-Test-Suite.html?full` green, `verify-provenance` clean, changeset
       dropped — and the parent's open `computeHash` question (does a tier-only string edit move it?)
       answered by measurement rather than inherited as answered.
+
+
+---
+
+## §6 · EXECUTED 2026-08-03
+
+### 6.1 · §5's regression bound is now a re-derivation, not a constant
+
+`PPGDEX-ALGORITHM-DEEP-DIVE` §5 read *"no change may raise median jitter above **5.92 ms**"*. That number
+came from the §2.2 apparatus, and §2.2 **names the method and no tool** — so it was never committed and the
+threshold could not be re-derived by anyone, including its author. **A gate whose number cannot be
+reproduced cannot be enforced against a change.** That, not the value, was the defect.
+
+Re-measured with the committed instrument, the **Verity** — the device 5.92 ms describes — reads
+**8.36 ms**. The gap is **not attributable**: with no committed original, corpus, method and figure are
+indistinguishable. So 5.92 ms is **not declared wrong and not overwritten with 8.36** — swapping one
+unverifiable constant for another repeats the defect in fresher paint.
+
+**What changed is the form.** The bound is now: run the committed tool before and after a `ppgdex-dsp.js`
+change on the same corpus; the after-median may not exceed the before-median; both numbers go in the PR.
+Enforceable by anyone at any time, which the constant never was. 5.92 ms is retained as history and
+8.36/8.16 recorded as a dated reference point, explicitly not as a threshold.
+
+### 6.2 · CVHR — the one metric with a genuine case
+
+§4's third criterion, never previously measured. Both nodes run the **same** detector (PpgDex's
+`cvhrFromNN` is a deliberate port of `ECGDSP.detectCVHR`), so this compares **devices**, not methods. Band
+is the Integrator's own `CVHR_AGREE_PER_H = 5.0`, read from the code.
+
+| corpus | finger median \|Δ\| | IQR | in band |
+|---|---|---|---|
+| all nights (16) | 2.65 /h | 1.50–6.38 | 11/16 |
+| **sleep only (7)** | **1.80 /h** | **1.50–2.65** | **7/7** |
+
+Sleep-filtered, the whole IQR sits inside the band and every night agrees. Verity: 0.80 /h, 6/7.
+
+**Two honest qualifications.** (a) **n = 7**, below §3.1's ≥10-night bar for a median+IQR claim — the
+substance is met, the corpus size is not, so this is a **recommendation to ratify**, not a pass, and §4
+reserves ratification for a person regardless. (b) The sleep filter is **crude by design** — start hour
+20:00–04:00 and ≥4 h from the filename stamp and duration, not a stage call; it over-includes rather than
+silently drops.
+
+### 6.3 · The waking segments were carrying the noise
+
+Filtering to sleep did not just move CVHR. The finger's **jitter IQR collapsed from 6.52–21.46 to
+6.61–10.36** and its median improved 8.16 → **7.03 ms**; RMSSD bias fell +37.7 % → **+27.5 %**. The wide
+upper quartile in every earlier table was daytime segments, which is the expected finger-pleth failure
+mode (motion, perfusion) and matches §5b's own note that its 15 HR failures concentrated in two
+high-HR/motion daytime segments.
+
+**This does not rescue any other metric.** At 7.03 ms the finger is still ~1.4× over the ≤ 4.98 ms budget
+for 2 % RMSSD bias, and `sdnnRobust` reads +10.8 % against a ±3.5 % bar with an IQR that still crosses
+zero. The verdict in `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` stands: **CVHR is the only metric
+with a case, and it needs three more sleep nights to clear its own corpus bar.**

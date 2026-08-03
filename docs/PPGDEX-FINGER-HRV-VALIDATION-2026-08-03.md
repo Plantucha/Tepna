@@ -32,7 +32,7 @@ family stays **`emerging`** — which is a legitimate outcome §4 names explicit
 | beat match rate | 99.3 % (IQR 94.7–100) | 100 % (IQR 86.7–100) | — | (context) |
 | **RMSSD bias** vs ECG | **+37.7 %** (IQR 29.7–59.7) | +15.3 % | ~2 % | **FAIL** |
 | **`sdnnRobust`** vs ECG `dispSd` | **+10.6 %** (IQR −5.2–+17.0) | +18.7 % (IQR +3.2–+28.4) | ±3.5 % | **FAIL** |
-| CVHR agreement | not run | not run | — | **open** |
+| **CVHR** \|Δ\| (sleep, n=7) | **1.80 /h · 7/7 in band** | 0.80 /h · 6/7 | ≤ 5.0 /h | **MEETS — but n<10** |
 
 ## 3 · Per-metric verdict
 
@@ -41,8 +41,11 @@ family stays **`emerging`** — which is a legitimate outcome §4 names explicit
   nights. This was the metric §4 thought most likely to promote; it does not.
 - **Whole-record RMSSD → STAYS `emerging`**, as §4 predicted it would. +37.7 % bias, and the jitter that
   drives it (8.16 ms) is well outside the closed-form budget (≤ 4.98 ms ⇒ 2 %; ≤ 7.93 ms ⇒ 5 %).
-- **CVHR → UNDECIDED, not run.** §4 requires agreement on **sleep** nights; that endpoint is not in this
-  apparatus. Recorded as open rather than assumed either way.
+- **CVHR → the ONE metric with a case (measured 2026-08-03).** On sleep nights the finger agrees with
+  ECGDex on **7 of 7**, median |Δ| **1.80 events/h**, IQR 1.50–2.65 — the entire IQR inside the
+  Integrator's ±5.0 band. Both nodes run the SAME detector, so this compares devices, not methods.
+  **It does not promote yet:** n = 7 is below §3.1's ≥10-night bar for a median+IQR claim. The substance
+  of §4's criterion is met; the corpus size is not. Three more sleep nights would settle it.
 - **No tier string changes anywhere.** `integrator-dsp.js` is untouched; §4 reserves ratification for a
   person, and there is nothing to ratify because nothing passed.
 

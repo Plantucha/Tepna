@@ -273,7 +273,30 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 - **Primary endpoint: PPI jitter sd**, measured against paired H10 ECG using the §2.2 per-epoch alignment,
   reported as the median across ≥10 nights with its IQR. A change that does not move jitter, coverage, or a
   *correctness* defect is not worth its fixture churn.
-- **No change may raise** median jitter above 5.92 ms or lower median beat sensitivity below 1.0000.
+- **No change may raise** median jitter, or lower median beat sensitivity below 1.0000.
+  **⚠ RE-BASED 2026-08-03 — the 5.92 ms literal is retained below as history, but is NOT the bound.**
+  This bound was a bare constant produced by the §2.2 apparatus, and §2.2 **names the method and no
+  tool**, so the apparatus was never committed. The threshold was therefore unverifiable: nobody —
+  including its author — could re-derive it, and a gate whose number cannot be reproduced cannot be
+  enforced against a change. Re-measured with `tools/ppi-jitter-vs-ecg.mjs` (committed 2026-08-03,
+  PR #756) on the current corpus, the **Verity** — the very device 5.92 ms describes — reads
+  **8.36 ms** (15 nights, IQR 4.63–31.61).
+
+  **The gap is NOT attributable** (corpus, method and figure are indistinguishable with no committed
+  instrument to diff), so 5.92 ms is **not declared wrong and not overwritten with 8.36** — swapping one
+  unverifiable constant for another would repeat the defect rather than fix it. What changes is the
+  bound's FORM:
+
+  > **The bound is a re-derivation, not a number.** Before a `ppgdex-dsp.js` change, run
+  > `node tools/ppi-jitter-vs-ecg.mjs --dir <captures> --device <verity|o2ring> --sleep-only` and record
+  > the median. After the change, run it again on the same corpus. **The after-median may not exceed the
+  > before-median.** Both numbers go in the PR.
+
+  This is enforceable by anyone at any time, which the constant never was. Baseline recorded 2026-08-03
+  for reference, not as a threshold: **Verity 8.36 ms · O2Ring finger 8.16 ms** (16 nights, IQR
+  6.52–21.46). Historical: the original §2.1 table's 5.92 ms (IQR 3.98–10.61, range 3.02–48.80).
+  See `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` §4 and
+  `PPGDEX-JITTER-AND-REFERENCE-FOLLOWUPS-2026-08-03-BRIEF.md` §1.
 - **Gate cost per `ppgdex-dsp.js` edit** (`CLAUDE.md` §🧪, §🔏, memory `tepna-three-stage-build`):
   `node tools/build.mjs --app PpgDex`, then `build-analysis.mjs` **and** `build-docs.mjs` (orchestrators,
   analysis and docs all inline the DSP — skipping these reds the CI drift guards), `npm run typecheck`,
