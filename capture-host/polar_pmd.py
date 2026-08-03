@@ -60,6 +60,16 @@ NO_ACK = -1
 STARTED_STATUS = frozenset({0x00, 0x06})            # ok, already_streaming
 TRANSIENT_STATUS = frozenset({0x0C, 0x0D})          # invalid_state, in_charger
 
+# ⚠️ THE TWO TRANSIENTS ARE NOT INTERCHANGEABLE, and a caller that treats them as one will be wrong in a
+# way that costs recordings. `in_charger` is a DEVICE state — it is true of the whole sensor and every
+# stream on it. `invalid_state` is a MEASUREMENT state — this one stream cannot start right now, and it
+# says nothing at all about the device. Measured 2026-08-02: a Verity answers `invalid_state` to PPI
+# permanently, and because capture.py read any transient as "charging", that per-stream refusal set a
+# device-level charging flag, ended the session, and re-negotiated the whole device every ~60 s all
+# night. Retry-don't-drop is right for both; "the device is charging" is right for exactly one.
+IN_CHARGER = 0x0D
+INVALID_STATE = 0x0C
+
 
 def is_started(status: int) -> bool:
     """True when a START ACK means the stream is live (or was already)."""
