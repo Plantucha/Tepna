@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-02 (**§2 waves 3-6 and §3 EXECUTED — see §7.** cpapdex-render is 171/319 = 54 %; the matchRecall cross-site scan landed. §1 the host-axis spec and §5 the canvas-harness decision remain.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
+**Status:** IN-PROGRESS — 2026-08-02 (**§2 waves 3-7 and §3 EXECUTED — see §7.** cpapdex-render is 182/319 = 57 %; the matchRecall cross-site scan landed. §1 the host-axis spec and §5 the canvas-harness decision remain.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
 
 # What the clock audit left behind: an unspecified host-axis, and 125 reachable render mutants
 
@@ -167,6 +167,7 @@ change to the module, no re-bundle.
 | **4** | **153/319 = 48 %** | **every band's WARN edge, and `oximetryCard` (previously unasserted)** |
 | **5** | **160/319 = 50 %** | **`crossNodeCard` — the same four bands a second time, and their PARITY** |
 | **6** | **171/319 = 54 %** | **a RECORDING canvas context — `drawAhiByHour` alone, +11** |
+| **7** | **182/319 = 57 %** | **`drawPressure` — marker POSITION on the 4–20 ramp, +11** |
 
 `renderHistory` was skipped twice for a real reason — it needs a multi-night fixture routed through
 `CPAPDSP.buildLongitudinal`, which is fixture construction rather than more of the same shape. That turned
