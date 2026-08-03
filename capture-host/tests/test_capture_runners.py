@@ -445,6 +445,33 @@ def test_run_polar_charging_hold_when_start_is_refused(tmp_path, monkeypatch):
     assert capture.STATUS["devices"]["H10"]["charging"] is True
 
 
+def test_a_stream_the_device_will_not_serve_does_not_make_the_DEVICE_charging(tmp_path, monkeypatch):
+    """0x0C invalid_state is a MEASUREMENT state; 0x0D in_charger is a DEVICE state. Reading any
+    transient as "charging" cost a whole night: the Verity answers invalid_state to PPI permanently,
+    PPI is negotiated LAST, so its refusal overwrote the successful charging=False writes from every
+    other stream. The box reported "charging — PMD streams unavailable" while streaming 151k rows with
+    a FALLING battery, and because charging_hold ends the session it re-negotiated every ~60 s all
+    night — 26 files for one night, and an on-charger auto-pull each time."""
+    _polar_common(monkeypatch)
+    c = FakePolarClient(start_status=0x0C)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert capture.STATUS["devices"]["H10"].get("charging") is not True, \
+        "a per-measurement refusal claimed the whole device was on the charger"
+    assert "charging" not in (capture.STATUS["devices"]["H10"].get("last_error") or ""), \
+        "the device was labelled charging on the strength of one stream"
+
+
+def test_the_two_transients_are_not_the_same_state():
+    """Both mean retry-don't-drop. Only one means the DEVICE is charging — the distinction the fix
+    turns on, pinned so it cannot be collapsed again."""
+    assert pmd.is_transient(pmd.IN_CHARGER) and pmd.is_transient(pmd.INVALID_STATE)
+    assert pmd.IN_CHARGER != pmd.INVALID_STATE
+    assert pmd.CTRL_STATUS[pmd.IN_CHARGER] == "in_charger"
+    assert pmd.CTRL_STATUS[pmd.INVALID_STATE] == "invalid_state"
+
+
 def test_run_polar_sets_worn_from_the_hr_contact_bit(tmp_path, monkeypatch):
     """An HR frame with contact-supported-but-absent (flags 0x04) drives worn=False."""
     _polar_common(monkeypatch)

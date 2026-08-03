@@ -1432,16 +1432,37 @@ async def run_polar(dev: dict, root: str):
                                 _set(name, charging=False)
                                 _CHARGING.discard(name)
                             elif transient:
-                                # Do NOT tear the stream down: the settings are fine, the device is simply
-                                # charging. Destroying the writer here deleted the file AND unregistered the
-                                # card, and since the link SURVIVES on the charger the START loop would not
-                                # re-run — so the stream stayed dead even after the device came off charge,
-                                # until something forced a reconnect. Keep it and let the session end so the
-                                # reconnect loop retries the whole negotiation.
-                                _set(name, charging=True,
-                                     last_error="charging — PMD streams unavailable until off the charger")
-                                _CHARGING.add(name)
-                                charging_hold = True
+                                # Do NOT tear the stream down: the settings are fine, the device simply
+                                # cannot serve this measurement right now. Destroying the writer here
+                                # deleted the file AND unregistered the card, and since the link SURVIVES
+                                # on the charger the START loop would not re-run — so the stream stayed
+                                # dead even after the device came off charge, until something forced a
+                                # reconnect. Keep it and let the session end so the reconnect loop retries.
+                                #
+                                # ⚠️ ONLY 0x0D MEANS CHARGING. `is_transient` covers 0x0C invalid_state too,
+                                # and conflating them made a PER-MEASUREMENT refusal set a DEVICE-LEVEL
+                                # charging flag. Measured 2026-08-02: the Verity answers `invalid_state` to
+                                # PPI permanently (its PPI is unusable), PPI is negotiated LAST, and its
+                                # refusal therefore overwrote the four successful `charging=False` writes
+                                # from acc/gyro/mag/ppg. The box then reported "charging — PMD streams
+                                # unavailable" while streaming 151k rows with a battery FALLING 96 -> 91,
+                                # and — because `charging_hold` ends the session — re-negotiated the whole
+                                # device every ~60 s all night, fragmenting one night into 26 files and
+                                # firing the on-charger auto-pull each time. A wrong flag was not
+                                # cosmetic: it cost the recording.
+                                if st == pmd.IN_CHARGER:
+                                    _set(name, charging=True,
+                                         last_error="charging — PMD streams unavailable until off the charger")
+                                    _CHARGING.add(name)
+                                    charging_hold = True
+                                else:
+                                    # A measurement this device will not serve. Say so against the STREAM,
+                                    # leave the device's charging state alone, and do NOT hold the session:
+                                    # ending it would re-negotiate every other stream on a device that is
+                                    # otherwise perfectly healthy.
+                                    log.info("%s %s unavailable (%s) — leaving the other streams up",
+                                             name, pmd.MEAS_NAME.get(meas, meas),
+                                             pmd.CTRL_STATUS.get(st, hex(st)))
                                 break
                             elif st == pmd.NO_ACK:
                                 # NO REPLY IS NOT A REJECTION. A dropped control indication — or a control
