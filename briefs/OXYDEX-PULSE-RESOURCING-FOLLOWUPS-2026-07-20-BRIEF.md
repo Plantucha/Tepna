@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-20
+**Status:** DONE — 2026-08-03 (§1 measured NO 2026-07-21 — the finger-waveform corpus the re-tier needs does not exist, both tiers stay `emerging`; §2 re-stamped 2026-07-21; §3 ANSWERED 2026-08-03 — 614 paired epochs, bias +0.84 bpm, median Δ 0.00 on all six nights) · **Created:** 2026-07-20
 
 Follow-ups discovered while executing `OXYDEX-PULSE-RESOURCING-2026-07-18-BRIEF.md` (all 4 phases
 DONE 2026-07-20). Nothing here blocks the shipped work — each item is **corpus-gated**: it needs the real
@@ -87,6 +87,69 @@ reporting a sentinel-filled file as coverage, which `CPAP-SA2-OXIMETRY-SOURCE` w
 **What a sound answer needs:** session-level pairing (the `pairCompanions` / `trio-batch` fold already
 solves this shape for the trio corpus), then the bias distribution over however many nights survive. Until
 then §3 stays open, and **no bias figure from this corpus should be quoted** — including the two above.
+
+### ✅ ANSWERED 2026-08-03 — and the pairing needed no inference at all
+
+**The cause was one line of file selection, not "different capture sessions".** The ring writes ONE
+`_SPO2.csv` per `_PPG.txt`, sharing a 14-digit session stamp:
+
+```
+Wellue_O2Ring-S_S8AW2100_20260727001113_PPG.txt
+Wellue_O2Ring-S_S8AW2100_20260727001113_SPO2.csv
+```
+
+Pass 2 took `find … _SPO2.csv | head -1` (an arbitrary session) and the **largest** `_PPG.txt` (usually a
+different one), so on almost every night it window-matched two unrelated sessions and correctly found no
+overlap. Its diagnosis — *"they are different capture sessions on the same date"* — described the symptom
+of its own file selection. **The pairing key was in the filename all along**; no `trio-batch`-style
+session inference was required.
+
+**The comparison is now per 5-min EPOCH, not one median per session.** `PPGDSP.analyze` already yields
+`epochs[].hr` from its own beat detection, so each epoch is matched against the median vendor pulse over
+that epoch's own wall-clock window. That turns a handful of session medians into the paired series a
+Bland–Altman actually needs.
+
+#### The result — 614 paired epochs, 6 nights, 43 sessions
+
+| | |
+|---|---|
+| bias (ppg − vendor) | **+0.84 bpm** |
+| SD | 3.34 bpm |
+| 95 % LoA | **−5.72 … +7.39 bpm** |
+| median Δ | **0.00 bpm** |
+| range | −7 … +34 bpm |
+
+**Per-night median Δ is 0.00 on all six nights** (n = 19 · 163 · 134 · 103 · 99 · 96), so the pooled
+figure is not an artefact of whichever night contributed most epochs — the check that would have caught
+exactly that was run and passed.
+
+This is the **legitimate negative result** §3 allowed for: the vendor's 1 Hz smoothed pulse and an HR
+derived from the ring's own raw finger waveform agree to a median of zero, with a bias under 1 bpm. It
+corroborates the synthetic's Δ≈2 and the parent §7's "vendor smoothing costs little" — measured this
+time. The +34 bpm tail is a handful of epochs, not a central tendency; the median is the honest summary
+and the LoA carries the spread.
+
+**The `--min-cov` inclusion rule does not drive it.** An epoch is paired only when its 300 s window
+carries enough vendor samples; re-run at 0.25 / 0.50 / 0.75 the answer is bias **0.82 / 0.84 / 0.83**,
+SD **3.35 / 3.34 / 3.37** (n 632 / 614 / 601). Reported rather than assumed away, because a threshold
+nobody varied is an invented constant.
+
+#### A silent drop found on the way, and it had produced a plausible answer
+
+The first complete run reported **155 epochs across 5 nights, bias 0.80, SD 2.00** — and was wrong,
+because the seven LARGEST sessions (the actual overnight recordings, 92–142 MB) were being counted as
+`analyse failed`. The child process wrote its ~500 KB JSON with `process.stdout.write` and then called
+`process.exit(0)`; stdout to a **pipe** is async, so every payload was truncated at exactly **146176
+bytes** — a pipe-buffer boundary — and the parent's `JSON.parse` failed. Nothing errored; the run simply
+summarised the short reconnect fragments and printed a tighter, healthier-looking SD.
+
+Two things make this worth recording. **It only reproduces through a pipe** — redirecting the child to a
+file writes synchronously and looks fine, which is how the earlier spot-check passed. And **removing the
+`exit()` is not the fix**: the vm realm keeps the event loop alive and the child hangs. The fix is a
+synchronous `writeSync(1, …)` loop over partial writes, then a deliberate exit.
+
+Accounting for the shipped run: 117 sessions · 2 with no sibling CSV · **0 analyse failures** · 8 with no
+usable epoch · 77 epochs dropped for thin vendor coverage · **43 sessions contributing 614 epochs**.
 
 ## Cross-references
 - Parent: `OXYDEX-PULSE-RESOURCING-2026-07-18-BRIEF.md` (DONE 2026-07-20).
