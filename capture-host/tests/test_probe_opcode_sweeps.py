@@ -263,9 +263,12 @@ class _Live(_RingClient):
     """A ring whose live frame is built per-call: `noisy` bytes churn on their own, and an opcode in
     `effects` permanently rewrites a byte. That separates the two things the detector must tell apart."""
 
-    def __init__(self, noisy=(), effects=None, **kw):
+    def __init__(self, noisy=(), effects=None, scratch=None, drift=None, **kw):
         super().__init__(**kw)
         self.noisy, self.effects, self.applied, self.tick = set(noisy), effects or {}, {}, 0
+        self.scratch = scratch          # a byte ANY command write perturbs — device state it is not
+        self.drift = drift              # a byte that wanders slowly, like SpO2 over a long sweep
+        self.nth_cmd = self.reads = 0
 
     HDR = 7                                             # [A5, op, ~op, flag, seq, len_lo, len_hi]
 
@@ -274,6 +277,10 @@ class _Live(_RingClient):
         CRC moves with the payload exactly as the device's does (and is excluded as volatile for it)."""
         p = bytearray(b"\x00\x00\x00\x00\xc7\x00\x62\x48\x00\x00\x00\x00")
         self.tick += 1
+        if self.drift is not None:
+            self.reads += 1
+            # holds still for the ~10-sample null, then wanders — exactly SpO2's behaviour
+            p[self.drift - self.HDR] = (0x62 - max(0, self.reads - 10)) & 0xFF
         for i in self.noisy:                            # `i` is a FRAME index, as the report reports
             p[i - self.HDR] = (self.tick * 37 + i) & 0xFF
         for i, v in self.applied.items():
@@ -285,11 +292,14 @@ class _Live(_RingClient):
         self.writes.append(op)
         if op == oxs.oxyii.OP_LIVE:
             self._cb(0, bytearray(self._frame()))
-        elif op in self.effects:
-            self.applied.update(self.effects[op])
-            self._cb(0, bytearray(oxs.oxyii.encode(op, b"\x01")))
-        elif op in self.responders:
-            self._cb(0, bytearray(oxs.oxyii.encode(op, b"\x01")))
+        else:
+            if self.scratch is not None:            # every command moves it, documented ones included
+                self.nth_cmd += 1
+                self.applied[self.scratch] = (0x30 + self.nth_cmd) & 0xFF
+            if op in self.effects:
+                self.applied.update(self.effects[op])
+            if op in self.effects or op in self.responders:
+                self._cb(0, bytearray(oxs.oxyii.encode(op, b"\x01")))
 
 
 def test_oxyii_a_self_churning_live_frame_is_not_read_as_an_effect(monkeypatch):
@@ -313,7 +323,7 @@ def test_oxyii_aborts_when_a_byte_that_held_constant_moves(monkeypatch):
     assert res["aborted_at"] == "0x20"
     assert res["opcodes"]["0x20"]["state_changed"] == {
         "byte_positions": [11], "before": [0xC7], "after": [0x00]}
-    assert "held constant across the baseline" in res["abort_reason"]
+    assert "did NOT move again under the control command" in res["abort_reason"]
 
 
 def test_oxyii_publishes_how_little_the_detector_could_watch(monkeypatch):
@@ -350,7 +360,7 @@ def test_oxyii_a_write_failure_stops_the_sweep(monkeypatch):
     class _Dead(_RingClient):
         async def write_gatt_char(self, _c, data, response=False):
             # Handshake and snapshot must work; only the swept opcode kills the link.
-            if data[1] in (oxs.oxyii.OP_LIVE, oxs.oxyii.OP_AUTH, oxs.oxyii.OP_SETUP):
+            if data[1] in (oxs.oxyii.OP_LIVE, oxs.oxyii.OP_AUTH, oxs.oxyii.OP_SETUP, oxs.CONTROL_OP):
                 if data[1] == oxs.oxyii.OP_LIVE:
                     self._cb(0, bytearray(self.live))
                 return
@@ -391,7 +401,7 @@ def test_oxyii_a_link_lost_on_the_closing_snapshot_does_not_discard_the_sweep(mo
     """THE REGRESSION. Measured 2026-08-03: a full 248-opcode sweep reached its closing snapshot, the
     link had gone, and the raised error propagated out of run() before main() could write the JSON — ten
     minutes of hardware evidence lost on the last line, against a device reachable only while worn."""
-    c = _DiesOnNthLive(nth=6, responders=set())     # 5 baseline samples, then the closing one
+    c = _DiesOnNthLive(nth=11, responders=set())   # 10 null samples, then the closing one
     _patch_ring(monkeypatch, c)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x24, dry=False))
     assert len(res["opcodes"]) == 5, "every opcode probed must survive the closing failure"
@@ -403,7 +413,7 @@ def test_oxyii_a_link_lost_on_the_closing_snapshot_does_not_discard_the_sweep(mo
 def test_oxyii_a_link_lost_mid_verification_keeps_the_ops_already_mapped(monkeypatch):
     """The verification snapshot runs inside the loop. A link dying there must cost that op, not the
     table built before it."""
-    c = _DiesOnNthLive(nth=6, responders={0x21})   # 5 baseline, then 0x21 replies -> snapshot dies
+    c = _DiesOnNthLive(nth=11, responders={0x21})  # 10 null samples, then 0x21 replies -> snapshot dies
     _patch_ring(monkeypatch, c)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x25, dry=False))
     assert res["opcodes"]["0x20"]["replied"] is False, "the op mapped before the failure is kept"
@@ -413,7 +423,7 @@ def test_oxyii_a_link_lost_mid_verification_keeps_the_ops_already_mapped(monkeyp
 
 def test_oxyii_main_signals_a_lost_link_in_its_exit_code(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(oxs, "require_free_link", lambda: None)
-    _patch_ring(monkeypatch, _DiesOnNthLive(nth=6, responders=set()))
+    _patch_ring(monkeypatch, _DiesOnNthLive(nth=11, responders=set()))
     p = str(tmp_path / "o.json")
     assert oxs.main(["--address", "AA:BB", "--i-accept-the-risk", "--from", "0x20", "--to", "0x22",
                      "--json", p]) == 1
@@ -571,3 +581,50 @@ def test_oxyii_the_adapter_cycle_is_best_effort(monkeypatch):
         raise FileNotFoundError("bluetoothctl")
     monkeypatch.setattr(oxs.asyncio, "create_subprocess_exec", boom)
     assert _run(oxs._cycle_adapter()) is False
+
+
+def test_oxyii_a_byte_that_any_command_perturbs_cannot_convict_an_opcode(monkeypatch):
+    """THE SECOND FALSE POSITIVE, and the worse one because the first fix made the detector look
+    rigorous. Live-frame byte 17 sat at 0xc7 across every PASSIVE sample — 34 of 34 bytes "stable" on a
+    docked ring — and moved for 0x00, 0x03 and 0x06, reported as three findings. Then 0xF1 (FILE_LIST:
+    documented, read-only, and on a worn ring it does not even reply) moved it too. A passive null
+    cannot see a byte that the ACT OF COMMANDING writes, so the null now fires a control command."""
+    c = _Live(scratch=11, responders={0x20, 0x21})
+    _patch_ring(monkeypatch, c)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))
+    assert 11 in res["baseline"]["volatile_bytes"], "the scratch byte must be disqualified"
+    assert "aborted_at" not in res, "and must not convict an opcode"
+    assert res["baseline"]["control_op"] == "0xf1"
+
+
+def test_oxyii_a_real_effect_still_convicts_alongside_a_scratch_byte(monkeypatch):
+    """Disqualifying the scratch byte must not blind the detector to a genuine change."""
+    c = _Live(scratch=11, effects={0x21: {12: 0x99}}, responders={0x20})
+    _patch_ring(monkeypatch, c)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x25, dry=False))
+    assert res["aborted_at"] == "0x21"
+    assert res["opcodes"]["0x21"]["state_changed"]["byte_positions"] == [12]
+
+
+def test_oxyii_a_drifting_vital_sign_is_adjudicated_not_convicted(monkeypatch):
+    """The null lasts ~10 s; the sweep lasts minutes. On a WORN ring SpO2 holds still across the null and
+    then drifts on its own — measured 2026-08-03, the sweep stopped at 0x02 on byte 13 going 98 -> 95,
+    which is SpO2 doing what SpO2 does. A byte that keeps moving across a documented read-only command is
+    drifting, not responding."""
+    c = _Live(drift=13, responders={0x20, 0x21, 0x22})
+    _patch_ring(monkeypatch, c)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x22, dry=False))
+    assert "aborted_at" not in res, "drift must not convict an opcode"
+    # 19 is the frame CRC, which follows any payload change — the real device does this too
+    assert res["opcodes"]["0x20"]["drift_suspected"]["byte_positions"] == [13, 19]
+    assert len(res["opcodes"]) == 3, "and the sweep must carry on"
+
+
+def test_oxyii_a_real_effect_survives_the_drift_adjudication(monkeypatch):
+    """A one-shot change does NOT recur under the control command, so it still convicts."""
+    c = _Live(effects={0x21: {12: 0x99}}, responders={0x20})
+    _patch_ring(monkeypatch, c)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x25, dry=False))
+    assert res["aborted_at"] == "0x21"
+    assert res["opcodes"]["0x21"]["state_changed"]["byte_positions"] == [12, 19]   # 19 = the CRC
+    assert "drift_suspected" not in res["opcodes"]["0x21"]
