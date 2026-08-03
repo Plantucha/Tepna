@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-02 (**§2 waves 3-7 and §3 EXECUTED — see §7.** cpapdex-render is 182/319 = 57 %; the matchRecall cross-site scan landed. §1 the host-axis spec and §5 the canvas-harness decision remain.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
+**Status:** IN-PROGRESS — 2026-08-02 (**§1, §2 waves 3-7 and §3 EXECUTED — see §1-RESULT and §7.** cpapdex-render is 182/319 = 57 %; the matchRecall cross-site scan landed. all five items are now closed.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
 
 # What the clock audit left behind: an unspecified host-axis, and 125 reachable render mutants
 
@@ -35,6 +35,40 @@ test becomes a change-detector rather than a contract.
 
 Related context that should inform the spec, not be re-derived: `[[wearables-drift-87ppm]]`,
 `[[wearable-host-axis-fix]]`, `[[vigil-box-clock-facts]]`.
+
+### §1-RESULT — executed 2026-08-03: spec first, then gates, and the score moved less than expected
+
+**The Contract now has §7** (`CLAUDE.md`), covering what the brief asked for: what an anchor is, what the
+≥3 minimum protects against, what `CK_AXIS_MAX_PPM` rejects and why 5 %, the refusal shape, and why there
+is deliberately no span gate here when the sibling tool needs one. Folded in from **#746**, which landed
+mid-execution: `independent` / `spreadMs` — never a ~0 ppm — is what says whether a second clock exists.
+
+**Writing the spec first paid for itself immediately**, which is the brief's own argument made concrete.
+Two clauses I drafted from the code's comments were false, and gating them would have pinned a fiction:
+
+- *"the correction is 0 at the first anchor"* — it is not. The running median's clamped window pulls each
+  end inward by exactly **⌊win/2⌋/2 = 5 anchors' drift**, so `ppm` under-reads by `1 − 5/(n−1)`: 12.5 % at
+  n=41, 0.17 % on the real 2873-anchor O2Ring geometry. A **second, independent** reason `ppm` needs its
+  span and anchor count beside it — the first is leverage.
+- the median is **pointwise exact in the interior**; a linear ramp is reproduced with no smoothing loss.
+
+Both are now stated and gated. 16 assertions, boundary-and-rejection throughout.
+
+**The measured delta is 86/123 → 90/123, +4 (70 % → 73 %)** — against an estimate in §1 of "~16 points on
+its own". Two reasons, both worth carrying forward:
+
+1. **Hand-written mutants are not the tool's mutants.** 11 were applied by hand and 9 killed, but several
+   (`bound widened 10×`, `median → mid-element`, `r0 forced to 0`) are not in `mutate.mjs`'s operator set
+   at all. They prove the assertions catch real regressions; only the tool's own population moves the
+   score. **Verify with hand mutants, but never predict the score from them.**
+2. **`mutate.mjs`'s printed survivor list is TRUNCATED** — 25 of 37 lines on the baseline run. A
+   decomposition read off that output ("20 of 37 sit in 260-370") cannot be checked, and an attempt to
+   reconcile it produced an impossible result: tests appearing to *resurrect* mutants elsewhere. Use
+   `--json` for any per-region claim.
+
+Two mutants in the block are **provably equivalent** and no test can kill them: the `<=`→`<` flat-outside
+clamps. At the anchor itself the interpolation path returns 75.000000000005 against the clamp's 75, so
+the shortcut and the general path agree exactly where the mutant differs.
 
 ## 2 · `cpapdex-render.js` — 125 reachable mutants remain (wave 3)
 
@@ -122,9 +156,18 @@ behavioural CPAPDex bundle rather than justify one.
 
 ## 5 · Done when
 
-- [ ] The Clock Contract has a host-axis section, owner-ratified in `CLAUDE.md`.
-- [ ] The axis guards are gated boundary-and-rejection, each verified by re-applying the exact mutant.
-- [ ] `clock.js` re-run exhaustively; the delta against **86/123** recorded.
+- [x] **The Clock Contract has a host-axis section** — `CLAUDE.md` §7, owner-ratified 2026-08-03. Covers
+      what an anchor is, what the ≥3 minimum protects against, what `CK_AXIS_MAX_PPM` rejects and why
+      5 %, the refusal shape, why there is deliberately no span gate here, and (folded in from #746)
+      that `independent`/`spreadMs` — not a ~0 ppm — is what says whether a second clock exists at all.
+- [x] **The axis guards are gated boundary-and-rejection** (16 assertions). 11 mutants applied, 9 killed;
+      the two survivors are the `<=`→`<` flat-outside clamps, verified **equivalent** — at the anchor
+      itself the interpolation returns 75.000000000005 against the clamp's 75, so no test can separate
+      them. Two of my own assertions were wrong-but-passing first and are recorded in §1-RESULT.
+- [x] **`clock.js` re-run exhaustively — 86/123 = 70 % → 90/123 = 73 %, +4** (2026-08-03). Measured as a
+      true A/B: the baseline was re-run on a tree pinned to the same commit, `clock.js` md5-identical on
+      both sides, and it reproduced the recorded 86/123 exactly. See §1-RESULT for why +4 and not the
+      ~16 the estimate implied.
 - [x] `renderHistory` + `cpapClinicalSummary` asserted; the new `cpapdex-render.js` rate recorded. — **§7:
       118/319 → 144/319 = 45 %.** `renderHistory` 29 → 15 survivors, `cpapClinicalSummary` 20 → out of the top six.
 - [x] The `matchRecall` cross-site scan lands with its anti-vacuity leg, in both runners. — PR #726. Five

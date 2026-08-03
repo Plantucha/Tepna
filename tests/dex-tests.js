@@ -610,6 +610,96 @@
       T.ok('an implausible 2× rate is REFUSED (not applied)', axBad.ok === false && /implausible/.test(String(axBad.reason)), 'reason=' + axBad.reason);
       T.ok('fewer than 3 anchors refuses rather than guesses', C.hostAxis([{ devMs: 0, hostMs: 0 }, { devMs: 1, hostMs: 1 }], {}).ok === false);
       T.ok('no anchors at all refuses', C.hostAxis([], {}).ok === false);
+
+      /* ══ CLOCK CONTRACT §7 · the axis guards, BOUNDARY AND REJECTION ═══════════════════════════
+         Every assertion above this line tests a guard from ONE side — 2 anchors refuse, 0 anchors
+         refuse, a 2× rate refuses. That pins `<` and leaves every `<=` alive, which is why 20 of
+         `clock.js`'s 37 surviving mutants sat in this block. The Contract now states what these
+         guards MEAN (§7), so they can be pinned to a specification rather than to whatever the code
+         happens to do today — which was the stated reason not to gate them earlier. */
+      var mk = function (n, ppm, span) {
+        var a = [];
+        for (var i = 0; i < n; i++) {
+          var dev = (i * (span || 600000)) / Math.max(1, n - 1);
+          a.push({ devMs: dev, hostMs: dev + (dev * (ppm || 0)) / 1e6 });
+        }
+        return a;
+      };
+      // ── §7 · the ≥3 minimum, from BOTH sides ──────────────────────────────────────────────────
+      T.ok('§7 · exactly 3 anchors is ACCEPTED — the minimum is inclusive, and a `<3`→`<=3` would hide here',
+        C.hostAxis(mk(3, 100), {}).ok === true, JSON.stringify(C.hostAxis(mk(3, 100), {}).reason || 'ok'));
+      T.eq('§7 · …and a refusal names the count it got rather than failing mutely',
+        /got 2/.test(String(C.hostAxis(mk(2, 100), {}).reason)), true);
+      /* A non-finite member must be DROPPED at collection. Asserting only `.ok === false` is not
+         enough — an admitted NaN propagates into `ppm`, and `Math.abs(NaN) <= bound` is false, so the
+         call refuses ANYWAY, for the wrong reason. The reason string is what separates them. */
+      var nanAx = C.hostAxis([{ devMs: 0, hostMs: 0 }, { devMs: 1e5, hostMs: Number.NaN }, { devMs: 2e5, hostMs: 2e5 }], {});
+      T.ok('§7 · an anchor with a non-finite member is DROPPED at collection, not carried into the fit',
+        nanAx.ok === false && /need ≥3 host anchors, got 2/.test(String(nanAx.reason)),
+        'must refuse for the ANCHOR COUNT, not as an implausible ppm — got: ' + nanAx.reason);
+
+      /* ── §7 · the MEDIAN is exact inside and biased at the ENDS, by a closed-form amount ───────
+         A running median over a linear ramp reproduces it pointwise, so the interior carries no
+         smoothing loss; the clamped window pulls each END inward by exactly ⌊win/2⌋/2 = 5 anchors'
+         drift. Both halves are asserted because they are the contract: the interior is what
+         `correctionAt` promises, and the edge bias is why `ppm` under-reads. A test that only checked
+         "the total is roughly right" would pass with the smoothing removed entirely. */
+      var LIN = C.hostAxis(mk(401, 10000, 600000), {});
+      var step = 6000 / 400; // total planted divergence (ms) per anchor gap
+      T.ok('§7 · the interior is EXACTLY linear — a running median reproduces a ramp pointwise',
+        Math.abs(LIN.correctionAt(300000) - (LIN.correctionAt(150000) + LIN.correctionAt(450000)) / 2) < 1e-6,
+        LIN.correctionAt(300000) + ' vs ' + (LIN.correctionAt(150000) + LIN.correctionAt(450000)) / 2);
+      T.ok('§7 · the first anchor carries the edge bias — 5 anchors of drift, NOT zero',
+        Math.abs(LIN.correctionAt(0) - 5 * step) < 1e-6, LIN.correctionAt(0) + ' vs ' + 5 * step);
+      T.ok('§7 · …and the last is pulled inward by the same 5 anchors, so the two ends are symmetric',
+        Math.abs(LIN.totalMs - (6000 - 5 * step)) < 1e-6, LIN.totalMs + ' vs ' + (6000 - 5 * step));
+      T.ok('§7 · …which makes `ppm` under-read by exactly 1 − 5/(n−1) — the reason it needs its anchor count',
+        Math.abs(LIN.ppm - 10000 * (1 - 5 / 400)) < 1e-6, LIN.ppm + ' vs ' + 10000 * (1 - 5 / 400));
+
+      // ── §7 · the ±5 % plausibility bound, from BOTH sides, hit EXACTLY ────────────────────────
+      /* Everything above is linear in the planted rate, so the reported ppm scales exactly with it.
+         That lets the bound be struck on the nose rather than straddled: measure the transfer once,
+         then plant the rate that reports exactly 50000. Without this the `<=`→`<` mutant survives —
+         it only changes the verdict AT the bound. */
+      var probe = C.hostAxis(mk(401, 10000, 600000), {});
+      var atBound = C.hostAxis(mk(401, (10000 * 50000) / probe.ppm, 600000), {});
+      T.ok('§7 · a rate reporting EXACTLY ±50000 ppm is admitted — the bound is inclusive',
+        atBound.ok === true && Math.abs(Math.abs(atBound.ppm) - 50000) < 1e-6, 'ppm=' + atBound.ppm + ' ok=' + atBound.ok);
+      var overBound = C.hostAxis(mk(401, (10000 * 50100) / probe.ppm, 600000), {});
+      T.ok('§7 · …and one just past it is REFUSED', overBound.ok === false && /implausible/.test(String(overBound.reason)), 'ppm=' + overBound.ppm);
+      T.ok('§7 · a refusal carries the offending ppm as evidence, so the misparse is diagnosable', typeof overBound.ppm === 'number', JSON.stringify(overBound.ppm));
+      /* THE REFUSAL SHAPE IS PART OF THE CONTRACT: no `correctionAt`, so a caller cannot silently
+         apply a zero correction and believe the axis was disciplined. */
+      T.eq('§7 · a refusal exposes NO correctionAt — a silent zero must be impossible', typeof overBound.correctionAt, 'undefined');
+      T.ok('§7 · …and the bound is two-sided: a NEGATIVE rate of the same size refuses identically',
+        C.hostAxis(mk(401, (-10000 * 50100) / probe.ppm, 600000), {}).ok === false, 'an abs() slip would admit one sign');
+
+      // ── §7 · FLAT outside the anchor range, never extrapolated ─────────────────────────────────
+      var ax7 = LIN;
+      T.eq('§7 · before the first anchor it is FLAT, never back-extrapolated', ax7.correctionAt(-1e9), ax7.correctionAt(0));
+      T.eq('§7 · after the last anchor it is FLAT, never forward-extrapolated', ax7.correctionAt(1e9), ax7.correctionAt(600000));
+      /* Flatness is only meaningful if the interior actually MOVES — a correctionAt that returned a
+         constant would satisfy both clauses above without doing anything. */
+      T.ok('§7 · …while the interior really does vary, so flat-outside is not a constant function',
+        Math.abs(ax7.correctionAt(600000) - ax7.correctionAt(0)) > 100, 'total=' + ax7.correctionAt(600000));
+      T.eq('§7 · a non-finite query returns 0 rather than NaN-poisoning every downstream beat time', ax7.correctionAt(Number.NaN), 0);
+
+      /* ── §7 · divergence is RELATIVE to the first anchor, which a zero-based fixture cannot show ──
+         Every fixture above starts with host == device, so `r0` is 0 and dropping the `- r0` term
+         changes nothing — the mutant that removes it survives against all of them. A real recording
+         starts with the host and device already disagreeing by a constant (the node anchored `t0Ms`
+         there), and that constant must NOT reappear in the correction or it is counted twice. */
+      var OFF = 43000; // a 43 s constant host↔device offset at the first anchor
+      var offAnchors = mk(401, 10000, 600000).map(function (a) {
+        return { devMs: a.devMs, hostMs: a.hostMs + OFF };
+      });
+      var axOff = C.hostAxis(offAnchors, {});
+      T.ok('§7 · a constant host↔device offset at the start is NOT carried into the correction',
+        axOff.ok === true && Math.abs(axOff.correctionAt(0) - LIN.correctionAt(0)) < 1e-6,
+        'offset run gives ' + axOff.correctionAt(0) + ', zero-based run gives ' + LIN.correctionAt(0));
+      T.ok('§7 · …and the reported drift is identical to the zero-based run — only the RATE is measured',
+        Math.abs(axOff.ppm - LIN.ppm) < 1e-6 && Math.abs(axOff.totalMs - LIN.totalMs) < 1e-6,
+        'ppm ' + axOff.ppm + ' vs ' + LIN.ppm);
     });
 
     /* ════ 1b · CLOCK §2.7 — NODE-LOCAL parsers reject out-of-range components ════

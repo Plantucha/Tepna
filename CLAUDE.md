@@ -538,6 +538,70 @@ wall-clock string with no date** — consumers reconstruct absolute `tMs` from `
 `t` (rolling past midnight, monotonic). New emitters SHOULD additionally write `tMs` (absolute
 floating ms) on each event; consumers must still tolerate `t`-only legacy exports.
 
+### 7. The HOST-DISCIPLINED AXIS — `DexClock.hostAxis` (§1–§6 govern the parser; this governs the RATE)
+§1–§6 say how a stamp becomes a `tMs`. They say nothing about what happens across a *recording*, and a
+device crystal is wrong by ppm: read the host stamp once to anchor `t0Ms` and then ride the device
+counter, and the axis drifts away from the host all night. Every Polar-Sensor-Logger / capture-host row
+carries **two** clocks — `Phone timestamp` (the capture host) and `sensor timestamp [ns]` (the device) —
+and `hostAxis` is the only sanctioned way to reconcile them. **A node MUST NOT hand-roll a rate
+correction**; call `hostAxis` and consume `correctionAt()`.
+
+- **An ANCHOR is a `{ devMs, hostMs }` pair read off the SAME row.** Non-finite members are dropped, not
+  defaulted; anchors are sorted by `devMs`. Divergence is measured **relative to the first anchor** — the
+  node already anchored `t0Ms` there, and an absolute offset would double-count it.
+- **The median is EXACT in the interior and biased at the ENDS, by a known amount.** A running median
+  over a linear ramp reproduces it pointwise, so between the clamped edges `correctionAt` is the measured
+  divergence with no smoothing loss. At the two ends the window clamps, which pulls each end **inward by
+  ⌊win/2⌋/2 = 5 anchors' worth of drift**. Two consequences, both contractual: `correctionAt(firstAnchor)`
+  is that bias rather than exactly 0, and **`ppm` under-reads by a factor `1 − 5/(n−1)`** — 12.5 % at
+  n=41, 0.6 % at n=801, 0.17 % on the real 2873-anchor O2Ring geometry. This is a *second*, independent
+  reason `ppm` must never be quoted without its anchor count and span beside it; the first is leverage.
+- **≥3 anchors, and that minimum is a contract, not a nicety.** Two points define a line through any
+  jitter and cannot be checked; three is the least that can show curvature — and the O2Ring's real error
+  is **non-linear** (−3035 ppm decaying to −1622 ppm), so a line is the wrong model, not merely an
+  imprecise one. Fewer than three ⇒ **refuse**.
+- **A running MEDIAN (width 21), never a fit.** Host stamps carry BLE delivery jitter (~0.1 s, up to
+  470 ms observed); interpolating raw anchors injects that straight into beat times, which for HRV is
+  worse than the drift being removed. The width was chosen by planted recovery against ±100 ms jitter on
+  real geometry (9 → 77 ms worst, 21 → 57, 41 → 168, 81 → 245): 21 halves the jitter without flattening
+  the curvature the correction exists to follow. **Do not replace the median with a regression** — that
+  is the whole point, and a fit would also re-introduce the "one ppm describes the night" error.
+- **Linear between anchors; FLAT outside them.** Past the last anchor there is no measurement, and
+  extending a slope there fabricates one — §2.6's rule applied to the rate.
+- **`CK_AXIS_MAX_PPM = 50000` (5 %) is a REFUSAL bound, not a clamp.** A crystal is wrong by ppm; the
+  worst real one in this corpus is −3035, so 5 % leaves 16× headroom. Beyond it the two columns are not
+  the two clocks we think they are — a misparse, a unit mismatch, a shifted column — and "correcting" by
+  that amount fabricates a timebase (caught by a fixture whose ms column advanced at 2× its host stamps:
+  unbounded, a −500000 ppm "correction" that doubled `fs` from 130 to 259.9). Out of bounds ⇒ **refuse**.
+- **A refusal returns `{ ok:false, reason, n }` and NO `correctionAt`.** A caller must not be able to
+  apply a silent zero: absent a correction the node keeps the device axis and says so.
+- **NO span gate here, deliberately** — and this is the one place the sibling tools differ. `hostAxis`
+  does not *quote* a rate, it interpolates measured divergence, so its residual is bounded by what it
+  observed. Gating on span would refuse the short O2Ring fragments whose real error is ~3 s, i.e. exactly
+  the case that needs it. A consumer that reads **`.ppm`** instead of `correctionAt()` is quoting a rate
+  and **does** need a baseline — that is why `ecgdex-dsp.js` span-gates its `fs` correction at 2400 s
+  while PpgDex, which consumes the interpolation, does not.
+- **`ppm` and `maxStepMs` are DIAGNOSTICS.** Never quote `ppm` without the span beside it (the same H10
+  reads −20.3 ppm over 373 min and −65.8 over 10.9). `maxStepMs` surfaces a genuine clock STEP smeared
+  across one anchor gap rather than hiding it in a slope.
+- **This does not claim the host is right.** It places every device on ONE timebase so they become
+  mutually consistent; whether that timebase is itself correct is the host's business (0.008 ppm on the
+  capture box).
+- **FIRST ASK WHETHER THERE IS A SECOND CLOCK AT ALL — read `independent`, never a ~0 ppm.** A rate of
+  ~0 has two opposite meanings: two independent clocks that agree, or a host column the capture app
+  *derived from the device stamp*, which is the absence of a measurement wearing the shape of one. The
+  discriminator is the residual **spread**, not the slope, and it is bimodal in the data: box captures
+  span 101.89 ms – 5124 ms, phone captures **0.13 – 1.00 ms**, with nothing in between. The phone tree's
+  maximum is exactly one stamp quantum because its host column *is* the device time rounded. `hostAxis`
+  publishes `spreadMs` and `independent` (`spreadMs > 2 ms`, twice the quantum — a property of the data,
+  not a tuned threshold). **A phone-captured recording has no second clock**, which is also why the
+  H10↔Verity offset runs ~3.3 s on phone nights against ~0.2 s on box nights: only the box actually puts
+  the two devices on one timebase.
+- **A device whose axis was DRAWN is not a clock.** Provenance is computed, not assumed: a stream whose
+  inter-sample deltas concentrate on one value (≥99 %) was constructed as `sample_index × an assumed
+  rate` and carries no independent timing. It may be placed on the host timeline, but it must never be
+  spent as a second clock — see `quality.timingSource` (`device+host` · `host` · `none`).
+
 ### Verification any time you touch time
 Round-trip (first/last shown == raw file exactly) · bin==CSV identical `t0Ms`/`tMs` (OxyDex) ·
 viewer-timezone independence (re-render under a changed `TZ` → identical clock) · overnight 22:00→06:00

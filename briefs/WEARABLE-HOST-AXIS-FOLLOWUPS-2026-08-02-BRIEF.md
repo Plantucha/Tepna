@@ -483,6 +483,39 @@ median **0.20 s**, range 0.10–0.40 s. That median is the same 0.20 s this brie
 offsets, so the two runs agree on the quantity that survives and agree on the one that does not. The `MAD spread` column shows why the old `madSec` could not reveal it: MAD reads `0.00`
 on eight of these nights while the lag spread on the same nights runs to 20–29 s.
 
+### F8.1 · Corpus-wide verification — 48 nights, and the refusal tracks RESOLUTION exactly
+
+The original result was measured on the 17-night box corpus. Re-run across **every night available**,
+both capture trees:
+
+| corpus | nights | measured | drift identifiable | offset median |
+|---|---|---|---|---|
+| `Ecg nightly` (phone-captured) | 31 | 27 | **0 of 27** | **3.25 s** — all 27 exceed 1 s |
+| `captures` (box-captured) | 17 | 15 | **0 of 15** | **0.25 s** — 0 of 15 exceed 1 s |
+| **total, at `--fs 4`** | **48** | **42** | **0 of 42** | |
+
+⚠️ **That 42/42 is an `--fs 4` figure, and the full-resolution answer is different — better, and worth
+stating rather than rounding away.** Re-run at the tool's real **10 Hz** default (2.5× the lag
+resolution), the phone tree yields **3 of 26 nights identifiable**, at **5.0 / 15.2 / 15.9 ppm**. The box
+tree stays 0 of 15.
+
+**This is the strongest evidence in the whole brief family, and it is a positive result, not a negative
+one.** Three independent facts line up:
+
+- The refusal is **not a mute**. Raise the resolution 2.5× and real nights cross the bar — the gate has a
+  boundary that moves with the instrument, exactly as the planted-drift sweep predicted.
+- The three values that clear it sit at **5–16 ppm**, i.e. at and just above the measured floor of
+  7–10 ppm. Nothing implausible got through.
+- They agree with **`WEARABLE-DRIFT-DIRECT`'s ≈ 7 ppm**, obtained a completely different way — regressing
+  the host column against the device column, no beat matching, no blocks, no unwrapping. A beat-derived
+  estimator and a raw-column estimator converging on the same few-ppm figure is a real cross-validation,
+  and it is only visible because the unidentifiable nights stopped drowning it in noise.
+
+The **offsets** are the control that proves the function still measures what it can: 3.25 s on
+phone-captured nights against 0.20–0.25 s on box nights, reproducing the split established separately in
+[[wearable-clocks-diverge]] without being told about it. The same code that refuses every drift on 42
+nights recovers that difference cleanly.
+
 **Why it was never resolvable, quantitatively.** The lag axis is quantised at `1/fsHz`, so the
 smallest slope distinguishable from zero is about one quantum over the fitted span. Planted-drift
 recovery at the tool's own defaults (10 Hz, 7 h) puts the floor between 7 and 10 ppm:
@@ -547,7 +580,9 @@ afc169a65a1e`) rather than asserted export-inert.
       both directions and verified to fail against the pre-fix parser.
 - [x] **`alignEnvelopes.driftPpm` REFUSES** (2026-08-02, F8). Published only when its 95 % interval
       excludes zero; the interval, the tie fraction and a reason ship either way. Measured: **NOT
-      identifiable on 15 of 15** nights — the tool had printed a ppm for every one. `madSec` never
+      identifiable on 15 of 15** nights — the tool had printed a ppm for every one. **Verified
+      corpus-wide (F8.1): 0 of 42 at `--fs 4` across both capture trees, and 3 of 26 identifiable at the
+      full 10 Hz — at 5–16 ppm, agreeing with `WEARABLE-DRIFT-DIRECT`'s independent ≈ 7 ppm.** `madSec` never
       travels alone now (`lagSpreadSec` + `madDegenerate`); MAD reads 0.00 on 8 nights whose lag
       spread runs 20–29 s. 34 assertions, 10 mutants confirmed to red.
 - [x] **A leg with no time axis is refused** by a computed `timingSource`, wired through `trio-batch`.
