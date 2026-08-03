@@ -853,6 +853,18 @@ function readReleaseLedger() {
 
 // discoverability-cohesion (REPO-DISCOVERABILITY-FOLLOWUPS §5.2) — suite.manifest.json roster ≡
 // the generated docs/sitemap.xml. fs truth for both; the group asserts every deployed surface resolves.
+/* PRE-PUSH PARITY (`preflight-parity` group) — the `npm run check` script and the CI drift-guard job
+   must run the same guards. They drifted, and it cost five red CI round-trips: `check` ran
+   `build.mjs --check` but neither `build-analysis --check` nor `build-docs --check`, so a DSP edit
+   passed locally and failed in CI at ~12 s, repeatedly. Both texts are fed in so the gate can compare
+   them rather than trusting a comment. */
+function readPreflight() {
+  const pkgP = join(ROOT, 'package.json'),
+    ciP = join(ROOT, '.github', 'workflows', 'tests.yml');
+  if (!existsSync(pkgP) || !existsSync(ciP)) return null;
+  return { pkgText: readFileSync(pkgP, 'utf8'), ciText: readFileSync(ciP, 'utf8') };
+}
+
 function readDiscoverability() {
   const manP = join(ROOT, 'suite.manifest.json'),
     smP = join(ROOT, 'docs', 'sitemap.xml');
@@ -1238,6 +1250,7 @@ async function main() {
     manifests: readManifests(),
     releaseLedger: readReleaseLedger(),
     discoverability: readDiscoverability(),
+    preflight: readPreflight(),
     groupFilter: GROUP_FILTER || null,
     listOnly: LIST_ONLY
   };
