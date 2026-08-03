@@ -171,7 +171,9 @@ generator, regenerate, then pin — the order now specified in
 - [x] **Table 1 REPLACED 2026-08-03 (§7)** — not reproduced: the old corpus cannot be recovered, so the
       unverifiable before/after columns were removed rather than carried. One ODI-4 column from the
       current detector on the now-committed corpus, with a full provenance line.
-- [ ] Smoke leg for the SubjectA path — still open; belongs with the pinned corpus.
+- [x] **Smoke leg LANDED 2026-08-03 (§8)** — and it went to the NODE lane, not render-coverage: with the
+      inputs committed it no longer needs a browser `fetch`. 12 assertions pinning Table 1's five ODI-4
+      values and the planted AHIs, plus an anti-vacuity count. CI re-runs it every push.
 
 **This brief stays open** and is now downstream of `SYNTH-GEN-DESAT-KINETICS`. The question it was
 spawned to answer is answered; the remedy it prescribed turned out to have a prerequisite.
@@ -235,3 +237,32 @@ under-count is roughly constant.
   separate unit rather than bundled here.
 - The paper's **Figure 1** still renders from the analysis page and has not been regenerated against the
   pinned corpus; its caption describes the old calibration.
+
+### 7.6 · §8 — the smoke leg, and why it could go to the node lane
+
+§4 guessed this leg *"may belong to the render-coverage lane rather than the node lane"* because the
+SubjectA path is browser-`fetch`-based. **Pinning the corpus removed that constraint**: the inputs are
+committed, so the node lane reads them straight off disk via `pairCommitted` — the same path the OxyDex
+equiv legs already use — and CI re-runs the whole thing on every push.
+
+`ODI-4 pilot — the paper Table 1 numbers, on committed bytes` (12 assertions): each night's ODI-4 against
+the value printed in Table 1, each night's planted AHI read from the **committed ground truth** rather
+than retyped, an anti-vacuity count so a vanished corpus cannot leave the group silently green, and the
+paper's shape claim (a roughly constant 2–5 events·h⁻¹ under-count, not a severity-graded one) asserted
+as a bound.
+
+Mutation-verified: `ODI_DROP: 4 → 3` reds it; removing the corpus wiring reds the anti-vacuity leg.
+
+**CI caught a one-lane wiring on the first push** — node green, browser RED with exactly 6 failures,
+because `env.odiPilot` existed only in `run-tests.mjs`. That is the failure `Dex-Test-Suite.html` already
+documents for `motiondex-dsp` (*"it was in NEITHER lane… every source-mirror assertion silently had
+nothing to read"*), and it is why this repo's rule is **both runners or neither**. Now wired in both.
+
+**What it does not pin, deliberately:** the corpus BYTES. Flipping one SpO₂ sample of ~27 600 leaves every
+rate unchanged to one decimal, so the gate survives that — a property of a per-hour index, not a hole.
+Byte integrity is the ledger's job, and Table 1's caption carries the SHA-256 prefixes for it. This leg
+pins the numbers; the hashes pin the bytes.
+
+**The failure this closes.** Table 1 stopped reproducing for months and nothing noticed, because its
+corpus was gitignored and its numbers were re-run by nobody. Both halves are now fixed: the corpus is
+committed, and something re-runs it every push.

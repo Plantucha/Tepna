@@ -315,6 +315,30 @@ async function main(){
     if (fixtureFile) rec.fixtureFile = fixtureFile;
     if (Object.keys(rec).length) equiv[key] = rec;
   };
+  /* PAPER-ODI4-REPRODUCIBILITY §8 — the SubjectA pilot corpus, as a PAIR OF INPUTS in BOTH lanes.
+     Wired here as well as in run-tests.mjs because a group present in only one lane is the failure this
+     file already documents for motiondex-dsp ("it was in NEITHER lane… every source-mirror assertion
+     silently had nothing to read"). CI caught exactly that on the first push: the node lane was green
+     and the browser lane red with 6 failures, because `env.odiPilot` was undefined here and the group's
+     presence checks fired. Kept OUT of `equiv` deliberately — `ground_truth_nightN.json` is a second
+     INPUT, not a derived export fixture, and the ledger gate correctly reds when it is mislabelled. */
+  const odiPilot = {};
+  await Promise.all(
+    [
+      [1, 'O2Ring S 2100_20260511231000.csv'],
+      [2, 'O2Ring S 2100_20260512235500.csv'],
+      [3, 'O2Ring S 2100_20260513225000.csv'],
+      [4, 'O2Ring S 2100_20260514230500.csv'],
+      [5, 'O2Ring S 2100_20260515232000.csv']
+    ].map(async ([n, csv]) => {
+      const input = await fetchText('uploads/' + csv);
+      const truth = await fetchJSON('uploads/ground_truth_night' + n + '.json');
+      const rec = {};
+      if (input != null) rec.input = input;
+      if (truth != null) rec.truth = truth;
+      if (Object.keys(rec).length) odiPilot[n] = rec;
+    })
+  );
   // ── P9: the SYNTHETIC, COMMITTED twin for every node (see tests/run-tests.mjs readEquiv) ────
   // The real-recording inputs below are gitignored → their legs ⊘ skip in CI → the equivalence gate
   // asserts nothing there. These twins carry no personal data, ship in git, and run everywhere.
@@ -614,7 +638,7 @@ async function main(){
     pickProvenanceBanner: window.pickProvenanceBanner,
     docs, hosts, manifests, docsLedger, releaseLedger, discoverability,
     srcHtml, bundleCsp,
-    fixtures, sources, equiv,
+    fixtures, sources, equiv, odiPilot,
     groupFilter: groupFilterStr() || null
   };
 
