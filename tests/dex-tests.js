@@ -2380,6 +2380,124 @@
       T.ok('a non-finger site is flagged rather than published silently', /expected 'finger'/.test(tb));
     });
 
+    /* ── WEARABLE-HOST-AXIS-FOLLOWUPS §F5 · A ppm MAY NOT BE QUOTED UNTIL IT HAS CLOSED ───────────
+       `CROSS-DEVICE-DRIFT-AND-CLOSURE` §6: *"Do not quote a ppm figure that has not closed. The six
+       nights here produce drift estimates spanning −21 to +754 ppm; two of them are credible. The
+       rest are unwrap failures wearing the same units, and they are indistinguishable from real
+       measurements without the closure column beside them."*
+
+       `printDriftFit` contradicted that. It printed the ppm — and CONVERTED it into "2.13 s over the
+       night", which reads as a physical fact — and only twenty lines later computed the closure that
+       decides whether any of it means anything. On 2026-07-26 that closure is 100.9 ppm against an
+       identity of 0: the fit is provably wrong, and the sentence claiming 2.13 s had already been
+       written. Neither printer had a single assertion on it, because nothing in trio-batch.mjs is
+       callable from a test — its night loop runs at import. The formatters are pure now, so the
+       WORDING of a claim is gated the same way its arithmetic is.
+
+       The load-bearing assertion is the seconds clause: it is the strongest statement on the line and
+       the one a reader carries away, so it exists only in the closed state. Both directions are
+       asserted — a one-sided test would pass against a formatter that always prints it. */
+    group('trio-batch quotes a drift ppm only when its closure holds', 'trio-batch · drift-report', function (T) {
+      var DR = env.DriftReport;
+      T.ok('DriftReport is loaded in this lane', !!DR, 'tools/drift-report.js did not load — the group below would vacuously pass');
+      if (!DR) return;
+
+      // A real-shaped fit: the 2026-07-26 H10↔Verity pair. Offset deliberately 5.00 s so it cannot be
+      // mistaken for the 2.14 s drift conversion by a substring assertion.
+      var r = {
+        driftPpm: 80.4,
+        spanMin: 444,
+        offsetMs: 5000,
+        medianCorrespondence: 0.89,
+        chanceCorrespondence: 0.21,
+        medianIqrMs: 34,
+        confident: true,
+        reason: null,
+        maxDriftPpm: 6756
+      };
+      var SECONDS_CLAIM = /\d+\.\d\d s over \d+ min/;
+
+      // ── the four closure states, and which of them licenses the number ──
+      T.eq('no third source ⇒ unclosed', DR.driftVerdict(null).state, 'unclosed');
+      T.ok('…and not quotable', DR.driftVerdict(null).quotable === false);
+      T.eq('a refused closure is its OWN state, not an absence', DR.driftVerdict({ refused: true, reason: 'drawn axis' }).state, 'refused');
+      T.ok('…and not quotable', DR.driftVerdict({ refused: true, reason: 'drawn axis' }).quotable === false);
+      T.eq('a closure that fails the identity ⇒ inconsistent', DR.driftVerdict({ closurePpm: 100.9, consistent: false }).state, 'inconsistent');
+      T.ok('…and not quotable', DR.driftVerdict({ closurePpm: 100.9, consistent: false }).quotable === false);
+      T.eq('a consistent closure ⇒ closed', DR.driftVerdict({ closurePpm: 2.2, consistent: true }).state, 'closed');
+      T.ok('…and ONLY that state is quotable', DR.driftVerdict({ closurePpm: 2.2, consistent: true }).quotable === true);
+
+      // ── the seconds-per-night claim is gated on closure, both directions ──
+      var closed = DR.driftFitLine(r, { closurePpm: 2.2, consistent: true });
+      var unclosed = DR.driftFitLine(r, null);
+      var void_ = DR.driftFitLine(r, { closurePpm: 100.9, consistent: false });
+      var refused = DR.driftFitLine(r, { refused: true, reason: 'O2R drawn axis, no host anchors' });
+
+      T.ok('a CLOSED fit states the seconds over the night', SECONDS_CLAIM.test(closed), closed);
+      T.ok('…and names the closure that licensed it', /closure 2\.2 ppm consistent/.test(closed), closed);
+      T.ok('an UNCLOSED fit does NOT state seconds over the night', !SECONDS_CLAIM.test(unclosed), unclosed);
+      T.ok('a VOID fit does NOT state seconds over the night', !SECONDS_CLAIM.test(void_), void_);
+      T.ok('a REFUSED fit does NOT state seconds over the night', !SECONDS_CLAIM.test(refused), refused);
+
+      // ── but the number is still SHOWN, marked. Hiding it would cost the diagnostic and is not what
+      //    the guardrail asks for — "indistinguishable ... without the closure column beside them". ──
+      T.ok('the unclosed ppm is still printed', /80 ppm/.test(unclosed), unclosed);
+      T.ok('…marked UNCLOSED and not a measurement', /UNCLOSED/.test(unclosed) && /not a measurement/.test(unclosed), unclosed);
+      T.ok('a failed closure marks the line VOID', /VOID/.test(void_) && /INCONSISTENT/.test(void_), void_);
+      T.ok('…and says which closure voided it', /100\.9 ppm/.test(void_), void_);
+      T.ok('a refusal names its reason rather than reading as an absence', /drawn axis/.test(refused), refused);
+
+      /* A ppm without a span is not interpretable at all — §F7 measured the same rate error reading
+         1208 ppm median under 60 s and 22 ppm over 4800 s. So the span rides along in EVERY state,
+         including the ones where the number is void. */
+      T.ok('every state carries the span beside the ppm', [closed, unclosed, void_, refused].every(function (s) { return /444 min/.test(s); }));
+
+      // ── the instrument's own limits survive the rewrite ──
+      var shaky = DR.driftFitLine({ ...r, confident: false, reason: 'correspondence does not clear its own chance control' }, { closurePpm: 2.2, consistent: true });
+      T.ok('a fit that fails its own chance control still says so', /correspondence does not clear/.test(shaky), shaky);
+      var pinned = DR.driftFitLine({ ...r, driftPpm: 6000 }, { closurePpm: 2.2, consistent: true });
+      T.ok('a fit pressed against the search bound still says so', /near the 6756 ppm search bound/.test(pinned), pinned);
+      T.ok('an unresolved fit reports its reason and quotes nothing', /unresolved — too few usable blocks/.test(DR.driftFitLine({ offsetMs: null, driftPpm: null, reason: 'too few usable blocks' }, null)));
+
+      // ── the closure line: a refusal is a RESULT, and saying nothing is how a drawn leg hid for six nights ──
+      T.ok('a refusal with excluded legs is printed', /REFUSED — O2R drawn/.test(DR.closureLine({ ok: false, excluded: ['O2R'], reason: 'O2R drawn axis' }) || ''));
+      T.eq('…but a plain "no third sensor" prints nothing', DR.closureLine({ ok: false, excluded: [], reason: 'need >=3 sources with beats' }), null);
+      var trio = DR.closureLine({ ok: true, triples: [{ closurePpm: 100.9, tolPpm: 20, consistent: false, weakLegs: ['O2R'] }] });
+      T.ok('an inconsistent triple is flagged on its own line too', /INCONSISTENT/.test(trio) && /weak legs: O2R/.test(trio), trio);
+      T.ok('a shared host timebase is disclosed as reduced independence',
+        /share the HOST timebase/.test(DR.closureLine({ ok: true, sharedHostTimebase: true, hostTimedLegs: ['VER', 'O2R'], triples: [{ closurePpm: 1, tolPpm: 20, consistent: true, weakLegs: [] }] })));
+
+      // ── printClockFit's head, the other zero-coverage printer ──
+      var fit = { offsetSec: -2520, spreadSec: 90, z: 6.2, nullZ: 2.1, pValue: '<0.001', confident: true, reason: null };
+      var cf = DR.clockFitLine(fit, 47);
+      T.ok('the CPAP offset is stated in minutes', /-42\.00 min \(-2520 s\)/.test(cf), cf);
+      T.ok('…with the PLATEAU width, not just its centre', /±45 s/.test(cf), cf);
+      T.ok('…and its own null beside the Z', /Z 6\.2 vs own null 2\.1/.test(cf), cf);
+      T.ok('…and the event count it rests on', /\[47 apnea events\]/.test(cf), cf);
+      T.ok('an unconfident offset LEADS with the warning rather than burying it',
+        /⚠ does not clear its own null/.test(DR.clockFitLine({ ...fit, confident: false, reason: 'does not clear its own null' }, 47)));
+      T.ok('an unresolved fit quotes no offset at all',
+        /unresolved — no CPAP events/.test(DR.clockFitLine({ offsetSec: null, reason: 'no CPAP events' }, 0)));
+
+      /* ORDER, in the caller. The formatters above cannot be fooled, but they can be BYPASSED — and
+         the original defect was an ordering one, not a wording one. Two things are pinned in the
+         source: that the printer routes through here at all, and that the closure it is handed was
+         computed BEFORE the line was printed. (The failure is fail-safe either way: a closure not yet
+         computed is `null`, which prints UNCLOSED rather than a confident number. It is still gated,
+         because "the wrong answer is merely useless rather than false" is not a reason to allow it.) */
+      var tb = (env.sources || {})['tools/trio-batch.mjs'] || '';
+      if (tb) {
+        T.ok('the drift line is formatted here, not inline in the tool', /DriftReport\.driftFitLine\(r, closure\)/.test(tb),
+          'trio-batch built its own line again — the gate above would be formatting a string nobody prints');
+        T.ok('…and the CPAP line too', /DriftReport\.clockFitLine\(fit,/.test(tb));
+        T.ok('…and no hand-rolled ppm template survives in the tool', !/ppm \(\$\{/.test(tb), 'an inline ppm template is back');
+        T.ok('the closure is computed BEFORE the drift line is printed', tb.indexOf('fitClockClosure(') < tb.indexOf('DriftReport.driftFitLine('),
+          'the ordering regressed — the ppm would print before the number that voids it is known');
+      } else {
+        T.skip('trio-batch source order', 'not in env.sources');
+      }
+    });
+
     /* A STRAP GOES WHERE THE WEARER PUTS IT.
        `site` is decided on the data — a one-channel replicated stream is an O2Ring, three LEDs is a
        Verity — and that identifies the DEVICE reliably. It is then spent as an ANATOMICAL fact: it

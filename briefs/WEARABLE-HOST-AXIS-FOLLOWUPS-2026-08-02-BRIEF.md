@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **F1 DONE 2026-08-02** · **Follows:** `WEARABLE-HOST-AXIS-2026-08-02-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `integrator-dsp.js`, `tools/trio-batch.mjs`, `papers/`, several briefs
+**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **F1 · F2 · F3-ter · F7 DONE 2026-08-02** · **F5 DONE 2026-08-02** (the printer no longer quotes an unclosed ppm, and both clock printers are gated for the first time — see F5.1–F5.4; F4 `papers/` and `alignEnvelopes.driftPpm` remain open) · **Follows:** `WEARABLE-HOST-AXIS-2026-08-02-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `integrator-dsp.js`, `tools/trio-batch.mjs`, `tools/drift-report.js`, `papers/`, several briefs
 
 # The O2Ring's axis was drawn on every night before 2026-07-28. Everything that used it as a clock has to be re-asked.
 
@@ -204,13 +204,87 @@ Verified end-to-end against the raw-file finding, which it reproduces independen
   Do **not** retract the measurement (it is a real fit over 2.6 M samples); add a header note that the
   constant cannot hold because the delivered rate varies per session, pointing at the host-axis fix.
 
-## F5 · `trio-batch` prints an unclosed ppm, and none of it is gated
+## F5 · `trio-batch` prints an unclosed ppm, and none of it is gated — **DONE 2026-08-02**
 
 Deliberately left alone by owner decision during `WEARABLE-HOST-AXIS`, recorded here so it is not lost:
 `printDriftFit` prints `${r.driftPpm} ppm` and converts it to a seconds-per-night claim with **no
 knowledge of the closure verdict computed 20 lines below**, contradicting both drift briefs' §6
 guardrail. `printDriftFit`/`printClockFit` have **zero test coverage** — every clock assertion in
 `tests/dex-tests.js` targets `fitClockClosure`'s own unit group, none the trio wiring.
+
+### F5.1 · The ordering was the defect, and the seconds claim was the damage
+
+`CROSS-DEVICE-DRIFT-AND-CLOSURE` §6 is unambiguous — *"Do not quote a ppm figure that has not
+closed … they are indistinguishable from real measurements without the closure column beside them."*
+The printer computed that column **twenty lines after** it had already printed the number, and worse,
+after it had converted the number into **"2.13 s over the night"**, which reads as a physical fact
+rather than a fit. Closure is now computed **first** and the verdict closes the line.
+
+A ppm is quoted as a measurement in exactly one state. The four are kept distinct because *"no third
+sensor was worn"* and *"a third sensor was worn and its axis was drawn"* are different facts about a
+night, and collapsing them is how six nights of `CLOCK-CLOSURE-THREE-SOURCE` read as clean absences:
+
+| state | line | seconds claim |
+|---|---|---|
+| `closed` — closure consistent | `88 ppm (2.99 s over 563 min) … — closure 2.3 ppm consistent` | **yes** |
+| `inconsistent` — closure fails the identity | `… — VOID (closure 100.9 ppm INCONSISTENT …): not a measurement` | no |
+| `refused` — a leg has a drawn axis | `… — UNCLOSED (closure refused — …): not a measurement` | no |
+| `unclosed` — no third source at all | `… — UNCLOSED (no third source): not a measurement` | no |
+
+The number is still **shown** in every state, marked. Hiding it would cost the diagnostic, and the
+guardrail asks for the closure column beside the figure, not for the figure's removal.
+
+### F5.2 · The case it catches, on real data
+
+Re-running the corpus, **2026-07-16** prints:
+
+```
+⏱ H10↔Verity drift: -10 ppm over 485 min, offset 0.40 s   corr 99% vs chance 19%   IQR 42 ms
+                                                          — UNCLOSED (no third source): not a measurement
+```
+
+**99 % correspondence against a 19 % chance floor** — the most confident-looking per-leg fit in the
+set — with no third source to check it. Under the old printer this was `-10 ppm (-0.29 s over
+485 min)`: a clean, quotable-looking measurement that nothing had tested. That is precisely the
+"unwrap failure wearing the same units" §6 warns about, and it is now labelled at the point of
+printing rather than in a brief someone has to remember to read.
+
+Nights that DO close are unaffected — 07-25, 07-26 and 08-01 all print the licensed form — so the
+change speaks up only where the evidence is missing.
+
+### F5.3 · An observation the new line makes visible: these fits are pressed against their own bound
+
+Now that the bound warning and the closure verdict sit on the same line, a pattern is legible:
+**2026-08-01 reads 88 ppm against an 89 ppm search bound; 07-25 reads 85 against 96.** A fit at its
+ceiling is reporting the *instrument*, not the pair (a planted 250 ppm reads 49 when the window cannot
+hold it). Two of the three nights that "close consistently" are in that regime — and
+`WEARABLE-DRIFT-DIRECT` measured the true inter-device rate at **≈ 7 ppm** straight from the host
+column, 12× below these. So closure being consistent is **necessary and not sufficient**: three legs
+can agree while all three are pinned by the same window. Recorded, not acted on — widening the search
+is a change to `fitClockDrift` and belongs with the beat-derived estimator, not with its printer.
+
+### F5.4 · How it is gated
+
+`printDriftFit`/`printClockFit` had zero coverage for a structural reason: nothing in
+`trio-batch.mjs` is callable from a test, because its night loop runs at import. The formatters are
+now a pure module — **`tools/drift-report.js`** (`driftVerdict` · `driftFitLine` · `closureLine` ·
+`clockFitLine`; no fs, no console, no Date) — loaded in **both** lanes, so the WORDING of a claim is
+gated the same way its arithmetic is. 37 assertions in `trio-batch · drift-report`.
+
+Eight mutants applied and each confirmed to red the gate — the seconds claim ungated, the verdict
+clause dropped, the consistency test inverted, a refusal treated as an absence, a missing closure not
+caught, nothing ever quotable, the span dropped, and the caller's ordering reverted:
+
+```
+M1 seconds claim ungated        → 3 failed     M5 missing closure not caught → 1 failed
+M2 verdict clause dropped       → 1 failed     M6 nothing is ever quotable   → 1 failed
+M3 consistency inverted         → 8 failed     M7 span dropped from unclosed → 1 failed
+M4 refusal treated as absence   → 2 failed     M8 caller ordering reverted   → 1 failed
+```
+
+M8 is the source-order assert, and it is worth keeping even though the regression it guards is
+fail-safe: a closure not yet computed is `null`, which prints UNCLOSED rather than a false number.
+"The wrong answer is merely useless rather than false" is not a reason to allow it back.
 
 ## F6 · Carry a slim beat array onto the fusion rec
 
@@ -333,4 +407,9 @@ because two conclusions in this file were built on it.
       (F7). Its offsets are fine; only the drift term and `madSec` are affected.
 - [x] **A leg with no time axis is refused** by a computed `timingSource`, wired through `trio-batch`.
 - [ ] `papers/` audited; `O2RING-PROTOCOL` annotated rather than retracted.
-- [ ] No ppm quoted anywhere without a span and a closure beside it.
+- [x] **F5 — no ppm is quoted by `trio-batch` without a span and a closure beside it** (2026-08-02).
+      Closure is computed BEFORE the line; the seconds-per-night claim exists only in the `closed`
+      state; the span rides along in all four. Pure formatters in `tools/drift-report.js`, 37
+      assertions in both lanes, 8 mutants each confirmed to red. Demonstrated on the corpus: 2026-07-16
+      (99 % corr, no third source) now reads UNCLOSED where it used to read as a measurement. **Scope
+      is `trio-batch`** — `papers/` (F4) and `alignEnvelopes.driftPpm` are separate boxes, still open.
