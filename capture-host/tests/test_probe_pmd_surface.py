@@ -191,18 +191,26 @@ def test_an_unmoved_clock_falls_through_to_the_observed_verdict():
 # ── the control point ────────────────────────────────────────────────────────────────────────────────
 
 class _FakeClient:
-    """A control point that answers from a queue. `refuse_after` reproduces the device going deaf."""
+    """A control point that answers from a queue. `refuse_after` reproduces the device going deaf.
+
+    IT RECORDS WHICH CHARACTERISTIC AND WHICH WRITE MODE IT WAS HANDED, and that is not bookkeeping —
+    it is the difference between a test and a shape. The first version ignored both, so mutating
+    `write_gatt_char(pmd.PMD_CONTROL, cmd, response=True)` into `write_gatt_char(None, cmd,
+    response=False)` left all 73 tests green: a probe writing every command to the wrong
+    characteristic, unacknowledged, would have passed. Mutation found it; coverage never could."""
 
     def __init__(self, replies=(), refuse_after=None, reads=None):
         self.replies, self.writes, self._cb = list(replies), [], None
         self.refuse_after, self.reads = refuse_after, reads or {}
         self.is_connected, self.disconnected = True, False
+        self.notified, self.stopped_notify, self.write_calls = [], [], []
 
-    async def start_notify(self, _char, cb):
+    async def start_notify(self, char, cb):
+        self.notified.append(char)
         self._cb = cb
 
-    async def stop_notify(self, _char):
-        pass
+    async def stop_notify(self, char):
+        self.stopped_notify.append(char)
 
     async def connect(self):
         pass
@@ -218,7 +226,8 @@ class _FakeClient:
             raise RuntimeError("no such characteristic")
         return bytearray(val)
 
-    async def write_gatt_char(self, _char, data, response=False):
+    async def write_gatt_char(self, char, data, response=False):
+        self.write_calls.append((char, bytes(data), response))
         if self.refuse_after is not None and len(self.writes) >= self.refuse_after:
             raise RuntimeError("GATT Protocol Error: Unlikely Error")
         self.writes.append(bytes(data))
@@ -659,7 +668,7 @@ def test_the_feature_read_is_retried_because_the_plan_is_built_from_it(monkeypat
     monkeypatch.setattr(probe, "execute_plan", noop)
     out: dict = {}
     _run(probe._sweep_phase("AA:BB", None, out, False))
-    assert out["undocumented_measurement_types"] == ["0x09", "0x0d", "0x0e"]
+    assert set(out["flag_bits"]) == {"0x09", "0x0d", "0x0e"}
 
 
 def test_a_lost_feature_read_falls_back_and_says_that_it_did(monkeypatch):
@@ -673,6 +682,44 @@ def test_a_lost_feature_read_falls_back_and_says_that_it_did(monkeypatch):
     _run(probe._sweep_phase("AA:BB", None, out, False))
     assert "feature bitmask unavailable" in out["features"]["note"]
     assert out["measurement_types_swept"] == [pmd.MEAS_NAME[m] for m in sorted(pmd.MEAS_NAME)]
+
+
+def test_flag_bits_are_named_by_what_they_are_not_left_as_a_mystery(monkeypatch):
+    """0x09/0x0D/0x0E are MODES, not measurements — webmon.py:606 knew this before the sweep did, and a
+    test already pinned it. The probe reporting them as unknown turned settled knowledge back into an
+    open question, which is worse than not having asked."""
+    _patch_scan(monkeypatch, ["dev"] * 6)
+    monkeypatch.setattr(probe, "BleakClient",
+                        lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f6e620000")}))
+
+    async def noop(*a, **k):
+        return []
+    monkeypatch.setattr(probe, "execute_plan", noop)
+    out: dict = {}
+    _run(probe._sweep_phase("AA:BB", None, out, False))
+    assert out["flag_bits"] == {"0x09": "SDK_MODE", "0x0d": "OFFLINE_RECORDING", "0x0e": "OFFLINE_HR"}
+
+
+def test_a_flag_bit_we_cannot_name_is_still_reported(monkeypatch):
+    """A future firmware may set a bit this table does not know. Dropping it would hide exactly the
+    thing worth noticing."""
+    _patch_scan(monkeypatch, ["dev"] * 6)
+    monkeypatch.setattr(probe, "BleakClient",
+                        lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f0080")}))
+
+    async def noop(*a, **k):
+        return []
+    monkeypatch.setattr(probe, "execute_plan", noop)
+    out: dict = {}
+    _run(probe._sweep_phase("AA:BB", None, out, False))
+    assert out["flag_bits"] == {"0x0f": "unrecognised"}
+
+
+def test_the_flag_names_must_not_leak_into_MEAS_NAME():
+    """webmon decides what is capturable with `not startswith('0x')`, so naming these in pmd.MEAS_NAME
+    would offer three MODES to the user as capturable streams. The separate table IS the safeguard."""
+    for bit in probe.FLAG_NAME:
+        assert bit not in pmd.MEAS_NAME, f"{bit:#04x} became a measurement name — webmon will offer it"
 
 
 def test_undocumented_types_are_only_swept_when_asked_for(monkeypatch):
@@ -779,3 +826,141 @@ def test_only_the_first_frame_is_kept_as_the_sample_stamp(monkeypatch):
             loop.call_soon(cb, 0, bytearray(_acc_frame(second)))
     monkeypatch.setattr(c, "start_notify", notify)
     assert _run(probe.sample_stamp("AA:BB", None)) == probe.device_time(first)
+
+
+# ── what the fakes are handed: the family mutation exposed ───────────────────────────────────────────
+#
+# Every test below exists because a mutant survived 73 green tests at 100% statement+branch coverage.
+# The shared defect was that the doubles accepted anything, so substituting an argument for `None`,
+# dropping it, or flipping a write from acknowledged to fire-and-forget changed nothing any assertion
+# could see. Coverage cannot find this; only mutation can.
+
+def test_every_control_command_is_written_to_the_control_point_with_acknowledgement():
+    """`response=True` is not decoration: an unacknowledged control-point write can be dropped by the
+    stack, and the probe would then wait its full timeout for a reply to a command never delivered."""
+    c = _FakeClient([b"\xf0\x05\x00"])
+    cp = probe.Control(c)
+    _run(cp.start())
+    _run(cp.send(b"\x05"))
+    assert c.notified == [pmd.PMD_CONTROL], "the control point was not the subscribed characteristic"
+    assert c.write_calls == [(pmd.PMD_CONTROL, b"\x05", True)]
+
+
+def test_the_sweep_writes_only_to_the_control_point(monkeypatch):
+    _patch_scan(monkeypatch, ["dev"] * 8)
+    c = _FakeClient([b"\xf0\x05\x00"] * 9)
+    monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: c)
+    _run(probe.execute_plan("AA:BB", None, probe.plan_sweep([]), {}))
+    assert {ch for ch, _, _ in c.write_calls} == {pmd.PMD_CONTROL}
+    assert all(resp is True for _, _, resp in c.write_calls)
+
+
+def test_the_sample_stamp_subscribes_to_the_DATA_characteristic_and_unsubscribes(monkeypatch):
+    """Commands go to the control point; samples arrive on PMD_DATA. Confusing the two is a whole class
+    of silent failure, and `stop_notify` on the wrong one leaves a stream feeding a dead callback."""
+    c = _FakeClient([bytes.fromhex("f001020000000134000101100002010800040103")])
+    _patch_scan(monkeypatch, ["dev"])
+    monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: c)
+    _run(probe.sample_stamp("AA:BB", None, timeout=0.01))
+    assert pmd.PMD_CONTROL in c.notified and pmd.PMD_DATA in c.notified
+    assert c.stopped_notify == [pmd.PMD_DATA]
+    assert {ch for ch, _, _ in c.write_calls} == {pmd.PMD_CONTROL}
+
+
+def test_the_stream_is_stopped_before_it_is_started_and_again_afterwards(monkeypatch):
+    """Both stops matter, for different reasons: the first clears a stale stream that would answer
+    `already_streaming` and deliver nothing; the second is the teardown."""
+    c = _FakeClient([bytes.fromhex("f001020000000134000101100002010800040103")])
+    _patch_scan(monkeypatch, ["dev"])
+    monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: c)
+    _run(probe.sample_stamp("AA:BB", None, timeout=0.01))
+    stops = [i for i, w in enumerate(c.writes) if w == pmd.stop_cmd(pmd.ACC)]
+    starts = [i for i, w in enumerate(c.writes) if w and w[0] == 0x02]
+    assert len(stops) == 2, f"expected a stop either side of the start, got {c.writes}"
+    assert starts and stops[0] < starts[0] < stops[1]
+
+
+def test_the_clock_leg_addresses_the_device_it_was_asked_about(monkeypatch):
+    """Each step opens its own link. Passing the wrong address — or dropping the adapter — would probe a
+    different device, or the wrong radio, and still produce a confident verdict."""
+    seen = {"psftp": [], "stamp": []}
+    fs = _FakeFs(reported=_LOCAL)
+    _FakeFs.calls = []
+
+    def make_fs(addr, adapter=None):
+        seen["psftp"].append((addr, adapter))
+        return fs
+    monkeypatch.setattr(probe.psftp, "PolarPsFtp", make_fs)
+
+    async def stamp(address, adapter, meas=pmd.ACC, timeout=10.0):
+        seen["stamp"].append((address, adapter, meas))
+        return _UTC
+    monkeypatch.setattr(probe, "sample_stamp", stamp)
+    _run(probe.clock_experiment("AA:BB", "hci7"))
+    assert seen["psftp"], "no PS-FTP session was opened"
+    assert set(seen["psftp"]) == {("AA:BB", "hci7")}
+    assert set(seen["stamp"]) == {("AA:BB", "hci7", pmd.ACC)}
+
+
+def test_the_psftp_wrappers_pass_through_the_address_and_adapter(monkeypatch):
+    seen = []
+    fs = _FakeFs(reported=_LOCAL)
+    _FakeFs.calls = []
+    monkeypatch.setattr(probe.psftp, "PolarPsFtp",
+                        lambda addr, adapter=None: (seen.append((addr, adapter)), fs)[1])
+    _run(probe._get_local_time("AA:BB", "hci3"))
+    _run(probe._set_local_time("AA:BB", "hci3", _LOCAL, -240))
+    assert seen == [("AA:BB", "hci3"), ("AA:BB", "hci3")]
+    assert _FakeFs.calls == [(_LOCAL, -240)]
+
+
+def test_the_restore_targets_the_same_device_as_the_write(monkeypatch):
+    """A restore aimed at the wrong device leaves THIS one on local civil time — the exact failure the
+    `finally` exists to prevent, made invisible."""
+    seen = []
+    fs = _FakeFs(reported=_LOCAL)
+    _FakeFs.calls = []
+    monkeypatch.setattr(probe.psftp, "PolarPsFtp",
+                        lambda addr, adapter=None: (seen.append(addr), fs)[1])
+
+    async def stamp(*a, **k):
+        return _UTC
+    monkeypatch.setattr(probe, "sample_stamp", stamp)
+    _run(probe.clock_experiment("AA:BB", None))
+    assert set(seen) == {"AA:BB"}
+    assert _FakeFs.calls[-1] == (None, None)
+
+
+def test_the_sweep_phase_probes_the_address_it_was_given(monkeypatch):
+    seen = []
+
+    async def find(addr, attempts=3, timeout=12.0):
+        seen.append(addr)
+        return "dev"
+    monkeypatch.setattr(probe, "_find", find)
+    monkeypatch.setattr(probe, "BleakClient",
+                        lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f6e620000")}))
+    captured = {}
+
+    async def plan_exec(address, adapter, plan, out, **kw):
+        captured["address"], captured["adapter"] = address, adapter
+        return []
+    monkeypatch.setattr(probe, "execute_plan", plan_exec)
+    _run(probe._sweep_phase("CC:DD", "hci5", {}, False))
+    assert set(seen) == {"CC:DD"}
+    assert captured == {"address": "CC:DD", "adapter": "hci5"}
+
+
+def test_run_hands_the_clock_leg_the_same_target_it_swept(monkeypatch):
+    seen = {}
+
+    async def sweep(address, adapter, out, extra):
+        seen["sweep"] = (address, adapter)
+
+    async def clock(address, adapter):
+        seen["clock"] = (address, adapter)
+        return {}
+    monkeypatch.setattr(probe, "_sweep_phase", sweep)
+    monkeypatch.setattr(probe, "clock_experiment", clock)
+    _run(probe.run("EE:FF", "hci9", True))
+    assert seen["sweep"] == seen["clock"] == ("EE:FF", "hci9")

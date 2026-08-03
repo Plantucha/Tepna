@@ -33,8 +33,9 @@
 #     removes the live stream the nightly capture depends on. A probe that leaves the device in a
 #     different state than it found it is not a probe. Setting a trigger is a DESIGN DECISION with a
 #     rollback plan, not a sweep item.
-#   * every undocumented opcode. Op 0x0E showed up as a measurement TYPE in two replies (see the brief);
-#     that is a thing to note, not a thing to poke.
+#   * every undocumented opcode. Note the distinction: an unrecognised OPCODE is never sent at all; an
+#     unrecognised BITMASK BIT is only ever asked about with a documented READ op, and even that is
+#     opt-in (--include-flag-bits).
 #
 # ── THE CLOCK LEG (--clock-experiment) ──────────────────────────────────────────────────────────────
 #
@@ -84,6 +85,12 @@ DIS = {
     "software_rev": "00002a28-0000-1000-8000-00805f9b34fb",
 }
 BATTERY = "00002a19-0000-1000-8000-00805f9b34fb"
+
+# The PMD feature bitmask is NOT purely a list of measurements — it also advertises MODES. Named here
+# and NOT in `pmd.MEAS_NAME`, deliberately: webmon decides what is capturable with
+# `not str(x).startswith("0x")`, so naming these there would offer three modes to the user as streams
+# (gate-locked by tests/test_webmon_settings_contract.py). A flag needs a separate table, not a rename.
+FLAG_NAME = {0x09: "SDK_MODE", 0x0D: "OFFLINE_RECORDING", 0x0E: "OFFLINE_HR"}
 
 POLAR_EPOCH = _dt.datetime(2000, 1, 1)          # device stamps are ns since this instant
 
@@ -571,7 +578,7 @@ async def _sweep_phase(address: str, adapter: str | None, out: dict, extra_types
     # Retried, because the plan is BUILT from this answer. A single failed feature read does not merely
     # lose one line of the report — it silently demotes the sweep to the fallback type list, which is
     # exactly the list that cannot contain a type we do not already know about. Measured: one run lost
-    # this read and reported `undocumented_measurement_types: []` on a device that advertises three.
+    # this read and reported an EMPTY flag set on a device that advertises three.
     for _ in range(3):
         dev = await _find(address)
         if dev is None:
@@ -588,13 +595,16 @@ async def _sweep_phase(address: str, adapter: str | None, out: dict, extra_types
         # optional GATT read failed is a wasted window.
         supported = sorted(pmd.MEAS_NAME)
         out["features"]["note"] = "feature bitmask unavailable — swept every known measurement type"
-    # UNDOCUMENTED MEASUREMENT TYPES ARE REPORTED ALWAYS, QUERIED ONLY ON REQUEST. This device's own
-    # feature bitmask advertises types 0x09, 0x0D and 0x0E, which appear in no measurement enum this
-    # project has read — Polar publishes five for a Verity Sense and the device claims eight. Naming
-    # them is free; asking even a documented READ op about them is still a poke at firmware nobody here
-    # understands, so it needs --include-undocumented-types.
+    # THE BITMASK MIXES MEASUREMENTS AND MODES. Polar publishes five measurement types for a Verity
+    # Sense and this device sets eight bits, because three of them are capability FLAGS —
+    # 0x09 SDK_MODE, 0x0D OFFLINE_RECORDING, 0x0E OFFLINE_HR (webmon.py:606, and gate-locked by
+    # tests/test_webmon_settings_contract.py::test_capability_flags_are_not_offered_as_streams).
+    # Reported always, QUERIED only on request: a settings read against a flag is harmless and is in
+    # fact how you tell a flag from a stream (a mode answers `invalid_meas`; OFFLINE_HR, which names a
+    # real recordable data type, answers `ok` with an empty menu) — but it is still a query about
+    # firmware behaviour nobody here specified, so it stays behind --include-flag-bits.
     unknown = [m for m in out["features"].get("supported_ids", []) if m not in pmd.MEAS_NAME]
-    out["undocumented_measurement_types"] = [f"{m:#04x}" for m in unknown]
+    out["flag_bits"] = {f"{m:#04x}": FLAG_NAME.get(m, "unrecognised") for m in unknown}
     if extra_types:
         supported = supported + unknown
     out["measurement_types_swept"] = [pmd.MEAS_NAME.get(m, f"{m:#04x}") for m in supported]
@@ -607,9 +617,10 @@ def main(argv=None) -> int:
     ap.add_argument("--adapter", default=None)
     ap.add_argument("--clock-experiment", action="store_true",
                     help="WRITES the device clock (and restores it) to settle whether local time sticks")
-    ap.add_argument("--include-undocumented-types", action="store_true",
-                    help="also ask the documented READ ops about measurement types 0x09/0x0D/0x0E, "
-                         "which this device advertises and no enum we have read names")
+    ap.add_argument("--include-flag-bits", action="store_true",
+                    help="also ask the documented READ ops about the bitmask's MODE bits "
+                         "(0x09 SDK_MODE, 0x0D OFFLINE_RECORDING, 0x0E OFFLINE_HR) — harmless, and it "
+                         "is how you tell a flag from a stream")
     ap.add_argument("--clock-only", action="store_true",
                     help="skip the sweep and run ONLY the clock experiment. The two share a BLE window "
                          "but not a budget: the sweep needs several links and the clock leg needs six "
@@ -622,7 +633,7 @@ def main(argv=None) -> int:
     # this printed a traceback and nothing else, which threw the whole window away.
     try:
         res = asyncio.run(run(a.address, a.adapter, a.clock_experiment or a.clock_only,
-                              a.include_undocumented_types, do_sweep=not a.clock_only))
+                              a.include_flag_bits, do_sweep=not a.clock_only))
     except Exception as exc:                                  # noqa: BLE001
         res = {"error": f"{type(exc).__name__}: {exc}", "partial": PARTIAL}
     text = json.dumps(res, indent=2, default=str)
