@@ -21602,6 +21602,58 @@
       var noOxi = CR.oximetryCard({ metrics: {}, sessions: [{ oximetry: { available: false } }] });
       T.ok('oximetryCard · no oximeter ⇒ a STATED absence, explicitly "not fabricated", with no graded tiles at all',
         /No oximeter connected/.test(noOxi) && !/m-val/.test(noOxi), noOxi.slice(0, 90));
+
+      /* ══ WAVE 5 · `crossNodeCard` — THE SAME FOUR BANDS, A SECOND TIME, 370 LINES AWAY ══════════
+         `oximetryCard` grades the AirSense's own SA2 lane; `crossNodeCard` grades oximetry BORROWED
+         from OxyDex when the CPAP had no oximeter that night. They are separate code paths carrying
+         a duplicated set of thresholds — ODI (5,15), T90 (1,5), nadir (90,85), mean (94,92) — and
+         `warn → 0` survived at three of the four here even after wave 4 pinned them on the other card.
+
+         So the load-bearing assertion is not just the edges: it is that the two cards AGREE. A band
+         edited on one surface and not the other would leave the same measurement graded differently
+         depending on which oximeter recorded it, and nothing else in the suite compares them. */
+      var CN = env.CpapCoimport;
+      if (!CN || typeof CN.ingest !== 'function' || typeof CR.crossNodeCard !== 'function') {
+        T.skip('crossNodeCard band parity (needs CpapCoimport)', 'cpapdex-coimport.js not co-loaded');
+      } else {
+        var XT0 = Date.UTC(2026, 0, 10, 22, 0);
+        // PEERS is module-level state; seed it, read it, and hand it back exactly as found.
+        var xNight = { t0Ms: XT0, therapyHours: 8, metrics: { residualAHI: 10 }, sessions: [] };
+        var xCard = function (oxy) {
+          CN.reset();
+          CN.ingest(
+            [{ t0Ms: XT0, date: '2026-01-10', stats: { startTs: XT0, durationMin: 480, meanSpo2: oxy.mean, minSpo2: oxy.nadir, t90pct: oxy.t90 }, odi3: { rate: oxy.odi } }],
+            'oxydex.json'
+          );
+          var h = CR.crossNodeCard(xNight);
+          CN.reset();
+          return h;
+        };
+        var base = { odi: 3, t90: 0.5, nadir: 95, mean: 97 };
+        var withOxy = function (k, v) {
+          var o = { odi: base.odi, t90: base.t90, nadir: base.nadir, mean: base.mean };
+          o[k] = v;
+          return mSev(xCard(o));
+        };
+        T.ok('crossNodeCard · a borrowed-oximetry night renders four graded tiles', mSev(xCard(base)).length === 4, JSON.stringify(mSev(xCard(base))));
+        T.eq('crossNodeCard · borrowed ODI 15 is warn, 15.1 is bad — the SAME band the native card uses',
+          withOxy('odi', 15)[0] + '/' + withOxy('odi', 15.1)[0], 'warn/bad');
+        T.eq('crossNodeCard · borrowed T90 5 % is warn, 5.1 % is bad', withOxy('t90', 5)[1] + '/' + withOxy('t90', 5.1)[1], 'warn/bad');
+        T.eq('crossNodeCard · borrowed nadir 85 is warn, 84.9 is bad (higher-better, as on the native card)',
+          withOxy('nadir', 85)[2] + '/' + withOxy('nadir', 84.9)[2], 'warn/bad');
+        T.eq('crossNodeCard · borrowed mean 92 is warn, 91.9 is bad', withOxy('mean', 92)[3] + '/' + withOxy('mean', 91.9)[3], 'warn/bad');
+        /* PARITY, asserted on ONE shared input rather than by re-listing the numbers: whatever the
+           bands are, the borrowed lane must grade a value exactly as the native lane does. */
+        var shared = { odi: 15, t90: 5, nadir: 85, mean: 92 };
+        T.eq('crossNodeCard · the borrowed lane grades an identical reading identically to the native lane',
+          mSev(xCard(shared)).join(','),
+          mSev(CR.oximetryCard(oxiNight({ odi: shared.odi, t90Pct: shared.t90, spo2Nadir: shared.nadir, spo2Mean: shared.mean }))).slice(0, 4).join(','));
+        /* Concordance is a THREE-way verdict upstream (concordant / ahi-led / odi-led) collapsed to a
+           two-way colour here. Both colours must be reachable or the collapse is untested. */
+        T.ok('crossNodeCard · AHI 10 against a borrowed ODI 10 reads concordant (ok)', /xn-ok/.test(xCard({ odi: 10, t90: 0.5, nadir: 95, mean: 97 })));
+        T.ok('crossNodeCard · …while AHI 10 against a borrowed ODI 1 is NOT concordant (warn)', /xn-warn/.test(xCard({ odi: 1, t90: 0.5, nadir: 95, mean: 97 })));
+        T.eq('crossNodeCard · no peer ingested ⇒ empty string, not an empty card shell', (CN.reset(), CR.crossNodeCard(xNight)), '');
+      }
     });
 
     /* ════ CPAPDex CARD SURFACE II — the rest of the reachable builders (CLOCK-MUTATION-AUDIT §7.4) ════
