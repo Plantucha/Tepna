@@ -70,6 +70,24 @@ class Ring:
             return None
 
 
+async def _cycle_adapter() -> bool:
+    """Power-cycle the BlueZ adapter — unprivileged, and bonding survives it.
+
+    Unlike the Verity probe's sibling of this name, here it IS a measured remedy rather than a
+    speculative rung: an `org.bluez.Error.InProgress` scan clears after it, repeatedly."""
+    try:
+        for arg in ("off", "on"):
+            proc = await asyncio.create_subprocess_exec(
+                "bluetoothctl", "power", arg,
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+            await asyncio.wait_for(proc.wait(), 15)
+            await asyncio.sleep(2)
+        await asyncio.sleep(3)
+        return True
+    except Exception:                                      # noqa: BLE001 — recovery is best-effort
+        return False
+
+
 async def snapshot(r):
     """The live frame is the only cheap read-back — it carries SpO2/HR/battery/contact."""
     f = await r.send(oxyii.OP_LIVE)
@@ -153,13 +171,30 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=()) -> dict:
     if dry:
         out["dry_run"] = "nothing sent"
         return out
-    dev = None
-    for _ in range(3):
-        dev = await BleakScanner.find_device_by_address(address, timeout=15.0)
+    dev, scan_errors = None, []
+    for attempt in range(3):
+        try:
+            dev = await BleakScanner.find_device_by_address(address, timeout=15.0)
+        except Exception as exc:                           # noqa: BLE001
+            # THE ADAPTER WEDGES ON EVERY DISCONNECT, and it does not admit it: the next scan raises
+            # `org.bluez.Error.InProgress` while `bluetoothctl show` still reports `Discovering: no`.
+            # The tell is a scan that returns in 2-3 s when a real one takes 45 — which reads as "the
+            # ring is not advertising" and sends you after the device instead of the host. Measured
+            # 2026-08-03: this cost several windows, and once killed a resumed sweep before a single
+            # opcode was sent — this call sat OUTSIDE the guard that protects the rest of the run, so it
+            # died with a traceback and wrote no report at all. A power cycle clears it, needs no sudo,
+            # and bonding survives it.
+            scan_errors.append(f"{type(exc).__name__}: {exc}")
+            if attempt < 2:
+                await _cycle_adapter()
+            continue
         if dev:
             break
+    if scan_errors:
+        out["scan_errors"] = scan_errors
     if dev is None:
-        return {**out, "error": "not found — the ring advertises ONLY while worn"}
+        return {**out, "error": ("adapter refused to scan — see scan_errors" if scan_errors else
+                                 "not found — advertises while WORN, or briefly around a plug-in")}
     kw = {"bluez": {"adapter": adapter}} if adapter else {}
     # THE REPORT HOLDS THE LIVE DICT, and every line below is inside a guard. Measured 2026-08-03: a full
     # 248-opcode sweep reached its CLOSING snapshot, the link had gone by then, and the raised
