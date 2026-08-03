@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-03 · **Spawned-by:** `AUDIT-FOLLOWUPS-BRIEF.md` §4.1 (re-verified live 2026-08-03) · **Affects:** `ans-design.css` (spine — inlined into EVERY bundle) or the six `*-render.js` · **⚠️ Serializes against all other bundle work**
+**Status:** IN-PROGRESS — 2026-08-03 (**reproduced, and the fleet claim is STALE** — `entrance-guard.js` already covers all 8 node apps; the residual is ONE selector in ONE app, OxyDex's `.main-wrap`. Both §3 routes are mis-costed. Fix not landed: two bundle PRs were open and this serializes) · **Created:** 2026-08-03 · **Spawned-by:** `AUDIT-FOLLOWUPS-BRIEF.md` §4.1 (re-verified live 2026-08-03) · **Affects:** `ans-design.css` (spine — inlined into EVERY bundle) or the six `*-render.js` · **⚠️ Serializes against all other bundle work**
 
 # Six apps still print blank, and the fix is a spine change that has to be scheduled
 
@@ -88,11 +88,72 @@ surfaces. That is a genuine mandate gap (`CLAUDE.md` §🎫: an unbadged number 
 bug of the same severity as a wrong unit) and deserves its own brief. It would ride the same fleet
 re-bundle, so consider scheduling the two together.
 
+## §1-RESULT — REPRODUCED 2026-08-03, and the fleet claim is STALE
+
+`tools/frozen-timeline-check.mjs` ships with this entry and does what §4 asks: freezes the timeline and
+reads the **computed** opacity, never greps for a rule.
+
+**How the timeline is frozen matters, and §4's suggestion does not work.** Running
+`getAnimations().forEach(a => { a.currentTime = 0; a.pause(); })` *after* load measures nothing — the
+0.4 s entrance has already finished, finished animations are no longer returned by `getAnimations()`,
+and there is nothing left to rewind. The first attempt here did exactly that and reported a clean fleet.
+The tool now freezes through CDP `Animation.setPlaybackRate(0)` **before navigation**, which is the real
+print/capture condition. (A related correction: at frame 0 the element is transparent because the
+animation sits on `from{opacity:0}` — no `fill-mode` required. `fill-mode: both` describes the *other*
+case, a timeline stopping after the animation would have ended. A fix aimed only at `fill-mode` would
+miss the frozen-at-start one.)
+
+### The measured fleet
+
+| app | wrapper | animated + laid out at opacity 0 |
+|---|---|---|
+| **OxyDex** | `.main-wrap` | **YES — `div.main-wrap` (`fadeIn`), opacity 0** |
+| HRVDex · PulseDex · GlucoDex · ECGDex · MotionDex · PpgDex | `.main-content` | no |
+| CPAPDex | `.page` (unanimated) | no |
+| Integrator | `.main-content` | no (control) |
+
+**"Only the Integrator has it" is false.** `entrance-guard.js` — a shared drop-in loaded by all **eight**
+node `.src.html` shells — already pins `.main-content` plus `#kpiStrip.show · .kpi · .chart-card ·
+.chart-svg · .tab-content.active · .readiness-* · .finding-card · .pair-card · .metric`. Its list is
+in fact **broader** than the Integrator's scoped one (which omits `.chart-svg` and `.tab-content.active`).
+Established by injecting each of those classes into every loaded bundle and reading the computed style:
+`animation: none` on all nine.
+
+**The residual is ONE selector in ONE app.** OxyDex is the only app whose outer wrapper is `.main-wrap`
+rather than `.main-content`, and `.main-wrap` is not in the guard's list — so the whole OxyDex surface
+sits at `opacity: 0` under a frozen timeline. That is worse per-app than the brief's `.chart-card` story
+(it is the entire app, not the cards) and far smaller fleet-wide.
+
+### What this does to §3's route decision
+
+**Neither route as written is warranted.** Route (a) is a spine edit to `ans-design.css` moving every
+bundle; route (b) replicates a workaround into six `*-render.js`. Both were costed against "six apps
+print blank", which is not the case. The fix is **one selector added to the guard that already exists**:
+
+```diff
+-    '#kpiStrip.show,#kpiStrip .kpi,.chart-card,.chart-svg,.tab-content.active,' +
++    '.main-wrap{animation:none!important;opacity:1!important;}' +
++    '#kpiStrip.show,#kpiStrip .kpi,.chart-card,.chart-svg,.tab-content.active,' +
+```
+
+in `entrance-guard.js`. It is still a shared module, so it re-bundles the **8 node apps** (not the
+Integrator, which does not load it — its fixtures stay untouched). That is a real cost but a fifth of a
+spine change, and it fixes the cause once rather than adding a seventh copy of the workaround.
+
+### Why the fix is NOT in this PR
+
+`CLAUDE.md` §👥.3 and this brief both say bundle work serializes. **Two bundle PRs were open** when this
+ran (#776 ECGDex, #786 PpgDex), so landing an 8-bundle re-bundle would have collided with both. The
+measurement, the tool and the one-line diff carry no bundle impact and land now; the re-bundle is left
+to be scheduled against a clear window. §5's badge-mandate audit should ride the same window.
+
 ## Done when
 
-- [ ] Route (a) or (b) chosen by the owner, and the fleet re-bundle scheduled against other in-flight work.
-- [ ] The blank is **reproduced** under a frozen timeline before the fix, and shown gone after — computed
-      `opacity`, not a source scan.
+- [x] **REPRODUCED 2026-08-03** under a frozen timeline, computed `opacity`, not a source scan —
+      `tools/frozen-timeline-check.mjs`. One surface blanks: OxyDex `.main-wrap`.
+- [ ] ~~Route (a) or (b)~~ — **both are mis-costed**; the measured fix is one selector in the EXISTING
+      `entrance-guard.js` (8 node bundles, not the fleet spine). Owner to confirm and schedule.
+- [ ] Shown gone after the fix — re-run the same tool; OxyDex must report 0 hidden.
 - [ ] A gate asserts the computed end-state, verified by re-applying the defect (it must red).
 - [ ] If (a): the Integrator's scoped override is **deleted**, not left shadowing the fix.
 - [ ] All bundles rebuilt, every `provenance/<App>.json` re-stamped, GATE A/B green, `--check` clean.
