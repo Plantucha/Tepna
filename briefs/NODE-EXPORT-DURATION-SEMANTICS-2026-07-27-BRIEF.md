@@ -22,7 +22,7 @@ The three trio nodes disagreed, and nothing said which was right:
 | node | field | derivation | meaning |
 |------|-------|------------|---------|
 | ECGDex | `durSec` | `n / fs` (parser) → `nnRes.activeSec` (analyze) | **data seconds** |
-| PpgDex | `durSec` | `(n − 1) / fs` over a **gap-filled grid** | effectively **wall span** |
+| PpgDex | `durSec` | `(n − 1) / fs` over a **gap-filled grid** | **near** wall span — short by up to 6.6 min on a gappy night (§6.1) |
 | OxyDex | `durationMin` | `last.tMs − first.tMs` | explicitly **wall span** |
 
 On 2026-07-17 that is ECGDex **8.92 h** against PpgDex **14.54 h** / OxyDex **14.62 h** — for one night.
@@ -92,7 +92,67 @@ work-unit to schedule, not a drive-by.
 
 - [x] ECGDex publishes both; read-not-derived; `null` when stampless; gated (`ecgdex-dsp` group **ECGDex recording bounds**, incl. a dropout stub where data and wall span provably disagree).
 - [x] A coverage definition exists (`986d17e` §6.2 `recording.coverage`) — adopt it rather than inventing a second one.
-- [ ] `endEpochMs` on the remaining 7 nodes (additive; may land before the coverage model).
+- [ ] `endEpochMs` on the remaining nodes (additive; may land before the coverage model). — **PpgDex
+      DONE 2026-08-03 (§6); 6 remain** (OxyDex · MotionDex · PulseDex · HRVDex · GlucoDex · CPAPDex).
 - [ ] `durSec` normalised to data-seconds on PpgDex/OxyDex (**not** additive — needs the coverage definition + a CHANGELOG note that the field's meaning changed).
 - [ ] `bump: minor` — the export gains a field. The ECGDex-only step is already `minor` for that reason.
 - [ ] Per node: regen goldens, re-bundle, `build.mjs --check`, `verify-manifest.mjs` GATE A+B, and — since `computeHash` moves — `DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs`.
+
+
+---
+
+## §6 · EXECUTED 2026-08-03 — PpgDex gains `endEpochMs`
+
+### 6.1 · The brief's own table was optimistic about PpgDex, and it is worth correcting
+
+§1 lists PpgDex's `durSec` as *"effectively wall span"*, on the reasoning that the sample grid is
+gap-filled — which would make `t0 + durSec` land on the clock end and this field redundant here. That is
+why PpgDex was grouped with OxyDex as "span ✗, needs the coverage model" rather than treated as an
+additive case like ECGDex.
+
+Measured over the capture corpus, driving the shipped `parsePPG` against the last parseable Phone stamp:
+
+| night | `nGapSpanIntervals` | `t0 + durSec` vs the last stamp |
+|---|---|---|
+| `20260727221106` | 6317 | **6.6 min short** |
+| `20260723013336` | 794 | **1.0 min short** |
+| `20260801023357` | 70 | 0.1 min |
+| `20260801001305` · `20260731212656` | 57 · 64 | ~0 |
+| four largest contiguous nights | — | 0.0–0.1 min |
+
+The gap-fill does **not** recover all lost time; the shortfall scales with gap burden. Far smaller than
+ECGDex's measured +8…+326 min, but the same defect class — and exactly why §3 says the field is **read**,
+not computed. PpgDex needed the additive half after all.
+
+### 6.2 · What landed
+
+`parsePPG` now carries `endEpochMs`, read from the last row whose stamp parses; `analyze` carries it
+through (a property of the RECORDING, not of the analysis — the same reason `offsetMin` needs an explicit
+carry); the export publishes it beside `durSec`. §P1's performance win is preserved: the backward scan is
+memoised and runs at most once, over ≤40 rows, only where the value is actually read — the per-row
+`parseTimestamp` that §P1 removed stays removed.
+
+Gated by `PpgDex recording bounds — endEpochMs is read from the last stamp, never derived`: gapped and
+gapless synthetic twins differing only by a 20 s dropout, asserting the stamp is hit to the millisecond on
+both, that `t0 + durSec` lands ~20 s short on the gapped one, and that the gapless twin has no such
+shortfall (so the gap is what separates them, not the fixture shape). Mutation-verified four ways — the
+one that matters is **"simplify `endEpochMs` to `t0 + durSec`"**, the refactor this gate exists to refuse.
+
+**One assertion is deliberately absent.** Clock Contract §2.6 asks that an unknown stamp be `null`, never
+fabricated — but for PpgDex that state is **unreachable through `parsePPG`**: a PPG export in which no row
+carries a parseable stamp is rejected wholesale, because the layout detector needs the stamp column to
+identify the file at all. The `?? null` guard stays (it costs nothing and is the honest default if that
+ever changes), but asserting it would assert a branch no input can reach. ECGDex differs — its parser
+accepts stamp-less rows — so its sibling gate does pin the null there.
+
+### 6.3 · Compute-path
+
+```
+manifestHash  e3b832216694 → f6860a2fd92e   (MOVED)
+computeHash   7b7a072ac320 → e38a8746cead   (MOVED ⇒ re-verification owed)
+```
+
+The equiv gate reds on sight, which is the GATE-C surface doing its job: the export gained a field, so all
+four PpgDex goldens were **regenerated** (never hand-edited) — one field moved in each,
+`recording.endEpochMs: undefined → …` — and `verify-fixtures` re-stamped the real corpus fixture
+`verifiedUnder → e38a8746cead` after a green run. `bump: minor`, per §5: the export gains a field.

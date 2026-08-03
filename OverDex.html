@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-2GPOns670TL2NXVXviR1xYp4Jdxu8pV9rbb4ynIzt8c=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bw6rfr4B0CUwSUGUdE6p6SkGWH+3xW0BfuNMDL9M7BA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-hxtclF7doYfS5TM+OYHTmTgzyGrLpT7Qibfg1M7SvBA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-mb0F1fLqp8gHe+5IxfcpJzlsHg5EEXxdS+7pWQhUtAY=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CBHWksRJnZ0lFClD3m7PusEkVUMAAwGMpC1eLCzK9rE=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bw6rfr4B0CUwSUGUdE6p6SkGWH+3xW0BfuNMDL9M7BA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-hxtclF7doYfS5TM+OYHTmTgzyGrLpT7Qibfg1M7SvBA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-mb0F1fLqp8gHe+5IxfcpJzlsHg5EEXxdS+7pWQhUtAY=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -22850,6 +22850,27 @@ __exports.GlucoDex = window.GlucoDex;
        ambiguous on short fragments (a 15-min file has few deltas to be diverse with), and a binary that
        pretends otherwise would be the same over-claim this whole brief family exists to remove. */
     let quantizedShare = null;
+    /* Scan BACKWARD for the last row the main loop would have ACCEPTED and whose stamp parses —
+       byte-identical to an eager `lastTs`, but paid for only where it is read. The row filter must
+       mirror the main loop's exactly (>= minFields fields, finite ch0); both `minFields` and `ch0Col`
+       are the values the main loop RESOLVED, so a single-column finger file is filtered on its own
+       layout rather than the Verity's. §P1 removed the per-row parseTimestamp because it was ~half of
+       parsePPG's cost; this keeps that win — one backward scan, ≤40 rows on a real file. */
+    let _lastTsMemo;
+    const _ppgLastTs = () => {
+      if (_lastTsMemo !== undefined) return _lastTsMemo;
+      let t = null;
+      for (let li = lines.length - 1; li >= 0 && !t; li--) {
+        const line = lines[li].trim();
+        if (!line) continue;
+        const p = line.split(';');
+        if (p.length < minFields) continue;
+        if (!isFinite(parseFloat(p[ch0Col]))) continue;
+        t = parseTimestamp(p[0]);
+      }
+      _lastTsMemo = t;
+      return t;
+    };
     if (deltas.length > 20) {
       const md = median(deltas);
       if (md > 0) fs = 1e9 / md;
@@ -22859,20 +22880,9 @@ __exports.GlucoDex = window.GlucoDex;
         quantizedShare = same / deltas.length;
       }
     } else {
-      // Lazy `lastTs` (§P1): scan BACKWARD for the last row that the loop above would have accepted AND
-      // whose stamp parses — byte-identical to the old eager `lastTs`, but paid for only on this
-      // degenerate path. The row filter must mirror the main loop's exactly (>=minFields fields, finite
-      // ch0) — both `minFields` and `ch0Col` are the values the main loop RESOLVED, so a single-column
-      // finger file is filtered on its own layout rather than the Verity's.
-      let lastTs = null;
-      for (let li = lines.length - 1; li >= 0 && !lastTs; li--) {
-        const line = lines[li].trim();
-        if (!line) continue;
-        const p = line.split(';');
-        if (p.length < minFields) continue;
-        if (!isFinite(parseFloat(p[ch0Col]))) continue;
-        lastTs = parseTimestamp(p[0]);
-      }
+      /* Lazy `lastTs` (§P1): the backward scan is paid for only where it is needed — this degenerate fs
+         fallback, and `endEpochMs` below. See `_ppgLastTs`. */
+      const lastTs = _ppgLastTs();
       if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {
         fs = (n - 1) / ((lastTs.tMs - firstTs.tMs) / 1000);
       }
@@ -22964,6 +22974,22 @@ __exports.GlucoDex = window.GlucoDex;
       n,
       t0Ms: t0Ms != null ? t0Ms : null,
       offsetMin: firstTs ? firstTs.offsetMin : null,
+      /* NODE-EXPORT-DURATION-SEMANTICS §3 — the CLOCK position of the last sample, READ from the file,
+         never derived. Null when no row carries a parseable stamp (Clock Contract §2.6: a value we do
+         not have is null, never fabricated). Kept ALONGSIDE durSec, not instead of it: durSec answers
+         "how much signal do I have", endEpochMs answers "where does this recording end on the clock" —
+         two questions one scalar cannot both answer.
+
+         The brief's §1 table lists PpgDex's durSec as "effectively wall span", on the reasoning that the
+         grid is gap-filled. Measured on the capture corpus that is not quite true: `t0Ms + durSec` lands
+         SHORT of the last stamp by up to 6.6 min on the gappiest O2Ring night (nGapSpanIntervals 6317),
+         1.0 min on the next, and ~0 on contiguous nights — the gap-fill does not recover all lost time,
+         so the shortfall scales with gap burden. Small next to ECGDex's measured +8…+326 min, but the
+         same defect class, and the reason this field is read rather than computed. */
+      endEpochMs: (function () {
+        const lt = _ppgLastTs();
+        return lt && lt.tMs != null ? lt.tMs : null;
+      })(),
       durSec: (n - 1) / fs,
       site,
       // 'device-default' until someone declares otherwise — see the block above.
@@ -25327,6 +25353,10 @@ __exports.GlucoDex = window.GlucoDex;
     return {
       source: rec.source || 'file',
       fname: rec.fname || '',
+      /* NODE-EXPORT-DURATION-SEMANTICS §3 — carried through analyze because it is a property of the
+         RECORDING, not of the analysis (the same reasoning ECGDex applies to `offsetMin`). Read from
+         parsePPG; null propagates as null and is never back-filled from durSec. */
+      endEpochMs: rec.endEpochMs != null ? rec.endEpochMs : null,
       fs: rec.fs,
       n: rec.n,
       t0Ms: rec.t0Ms,
@@ -25848,6 +25878,14 @@ __exports.GlucoDex = window.GlucoDex;
             ? SignalFrame.computeContentId({ signalType: 'ppg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
             : null,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
+        /* NODE-EXPORT-DURATION-SEMANTICS §3 — where the recording ENDS on the clock, beside how much
+           signal it holds. `integrator-dsp normalizeFile` already prefers `endEpochMs` over every
+           duration key, so this is additive: a node that gains it is honoured immediately, a node that
+           has not gained it behaves exactly as today. Measured reason it is not redundant with
+           `t0 + durSec` here: on the gappiest O2Ring night in the capture corpus that sum lands 6.6 min
+           SHORT of the last stamp (1.0 min on the next, ~0 on contiguous nights) — PpgDex's gap-filled
+           grid does not recover all lost time, so the shortfall scales with gap burden. */
+        endEpochMs: r.endEpochMs != null ? r.endEpochMs : null,
         // Declare the recording LENGTH so the Integrator can place a real window on this leg. The
         // identical key and the identical reason already sit in ecgdex-dsp.js — the fix was applied
         // to ECG and never to PPG, and the two build their `recording` block the same way.

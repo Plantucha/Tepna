@@ -14296,6 +14296,79 @@
      reconstruction is a guess, and §2.6 says a value we do not have is null, not fabricated. The
      Integrator already prefers `endEpochMs` over every duration key (`normalizeFile`), so this is
      additive — absent ⇒ exactly today's behaviour. ════ */
+    /* ════ PpgDex RECORDING BOUNDS — the same contract, and PpgDex needed it too ══════════════════
+     NODE-EXPORT-DURATION-SEMANTICS §3 gave ECGDex `endEpochMs` first because its defect was the one
+     measured (events outside its own declared window on 11/11 nights). The brief's §1 table lists
+     PpgDex's `durSec` as "effectively wall span", on the reasoning that the grid is gap-filled — so
+     `t0 + durSec` would already land on the clock end and the field would be redundant here.
+
+     MEASURED, IT IS NOT. Over the capture corpus, `t0 + durSec` lands SHORT of the last stamp by
+     **6.6 min** on the gappiest O2Ring night (nGapSpanIntervals 6317), **1.0 min** on the next, and
+     ~0 on contiguous nights: the gap-fill does not recover all lost time, so the shortfall scales with
+     gap burden. Smaller than ECGDex's +8…+326 min, same defect class — and the reason this field is
+     READ from the file rather than computed from a duration. */
+    group('PpgDex recording bounds — endEpochMs is read from the last stamp, never derived', 'ppgdex-dsp', function (T) {
+      var D = env.PPGDSP;
+      if (!(D && typeof D.parsePPG === 'function')) {
+        T.ok('PPGDSP.parsePPG available', false, 'not loaded');
+        return;
+      }
+      var p2 = function (x) {
+        return String(x).padStart(2, '0');
+      };
+      var stampOf = function (baseMs, ms) {
+        var d = new Date(baseMs + Math.round(ms));
+        return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + 'T' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + '.' + String(d.getUTCMilliseconds()).padStart(3, '0');
+      };
+      var BASE = U(2026, 5, 21, 6, 0, 0);
+      /* A single-channel finger layout with an explicit DROPOUT: the sensor-ns axis jumps 20 s while the
+         row count does not, so data-seconds and wall-span disagree by exactly that gap. */
+      var mk = function (withGap) {
+        var out = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+        var FS = 125.7,
+          n = 600,
+          gapAt = 300,
+          gapMs = withGap ? 20000 : 0;
+        for (var i = 0; i < n; i++) {
+          var ms = (i / FS) * 1000 + (i >= gapAt ? gapMs : 0);
+          var v = 1000 + 200 * Math.exp(-Math.pow((((ms / 1000) % 1) - 0.18) / 0.07, 2));
+          out += stampOf(BASE, ms) + ';' + Math.round(ms * 1e6) + ';' + Math.round(v) + '\n';
+        }
+        return { text: out, lastMs: ((n - 1) / FS) * 1000 + gapMs };
+      };
+      var g = mk(true),
+        c = mk(false);
+      var rg = D.parsePPG(g.text),
+        rc = D.parsePPG(c.text);
+      T.ok('parse produced a t0 AND a clock end', rg.t0Ms != null && rg.endEpochMs != null, 't0=' + rg.t0Ms + ' end=' + rg.endEpochMs);
+      /* THE CONTRACT: endEpochMs is the LAST ROW'S STAMP, to the millisecond. A value reconstructed from
+         t0 + durSec would be ~20 s early here; one reconstructed from the row count would ignore the gap
+         entirely. Only reading the stamp lands on it. */
+      T.ok('endEpochMs is the last row stamp, exact to the ms', Math.abs(rg.endEpochMs - (BASE + Math.round(g.lastMs))) <= 1, 'end=' + rg.endEpochMs + ' expected=' + (BASE + Math.round(g.lastMs)));
+      T.ok('…and on the gapless twin too — the read is not a gap artefact', Math.abs(rc.endEpochMs - (BASE + Math.round(c.lastMs))) <= 1, 'end=' + rc.endEpochMs);
+      /* NOT DERIVED: on the gapped twin the sum lands short by ~the dropout. This is the assertion that
+         fails if anyone later "simplifies" endEpochMs to t0 + durSec. */
+      var shortBy = rg.endEpochMs - (rg.t0Ms + rg.durSec * 1000);
+      T.ok('t0 + durSec lands SHORT of the true end by ~the dropout — endEpochMs is NOT that sum', shortBy > 15000, 'short by ' + (shortBy / 1000).toFixed(2) + ' s');
+      T.ok('…while the gapless twin has no such shortfall — the gap is what separates them', Math.abs(rc.endEpochMs - (rc.t0Ms + rc.durSec * 1000)) < 1000, 'delta ' + ((rc.endEpochMs - (rc.t0Ms + rc.durSec * 1000)) / 1000).toFixed(3) + ' s');
+      /* Clock Contract §2.6 asks that a stamp we do not have be null, never fabricated. For PpgDex that
+         state is UNREACHABLE through `parsePPG`, and the assertion is omitted rather than faked: a PPG
+         export in which no row carries a parseable stamp is rejected wholesale ("No PPG samples parsed"),
+         because the layout detector needs the stamp column to identify the file at all. So `endEpochMs`
+         is null only in a record `parsePPG` never returns. The `?? null` guard stays — it costs nothing
+         and is the honest default if that ever changes — but a test asserting it would be asserting a
+         branch no input can reach, which is the kind of green that means nothing. (ECGDex differs: its
+         parser accepts stamp-less rows, so its sibling gate DOES pin the null there.) */
+      // …and it must reach the EXPORT through analyze(), like offsetMin — a recording property, not an
+      // analysis one. Absent this carry the field dies silently between parse and export.
+      if (typeof D.compute === 'function') {
+        var exp = D.compute(g.text, { name: 'gapped.txt' });
+        var recOut = exp && exp.recording;
+        T.ok('recording.endEpochMs survives analyze() into the node-export', recOut && recOut.endEpochMs != null, recOut && String(recOut.endEpochMs));
+        T.ok('recording.durSec is still published ALONGSIDE it (both, not either)', recOut && typeof recOut.durSec === 'number', recOut && String(recOut.durSec));
+      }
+    });
+
     group('ECGDex recording bounds — durSec (data) + endEpochMs (clock), read not derived', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseECG === 'function')) {
