@@ -11287,6 +11287,77 @@
       T.ok('MotionDex is named as the unmitigated case', /MotionDex[\s\S]{0,80}unmitigated/.test(src));
     });
 
+    /* ── `npm run check` MUST RUN WHAT CI'S DRIFT-GUARD JOB RUNS ───────────────────────────────────
+       `check` exists to answer "am I ready to push". It ran `build.mjs --check` but neither
+       `build-analysis --check` nor `build-docs --check` — the two guards that had reddened CI five
+       separate times on DSP edits (#365, #633, #670, #734, #758), each time at ~12 s, each time after
+       a local run that looked complete.
+
+       The failure mode is not forgetting the rule. It is that running SOME of the guards and seeing
+       them all pass feels like a clean build: on #734 four green checks preceded the red, and on #758
+       six did — while the memory note describing the rule was open in the editor. A hand-assembled
+       command block cannot fix that; the script has to carry them.
+
+       This asserts the two lists agree, so they cannot drift apart again silently. It reads the CI
+       workflow rather than a copy of it, because a hard-coded expectation here would itself be the
+       thing that goes stale. Node-lane only (it reads package.json + .github straight off disk). */
+    group('Pre-push parity — `npm run check` runs every CI drift guard', 'suite · preflight-parity', function (T) {
+      var P = env.preflight;
+      if (!P) {
+        T.skip('preflight sources wired', 'browser lane cannot read package.json / .github');
+        return;
+      }
+      var pkg = JSON.parse(P.pkgText);
+      var check = (pkg.scripts && pkg.scripts.check) || '';
+      T.ok('a `check` script exists', check.length > 0, check.slice(0, 60));
+
+      /* The guards are read out of the CI workflow rather than restated here — a hard-coded list would
+         itself be the thing that goes stale. Scoped to the drift-guard JOB, so the sharded matrix run
+         (a different job) is not demanded of a local run, which sensibly uses the unsharded suite.
+
+         Steps the workflow marks "(informational)" are EXCLUDED, using its own annotation rather than
+         my judgement: `verify-fixtures --check` is deliberately non-blocking in CI and needs the real
+         corpus via DEX_UPLOADS, which a contributor may not have. Requiring it locally would make
+         `check` unrunnable for exactly the people it is meant to help. */
+      var job = P.ciText.slice(P.ciText.indexOf('name: shard-union + build + provenance'));
+      var nextJob = job.slice(1).search(/\n  [a-z][\w-]*:\n/);
+      if (nextJob > 0) job = job.slice(0, nextJob + 1);
+      var steps = [],
+        informational = [];
+      var sre = /-\s*name:\s*([^\n]+)\n\s*run:\s*(node\s+(?:tools|tests)\/[\w.-]+\.mjs(?:\s+--[\w-]+)?)/g,
+        sm;
+      while ((sm = sre.exec(job))) {
+        var cmd = sm[2].replace(/\s+/g, ' ').trim();
+        if (/informational/i.test(sm[1])) informational.push(cmd);
+        else steps.push(cmd);
+      }
+      var ciGuards = steps.filter(function (g, i) {
+        return steps.indexOf(g) === i;
+      });
+      T.ok('the CI workflow declares drift guards this gate can read', ciGuards.length >= 4, ciGuards.join(' | '));
+      /* ANTI-VACUITY on the exclusion: if the "(informational)" filter ever matched everything, the
+         gate would pass by demanding nothing. Pin that it excluded exactly the known non-blocker. */
+      T.eq('…and the informational exclusion is narrow — only the non-blocking fixture check', informational.join(' , '), 'node tools/verify-fixtures.mjs --check');
+
+      /* Resolve `check` through the script table: it is a chain of `npm run X`, so expand each X to
+         the command it runs before comparing. Comparing the raw string would miss every indirection. */
+      var expanded = check.replace(/npm run ([\w:-]+)/g, function (_, name) {
+        return (pkg.scripts && pkg.scripts[name]) || '';
+      });
+      var missing = ciGuards.filter(function (g) {
+        return expanded.indexOf(g) < 0;
+      });
+      T.eq('`npm run check` covers every drift guard the CI job runs', missing.join(' , '), '');
+
+      /* Name the two that actually caused the outages, so a future edit that drops them fails with a
+         message that says which — not just "a guard is missing". */
+      T.ok('…including build-analysis --check (STALE analysis tools red CI on #365, #633, #758)', expanded.indexOf('build-analysis.mjs --check') >= 0, expanded.slice(0, 200));
+      T.ok('…and build-docs --check (STALE docs pages red CI on #633, #670, #734, #758)', expanded.indexOf('build-docs.mjs --check') >= 0, expanded.slice(0, 200));
+      /* ANTI-VACUITY: if the expansion silently produced nothing, every `indexOf` above would still
+         pass for an empty needle. Pin that the expansion actually resolved to real commands. */
+      T.ok('the script expansion resolved (this gate is not comparing empty strings)', /node tools\/build\.mjs --check/.test(expanded) && expanded.length > check.length, expanded.length + ' vs ' + check.length);
+    });
+
     group('Docs-ledger — brief lifecycle machine-checked (DOCS-LEDGER-GATE)', 'docs · docs-ledger', function (T) {
       var DL = env.docsLedger;
       if (!DL || !DL.briefs || DL.indexText == null) {
