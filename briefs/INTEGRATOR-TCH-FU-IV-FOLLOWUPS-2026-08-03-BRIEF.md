@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-03 · **Follows:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` §1-RESULT (REFUTED 2026-08-03)
+**Status:** IN-PROGRESS — 2026-08-03 (**§1 DONE, and its premise was half wrong** — the ECGDex export already existed; only the corpus was stale. Refolded: `nPairs` 3 on 25/25. §2 is now the live question and the A/B SUPPORTS it. §3/§4 open) · **Created:** 2026-08-03 · **Follows:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` §1-RESULT (and its same-day correction)
 
 # The third motion corner exists in the DSP and dies at the export boundary
 
@@ -14,7 +14,23 @@ change moves nothing. This brief carries what that refutation exposed.
 
 ---
 
-## 1 · Publish `motionIndex` on ECGDex's export epochs 🔴 (the unblock)
+## 1 · Publish `motionIndex` on ECGDex's export epochs ✅ DONE 2026-08-03 — and half of this section was wrong
+
+> **CORRECTION.** This section was written believing ECGDex did not export motion. **It already did** —
+> `50545ad feat(ecgdex): the chest-ACC motion index reaches the bus, so the TCH rho has a third corner`
+> had landed before FU-IV §1-RESULT was measured, and `ecgdex-dsp.js` publishes
+> `timeseries.epochs[].motionIndex` with the same tri-state discipline (null, not 0, where the ACC did
+> not observe the epoch). The stale artefact was **`uploads/trio`**, folded before that commit.
+>
+> **Refolded 2026-08-03** — `node tools/trio-batch.mjs --src <capture dir> --out uploads/trio`, 25 nights
+> (was 24; 2026-07-13 joins), every night logging `✓ ECGDex … motion`. **`nPairs` = 3 on 25/25**, so the
+> third corner is live and §2 below is answerable for the first time. The committed corpus keeps its
+> three-node-exports-per-night contract; `trio-batch`'s `.trio-stamp` idempotency markers are left
+> uncommitted (they carry only digests — no paths, no serials — so committing them would be safe and is
+> a reasonable future choice, just not this unit's).
+>
+> Everything below this line is the ORIGINAL text, kept because its cost estimate is still the right
+> warning for the next person who touches the corpus.
 
 **It is already computed.** `ecgdex-dsp.js` reads the H10 accelerometer (`rec.deviceACC`) and derives
 per-epoch gross motion from jerk — `epochMotion` (`ecgdex-dsp.js:1844`), called into `_epochMot`
@@ -37,7 +53,27 @@ time* — on data, not on hypothesis.
 `node tools/tch-multinight.mjs --dir uploads/trio` reports `nPairs = 3` on nights where all three nodes
 recorded motion.
 
-## 2 · Only THEN re-ask FU-IV §1 — and keep its over-correction guard
+## 2 · Only THEN re-ask FU-IV §1 — and keep its over-correction guard 🔴 NOW LIVE, and the A/B SUPPORTS it
+
+**Measured 2026-08-03 on the refolded corpus**, changing ONLY the aggregation inside `rhoFromMotion`:
+
+| aggregation | ρ rejected | nights excluded | median σ E / P / O (ρ-on) |
+|---|---|---|---|
+| `mean` (shipped) | **12** / 25 | 3 | 0.79 / 2.71 / 1.09 |
+| magnitude-weighted `Σr²/Σr` | 8 | 2 | 0.87 / 2.54 / 1.14 |
+| `max(r)` | **5** | 2 | 1.01 / 2.54 / 1.23 |
+
+Monotone in aggressiveness, exactly as FU-IV §1 predicted — and `max` still rejects 5 and excludes 2, so
+it is **not** the degenerate "always ≈0.9" that §1.3 warns against.
+
+**§5's invariant checked per-night on all three variants: ρ lowered Σσ² on ZERO of 25 nights**, so it does
+not discriminate between them and the choice rests on estimator properties.
+
+**SHIPPED: `Σr²/Σr`, not `max(r)`.** `max` is the maximum of three noisy estimates and is therefore biased
+upward by selection even when all three measure the same common mode — it buys its extra rescues with a
+systematic over-estimate. The weighted aggregate is inert where the pairs are equal (it *is* the mean
+there) and bounded above by `max(r)`, and both properties are gated. Landed at ρ-rejections 12 → 8,
+nights estimated 22 → 23; `integrator_tch_golden` regenerated (ρ 0.356 → 0.381) and re-verified.
 
 With three pairs the original question is live. FU-IV §1.3's bound still governs and is the part worth
 carrying verbatim: *the ρ that makes the solve non-negative is a **floor**, not a target — an aggregation
@@ -69,7 +105,8 @@ means inventing a constant, and this repo does not ship those un-evidenced. Deci
 
 ## 5 · Done when
 
-- [ ] §1 — ECGDex publishes per-epoch `motionIndex`; trio corpus refolded; `nPairs = 3` observed
-- [ ] §2 — FU-IV §1 re-asked on three pairs, with the floor-not-target guard held
+- [x] §1 **DONE 2026-08-03** — the export already existed (`50545ad`); the corpus was stale. Refolded to 25 nights, `nPairs = 3` on 25/25
+- [ ] §1b — decide whether to commit `trio-batch`'s `.trio-stamp` files (digest-only; provenance-positive, left out here to keep the corpus contract unchanged)
+- [x] §2 **DONE 2026-08-03** — re-asked on three pairs, A/B measured, §5 invariant clean on 25/25, and the magnitude-weighted aggregate shipped (not `max`, which is selection-biased upward)
 - [ ] §3 — the two failure populations addressed separately
 - [ ] §4 — `nOverlap` published; a minimum-`n` rule derived from data if one is warranted

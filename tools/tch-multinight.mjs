@@ -72,7 +72,8 @@ function normals(seed, n) {
 }
 
 /* ── faithful mirror of integrator-dsp.js `_tchRhoFromMotion` (§1) ───────────
-   ρ = clamp( mean over node-pairs of max(pearson(motion_i, motion_j), 0), 0, 0.9 ).
+   ρ = clamp( Σr²/Σr over node-pairs of r = max(pearson(motion_i, motion_j), 0), 0, 0.9 )
+   — the coupled-pair-weighted aggregate (FU-IV §1); see integrator-dsp.js for why not mean or max.
    Needs ≥2 motion-bearing nodes; null → classic solve. Uses the SHIPPED
    IntegratorTCH.pearson so the correlation is computed identically to the gate. */
 function rhoFromMotion(motions) {
@@ -86,9 +87,13 @@ function rhoFromMotion(motions) {
     }
   if (!rs.length) return null;
   const pos = rs.map((r) => Math.max(r, 0));
-  const mean = pos.reduce((a, b) => a + b, 0) / pos.length;
-  const rho = Math.max(0, Math.min(0.9, mean));
-  return { value: +rho.toFixed(3), meanPairR: +mean.toFixed(3), nMotionNodes: present.length, nPairs: rs.length };
+  const denom = pos.reduce((a, b) => a + b, 0);
+  const mean = denom / pos.length;
+  // COUPLED-PAIR-WEIGHTED — mirrors integrator-dsp.js `_tchRhoFromMotion`, which carries the reasoning
+  // and the measured mean/weighted/max comparison. Keep the two in step.
+  const weighted = denom > 0 ? pos.reduce((a, b) => a + b * b, 0) / denom : 0;
+  const rho = Math.max(0, Math.min(0.9, weighted));
+  return { value: +rho.toFixed(3), meanPairR: +mean.toFixed(3), weightedPairR: +weighted.toFixed(3), nMotionNodes: present.length, nPairs: rs.length };
 }
 
 /* ── run one night's A/B: classic (no ρ) vs per-night motion-ρ ──────────────
