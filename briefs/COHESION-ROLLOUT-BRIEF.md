@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** all 8 nodes carry a `<node>-registry.js` (cpapdex · ecgdex · glucodex · hrvdex · motiondex · oxydex · ppgdex · pulsedex) against `metric-registry.js`, and the rollout is gate-backed by the `cohesion-badges` group in `tests/dex-tests.js`. Verified in the tree, not from prose.
+
 # Build Brief — Cohesion Rollout (evidence badges + depth tiers → all nodes)
 
 > **For a fresh AI coder.** Read `CLAUDE.md` first (esp. the build/bundle rule + the two gates), then

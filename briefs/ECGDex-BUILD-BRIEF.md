@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** ECGDex shipped — `ECGDex.html` + `ECGDex.src.html` + `ecgdex-dsp.js` / `-render.js` / `-app.js` / `-registry.js`, bundled by `tools/build.mjs`, GATE-A covered, with a live `env.equiv.*` leg.
+
 # ECGDex — Build Brief & Project Handoff
 
 > Durable context for a fresh chat. Read this first, then `ans-design.css` and `PulseDex.html`.

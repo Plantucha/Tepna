@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** PROPOSED (verified NOT built 2026-08-03 — there is no `eegdex-*.js` in the tree and `codegen/manifests/eegdex.manifest.json` declares `"status":"planned"`; `signal-spec.js:95-96` documents `EEGDSP` as a deliberate placeholder. This is the one genuinely open node brief, and it also blocks the EEGDex corner of the N-cornered hat) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # Build Brief — EEGDex (Muse single-channel EEG node) + cohort integration
 
 > **For the next thread / an AI coder.** Read `CLAUDE.md` first (it is law), then `LEXICON.md`

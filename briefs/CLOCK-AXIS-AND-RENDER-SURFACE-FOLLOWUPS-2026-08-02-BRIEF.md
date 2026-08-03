@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-02 (**§1, §2 waves 3-7 and §3 EXECUTED — see §1-RESULT and §7.** cpapdex-render is 182/319 = 57 %; the matchRecall cross-site scan landed. all five items are now closed.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
+**Status:** DONE — 2026-08-03 (**§1, §2 waves 3-7 and §3 EXECUTED — see §1-RESULT and §7.** cpapdex-render is 182/319 = 57 %; the matchRecall cross-site scan landed. All five items are closed, and §5's six Done-when boxes are checked. The seventh box — *"a decision recorded on whether the fleet gets a canvas harness"* — is **struck in place, not dropped**: it was ANSWERED BY BUILDING IT (wave 6, ~40 lines in `tests/dex-tests.js`, +11 on one chart), so the decision it asked for no longer exists as an open question. **No follow-up spawned** — the residue is the ordinary remaining-charts work the harness now makes cheap, plus the §6 method note, both recorded in place.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
 
 # What the clock audit left behind: an unspecified host-axis, and 125 reachable render mutants
 

@@ -1,3 +1,5 @@
+**Status:** PROPOSED (largely absorbed, formally open 2026-08-03 — `sigma-no-reference-analysis.html` and `papers/sigma-no-reference.html` ship, and the 37-night trio corpus means the capture-protocol box was answered in practice, but **all seven §7 boxes are literally unchecked** and the estimator has since moved on to the TCH chain (`TCH-FUSED-ROBUST-HAT`, `TRIO-ARTIFACT-GATE-AND-N15-POWER`). Reconcile §7 against that chain before stamping — do not stamp on the file listing alone) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # BRIEF — Verity σ corner: from one overlap window to a distribution with a CI
 
 **Author of brief:** design/analysis agent · June 2026

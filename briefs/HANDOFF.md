@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** its own TL;DR is the verification — *"13 of 13 remediation items are shipped, bundled, and verified."* A dated 2026-06-12 get-current snapshot, superseded as an entry point by `ORIENTATION.md` + `DOCS-INDEX.md`; kept for its fusion-algorithm derivation.
+
 # Tepna — Remediation Handoff (read this first to skip re-deriving)
 
 _Last updated: 2026-06-12. Purpose: let a fresh thread get current in one read instead of

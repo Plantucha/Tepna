@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** CPAPDex shipped — `CPAPDex.html` / `CPAPDex.src.html` / `cpapdex-registry.js` / `CPAPDex Reference.html` are all in the tree, the node is owned by `tools/build.mjs`, and it carries GATE-B fixtures with a live equiv leg. The codegen scaffold this note handed over did its job.
+
 # Handoff — CPAPDex codegen base + what to build next
 
 > **For the next AI coder (Claude Code preferred for the build).** This note hands you the

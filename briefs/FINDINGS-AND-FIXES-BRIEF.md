@@ -1,3 +1,5 @@
+**Status:** PROPOSED (partly executed, not verified end-to-end 2026-08-03 — §0 and §1 are stamped RESOLVED in place and §3's stray `treatment-response-analysis copy.html` is gone from the tree, but §2/§4–§8 (doc-bug, harness-efficiency, generator clamp-pileup audit, run robustness) were not individually verified. Kept PROPOSED rather than stamped on partial evidence) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # Dex Suite — Findings & Fix Brief (for AI coder)
 *Compiled June 19 2026, during the v1.5 generator re-run pass. Apply AFTER the eligible pilots are
 re-run and rewritten — but items §1 and §2 are blockers that gate those very re-runs, so do them first.*

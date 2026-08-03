@@ -1,3 +1,5 @@
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** `dex-profile.js` ships as the shared `window.DexProfile` engine with the single cited metric NORMS table, per `CLAUDE.md` §📏 (metric canonical, imperial a display-layer switch only).
+
 # Profile Unification — Build Brief
 
 Handoff for implementing the unified user profile across the Dex suite. Companion to the two

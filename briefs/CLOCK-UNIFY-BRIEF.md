@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** the Clock Contract is `CLAUDE.md` law and A5 single-sourced `parseTimestamp` into `clock.js` (`DexClock`, executed 2026-07-03, owner-ratified); the owned bundler inlines it into every bundle and the delegating DSPs alias it. Verified: `clock.js` present, contract documented §1–§7.
+
 # Build Brief — Unify Clock Handling Across All Dex Apps
 
 > **Goal for the AI coder:** make **OxyDex, HRVDex, PulseDex** handle dates/times the

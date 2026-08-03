@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** PROPOSED (partly OBSOLETE, partly open — verified 2026-08-03. **§1 is obsolete**: making `buildHash` fingerprint the build was made unnecessary by Phase 7's content-addressing and is deliberately not taken — `CLAUDE.md` §🔏 records `buildHash` as RETIRED inert legacy metadata. **§2 is still open** — the Integrator "Clear synthetic" filter is not built, same item as `AUDIT-FOLLOWUPS-BRIEF.md` §1. §3 was self-marked maybe-not-worth-it) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # Brief — Generator Follow-ups, Round II (June 2026)
 
 > **For the next thread / an AI coder.** Read `CLAUDE.md` first (THE CLOCK CONTRACT, the

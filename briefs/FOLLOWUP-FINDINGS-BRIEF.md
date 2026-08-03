@@ -4,6 +4,8 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
+**Status:** PROPOSED (not verified 2026-08-03 — five per-item "Done when" blocks plus a whole-brief definition of done, none individually confirmed against the tree. P2's premise is now moot: `buildHash` is RETIRED as a provenance signal, `manifestHash` is the sole code identity) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # Follow-up findings — build brief for an AI coder
 
 **Where this came from.** The 2026-06-21 thread shipped HRVDex *additive ingest*

@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** PROPOSED (not verified 2026-08-03 — export completeness + ordering were not re-checked against a current Integrator export, and the brief's own secondary list is explicitly routed to the owner via `AUDIT-FOLLOWUPS-BRIEF.md` §4, which is itself still open) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # Build Brief — Integrator fusion-export completeness + ordering (and session follow-ups)
 
 > **For the next AI coder.** Read `CLAUDE.md` first (the two gates + the build/bundle rule + the

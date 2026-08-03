@@ -1,3 +1,5 @@
+**Status:** PROPOSED (mixed 2026-08-03 — fix **B** landed (`cleanArtifactHR` is live in `oxydex-dsp.js`, 11 matches) but fix **A** appears NOT taken: "Load bundled samples" is still present in `Integrator.src.html` + `integrator-app.js`, which is what the brief asked to delete alongside the removed fixtures. Confirm A before stamping) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # Re-bundle Pass — Continuation Brief (the LAST step)
 
 Checkpoint for resuming in a fresh (token-light) thread. **Read `CLAUDE.md` first** (conventions,

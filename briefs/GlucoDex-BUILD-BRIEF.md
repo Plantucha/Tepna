@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** GlucoDex shipped — `GlucoDex.html` + `GlucoDex.src.html` + `glucodex-*.js` + `GlucoDex Reference.html`, owned by `tools/build.mjs`, 3 code-gated fixtures with a regen tool (`tools/regen-glucodex-goldens.mjs`).
+
 # GlucoDex — Build Brief & AI-Coder Handoff
 > Durable context for a fresh chat. Read this first, then `ans-design.css`, `ECGDex.html`
 > (for the family pattern + the JSON it emits), and the data samples in `uploads/`.

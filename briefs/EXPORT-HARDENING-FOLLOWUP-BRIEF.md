@@ -1,3 +1,5 @@
+**Status:** PROPOSED (verified still open 2026-08-03 — §4 stands exactly as written: `validateNodeExport()` reaches only `integrator-app.js` + `crossnight-envelope.js`, so the other nodes still do not validate on export. §2's GlucoDex `tMs` did land) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # Export-Hardening — Follow-up Brief for the Next Coder
 
 **Context:** A multi-session export-format hardening pass landed (CSV null≠0/BOM/CRLF, tidy

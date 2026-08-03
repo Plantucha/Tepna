@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** the mode classifier is live in `ecgdex-dsp.js` (36 matches on the classifier/ambulatory identifiers) and gates the sleep stager + CVHR apnea screen, so an afternoon walk is no longer scored as an overnight study — the 2026-06-13 live failure this brief was written from.
+
 # Build Brief — Ambulatory / Activity-Aware Mode (stop scoring a walk as a sleep)
 
 > **For an AI coder.** Read `CLAUDE.md` first (Clock Contract + the two gates), then this brief, then
