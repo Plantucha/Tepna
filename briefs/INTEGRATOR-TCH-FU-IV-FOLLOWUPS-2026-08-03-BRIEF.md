@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-03 (**§1 DONE** — the export already existed, the corpus was stale; refolded, `nPairs` 3 on 25/25. **§2 DONE** — coupled-pair ρ shipped. **§1b DECIDED**, **§4a DONE** — `nOverlap` published, corpus spans 20…92. §3 re-opens against a CHANGED population and §4b, the threshold, is deliberately still unwritten) · **Created:** 2026-08-03 · **Follows:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` §1-RESULT (and its same-day correction)
+**Status:** IN-PROGRESS — 2026-08-03 (**§1 DONE** — the export already existed, the corpus was stale; refolded, `nPairs` 3 on 25/25. **§2 DONE** — coupled-pair ρ shipped. **§1b DECIDED**, **§4a DONE** — `nOverlap` published, corpus spans 20…92. §3 re-opens against a CHANGED population and §4b, the threshold, is deliberately still unwritten) · **Created:** 2026-08-03 · **Follows:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` §1-RESULT (and its same-day correction) · **§3 RE-DERIVED 2026-08-03 (§7) — all boxes now closed except the reference-night dependency it identifies**
 
 # The third motion corner exists in the DSP and dies at the export boundary
 
@@ -131,7 +131,12 @@ systems and re-recorded `integrator_tch_golden` (2 additive fields). Cheap, not 
       would churn the corpus diff on every re-run while `provenance/` already owns the committed-artifact
       identity question. The corpus contract stays three node-exports per night.
 - [x] §2 **DONE 2026-08-03** — re-asked on three pairs, A/B measured, §5 invariant clean on 25/25, and the magnitude-weighted aggregate shipped (not `max`, which is selection-biased upward)
-- [ ] §3 — the two failure populations addressed separately
+- [x] **§3 RE-DERIVED 2026-08-03 on the current 25-night corpus** — the two populations are now sized
+      and characterised, and they are genuinely different failures (see §7). **A: 8 nights where ρ is
+      REJECTED and therefore INERT — σ byte-identical to classic. B: 17 nights where ρ is applied and
+      moves σ on all 17.** The direction of B's movement is deliberately NOT adjudicated: on real
+      nights there is no planted truth, and a ρ that *raises* σ may be removing an optimistic bias
+      rather than degrading — which is the whole premise of the external-ρ path.
 - [x] §4a **DONE 2026-08-03** — `nOverlapMin`/`nOverlapMax` published + gated; corpus overlap spans 20…92,
       median 77
 - [x] **§4b MEASURED 2026-08-03 — and the rule is REFUSED, with the curve that refuses it.**
@@ -187,3 +192,60 @@ minimum-n rule around n≈80.
 The analytic column is the check that the corrected numbers are real: measured sits ~1.2–1.4× above
 Gaussian at *every* k, consistently, which is what heavier-tailed motion data should do — not the
 scattered agreement a bug on either side would give.
+
+
+---
+
+## 7 · §3 re-derived — the two populations, on the corpus that actually exists (2026-08-03)
+
+§3's table was explicitly preserved as stale ("*the shift IS the reason §3 is still open*"). Re-derived
+with `node tools/tch-multinight.mjs --dir uploads/trio` over the committed 25 nights.
+
+### Population A — ρ REJECTED: **8 of 25**
+
+| night | ρ offered | quiet-corner σ | σ vs classic |
+|---|---|---|---|
+| 2026-06-20 | 0.45 | 0.60 | identical |
+| 2026-06-24 | 0.29 | **0.07** | identical |
+| 2026-06-27 | 0.39 | 0.27 | identical |
+| 2026-06-30 | 0.44 | 0.91 | identical |
+| 2026-07-01 | 0.57 | 0.32 | identical |
+| 2026-07-02 | 0.35 | **0.06** | identical |
+| 2026-07-07 | 0.52 | **0.01** | identical |
+| 2026-07-08 | 0.30 | 0.46 | identical |
+
+**The defining property is that ρ is INERT here, not merely weak.** The offered ρ sits below the
+geometry's non-negativity floor, `_solveMulti` returns a negative variance, and the call falls through
+to the auto-`correlated` branch — which computes the same answer it would have computed with no
+external ρ at all. σ is identical on all 8. So on **a third of the corpus the motion-ρ pipeline runs
+and is discarded**, and `externalRhoRejected` is the only way to know.
+
+Note the rejected ρ values span **0.29–0.57**. This is not "ρ too small to matter" — 0.57 is
+substantial. It is *too small for that night's geometry*, which is a statement about the variance
+structure, not about the motion estimate's magnitude. Three of the eight are boundary-pinned (σ ≤ 0.10
+on the quiet corner), which is the auto branch's known boundary-seeking behaviour, not a measurement.
+
+### Population B — ρ APPLIED: **17 of 25**
+
+σ moved on **17 of 17**. Median change in summed σ: **+0.830 bpm**, raised on **16 of 17**, lowered on 1.
+
+### What is NOT concluded, and why
+
+It is tempting to read "raises σ on 16 of 17" as ρ making things worse. **That inference is not
+available here.** Classic TCH is *biased optimistic* in the presence of common mode — removing a
+correlation the consumer can independently estimate is expected to raise σ toward the truth. A ρ that
+raises σ may be correcting the bias the external-ρ path exists to correct.
+
+On real nights there is no planted truth, so the direction cannot be adjudicated. What the corpus DOES
+settle is the split: **8 nights where ρ provably does nothing, 17 where it provably does something.**
+FU-IV §5's invariant (ρ lowered Σσ² on zero of 25) is consistent with both readings and does not
+separate them either.
+
+**What each population needs, stated separately as §3 asked:**
+
+- **A** needs no estimator work — ρ is already discarded. What it needs is *visibility*, which §4a's
+  `nOverlapMin` and this flag now provide. Re-running the motion-ρ computation on these nights is
+  wasted work, and that is the only cost.
+- **B** needs a **reference night** — a co-recording with a known σ — before its direction can be
+  called. Nothing in the current corpus can do it, which is why this is a bound on the question rather
+  than an answer to it.
