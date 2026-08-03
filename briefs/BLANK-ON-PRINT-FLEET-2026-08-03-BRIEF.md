@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-08-03 (**reproduced, and the fleet claim is STALE** — `entrance-guard.js` already covers all 8 node apps; the residual is ONE selector in ONE app, OxyDex's `.main-wrap`. Both §3 routes are mis-costed. Fix not landed: two bundle PRs were open and this serializes) · **Created:** 2026-08-03 · **Spawned-by:** `AUDIT-FOLLOWUPS-BRIEF.md` §4.1 (re-verified live 2026-08-03) · **Affects:** `ans-design.css` (spine — inlined into EVERY bundle) or the six `*-render.js` · **⚠️ Serializes against all other bundle work**
+**Status:** DONE — 2026-08-03 (**fixed and gated** — see §1-RESULT-II. §1-RESULT was right that the fleet claim was stale, but under-counted the residual: it was **two** selectors across **four** apps (`.main-wrap` in OxyDex/HRVDex/PulseDex, and `.kpi` in CPAPDex, which has no `#kpiStrip` at all). Both guarded; the guard now has a gate that DERIVES its expectation from `ans-design.css`, verified by 5 mutants. `ans-design.css` itself is deliberately UNTOUCHED — the mitigation stays in `entrance-guard.js`) · **Created:** 2026-08-03 · **Spawned-by:** `AUDIT-FOLLOWUPS-BRIEF.md` §4.1
 
 # Six apps still print blank, and the fix is a spine change that has to be scheduled
 
@@ -146,6 +146,39 @@ spine change, and it fixes the cause once rather than adding a seventh copy of t
 ran (#776 ECGDex, #786 PpgDex), so landing an 8-bundle re-bundle would have collided with both. The
 measurement, the tool and the one-line diff carry no bundle impact and land now; the re-bundle is left
 to be scheduled against a clear window. §5's badge-mandate audit should ride the same window.
+
+## §1-RESULT-II — FIXED 2026-08-03: it was TWO selectors across FOUR apps, and now a gate derives the set
+
+§1-RESULT called the residual *"ONE selector in ONE app, OxyDex's `.main-wrap`"*. Measured again while
+writing the guard's gate, it is **two selectors, four apps** — the second one in a node §1-RESULT never
+looked at:
+
+| unguarded selector | `ans-design.css` rule | who renders it | why it was missed |
+|---|---|---|---|
+| `.main-wrap` | `.main-wrap,.main-content{…animation:fadeIn}` | OxyDex (22 uses), **HRVDex, PulseDex** | the guard pinned only its comma-sibling `.main-content` |
+| **`.kpi`** | `.kpi{animation:cardEntrance .35s ease both}` | **CPAPDex** — which has **no `#kpiStrip` at all**, it renders every KPI into its own `.kpi-grid` | the guard pinned the *narrower* `#kpiStrip .kpi` |
+
+Confirmed by computed style under a frozen timeline: outside `#kpiStrip` the element reads
+`opacity=0 / animationName=cardEntrance`; inside, `opacity=1 / none`.
+
+**Both are now guarded, and the guard is gated.** The new group derives its expectation FROM
+`ans-design.css` — every keyframe whose `from` sets `opacity: 0`, every rule consuming one, each
+required to be pinned — so a newly-animated selector fails until it is guarded. That is what turns this
+from a fix into a closed class: `entrance-guard.js` had previously appeared in `tests/dex-tests.js`
+exactly once, as a **comment in an exclusion list**, so nothing could have reported either gap.
+
+**Verified by mutation, and the first two versions of the gate were wrong** — recorded because it is the
+whole argument for re-applying the defect: a substring test reported the `.kpi` revert as *covered*
+(`#kpiStrip .kpi` **contains** `.kpi`), i.e. the gate could not see the very bug it exists for; then the
+literal extractor swallowed the file's `/* header */` and `var ID = 'dx-entrance-guard'`. One false
+green, then two false reds. Final: **5 mutants, 5 killed** (revert `.kpi`, drop `.main-wrap`, weaken
+`!important`, unwire the guard from a shell, empty the guard CSS → 26 reds).
+
+Independent of §1-RESULT's CDP tool, the same conclusion fell out of a `--virtual-time-budget` sweep:
+unmitigated a 400×200 block paints **0** px at vtb=1 and 80000 at vtb=5000; with the guard, 80000 at
+both. §1-RESULT's warning about `getAnimations()` is right and worth keeping — a post-load rewind
+measures nothing, because the entrance has already finished and finished animations are no longer
+returned.
 
 ## Done when
 
