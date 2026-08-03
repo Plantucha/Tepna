@@ -134,7 +134,35 @@ function from it launches a 40-minute run. The lexer is therefore extracted into
 a pure module with no side effects, and both tools import it. One lexer, N callers: a duplicate would be
 free to drift back into the regex-desync defect that cost `CLOCK-MUTATION-AUDIT` §4 a contaminated run.
 
-**Not done:** the clock.js cross-reference. Its exhaustive run is ~40 min and was cut short here in
-favour of shipping the tool; `node tools/mutate.mjs --file clock.js --json > s.json && node
-tools/guarantees.mjs --file clock.js --survivors s.json` is the whole command, and clock.js's 21 sites
-against its 37 survivors is the obvious next reading.
+### The clock.js cross-reference — run 2026-08-03, and it found a promise that is FALSE
+
+The exhaustive sweep (127 mutants, 65 min at 16 jobs) reproduced **93 killed = 73 %** exactly, matching
+the morning's run on an unchanged file. Against the 21 guarantee sites:
+
+**15 of 21 documented promises in `clock.js` carry a surviving mutant.** The Clock Contract's own
+sentences are among them — *"explicit vendor regexes (never locale Date.parse)"* (5 survivors), the §3
+file-level lock *"Never switch order mid-file"* (3), §2.6's component-range *"a bad stamp is visible,
+never fabricated"* (4), `resolveDMY`'s *"refuse rather than guess"* (3), *"never fabricate
+Jan-1-2000"* (2), and the axis *"PLAUSIBILITY BOUND — refuse, never 'correct'"* (2).
+
+**And the sharpest result is not an ungated promise but a WRONG one.** The site with the most survivors
+(6) was `clock.js:299`:
+
+> *"Divergence is measured RELATIVE to the first anchor … so the correction must be 0 at the start and
+> grow."*
+
+It is not 0 at the start. `CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS` §1 measured that the running
+median's clamped window pulls each end inward by exactly ⌊win/2⌋/2 = 5 anchors' drift, which is why
+`ppm` under-reads by 1 − 5/(n−1); `CLAUDE.md` §7 states it correctly. The code comment was never
+updated, so the spine carried a promise that contradicted its own Contract — **ungated and false at the
+same time, which is precisely the pair the census was built to separate.** Corrected in place.
+
+That correction cost a **fleet re-bundle**: `clock.js` is inlined into every bundle, so a comment moves
+8 `manifestHash`es. Taken deliberately in a window with zero open PRs (`CLAUDE.md` §👥.3), with all
+three build systems rebuilt, `computeHash` moved, and **8 fixtures re-verified by re-running them**
+against the real corpus (`verify-fixtures.mjs`) rather than asserted export-inert.
+
+**A tool nuance worth recording:** adjacent one-line comments in the same region each get attributed the
+same nearby survivors (`NEAR = 25`), so L106/L107/L109 above report an identical set. The site count is
+therefore an upper bound on distinct regions; the survivor lines are exact. Read the mutants, not the
+site tally.
