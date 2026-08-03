@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **F1 · F2 · F3-ter · F7 DONE 2026-08-02** · **F5 · F8 DONE 2026-08-02** (the printer no longer quotes an unclosed ppm, and both clock printers are gated for the first time — see F5.1–F5.4; F4 `papers/` and F6 remain open) · **Follows:** `WEARABLE-HOST-AXIS-2026-08-02-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `integrator-dsp.js`, `tools/trio-batch.mjs`, `tools/drift-report.js`, `papers/`, several briefs
+**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **F1 · F2 · F3-ter · F7 DONE 2026-08-02** · **F4 · F5 · F8 DONE 2026-08-02** (the printer no longer quotes an unclosed ppm, and both clock printers are gated for the first time — see F5.1–F5.4; F6 and the two TCH/PAT boxes remain open) · **Follows:** `WEARABLE-HOST-AXIS-2026-08-02-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `integrator-dsp.js`, `tools/trio-batch.mjs`, `tools/drift-report.js`, `papers/`, several briefs
 
 # The O2Ring's axis was drawn on every night before 2026-07-28. Everything that used it as a clock has to be re-asked.
 
@@ -192,7 +192,7 @@ Verified end-to-end against the raw-file finding, which it reproduces independen
   unaffected by the drawn axis (see F3). The closure refusal is wired; the TCH kernel itself still does
   not consult `timingSource`, which matters only if a future caller feeds it beat-derived legs.
 
-## F4 · `papers/` audit
+## F4 · `papers/` audit — **DONE 2026-08-02**
 
 - **`papers/wearable-clock-drift.html`** — already carries two correction banners. It needs a third pass
   folding in the direct measurement (H10 ≈ −20, Verity ≈ −27, inter-device ≈ 7 ppm) and the drawn-axis
@@ -203,6 +203,36 @@ Verified end-to-end against the raw-file finding, which it reproduces independen
 - **`briefs/O2RING-PROTOCOL-2026-07-17-BRIEF.md`** §109–111 — the source of the 125.738 Hz calibration.
   Do **not** retract the measurement (it is a real fit over 2.6 M samples); add a header note that the
   constant cannot hold because the delivered rate varies per session, pointing at the host-axis fix.
+
+### F4-RESULT — executed 2026-08-02
+
+**Bullet 1 was already applied** by the parallel session that wrote `WEARABLE-DRIFT-DIRECT`: the paper
+carries the direct measurement (H10 ≈ −20, Verity ≈ −27, inter-device ≈ 7 ppm), the span-vs-leverage
+correction, and an explicit statement that the ring's apparent ppm is the error in an assumed constant
+rather than a crystal property. Checked in the file before writing anything — the box was owed less than
+it looked. (`WEARABLE-DRIFT-DIRECT`'s own Done-when marks the scope-note correction *(owner)* because it
+was "another session's paper"; that session's work has since merged, and the correction is factual and
+docs-only, so it was completed here rather than left pending on a merged coordination concern.)
+
+**Bullet 2 — `papers/timestamp-pathology.html` gains §3.1, and it is a RESULT, not a correction.** The
+paper's Table 1 failures are all visible in the bytes; a synthesised axis is not. The parser resolves it
+flawlessly and violates none of B1–B6, because there is nothing malformed to object to. So the honest
+framing is that a correct parser is **necessary and not sufficient** — provenance is a separate
+obligation from syntax, and no result in Tables 1–2 speaks to it. The subsection carries the modal-delta
+table (100.0 % on the 16 pre-2026-07-28 O2Ring files vs 0.1 %/0.0 % after; Verity 0.1 %), the
++783 ppm / +92 ppm same-night fragment pair, and the **rejected** `first ns == 0` detector plus the
+sawtooth trap — kept because the rejections are the transferable part.
+
+⚠️ It is marked explicitly as a **corpus observation, not a regenerated benchmark row**. Tables 1–2 are
+produced live by `timestamp-pathology-analysis.html`, which exercises the parser; this class is by
+definition invisible to that tool, and letting the new material inherit the "regenerated live" claim
+would be exactly the over-reach the subsection is about.
+
+**Bullet 3 — `O2RING-PROTOCOL` header note, not a retraction.** The 125.738 Hz fit stands as a
+measurement over 2 616 483 samples; what it cannot be is a *timebase*, since the section's own recorded
+per-session spread (125.59–125.88 Hz) is a delivered rate no single constant represents. The note states
+the guardrail explicitly so the obvious wrong move is closed off: **do not re-calibrate the constant** —
+a better constant makes the drawn axis more plausible without making it a measurement.
 
 ## F5 · `trio-batch` prints an unclosed ppm, and none of it is gated — **DONE 2026-08-02**
 
@@ -482,7 +512,10 @@ afc169a65a1e`) rather than asserted export-inert.
       travels alone now (`lagSpreadSec` + `madDegenerate`); MAD reads 0.00 on 8 nights whose lag
       spread runs 20–29 s. 34 assertions, 10 mutants confirmed to red.
 - [x] **A leg with no time axis is refused** by a computed `timingSource`, wired through `trio-batch`.
-- [ ] `papers/` audited; `O2RING-PROTOCOL` annotated rather than retracted.
+- [x] **`papers/` audited; `O2RING-PROTOCOL` annotated rather than retracted** (2026-08-02, F4-RESULT).
+      Bullet 1 was already applied by the parallel session — verified in the file, not assumed.
+      `timestamp-pathology` gains §3.1 as a *result* (a pathology no parser can detect), flagged as a
+      corpus observation rather than a regenerated benchmark row.
 - [x] **F5 — no ppm is quoted by `trio-batch` without a span and a closure beside it** (2026-08-02).
       Closure is computed BEFORE the line; the seconds-per-night claim exists only in the `closed`
       state; the span rides along in all four. Pure formatters in `tools/drift-report.js`, 37
