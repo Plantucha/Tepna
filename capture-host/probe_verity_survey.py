@@ -316,8 +316,13 @@ async def phase_record(address, adapter, meas, seconds, out):
             got["start_ack"] = pmd.CTRL_STATUS.get(code, f"unknown_{code:#04x}")
             got["in_charger_refusal"] = (code == pmd.IN_CHARGER)
             if code == pmd.IN_CHARGER:
-                # Measured 2026-08-03: this device ACCEPTS starts while docked, contradicting the
-                # documented "a docked Polar refuses every START". Recorded either way, never assumed.
+                # ⚠️ THE DOCKED-START QUESTION IS UNSETTLED — do not read either way into it.
+                # 2026-08-03, ~21:57: the daemon reconnected on a WALL charger with the battery climbing
+                # 3% -> 12% and all four STARTs returned `ok`, which was written up as "a docked Verity
+                # accepts starts, contradicting the docs". Later the same day, on vigil's USB at 100%,
+                # a PPG start was refused with `0x0D in_charger` exactly as documented. One observation
+                # each way. The variables not held fixed: wall charger vs USB host, and charge level.
+                # Recorded as measured, never asserted.
                 return got
             await asyncio.sleep(min(seconds, 120.0))
             during = pmd.parse_status_response(await cp.send(pmd.status_cmd()) or b"")
