@@ -134,5 +134,56 @@ systems and re-recorded `integrator_tch_golden` (2 additive fields). Cheap, not 
 - [ ] §3 — the two failure populations addressed separately
 - [x] §4a **DONE 2026-08-03** — `nOverlapMin`/`nOverlapMax` published + gated; corpus overlap spans 20…92,
       median 77
-- [ ] §4b — a minimum-`n` RULE, derived from how ρ's stability varies with `n` on the corpus (not from a
-      round number now that the count is visible)
+- [x] **§4b MEASURED 2026-08-03 — and the rule is REFUSED, with the curve that refuses it.**
+      `tools/rho-overlap-power.mjs` over the committed 25-night corpus (75 pairs, 400 draws per point).
+      There is **no knee**: SD(r) falls smoothly as ~1/√n with nothing to derive a threshold from, so
+      any cut would be a choice of tolerable spread, not a discovered constant — exactly what §4 says
+      not to ship. See §6.
+
+
+---
+
+## 6 · §4b — how much overlap does ρ need? (measured 2026-08-03)
+
+`tools/rho-overlap-power.mjs`, committed so the result is re-runnable. Per night, per node-pair, take
+the aligned per-epoch motion series; for each subsample size *k* draw 400 random subsets and record the
+SD of Pearson *r* across draws. 25 nights, 75 pairs.
+
+| k | median SD(r) | IQR | analytic (1−r²)/√(k−3) |
+|---|---|---|---|
+| 10 | 0.381 | 0.342–0.412 | 0.311 |
+| 15 | 0.317 | 0.279–0.353 | 0.237 |
+| **20** | **0.284** | 0.231–0.313 | 0.199 |
+| 30 | 0.221 | 0.192–0.266 | 0.160 |
+| 40 | 0.187 | 0.152–0.231 | 0.137 |
+| 60 | 0.150 | 0.116–0.188 | 0.111 |
+| 80 | 0.113 | 0.084–0.157 | 0.094 |
+
+### The rule is REFUSED, and the curve is why
+
+**There is no knee.** SD falls smoothly as ~1/√n across the whole range. §4 asked for a rule *derived*
+from the data rather than picked from a round number — and the data contains no threshold to derive.
+Any cut would be a choice of tolerable spread wearing the costume of a measurement, which is precisely
+the invented constant §4 refuses.
+
+**What the curve does give is a conversion, which is more useful than a rule.** To hold SD(r) ≤ 0.15
+needs n ≈ 60; ≤ 0.10 needs n beyond **92**, the corpus maximum. So a "tight" rule would reject nearly
+every night in the corpus — the honest statement is not "n ≥ X is enough" but "at the overlaps this
+corpus actually supplies, ρ is a soft number, and `nOverlapMin` (§4a) is how a consumer sees that".
+
+**And the practical consequence is currently nil.** §5's invariant holds: ρ lowered Σσ² on **zero** of
+25 nights. Gating a quantity that has no measurable effect on the output would be ceremony. If ρ ever
+starts moving results, this curve is the input to that decision — and the decision would still be a
+tolerance choice, taken explicitly, not a constant discovered here.
+
+### A methodological trap this hit, recorded because the naive answer is wrong
+
+The first run subsampled without correction and reported SD = **0.027** at k=80, suggesting a sharp knee
+and excellent precision. That is an artifact: drawing 80 of N=86 makes every draw nearly the same set,
+so the spread collapses. The finite-population factor √((N−k)/(N−1)) divides it back out — the same
+point is **0.113**. Uncorrected, this measurement would have produced a confident and entirely false
+minimum-n rule around n≈80.
+
+The analytic column is the check that the corrected numbers are real: measured sits ~1.2–1.4× above
+Gaussian at *every* k, consistently, which is what heavier-tailed motion data should do — not the
+scattered agreement a bug on either side would give.
