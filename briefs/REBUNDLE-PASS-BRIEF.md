@@ -1,4 +1,27 @@
-**Status:** PROPOSED (mixed 2026-08-03 — fix **B** landed (`cleanArtifactHR` is live in `oxydex-dsp.js`, 11 matches) but fix **A** appears NOT taken: "Load bundled samples" is still present in `Integrator.src.html` + `integrator-app.js`, which is what the brief asked to delete alongside the removed fixtures. Confirm A before stamping) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** both fixes are live in source AND in the shipped bundles; `node tools/build.mjs --check` clean (11 owned, 0 legacy).
+
+> **Executed by other briefs, not by this one — confirmed in code 2026-08-03.**
+>
+> - **Fix A (Integrator demo samples)** — done, and done *better* than specced. `bindSamples()`
+>   (`integrator-app.js:409`) no longer fetches the two 404ing paths; it loads
+>   `uploads/trio/2026-06-12/{ECGDex,OxyDex}_2026-06-12.node-export.json` — a same-night synthetic
+>   ECG+Oxy pair, so the demo produces a real same-night fusion finding rather than merely loading.
+>   Landed via `CPAP-REAL-CORPUS-FOLLOWUPS-II` §3 and is now **gate-backed**: the `Demo-inputs` group
+>   (`tests/dex-tests.js:11290`) asserts every shipped demo path is git-tracked, so the 404-in-every-
+>   clone failure class this brief found cannot return. Present in `Integrator.html`.
+> - **Fix B (`cleanArtifactHR` defensive advance)** — landed **verbatim**, including the rationale:
+>   `i = j > i ? j : i + 1; // defensive: guarantee progress even if SOFT ≤ RECOV is ever configured`
+>   (`oxydex-dsp.js`). Carried in by `OXYDEX-HR-ARTIFACT-RUNAWAY-FIX` (2026-07-03), which also bounded
+>   the recovery search with `HR_ARTIFACT_MAX_RUN_SEC` — the real bug behind the same function.
+>   Present in `OxyDex.html`.
+>
+> ⚠️ **This brief's PROCEDURE is stale — do not follow it.** Steps 3–5 describe the retired inliner and
+> `buildHash`-based provenance. Per `CLAUDE.md` §🔏, `buildHash` is RETIRED as a provenance signal
+> (`manifestHash` is the sole code identity), the build is OWNED (`node tools/build.mjs --app <App>`
+> auto-writes the ledger), and its §"Known non-issues" is doubly stale: `parseTimestamp` is now
+> **single-sourced in `clock.js`** (A5, 2026-07-03 — the opposite of its "mirror, don't extract"), and
+> PulseDex's IBM Plex Mono woff2 was **dropped** in the 2026-07-03 cutover. Kept unedited as the
+> historical record of what was true in June 2026.
 
 # Re-bundle Pass — Continuation Brief (the LAST step)
 
