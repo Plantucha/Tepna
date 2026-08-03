@@ -483,10 +483,10 @@ def decode_rec(path: str, expected_start_utc: _dt.datetime | None = None) -> dic
                                                   for x, y in zip(frames, frames[1:])])
             got["stride_bytes"] = _median([y["offset"] - x["offset"] for x, y in zip(frames, frames[1:])])
         # INTERNAL consistency: the ASCII header and the first frame's own clock are both the device's,
-        # so they must agree. This is checkable on ANY file, old or new.
-        if anchor:
-            got["header_vs_first_frame_sec"] = round(
-                (_dt.datetime.fromisoformat(got["first_frame_utc"]) - anchor).total_seconds(), 2)
+        # so they must agree. This is checkable on ANY file, old or new. No `if anchor` guard: reaching
+        # here means `frames` is non-empty, and `find_rec_frames` returns [] for a None anchor.
+        got["header_vs_first_frame_sec"] = round(
+            (_dt.datetime.fromisoformat(got["first_frame_utc"]) - anchor).total_seconds(), 2)
     # THE TIMEBASE VERDICT — only for a recording this run created, where the host clock at start is known.
     if expected_start_utc and anchor:
         d = (anchor - expected_start_utc).total_seconds()

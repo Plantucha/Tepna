@@ -140,7 +140,11 @@ def convert(path: str, tz_offset_min: int = 0) -> dict:
         # and discards all 52 good samples. 52 is exactly 944 ms x 55 Hz, which is what showed the data
         # was present and the BOUNDARY was wrong.
         samples = None
-        for trim in (2, 1, 0, 3):
+        # NATURAL BOUNDARY FIRST, then trim. Trying trim=2 first was wrong and a test caught it: on an
+        # UNCOMPRESSED frame (no delta blocks) two fewer bytes is simply one fewer sample, which decodes
+        # cleanly and silently loses data instead of raising. Only a delta frame objects to the trailing
+        # bytes, so let the decoder ask for the trim rather than assuming it.
+        for trim in (0, 1, 2, 3):
             try:
                 _mt, samples = pmd.decode_frame(b[off:end - trim], arrival, fs, prev_ns, scale)
                 break
