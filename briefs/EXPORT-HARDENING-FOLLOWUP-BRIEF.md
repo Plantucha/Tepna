@@ -1,4 +1,4 @@
-**Status:** PROPOSED (verified still open 2026-08-03 — §4 stands exactly as written: `validateNodeExport()` reaches only `integrator-app.js` + `crossnight-envelope.js`, so the other nodes still do not validate on export. §2's GlucoDex `tMs` did land) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** IN-PROGRESS — 2026-08-03 (**§4 MEASURED**: its drift premise is stale — every bundle that inlines `crossnight-envelope.js` carries the current version and `build.mjs --check` now guards it. The wiring half would catch NOTHING: 98 committed exports, 0 failing. Both warnings are validator blind spots — MotionDex's numeric `schema.version` bypasses the unknown-major guard, and the multi-night shape is unknown to it. §2's GlucoDex `tMs` did land)
 
 # Export-Hardening — Follow-up Brief for the Next Coder
 
@@ -88,6 +88,58 @@ it). But it IS source-vs-bundle drift; if any of those nodes ever calls `validat
 ships live only in the Integrator until a future sweep, or (b) re-bundle all 6 (JS-only → no
 `buildHash` move → no fixture regen) so source == bundles. Low risk either way; (b) is tidier.
 **Gate (if re-bundling):** `Dex-Test-Suite.html` + `verify-provenance` (expect all hashes unchanged).
+
+### §4-RESULT (2026-08-03) — the drift half is GONE, and the wiring half would catch nothing
+
+**The drift premise is stale.** §4 says the other six node bundles "embed the **older**
+`crossnight-envelope.js` without the function". Measured: every bundle that inlines the module —
+`OxyDex · ECGDex · PpgDex · PulseDex · CPAPDex` — carries the current version (3 occurrences, matching
+source); `GlucoDex · HRVDex · MotionDex` do not inline it at all. There is no source↔bundle drift, and
+there cannot be one any more: `build.mjs --check` became a standing CI guard after this brief was
+written, so option (b) has effectively already happened as a side-effect of other re-bundles.
+
+Note §4's costing is also pre-`OWN-THE-BUILD`: it says a JS-only re-bundle means "no `buildHash` move →
+no fixture regen". `manifestHash` is now the code identity and IS a projection of the inlined asset
+text, so any such re-bundle *does* move it. Cheap, but not free.
+
+**The wiring half is real but not urgent, and that is measured, not assumed.** The validator ships in
+five node bundles and the only production caller is `integrator-app.js:123` — which validates on
+**INGEST**, not on export. So no node checks its own output. `tools/validate-exports.mjs` ships with
+this entry and runs the real `validateNodeExport` over every committed export:
+
+| | |
+|---|---|
+| `ganglior.node-export` files scanned | **98** |
+| FAILING | **0** |
+| with warnings | 2 |
+
+Per node: ECGDex×29 · PpgDex×29 · OxyDex×25 · CPAPDex×5 · GlucoDex×3 · HRVDex×3 · PulseDex×3 ·
+MotionDex×1. **Export-time validation would have caught nothing on this corpus.**
+
+#### Both warnings are defects in the VALIDATOR, not in the exports it flagged
+
+1. **MotionDex emits `schema.version: 1` — a number** — where every other node emits `"2.0"`. The
+   message fired is *"schema.version missing"*, which is wrong: it is present, just not a string. And
+   the unknown-major check on the next line is guarded by `typeof s.version !== 'string' || …`, so the
+   numeric form **short-circuits past the very warning that exists to catch an unrecognised major**. A
+   node could ship `version: 9` and be waved through. (MotionDex sitting on v1 at all is a separate,
+   real contract gap — the fleet is on 2.0 with `nodeVersion`/`bus`.)
+2. **`cpapdex_synthetic_multinight_golden`** is warned for having no `recording.startEpochMs` and no
+   `ganglior_events[]` — but it declares `schema.multiNight: true` and carries `nights[]` (3 entries)
+   with `recording: null` **by design**. The validator has no notion of the multi-night shape.
+
+So across 98 exports the validator's only two complaints are about itself. That sharpens §4's answer:
+**wiring export-time validation today would emit two spurious warnings and zero true ones.** Fix the
+validator first; then wiring is worth doing and cheap.
+
+#### Not landed here
+
+All three fixes (multi-night awareness · numeric-version guard · MotionDex schema bump) touch modules
+inlined into several bundles, so they serialize against in-flight bundle work per `CLAUDE.md` §👥.3 —
+two PRs were open. The sweep touches nothing and lands now.
+
+**§4 revised verdict:** (b) is already done by the standing drift guard; the open work is the validator's
+two blind spots, then the wiring — in that order.
 
 ## 5. No precision policy on exported numbers (minor)
 **Where:** `ppgdex-app.js buildV2` epochs + `ppgdex` epochs CSV emit raw epoch HRV
