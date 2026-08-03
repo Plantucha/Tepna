@@ -278,16 +278,52 @@ function groupsForFile(file) {
   } catch {
     return null;
   }
+  /* TAG hits — groups that name this module explicitly. This is what "is the file measurable at all"
+     depends on: no tagged group means every mutant survives trivially, which the caller reports as
+     NO GROUPS rather than 0 killed. */
   const hit = (listed.groups || []).filter((g) => (g.tag || '').split('·').some((t) => t.trim() === stem));
-  return { stem, count: hit.length };
+  /* …but the number that matters for COST is what `--group=<stem>` actually RUNS, and that is not the
+     same set. `dexGroupMatcher` is a case-insensitive REGEX over title OR tag, so `--group=clock` also
+     selects every group with "clock" anywhere in its TITLE — "ECGDex worker clock", "a real arousal
+     near a clock hour". Measured on clock.js: 20 tag hits, 44 groups actually run. Reporting only the
+     20 understated the tool's own workload by more than 2× and is why CLOCK-MUTATION-COST's cost model
+     did not reconcile. Both are reported now; `count` stays the tag figure so existing readers are
+     unchanged, and `selected` is the honest cost driver. */
+  let selected = null;
+  try {
+    const rx = new RegExp(stem, 'i');
+    selected = (listed.groups || []).filter((g) => rx.test(g.title || '') || rx.test(g.tag || '')).length;
+  } catch {}
+  return { stem, count: hit.length, selected };
 }
 
-/* Async twin of runSuite, for the worker pool. Same classification, non-blocking. */
+/* Async twin of runSuite, for the worker pool. Same classification, non-blocking.
+
+   WHY IT CAPTURES stdout NOW (CLOCK-MUTATION-COST §Done-when 1). This ran with `stdio: 'ignore'`, so a
+   mutant's entire result was an exit code: the harness knew a mutant died but not WHICH group killed
+   it. That is precisely the measurement needed to narrow an expensive tag — the union of killing groups
+   over every mutant IS the minimal sufficient selection — and the brief assumed the tool already had
+   it. It did not.
+
+   Cost is a pipe instead of `ignore` plus one regex over the output; the suite prints a few KB. A
+   SURVIVING mutant exits 0 and is not scanned at all, so the common case pays nothing. */
+const KILLER_RE = /✕ \[([^\]]+)\]/g;
 function runSuiteAsync(filter, cwd, timeoutMs) {
   return new Promise((resolve) => {
-    const ch = spawn('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd, stdio: 'ignore', timeout: timeoutMs || 900000 });
-    ch.on('error', () => resolve('INVALID'));
-    ch.on('close', (code) => resolve(code === 0 ? 'SURVIVED' : 'KILLED'));
+    const ch = spawn('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd, stdio: ['ignore', 'pipe', 'ignore'], timeout: timeoutMs || 900000 });
+    let out = '';
+    ch.stdout.on('data', (d) => {
+      out += d;
+    });
+    ch.on('error', () => resolve({ verdict: 'INVALID', killers: [] }));
+    ch.on('close', (code) => {
+      if (code === 0) return resolve({ verdict: 'SURVIVED', killers: [] });
+      const seen = new Set();
+      let m;
+      KILLER_RE.lastIndex = 0;
+      while ((m = KILLER_RE.exec(out))) seen.add(m[1]);
+      resolve({ verdict: 'KILLED', killers: Array.from(seen) });
+    });
   });
 }
 
@@ -344,7 +380,12 @@ function workerPool() {
       /* Out of disk, or git cannot add a worktree here. Do NOT abort the run: carry on with however
          many workers were created, and fall back to the serial in-place path if that is none. Each
          worktree is a full checkout, so a small machine hitting this is expected, not exceptional. */
-      if (!AS_JSON) console.error('  ⚠ worker ' + w + ' unavailable (' + ((e && e.message) || e).toString().split('\n')[0].slice(0, 80) + ') — continuing with ' + _pool.length);
+      /* ALWAYS warn, INCLUDING under --json. stdout carries the NDJSON and stderr is free, so
+         suppressing this bought nothing and hid the worst failure this tool has: losing the worker
+         pool degrades a ~40 min run into a SERIAL one — the ~16 h figure CLOCK-MUTATION-COST measured
+         — silently, while still printing a perfectly well-formed result. A measurement harness that
+         quietly becomes 16× slower is the same class of defect as a gate that quietly stops checking. */
+      console.error('  ⚠ worker ' + w + ' unavailable (' + ((e && e.message) || e).toString().split('\n')[0].slice(0, 80) + ') — continuing with ' + _pool.length);
       break;
     }
   }
@@ -442,11 +483,21 @@ async function runFile(file) {
     done = 0;
   const trees = [];
   const tick = () => {
-    if (!AS_JSON) process.stderr.write('\r  ' + file + '  ' + ++done + '/' + picked.length + '  killed ' + killed + '  survived ' + survivors.length + '  [' + (trees.length || 1) + ' job(s)]   ');
+    /* Progress on stderr in EVERY mode. It was gated on !AS_JSON, so a --json run printed nothing at
+       all for its whole duration: no way to distinguish a working run from a stalled one, and no way
+       to see the job count that would have exposed a collapsed pool. stdout stays pure NDJSON. */
+    process.stderr.write('\r  ' + file + '  ' + ++done + '/' + picked.length + '  killed ' + killed + '  survived ' + survivors.length + '  [' + (trees.length || 1) + ' job(s)]   ');
   };
+  /* `v` is either the legacy string (the serial in-place path, which still uses the sync runner) or
+     `{ verdict, killers }` from the async pool. Normalising here keeps both paths on one classifier
+     rather than duplicating the bookkeeping. */
+  const killers = new Map(); // group title → how many mutants it killed
   const classify = (v, mu) => {
-    if (v === 'KILLED') killed++;
-    else if (v === 'INVALID') invalid++;
+    const verdict = typeof v === 'string' ? v : v.verdict;
+    if (verdict === 'KILLED') {
+      killed++;
+      for (const g of (typeof v === 'string' ? [] : v.killers) || []) killers.set(g, (killers.get(g) || 0) + 1);
+    } else if (verdict === 'INVALID') invalid++;
     else survivors.push(mu);
     tick();
   };
@@ -473,10 +524,14 @@ async function runFile(file) {
           file,
           groupsRun: filter || 'FULL SUITE',
           groupCount: g ? g.count : null,
+          groupsSelected: g ? g.selected : null,
           generated: all.length,
           tested: picked.length,
           killed,
           invalid,
+          killers: Array.from(killers.entries())
+            .sort((a, b) => b[1] - a[1])
+            .map(([group, n]) => ({ group, n })),
           survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after }))
         };
       }
@@ -505,10 +560,18 @@ async function runFile(file) {
     file,
     groupsRun: filter || 'FULL SUITE',
     groupCount: g ? g.count : null,
+    groupsSelected: g ? g.selected : null,
     generated: all.length,
     tested: picked.length,
     killed,
     invalid,
+    /* WHICH groups did the killing, and how many mutants each accounted for. The union over a whole
+       file is the minimal sufficient selection for that file's tag — the measurement that says whether
+       an expensive tag can be narrowed (CLOCK-MUTATION-COST). Sorted by contribution so the long tail
+       is visible; a group that killed nothing never appears. */
+    killers: Array.from(killers.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([group, n]) => ({ group, n })),
     survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after }))
   };
 }
@@ -717,7 +780,9 @@ function reportOne(r) {
     return;
   }
   const score = r.tested - r.invalid ? ((r.killed / (r.tested - r.invalid)) * 100).toFixed(0) : '—';
-  console.log('  ' + r.file + '   groups: ' + r.groupsRun + ' (' + r.groupCount + ')');
+  console.log(
+    '  ' + r.file + '   groups: ' + r.groupsRun + ' (' + r.groupCount + ' tagged' + (r.groupsSelected != null && r.groupsSelected !== r.groupCount ? ', ' + r.groupsSelected + ' RUN' : '') + ')'
+  );
   console.log('    generated ' + r.generated + ', tested ' + r.tested + ' → killed ' + r.killed + ', survived ' + r.survivors.length + ', invalid ' + r.invalid + '   [' + score + ' % killed]');
   for (const s of r.survivors.slice(0, 25)) console.log('      SURVIVED ' + r.file + ':' + s.line + '  [' + s.op + ']\n        ' + s.before + '\n        ' + s.after);
   if (r.survivors.length > 25) console.log('      … and ' + (r.survivors.length - 25) + ' more');
