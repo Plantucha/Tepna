@@ -1340,7 +1340,7 @@ for (const p of work) {
     const rateOk = (r) => !(r.fs > 0) || !(domFs > 0) || Math.abs(r.fs - domFs) / domFs <= 0.05;
     const offRate = recs.filter((r) => !rateOk(r));
     if (offRate.length) {
-      const secs = offRate.reduce((t, r) => t + (r.n / (r.fs || domFs || 1)), 0);
+      const secs = offRate.reduce((t, r) => t + r.n / (r.fs || domFs || 1), 0);
       console.warn(
         `  ⚠ PPG merge: dropped ${offRate.length} session(s) at a different sample rate ` +
           `(${[...new Set(offRate.map((r) => (r.fs || 0).toFixed(1)))].join('/')} Hz vs ${domFs.toFixed(1)} Hz, ` +
