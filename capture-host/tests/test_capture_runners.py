@@ -3842,3 +3842,105 @@ def test_a_pmd_device_is_bonded_with_its_own_address_and_the_pinned_adapter(tmp_
     _run(capture.run_polar(_pdev(), str(tmp_path)))
     assert seen and seen[0] == ("24:AC:AC:02:84:96", capture.ADAPTER), \
         "the device's own address, and the pinned adapter"
+
+
+# ── MULTI-SESSION: the state run_polar infers ACROSS reconnects (2026-08-03) ─────────────────────────
+#
+# `run_polar` measured 44 % — the weakest surface in capture-host — and the reason its survivors are
+# hard to reach is SHAPE, not volume. The existing fixtures drive ONE connect cycle against a static
+# device, while the surviving mutants live in state inferred from CHANGE ACROSS SESSIONS: battery
+# direction, stale-bond counting, rebond cadence.
+#
+# Driving a second session needs one thing the harness did not do: `capture._STOP` is a module global
+# that `_stop_after` SETS, and the autouse fixture only recreates it per TEST. A second `run_polar` in
+# the same test therefore saw it already set and returned instantly — which is why an earlier attempt
+# at these tests kept reading the FIRST session's battery. `_next_session` gives each cycle a fresh
+# Event, and a fresh one per cycle is also required because every `_run` is a new event loop.
+
+def _next_session(monkeypatch, client, rounds=1):
+    """Arm one more connect cycle: fresh _STOP (new loop each time), fresh sleep counter, this client."""
+    capture._STOP = asyncio.Event()
+    _inject_connect(monkeypatch, client)
+    _stop_after(monkeypatch, rounds)
+
+
+class _BatteryPolarClient(FakePolarClient):
+    """A Polar reporting a fixed battery percentage."""
+    def __init__(self, level, **kw):
+        super().__init__(**kw)
+        self._level = level
+
+    async def read_gatt_char(self, uuid):
+        if uuid == capture.BATTERY_UUID:
+            return bytes([self._level])
+        return await super().read_gatt_char(uuid)
+
+
+def _battery_session(tmp_path, monkeypatch, level):
+    """One connect cycle at `level` %. STATUS persists between calls, which is exactly how the real
+    inference works: the previous session's reading is the `prev` the next one compares against."""
+    _next_session(monkeypatch, _BatteryPolarClient(level, start_status=0x00))
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    return capture.STATUS["devices"]["H10"]
+
+
+def test_the_multi_session_harness_actually_runs_a_second_session(tmp_path, monkeypatch):
+    """The fixture's own guard. Without the fresh `_STOP` the second cycle is a silent no-op and every
+    test built on it passes while measuring the first session twice — a hollow harness, which is worse
+    than a missing one."""
+    _polar_common(monkeypatch)
+    capture.STATUS["devices"].pop("H10", None)
+    first = _battery_session(tmp_path, monkeypatch, 40)["battery"]
+    second = _battery_session(tmp_path, monkeypatch, 55)["battery"]
+    assert (first, second) == (40, 55), "the second session must actually reach the device"
+
+
+def test_a_rising_battery_is_read_as_charging(tmp_path, monkeypatch):
+    """`lvl > prev` -> `charging=True`. A Polar exposes no charge flag mid-session — `in_charger` only
+    appears when a PMD START is REFUSED, which cannot happen to a device already streaming when it went
+    on the dock. Measured 2026-07-19: a Verity climbed 35 -> 61 % while the monitor said charging=False
+    the whole way. These cells do not self-charge, so a RISE is unambiguous."""
+    _polar_common(monkeypatch)
+    capture.STATUS["devices"].pop("H10", None)
+    _battery_session(tmp_path, monkeypatch, 35)
+    st = _battery_session(tmp_path, monkeypatch, 61)
+    assert st["battery"] == 61 and st["charging"] is True
+
+
+def test_a_falling_battery_is_read_as_back_on_the_body(tmp_path, monkeypatch):
+    """`lvl < prev` -> `charging=False`. Not collapsible into the first arm: a device that never goes
+    False stays flagged charging for the session, and `classify_adapter_health` discounts a charging
+    device as evidence the radio works — so a stuck flag can suppress a real adapter wedge."""
+    _polar_common(monkeypatch)
+    capture.STATUS["devices"].pop("H10", None)
+    _battery_session(tmp_path, monkeypatch, 40)
+    assert _battery_session(tmp_path, monkeypatch, 70)["charging"] is True
+    st = _battery_session(tmp_path, monkeypatch, 61)
+    assert st["battery"] == 61 and st["charging"] is False
+
+
+def test_only_a_STRICT_rise_infers_charging(tmp_path, monkeypatch):
+    """`lvl > prev`, and the boundary it shares with `lvl < prev`. These report in whole percent and
+    move slowly, so a FLAT reading is the common case and equality must infer nothing.
+
+    Note what this test discovered: `charging` is NOT carried across sessions — a successful PMD START
+    re-derives it, so it is False again by the time the next battery read happens. Only a strict rise
+    turns it back on. That makes the `>` boundary load-bearing in a way a persisted flag would not: on
+    an unchanged reading the device reports NOT charging, which is the honest answer when the only
+    evidence is a number that did not move."""
+    _polar_common(monkeypatch)
+    capture.STATUS["devices"].pop("H10", None)
+    _battery_session(tmp_path, monkeypatch, 50)
+    assert _battery_session(tmp_path, monkeypatch, 61)["charging"] is True, "a rise infers charging"
+    assert _battery_session(tmp_path, monkeypatch, 61)["charging"] is not True, \
+        "an UNCHANGED level is not a rise — equality infers nothing"
+
+
+def test_a_first_reading_cannot_imply_a_direction(tmp_path, monkeypatch):
+    """`isinstance(prev, int)` on both arms. With no prior reading there is nothing to compare, and
+    guessing is the fabrication this module refuses everywhere else."""
+    _polar_common(monkeypatch)
+    capture.STATUS["devices"].pop("H10", None)
+    st = _battery_session(tmp_path, monkeypatch, 60)
+    assert st["battery"] == 60
+    assert st.get("charging") is not True, "one reading is not a direction"
