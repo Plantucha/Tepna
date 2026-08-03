@@ -15240,6 +15240,87 @@
       T.ok('two genuinely-moving epochs conflict with the sleeping HRV stage (idx>20 gate)', ex.consensus.nConflict >= 2, 'nConflict=' + ex.consensus.nConflict);
     });
 
+    /* ════ 18b · §3a — an inertial GAP must not read as STILLNESS ════════════════════════════════
+       MULTI-SENSOR-DERIVATIONS-FOLLOWUPS §1's owed audit pass, applied to the ppgdex motion series.
+       Bug class 3a (AUDIT-PROMPT): a per-epoch series feeding a fusion must be TRI-STATE, and nulls
+       must leave the DENOMINATOR. `motionAtSec` returns a numeric 0 outside the ACC grid, which is a
+       real reading — the same shape as MotionDex `actigraphy()` scoring a zero-sample epoch as
+       immobile. Measured before the fix: a 60-min session whose ACC stops at 30 min read a saturated
+       1.0000 up to the cut and exactly 0.0000 after it, with the subject moving identically. */
+    group('PPGDex §3a — an inertial GAP is not stillness, and an absent driver is not a confidence', 'ppgdex-dsp · regression', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.analyzeMotion === 'function')) {
+        T.ok('PPGDSP.analyzeMotion available', false);
+        return;
+      }
+      // ACC covers [0, 1800) of a 3600 s session; the wearer is moving hard throughout.
+      var FS = 50,
+        DUR = 3600,
+        ACC_END = 1800,
+        acc = [];
+      for (var i = 0; i < FS * ACC_END; i++) {
+        var sec = i / FS;
+        acc.push({ x: 400 * Math.sin(sec * 7), y: 400 * Math.cos(sec * 5), z: 990 + 300 * Math.sin(sec * 11), relNs: sec * 1e9 });
+      }
+      var m = P.analyzeMotion(acc, null, 1782000000000, DUR);
+      T.ok('the fixture really is saturated-moving while the ACC is recording', m.motionAtSec(900) > 0.9, 'motionAtSec(900)=' + m.motionAtSec(900));
+
+      // THE DISCRIMINATOR. motionAtSec keeps its numeric contract (hot loops compare it to a
+      // threshold), so the honesty lives in a companion predicate — assert BOTH halves, or a
+      // `return true` would pass.
+      var hasCov = typeof m.motionCoveredAtSec === 'function';
+      T.ok('analyzeMotion publishes a coverage predicate at all', hasCov);
+      T.ok('motionCoveredAtSec is TRUE where the ACC actually recorded', hasCov && m.motionCoveredAtSec(900) === true);
+      T.ok('…and FALSE in the gap — where motionAtSec still says a confident 0', hasCov && m.motionCoveredAtSec(2400) === false, 'motionAtSec(2400)=' + m.motionAtSec(2400));
+      T.eq('…which is exactly the fabricated stillness this gate exists for', m.motionAtSec(2400), 0);
+      T.ok('coverage is published as a fraction, and it is the measured half', m.motionCoveredFrac != null && Math.abs(m.motionCoveredFrac - 0.5) < 0.02, 'motionCoveredFrac=' + m.motionCoveredFrac);
+
+      // A session with NO inertial stream at all must not report a motion grade.
+      var none = P.analyzeMotion(null, null, 1782000000000, DUR);
+      T.eq('no ACC and no gyro ⇒ hasData false (unchanged contract)', none.hasData, false);
+    });
+
+    /* ════ 18c · §3a — the confidence drivers, end to end through analyze() ════════════════════ */
+    group('PPGDex §3a — a driver that was never measured reads null, not 1.0', 'ppgdex-dsp · regression', function (T) {
+      var P = env.PPGDSP;
+      var eq = env.equiv && env.equiv.ppgdex_synth;
+      if (!(P && typeof P.parsePPG === 'function' && typeof P.analyze === 'function')) {
+        T.ok('PPGDSP.parsePPG + analyze available', false);
+        return;
+      }
+      if (!(eq && eq.input)) {
+        T.skip('committed wrist twin present', 'uploads/synthetic_ppgdex_verity.txt absent — it is COMMITTED, so this must run everywhere including CI');
+        return;
+      }
+      var res = P.analyze(P.parsePPG(eq.input));
+      var conf = res.hrvConfidence;
+      T.ok('analyze() produced a confidence block', !!conf);
+      if (!conf) return;
+      // The twin carries no companion ACC, so motion and posture were never measured.
+      // `|| {}` on purpose: on the pre-fix code there is no `evidence` block, and this group must fail
+      // by naming the FABRICATED VALUE below, not by throwing on a missing property one line earlier.
+      var ev = conf.evidence || {};
+      T.eq('the fixture really has no motion evidence', ev.motion, 'none');
+      T.eq('…nor any posture evidence', ev.posture, 'none');
+      // THE DEFECT: these both read 1 before the fix — "perfectly still, perfectly stable", from
+      // sensors that never recorded — and multiplied into hf/sdnn/vlf as a phantom 1.0.
+      T.eq('lowMotionFrac is null, NOT a fabricated 1', conf.drivers.lowMotionFrac, null);
+      T.eq('postureStableFrac is null, NOT a fabricated 1', conf.drivers.postureStableFrac, null);
+      T.eq('hf confidence is unknown, not a motion grade resting on no motion', conf.hf, null);
+      T.eq('sdnn confidence is unknown (its posture term was never measured)', conf.sdnn, null);
+      T.eq('vlf confidence is unknown for the same reason', conf.vlf, null);
+      // THE CONTROL — the drivers that WERE measured must still be numbers, or the fix would have
+      // bought honesty by nulling everything.
+      T.ok('beatToBeat is still a measured number (coverage+correction, no inertial driver)', typeof conf.beatToBeat === 'number' && conf.beatToBeat > 0, 'beatToBeat=' + conf.beatToBeat);
+      T.ok('lf likewise', typeof conf.lf === 'number' && conf.lf > 0, 'lf=' + conf.lf);
+      T.ok('analyzableFrac is still measured', typeof conf.drivers.analyzableFrac === 'number');
+      // And the epoch series itself is tri-state.
+      var ep = res.epochs && res.epochs[0];
+      T.ok('an epoch with no ACC coverage reports motionIndex null', !!ep && ep.motionIndex === null);
+      T.eq('…and magInterference null, not false ("clean field")', ep && ep.magInterference, null);
+      T.eq('magInterferencePct stays null when nothing was measured', res.magInterferencePct, null);
+    });
+
     /* ════ 19 · PPGDex limb posture from ACC (parity, down-weighted) ════ */
     group('PPGDex limb posture from ACC', 'ppgdex-dsp', function (T) {
       var P = env.PPGDSP;

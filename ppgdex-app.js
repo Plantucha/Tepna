@@ -895,7 +895,8 @@ import { PPGUI } from './ppgdex-render.js';
       position: e.position || 'unknown',
       positionConf: _round(e.positionConf, 2),
       headingDeg: _round(e.headingDeg, 1),
-      magInterference: !!e.magInterference
+      // §3a: null = no posture datum for this epoch, NOT "the field was clean".
+      magInterference: e.magInterference == null ? null : !!e.magInterference
     }));
     return {
       kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null,

@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-18 · **Follows:** `MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md` (DONE) · **Related:** `MOTIONDEX-BUILD-FOLLOWUPS-2026-07-18-BRIEF.md` · `APNEA-TYPING-FUSION-2026-07-18-BRIEF.md` (DONE)
+**Status:** IN-PROGRESS — 2026-08-03 (**§1's owed 3a audit pass EXECUTED** for `ecgdex-dsp` — clean — and `ppgdex-dsp` — four instances, fixed + gated; `cpapdex` per-session lanes and §4 remain) · **Created:** 2026-07-18 · **Follows:** `MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md` (DONE) · **Related:** `MOTIONDEX-BUILD-FOLLOWUPS-2026-07-18-BRIEF.md` · `APNEA-TYPING-FUSION-2026-07-18-BRIEF.md` (DONE)
 
 # Multi-sensor derivations — follow-ups: what executing four fusions surfaced
 
@@ -26,6 +26,73 @@ clinical finding:
 **Still owed:** an audit pass applying 3a to the series that predate it — `ppgdex-dsp` motion/SQI epochs,
 `ecgdex-dsp` epoch series, `cpapdex` per-session lanes. Ask of each: *what does this field say when the
 sensor was off?*
+
+### ✅ §1 AUDIT PASS — executed 2026-08-03 on `ppgdex-dsp`. It said "perfectly still."
+
+The question was asked of each series and answered by **execution**, not by reading.
+
+**`ecgdex-dsp` epoch series — CLEAN, and worth recording as clean.** `epochEngine` *omits* an epoch with
+< 20 beats rather than emitting a plausible one, and every consumer keys on the epoch's real `tMin`:
+`hrvStability` groups by `e.tMin - wStart`, regresses against `tMin/60`, and already carries `n` per
+window so an under-sampled window is visible (DEEP-AUDIT-II #39). Omission plus a real-time axis is
+fail-safe — a gap shortens the series, it does not shift it. No change.
+
+**`ppgdex-dsp` motion/SQI epochs — FOUR instances of 3a, one of them severe.**
+
+*The severe one.* `motionAtSec(sec)` returns a numeric **`0`** for any second outside the ACC grid, and
+`accCell`/`gyCell` are zero-initialised, so a cell no sample landed in is indistinguishable from a cell
+whose sensor said "not moving". `motion.hasData` is a SESSION-level fact, so an epoch past the end of a
+short inertial stream averaged a run of fabricated zeros into a confident stillness. Measured on a
+60-min synthetic whose ACC stops at 30 min, wearer moving identically throughout:
+
+| | |
+|---|---|
+| `motionAtSec` while ACC records | **1.0000** (saturated) |
+| `motionAtSec` one cell later, no ACC | **0.0000** |
+| gap samples scoring low-motion (≤ 0.15) | **359 / 360** |
+
+That is MotionDex `actigraphy()` (#182) — *a recording gap fabricating stillness, which then inflated a
+motion-gated HRV confidence* — reproduced verbatim in another node, which is exactly why §1 called this
+the recurring shape rather than a bug.
+
+*Three more, all in the confidence block, all measured on the **committed** twins (neither carries ACC):*
+
+- `qLowMotion` admitted `motionIndex == null` as low motion **and** kept it in the denominator ⇒
+  `lowMotionFrac: 1` — "perfectly still all night", from a sensor that never recorded.
+- `qPosture` counted `'unknown'` as a position ⇒ `postureStableFrac: 1` — "never shifted" — and, in the
+  partial case, **two spurious shifts** on the way out of and back into `'unknown'`. Wrong in both
+  directions at once.
+- `magInterference` was `false` when there was no posture datum, and sat in `magInterferencePct`'s
+  denominator as evidence of a clean field. `!!e.magInterference` in *both* export projections
+  (`ppgdex-dsp` and `ppgdex-app`) collapsed the tri-state again one layer up.
+
+Those phantom `1.0`s multiplied straight into published grades: **hf 0.97 / 0.56 "motion-graded"** on
+recordings with no motion sensor.
+
+**Fixed.** A coverage grid (`covCell`) is tracked alongside the value grid; `motionCoveredAtSec` is added
+as a **companion** predicate so `motionAtSec` keeps its numeric contract (two hot loops threshold it);
+`motionIndex` averages only covered beats and is `null` otherwise; nulls **leave the denominators**;
+`magInterference` is tri-state to the export; and `motionCoveredFrac` + an `evidence` block
+(`none`/`partial`/`full` per driver, with counts) are published so a null is diagnosable.
+
+**One judgement call, stated because the brief did not specify it:** a confidence whose driver was never
+measured now reads **`null`**, not a number. Letting an absent driver multiply in as `1.0` published the
+manufactured grade that "confidence from MEASURED drivers" denies. This is deliberately **not** a
+re-calibration — no weight was retuned and no constant invented; a term that cannot be evaluated makes
+its metric unknown. Consequence: an ACC-less session (every finger/O2Ring pleth) now reports
+`hf/sdnn/vlf = null` with `evidence.motion = 'none'` instead of 0.97. `beatToBeat` and `lf` are
+unaffected — they have no inertial driver — which is also the control proving the fix did not buy
+honesty by nulling everything.
+
+Gated by two groups (20 assertions), both **verified RED by value** against the pre-fix DSP —
+`lowMotionFrac got 1 want null`, `hf got 0.56 want null`, `magInterference got false want null` — not
+merely by throwing on the new API. Suite 5250 → 5287. `synthetic_ppgdex_rich_golden` regenerated (9
+fields moved); the light exports and the corpus-backed equiv fixture were **unchanged** (no confidence
+block), and `verifiedUnder` was re-established on the real corpus.
+
+**Still owed:** `cpapdex` per-session lanes — deliberately not folded in here. That node's shape is
+different (per-session pooling, not a per-epoch series), so it deserves its own pass rather than being
+rushed into a PpgDex change. Carried to the follow-up.
 
 ## 2 · PpgDex RIIV — §2.2's missing third leg (a real DSP defect, deliberately not worked around)
 `fuseRespirationRate` fuses MotionDex chest-ACC + ECGDex RSA today. PpgDex should be the third

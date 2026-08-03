@@ -2125,15 +2125,30 @@
     // accumulate into grid (max within each 0.25s cell)
     const accCell = new Float32Array(nG),
       gyCell = new Float32Array(nG);
+    /* WHICH CELLS ACTUALLY RECEIVED A SAMPLE (bug class 3a — MULTI-SENSOR-DERIVATIONS-FOLLOWUPS §1).
+       `accCell`/`gyCell` are zero-initialised, so a cell no sample ever landed in is indistinguishable
+       from a cell whose sensor said "not moving" — and `motionAtSec` then reports a hard 0, which is a
+       real reading. Measured before fixing: a 60-min session whose ACC stops at 30 min reads a
+       saturated 1.0000 up to the cut and exactly 0.0000 after it, with the subject moving identically
+       throughout; 359 of 360 post-cut samples score as low-motion. That is the MotionDex `actigraphy()`
+       defect (a recording gap fabricating stillness, which then inflated a motion-gated HRV confidence)
+       reproduced here. Coverage is tracked separately so absence can be reported AS absence. */
+    const covCell = new Uint8Array(nG);
     for (const a of accMag) {
       if (a.s == null) continue;
       const g = Math.floor(a.s / dt);
-      if (g >= 0 && g < nG) accCell[g] = Math.max(accCell[g], a.v);
+      if (g >= 0 && g < nG) {
+        accCell[g] = Math.max(accCell[g], a.v);
+        covCell[g] = 1;
+      }
     }
     for (const a of gyroMag) {
       if (a.s == null) continue;
       const g = Math.floor(a.s / dt);
-      if (g >= 0 && g < nG) gyCell[g] = Math.max(gyCell[g], a.v);
+      if (g >= 0 && g < nG) {
+        gyCell[g] = Math.max(gyCell[g], a.v);
+        covCell[g] = 1;
+      }
     }
     // normalise: accel in mg (dynamic), gyro in dps. Scale so "still" ≈ 0.
     const accNorm = (v) => Math.min(1, v / 120); // ~120 mg dynamic = full motion
@@ -2156,6 +2171,17 @@
       const g = Math.floor(sec / dt);
       return g >= 0 && g < nG ? sm[g] : 0;
     };
+    /* The tri-state companion `motionAtSec` cannot be (§3a). `motionAtSec` keeps its numeric contract —
+       it is called on every beat in two hot loops and several callers compare it against a threshold —
+       so the honesty is added ALONGSIDE it rather than by changing its return type: ask this first, and
+       treat a `false` as "no evidence", never as "no motion". */
+    const motionCoveredAtSec = (sec) => {
+      const g = Math.floor(sec / dt);
+      return g >= 0 && g < nG && covCell[g] === 1;
+    };
+    let _nCov = 0;
+    for (let i = 0; i < nG; i++) if (covCell[i]) _nCov++;
+    const motionCoveredFrac = nG ? _nCov / nG : 0;
     const meanMI = mean(Array.from(sm));
     // display series (downsampled, per ~minute or per cell)
     const series = [];
@@ -2328,6 +2354,8 @@
       onsetGrid,
       dt,
       motionAtSec,
+      motionCoveredAtSec,
+      motionCoveredFrac: r2(motionCoveredFrac),
       postureAtSec,
       postureDetailAtSec,
       meanMotionIndex: r2(meanMI),
@@ -2453,7 +2481,15 @@
         idx.map((i) => tt[i]),
         seg
       );
-      const mi = motion && motion.hasData ? r2(mean(idx.map((i) => motion.motionAtSec(tt[i])))) : null;
+      /* §3a: average only over beats the inertial stream actually COVERED. `motion.hasData` is a
+         SESSION-level fact, so without this an epoch past the end of a short ACC stream averaged a
+         run of fabricated zeros into a confident "still" reading. No coverage in this epoch ⇒ null
+         (the sensor was off), which then leaves the confidence denominators below. */
+      let mi = null;
+      if (motion && motion.hasData) {
+        const covT = motion.motionCoveredAtSec ? idx.filter((i) => motion.motionCoveredAtSec(tt[i])) : idx;
+        if (covT.length) mi = r2(mean(covT.map((i) => motion.motionAtSec(tt[i]))));
+      }
       const pi = perfWindow ? perfWindow(e0 + epLen / 2) : null;
       const post = motion && motion.postureDetailAtSec ? motion.postureDetailAtSec(e0, e0 + epLen) : null;
       const position = post ? post.position : 'unknown';
@@ -2485,7 +2521,10 @@
         position,
         positionConf: post ? post.conf : null,
         headingDeg: post ? post.heading : null,
-        magInterference: post ? !!post.magInterf : false
+        /* §3a tri-state: `false` used to mean BOTH "the magnetometer saw a clean field" and "there is
+           no posture datum for this epoch", and the second reading sat in `magInterferencePct`'s
+           denominator as evidence of cleanliness. null = not measured. */
+        magInterference: post ? !!post.magInterf : null
       });
     }
     return epochs;
@@ -2710,8 +2749,10 @@
     const correctionRate = rr.length ? r1((100 * corr.nCorr) / rr.length) : 0;
     const analyzablePct = Math.round(cleanBeatPct * (1 - motionRejectedPct / 100));
     // magnetometer interference coverage (informational — does not alter SQI/conf)
-    const magEpochs = epochs.filter((e) => e.magInterference).length;
-    const magInterferencePct = motion.hasMag && epochs.length ? Math.round((100 * magEpochs) / epochs.length) : null;
+    // §3a: epochs with no posture datum leave the DENOMINATOR — they are not evidence of a clean field.
+    const magKnown = epochs.filter((e) => e.magInterference != null);
+    const magEpochs = magKnown.filter((e) => e.magInterference).length;
+    const magInterferencePct = motion.hasMag && magKnown.length ? Math.round((100 * magEpochs) / magKnown.length) : null;
 
     // ── Segment-wise SDNN (SDNN-VS-ECG-GROUND-TRUTH, validated on the 2026-07-07 paired night) ──
     // Whole-record SDNN folds in SDANN (drift BETWEEN 5-min means) + a few motion/artifact epochs,
@@ -2764,7 +2805,14 @@
       // (a) MOTION-GATED HF — HF excess is motion-driven, so a low-motion-only median approaches the
       // clean floor (~+12% vs ECG) rather than the mixed +17%. Stricter gate than the shared 0.5.
       const MOT_STRICT = 0.15;
-      const lowMot = epochs.filter((e) => e.motionIndex == null || e.motionIndex <= MOT_STRICT);
+      /* §3a — THE DENOMINATOR. `motionIndex == null` used to be admitted here as low motion, so a
+         session with no accelerometer scored `lowMotionFrac: 1` ("perfectly still all night") off a
+         sensor that never recorded, and `hfRobustLowMotion` — a metric whose NAME is its gate —
+         was the median over every epoch, unfiltered. Measured on both committed twins, neither of
+         which carries ACC: lowMotionFrac 1, postureStableFrac 1, hf confidence 0.97 / 0.56 with the
+         motion term contributing a phantom 1.0. Unmeasured epochs now leave the pool AND the count.  */
+      const motKnown = epochs.filter((e) => e.motionIndex != null);
+      const lowMot = motKnown.filter((e) => e.motionIndex <= MOT_STRICT);
       const hfLM = lowMot.map((e) => e.hf).filter((v) => v != null && isFinite(v));
       if (hfLM.length >= 3) hfRobustLowMotion = r1(median(hfLM));
       // (b) GRADED per-metric confidence (0..1) from measured drivers — replaces the binary flag.
@@ -2772,22 +2820,54 @@
       // motion→hf, posture/baseline drift→vlf/sdnn, coverage+correction→beat-to-beat.
       const qCov = Math.max(0, Math.min(1, analyzablePct / 100));
       const qCorr = Math.max(0, 1 - correctionRate / 25);
-      const qLowMotion = epochs.length ? lowMot.length / epochs.length : 0;
-      let posShift = 0;
+      // §3a: the rate among epochs that HAVE motion evidence — null when none do.
+      const qLowMotion = motKnown.length ? lowMot.length / motKnown.length : null;
+      /* Posture stability over ADJACENT PAIRS THAT ARE BOTH KNOWN. Counting `'unknown'` as a position
+         was wrong in both directions at once: a session with no posture data at all had zero
+         transitions and scored a perfect 1.0 ("never shifted"), while a session that merely LOST the
+         sensor mid-night scored two spurious shifts on the way out of and back into `'unknown'`. */
+      let posShift = 0,
+        posPairs = 0;
       for (let i = 1; i < epochs.length; i++) {
+        if (epochs[i].position === 'unknown' || epochs[i - 1].position === 'unknown') continue;
+        posPairs++;
         if (epochs[i].position !== epochs[i - 1].position) posShift++;
       }
-      const qPosture = epochs.length > 1 ? 1 - posShift / (epochs.length - 1) : 1;
+      const qPosture = posPairs ? 1 - posShift / posPairs : null;
       const durFactor = Math.max(0, Math.min(1, rec.durSec / 60 / 60)); // VLF needs a long record
       const c = (v) => r2(Math.max(0, Math.min(1, v)));
+      /* A CONFIDENCE WHOSE DRIVER WAS NEVER MEASURED IS `null`, NOT A NUMBER (§3a, top severity).
+         These are documented as "graded per-metric confidence from MEASURED drivers"; letting an
+         absent driver multiply in as 1.0 published exactly the manufactured grade that phrase denies —
+         0.97 HF confidence, "motion-graded", on a recording with no accelerometer. `null` = unknown,
+         the same currency the rest of this module uses, and `evidence` below says which driver is
+         missing so the null is diagnosable rather than merely blank. Note this is deliberately NOT a
+         re-calibration: no weight was retuned and no constant invented — a term that cannot be
+         evaluated makes its metric unknown. */
+      const evidence = {
+        motion: motKnown.length === 0 ? 'none' : motKnown.length < epochs.length ? 'partial' : 'full',
+        posture: posPairs === 0 ? 'none' : posPairs < epochs.length - 1 ? 'partial' : 'full',
+        motionEpochs: motKnown.length,
+        posturePairs: posPairs,
+        epochs: epochs.length
+      };
       hrvConfidence = {
-        beatToBeat: c(qCov * qCorr), // rmssd, sd1, pnn50 — already ECG-accurate
-        sdnn: c(qCov * qCorr * (0.6 + 0.4 * qPosture)), // + sd2 (robust); posture-drift aware
+        beatToBeat: c(qCov * qCorr), // rmssd, sd1, pnn50 — already ECG-accurate; no inertial driver
+        // + sd2 (robust); posture-drift aware
+        sdnn: qPosture == null ? null : c(qCov * qCorr * (0.6 + 0.4 * qPosture)),
         lf: c(qCov * qCorr),
-        hf: c(qLowMotion * qCov), // motion-graded (the earned part)
-        vlf: c(Math.min(0.7, qPosture * durFactor)), // capped: single-site optical VLF inherently baseline-limited
-        drivers: { analyzableFrac: r2(qCov), correctionOK: r2(qCorr), lowMotionFrac: r2(qLowMotion), postureStableFrac: r2(qPosture) },
-        note: '0..1 per-metric confidence from measured drivers (motion\u2192hf, posture/baseline\u2192vlf/sdnn, coverage+correction\u2192beat-to-beat). vlf capped 0.7 — single-site optical VLF stays baseline-wander-limited even when clean; not a defect to "fix".'
+        hf: qLowMotion == null ? null : c(qLowMotion * qCov), // motion-graded (the earned part)
+        // capped: single-site optical VLF inherently baseline-limited
+        vlf: qPosture == null ? null : c(Math.min(0.7, qPosture * durFactor)),
+        evidence,
+        drivers: {
+          analyzableFrac: r2(qCov),
+          correctionOK: r2(qCorr),
+          lowMotionFrac: qLowMotion == null ? null : r2(qLowMotion),
+          postureStableFrac: qPosture == null ? null : r2(qPosture),
+          motionCoveredFrac: motion.hasData && motion.motionCoveredFrac != null ? motion.motionCoveredFrac : null
+        },
+        note: '0..1 per-metric confidence from measured drivers (motion\u2192hf, posture/baseline\u2192vlf/sdnn, coverage+correction\u2192beat-to-beat). vlf capped 0.7 — single-site optical VLF stays baseline-wander-limited even when clean; not a defect to "fix". A metric is null when its driver was NOT MEASURED (see `evidence`): a session with no accelerometer has no motion-graded hf, and publishing one would be a grade resting on nothing.'
       };
     }
 
@@ -3601,7 +3681,8 @@
             position: e.position || 'unknown',
             positionConf: nz(e.positionConf),
             headingDeg: nz(e.headingDeg),
-            magInterference: !!e.magInterference
+            // §3a: `!!` collapsed "no posture datum" into "clean field". Tri-state survives the export.
+            magInterference: e.magInterference == null ? null : !!e.magInterference
           };
         })
       };
