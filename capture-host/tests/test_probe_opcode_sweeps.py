@@ -365,7 +365,7 @@ def test_oxyii_reports_an_absent_ring_by_its_real_cause(monkeypatch):
         return None
     monkeypatch.setattr(oxs.BleakScanner, "find_device_by_address", none)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x22, dry=False))
-    assert "advertises ONLY while worn" in res["error"]
+    assert "advertises while WORN" in res["error"] and "scan_errors" not in res
 
 
 class _DiesOnNthLive(_RingClient):
@@ -506,3 +506,68 @@ def test_oxyii_main_checks_the_link_before_sending(monkeypatch, capsys):
     oxs.main(["--address", "AA:BB", "--i-accept-the-risk"])
     capsys.readouterr()
     assert called["n"] == 1
+
+
+class _WedgedAdapter:
+    """A BlueZ that raises InProgress until the adapter is cycled — the real failure, exactly."""
+
+    def __init__(self, fails=2):
+        self.fails, self.calls, self.cycles = fails, 0, 0
+
+    async def find(self, _a, timeout=0):
+        self.calls += 1
+        if self.calls <= self.fails:
+            raise RuntimeError("[org.bluez.Error.InProgress] Operation already in progress")
+        return object()
+
+
+def test_oxyii_a_wedged_adapter_is_cycled_and_the_scan_retried(monkeypatch):
+    """The adapter wedges on EVERY disconnect and does not admit it — `bluetoothctl show` still says
+    `Discovering: no`. Left alone it reads as "the ring is not advertising", sending the reader after the
+    device instead of the host."""
+    w, c = _WedgedAdapter(fails=2), _Live()
+    monkeypatch.setattr(oxs.BleakScanner, "find_device_by_address", w.find)
+    monkeypatch.setattr(oxs, "BleakClient", lambda dev, **kw: c)
+    cycled = {"n": 0}
+
+    async def cycle():
+        cycled["n"] += 1
+        return True
+    monkeypatch.setattr(oxs, "_cycle_adapter", cycle)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))
+    assert cycled["n"] == 2, "each refused scan must be followed by a cycle"
+    assert len(res["scan_errors"]) == 2 and "InProgress" in res["scan_errors"][0]
+    assert len(res["opcodes"]) == 2, "and the sweep then runs normally"
+
+
+def test_oxyii_a_scan_that_never_recovers_reports_the_host_not_the_device(monkeypatch):
+    """This call sits before the sweep, so an unguarded raise here wrote NO report at all — it killed a
+    resumed sweep before a single opcode was sent."""
+    w = _WedgedAdapter(fails=99)
+    monkeypatch.setattr(oxs.BleakScanner, "find_device_by_address", w.find)
+
+    async def cycle():
+        return True
+    monkeypatch.setattr(oxs, "_cycle_adapter", cycle)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))
+    assert res["error"] == "adapter refused to scan — see scan_errors"
+    assert len(res["scan_errors"]) == 3
+
+
+def test_oxyii_the_adapter_cycle_is_best_effort(monkeypatch):
+    async def spawn(*cmd, **kw):
+        class _P:
+            async def wait(self):
+                return 0
+        return _P()
+
+    async def nosleep(_s):
+        return None
+    monkeypatch.setattr(oxs.asyncio, "create_subprocess_exec", spawn)
+    monkeypatch.setattr(oxs.asyncio, "sleep", nosleep)
+    assert _run(oxs._cycle_adapter()) is True
+
+    async def boom(*a, **k):
+        raise FileNotFoundError("bluetoothctl")
+    monkeypatch.setattr(oxs.asyncio, "create_subprocess_exec", boom)
+    assert _run(oxs._cycle_adapter()) is False
