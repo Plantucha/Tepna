@@ -418,6 +418,37 @@ function readFixtures() {
 // fixture per node, so the suite can assert Node.compute(input) ≡ the shipped export.
 // VI §1 extended this from OxyDex-only to PulseDex + HRVDex (the gate does the per-node
 // input prep — PulseDex parses RR text first; OxyDex/HRVDex take {text}).
+/* PAPER-ODI4-REPRODUCIBILITY §8 — the SubjectA pilot corpus, read as a PAIR OF INPUTS.
+   NOT routed through readEquiv/pairCommitted: that puts a file in the "fixture" slot, and the
+   `every equiv leg points at a fixture the ledger actually records` gate correctly reds on it —
+   `ground_truth_nightN.json` is a second INPUT (the planted truth), not a derived export fixture, so
+   FIXTURE-PROVENANCE.json rightly does not record it. The gate caught this on the first run; the fix is
+   to stop mislabelling the file, not to widen the ledger. */
+function readOdiPilot() {
+  const out = {};
+  const CSV = ['O2Ring S 2100_20260511231000.csv', 'O2Ring S 2100_20260512235500.csv', 'O2Ring S 2100_20260513225000.csv', 'O2Ring S 2100_20260514230500.csv', 'O2Ring S 2100_20260515232000.csv'];
+  for (let n = 1; n <= 5; n++) {
+    const inP = join(ROOT, 'uploads', CSV[n - 1]);
+    const gtP = join(ROOT, 'uploads', 'ground_truth_night' + n + '.json');
+    const rec = {};
+    if (existsSync(inP)) {
+      try {
+        rec.input = readFileSync(inP, 'utf8');
+      } catch {
+        /* unreadable → absent */
+      }
+    }
+    if (existsSync(gtP)) {
+      try {
+        rec.truth = JSON.parse(readFileSync(gtP, 'utf8'));
+      } catch {
+        /* unreadable → absent */
+      }
+    }
+    if (rec.input || rec.truth) out[n] = rec;
+  }
+  return out;
+}
 function readEquiv() {
   const out = {};
   // uploads/ raw INPUTS are gitignored (personal medical data — absent on a fresh CI clone); the
@@ -467,6 +498,12 @@ function readEquiv() {
   // there in every environment. Resolve it against ROOT so DEX_UPLOADS — which points at a REAL corpus —
   // cannot make it "absent" and turn a gate with teeth into an (undeclared, and now fail-closed) skip.
   const pairCommitted = (key, inFile, fixFile) => pairFrom(join(ROOT, 'uploads'), key, inFile, fixFile);
+  /* PAPER-ODI4-REPRODUCIBILITY §4 — the SubjectA pilot corpus behind papers/odi4-ahi-bias.html, now
+     COMMITTED (synthetic, seed 424242, synth-gen/2.1). `pairCommitted` because these live in the repo,
+     not in DEX_UPLOADS: they are the paper's reference bytes, not somebody's recordings. Committed
+     inputs mean CI re-runs this every push — the FIXTURE-VERIFICATION-GATE argument for why an
+     adversarial COMMITTED twin beats a real one. Table 1 silently stopped reproducing for months
+     precisely because nothing re-ran it. */
   pair('oxydex', 'O2Ring S 2100_20260612230016.csv', 'OxyDex_2026-06-13_1056_summary.json');
   // FIXTURE-REPRODUCIBILITY §1: OxyDex's SECOND committed summary was code-gated (it carries a
   // manifestHash claim) but nothing ever re-ran it — CLAUDE.md even says so in prose ("only _1056 has
@@ -1242,6 +1279,7 @@ async function main() {
     computeHashProbe: await readComputeHashProbe(),
     fixtures: readFixtures(),
     equiv: readEquiv(),
+    odiPilot: readOdiPilot(),
     hosts: readHosts(),
     srcHtml: readSrcHtml(),
     nonBundleCsp: readNonBundleCsp(),

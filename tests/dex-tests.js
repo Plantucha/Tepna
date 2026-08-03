@@ -6348,6 +6348,72 @@
        `synthetic_ecgdex_rich_golden.node-export.json` closes it, from the SAME committed input as the
        clean twin, so the pair isolates exactly what `opts.rich` adds. Committed input ⇒ CI re-runs it
        from committed bytes every push. */
+    /* ════ THE ODI-4 PILOT IS GATED — Table 1 can no longer die unnoticed ══════════════════════════
+     `papers/odi4-ahi-bias.html` Table 1 stopped reproducing for MONTHS and nothing noticed, because its
+     corpus was gitignored and its numbers were re-run by nobody. PAPER-ODI4-REPRODUCIBILITY §3 named the
+     asymmetry: every other known-answer here is content-addressed, and the corpus behind a *published*
+     claim was the one that was not.
+
+     The corpus is now committed (synthetic — seed 424242, `synth-gen/2.1` — so no privacy bar), which
+     makes this leg cheap AND makes it run in CI on every push. That is the whole point: a published
+     number whose inputs are committed cannot go stale unseen, which is exactly the argument
+     FIXTURE-VERIFICATION-GATE makes for preferring an adversarial COMMITTED twin over a real one.
+
+     These are the numbers printed in the paper. If the detector moves, this reds and the paper is known
+     to be stale on the same push — rather than months later, by someone re-deriving it by hand.
+     Mutation-verified: `ODI_DROP: 4 → 3` reds it, and removing the corpus wiring reds the anti-vacuity
+     leg.
+
+     WHAT IT DOES NOT PIN, stated so nobody assumes otherwise: the corpus BYTES. Flipping one SpO2
+     sample of ~27 600 leaves every rate unchanged to one decimal, so this gate survives it — that is a
+     property of a per-hour index, not a hole to plug here. Byte integrity is the ledger's job
+     (`FIXTURE-PROVENANCE.json`-style input hashes); the paper's Table 1 caption records the SHA-256
+     prefixes for exactly that purpose. This leg pins the NUMBERS. */
+    group('ODI-4 pilot — the paper Table 1 numbers, on committed bytes', 'oxydex-dsp · paper · known-answer', function (T) {
+      var O = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      if (!(O && typeof O.parseCSV === 'function' && typeof O.processNight === 'function')) {
+        T.ok('OxyDex parseCSV/processNight co-loaded', false, 'DSP namespace not wired into this lane');
+        return;
+      }
+      // night → { published ODI-4 (Table 1), planted reference AHI (ground truth) }
+      var PILOT = [
+        { n: 1, odi4: 17.7, ahi: 22 },
+        { n: 2, odi4: 33.1, ahi: 38 },
+        { n: 3, odi4: 2.4, ahi: 7 },
+        { n: 4, odi4: 0.9, ahi: 4 },
+        { n: 5, odi4: 0.8, ahi: 3 }
+      ];
+      var ran = 0;
+      PILOT.forEach(function (p) {
+        var E = (env.odiPilot || {})[p.n];
+        if (!(E && E.input && E.truth)) {
+          T.ok('pilot night ' + p.n + ' committed input + ground truth present', false, 'uploads/O2Ring S 2100_… or ground_truth_night' + p.n + '.json missing — these are COMMITTED, so absence is a real regression, not a gitignore skip');
+          return;
+        }
+        ran++;
+        /* The ground truth is the PLANTED AHI, read from the committed file — not retyped here. If the
+           corpus is ever regenerated with different targets this reds, which is the point. */
+        T.eq('night ' + p.n + ' · committed ground truth still plants AHI ' + p.ahi, E.truth.ahiTarget, p.ahi);
+        var nt = O.processNight(O.parseCSV(E.input, { name: 'pilot' + p.n }), 'pilot' + p.n);
+        var odi = nt && nt.odi4 && nt.odi4.rate != null ? nt.odi4.rate : null;
+        T.eq('night ' + p.n + ' · ODI-4 reproduces Table 1 (' + p.odi4 + ' /h)', odi, p.odi4);
+      });
+      // ANTI-VACUITY: the loop must have actually run. A corpus that vanished would otherwise leave this
+      // group silently green with zero assertions about any number.
+      T.eq('all five pilot nights were scored — the gate is not vacuous', ran, 5);
+      /* …and the SHAPE the paper now claims: a roughly CONSTANT under-count, not a severity-graded one.
+         Asserted as a bound rather than five more equalities, because that is the claim in the prose and
+         it is what a future detector change would most plausibly break. */
+      if (ran === 5) {
+        var biases = PILOT.map(function (p) {
+          return p.ahi - p.odi4;
+        });
+        var lo = Math.min.apply(null, biases),
+          hi = Math.max.apply(null, biases);
+        T.ok('the under-count is roughly constant (2–5 /h), not severity-graded', lo >= 2 && hi <= 5, 'range ' + lo.toFixed(1) + '–' + hi.toFixed(1) + ' events/h');
+      }
+    });
+
     group('ECGDex rich export ≡ its committed golden — Integrator-facing surface', 'ecgdex-dsp · equiv · integrator-facing', function (T) {
       var eq = env.equiv && env.equiv.ecgdex_rich;
       var E = env.ECGDex;
