@@ -83,6 +83,16 @@ def test_the_clock_write_stays_behind_the_policy():
     green, because they test the decision function rather than its callers."""
     import os
     src = open(os.path.join(os.path.dirname(__file__), "..", "capture.py"), encoding="utf-8").read()
+    # A SOURCE SCAN CANNOT RUN AGAINST A GENERATED MUTANT FILE. mutmut 3 emits ONE capture.py holding
+    # every mutant inline, so this scan sees 664 copies of the single real call site and fails on every
+    # run INCLUDING the baseline — which mutmut reports as "failed to collect stats", i.e. the whole
+    # module unmeasurable. tools/mutate.py already carries a blunt per-FILE exclusion for this
+    # (SOURCE_SCANNING_TESTS), but excluding this file would also drop the `oxyii_rtc_due` unit tests
+    # above and inflate that function's survivor count. Skipping just the scan keeps both honest: on
+    # real source the guard below is False and the assertion runs exactly as before.
+    if "__mutmut_orig" in src:
+        import pytest
+        pytest.skip("capture.py here is a mutmut-generated file; a source scan sees every mutant at once")
     calls = [ln.strip() for ln in src.splitlines()
              if "set_time_frame(" in ln and not ln.strip().startswith("#")]
     assert len(calls) == 1, f"expected exactly one set_time_frame call site, found {len(calls)}: {calls}"

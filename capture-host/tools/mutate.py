@@ -153,7 +153,8 @@ def budget_for(clean_sec: float) -> int:
 
 
 def run_one(module: str, only: str | None = None, tests_override: list[str] | None = None,
-            timeout: int | None = None, budget: int = 0, estimate_only: bool = False) -> dict:
+            timeout: int | None = None, budget: int = 0, estimate_only: bool = False,
+            reuse: bool = True) -> dict:
     """`only` is a mutant-name glob, `tests_override` a hand-picked selection.
 
     Both exist for capture.py, where the name-substring heuristic in `tests_for` is useless — "capture"
@@ -175,11 +176,15 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
                           f"or scope it: --only '{module[:-3]}.x_<func>__mutmut_*'"}
     if estimate_only:
         return {**plan, "estimate_only": True}
-    scratch = Path(tempfile.mkdtemp(prefix=f"mut-{module[:-3]}-"))
-    work = scratch / "work"
-    # Copy the tree WITHOUT .venv/mutants — 7.7 MB, so this is cheaper than being clever.
-    shutil.copytree(HERE, work, ignore=shutil.ignore_patterns(
-        ".venv", "mutants", "__pycache__", "*.pyc", ".coverage*", "htmlcov"))
+    # REUSE A SCRATCH WHOSE MUTANTS ARE STILL VALID. The generated mutant file is a pure function of the
+    # MUTATED MODULE — mutmut copies the tests but never mutates them (`do_not_mutate = ["tests/*"]`).
+    # So regenerating on a test-only change rebuilds a byte-identical 100 MB file and throws away the
+    # warm .pyc with it. Measured on capture.py: 22 min per iteration became 18 s. A mutation pass is
+    # many iterations of "edit a test, re-measure", so this is the difference between usable and not.
+    # Keyed on the module's own hash, so a source change can never silently reuse stale mutants.
+    import hashlib
+    src_hash = hashlib.sha256((HERE / module).read_bytes()).hexdigest()[:12]
+    reusable = Path(tempfile.gettempdir()) / f"mut-{module[:-3]}-{src_hash}"
     # Every OTHER module is copied verbatim (imports must resolve) but only `module` is mutated.
     # ⚠️ THE COPY MUST CONTAIN EVERYTHING A TEST READS FROM DISK, not just what Python imports — and
     # enumerating that by hand is a losing game. Two baselines died proving it: test_radio_deafness
@@ -193,9 +198,31 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
                     for p in HERE.iterdir()
                     if p.name not in ignore and not p.name.startswith(".coverage"))
     also = ", ".join(repr(x) for x in extras)
+    if reuse and (reusable / "work" / "mutants" / module).exists():
+        scratch, work = reusable, reusable / "work"
+        for t in tests:                       # refresh ONLY the tests; the mutants stay
+            for dest in (work / t, work / "mutants" / t):
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(HERE / t, dest)
+        plan["reused_scratch"] = str(scratch)
+    else:
+        scratch = reusable if reuse else Path(tempfile.mkdtemp(prefix=f"mut-{module[:-3]}-"))
+        work = scratch / "work"
+        shutil.rmtree(scratch, ignore_errors=True)
+        # Copy the tree WITHOUT .venv/mutants — 7.7 MB, so this is cheaper than being clever.
+        shutil.copytree(HERE, work, ignore=shutil.ignore_patterns(
+            ".venv", "mutants", "__pycache__", "*.pyc", ".coverage*", "htmlcov"))
     (work / "pyproject.toml").write_text(CONFIG.format(
         source=module, also_copy=also, tests=", ".join(repr(t) for t in tests)), encoding="utf-8")
-    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    # ⚠️ BYTECODE CACHING IS LOAD-BEARING HERE, and disabling it is what made capture.py unmeasurable.
+    # mutmut writes ONE module holding every mutant, so capture.py's is 100 MB / 1.9 M lines. Compiling
+    # that costs 429 s; with a .pyc beside it, 0.4 s (measured 2026-08-03). mutmut starts a FRESH
+    # PROCESS PER MUTANT, so with PYTHONDONTWRITEBYTECODE=1 every one of them recompiled from scratch —
+    # 7 197 mutants x 429 s is 36 days, which is why the audit recorded this module as sampled at 1 %.
+    # The flag was there to avoid .pyc litter; the scratch is a throwaway /tmp copy, so there is nothing
+    # to keep clean. Letting the first import write the cache makes every later one free.
+    env = {**os.environ}
+    env.pop("PYTHONDONTWRITEBYTECODE", None)
     stem = module[:-3]
     t0 = time.monotonic()
     # ⚠️ A CAP THAT IS HIT MUST STILL PRODUCE A MEASUREMENT. Before this, `timeout=` raised
@@ -235,6 +262,8 @@ def main(argv=None) -> int:
                          "(300x, floor 1800) instead of a flat number that fits nothing")
     ap.add_argument("--budget", type=int, default=0,
                     help="skip a module whose clean run exceeds this many seconds, loudly")
+    ap.add_argument("--no-reuse", action="store_true",
+                    help="rebuild the scratch even when the module's mutants are still valid")
     ap.add_argument("--estimate", action="store_true",
                     help="time the clean run and print what the module will cost, then stop")
     a = ap.parse_args(argv)
@@ -247,6 +276,7 @@ def main(argv=None) -> int:
     for m in targets:
         print(f"\n=== {m} ===", flush=True)
         r = run_one(m, only=a.only, timeout=a.timeout, budget=a.budget, estimate_only=a.estimate,
+                    reuse=not a.no_reuse,
                     tests_override=[x.strip() for x in a.tests.split(",")] if a.tests else None)
         if r.get("skipped"):
             skipped += 1
