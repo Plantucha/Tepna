@@ -71,6 +71,14 @@ Then, and this is the whole method:
 4. **Only inspect IDs that appear in the survivors file.** Guessing an ID and reading its diff is how a
    killed mutant gets filed as a finding.
 
+**⚠️ CHECK `scratch_id` BEFORE YOU DIFF.** Mutant IDs are numbered positionally per function, so
+`x_f__mutmut_34` in one generation and another are the same NAME and not necessarily the same MUTATION.
+Diffing survivor sets across generations fabricates deltas: on 2026-08-03 that reported **14 regressions
+in `run_polar` that did not exist** — the baseline scratch had been deleted by this tool's own pruning
+and the comparison ran against a different generation. Every record now carries `scratch_id` and
+`mutant_generation` (the module's source hash), and a run that pruned an older scratch prints a
+`WARNING`. **A before/after pair is only valid when both `mutant_generation` values match.**
+
 **Diff the survivor sets, not the counts.** `comm` needs `LC_ALL=C`:
 
 ```sh
