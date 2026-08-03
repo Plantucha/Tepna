@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-01 · **Follows:** `IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md` §Retraction · `ENVELOPE-ANCHOR-EXPORT-2026-08-01-BRIEF.md` §3.7 · **Affects:** every cross-node measurement in the suite that assumes one timeline
+**Status:** PROPOSED · **Created:** 2026-08-01 · **Follows:** `IBI-ALIGNMENT-LIMIT-2026-08-01-BRIEF.md` §Retraction · `ENVELOPE-ANCHOR-EXPORT-2026-08-01-BRIEF.md` §3.7 · **Affects:** every cross-node measurement in the suite that assumes one timeline · ⛔ **§2.3 and §2.6 VOIDED 2026-08-03** — their third corner is the O2Ring's drawn axis (see the banners)
 
 # Two devices are never on one clock, and the suite has been assuming they are
 
@@ -59,6 +59,22 @@ block 105  -380 ms  -1140   ← one RR
 
 Fitting a slope through that measures the sawtooth, not the clock. **Unwrap by whole RRs first** —
 the same step any phase measurement needs, and the one this analysis was missing.
+
+> ### ⛔ VOID — the O2Ring corner was never a clock (added 2026-08-03)
+> Both sections below rest on a **three-device** geometry whose third corner is the O2Ring, and the
+> O2Ring's `sensor timestamp` column is **drawn, not measured**: the device emits no per-sample
+> timestamp, so capture built the axis as `sample_index × an assumed rate`. Its apparent ppm is the
+> error in that constant — the same night reads **+783 ppm** on a fragment written at 125.738 Hz and
+> **+92 ppm** on one written at ~128.024 Hz.
+>
+> Two of the three pairwise rates contain that corner, so the closure identity was being asked to hold
+> over two comparisons against a drawing and one real measurement. **The closure residuals and the
+> normalised per-device rates below are void, and the TCH degeneracy (ρ = 0.45–0.79, negative
+> variances) needs no correlated-physiology explanation** — a drawn corner produces exactly that.
+> The **ECG↔Verity** pair is unaffected; neither of its ends is the ring.
+>
+> Computed, not remembered: `quality.timingSource` and `hostAxis`'s `independent`/`spreadMs`, gated by
+> `ppgdex · axis-provenance`. See `O2RING-SYNTHESISED-AXIS-2026-08-02-BRIEF.md`.
 
 ### 2.3 · Three-corner closure is a free check, and it is what caught the missing unwrap
 
@@ -156,6 +172,22 @@ that "we still have the exports" is not an answer to it.
 Nor can anything else substitute. A drift measurement needs **two beat sources**; the second is always
 optical, so it is capped at the same 7 dates. Event channels will not do it either —
 `ENVELOPE-ANCHOR-EXPORT` measured exactly that and got **3 usable pairs a night from 75 movements**.
+
+> ### ⛔ VOID — the O2Ring corner was never a clock (added 2026-08-03)
+> Both sections below rest on a **three-device** geometry whose third corner is the O2Ring, and the
+> O2Ring's `sensor timestamp` column is **drawn, not measured**: the device emits no per-sample
+> timestamp, so capture built the axis as `sample_index × an assumed rate`. Its apparent ppm is the
+> error in that constant — the same night reads **+783 ppm** on a fragment written at 125.738 Hz and
+> **+92 ppm** on one written at ~128.024 Hz.
+>
+> Two of the three pairwise rates contain that corner, so the closure identity was being asked to hold
+> over two comparisons against a drawing and one real measurement. **The closure residuals and the
+> normalised per-device rates below are void, and the TCH degeneracy (ρ = 0.45–0.79, negative
+> variances) needs no correlated-physiology explanation** — a drawn corner produces exactly that.
+> The **ECG↔Verity** pair is unaffected; neither of its ends is the ring.
+>
+> Computed, not remembered: `quality.timingSource` and `hostAxis`'s `independent`/`spreadMs`, gated by
+> `ppgdex · axis-provenance`. See `O2RING-SYNTHESISED-AXIS-2026-08-02-BRIEF.md`.
 
 ## 2.6 · Normalised, and put through the repo's own three-cornered hat
 

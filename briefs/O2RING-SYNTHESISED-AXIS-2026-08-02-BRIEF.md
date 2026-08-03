@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-02 · **Follows:** `WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF.md` · **Affects:** `DexClock.hostAxis`, `CLOCK-CLOSURE-THREE-SOURCE`, `CROSS-DEVICE-DRIFT-AND-CLOSURE` §2.6, `capture-host/` O2Ring PPG timebase
+**Status:** DONE — 2026-08-03 (all five boxes; three were already met under `WEARABLE-HOST-AXIS-FOLLOWUPS` §F1 and never propagated back — see 5-RESULT. The one genuinely open item was voiding the two briefs that published O2Ring-cornered results.) · **Created:** 2026-08-02 · **Follows:** `WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF.md` · **Affects:** `DexClock.hostAxis`, `CLOCK-CLOSURE-THREE-SOURCE`, `CROSS-DEVICE-DRIFT-AND-CLOSURE` §2.6, `capture-host/` O2Ring PPG timebase
 
 # The O2Ring has no clock in its files — its timestamps are drawn, and the ppm you measure is the drawing error
 
@@ -115,18 +115,48 @@ outright — but it must never be treated as a *second* clock, which is what clo
 
 ## 5 · Done when
 
-- [ ] `DexClock.hostAxis` refuses, or flags, a device whose `sensor timestamp` axis is
-      capture-constructed — provenance, not span — and says which in its return value.
-- [ ] `CLOCK-CLOSURE-THREE-SOURCE` and `CROSS-DEVICE-DRIFT-AND-CLOSURE` §2.3/§2.6 record that their
-      O2Ring legs are void, and that Polar↔Polar is unaffected.
-- [ ] `dual-clock-rate.mjs` reports *why* a device is unusable (drawn axis) rather than only that its
-      spread is large — the current "← not a disciplined clock" flag is true but names the wrong cause.
-- [ ] The capture-side question is separated from the analysis one and routed: `O2PPG_FS_DEFAULT`
-      is ~780 ppm below the observed delivery rate on at least one long fragment, and some fragments
-      already use ~128 Hz instead. **Which path writes which, and is the constant still right, is a
-      `capture-host/` question** — recorded here, not answered.
-- [ ] A gate that a synthesised axis is detected from the bytes, so this cannot be rediscovered a
-      third time.
+- [x] **`DexClock.hostAxis` flags a capture-constructed axis — provenance, not span** (executed under
+      `WEARABLE-HOST-AXIS-FOLLOWUPS` §F1, and extended by #746). ⚠ **The test proposed in §4 does NOT
+      work and was replaced**: `first sensor timestamp == 0` is true of *every* O2Ring fragment,
+      including the post-2026-07-28 **measured** ones, so it separates relative-epoch from
+      absolute-epoch — a vendor convention — not drawn from measured, and shipping it would have
+      condemned exactly the good sessions. What separates them is the **delta distribution**:
+      `quantizedShare ≥ 99 %` (100.0 % on the 16 pre-2026-07-28 files vs 0.1 %/0.0 % after; Verity
+      0.1 %). Surfaced as `quality.timingSource` (`device+host` · `host` · `none`), and #746 added
+      `hostAxis.independent` / `spreadMs` for the sibling question — whether the HOST column is a second
+      clock at all (box captures 101.89–5124 ms residual spread, phone captures 0.13–1.00 ms).
+- [x] **`CLOCK-CLOSURE-THREE-SOURCE` and `CROSS-DEVICE-DRIFT-AND-CLOSURE` §2.3/§2.6 record that their
+      O2Ring legs are void** (2026-08-03). Banners added at the head of the closure brief and at both
+      cross-device sections, stating what is void (the residuals, the normalised per-device rates, the
+      −2.2 ppm "closure" on 07-27) and what survives (**Polar↔Polar / ECG↔Verity — neither end is the
+      ring**). The TCH degeneracy (ρ = 0.45–0.79, negative variances) is noted as needing no
+      correlated-physiology explanation: a drawn corner produces exactly that.
+- [x] **`dual-clock-rate.mjs` reports *why* a device is unusable** — it names the drawn axis rather than
+      only a wide spread. The old "← not a disciplined clock" flag was true but blamed a crystal that is
+      innocent; there is none in the file.
+- [x] **The capture-side question is separated and ROUTED, not answered** (the box asks for exactly
+      that). It lives at `capture-host/capture.py:279` (`O2PPG_FS_DEFAULT = 125.738`, validated on ONE
+      unit, S8-AW 2100) and `settings_schema.py:33` (`o2ring.ppg_fs`, range 100–200). The open question
+      is which write path emits ~125.738 and which emits ~128.024 on the same night, and it is a
+      `capture-host/` matter — deliberately NOT touched here (that file is in flight on another branch).
+      `O2RING-PROTOCOL-2026-07-17-BRIEF.md` already carries the header note that the calibration is a
+      real fit and **not a timebase**, with §6's guardrail attached.
+- [x] **A gate that a synthesised axis is detected from the bytes** — `ppgdex · axis-provenance`,
+      including a lock-out assertion so the rejected `first ns == 0` test cannot be reintroduced without
+      the suite failing, and a sawtooth control (a near-constant first difference scored 0.979, nearly
+      passing as drawn for the opposite of the real reason).
+
+### 5-RESULT — reconciled against the tree, 2026-08-03
+
+This brief sat `PROPOSED` with five empty boxes while **three of them had already been executed** under
+`WEARABLE-HOST-AXIS-FOLLOWUPS` §F1 — its own §F1 says so in prose ("of its §5 acceptance items, three
+are now met") and nothing propagated back here. Verified in the code, not off that line:
+`clock.js` carries `independent`/`spreadMs`, `ppgdex-dsp.js` carries `quantizedShare`/`drawn`,
+`tools/dual-clock-rate.mjs` names the drawn cause, and `tests/dex-tests.js` carries the gate.
+
+**Only box 2 was genuinely outstanding, and it was the one that mattered**: two briefs were publishing
+closure and three-cornered-hat numbers whose corners were a drawing, with nothing on the page saying so.
+That is the failure this brief exists to prevent, sitting one link away from the brief itself.
 
 ## 6 · Guardrail
 
