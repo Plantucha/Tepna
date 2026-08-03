@@ -4032,10 +4032,30 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Supporting finding
     var supportTxt = top5.length > 1 ? (leads[top5[1].key] ? leads[top5[1].key]() : top5[1].label + ' ' + top5[1].displayVal) : '';
 
-    // Context qualifier
+    /* Context qualifier — an OBSERVATION, never an instruction (OXYDEX-PB-OVERCALL §4 item 3).
+       These two lines used to read "CS pattern likely — review CPAP pressure" and "UARS pattern —
+       consider UARS protocol". Both prescribed a therapy action off a 0-3 heuristic score, and the CS
+       one fired on 25 of the 37 corpus nights (68 %). Two things were wrong with that:
+
+         1. It prescribed. A one-line impression telling two thirds of nights to review CPAP pressure is
+            an instruction the evidence cannot carry, and this suite is explicitly not a medical device.
+         2. "likely" overclaimed. §5.1 measured what the detector under `csScore` actually gates on:
+            `detectOscillations` has NO periodicity test at all — no cycle-length criterion (cycleLen is
+            computed into meta AFTER the decision and gates nothing), no crescendo-decrescendo, and it
+            counts crossings of an ABSOLUTE 95 % level. On a corpus whose overnight mean is 94.6-96.6 %
+            the trace straddles that line all night, and 1 Hz oximetry reports INTEGERS — so a value
+            dithering 94/95/96 crosses continually with no breathing periodicity whatever. The episode
+            count correlates r = 0.893 with time below 95 % and r = -0.821 with mean SpO2. It is
+            measuring mild hypoxemia burden, which is a real quantity but not the one "Cheyne-Stokes"
+            names.
+
+       So the surface now states the score it actually has and what that score is not. The score itself,
+       its 0-3 ladder and the >= 2 gate are UNCHANGED — this is a wording fix, not a retune. §5.2 found
+       no defensible threshold on this corpus, so retuning would be guessing; naming the thing honestly
+       does not require a number nobody can derive. */
     var context = '';
-    if (n.patScore && n.patScore.csScore >= 2) context = '; CS pattern likely — review CPAP pressure';
-    else if (n.patScore && n.patScore.uarsScore >= 2) context = '; UARS pattern — consider UARS protocol';
+    if (n.patScore && n.patScore.csScore >= 2) context = '; CS pattern indicators ' + n.patScore.csScore + '/3 — screening signal, no periodicity test';
+    else if (n.patScore && n.patScore.uarsScore >= 2) context = '; UARS pattern indicators ' + n.patScore.uarsScore + '/3 — screening signal';
     else if (n.stab && n.stab.score != null && n.stab.score >= 80) context = '; otherwise stable baseline';
     else if (n.osc && n.osc.episodeCount >= 10) context = '; high PB burden';
 
