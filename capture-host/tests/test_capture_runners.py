@@ -3719,3 +3719,126 @@ def test_alert_poller_DOES_alert_an_optional_device_that_joined_then_dropped(mon
     monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
     _run(capture.alert_poller(cfg, _N()))
     assert sent == ["Tepna: sensor offline"], "a device that stopped contributing must still alert"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+# MUTATION PASS 2026-08-03 — the sample-write dispatch, and the bond guards
+#
+# `run_polar` measured 1 241 mutants with 641 surviving — **44 % killed**, the weakest surface in
+# capture-host. It is also the function that records a night, so a wrong answer here is silent by
+# construction: the file exists, the row count looks right, and the numbers in it are wrong.
+#
+# The sharpest cluster is the six-way `meas` dispatch that writes every sample. Its arguments could be
+# nulled one at a time and nothing noticed, because the existing tests assert that a FILE APPEARS and
+# that rows were counted — never what is IN a row. `smp.sensor_ns` nulled writes a file whose device
+# clock column is empty; `smp.t_ms` nulled loses the relative-ms column ECGDex infers fs from (the
+# ~10 % HR bug `test_writers` was written for); `v[0]` nulled writes a null sample value.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+def _ecg_row(tmp_path):
+    """Drive one real ECG frame through run_polar and return the written data row, split."""
+    files = [p for p in tmp_path.rglob("*_ECG.txt")]
+    assert len(files) == 1, f"expected exactly one ECG file, got {files}"
+    rows = files[0].read_text().splitlines()
+    assert len(rows) >= 2, f"header + at least one sample, got {rows}"
+    return rows[0].split(";"), rows[1].split(";")
+
+
+def test_an_ecg_sample_is_written_with_every_column_populated(tmp_path, monkeypatch):
+    """The `wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, v[0])` dispatch — four arguments, each of
+    which could be nulled undetected. The fixture frame carries sensor_ns = 1e9 and three samples of
+    +7 uV, so every column has a value that is checkable rather than incidentally zero."""
+    _polar_common(monkeypatch)
+    c = FakePolarClient(start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+
+    head, row = _ecg_row(tmp_path)
+    assert head == ["Phone timestamp", "sensor timestamp [ns]", "timestamp [ms]", "ecg [uV]"]
+    assert len(row) == 4, "a row carries every column the header promises"
+    assert row[0], "the phone timestamp is present — an empty one is an unstamped sample"
+    # PMD stamps a FRAME, not a sample: the frame's ns is its LAST sample and the earlier ones are
+    # back-computed across the rate. So the first row is BEFORE 1e9 and the last row IS 1e9.
+    f = [p for p in tmp_path.rglob("*_ECG.txt")][0]
+    ns = [r.split(";")[1] for r in f.read_text().splitlines()[1:]]
+    assert all(n and n.isdigit() for n in ns), f"every row carries a device clock: {ns}"
+    assert ns == sorted(ns, key=int) and len(set(ns)) == 3, "distinct and increasing across the frame"
+    assert ns[-1] == "1000000000", "the frame's own stamp lands on its LAST sample"
+    assert row[2] == "0.0", "the relative-ms column ECGDex infers fs from — first sample is 0.0"
+    assert row[3] == "7", "the sample VALUE, not a null"
+
+
+def test_every_ecg_sample_in_a_frame_is_written(tmp_path, monkeypatch):
+    """The `for smp in samples` loop. A frame carries three samples; writing one and dropping two is a
+    row count that looks plausible and a night that is a third of its real length."""
+    _polar_common(monkeypatch)
+    c = FakePolarClient(start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+
+    f = [p for p in tmp_path.rglob("*_ECG.txt")][0]
+    data = f.read_text().splitlines()[1:]
+    assert len(data) == 3, f"the fixture frame carries three samples, got {len(data)}"
+    assert [r.split(";")[3] for r in data] == ["7", "7", "7"], "each sample's value, in order"
+    assert capture.STATUS["devices"]["H10"][f"rows_{pmd.ECG}"] == 3, \
+        "and the surfaced row count matches what was written"
+
+
+def test_the_live_bus_push_carries_the_sample_values_not_the_sample_objects(tmp_path, monkeypatch):
+    """`BUS.push(key, [s.values[0] for s in samples], hz)` — the monitor's live trace. Nulling the list
+    or the rate leaves the chart drawing nothing while the file fills normally, so the operator watching
+    it concludes the sensor is dead when it is recording perfectly."""
+    _polar_common(monkeypatch)
+    pushed = []
+    monkeypatch.setattr(capture.BUS, "push", lambda k, v, hz=None: pushed.append((k, v, hz)))
+    c = FakePolarClient(start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+
+    ecg = [p for p in pushed if p[0].endswith("ecg") or "ecg" in p[0]]
+    assert ecg, f"an ecg frame must reach the live bus, got keys {[p[0] for p in pushed]}"
+    _key, vals, hz = ecg[0]
+    assert vals == [7, 7, 7], "the VALUES, one per sample, in order"
+    assert hz, "and a sample rate — a trace with no rate cannot be drawn to a time axis"
+
+
+# ── the bond guards: four conditions, each earning its place ─────────────────────────────────────────
+def test_a_strap_with_no_pmd_stream_is_never_bonded(tmp_path, monkeypatch):
+    """`if needs_pmd:` around `ensure_bonded`. The SIG Heart Rate characteristic needs no
+    authentication and most third-party straps cannot pair at all — the module's own comment records
+    that bonding one cost 'a pointless bond attempt, an 18-SECOND GLOBAL CAPTURE PAUSE ... and a
+    phantom link that then tripped the watchdog'."""
+    _polar_common(monkeypatch)
+    seen = []
+
+    async def spy_bond(addr, adapter):
+        seen.append((addr, adapter))
+        return True
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", spy_bond)
+    c = FakePolarClient(start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(vendor="Coospo", streams=["hr"]), str(tmp_path)))
+    assert seen == [], "an hr-only strap is not bonded"
+
+
+def test_a_pmd_device_is_bonded_with_its_own_address_and_the_pinned_adapter(tmp_path, monkeypatch):
+    """`ensure_bonded(addr, ADAPTER)` — four mutants null or drop an argument, including one that
+    passes the ADAPTER as the address. Three BLE radios on this box, so an unpinned bond is a bond on
+    whichever controller BlueZ picks."""
+    _polar_common(monkeypatch)
+    seen = []
+
+    async def spy_bond(addr, adapter):
+        seen.append((addr, adapter))
+        return True
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", spy_bond)
+    c = FakePolarClient(start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert seen and seen[0] == ("24:AC:AC:02:84:96", capture.ADAPTER), \
+        "the device's own address, and the pinned adapter"
