@@ -71,9 +71,10 @@ single-device validation here should run a second device for that reason alone.
       decisively. **n = 7 < §3.1's ≥10-night bar**, so this is a recommendation to ratify, not a pass.
 - [ ] A decision recorded on whether whole-record RMSSD should be surfaced at all for these devices, given
       it cannot promote until jitter halves.
-- [ ] If any tier string moves: `Dex-Test-Suite.html?full` green, `verify-provenance` clean, changeset
-      dropped — and the parent's open `computeHash` question (does a tier-only string edit move it?)
-      answered by measurement rather than inherited as answered.
+- [x] **The parent's open `computeHash` question is ANSWERED BY MEASUREMENT** (2026-08-03) — see
+      §7 below. Short version: **yes it moves, no the export cannot, and it still is not free.** The
+      remaining half of this box (what a tier move itself owes) is unchanged and applies whenever one
+      lands.
 
 
 ---
@@ -128,3 +129,49 @@ high-HR/motion daytime segments.
 for 2 % RMSSD bias, and `sdnnRobust` reads +10.8 % against a ±3.5 % bar with an IQR that still crosses
 zero. The verdict in `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` stands: **CVHR is the only metric
 with a case, and it needs three more sleep nights to clear its own corpus bar.**
+
+
+---
+
+## 7 · Does a tier-only string edit move `computeHash`? — MEASURED 2026-08-03
+
+The parent left this open and the box said to answer it *"by measurement rather than inherited as
+answered"*. Probed on `PpgDex` by changing exactly one word — `riseTime.evidence: 'measured' →
+'emerging'` — rebuilding, and re-reading both hashes. Everything below was then reverted; nothing here
+ships a tier change.
+
+| | before | after one word |
+|---|---|---|
+| `manifestHash` | `e43ea14b6d8a` | `5aa62fa69a37` |
+| **`computeHash`** | **`40dbe2eceaf6`** | **`ade7f0c87b25`** |
+
+**1 · Yes, `computeHash` moves.** Every corpus-backed fixture on that bundle goes `UNVERIFIED` the
+moment a tier string changes, and `tools/release.mjs` refuses to cut a release while one is — so this is
+not a formality that can be skipped.
+
+**2 · No, the export cannot change.** `verify-fixtures.mjs` re-ran the app against the real corpus and
+the fixture **reproduced** — it only re-stamped `verifiedUnder`, no regeneration. Confirmed
+independently: the committed `PpgDex_2026-06-27_equiv.node-export.json` contains **0** occurrences of
+`"evidence"` and 0 of `"measured"`. Tier strings never reach an export.
+
+So this is the denylist's **accepted over-flag**, exactly as `CLAUDE.md` §🔒 designs it: *"a denylist
+that forgets one merely over-flags … we accept false alarms; we do not accept a gate that cannot see."*
+The correct response is to **run the verification** (cheap — it re-stamps), never to claim inertness.
+
+**3 · And a tier edit is a THREE-part change, which the probe found the hard way.** The first
+`verify-fixtures` run **refused to stamp anything**:
+
+```
+✕ the suite is RED — stamping NOTHING.
+  ✕ PpgDex Reference.html↔registry grades all agree — Rise time doc=measured reg=emerging
+```
+
+The `cohesion-badges` gate single-sources the reference guide against the registry, so a registry-only
+edit is incoherent by construction. Only after the guide's `ev-corner ev-measured` moved to
+`ev-emerging` did verification proceed. Worth noting the *ordering*: `verify-fixtures` runs the suite
+first and stamps nothing if it is red — *"partial credit is how false claims are born"* — so the
+cohesion failure blocks the fixture work rather than being discovered after it.
+
+**The checklist a tier move actually owes**, then: registry + reference guide (or `cohesion-badges`
+reds) → re-bundle → `DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs` (or the release is blocked) →
+changeset. The `computeHash` movement is real but benign; the cohesion coupling is the part that bites.
