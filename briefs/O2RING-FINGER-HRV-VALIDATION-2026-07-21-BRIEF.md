@@ -292,7 +292,7 @@ by a different, unverifiable instrument, the comparison would have read as *"the
 the wrist"* — when measured like-for-like it is **0.2 ms better**. The cross-instrument comparison would
 have inverted the conclusion.
 
-### 8.3 · One endpoint WITHHELD, because it cannot be computed honestly
+### 8.3 · One endpoint WITHHELD — **and §8.6 corrects this: it was measurable all along**
 
 §6 asks for `sdnnRobust` vs ECG SDNN against a **±3.5 %** bar. This tool reports it as withheld:
 
@@ -307,6 +307,10 @@ have inverted the conclusion.
 Constructing that reference here would be reimplemented HRV math (§5 forbids it) and approximate exactly
 where the bar is ±3.5 %. **The blocker is that ECGDex does not publish a comparable statistic** — that,
 not more nights, is what §4's `sdnnRobust` criterion needs.
+
+> **WRONG — corrected in §8.6.** ECGDex *does* publish it, as `dispSd`. The reasoning above was right
+> about the symptom (a constant −29 % on both devices is an offset of construction) and wrong about the
+> cause: the field existed and I read the neighbouring one.
 
 ### 8.4 · RMSSD, and why no tier moves
 
@@ -336,3 +340,61 @@ Recorded because both produced plausible numbers before they were caught:
    effect at the finger's jitter: **0.08 ms** (quadrature makes 3.14 invisible against 26); at the
    Verity's ~6 ms it would be ~13 %. The tool reports the figure per run, because "negligible" is a claim
    about one device's noise floor, not a property of the method.
+
+
+---
+
+## §8.6 · CORRECTION 2026-08-03 — §8.3 was wrong; the endpoint is measured, and it FAILS the bar
+
+§8.3 concluded that ECGDex publishes no per-5-min SDNN and withheld the endpoint. **It publishes it as
+`dispSd`** — `median(epochs[].sdnn)`, verified equal to the reported decimal — and that is what the
+export already emits as `hrv.time.sdnn` for a long record. I read `eres.sdnn`, the whole-record field,
+which carries the between-epoch (SDANN) variance a per-5-min median excludes.
+
+The −29 %-on-both-devices tell was read correctly and reasoned from incorrectly: it does prove an offset
+of construction, but the cause was the field I chose, not a gap in ECGDex.
+
+| pairing | one night | across devices |
+|---|---|---|
+| `sdnnRobust` vs whole-record `sdnn` | −35.0 % | ≈ −29 % on BOTH ← the artifact |
+| `sdnnRobust` vs `dispSd` | **+13.7 %** | the like-for-like pair |
+
+**Measured on the corpus, with the corrected pairing:**
+
+| | `sdnnRobust` vs ECG `dispSd` | IQR | §4 bar |
+|---|---|---|---|
+| O2Ring **finger** | **+10.6 %** | −5.2 – +17.0 | ±3.5 % |
+| Verity **wrist** | **+18.7 %** | +3.2 – +28.4 | ±3.5 % |
+
+**§4's `sdnnRobust → validated` criterion FAILS on both devices** — this is now a measurement rather than
+a withholding, which is a materially different claim for a validation brief to carry. And once again the
+**finger is the better of the two** (+10.6 % vs +18.7 %), consistent with §8.1.
+
+### 8.6.1 · A shipped user-facing claim this does not reproduce
+
+`ppgdex-dsp.js`'s export note states, in `hrv.time.sdnnNote`, that `sdnnRobust` runs
+
+> *"~+3.5 % vs ECG truth — use sdnnRobust for cross-node SDNN comparison"*
+
+Measured here on the **Verity** — the device that number was derived from — it is **+18.7 %**, and the
+IQR (+3.2 – +28.4) only just reaches 3.5 % at its lower edge. That string ships to users as an accuracy
+claim.
+
+**Stated carefully:** this does not establish that +3.5 % is wrong. It is the same situation as §8.2's
+5.92 ms — the original apparatus was never committed, so the discrepancy **cannot be attributed** between
+corpus, method, and the original figure. What it does establish is that the claim **does not reproduce
+under the only committed instrument that exists**, and therefore owes a re-derivation before it keeps
+being shipped as guidance. Routed as a finding, not a fix: changing that string is a compute-path edit to
+a user-facing accuracy claim, and it belongs to whoever ratifies §4.
+
+### 8.6.2 · The pattern, recorded because it repeated three times in one unit
+
+Every wrong number in this work came from the apparatus, not the data, and each looked plausible:
+
+1. **26 ms** finger jitter — coarse 1 s lag binning against a ±75 ms tolerance (§8.5.1).
+2. **3.14 ms** of reference quantization — integer R-peak indices, §3.2's refinement missing (§8.5.2).
+3. **−29 %** SDNN bias — the wrong ECG field, read as a missing capability (this section).
+
+Two of the three were caught only because the same instrument was pointed at a **second device**: an
+artifact of construction shows up as a constant across devices, where a real device property does not.
+Running the reference leg was not diligence, it was the detector.

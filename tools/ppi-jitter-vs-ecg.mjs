@@ -468,8 +468,20 @@ for (const f of fingers) {
   if (jit.length < MIN_EPOCHS) continue;
   const rf = fres.rmssd,
     re = best.eres.rmssd;
+  /* READ `dispSd`, NOT `sdnn`. This is the field that makes §4's sdnnRobust criterion measurable, and
+     getting it wrong produced a confident −29 % that was an artifact of pairing.
+
+       ECGDex `sdnn`    whole-record SDNN — carries the between-epoch (SDANN) variance
+       ECGDex `dispSd`  MEDIAN of per-5-min epoch SDNN — and it is what the EXPORT publishes as
+                        `hrv.time.sdnn` for a long record
+       PpgDex `sdnnRobust`  quality-gated MEDIAN of per-5-min epoch SDNN
+
+     So `dispSd` is `sdnnRobust`'s like-for-like counterpart and always was; ECGDex simply names it
+     differently. Verified rather than assumed: `dispSd` === median(epochs[].sdnn) to the reported
+     decimal. On one night the wrong pair reads −35.0 % and the right pair +13.7 %; the wrong pair also
+     read −29 % on BOTH devices, which was the tell — a constant offset of construction. */
   const sf = fres.sdnnRobust,
-    se = best.eres.sdnn;
+    se = best.eres.dispSd != null ? best.eres.dispSd : best.eres.sdnn;
   nights.push({
     name: f.p.split('/').pop(),
     eps: jit.length,
@@ -510,9 +522,9 @@ console.log(`  RMSSD bias vs ECG         ${fmt(Bs)} %`);
    export note puts sdnnRobust at ~+3.5 % vs "ECG truth" — meaning the ECG's per-5-min equivalent, which
    nothing currently computes. Constructing that reference here would be reimplemented HRV math (§3.5
    forbids it) and would be approximate exactly where the bar is ±3.5 %. */
-console.log(`  sdnnRobust bias           WITHHELD — ECGDex publishes no per-5-min SDNN to compare against;`);
-console.log(`                            whole-record SDNN is a different quantity (read −29 % on BOTH devices,`);
-console.log(`                            i.e. an offset of construction). Raw pairing, for the record: ${fmt(S)} %`);
+console.log(`  sdnnRobust vs ECG dispSd  ${fmt(S)} %      [§4 promotion bar: within ~±3.5 %]`);
+console.log(`  ^ dispSd is ECGDex's MEDIAN of per-5-min epoch SDNN — sdnnRobust's like-for-like counterpart.
+    Pairing it against whole-record \`sdnn\` instead reads ~−29 % on BOTH devices: an offset of construction.`);
 console.log(
   '\nThe match rate is reported BESIDE the jitter, never folded into it: a low rate means the jitter\n' +
     'figure describes whichever beats happened to pair, not the night. Read them together or not at all.'
