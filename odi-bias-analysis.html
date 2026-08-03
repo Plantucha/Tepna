@@ -517,8 +517,15 @@
     pts.sort(function (x, y) {
       return x.d - y.d;
     });
-    // Divergence is measured RELATIVE to the first anchor: the node has already anchored t0Ms there,
-    // so the correction must be 0 at the start and grow. An absolute offset here would double-count it.
+    /* Divergence is measured RELATIVE to the first anchor: the node has already anchored t0Ms there,
+       and an absolute offset here would double-count it.
+       ⚠ This comment used to add "so the correction must be 0 at the start and grow". IT IS NOT 0 —
+       measured, and now stated in CLAUDE.md §7. The running median's clamped window pulls each end
+       INWARD by exactly ⌊win/2⌋/2 = 5 anchors' worth of drift, so `correctionAt(firstAnchor)` is that
+       bias and `ppm` under-reads by 1 − 5/(n−1): 12.5 % at n=41, 0.17 % on the real 2873-anchor O2Ring
+       geometry. Subtracting r0 sets the ORIGIN of the measurement, which is what this line does; it
+       does not make the smoothed series start at zero. (Found by `tools/guarantees.mjs` — the promise
+       was both ungated and false.) */
     var r0 = pts[0].r;
     var n = pts.length;
     var sm = new Array(n);
