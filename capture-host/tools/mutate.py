@@ -301,8 +301,12 @@ def main(argv=None) -> int:
         # (rc -15, timed_out false) or a failed one is unreadable without them. Measured 2026-08-03: an
         # rc guard reported "FAILED rc=" on a run that had in fact succeeded. Verdict first, then the
         # bulky plan, and the truncation only ever eats the tail.
+        # The estimate fields belong here too: `--estimate` has no rc, so listing only run fields left
+        # a useless `{"module": ...}` at the top and demoted the numbers the flag exists to print.
         verdict = {k: r[k] for k in ("module", "rc", "elapsed_sec", "timed_out", "partial",
-                                     "skipped", "error", "reused_scratch", "work") if k in r}
+                                     "skipped", "error", "estimate_only", "clean_run_sec",
+                                     "timeout_sec", "derived", "advice", "reused_scratch",
+                                     "work") if k in r}
         print(json.dumps(verdict, indent=2), flush=True)
         rest = {k: v for k, v in r.items() if k not in verdict and k != "results"}
         if rest:
