@@ -1432,6 +1432,25 @@
       T.ok('the two aggregates actually differ on this fixture (else the pin proves nothing)', Math.abs(est.weightedPairR - est.meanPairR) > 0.02, 'w=' + est.weightedPairR + ' mean=' + est.meanPairR);
       T.eq('…and ρ is the WEIGHTED one', est.value, +Math.min(0.9, est.weightedPairR).toFixed(3));
       T.ok('…which is ≥ the mean, as the definition requires', est.weightedPairR >= est.meanPairR - 1e-9, 'w=' + est.weightedPairR + ' mean=' + est.meanPairR);
+
+      /* FU-IV FOLLOWUPS §4 — HOW MUCH EVIDENCE IS UNDER ρ. It was published with none: on the real
+         corpus the per-pair overlap spans 20…92 epochs (median 77), so one night's ρ rests on 20
+         paired epochs and another on 92, and nothing said which. Diagnostic only — a minimum-n RULE
+         would need a threshold, and this suite does not ship one picked from a round number. */
+      T.eq('the overlap behind ρ is published, and it is this fixture\'s epoch count', est.nOverlapMin, NE);
+      T.eq('…both ends, so a lopsided pair set is visible', est.nOverlapMax, NE);
+      T.ok('…as numbers, not undefined — the field is the whole point', typeof est.nOverlapMin === 'number' && typeof est.nOverlapMax === 'number', JSON.stringify(est));
+      // A pair with FEWER shared epochs must lower the minimum — otherwise the field is a constant
+      // wearing the shape of a measurement.
+      var short = mkNode('OxyDex', 44, 0.5);
+      short.series.hrvEpochs = (short.series.hrvEpochs || []).slice(0, 12);
+      var cons2 = FC([mkNode('ECGDex', 11, null), mkNode('PpgDex', 22, null), short], 1000);
+      var est2 = cons2 && cons2.blocks && cons2.blocks[0] && cons2.blocks[0].tchHR && cons2.blocks[0].tchHR.rhoEstimate;
+      if (est2 && est2.nOverlapMin != null) {
+        T.ok('a shorter third series lowers the reported minimum overlap', est2.nOverlapMin < NE, 'min=' + est2.nOverlapMin + ' vs full ' + NE);
+      } else {
+        T.skip('short-series leg', 'the truncated triple did not solve — not this gate\'s subject');
+      }
     });
 
     /* ════ FU-IV §1.4 — a REJECTED external ρ must say so, not be inferable from `method` ═══════

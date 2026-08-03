@@ -94,7 +94,9 @@
             "nMotionNodes": 3,
             "meanPairR": 0.356,
             "weightedPairR": 0.381,
-            "nPairs": 3
+            "nPairs": 3,
+            "nOverlapMin": 22,
+            "nOverlapMax": 22
           },
           "levels": {
             "ECGDex": 58.1,

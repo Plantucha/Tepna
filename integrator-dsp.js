@@ -2463,11 +2463,27 @@ function _tchRhoFromMotion(triplet, keys) {
       return x.m;
     });
   if (ms.length < 2) return null;
-  var rs = [];
+  var rs = [],
+    ns = [];
   for (var i = 0; i < ms.length; i++)
     for (var j = i + 1; j < ms.length; j++) {
       var r = _tchPearson(ms[i].m, ms[j].m);
-      if (r != null) rs.push(r);
+      if (r == null) continue;
+      rs.push(r);
+      /* HOW MANY EPOCHS THAT PAIR ACTUALLY SHARED (FU-IV FOLLOWUPS §4). ρ was published with no
+         indication of the evidence under it: on the real corpus 2026-07-11 supplies ρ = 0.72 from an
+         overlap of TWENTY epochs, and a consumer could not tell that from one that used 90. Counting
+         is free — it is the same finite-pair test `_tchPearson` already runs internally.
+         Deliberately a DIAGNOSTIC, not a gate: a minimum-n rule would need a threshold, and picking
+         one from a round number rather than from the corpus is the invented constant this suite
+         refuses. Publish the evidence first; derive the rule from it later if one is warranted. */
+      var nOv = 0;
+      for (var k = 0; k < ms[i].m.length; k++) {
+        var a = ms[i].m[k],
+          b = ms[j].m[k];
+        if (a != null && b != null && isFinite(a) && isFinite(b)) nOv++;
+      }
+      ns.push(nOv);
     }
   if (!rs.length) return null;
   var pos = rs.map(function (r) {
@@ -2506,7 +2522,18 @@ function _tchRhoFromMotion(triplet, keys) {
   /* `method` deliberately KEEPS its string: the aggregation is an implementation detail and consumers
      branch on this value. `meanPairR` is retained (it was the published aggregate) beside
      `weightedPairR`, the one actually used, so the change is inspectable without a contract break. */
-  return { value: +rho.toFixed(3), method: 'cross-node-motion', nMotionNodes: ms.length, meanPairR: +mean.toFixed(3), weightedPairR: +weighted.toFixed(3), nPairs: rs.length };
+  // `nOverlapMin` is the WEAKEST pair's evidence — the binding constraint on ρ, and the number a
+  // consumer needs to judge it. `nOverlapMax` bounds the other end so a lopsided set is visible.
+  return {
+    value: +rho.toFixed(3),
+    method: 'cross-node-motion',
+    nMotionNodes: ms.length,
+    meanPairR: +mean.toFixed(3),
+    weightedPairR: +weighted.toFixed(3),
+    nPairs: rs.length,
+    nOverlapMin: ns.length ? Math.min.apply(null, ns) : null,
+    nOverlapMax: ns.length ? Math.max.apply(null, ns) : null
+  };
 }
 // Generic reference-free per-sensor hat for ONE metric ('rmssd' | 'hr'). PURE; {ok:false, reason}
 // when <3 nodes carry that per-epoch series (→ caller degrades). Estimates ρ from cross-node motion
