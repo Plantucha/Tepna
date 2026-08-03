@@ -78,6 +78,63 @@ a full backfill is using the slower one.
 - [ ] §1 — `alerts:` configured on the box **and** deployed (`git pull` + `sync-apps.sh`), proven by an
       induced failure delivering a real webhook
 - [ ] §2 — `_read_char`'s absence-is-absence promise gated with a fake client, by the PMD work-unit
-- [ ] §3 — the guarantee-docstring sweep run over the JS spine, prioritising `tools/mutate.mjs`
+- [x] **§3 — the guarantee sweep is run over the JS spine, and the reusable half is now a TOOL**
+      (2026-08-03). `tools/guarantees.mjs`; census below. The non-reusable half — cross-referencing
+      names against the test tree — is deliberately not built, for the reason §3 gives.
       survivors that sit under a documented promise
 - [ ] §4 — nothing, unless backfill time matters again
+
+
+---
+
+## 3-RESULT — the census, and the half that is now a tool (2026-08-03)
+
+**`tools/guarantees.mjs`** enumerates guarantee-bearing comments — *never · always · must · cannot ·
+guarantees · refuses · invariant · is an ALERT · not a silent*, the same vocabulary the Python sweep
+used, so the two censuses are comparable. Over the JS spine:
+
+| file | sites | | file | sites |
+|---|---|---|---|---|
+| `integrator-dsp.js` | 134 | | `pulsedex-dsp.js` | 27 |
+| `ppgdex-dsp.js` | 89 | | `cpapdex-dsp.js` | 27 |
+| `oxydex-dsp.js` | 82 | | `motiondex-dsp.js` | 22 |
+| `ecgdex-dsp.js` | 78 | | `clock.js` | 21 |
+| `hrvdex-dsp.js` | 36 | | `metric-registry.js` | 6 |
+| `glucodex-dsp.js` | 33 | | `dex-export.js` | 5 |
+
+**560 guarantee sites across 12 files** — against 124 in the daemon. The docstring-as-guarantee habit
+is not merely "at least as strong" on the JS side, as §3 supposed; it is 4.5× larger.
+
+### The cross-reference, done the way §3 says and not the way that failed
+
+§3 is explicit that matching guarantee names against the test tree is **not** reusable: it reported the
+daemon 121/124 clean while blind to both real gaps, because *named in a test* and *gated by a test* are
+different properties, and it would have condemned five guarantees gated perfectly well transitively.
+This tool therefore never greps the tests. It cross-references against **surviving mutants**, which
+answers the question directly — a survivor is a line the suite cannot see change, so a survivor under a
+documented promise is a promise nothing checks.
+
+Demonstrated end-to-end on `pat-align.js` (14 mutants, 4 killed, 10 survivors):
+
+```
+pat-align.js — 3 guarantee site(s), 3 with a SURVIVING mutant
+  L33   ⚠ 39 num → 0     "a movement must exceed mean + 4σ to be an anchor"
+  L43   ⚠ 63 cmp > → >=  "Deviation, not raw magnitude, because gravity dominates |acc|…"
+  L227  ⚠ 259 cmp < → <= "A night cannot have 8 ms of beat-to-beat scatter and 1058 ms of wander"
+```
+
+The 4σ anchor threshold can be set to **zero** and nothing notices — which is exactly the class §3
+wanted prioritised, and is invisible to a raw survival count.
+
+### A defect this surfaced in the tooling, and the fix
+
+`guarantees.mjs` needs the same regex-aware lexer `mutate.mjs` uses (one wants the code, the other its
+inverse). Importing it **started a mutation sweep** — `mutate.mjs` runs at import, so borrowing one
+function from it launches a 40-minute run. The lexer is therefore extracted into **`tools/js-lex.mjs`**,
+a pure module with no side effects, and both tools import it. One lexer, N callers: a duplicate would be
+free to drift back into the regex-desync defect that cost `CLOCK-MUTATION-AUDIT` §4 a contaminated run.
+
+**Not done:** the clock.js cross-reference. Its exhaustive run is ~40 min and was cut short here in
+favour of shipping the tool; `node tools/mutate.mjs --file clock.js --json > s.json && node
+tools/guarantees.mjs --file clock.js --survivors s.json` is the whole command, and clock.js's 21 sites
+against its 37 survivors is the obvious next reading.
