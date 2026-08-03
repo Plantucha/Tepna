@@ -1,0 +1,3097 @@
+{
+ "schema": "ganglior.ground-truth/1.0",
+ "subject": "SubjectA",
+ "night": 2,
+ "date": "2026-05-12",
+ "story": "Worse — alcohol, supine, fragmented; nocturnal hypo + CSR run",
+ "t0Ms": 1778630100000,
+ "durSec": 26400,
+ "ahiTarget": 38,
+ "cpap": false,
+ "glucEvent": "hypo",
+ "events": [
+  {
+   "t0Ms": 1778630460000,
+   "relSec": 360,
+   "type": "hypopnea",
+   "durSec": 38,
+   "desatPct": 10.7,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778630551373.7314,
+   "relSec": 451.4,
+   "type": "hypopnea",
+   "durSec": 27,
+   "desatPct": 6.2,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778630627114.263,
+   "relSec": 527.1,
+   "type": "apnea",
+   "durSec": 24,
+   "desatPct": 6.7,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778630698591.1943,
+   "relSec": 598.6,
+   "type": "apnea",
+   "durSec": 34,
+   "desatPct": 13.1,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778630935256.027,
+   "relSec": 835.3,
+   "type": "apnea",
+   "durSec": 28,
+   "desatPct": 8.7,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631171920.8596,
+   "relSec": 1071.9,
+   "type": "apnea",
+   "durSec": 33,
+   "desatPct": 10.4,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631383638.0188,
+   "relSec": 1283.6,
+   "type": "hypopnea",
+   "durSec": 37,
+   "desatPct": 8.9,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631408585.6924,
+   "relSec": 1308.6,
+   "type": "apnea",
+   "durSec": 22,
+   "desatPct": 7.6,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631473590.5503,
+   "relSec": 1373.6,
+   "type": "hypopnea",
+   "durSec": 35,
+   "desatPct": 7.5,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631477220.2236,
+   "relSec": 1377.2,
+   "type": "apnea",
+   "durSec": 36,
+   "desatPct": 13.1,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631560700.6816,
+   "relSec": 1460.7,
+   "type": "apnea",
+   "durSec": 28,
+   "desatPct": 9.7,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631565751.5552,
+   "relSec": 1465.8,
+   "type": "apnea",
+   "durSec": 34,
+   "desatPct": 12.1,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631651440.4866,
+   "relSec": 1551.4,
+   "type": "apnea",
+   "durSec": 29,
+   "desatPct": 10.9,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631797365.5144,
+   "relSec": 1697.4,
+   "type": "hypopnea",
+   "durSec": 28,
+   "desatPct": 5.5,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631874527.2458,
+   "relSec": 1774.5,
+   "type": "apnea",
+   "durSec": 30,
+   "desatPct": 9.8,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631888105.3193,
+   "relSec": 1788.1,
+   "type": "apnea",
+   "durSec": 29,
+   "desatPct": 9,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778631954531.3772,
+   "relSec": 1854.5,
+   "type": "apnea",
+   "durSec": 34,
+   "desatPct": 12,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632124770.1519,
+   "relSec": 2024.8,
+   "type": "apnea",
+   "durSec": 33,
+   "desatPct": 11.5,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632191196.21,
+   "relSec": 2091.2,
+   "type": "apnea",
+   "durSec": 28,
+   "desatPct": 9.5,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632268357.9414,
+   "relSec": 2168.4,
+   "type": "apnea",
+   "durSec": 23,
+   "desatPct": 6.1,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632361434.9846,
+   "relSec": 2261.4,
+   "type": "hypopnea",
+   "durSec": 36,
+   "desatPct": 8.9,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632449966.316,
+   "relSec": 2350,
+   "type": "apnea",
+   "durSec": 30,
+   "desatPct": 8.1,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632505022.774,
+   "relSec": 2405,
+   "type": "apnea",
+   "durSec": 20,
+   "desatPct": 7,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632570814.9055,
+   "relSec": 2470.8,
+   "type": "hypopnea",
+   "durSec": 29,
+   "desatPct": 7.5,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632649397.837,
+   "relSec": 2549.4,
+   "type": "hypopnea",
+   "durSec": 20,
+   "desatPct": 5.6,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632686631.1487,
+   "relSec": 2586.6,
+   "type": "hypopnea",
+   "durSec": 29,
+   "desatPct": 7,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632765214.08,
+   "relSec": 2665.2,
+   "type": "apnea",
+   "durSec": 20,
+   "desatPct": 7.7,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632831006.2117,
+   "relSec": 2731,
+   "type": "apnea",
+   "durSec": 23,
+   "desatPct": 9.4,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632886062.6697,
+   "relSec": 2786.1,
+   "type": "hypopnea",
+   "durSec": 20,
+   "desatPct": 5.2,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778632951854.801,
+   "relSec": 2851.9,
+   "type": "hypopnea",
+   "durSec": 32,
+   "desatPct": 6.2,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633034701.3325,
+   "relSec": 2934.7,
+   "type": "hypopnea",
+   "durSec": 29,
+   "desatPct": 8.9,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633067671.0442,
+   "relSec": 2967.7,
+   "type": "apnea",
+   "durSec": 23,
+   "desatPct": 8.9,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633113284.264,
+   "relSec": 3013.3,
+   "type": "apnea",
+   "durSec": 25,
+   "desatPct": 9.6,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633137726.7756,
+   "relSec": 3037.7,
+   "type": "apnea",
+   "durSec": 21,
+   "desatPct": 5.5,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633186182.3955,
+   "relSec": 3086.2,
+   "type": "apnea",
+   "durSec": 39,
+   "desatPct": 14.7,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633278977.327,
+   "relSec": 3179,
+   "type": "hypopnea",
+   "durSec": 29,
+   "desatPct": 7.8,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633357560.2583,
+   "relSec": 3257.6,
+   "type": "apnea",
+   "durSec": 25,
+   "desatPct": 8.1,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633374391.6084,
+   "relSec": 3274.4,
+   "type": "apnea",
+   "durSec": 39,
+   "desatPct": 13.6,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633430458.39,
+   "relSec": 3330.5,
+   "type": "hypopnea",
+   "durSec": 35,
+   "desatPct": 8.3,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633517568.5212,
+   "relSec": 3417.6,
+   "type": "hypopnea",
+   "durSec": 36,
+   "desatPct": 9.6,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633606099.8528,
+   "relSec": 3506.1,
+   "type": "apnea",
+   "durSec": 33,
+   "desatPct": 9.6,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633611056.441,
+   "relSec": 3511.1,
+   "type": "hypopnea",
+   "durSec": 28,
+   "desatPct": 8.1,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633683266.6174,
+   "relSec": 3583.3,
+   "type": "apnea",
+   "durSec": 21,
+   "desatPct": 6.1,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633746166.794,
+   "relSec": 3646.2,
+   "type": "apnea",
+   "durSec": 19,
+   "desatPct": 5.2,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633806406.9705,
+   "relSec": 3706.4,
+   "type": "apnea",
+   "durSec": 29,
+   "desatPct": 10.3,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778633827577.6372,
+   "relSec": 3727.6,
+   "type": "hypopnea",
+   "durSec": 26,
+   "desatPct": 7.2,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634027884.755,
+   "relSec": 3927.9,
+   "type": "hypopnea",
+   "durSec": 21,
+   "desatPct": 4.7,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634049055.4219,
+   "relSec": 3949.1,
+   "type": "apnea",
+   "durSec": 34,
+   "desatPct": 10.7,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634129245.5984,
+   "relSec": 4029.2,
+   "type": "apnea",
+   "durSec": 39,
+   "desatPct": 13.3,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634249362.5396,
+   "relSec": 4149.4,
+   "type": "hypopnea",
+   "durSec": 28,
+   "desatPct": 6,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634321572.716,
+   "relSec": 4221.6,
+   "type": "apnea",
+   "durSec": 35,
+   "desatPct": 11.7,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634350723.3828,
+   "relSec": 4250.7,
+   "type": "apnea",
+   "durSec": 18,
+   "desatPct": 7,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634403092.8926,
+   "relSec": 4303.1,
+   "type": "apnea",
+   "durSec": 24,
+   "desatPct": 10.1,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634409633.5593,
+   "relSec": 4309.6,
+   "type": "apnea",
+   "durSec": 30,
+   "desatPct": 9.5,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634469983.069,
+   "relSec": 4370,
+   "type": "apnea",
+   "durSec": 40,
+   "desatPct": 13.1,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634484503.7358,
+   "relSec": 4384.5,
+   "type": "apnea",
+   "durSec": 30,
+   "desatPct": 9.8,
+   "meta": {
+    "rem": 0.2,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634558153.2456,
+   "relSec": 4458.2,
+   "type": "apnea",
+   "durSec": 38,
+   "desatPct": 13.1,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634559373.9124,
+   "relSec": 4459.4,
+   "type": "apnea",
+   "durSec": 36,
+   "desatPct": 13.4,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634634748.885,
+   "relSec": 4534.7,
+   "type": "hypopnea",
+   "durSec": 19,
+   "desatPct": 5.3,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634635948.218,
+   "relSec": 4535.9,
+   "type": "apnea",
+   "durSec": 36,
+   "desatPct": 12.6,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634711323.1907,
+   "relSec": 4611.3,
+   "type": "apnea",
+   "durSec": 35,
+   "desatPct": 10.8,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634836243.7117,
+   "relSec": 4736.2,
+   "type": "hypopnea",
+   "durSec": 25,
+   "desatPct": 6.5,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634912818.0173,
+   "relSec": 4812.8,
+   "type": "hypopnea",
+   "durSec": 37,
+   "desatPct": 9.3,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778634989402.99,
+   "relSec": 4889.4,
+   "type": "apnea",
+   "durSec": 36,
+   "desatPct": 12.8,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635037738.538,
+   "relSec": 4937.7,
+   "type": "hypopnea",
+   "durSec": 33,
+   "desatPct": 7,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635064777.9624,
+   "relSec": 4964.8,
+   "type": "apnea",
+   "durSec": 30,
+   "desatPct": 11.2,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635132892.935,
+   "relSec": 5032.9,
+   "type": "apnea",
+   "durSec": 32,
+   "desatPct": 12,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635203427.9077,
+   "relSec": 5103.4,
+   "type": "apnea",
+   "durSec": 19,
+   "desatPct": 8.1,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635239233.3647,
+   "relSec": 5139.2,
+   "type": "apnea",
+   "durSec": 35,
+   "desatPct": 10.5,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635258232.8804,
+   "relSec": 5158.2,
+   "type": "hypopnea",
+   "durSec": 36,
+   "desatPct": 8.8,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635313398.3372,
+   "relSec": 5213.4,
+   "type": "hypopnea",
+   "durSec": 35,
+   "desatPct": 8.5,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635459727.7068,
+   "relSec": 5359.7,
+   "type": "hypopnea",
+   "durSec": 34,
+   "desatPct": 9,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635514893.1638,
+   "relSec": 5414.9,
+   "type": "apnea",
+   "durSec": 33,
+   "desatPct": 9.5,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635661222.5334,
+   "relSec": 5561.2,
+   "type": "apnea",
+   "durSec": 38,
+   "desatPct": 13.6,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635716387.9902,
+   "relSec": 5616.4,
+   "type": "apnea",
+   "durSec": 40,
+   "desatPct": 13.7,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635862717.3599,
+   "relSec": 5762.7,
+   "type": "apnea",
+   "durSec": 34,
+   "desatPct": 12,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635917882.817,
+   "relSec": 5817.9,
+   "type": "hypopnea",
+   "durSec": 24,
+   "desatPct": 7.1,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635947624.8894,
+   "relSec": 5847.6,
+   "type": "apnea",
+   "durSec": 19,
+   "desatPct": 7,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778635988707.9463,
+   "relSec": 5888.7,
+   "type": "hypopnea",
+   "durSec": 38,
+   "desatPct": 9.9,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636011408.8188,
+   "relSec": 5911.4,
+   "type": "apnea",
+   "durSec": 29,
+   "desatPct": 9.5,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636089275.1482,
+   "relSec": 5989.3,
+   "type": "hypopnea",
+   "durSec": 24,
+   "desatPct": 7.1,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636160100.2778,
+   "relSec": 6060.1,
+   "type": "apnea",
+   "durSec": 32,
+   "desatPct": 11.2,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636223214.6194,
+   "relSec": 6123.2,
+   "type": "apnea",
+   "durSec": 37,
+   "desatPct": 14.4,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636312346.869,
+   "relSec": 6212.3,
+   "type": "apnea",
+   "durSec": 21,
+   "desatPct": 6.9,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636394606.951,
+   "relSec": 6294.6,
+   "type": "apnea",
+   "durSec": 37,
+   "desatPct": 13.3,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636483739.2004,
+   "relSec": 6383.7,
+   "type": "apnea",
+   "durSec": 30,
+   "desatPct": 10.6,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636546853.542,
+   "relSec": 6446.9,
+   "type": "apnea",
+   "durSec": 24,
+   "desatPct": 8.8,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636563013.7698,
+   "relSec": 6463,
+   "type": "apnea",
+   "durSec": 26,
+   "desatPct": 8.7,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636617678.6716,
+   "relSec": 6517.7,
+   "type": "hypopnea",
+   "durSec": 35,
+   "desatPct": 8.8,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636636655.3792,
+   "relSec": 6536.7,
+   "type": "apnea",
+   "durSec": 39,
+   "desatPct": 13.5,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636703994.441,
+   "relSec": 6604,
+   "type": "apnea",
+   "durSec": 26,
+   "desatPct": 9,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636728604.1086,
+   "relSec": 6628.6,
+   "type": "apnea",
+   "durSec": 23,
+   "desatPct": 6.5,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636777636.0503,
+   "relSec": 6677.6,
+   "type": "apnea",
+   "durSec": 39,
+   "desatPct": 13.6,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778636798020.998,
+   "relSec": 6698,
+   "type": "hypopnea",
+   "durSec": 22,
+   "desatPct": 5.3,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637012142.7236,
+   "relSec": 6912.1,
+   "type": "hypopnea",
+   "durSec": 36,
+   "desatPct": 10.2,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637032527.6714,
+   "relSec": 6932.5,
+   "type": "apnea",
+   "durSec": 24,
+   "desatPct": 9.5,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637103352.8008,
+   "relSec": 7003.4,
+   "type": "apnea",
+   "durSec": 25,
+   "desatPct": 8.1,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637246649.3967,
+   "relSec": 7146.6,
+   "type": "hypopnea",
+   "durSec": 32,
+   "desatPct": 7.7,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637337859.4739,
+   "relSec": 7237.9,
+   "type": "apnea",
+   "durSec": 39,
+   "desatPct": 15,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637429808.2034,
+   "relSec": 7329.8,
+   "type": "apnea",
+   "durSec": 26,
+   "desatPct": 10,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637481156.0698,
+   "relSec": 7381.2,
+   "type": "apnea",
+   "durSec": 39,
+   "desatPct": 13.9,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637503449.8127,
+   "relSec": 7403.4,
+   "type": "hypopnea",
+   "durSec": 30,
+   "desatPct": 5.3,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637573104.7993,
+   "relSec": 7473.1,
+   "type": "apnea",
+   "durSec": 19,
+   "desatPct": 5.8,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637737956.4858,
+   "relSec": 7638,
+   "type": "apnea",
+   "durSec": 40,
+   "desatPct": 11.2,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637807611.4724,
+   "relSec": 7707.6,
+   "type": "apnea",
+   "durSec": 32,
+   "desatPct": 12,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637831313.4553,
+   "relSec": 7731.3,
+   "type": "hypopnea",
+   "durSec": 33,
+   "desatPct": 7.6,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778637914812.7449,
+   "relSec": 7814.8,
+   "type": "apnea",
+   "durSec": 39,
+   "desatPct": 12.6,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638006761.4744,
+   "relSec": 7906.8,
+   "type": "apnea",
+   "durSec": 38,
+   "desatPct": 12.8,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638042118.1458,
+   "relSec": 7942.1,
+   "type": "apnea",
+   "durSec": 35,
+   "desatPct": 10.9,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638128433.915,
+   "relSec": 8028.4,
+   "type": "hypopnea",
+   "durSec": 30,
+   "desatPct": 8.9,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638207708.4846,
+   "relSec": 8107.7,
+   "type": "hypopnea",
+   "durSec": 39,
+   "desatPct": 10.5,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638241268.1475,
+   "relSec": 8141.3,
+   "type": "apnea",
+   "durSec": 35,
+   "desatPct": 10.1,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638299657.2139,
+   "relSec": 8199.7,
+   "type": "hypopnea",
+   "durSec": 40,
+   "desatPct": 11,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638327583.917,
+   "relSec": 8227.6,
+   "type": "apnea",
+   "durSec": 20,
+   "desatPct": 7.1,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638534163.8872,
+   "relSec": 8434.2,
+   "type": "apnea",
+   "durSec": 27,
+   "desatPct": 8,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638562090.59,
+   "relSec": 8462.1,
+   "type": "apnea",
+   "durSec": 38,
+   "desatPct": 12.3,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638609213.7366,
+   "relSec": 8509.2,
+   "type": "apnea",
+   "durSec": 33,
+   "desatPct": 10.3,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638796597.2632,
+   "relSec": 8696.6,
+   "type": "apnea",
+   "durSec": 35,
+   "desatPct": 12,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638843720.4097,
+   "relSec": 8743.7,
+   "type": "hypopnea",
+   "durSec": 30,
+   "desatPct": 6.7,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638882913.0327,
+   "relSec": 8782.9,
+   "type": "apnea",
+   "durSec": 20,
+   "desatPct": 7.7,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778638948105.2021,
+   "relSec": 8848.1,
+   "type": "apnea",
+   "durSec": 22,
+   "desatPct": 7.7,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639078227.083,
+   "relSec": 8978.2,
+   "type": "hypopnea",
+   "durSec": 36,
+   "desatPct": 7.2,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639165951.0923,
+   "relSec": 9066,
+   "type": "apnea",
+   "durSec": 40,
+   "desatPct": 13.3,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639182611.8752,
+   "relSec": 9082.6,
+   "type": "apnea",
+   "durSec": 20,
+   "desatPct": 7.2,
+   "meta": {
+    "rem": 0.07,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639400457.7656,
+   "relSec": 9300.5,
+   "type": "apnea",
+   "durSec": 21,
+   "desatPct": 10.4,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639417118.5483,
+   "relSec": 9317.1,
+   "type": "hypopnea",
+   "durSec": 22,
+   "desatPct": 6.9,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639478740.883,
+   "relSec": 9378.7,
+   "type": "hypopnea",
+   "durSec": 24,
+   "desatPct": 6.6,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639612943.219,
+   "relSec": 9512.9,
+   "type": "apnea",
+   "durSec": 29,
+   "desatPct": 8.9,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639683497.5537,
+   "relSec": 9583.5,
+   "type": "apnea",
+   "durSec": 25,
+   "desatPct": 8.2,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639691226.3367,
+   "relSec": 9591.2,
+   "type": "apnea",
+   "durSec": 19,
+   "desatPct": 7.3,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639748947.8884,
+   "relSec": 9648.9,
+   "type": "hypopnea",
+   "durSec": 21,
+   "desatPct": 7.1,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639903711.79,
+   "relSec": 9803.7,
+   "type": "apnea",
+   "durSec": 37,
+   "desatPct": 11,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778639961433.3418,
+   "relSec": 9861.4,
+   "type": "apnea",
+   "durSec": 27,
+   "desatPct": 8.3,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640029435.6768,
+   "relSec": 9929.4,
+   "type": "hypopnea",
+   "durSec": 26,
+   "desatPct": 7.5,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640096162.0115,
+   "relSec": 9996.2,
+   "type": "hypopnea",
+   "durSec": 24,
+   "desatPct": 5.9,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640116197.2434,
+   "relSec": 10016.2,
+   "type": "apnea",
+   "durSec": 36,
+   "desatPct": 10.7,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640195683.5781,
+   "relSec": 10095.7,
+   "type": "apnea",
+   "durSec": 29,
+   "desatPct": 10.3,
+   "meta": {
+    "rem": 0.29,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640308647.4648,
+   "relSec": 10208.6,
+   "type": "apnea",
+   "durSec": 22,
+   "desatPct": 8.1,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640361866.754,
+   "relSec": 10261.9,
+   "type": "apnea",
+   "durSec": 26,
+   "desatPct": 7.3,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640408169.0317,
+   "relSec": 10308.2,
+   "type": "apnea",
+   "durSec": 39,
+   "desatPct": 13.1,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640419494.043,
+   "relSec": 10319.5,
+   "type": "hypopnea",
+   "durSec": 37,
+   "desatPct": 8.6,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640480122.3208,
+   "relSec": 10380.1,
+   "type": "hypopnea",
+   "durSec": 29,
+   "desatPct": 7.3,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640489243.3323,
+   "relSec": 10389.2,
+   "type": "apnea",
+   "durSec": 35,
+   "desatPct": 12.2,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640541055.6099,
+   "relSec": 10441.1,
+   "type": "apnea",
+   "durSec": 31,
+   "desatPct": 10.2,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640556788.6213,
+   "relSec": 10456.8,
+   "type": "apnea",
+   "durSec": 24,
+   "desatPct": 8.7,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640612211.9104,
+   "relSec": 10512.2,
+   "type": "apnea",
+   "durSec": 23,
+   "desatPct": 8.5,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640666533.1995,
+   "relSec": 10566.5,
+   "type": "apnea",
+   "durSec": 27,
+   "desatPct": 7.8,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640724565.7742,
+   "relSec": 10624.6,
+   "type": "apnea",
+   "durSec": 26,
+   "desatPct": 6.9,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640850043.3638,
+   "relSec": 10750,
+   "type": "apnea",
+   "durSec": 25,
+   "desatPct": 8.8,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640908075.9385,
+   "relSec": 10808.1,
+   "type": "apnea",
+   "durSec": 33,
+   "desatPct": 10.8,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778640973417.2275,
+   "relSec": 10873.4,
+   "type": "apnea",
+   "durSec": 30,
+   "desatPct": 12.2,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778641033553.528,
+   "relSec": 10933.6,
+   "type": "hypopnea",
+   "durSec": 18,
+   "desatPct": 6.6,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778641082364.8171,
+   "relSec": 10982.4,
+   "type": "hypopnea",
+   "durSec": 32,
+   "desatPct": 9.7,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778641156927.392,
+   "relSec": 11056.9,
+   "type": "apnea",
+   "durSec": 34,
+   "desatPct": 9.6,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778641223370.6812,
+   "relSec": 11123.4,
+   "type": "apnea",
+   "durSec": 18,
+   "desatPct": 5.1,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778641272181.9702,
+   "relSec": 11172.2,
+   "type": "apnea",
+   "durSec": 40,
+   "desatPct": 12.4,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778641455692.1345,
+   "relSec": 11355.7,
+   "type": "apnea",
+   "durSec": 24,
+   "desatPct": 7.9,
+   "meta": {
+    "rem": 0.58,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778641511115.4236,
+   "relSec": 11411.1,
+   "type": "apnea",
+   "durSec": 33,
+   "desatPct": 10.8,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778641593846.271,
+   "relSec": 11493.8,
+   "type": "apnea",
+   "durSec": 36,
+   "desatPct": 12.7,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778641680762.9585,
+   "relSec": 11580.8,
+   "type": "hypopnea",
+   "durSec": 38,
+   "desatPct": 9.3,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778641770470.2058,
+   "relSec": 11670.5,
+   "type": "apnea",
+   "durSec": 29,
+   "desatPct": 10.3,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778642002818.7197,
+   "relSec": 11902.8,
+   "type": "apnea",
+   "durSec": 25,
+   "desatPct": 10,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778642074387.3271,
+   "relSec": 11974.4,
+   "type": "hypopnea",
+   "durSec": 40,
+   "desatPct": 11.1,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778642306735.8408,
+   "relSec": 12206.7,
+   "type": "apnea",
+   "durSec": 34,
+   "desatPct": 12.9,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778642539084.3545,
+   "relSec": 12439.1,
+   "type": "hypopnea",
+   "durSec": 29,
+   "desatPct": 8.4,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778642616234.0818,
+   "relSec": 12516.2,
+   "type": "apnea",
+   "durSec": 28,
+   "desatPct": 10.5,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778642691988.5293,
+   "relSec": 12592,
+   "type": "apnea",
+   "durSec": 25,
+   "desatPct": 6.9,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778642763557.1367,
+   "relSec": 12663.6,
+   "type": "hypopnea",
+   "durSec": 36,
+   "desatPct": 9.5,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778642850473.8242,
+   "relSec": 12750.5,
+   "type": "apnea",
+   "durSec": 36,
+   "desatPct": 12.3,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778643082822.338,
+   "relSec": 12982.8,
+   "type": "apnea",
+   "durSec": 34,
+   "desatPct": 12.5,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778643166948.4653,
+   "relSec": 13066.9,
+   "type": "hypopnea",
+   "durSec": 39,
+   "desatPct": 10.8,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778643258050.9927,
+   "relSec": 13158.1,
+   "type": "hypopnea",
+   "durSec": 38,
+   "desatPct": 7.4,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778643490399.5063,
+   "relSec": 13390.4,
+   "type": "apnea",
+   "durSec": 32,
+   "desatPct": 11.1,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778643722748.02,
+   "relSec": 13622.7,
+   "type": "hypopnea",
+   "durSec": 37,
+   "desatPct": 7.8,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778643811059.9875,
+   "relSec": 13711.1,
+   "type": "apnea",
+   "durSec": 33,
+   "desatPct": 11,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778643893790.835,
+   "relSec": 13793.8,
+   "type": "hypopnea",
+   "durSec": 26,
+   "desatPct": 8.5,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778643966754.7224,
+   "relSec": 13866.8,
+   "type": "apnea",
+   "durSec": 21,
+   "desatPct": 6.1,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778644032742.2097,
+   "relSec": 13932.7,
+   "type": "apnea",
+   "durSec": 20,
+   "desatPct": 8.4,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778644097334.4172,
+   "relSec": 13997.3,
+   "type": "apnea",
+   "durSec": 28,
+   "desatPct": 11.1,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778644329682.931,
+   "relSec": 14229.7,
+   "type": "hypopnea",
+   "durSec": 39,
+   "desatPct": 11.4,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778644420785.4583,
+   "relSec": 14320.8,
+   "type": "apnea",
+   "durSec": 26,
+   "desatPct": 10,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778644653133.972,
+   "relSec": 14553.1,
+   "type": "apnea",
+   "durSec": 21,
+   "desatPct": 5.7,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778644885482.4856,
+   "relSec": 14785.5,
+   "type": "hypopnea",
+   "durSec": 33,
+   "desatPct": 7.1,
+   "meta": {
+    "rem": 0.09,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778644968213.333,
+   "relSec": 14868.2,
+   "type": "apnea",
+   "durSec": 19,
+   "desatPct": 6.4,
+   "meta": {
+    "rem": 0.38,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778645023561.8262,
+   "relSec": 14923.6,
+   "type": "apnea",
+   "durSec": 31,
+   "desatPct": 12.2,
+   "meta": {
+    "rem": 0.38,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778645093574.319,
+   "relSec": 14993.6,
+   "type": "hypopnea",
+   "durSec": 38,
+   "desatPct": 8.6,
+   "meta": {
+    "rem": 0.38,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778645297067.4414,
+   "relSec": 15197.1,
+   "type": "hypopnea",
+   "durSec": 19,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.38,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778645500560.5637,
+   "relSec": 15400.6,
+   "type": "apnea",
+   "durSec": 35,
+   "desatPct": 13.3,
+   "meta": {
+    "rem": 0.38,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778645575461.057,
+   "relSec": 15475.5,
+   "type": "apnea",
+   "durSec": 19,
+   "desatPct": 6.2,
+   "meta": {
+    "rem": 0.38,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778645630809.5498,
+   "relSec": 15530.8,
+   "type": "hypopnea",
+   "durSec": 32,
+   "desatPct": 9.5,
+   "meta": {
+    "rem": 0.38,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778645834302.672,
+   "relSec": 15734.3,
+   "type": "hypopnea",
+   "durSec": 35,
+   "desatPct": 8.6,
+   "meta": {
+    "rem": 0.38,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778646037795.7944,
+   "relSec": 15937.8,
+   "type": "apnea",
+   "durSec": 32,
+   "desatPct": 13.9,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778646095739.4001,
+   "relSec": 15995.7,
+   "type": "apnea",
+   "durSec": 38,
+   "desatPct": 11.7,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778646159647.0056,
+   "relSec": 16059.6,
+   "type": "apnea",
+   "durSec": 36,
+   "desatPct": 11.7,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778646221566.6113,
+   "relSec": 16121.6,
+   "type": "hypopnea",
+   "durSec": 20,
+   "desatPct": 6.6,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778646267582.2168,
+   "relSec": 16167.6,
+   "type": "hypopnea",
+   "durSec": 27,
+   "desatPct": 7.1,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778646433107.719,
+   "relSec": 16333.1,
+   "type": "apnea",
+   "durSec": 33,
+   "desatPct": 12,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778646598633.2212,
+   "relSec": 16498.6,
+   "type": "hypopnea",
+   "durSec": 31,
+   "desatPct": 7.1,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778646655582.8267,
+   "relSec": 16555.6,
+   "type": "hypopnea",
+   "durSec": 21,
+   "desatPct": 4.1,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778646821108.3289,
+   "relSec": 16721.1,
+   "type": "hypopnea",
+   "durSec": 30,
+   "desatPct": 7.1,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778646986633.831,
+   "relSec": 16886.6,
+   "type": "hypopnea",
+   "durSec": 30,
+   "desatPct": 5.8,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778647152159.333,
+   "relSec": 17052.2,
+   "type": "hypopnea",
+   "durSec": 20,
+   "desatPct": 3.7,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778647198174.9387,
+   "relSec": 17098.2,
+   "type": "apnea",
+   "durSec": 36,
+   "desatPct": 11,
+   "meta": {
+    "rem": 0.76,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778647260094.5444,
+   "relSec": 17160.1,
+   "type": "apnea",
+   "durSec": 38,
+   "desatPct": 12.5,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778647490284.8984,
+   "relSec": 17390.3,
+   "type": "apnea",
+   "durSec": 28,
+   "desatPct": 8.7,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778647565335.7039,
+   "relSec": 17465.3,
+   "type": "apnea",
+   "durSec": 35,
+   "desatPct": 13.2,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778647795526.058,
+   "relSec": 17695.5,
+   "type": "apnea",
+   "durSec": 22,
+   "desatPct": 6.5,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778648025716.4124,
+   "relSec": 17925.7,
+   "type": "hypopnea",
+   "durSec": 22,
+   "desatPct": 4.4,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778648092473.2979,
+   "relSec": 17992.5,
+   "type": "apnea",
+   "durSec": 40,
+   "desatPct": 15,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778648184111.943,
+   "relSec": 18084.1,
+   "type": "hypopnea",
+   "durSec": 35,
+   "desatPct": 9.1,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778648268838.9885,
+   "relSec": 18168.8,
+   "type": "hypopnea",
+   "durSec": 31,
+   "desatPct": 8.3,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778648348036.7542,
+   "relSec": 18248,
+   "type": "apnea",
+   "durSec": 31,
+   "desatPct": 9.4,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778648427234.5195,
+   "relSec": 18327.2,
+   "type": "hypopnea",
+   "durSec": 34,
+   "desatPct": 9.3,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778648510579.2449,
+   "relSec": 18410.6,
+   "type": "apnea",
+   "durSec": 26,
+   "desatPct": 8.2,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778648740769.599,
+   "relSec": 18640.8,
+   "type": "hypopnea",
+   "durSec": 38,
+   "desatPct": 9.1,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778648829643.6045,
+   "relSec": 18729.6,
+   "type": "hypopnea",
+   "durSec": 36,
+   "desatPct": 11.2,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778649059833.9587,
+   "relSec": 18959.8,
+   "type": "apnea",
+   "durSec": 40,
+   "desatPct": 15,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778649151472.604,
+   "relSec": 19051.5,
+   "type": "apnea",
+   "durSec": 20,
+   "desatPct": 5.7,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778649215464.8496,
+   "relSec": 19115.5,
+   "type": "hypopnea",
+   "durSec": 23,
+   "desatPct": 5.1,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778649283604.055,
+   "relSec": 19183.6,
+   "type": "apnea",
+   "durSec": 39,
+   "desatPct": 13.5,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778649373860.3804,
+   "relSec": 19273.9,
+   "type": "apnea",
+   "durSec": 29,
+   "desatPct": 9.7,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778649604050.7346,
+   "relSec": 19504.1,
+   "type": "apnea",
+   "durSec": 23,
+   "desatPct": 9.3,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778649672189.94,
+   "relSec": 19572.2,
+   "type": "hypopnea",
+   "durSec": 33,
+   "desatPct": 8.3,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778649902380.2942,
+   "relSec": 19802.4,
+   "type": "apnea",
+   "durSec": 22,
+   "desatPct": 8.2,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778650132570.6484,
+   "relSec": 20032.6,
+   "type": "apnea",
+   "durSec": 19,
+   "desatPct": 5.2,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778650362761.0027,
+   "relSec": 20262.8,
+   "type": "apnea",
+   "durSec": 31,
+   "desatPct": 10.6,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778650592951.357,
+   "relSec": 20493,
+   "type": "apnea",
+   "durSec": 23,
+   "desatPct": 6.1,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778650661090.5623,
+   "relSec": 20561.1,
+   "type": "apnea",
+   "durSec": 21,
+   "desatPct": 7.2,
+   "meta": {
+    "rem": 0.47,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778650716329.2136,
+   "relSec": 20616.3,
+   "type": "apnea",
+   "durSec": 18,
+   "desatPct": 4.5,
+   "meta": {
+    "rem": 0.47,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778650910830.005,
+   "relSec": 20810.8,
+   "type": "hypopnea",
+   "durSec": 21,
+   "desatPct": 4.1,
+   "meta": {
+    "rem": 0.47,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778651105330.796,
+   "relSec": 21005.3,
+   "type": "apnea",
+   "durSec": 22,
+   "desatPct": 6.1,
+   "meta": {
+    "rem": 0.47,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778651299831.5872,
+   "relSec": 21199.8,
+   "type": "apnea",
+   "durSec": 32,
+   "desatPct": 12,
+   "meta": {
+    "rem": 0.47,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778651494332.3784,
+   "relSec": 21394.3,
+   "type": "hypopnea",
+   "durSec": 40,
+   "desatPct": 9.2,
+   "meta": {
+    "rem": 0.47,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778651571763.0298,
+   "relSec": 21471.8,
+   "type": "apnea",
+   "durSec": 25,
+   "desatPct": 7.3,
+   "meta": {
+    "rem": 0.47,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778651631673.681,
+   "relSec": 21531.7,
+   "type": "hypopnea",
+   "durSec": 26,
+   "desatPct": 5.3,
+   "meta": {
+    "rem": 0.47,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778651692752.3323,
+   "relSec": 21592.8,
+   "type": "hypopnea",
+   "durSec": 38,
+   "desatPct": 11.2,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778651749716.2544,
+   "relSec": 21649.7,
+   "type": "hypopnea",
+   "durSec": 31,
+   "desatPct": 7,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778651800478.1765,
+   "relSec": 21700.5,
+   "type": "hypopnea",
+   "durSec": 29,
+   "desatPct": 6.1,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778651849468.0984,
+   "relSec": 21749.5,
+   "type": "apnea",
+   "durSec": 37,
+   "desatPct": 11.4,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778651905546.0205,
+   "relSec": 21805.5,
+   "type": "apnea",
+   "durSec": 19,
+   "desatPct": 6.8,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652053086.8606,
+   "relSec": 21953.1,
+   "type": "apnea",
+   "durSec": 19,
+   "desatPct": 8.1,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652093216.7827,
+   "relSec": 21993.2,
+   "type": "apnea",
+   "durSec": 27,
+   "desatPct": 8.3,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652140434.7046,
+   "relSec": 22040.4,
+   "type": "hypopnea",
+   "durSec": 23,
+   "desatPct": 5.9,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652184108.6267,
+   "relSec": 22084.1,
+   "type": "hypopnea",
+   "durSec": 22,
+   "desatPct": 3.9,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652226896.5488,
+   "relSec": 22126.9,
+   "type": "apnea",
+   "durSec": 23,
+   "desatPct": 7.7,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652270570.471,
+   "relSec": 22170.6,
+   "type": "hypopnea",
+   "durSec": 21,
+   "desatPct": 5.8,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652312472.393,
+   "relSec": 22212.5,
+   "type": "apnea",
+   "durSec": 24,
+   "desatPct": 7.9,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652357032.3152,
+   "relSec": 22257,
+   "type": "hypopnea",
+   "durSec": 27,
+   "desatPct": 8.2,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652404250.2373,
+   "relSec": 22304.3,
+   "type": "hypopnea",
+   "durSec": 39,
+   "desatPct": 8,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652462100.1594,
+   "relSec": 22362.1,
+   "type": "apnea",
+   "durSec": 27,
+   "desatPct": 8,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652509318.0815,
+   "relSec": 22409.3,
+   "type": "apnea",
+   "durSec": 28,
+   "desatPct": 9.4,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652656858.9214,
+   "relSec": 22556.9,
+   "type": "apnea",
+   "durSec": 30,
+   "desatPct": 9.7,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652804399.7612,
+   "relSec": 22704.4,
+   "type": "hypopnea",
+   "durSec": 39,
+   "desatPct": 8,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778652862249.6833,
+   "relSec": 22762.2,
+   "type": "apnea",
+   "durSec": 31,
+   "desatPct": 9.4,
+   "meta": {
+    "rem": 0.94,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778653009790.5234,
+   "relSec": 22909.8,
+   "type": "hypopnea",
+   "durSec": 33,
+   "desatPct": 9.1,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778653091496.7815,
+   "relSec": 22991.5,
+   "type": "hypopnea",
+   "durSec": 21,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778653320967.749,
+   "relSec": 23221,
+   "type": "hypopnea",
+   "durSec": 37,
+   "desatPct": 8.8,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778653408186.0073,
+   "relSec": 23308.2,
+   "type": "apnea",
+   "durSec": 27,
+   "desatPct": 7,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778653481624.2654,
+   "relSec": 23381.6,
+   "type": "hypopnea",
+   "durSec": 33,
+   "desatPct": 7.2,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778653711095.233,
+   "relSec": 23611.1,
+   "type": "hypopnea",
+   "durSec": 28,
+   "desatPct": 7.7,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778653785911.491,
+   "relSec": 23685.9,
+   "type": "hypopnea",
+   "durSec": 38,
+   "desatPct": 10.9,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778653874507.749,
+   "relSec": 23774.5,
+   "type": "hypopnea",
+   "durSec": 24,
+   "desatPct": 6.8,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778654103978.7168,
+   "relSec": 24004,
+   "type": "apnea",
+   "durSec": 30,
+   "desatPct": 10.6,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778654333449.6846,
+   "relSec": 24233.4,
+   "type": "hypopnea",
+   "durSec": 37,
+   "desatPct": 8.9,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778654562920.6523,
+   "relSec": 24462.9,
+   "type": "apnea",
+   "durSec": 35,
+   "desatPct": 11.9,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778654647382.9104,
+   "relSec": 24547.4,
+   "type": "apnea",
+   "durSec": 29,
+   "desatPct": 9.2,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778654723577.1685,
+   "relSec": 24623.6,
+   "type": "apnea",
+   "durSec": 30,
+   "desatPct": 8.6,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778654801149.4265,
+   "relSec": 24701.1,
+   "type": "apnea",
+   "durSec": 26,
+   "desatPct": 6.7,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778655030620.3943,
+   "relSec": 24930.6,
+   "type": "apnea",
+   "durSec": 24,
+   "desatPct": 9.6,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778655099924.6523,
+   "relSec": 24999.9,
+   "type": "apnea",
+   "durSec": 32,
+   "desatPct": 12.9,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778655180252.9104,
+   "relSec": 25080.3,
+   "type": "apnea",
+   "durSec": 36,
+   "desatPct": 11,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778655266093.1685,
+   "relSec": 25166.1,
+   "type": "apnea",
+   "durSec": 27,
+   "desatPct": 6.9,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778655495564.1362,
+   "relSec": 25395.6,
+   "type": "apnea",
+   "durSec": 25,
+   "desatPct": 8.3,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778655725035.104,
+   "relSec": 25625,
+   "type": "apnea",
+   "durSec": 32,
+   "desatPct": 13.8,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778655805363.362,
+   "relSec": 25705.4,
+   "type": "apnea",
+   "durSec": 37,
+   "desatPct": 12.1,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778655892581.62,
+   "relSec": 25792.6,
+   "type": "apnea",
+   "durSec": 26,
+   "desatPct": 9.5,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778655964641.8782,
+   "relSec": 25864.6,
+   "type": "apnea",
+   "durSec": 39,
+   "desatPct": 13,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778656194112.846,
+   "relSec": 26094.1,
+   "type": "apnea",
+   "durSec": 21,
+   "desatPct": 7.2,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778656259283.104,
+   "relSec": 26159.3,
+   "type": "apnea",
+   "durSec": 25,
+   "desatPct": 8.3,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  }
+ ],
+ "periodicBreathing": [
+  {
+   "t0Ms": 1778641620000,
+   "cycleSec": 58,
+   "nCyc": 8,
+   "ampPct": 3.5
+  },
+  {
+   "t0Ms": 1778648400000,
+   "cycleSec": 64,
+   "nCyc": 5,
+   "ampPct": 2.6
+  }
+ ]
+}

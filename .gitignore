@@ -15,6 +15,23 @@
 #   Future exports should scrub filenames at the ingest boundary — EXPORT-IDENTITY-BRIEF.md.
 uploads/*
 
+# PAPER-ODI4-REPRODUCIBILITY §4 — the SubjectA pilot corpus behind papers/odi4-ahi-bias.html.
+# SYNTHETIC (synth-gen, seed 424242, VERSION synth-gen/2.1) so there is NO privacy bar, unlike the real
+# recordings this file otherwise excludes. Committed as BYTES, not as a regeneration recipe: §4 allowed
+# either, but a recorded seed alone is effectively what existed before — and it failed silently when the
+# generator moved, which is why Table 1 stopped reproducing and its corpus "cannot be recovered". Bytes
+# cannot move without a diff.
+!uploads/O2Ring S 2100_20260511231000.csv
+!uploads/O2Ring S 2100_20260512235500.csv
+!uploads/O2Ring S 2100_20260513225000.csv
+!uploads/O2Ring S 2100_20260514230500.csv
+!uploads/O2Ring S 2100_20260515232000.csv
+!uploads/ground_truth_night1.json
+!uploads/ground_truth_night2.json
+!uploads/ground_truth_night3.json
+!uploads/ground_truth_night4.json
+!uploads/ground_truth_night5.json
+
 # verify-provenance GATE B fixtures (== FIXTURE-PROVENANCE.json "fixtures" keys):
 !uploads/OxyDex_2026-06-13_1056_summary.json
 !uploads/OxyDex_2026-06-25_0439_summary.json
