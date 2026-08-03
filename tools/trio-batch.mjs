@@ -1320,6 +1320,35 @@ for (const p of work) {
   const mergePpg = (recs) => {
     recs = recs.filter((r) => r && r.n && r.t0Ms != null).sort((a, b) => a.t0Ms - b.t0Ms);
     if (recs.length <= 1) return recs[0] || null;
+    /* SESSIONS AT DIFFERENT SAMPLE RATES MUST NOT SHARE A GRID. This merge concatenates samples and
+       stamps ONE `fs`; it used to take `recs[0].fs` and validate only channel count and site, so a
+       night whose rate changed mid-way was merged under the FIRST fragment's rate.
+    
+       Measured 2026-08-03. The Verity moved 55 Hz -> 176 Hz at 21:54; the fold merged 18 sessions
+       spanning both and declared fs = 55 over data that was mostly 176 Hz. Beat detection derives its
+       refractory window in SAMPLES from `fs`, so the window came out 3.2x too short in real time, a
+       second peak per cardiac cycle was accepted, and the night's mean HR exported as **108.6 bpm
+       against the chest ECG's 52.1** — a clean 2.08x. Nothing errored. The three-cornered hat then
+       faithfully reported the Verity as the night's worst sensor (sigma 3.37 bpm) on a doubled series,
+       which is how a fold bug turns into a false finding about hardware.
+    
+       DROP the minority-rate sessions rather than throw: the ECG path refuses outright, but here the
+       dominant rate usually carries almost the whole night, and refusing would discard a good recording
+       over a few minutes of pre-sleep fragments. Keep the LONGEST session's rate (by samples, not by
+       being first — the stray fragment is often earliest), and say what was dropped. */
+    const domFs = recs.reduce((a, b) => (b.n > a.n ? b : a), recs[0]).fs;
+    const rateOk = (r) => !(r.fs > 0) || !(domFs > 0) || Math.abs(r.fs - domFs) / domFs <= 0.05;
+    const offRate = recs.filter((r) => !rateOk(r));
+    if (offRate.length) {
+      const secs = offRate.reduce((t, r) => t + (r.n / (r.fs || domFs || 1)), 0);
+      console.warn(
+        `  ⚠ PPG merge: dropped ${offRate.length} session(s) at a different sample rate ` +
+          `(${[...new Set(offRate.map((r) => (r.fs || 0).toFixed(1)))].join('/')} Hz vs ${domFs.toFixed(1)} Hz, ` +
+          `${(secs / 60).toFixed(1)} min) — merging them would mis-time beat detection`
+      );
+      recs = recs.filter(rateOk);
+      if (recs.length <= 1) return recs[0] || null;
+    }
     const base = recs[0];
     const nch = base.ch.length;
     const bad = recs.find((r) => r.ch.length !== nch || r.site !== base.site);
@@ -1427,7 +1456,13 @@ for (const p of work) {
           .filter((a) => a && a.acc && a.acc.length && a.acc[0].tsMs != null)
           .sort((x, y) => x.acc[0].tsMs - y.acc[0].tsMs);
         if (accRecs.length) {
-          const fsAcc = accRecs[0].accFs || 51;
+          /* The FINEST rate present, not the first session's. The grid index is a time, so mixed
+             rates align by construction — but the RESOLUTION must be able to hold the fastest stream
+             or two of its samples round to the same slot and one is silently overwritten. The Verity
+             moved 52 -> 26 -> 416 Hz across 2026-08-02 when SDK mode was toggled; taking `[0]` there
+             would have quantised the fastest sessions onto a coarse grid. A finer grid only costs
+             holes, which the DSP already treats as missing rather than as stillness. */
+          const fsAcc = accRecs.reduce((mx, r) => Math.max(mx, r.accFs || 0), 0) || 51;
           const t0Acc = accRecs[0].acc[0].tsMs;
           const tEnd = accRecs.reduce((mx, r) => Math.max(mx, r.acc[r.acc.length - 1].tsMs), t0Acc);
           const nGrid = Math.round(((tEnd - t0Acc) / 1000) * fsAcc) + 1;
