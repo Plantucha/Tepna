@@ -253,6 +253,11 @@ as a bound.
 
 Mutation-verified: `ODI_DROP: 4 → 3` reds it; removing the corpus wiring reds the anti-vacuity leg.
 
+**CI caught a one-lane wiring on the first push** — node green, browser RED with exactly 6 failures,
+because `env.odiPilot` existed only in `run-tests.mjs`. That is the failure `Dex-Test-Suite.html` already
+documents for `motiondex-dsp` (*"it was in NEITHER lane… every source-mirror assertion silently had
+nothing to read"*), and it is why this repo's rule is **both runners or neither**. Now wired in both.
+
 **What it does not pin, deliberately:** the corpus BYTES. Flipping one SpO₂ sample of ~27 600 leaves every
 rate unchanged to one decimal, so the gate survives that — a property of a per-hour index, not a hole.
 Byte integrity is the ledger's job, and Table 1's caption carries the SHA-256 prefixes for it. This leg
