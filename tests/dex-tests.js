@@ -21289,6 +21289,164 @@
       }
     });
 
+    /* ════ CPAPDex CARD SURFACE III — renderHistory (CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS §2) ════
+     `renderHistory` is the largest single reachable block left in `cpapdex-render.js` — 29 survivors after
+     wave 2. It was skipped in both earlier waves for a real reason: unlike the per-night cards it needs a
+     multi-night fixture routed through `CPAPDSP.buildLongitudinal`, which is fixture construction rather
+     than more of the same shape. `buildLongitudinal` takes plain night objects, so the fixture is cheap
+     once you know that; it degrades to `crossNight: null` when `CPAPCross` is absent, which is why the
+     trend-row block is asserted only when the cross-night data actually arrives.
+
+     The sharpest thing in here is a SORT DIRECTION. This file contains two deliberate, OPPOSITE sorts:
+     `cpapClinicalSummary` sorts ASCENDING (oldest → newest) because it reports "latest night" from the
+     tail, and `renderHistory`'s per-night table sorts DESCENDING (newest first) because that is how a
+     log reads. A "consistency" cleanup that unified them would silently invert one surface — the summary
+     would report the oldest night as latest, or the table would list the oldest night at the top. Both
+     directions are pinned, here and in wave 1, so neither can be tidied into the other. */
+    group('CPAPDex renderHistory — longitudinal known-answer (FOLLOWUPS §2)', 'cpapdex-render · render-harness · known-answer', function (T) {
+      var CR = env.CpapRender;
+      if (!CR || typeof CR.renderHistory !== 'function') {
+        T.skip('CpapRender.renderHistory wired', 'Node-lane only (run-tests.mjs executes *-render.js headless); the browser lane runs render in iframe rigs so it SKIPs');
+        return;
+      }
+      var DAY = 86400000;
+      // nights are handed in OLDEST-first here; the table must invert them.
+      var mkNight = function (dayIdx, hours, ahi, leak, nSess, spo2) {
+        return {
+          t0Ms: Date.UTC(2026, 0, 1 + dayIdx, 22, 0, 0),
+          therapyHours: hours,
+          nSessions: nSess == null ? 1 : nSess,
+          metrics: { residualAHI: ahi, largeLeakPct: leak },
+          sessions: spo2 ? [{ oximetry: { available: true } }] : [{}]
+        };
+      };
+      var hist = [mkNight(0, 7, 2, 1, 1, true), mkNight(1, 6.5, 3, 2, 2, false), mkNight(2, 3, 4, 3, 1, false)];
+      var html = CR.renderHistory(hist);
+
+      /* the ≥2-night guard: one night is not a longitudinal view, two is. A `< 2` → `<= 2` slip would
+         silently drop a genuine two-night history and render nothing at all. */
+      T.eq('renderHistory · fewer than 2 nights renders nothing (a longitudinal view needs a series)', CR.renderHistory([hist[0]]), '');
+      T.eq('renderHistory · an empty/absent list renders nothing rather than throwing', CR.renderHistory([]) + CR.renderHistory(null), '');
+      T.ok('renderHistory · exactly 2 nights DOES render — the guard is `< 2`, not `<= 2`', CR.renderHistory(hist.slice(0, 2)).length > 0);
+
+      /* compliance: qualifying nights are `hours >= 4`, as a PERCENT of all nights. 2 of 3 here = 66.7,
+         printed at 0 dp. The 4 h edge is the same adherence rule the hero chip and the clinical summary
+         each carry independently — three copies, all now pinned inclusive. */
+      T.ok('renderHistory · compliance is the % of nights at ≥4 h — 2 of 3 → 67 %', /67<span class="kpi-u">%<\/span>/.test(html), (/(\d+)<span class="kpi-u">%/.exec(html) || [])[1]);
+      T.ok('renderHistory · a night at exactly 4 h COUNTS as compliant (100 % for two such nights)', /100<span class="kpi-u">%<\/span>/.test(CR.renderHistory([mkNight(0, 4, 2, 1), mkNight(1, 4, 2, 1)])));
+      T.ok('renderHistory · …and 3.9 h does not (0 %)', /0<span class="kpi-u">%<\/span>/.test(CR.renderHistory([mkNight(0, 3.9, 2, 1), mkNight(1, 3.9, 2, 1)])));
+      /* compliance is HIGHER-better — sev(70, 50, pct) with no `lower` flag. Asserting only the printed
+         percentage leaves the polarity free: adding the flag turns 67 % from warn into ok, and the number
+         does not move. Found by mutation, so the CLASS is asserted across all three bands. Tile order in
+         the grid is Nights · compliance · usage-trend · AHI, so the compliance class is index 1. */
+      var kpiCls = function (h) {
+        return (h.match(/<div class="kpi-val ([a-z]*)"/g) || []).map(function (x) {
+          return (/kpi-val ([a-z]*)/.exec(x) || [])[1] || 'neutral';
+        });
+      };
+      var complCls = function (h) {
+        return kpiCls(h)[1] || 'NONE';
+      };
+      T.eq('renderHistory · compliance 67 % is warn — higher-better, so the ok band is ≥70 (a `lower` flag would read it ok)', complCls(html), 'warn');
+      T.eq('renderHistory · 100 % compliance is ok', complCls(CR.renderHistory([mkNight(0, 8, 2, 1), mkNight(1, 8, 2, 1)])), 'ok');
+      T.eq('renderHistory · 0 % compliance is bad — the polarity is pinned at both extremes', complCls(CR.renderHistory([mkNight(0, 1, 2, 1), mkNight(1, 1, 2, 1)])), 'bad');
+
+      /* the usage trend's SIGN drives both its colour class and a literal "+" prefix. A declining series
+         must not read good, and must not gain a plus sign. */
+      var trendCls = function (h) {
+        var m = /<div class="kpi (good|bad|neutral)"><div class="kpi-val (ok|bad|neutral)">/.exec(h.slice(h.indexOf('Nights')));
+        return m ? m[1] + '/' + m[2] : 'NONE';
+      };
+      var rising = CR.renderHistory([mkNight(0, 4, 2, 1), mkNight(1, 6, 2, 1), mkNight(2, 8, 2, 1)]);
+      var falling = CR.renderHistory([mkNight(0, 8, 2, 1), mkNight(1, 6, 2, 1), mkNight(2, 4, 2, 1)]);
+      T.eq('renderHistory · a RISING usage trend is good/ok; a FALLING one is bad/bad', trendCls(rising) + ' · ' + trendCls(falling), 'good/ok · bad/bad');
+      T.ok('renderHistory · a rising trend carries a leading "+" and a falling one carries the minus only', /\+\d/.test(rising) && !/\+\d/.test(falling), (/[+-][\d.]+<span class="kpi-u">h\/night/.exec(rising) || [''])[0] + ' | ' + (/[+-][\d.]+<span class="kpi-u">h\/night/.exec(falling) || [''])[0]);
+      /* the trend is computed on the CHRONOLOGICAL series, so feeding the same nights in reverse input
+         order must not flip its sign — buildLongitudinal sorts by t0Ms before fitting. */
+      T.eq('renderHistory · the trend is chronological, not input-order — reversing the input keeps the sign', trendCls(CR.renderHistory([mkNight(2, 8, 2, 1), mkNight(0, 4, 2, 1), mkNight(1, 6, 2, 1)])), 'good/ok');
+
+      /* the AHI block reports mean ± sd over the window and the night COUNT it used */
+      // AHI [2,3,4]: mean 3, SAMPLE sd = sqrt(2/2) = 1.0 (÷ n−1, not ÷ n — ÷n would give 0.82)
+      T.ok('renderHistory · the AHI block reports mean ± SAMPLE sd (÷ n−1) and the n it was computed over', /3\.0<span class="kpi-u">±1\.0<\/span>/.test(html) && /AHI 3-night/.test(html), (/[\d.]+<span class="kpi-u">±[\d.]+/.exec(html) || [''])[0] + ' / ' + (/AHI \d+-night/.exec(html) || [''])[0]);
+      T.ok('renderHistory · with no AHI on any night the block is omitted, not printed as 0 ± 0', !/±/.test(CR.renderHistory([mkNight(0, 7, null, 1), mkNight(1, 7, null, 1)])));
+
+      /* ── the per-night table sorts NEWEST FIRST — the opposite of cpapClinicalSummary's sort ──────── */
+      var dates = (html.match(/<span class="sess-clock">([^<]*)</g) || []).map(function (s) {
+        return s.replace(/.*">/, '').replace(/<$/, '');
+      });
+      T.eq('renderHistory · the night table is NEWEST-first — the reverse of the clinical summary\'s oldest-first sort, and neither may be "unified" into the other', dates.join(','), '2026-01-03,2026-01-02,2026-01-01');
+      T.ok('renderHistory · each row carries its hours, AHI and leak', /3\.0 h/.test(html) && /AHI 4\.0/.test(html) && /leak 3%/.test(html));
+      T.ok('renderHistory · per-night SpO₂ presence is stated either way', /SpO₂ ✓/.test(html) && /no SpO₂/.test(html));
+      /* …and an oximetry block that is PRESENT but `available: false` must still read "no SpO₂". An
+         absent block cannot show this: `s.oximetry` is already falsy, so dropping the `.available` half
+         of the guard changes nothing. Same shape as the oximetryCard case in wave 2 — found by mutation. */
+      var _unavail = CR.renderHistory([
+        { t0Ms: 1, therapyHours: 7, nSessions: 1, metrics: {}, sessions: [{ oximetry: { available: false } }] },
+        { t0Ms: 2, therapyHours: 7, nSessions: 1, metrics: {}, sessions: [{ oximetry: { available: false } }] }
+      ]);
+      T.ok('renderHistory · when EVERY night\'s oximetry is present-but-unavailable, NO row claims SpO₂ ✓ (the .available half of the guard is load-bearing)', !/SpO₂ ✓/.test(_unavail) && (_unavail.match(/no SpO₂/g) || []).length === 2, (_unavail.match(/(SpO₂ ✓|no SpO₂)/g) || []).join(','));
+      T.ok('renderHistory · 1 session is singular and 2 is plural in the same table', /1 session</.test(html) && /2 sessions</.test(html));
+      T.ok('renderHistory · the card head names the night count', /3 nights/.test(html));
+
+      /* ── cpapClinicalSummary · the remainder (FOLLOWUPS §2, second block) ─────────────────────────
+         Wave 1 pinned this function's bands by VALUE (AHI 40 severe, AHI 3 well controlled) but not at
+         its EDGES, and not its decimal places. The findings band is a four-way ladder whose text is the
+         thing a clinician reads, so each boundary is asserted on both sides. */
+      var summ = function (metrics, hours, extra) {
+        var el = { recording: { startEpochMs: 1000, therapyHours: hours == null ? 6 : hours }, metrics: metrics || {} };
+        for (var kk in extra || {}) el[kk] = extra[kk];
+        return CR.cpapClinicalSummary({ elements: [el] });
+      };
+      var band = function (ahi) {
+        var m = /Latest night: residual AHI [\d.]+\/hr — ([^.]*)\./.exec(summ({ residualAHI: ahi }));
+        return m ? m[1] : 'NONE';
+      };
+      // note the &lt; — the whole findings line is routed through esc(), so the band's own "<" is escaped.
+      // That is the correct behaviour and pinning it here also guards the escaping of the findings block.
+      T.eq('clinicalSummary · AHI 4.9 is "well controlled (AHI < 5)", with the band text HTML-escaped', band(4.9), 'well controlled (AHI &lt; 5)');
+      T.eq('clinicalSummary · exactly 5 crosses to mild — the edge is < 5, not <= 5', band(5), 'mild residual events (AHI 5–15)');
+      T.eq('clinicalSummary · 14.9 is still mild', band(14.9), 'mild residual events (AHI 5–15)');
+      T.eq('clinicalSummary · exactly 15 crosses to moderate', band(15), 'moderate residual events (AHI 15–30)');
+      T.eq('clinicalSummary · 29.9 is still moderate', band(29.9), 'moderate residual events (AHI 15–30)');
+      T.eq('clinicalSummary · exactly 30 crosses to severe (AHI ≥ 30)', band(30), 'severe residual events (AHI ≥ 30)');
+
+      /* the LOCAL sev's edges. Its signature is sev(v, good, warn, lowerBetter) — reversed from the
+         module-level one — and both branches are inclusive. A >= → > or <= → < slip lives entirely on
+         the edge value, so each is asserted exactly there. */
+      var kvals = function (h) {
+        var re = /<div class="k-val ([a-z]*)">/g,
+          m,
+          o = [];
+        while ((m = re.exec(h))) o.push(m[1] || 'neutral');
+        return o;
+      };
+      T.eq('clinicalSummary · AHI exactly 5 is ok — the lower-better ok edge is inclusive (v <= good)', kvals(summ({ residualAHI: 5 }))[0], 'ok');
+      T.eq('clinicalSummary · AHI exactly 15 is warn — the warn edge is inclusive too', kvals(summ({ residualAHI: 15 }))[0], 'warn');
+      T.eq('clinicalSummary · therapy exactly 4 h is ok — the higher-better ok edge is inclusive (v >= good)', kvals(summ({}, 4))[0], 'ok');
+      T.eq('clinicalSummary · therapy exactly 2 h is warn — its warn edge is inclusive', kvals(summ({}, 2))[0], 'warn');
+      T.eq('clinicalSummary · therapy 1.9 h is bad', kvals(summ({}, 1.9))[0], 'bad');
+
+      /* decimal places are part of the clinical read: an index printed at 0 dp loses the distinction
+         between 4.4 and 4.6 either side of a band edge. Four KPIs each carry an explicit 1 dp. */
+      T.ok('clinicalSummary · central index prints 1 dp (0 dp would blur the band edges)', /4\.4\/hr/.test(summ({ centralIndex: 4.4 })));
+      T.ok('clinicalSummary · periodic breathing prints 1 dp', /1\.4%/.test(summ({ periodicBreathingPct: 1.4 })));
+      T.ok('clinicalSummary · ODI prints 1 dp', /2\.4\/hr/.test(summ({}, 6, { oximetry: [{ available: true, odi: 2.4 }] })));
+      T.ok('clinicalSummary · SpO₂ nadir prints its raw integer, no forced decimals', /88%/.test(summ({}, 6, { oximetry: [{ available: true, spo2Nadir: 88 }] })));
+
+      /* multi-night suffixes: the date RANGE gains an arrow and the Key Measurements header names which
+         night it is describing — both gated on els.length > 1, and both wrong at exactly 1. */
+      var two = CR.cpapClinicalSummary({
+        elements: [
+          { recording: { startEpochMs: Date.UTC(2026, 0, 1), therapyHours: 7 }, metrics: { residualAHI: 3 } },
+          { recording: { startEpochMs: Date.UTC(2026, 0, 2), therapyHours: 7 }, metrics: { residualAHI: 3 } }
+        ]
+      });
+      T.ok('clinicalSummary · two nights render a date RANGE with an arrow', /2026-01-01 → 2026-01-02/.test(two), (/2026-01-01[^<]*/.exec(two) || [''])[0]);
+      T.ok('clinicalSummary · one night renders a single date, no arrow', !/→/.test(summ({ residualAHI: 3 })));
+      T.ok('clinicalSummary · two nights name WHICH night the Key Measurements describe', /Key Measurements · latest night \(2026-01-02\)/.test(two));
+      T.ok('clinicalSummary · one night does not — there is no ambiguity to resolve', /<div class="ccl-sec">Key Measurements<\/div>/.test(summ({ residualAHI: 3 })));
+    });
+
     /* ════ RENDER EXECUTION — hoisted classifiers (§RN wave 2) ════
        The remaining §RN findings were inline expressions inside non-exported DOM-mutating render functions
        (renderHero / renderAll / reRender) the harness can't drive. Each is now HOISTED to a pure, exposed

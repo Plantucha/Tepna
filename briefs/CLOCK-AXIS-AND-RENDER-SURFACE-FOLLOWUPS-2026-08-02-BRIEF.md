@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
+**Status:** IN-PROGRESS — 2026-08-02 (**§2 wave 3 and §3 EXECUTED — see §7.** cpapdex-render is 144/319 = 45 %; the matchRecall cross-site scan landed. §1 the host-axis spec and §5 the canvas-harness decision remain.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
 
 # What the clock audit left behind: an unspecified host-axis, and 125 reachable render mutants
 
@@ -83,8 +83,11 @@ behavioural CPAPDex bundle rather than justify one.
 - [ ] The Clock Contract has a host-axis section, owner-ratified in `CLAUDE.md`.
 - [ ] The axis guards are gated boundary-and-rejection, each verified by re-applying the exact mutant.
 - [ ] `clock.js` re-run exhaustively; the delta against **86/123** recorded.
-- [ ] `renderHistory` + `cpapClinicalSummary` asserted; the new `cpapdex-render.js` rate recorded.
-- [ ] The `matchRecall` cross-site scan lands with its anti-vacuity leg, in both runners.
+- [x] `renderHistory` + `cpapClinicalSummary` asserted; the new `cpapdex-render.js` rate recorded. — **§7:
+      118/319 → 144/319 = 45 %.** `renderHistory` 29 → 15 survivors, `cpapClinicalSummary` 20 → out of the top six.
+- [x] The `matchRecall` cross-site scan lands with its anti-vacuity leg, in both runners. — PR #726. Five
+      mutants of `cohort-runner.html`'s previously-ungated copy confirmed killed; the anti-vacuity leg verified
+      by deleting each source-list entry in turn.
 - [ ] A decision recorded on whether the fleet gets a canvas harness (its own brief) or the 69 canvas
       mutants are accepted as out of scope permanently.
 
@@ -100,3 +103,53 @@ The generalisation: **an assertion written from reading the code tends to encode
 than its contract.** Re-applying the mutant it is supposed to catch, before believing it, costs seconds
 and is the only step that reliably separates the two. `tools/mutate.mjs --file X --dry-run` lists a
 module's mutation surface without running anything, which makes this cheap enough to do by default.
+
+
+## 7 · EXECUTED 2026-08-02 — §2 wave 3 (`renderHistory` + `cpapClinicalSummary`) and §3
+
+**`cpapdex-render.js`: 118/319 → 144/319 = 45 %.** Test-only, as both earlier waves were — no source
+change to the module, no re-bundle.
+
+| wave | rate | what it covered |
+|---|---|---|
+| baseline | 0/12 sampled | one entry point (`renderReviewView`), two substrings |
+| 1 | 61/319 = 19 % | the per-night card bands |
+| 2 | 118/319 = 36 % | hero tiers, oximetry, sessions, event timeline |
+| **3** | **144/319 = 45 %** | **`renderHistory` (29 → 15), `cpapClinicalSummary` (20 → out of the top six)** |
+
+`renderHistory` was skipped twice for a real reason — it needs a multi-night fixture routed through
+`CPAPDSP.buildLongitudinal`, which is fixture construction rather than more of the same shape. That turned
+out cheap once the input shape was read: `buildLongitudinal` takes plain night objects and degrades to
+`crossNight: null` without `CPAPCross`, so the trend-row block is asserted only when cross-night data
+actually arrives.
+
+**The sharpest thing in that function is a SORT DIRECTION, and it is the opposite of its neighbour's.**
+`cpapClinicalSummary` sorts **ascending** (oldest → newest) because it reports "latest night" from the
+tail; `renderHistory`'s per-night table sorts **descending** (newest first) because that is how a log
+reads. Both are deliberate and they are 500 lines apart in one file. A "consistency" cleanup unifying them
+would silently invert one surface — the summary would report the *oldest* night as latest, or the table
+would list the oldest night at the top. Both directions are now pinned, so neither can be tidied into the
+other.
+
+Also closed in this wave: the findings ladder's four bands asserted **at each edge** rather than by value
+(wave 1 pinned AHI 40 severe and AHI 3 well-controlled, which leaves every `<` → `<=` alive); the local
+`sev`'s four inclusive edges; four KPIs' decimal places (an index at 0 dp loses the distinction between
+4.4 and 4.6 either side of a band edge); and the two `els.length > 1` multi-night suffixes.
+
+**Two more assertions of mine were wrong while passing — six now, across three waves.** Both were caught
+the same way, and both are the *same shape* as earlier ones, which is the point:
+
+- *Compliance renders 67 %.* True, and free of the polarity: `sev(70, 50, pct)` is higher-better, and
+  adding a `lower` flag turns 67 % from `warn` into `ok` **without moving the number**. Asserting a printed
+  value says nothing about the class beside it. Now pinned at all three bands.
+- *A night with no oximetry reads "no SpO₂".* Asserted with a session whose `oximetry` block is **absent**,
+  where `s.oximetry` is already falsy — so deleting the `.available` half of the guard changes nothing.
+  Only a block that is **present but `available: false`** discriminates. This is the third appearance of
+  exactly this absent-vs-explicitly-negative confusion (after `fnum`'s `null` and `oximetryCard`'s own
+  availability guard), which is enough to call it a house pattern rather than three accidents.
+
+**Remaining: 175 survivors — 69 canvas · 7 DOM-only · 99 reachable.** The top three are now *all* canvas
+(`drawAhiByHour` 27, `drawNightTrend` 24, `drawPressure` 16); the largest reachable blocks are
+`renderHistory` 15, `crossCard` 11, `heroCard` 10. The canvas block is 39 % of what is left and cannot be
+touched without the harness decision in §5 — which is the honest reason 45 % is where this stops being
+cheap.
