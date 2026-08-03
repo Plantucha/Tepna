@@ -25,6 +25,7 @@ import asyncio
 import pytest
 
 import capture
+from tests._srcscan import module_source
 
 
 @pytest.fixture(autouse=True)
@@ -142,9 +143,7 @@ def test_busy_is_waited_out_not_surrendered_to(monkeypatch):
 # ---------------------------------------------------------------- wiring, asserted on the source
 
 def _src():
-    import os
-    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return open(os.path.join(here, "capture.py"), encoding="utf-8").read()
+    return module_source("capture.py")
 
 
 def test_the_resync_is_wired_into_the_reconnect_loop():

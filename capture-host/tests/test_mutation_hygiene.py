@@ -32,15 +32,22 @@ SANCTIONED = "module_source("
 # the gate does not flag a file the driver already excludes.
 DRIVER_EXCLUDED = {"test_no_deprecated_apis.py"}
 
-# The two idioms that reach a sibling module: `os.path.join(..., "..", "capture.py")` and a literal
-# `"../capture.py"`. Deliberately NOT anchored on `open(` — the first version was, and `[^)]*` cannot
-# cross the `)` in `os.path.dirname(__file__)`, so it matched nothing and the gate passed while a raw
-# read sat right in front of it. Caught by negative-controlling the gate instead of trusting it, which
-# is the house rule this file exists to enforce.
-RAW_READ = re.compile(
-    r"""['"]\.\.['"]\s*,\s*['"](?P<mod>[a-z_0-9]+\.py)['"]|"""
-    r"""['"]\.\./(?P<mod2>[a-z_0-9]+\.py)['"]"""
-)
+# ENUMERATING PATH IDIOMS IS A LOSING GAME — the first two versions of this gate proved it twice. It
+# was anchored on `open(` (which `[^)]*` could not get past `os.path.dirname(__file__)`), then on
+# `"..", "capture.py"` joins — and `test_charging_state.py` reaches the module a third way entirely:
+#
+#     open(__file__.replace("tests/test_charging_state.py", "capture.py"))
+#
+# Both narrow versions passed while SIX more offenders sat in the tree, and the module stayed
+# unmeasurable. So the rule keys on WHAT IS BEING READ, not on how the path is spelled: a read call on
+# a line that names a mutatable module. The test file's own `"tests/test_x.py"` self-reference is
+# stripped first, or every `__file__.replace(...)` line matches itself.
+#
+# This over-flags by design — a line reading `monitor.html` that merely mentions a module name would be
+# caught. That is the right direction: the remedy is to route through the helper, which is harmless on
+# real source, whereas a miss leaves a module silently unmeasurable.
+READ_CALL = re.compile(r"\bopen\s*\(|\.read_text\s*\(|inspect\.getsource")
+SELF_REF = re.compile(r"""["']tests/test_[a-z_0-9]+\.py["']""")
 
 
 def _mutatable_modules() -> set[str]:
@@ -61,11 +68,15 @@ def test_no_test_reads_a_mutatable_module_source_raw():
         if t.name in DRIVER_EXCLUDED:
             continue
         src = t.read_text(encoding="utf-8")
-        for m in RAW_READ.finditer(src):
-            mod = m.group("mod") or m.group("mod2")
-            if mod in mods and SANCTIONED not in src:
-                line = src[: m.start()].count("\n") + 1
-                offenders.append(f"{t.name}:{line} reads {mod} directly")
+        if SANCTIONED in src:
+            continue
+        for n, line in enumerate(src.split("\n"), 1):
+            if not READ_CALL.search(line):
+                continue
+            probe = SELF_REF.sub('""', line)
+            named = [m for m in mods if f'"{m}"' in probe or f"'{m}'" in probe]
+            if named:
+                offenders.append(f"{t.name}:{n} reads {named[0]} directly")
     assert not offenders, (
         "read a mutatable module's source via tests/_srcscan.module_source(), which skips on a "
         "mutmut-generated file — a raw read makes the whole module unmeasurable and reports it as "

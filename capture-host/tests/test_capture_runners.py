@@ -13,6 +13,7 @@ import contextlib
 import pytest
 
 import capture
+from tests._srcscan import module_source
 
 
 _DROP_DEFAULT = capture._DROP_NOT_WORN_SEC
@@ -3552,7 +3553,7 @@ def test_an_hr_subscribe_that_never_answers_cannot_freeze_the_device_task(tmp_pa
 def test_no_post_connect_gatt_await_in_run_polar_is_left_unbounded():
     """A source check, because the next one added will be bare too unless something says otherwise.
     Every start_notify / read_gatt_char inside run_polar must carry a bound."""
-    src = open(__file__.replace("tests/test_capture_runners.py", "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")
     body = src.split("async def run_polar")[1].split("\nasync def ")[0]
     bare = [ln.strip() for ln in body.splitlines()
             if ("client.start_notify(" in ln or "client.read_gatt_char(" in ln)

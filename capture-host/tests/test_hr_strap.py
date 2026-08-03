@@ -12,6 +12,7 @@
 # believable, and undetectable downstream. A strap that reports contact makes that state knowable.
 
 import capture
+from tests._srcscan import module_source
 
 # Real frames captured from a Coospo HRM808S, 2026-07-19.
 COOSPO_WORN = bytes.fromhex("16394404")      # flags 0x16, hr 57, rr 1092/1024 s
@@ -80,7 +81,7 @@ def test_a_frame_with_no_rr_yields_an_empty_list():
 def test_an_hr_only_strap_never_touches_pmd():
     """A Coospo has no PMD service. streams=['hr'] must leave `writers` empty so the whole PMD
     negotiation block is skipped — otherwise the session tears down on a device that is working fine."""
-    src = open(__file__.replace("tests/test_hr_strap.py", "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")
     body = src.split("for s in streams:")[1][:400]
     assert "if s in meas_of:" in body, "only PMD streams may open a PMD writer"
     assert '"hr"' not in body.split("if \"hr\" in streams")[0], "hr must not be routed through meas_of"
@@ -111,7 +112,7 @@ def test_bonding_is_gated_on_actually_needing_pmd():
     """The bond exists because the H10 refuses PMD on an unauthenticated link. The SIG Heart Rate
     characteristic has no such requirement, and most third-party straps cannot pair at all — so bonding
     one fails and reports 'bond failed' for a device that was about to work fine."""
-    src = open(__file__.replace("tests/test_hr_strap.py", "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")
     assert "if needs_pmd:" in src
     head = src.split("async def run_polar")[1][:2600]
     assert head.index("needs_pmd") < head.index("ensure_bonded"), "the gate must precede the bond"
@@ -120,7 +121,7 @@ def test_bonding_is_gated_on_actually_needing_pmd():
 def test_the_clock_sync_is_gated_on_the_device_being_polar():
     """PS-FTP is Polar-specific. On a Coospo it fails on a missing characteristic — and costs an
     18-second GLOBAL capture pause to discover that, on every task start."""
-    src = open(__file__.replace("tests/test_hr_strap.py", "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")
     assert 'if is_polar and (_CFG.get("time") or {}).get("auto_sync_devices", True):' in src
 
 
