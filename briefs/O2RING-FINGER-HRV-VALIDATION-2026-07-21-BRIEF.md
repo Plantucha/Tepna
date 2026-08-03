@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-02 (**≥10-night DATA precondition now MET, and the tool that reads it was DEAD — §5b.** `tools/o2ring-finger-validate-batch.mjs` hardcoded `ROOT` to a throwaway worktree removed the day it was made, so it had been unrunnable *for everyone including its author* since the commit that added it; its sibling `o2ring-finger-roundtrip.mjs` carried the same defect. Repaired and swept: **12 paired finger+ECG nights, 237 windows, 64.4 h, 222 PASS / 15 FAIL (93.7 %)**, ΔHR vs ECG median **0.40 bpm** (IQR 0.10–0.80). **NO TIER MOVES ON THIS** — it is the three-way HR round-trip, not §3's per-epoch RMSSD/SDNN alignment nor §6's PPI-jitter primary endpoint; HR agreement says the detector finds the right beats, not that the intervals between them reproduce ECG HRV. What changed is that §3 can now be run at all. Previously: **night 1 of ≥10 recorded** — §2.1: on consolidated sleep the finger PPI-jitter **3.16 ms beats the Verity wrist** and RMSSD/SDNN sit within the ~±3.5 % offset; whole-record RMSSD & CVHR stay `emerging`; the `sdnnRobust`/jitter-robust family = strong single-night evidence toward `validated`. Nothing enacted; ≥10 nights still owed.) · **Created:** 2026-07-21 · **Executes:** `OXYDEX-PULSE-RESOURCING-FOLLOWUPS-2026-07-20-BRIEF.md` §1 · **Method-parent:** `PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md` · **Data:** `O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md`
+**Status:** DONE — 2026-08-03 (**§3 executed, §8 + §8.6.** Verdict recorded in `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md`: **NO metric promoted** — sdnnRobust +10.6 %, RMSSD +37.7 %, jitter 8.16 ms, every §4 bar failed on a measurement rather than a deferral. The finger is NOT noisier than the wrist (0.2 ms apart; §1's prediction refuted), and two published reference figures do not reproduce under the committed apparatus. CVHR remains unrun → follow-up.) · **Created:** 2026-07-21
 
 # O2Ring finger-PPI HRV — ECG validation, and the emerging→validated tier call
 
@@ -240,12 +240,16 @@ things that were blocking §3 from being run at all.
 - [x] **PPI-jitter sd** reported as median + IQR — **DONE (§8.1): finger 8.16 ms (IQR 6.52–21.46) over 16
       nights.** RMSSD bias reported. `sdnnRobust` vs SDNN is **WITHHELD, not measured** (§8.3) — the two are
       different quantities and this tool cannot adjudicate a ±3.5 % bar with them. CVHR not yet run.
-- [ ] A per-metric tier verdict recorded in a validation write-up (routed per `LITERATURE-USE-POLICY`); any
-      flip landed as the tier string in `integrator-dsp.js` with the gates below.
-- [ ] If a tier string moves: `Dex-Test-Suite.html?full` green, `verify-provenance` clean, changeset dropped.
-      (A tier-only edit in `integrator-dsp.js` re-bundles Integrator + the orchestrators; `computeHash` is
-      unaffected by a string that is not on the compute path — confirm, don't assert.)
-- [ ] Follow-up brief spawned per `CLAUDE.md` §📌, or a note here that nothing surfaced.
+- [x] A per-metric tier verdict recorded in a validation write-up — **DONE 2026-08-03:**
+      `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` (routed per `LITERATURE-USE-POLICY` §3, node-specific
+      validation → the node's write-up). **Verdict: NO metric promoted.** `sdnnRobust` +10.6 % (bar ±3.5 %),
+      whole-record RMSSD +37.7 % (bar ~2 %), jitter 8.16 ms (budget ≤ 4.98 ms) — all FAIL, measured. CVHR
+      not run, recorded as open. No flip, so no tier string in `integrator-dsp.js` changes.
+- [x] If a tier string moves: … — **N/A, nothing moved.** Every criterion failed, so there is no flip to
+      gate. The `computeHash` question this item raises is therefore untested and stays open for whenever a
+      tier does move — it is a real question and it should not be inherited as answered.
+- [x] Follow-up brief spawned per `CLAUDE.md` §📌 — `PPGDEX-JITTER-AND-REFERENCE-FOLLOWUPS-2026-08-03-BRIEF.md`
+      (CVHR, the two non-reproducing reference figures, and the jitter-at-source budget).
 
 ## 7 · References
 
