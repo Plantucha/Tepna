@@ -698,10 +698,45 @@ function adaptEnvelopeNode(json, node, filename) {
          segmentsOverlap). Null for every node that records continuously, which is all of them today
          except HRVDex — the envelope path is unchanged for those. */
       coverage: (json.recording && json.recording.coverage) || null,
+      /* §F6 — a SLIM beat array, so beat-level timing is reachable inside the fusion.
+         P9 above dropped the whole `json` because keeping multi-MB timeseries alive per recording
+         bloated multi-night batches, and that decision stands: this carries beat INSTANTS only, as a
+         packed Float64Array, and nothing else from `timeseries`. A 7 h night is ~30 k beats ≈ 240 kB,
+         against the several MB the full block cost. Null for every node that emits no interval series. */
+      beats: _beatTimes(json, t0Ms),
       raw: { ganglior_events: json.ganglior_events || json.events || null },
       _src: filename
     }
   ];
+}
+
+/* Absolute beat instants from the node-export's interval series (WEARABLE-HOST-AXIS-FOLLOWUPS §F6).
+   `timeseries.rr.tSec` (ECGDex) and `timeseries.ppi.tSec` (PpgDex / PulseDex) are already in the export
+   contract, so this needs no emitter change — it is the same reconstruction `tools/trio-batch.mjs` does
+   to feed `fitClockDrift`, moved to where the fusion can reach it.
+
+   CORRECTED BEATS ARE EXCLUDED. Both emitters mark interpolated / Malik-corrected intervals in a
+   parallel `corrected[]`, and a corrected interval's endpoint is a beat nobody observed. Handing those
+   to a timing estimator is the same class of error as reading a drawn axis as a clock — fabricated
+   instants that a correspondence check will happily "agree" on, because both legs were smoothed toward
+   the same place. */
+function _beatTimes(json, t0Ms) {
+  if (!json || t0Ms == null || !isFinite(t0Ms)) return null;
+  var ts = json.timeseries || {};
+  var ser = ts.rr || ts.ppi || null;
+  if (!ser || !ser.tSec || !ser.tSec.length) return null;
+  var src = ser.tSec,
+    corr = ser.corrected,
+    out = new Float64Array(src.length),
+    n = 0;
+  for (var i = 0; i < src.length; i++) {
+    var s = src[i];
+    if (s == null || !isFinite(s)) continue;
+    if (corr && corr[i] != null && corr[i] !== 0) continue;
+    out[n++] = t0Ms + s * 1000;
+  }
+  if (!n) return null;
+  return { tMs: out.subarray(0, n), n: n, source: ts.rr ? 'rr' : 'ppi' };
 }
 
 function _dig(o, path) {
@@ -5345,7 +5380,68 @@ function detectClockSkew(recs, opts) {
       note: node + ' timestamps appear ' + Math.abs(Math.round(medLag / 60)) + ' min ' + (medLag > 0 ? 'BEHIND' : 'AHEAD OF') + ' every other node — its internal clock is wrong, not its physiology.'
     });
   });
-  return { pairs: pairs, findings: findings };
+  return { pairs: pairs, findings: findings, beatCheck: _beatSkewCheck(recs, pairs, opts) };
+}
+
+/* ── BEAT-LEVEL CORROBORATION OF THE EVENT-DERIVED SKEW (§F6) ──────────────────────────────────────
+   Everything above is estimated from SPARSE EVENT times — a handful of desaturations and apneas per
+   night, cross-correlated on a coarse grid, with a ±120 s fusion tolerance. That is the right
+   instrument for "is a device 42 minutes out", and it is a blunt one for anything smaller.
+
+   Two hr-bearing nodes carry tens of thousands of BEATS over the same night, and `fitClockDrift`
+   already turns two beat trains into an offset with its own chance control. Now that the beats reach
+   the fusion (§F6's carrier above), that far sharper estimate is computable here.
+
+   IT CORROBORATES; IT DOES NOT DECIDE. `skewApplied` shifts real event times, and nothing in this
+   function is allowed to influence which node gets shifted or by how much — the event path's decisions
+   are unchanged, byte for byte. What this adds is a second observer that can DISAGREE, and a
+   disagreement between a coarse and a sharp estimate of the same quantity is a finding either way.
+
+   A beat offset is reported only when `fitClockDrift` says it is confident (correspondence clearing
+   its own chance control), because an unconfident beat fit is exactly the "unwrap failure wearing the
+   same units" the drift briefs' §6 guardrail is about. */
+function _beatSkewCheck(recs, pairs, opts) {
+  opts = opts || {};
+  var minBeats = opts.minBeatsForCheck != null ? opts.minBeatsForCheck : 500;
+  var withBeats = (recs || []).filter(function (r) {
+    return r && r.beats && r.beats.n >= minBeats && !r.dateUnknown;
+  });
+  if (withBeats.length < 2) return { pairs: [], reason: 'fewer than two nodes carry a usable beat series' };
+  var out = [];
+  for (var i = 0; i < withBeats.length; i++)
+    for (var j = i + 1; j < withBeats.length; j++) {
+      var A = withBeats[i],
+        B = withBeats[j];
+      var fit = fitClockDrift(Array.prototype.slice.call(A.beats.tMs), Array.prototype.slice.call(B.beats.tMs), {});
+      if (!fit || fit.offsetMs == null) {
+        out.push({ a: A.node, b: B.node, offsetSec: null, confident: false, reason: fit ? fit.reason : 'no fit' });
+        continue;
+      }
+      /* The event-derived lag for the SAME pair, if one was estimated, so the two observers can be
+         compared directly. `estimateEventLag(A,B)` and `fitClockDrift(A,B)` share the a→b direction. */
+      var ev = null;
+      for (var k = 0; k < (pairs || []).length; k++) {
+        if (pairs[k].a === A.node && pairs[k].b === B.node) ev = pairs[k].lagSec;
+        else if (pairs[k].a === B.node && pairs[k].b === A.node) ev = -pairs[k].lagSec;
+      }
+      var beatSec = fit.offsetMs / 1000;
+      out.push({
+        a: A.node,
+        b: B.node,
+        offsetSec: +beatSec.toFixed(3),
+        nBeats: Math.min(A.beats.n, B.beats.n),
+        correspondence: fit.medianCorrespondence,
+        chance: fit.chanceCorrespondence,
+        confident: fit.confident === true,
+        reason: fit.reason,
+        eventLagSec: ev,
+        /* DISAGREEMENT, against the coarse estimator's OWN resolution. The event lag is quoted off a
+           30 s grid with a ±60 s match window, so anything inside that is agreement by construction;
+           only a gap wider than the coarse instrument can explain is a real conflict. */
+        disagrees: ev == null || fit.confident !== true ? null : Math.abs(beatSec - ev) > 2 * (opts.matchSec != null ? opts.matchSec : 60)
+      });
+    }
+  return { pairs: out };
 }
 
 /* P8/kernel: compare each node's stamped physiology-kernel hash against THIS

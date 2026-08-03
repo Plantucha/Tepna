@@ -2065,6 +2065,124 @@
       }
     });
 
+    /* ── WEARABLE-HOST-AXIS-FOLLOWUPS §F6 · BEAT TIMES REACH THE FUSION ───────────────────────────
+       `runFusion` estimated every cross-node lag from SPARSE EVENT times — a handful of desats and
+       apneas per night on a 30 s grid with a ±120 s tolerance — because the rec deliberately dropped
+       `timeseries` (P9: keeping the whole `json` alive cost multi-MB per recording). So the beat
+       trains, which carry tens of thousands of instants over the same night, were unreachable inside
+       the Integrator and every drift/closure result had to be computed in a separate tool.
+
+       The rec now carries a SLIM beat array. Two things are gated: that the carrier reconstructs the
+       right instants and stays slim, and that the beat-level check CORROBORATES without deciding —
+       `skewApplied` shifts real event times, and a second observer must not silently start steering
+       that. */
+    group('Integrator carries beat times onto the fusion rec, and they corroborate without deciding', 'integrator-dsp · fusion-beats', function (T) {
+      var D = env.IntegratorDSP || env.D || null;
+      var NF = D && D.normalizeFile,
+        det = D && D.detectClockSkew;
+      T.ok('normalizeFile + detectClockSkew exported', typeof NF === 'function' && typeof det === 'function');
+      if (typeof NF !== 'function' || typeof det !== 'function') return;
+
+      var t0 = U(2026, 5, 12, 22, 0, 0);
+      // A beat train at a plausible ~60 bpm with irregular spacing, so a lag search cannot win by
+      // periodicity alone (the same reason the event fixture below uses irregular gaps).
+      var seed = 4242;
+      var rnd = function () { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+      var tSec = [], acc = 0;
+      for (var i = 0; i < 3000; i++) { acc += 0.85 + 0.35 * rnd(); tSec.push(+acc.toFixed(3)); }
+      // Two of them are Malik-corrected: their endpoints are beats NOBODY OBSERVED.
+      var corrected = tSec.map(function (_, k) { return k === 7 || k === 99 ? 1 : 0; });
+      var mkExport = function (node, series, extra) {
+        var ts = {};
+        ts[series] = { tSec: tSec.slice(), corrected: corrected.slice() };
+        return Object.assign({
+          schema: { name: 'ganglior.node-export' },
+          node: node,
+          recording: { startEpochMs: t0 },
+          timeseries: ts,
+          ganglior_events: []
+        }, extra || {});
+      };
+
+      var rec = NF(mkExport('ECGDex', 'rr'), 'ecg.json').recs[0];
+      T.ok('a node with an interval series carries beats', !!(rec && rec.beats), JSON.stringify(rec && rec.beats && rec.beats.n));
+      T.eq('…excluding the corrected intervals (a beat nobody observed is not a fiducial)', rec.beats.n, tSec.length - 2);
+      T.eq('…and naming which series it came from', rec.beats.source, 'rr');
+      /* ABSOLUTE instants, reconstructed as t0 + tSec·1000 — the same reconstruction trio-batch does.
+         Getting this wrong is silent: every downstream lag would be shifted by a constant. */
+      T.ok('…as ABSOLUTE ms, not node-relative seconds', rec.beats.tMs[0] === t0 + tSec[0] * 1000, rec.beats.tMs[0] + ' vs ' + (t0 + tSec[0] * 1000));
+      T.ok('…and the first corrected interval is the one actually skipped', rec.beats.tMs[7] === t0 + tSec[8] * 1000, 'index 7 should now hold the beat from tSec[8]');
+
+      /* SLIMNESS is the constraint P9 imposed, and it is the reason this is a beat array and not the
+         timeseries block. A plain Array of 3000 numbers is ~8x the footprint and, more importantly,
+         would signal that carrying arbitrary series back onto the rec is fine. */
+      // `instanceof` is realm-bound and the DSP runs in its own vm context, so the brand check must be
+      // the realm-independent one — an `instanceof Float64Array` here reads false for a real one.
+      T.eq('the carrier is a packed Float64Array, not a boxed Array', Object.prototype.toString.call(rec.beats.tMs), '[object Float64Array]');
+      T.ok('…and the rest of timeseries is still NOT retained on the rec', rec.timeseries === undefined && rec.raw && rec.raw.ganglior_events !== undefined);
+
+      T.eq('a PPI series is carried too, and declares its own source', NF(mkExport('PpgDex', 'ppi'), 'ppg.json').recs[0].beats.source, 'ppi');
+      var noSeries = NF({ schema: { name: 'ganglior.node-export' }, node: 'CPAPDex', recording: { startEpochMs: t0 }, ganglior_events: [] }, 'cpap.json').recs[0];
+      T.ok('a node with no interval series carries NO beats (null, not an empty shell)', noSeries && noSeries.beats === null, JSON.stringify(noSeries && noSeries.beats));
+
+      /* ── the beat-level check: a SHORT-RANGE, HIGH-PRECISION instrument ─────────────────────────
+         The two observers answer different questions and neither replaces the other. The event path
+         searches ±120 s on a 30 s grid — it can find a 42-minute device skew and cannot resolve
+         anything below its own tolerance. `fitClockDrift` searches ±3 s at 20 ms — it resolves
+         sub-second offsets and is blind past a few seconds. So the beat check's value is precisely
+         the band the event path calls "aligned": a real H10↔Verity offset of 0.2–3.3 s is invisible
+         to a ±120 s tolerance and corrupts every beat-level result. Both directions are asserted,
+         because an instrument that answers out-of-range questions anyway is the actual hazard. */
+      var mkShifted = function (ms) {
+        var s = mkExport('PpgDex', 'ppi');
+        s.recording = { startEpochMs: t0 + ms };
+        return s;
+      };
+      var recA = NF(mkExport('ECGDex', 'rr'), 'a.json').recs[0];
+      var recB = NF(mkShifted(1500), 'b.json').recs[0];
+      var sk = det([recA, recB], {});
+      T.ok('detectClockSkew now reports a beatCheck', !!(sk && sk.beatCheck), JSON.stringify(sk && sk.beatCheck && sk.beatCheck.reason));
+      var bp = sk.beatCheck.pairs && sk.beatCheck.pairs[0];
+      T.ok('…with a pair for the two beat-bearing nodes', !!bp, JSON.stringify(sk.beatCheck));
+      T.ok('…recovering a planted 1.5 s offset the EVENT path could never see', bp && bp.offsetSec != null && Math.abs(Math.abs(bp.offsetSec) - 1.5) < 0.2, bp && bp.offsetSec);
+      T.ok('…and declaring itself confident against its own chance control', bp && bp.confident === true, bp && (bp.correspondence + ' vs chance ' + bp.chance));
+
+      /* OUT OF RANGE MUST REFUSE, NOT ANSWER. A 12 s offset lies outside the ±3 s search, and the fit
+         then returns a plausible-looking small number (measured: 1.35 s). Reporting that as an offset
+         would be a fabricated measurement of exactly the kind this brief family exists to remove — so
+         the gate pins that it comes back NOT CONFIDENT, and that `_beatSkewCheck` only publishes a
+         `disagrees` verdict for a confident fit. */
+      var far = det([recA, NF(mkShifted(12000), 'far.json').recs[0]], {}).beatCheck.pairs[0];
+      T.ok('an offset beyond the search range is NOT reported as confident', far && far.confident === false, far && (far.offsetSec + ' s, confident=' + far.confident));
+      T.ok('…and no disagreement verdict is issued off an unconfident fit', far && far.disagrees === null, far && far.disagrees);
+
+      /* IT MUST NOT DECIDE. `skewApplied` shifts real event times off `findings[].offsetSec`; a
+         corroborating observer that quietly started steering that would be a behaviour change wearing
+         a diagnostic's name. The event-derived outputs must be byte-identical with and without beats. */
+      var stripped = [Object.assign({}, recA, { beats: null }), Object.assign({}, recB, { beats: null })];
+      T.eq('the event-derived findings are UNCHANGED by the presence of beats',
+        JSON.stringify(det([recA, recB], {}).findings), JSON.stringify(det(stripped, {}).findings));
+      T.eq('…and so are the event-derived pairs',
+        JSON.stringify(det([recA, recB], {}).pairs), JSON.stringify(det(stripped, {}).pairs));
+      T.ok('…and with no beats the check says so rather than reporting an empty agreement',
+        /beat series/.test(det(stripped, {}).beatCheck.reason || ''), JSON.stringify(det(stripped, {}).beatCheck));
+
+      /* A single beat-bearing node cannot be a pair — the check must refuse, not report zero skew. */
+      T.ok('one beat-bearing node is a refusal, not a confident nothing',
+        /fewer than two/.test(det([recA, Object.assign({}, recB, { beats: null })], {}).beatCheck.reason || ''));
+
+      /* A SHORT beat series is not a usable leg. `fitClockDrift` needs blocks of beats to score a
+         correspondence against its own chance control; a two-minute fragment produces a lag with no
+         statistical content, and pairing it would launder that into a published offset. The guard is
+         a count, so it has to be tested with a count — the whole-array cases above never reach it. */
+      var shortRec = Object.assign({}, recB, { beats: { tMs: recB.beats.tMs.subarray(0, 60), n: 60, source: 'ppi' } });
+      T.ok('a node with too few beats is not admitted as a leg',
+        /fewer than two/.test(det([recA, shortRec], {}).beatCheck.reason || ''),
+        JSON.stringify(det([recA, shortRec], {}).beatCheck));
+      T.ok('…and the threshold is a real boundary, not a rejection of everything',
+        (det([recA, recB], {}).beatCheck.pairs || []).length === 1, 'the full-length pair still fits');
+    });
+
     /* CROSS-DEVICE-CLOCK-SKEW §3.1 — a node whose clock is wrong looks exactly like a node that
        observed nothing. `runFusion` pairs events within `toleranceSec` (120 s); the reference
        corpus's CPAP runs ~39 min slow, so no CPAP event ever co-occurred with any other node's and

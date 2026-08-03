@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **F1 · F2 · F3-ter · F7 DONE 2026-08-02** · **F4 · F5 · F8 DONE 2026-08-02** (the printer no longer quotes an unclosed ppm, and both clock printers are gated for the first time — see F5.1–F5.4; F6 and the two TCH/PAT boxes remain open) · **Follows:** `WEARABLE-HOST-AXIS-2026-08-02-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `integrator-dsp.js`, `tools/trio-batch.mjs`, `tools/drift-report.js`, `papers/`, several briefs
+**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **F1 · F2 · F3-ter · F7 DONE 2026-08-02** · **F4 · F5 · F6 · F8 DONE 2026-08-02** (the printer no longer quotes an unclosed ppm, and both clock printers are gated for the first time — see F5.1–F5.4; the two TCH/PAT boxes remain open) · **Follows:** `WEARABLE-HOST-AXIS-2026-08-02-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `integrator-dsp.js`, `tools/trio-batch.mjs`, `tools/drift-report.js`, `papers/`, several briefs
 
 # The O2Ring's axis was drawn on every night before 2026-07-28. Everything that used it as a clock has to be re-asked.
 
@@ -316,10 +316,49 @@ M8 is the source-order assert, and it is worth keeping even though the regressio
 fail-safe: a closure not yet computed is `null`, which prints UNCLOSED rather than a false number.
 "The wrong answer is merely useless rather than false" is not a reason to allow it back.
 
-## F6 · Carry a slim beat array onto the fusion rec
+## F6 · Carry a slim beat array onto the fusion rec — **DONE 2026-08-02**
 
 Inherited from `WEARABLE-DRIFT-FIT` §5 and still open: `runFusion` drops `timeseries`, so beat times are
 unreachable there and the drift/closure work cannot run inside the Integrator. Unchanged by this work.
+
+### F6-RESULT — the carrier, and a second observer that is not allowed to decide
+
+**The carrier.** `_beatTimes` reconstructs absolute beat instants from `timeseries.rr.tSec` (ECGDex) or
+`timeseries.ppi.tSec` (PpgDex/PulseDex) — already in the export contract, so **no emitter change and no
+contract change** — and hangs them on the rec as a packed `Float64Array`. P9's reason for dropping the
+whole `json` stands and is respected: a 7 h night is ~30 k beats ≈ **240 kB**, against the several MB the
+full `timeseries` block cost per recording. Nothing else from `timeseries` is retained.
+
+**Corrected intervals are excluded.** Both emitters mark interpolated / Malik-corrected intervals in a
+parallel `corrected[]`, and a corrected interval's endpoint is a beat *nobody observed*. Feeding those to
+a timing estimator is the same class of error as reading a drawn axis as a clock — fabricated instants
+that a correspondence check will happily agree on, because both legs were smoothed toward the same place.
+
+**The consumer, and its limits.** `detectClockSkew` now publishes `beatCheck` beside its findings. The
+two observers answer *different* questions and neither replaces the other:
+
+| | range | resolution | sees |
+|---|---|---|---|
+| event coincidence (existing) | ±120 s, 30 s grid | tens of seconds | a 42-minute device skew |
+| `fitClockDrift` on beats (new) | **±3 s** | 20 ms | a **0.2–3.3 s** offset the event path calls "aligned" |
+
+That band is not hypothetical — it is the H10↔Verity offset this corpus actually shows, invisible to a
+±120 s tolerance and fatal to anything beat-level. **It corroborates and does not decide:** `skewApplied`
+shifts real event times, and the gate asserts the event-derived `findings` and `pairs` are byte-identical
+with and without beats. An offset beyond the search range comes back **not confident** (a 12 s plant
+returns a plausible-looking 1.35 s, and is refused), and `disagrees` is only ever issued off a confident
+fit.
+
+**Gated** (`integrator-dsp · fusion-beats`, 22 assertions, both lanes) with 10 mutants confirmed to red:
+corrected beats included, `t0` dropped, seconds not scaled to ms, source hard-coded, boxed-Array carrier,
+carrier never populated, always-confident, no lone-node refusal, and the min-beats guard.
+
+Two things worth keeping from building it: a throw inside `adaptEnvelopeNode` is swallowed by
+`normalizeFile`'s `catch` into `recs: []` + a warning, so a typo'd variable (`t0` for `t0Ms`) surfaced 48
+tests later as `r.node of undefined` rather than at its source; and `instanceof Float64Array` is
+**realm-bound** — the DSP runs in its own `node:vm` context, so the brand check has to be
+`Object.prototype.toString`, which is why the first version of that assertion failed against a genuine
+Float64Array.
 
 ## F7 · A host-axis RATE needs a BASELINE — **DONE 2026-08-02**
 
@@ -516,6 +555,12 @@ afc169a65a1e`) rather than asserted export-inert.
       Bullet 1 was already applied by the parallel session — verified in the file, not assumed.
       `timestamp-pathology` gains §3.1 as a *result* (a pathology no parser can detect), flagged as a
       corpus observation rather than a regenerated benchmark row.
+- [x] **F6 — beat times reach the fusion** (2026-08-02). `_beatTimes` carries absolute beat instants
+      from the existing `timeseries.rr`/`ppi` contract as a packed Float64Array (~240 kB/night, vs the
+      multi-MB block P9 dropped), corrected intervals excluded. `detectClockSkew` publishes a
+      `beatCheck` that resolves the 0.2–3.3 s band the ±120 s event tolerance calls "aligned" — and
+      corroborates WITHOUT deciding: the event-derived findings/pairs are byte-identical with and
+      without beats. 22 assertions, 10 mutants confirmed to red.
 - [x] **F5 — no ppm is quoted by `trio-batch` without a span and a closure beside it** (2026-08-02).
       Closure is computed BEFORE the line; the seconds-per-night claim exists only in the `closed`
       state; the span rides along in all four. Pure formatters in `tools/drift-report.js`, 37
