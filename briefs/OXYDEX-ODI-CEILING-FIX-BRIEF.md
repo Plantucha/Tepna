@@ -1,3 +1,5 @@
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** `computeCeilingBaselineArr` is live in `oxydex-dsp.js` (4 call sites) — `detectODI` measures against a trailing p90 ceiling, not the trailing mean. Shipped as DSP v22.36; the rationale is archived in `docs-archive/oxydex-dsp-changelog.md`. The downstream pilot re-run is `RERUN-OXYFIX-PILOTS-BRIEF.md` (also DONE).
+
 # BRIEF — OxyDex ODI-4 ceiling-baseline fix (severity-proportional undercount)
 
 **Author of brief:** design/analysis agent · June 2026

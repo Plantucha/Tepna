@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (⛔ §1 RETRACTED same day — see the banner) — 2026-08-01 · **Created:** 2026-08-01 · **Follows:** `INTEGRATOR-POOLED-CLOCK-APPLY-2026-08-01-BRIEF.md` §3 · **Affects:** *(measurement only — no code changed)*
+**Status:** DONE — 2026-08-03 (⛔ §1 RETRACTED same day — see the banner. **The measurement this brief exists to make is complete**: per-channel dispersion published as numbers, and the tempting fix (drop the loose channels) measured and **rejected on evidence** — `stage_light` lands inside the 180 s window 47 % of the time against a 7 % chance rate, so it carries real signal, not noise. §4's retracted box is struck in place. Its one remaining `[ ]` is explicitly *(owner's call)* — which of §3's three directions, each needing its own null calibration — i.e. **not work this brief owns**; it stays recorded in §3 as the agenda rather than spawning a near-empty follow-up. ⚠️ **The estimator is deliberately UNCHANGED** — this brief argues against changing it, so DONE here means "measured and declined", not "fixed".) · **Created:** 2026-08-01 · **Follows:** `INTEGRATOR-POOLED-CLOCK-APPLY-2026-08-01-BRIEF.md` §3 · **Affects:** *(measurement only — no code changed)*
 
 # Three channels agree on the CPAP offset to under a minute, and the pool is not weighting them.
 

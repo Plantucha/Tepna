@@ -1,5 +1,13 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-11
+**Status:** REFERENCE (living · **owner-ratified 2026-08-03** — the flip this brief named as the ratification step) · **Created:** 2026-07-11 · **last-verified:** 2026-08-03
+
+> **Ratified 2026-08-03.** This policy was already governing in practice — `CLAUDE.md` §📚 cites it as the
+> rule for how published data/formulas/processes enter the suite, and its three hard lines are enforced
+> elsewhere: **no networked data in a bundle** (gate-backed by `no-network.html`), **no fabricated
+> authority** (a paper-sourced number is `validated`-tier only with a real, checkable citation),
+> **attribution is mandatory** (author·year·journal·DOI in the doc + a source comment in code). The status
+> now matches that reality. It is `REFERENCE (living)` rather than `DONE` because a policy is a standing
+> rule, not an executed task — update it in place and re-stamp `last-verified`.
 
 # Literature-use policy — how Tepna incorporates published data, formulas & processes
 

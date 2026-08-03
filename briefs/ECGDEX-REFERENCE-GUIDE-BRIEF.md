@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** `ECGDex Reference.html` ships and its grades are gate-enforced against `ecgdex-registry.js` by the `cohesion-badges` group (guide↔registry parity, `dex-badges.css` linked rather than inlined).
+
 # Build Brief — `ECGDex Reference.html` (single-signal reference guide)
 
 > **For a fresh AI coder.** Read `CLAUDE.md` first (the two gates + the Clock Contract + the

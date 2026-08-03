@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** PROPOSED (verified still open 2026-08-03 — §1's Integrator "Clear synthetic" show/hide filter is **NOT BUILT**: zero matches in `integrator-app.js` or `Integrator.src.html`. §3's `validateNodeExport()` decision also stands unmade — it still ships live only in `integrator-app.js` + `crossnight-envelope.js`) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # Brief — Audit follow-ups from the 6-brief execution review (2026-06-22)
 
 > **For the next thread / an AI coder.** Read `CLAUDE.md` first (THE CLOCK CONTRACT, the two

@@ -1,40 +1,35 @@
-<!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living open-brief snapshot) · **Created:** 2026-07-06 · **last-verified:** 2026-07-06
+<!--
+  OPEN-BRIEFS-POST-TRIO-2026-07-06-BRIEF.md — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+-->
 
-# Open briefs after the tri-device σ experiment (2026-07-06 snapshot)
+**Status:** REFERENCE (redirect stub — the snapshot was archived 2026-08-03, owner-sanctioned) · **Created:** 2026-07-06 · **Moved-to:** [`docs-archive/OPEN-BRIEFS-POST-TRIO-2026-07-06-BRIEF.md`](../docs-archive/OPEN-BRIEFS-POST-TRIO-2026-07-06-BRIEF.md)
 
-> A point-in-time map of what is still open after this session (real tri-device σ validation + the two σ-tools'
-> folder-ingestion upgrade). `DOCS-INDEX.md` is the authoritative at-a-glance table; this is the narrative
-> "what's next" view. Re-derive from `grep "Status:.*\(PROPOSED\|IN-PROGRESS\)" briefs/` — do not trust this
-> snapshot blindly once briefs move.
+# ➡️ Moved — the open-brief snapshot is archived
 
-## Spawned by this experiment (new — PROPOSED)
-- **`SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md`** — rewrite sigma-no-reference paper + index on the raw-ECG
-  10-night corpus; reconcile the noisy-corner reordering (Verity↔O2Ring).
-- **`TRIO-METHODS-REUSE-2026-07-06-BRIEF.md`** — apply the reusable patterns (worker-DSP shim, folder ingest,
-  quality gate) + capture-provenance facts across the suite.
+**The 2026-07-06 snapshot now lives at [`docs-archive/OPEN-BRIEFS-POST-TRIO-2026-07-06-BRIEF.md`](../docs-archive/OPEN-BRIEFS-POST-TRIO-2026-07-06-BRIEF.md).**
 
-## Advanced this session
-- **`INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md`** — IN-PROGRESS. §1 **premise validated**
-  on real data (write-up `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md`). Still open: §1 end-to-end
-  ρ-vs-classic A/B through the Integrator's own `fuseHRVConsensus`; §4 N-cornered (blocked on EEGDex).
-- **`CONTROLLED-RELEASES-FOLLOWUPS-2026-07-05-BRIEF.md`** — flipped DONE this session (F8 hard gate; F1 re-deferred).
+## For the current open-brief state, use [`DOCS-INDEX.md`](../DOCS-INDEX.md)
 
-## Standing open (environment/policy-blocked — not design-blocked)
-- **`DEV-TOOLCHAIN-2026-06-30-BRIEF.md`** — IN-PROGRESS. Part A complete (A1–A4); Part B (Biome formatter, needs
-  binary + on-touch re-bundle) and Part C (widen `tsconfig`, needs `node tsc`) blocked here.
-- **`OWN-THE-BUILD-FOLLOWUPS-2026-07-03-BRIEF.md`** — IN-PROGRESS. §5 Part C remaining render/app/profile files
-  (on-touch re-bundle); D.2 (needs `node tsc`); D.3 (Prettier, rides fleet churn).
-- **`REPO-DISCOVERABILITY-2026-07-03-BRIEF.md`** + **`-FOLLOWUPS-2026-07-04`** — IN-PROGRESS; asset-gated / off-repo
-  items deferred.
+Its **Role** column carries each brief's live status (`Brief *(IN-PROGRESS 2026-08-02)*`, `Brief *(DONE
+2026-07-23)*`, …), and `CLAUDE.md` §📌 already makes keeping it in sync part of every status flip. It is the
+dashboard; this file was a second one.
 
-## Proposed / not started
-- **`HEALTH-BOX-VISION-2026-07-01`**, **`CAPTURE-HOST-2026-06-29`** — product/hardware (Tepna Vigil bedside box).
-- **`PAPERS-ROADMAP-2026-06-24`** — forward paper agenda.
-- **`SYNTH-TEXTURE-PAPERS-RERUN-2026-06-24`** — PROPOSED, blocked-by its parent SYNTH-TEXTURE brief.
-- **`DEX-PILL-UNIFY-2026-06-24`** — PROPOSED, consciously deferred (optional CSS polish, needs a re-bundle).
+You can also derive the state from the tree directly, which cannot go stale at all:
 
-## How this experiment could seed more work
-The real tri-device corpus + folder-ingestion tooling unblocks several `PAPERS-ROADMAP` real-validation items
-(multi-vendor HRV agreement, longitudinal σ drift) and the Integrator decorrelation-gate robustness idea
-(`TRIO-METHODS-REUSE` §Do 3). EEGDex remains the gate on the N-cornered hat + EEG-anchored validation.
+```sh
+grep -L "Status:.*DONE" briefs/*.md          # every brief not stamped DONE
+grep -h -m1 -oP '^\*\*Status:\*\*\s*\K\S+' briefs/*.md | sort | uniq -c   # the tally
+```
+
+## Why it was archived
+
+A `REFERENCE (living)` stamp is a promise to re-verify, and this one sat at `last-verified: 2026-07-06` for
+four weeks while roughly 70 briefs changed status underneath it. A stale snapshot of *which work is open* is
+worse than no snapshot: a reader trusts it and picks up something already finished, or misses something that
+started after it was written. Two sources of truth for the same fact is the problem; `DOCS-INDEX.md` is the
+one with a gate behind it.
+
+This is the `CLAUDE.md` §📌 sanctioned relocation, done deliberately with this stub so existing
+cross-references still resolve and the filename stays frozen.

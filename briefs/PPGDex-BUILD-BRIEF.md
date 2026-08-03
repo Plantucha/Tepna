@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** PpgDex shipped — `PpgDex.html` + `PpgDex.src.html` + `ppgdex-*.js` + `PpgDex Reference.html`, cut over to the owned plain-inline build 2026-07-03 (the legacy IBM Plex woff2 dropped with it).
+
 # PpgDex — Build Brief & Project Handoff
 
 > Durable context for a fresh chat. Read this first, then `CLAUDE.md`, `ans-design.css`,

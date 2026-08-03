@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** `cohort-runner.html` ships the harness and carries the 10k scale it was specified for; `cohort-worker` is namespaced against `<Node>._bare` and its `matchRecall` copy is now gated (PR #726).
+
 # Build Brief — Ganglior Cohort Validation Harness (10k synthetic patients)
 
 > **For the next thread / an AI coder.** Read `CLAUDE.md` first (esp. THE CLOCK CONTRACT), then

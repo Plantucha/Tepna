@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** P1–P3 were stamped shipped by its own sequel's *"Already shipped"* section (`GENERATOR-FOLLOWUPS-II-BRIEF.md` §0). Its §1 provenance-integrity gap was closed at the root instead, by content-addressing around `manifestHash` (SIGNAL-ADAPTER-AND-FRONTIER Phase 7) — see `CLAUDE.md` §🔏.
+
 # Brief — Follow-ups from the In-App Patient-Generator Rollout (June 2026)
 
 > **For the next thread / an AI coder.** Read `CLAUDE.md` first (esp. THE CLOCK CONTRACT, the

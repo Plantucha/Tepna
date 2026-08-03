@@ -1,3 +1,5 @@
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** all four pilots re-ran and their papers ship — `papers/robustness-benchmark.html` · `odi4-ahi-bias.html` · `treatment-response-analysis.html` · `nights-icc.html` — with results recorded in `papers/RERUN-RESULTS.md`, which has been maintained through 2026-07-29.
+
 # BRIEF — Re-run & rewrite the OxyDex-dependent pilots on the ceiling-baseline fix
 
 **Author of brief:** design/analysis agent · June 2026

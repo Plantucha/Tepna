@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** the cohesion layer shipped — `metric-registry.js` (badge engine + `BADGE_CSS`), the 5-level evidence ladder, per-node registries, `docs/LEXICON.md` / `docs/EVENT-LEXICON.md` — and is gate-backed by `cohesion-badges` + `registry-defs-parity`. ⚠️ Still read as a living SPEC (`CLAUDE.md` §🎫 is its summary); DONE stamps the build-out.
+
 # Build Brief — System Cohesion: Metric Registry · Disclosure Tiers · Epistemic Hierarchy · Lexicon
 
 > **For a fresh AI coder (Claude Code preferred for the rollout).** Read `CLAUDE.md` first, then

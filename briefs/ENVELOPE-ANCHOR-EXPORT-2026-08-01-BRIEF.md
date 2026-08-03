@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED — 2026-08-01 · **Created:** 2026-08-01 · **Follows:** `INTEGRATOR-POOLED-CLOCK-APPLY-2026-08-01-BRIEF.md` §6 · **Affects:** *(built end-to-end, measured, then BACKED OUT — no code shipped)*
+**Status:** DONE — 2026-08-03 (**a completed NEGATIVE result — all four substantive Done-when boxes are checked.** The pipe was built end-to-end and proven mechanically (75/67 anchors, correctly stamped), the estimator validated against a planted 100 ms shift (recovered as 99.94 ms), measured on a real night, and then **backed out rather than shipped so the contract changes once**. Anchors are too sparse a carrier: 75 movements a night, 3 of them shared. Two of its own conclusions were retracted in §3.5/§3.6 — both from the same omission, no drift term — and the correction (§3.7: the 16 % WAS drift; RR↔PPI works) is recorded in place. The one remaining `[ ]` is *(next)* — pick a carrier from §4 — which is the **next iteration's design question, not this brief's work**; §4 already states it, with direction 3 (measure the offset at the capture host, export one number instead of a waveform) flagged as deserving the first look. No follow-up spawned: §4 IS the follow-up.) · **Created:** 2026-08-01 · **Follows:** `INTEGRATOR-POOLED-CLOCK-APPLY-2026-08-01-BRIEF.md` §6 · **Affects:** *(built end-to-end, measured, then BACKED OUT — no code shipped)*
 
 # Anchors are too sparse a carrier: 75 movements a night, 3 of them shared.
 

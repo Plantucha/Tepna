@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** the Integrator shipped — `Integrator.html` + `Integrator.src.html` + `integrator-dsp.js` / `integrator-tch.js`, with node adapters, the `ganglior.node-export` ingest (incl. the `fascia` alias) and TCH fusion. ⚠️ **Still read as a living SPEC** — `CLAUDE.md` and several open briefs cite its §0 scope guard and §4.4 `fuseHRVConsensus` as contract; DONE stamps the BUILD, it does not retire the specification.
+
 # Build Brief — Integrator (Ganglior Fusion Layer)
 
 > **Goal for the AI coder:** build **Integrator** — a new single-file, 100%-local app that ingests

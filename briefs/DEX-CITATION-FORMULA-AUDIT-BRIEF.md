@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** PROPOSED (not verified 2026-08-03 — the guides ship and `cohesion-badges` gate-enforces guide↔registry grade parity, but *"every citation verified against the literature"* is not a property the tree can show. Any resumption is now governed by `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # Build Brief — Citation & Formula Audit for the Remaining Dexes
 
 > **For a fresh AI coder.** Read `CLAUDE.md` first (the two gates, the Clock Contract, the Evidence-

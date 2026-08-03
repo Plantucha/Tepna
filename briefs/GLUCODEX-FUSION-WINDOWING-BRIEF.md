@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** the Integrator slices CGM to each session's actual overlap window (35 glucodex/CGM matches in `integrator-dsp.js`); GlucoDex stayed one continuous node, as the brief required. `GLUCODEX-FUSION-WINDOWING` is the shipped shape, not the emitter-side alternative it rejected.
+
 # Build Brief — GlucoDex × Integrator: window glucose at the FUSION layer (not the emitter)
 
 > **For the AI coder (next thread).** Make 30-day CGM fuse against same-night ECGDex/OxyDex sessions —

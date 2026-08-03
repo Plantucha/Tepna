@@ -1,3 +1,5 @@
+**Status:** PROPOSED (blocked 2026-08-03 — `TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md` names this brief in its **Blocks:** header, and the confidence-carrying `ms;hr;c` corpus re-derivation it needs is owned by `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md`. Do not start the paper ahead of them) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # BRIEF — New paper: "How many nights to measure a sensor? Sample-size for reference-free σ across a device trio"
 
 **Author of brief:** design/analysis agent · June 2026

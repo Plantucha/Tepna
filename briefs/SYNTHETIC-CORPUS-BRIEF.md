@@ -1,5 +1,7 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** `synth-gen.js` ships the cross-node-coherent generator and `docs/SYNTHETIC-CORPUS-README.md` documents it; the committed synthetic twins are exactly the CI-reproducible fixtures `CLAUDE.md` §🔒 relies on (an adversarial committed twin beats a real gitignored one).
+
 # Build Brief — Synthetic Overnight Corpus (5 nights × every Dex, cross-node coherent)
 
 > **For an AI coder.** Read `CLAUDE.md` first (esp. THE CLOCK CONTRACT), then this brief, then the

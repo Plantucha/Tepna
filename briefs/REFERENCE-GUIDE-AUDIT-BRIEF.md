@@ -1,3 +1,5 @@
+**Status:** PROPOSED (not verified 2026-08-03 — seven `* Reference.html` guides ship and dimension 4 (grade/badge conformance) is gate-enforced by `cohesion-badges`, but dimensions 1–3 and 5–7 were not re-checked per guide. Findings live in `audits/REFERENCE-GUIDE-AUDIT-FINDINGS.md`) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
 # Build Brief — Deep Audit of ALL Reference Guides
 
 > **For a fresh AI coder.** Read `CLAUDE.md` first (the two gates, the Evidence-badges section, the

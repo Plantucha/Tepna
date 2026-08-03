@@ -4,6 +4,8 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Verified:** §1 ECGDex multi-part concatenation is live in `ecgdex-dsp.js`; §4's `_HR.txt` routing is explicit in `dex-ingest.js`; §6b was already stamped shipped 2026-06-21 in place. Findings live in `audits/INGEST-AUDIT-FINDINGS.md`.
+
 # Ingest & Capture-Robustness Audit — build brief for an AI coder
 
 **Scope.** Audit and harden how every Dex node ingests *real* device captures
