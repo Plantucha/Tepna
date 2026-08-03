@@ -414,6 +414,98 @@ and the comment-loss warning's `and`/`or`.
 
 ---
 
+## Sixth pass — `capture.py`, and why it was never measurable (2026-08-03)
+
+`capture.py` is the daemon. The audit had it at **1 %** — 69 of 7 197 mutants, the `_now` path only —
+with the standing advice "sample one subsystem at a time, never whole". That advice was necessary and
+**not sufficient**, because `--only` filters AFTER generation: the 100 MB mutant file is built whatever
+you scope to.
+
+### The actual cause was two lines of tooling
+
+| | |
+|---|---|
+| generated mutant module | **100 MB / 1.9 M lines** (7 197 mutants) |
+| cold import | **429 s** |
+| import with a `.pyc` | **0.4 s** |
+
+`tools/mutate.py` set `PYTHONDONTWRITEBYTECODE=1`, and mutmut starts a **fresh process per mutant** — so
+every one recompiled 1.9 M lines. 7 197 × 429 s is **36 days**. The flag existed to avoid `.pyc` litter;
+the scratch is a throwaway `/tmp` copy, so it was protecting nothing. **Fixed.**
+
+Second: the generated file is a pure function of the **mutated module** — mutmut copies test files but
+never mutates them (`do_not_mutate = ["tests/*"]`). Regenerating on a *test-only* edit therefore rebuilt
+a byte-identical 100 MB file and discarded the warm cache with it. Scratches are now keyed on the
+module's hash and reused, and the record reports `reused_scratch` so nobody mistakes a reuse for a
+fresh generation. **Measured: a `capture.py` iteration went from 22 min to 18 s; `sdnotify` 6.7 s → 1.0 s.**
+
+### The subsystem: 16 pure decision predicates
+
+| | kill rate | survivors | killed | regressions |
+|---|---|---|---|---|
+| `capture.py` (16 predicates, 230 mutants) | 83 % → **91 %** | 39 → 21 | 18 | 0 |
+
+They gate whether a device is dropped, a clock corrected, a radio power-cycled — and the survivors sat
+on the boundaries their own docstrings were written around:
+
+* **`radio_looks_deaf`: `seen > 0` → `seen > 1`.** One heard advertisement is proof the receiver
+  receives; the mutant power-cycles a radio that heard something. This is the function added *because*
+  hci0 read `UP RUNNING` with 332 MB of lifetime traffic while a 20 s scan saw zero advertisements.
+* **`transient_ble_error`: five survivors, all functional.** `text = repr(exc).lower()`, so a
+  case-flipped marker can never match and a protocol refusal silently becomes retryable. The subtlety
+  that let them survive a first attempt: unless the message ALSO carries a transient marker, the
+  fall-through returns False too and the mutation is invisible.
+* **`classify_adapter_health`**: the phantom reason's device-name prefix, under `"phantom BlueZ link"
+  in h["reasons"][0]` — a substring of one element. Same defect as webmon's `assert "OK" in out`.
+* Boundaries in `clock_resync_reason`, `oxyii_rtc_due`, `stream_is_stalled`, `rebond_due` — including
+  `every <= 0` → `<= 1`, which reads a legal `every=1` as "disabled".
+
+**Confirmed equivalent** (predicted, then confirmed surviving): `grace >= 0` in three predicates
+(`bool(grace and …)` short-circuits identically), `err or "XXXX"` (both fail the `in` test), and
+`defense_warnings`' `int(capeff_hex, 16)` → base 10/17 — the check is `== 0`, and a digit string is zero
+in every base while a letter-bearing one either raises or is nonzero, so both paths emit no warning.
+Of the 21 survivors, 16 are `defense_warnings` operator prose.
+
+### A fourth way a mutation run fails while looking fine
+
+Recorded alongside the three already in this doc. `tests/test_oxyii_rtc.py::test_the_clock_write_stays_
+behind_the_policy` **scans source** — it asserts exactly one `set_time_frame(` call site and finds 664 in
+the mutant file. mutmut reports that as **"failed to collect stats"**: the whole module unmeasurable, and
+nothing that reads like a test failure. It now skips when it detects a generated file, rather than being
+added to `SOURCE_SCANNING_TESTS` — that exclusion is per-FILE and would have removed `oxyii_rtc_due`'s
+only coverage, turning its 10 mutants into fake survivors.
+
+The full set, none of which look like an error at a glance: a poisoned baseline → "not checked" · a
+mid-run `mutmut results` → "not checked" · a signal-killed run → `rc: -15` with `timed_out: false` · a
+source-scanning test → "failed to collect stats".
+
+### `tools/mutate_pure.py` — a fast path, deliberately not a replacement
+
+An in-process harness: harvest mutmut's already-generated mutant bodies by line scan, then in ONE
+process rebind `module.<fn>` per mutant and call the covering cases directly. **235 mutants/s** against
+mutmut's ~13/s. Two things kept it honest:
+
+* Running all cases per mutant made it SLOWER than mutmut (21 s vs 18 s). What makes mutmut fast is its
+  stats pass mapping tests to functions; adding the equivalent (wrap the function in a recorder, run
+  each case once, keep the callers) took it to 0.98 s. `radio_looks_deaf` is covered by 1 of 137 cases.
+* It runs **zero-fixture tests only**, so it kills 183 where mutmut kills 209. Synthesising
+  `monkeypatch`/`tmp_path` was tried and **reverted**: a test declaring only `monkeypatch` can still
+  depend on AUTOUSE conftest fixtures, and one promptly tried to restart the real bluetooth service.
+
+So its survivor set is a **superset** of the truth — false alarms, never blind spots. Use it to find
+candidates in a second and confirm with `mutate.py`; `--self-check` exits 1 on any disagreement.
+
+### ⚠️ `clock.js` has the same problem, an order of magnitude worse, and the same fix does NOT apply
+
+Measured 2026-08-03: **`node tests/run-tests.mjs --group=clock` takes 7 m 49 s**, and `tools/mutate.mjs`
+pays that PER MUTANT — ~16 h for clock.js's 123 mutants. The Python fixes do not transfer (there is no
+100 MB file; the cost is the suite), and the in-process trick is **unsound** there: five DSPs do
+`parseTimestamp = DexClock.parseTimestamp` at load time, so swapping the reference would be invisible to
+them — silent false negatives. The JS win is a narrower group selection: which of the 41 groups the
+`clock` tag selects can actually observe a clock mutation?
+
+---
+
 ## Where to go next (highest value first)
 
 1. **`capture.py` — the real blind spot.** ~7 177 mutants, of which 69 have ever been measured (1 %),
