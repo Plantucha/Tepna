@@ -767,3 +767,90 @@ def test_a_polar_pull_refuses_a_session_that_is_not_an_absolute_path(tmp_path):
                          {"address": "24:AC:AC:0C:30:1E", "session": "U/0/20260719/E/034500/"})
     assert status == 400
     assert body == {"ok": False, "error": "bad address or session path"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+# ROUND FOUR — the bare-config sites round two could not reach, and the mount-unit guard
+#
+# `_mk_bare` (round two) covered `/api/state`, `/api/remember` and `/api/settings`. The remaining
+# `cfg.get("devices", [])` sites with the default dropped live on routes it never called — the settings
+# POST, timesync, the Polar pull, forget, and the timeline. Same defect, same 500 on a box before its
+# first pairing; they were simply out of reach.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════════
+
+def test_every_route_the_monitor_calls_survives_a_bare_config(tmp_path, monkeypatch):
+    """`cfg.get("devices")` with the default dropped returns None, and `for d in None` raises. Each of
+    these routes is called by the monitor on load or on the first pairing, so a 500 here is what a new
+    box shows its owner before they have done anything wrong."""
+    async def fake_host(**kw):
+        return {"ok": True}
+    monkeypatch.setattr(webmon.clockcfg, "sync_now", fake_host)
+    app, cfg, _st = _mk_bare(tmp_path)
+
+    async def go(c):
+        out = {}
+        out["settings_get"] = (await c.get("/api/settings")).status
+        out["settings_post"] = (await c.post("/api/settings", json={"settings": {}})).status
+        out["timesync_all"] = (await c.post("/api/timesync/all", json={})).status
+        out["timesync"] = (await c.post("/api/timesync", json={"address": "AA:BB"})).status
+        out["polar_recs"] = (await c.get("/api/polar/recordings?address=AA:BB")).status
+        out["polar_pull"] = (await c.post("/api/polar/pull",
+                                          json={"address": "AA:BB", "session": "/U/0/"})).status
+        return out
+    got = _serve(app, go)
+    assert got["settings_get"] == 200 and got["settings_post"] == 200
+    assert got["timesync_all"] == 200, "the fan-out over zero devices is a no-op, not a crash"
+    assert got["timesync"] == 400 and got["polar_recs"] == 400 and got["polar_pull"] == 400, \
+        "an unknown address on a device-less box is refused, not a 500"
+
+
+def test_forgetting_on_a_bare_config_is_refused_rather_than_crashing(tmp_path, monkeypatch):
+    """`/api/forget`'s rewrite reads `cfg.get("devices", [])`; with the default dropped the
+    comprehension iterates None. A stale monitor tab can POST this against a box whose config was
+    reset."""
+    async def fake_forget(*a, **k):
+        return {"ok": True}
+    monkeypatch.setattr(webmon.bonding, "forget", fake_forget)
+    app, cfg, _st = _mk_bare(tmp_path)
+    status, _body = _post(app, "/api/forget", {"address": "AA:BB:CC:DD:EE:FF"})
+    assert status == 200
+    assert cfg["devices"] == [], "an empty device list, not a crash and not None"
+
+
+def test_a_timeline_request_on_a_bare_config_does_not_crash(tmp_path):
+    """The timeline handler passes `cfg.get("devices", [])` straight into the builder."""
+    night = tmp_path / "captures" / "2026-08-03"
+    night.mkdir(parents=True)
+    (night / "Polar_H10_1_20260803031641_ECG.txt").write_text("Phone timestamp\n")
+    app, *_ = _mk_bare(tmp_path)
+
+    async def go(c):
+        r = await c.get("/api/timeline")
+        return r.status
+    assert _serve(app, go) == 200
+
+
+def test_a_mount_target_gets_a_unit_and_a_local_one_does_not(tmp_path, monkeypatch):
+    """`(tgt.get("kind") or "") == "mount" and tgt.get("protocol") != "local"` — seven survivors on one
+    line, including the `and` → `or`. `mount_unit` emits a systemd unit the operator installs into
+    `/etc/systemd/system` and pastes as root, so emitting one for a target that needs none, or omitting
+    it for one that does, is a real instruction to a human either way. Both arms asserted, plus the
+    protocol key and value, because a substring check on the response cannot see them."""
+    monkeypatch.setattr(webmon.storage_targets, "dest_status", lambda t: {"ready": True, "path": "/m"})
+    monkeypatch.setattr(webmon.storage_targets, "mount_unit", lambda t: {"unit": "srv-x.mount"})
+
+    def _get(target):
+        app, cfg, *_ = _mk(tmp_path)
+        cfg["archive"] = {"target": target}
+
+        async def go(c):
+            return await (await c.get("/api/storage")).json()
+        return _serve(app, go)
+
+    remote = _get({"kind": "mount", "protocol": "cifs", "mountpoint": "/m"})
+    assert remote.get("mount_unit") == {"unit": "srv-x.mount"}, \
+        "a REMOTE mount needs the unit — that is the whole point of emitting one"
+    local = _get({"kind": "mount", "protocol": "local", "mountpoint": "/m"})
+    assert "mount_unit" not in local, "a local mount is already mounted; a unit would be wrong"
+    transfer = _get({"kind": "transfer", "protocol": "cifs"})
+    assert "mount_unit" not in transfer, "a transfer target stages nowhere and mounts nothing"

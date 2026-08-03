@@ -104,8 +104,20 @@ Two fixes are in `tools/mutate.py` and need no action; they are recorded so nobo
   here, and 153 orphans had accumulated to 2.6 GB. `--no-reuse` forces a rebuild; `reused_scratch`
   appears in the record so a reuse is never mistaken for a fresh generation.
 
-**A `capture.py` iteration went from 22 min to 18 s.** The 18 s is a *warm* number: `/tmp` is tmpfs, so
-a reboot clears every scratch and the next run pays the cold cost once.
+**A `capture.py` iteration went from 22 min to 18 s** — but read that number correctly. **mutmut CACHES
+per-mutant verdicts between runs** (*"cached runs keep the previous baseline"*), resetting only the ones
+a code or test change could have invalidated. So a re-run on a reused scratch is **INCREMENTAL**: it
+re-tests what your edit touched and keeps the rest. That is correct and is what makes iteration cheap —
+but it means:
+
+* an 18 s re-run is **not** a full measurement, and quoting it as one overstates the tooling;
+* the **first** measurement of a module still costs full price (webmon ~57 min, of which 26 min was the
+  cold compile before the bytecode fix);
+* to force a genuine full re-measure — which you want before publishing a module's kill rate — use
+  `--no-reuse`, which rebuilds the scratch and discards every cached verdict.
+
+The warm/cold split still applies on top: `/tmp` is tmpfs, so a reboot clears every scratch and the next
+run pays the cold compile once.
 
 ---
 

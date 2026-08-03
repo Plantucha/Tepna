@@ -208,10 +208,16 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
             shutil.rmtree(old_dir, ignore_errors=True)
     if reuse and (reusable / "work" / "mutants" / module).exists():
         scratch, work = reusable, reusable / "work"
-        for t in tests:                       # refresh ONLY the tests; the mutants stay
-            for dest in (work / t, work / "mutants" / t):
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(HERE / t, dest)
+        # REFRESH THE WHOLE tests/ TREE, not just the selected files. Copying only the selection was a
+        # real bug: `tests/_srcscan.py` is a HELPER, never named in a selection, so a scratch predating
+        # it kept an old tests/ and every run died with `ModuleNotFoundError: tests._srcscan` — which
+        # mutmut reports as "Failed to collect list of tests", i.e. a beautiful, meaningless 100%.
+        # Any new conftest, fixture module or helper would have done the same. tests/ is small; copy it.
+        for sub in ("", "mutants"):
+            dest_root = work / sub / "tests" if sub else work / "tests"
+            shutil.rmtree(dest_root, ignore_errors=True)
+            shutil.copytree(HERE / "tests", dest_root,
+                            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         plan["reused_scratch"] = str(scratch)
     else:
         scratch = reusable if reuse else Path(tempfile.mkdtemp(prefix=f"mut-{module[:-3]}-"))
