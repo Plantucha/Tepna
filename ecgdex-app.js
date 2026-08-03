@@ -1567,38 +1567,15 @@ self.onmessage = async (e) => {
   // With ≥2 recordings loaded it emits ALL sessions (N rows) → a whole multi-day history in one
   // import; HRVDex appends them and dedups. Single recording stays a 1-row file as before.
   // Baevsky geometric inputs (Mode, AMo50, MxDMn) from the NN series — 50-ms bins.
-  // ONE source of truth shared by the Welltory CSV row AND the ganglior envelope, so
-  // CSV-path and JSON-path imports into HRVDex populate the SAME Baevsky-SI inputs
-  // (FOLLOWUP-FINDINGS P4 — previously the envelope omitted these, leaving every
-  // SI-derived HRVDex metric NaN on the JSON path but populated on the CSV path).
-  // Units match the Welltory convention: mode = modal RR in ms, amo50 = amplitude of
-  // the mode in %, mxDMn = variation range in SECONDS. Empty NN → nulls (honest-null).
+  // DELEGATES to `ECGDSP.baevskyGeom`, which is now THE single source of truth (FOLLOWUP-FINDINGS
+  // P4). It used to live here, and that was the bug: this file's `buildV2` got the fix while
+  // `ecgdex-dsp.js ecgBuildNodeExport` — the ORCHESTRATE builder behind Data Unifier / OverDex —
+  // did not, so the same recording reached HRVDex with a populated Baevsky-SI through the app and
+  // a null one through the Unifier. A shared function makes that class of drift impossible rather
+  // than merely fixed once. Kept as a local alias so both call sites below read unchanged.
+  // Units: mode = modal RR in ms, amo50 = amplitude of the mode in %, mxDMn = range in SECONDS.
   function _baevskyGeom(nn) {
-    nn = nn || [];
-    if (!nn.length) return { mode: null, amo50: null, mxDMn: null };
-    let mn = Infinity,
-      mx = -Infinity;
-    const bins = {};
-    for (const v of nn) {
-      if (!isFinite(v)) continue;
-      if (v < mn) mn = v;
-      if (v > mx) mx = v;
-      const b = Math.round(v / 50) * 50;
-      bins[b] = (bins[b] || 0) + 1;
-    }
-    let modeBin = 0,
-      modeCnt = 0;
-    for (const b in bins) {
-      if (bins[b] > modeCnt) {
-        modeCnt = bins[b];
-        modeBin = +b;
-      }
-    }
-    return {
-      mode: modeBin, // modal RR, ms
-      amo50: +((modeCnt / nn.length) * 100).toFixed(1), // amplitude of mode, %
-      mxDMn: +((mx - mn) / 1000).toFixed(3) // variation range, SECONDS (Welltory convention)
-    };
+    return window.ECGDSP.baevskyGeom(nn);
   }
   function _welltoryRowFor(r) {
     const g = _baevskyGeom(r.nn);

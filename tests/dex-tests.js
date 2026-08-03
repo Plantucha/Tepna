@@ -6290,6 +6290,79 @@
         }
         T.ok(n + ' loads entrance-guard.js', /entrance-guard\.js/.test(txt), 'this app inherits the from-opacity:0 entrances with nothing pinning them');
       });
+    /* ════ FOLLOWUP-FINDINGS P4 — ECGDex has TWO node-export builders, and only one carried Baevsky ════
+     `ecgdex-app.js buildV2` (the app's ⬇ Export) emitted `hrv.time.{amo50,mode,mxDMn}`; `ecgdex-dsp.js
+     ecgBuildNodeExport` (the ORCHESTRATE path behind Data Unifier / OverDex) emitted none of them. Since
+     `hrvdex-dsp.js _envToSeed` reads exactly those three keys, the SAME recording gave HRVDex a populated
+     Baevsky-SI through the app and a null one through the Unifier — `d_si` and the HTN/BP pieces reading
+     `si` came out null on that path only. The DSP builder's own comment claimed "Field math MIRRORS
+     ecgdex-app.js buildV2" and nothing checked it; a comment is not a gate.
+
+     Both builders now call ONE `ECGDSP.baevskyGeom`, so they cannot drift in VALUE. This group pins the
+     other half — that they cannot drift in PRESENCE — by source scan, because no executable entry point
+     spans both builders (buildV2 is UI-layer). Both files are already in both lanes' source lists. The
+     scan is rewording-proof (it reads emitted KEYS, not prose) and carries an anti-vacuity leg: a regex
+     that matches nothing must FAIL, not silently pass — the hollow-gate failure this repo keeps finding. */
+    group('ECGDex Baevsky inputs — one source, and both export builders carry them (FOLLOWUP-FINDINGS P4)', 'ecgdex-dsp · ecgdex-app · export-parity', function (T) {
+      var D = env.ECGDSP;
+      var src = env.sources || {};
+      var dsp = src['ecgdex-dsp.js'] || '';
+      var app = src['ecgdex-app.js'] || '';
+
+      // ── 1 · the shared function itself (known-answer; it is pure, so this is exact) ──
+      if (!(D && typeof D.baevskyGeom === 'function')) {
+        T.ok('ECGDSP.baevskyGeom exported', false, 'not loaded — the single source of truth is unreachable');
+      } else {
+        // 10 intervals: six land in the 800 ms bin (775..824), so mode=800, amo50=60 %.
+        // Range 700→1000 ⇒ mxDMn = 0.300 s (SECONDS, Welltory convention — not ms).
+        var g = D.baevskyGeom([700, 780, 790, 800, 810, 820, 824, 900, 950, 1000]);
+        T.ok('mode = modal RR in ms (50-ms bins)', g.mode === 800, 'got ' + g.mode);
+        T.ok('amo50 = amplitude of the mode, %', Math.abs(g.amo50 - 60) < 1e-9, 'got ' + g.amo50);
+        T.ok('mxDMn = range in SECONDS, not ms', Math.abs(g.mxDMn - 0.3) < 1e-9, 'got ' + g.mxDMn);
+        // Honest-null, never 0 — a fabricated 0 would read as a real measurement downstream.
+        var e = D.baevskyGeom([]);
+        T.ok('empty NN → nulls (not 0)', e.mode === null && e.amo50 === null && e.mxDMn === null);
+        T.ok('missing NN → nulls', (function () { var z = D.baevskyGeom(null); return z.mode === null && z.amo50 === null && z.mxDMn === null; })());
+        /* All-non-finite is its own case: the loop `continue`s past every value, so the ±Infinity seeds
+           survive and `mx - mn` would report -Infinity — a fabricated range wearing a number's shape. */
+        var nf = D.baevskyGeom([NaN, Infinity, -Infinity]);
+        T.ok('all-non-finite NN → nulls (no -Infinity range)', nf.mode === null && nf.amo50 === null && nf.mxDMn === null, 'got ' + JSON.stringify(nf));
+        /* The amplitude denominator counts USABLE beats, not array slots: a NaN diluting amo50 would
+           under-report the modal amplitude on exactly the noisy recordings where it matters most. */
+        var mixed = D.baevskyGeom([800, 800, NaN, NaN]);
+        T.ok('amo50 denominates on finite values only', mixed.amo50 === 100, 'got ' + mixed.amo50);
+      }
+
+      // ── 2 · neither builder may compute Baevsky locally again (that WAS the bug) ──
+      if (!app) {
+        T.skip('ecgdex-app.js source', 'not in env.sources');
+      } else {
+        T.ok('app delegates to ECGDSP.baevskyGeom (no second implementation)', /ECGDSP\.baevskyGeom\s*\(/.test(app), 'ecgdex-app.js must not re-implement the binning');
+        T.ok('app has no local 50-ms bin loop left behind', !/Math\.round\(\s*v\s*\/\s*50\s*\)\s*\*\s*50/.test(app), 'a surviving local copy can drift from the DSP one');
+      }
+
+      // ── 3 · both builders emit the SAME three keys (presence parity, rewording-proof) ──
+      var KEYS = ['amo50', 'mode', 'mxDMn'];
+      function timeBlockOf(text, marker) {
+        // Slice the hrv.time object literal: from the `time: {` that follows the builder's
+        // wholeRecordRMSSD anchor, to the `units: 'ms'` that closes the numeric run.
+        var i = text.indexOf(marker);
+        if (i < 0) return null;
+        var j = text.indexOf("units: 'ms'", i);
+        return j < 0 ? null : text.slice(i, j);
+      }
+      var dspBlock = timeBlockOf(dsp, 'wholeRecordRMSSD: nz(r.rmssd)');
+      var appBlock = timeBlockOf(app, 'wholeRecordRMSSD: r.rmssd');
+      // Anti-vacuity: if either anchor moved, this gate reads NOTHING and would pass on silence.
+      T.ok('scan is non-vacuous — DSP hrv.time block located', !!dspBlock, 'anchor moved; the parity check below would be hollow');
+      T.ok('scan is non-vacuous — app hrv.time block located', !!appBlock, 'anchor moved; the parity check below would be hollow');
+      if (dspBlock && appBlock) {
+        KEYS.forEach(function (k) {
+          var re = new RegExp('(^|[\\s{,])' + k + '\\s*:');
+          T.ok('orchestrate builder emits hrv.time.' + k, re.test(dspBlock), 'ecgdex-dsp.js ecgBuildNodeExport omits it — HRVDex reads tm.' + k + ' and gets null on the Unifier path');
+          T.ok('app builder emits hrv.time.' + k, re.test(appBlock), 'ecgdex-app.js buildV2 omits it');
+        });
+      }
     });
 
     group('ECGDex respRate aggregation (median, not HF-peak)', 'ecgdex-dsp', function (T) {

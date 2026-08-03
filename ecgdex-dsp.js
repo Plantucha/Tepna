@@ -106,6 +106,54 @@
     return +Object.entries(f).sort((x, y) => y[1] - x[1])[0][0];
   };
   const amo50 = (a, mo) => (a.filter((v) => Math.abs(v - mo) <= 25).length / a.length) * 100;
+  // ⚠️ `modeV`/`amo50` above are DEAD (no call sites) and bin differently from the exported
+  // Baevsky inputs — 5-ms bins / a ±25-ms window, against `baevskyGeom`'s 50-ms bins below.
+  // If you need Mode/AMo50 for anything that LEAVES this module, call `baevskyGeom` — reaching
+  // for these would emit a different number under the same key, which is worse than the omission
+  // FOLLOWUP-FINDINGS P4 was about.
+  // Baevsky geometric inputs (Mode, AMo50, MxDMn) from the NN series — 50-ms bins.
+  // THE single source of truth for these three numbers (FOLLOWUP-FINDINGS P4). ECGDex has two
+  // node-export builders — `ecgdex-app.js buildV2` (the app's ⬇ Export) and `ecgBuildNodeExport`
+  // below (the ORCHESTRATE path, i.e. Data Unifier / OverDex) — and P4's fix originally landed in
+  // the app one only. The same recording therefore reached HRVDex with a populated Baevsky-SI
+  // through the app and a null one through the Unifier: `hrvdex-dsp.js _envToSeed` reads exactly
+  // `tm.amo50 / tm.mode / tm.mxDMn`, so every SI-derived metric (`d_si`, the HTN/BP pieces that
+  // read `si`) came out null on that path. Living here means both builders call ONE function, so
+  // they cannot drift apart in value the way they drifted apart in presence.
+  // Units follow the Welltory convention: mode = modal RR in ms, amo50 = amplitude of the mode
+  // in %, mxDMn = variation range in SECONDS. Empty/all-non-finite NN → nulls (honest-null, never 0).
+  function baevskyGeom(nn) {
+    nn = nn || [];
+    if (!nn.length) return { mode: null, amo50: null, mxDMn: null };
+    let mn = Infinity,
+      mx = -Infinity,
+      used = 0;
+    const bins = {};
+    for (const v of nn) {
+      if (!isFinite(v)) continue;
+      used++;
+      if (v < mn) mn = v;
+      if (v > mx) mx = v;
+      const b = Math.round(v / 50) * 50;
+      bins[b] = (bins[b] || 0) + 1;
+    }
+    // Every value non-finite ⇒ no measurement. Returning 0/NaN here would fabricate one, and
+    // `mx - mn` on the untouched ±Infinity seeds would read -Infinity (Clock-Contract §2.6 honesty).
+    if (!used) return { mode: null, amo50: null, mxDMn: null };
+    let modeBin = 0,
+      modeCnt = 0;
+    for (const b in bins) {
+      if (bins[b] > modeCnt) {
+        modeCnt = bins[b];
+        modeBin = +b;
+      }
+    }
+    return {
+      mode: modeBin, // modal RR, ms
+      amo50: +((modeCnt / used) * 100).toFixed(1), // amplitude of mode, %
+      mxDMn: +((mx - mn) / 1000).toFixed(3) // variation range, SECONDS (Welltory convention)
+    };
+  }
   const sd1 = (r) => r / Math.sqrt(2);
   const sd2 = (s, r) => Math.sqrt(Math.max(0, 2 * s * s - (r * r) / 2));
   // Geometric Poincaré: SD1/SD2 computed directly from the rotated coordinates of the
@@ -4342,6 +4390,7 @@
       };
       var amb = !!r.ambulatory,
         lng = !!r.longRec;
+      var _geom = baevskyGeom(r.nn); // Baevsky-SI inputs for the envelope (FOLLOWUP-FINDINGS P4)
       out.quality = { analyzablePct: nz(r.analyzablePct), cleanBeatPct: nz(r.cleanBeatPct), coveragePct: nz(r.coveragePct) };
       out.hrv = {
         time: {
@@ -4354,7 +4403,16 @@
           wholeRecordHR: nz(r.hr),
           wholeRecordSDNN: nz(r.sdnn),
           wholeRecordRMSSD: nz(r.rmssd),
+          // FOLLOWUP-FINDINGS P4 — the orchestrate path omitted these while ecgdex-app.js buildV2
+          // emitted them, so an ECG file routed through Data Unifier / OverDex gave HRVDex a null
+          // Baevsky-SI while the same file exported from the app gave a populated one. Both
+          // builders now call ONE `baevskyGeom`, so they agree in value as well as in presence.
+          amo50: nz(_geom.amo50),
+          mode: nz(_geom.mode),
+          mxDMn: nz(_geom.mxDMn),
           units: 'ms',
+          geometricNote:
+            'Baevsky-SI inputs (Brennan/Welltory convention): amo50 = amplitude of the modal RR (%), mode = modal RR (ms), mxDMn = RR variation range (SECONDS). Same values as the ⬇ HRVDex CSV columns; null when the NN series is empty.',
           windowNote:
             'sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD.'
         },
@@ -4601,6 +4659,7 @@
   global.ECGDSP.parseDeviceACC = parseDeviceACC;
   global.ECGDSP.planCompanionGraft = planCompanionGraft; // §10.4 — pure, so the graft rule is gateable
   global.ECGDSP.hrvStability = hrvStability; // DEEP-AUDIT-II #39 — pure, so the per-window epoch count n is gateable
+  global.ECGDSP.baevskyGeom = baevskyGeom; // FOLLOWUP-FINDINGS P4 — ONE source for both node-export builders (app buildV2 + orchestrate); pure, so the two are gateable against each other
   global.ECGDSP.compute = compute;
   global.ECGDSP.buildNodeExport = ecgBuildNodeExport;
   // ONE namespaced global (brief §1A). ECGDex leaks nothing bare (the whole DSP is in this

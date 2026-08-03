@@ -4,7 +4,56 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (not verified 2026-08-03 — five per-item "Done when" blocks plus a whole-brief definition of done, none individually confirmed against the tree. P2's premise is now moot: `buildHash` is RETIRED as a provenance signal, `manifestHash` is the sole code identity) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** DONE — 2026-08-03 · **Created:** (undated — pre-2026-07-03, grandfathered) · **Spawns:** `REGEN-CORPUS-PATH-FOLLOWUPS-2026-08-03-BRIEF.md`
+
+> **All five items settled 2026-08-03 — four were already resolved, P4 was still live and is fixed here.**
+>
+> - **P1 (HIGH) — unguarded `DOMContentLoaded`: RESOLVED, and its Done-when WITHDRAWN.** Every bundled
+>   app now carries the `readyState` guard (swept: 14 sites, all guarded; `metric-registry.js` guards on
+>   `document.body` instead, which the brief itself allows). More importantly the **bug class is
+>   structurally gone**: OWN-THE-BUILD retired the legacy inliner, and an owned bundle carries each module
+>   as *plain inline text* (`oxydex-dsp.js` is 310 KB inside its `<script>` tag), so app code runs during
+>   parse and `DOMContentLoaded` fires *after* it. ⚠️ P1's literal Done-when — *"bundled OxyDex
+>   auto-restores its last session on reload"* — is **not met and must not be**: `SECURITY-REMEDIATION-2026-07-11`
+>   F4/F1 **deleted** that block, because it persisted the whole raw O2Ring CSV plus an unscrubbed filename
+>   to localStorage and rebuilt a chip that interpolated the filename into `innerHTML`. The requirement was
+>   deliberately withdrawn, not satisfied — recorded here so nobody "restores" it.
+> - **P2 (MEDIUM) — `.src.html` edits may not move `buildHash`: OBSOLETE.** `buildHash` is RETIRED as a
+>   provenance signal (`CLAUDE.md` §🔏); `manifestHash` is the sole executed-code identity and is a
+>   deterministic projection of the inlined assets, so the blind spot P2 asked to investigate no longer
+>   exists to investigate.
+> - **P3 (MEDIUM) — HRVDex ingest contracts: DONE.** All three named contracts are asserted in
+>   `tests/dex-tests.js` — `_hrvSig` (6), `_envToSeed` (8), `commitRows` (9).
+> - **P4 (LOW — and the only live one) — CSV vs JSON import: FIXED HERE.** Its severity was under-rated.
+>   See below.
+> - **P5 (LOW) — cleanups: DONE.** The vestigial `hrvdex_last_csv` key is gone, and `persistHRVRows`
+>   (`hrvdex-dsp.js`) no longer swallows quota errors — it halves the tail until the write fits and returns
+>   `{capped, total}` (or `{failed}`), citing "FOLLOWUP-FINDINGS P5.2" in its own comment.
+>
+> **P4 was half-fixed, which is why it survived.** ECGDex has **two** `ganglior.node-export` builders:
+> `ecgdex-app.js buildV2` (the app's ⬇ Export) and `ecgdex-dsp.js ecgBuildNodeExport` (the ORCHESTRATE
+> path behind Data Unifier / OverDex). P4's fix landed in the app builder only. Since `hrvdex-dsp.js
+> _envToSeed` reads exactly `tm.amo50 / tm.mode / tm.mxDMn`, the *same recording* gave HRVDex a populated
+> Baevsky-SI through the app and a **null** one through the Unifier — `d_si` and the HTN/BP metrics that
+> read `si` silently absent on one path. The DSP builder's own comment claimed *"Field math MIRRORS
+> ecgdex-app.js buildV2"*; nothing checked it, and a comment is not a gate.
+>
+> **Fix:** `baevskyGeom` moved into `ecgdex-dsp.js` as THE single source (the app now delegates), the three
+> fields added to the orchestrate builder, and a new gate pins both halves — value parity by construction,
+> presence parity by a rewording-proof source scan with an anti-vacuity leg. 17 assertions; **3 mutants
+> applied, 3 killed** (drop the keys → 3 reds with the anti-vacuity legs still green; break the scan anchor
+> → anti-vacuity reds; restore the diluting denominator → the amo50 leg reds).
+>
+> Two honest-null defects were fixed on the way, both latent in the original: an all-non-finite NN series
+> produced `mxDMn = -Infinity` from the untouched `±Infinity` seeds, and `amo50` denominated on `nn.length`
+> rather than the finite count, under-reporting modal amplitude on exactly the noisiest recordings.
+>
+> **Gates:** `manifestHash 5826304d5daa → e98687121302`, `computeHash 5f63326a8eb5 → 2c6f9ac2c312` (a
+> compute-path change, so re-verification was owed and was run). `regen-goldens --node ECGDex` moved
+> **exactly 4 fields in exactly 1 fixture** (`synthetic_ecgdex_rich_golden`); the two light goldens and the
+> **real** `ECGDex_2026-06-27_equiv` are byte-unchanged, confirming the light/app path is untouched.
+> `verify-fixtures` green against the real corpus, `verifiedUnder → 2c6f9ac2c312`. GATE A 9/9, GATE B 29/29,
+> `build.mjs --check` clean (11 owned). ECGDex + Data Unifier + OverDex re-bundled.
 
 # Follow-up findings — build brief for an AI coder
 

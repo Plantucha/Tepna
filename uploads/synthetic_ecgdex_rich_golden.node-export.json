@@ -39,7 +39,11 @@
       "wholeRecordHR": 59.6,
       "wholeRecordSDNN": 28.2,
       "wholeRecordRMSSD": 35.9,
+      "amo50": 48.3,
+      "mode": 1000,
+      "mxDMn": 0.086,
       "units": "ms",
+      "geometricNote": "Baevsky-SI inputs (Brennan/Welltory convention): amo50 = amplitude of the modal RR (%), mode = modal RR (ms), mxDMn = RR variation range (SECONDS). Same values as the ⬇ HRVDex CSV columns; null when the NN series is empty.",
       "windowNote": "sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD."
     },
     "frequency": {
