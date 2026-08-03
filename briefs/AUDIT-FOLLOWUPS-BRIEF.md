@@ -1,6 +1,28 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED (verified still open 2026-08-03 — §1's Integrator "Clear synthetic" show/hide filter is **NOT BUILT**: zero matches in `integrator-app.js` or `Integrator.src.html`. §3's `validateNodeExport()` decision also stands unmade — it still ships live only in `integrator-app.js` + `crossnight-envelope.js`) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** PROPOSED (partly SHIPPED — re-verified 2026-08-03 · ⚠️ **§1's earlier "NOT BUILT" stamp was WRONG, see below**) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
+> **⚠️ Correction — §1 is SHIPPED, and this header previously said it was not.**
+> An earlier 2026-08-03 pass stamped §1 *"NOT BUILT: zero matches in `integrator-app.js` or
+> `Integrator.src.html`"*. Both files were the wrong place to look — §1's own step list puts the feature in
+> **`integrator-longitudinal.js`** (data) and the Longitudinal view's `render()` (UI), and it has been there
+> since at least PR #644. What actually ships: `clearSynthetic()` · the pure Node-CI-testable
+> `filterSynthetic(rows, includeSynthetic)` (with `undefined` correctly treated as a pre-Round-I **real**
+> row) · a trailing optional `includeSynthetic` threaded through `_allRows`/`nodes`/`datesSorted`/
+> `metricKeys`/`seriesFor`/`crossCorrelations`/`state` · `clearSynthetic`/`filterSynthetic`/`hasSynthetic`/
+> `countSynthetic` all on `global.IntegratorLong` · a **Show/Hide synthetic** toggle and a **Clear
+> synthetic** button in the store bar, wired at `#longSynthToggle`/`#longSynthClear` · the preference
+> persisted under the module's own `localStorage` key · a synthetic count in the store bar with a `hidden`
+> warning · dashed-border visual tagging (`.cg-synth`, `.ltc-synth`) · and assertions in
+> `tests/dex-tests.js`. The same item is `GENERATOR-FOLLOWUPS-II-BRIEF.md` §2, corrected identically.
+>
+> **§6 is OBSOLETE as a task.** It asked for a one-off repo-wide source↔bundle drift sweep; that is now a
+> standing gate — `node tools/build.mjs --check` (clean: 11 owned, 0 legacy), run by `npm run check` and CI.
+>
+> **Still genuinely open, re-verified in code today:** **§2** (GlucoDex fusion events still emit no
+> `HH:MM:SS` — 0 matches in `glucodex-dsp.js`); **§3** (`validateNodeExport()` still reaches only
+> `integrator-app.js` + `crossnight-envelope.js`, so the "should every node validate on export?" decision
+> stands unmade); **§4/§5** (owner-pick lists, each its own package); §7/§8 unassessed.
 
 # Brief — Audit follow-ups from the 6-brief execution review (2026-06-22)
 

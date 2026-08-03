@@ -1,6 +1,27 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED (partly OBSOLETE, partly open — verified 2026-08-03. **§1 is obsolete**: making `buildHash` fingerprint the build was made unnecessary by Phase 7's content-addressing and is deliberately not taken — `CLAUDE.md` §🔏 records `buildHash` as RETIRED inert legacy metadata. **§2 is still open** — the Integrator "Clear synthetic" filter is not built, same item as `AUDIT-FOLLOWUPS-BRIEF.md` §1. §3 was self-marked maybe-not-worth-it) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** PROPOSED (§1 OBSOLETE · **§2 SHIPPED** · §3 only — re-verified 2026-08-03 · ⚠️ **§2's earlier "not built" stamp was WRONG, see below**) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
+> **§1 — OBSOLETE.** Making `buildHash` fingerprint the build was made unnecessary by Phase 7's
+> content-addressing and is deliberately not taken; `CLAUDE.md` §🔏 records `buildHash` as RETIRED inert
+> legacy metadata and `manifestHash` as the sole executed-code identity.
+>
+> **⚠️ §2 — SHIPPED, and an earlier 2026-08-03 pass wrongly stamped it "not built."** That check grepped
+> `integrator-app.js` and `Integrator.src.html`; §2's own step list puts the feature in
+> **`integrator-longitudinal.js`**, where it has been since at least PR #644. Every step of §2 is present:
+> `clearSynthetic()` mirroring `clear()`'s IndexedDB pattern; the trailing optional `includeSynthetic`
+> (default `true`) threaded through `_allRows`/`metricKeys`/`seriesFor`/`crossCorrelations`/`state`;
+> `clearSynthetic` exported on `global.IntegratorLong` beside `clear`; the **Show/Hide synthetic** toggle
+> and **Clear synthetic** button in the store bar; the toggle persisted in `localStorage` under the
+> module's own key. Both of §2's named pitfalls are honored: the `node|date` id scheme is unchanged and
+> the collision is documented *in the toggle's `title` attribute*, exactly as asked, and `filterSynthetic`
+> treats a missing `synthetic` field as a pre-Round-I **real** row. §2 even went past the spec — it split
+> the filter into a **pure** `filterSynthetic(rows, includeSynthetic)` so Node CI covers it, which is the
+> option §2 flagged as preferred. Assertions live in `tests/dex-tests.js`.
+> Same item as `AUDIT-FOLLOWUPS-BRIEF.md` §1, corrected identically.
+>
+> **§3 is the only thing left** — ECGDex raw multi-night coherence, self-marked *"BIG, maybe-not-worth-it"*
+> and still unbuilt. This brief is one owner decision on §3 away from DONE.
 
 # Brief — Generator Follow-ups, Round II (June 2026)
 
