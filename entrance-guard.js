@@ -30,8 +30,17 @@
 (function () {
   var ID = 'dx-entrance-guard';
   var css =
-    '.main-content{animation:none!important;opacity:1!important;transform:none!important;}' +
-    '#kpiStrip.show,#kpiStrip .kpi,.chart-card,.chart-svg,.tab-content.active,' +
+    // `.main-wrap` shares ans-design.css's `.main-wrap,.main-content{...animation:fadeIn}` rule and was
+    // NOT pinned here — OxyDex/HRVDex/PulseDex use it as their content wrapper, so their whole page
+    // body was unguarded. Guard the selectors the stylesheet animates, not the one app you tested.
+    '.main-wrap,.main-content{animation:none!important;opacity:1!important;transform:none!important;}' +
+    // `.kpi` is guarded BARE, not as `#kpiStrip .kpi` — ans-design.css animates the bare
+    // selector (`.kpi{animation:cardEntrance .35s ease both}`), and CPAPDex has no #kpiStrip
+    // at all: it renders every KPI into its own `.kpi-grid`, so the narrower selector left that
+    // whole row unguarded. Measured under a frozen timeline: outside #kpiStrip the element read
+    // opacity=0/animationName=cardEntrance, inside it read opacity=1/none. The rule is to mirror
+    // the selector ans-design.css animates, not the container one app happens to use.
+    '#kpiStrip.show,.kpi,.chart-card,.chart-svg,.tab-content.active,' +
     '.readiness-hero,.readiness-score,.readiness-subscore,' +
     '.finding-card,.pair-card,.metric{animation:none!important;opacity:1!important;}';
   function inject() {

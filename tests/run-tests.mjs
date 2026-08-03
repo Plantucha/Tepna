@@ -256,6 +256,11 @@ function readSources() {
     /* DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §AD — the ANALYSIS lane's two OxyDex consumers, read by the
        'no bare OxyDex._bare helper' scan. Neither file's TEXT was loaded in either lane, which is why a
        bare `processNight(...)` in both went unseen after the back-compat global spray was removed. */
+    /* BLANK-ON-PRINT-FLEET §3 — the entrance-guard parity gate reads BOTH: the required selector
+       set is DERIVED from ans-design.css's from-opacity:0 keyframes, so a newly-animated selector
+       fails until it is guarded. Must be listed in BOTH lanes or the scan reads nothing in one. */
+    'ans-design.css',
+    'entrance-guard.js',
     'nsrr-adapter.js',
     'odi-bias-analysis.js',
     'dex-escape.js',

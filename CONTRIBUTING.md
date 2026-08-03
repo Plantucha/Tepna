@@ -101,14 +101,24 @@ fixture whose output the change moved.
 >
 > | Builder | What it re-generates | Its guard |
 > |---|---|---|
-> | `node tools/build.mjs --all` | the 10 owned bundles | `--check` (in `npm run check`) |
-> | `node tools/build-analysis.mjs` | the analysis pages — they inline the DSPs into **worker blobs** | `--check` (CI only) |
-> | `node tools/build-docs.mjs` | the served `docs/` deploy snapshot (copies the bundles) | `--check` (CI only) |
+> | `node tools/build.mjs --all` | the 10 owned bundles | `build:check` — in `npm run check` |
+> | `node tools/build-analysis.mjs` | the analysis pages — they inline the DSPs into **worker blobs** | `verify:analysis` — in `npm run check` |
+> | `node tools/build-docs.mjs` | the served `docs/` deploy snapshot (copies the bundles) | `verify:docs` — in `npm run check` |
 >
-> **`npm run check` covers only the first** — it stops at `build:check`. `tests.yml` runs
-> `build-analysis.mjs --check` and `build-docs.mjs --check` as well, so a forgotten builder is a red CI
-> you find *after* pushing. This was missed twice in one audit's execution (`build-docs` → #450 red,
-> then `build-analysis`; DEEP-AUDIT-III-FOLLOWUPS §2.5). If you changed a DSP, run all three.
+> **`npm run check` now covers all three** (updated 2026-08-03 — it previously stopped at `build:check`,
+> and this paragraph still said so long after `verify:analysis` + `verify:docs` were added to the script).
+> So **run `npm run check`**, not a hand-picked subset: it is the same set `tests.yml` gates on, and it is
+> the only invocation that cannot silently omit a builder.
+>
+> A forgotten builder is a red CI you find *after* pushing, and it does **not** look like a builder
+> problem — every test shard passes and only the `static` job fails, so it reads as a test failure. Missed
+> twice in one audit's execution (`build-docs` → #450 red, then `build-analysis`;
+> DEEP-AUDIT-III-FOLLOWUPS §2.5), and again on **#797** (2026-08-03) by someone running `build.mjs --check`
+> + the suite + GATE A/B individually instead of the aggregate — all green locally, `STALE (7)` in CI.
+>
+> ⚠️ After `tools/build-docs.mjs`, **stage from `git status`**, not from the `git add …` line it prints.
+> Observed on #797: it printed nine paths of which **zero** had changed, and omitted the **seven
+> `docs/*.html` it had just rewritten**.
 
 ---
 
