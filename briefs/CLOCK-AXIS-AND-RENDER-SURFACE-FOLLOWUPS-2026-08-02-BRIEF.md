@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-02 (**§2 wave 3 and §3 EXECUTED — see §7.** cpapdex-render is 144/319 = 45 %; the matchRecall cross-site scan landed. §1 the host-axis spec and §5 the canvas-harness decision remain.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
+**Status:** IN-PROGRESS — 2026-08-02 (**§2 waves 3-4 and §3 EXECUTED — see §7.** cpapdex-render is 153/319 = 48 %; the matchRecall cross-site scan landed. §1 the host-axis spec and §5 the canvas-harness decision remain.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
 
 # What the clock audit left behind: an unspecified host-axis, and 125 reachable render mutants
 
@@ -50,6 +50,31 @@ Two waves took it 0/12 sampled → **118/319 = 36 %**, both test-only. Remaining
 The 69 canvas survivors need a canvas stub or jsdom to reach at all. That is a **harness** decision with
 fleet-wide consequences (every `*-render.js` has the same shape), so it belongs in its own brief rather
 than as an aside here — flagged, not scoped.
+
+### Wave 4 — the bands were pinned at ONE end, and it was the quieter one
+
+Waves 1–3 asserted band membership by choosing a value *inside* each band. That pins the `good` edge and
+leaves the `warn` edge free: `sev(good, warn, v, lower)` reads `v <= good ? ok : v <= warn ? warn : bad`,
+so `warn → 0` only changes the verdict for values BETWEEN the two — which no assertion used. Measured,
+`warn → 0` survived at **every** call site in the file.
+
+It is the louder half clinically. The `good` edge separates "fine" from "watch this"; the `warn` edge
+separates "watch this" from **"this night failed"**, and a mutation there repaints a failing night amber.
+Each is now asserted AT the edge and one step past it — the only pair that pins a `<=` boundary, per
+§7.2's lesson that a one-sided test kills `||`→`&&` and leaves every `<`→`<=` alive.
+
+Killed: the hero AHI warn edge (15), the higher-better therapy-hours warn edge (2 h, which runs the other
+way), central (10), median leak's good edge (12) and p95 leak's warn edge (24) — the two leak metrics
+share one edge and differ on the other — and flow limitation (25).
+
+**`oximetryCard` was entirely unasserted**, and it is the card that grades hypoxia. It carries three bands
+and **two polarities**: ODI and T90 lower-better, SpO₂ nadir and mean higher-better. All four edges are
+pinned, and the nadir is pinned at *both* ends so a dropped `lower` flag cannot survive. Its honest-absence
+path is pinned too — no oximeter must render a stated absence with **no graded tiles at all**, not a card
+of zeros.
+
+**Still open after wave 4:** 69 canvas survivors (the harness decision, §5) plus the `crossNodeCard` /
+review-KPI bands, which need a `CPAPCross` fixture the way `renderHistory` needed `buildLongitudinal`.
 
 ## 3 · `matchRecall` is implemented TWICE, and only one copy is gated
 
@@ -116,6 +141,7 @@ change to the module, no re-bundle.
 | 1 | 61/319 = 19 % | the per-night card bands |
 | 2 | 118/319 = 36 % | hero tiers, oximetry, sessions, event timeline |
 | **3** | **144/319 = 45 %** | **`renderHistory` (29 → 15), `cpapClinicalSummary` (20 → out of the top six)** |
+| **4** | **153/319 = 48 %** | **every band's WARN edge, and `oximetryCard` (previously unasserted)** |
 
 `renderHistory` was skipped twice for a real reason — it needs a multi-night fixture routed through
 `CPAPDSP.buildLongitudinal`, which is fixture construction rather than more of the same shape. That turned
