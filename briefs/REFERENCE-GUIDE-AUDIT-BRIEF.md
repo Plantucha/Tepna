@@ -1,4 +1,4 @@
-**Status:** PROPOSED (not verified 2026-08-03 — seven `* Reference.html` guides ship and dimension 4 (grade/badge conformance) is gate-enforced by `cohesion-badges`, but dimensions 1–3 and 5–7 were not re-checked per guide. Findings live in `audits/REFERENCE-GUIDE-AUDIT-FINDINGS.md`) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** IN-PROGRESS — 2026-08-03 (dimension 4 gate-enforced by `cohesion-badges`; **dimension 3's code-side half now swept** — `tools/severity-ladder-audit.mjs`, 5 conflicting of 198 laddered expressions, 4 real and all OxyDex: the same night is banded two ways between `renderSmartSummary` and `nightDetail`, and **ODI-3 has no published band at all** yet is given two different invented ones. Findings in `audits/REFERENCE-GUIDE-AUDIT-FINDINGS.md`; the fix is an owner cut-point call. Dimensions 1–2 and 5–7 still unchecked per guide) · **Created:** (undated — pre-2026-07-03, grandfathered)
 
 # Build Brief — Deep Audit of ALL Reference Guides
 

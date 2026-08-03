@@ -212,3 +212,55 @@ Node parity in CI (couldn't be run from the design environment).
 
 **Still intentionally browser-only** (DOM/iframe-bound, can't run headless): the render-coverage groups
 and `cpapCoimportGroup` — these remain in `Dex-Test-Suite.html` as designed.
+
+---
+
+## Dimension-3 sweep, 2026-08-03 — the same night banded two ways in OxyDex
+
+The brief's dimension 3 asks that normative bands be "defensible, not invented" and that boundaries be
+sanity-checked. It aims at the GUIDES. Checking the **code against itself** is the cheaper half and had
+never been done: `tools/severity-ladder-audit.mjs` looks for one metric expression carrying two
+different `good/warn/bad` ladders inside a node.
+
+**Result: 5 conflicting of 198 laddered expressions across 21 render/app files.** One is a false
+positive (`hrvdex-render.js` reuses a local `v` across unrelated metrics — the tool warns about exactly
+this and does not suppress it). The other **four are real, and all four are OxyDex**:
+
+| metric | `renderSmartSummary` (:2011) | `nightDetail` (:2478) |
+|---|---|---|
+| HR-Var SD | `≥3` good · `≥2` warn | `≥4` good · `≥2.5` warn |
+| HR Floor | `≤52` good · `≤60` warn | `≤55` good · `≤65` warn |
+| HR Slope | `≤0` good · `<1` warn | `<0` good · `<1.5` warn |
+| **ODI-3** | `<5` good · `<15` warn | `<15` good · `<30` warn |
+
+Both functions take **the same night object `n`**. So HR Floor 54 bpm reads *warn* on the Smart Summary
+and *good* on the Night Detail; HR-Var SD 3.5 reads *good* then *warn*; ODI-3 12/hr reads *warn* then
+*good*. One of each pair is wrong no matter which band is right. (Not verified: whether both surfaces
+are ever visible at the same instant — they are reached by navigation. The contradiction stands either
+way, because the value has not changed.)
+
+### ODI-3 is the sharpest case, because it has NO published band at all
+
+`OxyDex Reference.html` publishes a severity table headed **"ODI-4 (events/hr) Classification"** —
+`<5` Normal · `5–14.9` Mild · `15–29.9` Moderate · `≥30` Severe. For ODI-3 it says only that it "is more
+sensitive for mild hypoxemia". There is no ODI-3 band in the guide, and `oxydex-registry.js` carries
+only a citation string (`AASM 3% oxygen desaturation index`), no thresholds.
+
+So the code invents an ODI-3 cut-point **twice, differently**: one site borrows ODI-4's bands unchanged,
+the other shifts them one severity notch. Dimension 3's own words — *"No fabricated clinical
+cut-points"* — apply, and the fabrication is visible precisely because it was done inconsistently.
+
+### Why no fix is proposed here
+
+Picking the winning ladder IS choosing a clinical cut-point, which this brief forbids doing on
+judgement. The two honest routes:
+
+- **(a) Cite one.** Find the published ODI-3 severity banding (and the HR-proxy bands), put it in the
+  guide, and make both surfaces use it.
+- **(b) Refuse to grade.** Render ODI-3 (and the 1 Hz HR proxies) **neutral**, as `oxydex-render.js:3009`
+  already does for ODRI — *"ranges not yet established — values are relative"*. That removes an invented
+  cut-point rather than choosing between two.
+
+(b) needs no literature and matches an in-repo precedent; (a) is better if the band exists. Either is a
+render change → OxyDex re-bundle, so it should be scheduled rather than folded into an audit pass.
+**Owner's call.**
