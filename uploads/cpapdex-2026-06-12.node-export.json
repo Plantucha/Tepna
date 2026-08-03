@@ -79,6 +79,8 @@
     "hypopneaIndex": 0.99,
     "reraIndex": null,
     "periodicBreathingPct": 0,
+    "pbObservedHours": 7.067,
+    "pbObservedSessions": 2,
     "medianPressure": 6.24,
     "p95Pressure": 8.1,
     "pressureRange": 1.54,
