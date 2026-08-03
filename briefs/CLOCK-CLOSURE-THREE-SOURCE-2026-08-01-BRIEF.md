@@ -3,7 +3,28 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-08-01 (⚠ §1 drift columns superseded — see §5) · **Created:** 2026-08-01 · **Follows:** `WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md` · **Affects:** `integrator-dsp.js`, `tools/trio-batch.mjs`, `tests/dex-tests.js`
+**Status:** DONE — 2026-08-01 (⚠ §1 drift columns superseded — see §5; ⛔ **every O2Ring-containing result VOIDED 2026-08-03** — see the banner) · **Created:** 2026-08-01 · **Follows:** `WEARABLE-DRIFT-FIT-2026-08-01-BRIEF.md` · **Affects:** `integrator-dsp.js`, `tools/trio-batch.mjs`, `tests/dex-tests.js`
+
+> ### ⛔ VOID — TWO OF THE THREE LEGS WERE NEVER CLOCKS (added 2026-08-03)
+> Every three-source result in this brief includes an **O2Ring** leg, and the O2Ring's
+> `sensor timestamp` column is **drawn, not measured**: the device emits no per-sample timestamp, so
+> capture constructed the axis as `sample_index × an assumed rate`. Its apparent ppm is the error in
+> that constant, which is why the same night reads **+783 ppm** on a fragment written at 125.738 Hz and
+> **+92 ppm** on one written at ~128.024 Hz. Two of the three pairs here contain that leg, so two of
+> three "rates" were comparisons against a drawing.
+>
+> **What that does to the conclusions below:**
+> - the closure residuals are **not measurements of clock disagreement** — do not cite them;
+> - the −2.2 ppm residual on 2026-07-27 is best read as **coincidence**, not as a night that closed;
+> - the correspondence figures (2–54 % against a 13–22 % chance floor) have a **mechanism** now: the
+>   axis, not sensor quality, physiology, or the night;
+> - the **Polar↔Polar** leg is untouched — neither of its ends is the ring.
+>
+> The detection is computed rather than remembered: `quality.timingSource` (`device+host` · `host` ·
+> `none`) and `hostAxis`'s `independent`/`spreadMs`, gated by `ppgdex · axis-provenance`. See
+> `O2RING-SYNTHESISED-AXIS-2026-08-02-BRIEF.md` and `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02` §F1.
+> **Do not respond by re-calibrating the constant** — a better constant makes the drawn axis more
+> plausible without making it a measurement.
 
 # Three clocks must close to zero. On six real nights they never do — and once with every leg confident.
 
