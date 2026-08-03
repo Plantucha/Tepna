@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-02 (**§2 waves 3-4 and §3 EXECUTED — see §7.** cpapdex-render is 153/319 = 48 %; the matchRecall cross-site scan landed. §1 the host-axis spec and §5 the canvas-harness decision remain.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
+**Status:** IN-PROGRESS — 2026-08-02 (**§2 waves 3-5 and §3 EXECUTED — see §7.** cpapdex-render is 160/319 = 50 %; the matchRecall cross-site scan landed. §1 the host-axis spec and §5 the canvas-harness decision remain.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
 
 # What the clock audit left behind: an unspecified host-axis, and 125 reachable render mutants
 
@@ -73,8 +73,25 @@ pinned, and the nadir is pinned at *both* ends so a dropped `lower` flag cannot 
 path is pinned too — no oximeter must render a stated absence with **no graded tiles at all**, not a card
 of zeros.
 
-**Still open after wave 4:** 69 canvas survivors (the harness decision, §5) plus the `crossNodeCard` /
-review-KPI bands, which need a `CPAPCross` fixture the way `renderHistory` needed `buildLongitudinal`.
+### Wave 5 — the same four bands exist twice, 370 lines apart, and only one copy was pinned
+
+`oximetryCard` grades the AirSense's own SA2 lane. `crossNodeCard` grades oximetry **borrowed from
+OxyDex** when the CPAP had no oximeter that night. They are separate code paths carrying a duplicated
+threshold set — ODI (5,15), T90 (1,5), nadir (90,85), mean (94,92) — and `warn → 0` survived at three of
+the four in `crossNodeCard` even after wave 4 pinned every one of them on the native card.
+
+The load-bearing assertion is therefore not the edges but the **parity**: one shared reading is fed to
+both cards and their grades must match. A band edited on one surface and not the other would grade the
+same measurement differently depending on which oximeter recorded it, and nothing else in the suite
+compares them.
+
+Also pinned: the concordance collapse (a three-way upstream verdict — concordant / ahi-led / odi-led —
+rendered as a two-way colour, with both colours now reachable), and that an un-ingested peer yields an
+empty string rather than an empty card shell. The fixture seeds `CpapCoimport`'s module-level `PEERS`
+via `ingest` and hands it back with `reset` — no state leaks into the groups that follow.
+
+**Still open after wave 5:** 69 canvas survivors (the harness decision, §5), plus the review-mode KPI
+bands in `cpapClinicalSummary` / `renderReviewView`.
 
 ## 3 · `matchRecall` is implemented TWICE, and only one copy is gated
 
@@ -142,6 +159,7 @@ change to the module, no re-bundle.
 | 2 | 118/319 = 36 % | hero tiers, oximetry, sessions, event timeline |
 | **3** | **144/319 = 45 %** | **`renderHistory` (29 → 15), `cpapClinicalSummary` (20 → out of the top six)** |
 | **4** | **153/319 = 48 %** | **every band's WARN edge, and `oximetryCard` (previously unasserted)** |
+| **5** | **160/319 = 50 %** | **`crossNodeCard` — the same four bands a second time, and their PARITY** |
 
 `renderHistory` was skipped twice for a real reason — it needs a multi-night fixture routed through
 `CPAPDSP.buildLongitudinal`, which is fixture construction rather than more of the same shape. That turned
