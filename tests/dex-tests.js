@@ -394,6 +394,70 @@
        night. Measured cost on 2026-07-26: −0.70 s (H10), −0.34 s (Verity), −18.49 s (O2Ring, and
        NON-LINEAR so no single rate removes it). This group locks the recovery, the two properties that
        make the correction safe to apply, and the refusal that stops it fabricating a timebase. */
+    /* ════ hostAxis DECLARES an inert axis — a ~0 ppm cannot carry the distinction ════════════════
+     PAT-NO-VALID-ANCHOR §10, last item. `hostAxis` returned `ok: true` plus a ppm for BOTH of two
+     completely different situations: two INDEPENDENT clocks that happen to agree, and a host column
+     that is not an independent clock at all because the capture app derived it from the device stamp.
+     A consumer reading `ok: true, ppm: …` could not tell which it had.
+
+     AND THE INERT CASE DOES NOT REPORT ZERO — that is the part that makes this a defect rather than a
+     tidiness complaint. Measured over the phone tree (104 files), an inert axis reports a MEDIAN of
+     0.0 ppm but a MAXIMUM of **120.7 ppm**, produced entirely by 1 ms rounding noise sloping one way.
+     The largest genuine Polar crystal error in this corpus is the H10 at −27 ppm. So the old API could
+     hand a consumer a plausible, physically-sized crystal rate — four times the real one — derived from
+     a column carrying no information.
+
+     The discriminator is the residual SPREAD, not the slope, and it separates the corpus cleanly:
+
+       box / capture-host   82 files   spread min 101.89 ms   →  82/82 independent
+       phone tree          104 files   spread max   1.00 ms   →   0/104 independent
+
+     The phone maximum is exactly one stamp quantum (1 ms): its host column is the device time rounded.
+     Nothing in either tree lands between 1.00 and 101.89 ms. */
+    group('hostAxis declares an INERT axis — host ≡ device is not "two clocks that agree"', 'clock · known-answer', function (T) {
+      var C = env.DexClock;
+      T.ok('DexClock.hostAxis present', !!(C && typeof C.hostAxis === 'function'));
+      if (!(C && typeof C.hostAxis === 'function')) return;
+      var mk = function (fn) {
+        var a = [];
+        for (var i = 0; i < 40; i++) a.push({ devMs: i * 1000, hostMs: i * 1000 + fn(i) });
+        return a;
+      };
+      // (a) a REAL second clock: host diverges from device by a genuine rate
+      var real = C.hostAxis(mk(function (i) { return i * 30; }));
+      // (b) an INERT column: host is the device stamp rounded to the 1 ms quantum — spread can never
+      //     exceed one quantum no matter how long the recording runs
+      var inert = C.hostAxis(mk(function (i) { return i % 2; }));
+      T.ok('both are ok:true — the old API could not separate them, which is the defect', real.ok === true && inert.ok === true);
+      T.eq('a genuinely divergent host is declared INDEPENDENT', real.independent, true);
+      T.eq('a host that is the device rounded is declared NOT independent', inert.independent, false);
+      /* THE POINT, asserted rather than described: the inert axis reports a NONZERO, plausible ppm.
+         If this ever reads ~0 the test above would pass for the wrong reason — a reader could conclude
+         "0 ppm already told you" and delete the flag. */
+      T.ok('…and it does so while reporting a NONZERO, physically plausible ppm (not 0)', Math.abs(inert.ppm) > 1, 'inert ppm = ' + inert.ppm.toFixed(2));
+      T.ok('the spread is PUBLISHED so the call is checkable, not trusted', typeof inert.spreadMs === 'number' && typeof real.spreadMs === 'number', 'inert ' + inert.spreadMs + ' / real ' + real.spreadMs);
+      T.ok('the inert case names WHY, rather than only flagging it', typeof inert.inertReason === 'string' && /not an independent clock/.test(inert.inertReason), String(inert.inertReason));
+      T.eq('an independent axis carries no inertReason — the field is not a permanent warning', real.inertReason, null);
+      /* BOUNDARY, both sides: the bound is 2 ms (twice the 1 ms stamp quantum). A spread AT the bound is
+         still inert; just past it is independent. A one-sided test would leave `<=` → `<` alive. */
+      var atBound = C.hostAxis(mk(function (i) { return i % 2 ? 2 : 0; }));
+      var pastBound = C.hostAxis(mk(function (i) { return i % 2 ? 3 : 0; }));
+      T.eq('a spread of exactly 2 ms is still INERT — the bound is inclusive', atBound.independent, false);
+      T.eq('a spread of 3 ms is INDEPENDENT — just past the bound', pastBound.independent, true);
+      /* The spread must come from the RAW residuals, not the SMOOTHED curve. The running median exists
+         to keep BLE jitter out of the correction, and it does its job — so a host with sparse jitter
+         spikes smooths to ~0 while its raw spread is 6 ms. Those two answer different questions: the
+         smoothed series asks "what rate should I apply", the raw one asks "did this column carry any
+         information at all". Sparse jitter is evidence of a real second clock (a column derived from
+         the device has none), so it must read INDEPENDENT. Found by mutation: computing the spread from
+         `sm[]` leaves every verdict above unchanged and only diverges here. */
+      var spiky = C.hostAxis(mk(function (i) { return i % 13 === 0 ? 6 : 0; }));
+      T.eq('sparse jitter spikes ⇒ INDEPENDENT — the raw spread is what answers "is there a second clock"', spiky.independent, true);
+      T.ok('…and its raw spread is the 6 ms the spikes actually carry, not the ~0 the median leaves', spiky.spreadMs >= 5, 'spreadMs=' + spiky.spreadMs);
+      // …and the additive contract: ok/ppm are untouched, so every existing consumer is unaffected.
+      T.ok('ok and ppm are unchanged by the declaration — the field is purely additive', inert.ok === true && typeof inert.ppm === 'number' && typeof inert.n === 'number');
+    });
+
     /* ════ THE CLOCK CONTRACT'S OWN GUARDS, FOUND UNTESTED BY `tools/mutate.mjs` ═══════════════
      An exhaustive mutation run on `clock.js` (CLOCK-MUTATION-AUDIT) killed 31 of 75 — the WEAKEST
      module in the fleet, and the one `CLAUDE.md` opens by calling non-negotiable. The mechanism is
