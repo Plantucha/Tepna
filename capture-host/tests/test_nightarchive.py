@@ -444,3 +444,33 @@ def test_uncovered_subtrees_stops_reporting_what_is_now_covered(tmp_path):
             f.write("data")
     got = [g["name"] for g in nightarchive.uncovered_subtrees(cap, covered=("stored", "cpap"))]
     assert got == ["surprise"]
+
+
+def test_rel_files_enumeration_is_SORTED_not_merely_readdir_order(tmp_path, monkeypatch):
+    """The docstring calls this THE SHARED ENUMERATOR and promises `sorted`. Nothing held that.
+
+    `archive_night` copies this set and `_mirror_matches` confirms this set, so their agreement is the
+    whole point of the function (audit F1). Both happen to iterate rather than compare sequences, so
+    dropping `sorted()` fails SAFE today — but "safe today, by the shape of two callers" is exactly the
+    coincidence F1 removed, and the next caller that diffs two enumerations inherits a set that is
+    ordered by `readdir`. `os.walk` is driven out of order here deliberately: a real filesystem's order
+    is incidental, so a test that relies on it gates nothing on the machine where it happens to sort.
+    """
+    d = _night(str(tmp_path / "captures"), "2026-07-20", {})
+    os.makedirs(os.path.join(d, "sub"), exist_ok=True)
+    for rel in ("a_ECG.txt", "b_PPG.txt", "c_ACC.txt", os.path.join("sub", "d_HR.txt")):
+        with open(os.path.join(d, rel), "w") as f:
+            f.write("x")
+
+    real_walk = os.walk
+
+    def _reversed_walk(top, **kw):
+        # same tree, worst-case order — every directory's file list handed back backwards
+        for dirpath, dirnames, filenames in real_walk(top, **kw):
+            yield dirpath, dirnames, sorted(filenames, reverse=True)
+
+    monkeypatch.setattr(nightarchive.os, "walk", _reversed_walk)
+    got = nightarchive.rel_files(d)
+    assert got == ["a_ECG.txt", "b_PPG.txt", "c_ACC.txt", os.path.join("sub", "d_HR.txt")], (
+        f"rel_files returned readdir order, not sorted order: {got}"
+    )
