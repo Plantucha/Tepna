@@ -95,6 +95,39 @@ flagged.
 | `0x09` | SET_OFFLINE_RECORDING_TRIGGER_SETTINGS | **NOT TRIED — deliberate**, see §5 | — |
 | `0x0A` | *(labelled GET_DERIVED_MEASUREMENT_SETTINGS in our code)* | **MEASURED** | `f0 0a ff 01 00` — **status `0x01` = `invalid_op`.** Either the label is wrong or the op does not exist on this firmware. Do not build on it. |
 
+### 1.2 · The instruction set is COMPLETE — enumerated 2026-08-03, nothing undocumented exists
+
+**MEASURED.** `capture-host/probe_pmd_opcodes.py` swept `0x00`–`0x3F` and the answer is total:
+
+| opcode | result |
+|---|---|
+| `0x00` | `invalid_op` — does not exist |
+| `0x01`–`0x04` | **EXIST** (`invalid_meas`: they want a measurement byte) |
+| `0x05`–`0x07` | **EXIST** (`ok`: parameterless reads) |
+| `0x08`–`0x09` | not sent — known, and they persist across power cycles (§5) |
+| **`0x0A`–`0x3F`** | **`invalid_op`, all 54** |
+
+**The PMD instruction set is exactly `0x01`–`0x09`. There is no hidden opcode surface**, and nobody
+needs to wonder again whether the Verity keeps capability behind an unlisted command.
+
+**This settles §1's `0x0A` question**: it does not exist. The cautious wording there ("either the label
+is wrong or the op does not exist on this firmware — do not build on it") was right.
+
+**How, without executing anything.** Send the opcode ALONE, one byte, no payload. Every real op takes
+parameters, so an implemented one rejects the *call* while an absent one rejects the *opcode* — and the
+two produce different status codes. Note the mechanism is not quite what was predicted: parameterised
+ops answer `invalid_meas` rather than `invalid_length`, because a missing measurement byte reads as an
+invalid measurement, not as a short packet. The discrimination holds regardless (`invalid_meas` ≠
+`invalid_op`), but the reasoning was half wrong and the measurement corrected it.
+
+**The residual risk was real and is stated rather than hidden**: an undocumented op needing NO
+parameters would have EXECUTED on a bare probe, and that cannot be prevented from outside the firmware.
+It is bounded, though — **firmware update and factory reset live on PS-FTP (`FEEE`), not on the PMD
+control point**, so this sweep could not reach a firmware path by construction. Guards used: full state
+snapshot before/after, abort at the first unexplained change, and a stop of anything left running.
+Outcome: `state_before == state_after` byte-for-byte, `net_state_change: none`, nothing left running,
+battery unchanged at 100 %.
+
 Anything outside this table was **NOT TRIED — deliberate**: sweeping undocumented opcodes against
 firmware nobody here understands is not a reference-gathering exercise, it is a way to brick an armband.
 `probe_pmd_surface.py` enforces this with an **allowlist** (`_check_allowed`) rather than a denylist —
