@@ -9050,6 +9050,59 @@
        something always scores 8–10, so all 37 nights printed `Moderate burden` while the driving
        `avgScore` ranged 1.19 → 5.21. The acceptance test for this is necessarily DISTRIBUTIONAL:
        any single night's label is defensible, and the defect is only visible across the set. */
+    /* ════ OXYDEX-PB-OVERCALL §4 item 3 — the impression OBSERVES, it does not PRESCRIBE ════
+     `buildImpression`'s context qualifier used to read *"CS pattern likely — review CPAP pressure"*, and
+     the sibling branch *"UARS pattern — consider UARS protocol"*. Both prescribed a therapy action off a
+     0-3 heuristic, and the CS branch fired on **25 of the 37 corpus nights (68 %)** — measured by driving
+     the shipped `processNight` over the corpus, not estimated. (The brief and DOCS-INDEX previously said
+     97 %; that is the PB-FLAG rate, `oscEpisodes > 0`, which is a different and looser gate. Corrected
+     with this change.)
+
+     Two assertions with different lifetimes. The known-answers pin TODAY's wording; the source scan pins
+     the CONTRACT — no imperative therapy instruction may reappear in this qualifier, whatever the wording
+     becomes. The scan is what survives a future rewording, so it carries the anti-vacuity leg. */
+    group('OxyDex impression states an observation, never a therapy instruction (PB-OVERCALL §4.3)', 'oxydex-dsp · pb-overcall · known-answer', function (T) {
+      var OI = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      var bi = OI && OI.buildImpression;
+      T.ok('OxyDex.buildImpression exposed', typeof bi === 'function');
+      if (typeof bi === 'function') {
+        var all = [{ key: 'zzUnknown0', label: 'M0', score: 5, detail: '' }];
+        for (var i = 1; i < 28; i++) all.push({ key: 'zzUnknown' + i, label: 'M' + i, score: 3, detail: '' });
+        var imp = function (cs, uars) {
+          return bi({ stats: { minSpo2: 90 }, patScore: { csScore: cs, uarsScore: uars } }, all.slice(0, 5), all);
+        };
+        // the qualifier still FIRES at the same gate — this is a wording fix, not a retune
+        T.ok('csScore 2 still emits a CS qualifier (the >= 2 gate is unchanged)', /CS pattern indicators/.test(imp(2, 0)));
+        T.ok('csScore 1 emits none — the gate is >= 2, not >= 1', !/CS pattern/.test(imp(1, 0)));
+        T.ok('csScore 3 emits it too', /CS pattern indicators/.test(imp(3, 0)));
+        // …and it now SURFACES the score it is asserting from, rather than a bare adjective
+        T.ok('the CS qualifier names the score out of 3, so the reader sees it is a 0-3 heuristic', /CS pattern indicators 2\/3/.test(imp(2, 0)) && /CS pattern indicators 3\/3/.test(imp(3, 0)));
+        T.ok('…and says explicitly that no periodicity test backs it', /no periodicity test/.test(imp(2, 0)));
+        T.ok('the UARS branch is the same shape', /UARS pattern indicators 2\/3/.test(imp(0, 2)) && /screening signal/.test(imp(0, 2)));
+        // THE INVARIANT — no instruction reaches the user from this surface
+        var prescriptive = /review CPAP|consider .*protocol|adjust (your )?(pressure|therapy)|see your (doctor|clinician)|titrat/i;
+        T.ok('no CS qualifier prescribes a therapy action', !prescriptive.test(imp(2, 0)) && !prescriptive.test(imp(3, 0)), imp(2, 0));
+        T.ok('no UARS qualifier prescribes a therapy action', !prescriptive.test(imp(0, 2)), imp(0, 2));
+        T.ok('…and "likely" is gone — the qualifier no longer asserts a determination it cannot make', !/CS pattern likely/.test(imp(3, 0)));
+      }
+      /* The source scan: the two qualifier lines must stay free of the imperative, whatever they say.
+         A wording change that reintroduced an instruction would pass every known-answer above once they
+         were updated to match — this is the leg that would not move. */
+      var _src = (env.sources || {})['oxydex-dsp.js'];
+      T.ok('PB-OVERCALL §4.3 · oxydex-dsp.js source is visible to this scan (both lanes)', typeof _src === 'string' && _src.length > 0, 'oxydex-dsp.js missing from env.sources');
+      if (typeof _src === 'string' && _src.length) {
+        var _q = _src.split('\n').filter(function (l) {
+          return /context = '/.test(l);
+        });
+        // ANTI-VACUITY: if the qualifier lines cannot be found, FAIL — do not pass by silence.
+        T.ok('PB-OVERCALL §4.3 · the context-qualifier assignments are found (4 expected)', _q.length >= 4, _q.length + ' found');
+        var _bad = _q.filter(function (l) {
+          return /review CPAP|consider .*protocol|titrat|adjust (your )?(pressure|therapy)/i.test(l);
+        });
+        T.eq('PB-OVERCALL §4.3 · NO context qualifier carries a therapy instruction', _bad.length, 0, _bad.join(' | '));
+      }
+    });
+
     group('OxyDex severity ladder discriminates across a corpus (MULTINIGHT-CORPUS-FINDINGS §4)', 'oxydex-dsp · regression', function (T) {
       var OI = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
       var bi = OI && OI.buildImpression;

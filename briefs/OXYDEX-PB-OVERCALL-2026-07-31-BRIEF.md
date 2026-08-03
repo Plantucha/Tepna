@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-01 (**§4 items 1, 2 and 4 ANSWERED** — items 1–2 in §5, item 4 in §6, each verified in the tree rather than from this line. §6: the fusion blast radius is **not inert** — over 24 OxyDex↔CPAPDex paired nights, `fusePeriodicBreathing` corroborates on 3 and **0 of those 3 survive removing the OxyDex leg**, so a 96 %-on channel makes `nObservers >= 2` a one-observer rule wearing a two-observer label; the effect is bounded to the PB path (`fuseApneaEvents` pools by impulse and never sees PB) and the ECGDex CVHR leg is **unexercised, not inert** (corpus predates `11091ef`). Pinned by a characterization gate, mutation-verified both directions; no behaviour changed. **Still open: §4 item 3 only** — the user-facing string, an owner surface decision it shares with §5.4 and §6.4.) · **Created:** 2026-07-31 · **Found while executing:** `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md` §3.4 · **Relates:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 (same family)
+**Status:** IN-PROGRESS — 2026-08-02 (**§4 items 1-4 ANSWERED; item 3 and the gating item EXECUTED — see §7.** The qualifier now OBSERVES rather than prescribes: *"CS pattern indicators N/3 — screening signal, no periodicity test"*, and the UARS sibling with it. **The rate this brief quoted was wrong** — the string fires on **68 %** of nights (25/37), not 97 %; 97 % is the PB-flag rate, a different and looser gate (§7.1). Gated + mutation-verified: the exact revert reds 7 assertions including a rewording-proof source scan. `computeHash a58e4ba0a687 → a6a4245eb9e9`, both real fixtures regenerated (one field each) and `verifiedUnder`-stamped after a green corpus run. **Still open: §6.4's fusion remedy, and the sibling `csLabels` likelihood vocabulary at :2137/:2242** — same overclaim, no prescription, wider blast radius (findings card + reference guide + `cohesion-badges` parity), so it is its own decision.) · **Created:** 2026-07-31 · **Found while executing:** `CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF.md` §3.4 · **Relates:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 (same family)
 
 # OxyDex emits periodic breathing on 92 % of nights; the machine scores it on 13 %
 
@@ -75,12 +75,14 @@ count, the same way a second oximeter must not double the apnea index (`integrat
       which settles it as a code problem rather than a base-rate one.
 - [x] The operating-point sweep is run and published (`tools/pb-operating-point.mjs`) — and it lands on
       the honest possibility the item allowed: no threshold on this corpus is defensible (§5.2).
-- [ ] The user-facing string states an observation rather than prescribing a therapy review.
+- [x] The user-facing string states an observation rather than prescribing a therapy review. — **§7**;
+      and the rate it fires at was **68 %, not 97 %** (§7.1 — the brief had quoted the PB-flag rate).
 - [x] The fusion path is checked for an always-on-channel effect, and either fixed or shown inert —
       **it is NOT inert** (§6). Measured, not reasoned: 0 of 3 corroborated nights survive removing
       the OxyDex leg. Pinned by a characterization gate; the remedy is the same owner surface
       decision as item 3, so it is escalated with it rather than guessed at here.
-- [ ] Whatever lands is gated, and mutation-verified against a revert.
+- [x] Whatever lands is gated, and mutation-verified against a revert. — §7.3: reverting to the exact
+      original string reds **7** assertions, including a source scan that survives any rewording.
 
 
 ---
@@ -152,7 +154,7 @@ Twice already the answer was to withdraw the claim rather than retune it.
 
 ### 5.4 · What remains, and what it needs
 
-- **§4 item 3** (the user-facing string). *"CS pattern likely — review CPAP pressure"* on 97 % of nights
+- **§4 item 3** (the user-facing string). *"CS pattern likely — review CPAP pressure"* on **68 %** of nights
   is an imperative resting on a hypoxemia proxy. Changing it is a small, defensible edit — but it is a
   **surface** decision (withdraw the instruction? withdraw the label? keep an unlabelled oscillation
   count?) and it belongs with the owner, not with a sweep.
@@ -247,3 +249,108 @@ Every available remedy is the **same surface decision as §5.4**, not a separate
 Choosing among these is the owner's call for the same reason §5.4 is: it changes what a user is told about
 their therapy. Item 4 asked for the effect to be *measured*, and it is — with the counterfactual, the
 bound, and the caveat all recorded rather than a number produced.
+
+---
+
+## 7 · EXECUTED 2026-08-02 — §4 item 3, and a number this brief had wrong
+
+### 7.1 · The rate was 68 %, not 97 % — this brief quoted the wrong gate
+
+§4 item 3 and the `DOCS-INDEX` row both said the string fires "on 97 % of nights". **97 % is the
+PB-FLAG rate** — `oscEpisodes > 0`, §5.2's 36/37 — which is a different and much looser gate than the
+string's. The string additionally requires `csScore >= 2`, and twelve nights do not clear it.
+
+Re-measured by driving the shipped `processNight` over all 37 corpus nights:
+
+| gate | rate |
+|---|---|
+| PB flagged (`oscEpisodes > 0`) | 36 / 37 = **97 %** |
+| `csScore >= 2` → the CS string | 25 / 37 = **68 %** |
+| `uarsScore >= 2` → the UARS string | 1 / 37 = **3 %** |
+
+`csScore` distribution across the corpus: `{0: 3, 1: 9, 2: 10, 3: 15}`.
+
+68 % does not change the conclusion — a therapy instruction on two thirds of nights is the same class of
+problem — but the brief was quoting a number it had not measured for the thing it was describing, which
+is the failure this whole brief exists to object to. Corrected here and in `DOCS-INDEX`.
+
+### 7.2 · What changed: the qualifier observes, it does not instruct
+
+```
+-  '; CS pattern likely — review CPAP pressure'
++  '; CS pattern indicators ' + csScore + '/3 — screening signal, no periodicity test'
+
+-  '; UARS pattern — consider UARS protocol'
++  '; UARS pattern indicators ' + uarsScore + '/3 — screening signal'
+```
+
+The UARS branch was not named by item 3, but it is the same defect one line below — a therapy
+prescription off a 0-3 heuristic — and fixing one while leaving the other would be arbitrary.
+
+Two things were wrong with the old text and both are addressed: it **prescribed** an action the evidence
+cannot carry (and this suite is explicitly not a medical device), and *"likely"* **overclaimed** a
+determination §5.1 showed the detector cannot make — no cycle-length criterion, no
+crescendo-decrescendo, crossings of an ABSOLUTE 95 % level on a corpus whose mean straddles that line all
+night.
+
+**The score, its 0-3 ladder and the `>= 2` gate are UNCHANGED.** This is a wording fix, not a retune —
+§5.2 found no defensible threshold on this corpus, so retuning would be guessing. Naming the thing
+honestly does not require a number nobody can derive.
+
+### 7.3 · Gated, and verified against the exact revert
+
+A new group (`oxydex-dsp · pb-overcall · known-answer`) with two kinds of leg:
+
+- **Known-answers** pin today's wording, the unchanged `>= 2` gate (2 and 3 fire, 1 does not), and that
+  the score is surfaced rather than hidden behind an adjective.
+- **A source scan** pins the *contract* rather than the wording: no context qualifier may carry an
+  imperative therapy instruction, whatever the text becomes. This is the leg that survives a future
+  rewording, so it carries the anti-vacuity assertion (if the qualifier lines cannot be found, it FAILS
+  rather than passing by silence).
+
+Mutation-verified: restoring the exact original string reds **7** assertions, including the source scan
+(`got 1 · want 0`). Restoring the UARS instruction, loosening the gate to `>= 1`, and dropping the score
+from the string each red it too.
+
+### 7.4 · The compute-path consequences, computed rather than claimed
+
+This is a DSP change on the export path, so:
+
+```
+manifestHash  45311647db60 → bb209a307463   (MOVED)
+computeHash   a58e4ba0a687 → a6a4245eb9e9   (MOVED ⇒ re-verification owed)
+```
+
+Both moved, as a compute-path edit must. `tools/regen-oxydex-goldens.mjs` regenerated the two real
+fixtures — **exactly one field moved in each**, `0.summary.impression`, which is the blast radius this
+change should have and no more:
+
+```
+OxyDex_2026-06-13_1056  outputHash d3646f817ef4d5ea → 8d12f1b04428eb15
+OxyDex_2026-06-25_0439  outputHash 4884763b2dac10a6 → 7d2b39cfc6c926a3
+```
+
+The **synthetic** golden did not move — that night never reaches `csScore >= 2`, so the committed-input
+fixture CI re-runs on every push is blind to this change. That is worth noting rather than glossing: the
+only fixtures that could see it are the two real, gitignored ones, which is precisely the asymmetry
+`FIXTURE-VERIFICATION-GATE` was written about. `DEX_UPLOADS=… node tools/verify-fixtures.mjs` stamped
+both `verifiedUnder → a6a4245eb9e9` after a green run.
+
+### 7.5 · Still open, and deliberately NOT folded in
+
+Two sibling surfaces carry the same *likelihood* overclaim, though neither prescribes:
+
+- `oxydex-dsp.js:2242` — the leads entry `'CS pattern probable (' + csLabel + ')'`
+- `oxydex-dsp.js:2137` — the findings card, pushed with `csLabel`
+
+Both read from `csLabels = ['Unlikely', 'Possible', 'Probable', 'Likely']` — a likelihood ladder over a
+score with no periodicity test behind it. Changing that vocabulary touches the findings card, the
+reference guide, and the `cohesion-badges` doc-parity gate, so it is a wider unit than item 3's "the
+user-facing string" and is left as its own decision rather than smuggled in here. The regenerated
+`_0439` fixture shows the two surfaces side by side, which is the clearest statement of what remains:
+
+> *"Mild disruption: hypoxic load 5.813, **CS pattern probable (Likely)**; CS pattern indicators 3/3 —
+> screening signal, no periodicity test."*
+
+The qualifier is now honest; the lead beside it is not yet. **§6.4's fusion remedy also remains** — it
+was escalated with item 3 and is unchanged by this wording fix.
