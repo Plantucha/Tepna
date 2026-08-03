@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-28 · **Follows:** `CPAP-AUTOHARVEST-2026-07-26-BRIEF.md` · **Reference:** `EZSHARE-CARD-INTEGRATION-2026-07-28-BRIEF.md` · **Also carries:** the four unclosed `DEEP-AUDIT-III` punch-list items (§4)
+**Status:** DONE — 2026-08-03 · **Created:** 2026-07-28 · **Follows:** `CPAP-AUTOHARVEST-2026-07-26-BRIEF.md` · **Reference:** `EZSHARE-CARD-INTEGRATION-2026-07-28-BRIEF.md` · **Followed-by:** `CPAP-AUTOHARVEST-FOLLOWUPS-II-2026-08-03-BRIEF.md` · **Also carries:** the four unclosed `DEEP-AUDIT-III` punch-list items (§4)
 
 # What executing CPAP-AUTOHARVEST surfaced — and the work it does not close
 
@@ -34,6 +34,59 @@ the `writers.IDENTITY_FIELDS` lesson"*. The code logged a warning, and the statu
 correctly identified, written down, and then not implemented — and the write-up is what made it look
 handled. Fixed 2026-07-28 (`barren` state + webhook). **Grep the daemon for other docstrings that
 describe a guarantee, and check each one has a test.**
+
+#### ✅ SWEPT 2026-08-03 — 124 guarantee-bearing docstrings, and the sweep's own first answer was wrong
+
+Every `def`/`class` docstring in `capture-host/*.py` carrying guarantee language (*never · always ·
+must · cannot · guarantees · refuses · is an ALERT · not a silent · invariant*) was enumerated by AST:
+**124** of them, across 30 modules.
+
+Cross-referencing those against the test tree gave a comfortable answer — **only 3 of 124 are never so
+much as *named* in a test** — and that answer is close to worthless, which is the part worth keeping.
+Being named in a test is not being gated by one; `assertions-encode-shape-not-contract` is this repo's
+own record of a test written from reading the code that passes while catching nothing. The question
+§1.2 actually asks is *does anything go red when the promise is removed*, and only a mutant answers it.
+
+So the three were mutated instead — each documented guarantee deleted in turn, suite re-run:
+
+| mutant | guarantee removed | verdict |
+|---|---|---|
+| `rel_files` drop `onerror=_raise` | unreadable night walks to EMPTY ⇒ "contains nothing" ⇒ confirmed mirrored | **KILLED** (2 failed) |
+| `rel_files` top-level only | a night holding a subdir reported fully mirrored, subdir never copied | **KILLED** (8) |
+| `rel_files` drop marker exclusion | the marker enters the enumerated set | **KILLED** (4) |
+| `rel_files` drop `sorted()` | enumeration order becomes `readdir` order | **SURVIVED** |
+| `merge_sessions` end := start | cluster by start-stamp alone — the 7-h connection splits | **KILLED** (8) |
+| `merge_sessions` drop `+ gap_sec` | adjacent files stop merging | **KILLED** (10) |
+| `merge_sessions` drop the sort key | the merge no longer sees files oldest-first | **SURVIVED** |
+
+**5 of 7 were already gated** — by tests that never name the function, reaching it through
+`_mirror_matches` / `summarize` / `timeline.build`. Transitive coverage is real coverage; a name-based
+scan would have condemned all seven.
+
+**The two survivors are now gated, both verified RED by re-applying the mutant** (a green new test is
+not evidence until it has been seen to fail):
+
+- `test_rel_files_enumeration_is_SORTED_not_merely_readdir_order` — drives `os.walk` out of order on
+  purpose, because a real filesystem's order is incidental and a test that relies on it gates nothing
+  on the machine where it happens to sort. This one fails **safe** today (both callers iterate rather
+  than diff two sequences), so it is a contract gate, not a bug fix — but "safe today, by the shape of
+  two callers" is precisely the coincidence audit F1 removed from this very function.
+- `test_merge_sessions_does_not_depend_on_the_order_it_is_HANDED_the_files` (+ a separate-sessions
+  control, so order-independence cannot be bought by merging everything). This one is **load-bearing**:
+  the loop compares each file against `sessions[-1]` alone, so unsorted input splits one continuous
+  connection across several sessions — and both consumers derive a coverage *denominator* from the
+  session they pick (audit §A4a). `scan_night` hands them over name-sorted today; that is a property of
+  one caller, and `summarize` already concatenates a previous day's scan onto the front of it.
+
+Suite **2373 → 2376**, green. The third never-named function, `probe_pmd_surface._read_char`, was
+deliberately **not** touched: it is a one-shot BLE developer probe requiring real hardware, and it sits
+inside the scope of an in-flight worktree (`POLAR-PMD-COMMAND-SURFACE-2026-08-02`). Recorded, not
+claimed — carried to the follow-up.
+
+**The reusable finding is the method, not the two tests.** A guarantee-language grep is a cheap and
+genuinely complete way to *enumerate* what the daemon promises; a name-based cross-reference is the
+wrong way to check them, and would have reported this daemon 121/124 clean while missing both real
+gaps. Mutate the promise.
 
 ### 1.3 Verifying outside the sandbox proves nothing
 
@@ -213,6 +266,10 @@ only in conversation:
 
 ## 6 · Done when
 
+- [x] §1.2 **swept** 2026-08-03 — 124 guarantee-bearing docstrings enumerated; the 3 no test names were
+      mutation-checked rather than eyeballed; 5 of 7 guarantees already gated transitively, the 2 that
+      survived are now gated and verified RED. Suite 2373 → 2376. The name-based cross-reference is
+      recorded as the *wrong* check, because it read 121/124 clean over both real gaps.
 - [x] §2.1 **routed** 2026-08-01 → `CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF.md` (premise verified first: 194 nights, median 6.85 h)
 - [x] §2.2 **injection done** 2026-08-01 — it found that only `barren` alerted and the raising path did not; fixed + gated. The **webhook still cannot deliver**: the deployed config has no `alerts:` block, so the transport is off (owner: configure it, then deploy)
 - [x] **§4 CLOSED 2026-07-29 — `DEEP-AUDIT-III` is DONE.** Not by splitting a MotionDex brief: all four

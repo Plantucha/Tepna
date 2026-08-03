@@ -366,3 +366,46 @@ def test_a_run_of_digits_that_is_not_a_plausible_year_is_ignored(tmp_path):
     assert nightqc._session_of("Polar_H10_99999999999999_ECG.txt", mtime=7.0) == 7.0, (
         "a 14-digit run with an impossible year must fall back to mtime, not be strptime'd"
     )
+
+
+def test_merge_sessions_does_not_depend_on_the_order_it_is_HANDED_the_files():
+    """The docstring promises sessions "oldest first", and the merge is what makes that true — but the
+    merge is also what DEPENDS on it, and nothing gated either half.
+
+    The loop compares each file against `sessions[-1]` alone. That single-pass shape is only correct
+    because the input was sorted by start stamp first; hand it the same files in a different order and
+    two stretches of one continuous connection land in separate sessions. It is the same failure the
+    docstring already records one paragraph up — a 7-h H10 connection split into isolated points —
+    reached by a different route, and it matters because both consumers derive a coverage DENOMINATOR
+    from the session they pick (`nightqc.summarize`, `timeline.build`, audit §A4a).
+
+    `scan_night` happens to hand them over name-sorted today. That is a property of one caller, not of
+    this function, and `summarize` already concatenates a previous day's scan onto the front of it.
+    """
+    # one continuous 3-h session: three files opening 30 min apart, each written for an hour
+    hour = 3600.0
+    files = [{"file": f"f{i}", "session": i * 0.5 * hour, "mtime": i * 0.5 * hour + hour}
+             for i in range(3)]
+    chronological = nightqc.merge_sessions(files)
+    assert len(chronological) == 1, "the fixture is not one session; the test below proves nothing"
+    assert chronological[0][0] == 0.0 and chronological[0][1] == 2.0 * hour
+
+    for order in ([2, 0, 1], [1, 2, 0], [2, 1, 0]):
+        shuffled = nightqc.merge_sessions([files[i] for i in order])
+        assert len(shuffled) == 1, (
+            f"input order {order} split ONE continuous session into {len(shuffled)} — the coverage "
+            f"denominator both consumers derive from this is wrong by that factor"
+        )
+        assert shuffled == chronological, f"input order {order} changed the merged interval"
+
+
+def test_merge_sessions_returns_genuinely_separate_sessions_oldest_first():
+    """The control for the test above: order-independence must not have been bought by merging
+    everything. Two sittings a clear `gap_sec` apart stay two, and they come back oldest first however
+    they were handed over."""
+    hour = 3600.0
+    early = {"file": "early", "session": 0.0, "mtime": hour}
+    late = {"file": "late", "session": 6 * hour, "mtime": 7 * hour}
+    for files in ([early, late], [late, early]):
+        got = nightqc.merge_sessions(files)
+        assert [s[0] for s in got] == [0.0, 6 * hour], f"not two sessions oldest-first: {got}"
