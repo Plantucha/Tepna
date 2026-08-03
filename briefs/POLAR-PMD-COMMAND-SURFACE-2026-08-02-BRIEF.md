@@ -212,35 +212,49 @@ stamp for the following night shifts by the UTC offset.
 
 ---
 
-## 4 · Undocumented measurement types — three advertised, one real
+## 4 · The bitmask carries CAPABILITY FLAGS as well as measurements
 
-**MEASURED.** A plain GATT **read** of the control point returns the supported-measurement bitmask:
+> **CORRECTED 2026-08-03.** The first version of this section called `0x09`/`0x0D`/`0x0E` "undocumented
+> measurement types" and left open what `0x0E` carries, floating skin temperature as a guess. That was
+> wrong, and it was wrong in the avoidable way: **this repo already knew the answer, and had it
+> gate-locked.** `capture-host/webmon.py:606` names them, and
+> `tests/test_webmon_settings_contract.py::test_capability_flags_are_not_offered_as_streams` pins the
+> behaviour that depends on it. I measured a real device before searching the tree, and turned settled
+> knowledge back into an open question. The measurements below are unchanged and correct; the *framing*
+> was not. Search first.
+
+**MEASURED.** A plain GATT **read** of the control point returns the feature bitmask:
 
 ```
-0f 6e 62 00 00 ...        ->  types {1, 2, 3, 5, 6, 9, 13, 14}
+0f 6e 62 00 00 ...        ->  bits {1, 2, 3, 5, 6, 9, 13, 14}
                               ppg acc ppi gyro mag  +  0x09, 0x0D, 0x0E
 ```
 
-Polar publishes five measurement types for a Verity Sense. **This device advertises eight.** Asking the
-documented settings-read op (`0x01`) about each — a read, not a poke at an unknown opcode — separates
-them cleanly:
+Polar publishes five measurement *types* for a Verity Sense and this device sets eight bits — because
+**the bitmask is not purely a list of measurements.** It also advertises **modes**:
 
-| type | `0x01` reply | status | reading |
-|---|---|---|---|
-| `0x09` | `f0 01 09 02 00` | `0x02 invalid_meas` | advertised in the bitmask, **rejected** as a measurement |
-| `0x0D` | `f0 01 0d 02 00` | `0x02 invalid_meas` | same |
-| `0x0E` | `f0 01 0e 00 00` | **`0x00 ok`**, no settings payload | **a real, supported measurement type with no configurable settings** — the same reply shape as PPI, i.e. an event stream rather than a sampled waveform |
+| bit | what it is | measured behaviour |
+|---|---|---|
+| `0x09` | **SDK_MODE** | `0x01`/`0x04` → `f0 01 09 02 00` = `invalid_meas`; absent from the status (`0x05`) and trigger (`0x07`) lists |
+| `0x0D` | **OFFLINE_RECORDING** | same — `invalid_meas`, in neither list |
+| `0x0E` | **OFFLINE_HR** | `0x01`/`0x04` → `f0 01 0e 00 00` = **`ok`**, no settings payload; **present** in both the status and trigger lists |
 
-Corroboration that `0x0E` is genuine and `0x09`/`0x0D` are not, from **four** independent replies:
-`0x0E` appears in the measurement-status list (`0x05`) and the trigger-status list (`0x07`), and
-answers `0x00 ok` to **both** settings-read ops — `0x01` **and** `0x04` (`f0 04 0e 00 00`). `0x09` and
-`0x0D` appear in neither list and answer `invalid_meas` to both ops. The bitmask is the only place they
-exist.
+So there is **no unknown extra channel and no temperature stream** — `0x0E` is the device advertising
+that it can record **HR to its own flash**, which is a fact about `POLAR-ONBOARD-BACKUP`'s subject
+rather than a new sensor.
 
-**What `0x0E` carries is NOT established.** Skin temperature is a plausible guess for an optical
-armband and it is *only* a guess — this document does not name it. Establishing it means starting the
-stream and decoding frames, which is a write and a separate, scoped experiment. That is the honest
-state: a confirmed extra channel of unknown content.
+The `ok`-versus-`invalid_meas` split is still a genuine and useful observation: `OFFLINE_HR` names a
+recordable **data type** (HR), so a settings query about it is meaningful and answers `ok` with an
+empty menu — PPI's shape. `SDK_MODE` and `OFFLINE_RECORDING` name pure **modes** with no data behind
+them, so the same query is rejected outright. That asymmetry is a reliable way to tell a flag from a
+stream on a device whose bitmask mixes both.
+
+**The consumer-side rule already exists and should not be re-derived:** `polar_pmd` names only the
+measurements it can decode and leaves everything else as `0x…` hex, so an unnamed entry means exactly
+*"not a stream we can capture"*. `webmon` filters on that to avoid offering a checkbox that can never
+work. ⚠️ **Do not "fix" this by adding `0x09`/`0x0D`/`0x0E` to `pmd.MEAS_NAME`** — the filter is
+`not str(x).startswith("0x")`, so naming them there would make the UI offer three modes as capturable
+streams. If they ever need names, they need a *separate* table.
 
 ---
 
@@ -255,7 +269,8 @@ state: a confirmed extra channel of unknown content.
   runtime start path unnecessary; that evaluation is still owed and it is not this document.
 * **Entering SDK mode.** §2.2's menu was read without it. Enabling it is a write whose effect on an
   in-progress capture, on the HR service and on battery is unknown.
-* **Every undocumented opcode.** See §1.
+* **Every undocumented opcode.** See §1. (Note the distinction §4 turns on: an unrecognised *opcode* is
+  never sent; an unrecognised *bitmask bit* is only ever asked about with a documented READ op.)
 * **Encryption.** Offline records can be AES-128 encrypted at start; default remains unencrypted
   (`POLAR-ONBOARD-BACKUP` §4a).
 
@@ -265,7 +280,6 @@ state: a confirmed extra channel of unknown content.
 
 | question | what would settle it |
 |---|---|
-| What does measurement type `0x0E` carry? | start it, decode frames — a write, needs its own scoped probe |
 | Does SDK mode's 176 Hz PPG actually sustain over BLE for a night? | enable SDK mode, negotiate 176 Hz, measure delivered vs expected sample count |
 | Does **PPG** accept the offline bit? (ACC is proven; PPG is the stream the backup exists for) | `probe_verity_offline.py --meas ppg --force-record` |
 | Does an offline recording survive a link drop? | start it, drop the link, reconnect, read `0x05` |
@@ -281,7 +295,7 @@ state: a confirmed extra channel of unknown content.
 sudo -n /usr/local/lib/tepna/tepna-restart.sh stop 20
 
 python probe_pmd_surface.py --address 24:AC:AC:0C:30:1E --json surface.json
-python probe_pmd_surface.py --address 24:AC:AC:0C:30:1E --include-undocumented-types --json surface.json
+python probe_pmd_surface.py --address 24:AC:AC:0C:30:1E --include-flag-bits --json surface.json
 python probe_pmd_surface.py --address 24:AC:AC:0C:30:1E --clock-only --json clock.json   # WRITES the clock, restores it
 
 sudo -n /usr/local/lib/tepna/tepna-restart.sh restart

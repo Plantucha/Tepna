@@ -659,7 +659,7 @@ def test_the_feature_read_is_retried_because_the_plan_is_built_from_it(monkeypat
     monkeypatch.setattr(probe, "execute_plan", noop)
     out: dict = {}
     _run(probe._sweep_phase("AA:BB", None, out, False))
-    assert out["undocumented_measurement_types"] == ["0x09", "0x0d", "0x0e"]
+    assert set(out["flag_bits"]) == {"0x09", "0x0d", "0x0e"}
 
 
 def test_a_lost_feature_read_falls_back_and_says_that_it_did(monkeypatch):
@@ -673,6 +673,44 @@ def test_a_lost_feature_read_falls_back_and_says_that_it_did(monkeypatch):
     _run(probe._sweep_phase("AA:BB", None, out, False))
     assert "feature bitmask unavailable" in out["features"]["note"]
     assert out["measurement_types_swept"] == [pmd.MEAS_NAME[m] for m in sorted(pmd.MEAS_NAME)]
+
+
+def test_flag_bits_are_named_by_what_they_are_not_left_as_a_mystery(monkeypatch):
+    """0x09/0x0D/0x0E are MODES, not measurements — webmon.py:606 knew this before the sweep did, and a
+    test already pinned it. The probe reporting them as unknown turned settled knowledge back into an
+    open question, which is worse than not having asked."""
+    _patch_scan(monkeypatch, ["dev"] * 6)
+    monkeypatch.setattr(probe, "BleakClient",
+                        lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f6e620000")}))
+
+    async def noop(*a, **k):
+        return []
+    monkeypatch.setattr(probe, "execute_plan", noop)
+    out: dict = {}
+    _run(probe._sweep_phase("AA:BB", None, out, False))
+    assert out["flag_bits"] == {"0x09": "SDK_MODE", "0x0d": "OFFLINE_RECORDING", "0x0e": "OFFLINE_HR"}
+
+
+def test_a_flag_bit_we_cannot_name_is_still_reported(monkeypatch):
+    """A future firmware may set a bit this table does not know. Dropping it would hide exactly the
+    thing worth noticing."""
+    _patch_scan(monkeypatch, ["dev"] * 6)
+    monkeypatch.setattr(probe, "BleakClient",
+                        lambda dev, **kw: _FakeClient(reads={pmd.PMD_CONTROL: bytes.fromhex("0f0080")}))
+
+    async def noop(*a, **k):
+        return []
+    monkeypatch.setattr(probe, "execute_plan", noop)
+    out: dict = {}
+    _run(probe._sweep_phase("AA:BB", None, out, False))
+    assert out["flag_bits"] == {"0x0f": "unrecognised"}
+
+
+def test_the_flag_names_must_not_leak_into_MEAS_NAME():
+    """webmon decides what is capturable with `not startswith('0x')`, so naming these in pmd.MEAS_NAME
+    would offer three MODES to the user as capturable streams. The separate table IS the safeguard."""
+    for bit in probe.FLAG_NAME:
+        assert bit not in pmd.MEAS_NAME, f"{bit:#04x} became a measurement name — webmon will offer it"
 
 
 def test_undocumented_types_are_only_swept_when_asked_for(monkeypatch):
