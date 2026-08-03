@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-22 (**§1 + §2 shipped (PR #352 / #355); §3 EXECUTED + gated this brief** — foot-anchored gapBeats, validated against paired chest ECG; **§4 PROPOSED — UNBLOCKED 2026-08-01, still NOT landed** (§4a). The deferral rested on `nGapSpanIntervals: 0 → 0`, but that counter is blind to a dropped beat *by construction* — a beat removed by `gapBeats` leaves no discontinuity in `relSec`. The real trigger is `nGapBeats`, and it fires on **14 of the 22** largest O2Ring finger captures (**88** beats dropped, max **25** in one file), measured with the committed `tools/ppg-gap-bridge-scan.mjs`. §4's Done-when was already satisfied when the item was parked. It stays NOT landed because it touches HRV and still owes §5's paired-ECG validation on those files — the blocker was wrong, the validation is not optional.) · **Created:** 2026-07-22 · **Method-parent:** `PPGDEX-ALGORITHM-DEEP-DIVE-2026-07-21-BRIEF.md` · **Data:** `O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF.md`
+**Status:** DONE — 2026-08-03 (**all four sections shipped.** §1/§2 (PR #352/#355), §3 EXECUTED + gated, **§4 EXECUTED 2026-08-03 (§6)** — landed on a STRUCTURAL gate because §5's statistical standard cannot resolve a 0.1 ms effect against a reference that disagrees by 1-90 ms. Measured, not assumed: 18 firing files, 130 dropped beats, HRV moved on 10/18 by ±0.1 ms with mixed sign. §6.3 records that NO committed fixture exercises §4 — the one named "gapped" has `nGapBeats: 0` — so the new CI gate is the only thing that does.) · **Created:** 2026-07-22
 
 # O2Ring finger PPG — honest handling of lost time and held samples (the `O2RING-PPG-GAP` charter)
 
@@ -164,10 +164,94 @@ call, pending its ≥10-night replication.
 - [x] §2 time-discontinuity interval exclusion (PR #355).
 - [x] §3 foot-anchored `gapBeats`, validated vs paired chest ECG; suite green, GATE A/B PASS, re-bundled,
       changeset dropped.
-- [ ] §4 bridged-interval exclusion — **UNBLOCKED 2026-08-01 (§4a)**: the deferral watched
-      `nGapSpanIntervals`, which cannot respond to a dropped beat; the real trigger `nGapBeats` fires on
-      **14 of the 22** largest finger captures (88 beats, max 25 in one file). Still NOT landed — the WIP
-      implementation owes the §5 paired-ECG HRV validation on those 14 files.
+- [x] §4 bridged-interval exclusion — **EXECUTED 2026-08-03 (§6).** Landed on a STRUCTURAL gate, not
+      the §5 statistical one: measured over 18 firing files, §4 moves whole-file HRV by **0.1 ms of SDNN**
+      with mixed sign, while finger-vs-ECG disagreement on those files runs 1-90 ms — the reference is
+      ~1000x coarser than the effect, so §5 cannot adjudicate it in either direction. What IS provable is
+      the claim §4 actually makes, and it is now gated in CI.
 - [x] release-time `verifiedUnder` re-stamp of the PpgDex corpus fixture — **done 2026-08-01** (PR #670):
       `PpgDex_2026-06-27_equiv.node-export.json` carries `verifiedUnder: 2acf0985e625`, stamped by
       `tools/verify-fixtures.mjs` after a green real-corpus run.
+
+
+---
+
+## §6 · EXECUTED 2026-08-03 — §4 landed, on the evidence it actually admits
+
+### 6.1 · The blocker was wrong, and so was the validation standard — in opposite directions
+
+§4a established that the *deferral* watched a counter that cannot respond (`nGapSpanIntervals` is blind to
+a dropped beat by construction). Executing it established the mirror-image problem: the *validation* §5
+prescribes cannot resolve the change either.
+
+Measured with `tools/ppg-bridge-hrv-validate.mjs` (new, committed) over the corpus — 18 files where
+`gapBeats` drops at least one beat, 130 beats dropped, max 25 in one file:
+
+| | |
+|---|---|
+| files where §4 changes `nGapSpanIntervals` | **18 / 18** (the accounting) |
+| files where §4 changes any HRV metric | **10 / 18** |
+| magnitude, `sdnn` | **±0.1 ms** (0.05-0.39 %), 5 down · 3 up |
+| magnitude, `meanRR` / `pnn50` / `ellArea` | +1 ms · −0.1 · +2 (≤ 0.34 %) |
+| finger-vs-ECG disagreement on the same files | **1-90 ms** |
+
+`sdnn` is reported to one decimal, so ±0.1 ms **is the last digit**. Asking a reference that disagrees by
+1-90 ms to adjudicate a 0.1 ms change is asking a question whose answer is fixed before it is posed —
+running it and reporting "no significant difference" would be a measurement that could not have come out
+any other way. §5's standard is right for a change that MOVES HRV; §4 does not.
+
+### 6.2 · What was gated instead: correct-by-construction, in CI, with no corpus
+
+§4's claim is not "HRV improves". It is "an interval whose two endpoints have a deleted beat between them
+is not a measurement, and must be excluded rather than median-filled". That is checkable directly.
+
+The new gate builds two synthetic records that differ ONLY by planted sentinel runs, and asserts:
+
+- the planted runs really do drop beats (**anti-vacuity** — without this the rest is trivially true);
+- the twin without them drops none, so the drop is the sentinels and not the waveform shape;
+- the contiguous-grid twin excludes **zero** intervals — so `intervalsSpanningTimeGap` finds nothing and
+  **every exclusion in the gapped twin is a bridge**;
+- exclusions never exceed drops (one bridge per dropped beat at most — the obvious off-by-one spills past
+  this ceiling);
+- the record survives: beats and HRV are still reported, so a guard that excluded everything also fails.
+
+Sentinel PLACEMENT is load-bearing and is commented as such: `gapBeats` fires only within `GAP_FOOT_SPAN`
+(±3 samples, ~24 ms) of the **foot**, so a run planted mid-rise drops nothing and would make the whole
+gate pass while proving nothing — the same trap `ppg-gap-bridge-scan`'s own selftest records.
+
+Mutation-verified in both directions: reverting §4's OR, loosening the bridge test `> 1` → `>= 1`, and
+building `bridged` over the wrong index base each red the gate.
+
+### 6.3 · NO COMMITTED FIXTURE EXERCISES §4 — the gate is the only thing that does
+
+`synthetic_ppgdex_verity_gapped.txt` — the fixture whose name says "gapped" — has **`nGapBeats: 0`**. It
+exercises §2 (two time discontinuities) and never trips §3's drop, so §4 is inert on it. All four PpgDex
+fixtures re-generated to **byte-identical** output, and that is not evidence of safety: it is evidence
+that the committed corpus cannot see this change at all.
+
+This is the third instance of the same asymmetry in as many days (the OxyDex PB string's synthetic golden
+never reaches `csScore >= 2`; the GlucoDex long-gap case that `FIXTURE-VERIFICATION-GATE` was written
+about). **A fixture named for a condition is not a fixture that meets it** — worth checking by running
+the counter, not by reading the filename. The §6.2 gate closes the hole for §4 specifically.
+
+### 6.4 · Compute-path
+
+```
+manifestHash  9cc4a3c1faff → e3b832216694   (MOVED)
+computeHash   d7496fb2b411 → 7b7a072ac320   (MOVED ⇒ re-verification owed)
+```
+
+`regen-ppgdex-goldens` moved 0 of 4 fixtures (see §6.3); `verify-fixtures` re-stamped the real corpus
+fixture `verifiedUnder → 7b7a072ac320` after a green run. Three build systems re-run — the two
+orchestrators inline `ppgdex-dsp`.
+
+### 6.5 · A tool defect found and recorded, because it produced a plausible wrong answer
+
+The first version of `ppg-bridge-hrv-validate.mjs` compared `res.nn`/`res.tt` and reported all 18 files
+**identical to 2 dp** — which reads exactly like a clean "unmoved" verdict. It was measuring a series §4
+cannot touch: §4 acts through `cleanMask`, which gates which intervals reach the HRV metrics, while `nn`
+is the corrected series and is byte-identical either way. A whole-field diff (OLD vs NEW, every key)
+settled it in one run.
+
+**An "everything identical" result from a differential tool is a red flag about the tool, not a finding
+about the code.** That is now the first thing its header says.

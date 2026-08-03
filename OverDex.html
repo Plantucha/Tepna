@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-4BCLWr6X92TsW/ko/w2iX02RczLxNfih3nz479/lehg=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bw6rfr4B0CUwSUGUdE6p6SkGWH+3xW0BfuNMDL9M7BA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-hxtclF7doYfS5TM+OYHTmTgzyGrLpT7Qibfg1M7SvBA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-mb0F1fLqp8gHe+5IxfcpJzlsHg5EEXxdS+7pWQhUtAY=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-2GPOns670TL2NXVXviR1xYp4Jdxu8pV9rbb4ynIzt8c=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bw6rfr4B0CUwSUGUdE6p6SkGWH+3xW0BfuNMDL9M7BA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-hxtclF7doYfS5TM+OYHTmTgzyGrLpT7Qibfg1M7SvBA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-mb0F1fLqp8gHe+5IxfcpJzlsHg5EEXxdS+7pWQhUtAY=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -24990,10 +24990,28 @@ __exports.GlucoDex = window.GlucoDex;
     // timing would rest on held values. Drop it. This is the same discipline the 3-LED path applies
     // to a 1-of-3 beat: dropped, never median-filled, never interpolated.
     let nGapBeats = 0;
+    /* §4 — per-INTERVAL: true where the interval BRIDGES one or more beats §3 removed. Null until a
+       drop actually happens, so a file with no gap allocates nothing and behaves exactly as before. */
+    let bridged = null;
     if (rec.gap) {
       const bad = gapBeats(cons.peaks, cons.feet, rec.gap);
       nGapBeats = bad.size;
       if (bad.size) {
+        /* A dropped beat leaves its two surviving NEIGHBOURS adjacent in the array but NOT adjacent in
+           TIME — the interval between them silently spans the removed beat and reads ~2x true. That
+           bridge is a fabrication: `correctRR` sees a doubled interval, flags it, and median-fills, so a
+           guard meant to protect the record ends up inventing a value for every beat it removes.
+           Recorded here so the interval can be EXCLUDED downstream rather than corrected into a
+           plausible lie — the same discipline the 3-LED path applies to a 1-of-3 beat (§3).
+
+           Note `bridged` is indexed by INTERVAL over the SURVIVING beats: one entry per adjacent pair
+           of kept beats, which is exactly `nn`'s indexing after the filter below. */
+        bridged = [];
+        for (let k = 0, prevKept = -1; k < cons.peaks.length; k++) {
+          if (bad.has(k)) continue;
+          if (prevKept >= 0) bridged.push(k - prevKept > 1); // >= 1 beat removed between them
+          prevKept = k;
+        }
         const keep = (arr) => (arr ? arr.filter((_, k) => !bad.has(k)) : arr);
         cons.peaks = keep(cons.peaks);
         cons.feet = keep(cons.feet);
@@ -25072,7 +25090,15 @@ __exports.GlucoDex = window.GlucoDex;
     // real time passed with no signal, so the foot-to-foot difference across the hole may span one or
     // more absent beats. Excluded here rather than corrected, because there is nothing to correct to.
     // Fires on nothing without an honest gap in the source — every legacy file's grid is contiguous.
-    const spansGap = intervalsSpanningTimeGap(rec.relSec, rec.fs, footSpineOK ? det.feet : det.peaks, nn.length);
+    const spansTime = intervalsSpanningTimeGap(rec.relSec, rec.fs, footSpineOK ? det.feet : det.peaks, nn.length);
+    /* §4 — an interval that BRIDGES a beat §3 removed is the same kind of non-measurement, arrived at a
+       different way: the beat between its endpoints was deleted, so the difference spans ~2 true
+       intervals. It is invisible to `intervalsSpanningTimeGap`, which reads the SOURCE grid — and a
+       dropped beat leaves no discontinuity in `relSec`, every sample is still present. (That blindness
+       is by design, and is why §4 sat deferred behind `nGapSpanIntervals: 0 -> 0`: the counter watched
+       to decide whether §4 fires is the one quantity guaranteed not to respond. §4a.) */
+    const spansGap = new Array(nn.length);
+    for (let i = 0; i < nn.length; i++) spansGap[i] = !!spansTime[i] || !!(bridged && bridged[i]);
     let nGapSpanIntervals = 0;
     const cleanMask = new Array(nn.length);
     for (let i = 0; i < nn.length; i++) {

@@ -165,10 +165,26 @@ function selftest(sb) {
   const s = scanText(PD, synthGapped());
   ok('synthetic gapped record parses as the finger layout', s && s.site === 'finger', JSON.stringify(s));
   ok('…and carries rejected sentinels', s && s.sentinelRejected > 0, 'sentinelRejected=' + (s && s.sentinelRejected));
-  // THE POINT: nGapBeats is what §4 needs, and it moves. nGapSpanIntervals stays 0 on a contiguous
-  // grid no matter how many beats are dropped — which is why deferring §4 on it was a category error.
+  /* THE POINT: `nGapBeats` is what §4 needs, and it moves.
+     BEFORE §4 landed, the companion assertion here was `nGapSpanIntervals === 0` — the demonstration
+     that the counter the deferral watched CANNOT respond to a dropped beat, because a dropped beat
+     leaves the source grid contiguous. That was the §4a finding and it is why the deferral was a
+     category error.
+     AFTER §4 landed that assertion inverts BY DESIGN: bridged intervals are now OR-ed into `spansGap`,
+     so each dropped beat raises `nGapSpanIntervals` by exactly the bridge it created. The selftest was
+     the first thing to detect §4's behavioural change, which is the tool working — so it is updated
+     deliberately (never edited to match a surprise) and now pins the POST-§4 contract:
+     a planted sentinel run drops beats AND those bridges are counted as exclusions. */
   ok('§4 trigger `nGapBeats` FIRES on a planted mid-rise sentinel run', s && s.nGapBeats > 0, 'nGapBeats=' + (s && s.nGapBeats));
-  ok('…while §2 `nGapSpanIntervals` stays 0 (contiguous grid — it cannot see a dropped beat)', s && s.nGapSpanIntervals === 0, 'nGapSpanIntervals=' + (s && s.nGapSpanIntervals));
+  ok('§4 LANDED · the bridges those drops created are now counted as exclusions, not median-filled', s && s.nGapSpanIntervals > 0, 'nGapSpanIntervals=' + (s && s.nGapSpanIntervals));
+  /* …and the two remain DISTINCT quantities: the source grid is still contiguous, so every one of these
+     exclusions came from a bridge rather than from a time discontinuity. If §4 were reverted this reads
+     0 while nGapBeats stays > 0 — the original §4a separation, now expressed as a floor. */
+  ok(
+    '…and every exclusion here is a BRIDGE — the synthetic grid carries no time discontinuity',
+    s && s.nGapSpanIntervals <= s.nGapBeats,
+    'spans=' + (s && s.nGapSpanIntervals) + ' beats=' + (s && s.nGapBeats)
+  );
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }

@@ -6634,6 +6634,66 @@
       }
       return s;
     }
+    /* ════ O2RING-PPG-GAP §4 — a BRIDGED interval is excluded, not median-filled ═══════════════════
+     §3 drops a beat whose foot sits within GAP_FOOT_SPAN of a gap. That leaves its two surviving
+     NEIGHBOURS adjacent in the array but NOT in time: the interval between them spans the removed beat
+     and reads ~2x true. `correctRR` flags it and median-fills — so a guard meant to protect the record
+     ends up inventing a value for every beat it removes. §4 records those bridges and ORs them into
+     `spansGap`, so the interval is EXCLUDED rather than corrected into a plausible lie.
+
+     WHY THIS GATE AND NOT THE BRIEF'S §5 STANDARD. §5 asks for per-epoch RMSSD/SDNN agreement against
+     paired chest ECG — the evidence that settled §3. Measured over the corpus (18 firing files, 130
+     dropped beats, `tools/ppg-bridge-hrv-validate.mjs`), §4 moves whole-file HRV on 10 of 18 files by
+     **0.1 ms of SDNN** — the last reported digit — with mixed sign, while finger-vs-ECG disagreement on
+     those same files runs 1-90 ms. The reference is ~1000x coarser than the effect, so that standard
+     cannot adjudicate this change in either direction; running it and reporting "no significant
+     difference" would be a measurement that could not have come out any other way.
+
+     What CAN be established is the thing §4 actually claims: the exclusion is CORRECT BY CONSTRUCTION.
+     On a contiguous-grid record every excluded interval must be attributable to a dropped beat, because
+     there is no time discontinuity for `intervalsSpanningTimeGap` to find. That is what this asserts,
+     in CI, with no corpus. */
+    (function () {
+      var FS = 125.7,
+        DUR = 120,
+        N = Math.round(FS * DUR);
+      /* Sentinel runs are planted to STRADDLE A FOOT (troughs sit at whole seconds here). That placement
+         is load-bearing: `gapBeats` drops a beat only when a gap sample lands within GAP_FOOT_SPAN
+         (+-3 samples, ~24 ms) of the FOOT. A run planted mid-rise drops nothing and would make this
+         gate pass while proving nothing — the same trap `ppg-gap-bridge-scan`'s selftest records. */
+      var mkGapped = function (plantSentinels) {
+        var out = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+        var t0 = Date.UTC(2026, 6, 25, 1, 0, 0);
+        for (var i = 0; i < N; i++) {
+          var t = i / FS;
+          var ph = (t % 1.0) / 1.0;
+          var v = 1000 + 200 * Math.exp(-Math.pow((ph - 0.18) / 0.07, 2)) + 60 * Math.exp(-Math.pow((ph - 0.42) / 0.11, 2));
+          if (plantSentinels && ((t > 39.85 && t < 40.15) || (t > 74.85 && t < 75.15))) v = 156;
+          var ms = new Date(t0 + Math.round(t * 1000)).toISOString().replace('Z', '');
+          out += ms + ';' + Math.round(t * 1e9) + ';' + Math.round(v) + '\n';
+        }
+        return out;
+      };
+      var gapped = D.analyze(D.parsePPG(mkGapped(true)));
+      var clean = D.analyze(D.parsePPG(mkGapped(false)));
+      // ANTI-VACUITY: if the planted run drops nothing, every assertion below is trivially true.
+      T.ok('§4 · the planted sentinel runs DO drop beats (the gate is exercised)', gapped.nGapBeats > 0, 'nGapBeats=' + gapped.nGapBeats);
+      // …and the clean twin drops none, so the drops are attributable to the sentinels and not the shape
+      T.eq('§4 · the same record without sentinels drops no beats — the drop is the sentinels, not the waveform', clean.nGapBeats, 0);
+      /* THE CONTRACT. The grid is contiguous in BOTH records (every row present, only values replaced),
+         so `intervalsSpanningTimeGap` finds nothing and the clean twin must exclude zero intervals. Any
+         exclusion in the gapped twin is therefore a BRIDGE. */
+      T.eq('§4 · a contiguous grid with no drops excludes NOTHING — spansTime alone finds no interval', clean.nGapSpanIntervals, 0);
+      T.ok('§4 · …while the gapped twin DOES exclude — every one of those is a bridged interval', gapped.nGapSpanIntervals > 0, 'nGapSpanIntervals=' + gapped.nGapSpanIntervals);
+      /* Each dropped beat creates AT MOST one bridge (consecutive drops share one), so the exclusion
+         count can never exceed the drop count. An implementation that excluded a neighbouring interval
+         too — the obvious off-by-one — breaks this ceiling. */
+      T.ok('§4 · exclusions never exceed drops — one bridge per dropped beat at most, no off-by-one spill', gapped.nGapSpanIntervals <= gapped.nGapBeats, gapped.nGapSpanIntervals + ' exclusions vs ' + gapped.nGapBeats + ' drops');
+      /* …and the exclusion must not swallow the record: HRV still computes, on a night that is 98 %
+         intact. A guard that excluded everything would also satisfy the assertions above. */
+      T.ok('§4 · the record survives — beats and HRV are still reported after the exclusions', gapped.nn && gapped.nn.length > 100 && gapped.rmssd != null, 'beats=' + (gapped.nn ? gapped.nn.length : 0) + ' rmssd=' + gapped.rmssd);
+    })();
+
     var rep = D.analyze(D.parsePPG(mk('replicated')));
     var gen = D.analyze(D.parsePPG(mk('genuine')));
     T.ok('replicated single sensor → ledAgreementPct is NULL, never a fabricated 100', rep.ledAgreementPct == null,
