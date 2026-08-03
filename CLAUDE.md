@@ -275,8 +275,28 @@ dance — the tool writes the ledgers.** Every bundle is a repo-owned determinis
 
 ```sh
 node tools/build.mjs --app OxyDex     # edit the *.js / .src.html first, then rebuild
-node tools/build.mjs --check          # drift guard: committed bundle ≡ build(source)
+npm run check                         # ← the FULL gate. Not `build.mjs --check` alone.
 ```
+
+⚠️ **`node tools/build.mjs --check` is NOT the drift guard — it is one of THREE.** There are three
+generated trees, and re-bundling can staleness any of them:
+
+| tree | built by | checked by |
+|---|---|---|
+| the 11 owned bundles | `tools/build.mjs` | `npm run build:check` |
+| **`docs/` — SERVED COPIES of those same bundles** | **`tools/build-docs.mjs`** | **`npm run verify:docs`** |
+| the analysis tools | `tools/build-analysis.mjs` | `npm run verify:analysis` |
+
+`npm run check` runs all three (plus typecheck · lint · `test:par` · `verify:shard-union` ·
+`test:build-core` · `verify:manifest`) and is exactly what CI gates on. **Run it, not a hand-picked
+subset** — this checklist previously named only `build.mjs`, and a fleet re-bundle that passed
+`build.mjs --check`, GATE A/B, biome and all 5378 assertions still went red in CI on
+`STALE (7): CPAPDex.html, ECGDex.html, …` because nothing local had looked at `docs/`. All six test
+shards were green, so it read as a test failure and was not one.
+
+⚠️ **After `tools/build-docs.mjs`, stage from `git status`, NOT from the `git add …` line it prints.**
+Observed 2026-08-03: it printed nine paths of which **zero** had changed, and omitted the **seven
+`docs/*.html` it had just rewritten**.
 
 `build.mjs` **auto-writes** that bundle's `BUILD-MANIFEST.json` `manifestHash` and **re-stamps its
 code-gated fixtures**. You do not hand-edit `manifestHash`, and you never hand-edit a fixture hash.
