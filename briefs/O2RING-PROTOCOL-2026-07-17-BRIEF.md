@@ -6,6 +6,19 @@
 
 **Status:** REFERENCE (living — protocol reverse-engineering, validated on hardware) · **Created:** 2026-07-17
 
+> ### ⚠️ The 125.738 Hz calibration below is a REAL FIT AND NOT A TIMEBASE (noted 2026-08-02)
+> §"Rate: 125.738 Hz measured" stands as a measurement — a genuine fit over 12 sessions / 2 616 483
+> samples — and is **not** retracted. What it cannot do is serve as a **clock**. The device sends no
+> per-sample timestamp, so any constant used to synthesise one yields a *drawn* axis whose apparent ppm
+> is the error in that constant. The same section already records a per-session spread of
+> **125.59–125.88 Hz**, and a delivered rate that varies per session cannot be represented by one
+> number: measured against the host clock, a fragment written at 125.738 Hz reads **+783 ppm** while a
+> fragment of the same night written at ~128.024 Hz reads **+92 ppm**.
+> **Do not respond by re-calibrating the constant** — a better constant makes the drawn axis more
+> plausible without making it a measurement. See `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` §F1
+> (provenance is computed and declared via `quality.timingSource`) and
+> `O2RING-SYNTHESISED-AXIS-2026-08-02-BRIEF.md` §6.
+
 # Wellue O2Ring-S (T8520 / "OxyII") — BLE protocol & capabilities
 
 Reverse-engineered + hardware-validated reference for the **Wellue O2Ring-S** finger pulse-oximeter as
