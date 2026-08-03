@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **F1 · F2 · F3-ter · F7 DONE 2026-08-02** · **F5 DONE 2026-08-02** (the printer no longer quotes an unclosed ppm, and both clock printers are gated for the first time — see F5.1–F5.4; F4 `papers/` and `alignEnvelopes.driftPpm` remain open) · **Follows:** `WEARABLE-HOST-AXIS-2026-08-02-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `integrator-dsp.js`, `tools/trio-batch.mjs`, `tools/drift-report.js`, `papers/`, several briefs
+**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **F1 · F2 · F3-ter · F7 DONE 2026-08-02** · **F5 · F8 DONE 2026-08-02** (the printer no longer quotes an unclosed ppm, and both clock printers are gated for the first time — see F5.1–F5.4; F4 `papers/` and F6 remain open) · **Follows:** `WEARABLE-HOST-AXIS-2026-08-02-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `integrator-dsp.js`, `tools/trio-batch.mjs`, `tools/drift-report.js`, `papers/`, several briefs
 
 # The O2Ring's axis was drawn on every night before 2026-07-28. Everything that used it as a clock has to be re-asked.
 
@@ -386,6 +386,79 @@ BLE reconnections — median |Δlag| 0.20 s with a reconnection between windows 
 172, Mann–Whitney z=0.22, **p=0.83**. Fixing `driftPpm` is NOT in this brief; it is written up here
 because two conclusions in this file were built on it.
 
+### F8 · The drift term now REFUSES — **DONE 2026-08-02**
+
+The line above ("fixing `driftPpm` is NOT in this brief") is superseded: it is fixed, because the box
+below asked for exactly one of *"refuses or is fixed"* and refusing is the honest half.
+
+**The rule.** `alignEnvelopes` computes the distribution-free interval for its Theil–Sen slope (Sen
+1968, order-statistic interval; `C = z·sqrt(n(n−1)(2n+5)/18)`) and publishes `driftPpm` **only when
+that interval excludes zero**. `driftCiPpm` is published either way — the interval is the honest
+result even when the point estimate is not — together with `driftIdentifiable`, `driftTieFrac` and a
+`driftReason` naming which way it failed. This says *not identifiable*, **not** *no drift*: an
+unidentifiable slope and a true zero are indistinguishable here, and conflating them was the error.
+
+**Measured on the corpus, and it is worse than this brief said.** `wearable-sync --fs 4` over the
+17 available nights:
+
+```
+15 of 17 night(s) measured.
+offset: median 0.25 s   range 0.00 … 0.50 s   |offset| > 1 s on 0 of 15
+drift : NOT IDENTIFIABLE on 15 of 15 measured night(s)
+```
+
+Not "7 of 14 are an atom at zero" — **every night is unidentifiable**, and the tool printed a ppm for
+all of them. Re-run at the tool's real **10 Hz** default (2.5x the lag resolution, so the strongest case
+the instrument can make for itself) the verdict is identical — **15 of 15 not identifiable**, offsets
+median **0.20 s**, range 0.10–0.40 s. That median is the same 0.20 s this brief already recorded for the
+offsets, so the two runs agree on the quantity that survives and agree on the one that does not. The `MAD spread` column shows why the old `madSec` could not reveal it: MAD reads `0.00`
+on eight of these nights while the lag spread on the same nights runs to 20–29 s.
+
+**Why it was never resolvable, quantitatively.** The lag axis is quantised at `1/fsHz`, so the
+smallest slope distinguishable from zero is about one quantum over the fitted span. Planted-drift
+recovery at the tool's own defaults (10 Hz, 7 h) puts the floor between 7 and 10 ppm:
+
+| planted | 50 | 27 | 20 | 10 | 7 | 0 |
+|---|---|---|---|---|---|---|
+| reported | 50.0 | 27.03 | 19.9 | 8.77 | **refused** | **refused** |
+
+`WEARABLE-DRIFT-DIRECT` measured the true H10↔Verity rate at **≈ 7 ppm** — sitting exactly on this
+instrument's floor. The estimator was never able to see the quantity it was being asked for, which is
+the real content of "0 → 720 ppm across three fits of the same windows". **Honest caveat:** at the
+10 ppm row the interval `[7.25, 9.8]` does **not** cover the planted 10, so near the floor the nominal
+95 % is optimistic — the quantised lags violate the continuity Sen's interval assumes. It is quoted as
+a floor, not as calibrated coverage.
+
+#### Two things this got wrong on the way, both caught by surviving mutants
+
+1. **A tie-fraction refusal is WRONG and must not be re-added.** The first implementation also refused
+   when ≥50 % of pairwise slopes sat exactly on the median, reasoning that the median was then a
+   plateau's tie value. It refuses the zero atom correctly — and it *also refuses a correctly-measured
+   ramp*: at a planted **900 ppm** the interval is `[833, 926]` (bracketing the truth) while `tieFrac`
+   is 0.59, because evenly-spaced windows climbing one quantum at a time produce many pairs with
+   identical Δt **and** identical Δlag. A high tie fraction is the signature of a clean quantised ramp
+   at least as often as a flat one. Disabling that branch changed no test — the interval had already
+   refused everything that mattered — and the mutant that survived is what exposed it. `tieFrac` is now
+   a published diagnostic and the reason wording, never a refusal, and the 900 ppm case is gated.
+2. **The offset fallback IS load-bearing, and a first measurement said otherwise.** On refusal the
+   offset falls back to the plain median lag rather than `intercept + slope·mid`, which would import
+   the refused slope's error into the one quantity this corpus finds trustworthy. A survey across
+   plateau, V-shaped and ramp-then-flat lag profiles appeared to show the two values always identical —
+   but that survey was run against the build that still contained the fallback, so it measured the
+   fallback's own output and concluded the fallback did nothing. It is worth **0.107 s** on the
+   sub-resolution case (2.143 fitted vs 2.250 median). The gate now asserts it on a case with a
+   non-zero refused slope; asserting it on a zero-slope plateau alone passes either way, which is
+   precisely how the mutant survived.
+
+**Gated** in `integrator-dsp · acc-align` (13 → 34 assertions), both lanes, 10 mutants each confirmed
+to red — including the two above. One pre-existing assertion in that group had gone hollow and is
+repaired: `Math.abs(pos.driftPpm) < 25` on a drift-free pair, which under the refusal reads
+`Math.abs(null) === 0` and passes while checking nothing.
+
+Integrator re-bundled `045a349a3f2f → 4894e7df5a32`; `computeHash` moved, so the corpus-backed
+Integrator golden was **re-verified by re-running it** (`verify-fixtures.mjs`, `verifiedUnder →
+afc169a65a1e`) rather than asserted export-inert.
+
 ## Done when
 
 - [x] **F1 — Drawn-axis provenance computed and declared, not inferred** (2026-08-02). The proposed
@@ -403,8 +476,11 @@ because two conclusions in this file were built on it.
       here.
 - [x] **F7 — the host-axis rate is span-gated** (2026-08-02). Fleet `fs` spread 25341 → 52 ppm; gated
       both directions and verified to fail against the pre-fix parser.
-- [ ] `alignEnvelopes.driftPpm` is not identifiable and is quoted nowhere until it refuses or is fixed
-      (F7). Its offsets are fine; only the drift term and `madSec` are affected.
+- [x] **`alignEnvelopes.driftPpm` REFUSES** (2026-08-02, F8). Published only when its 95 % interval
+      excludes zero; the interval, the tie fraction and a reason ship either way. Measured: **NOT
+      identifiable on 15 of 15** nights — the tool had printed a ppm for every one. `madSec` never
+      travels alone now (`lagSpreadSec` + `madDegenerate`); MAD reads 0.00 on 8 nights whose lag
+      spread runs 20–29 s. 34 assertions, 10 mutants confirmed to red.
 - [x] **A leg with no time axis is refused** by a computed `timingSource`, wired through `trio-batch`.
 - [ ] `papers/` audited; `O2RING-PROTOCOL` annotated rather than retracted.
 - [x] **F5 — no ppm is quoted by `trio-batch` without a span and a closure beside it** (2026-08-02).

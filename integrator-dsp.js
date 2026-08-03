@@ -4137,7 +4137,30 @@ function _theilSen(xs, ys) {
   res.sort(function (p, q) {
     return p - q;
   });
-  return { slope: m, intercept: res[res.length >> 1] };
+  /* ── THE SLOPE'S OWN INTERVAL, and whether the median is an ATOM ──────────────────────────────
+     A point slope with no interval beside it is the failure `WEARABLE-HOST-AXIS-FOLLOWUPS` §F7
+     documented: three fits of the SAME usable windows spanning 0 → 720 ppm, and 7 of 14 nights
+     returning exactly 0.0. Both are now computable here rather than discoverable later.
+
+     `loSlope`/`hiSlope` — the standard distribution-free interval for the Theil–Sen slope: an
+     order statistic of the sorted pairwise slopes, with C = z·sqrt(n(n−1)(2n+5)/18) the Kendall-S
+     standard deviation (Sen PK 1968, J. Am. Stat. Assoc. 63:1379, doi:10.1080/01621459.1968.10480934;
+     interval per Hollander & Wolfe, Nonparametric Statistical Methods §9.4). z = 1.96 → 95 %.
+
+     `tieFrac` — the fraction of pairwise slopes lying EXACTLY on the median. Window lags are
+     quantised (`bestK / fsHz`, an integer sample lag), so every pair drawn from one plateau
+     contributes an identical slope. When those ties are the majority the median is not a location
+     estimate at all, it is the plateau's value — which is precisely how "exactly 0.00 ppm" is
+     manufactured on a night with no measurable trend. */
+  var n = xs.length,
+    N = slopes.length;
+  var C = 1.96 * Math.sqrt((n * (n - 1) * (2 * n + 5)) / 18);
+  // Sen's interval is expressed over the sorted PAIRWISE slopes, so the ranks are taken over N.
+  var kLo = Math.max(0, Math.min(N - 1, Math.floor((N - C) / 2)));
+  var kHi = Math.max(0, Math.min(N - 1, Math.ceil((N + C) / 2)));
+  var ties = 0;
+  for (var t = 0; t < N; t++) if (Math.abs(slopes[t] - m) <= 1e-12) ties++;
+  return { slope: m, intercept: res[res.length >> 1], loSlope: slopes[kLo], hiSlope: slopes[kHi], nSlopes: N, tieFrac: ties / N };
 }
 
 /* Exact binomial upper tail P(X >= k | n, p). Small n here, so summing terms is
@@ -4196,6 +4219,14 @@ function alignEnvelopes(a, b, fsHz, opts) {
     nConcentrated: 0,
     concP: null,
     madSec: null,
+    // §F7 — the drift term's own interval + why it was (or was not) published. See the fit block below.
+    driftCiPpm: null,
+    driftIdentifiable: false,
+    driftTieFrac: null,
+    driftReason: null,
+    // §F7 — the spread MAD cannot report when the median sits on a tie block.
+    lagSpreadSec: null,
+    madDegenerate: false,
     medR: null,
     rmsResidSec: null,
     confident: false,
@@ -4301,6 +4332,15 @@ function alignEnvelopes(a, b, fsHz, opts) {
       return p - q;
     });
   out.madSec = +dev[dev.length >> 1].toFixed(3);
+  /* ── MAD IS PRESENTED AS PRECISION AND ON A PLATEAU IT IS NOT (§F7) ────────────────────────────
+     On 2026-07-26, 15 of 28 usable windows sat EXACTLY on the median, so MAD reported `0.00` while
+     two windows sat 1.2 s away. That is the same quantisation that manufactures the drift atom: a
+     majority tie makes the median deviation zero no matter what the rest of the distribution does.
+     `madSec` is kept (it is what it is, and callers read it), but it never travels alone now —
+     `lagSpreadSec` is the FULL half-range and cannot report agreement that is not there, and
+     `madDegenerate` says outright that MAD is resting on a tie block. */
+  out.lagSpreadSec = +dev[dev.length - 1].toFixed(3);
+  out.madDegenerate = out.madSec === 0 && out.lagSpreadSec > 0;
   var conc = 0;
   for (var w2 = 0; w2 < good.length; w2++) if (Math.abs(good[w2].lagSec - med) <= concTolSec) conc++;
   out.nConcentrated = conc;
@@ -4318,9 +4358,62 @@ function alignEnvelopes(a, b, fsHz, opts) {
     var fit = _theilSen(ts, ls);
     if (fit) {
       var mid = (ts[0] + ts[ts.length - 1]) / 2;
-      out.offsetSec = +(fit.intercept + fit.slope * mid).toFixed(3);
-      // A lag growing by `slope` seconds per second IS the fractional frequency error.
-      out.driftPpm = +(fit.slope * 1e6).toFixed(2);
+      /* ── THE DRIFT TERM REFUSES UNLESS IT IS IDENTIFIABLE (WEARABLE-HOST-AXIS-FOLLOWUPS §F7) ──
+         This slope was published unconditionally, and on this corpus it is not a measurement:
+         three estimators over the SAME usable windows spanned 0 → 720 ppm (2026-07-29: Theil–Sen
+         0.0, OLS −485.5, endpoint −720.4), 7 of 14 nights returned exactly 0.0, and −181.8 ppm
+         shipped as MEASURED on 2026-07-17. A point estimate cannot say any of that about itself,
+         so the interval is computed and the point estimate is gated on it.
+
+         THE TEST IS THE INTERVAL, and only the interval: if the 95 % interval spans zero then
+         neither the magnitude nor the DIRECTION of the drift is established, so there is nothing to
+         publish. `driftCiPpm` is published either way, because the interval is the honest result
+         even when the point estimate is not. This says "not identifiable", NOT "no drift" — an
+         unidentifiable slope and a true zero are indistinguishable here, and conflating them is the
+         error the whole guard exists to stop making.
+
+         ⚠️ A TIE-FRACTION REFUSAL WAS TRIED HERE AND IS WRONG — recorded so it is not re-added.
+         The reasoning was that a majority of pairwise slopes sitting exactly on the median means the
+         median is a quantised plateau's tie value rather than a location estimate. It refuses the
+         atom at 0.00 correctly, but it ALSO refuses a strong, correctly-measured ramp: at a planted
+         900 ppm the interval is [833, 926] ppm — bracketing the truth — while tieFrac is 0.59,
+         because evenly-spaced windows climbing one lag quantum at a time produce many pairs with
+         identical Δt AND identical Δlag. A high tie fraction is the signature of a CLEAN quantised
+         ramp at least as often as a flat one. It was caught by a surviving mutant: disabling the tie
+         branch changed no test, because the interval had already refused every case that mattered.
+         `tieFrac` survives as a published diagnostic and as the reason wording below — never as a
+         refusal. */
+      var loPpm = fit.loSlope * 1e6,
+        hiPpm = fit.hiSlope * 1e6;
+      out.driftCiPpm = [+loPpm.toFixed(2), +hiPpm.toFixed(2)];
+      out.driftTieFrac = +fit.tieFrac.toFixed(3);
+      var tied = fit.tieFrac >= 0.5;
+      var spansZero = loPpm <= 0 && hiPpm >= 0;
+      out.driftIdentifiable = !spansZero;
+      if (out.driftIdentifiable) {
+        // A lag growing by `slope` seconds per second IS the fractional frequency error.
+        out.driftPpm = +(fit.slope * 1e6).toFixed(2);
+        out.offsetSec = +(fit.intercept + fit.slope * mid).toFixed(3);
+      } else {
+        /* THE OFFSET FALLS BACK TO THE PLAIN MEDIAN LAG, and this is not defensive padding — it is
+           worth 0.107 s on the sub-resolution case in the gate below (2.143 fitted vs 2.250 median).
+           `intercept + slope·mid` evaluates a line whose slope was just declared unidentifiable, so
+           it carries that slope's error into the one quantity this corpus finds trustworthy (offset
+           median 0.20 s; |offset| > 1 s on 0 of 13 nights). On a ZERO-slope plateau the two agree
+           exactly, which is why a test written only against that case cannot see this. */
+        out.offsetSec = med;
+        /* The wording states the tie VALUE rather than asserting it is zero. The zero plateau is the
+           case the corpus kept hitting, but a tie block at a non-zero slope is reachable in principle
+           and "tied at exactly zero" would then be a false sentence — the precise defect class this
+           work-unit exists to remove. Naming the value is true by construction and needs no guard. */
+        out.driftReason = tied
+          ? 'drift NOT identifiable — ' +
+            (100 * fit.tieFrac).toFixed(0) +
+            '% of pairwise slopes are tied at ' +
+            (fit.slope * 1e6).toFixed(2) +
+            ' ppm, so the median is a quantised tie value rather than a located slope'
+          : 'drift NOT identifiable — the 95% interval [' + out.driftCiPpm[0] + ', ' + out.driftCiPpm[1] + '] ppm spans zero, so not even its sign is established';
+      }
       var sr = 0;
       for (var g = 0; g < ts.length; g++) {
         var e = ls[g] - (fit.intercept + fit.slope * ts[g]);
