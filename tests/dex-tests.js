@@ -21811,6 +21811,57 @@
         var relBars = heights({ t0Ms: T0c, therapyHours: 3, sessions: [{ t0Ms: T0c, events: [{ timeSec: 2 * 3600 + 60 }] }] });
         T.ok('drawAhiByHour · a stamp-less event is placed from timeSec, not dumped into hour 1', relBars[2] > relBars[0], 'hour3=' + relBars[2] + ' hour1=' + relBars[0]);
       }
+
+      /* ══ WAVE 7 · the other two charts, now that the harness exists ═════════════════════════════
+         `drawPressure` puts P50/P95 markers on a fixed 4–20 cmH₂O ramp. Its whole job is POSITION:
+         the x of a marker IS the claim about the pressure, and every mutation in it moves a marker
+         without changing anything a DOM assertion could see. The scale is fixed by the device's
+         range, so position is checkable in closed form rather than against a recorded blob. */
+      if (typeof CR.drawPressure !== 'function') {
+        T.skip('drawPressure canvas assertions', 'not exported in this build');
+      } else {
+        var pc = function (nm) {
+          var c = recCanvas(600);
+          CR.drawPressure(c.cv, nm);
+          return c;
+        };
+        var markerX = function (c, label) {
+          var t = opsOf(c, 'fillText').filter(function (f) { return f.text.indexOf(label) === 0; })[0];
+          return t ? t.x : null;
+        };
+        var mid = pc({ medianPressure: 12, p95Pressure: 12 }); // 12 is the exact midpoint of 4–20
+        var padX = 8, gw = 600 - 16;
+        T.ok('drawPressure · a pressure at the midpoint of the 4–20 ramp lands at the middle of the bar',
+          Math.abs(markerX(mid, 'P50') - (padX + gw / 2)) < 0.5, markerX(mid, 'P50') + ' vs ' + (padX + gw / 2));
+        var ends = pc({ medianPressure: 4, p95Pressure: 20 });
+        T.ok('drawPressure · 4 cmH₂O sits at the left end and 20 at the right — the ramp bounds are the device range, not the data',
+          Math.abs(markerX(ends, 'P50') - padX) < 0.5 && Math.abs(markerX(ends, 'P95') - (padX + gw)) < 0.5,
+          markerX(ends, 'P50') + ' / ' + markerX(ends, 'P95'));
+        /* CLAMPED, not extrapolated: a pressure outside the ramp must stop at the end rather than be
+           drawn off the canvas, where it would silently vanish instead of reading as "at the limit". */
+        var over = pc({ medianPressure: 30, p95Pressure: 1 });
+        T.ok('drawPressure · a pressure above 20 clamps to the right end rather than drawing off-canvas',
+          Math.abs(markerX(over, 'P50') - (padX + gw)) < 0.5, markerX(over, 'P50'));
+        T.ok('drawPressure · …and one below 4 clamps to the left end', Math.abs(markerX(over, 'P95') - padX) < 0.5, markerX(over, 'P95'));
+        T.eq('drawPressure · each marker is labelled with its value to 1 dp',
+          opsOf(pc({ medianPressure: 9.25, p95Pressure: 13.5 }), 'fillText').filter(function (f) { return /^P\d/.test(f.text); }).map(function (f) { return f.text; }).join(' '),
+          'P50 9.3 P95 13.5');
+        /* An ABSENT pressure must draw NO marker — a missing reading rendered at the left end would
+           read as "4 cmH₂O", a real and reassuring number the device never reported. */
+        T.eq('drawPressure · an absent P95 draws no marker at all (not a phantom one at the low end)',
+          opsOf(pc({ medianPressure: 10 }), 'fillText').filter(function (f) { return /^P95/.test(f.text); }).length, 0);
+        T.eq('drawPressure · …and a non-finite one is refused the same way',
+          opsOf(pc({ medianPressure: 10, p95Pressure: Number.NaN }), 'fillText').filter(function (f) { return /^P95/.test(f.text); }).length, 0);
+        T.ok('drawPressure · the ramp is labelled with its own bounds, so a marker position is readable',
+          opsOf(pc({}), 'fillText').some(function (f) { return /^4 cmH/.test(f.text); }) &&
+            opsOf(pc({}), 'fillText').some(function (f) { return /^20 cmH/.test(f.text); }));
+        T.ok('drawPressure · the two markers are drawn in DIFFERENT colours, so P50 and P95 are distinguishable',
+          (function () {
+            var c = pc({ medianPressure: 8, p95Pressure: 16 });
+            var s = opsOf(c, 'stroke').map(function (k) { return k.style; });
+            return s.length >= 2 && s[0] !== s[1];
+          })());
+      }
     });
 
     /* ════ CPAPDex CARD SURFACE II — the rest of the reachable builders (CLOCK-MUTATION-AUDIT §7.4) ════
