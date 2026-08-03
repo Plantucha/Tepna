@@ -203,9 +203,13 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # a CACHE, and a cache without eviction is a leak: one directory per module VERSION, so a module
     # edited ten times during a pass leaves ten. Measured 2026-08-03 before this existed: 153 orphaned
     # scratches, 2.6 GB. Everything for this module that is not the current hash goes.
+    pruned = []
     for old_dir in Path(tempfile.gettempdir()).glob(f"mut-{module[:-3]}-*"):
         if old_dir != reusable and old_dir.is_dir():
+            pruned.append(old_dir.name)
             shutil.rmtree(old_dir, ignore_errors=True)
+    if pruned:
+        plan["pruned_scratches"] = pruned
     if reuse and (reusable / "work" / "mutants" / module).exists():
         scratch, work = reusable, reusable / "work"
         # REFRESH THE WHOLE tests/ TREE, not just the selected files. Copying only the selection was a
@@ -257,8 +261,21 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     elapsed = time.monotonic() - t0
     res = subprocess.run([str(VENV_PY), "-m", "mutmut", "results"],
                          cwd=work, capture_output=True, text=True, env=env, timeout=300)
+    # ⚠️ THE SCRATCH ID IS PART OF THE RESULT, because MUTANT IDS ARE ONLY COMPARABLE WITHIN ONE
+    # GENERATION. mutmut numbers mutants positionally per function, so `x_f__mutmut_34` in one scratch
+    # and another are the same NAME and not necessarily the same MUTATION. Diffing survivor sets across
+    # generations silently produces fabricated deltas: on 2026-08-03 that reported "14 regressions" in
+    # run_polar that did not exist — the baseline scratch had been deleted by this tool's own pruning
+    # and the comparison was against a different generation. Record it so a reader can check, and warn
+    # loudly when a prune destroyed something a previous run may have measured against.
     out = {**plan, "rc": rc, "elapsed_sec": round(elapsed, 1), "timed_out": timed_out,
+           "scratch_id": scratch.name, "mutant_generation": src_hash,
            "results": res.stdout, "tail": tail, "work": str(work)}
+    if plan.get("pruned_scratches"):
+        out["WARNING"] = (
+            f"pruned {len(plan['pruned_scratches'])} older scratch(es) for this module: "
+            f"{plan['pruned_scratches']}. Survivor IDs from those runs are NOT comparable with this "
+            f"one — mutant numbering is positional per generation. Re-measure the baseline.")
     if timed_out:
         out["partial"] = ("PARTIAL — the cap was hit, so the counts below cover only the mutants that "
                           "finished. Do not read an unrun mutant as a survivor.")
@@ -306,6 +323,7 @@ def main(argv=None) -> int:
         verdict = {k: r[k] for k in ("module", "rc", "elapsed_sec", "timed_out", "partial",
                                      "skipped", "error", "estimate_only", "clean_run_sec",
                                      "timeout_sec", "derived", "advice", "reused_scratch",
+                                     "scratch_id", "mutant_generation", "WARNING",
                                      "work") if k in r}
         print(json.dumps(verdict, indent=2), flush=True)
         rest = {k: v for k, v in r.items() if k not in verdict and k != "results"}
