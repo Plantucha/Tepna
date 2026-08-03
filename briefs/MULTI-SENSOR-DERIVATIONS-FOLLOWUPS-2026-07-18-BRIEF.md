@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-08-03 (**§1's owed 3a audit pass EXECUTED** for `ecgdex-dsp` — clean — and `ppgdex-dsp` — four instances, fixed + gated; `cpapdex` per-session lanes and §4 remain) · **Created:** 2026-07-18 · **Follows:** `MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md` (DONE) · **Related:** `MOTIONDEX-BUILD-FOLLOWUPS-2026-07-18-BRIEF.md` · `APNEA-TYPING-FUSION-2026-07-18-BRIEF.md` (DONE)
+**Status:** IN-PROGRESS — 2026-08-03 (**§1 CLOSED** — the owed 3a audit pass ran on all three: `ecgdex-dsp` clean, `ppgdex-dsp` four instances fixed + gated, `cpapdex` `periodicBreathingPct` fixed + gated. Only §4's staging item remains) · **Created:** 2026-07-18 · **Follows:** `MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md` (DONE) · **Related:** `MOTIONDEX-BUILD-FOLLOWUPS-2026-07-18-BRIEF.md` · `APNEA-TYPING-FUSION-2026-07-18-BRIEF.md` (DONE)
 
 # Multi-sensor derivations — follow-ups: what executing four fusions surfaced
 
@@ -90,9 +90,64 @@ merely by throwing on the new API. Suite 5250 → 5287. `synthetic_ppgdex_rich_g
 fields moved); the light exports and the corpus-backed equiv fixture were **unchanged** (no confidence
 block), and `verifiedUnder` was re-established on the real corpus.
 
-**Still owed:** `cpapdex` per-session lanes — deliberately not folded in here. That node's shape is
-different (per-session pooling, not a per-epoch series), so it deserves its own pass rather than being
-rushed into a PpgDex change. Carried to the follow-up.
+**Then owed:** `cpapdex` per-session lanes — deliberately not folded into the PpgDex change, because that
+node's shape is different (per-session pooling, not a per-epoch series) and rushing it would have been
+the same haste this bug class rewards. Taken up separately the next day → part 2 below.
+
+### ✅ §1 AUDIT PASS, part 2 — `cpapdex` per-session lanes, 2026-08-03
+
+**The ventilation lanes are CLEAN.** `rrMaskOn`/`tvMaskOn`/`mvMaskOn`/`snMaskOn`/`flMaskOn` are each
+built `ch ? _filterBy(...) : []` and every derived metric is `lane.length ? … : null`, so an absent
+channel yields `null`, never a plausible number. `nightMetrics` concatenates raw mask-on samples, so an
+unscored session contributes no samples rather than a run of zeros. No change.
+
+**`periodicBreathingPct` was NOT clean, and the way it failed is the interesting part.**
+
+`§7` (DEEP-AUDIT-2026-07-14) had already identified this exact metric as fabricated-absence and shipped
+a fix whose comment reads *"null on absence, matching the sibling apnea indices, not a measured-looking
+0"*. The guard it actually shipped is **`durSec > 0`** — the **denominator**, not the channel. And its
+gate (`CPAPDex §7 — periodicBreathingPct is null, not 0, on a zero-duration session`) drives a
+**zero-duration** session, which that guard *does* catch. So the gate passed, the comment asserted the
+property, and the real absence case had never once run. Measured on the synthetic set:
+
+| CSL state | `periodicBreathingPct` |
+|---|---|
+| lane present, 120 s episode | 20 |
+| lane present, device scored nothing | 0 |
+| **lane absent** | **0** ← indistinguishable |
+
+Periodic breathing is a heart-failure signal, so that is a manufactured **negative** finding. The
+`reraIndex` line directly above it cites *this very metric* as the precedent for the discipline it was
+not itself following.
+
+**A second defect, same root.** An unscored session left the numerator but stayed in the
+**denominator**: PB seconds were divided by the whole night's duration even when only one of several
+sessions carried a CSL lane. On the synthetic pair that turns a real 20 % episode into **10 %**.
+
+**Fixed** by guarding on **file presence** (`pbObserved = !!set.CSL`) — deliberately *not* on
+`pbSec > 0`. Unlike RERA capability, which is unknowable from one session and hence uses the `nRE > 0`
+proxy, whether the device wrote a CSL lane **is** knowable, so a genuinely scored zero stays a real `0`
+and only true absence goes `null`. A CSL file with an empty annotation list is a *measurement*. The
+night-level denominator is now the duration actually scored, and `pbObservedHours` /
+`pbObservedSessions` are published so a partial night is visible.
+
+**How much of this is live, measured rather than assumed.** Across **410** therapy sessions in the real
+CPAP corpus, **408 carry a CSL lane** — and the 2 that do not are both the post-midnight continuation of
+a night whose *other* session is scored. So **no night in this corpus is wholly unscored**: the
+full-`null` case is **latent**, and saying otherwise would overstate it. The *denominator* half is not
+latent — on the real night **2026-05-12** the fix reports `usageHours 7.2` against
+`pbObservedHours 4.35`, i.e. the published percentage had a denominator **65 % larger** than what was
+actually scored. Its value did not move only because that night's numerator is genuinely 0; any PB on
+such a night would have been under-reported by 40 %.
+
+Gated by 10 assertions, **verified RED by value** (`got 0 · want null`, and `got 10 · want 20` for the
+diluted denominator), with the scored-clean night asserted to stay a real `0` as the load-bearing
+control — a fix that nulled the true negative too would be a regression dressed as honesty. All five
+CPAP fixtures moved by the two additive fields only; `periodicBreathingPct` itself is unchanged on every
+one of them, and `verifiedUnder` was re-established on the real corpus.
+
+**§1 is now CLOSED** — `ppgdex-dsp`, `ecgdex-dsp` and `cpapdex` have all had the pass. §4's staging item
+remains the brief's only open work.
 
 ## 2 · PpgDex RIIV — §2.2's missing third leg (a real DSP defect, deliberately not worked around)
 `fuseRespirationRate` fuses MotionDex chest-ACC + ECGDex RSA today. PpgDex should be the third

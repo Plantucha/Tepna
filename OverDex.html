@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-DwpERTv9a2GT+m0/NAl6GPegC0Eh95sA0OXQurE8dq8=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UgAGee26CkNBegUxPr7FFlm5Z6L3G72NO/hcQ+imx7s=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-hxtclF7doYfS5TM+OYHTmTgzyGrLpT7Qibfg1M7SvBA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-mb0F1fLqp8gHe+5IxfcpJzlsHg5EEXxdS+7pWQhUtAY=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-DwpERTv9a2GT+m0/NAl6GPegC0Eh95sA0OXQurE8dq8=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UgAGee26CkNBegUxPr7FFlm5Z6L3G72NO/hcQ+imx7s=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-hxtclF7doYfS5TM+OYHTmTgzyGrLpT7Qibfg1M7SvBA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-mb0F1fLqp8gHe+5IxfcpJzlsHg5EEXxdS+7pWQhUtAY=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -32576,6 +32576,8 @@ __exports.ECGDex = window.ECGDex;
     var events = eveEvents(set.EVE && set.EVE.annotations, t0Ms);
     // `durSec` (line above) is the session envelope — it closes a PB span the recording cut short.
     var pbSec = periodicBreathingSec(set.CSL && set.CSL.annotations, durSec);
+    // Did this session's device write a CSL lane AT ALL? (§3a — see periodicBreathingPct below.)
+    var pbObserved = !!set.CSL;
 
     // ── EPR delta + mode (CPAP fixed vs APAP variable) ──
     var eprDelta = null;
@@ -32651,7 +32653,22 @@ __exports.ECGDex = window.ECGDex;
          `nRE > 0` rather than a capability probe because capability is not knowable from one
          session's annotations — see the multi-night sibling below, which can and does pool. */
       reraIndex: usageHours > 0 && aCount('RE') > 0 ? +(aCount('RE') / usageHours).toFixed(2) : null,
-      periodicBreathingPct: durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null, // §7 (DEEP-AUDIT-2026-07-14): null on absence, matching the sibling apnea indices (residualAHI etc.), not a measured-looking 0
+      /* §7 (DEEP-AUDIT-2026-07-14) intended "null on absence" — but the guard it shipped was
+         `durSec > 0`, which is the DENOMINATOR, not the channel. So a night whose CSL file never
+         existed still published a measured-looking `0.00`, indistinguishable from a night the
+         device scored and found clean. Measured on the synthetic set: CSL present with a 120 s
+         episode → 20; CSL present, no episode → 0; **CSL file deleted → 0**. Periodic breathing is
+         a heart-failure signal, so that is a manufactured NEGATIVE finding — bug class 3a, and the
+         `reraIndex` comment directly above cites this very metric as the precedent for the
+         discipline it was not itself following.
+
+         The discriminator is FILE PRESENCE, deliberately not `pbSec > 0`. Unlike RERA capability —
+         unknowable from one session, hence its `nRE > 0` proxy — whether the device wrote a CSL
+         lane IS knowable, so a genuine scored zero stays a real 0 and only true absence goes null.
+         A CSL file with an empty annotation list is a MEASUREMENT (the device scored, found
+         nothing); only the missing file is absence of evidence. */
+      periodicBreathingPct: pbObserved && durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null,
+      pbObserved: pbObserved,
       // Leak (converted to L/min)
       medianLeak: leak ? +_p(leakMaskOn, 50).toFixed(2) : null,
       p95Leak: leak ? +_p(leakMaskOn, 95).toFixed(2) : null,
@@ -32734,6 +32751,7 @@ __exports.ECGDex = window.ECGDex;
         nUA: aCount('UA'), // untyped device-scored apnea — already folded into nApnea, kept out of the OA/CA split
         nRE: aCount('RE'),
         pbSec: pbSec,
+        pbObserved: pbObserved,
         durSec: durSec,
         rrMaskOn: rrMaskOn,
         tvMaskOn: tvMaskOn,
@@ -32770,7 +32788,9 @@ __exports.ECGDex = window.ECGDex;
       nH = 0,
       nRE = 0,
       pbSec = 0,
-      durSec = 0;
+      durSec = 0,
+      pbDurSec = 0,
+      pbSessions = 0;
     // ventilation / flow-limitation / snore lanes, pooled the same way (brief §F1)
     var RR = [],
       TV = [],
@@ -32794,6 +32814,13 @@ __exports.ECGDex = window.ECGDex;
       nRE += p.nRE;
       pbSec += p.pbSec;
       durSec += p.durSec;
+      /* §3a — a session with no CSL lane leaves the PB DENOMINATOR, it does not merely add
+         zero to the numerator. Dividing PB seconds by the whole night's duration when only
+         one of three sessions was scored dilutes the percentage threefold. */
+      if (p.pbObserved) {
+        pbDurSec += p.durSec;
+        pbSessions++;
+      }
       if (p.rrMaskOn) for (var a = 0; a < p.rrMaskOn.length; a++) RR.push(p.rrMaskOn[a]);
       if (p.tvMaskOn) for (var b = 0; b < p.tvMaskOn.length; b++) TV.push(p.tvMaskOn[b]);
       if (p.mvMaskOn) for (var c = 0; c < p.mvMaskOn.length; c++) MV.push(p.mvMaskOn[c]);
@@ -32824,7 +32851,13 @@ __exports.ECGDex = window.ECGDex;
       // this night is demonstrably capable of it — and a zero across the others is then a real
       // measurement, not an absent one. Same rule, more evidence to apply it to.
       reraIndex: totHours > 0 && nRE > 0 ? +(nRE / totHours).toFixed(2) : null,
-      periodicBreathingPct: durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null, // §7 (DEEP-AUDIT-2026-07-14): null on absence, matching the sibling apnea indices (residualAHI etc.), not a measured-looking 0
+      /* §3a — see the session-level twin. The denominator is the duration ACTUALLY SCORED for
+         periodic breathing, not the night's total: null when no session carried a CSL lane,
+         and correctly scaled when only some did. `pbObservedHours` is published so a partial
+         night is visible rather than silently averaged. */
+      periodicBreathingPct: pbDurSec > 0 ? +((pbSec / pbDurSec) * 100).toFixed(2) : null,
+      pbObservedHours: +(pbDurSec / 3600).toFixed(3),
+      pbObservedSessions: pbSessions,
       medianPressure: +_p(P, 50).toFixed(2),
       p95Pressure: +_p(P, 95).toFixed(2),
       pressureRange: +_iqr(P).toFixed(2),

@@ -10045,6 +10045,66 @@
       T.ok('§7 · control — a real session still reports a numeric periodicBreathingPct', typeof rm.periodicBreathingPct === 'number', JSON.stringify(rm.periodicBreathingPct));
     });
 
+    /* ════ §3a — the §7 gate above was pointed one condition away from the defect ═══════════════
+       MULTI-SENSOR-DERIVATIONS-FOLLOWUPS §1's owed audit pass, applied to the cpapdex lanes.
+
+       §7 (DEEP-AUDIT-2026-07-14) intended "null on absence" and shipped `durSec > 0` — a guard on the
+       DENOMINATOR, not on the channel. Its gate (directly above) drives a ZERO-DURATION session, which
+       that guard does catch, so it passed while the real absence case never ran. Measured on the
+       synthetic set before the fix: CSL present with a 120 s episode → 20; CSL present, no episode →
+       0; **CSL file deleted → 0**, indistinguishable from a night the device scored and found clean.
+       Periodic breathing is a heart-failure signal, so that is a manufactured NEGATIVE finding.
+
+       The discriminator is FILE PRESENCE, deliberately not `pbSec > 0`: unlike RERA capability, whether
+       the device wrote a CSL lane is knowable, so a genuine scored zero must stay a real 0. Both
+       directions are asserted below — a fix that nulled the true negative too would be a regression
+       dressed as honesty. ════ */
+    group('CPAPDex §3a — an ABSENT CSL lane is not a periodic-breathing-free night', 'cpapdex-dsp · fabricated-absence · regression', function (T) {
+      var D = env.CpapDsp;
+      if (!D || typeof D.buildSessionFromEdf !== 'function' || typeof D._synthEdfSet !== 'function' || typeof D.buildNight !== 'function') {
+        T.ok('env.CpapDsp buildSessionFromEdf + _synthEdfSet + buildNight available', false, 'not wired');
+        return;
+      }
+      var nightPct = function (sets) {
+        var n = D.buildNight(
+          sets.map(function (s, i) {
+            return D.buildSessionFromEdf(s, { fname: 'n' + i });
+          })
+        );
+        var m = (n && (n.metrics || n.night)) || n || {};
+        return m;
+      };
+      var scored = D._synthEdfSet({ cs: true }); // CSL lane present, carries a 120 s PB span
+      var clean = D._synthEdfSet({}); // CSL lane present, device scored nothing
+      var absent = D._synthEdfSet({ cs: true });
+      delete absent.CSL; // the device never wrote the lane at all
+
+      // THE FIXTURE MUST ACTUALLY DIFFER, or the three assertions below prove nothing.
+      T.eq('the scored fixture really carries a PB episode', nightPct([scored]).periodicBreathingPct, 20);
+      // THE CONTROL, and it is the load-bearing half: a scored-clean night is a REAL zero and must
+      // stay one. Nulling it would trade a fabricated negative for a discarded true negative.
+      T.eq('a CSL lane that scored NOTHING is a real 0, not null', nightPct([clean]).periodicBreathingPct, 0);
+      // THE DEFECT.
+      T.eq('a night with NO CSL lane reports null, not a measured-looking 0', nightPct([absent]).periodicBreathingPct, null);
+      T.eq('…and says so — zero sessions were scored for PB', nightPct([absent]).pbObservedSessions, 0);
+
+      // SECOND DEFECT, same root: unobserved sessions must leave the DENOMINATOR, not merely add 0
+      // to the numerator. One scored 600 s session carrying 120 s of PB, plus one unscored 600 s
+      // session, is 20 % of what was observed — dividing by the whole 1200 s night reports 10 %,
+      // halving a real episode.
+      var partial = nightPct([scored, absent]);
+      T.eq('a partially-scored night divides by the OBSERVED duration', partial.periodicBreathingPct, 20);
+      T.eq('…and publishes how much of it was observed', partial.pbObservedSessions, 1);
+      T.ok('…in hours, so a partial night is visible rather than silently averaged', Math.abs(partial.pbObservedHours - 600 / 3600) < 1e-3, 'pbObservedHours=' + partial.pbObservedHours);
+
+      // The session-level twin carries the same flag, so a consumer reading one session sees it too.
+      var sAbsent = D.buildSessionFromEdf(absent, {});
+      var sScored = D.buildSessionFromEdf(scored, {});
+      T.eq('session-level · pbObserved false when the lane is absent', ((sAbsent && sAbsent.metrics) || {}).pbObserved, false);
+      T.eq('session-level · …and its periodicBreathingPct is null', ((sAbsent && sAbsent.metrics) || {}).periodicBreathingPct, null);
+      T.eq('session-level · pbObserved true when the lane is present', ((sScored && sScored.metrics) || {}).pbObserved, true);
+    });
+
     /* ════ A bare device-scored "Apnea" TEXT must reach residualAHI (DEEP-AUDIT-2026-07-22 §CPAPDex)
        ResMed AirSense writes a bare "Apnea"/"Apnoea" for an apnea its firmware could not type, and its
        own AHI counts these. `classifyAnnotation` mapped that text to a DISTINCT class 'Apnea', but

@@ -945,6 +945,8 @@
     var events = eveEvents(set.EVE && set.EVE.annotations, t0Ms);
     // `durSec` (line above) is the session envelope — it closes a PB span the recording cut short.
     var pbSec = periodicBreathingSec(set.CSL && set.CSL.annotations, durSec);
+    // Did this session's device write a CSL lane AT ALL? (§3a — see periodicBreathingPct below.)
+    var pbObserved = !!set.CSL;
 
     // ── EPR delta + mode (CPAP fixed vs APAP variable) ──
     var eprDelta = null;
@@ -1020,7 +1022,22 @@
          `nRE > 0` rather than a capability probe because capability is not knowable from one
          session's annotations — see the multi-night sibling below, which can and does pool. */
       reraIndex: usageHours > 0 && aCount('RE') > 0 ? +(aCount('RE') / usageHours).toFixed(2) : null,
-      periodicBreathingPct: durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null, // §7 (DEEP-AUDIT-2026-07-14): null on absence, matching the sibling apnea indices (residualAHI etc.), not a measured-looking 0
+      /* §7 (DEEP-AUDIT-2026-07-14) intended "null on absence" — but the guard it shipped was
+         `durSec > 0`, which is the DENOMINATOR, not the channel. So a night whose CSL file never
+         existed still published a measured-looking `0.00`, indistinguishable from a night the
+         device scored and found clean. Measured on the synthetic set: CSL present with a 120 s
+         episode → 20; CSL present, no episode → 0; **CSL file deleted → 0**. Periodic breathing is
+         a heart-failure signal, so that is a manufactured NEGATIVE finding — bug class 3a, and the
+         `reraIndex` comment directly above cites this very metric as the precedent for the
+         discipline it was not itself following.
+
+         The discriminator is FILE PRESENCE, deliberately not `pbSec > 0`. Unlike RERA capability —
+         unknowable from one session, hence its `nRE > 0` proxy — whether the device wrote a CSL
+         lane IS knowable, so a genuine scored zero stays a real 0 and only true absence goes null.
+         A CSL file with an empty annotation list is a MEASUREMENT (the device scored, found
+         nothing); only the missing file is absence of evidence. */
+      periodicBreathingPct: pbObserved && durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null,
+      pbObserved: pbObserved,
       // Leak (converted to L/min)
       medianLeak: leak ? +_p(leakMaskOn, 50).toFixed(2) : null,
       p95Leak: leak ? +_p(leakMaskOn, 95).toFixed(2) : null,
@@ -1103,6 +1120,7 @@
         nUA: aCount('UA'), // untyped device-scored apnea — already folded into nApnea, kept out of the OA/CA split
         nRE: aCount('RE'),
         pbSec: pbSec,
+        pbObserved: pbObserved,
         durSec: durSec,
         rrMaskOn: rrMaskOn,
         tvMaskOn: tvMaskOn,
@@ -1139,7 +1157,9 @@
       nH = 0,
       nRE = 0,
       pbSec = 0,
-      durSec = 0;
+      durSec = 0,
+      pbDurSec = 0,
+      pbSessions = 0;
     // ventilation / flow-limitation / snore lanes, pooled the same way (brief §F1)
     var RR = [],
       TV = [],
@@ -1163,6 +1183,13 @@
       nRE += p.nRE;
       pbSec += p.pbSec;
       durSec += p.durSec;
+      /* §3a — a session with no CSL lane leaves the PB DENOMINATOR, it does not merely add
+         zero to the numerator. Dividing PB seconds by the whole night's duration when only
+         one of three sessions was scored dilutes the percentage threefold. */
+      if (p.pbObserved) {
+        pbDurSec += p.durSec;
+        pbSessions++;
+      }
       if (p.rrMaskOn) for (var a = 0; a < p.rrMaskOn.length; a++) RR.push(p.rrMaskOn[a]);
       if (p.tvMaskOn) for (var b = 0; b < p.tvMaskOn.length; b++) TV.push(p.tvMaskOn[b]);
       if (p.mvMaskOn) for (var c = 0; c < p.mvMaskOn.length; c++) MV.push(p.mvMaskOn[c]);
@@ -1193,7 +1220,13 @@
       // this night is demonstrably capable of it — and a zero across the others is then a real
       // measurement, not an absent one. Same rule, more evidence to apply it to.
       reraIndex: totHours > 0 && nRE > 0 ? +(nRE / totHours).toFixed(2) : null,
-      periodicBreathingPct: durSec > 0 ? +((pbSec / durSec) * 100).toFixed(2) : null, // §7 (DEEP-AUDIT-2026-07-14): null on absence, matching the sibling apnea indices (residualAHI etc.), not a measured-looking 0
+      /* §3a — see the session-level twin. The denominator is the duration ACTUALLY SCORED for
+         periodic breathing, not the night's total: null when no session carried a CSL lane,
+         and correctly scaled when only some did. `pbObservedHours` is published so a partial
+         night is visible rather than silently averaged. */
+      periodicBreathingPct: pbDurSec > 0 ? +((pbSec / pbDurSec) * 100).toFixed(2) : null,
+      pbObservedHours: +(pbDurSec / 3600).toFixed(3),
+      pbObservedSessions: pbSessions,
       medianPressure: +_p(P, 50).toFixed(2),
       p95Pressure: +_p(P, 95).toFixed(2),
       pressureRange: +_iqr(P).toFixed(2),
