@@ -2535,10 +2535,28 @@
     // timing would rest on held values. Drop it. This is the same discipline the 3-LED path applies
     // to a 1-of-3 beat: dropped, never median-filled, never interpolated.
     let nGapBeats = 0;
+    /* §4 — per-INTERVAL: true where the interval BRIDGES one or more beats §3 removed. Null until a
+       drop actually happens, so a file with no gap allocates nothing and behaves exactly as before. */
+    let bridged = null;
     if (rec.gap) {
       const bad = gapBeats(cons.peaks, cons.feet, rec.gap);
       nGapBeats = bad.size;
       if (bad.size) {
+        /* A dropped beat leaves its two surviving NEIGHBOURS adjacent in the array but NOT adjacent in
+           TIME — the interval between them silently spans the removed beat and reads ~2x true. That
+           bridge is a fabrication: `correctRR` sees a doubled interval, flags it, and median-fills, so a
+           guard meant to protect the record ends up inventing a value for every beat it removes.
+           Recorded here so the interval can be EXCLUDED downstream rather than corrected into a
+           plausible lie — the same discipline the 3-LED path applies to a 1-of-3 beat (§3).
+
+           Note `bridged` is indexed by INTERVAL over the SURVIVING beats: one entry per adjacent pair
+           of kept beats, which is exactly `nn`'s indexing after the filter below. */
+        bridged = [];
+        for (let k = 0, prevKept = -1; k < cons.peaks.length; k++) {
+          if (bad.has(k)) continue;
+          if (prevKept >= 0) bridged.push(k - prevKept > 1); // >= 1 beat removed between them
+          prevKept = k;
+        }
         const keep = (arr) => (arr ? arr.filter((_, k) => !bad.has(k)) : arr);
         cons.peaks = keep(cons.peaks);
         cons.feet = keep(cons.feet);
@@ -2617,7 +2635,15 @@
     // real time passed with no signal, so the foot-to-foot difference across the hole may span one or
     // more absent beats. Excluded here rather than corrected, because there is nothing to correct to.
     // Fires on nothing without an honest gap in the source — every legacy file's grid is contiguous.
-    const spansGap = intervalsSpanningTimeGap(rec.relSec, rec.fs, footSpineOK ? det.feet : det.peaks, nn.length);
+    const spansTime = intervalsSpanningTimeGap(rec.relSec, rec.fs, footSpineOK ? det.feet : det.peaks, nn.length);
+    /* §4 — an interval that BRIDGES a beat §3 removed is the same kind of non-measurement, arrived at a
+       different way: the beat between its endpoints was deleted, so the difference spans ~2 true
+       intervals. It is invisible to `intervalsSpanningTimeGap`, which reads the SOURCE grid — and a
+       dropped beat leaves no discontinuity in `relSec`, every sample is still present. (That blindness
+       is by design, and is why §4 sat deferred behind `nGapSpanIntervals: 0 -> 0`: the counter watched
+       to decide whether §4 fires is the one quantity guaranteed not to respond. §4a.) */
+    const spansGap = new Array(nn.length);
+    for (let i = 0; i < nn.length; i++) spansGap[i] = !!spansTime[i] || !!(bridged && bridged[i]);
     let nGapSpanIntervals = 0;
     const cleanMask = new Array(nn.length);
     for (let i = 0; i < nn.length; i++) {
