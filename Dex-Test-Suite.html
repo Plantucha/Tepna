@@ -282,6 +282,9 @@ async function main(){
   // MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §2/§3/§4: the ACC↔flow clock-recovery + resampling layer
   // (window.RespAccAnalysis — nativeHz · toGrid · respChannel/flowChannel). DOM-free; was in no lane.
   { const _ra = await fetchText('resp-acc-analysis.js'); if(_ra) (0, eval)(esmClassicify(_ra)); }
+  // WEARABLE-HOST-AXIS-FOLLOWUPS §F5: trio-batch's clock LINES (window.DriftReport). Pure formatters —
+  // extracted precisely so a lane can reach them; nothing in trio-batch.mjs is callable from a test.
+  { const _dr = await fetchText('tools/drift-report.js'); if(_dr) (0, eval)(esmClassicify(_dr)); }
   // TEST-COVERAGE-FOLLOWUPS-II Item 1b: HRVDex personalization leaks calcVo2Cat/getAgeBand as bare globals
   // (Object.assign(window,{…})) and loads headless — no re-bundle owed. Load it so env can grab them.
   { const _hp = await fetchText('hrvdex-profile.js'); if(_hp) (0, eval)(esmClassicify(_hp)); }
@@ -531,6 +534,7 @@ async function main(){
     CohortRegression: window.CohortRegression,
     QrsEquiv: window.QrsEquiv,
     RespAccAnalysis: window.RespAccAnalysis,
+    DriftReport: window.DriftReport,
     HrvCalcVo2Cat: window.calcVo2Cat,
     HrvGetAgeBand: window.getAgeBand,
     OxyKarvonenZone: window.upKarvonenZone,

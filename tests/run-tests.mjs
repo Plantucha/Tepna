@@ -1059,7 +1059,12 @@ async function main() {
     // §1b OxyDex sibling — ALSO test-only (no re-bundle): oxydex-profile.js's up* functions are top-level
     // globals and it loads headless once oxydex-util.js (sv/gv, DOM-guarded) is present, which it is (above).
     // Its initProfile() DOM init no-ops headless (sv guards on getElementById). env grabs upKarvonenZone/upBMILabel.
-    'oxydex-profile.js'
+    'oxydex-profile.js',
+    /* WEARABLE-HOST-AXIS-FOLLOWUPS §F5 — trio-batch's clock LINES. `printDriftFit`/`printClockFit` had
+       zero coverage because nothing in trio-batch.mjs is callable (its night loop runs at import), so
+       the one place a ppm becomes a sentence was the one place no assertion could reach. The formatters
+       are pure and live here now; load failure → env.DriftReport undefined → that group's assert reds. */
+    'tools/drift-report.js'
   ].forEach((f) => {
     try {
       loadInto(ctx, f);
@@ -1201,6 +1206,7 @@ async function main() {
     CohortFull: ctx.CohortFull,
     AnalysisStats: ctx.AnalysisStats,
     RespAccAnalysis: ctx.RespAccAnalysis,
+    DriftReport: ctx.DriftReport,
     docs: readDocs(),
     docsLedger: readDocsLedger(),
     toolSources: readToolSources(),

@@ -86,6 +86,9 @@ const ROOT = join(__dirname, '..');
 // ESM-MIGRATION: a co-loaded DSP (ecgdex-dsp.js …) may be a dual-mode ES module — shed its top-level
 // export/import via the single classicify source before vm-loading (no-op on classic files).
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
+// §F5 — the clock lines are formatted by a PURE module so their wording is gateable. Nothing inside
+// this file is callable from a test (the night loop runs at import), which is why these had none.
+const DriftReport = createRequire(import.meta.url)('./drift-report.js');
 
 /* ── args ────────────────────────────────────────────────────────────────── */
 const argv = process.argv.slice(2);
@@ -1154,20 +1157,17 @@ function printDriftFit(dir, key) {
     console.log(`    ⏱ wearable drift: unresolved — ${r.reason}`);
     return r;
   }
-  console.log(
-    `    ⏱ H10↔Verity drift: ${r.driftPpm.toFixed(0)} ppm (${((r.driftPpm / 1e6) * r.spanMin * 60).toFixed(2)} s over ${r.spanMin} min), offset ${(r.offsetMs / 1000).toFixed(2)} s` +
-      `   corr ${(100 * r.medianCorrespondence).toFixed(0)}% vs chance ${(100 * r.chanceCorrespondence).toFixed(0)}%   IQR ${Math.round(r.medianIqrMs)} ms` +
-      (r.confident ? '' : `  — ⚠ ${r.reason}`) +
-      (Math.abs(r.driftPpm) > r.maxDriftPpm * 0.8 ? `  — ⚠ near the ${r.maxDriftPpm.toFixed(0)} ppm search bound` : '')
-  );
-  /* CLOSURE, when a third interval source is present. d(A,B)+d(B,C)+d(C,A) is identically zero, so a
+  /* CLOSURE FIRST — and the ordering IS the fix (§F5). d(A,B)+d(B,C)+d(C,A) is identically zero, so a
      non-zero result proves one of the three MEASUREMENTS is wrong — with no reference clock and no
      ground truth. Measured across six nights it is never zero, and on 2026-07-28 it misses by 58 ppm
      even though all three legs individually clear their own chance control: per-leg confidence is NOT
-     sufficient, which is the whole reason this prints beside the per-leg line. */
+     sufficient. This used to be computed twenty lines BELOW the drift print, so the ppm and its
+     seconds-over-the-night conversion were already on screen, stated as fact, by the time the number
+     that voids them was known. `CROSS-DEVICE-DRIFT-AND-CLOSURE` §6 forbids exactly that. */
   let closure = null;
+  let cl = null;
   if (C && C.length >= 500) {
-    const cl = ctx.IntegratorDSP.fitClockClosure(
+    cl = ctx.IntegratorDSP.fitClockClosure(
       [
         { name: 'H10', times: A, timingSource: timingOf('ECGDex') },
         { name: 'VER', times: B, timingSource: timingOf('PpgDex') },
@@ -1175,21 +1175,18 @@ function printDriftFit(dir, key) {
       ],
       {}
     );
-    if (!cl.ok && cl.excluded && cl.excluded.length) {
-      // A refusal is a RESULT — printing nothing here is how a drawn leg stayed invisible for six nights.
-      console.log(`    ⏱ 3-source closure: REFUSED — ${cl.reason}`);
-    }
     if (cl.ok && cl.triples.length) {
       const tri = cl.triples[0];
       closure = { closurePpm: tri.closurePpm, consistent: tri.consistent, weakLegs: tri.weakLegs };
-      console.log(
-        `    ⏱ 3-source closure: ${tri.closurePpm.toFixed(1)} ppm (identity 0, tol ${tri.tolPpm.toFixed(0)})` +
-          `   ${tri.consistent ? 'consistent' : '⚠ INCONSISTENT — at least one pairwise fit is wrong'}` +
-          (tri.weakLegs.length ? `   weak legs: ${tri.weakLegs.join(', ')}` : '   (all legs confident)') +
-          (cl.sharedHostTimebase ? `   ⚠ ${cl.hostTimedLegs.join('+')} share the HOST timebase — less independent than the identity assumes` : '')
-      );
+    } else if (cl.excluded && cl.excluded.length) {
+      // A refusal is a RESULT, and it is a DIFFERENT result from "no third sensor was worn".
+      closure = { refused: true, reason: cl.reason };
     }
   }
+  console.log(DriftReport.driftFitLine(r, closure));
+  // A refusal is printed too — saying nothing here is how a drawn leg stayed invisible for six nights.
+  const clLine = DriftReport.closureLine(cl);
+  if (clLine) console.log(clLine);
   return { driftPpm: r.driftPpm, offsetMs: r.offsetMs, corr: r.medianCorrespondence, chance: r.chanceCorrespondence, iqrMs: r.medianIqrMs, confident: r.confident, closure };
 }
 
@@ -1222,20 +1219,7 @@ function printClockFit(dir, key) {
       for (const k of Object.keys(by).sort()) chans.push({ node, channel: k, times: by[k] });
     }
     const fit = ctx.IntegratorDSP.fitClockOffsetPooled(ap, chans, {});
-    const head =
-      fit.offsetSec != null
-        ? `${(fit.offsetSec / 60).toFixed(2)} min (${Math.round(fit.offsetSec)} s)` +
-          // The plateau, not "how far apart the sensors were": a hard ±45 s match window makes the peak
-          // flat over ~90 s, and quoting its centre without the width states the instrument's precision
-          // as if it were the data's.
-          (fit.spreadSec != null ? `, ±${Math.round(fit.spreadSec / 2)} s` : '') +
-          `, Z ${fit.z.toFixed(1)} vs own null ${fit.nullZ == null ? '?' : fit.nullZ.toFixed(1)} (p ${fit.pValue})` +
-          // Not established is a stronger claim than a parenthetical caveat, so it leads. The corpus
-          // shows why it must: 8 of 29 nights land in the right band WITHOUT clearing their own null.
-          // Those are correct answers the evidence does not yet support, and saying so is the point.
-          (!fit.confident ? `  — ⚠ ${fit.reason}` : '')
-        : `unresolved — ${fit.reason}`;
-    console.log(`    ⏱ CPAP clock offset: ${head}   [${ap.length} apnea events]`);
+    console.log(DriftReport.clockFitLine(fit, ap.length));
     for (const c of fit.channels) {
       console.log(
         c.usable
