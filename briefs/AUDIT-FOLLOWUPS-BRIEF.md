@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED (§1·§2·§3·§6·§7 all RESOLVED; §4.1 routed to its own brief — re-verified in code 2026-08-03 · ⚠️ **two earlier stamps here were WRONG, both corrected below**) · **Spawns:** `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** PROPOSED (§1·§2·§3·§6·§7 all RESOLVED; §4.1 REFUTED (already fixed by `entrance-guard.js`) — re-verified in code 2026-08-03 · ⚠️ **three earlier stamps here were WRONG, all corrected below**) · **Spawns:** `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` · **Created:** (undated — pre-2026-07-03, grandfathered)
 
 > **⚠️ Correction — §1 is SHIPPED, and this header previously said it was not.**
 > An earlier 2026-08-03 pass stamped §1 *"NOT BUILT: zero matches in `integrator-app.js` or
@@ -42,14 +42,16 @@
 > user-entered cuff values, which §7 itself calls legitimate · 7.4 the PulseDex caption now reads
 > *"vascular tone surrogate"* (`pulsedex-app.js:499`) — the "BP" wording §7 flagged is already gone.
 >
-> **⚠️ §4.1 is a LIVE 🔴 and is now its own brief** — `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md`.
-> Re-verified: `ans-design.css` still animates `.chart-card`/`.chart-svg` from `opacity:0` with
-> `fill-mode: both` (:854, :911, :1045, :1195), so a frozen timeline (print, PDF, capture, throttled tab)
-> holds the hidden start state and **six apps render blank**. Neither guard covers it — the only
-> substantive `@media print` rule is `#exportBar{display:none}` (:2389), and `prefers-reduced-motion`
-> (:240) fires only on that user preference. The Integrator's scoped patch (`integrator-render.js:29-37`)
-> is the proof of mechanism and the tested fix. Root fix is spine work (`ans-design.css` is inlined into
-> every bundle) so it must be **scheduled**, not slipped in — hence its own brief.
+> **⛔ §4.1 — my "LIVE 🔴" call above was WRONG; the fleet was ALREADY FIXED.** Corrected same day.
+> `entrance-guard.js` pins the visible end-state with `!important` and is **inlined into all 8 node
+> bundles** (loaded by every `*.src.html`); the Integrator has its own scoped equivalent. Every app is
+> covered. My reproduction linked `ans-design.css` **alone** — not a bundle — so it faithfully reproduced
+> a stylesheet no app ships in isolation. Measured both ways, Chrome headless at
+> `--virtual-time-budget=1`: `ans-design.css` alone → **0** painted pixels; with `entrance-guard.js` →
+> **80000** (fully painted, = 400×200). The planned fleet-wide `ans-design.css` pass is **cancelled** —
+> it would have churned every bundle to re-solve a solved problem. Full record, including the first hard
+> proof that the guard works and the one real gap it exposed (nothing gates the guard), in
+> `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` (DONE — premise refuted).
 >
 > **Still open, deliberately not this brief's work:** **§4.2** (evidence-badge coverage audit of the six
 > non-Integrator apps — a real §🎫 mandate gap, carried into the new brief's §5) · **§4.3/§4.4** and **§5**

@@ -4,101 +4,114 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-03 · **Spawned-by:** `AUDIT-FOLLOWUPS-BRIEF.md` §4.1 (re-verified live 2026-08-03) · **Affects:** `ans-design.css` (spine — inlined into EVERY bundle) or the six `*-render.js` · **⚠️ Serializes against all other bundle work**
+**Status:** DONE — 2026-08-03 (⛔ **its premise is REFUTED — the fleet was already fixed by `entrance-guard.js`.** Kept, not deleted, because the measurement it produced is the FIRST proof that the guard actually works, and it found a real residual gap: nothing gates the guard. See §0 and §6.) · **Created:** 2026-08-03 · **Spawned-by:** `AUDIT-FOLLOWUPS-BRIEF.md` §4.1 · **Corrects:** its own §1, and `AUDIT-FOLLOWUPS-BRIEF.md`'s §4.1 note
 
-# Six apps still print blank, and the fix is a spine change that has to be scheduled
+# ⛔ REFUTED — six apps do NOT print blank; `entrance-guard.js` already fixes it
 
-## 1 · The defect, re-verified in code 2026-08-03
+## 0 · The correction, and how the error was made
 
-`ans-design.css` starts its entrance animations from `opacity: 0` and pins them with `fill-mode: both`:
+This brief was created hours earlier claiming §4.1 was a live 🔴 across six apps. **It is not.**
+`entrance-guard.js` — which does exactly what §3 route (b) proposed, documents the identical mechanism,
+and is **inlined into all 8 node bundles** (CPAPDex · ECGDex · GlucoDex · HRVDex · MotionDex · OxyDex ·
+PpgDex · PulseDex, loaded by each `*.src.html`) — has been shipping the whole time. The Integrator has
+its own scoped guard. Every app is covered.
 
-```css
-@keyframes cardEntrance { from { opacity: 0; transform: translateY(12px) scale(.98); } … }
-.chart-card { animation: cardEntrance .4s ease both; }   /* :854 */
-.chart-svg  { animation: fadeIn .4s ease .05s both; }    /* :911 */
-/* also :1045, :1195 */
-```
+**How the error was made, precisely:** the defect was verified in `ans-design.css`, which is where it
+lives — and then never checked against the *shipped configuration*, where something else neutralises it.
+The reproduction probe linked `ans-design.css` **alone**. It was not a bundle. So it faithfully
+reproduced a stylesheet that no app ships in isolation.
 
-`fill-mode: both` means the element holds the **`from`** state until the animation's timeline advances.
-Where the document timeline is **frozen or never started** — print, PDF export, headless capture, a
-throttled background tab — it never advances, so the element stays at `opacity: 0` and the surface
-renders **blank**.
+That is the same root cause as three other mis-calls the same day (a grep for a button label rather than
+the paths that changed; `integrator-app.js` searched for a feature that lives in
+`integrator-longitudinal.js`; a grep for the literal `"HH:MM:SS"` in code that *produces* it). The
+generalisable rule: **verify against the artifact the user actually runs**, not against the file where
+the defect would live if unmitigated.
 
-**This is not a hypothesis.** The Integrator was patched for exactly this, and its patch names the
-mechanism (`integrator-render.js:29-37`):
+## 1 · What the measurement DID establish — the first hard proof the guard works
 
-```css
-/* …leaves content invisible if the document timeline is frozen/throttled
-   (preview capture, print, PDF export, background tab). Pin the end-state as
-   the base so the app is ALWAYS visible… */
-.main-content{ animation:none !important; opacity:1 !important; transform:none !important; }
-#kpiStrip.show, #kpiStrip .kpi, .chart-card, .finding-card, .pair-card, .metric{ animation:none !important; opacity:1 !important; }
-```
+Chrome headless, `--virtual-time-budget` sweep, a 400×200 magenta block inside `.chart-card`, counting
+matching pixels in the PNG. `--virtual-time-budget=N` is the honest model of a capture pipeline: it
+advances virtual time by at most N ms before snapshotting.
 
-**Only the Integrator has it.** OxyDex · HRVDex · PulseDex · GlucoDex · ECGDex · CPAPDex (and MotionDex)
-still inherit the un-neutralised rules.
+| configuration | vtb=1 ms | vtb=50 | vtb=200 | vtb=5000 |
+|---|---|---|---|---|
+| `ans-design.css` **alone** (unmitigated) | **0** | **0** | **0** | 80000 |
+| `ans-design.css` **+ `entrance-guard.js`** (as shipped) | **80000** | — | — | 80000 |
 
-**Neither existing guard covers it.** `ans-design.css` has exactly two `@media print` rules and the only
-substantive one is `#exportBar{display:none !important}` (:2389) — it does not touch the animations.
-`prefers-reduced-motion` (:240) sets `animation-duration: .01ms !important`, which *does* rescue that one
-user preference (a .01 ms animation lands on the `to` state immediately) — but it fires only when the
-user has that preference set, and print/capture is not that.
+80000 = exactly 400×200, i.e. fully painted. **0 = totally invisible, not a partial fade.**
 
-## 2 · Why this is worth fixing rather than living with
+A second, independent probe froze the timeline directly
+(`document.getAnimations().forEach(a => { a.currentTime = 0; a.pause(); })`) and read computed style:
+unmitigated, `.chart-card` and `.chart-svg` both compute `opacity: 0`; on `finish()`, both `1`.
 
-A user printing or PDF-exporting their own health report gets **blank cards** — no error, no partial
-render, just missing content where a number should be. It is also the failure mode least likely to be
-reported, because the person seeing it assumes they did something wrong.
+So: the CSS defect is **real and total**, the guard **demonstrably neutralises it**, and until now
+nothing had ever shown either. `entrance-guard.js`'s own header was an argument; this is a measurement.
 
-## 3 · Two routes — pick deliberately, both serialize
+**A methodological note worth keeping.** The first attempt at proof searched the print-to-PDF output for
+a marker string and reported "blank". A control page with the animation disabled reported "blank" too —
+the *detector* was broken (text is emitted as subsetted glyph indices, not literal ASCII). Without that
+control the false positive would have shipped. **Run the control before believing the finding.**
 
-**(a) Root fix in `ans-design.css` — correct, widest blast radius.** Make the *visible end-state the
-base* and animate *from* hidden only while playing, rather than relying on `fill-mode` to hold a hidden
-start. One edit, fixes every current and future app by construction, and deletes the Integrator's scoped
-workaround rather than multiplying it. ⚠️ `ans-design.css` is inlined into **every** bundle, so this moves
-**every** app's `manifestHash` → all bundles rebuild → every `provenance/<App>.json` re-stamps. Per
-`CLAUDE.md` §👥.3 this is spine work: **say so before starting, and land it when no other bundle work is
-in flight.**
+## 2 · The one thing that is genuinely missing: nothing gates the guard
 
-**(b) Replicate the Integrator's scoped override into the six `*-render.js`.** Smaller per-file diff and
-skips the orchestrators — but it is still 6 bundles, and it makes the workaround permanent in seven
-places instead of fixing the cause once. **(a) is recommended**; (b) only if the fleet re-bundle cannot be
-scheduled and the blank pages need stopping now.
+`entrance-guard.js` appears in `tests/dex-tests.js` exactly once — as a **comment in an exclusion list**
+(`:21110`, *"DOM print/entrance guard (CSS injection, no compute surface) — exercised by the
+render-coverage bundle boot"*). No assertion reads it. Nothing checks that a node's `.src.html` still
+loads it, that a bundle still inlines it, or that its CSS still pins the selectors `ans-design.css`
+animates.
 
-**Do not** fold this into a "§6 sweep" as `AUDIT-FOLLOWUPS` §4.1 suggested — that §6 is obsolete
-(source↔bundle drift is now a standing gate, `build.mjs --check`). This needs its own scheduled pass.
+That matters because the guard is **invisible when working**. Delete it, weaken a selector, or ship a
+9th node that forgets the `<script>` line, and every gate stays green while capture output silently goes
+blank — the failure mode nobody reports, because the person seeing it assumes they did something wrong.
+The guard is exactly the kind of load-bearing thing this repo keeps discovering was never exercised.
 
-## 4 · How to prove it, before and after
+## 3 · The gate to write (recipe, deliberately not half-built here)
 
-The gate this repo keeps wishing it had is one that could actually fail. Assert the *computed* style
-under a frozen timeline rather than the presence of a CSS rule:
+Two legs, cheapest first:
 
-- **Reproduce first.** Load a bundle, do not let the animation run (or call
-  `document.getAnimations().forEach(a => { a.currentTime = 0; a.pause(); })`), then read
-  `getComputedStyle(document.querySelector('.chart-card')).opacity`. Pre-fix it reads `0`.
-- **Fix, then re-read** — it must read `1`. That is the assertion; a source scan for `animation: none`
-  would pass on a rule that never applies.
-- Also check `@media print` via `matchMedia('print')` where the runner supports it.
+1. **Content leg (both lanes, cheap).** Add `entrance-guard.js` to `SOURCE_FILES` in
+   `Dex-Test-Suite.html` **and** the `wanted` list in `tests/run-tests.mjs readSources()` — it must be in
+   BOTH or the scan reads nothing in one lane (the `motiondex-dsp.js` hole, noted in that very file).
+   Then assert its injected CSS still pins, with `!important`, every selector `ans-design.css` drives
+   from `opacity: 0`. Derive the required set **from `ans-design.css`** rather than hard-coding it, so a
+   newly-animated selector fails until it is guarded.
+2. **Wiring leg (Node lane only).** Every `*.src.html` that references `ans-design.css` must also
+   reference `entrance-guard.js`; every shipped node bundle must inline it. Reads the tree, so mirror
+   the `docsLedger` pattern — Node reads fs, browser SKIPs.
 
-## 5 · Carried from the same parent — NOT this brief's work, but do not lose it
+**Anti-vacuity is mandatory on both**: the scan must fail if it locates nothing, and the whole thing must
+be verified by *re-applying the defect* (delete the guard's `.chart-card` selector → the gate must red).
+A gate for an invisible-when-working guard is worthless if it can pass on silence.
+
+**Do NOT** "fix" `ans-design.css` as this brief originally proposed. The mitigation is deliberate and
+documented: `entrance-guard.js`'s header explains it avoids editing `ans-design.css` precisely because
+that file is inlined into every bundle's template, which would shift every app's legacy template hash.
+Editing it now would be a fleet-wide re-bundle to re-solve a solved problem.
+
+## 4 · What was NOT done, and why
+
+No code changed. No re-bundle. The fleet-wide `ans-design.css` pass this brief was written to schedule is
+**cancelled** — it would have churned every bundle and every provenance fragment to fix nothing.
+
+## 5 · Carried forward — still open, still real
 
 `AUDIT-FOLLOWUPS` §4.2: the 🔴 evidence-badge **coverage mandate** was only made compliant in the
-Integrator; OxyDex/HRVDex/PulseDex/GlucoDex/ECGDex/CPAPDex have never been audited for unbadged
-surfaces. That is a genuine mandate gap (`CLAUDE.md` §🎫: an unbadged number reaching a user's eye is a
-bug of the same severity as a wrong unit) and deserves its own brief. It would ride the same fleet
-re-bundle, so consider scheduling the two together.
+Integrator; the six node apps have never been audited for unbadged surfaces (`CLAUDE.md` §🎫 — an
+unbadged number reaching a user's eye is a bug of the same severity as a wrong unit). Unaffected by this
+refutation, and it now needs its own brief since this one is closed.
 
-## Done when
+## 6 · Done when — reframed to what this brief actually settled
 
-- [ ] Route (a) or (b) chosen by the owner, and the fleet re-bundle scheduled against other in-flight work.
-- [ ] The blank is **reproduced** under a frozen timeline before the fix, and shown gone after — computed
-      `opacity`, not a source scan.
-- [ ] A gate asserts the computed end-state, verified by re-applying the defect (it must red).
-- [ ] If (a): the Integrator's scoped override is **deleted**, not left shadowing the fix.
-- [ ] All bundles rebuilt, every `provenance/<App>.json` re-stamped, GATE A/B green, `--check` clean.
+- [x] The `ans-design.css` mechanism reproduced and quantified (0 px vs 80000 px; computed `opacity` 0).
+- [x] The shipped configuration tested and shown **not** to blank — the premise refuted before any
+      fleet re-bundle was started.
+- [x] The false-positive detector caught by a control, and the control recorded.
+- [ ] **Owed:** the §3 gate, so the guard cannot regress unseen. Its own brief.
+- [ ] **Owed:** §5's badge-coverage audit. Its own brief.
 
 ## Cross-references
-- Parent: `AUDIT-FOLLOWUPS-BRIEF.md` §4.1 · original source `INTEGRATOR-EXPORT-FIX-BRIEF.md` secondary list.
-- Code: `ans-design.css` :217 · :221 · :854 · :911 · :1045 · :1195 · :240 · :2389 ·
-  `integrator-render.js` :29-37 (the working patch and its rationale).
-- `CLAUDE.md` §👥.3 (spine changes serialize) · §🔏 (re-bundle + provenance) · §🎫 (the §5 badge mandate).
+- `entrance-guard.js` (the mitigation, and its header's rationale for not touching `ans-design.css`) ·
+  `integrator-render.js:29-37` (the Integrator's scoped equivalent).
+- `ans-design.css` :217 · :221 (the keyframes) · :854 · :911 · :1036 · :1045 · :1195 · :1769 (the seven
+  consumers) · :240 (`prefers-reduced-motion`) · :2389 (the sole `@media print` rule).
+- Parent: `AUDIT-FOLLOWUPS-BRIEF.md` §4.1 — its note is corrected by this brief.
