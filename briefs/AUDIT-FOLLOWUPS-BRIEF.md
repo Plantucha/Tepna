@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED (partly SHIPPED — re-verified 2026-08-03 · ⚠️ **§1's earlier "NOT BUILT" stamp was WRONG, see below**) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** PROPOSED (§1·§2·§3·§6·§7 all RESOLVED; §4.1 routed to its own brief — re-verified in code 2026-08-03 · ⚠️ **two earlier stamps here were WRONG, both corrected below**) · **Spawns:** `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` · **Created:** (undated — pre-2026-07-03, grandfathered)
 
 > **⚠️ Correction — §1 is SHIPPED, and this header previously said it was not.**
 > An earlier 2026-08-03 pass stamped §1 *"NOT BUILT: zero matches in `integrator-app.js` or
@@ -19,10 +19,41 @@
 > **§6 is OBSOLETE as a task.** It asked for a one-off repo-wide source↔bundle drift sweep; that is now a
 > standing gate — `node tools/build.mjs --check` (clean: 11 owned, 0 legacy), run by `npm run check` and CI.
 >
-> **Still genuinely open, re-verified in code today:** **§2** (GlucoDex fusion events still emit no
-> `HH:MM:SS` — 0 matches in `glucodex-dsp.js`); **§3** (`validateNodeExport()` still reaches only
-> `integrator-app.js` + `crossnight-envelope.js`, so the "should every node validate on export?" decision
-> stands unmade); **§4/§5** (owner-pick lists, each its own package); §7/§8 unassessed.
+> **§2 — SHIPPED (and my own first correction of it was ALSO wrong).** An earlier pass here reported "0
+> matches for `HH:MM:SS` in `glucodex-dsp.js`" — but the code never contains that literal, it *produces*
+> it. `glucodex-dsp.js:1063 hhmm(ms)` pads hours, minutes **and seconds** despite its name; verified by
+> **execution**, not reading: `GLUDSP.hhmm(Date.UTC(2026,5,13,7,5,9,400))` → `"07:05:09"`. Both emitters
+> already carry it — `buildEvents` (`:1306/:1311/:1315`) and the app-side fusion events
+> (`glucodex-app.js:1169 t0`) — each with `tMs` alongside, so Clock Contract §6 is satisfied in full. The
+> `.slice(0,5)` calls at `glucodex-app.js:734/746` are display truncation, which is correct.
+>
+> **§3 — RESOLVED BY CONSTRUCTION, no decision needed.** The brief said *"Only `Integrator.html` carries
+> it at runtime."* Not any more: `validateNodeExport` is now in **six** bundles — CPAPDex · ECGDex ·
+> OxyDex · PpgDex · PulseDex · Integrator — i.e. every bundle that inlines `crossnight-envelope.js`. Its
+> option (b) happened naturally through ordinary re-bundles, and `build.mjs --check` (clean, 11 owned)
+> now *guarantees* committed bundle ≡ build(source), so the source/bundle skew §3 worried about cannot
+> recur silently.
+>
+> **§7 — ALL FOUR RESOLVED.** 7.1 `persistHRVRows` no longer swallows quota errors (halves the tail until
+> it fits, returns `{capped,total}`) · 7.2 PpgDex epoch fields route through `_round(v,d)`
+> (`ppgdex-app.js:874`, applied :883) · 7.3 **the HRV→BP derivation is gone** — removed 2026-06-22 per
+> DEX-SUITE-EXTERNAL-REVIEW-v2 with the rationale in `hrvdex-profile.js:78-81`, and `sbpEstimates` /
+> `medSBP` / `medDBP` return **zero matches tree-wide**; `prof_sbp`/`prof_dbp` survive only as
+> user-entered cuff values, which §7 itself calls legitimate · 7.4 the PulseDex caption now reads
+> *"vascular tone surrogate"* (`pulsedex-app.js:499`) — the "BP" wording §7 flagged is already gone.
+>
+> **⚠️ §4.1 is a LIVE 🔴 and is now its own brief** — `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md`.
+> Re-verified: `ans-design.css` still animates `.chart-card`/`.chart-svg` from `opacity:0` with
+> `fill-mode: both` (:854, :911, :1045, :1195), so a frozen timeline (print, PDF, capture, throttled tab)
+> holds the hidden start state and **six apps render blank**. Neither guard covers it — the only
+> substantive `@media print` rule is `#exportBar{display:none}` (:2389), and `prefers-reduced-motion`
+> (:240) fires only on that user preference. The Integrator's scoped patch (`integrator-render.js:29-37`)
+> is the proof of mechanism and the tested fix. Root fix is spine work (`ans-design.css` is inlined into
+> every bundle) so it must be **scheduled**, not slipped in — hence its own brief.
+>
+> **Still open, deliberately not this brief's work:** **§4.2** (evidence-badge coverage audit of the six
+> non-Integrator apps — a real §🎫 mandate gap, carried into the new brief's §5) · **§4.3/§4.4** and **§5**
+> (owner-pick lists, each explicitly "its own package") · **§8** (deferred by design).
 
 # Brief — Audit follow-ups from the 6-brief execution review (2026-06-22)
 
