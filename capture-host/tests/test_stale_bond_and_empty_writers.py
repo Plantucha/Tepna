@@ -20,6 +20,7 @@ import os
 import pytest
 
 import bonding
+from tests._srcscan import module_source
 
 
 def _run(coro):
@@ -94,7 +95,7 @@ def test_force_re_pairs_even_though_the_host_says_bonded(monkeypatch):
 # ── the daemon only forces after a REPEAT ───────────────────────────────────────────────────────────
 def test_the_daemon_requires_two_consecutive_hits_before_re_pairing():
     """A single discovery failure is also what an ordinary mid-negotiation drop looks like."""
-    src = open(os.path.join(os.path.dirname(__file__), "..", "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")   # skips on a mutmut file — see tests/_srcscan.py
     assert "stale_bond_hits >= 2" in src, "must not re-pair on a single failure"
     assert "force=True" in src, "the recovery must force past the host's stale view"
     assert "stale_bond_hits = 0" in src, "a non-matching error must reset the counter"
@@ -127,7 +128,7 @@ def test_a_writer_with_data_is_kept(tmp_path):
 
 
 def test_the_teardown_deletes_only_empty_writers():
-    src = open(os.path.join(os.path.dirname(__file__), "..", "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")   # skips on a mutmut file — see tests/_srcscan.py
     # 2000, not 1200: the explanatory comment above the loop grew, and a fixed character window that
     # happens to end mid-comment turns a source scan into a test of comment length.
     tail = src.split("DISCARD HEADER-ONLY FILES")[1][:2000]

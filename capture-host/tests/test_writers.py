@@ -7,6 +7,7 @@ import datetime as _dt
 import pytest
 
 import writers
+from tests._srcscan import module_source
 
 
 def test_capture_filename_is_contiguous_stamp_not_psl_shape():
@@ -282,8 +283,7 @@ def test_the_legacy_viatom_caller_does_not_fabricate_a_pulse():
     Impact is bounded and worth stating: the shipped oxydex-dsp.js rejects `0` and blank identically
     (`parseInt('')` → NaN and `0 < 20` hit the same `continue`), 0 occurrences across 110k real rows on
     the sibling path. No downstream number moves; the FILE stops asserting a pulse never measured."""
-    import os as _os
-    src = open(_os.path.join(_os.path.dirname(__file__), "..", "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")   # skips on a mutmut file — see tests/_srcscan.py
     assert 'wr.write(now, pkt["spo2"], pkt["pr"], pkt["motion"])' in src, \
         "the legacy viatom runner must pass `pr` through as-is, including None"
     assert 'pkt["pr"] or 0' not in src, "a fabricated 0 is indistinguishable from a real reading"
