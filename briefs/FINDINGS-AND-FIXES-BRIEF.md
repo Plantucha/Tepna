@@ -1,4 +1,4 @@
-**Status:** PROPOSED (partly executed, not verified end-to-end 2026-08-03 — §0 and §1 are stamped RESOLVED in place and §3's stray `treatment-response-analysis copy.html` is gone from the tree, but §2/§4–§8 (doc-bug, harness-efficiency, generator clamp-pileup audit, run robustness) were not individually verified. Kept PROPOSED rather than stamped on partial evidence) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** IN-PROGRESS — 2026-08-03 (**§6 AUDITED** — the brief is 4 generator versions stale (v1.9, and 1.6–1.9 are this same artifact class); the remaining live instance is `cohort-gen.js:534`, where every desat event bottoms at exactly 86.6 % with no jitter, so SpO₂ nadir/depth have ZERO variance. Not fixed — the fix and the §9 paper re-run are one unit. **§2 and §3 verified already resolved.** §4/§5/§7/§8 open)
 
 # Dex Suite — Findings & Fix Brief (for AI coder)
 *Compiled June 19 2026, during the v1.5 generator re-run pass. Apply AFTER the eligible pilots are
@@ -110,6 +110,57 @@ horizontal if y). Fixed in `cohort-gen.js`, versions stamped in `CohortGen.VERSI
 for the same hard-clamp-to-constant pattern BEFORE any paper plots it — candidates: glucose mean/CV,
 SpO₂ nadir/T90, desat depth, HR. Jitter or saturate each bound. Add a one-line comment tagging each
 intentional jitter so it isn't "tidied" back to a constant.
+
+### §6-RESULT — audited 2026-08-03. Four more fixes had already landed; ONE live artifact remains.
+
+**The brief is four generator versions stale.** §6 lists v1.1–v1.5. `CohortGen.VERSION` is now
+**`cohort-gen/1.9`**, and 1.6–1.9 are themselves this artifact class being worked:
+
+- 1.6 realistic CGM adoption · **1.7 soft AHI-ceiling saturation** ("no vertical pileup at the cap") ·
+  1.8 variance-space `rsaGainFor` · **1.9** raised/lowered the `rsaGainFor` clamp bounds explicitly so
+  high-HRV targets stop "stacking on a flat top line" and the low tail stops being "a flat bottom line".
+
+So §6's TODO has been executed incrementally and never re-stamped — the same pattern this brief's own
+§0/§1 already show.
+
+**The remaining audit, run over both generators.** `cohort-gen.js` is in **no** app bundle (§7's claim,
+still true); `synth-gen.js` **is** inlined into six (GlucoDex · HRVDex · PpgDex · Integrator · PulseDex ·
+OxyDex), so §7's "no app needs re-bundling" applies to cohort-gen only — worth knowing before anyone
+edits the other one. Hard clamps to literals in `cohort-gen.js`: four sites, three benign
+(`clamp(p,0,1)` on a Bernoulli probability that is never plotted; a `0.3` blanking-fraction cap; and a
+line at :214 that is a *comment* recording the retired v1.1 clamp).
+
+**The fourth is live, and it is the strongest instance of the class yet found** — `cohort-gen.js:534`,
+the CPAP/oximetry desaturation shape:
+
+```js
+for (var d = 0; d < 25 && di + d < n1; d++) spo2[di + d] = Math.max(85, 95 - Math.min(d, 12) * 0.7);
+```
+
+| | |
+|---|---|
+| shape, d = 0…24 | 95.0 · 94.3 · … · 87.3 · **86.6 ×13** |
+| nadir | **86.6 on every event of every night** |
+| randomness in the line | **none** — no `rng()` term at all |
+| does the `85` floor bind? | **no** — the ramp bottoms at 86.6, so `Math.max(85, …)` is dead code |
+
+The binding clamp is `Math.min(d, 12)`, and because nothing is jittered this is worse than the
+pileup *lines* §6 already fixed: SpO₂ nadir and desat depth have **zero variance**, so any scatter of
+either from this generator is a single point. §6 names exactly these — *"SpO₂ nadir/T90, desat depth"* —
+as un-audited candidates. `odi-bias-analysis.html` embeds this generator path.
+
+**Not fixed here, deliberately.** §6's prescription ("jitter or saturate each bound") is right, but
+applying it bumps the generator and silently invalidates every committed simulation-paper number derived
+from it — §7 and §9 exist for precisely that coupling, and TRIO-POWER-N15's rule is the same one:
+*change both, or neither.* The fix and the paper re-run are one unit and this audit is not it. Recorded
+with the exact site so whoever runs §9 can take them together.
+
+### §2 and §3 — already resolved, never re-stamped (verified 2026-08-03)
+
+- **§2** is fixed. All three papers now read `processNight().odi4.rate` — including
+  `papers/nights-icc.html`, the one §2 flagged as wrong. Grep across `papers/` + `docs/` finds no
+  surviving `processNight().odi`.
+- **§3** is fixed — `treatment-response-analysis copy.html` is gone from the tree.
 
 ## §7 — PROVENANCE/FIXTURES: cohort-gen bumped 1.0→1.5
 Per CLAUDE.md the `buildHash` is over each app's `__bundler/template`, and `cohort-gen.js` is in NO
