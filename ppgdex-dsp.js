@@ -395,6 +395,27 @@
        ambiguous on short fragments (a 15-min file has few deltas to be diverse with), and a binary that
        pretends otherwise would be the same over-claim this whole brief family exists to remove. */
     let quantizedShare = null;
+    /* Scan BACKWARD for the last row the main loop would have ACCEPTED and whose stamp parses —
+       byte-identical to an eager `lastTs`, but paid for only where it is read. The row filter must
+       mirror the main loop's exactly (>= minFields fields, finite ch0); both `minFields` and `ch0Col`
+       are the values the main loop RESOLVED, so a single-column finger file is filtered on its own
+       layout rather than the Verity's. §P1 removed the per-row parseTimestamp because it was ~half of
+       parsePPG's cost; this keeps that win — one backward scan, ≤40 rows on a real file. */
+    let _lastTsMemo;
+    const _ppgLastTs = () => {
+      if (_lastTsMemo !== undefined) return _lastTsMemo;
+      let t = null;
+      for (let li = lines.length - 1; li >= 0 && !t; li--) {
+        const line = lines[li].trim();
+        if (!line) continue;
+        const p = line.split(';');
+        if (p.length < minFields) continue;
+        if (!isFinite(parseFloat(p[ch0Col]))) continue;
+        t = parseTimestamp(p[0]);
+      }
+      _lastTsMemo = t;
+      return t;
+    };
     if (deltas.length > 20) {
       const md = median(deltas);
       if (md > 0) fs = 1e9 / md;
@@ -404,20 +425,9 @@
         quantizedShare = same / deltas.length;
       }
     } else {
-      // Lazy `lastTs` (§P1): scan BACKWARD for the last row that the loop above would have accepted AND
-      // whose stamp parses — byte-identical to the old eager `lastTs`, but paid for only on this
-      // degenerate path. The row filter must mirror the main loop's exactly (>=minFields fields, finite
-      // ch0) — both `minFields` and `ch0Col` are the values the main loop RESOLVED, so a single-column
-      // finger file is filtered on its own layout rather than the Verity's.
-      let lastTs = null;
-      for (let li = lines.length - 1; li >= 0 && !lastTs; li--) {
-        const line = lines[li].trim();
-        if (!line) continue;
-        const p = line.split(';');
-        if (p.length < minFields) continue;
-        if (!isFinite(parseFloat(p[ch0Col]))) continue;
-        lastTs = parseTimestamp(p[0]);
-      }
+      /* Lazy `lastTs` (§P1): the backward scan is paid for only where it is needed — this degenerate fs
+         fallback, and `endEpochMs` below. See `_ppgLastTs`. */
+      const lastTs = _ppgLastTs();
       if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {
         fs = (n - 1) / ((lastTs.tMs - firstTs.tMs) / 1000);
       }
@@ -509,6 +519,22 @@
       n,
       t0Ms: t0Ms != null ? t0Ms : null,
       offsetMin: firstTs ? firstTs.offsetMin : null,
+      /* NODE-EXPORT-DURATION-SEMANTICS §3 — the CLOCK position of the last sample, READ from the file,
+         never derived. Null when no row carries a parseable stamp (Clock Contract §2.6: a value we do
+         not have is null, never fabricated). Kept ALONGSIDE durSec, not instead of it: durSec answers
+         "how much signal do I have", endEpochMs answers "where does this recording end on the clock" —
+         two questions one scalar cannot both answer.
+
+         The brief's §1 table lists PpgDex's durSec as "effectively wall span", on the reasoning that the
+         grid is gap-filled. Measured on the capture corpus that is not quite true: `t0Ms + durSec` lands
+         SHORT of the last stamp by up to 6.6 min on the gappiest O2Ring night (nGapSpanIntervals 6317),
+         1.0 min on the next, and ~0 on contiguous nights — the gap-fill does not recover all lost time,
+         so the shortfall scales with gap burden. Small next to ECGDex's measured +8…+326 min, but the
+         same defect class, and the reason this field is read rather than computed. */
+      endEpochMs: (function () {
+        const lt = _ppgLastTs();
+        return lt && lt.tMs != null ? lt.tMs : null;
+      })(),
       durSec: (n - 1) / fs,
       site,
       // 'device-default' until someone declares otherwise — see the block above.
@@ -2872,6 +2898,10 @@
     return {
       source: rec.source || 'file',
       fname: rec.fname || '',
+      /* NODE-EXPORT-DURATION-SEMANTICS §3 — carried through analyze because it is a property of the
+         RECORDING, not of the analysis (the same reasoning ECGDex applies to `offsetMin`). Read from
+         parsePPG; null propagates as null and is never back-filled from durSec. */
+      endEpochMs: rec.endEpochMs != null ? rec.endEpochMs : null,
       fs: rec.fs,
       n: rec.n,
       t0Ms: rec.t0Ms,
@@ -3393,6 +3423,14 @@
             ? SignalFrame.computeContentId({ signalType: 'ppg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
             : null,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
+        /* NODE-EXPORT-DURATION-SEMANTICS §3 — where the recording ENDS on the clock, beside how much
+           signal it holds. `integrator-dsp normalizeFile` already prefers `endEpochMs` over every
+           duration key, so this is additive: a node that gains it is honoured immediately, a node that
+           has not gained it behaves exactly as today. Measured reason it is not redundant with
+           `t0 + durSec` here: on the gappiest O2Ring night in the capture corpus that sum lands 6.6 min
+           SHORT of the last stamp (1.0 min on the next, ~0 on contiguous nights) — PpgDex's gap-filled
+           grid does not recover all lost time, so the shortfall scales with gap burden. */
+        endEpochMs: r.endEpochMs != null ? r.endEpochMs : null,
         // Declare the recording LENGTH so the Integrator can place a real window on this leg. The
         // identical key and the identical reason already sit in ecgdex-dsp.js — the fix was applied
         // to ECG and never to PPG, and the two build their `recording` block the same way.

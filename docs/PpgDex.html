@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2GPOns670TL2NXVXviR1xYp4Jdxu8pV9rbb4ynIzt8c=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FOB+HfM6kDXnYHqFCC5vKaTzMrICaAWd7podRrUxGcE=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-lLE3ChuuD+h8YOsosYQVpNHlnRsA0xSJ00vPiVHh81I=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CBHWksRJnZ0lFClD3m7PusEkVUMAAwGMpC1eLCzK9rE=' 'sha256-FOB+HfM6kDXnYHqFCC5vKaTzMrICaAWd7podRrUxGcE=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-Kiz7wmv/WWTe3MS2cu4Ukm7i27buVqVCDwxSIBQZ8Gc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-lLE3ChuuD+h8YOsosYQVpNHlnRsA0xSJ00vPiVHh81I=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6912,6 +6912,27 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        ambiguous on short fragments (a 15-min file has few deltas to be diverse with), and a binary that
        pretends otherwise would be the same over-claim this whole brief family exists to remove. */
     let quantizedShare = null;
+    /* Scan BACKWARD for the last row the main loop would have ACCEPTED and whose stamp parses —
+       byte-identical to an eager `lastTs`, but paid for only where it is read. The row filter must
+       mirror the main loop's exactly (>= minFields fields, finite ch0); both `minFields` and `ch0Col`
+       are the values the main loop RESOLVED, so a single-column finger file is filtered on its own
+       layout rather than the Verity's. §P1 removed the per-row parseTimestamp because it was ~half of
+       parsePPG's cost; this keeps that win — one backward scan, ≤40 rows on a real file. */
+    let _lastTsMemo;
+    const _ppgLastTs = () => {
+      if (_lastTsMemo !== undefined) return _lastTsMemo;
+      let t = null;
+      for (let li = lines.length - 1; li >= 0 && !t; li--) {
+        const line = lines[li].trim();
+        if (!line) continue;
+        const p = line.split(';');
+        if (p.length < minFields) continue;
+        if (!isFinite(parseFloat(p[ch0Col]))) continue;
+        t = parseTimestamp(p[0]);
+      }
+      _lastTsMemo = t;
+      return t;
+    };
     if (deltas.length > 20) {
       const md = median(deltas);
       if (md > 0) fs = 1e9 / md;
@@ -6921,20 +6942,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         quantizedShare = same / deltas.length;
       }
     } else {
-      // Lazy `lastTs` (§P1): scan BACKWARD for the last row that the loop above would have accepted AND
-      // whose stamp parses — byte-identical to the old eager `lastTs`, but paid for only on this
-      // degenerate path. The row filter must mirror the main loop's exactly (>=minFields fields, finite
-      // ch0) — both `minFields` and `ch0Col` are the values the main loop RESOLVED, so a single-column
-      // finger file is filtered on its own layout rather than the Verity's.
-      let lastTs = null;
-      for (let li = lines.length - 1; li >= 0 && !lastTs; li--) {
-        const line = lines[li].trim();
-        if (!line) continue;
-        const p = line.split(';');
-        if (p.length < minFields) continue;
-        if (!isFinite(parseFloat(p[ch0Col]))) continue;
-        lastTs = parseTimestamp(p[0]);
-      }
+      /* Lazy `lastTs` (§P1): the backward scan is paid for only where it is needed — this degenerate fs
+         fallback, and `endEpochMs` below. See `_ppgLastTs`. */
+      const lastTs = _ppgLastTs();
       if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {
         fs = (n - 1) / ((lastTs.tMs - firstTs.tMs) / 1000);
       }
@@ -7026,6 +7036,22 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       n,
       t0Ms: t0Ms != null ? t0Ms : null,
       offsetMin: firstTs ? firstTs.offsetMin : null,
+      /* NODE-EXPORT-DURATION-SEMANTICS §3 — the CLOCK position of the last sample, READ from the file,
+         never derived. Null when no row carries a parseable stamp (Clock Contract §2.6: a value we do
+         not have is null, never fabricated). Kept ALONGSIDE durSec, not instead of it: durSec answers
+         "how much signal do I have", endEpochMs answers "where does this recording end on the clock" —
+         two questions one scalar cannot both answer.
+
+         The brief's §1 table lists PpgDex's durSec as "effectively wall span", on the reasoning that the
+         grid is gap-filled. Measured on the capture corpus that is not quite true: `t0Ms + durSec` lands
+         SHORT of the last stamp by up to 6.6 min on the gappiest O2Ring night (nGapSpanIntervals 6317),
+         1.0 min on the next, and ~0 on contiguous nights — the gap-fill does not recover all lost time,
+         so the shortfall scales with gap burden. Small next to ECGDex's measured +8…+326 min, but the
+         same defect class, and the reason this field is read rather than computed. */
+      endEpochMs: (function () {
+        const lt = _ppgLastTs();
+        return lt && lt.tMs != null ? lt.tMs : null;
+      })(),
       durSec: (n - 1) / fs,
       site,
       // 'device-default' until someone declares otherwise — see the block above.
@@ -9389,6 +9415,10 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     return {
       source: rec.source || 'file',
       fname: rec.fname || '',
+      /* NODE-EXPORT-DURATION-SEMANTICS §3 — carried through analyze because it is a property of the
+         RECORDING, not of the analysis (the same reasoning ECGDex applies to `offsetMin`). Read from
+         parsePPG; null propagates as null and is never back-filled from durSec. */
+      endEpochMs: rec.endEpochMs != null ? rec.endEpochMs : null,
       fs: rec.fs,
       n: rec.n,
       t0Ms: rec.t0Ms,
@@ -9910,6 +9940,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
             ? SignalFrame.computeContentId({ signalType: 'ppg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
             : null,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
+        /* NODE-EXPORT-DURATION-SEMANTICS §3 — where the recording ENDS on the clock, beside how much
+           signal it holds. `integrator-dsp normalizeFile` already prefers `endEpochMs` over every
+           duration key, so this is additive: a node that gains it is honoured immediately, a node that
+           has not gained it behaves exactly as today. Measured reason it is not redundant with
+           `t0 + durSec` here: on the gappiest O2Ring night in the capture corpus that sum lands 6.6 min
+           SHORT of the last stamp (1.0 min on the next, ~0 on contiguous nights) — PpgDex's gap-filled
+           grid does not recover all lost time, so the shortfall scales with gap burden. */
+        endEpochMs: r.endEpochMs != null ? r.endEpochMs : null,
         // Declare the recording LENGTH so the Integrator can place a real window on this leg. The
         // identical key and the identical reason already sit in ecgdex-dsp.js — the fix was applied
         // to ECG and never to PPG, and the two build their `recording` block the same way.
