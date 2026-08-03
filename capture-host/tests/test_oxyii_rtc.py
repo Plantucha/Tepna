@@ -9,6 +9,7 @@
 import datetime as _dt
 import capture
 import oxyii
+from tests._srcscan import module_source
 
 
 NOW = _dt.datetime(2026, 7, 19, 12, 0, 0)
@@ -81,18 +82,10 @@ def test_the_clock_write_stays_behind_the_policy():
     anything if EVERY clock write goes through it — one stray unconditional set_time_frame() in the
     connect path silently restores the 359-writes-a-night behaviour while all the unit tests above stay
     green, because they test the decision function rather than its callers."""
-    import os
-    src = open(os.path.join(os.path.dirname(__file__), "..", "capture.py"), encoding="utf-8").read()
-    # A SOURCE SCAN CANNOT RUN AGAINST A GENERATED MUTANT FILE. mutmut 3 emits ONE capture.py holding
-    # every mutant inline, so this scan sees 664 copies of the single real call site and fails on every
-    # run INCLUDING the baseline — which mutmut reports as "failed to collect stats", i.e. the whole
-    # module unmeasurable. tools/mutate.py already carries a blunt per-FILE exclusion for this
-    # (SOURCE_SCANNING_TESTS), but excluding this file would also drop the `oxyii_rtc_due` unit tests
-    # above and inflate that function's survivor count. Skipping just the scan keeps both honest: on
-    # real source the guard below is False and the assertion runs exactly as before.
-    if "__mutmut_orig" in src:
-        import pytest
-        pytest.skip("capture.py here is a mutmut-generated file; a source scan sees every mutant at once")
+    # Via the shared helper, which skips on a mutmut-generated file — this scan sees 664 copies of the
+    # single real call site otherwise, and mutmut reports the whole module as "failed to collect stats".
+    # See tests/_srcscan.py for the four scan shapes and which of them break.
+    src = module_source("capture.py")
     calls = [ln.strip() for ln in src.splitlines()
              if "set_time_frame(" in ln and not ln.strip().startswith("#")]
     assert len(calls) == 1, f"expected exactly one set_time_frame call site, found {len(calls)}: {calls}"
