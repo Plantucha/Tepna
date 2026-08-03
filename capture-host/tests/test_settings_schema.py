@@ -8,12 +8,12 @@
 
 import math
 import re
-import os
 
 import pytest
 
 import settings_schema as ss
 from settings_schema import SettingsError, coerce, describe, get_nested, set_nested
+from tests._srcscan import module_source
 
 
 # ── the boundary ────────────────────────────────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ def test_schema_defaults_match_the_daemon_fallbacks():
     if the two drift, the monitor advertises a default the daemon does not actually use, and a user who
     "resets to default" silently changes behaviour. Scanned from source because importing capture and
     reaching those lines needs a running BLE daemon."""
-    src = open(os.path.join(os.path.dirname(__file__), "..", "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")   # skips on a mutmut file — see tests/_srcscan.py
     found = {}
     for leaf, raw in re.findall(r'\.get\(\s*"([a-z_]+)"\s*,\s*([^)\n,]+?)\s*\)', src):
         found.setdefault(leaf, set()).add(raw.strip())
