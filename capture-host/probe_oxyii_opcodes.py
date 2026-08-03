@@ -10,6 +10,14 @@
 # frame or it does not — so the discriminator here is REPLY vs SILENCE, which is weaker evidence and is
 # reported as such.
 #
+# ❓ OPEN, and it would upgrade the whole method if it holds: the reply's 4th byte (the "flag") is NOT
+# always 0x01. Measured 2026-08-03 across 13 responders — 0x01 on every reply carrying a payload, but
+# 0xfc for ops 0x01/0xec and 0xe1 for 0x07/0x08, all of which returned EMPTY payloads. That is the shape
+# of an ACK/NACK, i.e. the status field this file says does not exist. NOT yet asserted: three flag
+# values on thirteen samples is a pattern, not a decode, and reading structure into bytes too early is
+# exactly what produced two retracted findings the same day. Confirm against a command known to be
+# invalid before believing it.
+#
 # Known surface (O2RING-PROTOCOL §3-§4): 0xFF AUTH · 0x10 SETUP · 0x04 LIVE · 0xC0 SET_UTC_TIME ·
 # 0xF1 FILE_LIST · 0xF2 FILE_START · 0xF3 FILE_DATA · 0xF4 FILE_END.
 #
@@ -73,8 +81,12 @@ class Ring:
 async def _cycle_adapter() -> bool:
     """Power-cycle the BlueZ adapter — unprivileged, and bonding survives it.
 
-    Unlike the Verity probe's sibling of this name, here it IS a measured remedy rather than a
-    speculative rung: an `org.bluez.Error.InProgress` scan clears after it, repeatedly."""
+    ⚠️ IT IS NOT RELIABLE, and an earlier version of this comment overstated it. It cleared an
+    `org.bluez.Error.InProgress` scan several times on 2026-08-03 and then, later the same day, failed
+    three times in a row with a 14 s settle and no stray process holding a discovery session — the stuck
+    state lives in bluetoothd, not in a client. What DID clear it was restarting the service
+    (`tepna-restart.sh radio`). Keep this as the cheap unprivileged first try; escalate to the service
+    restart when it does not take."""
     try:
         for arg in ("off", "on"):
             proc = await asyncio.create_subprocess_exec(
@@ -98,22 +110,12 @@ async def snapshot(r):
 # noise. Five at ~1 s covers the 1 Hz frame cadence with margin.
 BASELINE_N, BASELINE_GAP_S = 5, 1.0
 
+# The null's control command. FILE_LIST is documented, read-only, and takes no arguments, so
+# firing it establishes what a COMMAND costs without changing anything.
+CONTROL_OP = 0xF1
 
-async def learn_baseline(r, n: int = BASELINE_N, gap: float = BASELINE_GAP_S):
-    """Sample the live frame with NOTHING sent, and learn which byte positions move on their own.
 
-    THE ABORT DETECTOR IS ONLY AS GOOD AS ITS NULL, and this one had no null at all. It was written and
-    validated against a ring sitting in its dock, where the live frame is static and any difference
-    really is an effect. Measured 2026-08-03 on a WORN ring: 4 of 4 consecutive frames differ in their
-    first 20 bytes with nothing sent — the frame carries a plethysmogram, a sequence counter and a
-    checksum. The very first opcode swept (0x00) tripped the detector, and only a hand-run control
-    separated the real effect (byte 17, `c7` -> `00`, persistent across four post-frames while SpO2, HR
-    and the counter carried on normally) from the noise it was buried in.
-
-    So the null is MEASURED per run, never assumed: only positions that held constant across the
-    baseline can testify, and the rest are named in the report rather than quietly ignored. If nothing
-    holds constant the detector is BLIND, and it has to say so — a comparison that cannot fail is worse
-    than no comparison, because it reads as a clean bill of health."""
+async def _sample(r, n, gap):
     frames = []
     for i in range(n):
         f = await r.send(oxyii.OP_LIVE)
@@ -121,10 +123,43 @@ async def learn_baseline(r, n: int = BASELINE_N, gap: float = BASELINE_GAP_S):
             frames.append(bytes(f))
         if i < n - 1:
             await asyncio.sleep(gap)
-    if not frames:
+    return frames
+
+
+async def learn_baseline(r, n: int = BASELINE_N, gap: float = BASELINE_GAP_S):
+    """Learn which byte positions cannot testify — the ones that move on their own, AND the ones that
+    move merely because a command was sent at all.
+
+    THE ABORT DETECTOR IS ONLY AS GOOD AS ITS NULL, and this one has been wrong twice.
+
+    FIRST: it had no null. Written and validated against a ring in its dock, where the live frame is
+    static, it compared raw frames — and on a WORN ring 4 of 4 consecutive frames differ with nothing
+    sent (plethysmogram, sequence counter, checksum). Fixed by sampling first and letting only constant
+    bytes testify.
+
+    SECOND, and worse, because the first fix made it look rigorous: a PASSIVE null cannot see a byte
+    that the act of commanding perturbs. Live-frame byte 17 sat at 0xc7 across every passive sample —
+    perfectly "stable", 34 of 34 bytes on a docked ring — and moved for 0x00, 0x03 and 0x06, which was
+    duly reported as three findings. Then 0xF1 (FILE_LIST: DOCUMENTED, read-only, and on a worn ring it
+    does not even reply) moved it too, 199 -> 53. So byte 17 is a scratch field the command channel
+    writes, not device state, and all three "effects" were the same artifact.
+
+    Hence the null now includes a CONTROL COMMAND. A documented read-only op is fired between two
+    passive samples, and any byte it disturbs is disqualified along with the self-churning ones. The
+    control has to be a real command, not a read, because the thing being measured is the cost of
+    commanding."""
+    before = await _sample(r, n, gap)
+    if not before:
         return None, []
-    width = min(len(f) for f in frames)
-    stable = [i for i in range(width) if len({f[i] for f in frames}) == 1]
+    width = min(len(f) for f in before)
+    stable = [i for i in range(width) if len({f[i] for f in before}) == 1]
+    # THE CONTROL: a documented read-only command. Whatever it moves, an unknown opcode moving the same
+    # byte proves nothing.
+    await r.send(CONTROL_OP)
+    after = await _sample(r, n, gap)
+    for f in after:
+        stable = [i for i in stable if i < len(f) and f[i] == before[-1][i]]
+    frames = before + after
     return frames[-1], stable
 
 
@@ -213,7 +248,9 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=()) -> dict:
             base_frame, stable = await learn_baseline(r)
             base = base_frame.hex() if base_frame else None
             out["live_before"] = base
-            out["baseline"] = {"samples": BASELINE_N, "stable_bytes": len(stable),
+            out["baseline"] = {"samples": BASELINE_N, "control_op": f"{CONTROL_OP:#04x}",
+                               "null": "passive churn + one documented read-only command",
+                               "stable_bytes": len(stable),
                                "volatile_bytes": [i for i in range(len(base_frame or b""))
                                                   if i not in stable]}
             if not stable:
@@ -231,14 +268,37 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=()) -> dict:
                         after = await snapshot(r)
                         moved = _changed(base_frame, after, stable)
                         if moved:
-                            res[f"{op:#04x}"]["state_changed"] = {
-                                "byte_positions": moved,
-                                "before": [base_frame[i] for i in moved],
-                                "after": [bytes.fromhex(after)[i] for i in moved]}
-                            out["aborted_at"] = f"{op:#04x}"
-                            out["abort_reason"] = ("a byte that held constant across the baseline moved — "
-                                                   "stopping rather than poking further")
-                            break
+                            # ADJUDICATE BEFORE CONVICTING. The null lasts ~10 s; the sweep lasts
+                            # minutes. On a WORN ring SpO2 and HR hold still across the null and then
+                            # drift on their own — measured 2026-08-03, the sweep stopped at 0x02 on
+                            # byte 13 going 98 -> 95, which is SpO2 doing what SpO2 does. A byte that
+                            # keeps moving across a DOCUMENTED READ-ONLY command is drifting, not
+                            # responding, so the control is fired again and only what survives it
+                            # convicts. Everything else is recorded as drift and the sweep goes on.
+                            await r.send(CONTROL_OP)
+                            ctrl = await snapshot(r)
+                            drifting = set(_changed(bytes.fromhex(after), ctrl, stable))
+                            real = [i for i in moved if i not in drifting]
+                            if not real:
+                                res[f"{op:#04x}"]["drift_suspected"] = {
+                                    "byte_positions": moved,
+                                    "note": "moved again under the control command — physiological "
+                                            "drift, not an effect of this opcode"}
+                            prev, real_moved = base_frame, real
+                            # ROLL THE BASELINE FORWARD, so slow drift cannot accumulate into a false
+                            # positive later in a run that lasts minutes. Read `before` off the OLD
+                            # frame first — reading it after the roll reports before == after.
+                            base_frame = bytes.fromhex(ctrl) if ctrl else base_frame
+                            if real_moved:
+                                res[f"{op:#04x}"]["state_changed"] = {
+                                    "byte_positions": real_moved,
+                                    "before": [prev[i] for i in real_moved],
+                                    "after": [bytes.fromhex(after)[i] for i in real_moved]}
+                                out["aborted_at"] = f"{op:#04x}"
+                                out["abort_reason"] = ("a byte that held constant across the baseline "
+                                                       "moved and did NOT move again under the control "
+                                                       "command — stopping rather than poking further")
+                                break
                 except Exception as exc:                           # noqa: BLE001
                     res[f"{op:#04x}"] = {"error": f"{type(exc).__name__}: {exc}"}
                     out["aborted_at"] = f"{op:#04x}"
