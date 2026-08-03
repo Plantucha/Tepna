@@ -294,7 +294,19 @@ def main(argv=None) -> int:
                     tests_override=[x.strip() for x in a.tests.split(",")] if a.tests else None)
         if r.get("skipped"):
             skipped += 1
-        print(json.dumps({k: v for k, v in r.items() if k != "results"}, indent=2)[:1600], flush=True)
+        # ⚠️ THE VERDICT FIELDS COME FIRST AND ARE NEVER TRUNCATED. This used to be a flat
+        # `json.dumps(...)[:1600]`, and on capture.py — whose plan lists 95 test files — the 1600 chars
+        # were spent on the test list, so `rc`, `elapsed_sec` and `timed_out` were CUT OFF ENTIRELY.
+        # Those are exactly the fields §1 of the runbook tells you to check, and a signal-killed run
+        # (rc -15, timed_out false) or a failed one is unreadable without them. Measured 2026-08-03: an
+        # rc guard reported "FAILED rc=" on a run that had in fact succeeded. Verdict first, then the
+        # bulky plan, and the truncation only ever eats the tail.
+        verdict = {k: r[k] for k in ("module", "rc", "elapsed_sec", "timed_out", "partial",
+                                     "skipped", "error", "reused_scratch", "work") if k in r}
+        print(json.dumps(verdict, indent=2), flush=True)
+        rest = {k: v for k, v in r.items() if k not in verdict and k != "results"}
+        if rest:
+            print(json.dumps(rest, indent=2)[:1600], flush=True)
         print(r.get("results", "")[:4000], flush=True)
     # A skip is not a pass. Exit non-zero so a caller that skipped everything cannot mistake the run
     # for a clean one — the same reason the tool refuses to report a timed-out module as complete.

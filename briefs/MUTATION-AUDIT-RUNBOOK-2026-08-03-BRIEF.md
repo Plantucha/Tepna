@@ -19,6 +19,24 @@ None of these prints anything resembling a test failure. Each cost an hour befor
 | every mutant `not checked` | a test failed inside the `mutants/` copy | `mutmut run` prints `Running clean tests … done`; if it does not, the baseline is red |
 | `rc: -15`, `timed_out: false` | the run was **signal-killed** | check `rc`, never `timed_out` alone |
 | `failed to collect stats` | a test **scans module source** | see §5 — gate-backed since 2026-08-03 |
+| **a rate of 100 %** | `mutmut results` returned EMPTY and something divided by it | `rc != 0`; see below |
+| **`rc` absent from the record** | the printed JSON was truncated | fixed 2026-08-03 — verdict fields now print first |
+
+**The 100 % case is the dangerous one and it was self-inflicted.** On 2026-08-03 the scratch-reuse
+refreshed only the test files NAMED IN THE SELECTION; `tests/_srcscan.py` is a helper, never named, so a
+scratch predating it kept a stale `tests/` and every run died on `ModuleNotFoundError`. mutmut reported
+`Failed to collect list of tests`, `mutmut results` returned an empty list, and a rate computed over it
+read **100 % killed** — the precise failure `tools/mutate.py`'s header warns about. Reuse now refreshes
+the whole `tests/` tree, because any new conftest, fixture module or helper would have done the same.
+
+**So never compute a rate without both guards:**
+
+```sh
+[ "$(grep -o '"rc": [-0-9]*' run.log | head -1 | awk '{print $2}')" = "0" ] || exit 1
+[ "$(grep -c 'not checked' results.txt)" -eq 0 ] || exit 1
+```
+
+A survivor count of ZERO on a module that had hundreds is not a triumph; it is this bug.
 
 **Waiting correctly.** Do not sleep a guessed interval, and do not `pkill -f` a pattern that appears in
 your own command line — that kills your shell (exit 144; it happened three times). Wait on the process:
