@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CBHWksRJnZ0lFClD3m7PusEkVUMAAwGMpC1eLCzK9rE=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bw6rfr4B0CUwSUGUdE6p6SkGWH+3xW0BfuNMDL9M7BA=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-hxtclF7doYfS5TM+OYHTmTgzyGrLpT7Qibfg1M7SvBA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6z8T9MIH9q25KUeqs8pjRUBVoGkKVoagW7/bl2tjwBc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-CBHWksRJnZ0lFClD3m7PusEkVUMAAwGMpC1eLCzK9rE=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UgAGee26CkNBegUxPr7FFlm5Z6L3G72NO/hcQ+imx7s=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-hxtclF7doYfS5TM+OYHTmTgzyGrLpT7Qibfg1M7SvBA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -2853,6 +2853,9 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   //  which is the one thing this must follow. Step recovery is unaffected across the whole range.
   var CK_AXIS_WIN = 21; // running-median width in anchors; odd so the median is a real sample
   var CK_AXIS_MAX_PPM = 50000; // 5 % — refusal bound, see the plausibility check in hostAxis()
+  /* Twice the 1 ms phone-stamp quantum. A residual spread at or below this means the host column is
+     the device column rounded, not a second clock — see the measurement in hostAxis(). */
+  var CK_AXIS_INERT_MS = 2;
 
   function _ckMedian(v) {
     var s = v.slice().sort(function (a, b) {
@@ -2902,6 +2905,37 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     }
     var span = pts[n - 1].d - pts[0].d;
     var ppm = span > 0 ? (sm[n - 1] / span) * 1e6 : 0;
+    /* IS THERE ACTUALLY A SECOND CLOCK HERE? (PAT-NO-VALID-ANCHOR §10, last item.)
+       A ppm of ~0 has two completely different meanings and this function used to report them
+       identically: (a) two INDEPENDENT clocks that happen to agree — the good case, and (b) the host
+       column is not an independent clock at all, because the capture app derived it from the device
+       stamp. Under (b) a ~0 ppm is not a measurement of agreement; it is the absence of a measurement,
+       and a consumer that reads `ok: true, ppm: 0` cannot tell which it got.
+
+       The discriminator is the SPREAD of the residual, not its slope. Measured over both capture trees:
+
+         box / capture-host   82 files   spread  min 101.89 ms · median 425 ms · max 5124 ms
+         phone tree          104 files   spread  min   0.13 ms · median   1.00 ms · max    1.00 ms
+
+       The phone tree's MAXIMUM is exactly 1.00 ms — the resolution of the phone's own timestamp. Its
+       host column is the device time rounded to the millisecond, so the residual cannot exceed one
+       quantum, and no file in either tree lands between 1.00 and 101.89 ms. The bound below is set at
+       twice the stamp quantum: 2× the largest inert spread observed, and 50× below the smallest real
+       one. It is a property of the DATA (a host that adds nothing beyond rounding), not a tuned
+       threshold, which is why it is stated as a multiple of the quantum rather than a bare number.
+
+       Reported ADDITIVELY: `ok` and `ppm` are untouched, so every existing consumer behaves exactly as
+       before. A node that wants to know whether its axis was disciplined by a real second clock now
+       has something to read instead of inferring it from a number that cannot carry the distinction. */
+    var rMin = Infinity,
+      rMax = -Infinity;
+    for (var q = 0; q < n; q++) {
+      var rv = pts[q].r - r0;
+      if (rv < rMin) rMin = rv;
+      if (rv > rMax) rMax = rv;
+    }
+    var spreadMs = rMax - rMin;
+    var independent = spreadMs > CK_AXIS_INERT_MS;
     /* PLAUSIBILITY BOUND — refuse, never "correct", an implausible rate. Caught by the ECGDex §4.3
        fixture, whose synthetic ms column advances at 2× its host stamps: unbounded, that is a −500000
        ppm "correction" that doubled fs from 130 to 259.9. A device crystal is wrong by ppm; the worst
@@ -2918,6 +2952,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       maxStepMs: maxStep,
       totalMs: sm[n - 1],
       ppm: ppm,
+      /* See the spread block above. `independent: false` means the host column carried no information
+         the device column did not already have — read this, never a ~0 ppm, to decide whether the axis
+         was actually disciplined. `spreadMs` is published so the call is checkable rather than trusted. */
+      spreadMs: spreadMs,
+      independent: independent,
+      inertReason: independent
+        ? null
+        : 'host ≡ device — residual spread ' + spreadMs.toFixed(2) + ' ms ≤ ' + CK_AXIS_INERT_MS + ' ms (one stamp quantum); this host column is not an independent clock',
       /* Linear between anchors; FLAT outside them. Flat, not extrapolated: past the last anchor there
          is no measurement, and extending a slope there would fabricate one — the same rule as §2.6. */
       correctionAt: function (devMs) {

@@ -244,5 +244,64 @@ corrected. What would make it publishable is a **second logging app or phone** s
 - [ ] **Per-fragment Δ**, not one per night — the likeliest fix, since box nights fail uniformly (0/13)
       with 24 ECG / 68 PPG fragments while a single Δ describes the whole timeline. Supersedes Route 1 as
       the next step; a single-segment box night would still be needed to DERIVE the rate rather than fit it.
-- [ ] Decide whether `hostAxis` should DECLARE an inert axis (host ≡ device ⇒ "no independent host clock")
-      rather than silently reporting ~0 ppm, which is indistinguishable from "two clocks that agree".
+- [x] Decide whether `hostAxis` should DECLARE an inert axis — **DONE 2026-08-03 (§11). Yes, and the
+      framing was too kind: an inert axis does NOT report ~0 ppm.** Measured over the phone tree it
+      reports a median of 0.0 but a **maximum of 120.7 ppm**, from 1 ms rounding noise — four times the
+      largest genuine Polar crystal error in this corpus (H10, −27 ppm). The old API could hand a
+      consumer a plausible, physically-sized rate derived from a column carrying no information.
+
+
+---
+
+## §11 · EXECUTED 2026-08-03 — `hostAxis` declares an inert axis
+
+### 11.1 · The item under-stated the defect
+
+It reads *"rather than silently reporting ~0 ppm"*. Measured, that is the benign case. The phone tree's
+inert axis reports:
+
+| tree | files | residual spread | declared independent | **|ppm| reported** |
+|---|---|---|---|---|
+| box / capture-host | 82 | min **101.89 ms** · median 425 · max 5124 | **82 / 82** | median 167.5 |
+| phone | 104 | min 0.13 ms · **max 1.00 ms** | **0 / 104** | median 0.0 · **max 120.7** |
+
+A ~0 ppm would at least be self-evidently uninformative. **120.7 ppm is not** — the largest genuine
+crystal error in this corpus is the H10 at −27 ppm, so an inert column can produce a rate four times the
+real one and entirely plausible in size. A consumer reading `ok: true, ppm: 120.7` had nothing to tell it
+apart from a measurement.
+
+### 11.2 · The discriminator is the SPREAD, and it is a property of the data
+
+The phone tree's **maximum** residual spread is exactly **1.00 ms** — the resolution of the phone's own
+timestamp. Its host column is the device time rounded, so the residual cannot exceed one quantum however
+long the recording runs. Nothing in either tree lands between 1.00 ms and 101.89 ms.
+
+`CK_AXIS_INERT_MS = 2` is **twice the stamp quantum**: 2× the largest inert spread observed, 50× below the
+smallest real one. It is stated as a multiple of the quantum rather than a bare number because that is what
+it is — a host that adds nothing beyond rounding — not a tuned threshold.
+
+### 11.3 · Additive, and gated both ways
+
+`ok` and `ppm` are untouched; `independent`, `spreadMs` and `inertReason` are new. Every existing consumer
+behaves exactly as before — which is why this could land as a spine change without moving a single export.
+
+The gate asserts the distinction rather than describing it: both cases are `ok: true` (the defect), a
+divergent host is independent, a rounded host is not, **and the inert case reports a nonzero plausible ppm**
+— that last one matters, because if it ever read ~0 the other assertions would pass for the wrong reason
+and a reader could conclude "0 ppm already told you" and delete the flag. The 2 ms bound is asserted on both
+sides (2 ms inert, 3 ms independent), since a one-sided test leaves `<=` → `<` alive.
+
+**Mutation found a real subtlety.** Computing the spread from the SMOOTHED series instead of the raw
+residuals left every verdict above unchanged. The running median exists to keep BLE jitter out of the
+*correction*, and it does its job — so a host with sparse jitter spikes smooths to ~0 while its raw spread
+is 6 ms. Those two series answer different questions: the smoothed one asks *"what rate should I apply"*,
+the raw one asks *"did this column carry any information at all"*. Sparse jitter is evidence of a real
+second clock (a derived column has none), so it must read INDEPENDENT — and the gate now contains the case
+that separates them.
+
+### 11.4 · Spine change, and what it cost
+
+`clock.js` is inlined into every bundle, so all **11** owned bundles were rebuilt and all three build
+systems re-run. **Zero fixtures moved** across all nine regenerators — the field is genuinely additive —
+but `computeHash` moves for every app, so `verify-fixtures` re-stamped the **8** corpus-backed fixtures
+(ECGDex · OxyDex ×2 · PulseDex ×2 · HRVDex ×2 · Integrator) after a green run.

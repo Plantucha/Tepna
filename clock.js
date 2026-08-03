@@ -264,6 +264,9 @@
   //  which is the one thing this must follow. Step recovery is unaffected across the whole range.
   var CK_AXIS_WIN = 21; // running-median width in anchors; odd so the median is a real sample
   var CK_AXIS_MAX_PPM = 50000; // 5 % — refusal bound, see the plausibility check in hostAxis()
+  /* Twice the 1 ms phone-stamp quantum. A residual spread at or below this means the host column is
+     the device column rounded, not a second clock — see the measurement in hostAxis(). */
+  var CK_AXIS_INERT_MS = 2;
 
   function _ckMedian(v) {
     var s = v.slice().sort(function (a, b) {
@@ -313,6 +316,37 @@
     }
     var span = pts[n - 1].d - pts[0].d;
     var ppm = span > 0 ? (sm[n - 1] / span) * 1e6 : 0;
+    /* IS THERE ACTUALLY A SECOND CLOCK HERE? (PAT-NO-VALID-ANCHOR §10, last item.)
+       A ppm of ~0 has two completely different meanings and this function used to report them
+       identically: (a) two INDEPENDENT clocks that happen to agree — the good case, and (b) the host
+       column is not an independent clock at all, because the capture app derived it from the device
+       stamp. Under (b) a ~0 ppm is not a measurement of agreement; it is the absence of a measurement,
+       and a consumer that reads `ok: true, ppm: 0` cannot tell which it got.
+
+       The discriminator is the SPREAD of the residual, not its slope. Measured over both capture trees:
+
+         box / capture-host   82 files   spread  min 101.89 ms · median 425 ms · max 5124 ms
+         phone tree          104 files   spread  min   0.13 ms · median   1.00 ms · max    1.00 ms
+
+       The phone tree's MAXIMUM is exactly 1.00 ms — the resolution of the phone's own timestamp. Its
+       host column is the device time rounded to the millisecond, so the residual cannot exceed one
+       quantum, and no file in either tree lands between 1.00 and 101.89 ms. The bound below is set at
+       twice the stamp quantum: 2× the largest inert spread observed, and 50× below the smallest real
+       one. It is a property of the DATA (a host that adds nothing beyond rounding), not a tuned
+       threshold, which is why it is stated as a multiple of the quantum rather than a bare number.
+
+       Reported ADDITIVELY: `ok` and `ppm` are untouched, so every existing consumer behaves exactly as
+       before. A node that wants to know whether its axis was disciplined by a real second clock now
+       has something to read instead of inferring it from a number that cannot carry the distinction. */
+    var rMin = Infinity,
+      rMax = -Infinity;
+    for (var q = 0; q < n; q++) {
+      var rv = pts[q].r - r0;
+      if (rv < rMin) rMin = rv;
+      if (rv > rMax) rMax = rv;
+    }
+    var spreadMs = rMax - rMin;
+    var independent = spreadMs > CK_AXIS_INERT_MS;
     /* PLAUSIBILITY BOUND — refuse, never "correct", an implausible rate. Caught by the ECGDex §4.3
        fixture, whose synthetic ms column advances at 2× its host stamps: unbounded, that is a −500000
        ppm "correction" that doubled fs from 130 to 259.9. A device crystal is wrong by ppm; the worst
@@ -329,6 +363,14 @@
       maxStepMs: maxStep,
       totalMs: sm[n - 1],
       ppm: ppm,
+      /* See the spread block above. `independent: false` means the host column carried no information
+         the device column did not already have — read this, never a ~0 ppm, to decide whether the axis
+         was actually disciplined. `spreadMs` is published so the call is checkable rather than trusted. */
+      spreadMs: spreadMs,
+      independent: independent,
+      inertReason: independent
+        ? null
+        : 'host ≡ device — residual spread ' + spreadMs.toFixed(2) + ' ms ≤ ' + CK_AXIS_INERT_MS + ' ms (one stamp quantum); this host column is not an independent clock',
       /* Linear between anchors; FLAT outside them. Flat, not extrapolated: past the last anchor there
          is no measurement, and extending a slope there would fabricate one — the same rule as §2.6. */
       correctionAt: function (devMs) {
