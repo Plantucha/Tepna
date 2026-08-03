@@ -198,6 +198,14 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
                     for p in HERE.iterdir()
                     if p.name not in ignore and not p.name.startswith(".coverage"))
     also = ", ".join(repr(x) for x in extras)
+    # PRUNE THIS MODULE'S STALE SCRATCHES. Two reasons this is not optional. (1) /tmp is tmpfs on the
+    # capture host — a scratch is RAM, and webmon's is 115 MB, capture's 152 MB. (2) The reuse above is
+    # a CACHE, and a cache without eviction is a leak: one directory per module VERSION, so a module
+    # edited ten times during a pass leaves ten. Measured 2026-08-03 before this existed: 153 orphaned
+    # scratches, 2.6 GB. Everything for this module that is not the current hash goes.
+    for old_dir in Path(tempfile.gettempdir()).glob(f"mut-{module[:-3]}-*"):
+        if old_dir != reusable and old_dir.is_dir():
+            shutil.rmtree(old_dir, ignore_errors=True)
     if reuse and (reusable / "work" / "mutants" / module).exists():
         scratch, work = reusable, reusable / "work"
         for t in tests:                       # refresh ONLY the tests; the mutants stay
