@@ -3079,7 +3079,109 @@
       };
       var dr = align(noisy(base, 15, 0.05), noisy(drift(shift(base, 8), 400), 16, 0.05), FS, OPT);
       T.ok('a planted 400 ppm clock drift is recovered', dr.driftPpm != null && Math.abs(dr.driftPpm - 400) < 40, dr.driftPpm);
-      T.ok('…and a drift-free pair reports ~0 ppm, not a fitted slope through noise', Math.abs(pos.driftPpm) < 25, pos.driftPpm);
+
+      /* ── §F7 · THE DRIFT TERM REFUSES UNLESS IT IS IDENTIFIABLE ────────────────────────────────
+         The slope used to be published unconditionally, and on the real corpus it was not a
+         measurement: three estimators over the SAME usable windows spanned 0 → 720 ppm, 7 of 14
+         nights returned exactly 0.0 ppm, and −181.8 ppm shipped as MEASURED. The interval is now
+         computed and the point estimate is gated on it.
+
+         The planted-400 control above is the load-bearing half of this: a refusal that refuses
+         everything is not a fix, it is a mute. `dr` is the proof the gate still publishes a drift
+         it can actually see.
+
+         The line that used to sit here read `Math.abs(pos.driftPpm) < 25` on a drift-free pair.
+         Under the refusal `pos.driftPpm` is null and `Math.abs(null)` is 0, so it would have passed
+         while checking nothing — it now asserts the refusal itself. */
+      T.ok('a published drift carries its 95% interval', Array.isArray(dr.driftCiPpm) && dr.driftCiPpm.length === 2, JSON.stringify(dr.driftCiPpm));
+      T.ok('…and the interval BRACKETS the planted value', dr.driftCiPpm[0] <= 400 && dr.driftCiPpm[1] >= 400, JSON.stringify(dr.driftCiPpm));
+      T.ok('…and it is declared identifiable', dr.driftIdentifiable === true);
+
+      T.ok('a drift-free pair REFUSES the slope rather than fitting one through noise', pos.driftPpm === null && pos.driftIdentifiable === false, 'ppm=' + pos.driftPpm);
+      T.ok('…and says which way it failed', /NOT identifiable/.test(pos.driftReason || ''), pos.driftReason);
+      /* The two failures are DIFFERENT and both must be reachable. A quantised lag plateau makes the
+         median pairwise slope a tie value (the atom at exactly 0.00); a sub-resolution drift leaves
+         an interval that spans zero, so not even the sign is established. */
+      T.ok('…by naming either the tie block or the zero-spanning interval', /tied at .* ppm|spans zero/.test(pos.driftReason || ''), pos.driftReason);
+      /* The tie wording states the tie VALUE. Asserting "exactly zero" would be a sentence the code
+         cannot always justify, and a false sentence is the defect class this whole guard is about. */
+      T.ok('…and the tie wording quotes the value it is tied AT, rather than asserting zero',
+        !/tied at exactly/.test(pos.driftReason || '') && /tied at 0\.00 ppm/.test(pos.driftReason || ''), pos.driftReason);
+
+      /* ── THE FALSE REFUSAL A TIE TEST WOULD CAUSE (found by a surviving mutant) ────────────────
+         A tie-fraction refusal — "a majority of pairwise slopes on the median means the median is a
+         plateau's tie value" — is intuitive and WRONG. Evenly-spaced windows climbing one lag
+         quantum at a time produce many pairs with identical Δt and identical Δlag, so a CLEAN ramp
+         ties just as hard as a flat one. At a planted 900 ppm the tie fraction is ~0.6 while the
+         interval brackets the truth. Refusing it would discard a correct measurement, so the tie
+         fraction is a diagnostic and the interval is the test. This pins it. */
+      var ramp = align(noisy(base, 15, 0.05), noisy(drift(shift(base, 8), 900), 16, 0.05), FS, OPT);
+      T.ok('a heavily-TIED but correctly-measured ramp is PUBLISHED, not refused',
+        ramp.driftIdentifiable === true && ramp.driftPpm != null, 'tie=' + ramp.driftTieFrac + ' ppm=' + ramp.driftPpm + ' ci=' + JSON.stringify(ramp.driftCiPpm));
+      T.ok('…and it really is tie-heavy, so this case still exercises what it claims to',
+        ramp.driftTieFrac >= 0.5, ramp.driftTieFrac);
+      T.ok('…and its interval brackets the planted 900 ppm', ramp.driftCiPpm[0] <= 900 && ramp.driftCiPpm[1] >= 900, JSON.stringify(ramp.driftCiPpm));
+      T.ok('the interval is published EVEN WHEN the point estimate is refused', Array.isArray(pos.driftCiPpm), JSON.stringify(pos.driftCiPpm));
+      T.ok('driftPpm is null exactly when driftIdentifiable is false',
+        [pos, dr, neg].every(function (r) { return r.driftPpm == null ? r.driftIdentifiable === false : r.driftIdentifiable === true; }));
+
+      /* ── A REFUSED SLOPE MUST NOT BE CARRIED INTO THE OFFSET ───────────────────────────────────
+         `intercept + slope·mid` evaluates a line whose slope was just declared unidentifiable, so it
+         imports that slope's error into the offset — the ONE quantity this corpus finds trustworthy.
+         On refusal the offset falls back to the plain median lag.
+
+         ⚠️ Assert this on `sub`, NOT only on `pos`. On a zero-slope plateau the fitted value and the
+         median lag agree exactly, so a test written against `pos` alone passes whether the fallback
+         exists or not — it survived a mutant that deleted the fallback outright. The sub-resolution
+         case has a non-zero refused slope and the two differ by 0.107 s (2.143 vs 2.250). */
+      var medLagOf = function (r) {
+        var l = r.windows.filter(function (w) { return w.usable; }).map(function (w) { return w.lagSec; }).sort(function (a2, b2) { return a2 - b2; });
+        return l[l.length >> 1];
+      };
+      T.ok('a refused fit still reports the median lag as its offset', pos.offsetSec === medLagOf(pos), pos.offsetSec + ' vs median ' + medLagOf(pos));
+
+      /* ── THE SUB-RESOLUTION CASE, which is the one the real corpus is made of ──────────────────
+         `pos` refuses via the TIE branch. The OTHER branch — an interval that spans zero — needs a
+         drift that is real but below what the lag quantum can resolve, and that case also produces
+         the degenerate MAD. Both were unreachable from the cases above, so this plants one:
+         80 ppm over 4500 s is 0.36 s of total lag change against a 0.25 s quantum (FS=4), i.e. one
+         step. The majority of windows sit on one lag and a few sit on the next — MAD reports 0.00
+         while the spread is a quarter-second, which is exactly the 2026-07-26 shape (15 of 28 on
+         the median, two windows 1.2 s out).
+
+         This is not a contrived corner. `WEARABLE-DRIFT-DIRECT` measured the true H10↔Verity rate at
+         ~7 ppm, so EVERY real night sits in this regime — which is why 7 of 14 returned an atom at
+         exactly 0.0 ppm. The instrument was reporting a quantisation artefact as a measurement. */
+      var sub = align(noisy(base, 15, 0.35), noisy(drift(shift(base, 8), 80), 16, 0.35), FS, OPT);
+      T.ok('a SUB-RESOLUTION drift is refused (the interval spans zero, so the sign is undetermined)',
+        sub.driftPpm === null && /spans zero/.test(sub.driftReason || ''), sub.driftReason + ' ci=' + JSON.stringify(sub.driftCiPpm));
+      /* Both refusals come from the interval; what differs is the EXPLANATION. A zero plateau is
+         named as one (`pos`, tie=1.0 at slope 0) and a scattered sub-resolution fit is named as an
+         interval that spans zero (`sub`, tie≈0.02). Both wordings must stay reachable or one of
+         them is dead prose. */
+      T.ok('…and the plateau wording and the interval wording are separately reachable',
+        sub.driftTieFrac < 0.5 && pos.driftTieFrac >= 0.5 && /tied at 0\.00 ppm/.test(pos.driftReason || ''),
+        'sub tie=' + sub.driftTieFrac + '  pos tie=' + pos.driftTieFrac);
+      T.ok('…and the sub-resolution offset is ALSO the median lag (the slope never reached it)',
+        sub.offsetSec === medLagOf(sub), sub.offsetSec + ' vs median ' + medLagOf(sub));
+      T.ok('…and its interval is still reported, so the caller sees what could not be excluded',
+        Array.isArray(sub.driftCiPpm) && sub.driftCiPpm[0] <= 0 && sub.driftCiPpm[1] >= 0, JSON.stringify(sub.driftCiPpm));
+      /* THE BOUNDARY, from the same noise floor: 80 ppm is refused and 150 ppm is published. Without
+         this the refusal could be a blanket one and every assertion above would still pass. */
+      var over = align(noisy(base, 15, 0.35), noisy(drift(shift(base, 8), 150), 16, 0.35), FS, OPT);
+      T.ok('…while 150 ppm through the SAME noise IS published — the gate has a boundary, not a mute',
+        over.driftIdentifiable === true && over.driftPpm != null, 'ppm=' + over.driftPpm + ' ci=' + JSON.stringify(over.driftCiPpm));
+
+      /* MAD on a plateau reports 0.00 as precision while windows sit a second away. It never travels
+         alone now — the spread is published beside it and the degeneracy is named. */
+      T.ok('the lag spread is published beside MAD', typeof pos.lagSpreadSec === 'number', pos.lagSpreadSec);
+      T.ok('…and the spread can never be SMALLER than the MAD it qualifies',
+        [pos, dr, neg, sub].every(function (r) { return r.madSec == null || r.lagSpreadSec >= r.madSec; }));
+      T.ok('a zero MAD hiding a real spread is DECLARED degenerate, not reported as precision',
+        sub.madSec === 0 && sub.lagSpreadSec > 0 && sub.madDegenerate === true,
+        'mad=' + sub.madSec + ' spread=' + sub.lagSpreadSec + ' degenerate=' + sub.madDegenerate);
+      T.ok('…and a genuinely tight fit is NOT flagged degenerate (the flag discriminates)',
+        dr.madDegenerate === false && dr.madSec > 0, 'mad=' + dr.madSec + ' degenerate=' + dr.madDegenerate);
 
       /* THE NULL CONTROL — and the reason it needs three conditions, not one.
          A COUNT of surviving windows is a multiple-comparisons trap: each window's null admits about

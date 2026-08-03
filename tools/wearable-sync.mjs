@@ -196,7 +196,10 @@ if (!keys.length) {
   process.exit(1);
 }
 console.log(`wearable-sync — H10 vs Verity, ${keys.length} night(s), ${WIN}s windows / ${HOP}s hop / +/-${MAXLAG}s search @ ${FS_HZ} Hz\n`);
-console.log('night        H10 VER   span   offset(s)  drift(ppm)  usable  medR   MAD   verdict');
+/* `drift(ppm)` prints a dash unless the slope is IDENTIFIABLE (§F7), and `spread` rides beside MAD
+   because MAD alone reports 0.00 on a quantised plateau while two windows sit 1.2 s away. Same rule as
+   the trio printer: a number does not appear without the thing that bounds it. */
+console.log('night        H10 VER   span   offset(s)  drift(ppm)  usable  medR   MAD spread  verdict');
 const rows = [];
 for (const k of keys) {
   const g = index[k];
@@ -217,7 +220,7 @@ for (const k of keys) {
     `${k} ${String(g.H10.length).padStart(4)}${String(g.VER.length).padStart(4)} ${span.padStart(6)} h` +
       (r.offsetSec == null
         ? '        —          —        —     —      —   '
-        : `${r.offsetSec.toFixed(2).padStart(10)}${(r.driftPpm == null ? '—' : r.driftPpm.toFixed(1)).padStart(12)}${(r.nUsable + '/' + r.nWindows).padStart(8)}${(r.medR == null ? '—' : r.medR.toFixed(2)).padStart(7)}${(r.madSec == null ? '—' : r.madSec.toFixed(2)).padStart(6)}   `) +
+        : `${r.offsetSec.toFixed(2).padStart(10)}${(r.driftPpm == null ? '—' : r.driftPpm.toFixed(1)).padStart(12)}${(r.nUsable + '/' + r.nWindows).padStart(8)}${(r.medR == null ? '—' : r.medR.toFixed(2)).padStart(7)}${(r.madSec == null ? '—' : r.madSec.toFixed(2)).padStart(6)}${(r.lagSpreadSec == null ? '—' : r.lagSpreadSec.toFixed(2)).padStart(7)}  `) +
       (r.confident ? 'MEASURED' : `— ${(r.reason || '').slice(0, 52)}`)
   );
 }
@@ -232,7 +235,16 @@ if (ok.length) {
     .filter((r) => r.driftPpm != null)
     .map((r) => r.driftPpm)
     .sort((a, b) => a - b);
-  if (D2.length) console.log(`drift : median ${D2[D2.length >> 1].toFixed(1)} ppm   range ${D2[0].toFixed(1)} … ${D2[D2.length - 1].toFixed(1)} ppm`);
+  /* The drift summary reports how many nights it could NOT resolve, first. A median over the survivors
+     alone is a selected statistic — the earlier version quoted one across nights where 7 of 14 were an
+     atom at exactly 0.0 ppm, which reads as agreement and is a quantisation artefact (§F7). */
+  const nRefused = ok.length - D2.length;
+  if (D2.length)
+    console.log(`drift : median ${D2[D2.length >> 1].toFixed(1)} ppm   range ${D2[0].toFixed(1)} … ${D2[D2.length - 1].toFixed(1)} ppm   (over the ${D2.length} night(s) where it is identifiable)`);
+  if (nRefused)
+    console.log(
+      `drift : NOT IDENTIFIABLE on ${nRefused} of ${ok.length} measured night(s) — the slope's 95% interval spans zero, or its median is a quantised-lag tie block. Those nights have an offset and no drift, which is the honest pair.`
+    );
   /* A wearable offset above a second is not a rounding detail: it is larger than every physiological
      latency this suite measures between these two devices, so it corrupts any cross-device timing
      before the physiology is even reached. Say so rather than printing a number and moving on. */
