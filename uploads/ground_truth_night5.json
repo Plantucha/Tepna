@@ -1,0 +1,268 @@
+{
+ "schema": "ganglior.ground-truth/1.0",
+ "subject": "SubjectA",
+ "night": 5,
+ "date": "2026-05-15",
+ "story": "CPAP stable, best night",
+ "t0Ms": 1778887200000,
+ "durSec": 27000,
+ "ahiTarget": 3,
+ "cpap": true,
+ "glucEvent": "dawn",
+ "events": [
+  {
+   "t0Ms": 1778887560000,
+   "relSec": 360,
+   "type": "apnea",
+   "durSec": 22,
+   "desatPct": 4.2,
+   "meta": {
+    "rem": 0.05,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778888692740.9397,
+   "relSec": 1492.7,
+   "type": "apnea",
+   "durSec": 12,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778889173579.8845,
+   "relSec": 1973.6,
+   "type": "apnea",
+   "durSec": 18,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778890497302.1165,
+   "relSec": 3297.3,
+   "type": "hypopnea",
+   "durSec": 15,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.05,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778890982404.6611,
+   "relSec": 3782.4,
+   "type": "hypopnea",
+   "durSec": 24,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.2,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778892110882.001,
+   "relSec": 4910.9,
+   "type": "apnea",
+   "durSec": 13,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778892521475.0034,
+   "relSec": 5321.5,
+   "type": "hypopnea",
+   "durSec": 14,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.4,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778892933278.0059,
+   "relSec": 5733.3,
+   "type": "hypopnea",
+   "durSec": 17,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.07,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778893731216.8022,
+   "relSec": 6531.2,
+   "type": "apnea",
+   "durSec": 18,
+   "desatPct": 3.7,
+   "meta": {
+    "rem": 0.07,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778896641733.5012,
+   "relSec": 9441.7,
+   "type": "apnea",
+   "durSec": 27,
+   "desatPct": 4.5,
+   "meta": {
+    "rem": 0.29,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778897092586.4856,
+   "relSec": 9892.6,
+   "type": "hypopnea",
+   "durSec": 23,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.29,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778897538335.47,
+   "relSec": 10338.3,
+   "type": "apnea",
+   "durSec": 21,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.58,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778899815922.6726,
+   "relSec": 12615.9,
+   "type": "apnea",
+   "durSec": 14,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.09,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778902699653.954,
+   "relSec": 15499.7,
+   "type": "hypopnea",
+   "durSec": 22,
+   "desatPct": 4.2,
+   "meta": {
+    "rem": 0.38,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778905225254.2822,
+   "relSec": 18025.3,
+   "type": "apnea",
+   "durSec": 16,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.11,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778905698468.1174,
+   "relSec": 18498.5,
+   "type": "hypopnea",
+   "durSec": 19,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.11,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778906175828.9128,
+   "relSec": 18975.8,
+   "type": "hypopnea",
+   "durSec": 20,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778906654572.0283,
+   "relSec": 19454.6,
+   "type": "hypopnea",
+   "durSec": 24,
+   "desatPct": 4.2,
+   "meta": {
+    "rem": 0.11,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778909511517.892,
+   "relSec": 22311.5,
+   "type": "apnea",
+   "durSec": 23,
+   "desatPct": 4.8,
+   "meta": {
+    "rem": 0.94,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778909821026.9832,
+   "relSec": 22621,
+   "type": "apnea",
+   "durSec": 24,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.94,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778910131422.0742,
+   "relSec": 22931.4,
+   "type": "hypopnea",
+   "durSec": 21,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.12,
+    "supine": false
+   }
+  },
+  {
+   "t0Ms": 1778910610047.0308,
+   "relSec": 23410,
+   "type": "apnea",
+   "durSec": 20,
+   "desatPct": 3.5,
+   "meta": {
+    "rem": 0.12,
+    "supine": true
+   }
+  },
+  {
+   "t0Ms": 1778913458064.4219,
+   "relSec": 26258.1,
+   "type": "hypopnea",
+   "durSec": 18,
+   "desatPct": 3.6,
+   "meta": {
+    "rem": 0.5,
+    "supine": true
+   }
+  }
+ ],
+ "periodicBreathing": []
+}

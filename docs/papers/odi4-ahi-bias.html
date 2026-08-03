@@ -109,22 +109,45 @@
   <h3 class="sub">2.1 Detector</h3>
   <p>ODI-4 was computed by the production detector (<code>oxydex-dsp.js → processNight</code>): artifact cleaning, a rolling SpO₂ baseline, 4%-desaturation event detection, and the derived index. The shipped AHI surrogate is <code>computeAHIestimates → ahiODI4 = ODI-4 × 1.1</code>. The original characterization (Table 1, &ldquo;before&rdquo; column) used the unmodified detector with a <b>trailing-mean</b> baseline (<code>computeBaselineArr</code>). The corrected results (&ldquo;after&rdquo;) use the same pipeline with a single change: <code>detectODI</code> now measures desaturations against a trailing <b>p90 ceiling</b> baseline (<code>computeCeilingBaselineArr</code>). No other detector parameter and no surrogate constant was altered.</p>
   <h3 class="sub">2.2 Recordings and reference AHI</h3>
-  <p>The pilot uses the five committed <b>synthetic</b> overnight O2Ring recordings of the reference subject (<code>SubjectA</code>, rendered deterministically by <code>synth-gen</code>), each with a <b>planted</b> reference AHI. SpO₂ is sampled at 1 Hz. Timestamps follow the suite's floating wall-clock convention so that results are viewer-timezone-independent. The analysis apparatus (<code>odi-bias-analysis.html</code>) additionally ingests (i) large-N synthetic cohort points and (ii) real PSG datasets (NSRR: SHHS/MESA/MrOS/CHAT) via an EDF + annotation-XML adapter, where the scored apneas + hypopneas divided by staged sleep hours give a PSG reference AHI; neither is used for the pilot numbers below.</p>
+  <p>The pilot uses the five <b>committed</b> synthetic overnight O2Ring recordings of the reference subject (<code>SubjectA</code>, rendered deterministically by <code>synth-gen</code> at seed <code>424242</code>, <code>VERSION synth-gen/2.1</code>), each with a <b>planted</b> reference AHI. <b>Committed as of 2026-08-03</b> — until then this sentence was false: the corpus was gitignored and absent from every clone, so the paper could not be reproduced by anyone, including its author. The bytes now live in <code>uploads/</code> with their hashes recorded in Table 1's caption. SpO₂ is sampled at 1 Hz. Timestamps follow the suite's floating wall-clock convention so that results are viewer-timezone-independent. The analysis apparatus (<code>odi-bias-analysis.html</code>) additionally ingests (i) large-N synthetic cohort points and (ii) real PSG datasets (NSRR: SHHS/MESA/MrOS/CHAT) via an EDF + annotation-XML adapter, where the scored apneas + hypopneas divided by staged sleep hours give a PSG reference AHI; neither is used for the pilot numbers below.</p>
   <h3 class="sub">2.3 Statistics</h3>
   <p>We fit ordinary least squares for ODI-4 as a function of reference AHI (the under-count slope), a Bland–Altman analysis of ODI-4 − AHI, and the median ODI/AHI ratio per severity stratum (none &lt;5, mild 5–15, moderate 15–30, severe ≥30 events/h). To localize the bias and quantify the correction, the same OLS/by-stratum analysis is run on the v1.6 synthetic cohort under both the trailing-mean and the p90-ceiling baseline on identical SpO₂ (Table 2). The legacy <code>odi-bias-analysis.html</code> tool additionally compares fixed-×1.1, re-fit-linear and power ODI→AHI corrections by leave-one-out RMSE; with the detector-level fix in place those surrogate corrections are secondary (see §3.1).</p>
 
   <h2 class="sec">3. Results</h2>
   <table class="data">
-    <caption class="tbl-cap"><b>Table 1.</b> Per-night OxyDex ODI-4 vs reference AHI, pilot corpus (SubjectA, five nights). <b>Before</b> = trailing-mean baseline (original); <b>After</b> <span style="color:#1a6e3a">(fixed)</span> = p90 ceiling baseline, real <code>processNight</code> output.</caption>
-    <thead><tr><th>Night</th><th>ODI-4 before</th><th>ODI-4 after</th><th>Reference AHI</th><th>ODI−AHI before</th><th>ODI−AHI after</th><th>Severity</th></tr></thead>
+    <caption class="tbl-cap"><b>Table 1.</b> Per-night OxyDex ODI-4 vs reference AHI, pilot corpus (SubjectA, five nights).
+      <b>REPLACED 2026-08-03 — this is a NEW pinned corpus, not a reproduction of the previous table.</b>
+      The corpus the original before/after columns were computed from was never committed and
+      <b>cannot be recovered</b>; the generator has moved since (<code>synth-gen/2.1</code>, plus the
+      Mayer-wave and desaturation-kinetics corrections). Those columns are therefore not reproducible by
+      anyone and have been removed rather than carried as unverifiable numbers &mdash; the honest
+      third outcome the reproducibility brief allows. What replaces them is a single ODI-4 column from
+      the <b>current</b> detector run on a corpus that is now <b>committed to the repository</b>.
+      <b>Provenance:</b> <code>synth-gen</code> seed <code>424242</code>, <code>VERSION synth-gen/2.1</code>;
+      inputs <code>uploads/O2Ring S 2100_2026051{1231000,2235500,3225000,4230500,5232000}.csv</code> with
+      <code>ground_truth_night{1..5}.json</code>; SHA-256[0:16] <code>ceb5f5718f1b55b5</code>,
+      <code>46a2ce2bb67296b4</code>, <code>8bab076d46fd84aa</code>, <code>a1931c5acbc870b3</code>,
+      <code>0e4610b1aaa67478</code>. Regenerate: drive <code>window.SYNTH.buildTimelines(424242)</code> and
+      <code>renderOxy</code>; the bytes are committed so a drifting generator produces a diff, not a silent
+      substitution.</caption>
+    <thead><tr><th>Night</th><th>ODI-4</th><th>Reference AHI</th><th>ODI−AHI</th><th>Severity</th></tr></thead>
     <tbody>
-      <tr><td>1</td><td>6.4</td><td>12.0</td><td>22</td><td>−15.6</td><td>−10.0</td><td>moderate</td></tr>
-      <tr class="hi"><td>2</td><td>7.6</td><td>14.9</td><td>38</td><td>−30.4</td><td>−23.1</td><td>severe</td></tr>
-      <tr><td>3</td><td>0.9</td><td>1.9</td><td>7</td><td>−6.1</td><td>−5.1</td><td>mild</td></tr>
-      <tr><td>4</td><td>0.5</td><td>0.8</td><td>4</td><td>−3.5</td><td>−3.2</td><td>none</td></tr>
-      <tr><td>5</td><td>0.1</td><td>0.8</td><td>3</td><td>−2.9</td><td>−2.2</td><td>none</td></tr>
+      <tr><td>1</td><td>17.7</td><td>22</td><td>−4.3</td><td>moderate</td></tr>
+      <tr class="hi"><td>2</td><td>33.1</td><td>38</td><td>−4.9</td><td>severe</td></tr>
+      <tr><td>3</td><td>2.4</td><td>7</td><td>−4.6</td><td>mild</td></tr>
+      <tr><td>4</td><td>0.9</td><td>4</td><td>−3.1</td><td>none</td></tr>
+      <tr><td>5</td><td>0.8</td><td>3</td><td>−2.2</td><td>none</td></tr>
     </tbody>
   </table>
+  <p><b>On the pinned corpus the under-count is far smaller and much flatter than previously published:</b>
+  −4.3, −4.9, −4.6, −3.1, −2.2 events·h⁻¹ across planted AHI 22/38/7/4/3, against the earlier
+  −10.0 … −23.1. <b>This is not evidence that the detector improved.</b> The corpus changed at the same
+  time — these are different inputs from a corrected generator (the desaturation-kinetics fix was made
+  precisely because the earlier kinetics were unrealistic), so the two sets are not comparable and no
+  before/after inference is available from them. What the new column does support is narrower and
+  reproducible: on a corpus anyone can now re-run, the residual ODI-4 under-count is roughly constant at
+  2–5 events·h⁻¹ rather than growing with severity.</p>
+
   <p>With the original trailing-mean baseline ODI-4 was strongly linear in reference AHI but with slope <b>0.23</b> (R² <b>0.93</b>): the detector recovered roughly one quarter of scored events, and the absolute deficit widened with severity (the severe night, AHI 38, returned ODI-4 7.6 — a −30.4 events/h under-count). <span style="color:#1a6e3a"><b>(fixed)</b></span> The p90 ceiling baseline lifts the pilot slope to <b>≈0.44</b> (R² ≈ 0.94) and cuts the severe-night deficit from −30.4 to −23.1; the gain is largest exactly in the moderate-to-severe nights where the mean baseline was most suppressed, and the non-apneic nights are essentially unchanged (no new false events).</p>
 
   <figure>

@@ -165,10 +165,73 @@ generator, regenerate, then pin — the order now specified in
 - [x] **(a) vs (b) decided** — inputs, by the era experiment in §6.1.
 - [x] The §6 "Run it" recipe verified end-to-end (it was broken; fixed in the parent brief's work).
 - [x] Paper carries an honest status banner naming what is and is not established.
-- [ ] Corpus pinned — **deliberately deferred** behind the generator fix, per §6.5.
-- [ ] Table 1 reproduced or corrected — **blocked** on the same; a re-run against a defective fixture
-      would answer nothing.
+- [x] **Corpus pinned 2026-08-03 (§7)** — the deferral's blocker (`SYNTH-GEN-DESAT-KINETICS`) has been
+      **DONE since 2026-08-01**. Five nights + five ground truths committed as BYTES (3.8 MB, synthetic,
+      no privacy bar), seed `424242`, `VERSION synth-gen/2.1`, hashes in the paper.
+- [x] **Table 1 REPLACED 2026-08-03 (§7)** — not reproduced: the old corpus cannot be recovered, so the
+      unverifiable before/after columns were removed rather than carried. One ODI-4 column from the
+      current detector on the now-committed corpus, with a full provenance line.
 - [ ] Smoke leg for the SubjectA path — still open; belongs with the pinned corpus.
 
 **This brief stays open** and is now downstream of `SYNTH-GEN-DESAT-KINETICS`. The question it was
 spawned to answer is answered; the remedy it prescribed turned out to have a prerequisite.
+
+---
+
+## §7 · EXECUTED 2026-08-03 — the corpus is pinned and Table 1 is replaced
+
+### 7.1 · The deferral's blocker had been gone for two days
+
+§6.6 deferred the pin behind `SYNTH-GEN-DESAT-KINETICS`. That brief has been **DONE since 2026-08-01**
+with zero open items, so §6.5's prescribed order — *"fix the generator, regenerate, then pin"* — was
+sitting at step 2 with nothing in the way. Fourth stale premise found this way; the pattern is always the
+same, and always found by checking the tree rather than the status line.
+
+### 7.2 · The paper was making a FALSE provenance claim
+
+`papers/odi4-ahi-bias.html` told readers the pilot used *"the five **committed** synthetic overnight
+O2Ring recordings"*. Checked three ways: **zero** SubjectA bytes in `origin/main`, **none** present in
+`uploads/` on this machine, and the analysis page fetching five hardcoded filenames that resolve to
+nothing on a clean checkout. The paper asserted reproducibility it did not have — which is §3's own
+finding (*"a paper whose reference corpus is gitignored cannot be reproduced by anyone, including its
+author on a fresh clone"*) sitting unnoticed inside the paper's own text.
+
+### 7.3 · Pinned as BYTES, deliberately
+
+§4 allowed either committed bytes **or** a recorded seed + version. **Bytes were chosen**, because a
+recorded seed alone is effectively what existed before: the generator moved and the corpus died silently,
+which is precisely why Table 1 stopped reproducing. Bytes cannot move without producing a diff. The seed
+and version are recorded *as well*, so the regeneration recipe is documented and checkable — but the
+bytes are the pin.
+
+The default seed `424242` reproduces the **exact five filenames** the analysis page hardcodes, which is
+itself a small confirmation that the recipe is the right one.
+
+### 7.4 · Table 1 is REPLACED, not reproduced
+
+The old corpus cannot be recovered, so its before/after columns are not reproducible by anyone. They were
+**removed** rather than carried as unverifiable numbers — the third outcome §4 explicitly permits. What
+replaces them is one ODI-4 column from the current detector on the committed corpus:
+
+| night | ODI-4 (pinned) | planted AHI | ODI−AHI | previously published (after) |
+|---|---|---|---|---|
+| 1 | 17.7 | 22 | −4.3 | 12.0 (bias −10.0) |
+| 2 | 33.1 | 38 | −4.9 | 14.9 (bias −23.1) |
+| 3 | 2.4 | 7 | −4.6 | 1.9 (bias −5.1) |
+| 4 | 0.9 | 4 | −3.1 | 0.8 (bias −3.2) |
+| 5 | 0.8 | 3 | −2.2 | 0.8 (bias −2.2) |
+
+**The severity-proportional under-count has largely flattened** — roughly constant at 2–5 events·h⁻¹
+instead of growing to −23. **This is NOT evidence the detector improved.** The corpus changed at the same
+time, and the desaturation-kinetics fix was made precisely because the earlier kinetics were unrealistic.
+Two variables moved, so no before/after inference is available and the paper now says so in place. What
+the new column supports is narrower and reproducible: *on a corpus anyone can re-run*, the residual
+under-count is roughly constant.
+
+### 7.5 · Still open
+
+- The **smoke leg** for the SubjectA path (§4's last item). Now much cheaper than before — the inputs are
+  committed, so a node-lane leg no longer needs a browser `fetch` or a gitignored corpus. Left for a
+  separate unit rather than bundled here.
+- The paper's **Figure 1** still renders from the analysis page and has not been regenerated against the
+  pinned corpus; its caption describes the old calibration.
