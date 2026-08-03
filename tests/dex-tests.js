@@ -5315,9 +5315,12 @@
         T.ok(n + " · strict script-src: 'self' + __DEX_SCRIPT_HASHES__, no 'unsafe-inline'", /__DEX_SCRIPT_HASHES__/.test(ss) && /'self'/.test(ss) && !/'unsafe-inline'/.test(ss), ss);
       });
 
-      // (c) runtime innerHTML handlers in *.js
+      // (c) runtime innerHTML handlers in *.js — and ONLY *.js. env.sources also carries non-JS
+      // entries (ans-design.css, cohort-runner.html), where an attribute selector like
+      // [data-pulse="true"] trips ON_JS and reports a CSP violation in a stylesheet that cannot
+      // have one. The assertion's own name says *.js source; filter to match it.
       var badJs = Object.keys(SOURCES).filter(function (n) {
-        return !/(^|\/)tests\//.test(n) && ON_JS.test(SOURCES[n]);
+        return /\.m?js$/.test(n) && !/(^|\/)tests\//.test(n) && ON_JS.test(SOURCES[n]);
       });
       T.ok('no runtime innerHTML on*= handler in any *.js source', badJs.length === 0, badJs.join(', '));
 
@@ -6162,6 +6165,131 @@
           T.eq('§10 · PpgDex TASK-FORCE IDENTITY: vlf + lf + hf == totalPower', (pf.vlf || 0) + (pf.lf || 0) + (pf.hf || 0), pf.totalPower);
         }
       }
+    });
+
+    /* ════ THE ENTRANCE GUARD IS INVISIBLE WHEN IT WORKS — so nothing noticed it had a hole ════
+     `ans-design.css` gives content its entrance via keyframes whose `from` is `opacity: 0`, pinned with
+     `animation-fill-mode: both`. Where the document timeline is frozen or never starts — print, PDF
+     export, headless/preview capture, a throttled background tab — the animation never advances and the
+     element holds `opacity: 0`, so the surface renders BLANK. Measured, Chrome headless at
+     `--virtual-time-budget=1`: unmitigated a 400×200 block paints **0** pixels; with the guard, **80000**
+     (= exactly 400×200). Not a fade — total.
+
+     `entrance-guard.js` is the mitigation, inlined into all 8 node bundles. Until this group it was
+     asserted by nothing: it appeared in this file ONCE, as a comment in an exclusion list. That matters
+     more than usual because a guard is invisible when it works — delete it, narrow a selector, or ship a
+     9th node that forgets the <script> line, and every gate stays green while capture output blanks.
+
+     It had already drifted. The guard listed `#kpiStrip .kpi`, but `ans-design.css` animates the BARE
+     `.kpi`, and CPAPDex has no `#kpiStrip` at all — it renders every KPI into its own `.kpi-grid`, so
+     that whole row was unguarded. Confirmed by computed style under a frozen timeline: outside
+     `#kpiStrip`, `opacity=0 / animationName=cardEntrance`; inside, `opacity=1 / none`.
+
+     So the required set is DERIVED from `ans-design.css`, never hard-coded — a newly-animated selector
+     fails this gate until it is guarded, which is the only version that can catch the NEXT drift rather
+     than re-catching this one. Anti-vacuity throughout: if the derivation finds no hazardous keyframes,
+     or no consumers, that is a FAILURE, not a silent pass. ════ */
+    group('Entrance guard covers every from-opacity:0 selector ans-design.css animates (BLANK-ON-PRINT-FLEET §3)', 'ans-design · entrance-guard · source-scan · a11y-print', function (T) {
+      var src = env.sources || {};
+      var css = src['ans-design.css'];
+      var guard = src['entrance-guard.js'];
+      if (typeof css !== 'string' || css.length < 5000 || typeof guard !== 'string' || guard.length < 200) {
+        T.skip('ans-design.css + entrance-guard.js in env.sources', 'wire BOTH into readSources() and SOURCE_FILES');
+        return;
+      }
+
+      // ── derive: which keyframes start from opacity:0? ──
+      var haz = [];
+      var kfRe = /@keyframes\s+([\w-]+)\s*\{/g, m;
+      while ((m = kfRe.exec(css))) {
+        var name = m[1], i = m.index + m[0].length, depth = 1, j = i;
+        while (j < css.length && depth) {
+          if (css[j] === '{') depth++;
+          else if (css[j] === '}') depth--;
+          j++;
+        }
+        var first = /(?:from|0%)\s*\{([^}]*)\}/.exec(css.slice(i, j - 1));
+        if (first && /opacity\s*:\s*0(?![.\d])/.test(first[1])) haz.push(name);
+      }
+      T.ok('derivation is non-vacuous — found from-opacity:0 keyframes', haz.length > 0, 'found ' + haz.length + ' — if 0, this gate proves nothing');
+
+      // ── derive: which selectors consume them? ──
+      var need = [];
+      var ruleRe = /([^{}]+)\{([^{}]*)\}/g, r;
+      while ((r = ruleRe.exec(css))) {
+        var sel = r[1].trim(), body = r[2];
+        var am = /animation\s*:\s*([^;]+)/.exec(body);
+        if (!am) continue;
+        for (var k = 0; k < haz.length; k++) {
+          if (new RegExp('\\b' + haz[k] + '\\b').test(am[1])) {
+            sel.split(',').forEach(function (one) {
+              one = one.trim().split('\n').pop().trim();
+              // an attribute/pseudo variant targets the same element as its base selector, which the
+              // guard already pins with !important (important beats specificity) — reduce to the base.
+              var base = one.replace(/\[[^\]]*\]/g, '').replace(/:{1,2}[\w-]+(\([^)]*\))?/g, '').trim();
+              if (base && need.indexOf(base) < 0) need.push(base);
+            });
+            break;
+          }
+        }
+      }
+      T.ok('derivation is non-vacuous — found rules consuming them', need.length > 0, need.length + ' selector(s): ' + need.join(' '));
+
+      // ── the guard must pin each, and pin it hard ──
+      T.ok('guard pins animation off with !important', /animation\s*:\s*none\s*!important/.test(guard), 'an !important declaration is what overrides a RUNNING animation');
+      T.ok('guard pins opacity on with !important', /opacity\s*:\s*1\s*!important/.test(guard), '');
+      /* Reconstruct the guard's CSS from its concatenated JS string literals, then compare WHOLE
+         selectors. A substring test cannot do this job: `#kpiStrip .kpi` CONTAINS `.kpi`, so the
+         narrower selector that actually shipped the CPAPDex blank would read as covering the bare
+         one. Established by mutation, not by reasoning — that exact revert SURVIVED a substring
+         check and reds against this one. */
+      // Strip BLOCK comments before line comments: the file header is a /* … */ containing prose
+      // apostrophes ("the bundle's template"), and an apostrophe reads as a string delimiter to the
+      // extractor below — which slurped the header into the selector set and produced a confident,
+      // wrong answer. Comments first, literals second.
+      var lit = guard.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+      // …and drop bare-identifier literals before joining. `var ID = 'dx-entrance-guard'` fused onto
+      // the first selector and made `.main-wrap` read as absent — a false RED, the mirror of the false
+      // GREEN the substring test gave. (Slicing to `var css = … ;` instead does NOT work: the CSS
+      // literals contain `;`, so the statement's end cannot be found by scanning for one.)
+      var joined = (lit.match(/'(?:[^'\\]|\\.)*'/g) || [])
+        .filter(function (q) {
+          return !/^'[\w-]*'$/.test(q); // 'dx-entrance-guard', 'style', 'head', ''
+        })
+        .map(function (q) {
+          return q.slice(1, -1);
+        })
+        .join('');
+      var guarded = {};
+      var gRe = /([^{}]+)\{[^{}]*\}/g,
+        gm;
+      while ((gm = gRe.exec(joined))) {
+        gm[1].split(',').forEach(function (one) {
+          var t = one.trim();
+          if (t) guarded[t] = true;
+        });
+      }
+      var guardedList = Object.keys(guarded);
+      T.ok('guard CSS parsed into whole selectors (non-vacuous)', guardedList.length >= 5, guardedList.length + ' parsed — if this is 0 the coverage checks below are hollow');
+      need.forEach(function (sel) {
+        T.ok('guard covers ' + sel, guarded[sel] === true, 'ans-design.css animates it from opacity:0; unguarded it renders blank on a frozen timeline. Guard covers: ' + guardedList.join(' '));
+      });
+
+      // ── and every node shell must actually load the guard (the wiring half) ──
+      var shells = env.srcHtml || {};
+      var names = Object.keys(shells);
+      T.ok('src.html shells available (non-vacuous wiring check)', names.length >= 8, names.length + ' shell(s) — wire env.srcHtml in BOTH runners');
+      names.forEach(function (n) {
+        var txt = shells[n] || '';
+        if (!/ans-design\.css/.test(txt)) return; // not an animated shell — nothing to guard
+        if (/^Integrator\./.test(n)) {
+          // the Integrator carries its own scoped guard in integrator-render.js; assert that, don't skip it
+          var ir = (env.sources || {})['integrator-render.js'] || '';
+          T.ok(n + ' guarded (scoped, in integrator-render.js)', /animation\s*:\s*none\s*!important/.test(ir), 'Integrator has no entrance-guard.js and its scoped guard is missing too');
+          return;
+        }
+        T.ok(n + ' loads entrance-guard.js', /entrance-guard\.js/.test(txt), 'this app inherits the from-opacity:0 entrances with nothing pinning them');
+      });
     });
 
     group('ECGDex respRate aggregation (median, not HF-peak)', 'ecgdex-dsp', function (T) {
