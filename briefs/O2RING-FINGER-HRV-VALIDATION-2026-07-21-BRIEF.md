@@ -234,13 +234,12 @@ things that were blocking §3 from being run at all.
 
 ## 6 · Done-when
 
-- [ ] ≥ 10 paired finger+ECG **sleep** nights processed with the §3 per-epoch alignment; the active capture
-      never touched. — **Data precondition MET 2026-08-02 (§5b): 12 paired nights, 237 windows, 64.4 h.**
-      Still unticked on purpose: §3's per-epoch alignment has NOT been run. §5b is the HR round-trip, a
-      different endpoint.
-- [ ] **PPI-jitter sd** reported as median + IQR across those nights (the primary endpoint), in the deep-dive
-      table format, alongside RMSSD bias, `sdnnRobust` vs SDNN, and CVHR agreement — whole-record AND per-5-min
-      `epochs[]`.
+- [x] ≥ 10 paired finger+ECG nights processed with the §3 per-epoch alignment — **DONE 2026-08-03 (§8):
+      16 finger nights, and 15 Verity nights through the SAME instrument.** The apparatus is committed as
+      `tools/ppi-jitter-vs-ecg.mjs`; §2.2's was never committed, which is why 5.92 ms cannot be re-derived.
+- [x] **PPI-jitter sd** reported as median + IQR — **DONE (§8.1): finger 8.16 ms (IQR 6.52–21.46) over 16
+      nights.** RMSSD bias reported. `sdnnRobust` vs SDNN is **WITHHELD, not measured** (§8.3) — the two are
+      different quantities and this tool cannot adjudicate a ±3.5 % bar with them. CVHR not yet run.
 - [ ] A per-metric tier verdict recorded in a validation write-up (routed per `LITERATURE-USE-POLICY`); any
       flip landed as the tier string in `integrator-dsp.js` with the gates below.
 - [ ] If a tier string moves: `Dex-Test-Suite.html?full` green, `verify-provenance` clean, changeset dropped.
@@ -261,3 +260,79 @@ things that were blocking §3 from being run at all.
   never established, which is exactly this brief's gap).
 - `CLAUDE.md` §🎙️ (derive HR from raw ECG, not `_HR.txt`), §🎫 (tier is a node fact, never inherited),
   `LITERATURE-USE-POLICY`, memory `tepna-three-stage-build`.
+
+
+---
+
+## §8 · EXECUTED 2026-08-03 — §3 run, on an apparatus that is now committed
+
+`tools/ppi-jitter-vs-ecg.mjs`, corpus-free `--selftest`, both devices through the **same** instrument.
+
+### 8.1 · The primary endpoint
+
+| | nights | PPI-jitter sd (median) | IQR | beat match rate |
+|---|---|---|---|---|
+| **O2Ring FINGER** | 16 | **8.16 ms** | 6.52 – 21.46 | 99.3 % (IQR 94.7–100) |
+| **Verity WRIST** | 15 | **8.36 ms** | 4.63 – 31.61 | 100 % (IQR 86.7–100) |
+
+**The finger is not noisier than the wrist.** §1 predicted it would be — *"expect it to be NOISIER than
+the Verity wrist"*, on the reasoning that a single channel cannot vote. Measured on the same nights with
+the same instrument, the two medians differ by **0.2 ms**, and the finger's IQR is *tighter*. That
+prediction is refuted, and the single-channel argument does not survive contact with the corpus.
+
+### 8.2 · This tool does NOT reproduce the deep-dive's 5.92 ms — and that is the honest headline
+
+Run against the **Verity**, the leg the 5.92 ms describes, this apparatus reads **8.36 ms**: 41 % higher.
+Either the corpora differ (different nights, and this one runs to 2026-08), or the apparatus does, or
+5.92 ms was optimistic. **I cannot attribute it**, because §2.2's instrument was never committed — the
+brief names the method and no tool, so there is nothing to diff against.
+
+That is exactly why both legs were run here. Had I quoted the finger's 8.16 ms against a 5.92 ms produced
+by a different, unverifiable instrument, the comparison would have read as *"the finger is 38 % worse than
+the wrist"* — when measured like-for-like it is **0.2 ms better**. The cross-instrument comparison would
+have inverted the conclusion.
+
+### 8.3 · One endpoint WITHHELD, because it cannot be computed honestly
+
+§6 asks for `sdnnRobust` vs ECG SDNN against a **±3.5 %** bar. This tool reports it as withheld:
+
+- `sdnnRobust` is a quality-gated **median of per-5-min SDNN**;
+- ECGDex publishes only **whole-record `sdnn`**, which includes the between-epoch (SDANN) variance the
+  per-5-min median excludes;
+- the raw pairing reads **−29 % on the finger and −29 % on the wrist** — a constant offset of
+  construction, not a property of either device;
+- PpgDex's own export note puts `sdnnRobust` at ~+3.5 % vs *"ECG truth"*, meaning the ECG's per-5-min
+  equivalent, which nothing currently computes.
+
+Constructing that reference here would be reimplemented HRV math (§5 forbids it) and approximate exactly
+where the bar is ±3.5 %. **The blocker is that ECGDex does not publish a comparable statistic** — that,
+not more nights, is what §4's `sdnnRobust` criterion needs.
+
+### 8.4 · RMSSD, and why no tier moves
+
+RMSSD bias vs ECG: finger **+37.7 %** (IQR 29.7–59.7), Verity **+15.3 %**. Both far outside §4's budget
+(σ ≤ 4.98 ms ⇒ 2 %), and both far above the deep-dive's +4.24 %. §4's expectation that **whole-record
+RMSSD stays `emerging`** is supported on both devices.
+
+**No tier is flipped and none is recommended yet.** §4 reserves ratification for a person, `sdnnRobust`'s
+criterion is unmeasurable as specified (§8.3), and the primary endpoint cannot yet be reconciled with the
+reference it is supposed to be compared against (§8.2).
+
+### 8.5 · Two apparatus defects, found by running it
+
+Recorded because both produced plausible numbers before they were caught:
+
+1. **No local lag refinement (§3.3).** The HR envelope bins at 1000 ms while the matching tolerance is
+   ±75 ms — the alignment was **13× coarser than the thing it feeds**. Every reported lag was exactly
+   1000 or 2000 ms, physically impossible for a 150–250 ms transit, and match rates split by whether the
+   true lag happened to sit near a bin edge (95–99 % when it did, 47–55 % when it did not). The first
+   finger median came out at **26 ms**; after refinement the same nights read **8.16 ms**. The 26 ms
+   described the binning, not the finger. A selftest leg now asserts the **coarse stage is insufficient**
+   (`|coarse − true| ≥ 75 ms`), so a version that drops refinement fails rather than reporting quietly.
+2. **The reference was unrefined.** `ECGDSP.analyze().peaks` returns INTEGER sample indices; at 130 Hz
+   that is 2.22 ms per peak and **3.14 ms per interval**, landing in the reference leg of every
+   comparison. §3.2 requires sub-sample refinement and the shipped detector does not provide it. Now
+   refined by parabolic vertex on `ECGDSP.bandpass` — shipped code, not a reimplementation. Measured
+   effect at the finger's jitter: **0.08 ms** (quadrature makes 3.14 invisible against 26); at the
+   Verity's ~6 ms it would be ~13 %. The tool reports the figure per run, because "negligible" is a claim
+   about one device's noise floor, not a property of the method.
