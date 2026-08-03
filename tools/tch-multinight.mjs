@@ -120,6 +120,12 @@ function runNight(night, labels) {
     ok: true,
     rho: rho ? rho.value : null,
     rhoMeanR: rho ? rho.meanPairR : null,
+    // FU-IV §1: the aggregation only has something to aggregate when nPairs > 1. On the trio
+    // corpus it is 1 on every night (ECGDex exports no motion series), so mean/max/any weighted
+    // mean are the SAME number — printed so that stays visible rather than assumed.
+    rhoNPairs: rho ? rho.nPairs : null,
+    rhoNodes: rho ? rho.nMotionNodes : null,
+    extRejected: !!withRho.externalRhoRejected,
     classic,
     withRho,
     truth: night.truth || null,
@@ -295,7 +301,7 @@ function report(rows, { json } = {}) {
     const sc = row.sigmaClassic,
       sr = row.sigmaRho;
     const f3 = (o) => (o ? [o.ECGDex, o.PpgDex, o.OxyDex].map((x) => (x == null ? ' — ' : x.toFixed(2))).join('/') : 'solve-failed');
-    const meth = (row.classic.method || '?') + '→' + (row.withRho.method || '?');
+    const meth = (row.classic.method || '?') + '→' + (row.withRho.method || '?') + (row.extRejected ? ' ⚠ρ-REJECTED' : '');
     console.log(
       '  ' +
         w(row.label, 7) +

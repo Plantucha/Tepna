@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-13 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` (DONE 2026-07-13) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Evidence:** `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §11
+**Status:** IN-PROGRESS — 2026-08-03 (**§1 REFUTED and CLOSED** — `nPairs` is 1 on 24/24 nights, so the proposed re-weighting is a provable no-op; the real blocker is ECGDex exporting no motion series, routed to `INTEGRATOR-TCH-FU-IV-FOLLOWUPS-2026-08-03-BRIEF.md`. **§1.4 SHIPPED.** §2/§3 unchanged) · **Created:** 2026-07-13 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` (DONE 2026-07-13) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Evidence:** `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §11
 
 # Integrator three-cornered-hat — follow-ups IV (coupled-pair-weighted ρ · carried polish · N-cornered)
 
@@ -60,6 +60,59 @@ hypothesis, now **confirmed on real nights**.
 and its GATE-B triple re-recorded (`_diag/tch-golden-gen.html`), the Integrator re-bundled, and
 `Dex-Test-Suite.html?full` + `verify-provenance.html` re-run. Per §📦 this is a **MINOR** (the estimator's
 recovered values move; no contract shape changes) and needs a changeset. Serialize against other bundle work.
+
+### ⛔ §1-RESULT (2026-08-03) — the payload is REFUTED. There is no mean to dilute.
+
+**§1's mechanism does not exist on this corpus, and the aggregation change is a provable no-op.**
+
+`_tchRhoFromMotion` aggregates the *mean of the positive pairwise motion correlations*. §1 argued that
+mean dilutes the quiet-order shape — "one tightly-coupled pair (H10↔OxyDex r≈0.9) against two loose ones
+(≈0.4)". Instrumenting the aggregation and running all 24 committed trio nights:
+
+```
+24/24 nights:  MOTION have=[PpgDex,OxyDex]  missing=[ECGDex]  nPairs=1
+```
+
+**`nPairs` is 1 on every single night.** There are never three pairwise correlations, so there is nothing
+to dilute: `mean`, `max`, a magnitude-weighted mean and a per-pair solve are all **the same number** on
+all 24 nights. Any re-weighting of the aggregation moves exactly zero nights, and the §1 acceptance
+criterion (the five failed nights rescuing) cannot be met by it *in principle*.
+
+FU-III §6 read its strong rescue as lucky — *"H10 motion was unavailable, so ρ came from the single
+coupled Verity↔OxyDex pair"*. That is not an accident. **It is every night.** The hypothesis was recorded
+as "confirmed on real nights" (§1, from docs §11) on the strength of the *symptom* — small ρ on the failed
+nights — without checking that the *mechanism* was present. It was not.
+
+**The actual binding constraint: ECGDex exports no motion series.** Its `timeseries.epochs` carry
+`tMin · hr · rmssd · sdnn · lfhf · position` and no `motionIndex`. This is **not** a missing sensor — the
+H10 has an accelerometer, `ecgdex-dsp.js` reads it (`rec.deviceACC`) and already computes per-epoch gross
+motion from jerk (`epochMotion`, `ecgdex-dsp.js:1844`, called into `_epochMot` at :2415). The third corner
+exists in the DSP and is **dropped at the export boundary**. Until it is published there is one pair, ρ
+rests entirely on PPG-wrist ↔ ring-finger, and the aggregation question is not yet askable.
+
+**Routed, not attempted here:** publishing `motionIndex` on ECGDex's export epochs is additive but forces
+an ECGDex re-bundle *and* regenerating the 24 committed trio ECGDex exports from raw ECG+ACC — a separate
+deliberate pass. → `INTEGRATOR-TCH-FU-IV-FOLLOWUPS-2026-08-03-BRIEF.md`.
+
+**What DID ship from §1, because it is real and unblocked — §1.4.** The kernel's silent fall-through is
+now declared. When a consumer supplies `opts.rho` that is below the geometry's non-negativity **floor**,
+`threeCorneredHat` falls into the auto min-ρ search — boundary-seeking by construction — and pins the
+quiet corner at σ ≈ 0. The only way to detect that was to compare `method` against the ρ you passed.
+`externalRhoRejected` + `externalRho` (additive, back-compat, `false`/`null` on every path that rejected
+nothing) make it legible, and `tools/tch-multinight.mjs` now prints `⚠ρ-REJECTED`.
+
+Running it corrects §1's own bookkeeping: the brief lists **five** failed nights as one population, but
+they are **two different failures**, and only now can you see which is which —
+
+| night | ρ offered | outcome |
+|---|---|---|
+| 2026-06-24 · 07-05 · 07-07 · 07-09 | 0.04 · 0.37 · 0.13 · 0.49 | **ρ REJECTED** — below the floor, auto branch, corner pinned 0.01–0.07 |
+| 2026-06-29 | 0.39 | ρ **applied** (`correlated-external`) and simply too small — corner 0.04 → 0.13 |
+
+Four nights were never given the ρ they were offered. One was, and it did not help. Those need different
+fixes, and the brief treated them as one.
+
+**§1 is CLOSED as refuted**; §1.4 shipped; the real unblock is routed. §2 and §3 stand unchanged.
 
 ## §2 — carried golden polish from FU-III §2/§3 🟢 (LOW — optional, unchanged)
 Both are **verbatim carries**, re-deferred at FU-III's DONE stamp, still LOW:

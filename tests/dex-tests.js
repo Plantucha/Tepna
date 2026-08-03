@@ -1325,6 +1325,64 @@
       } else T.ok('#6: inverseVarianceWeights present', false);
     });
 
+    /* ════ FU-IV §1.4 — a REJECTED external ρ must say so, not be inferable from `method` ═══════
+       When a consumer supplies `opts.rho` that is too small to admit a non-negative solve, the
+       kernel falls through to the auto min-ρ search — which is boundary-seeking by construction
+       (it returns the SMALLEST ρ that works), so the quiet corner pins at σ ≈ 0. Until now the
+       only way to detect that was to compare `method` against the ρ you passed. On the committed
+       24-night trio corpus this happens on FOUR nights (2026-06-24 · 07-05 · 07-07 · 07-09), each
+       leaving a corner at 0.01–0.07 bpm that reads as a measurement. */
+    group('Integrator TCH — a rejected external ρ is declared, not inferred (FU-IV §1.4)', 'integrator-tch · regression', function (T) {
+      var K = env.IntegratorTCH;
+      if (!K || typeof K.threeCorneredHat !== 'function') {
+        T.ok('IntegratorTCH.threeCorneredHat available', false, 'not wired');
+        return;
+      }
+      var L = ['A', 'B', 'C'];
+      // A clean, positive-variance triplet: three independent noises on a common signal.
+      var n = 240,
+        A = [],
+        B = [],
+        C = [];
+      var seed = 12345;
+      var rnd = function () {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff - 0.5;
+      };
+      for (var i = 0; i < n; i++) {
+        var sig = 60 + 5 * Math.sin((2 * Math.PI * i) / 60);
+        A.push(sig + 0.4 * rnd());
+        B.push(sig + 1.6 * rnd());
+        C.push(sig + 3.2 * rnd());
+      }
+      var plain = K.threeCorneredHat(A, B, C, { labels: L, minN: 12 });
+      T.ok('the fixture solves at all', !!(plain && plain.ok), plain && plain.reason);
+      /* THE FIXTURE REPRODUCES THE REAL SHAPE, and that is asserted rather than assumed: this
+         triplet has negative classic variance, so the kernel takes the boundary-seeking auto
+         branch and pins the quiet corner at σ ≈ 0 — the same state the four trio nights are in. */
+      T.eq('the fixture is a negative-variance (quiet-order) triplet', plain.negative, true);
+      T.eq('…so it lands on the auto min-ρ branch', plain.method, 'correlated');
+      T.ok('…with the quiet corner pinned at the ≈0 boundary', plain.sigma.B < 0.01, 'σB=' + plain.sigma.B);
+      // CONTROL — no external ρ was offered, so nothing can have been rejected. Without this the
+      // assertion below is satisfiable by hardcoding `true`.
+      T.eq('no ρ supplied ⇒ externalRhoRejected is false, never undefined', plain.externalRhoRejected, false);
+      T.eq('…and externalRho is null', plain.externalRho, null);
+
+      /* The ρ that restores a non-negative solve is a FLOOR, not a target. Measured on this
+         fixture the floor sits between 0.4 and 0.6, so 0.1 is below it and 0.8 above. */
+      var tooSmall = K.threeCorneredHat(A, B, C, { labels: L, minN: 12, rho: 0.1 });
+      T.ok('a ρ BELOW the geometry floor does not take the correlated-external path', tooSmall.method !== 'correlated-external', 'method=' + tooSmall.method);
+      T.eq('…and SAYS it was rejected rather than leaving it to be inferred from `method`', tooSmall.externalRhoRejected, true);
+      T.eq('…carrying the value that was offered, so the under-rescue is diagnosable', tooSmall.externalRho, 0.1);
+      T.ok('…and the quiet corner is still pinned — this is the silent under-rescue', tooSmall.sigma.B < 0.01, 'σB=' + tooSmall.sigma.B);
+
+      var enough = K.threeCorneredHat(A, B, C, { labels: L, minN: 12, rho: 0.8 });
+      T.eq('a ρ ABOVE the floor takes the correlated-external path', enough.method, 'correlated-external');
+      T.eq('…and is not reported as rejected', enough.externalRhoRejected, false);
+      T.eq('…nor does it carry an externalRho, having not rejected one', enough.externalRho, null);
+      T.ok('…and the quiet corner lifts clearly off the boundary — the rescue', enough.sigma.B > 0.1, 'σB=' + enough.sigma.B);
+    });
+
     /* ════ Decorrelation quality gate — screenTriplet (TRIO-METHODS-REUSE §Do 3).
      A node that decorrelates from BOTH peers (failed extraction / lost contact) must be
      DROPPED before the 3-way solve, else its garbage contaminates every per-sensor σ. The

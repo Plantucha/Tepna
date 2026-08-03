@@ -313,7 +313,8 @@
     var method,
       rho,
       sig2,
-      negative = false;
+      negative = false,
+      extRejected = false;
 
     // (0) EXTERNAL common-mode rho supplied by the consumer (e.g. an ACC-derived
     // co-motion estimate, or a prior). Positive common-mode BIASES classic without
@@ -327,8 +328,18 @@
         rho = opts.rho;
         negative = cl.a < 0 || cl.b < 0 || cl.c < 0;
         sig2 = { a: Math.max(solX.a, 0), b: Math.max(solX.b, 0), c: Math.max(solX.c, 0) };
+      } else {
+        /* FU-IV §1.4 — the fall-through is now LEGIBLE, not merely inferable. A consumer that
+           supplied a ρ below the geometry's non-negativity FLOOR used to land silently in the auto
+           `correlated` branch below, which is boundary-seeking by construction (it returns the
+           SMALLEST ρ that works), so the quiet corner pins at σ ≈ 0. The only way to detect that
+           was to compare `method` against the ρ you passed. Measured on the committed 24-night
+           trio corpus this is FOUR nights (2026-06-24 · 07-05 · 07-07 · 07-09) — distinct from
+           2026-06-29, whose ρ WAS applied and was merely too small; FU-IV §1 counted all five as
+           one population. Additive + back-compat: `externalRhoRejected` is false, and
+           `externalRho` null, on every path that rejected nothing. */
+        extRejected = true;
       }
-      // else fall through to the classic / auto path below
     }
 
     if (sig2) {
@@ -355,6 +366,8 @@
           negative: true,
           method: method,
           n: n,
+          externalRhoRejected: extRejected,
+          externalRho: extRejected ? opts.rho : null,
           sigma2: _bylabel(labels, sig2),
           diffVar: { AB: Vab, AC: Vac, BC: Vbc }
         };
@@ -374,6 +387,10 @@
       method: method,
       rho: rho,
       negative: negative,
+      /* true ⇔ the caller supplied opts.rho and it did NOT admit a non-negative solve, so this
+         result came from the auto min-ρ search instead. `externalRho` carries what was offered. */
+      externalRhoRejected: extRejected,
+      externalRho: extRejected ? opts.rho : null,
       n: n,
       sigma2: sigma2,
       sigma: sigma,
