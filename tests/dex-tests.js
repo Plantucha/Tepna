@@ -21530,6 +21530,78 @@
       /* ── cpapGreyedPanel / cpapEventTimeline · the honest-absence surfaces ───────────────────────── */
       T.ok('cpapGreyedPanel · escapes its label rather than injecting it', /&lt;img&gt;/.test(CR.cpapGreyedPanel('<img>')));
       T.ok('cpapEventTimeline · no events ⇒ an explicit empty state, not a blank strip', CR.cpapEventTimeline([], false).length > 0);
+
+      /* ══ WAVE 4 · THE *WARN* EDGES — every band was pinned at only ONE end ══════════════════════
+         Waves 1-3 asserted band membership by picking a value inside each band. That pins the `good`
+         edge and leaves the `warn` edge free: `sev(good, warn, v, lower)` reads
+         `v <= good ? ok : v <= warn ? warn : bad`, so zeroing `warn` only changes the verdict for
+         values BETWEEN good and warn — which no assertion used. Measured on the tree, `warn → 0`
+         survives at every one of these call sites.
+
+         It is the louder half clinically: the cut between "watch this" and "this night failed". A
+         mutation there repaints a failing night amber. Each is asserted AT the edge and one step past
+         it, the only pair that pins a `<=` boundary (§7.2: a one-sided test kills `||`→`&&` and leaves
+         every `<`→`<=` alive). */
+      var kSev4 = function (h) {
+        var re = /<div class="kpi-val ([a-z]*)">/g,
+          m,
+          o = [];
+        while ((m = re.exec(h))) o.push(m[1] || 'neutral');
+        return o;
+      };
+      // renderKPIs · hero AHI (5,15). Wave 1 pinned 3→ok and 20→bad; both survive warn=0.
+      T.eq('renderKPIs · hero AHI exactly 15 is warn, 15.1 is bad (the warn edge, not just the good one)',
+        kSev4(CR.renderKPIs({ metrics: { residualAHI: 15 }, therapyHours: 6, nSessions: 1 }))[0] + '/' +
+          kSev4(CR.renderKPIs({ metrics: { residualAHI: 15.1 }, therapyHours: 6, nSessions: 1 }))[0], 'warn/bad');
+      // …and its higher-better neighbour's warn edge, which runs the other way.
+      T.eq('renderKPIs · therapy exactly 2 h is warn, 1.9 h is bad — a higher-better band, same edge logic inverted',
+        kSev4(CR.renderKPIs({ metrics: {}, therapyHours: 2, nSessions: 1 }))[1] + '/' +
+          kSev4(CR.renderKPIs({ metrics: {}, therapyHours: 1.9, nSessions: 1 }))[1], 'warn/bad');
+
+      // residualCard · central (5,10) — wave 1 pinned 12→bad, which survives warn=0.
+      T.eq("residualCard · central exactly 10 is warn, 10.1 is bad (the tighter band's far edge)",
+        residualCardSevs({ centralIndex: 10 })[2] + '/' + residualCardSevs({ centralIndex: 10.1 })[2], 'warn/bad');
+
+      // leakCard · median (12,24) good edge and p95 (18,24) warn edge — different bands, one card.
+      T.eq('leakCard · median leak exactly 12 is ok, 12.1 is warn (the good edge the 15 L/min case could not reach)',
+        mSev(CR.leakCard(night({ medianLeak: 12 })))[0] + '/' + mSev(CR.leakCard(night({ medianLeak: 12.1 })))[0], 'ok/warn');
+      T.eq('leakCard · p95 leak exactly 24 is warn, 24.1 is bad — the two leak metrics SHARE this edge and differ on the other',
+        mSev(CR.leakCard(night({ p95Leak: 24 })))[1] + '/' + mSev(CR.leakCard(night({ p95Leak: 24.1 })))[1], 'warn/bad');
+
+      // ventCard · flow limitation (10,25) warn edge, read out of sessions[0] like the rest of the card.
+      var vSess = function (v) {
+        return mSev(CR.ventCard(night({}, { sessions: [{ metrics: { flowLimitedPct: v } }] })))[5];
+      };
+      T.eq('ventCard · flow-limitation exactly 25 % is warn, 25.1 % is bad', vSess(25) + '/' + vSess(25.1), 'warn/bad');
+
+      /* ── oximetryCard · UNASSERTED until now, and it is the card that grades hypoxia ──────────────
+         Three bands and TWO polarities on one card: ODI and T90 are lower-better, SpO₂ nadir and mean
+         are higher-better. Feeding one shared value is what makes a dropped `lower` flag visible — the
+         same discipline the residual/leak cards use. It also carries an honest-absence path, which has
+         to stay a stated absence rather than becoming a card of zeros. */
+      var oxiNight = function (o) {
+        var oxi = { available: true, coverage: 0.9 };
+        for (var k in o) oxi[k] = o[k];
+        return { metrics: {}, sessions: [{ oximetry: oxi }] };
+      };
+      var oSev = function (o) {
+        return mSev(CR.oximetryCard(oxiNight(o)));
+      };
+      T.eq('oximetryCard · ODI exactly 15 is warn, 15.1 is bad (lower-better)',
+        oSev({ odi: 15 })[0] + '/' + oSev({ odi: 15.1 })[0], 'warn/bad');
+      T.eq('oximetryCard · T90 exactly 5 % is warn, 5.1 % is bad — a far tighter band than ODI on the same card',
+        oSev({ t90Pct: 5 })[1] + '/' + oSev({ t90Pct: 5.1 })[1], 'warn/bad');
+      T.eq('oximetryCard · SpO₂ nadir 85 is warn and 84.9 is bad — HIGHER-better, so the edge runs the other way',
+        oSev({ spo2Nadir: 85 })[2] + '/' + oSev({ spo2Nadir: 84.9 })[2], 'warn/bad');
+      T.eq("oximetryCard · …and nadir 90 is ok, 89.9 warn — the polarity is pinned at BOTH ends (dropping `lower` inverts this)",
+        oSev({ spo2Nadir: 90 })[2] + '/' + oSev({ spo2Nadir: 89.9 })[2], 'ok/warn');
+      T.eq('oximetryCard · SpO₂ mean 92 is warn, 91.9 is bad — a different band from the nadir in the same units',
+        oSev({ spo2Mean: 92 })[3] + '/' + oSev({ spo2Mean: 91.9 })[3], 'warn/bad');
+      T.eq("oximetryCard · pulse median carries NO band — an ungraded metric stays neutral, it does not inherit its neighbour's",
+        oSev({ pulseMedian: 55 })[4], 'neutral');
+      var noOxi = CR.oximetryCard({ metrics: {}, sessions: [{ oximetry: { available: false } }] });
+      T.ok('oximetryCard · no oximeter ⇒ a STATED absence, explicitly "not fabricated", with no graded tiles at all',
+        /No oximeter connected/.test(noOxi) && !/m-val/.test(noOxi), noOxi.slice(0, 90));
     });
 
     /* ════ CPAPDex CARD SURFACE II — the rest of the reachable builders (CLOCK-MUTATION-AUDIT §7.4) ════
