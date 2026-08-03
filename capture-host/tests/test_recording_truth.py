@@ -26,6 +26,7 @@ import pytest
 
 import alerts
 import capture
+from tests._srcscan import module_source
 
 
 @pytest.fixture(autouse=True)
@@ -83,9 +84,7 @@ def test_note_data_stamps_the_device():
 def test_every_stream_path_reports_its_data():
     """A predicate fed by nothing is worse than no predicate — it reports "not recording" forever and
     the alarm never clears. Both the Polar aggregate-flow hook and BOTH O2Ring row paths must call it."""
-    import os
-    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = open(os.path.join(here, "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")
     assert src.count("note_data(name,") >= 3, \
         "expected the Polar flow hook plus both O2Ring row paths to stamp data arrival"
     flow = src.index("if flowed:")
@@ -93,9 +92,7 @@ def test_every_stream_path_reports_its_data():
 
 
 def test_the_alert_loop_keys_on_recording_not_connected():
-    import os
-    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = open(os.path.join(here, "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")
     assert "alerts.device_is_recording(" in src, "the alert loop must consult the predicate"
     assert "if recording:" in src, "…and branch on it rather than on `connected`"
     assert "recording again" in src, "the recovery message must claim recording, not merely a link"
@@ -105,9 +102,7 @@ def test_the_offline_message_names_which_failure_it_is():
     """"offline" and "linked but recording nothing" want different operator responses — a flat battery
     versus a bond failure. Saying "offline" for a strap that is right there, connecting every 70 s,
     sends them looking for the wrong thing."""
-    import os
-    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = open(os.path.join(here, "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")
     assert 'linked but recording nothing' in src
 
 
@@ -156,9 +151,7 @@ def test_every_zero_disables_rebonding():
 def test_the_rebond_is_wired_before_connect():
     """Pairing needs the device's own BLE link, so it can only happen before the session opens —
     the same constraint the clock write has."""
-    import os
-    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = open(os.path.join(here, "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")
     loop = src.index("    while not _STOP.is_set():", src.index("async def run_polar"))
     call = src.index("if rebond_due(", loop)
     connect = src.index("async with _connect(addr)", loop)
@@ -276,8 +269,6 @@ def test_a_raising_bond_check_never_kills_the_capture_task(tmp_path, monkeypatch
 def test_a_successful_rebond_restores_the_full_budget():
     """A later, unrelated bond loss must get the whole retry budget again rather than inheriting a
     half-spent one from hours earlier."""
-    import os
-    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = open(os.path.join(here, "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")
     i = src.index("re-bonded — PMD should hold again")
     assert "rebond_attempts = 0" in src[i:i + 300]

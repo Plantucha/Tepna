@@ -9,6 +9,7 @@
 # set to 1 in the sidecar. Two devices visibly charging, neither flagged.
 
 import oxyii
+from tests._srcscan import module_source
 
 
 def test_the_ring_reports_its_own_charge_state():
@@ -19,7 +20,7 @@ def test_the_ring_reports_its_own_charge_state():
 
 
 def test_ring_charge_flag_is_read_from_batt_state_not_inferred():
-    src = open(__file__.replace("tests/test_charging_state.py", "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")
     assert 'charging=bool(live.get("batt_state"))' in src, \
         "the O2Ring must take charging from its own batt_state, not from a battery trend"
     assert src.count('charging=bool(live.get("batt_state"))') == 2, \
@@ -29,7 +30,7 @@ def test_ring_charge_flag_is_read_from_batt_state_not_inferred():
 def test_polar_charge_is_inferred_from_a_RISING_battery():
     """A Polar exposes no charge flag mid-session. A battery that rises is unambiguous — these cells do
     not self-charge — and a battery that falls means it came off the dock."""
-    src = open(__file__.replace("tests/test_charging_state.py", "capture.py"), encoding="utf-8").read()
+    src = module_source("capture.py")
     assert "lvl > prev" in src and "charging=True" in src
     assert "lvl < prev" in src and "charging=False" in src, \
         "coming off the dock must clear the flag, or it latches on forever"

@@ -18,6 +18,7 @@ import asyncio
 import pytest
 
 import capture
+from tests._srcscan import module_source
 
 
 @pytest.fixture(autouse=True)
@@ -107,9 +108,7 @@ def test_a_failed_restart_reports_false(monkeypatch):
 # ---------------------------------------------------------------- wiring
 
 def _src():
-    import os
-    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return open(os.path.join(here, "capture.py"), encoding="utf-8").read()
+    return module_source("capture.py")
 
 
 def test_the_probe_runs_in_the_NOT_WEDGED_branch():
