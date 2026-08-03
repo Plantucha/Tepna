@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-DwpERTv9a2GT+m0/NAl6GPegC0Eh95sA0OXQurE8dq8=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UgAGee26CkNBegUxPr7FFlm5Z6L3G72NO/hcQ+imx7s=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-hxtclF7doYfS5TM+OYHTmTgzyGrLpT7Qibfg1M7SvBA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-mb0F1fLqp8gHe+5IxfcpJzlsHg5EEXxdS+7pWQhUtAY=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-DwpERTv9a2GT+m0/NAl6GPegC0Eh95sA0OXQurE8dq8=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-O3Ztwrq8bFgJP5Sf5CQH8bCvwiSJrKV/YelgEvpnxs0=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UgAGee26CkNBegUxPr7FFlm5Z6L3G72NO/hcQ+imx7s=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-hxtclF7doYfS5TM+OYHTmTgzyGrLpT7Qibfg1M7SvBA=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -4486,12 +4486,40 @@ function _tchRhoFromMotion(triplet, keys) {
   var pos = rs.map(function (r) {
     return Math.max(r, 0);
   });
-  var mean =
-    pos.reduce(function (a, b) {
-      return a + b;
-    }, 0) / pos.length;
-  var rho = Math.max(0, Math.min(0.9, mean));
-  return { value: +rho.toFixed(3), method: 'cross-node-motion', nMotionNodes: ms.length, meanPairR: +mean.toFixed(3), nPairs: rs.length };
+  var denom = pos.reduce(function (a, b) {
+    return a + b;
+  }, 0);
+  var mean = denom / pos.length;
+  /*      COUPLED-PAIR-WEIGHTED, not the plain mean (FU-IV §1, executed 2026-08-03). The mean was chosen
+     when only two nodes carried motion, where it is the single pair and the choice is vacuous. With
+     ECGDex's chest-ACC motion on the bus there are THREE pairs, and the quiet-order shape is one
+     tightly-coupled pair against two loose ones — which the mean dilutes, exactly in the regime the
+     external ρ exists to rescue. Weighting each pair by its own magnitude (Σr²/Σr) lets a dominant
+     pair lead WITHOUT discarding the other two.
+
+     Why not max(r), which rescues more: it is the maximum of three noisy estimates, so it is biased
+     UPWARD by selection even when all three measure the same common mode. Σr²/Σr has neither problem —
+     it equals the mean when the pairs are equal (so it is inert on nights with no coupled pair) and
+     approaches the max only when one pair genuinely dominates. It is bounded above by max(r), so it
+     cannot become the degenerate "always ≈0.9" that FU-IV §1.3 warns rescues everything and means
+     nothing.
+
+     Measured on the 25-night refolded trio corpus, changing only this aggregation:
+        mean  ρ-rejected 12/25 · 3 nights excluded · median σ E/P/O 0.79/2.71/1.09
+        Σr²/Σr           8/25  · 2 excluded        ·                0.87/2.54/1.14
+        max(r)           5/25  · 2 excluded        ·                1.01/2.54/1.23
+     FU-IV §5's invariant holds for all three: ρ lowered Σσ² on ZERO of 25 nights. */
+  var weighted =
+    denom > 0
+      ? pos.reduce(function (a, b) {
+          return a + b * b;
+        }, 0) / denom
+      : 0;
+  var rho = Math.max(0, Math.min(0.9, weighted));
+  /* `method` deliberately KEEPS its string: the aggregation is an implementation detail and consumers
+     branch on this value. `meanPairR` is retained (it was the published aggregate) beside
+     `weightedPairR`, the one actually used, so the change is inspectable without a contract break. */
+  return { value: +rho.toFixed(3), method: 'cross-node-motion', nMotionNodes: ms.length, meanPairR: +mean.toFixed(3), weightedPairR: +weighted.toFixed(3), nPairs: rs.length };
 }
 // Generic reference-free per-sensor hat for ONE metric ('rmssd' | 'hr'). PURE; {ok:false, reason}
 // when <3 nodes carry that per-epoch series (→ caller degrades). Estimates ρ from cross-node motion

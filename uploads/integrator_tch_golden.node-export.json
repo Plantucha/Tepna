@@ -55,25 +55,25 @@
         "tchHR": {
           "ok": true,
           "method": "correlated-external",
-          "rho": 0.356,
+          "rho": 0.381,
           "negative": false,
           "externalRhoRejected": false,
           "externalRho": null,
           "n": 22,
           "sigma2": {
-            "ECGDex": 7.211351487379374,
-            "PpgDex": 11.598348747201374,
-            "OxyDex": 12.47428351854051
+            "ECGDex": 7.454000377910995,
+            "PpgDex": 12.072672834761347,
+            "OxyDex": 12.971437041324345
           },
           "sigma": {
-            "ECGDex": 2.6853959647283627,
-            "PpgDex": 3.4056348523001367,
-            "OxyDex": 3.5318951737757605
+            "ECGDex": 2.7302015269776323,
+            "PpgDex": 3.474575202058713,
+            "OxyDex": 3.6015881276631765
           },
           "weights": {
-            "ECGDex": 0.4545755830021894,
-            "PpgDex": 0.2826354318238771,
-            "OxyDex": 0.26278898517393345
+            "ECGDex": 0.4561888239425508,
+            "PpgDex": 0.28166353156490265,
+            "OxyDex": 0.2621476444925467
           },
           "culprit": "OxyDex",
           "diffVar": {
@@ -89,10 +89,11 @@
             "OxyDex": 32.336
           },
           "rhoEstimate": {
-            "value": 0.356,
+            "value": 0.381,
             "method": "cross-node-motion",
             "nMotionNodes": 3,
             "meanPairR": 0.356,
+            "weightedPairR": 0.381,
             "nPairs": 3
           },
           "levels": {
@@ -150,7 +151,7 @@
         "tchHRStatus": "ok",
         "hrReconciled": 58.4,
         "qc": "agreement",
-        "note": "Sources agree within 10% on wholeRecord HRV — reconciled autonomic state is reliable. HR-hat: OxyDex is the noisiest HR estimator (σ≈3.5 bpm, correlated-external, ρ=0.356); reconciled HR 58.4 bpm."
+        "note": "Sources agree within 10% on wholeRecord HRV — reconciled autonomic state is reliable. HR-hat: OxyDex is the noisiest HR estimator (σ≈3.6 bpm, correlated-external, ρ=0.381); reconciled HR 58.4 bpm."
       }
     ]
   }

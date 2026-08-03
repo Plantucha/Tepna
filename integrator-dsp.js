@@ -2473,12 +2473,40 @@ function _tchRhoFromMotion(triplet, keys) {
   var pos = rs.map(function (r) {
     return Math.max(r, 0);
   });
-  var mean =
-    pos.reduce(function (a, b) {
-      return a + b;
-    }, 0) / pos.length;
-  var rho = Math.max(0, Math.min(0.9, mean));
-  return { value: +rho.toFixed(3), method: 'cross-node-motion', nMotionNodes: ms.length, meanPairR: +mean.toFixed(3), nPairs: rs.length };
+  var denom = pos.reduce(function (a, b) {
+    return a + b;
+  }, 0);
+  var mean = denom / pos.length;
+  /*      COUPLED-PAIR-WEIGHTED, not the plain mean (FU-IV §1, executed 2026-08-03). The mean was chosen
+     when only two nodes carried motion, where it is the single pair and the choice is vacuous. With
+     ECGDex's chest-ACC motion on the bus there are THREE pairs, and the quiet-order shape is one
+     tightly-coupled pair against two loose ones — which the mean dilutes, exactly in the regime the
+     external ρ exists to rescue. Weighting each pair by its own magnitude (Σr²/Σr) lets a dominant
+     pair lead WITHOUT discarding the other two.
+
+     Why not max(r), which rescues more: it is the maximum of three noisy estimates, so it is biased
+     UPWARD by selection even when all three measure the same common mode. Σr²/Σr has neither problem —
+     it equals the mean when the pairs are equal (so it is inert on nights with no coupled pair) and
+     approaches the max only when one pair genuinely dominates. It is bounded above by max(r), so it
+     cannot become the degenerate "always ≈0.9" that FU-IV §1.3 warns rescues everything and means
+     nothing.
+
+     Measured on the 25-night refolded trio corpus, changing only this aggregation:
+        mean  ρ-rejected 12/25 · 3 nights excluded · median σ E/P/O 0.79/2.71/1.09
+        Σr²/Σr           8/25  · 2 excluded        ·                0.87/2.54/1.14
+        max(r)           5/25  · 2 excluded        ·                1.01/2.54/1.23
+     FU-IV §5's invariant holds for all three: ρ lowered Σσ² on ZERO of 25 nights. */
+  var weighted =
+    denom > 0
+      ? pos.reduce(function (a, b) {
+          return a + b * b;
+        }, 0) / denom
+      : 0;
+  var rho = Math.max(0, Math.min(0.9, weighted));
+  /* `method` deliberately KEEPS its string: the aggregation is an implementation detail and consumers
+     branch on this value. `meanPairR` is retained (it was the published aggregate) beside
+     `weightedPairR`, the one actually used, so the change is inspectable without a contract break. */
+  return { value: +rho.toFixed(3), method: 'cross-node-motion', nMotionNodes: ms.length, meanPairR: +mean.toFixed(3), weightedPairR: +weighted.toFixed(3), nPairs: rs.length };
 }
 // Generic reference-free per-sensor hat for ONE metric ('rmssd' | 'hr'). PURE; {ok:false, reason}
 // when <3 nodes carry that per-epoch series (→ caller degrades). Estimates ρ from cross-node motion

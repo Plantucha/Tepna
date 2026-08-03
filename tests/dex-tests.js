@@ -1325,13 +1325,124 @@
       } else T.ok('#6: inverseVarianceWeights present', false);
     });
 
+    /* ════ FU-IV §1 — the common-mode ρ is COUPLED-PAIR-WEIGHTED, not a plain mean ══════════════
+       The quiet-order shape is one tightly-coupled pair against two loose ones, and the mean dilutes
+       it exactly in the regime the external ρ exists to rescue. Σr²/Σr lets a dominant pair lead
+       WITHOUT discarding the other two, and has the two properties that make it safe:
+         (a) INERT when the pairs are equal — it IS the mean there, so ordinary nights do not move;
+         (b) BOUNDED ABOVE by max(r) — so it cannot become the degenerate "always ≈0.9" that §1.3
+             warns rescues everything and means nothing.
+       Measured on the 25-night refolded trio corpus, changing only this aggregation: ρ-rejections
+       12 → 8 (mean → weighted; max would give 5), nights excluded 3 → 2, and FU-IV §5's invariant
+       (ρ must not LOWER Σσ²) held on 25/25 for every variant. This gate pins (a) and (b) directly,
+       because they are what make the change defensible rather than merely more aggressive. */
+    group('Integrator TCH — the motion ρ is coupled-pair weighted, and bounded by the max pair (FU-IV §1)', 'integrator-dsp · integrator-tch · regression', function (T) {
+      // Σr²/Σr, computed here independently of the implementation so the gate is not a mirror of it.
+      function wmean(rs) {
+        var d = rs.reduce(function (a, b) {
+          return a + b;
+        }, 0);
+        return d > 0
+          ? rs.reduce(function (a, b) {
+              return a + b * b;
+            }, 0) / d
+          : 0;
+      }
+      var mean = function (rs) {
+        return rs.reduce(function (a, b) {
+          return a + b;
+        }, 0) / rs.length;
+      };
+
+      // (a) EQUAL pairs ⇒ the weighted aggregate IS the mean. This is the property that keeps the
+      //     change inert on nights with no dominant pair — without it the fix would move everything.
+      var flat = [0.5, 0.5, 0.5];
+      T.ok('equal pairs ⇒ weighted ≡ mean (inert where there is no coupled pair)', Math.abs(wmean(flat) - mean(flat)) < 1e-12, wmean(flat) + ' vs ' + mean(flat));
+
+      // (b) The quiet-order shape: one coupled pair, two loose. Weighted must EXCEED the mean —
+      //     that is the dilution being undone — and must NOT exceed the strongest pair.
+      var quiet = [0.9, 0.4, 0.4];
+      T.ok('a dominant pair lifts the aggregate above the mean', wmean(quiet) > mean(quiet) + 0.05, 'w=' + wmean(quiet).toFixed(3) + ' mean=' + mean(quiet).toFixed(3));
+      T.ok('…but never above the strongest pair — it cannot invent coupling', wmean(quiet) <= Math.max.apply(null, quiet) + 1e-12, 'w=' + wmean(quiet).toFixed(3));
+      T.ok('…and it is strictly BELOW the max, so it is not max() wearing another name', wmean(quiet) < Math.max.apply(null, quiet) - 0.05, 'w=' + wmean(quiet).toFixed(3));
+
+      // The bound must hold for any set, including the adversarial all-but-one-zero case (#8's).
+      [[1, 0, 0], [0.2, 0.9, 0.05], [0, 0, 0], [0.7, 0.7, 0.1]].forEach(function (rs) {
+        T.ok('bounded by max(r) for ' + JSON.stringify(rs), wmean(rs) <= Math.max.apply(null, rs) + 1e-12, 'w=' + wmean(rs));
+        T.ok('…and never below the mean for ' + JSON.stringify(rs), wmean(rs) >= mean(rs) - 1e-12, 'w=' + wmean(rs));
+      });
+
+      // Now the SHIPPED path must agree with that definition end-to-end, or the properties above
+      // are true of a formula nobody runs.
+      var A = env.adaptEnvelopeNode,
+        FC = env.fuseHRVConsensus;
+      if (typeof A !== 'function' || typeof FC !== 'function') {
+        T.skip('adaptEnvelopeNode + fuseHRVConsensus available', 'not wired');
+        return;
+      }
+      /* Drive the REAL adapter → fuse path. Three nodes: ECG and PPG share one motion series
+         (r = 1), OxyDex carries a half-weight blend of it plus independent noise, so the pair set is
+         one strong and two moderate — the quiet-order shape. An assertion that merely checked the
+         field EXISTS would pass against the old mean, so this pins the VALUE against the definition
+         computed above. */
+      var NE = 40,
+        t0 = Date.UTC(2026, 5, 12, 23, 0, 0);
+      function lcg(seed) {
+        var a = seed;
+        return function () {
+          a = (a * 1103515245 + 12345) & 0x7fffffff;
+          return a / 0x7fffffff - 0.5;
+        };
+      }
+      var rShared = lcg(7),
+        rInd = lcg(99),
+        shared = [],
+        indep = [];
+      for (var i = 0; i < NE; i++) {
+        shared.push(rShared());
+        indep.push(rInd());
+      }
+      function mkNode(node, seed, blend) {
+        var rn = lcg(seed),
+          eps = [];
+        for (var k = 0; k < NE; k++) {
+          var mo = blend == null ? shared[k] : blend * shared[k] + Math.sqrt(1 - blend * blend) * indep[k];
+          eps.push({ tMin: k * 5, hr: +(60 + 4 * Math.sin(k / 5) + rn()).toFixed(2), motionIndex: +mo.toFixed(4) });
+        }
+        return A(
+          {
+            schema: { node: node },
+            recording: { startEpochMs: t0, durationMin: NE * 5 },
+            quality: { analyzablePct: 95 },
+            hrv: { time: { rmssd: 40, sdnn: 60 } },
+            timeseries: { epochs: eps },
+            ganglior_events: [{ t: '23:00:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: 0.8 }]
+          },
+          node,
+          node + '.json'
+        )[0];
+      }
+      var cons = FC([mkNode('ECGDex', 11, null), mkNode('PpgDex', 22, null), mkNode('OxyDex', 33, 0.5)], 1000);
+      var est = cons && cons.blocks && cons.blocks[0] && cons.blocks[0].tchHR && cons.blocks[0].tchHR.rhoEstimate;
+      T.ok('the shipped path produced a motion-ρ estimate from 3 nodes', !!(est && est.nMotionNodes === 3 && est.nPairs === 3), JSON.stringify(est));
+      if (!est) return;
+      T.ok('it publishes weightedPairR beside meanPairR', typeof est.weightedPairR === 'number' && typeof est.meanPairR === 'number', JSON.stringify(est));
+      // THE PIN: the published ρ is the weighted aggregate, not the mean — and on this fixture the
+      // two genuinely differ, so the assertion can fail.
+      T.ok('the two aggregates actually differ on this fixture (else the pin proves nothing)', Math.abs(est.weightedPairR - est.meanPairR) > 0.02, 'w=' + est.weightedPairR + ' mean=' + est.meanPairR);
+      T.eq('…and ρ is the WEIGHTED one', est.value, +Math.min(0.9, est.weightedPairR).toFixed(3));
+      T.ok('…which is ≥ the mean, as the definition requires', est.weightedPairR >= est.meanPairR - 1e-9, 'w=' + est.weightedPairR + ' mean=' + est.meanPairR);
+    });
+
     /* ════ FU-IV §1.4 — a REJECTED external ρ must say so, not be inferable from `method` ═══════
        When a consumer supplies `opts.rho` that is too small to admit a non-negative solve, the
        kernel falls through to the auto min-ρ search — which is boundary-seeking by construction
        (it returns the SMALLEST ρ that works), so the quiet corner pins at σ ≈ 0. Until now the
-       only way to detect that was to compare `method` against the ρ you passed. On the committed
-       24-night trio corpus this happens on FOUR nights (2026-06-24 · 07-05 · 07-07 · 07-09), each
-       leaving a corner at 0.01–0.07 bpm that reads as a measurement. */
+       only way to detect that was to compare `method` against the ρ you passed. It fires on real
+       nights: on the committed trio corpus as REFOLDED 2026-08-03 (three motion corners) twelve of
+       twenty-five nights have their ρ rejected, each leaving a corner near the ≈0 boundary that
+       reads as a measurement. (The figure was FOUR of twenty-four when first measured, against a
+       corpus folded before ECGDex exported motion — see the FU-IV §1-RESULT correction.) */
     group('Integrator TCH — a rejected external ρ is declared, not inferred (FU-IV §1.4)', 'integrator-tch · regression', function (T) {
       var K = env.IntegratorTCH;
       if (!K || typeof K.threeCorneredHat !== 'function') {
@@ -1736,13 +1847,19 @@
       var blk3 = cons3 && cons3.blocks && cons3.blocks[0];
       T.ok('degrade: <3 hr series → tchHR null', !!blk3 && blk3.tchHR == null, 'status=' + (blk3 && blk3.tchHRStatus));
 
-      /* (4) #8 pin (integrator-dsp.js:~1688, _tchRhoFromMotion) — the common-mode ρ is the mean of the
-         POSITIVE pairwise cross-node motion correlations, NEGATIVES CLAMPED TO 0. Plant a MIXED sign
-         set: ECG & PPG share motion (+sharedM → r=+1), Oxy carries the negated series (−sharedM →
-         r=−1 with both). Positives-clamped mean = (1+0+0)/3 = 0.333; the raw mean = (1−1−1)/3 = −0.333.
-         HR noise carries a matching ρ_h=0.333 so the correlated-external solve at the derived ρ is
-         well-posed. RED under `Math.max(0, r)` → `r`: meanPairR would read −0.333 and the clamped ρ
-         would collapse to 0 (classic solve), so a real co-motion correlation vanishes. */
+      /* (4) #8 pin (integrator-dsp.js `_tchRhoFromMotion`) — NEGATIVE pairwise motion correlations are
+         CLAMPED TO 0 before aggregation. That clamp is what this pin guards, and it is unchanged.
+         Plant a MIXED sign set: ECG & PPG share motion (+sharedM → r=+1), Oxy carries the negated
+         series (−sharedM → r=−1 with both). Clamped positives are [1, 0, 0]; the RAW mean would be
+         (1−1−1)/3 = −0.333. RED under `Math.max(0, r)` → `r`: the aggregate goes negative and ρ
+         collapses to 0 (classic solve), so a real co-motion correlation vanishes.
+
+         NOTE the aggregation itself changed 2026-08-03 (FU-IV §1): ρ is now the coupled-pair-weighted
+         Σr²/Σr, not the plain mean. On THIS deliberately adversarial set that is its most aggressive
+         corner — one perfectly-coupled pair and two showing no positive common mode at all, so the
+         weighted aggregate is 1.0 (clamped to 0.9) where the mean read 0.333. Asserted explicitly
+         rather than glossed: it is the documented cost of letting a dominant pair lead. `meanPairR`
+         is still published, so both readings stay visible. */
       var RHOh = 0.333,
         wIh = Math.sqrt(1 - RHOh),
         wCh = Math.sqrt(RHOh);
@@ -1769,7 +1886,9 @@
       var blkMix = consMix && consMix.blocks && consMix.blocks[0];
       var rEst = blkMix && blkMix.tchHR && blkMix.tchHR.rhoEstimate;
       T.ok('#8: HR-hat ρ derived from cross-node motion present', !!(rEst && rEst.method === 'cross-node-motion' && rEst.nMotionNodes === 3), JSON.stringify(rEst));
-      T.ok('#8: ρ = mean of POSITIVE pairwise motion corrs (negatives clamped) → meanPairR≈+0.33, ρ>0', !!(rEst && rEst.meanPairR > 0.2 && rEst.value > 0.2), JSON.stringify(rEst));
+      T.ok('#8: negatives are CLAMPED, so a real co-motion correlation survives a mixed-sign set', !!(rEst && rEst.meanPairR > 0.2 && rEst.value > 0.2), JSON.stringify(rEst));
+      T.eq('#8: the plain mean of the clamped positives is still published, and is 0.333', rEst && rEst.meanPairR, 0.333);
+      T.eq('#8: …while the coupled-pair aggregate saturates here — its most aggressive corner, stated', rEst && rEst.value, 0.9);
     });
 
     /* ════ 5f · INTEGRATOR TCH cross-node alignment keys on ABSOLUTE wall-clock, not node-relative tMin

@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** DONE — 2026-08-03 (**§1 REFUTED and CLOSED** — `nPairs` is 1 on 24/24 nights, so the proposed re-weighting is a provable no-op; the real blocker is ECGDex exporting no motion series, routed to `INTEGRATOR-TCH-FU-IV-FOLLOWUPS-2026-08-03-BRIEF.md`. **§1.4 SHIPPED.** §2/§3 unchanged. **This meets the brief's OWN flip condition** — *"flip this brief to DONE once §1 lands (or is consciously dropped) and §3 is either executed or — again — explicitly re-deferred"* (§Ordering): §1 is consciously dropped **as refuted by measurement**, §3 is explicitly re-deferred (still blocked on a real ≥4-sensor co-recording AND on EEGDex shipping — hardware/corpus, not a coding task), §2 stays optional polish, §4 is a hand-off to `TRIO-ARTIFACT-GATE-AND-N15-POWER`, §5 was already done by PR #81. ⚠️ **DONE here means "this brief's agenda is settled", NOT "the TCH ρ question is answered"** — the live work is in the FOLLOWUPS above; do not read this stamp as closing the third corner.) · **Created:** 2026-07-13 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` (DONE 2026-07-13) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Evidence:** `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §11
+**Status:** DONE — 2026-08-03 (**§1 SHIPPED** — the coupled-pair-weighted ρ. Its first §1-RESULT wrongly refuted this: the measurement held (`nPairs` 1 on 24/24) but the cause did not — ECGDex's motion export had already landed and `uploads/trio` was the stale artefact. Refolded → `nPairs` 3 on 25/25, the A/B supports the hypothesis, and `Σr²/Σr` shipped. **§1.4 SHIPPED.** §2 optional, §3 still blocked) · **Created:** 2026-07-13 · **Executed-residue-of:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md` (DONE 2026-07-13) · **Extends:** `INTEGRATOR-BUILD-BRIEF.md` §4.4 `fuseHRVConsensus` · **Evidence:** `docs/INTEGRATOR-TCH-REALDATA-VALIDATION-2026-07-06.md` §11
 
 # Integrator three-cornered-hat — follow-ups IV (coupled-pair-weighted ρ · carried polish · N-cornered)
 
@@ -113,6 +113,55 @@ Four nights were never given the ρ they were offered. One was, and it did not h
 fixes, and the brief treated them as one.
 
 **§1 is CLOSED as refuted**; §1.4 shipped; the real unblock is routed. §2 and §3 stand unchanged.
+
+> ### ⚠️ §1-RESULT IS ITSELF CORRECTED (2026-08-03, same day) — the measurement held, the DIAGNOSIS did not
+>
+> The measurement above is reproducible and stands: `nPairs` **was** 1 on 24/24, and the aggregation
+> change **was** a no-op on the corpus as committed. The stated cause was wrong.
+>
+> §1-RESULT concluded *"the third corner exists in the DSP and is dropped at the export boundary."*
+> It is not. **`50545ad feat(ecgdex): the chest-ACC motion index reaches the bus, so the TCH rho has a
+> third corner` had already landed**, and `ecgdex-dsp.js` publishes `timeseries.epochs[].motionIndex`
+> today. What was actually stale was **`uploads/trio` itself** — 24 nights folded *before* that commit,
+> so the committed exports carry no `motionIndex` and every reader of them sees two corners. The
+> conclusion "the export drops it" was drawn from the corpus without checking the exporter, which is the
+> same shape of error §1-RESULT was criticising one paragraph earlier.
+>
+> **Refolded 2026-08-03** (`trio-batch --src <capture dir>`; 25 nights, every one reporting
+> `✓ ECGDex … motion`). `nPairs = 3` on **25/25**. The dilution question is therefore no longer
+> unanswerable — it is answered, and **FU-IV §1's hypothesis is SUPPORTED**. A controlled A/B on the
+> one refolded corpus, changing only the aggregation:
+>
+> | aggregation | ρ rejected | nights excluded | median σ E / P / O (ρ-on) |
+> |---|---|---|---|
+> | `mean` (shipped) | **12** / 25 | 3 | 0.79 / 2.71 / 1.09 |
+> | magnitude-weighted | 8 | 2 | 0.87 / 2.54 / 1.14 |
+> | max-coupled-pair | **5** | 2 | 1.01 / 2.54 / 1.23 |
+>
+> Monotone in aggressiveness, exactly as §1 predicted — and `max` still rejects 5 nights and excludes 2,
+> so it is **not** the degenerate "always ≈0.9 rescues everything" that §1.3 warns against.
+>
+> **§5's invariant was then checked per-night, on all three variants: ρ lowered Σσ² on ZERO of 25
+> nights.** So the invariant does not discriminate, and the choice rests on estimator properties.
+>
+> ### §1 SHIPPED — the magnitude-weighted aggregate `Σr²/Σr`
+>
+> **Not `max(r)`, which rescues more.** `max` is the maximum of three noisy correlation estimates, so
+> it is biased **upward by selection** even when all three measure the same common mode — it would buy
+> rescues with a systematic over-estimate. `Σr²/Σr` has neither problem, and the two properties that
+> make it defensible are now gated directly rather than argued:
+>
+> - **inert when the pairs are equal** — it *is* the mean there, so ordinary nights do not move;
+> - **bounded above by `max(r)`** — so it cannot become the degenerate always-≈0.9.
+>
+> Its most aggressive corner is stated rather than glossed: when one pair is perfectly coupled and the
+> others show no positive common mode at all (`[1, 0, 0]` — the existing `#8` fixture), the weighted
+> aggregate is 1.0 and clamps to 0.9 where the mean read 0.333. That is the documented cost of letting
+> a dominant pair lead; `meanPairR` stays published beside `weightedPairR` so both readings remain
+> visible, and `method` deliberately keeps its string because consumers branch on it.
+>
+> On the corpus the shipped change lands where the A/B said: **ρ-rejections 12 → 8, nights estimated
+> 22 → 23.** `integrator_tch_golden` moved (ρ 0.356 → 0.381) and was regenerated + re-verified.
 
 ## §2 — carried golden polish from FU-III §2/§3 🟢 (LOW — optional, unchanged)
 Both are **verbatim carries**, re-deferred at FU-III's DONE stamp, still LOW:
