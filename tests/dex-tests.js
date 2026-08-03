@@ -21654,6 +21654,103 @@
         T.ok('crossNodeCard · …while AHI 10 against a borrowed ODI 1 is NOT concordant (warn)', /xn-warn/.test(xCard({ odi: 1, t90: 0.5, nadir: 95, mean: 97 })));
         T.eq('crossNodeCard · no peer ingested ⇒ empty string, not an empty card shell', (CN.reset(), CR.crossNodeCard(xNight)), '');
       }
+
+      /* ══ WAVE 6 · THE CANVAS BLOCK — a RECORDING context, not a stub that swallows ══════════════
+         §5 asked whether the fleet needs a canvas harness before deciding what to do about the 69
+         unreachable survivors in this file (and the same shape in every other `*-render.js`). This
+         answers it by building the cheap version and measuring what it buys.
+
+         The design choice that matters: a stub which merely ABSORBS calls would let every mutant
+         live — the code runs, nothing throws, and no assertion can tell a correct chart from a blank
+         one. That is a hollow gate with extra steps. This one RECORDS: each draw call is captured
+         with the fill style in force at the time, so a test asks what was actually painted — bar
+         heights, bar colours, label text — rather than that painting was attempted. `_css` returns
+         null headlessly (its own try/catch), so the module's documented hex fallbacks apply and the
+         colours are deterministic.
+
+         ~40 lines, no jsdom, no dependency. It lives here rather than in a new file because
+         `tests/dex-tests.js` is already loaded by BOTH runners; promote it to a shared helper when a
+         second node's render tests want it. */
+      var recCanvas = function (cssW) {
+        var calls = [];
+        var ctx = {
+          fillStyle: '',
+          strokeStyle: '',
+          font: '',
+          textAlign: '',
+          textBaseline: '',
+          lineWidth: 0,
+          globalAlpha: 1,
+          setTransform: function () {},
+          save: function () {},
+          restore: function () {},
+          beginPath: function () {},
+          closePath: function () {},
+          moveTo: function (x, y) { calls.push({ op: 'moveTo', x: x, y: y }); },
+          lineTo: function (x, y) { calls.push({ op: 'lineTo', x: x, y: y }); },
+          stroke: function () { calls.push({ op: 'stroke', style: ctx.strokeStyle, lineWidth: ctx.lineWidth }); },
+          fill: function () { calls.push({ op: 'fill', style: ctx.fillStyle }); },
+          arc: function (x, y, r) { calls.push({ op: 'arc', x: x, y: y, r: r, style: ctx.fillStyle }); },
+          clearRect: function (x, y, w, h) { calls.push({ op: 'clearRect', x: x, y: y, w: w, h: h }); },
+          fillRect: function (x, y, w, h) { calls.push({ op: 'fillRect', x: x, y: y, w: w, h: h, style: ctx.fillStyle }); },
+          fillText: function (t, x, y) { calls.push({ op: 'fillText', text: String(t), x: x, y: y, style: ctx.fillStyle }); },
+          createLinearGradient: function () {
+            return { addColorStop: function (o, c) { calls.push({ op: 'gradStop', offset: o, color: c }); } };
+          }
+        };
+        return { calls: calls, cv: { clientWidth: cssW, width: 0, height: 0, style: {}, dataset: {}, getContext: function () { return ctx; } } };
+      };
+      var opsOf = function (c, op) {
+        return c.calls.filter(function (k) { return k.op === op; });
+      };
+
+      if (typeof CR.drawAhiByHour !== 'function') {
+        T.skip('canvas harness (CR.drawAhiByHour)', 'not exported in this build');
+      } else {
+        var T0c = Date.UTC(2026, 0, 10, 22, 0);
+        var evAt = function (h, n) {
+          var a = [];
+          for (var i = 0; i < n; i++) a.push({ tMs: T0c + h * 3600000 + (i + 1) * 60000 });
+          return a;
+        };
+        // 4 therapy hours, a DIFFERENT count per hour so each lands in a different colour band.
+        var nightC = { t0Ms: T0c, therapyHours: 4, sessions: [{ t0Ms: T0c, events: [].concat(evAt(0, 0), evAt(1, 1), evAt(2, 3), evAt(3, 9)) }] };
+        var c1 = recCanvas(600);
+        CR.drawAhiByHour(c1.cv, nightC);
+        var bars = opsOf(c1, 'fillRect');
+        T.eq('drawAhiByHour · one bar per therapy hour', bars.length, 4);
+        /* THE BAND COLOURS — the clinical point of the chart. 0 events grey, 1 green (v<=1), 3 amber
+           (v<=3), 9 red. Asserting the SEQUENCE pins all three edges at once, and a `<=`→`<` on
+           either moves exactly one bar across a colour. */
+        T.eq('drawAhiByHour · the hour bands are grey / green / amber / red for 0 / 1 / 3 / 9 events',
+          bars.map(function (b) { return b.style; }).join(' '),
+          'rgba(125,133,144,.22) #3fb950 #d29922 #f85149');
+        T.ok('drawAhiByHour · bar height scales with the count', bars[3].h > bars[2].h && bars[2].h > bars[1].h, bars.map(function (b) { return b.h; }).join(','));
+        T.eq('drawAhiByHour · an empty hour still paints a 2 px stub, so it reads "no events" and not "no hour"', bars[0].h, 2);
+        T.ok('drawAhiByHour · bars are inset within their slot, not butted together',
+          bars[1].w > 0 && bars[1].w < (600 - 30 - 8) / 4, bars[1].w + ' of slot ' + (600 - 30 - 8) / 4);
+        T.eq('drawAhiByHour · every hour is labelled h1…h4',
+          opsOf(c1, 'fillText').filter(function (f) { return /^h\d/.test(f.text); }).map(function (f) { return f.text; }).join(','), 'h1,h2,h3,h4');
+
+        /* THE BUCKETING RULES — none of which any HTML assertion could reach. */
+        var heights = function (n) {
+          var c = recCanvas(600);
+          CR.drawAhiByHour(c.cv, n);
+          return opsOf(c, 'fillRect').map(function (b) { return b.h; });
+        };
+        var withRE = { t0Ms: T0c, therapyHours: 2, sessions: [{ t0Ms: T0c, events: [{ tMs: T0c + 600000, type: 'RE' }, { tMs: T0c + 700000 }] }] };
+        var withoutRE = { t0Ms: T0c, therapyHours: 2, sessions: [{ t0Ms: T0c, events: [{ tMs: T0c + 700000 }] }] };
+        T.eq('drawAhiByHour · an RE (respiratory-effort) event is EXCLUDED from the hourly count', heights(withRE).join(','), heights(withoutRE).join(','));
+        /* Outside the window must be DROPPED, not clamped: a clamp silently attributes another
+           night's events to this one's first or last hour. */
+        var outside = { t0Ms: T0c, therapyHours: 2, sessions: [{ t0Ms: T0c, events: [{ tMs: T0c + 5 * 3600000 }, { tMs: T0c - 3600000 }] }] };
+        T.eq('drawAhiByHour · events before the start or past the last hour are dropped, never clamped inward',
+          heights(outside).join(','), heights({ t0Ms: T0c, therapyHours: 2, sessions: [{ t0Ms: T0c, events: [] }] }).join(','));
+        /* `timeSec` is the fallback for an event with no absolute stamp; reading it as 0 would pile
+           every such event into hour 1. */
+        var relBars = heights({ t0Ms: T0c, therapyHours: 3, sessions: [{ t0Ms: T0c, events: [{ timeSec: 2 * 3600 + 60 }] }] });
+        T.ok('drawAhiByHour · a stamp-less event is placed from timeSec, not dumped into hour 1', relBars[2] > relBars[0], 'hour3=' + relBars[2] + ' hour1=' + relBars[0]);
+      }
     });
 
     /* ════ CPAPDex CARD SURFACE II — the rest of the reachable builders (CLOCK-MUTATION-AUDIT §7.4) ════

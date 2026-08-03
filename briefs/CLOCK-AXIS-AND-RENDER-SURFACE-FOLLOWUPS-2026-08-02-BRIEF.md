@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-02 (**§2 waves 3-5 and §3 EXECUTED — see §7.** cpapdex-render is 160/319 = 50 %; the matchRecall cross-site scan landed. §1 the host-axis spec and §5 the canvas-harness decision remain.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
+**Status:** IN-PROGRESS — 2026-08-02 (**§2 waves 3-6 and §3 EXECUTED — see §7.** cpapdex-render is 171/319 = 54 %; the matchRecall cross-site scan landed. §1 the host-axis spec and §5 the canvas-harness decision remain.) · **Created:** 2026-08-02 · **Follows:** `CLOCK-MUTATION-AUDIT-2026-08-02-BRIEF.md` §7.6
 
 # What the clock audit left behind: an unspecified host-axis, and 125 reachable render mutants
 
@@ -130,7 +130,13 @@ behavioural CPAPDex bundle rather than justify one.
 - [x] The `matchRecall` cross-site scan lands with its anti-vacuity leg, in both runners. — PR #726. Five
       mutants of `cohort-runner.html`'s previously-ungated copy confirmed killed; the anti-vacuity leg verified
       by deleting each source-list entry in turn.
-- [ ] A decision recorded on whether the fleet gets a canvas harness (its own brief) or the 69 canvas
+- [x] **The canvas-harness decision — ANSWERED BY BUILDING IT** (2026-08-03, wave 6). ~40 lines, no
+      jsdom, no dependency, living in `tests/dex-tests.js` so both lanes get it with no wiring. It
+      RECORDS rather than absorbs — a swallowing stub would let every mutant live, which is a hollow
+      gate with extra steps. Applied to ONE of the three charts it took the file **160 → 171/319
+      (+11)**, so it pays for itself several times over and the remaining charts are ordinary work
+      rather than a blocked decision. Promote it to a shared helper when a second node wants it.
+- [ ] ~~A decision recorded on whether the fleet gets a canvas harness (its own brief) or the 69 canvas
       mutants are accepted as out of scope permanently.
 
 ## 6 · A method note worth carrying forward
@@ -160,6 +166,7 @@ change to the module, no re-bundle.
 | **3** | **144/319 = 45 %** | **`renderHistory` (29 → 15), `cpapClinicalSummary` (20 → out of the top six)** |
 | **4** | **153/319 = 48 %** | **every band's WARN edge, and `oximetryCard` (previously unasserted)** |
 | **5** | **160/319 = 50 %** | **`crossNodeCard` — the same four bands a second time, and their PARITY** |
+| **6** | **171/319 = 54 %** | **a RECORDING canvas context — `drawAhiByHour` alone, +11** |
 
 `renderHistory` was skipped twice for a real reason — it needs a multi-night fixture routed through
 `CPAPDSP.buildLongitudinal`, which is fixture construction rather than more of the same shape. That turned
