@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-03 (**§1 DONE** — the export already existed, the corpus was stale; refolded, `nPairs` 3 on 25/25. **§2 DONE** — coupled-pair ρ shipped. **§1b DECIDED**, **§4a DONE** — `nOverlap` published, corpus spans 20…92. §3 re-opens against a CHANGED population and §4b, the threshold, is deliberately still unwritten) · **Created:** 2026-08-03 · **Follows:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` §1-RESULT (and its same-day correction) · **§3 RE-DERIVED 2026-08-03 (§7) — all boxes now closed except the reference-night dependency it identifies**
+**Status:** DONE — 2026-08-03 (all six boxes closed; §3's remaining question is a DATA dependency — a reference night with known σ — not an unexecuted item, see §7. Historical IN-PROGRESS detail follows.) · **was:** IN-PROGRESS — 2026-08-03 (**§1 DONE** — the export already existed, the corpus was stale; refolded, `nPairs` 3 on 25/25. **§2 DONE** — coupled-pair ρ shipped. **§1b DECIDED**, **§4a DONE** — `nOverlap` published, corpus spans 20…92. §3 re-opens against a CHANGED population and §4b, the threshold, is deliberately still unwritten) · **Created:** 2026-08-03 · **Follows:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-IV-2026-07-13-BRIEF.md` §1-RESULT (and its same-day correction) · **§3 RE-DERIVED 2026-08-03 (§7) — all boxes now closed except the reference-night dependency it identifies**
 
 # The third motion corner exists in the DSP and dies at the export boundary
 
