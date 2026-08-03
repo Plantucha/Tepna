@@ -79,11 +79,21 @@ function normals(seed, n) {
 function rhoFromMotion(motions) {
   const present = motions.filter((m) => Array.isArray(m) && m.some((v) => v != null && isFinite(v)));
   if (present.length < 2) return null;
-  const rs = [];
+  const rs = [],
+    ns = [];
   for (let i = 0; i < present.length; i++)
     for (let j = i + 1; j < present.length; j++) {
       const r = TCH.pearson(present[i], present[j]);
-      if (r != null) rs.push(r);
+      if (r == null) continue;
+      rs.push(r);
+      // overlap behind that pair — mirrors integrator-dsp.js `_tchRhoFromMotion` (FU-IV FOLLOWUPS §4)
+      let nOv = 0;
+      for (let k = 0; k < present[i].length; k++) {
+        const a = present[i][k],
+          b = present[j][k];
+        if (a != null && b != null && isFinite(a) && isFinite(b)) nOv++;
+      }
+      ns.push(nOv);
     }
   if (!rs.length) return null;
   const pos = rs.map((r) => Math.max(r, 0));
@@ -93,7 +103,15 @@ function rhoFromMotion(motions) {
   // and the measured mean/weighted/max comparison. Keep the two in step.
   const weighted = denom > 0 ? pos.reduce((a, b) => a + b * b, 0) / denom : 0;
   const rho = Math.max(0, Math.min(0.9, weighted));
-  return { value: +rho.toFixed(3), meanPairR: +mean.toFixed(3), weightedPairR: +weighted.toFixed(3), nMotionNodes: present.length, nPairs: rs.length };
+  return {
+    value: +rho.toFixed(3),
+    meanPairR: +mean.toFixed(3),
+    weightedPairR: +weighted.toFixed(3),
+    nMotionNodes: present.length,
+    nPairs: rs.length,
+    nOverlapMin: ns.length ? Math.min(...ns) : null,
+    nOverlapMax: ns.length ? Math.max(...ns) : null
+  };
 }
 
 /* ── run one night's A/B: classic (no ρ) vs per-night motion-ρ ──────────────
@@ -129,6 +147,8 @@ function runNight(night, labels) {
     // corpus it is 1 on every night (ECGDex exports no motion series), so mean/max/any weighted
     // mean are the SAME number — printed so that stays visible rather than assumed.
     rhoNPairs: rho ? rho.nPairs : null,
+    rhoNOvMin: rho ? rho.nOverlapMin : null,
+    rhoNOvMax: rho ? rho.nOverlapMax : null,
     rhoNodes: rho ? rho.nMotionNodes : null,
     extRejected: !!withRho.externalRhoRejected,
     classic,
