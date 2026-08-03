@@ -81,11 +81,17 @@ lift it.
 Every module is heavy for a **different** reason. Measure where the per-mutant second goes before
 optimising — skipping that step cost an hour on `capture.py`.
 
-| module | dominant cost | per-mutant |
+| module | dominant cost | measured |
 |---|---|---|
-| `capture.py` | **compile** — one 567-line flat `run_polar` replicated 1 241× | 0.08 s (was 429 s) |
-| `webmon.py` | **test time** — 11 files, aiohttp servers per case | ~1.5 s |
-| `clock.js` | **group selection** — 41 groups, loaded by everything | **7 m 49 s** |
+| `capture.py` | **compile**, once per run — a 567-line flat `run_polar` replicated 1 241× | cold import **429 s**, warm **0.4 s** |
+| `webmon.py` | **compile ~46 %, then test time** — 23 files, aiohttp servers per case | cold import **26 min**, warm **0.5 s**; 0.79 s/mutant after |
+| `clock.js` | **group selection** — 41 groups, loaded by everything | **7 m 49 s** per mutant |
+
+⚠️ **The compile is paid ONCE PER RUN, not per mutant** — mutmut imports the module in the parent and
+`fork()`s children that inherit it. That is why webmon averaged 1.5 s/mutant while its module took 26
+minutes to import: 1 578 s of its 3 432 s run was the single cold compile. Do **not** conclude from a
+low per-mutant average that a module is compile-free; compute `total − mutants × per_mutant` instead.
+With the cache warm, webmon's run should be **~31 min rather than ~57**.
 
 Two fixes are in `tools/mutate.py` and need no action; they are recorded so nobody reverts them:
 
