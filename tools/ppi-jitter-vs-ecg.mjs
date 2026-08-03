@@ -58,6 +58,19 @@ const MAX_NIGHTS = +opt('--max-nights', 20);
    never committed — §2.2 describes the method and names no tool — so quoting a finger number against it
    would compare two instruments, only one of which can be re-run. Measuring both here makes the
    comparison same-instrument and turns 5.92 ms into a CHECK ON THIS TOOL rather than a constant. */
+/* §4 adjudicates CVHR on SLEEP nights specifically — "n=2 waking is not evidence". The capture corpus
+   mixes overnight recordings with daytime segments, so a night is taken as sleep when it STARTS between
+   20:00 and 04:00 local and runs ≥ 4 h. Crude, and deliberately so: it is a property of the filename
+   stamp and the duration, not a stage call, and over-including a borderline night is safer here than
+   silently excluding a real one. Reported alongside the unfiltered figure so the filter's effect is
+   visible rather than assumed. */
+const SLEEP_ONLY = has('--sleep-only');
+const isSleepNight = (name, durSec) => {
+  const m = /_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(name) || /(\d{8})(\d{2})(\d{2})(\d{2})_PPG/.exec(name);
+  const hh = m ? +(m.length > 6 ? m[4] : m[2]) : null;
+  if (hh == null || !(durSec >= 4 * 3600)) return false;
+  return hh >= 20 || hh < 4;
+};
 const DEVICE = String(opt('--device', 'o2ring')).toLowerCase();
 const PPG_RE = DEVICE === 'verity' ? /VeritySense.*_PPG\.txt$/i : /O2Ring.*_PPG\.txt$/i;
 
@@ -411,6 +424,7 @@ for (const f of fingers) {
     continue;
   }
   if (frec.t0Ms == null || !fres.beatTimes) continue;
+  if (SLEEP_ONLY && !isSleepNight(f.p.split('/').pop(), frec.durSec || 0)) continue; // §4: sleep nights only
   const fBeats = (fres.footSec || []).map((s) => frec.t0Ms + s * 1000);
   if (fBeats.length < 100) continue;
   const fw = [frec.t0Ms, frec.t0Ms + (frec.durSec || 0) * 1000];
@@ -466,6 +480,20 @@ for (const f of fingers) {
     rates.push(rate);
   }
   if (jit.length < MIN_EPOCHS) continue;
+  /* CVHR AGREEMENT (§4's third criterion, never previously measured). Both nodes run the SAME detector
+     — PpgDex's `cvhrFromNN` is a faithful port of `ECGDSP.detectCVHR`, deliberately, so the Integrator
+     corroborates like against like. That makes this a comparison of the DEVICES, not of two methods.
+     The Integrator's band is |Δ| ≤ 5.0 events/h (`CVHR_AGREE_PER_H`).
+
+     Both indices are events per HOUR over each node's own record, and the two records do not cover the
+     same window — so the OVERLAP FRACTION is reported beside the gap. A pair that overlaps 40 % is not
+     evidence of disagreement; it is two different nights being compared, and folding it in silently is
+     how a rate comparison fabricates a discrepancy. */
+  const cvF = fres.cvhrIndex,
+    cvE = best.eres.cvhr ? best.eres.cvhr.index : null;
+  const fDur = (frec.durSec || 0) * 1000,
+    eDur = (best.er.durSec || 0) * 1000;
+  const ovFrac = fDur > 0 && eDur > 0 ? best.ov / (Math.max(fDur, eDur) / 1000) : null;
   const rf = fres.rmssd,
     re = best.eres.rmssd;
   /* READ `dispSd`, NOT `sdnn`. This is the field that makes §4's sdnnRobust criterion measurable, and
@@ -489,6 +517,10 @@ for (const f of fingers) {
     rate: median(rates),
     lag: median(lags),
     refGain: rawJit.length ? median(rawJit) - median(jit) : null,
+    cvF,
+    cvE,
+    cvGap: cvF != null && cvE != null ? Math.abs(cvF - cvE) : null,
+    ovFrac,
     rf,
     re,
     bias: rf != null && re ? ((rf - re) / re) * 100 : null,
@@ -513,6 +545,19 @@ console.log(`\n${nights.length} night(s) with ≥${MIN_EPOCHS} comparable epochs
 console.log(`  PPI-jitter sd (PRIMARY)   ${fmt(J)} ms      [Verity wrist reference: 5.92 ms]`);
 console.log(`  beat match rate           ${fmt(R)} %`);
 console.log(`  RMSSD bias vs ECG         ${fmt(Bs)} %`);
+/* §4: CVHR promotes only if the finger agrees with ECGDex within the Integrator's band on SLEEP nights.
+   Scored only where BOTH nodes produced an index and the records genuinely overlap — a thin overlap makes
+   the per-hour rates describe different nights. */
+const CVHR_BAND = 5.0;
+const cvPairs = nights.filter((n) => n.cvGap != null && n.ovFrac != null && n.ovFrac >= 0.5);
+if (cvPairs.length) {
+  const gaps = cvPairs.map((n) => n.cvGap);
+  const agree = gaps.filter((g) => g <= CVHR_BAND).length;
+  console.log(`  CVHR |Δ| events/h         ${fmt(gaps)}   ${agree}/${cvPairs.length} within the Integrator band (±${CVHR_BAND})`);
+  console.log(`                            finger median ${median(cvPairs.map((n) => n.cvF)).toFixed(2)} /h · ECG median ${median(cvPairs.map((n) => n.cvE)).toFixed(2)} /h · overlap ≥50 %`);
+} else {
+  console.log('  CVHR |Δ| events/h         no pair with ≥50 % record overlap AND an index from both nodes');
+}
 /* §4's `sdnnRobust → validated` bar is ±3.5 %, and THIS TOOL CANNOT ADJUDICATE IT — so the number is
    withheld rather than printed with a caveat nobody reads. `sdnnRobust` is a quality-gated MEDIAN of
    per-5-min SDNN; ECGDex publishes only whole-record `sdnn`, which structurally includes the
