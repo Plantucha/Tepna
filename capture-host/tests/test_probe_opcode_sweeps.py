@@ -14,6 +14,9 @@
 # `invalid_op` proves absence; OxyII has none, so silence is "no evidence" and only REPLIES count.
 
 import asyncio
+import json
+
+import pytest
 
 import polar_pmd as pmd
 import probe_oxyii_opcodes as oxs
@@ -22,6 +25,13 @@ import probe_pmd_opcodes as pms
 
 def _run(c):
     return asyncio.run(c)
+
+
+@pytest.fixture(autouse=True)
+def _no_baseline_wait(monkeypatch):
+    """The ~1 s spacing between baseline samples matches the ring's 1 Hz frame cadence — a hardware fact,
+    not a test fact. The COUNT still applies, so the sampling logic is exercised for real."""
+    monkeypatch.setattr(oxs, "BASELINE_GAP_S", 0.0)
 
 
 # ══ Polar PMD sweep ══════════════════════════════════════════════════════════════════════════════════
@@ -249,20 +259,91 @@ def test_oxyii_records_which_ops_replied(monkeypatch):
     assert res["opcodes"]["0x21"]["replied"] is False
 
 
-def test_oxyii_aborts_when_the_live_frame_moves(monkeypatch):
-    class _Mutating(_RingClient):
-        async def write_gatt_char(self, _c, data, response=False):
-            op = data[1]
-            self.writes.append(op)
-            if op == oxs.oxyii.OP_LIVE:
-                n = self.writes.count(oxs.oxyii.OP_LIVE)
-                self._cb(0, bytearray(self.live if n < 2 else b"\xa5\x04\xfb\x01\x00\x02\x00\x99\x88\x00"))
-            elif op == 0x20:
-                self._cb(0, bytearray(oxs.oxyii.encode(op, b"\x01")))
-    _patch_ring(monkeypatch, _Mutating())
+class _Live(_RingClient):
+    """A ring whose live frame is built per-call: `noisy` bytes churn on their own, and an opcode in
+    `effects` permanently rewrites a byte. That separates the two things the detector must tell apart."""
+
+    def __init__(self, noisy=(), effects=None, **kw):
+        super().__init__(**kw)
+        self.noisy, self.effects, self.applied, self.tick = set(noisy), effects or {}, {}, 0
+
+    HDR = 7                                             # [A5, op, ~op, flag, seq, len_lo, len_hi]
+
+    def _frame(self):
+        """A REAL frame — built through oxyii.encode, so the reassembler accepts it and the trailing
+        CRC moves with the payload exactly as the device's does (and is excluded as volatile for it)."""
+        p = bytearray(b"\x00\x00\x00\x00\xc7\x00\x62\x48\x00\x00\x00\x00")
+        self.tick += 1
+        for i in self.noisy:                            # `i` is a FRAME index, as the report reports
+            p[i - self.HDR] = (self.tick * 37 + i) & 0xFF
+        for i, v in self.applied.items():
+            p[i - self.HDR] = v
+        return oxs.oxyii.encode(oxs.oxyii.OP_LIVE, bytes(p))
+
+    async def write_gatt_char(self, _c, data, response=False):
+        op = data[1]
+        self.writes.append(op)
+        if op == oxs.oxyii.OP_LIVE:
+            self._cb(0, bytearray(self._frame()))
+        elif op in self.effects:
+            self.applied.update(self.effects[op])
+            self._cb(0, bytearray(oxs.oxyii.encode(op, b"\x01")))
+        elif op in self.responders:
+            self._cb(0, bytearray(oxs.oxyii.encode(op, b"\x01")))
+
+
+def test_oxyii_a_self_churning_live_frame_is_not_read_as_an_effect(monkeypatch):
+    """THE FALSE POSITIVE. Measured 2026-08-03 on a WORN ring: 4 of 4 consecutive frames differ with
+    NOTHING sent — plethysmogram, sequence counter, checksum. The old detector compared raw frames and
+    tripped on the very first opcode swept, which would have condemned an innocent op and stopped the
+    sweep 247 opcodes early."""
+    c = _Live(noisy={8, 9, 10}, responders={0x20, 0x21, 0x22})
+    _patch_ring(monkeypatch, c)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x22, dry=False))
+    assert "aborted_at" not in res, "self-churn must not be attributed to an opcode"
+    assert res["baseline"]["volatile_bytes"] == [8, 9, 10, 19], "the CRC moves with them"
+    assert len(res["opcodes"]) == 3
+
+
+def test_oxyii_aborts_when_a_byte_that_held_constant_moves(monkeypatch):
+    """The real signal, buried in that churn: byte 11 held `c7` across the baseline and went to `00`."""
+    c = _Live(noisy={8, 9, 10}, effects={0x20: {11: 0x00}})
+    _patch_ring(monkeypatch, c)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x25, dry=False))
     assert res["aborted_at"] == "0x20"
-    assert "live state changed" in res["abort_reason"]
+    assert res["opcodes"]["0x20"]["state_changed"] == {
+        "byte_positions": [11], "before": [0xC7], "after": [0x00]}
+    assert "held constant across the baseline" in res["abort_reason"]
+
+
+def test_oxyii_publishes_how_little_the_detector_could_watch(monkeypatch):
+    """When the whole PAYLOAD churns, the only stable bytes left are the fixed frame header — which can
+    never move, so the detector cannot fail and every opcode would come back 'nothing changed'. The tool
+    cannot know that the header is structural, so it does not pretend to; what it must do is publish the
+    stable/volatile split so a reader can see the verdict rests on 7 header bytes and discount it."""
+    c = _Live(noisy=range(7, 19), responders={0x20})
+    _patch_ring(monkeypatch, c)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x25, dry=False))
+    assert "aborted_at" not in res
+    assert res["baseline"]["stable_bytes"] == 7, "only [A5, op, ~op, flag, seq, len_lo, len_hi]"
+    assert res["baseline"]["volatile_bytes"] == list(range(7, 20))
+
+
+def test_oxyii_a_short_reply_cannot_be_read_past_its_end():
+    """A truncated live frame must not index off the end of the shorter buffer."""
+    base = bytes([0xA5, 0x04, 0xFB, 0x01, 0x00, 0x02, 0x00, 0x11, 0x22, 0x00])
+    assert oxs._changed(base, "a504fb", [0, 1, 2, 8]) == []
+    assert oxs._changed(base, None, [0, 1]) == []
+    assert oxs._changed(None, "a504fb", [0]) == []
+
+
+def test_oxyii_a_ring_that_never_answers_live_leaves_the_detector_blind(monkeypatch):
+    class _NoLive(_RingClient):
+        async def write_gatt_char(self, _c, data, response=False):
+            self.writes.append(data[1])
+    _patch_ring(monkeypatch, _NoLive())
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x22, dry=False))
+    assert "detector_blind" in res and res["live_before"] is None
 
 
 def test_oxyii_a_write_failure_stops_the_sweep(monkeypatch):
@@ -285,6 +366,97 @@ def test_oxyii_reports_an_absent_ring_by_its_real_cause(monkeypatch):
     monkeypatch.setattr(oxs.BleakScanner, "find_device_by_address", none)
     res = _run(oxs.run("AA:BB", None, 0x20, 0x22, dry=False))
     assert "advertises ONLY while worn" in res["error"]
+
+
+class _DiesOnNthLive(_RingClient):
+    """A ring whose link goes away on the Nth LIVE frame — the snapshot, not the swept opcode."""
+
+    def __init__(self, nth, **kw):
+        super().__init__(**kw)
+        self.nth, self.n_live = nth, 0
+
+    async def write_gatt_char(self, _c, data, response=False):
+        op = data[1]
+        self.writes.append(op)
+        if op == oxs.oxyii.OP_LIVE:
+            self.n_live += 1
+            if self.n_live >= self.nth:
+                raise RuntimeError("Service Discovery has not been performed yet")
+            self._cb(0, bytearray(self.live))
+        elif op in self.responders:
+            self._cb(0, bytearray(oxs.oxyii.encode(op, b"\x01")))
+
+
+def test_oxyii_a_link_lost_on_the_closing_snapshot_does_not_discard_the_sweep(monkeypatch):
+    """THE REGRESSION. Measured 2026-08-03: a full 248-opcode sweep reached its closing snapshot, the
+    link had gone, and the raised error propagated out of run() before main() could write the JSON — ten
+    minutes of hardware evidence lost on the last line, against a device reachable only while worn."""
+    c = _DiesOnNthLive(nth=6, responders=set())     # 5 baseline samples, then the closing one
+    _patch_ring(monkeypatch, c)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x24, dry=False))
+    assert len(res["opcodes"]) == 5, "every opcode probed must survive the closing failure"
+    assert "Service Discovery" in res["link_lost"]
+    assert res["responders"] == []
+    assert "live_before" in res
+
+
+def test_oxyii_a_link_lost_mid_verification_keeps_the_ops_already_mapped(monkeypatch):
+    """The verification snapshot runs inside the loop. A link dying there must cost that op, not the
+    table built before it."""
+    c = _DiesOnNthLive(nth=6, responders={0x21})   # 5 baseline, then 0x21 replies -> snapshot dies
+    _patch_ring(monkeypatch, c)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x25, dry=False))
+    assert res["opcodes"]["0x20"]["replied"] is False, "the op mapped before the failure is kept"
+    assert res["aborted_at"] == "0x21"
+    assert "Service Discovery" in res["opcodes"]["0x21"]["error"]
+
+
+def test_oxyii_main_signals_a_lost_link_in_its_exit_code(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(oxs, "require_free_link", lambda: None)
+    _patch_ring(monkeypatch, _DiesOnNthLive(nth=6, responders=set()))
+    p = str(tmp_path / "o.json")
+    assert oxs.main(["--address", "AA:BB", "--i-accept-the-risk", "--from", "0x20", "--to", "0x22",
+                     "--json", p]) == 1
+    capsys.readouterr()
+    assert len(json.load(open(p))["opcodes"]) == 3, "the report is written even when the link died"
+
+
+def test_oxyii_probes_the_neighbourhoods_of_known_opcodes_first():
+    """A linear 0x00-upward crawl spends a 10-minute window on empty space against a device reachable
+    only while worn or charging. Firmware command spaces cluster, so an unknown SIBLING of a documented
+    opcode is the better bet — every neighbourhood must land in the first handful of probes."""
+    p = oxs.plan_ops(0x00, 0xFF)
+    assert p[:8] == [0x03, 0x05, 0x0F, 0x11, 0xBF, 0xC1, 0xF0, 0xF5], "the ±1 ring around every known op"
+    assert len(p) == 256 - len(oxs.KNOWN)
+    assert not (set(p) & set(oxs.KNOWN))
+    # Every immediate neighbour of a documented opcode that is not itself documented. (0xF1-0xF4 are
+    # contiguous, so 0xF2's neighbours ARE known and are correctly absent from the plan entirely.)
+    adjacent = {a for k in oxs.KNOWN for a in (k - 1, k + 1) if 0 <= a <= 0xFF} - set(oxs.KNOWN)
+    assert adjacent <= set(p[:40]), f"left for the tail: {sorted(adjacent - set(p[:40]))}"
+
+
+def test_oxyii_a_characterised_opcode_is_not_fired_again():
+    """0x00 replies AND moves a status byte, so it trips the abort every run and stops the sweep before
+    the rest of the space is reached. Re-firing it buys nothing and costs the whole window."""
+    assert 0x00 not in oxs.plan_ops(0x00, 0xFF, skip={0x00})
+    assert 0x00 in oxs.plan_ops(0x00, 0xFF)
+
+
+def test_oxyii_max_ops_truncates_without_losing_a_neighbourhood():
+    p = oxs.plan_ops(0x00, 0xFF, limit=8)
+    assert len(p) == 8 and p == oxs.plan_ops(0x00, 0xFF)[:8], "a short run is a prefix, so it resumes"
+
+
+def test_oxyii_main_passes_the_plan_controls_through(monkeypatch, capsys):
+    seen = {}
+
+    async def fake(address, adapter, lo, hi, dry, limit=None, skip=()):
+        seen.update(lo=lo, hi=hi, limit=limit, skip=list(skip))
+        return {"ok": True}
+    monkeypatch.setattr(oxs, "run", fake)
+    assert oxs.main(["--address", "AA:BB", "--dry-run", "--max-ops", "12", "--skip", "0x00,0x3"]) == 0
+    capsys.readouterr()
+    assert seen == {"lo": 0x00, "hi": 0xFF, "limit": 12, "skip": [0x00, 0x03]}
 
 
 def test_oxyii_main_dry_run_writes_json(tmp_path, capsys):
