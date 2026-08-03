@@ -192,10 +192,20 @@ a status check**, and any tool that reads a settings menu should treat it as mod
 as a device constant.
 
 **In production since 2026-08-02:** the Verity runs PPG at **176 Hz** (`config.yaml` `rates: ppg: 176`).
-The motivating question is not throughput but the open rMSSD-alternation anomaly: at 55 Hz one sample is
-**18.2 ms** against a sleep rMSSD of 20–60 ms, so beat-timing quantisation is a large fraction of the
-measurement; 176 Hz cuts it to **5.7 ms** and discriminates real pulse alternans from a peak-picking
-artefact. GYRO/MAG were simultaneously cut to their floors (26 / 10 Hz) to pay for the bytes — both feed
+
+> ⚠️ **THE RATIONALE THAT FOLLOWED HERE WAS MEASURED, AND IT WAS WRONG.** See
+> `PPG-SAMPLE-RATE-AND-PAT-2026-08-03-BRIEF.md`. It argued that at 55 Hz one sample is 18.2 ms against a
+> sleep rMSSD of 20–60 ms, so beat-timing quantisation was a large fraction of the measurement, and that
+> 176 Hz would cut it to 5.7 ms and discriminate real pulse alternans from a peak-picking artefact.
+> **`ppgdex-dsp.js:942` (`refineFeet`) already interpolates each systolic foot to a FRACTIONAL sample
+> index**, so beat times were never on the sample grid and the mechanism claimed does not exist.
+> Decimating one night — the only control that holds physiology fixed — shows **rMSSD invariant from 44
+> to 176 Hz** and **PAT residIQR flat from 25 to 176 Hz**, with a cliff at 22 Hz. The rate was inferred
+> from a sample interval without checking that anything downstream was limited by it; `refineFeet` was
+> three lines away in the same file. Measured verdict: **floor 25 Hz, recommended 44–55 Hz, no gain
+> above** — 176 Hz buys ~1.5 % of a term that is not the limiting one, for **1.81× the battery**
+> (4.74 → 8.60 %/h). Kept in production on the owner's call (11.6 h runtime is ample for a ~6 h night),
+> not on this argument. GYRO/MAG were simultaneously cut to their floors (26 / 10 Hz) to pay for the bytes — both feed
 a ~0.1–0.6 Hz effort waveform, so 26 Hz is ~43× the widest band of interest.
 
 ⚠️ **`chosen_rate` honours a configured rate ONLY if the device offers it**, silently falling back
