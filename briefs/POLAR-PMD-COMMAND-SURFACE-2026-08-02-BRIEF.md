@@ -155,7 +155,55 @@ demonstration that the rates work.
 anything doing motion physics rather than activity counting. Note also that **offline recording stays
 capped at 13/26/52 Hz (PPG 28/44/55) even in SDK mode** — the flash budget binds regardless.
 
-Two cautions before anyone acts on this table:
+### 2.2a · ENTERING SDK mode — measured 2026-08-02, and it is `02 09`
+
+**MEASURED, and the opcode was INFERRED before it was confirmed.** Nothing in this repo or in §1's table
+documented how to *enter* SDK mode. The inference: `GET_SDK_MODE_STATUS` (`0x06`) replies
+`f0 06 09 00 00 00`, and since every other reply is `[f0, op, meas, status]`, that `0x09` sits in the
+**meas** slot — i.e. SDK mode is addressed as "type `0x09`" on the ordinary START/STOP ops. Polar Sensor
+Logger exposes these rates, so the *capability* was never in doubt; only the encoding was.
+
+```
+0x06 status         f0 06 09 00 00 00        <- final byte 0 = SDK mode OFF
+ENTER   02 09  ->   f0 02 09 00 00           <- status 0x00 = ok
+0x06 status         f0 06 09 00 00 01        <- final byte 1 = SDK mode ON
+```
+
+So: **`02 09` enters, `03 09` exits, and `0x06`'s final byte is the flag.** Note `0x09` answers
+`invalid_meas` to a *settings* read (§4) while being perfectly valid as a START target — a mode has no
+settings menu, which is consistent, not contradictory.
+
+**⚠️ SDK MODE PERSISTS ACROSS A DISCONNECT.** This is the load-bearing operational fact and it was not
+predicted. The probe's `finally` never landed its `03 09` (the link died first), and the *daemon's own
+log* then showed the enlarged menu on a fresh connection two minutes later:
+
+```
+21:09:33  (before)  ppg options: rate_hz=[55]
+21:11:53  (after)   ppg options: rate_hz=[28, 44, 55, 135, 176]
+                    acc  [26,52,104,208,416] range [2,4,8,16]
+                    gyro [26,52,104,208,416] range [250,500,1000,2000]
+```
+
+Two consequences. **Good:** SDK mode is a durable device setting, so a capture daemon does not have to
+re-enter it every session. **Bad:** it is exactly the kind of persisting state change §5 refuses to make
+casually — a device left in SDK mode keeps a changed menu for every later consumer, and nothing in the
+BLE surface announces it except `0x06`. **Any tool that enters SDK mode owes an explicit exit path and
+a status check**, and any tool that reads a settings menu should treat it as mode-dependent rather than
+as a device constant.
+
+**In production since 2026-08-02:** the Verity runs PPG at **176 Hz** (`config.yaml` `rates: ppg: 176`).
+The motivating question is not throughput but the open rMSSD-alternation anomaly: at 55 Hz one sample is
+**18.2 ms** against a sleep rMSSD of 20–60 ms, so beat-timing quantisation is a large fraction of the
+measurement; 176 Hz cuts it to **5.7 ms** and discriminates real pulse alternans from a peak-picking
+artefact. GYRO/MAG were simultaneously cut to their floors (26 / 10 Hz) to pay for the bytes — both feed
+a ~0.1–0.6 Hz effort waveform, so 26 Hz is ~43× the widest band of interest.
+
+⚠️ **`chosen_rate` honours a configured rate ONLY if the device offers it**, silently falling back
+otherwise. So a config asking for 176 without SDK mode records at 55 and *looks* like it worked, and a
+config asking gyro for 20 Hz (not on the SDK menu, whose floor is 26) silently gets 52. Always confirm
+the negotiated menu in the daemon log, never the config value.
+
+Two cautions still standing on §2.2's table:
 1. **Offered ≠ accepted.** The device advertising 176 Hz is not the device sustaining 176 Hz over BLE
    for eight hours. `POLAR-ONBOARD-BACKUP` §4a's memory limits and this project's own history of
    `ERROR_INVALID_PARAMETER` on plausible-looking TLVs both argue for measuring before believing.
@@ -267,8 +315,9 @@ streams. If they ever need names, they need a *separate* table.
   leaves the device in a different state than it found it is not a probe. Arming a trigger is a design
   decision with a rollback plan, not a sweep item. `POLAR-ONBOARD-BACKUP` argues triggers may make the
   runtime start path unnecessary; that evaluation is still owed and it is not this document.
-* **Entering SDK mode.** §2.2's menu was read without it. Enabling it is a write whose effect on an
-  in-progress capture, on the HR service and on battery is unknown.
+* ~~**Entering SDK mode.**~~ **DONE 2026-08-02 — see §2.2a.** It is `02 09`, it works, and it
+  **persists across a disconnect**. Its effect on battery over a full night is still unmeasured, and
+  that is now the open risk rather than the encoding.
 * **Every undocumented opcode.** See §1. (Note the distinction §4 turns on: an unrecognised *opcode* is
   never sent; an unrecognised *bitmask bit* is only ever asked about with a documented READ op.)
 * **Encryption.** Offline records can be AES-128 encrypted at start; default remains unencrypted
@@ -280,7 +329,7 @@ streams. If they ever need names, they need a *separate* table.
 
 | question | what would settle it |
 |---|---|
-| Does SDK mode's 176 Hz PPG actually sustain over BLE for a night? | enable SDK mode, negotiate 176 Hz, measure delivered vs expected sample count |
+| Does SDK mode's 176 Hz PPG sustain over a full night, and what does it cost in battery? | **running in production since 2026-08-02** — compare delivered vs expected sample count and battery at wake |
 | Does **PPG** accept the offline bit? (ACC is proven; PPG is the stream the backup exists for) | `probe_verity_offline.py --meas ppg --force-record` |
 | Does an offline recording survive a link drop? | start it, drop the link, reconnect, read `0x05` |
 | What container comes off the flash, on what timebase? | pull one and decode — `POLAR-ONBOARD-BACKUP` §6 Q3, and §3 above says assume UTC |
