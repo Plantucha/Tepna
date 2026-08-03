@@ -338,10 +338,89 @@ plus an `X` that never appears in a formatted float. Nothing in the residue chan
 
 ---
 
+## Fifth pass — `webmon.py`'s `make_app`, closed (2026-08-02)
+
+The aiohttp route table. **No shipped source changed.**
+
+| module | kill rate | survivors | timeouts | killed this pass | regressions |
+|---|---|---|---|---|---|
+| `webmon.py` | 82 % → **89 %** | 395 → 240 | 25 → 13 | 178 | 0 |
+
+**The largest cluster was one shape, and it is the worst one in the file:**
+
+```python
+{"ok": False, "error": "..."}   ->   {"ok": True, "error": "..."}      # status 400 / 409 / 500 / 502
+```
+
+Forty-nine of those survived. The tests asserted `resp.status`, and a few asserted `body["ok"] is True`
+on SUCCESS paths — **nothing read the body of a FAILURE**. The browser branches on `ok`, so a refused
+bond, a blocked CPAP pull, and a config write that hit a full disk would all have rendered as done. The
+fix is not more assertions on `status`; it is asserting the response OBJECT, which is what the route
+returns — the same discipline `pull_recording`'s manifest and `HostClockLogWriter`'s row already get.
+
+Others:
+
+* **Helper arguments discarded by `async def fake(*a, **k)` doubles** (~40). Including
+  `bonding.forget(adapter_mac)` — which passes the ADAPTER as the address, so the box unpairs its own
+  controller entry. This box has three BLE radios, so an `adapter_mac` computed and then dropped sends
+  the operation out of whichever controller BlueZ picks.
+* **The atomic config write** (~20). Its docstring explains at length why it is atomic — a truncating
+  write left `config.yaml` empty on a full disk and the daemon came up recording nothing, silently.
+  What no test checked was the MECHANICS: `dir=d` is what makes the temp a sibling, and without it
+  `os.replace` crosses filesystems and the atomicity is gone.
+* **The SSE stream** (~30). The old test read one frame and asserted `b"72" in frame` — a substring in
+  a byte blob cannot see the headers, the `_all` multiplex, or the filter DIRECTION (`msg["stream"] !=
+  key` → `==` gives a subscriber everything except what it asked for). `X-Accel-Buffering: no` is what
+  stops a reverse proxy buffering an event stream into uselessness.
+* **`os.path.join("monitor.html")`** — the directory dropped, so the index resolves against the process
+  working directory. Under systemd that is `/`: the monitor 404s on the box while working fine from a
+  shell in the source tree. Same defect class as `polar_psftp`'s sidecar.
+* **Six guard inversions**, notably `enabled and tgt is not None` → `or`, which marks the archive
+  enabled with NO target — the nightly offload then runs against nothing and reports success.
+* **`100 * done // total` → `101 * done // total`**, which ends a completed pull at 101 %.
+
+### The fixture, not the test, was the blind spot
+
+`cfg.get("devices", [])` → `cfg.get("devices")` is identical while the key is present, and **every**
+fixture supplied it. Only a config with no `devices` key — a box before its first pairing — tells them
+apart, and then it is `None` where a list is iterated: a 500 on the monitor's first ever page load. A
+`_mk_bare` fixture now covers that shape. Twenty-four such mutants remain on routes it does not yet
+reach; they are the cheapest thing left.
+
+### ⚠️ Adding tests can turn a `killed` verdict into a `timeout`
+
+Eleven mutants in one contiguous block (`timesync_all` / `polar_pull`) went from `killed` to `timeout`
+across this pass. They are **not** regressions — a timeout is inconclusive, and total timeouts FELL
+25 → 13 — but the mechanism is worth knowing: **mutmut's per-mutant time budget is derived from the
+baseline clean run and does not grow with the test selection.** Adding tests that cover a region makes
+every mutant in that region slower to evaluate, so borderline ones brush the budget. Read the
+survivor/timeout split, never the killed count alone, and diff the two sets separately.
+
+### ⚠️ Its mutant file cannot be parsed — use a line-scan differ
+
+~2 000 mutants of one ~900-line function makes `mutants/webmon.py` **113 MB / 1.9 M lines**.
+`ast.parse` does not finish, so the AST survivor-differ used for every other module is useless here.
+Scan for `def x_<fn>__mutmut_N(` headers and slice the raw source between them: linear, one second.
+**`capture.py` (7 177 mutants) will hit the same wall.**
+
+### What is left
+
+**240 survivors + 13 timeouts.** Seventy-six percent is prose: 69 `XX`-marker string literals, 33
+literal case-flips, 5 log messages, plus argparse-style help text. Of the 26 guard/comparison
+survivors, most are `cfg.get(key, None)` — identical to the original wherever the key exists — and the
+`<= 60` / `< 61` pair is a float boundary. The genuinely valuable remainder is small and named above:
+the bare-config sites, `(tgt.get("kind") or "") == "mount" and …` → `or`, the `device_id` merge guard,
+and the comment-loss warning's `and`/`or`.
+
+---
+
 ## Where to go next (highest value first)
 
-1. **`webmon.py` — re-measured 2026-08-02 after #716: 2 345 mutants, 395 survivors + 25 timeouts,
-   82 % killed, and 386 of the 395 in `make_app`.** So "webmon is weakly tested" is really "the aiohttp
+1. **`capture.py` — the real blind spot.** ~7 177 mutants, of which 69 have ever been measured (1 %),
+   on the `_now` clock path alone. Sample it one subsystem at a time
+   (`--only 'capture.x_<func>__mutmut_*'`), never whole, and use the line-scan differ (see § Fifth pass).
+
+2. ~~**`webmon.py`**~~ — **closed 2026-08-02 at 89 %** (see § Fifth pass). The former entry read: So "webmon is weakly tested" is really "the aiohttp
    route table is weakly tested" — the unit of work is a ROUTE, not the function. Triaged into six
    clusters: error-response bodies (`{"ok": False}` → `{"ok": True}` at status 400/409/502, invisible
    to tests that assert only `resp.status`), arguments discarded by helper doubles, the config
