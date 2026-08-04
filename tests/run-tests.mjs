@@ -1185,6 +1185,15 @@ async function main() {
      executes at module scope would start a full corpus run inside the test process. */
   /* REM-STAGING-FOLLOWUPS §2b — the expert-label join/scoring. NODE-ONLY (.mjs tool). Import is inert:
      the tool guards its CLI behind an entry-point check, so this does not start a scoring run. */
+  /* Mutation TRIAGE — the pure attribution/grouping half. NODE-ONLY (.mjs tool); the import is inert
+     because the tool guards its CLI behind an entry-point check. */
+  let MutTriage = null;
+  try {
+    MutTriage = await import(new URL('../tools/mutate-triage.mjs', import.meta.url).href);
+  } catch (e) {
+    console.error(paint('  ! mutate-triage failed to load: ' + e.message, C.yellow));
+  }
+
   let NsrrStage = null;
   try {
     NsrrStage = await import(new URL('../tools/nsrr-stage-validate.mjs', import.meta.url).href);
@@ -1208,6 +1217,7 @@ async function main() {
   const env = {
     PatStrict: PatStrict,
     NsrrStage: NsrrStage,
+    MutTriage: MutTriage,
     PatHostOffset: PatHostOffset,
     DexKernel: ctx.DexKernel,
     MetricRegistry: ctx.MetricRegistry,

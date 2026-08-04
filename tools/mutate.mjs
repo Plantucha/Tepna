@@ -411,11 +411,35 @@ async function runFile(file) {
     invalid = 0,
     done = 0;
   const trees = [];
+  const _t0 = Date.now();
+  let _lastLine = 0;
   const tick = () => {
     /* Progress on stderr in EVERY mode. It was gated on !AS_JSON, so a --json run printed nothing at
        all for its whole duration: no way to distinguish a working run from a stalled one, and no way
-       to see the job count that would have exposed a collapsed pool. stdout stays pure NDJSON. */
-    process.stderr.write('\r  ' + file + '  ' + ++done + '/' + picked.length + '  killed ' + killed + '  survived ' + survivors.length + '  [' + (trees.length || 1) + ' job(s)]   ');
+       to see the job count that would have exposed a collapsed pool. stdout stays pure NDJSON.
+
+       TWO SHAPES, because `\r` is only progress on a terminal. Piped to a file or a CI log — which is
+       how any run long enough to need progress is actually watched — a carriage return overwrites
+       nothing and the whole sweep lands as ONE unreadable line, indistinguishable from silence. A
+       40-80 minute run that prints nothing legible cannot be told from a hung one. So when stderr is
+       not a TTY, emit a NEWLINE checkpoint periodically instead, with elapsed and a projected finish
+       so the reader can decide whether to keep waiting. */
+    ++done;
+    const el = (Date.now() - _t0) / 1000;
+    const body = file + '  ' + done + '/' + picked.length + '  killed ' + killed + '  survived ' + survivors.length + '  [' + (trees.length || 1) + ' job(s)]';
+    if (process.stderr.isTTY) {
+      process.stderr.write('\r  ' + body + '   ');
+      return;
+    }
+    // every 10th mutant, every ~30 s, and always on the last one — bounded output, never silent
+    const dueCount = done % 10 === 0 || done === picked.length || done === 1;
+    const dueTime = el - _lastLine >= 30;
+    if (!dueCount && !dueTime) return;
+    _lastLine = el;
+    const rate = done / Math.max(el, 0.001);
+    const etaS = rate > 0 ? Math.round((picked.length - done) / rate) : 0;
+    const mmss = (t) => Math.floor(t / 60) + 'm' + String(Math.round(t % 60)).padStart(2, '0') + 's';
+    process.stderr.write('  ' + body + '  elapsed ' + mmss(el) + (done < picked.length ? '  eta ' + mmss(etaS) : '  done') + '\n');
   };
   /* `v` is either the legacy string (the serial in-place path, which still uses the sync runner) or
      `{ verdict, killers }` from the async pool. Normalising here keeps both paths on one classifier
@@ -720,16 +744,28 @@ function reportOne(r) {
 
 if (!AS_JSON) console.log('MUTATION SWEEP — a surviving mutant means the suite cannot see a change there\n');
 if (DRY) {
+  /* `--dry-run --json` is the ENUMERATE-WITHOUT-TESTING lane (mutmut's `mutmut run --dry-run`
+     equivalent): it emits every mutant with a stable id so a triage tool can reproduce one by id
+     without re-deriving the operator set. `--json` used to be ignored here, so the only enumeration
+     was human-readable text — which meant any sibling tool had to re-implement OPS and would drift
+     (the divergent-copy failure this repo has hit before). */
+  const dryOut = [];
   for (const f of files) {
     const abs = join(ROOT, f);
     if (!existsSync(abs)) {
-      console.log('  ' + f + '  ⊘ not found');
+      if (!AS_JSON) console.log('  ' + f + '  ⊘ not found');
+      else dryOut.push({ file: f, error: 'not found' });
       continue;
     }
     const ms = mutantsFor(readFileSync(abs, 'utf8'));
-    console.log('  ' + f + '  ' + ms.length + ' mutant(s)');
-    for (const mu of thin(ms, LIMIT)) console.log('    L' + mu.line + '  [' + mu.op + ']  ' + mu.before.slice(0, 88));
+    if (AS_JSON) {
+      dryOut.push({ file: f, generated: ms.length, mutants: ms.map((mu, i) => ({ id: f + ':' + mu.line + ':' + i, line: mu.line, op: mu.op, before: mu.before, after: mu.after })) });
+    } else {
+      console.log('  ' + f + '  ' + ms.length + ' mutant(s)');
+      for (const mu of thin(ms, LIMIT)) console.log('    L' + mu.line + '  [' + mu.op + ']  ' + mu.before.slice(0, 88));
+    }
   }
+  if (AS_JSON) console.log(JSON.stringify({ dryRun: true, files: dryOut }, null, 2));
   process.exit(0);
 }
 
