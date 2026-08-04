@@ -444,6 +444,18 @@ function bestPair(dir) {
    full corpus run inside the test process (this repo has been bitten by exactly that with
    `tools/mutate.mjs`). Everything below the guard runs only when this file is the entry point. */
 export { legacyMatchRate, strictMatchRate, circShift, rawLags, STRICT_W_MS, PHYS_LO, PHYS_HI, LAG_TOL_MS };
+/* Beat derivation is exported for the SAME reason as the statistics above: a sibling tool must be
+   able to reuse it without forking the headless-realm loader. `tools/pat-finger-coupler.mjs` runs
+   the O2Ring finger leg, which cannot use this file's ACC alignment (the ring has no accelerometer
+   — O2RING-RAW-STREAMS-ABSENT §6) but must derive R-peaks and feet identically, or the two legs
+   would not be comparable. Additive only; nothing above changes. */
+/* The loaded realm itself, so a sibling can derive a DIFFERENT PPG FIDUCIAL without a second loader.
+   PAT is defined against a fiducial and the choice is load-bearing: the FOOT is classical but sits at
+   the trough where SNR is worst, while the systolic PEAK detects far more reliably and merely adds a
+   (near-constant) ejection interval — which the strict statistic's leave-one-block-out centre absorbs
+   exactly as it absorbs delta. A null under one fiducial is not a null under the other. */
+function getDsps() { loadDsps(); return { ECGDSP, PPGDSP, PATAlign }; }
+export { loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes, median, quantile, BIN_MIN };
 
 const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (IS_CLI) {
