@@ -27776,6 +27776,45 @@
       T.ok('no ±25-ms AMo50 window (baevskyGeom uses the 50-ms bin count)', !/Math\.abs\(\s*\w+\s*-\s*\w+\s*\)\s*<=\s*25\b/.test(code), 'a ±25-ms window diverges from the exported AMo50');
     });
 
+    /* WEARABLE-DRIFT-DIRECT §6 — a ~0 ppm is not a measurement until you know there are two clocks.
+       `tools/dual-clock-rate.mjs` reads the host column against the device counter and reports a rate.
+       On a PHONE capture the host column IS the device stamp rounded to the millisecond, so the fit is
+       perfect and the tool reported `0.0 ppm` on six ~7.5 h fragments — all long enough to be quoted in
+       its summary, all reading as a flawless crystal. Measured: residual spread exactly 1.00 ms (one
+       stamp quantum) against 283–552 ms on box captures — bimodal with a ~100× gap, which is why the
+       threshold is a property of the data and not a knob. CLAUDE.md §7 states the rule: read
+       `independent`, never a ~0 ppm. This gates the predicate that enforces it, on VALUES.
+       The ORDER matters and is asserted: a drawn DEVICE axis outranks a derived HOST column, because it
+       names a different and more serious defect, and a length complaint must never pre-empt either —
+       "too short" invites "so use a longer file", which on a phone capture is exactly wrong. */
+    group('A rate is refused when there is no second clock — WEARABLE-DRIFT-DIRECT §6', 'tools · clock · independence', function (T) {
+      var DC = env.DualClock;
+      if (!DC || typeof DC.classifyRate !== 'function') {
+        T.skip('env.DualClock provided to the runner', 'Node-lane only (run-tests.mjs imports tools/dual-clock-rate.mjs) — the browser lane has no ESM tool import so it SKIPs; CI runs the Node lane');
+        return;
+      }
+      T.ok('ANTI-VACUITY · the independence threshold is two host quanta, not a free knob', DC.HOST_QUANTUM_MS === 1 && DC.INDEPENDENT_MIN_SPREAD_MS === 2, 'quantum=' + DC.HOST_QUANTUM_MS + ' min=' + DC.INDEPENDENT_MIN_SPREAD_MS);
+      var mk = function (o) {
+        var base = { ppm: -20, spanMin: 400, residualSpreadMs: 300, quantizedShare: 0.02, drawn: false };
+        for (var k in o) base[k] = o[k];
+        return base;
+      };
+      var good = DC.classifyRate(mk({}));
+      T.ok('a long INDEPENDENT fragment yields a rate', good.usable === true && good.kind === 'rate', JSON.stringify(good));
+      var phone = DC.classifyRate(mk({ ppm: -0.0, spanMin: 481.2, residualSpreadMs: 1.0 }));
+      T.ok('the measured phone fragment (481 min, 1.00 ms spread, 0 ppm) is REFUSED', phone.usable === false, JSON.stringify(phone));
+      T.ok('and it is refused for the RIGHT reason — no second clock, not "too short"', phone.kind === 'no-second-clock', 'got ' + phone.kind);
+      T.ok('the reason says the host column is the device stamp', /host column is the device stamp/.test(phone.reason), phone.reason);
+      T.ok('spread exactly at the 2 ms threshold is NOT independent', DC.classifyRate(mk({ residualSpreadMs: 2.0 })).kind === 'no-second-clock');
+      T.ok('spread just over the threshold IS', DC.classifyRate(mk({ residualSpreadMs: 2.01 })).usable === true);
+      var drawnAndDerived = DC.classifyRate(mk({ drawn: true, quantizedShare: 1, residualSpreadMs: 1.0 }));
+      T.ok('a DRAWN device axis outranks a derived host column', drawnAndDerived.kind === 'drawn-device-axis', 'got ' + drawnAndDerived.kind);
+      T.ok('a SHORT non-independent fragment reports no-second-clock, not too-short', DC.classifyRate(mk({ spanMin: 6.7, residualSpreadMs: 1.0 })).kind === 'no-second-clock');
+      T.ok('a short but independent fragment reports too-short', DC.classifyRate(mk({ spanMin: 6.7, residualSpreadMs: 283.6 })).kind === 'too-short');
+      T.ok('a non-finite ppm is refused, never defaulted to 0', DC.classifyRate(mk({ ppm: NaN })).usable === false && DC.classifyRate(null).usable === false);
+      T.ok('a refusal never carries a usable rate', [phone, drawnAndDerived].every(function (v) { return v.usable === false && !!v.reason; }));
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
        HRV off a night full of movement is worth less than the same number off a still night. This SCORES
        that (it never alters or excludes an HRV value). The invariant that matters is the same tri-state

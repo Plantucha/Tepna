@@ -21,13 +21,68 @@
  * by re-calibrating the constant: a better number makes a drawn axis more plausible without making it a
  * measurement, and erases the evidence that it is drawn.
  *
+ * ⚠ FIRST ASK WHETHER THERE IS A SECOND CLOCK AT ALL (CLAUDE.md §7). A rate of ~0 ppm has two
+ * OPPOSITE meanings: two independent clocks that agree, or a host column the capture app DERIVED from
+ * the device stamp — the absence of a measurement wearing the shape of one. The discriminator is the
+ * residual SPREAD about the fitted line, not the slope, and it is bimodal in this corpus: box captures
+ * 101.89–5124 ms, phone captures 0.13–1.00 ms, nothing in between (the phone maximum is exactly one
+ * stamp quantum, because its host column IS the device time rounded). Measured with this tool on three
+ * ~8 h Polar-Sensor-Logger nights: −0.0 / 0.0 / −0.0 ppm at a residual spread of exactly 1.00 ms.
+ * Before the `independent` check below, all three were long enough to be QUOTED in the summary, and a
+ * reader would have taken "0.0 ppm, spread 0.0" as a perfect crystal. So a non-independent fragment
+ * gets its rate REFUSED, not printed — same honesty rule as the Clock Contract's §2.6 null.
+ *
  * Usage: node tools/dual-clock-rate.mjs <capture-night-dir>
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { pathToFileURL } from 'node:url';
 
 const DIR = process.argv[2] || '/home/michal/tepna-smoketest/captures/2026-07-26';
+
+/* The host stamp is written to millisecond resolution, so a host column derived from the device time
+   lands within one quantum of the fitted line every row. Two quanta is the §7 threshold — a property
+   of the data (the bimodality has a ~100× gap), not a tuned knob. */
+const MIN_SPAN_MIN = 60;
+export const HOST_QUANTUM_MS = 1;
+export const INDEPENDENT_MIN_SPREAD_MS = 2 * HOST_QUANTUM_MS;
+/* A CRYSTAL does not change rate between fragments of one night. The two Polar devices hold ±1.6 ppm
+   across a night and ±2–3 ppm across four; the worst real crystal in this corpus is −3035 ppm but it is
+   STABLE. So a wide cross-fragment spread is not an imprecise rate, it is the absence of one, and the
+   median must be REFUSED rather than printed with a caveat beside it.
+   This became load-bearing on 2026-08-01: the O2Ring's axis stopped being DRAWN (identical-delta share
+   99.4 % on 2026-07-27 → 2.2 %), so the drawn check no longer catches it — and it promptly reported a
+   median of 160.5 ppm at a spread of 2282.6. Something in the capture changed; it did not become a
+   clock. A device can fail this check for a new reason after passing an old one. */
+export const MAX_CRYSTAL_SPREAD_PPM = 50;
+
+/* PURE decision predicate — what this tool is entitled to CONCLUDE from one fragment's fit. Separated
+   from the I/O so it is gateable on values (tests/dex-tests.js `dual-clock-rate`), which a source scan
+   over the streaming loop could never be. Order matters: a DRAWN device axis is reported even when the
+   host column is also non-independent, because it names a different, more serious defect. */
+export function classifyRate(r) {
+  if (!r || !isFinite(r.ppm)) return { usable: false, kind: 'unreadable', reason: 'no fit' };
+  if (r.drawn)
+    return {
+      usable: false,
+      kind: 'drawn-device-axis',
+      reason: 'device axis is DRAWN (' + (100 * r.quantizedShare).toFixed(1) + '% of deltas identical) — this ppm is the assumed-rate error, not a clock'
+    };
+  if (!isFinite(r.residualSpreadMs) || r.residualSpreadMs <= INDEPENDENT_MIN_SPREAD_MS)
+    return {
+      usable: false,
+      kind: 'no-second-clock',
+      reason:
+        'residual spread ' +
+        (isFinite(r.residualSpreadMs) ? r.residualSpreadMs.toFixed(2) : '?') +
+        ' ms ≤ ' +
+        INDEPENDENT_MIN_SPREAD_MS +
+        ' ms — the host column is the device stamp, so there is NO second clock here and this ppm is not a rate'
+    };
+  if (r.spanMin < MIN_SPAN_MIN) return { usable: false, kind: 'too-short', reason: 'under ' + MIN_SPAN_MIN + ' min, not a rate' };
+  return { usable: true, kind: 'rate', reason: '' };
+}
 
 function parsePhone(s) {
   // Clock Contract: components as written -> Date.UTC (floating wall clock). Never Date.parse.
@@ -45,6 +100,11 @@ async function rateOf(file) {
     sy = 0,
     sxx = 0,
     sxy = 0;
+  /* The residual SPREAD is the independence discriminator (§7) and it cannot be had from running sums
+     alone — it needs the fit before it can measure deviation from it. Keeping the subsampled points is
+     cheap: every 200th row of an 8 h 130 Hz fragment is ~19k points. */
+  const px = [],
+    py = [];
   let t0 = null,
     d0 = null,
     lastT = null,
@@ -95,6 +155,8 @@ async function rateOf(file) {
     sy += y;
     sxx += x * x;
     sxy += x * y;
+    px.push(x);
+    py.push(y);
     kept++;
     lastT = ph;
     lastD = dv;
@@ -105,7 +167,25 @@ async function rateOf(file) {
   const slope = (kept * sxy - sx * sy) / den; // host ms per device ms
   const spanMin = (lastT - t0) / 60000;
   const quantizedShare = dTot > 20 ? dSame / dTot : null;
-  return { file: path.basename(file), spanMin, ppm: (slope - 1) * 1e6, samples: kept, quantizedShare, drawn: quantizedShare != null && quantizedShare >= 0.99 };
+  const intercept = (sy - slope * sx) / kept;
+  let rMin = Infinity,
+    rMax = -Infinity;
+  for (let i = 0; i < px.length; i++) {
+    const e = py[i] - (slope * px[i] + intercept);
+    if (e < rMin) rMin = e;
+    if (e > rMax) rMax = e;
+  }
+  const residualSpreadMs = rMax - rMin;
+  return {
+    file: path.basename(file),
+    spanMin,
+    ppm: (slope - 1) * 1e6,
+    samples: kept,
+    quantizedShare,
+    drawn: quantizedShare != null && quantizedShare >= 0.99,
+    residualSpreadMs,
+    independent: residualSpreadMs > INDEPENDENT_MIN_SPREAD_MS
+  };
 }
 
 /* A ppm slope needs TIME LEVERAGE, and file size is not a proxy for it — a high-rate ECG
@@ -114,52 +194,78 @@ async function rateOf(file) {
    pass a 3 MB filter; only one is a rate. Fragments under MIN_SPAN_MIN are still printed —
    silently dropping them would hide how few long fragments a night actually has — but they
    are marked, and excluded from any summary a reader would quote. */
-const MIN_SPAN_MIN = 60;
 
-const files = fs.readdirSync(DIR).filter((f) => /(H10.*_ECG|VeritySense.*_PPG|O2Ring.*_PPG)\.txt$/.test(f));
-const big = files
-  .map((f) => ({ f, sz: fs.statSync(path.join(DIR, f)).size }))
-  .filter((x) => x.sz > 3e6)
-  .sort((a, b) => b.sz - a.sz)
-  .slice(0, 6);
-console.log('DEVICE RATE vs HOST CLOCK — measured directly from the two columns in each raw file\n');
-const byDev = {};
-const drawnBy = {}; // device -> count of long fragments whose axis is drawn
-console.log('device   spanMin   ppm vs host   samples   file');
-for (const { f } of big) {
-  const r = await rateOf(path.join(DIR, f));
-  if (!r) {
-    console.log('  (unreadable)', f);
-    continue;
-  }
-  const dev = /H10/.test(f) ? 'H10   ' : /Verity/.test(f) ? 'VERITY' : 'O2RING';
-  const short = r.spanMin < MIN_SPAN_MIN;
-  if (!short) {
+/* Importable: the predicate above is gated on VALUES by tests/dex-tests.js, and importing a module
+   must not fire its I/O. Only a direct `node tools/dual-clock-rate.mjs …` runs the report. */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const files = fs.readdirSync(DIR).filter((f) => /(H10.*_ECG|VeritySense.*_PPG|O2Ring.*_PPG)\.txt$/.test(f));
+  const big = files
+    .map((f) => ({ f, sz: fs.statSync(path.join(DIR, f)).size }))
+    .filter((x) => x.sz > 3e6)
+    .sort((a, b) => b.sz - a.sz)
+    .slice(0, 6);
+  console.log('DEVICE RATE vs HOST CLOCK — measured directly from the two columns in each raw file\n');
+  const byDev = {};
+  const drawnBy = {}; // device -> count of long fragments whose axis is drawn
+  const refusedBy = {}; // device -> { kind: count } — why a fragment yielded no rate
+  console.log('device   spanMin   ppm vs host   resid ms   samples   file');
+  for (const { f } of big) {
+    const r = await rateOf(path.join(DIR, f));
+    if (!r) {
+      console.log('  (unreadable)', f);
+      continue;
+    }
+    const dev = /H10/.test(f) ? 'H10   ' : /Verity/.test(f) ? 'VERITY' : 'O2RING';
     const k = dev.trim();
-    if (!byDev[k]) byDev[k] = [];
-    byDev[k].push(r.ppm);
+    /* ONE predicate decides whether this fragment yields a rate. It used to be an inline
+       `spanMin < 60` test, which admitted every non-independent fragment — and those are the
+       dangerous ones, because they are long AND look perfect. */
+    const v = classifyRate(r);
+    if (v.usable) {
+      if (!byDev[k]) byDev[k] = [];
+      byDev[k].push(r.ppm);
+    } else {
+      if (!refusedBy[k]) refusedBy[k] = {};
+      refusedBy[k][v.kind] = (refusedBy[k][v.kind] || 0) + 1;
+    }
+    if (r.drawn) drawnBy[k] = (drawnBy[k] || 0) + 1;
+    /* A REFUSED fragment shows a dash where its ppm was. Printing the number next to the reason it
+       is not a rate invites exactly the quote the reason forbids. */
+    const shown = v.usable ? r.ppm.toFixed(1) : '—';
+    console.log(
+      `${dev}  ${r.spanMin.toFixed(1).padStart(7)}   ${shown.padStart(11)}   ${r.residualSpreadMs.toFixed(2).padStart(9)}   ${String(r.samples).padStart(7)}   ${r.file}${v.usable ? '' : '   ← ' + v.reason}`
+    );
   }
-  if (r.drawn) drawnBy[dev.trim()] = (drawnBy[dev.trim()] || 0) + 1;
-  /* A DRAWN axis outranks every other note on the row: `under 60 min, not a rate` is about
-     precision, but a drawn axis has no rate to be imprecise about. */
-  const note = r.drawn
-    ? `   ← DRAWN axis (${(100 * r.quantizedShare).toFixed(1)}% of deltas identical) — this ppm is the assumed-rate error, not a clock`
-    : short
-      ? `   ← under ${MIN_SPAN_MIN} min, not a rate`
-      : '';
-  console.log(`${dev}  ${r.spanMin.toFixed(1).padStart(7)}   ${r.ppm.toFixed(1).padStart(11)}   ${String(r.samples).padStart(7)}   ${r.file}${note}`);
-}
 
-/* Summary over the long fragments only. A wide spread is the SYMPTOM; where the axis is drawn, the
-   CAUSE is named instead — `not a disciplined clock` is true of the O2Ring but points at its crystal,
-   which is innocent. There is no crystal in the file at all (O2RING-SYNTHESISED-AXIS §5). */
-console.log('\n            fragments ≥' + MIN_SPAN_MIN + ' min   median ppm   spread');
-for (const [dev, vals] of Object.entries(byDev)) {
-  if (!vals.length) continue;
-  const s2 = vals.slice().sort((a, b) => a - b);
-  const md = s2[s2.length >> 1];
-  const spread = s2[s2.length - 1] - s2[0];
-  const nDrawn = drawnBy[dev] || 0;
-  const why = nDrawn ? `   ← ${nDrawn}/${vals.length} fragments have a DRAWN axis: no device clock in the file, so these ppm are drawing error` : spread > 50 ? '   ← not a disciplined clock' : '';
-  console.log(`  ${dev.padEnd(8)} ${String(vals.length).padStart(12)}   ${md.toFixed(1).padStart(10)}   ${spread.toFixed(1).padStart(6)}${why}`);
+  /* Summary over fragments that ACTUALLY YIELD A RATE. A wide spread is the SYMPTOM; where the axis is
+     drawn, the CAUSE is named instead — `not a disciplined clock` is true of the O2Ring but points at its
+     crystal, which is innocent. There is no crystal in the file at all (O2RING-SYNTHESISED-AXIS §5).
+     A device with NO usable fragment gets a line saying so rather than no line: silence would read as
+     "not present in this capture", which is a different fact. */
+  console.log('\n            fragments yielding a rate   median ppm   spread');
+  const devices = Array.from(new Set([...Object.keys(byDev), ...Object.keys(refusedBy)])).sort();
+  for (const dev of devices) {
+    const vals = byDev[dev] || [];
+    const ref = refusedBy[dev] || {};
+    const refTxt = Object.entries(ref)
+      .map(([kind, n]) => n + ' ' + kind)
+      .join(', ');
+    if (!vals.length) {
+      console.log(`  ${dev.padEnd(8)} ${String(0).padStart(24)}   ${'—'.padStart(10)}   ${'—'.padStart(6)}   ← NO RATE from this capture (${refTxt || 'none read'})`);
+      continue;
+    }
+    const s2 = vals.slice().sort((a, b) => a - b);
+    const md = s2[s2.length >> 1];
+    const spread = s2[s2.length - 1] - s2[0];
+    const nDrawn = drawnBy[dev] || 0;
+    const incoherent = vals.length > 1 && spread > MAX_CRYSTAL_SPREAD_PPM;
+    const why = nDrawn
+      ? `   ← ${nDrawn} fragment(s) have a DRAWN axis: no device clock in the file, so those ppm are drawing error`
+      : incoherent
+        ? `   ← REFUSED: fragments of one night disagree by ${spread.toFixed(0)} ppm (> ${MAX_CRYSTAL_SPREAD_PPM}). A crystal does not do that — this is not a rate`
+        : '';
+    console.log(
+      `  ${dev.padEnd(8)} ${String(vals.length).padStart(24)}   ${(incoherent ? '—' : md.toFixed(1)).padStart(10)}   ${spread.toFixed(1).padStart(6)}${why}${refTxt ? '   (refused: ' + refTxt + ')' : ''}`
+    );
+  }
 }

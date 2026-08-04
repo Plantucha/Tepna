@@ -89,7 +89,75 @@ device ms, prints ppm per fragment. Reads the Clock Contract way (explicit regex
       estimate here achieved.
 - [x] The O2Ring's unusable timebase identified, with the mechanism for its weak legs.
 - [x] The instrument shipped as a tool rather than left in a scratch script.
+- [x] **The instrument now refuses when there is no second clock (2026-08-03).** See §7.
 - [ ] *(owner)* Correct `papers/wearable-clock-drift.html`'s scope note; it is another session's paper
       and the correction is flagged there rather than applied.
-- [ ] *(open)* Re-run closure using only the two Polar legs plus a third source that has a real clock.
-      The O2Ring cannot be that third source.
+- [ ] *(open — third source IDENTIFIED, closure leg not yet run)* See §7.3.
+
+## 7 · The tool could not tell "the clocks agree" from "there is only one clock" (2026-08-03)
+
+§1's method is *regress the host column against the device counter*. That is only a measurement if the
+two columns are two clocks — and on a **phone** capture they are not. Polar Sensor Logger writes a host
+column that is the device stamp rounded to the millisecond, so the fit is perfect and the tool reported:
+
+| capture | span | ppm | residual spread |
+|---|---|---|---|
+| phone `20260606_220643_ECG` | 481.2 min | **−0.0** | **1.00 ms** |
+| phone `20260704_225626_ECG` | 476.4 min | **0.0** | **1.00 ms** |
+| phone `20260611_210411_ECG` | 463.2 min | **−0.0** | **1.00 ms** |
+| box `20260802121358_ECG` | 6.7 min | −68.6 | **283.63 ms** |
+| box `20260802122506_PPG` | 22.9 min | −36.5 | **551.84 ms** |
+
+Six such phone fragments were **long enough to be quoted** in the summary, and every one read as a
+flawless crystal. This is `CLAUDE.md` §7's rule exactly — *a rate of ~0 has two opposite meanings; read
+`independent`, never a ~0 ppm* — and the one tool whose whole job is device-vs-host rate was not
+applying it. The discriminator is the residual **spread**, bimodal here with a ~100× gap (1.00 ms
+against 283–552 ms), so the 2-quantum threshold is a property of the data, not a knob.
+
+**Fixed:** `rateOf` returns `residualSpreadMs` + `independent`; a pure exported `classifyRate` decides
+`rate | no-second-clock | drawn-device-axis | too-short | unreadable`; a refused fragment prints **—**
+where its ppm was, because printing the number beside the reason it is not a rate invites the very
+quote the reason forbids. Ordering is asserted: a **drawn device axis** outranks a derived host column,
+and a length complaint never pre-empts either — *"too short"* invites *"so use a longer file"*, which on
+a phone capture is precisely wrong.
+
+### 7.1 · The O2Ring stopped being DRAWN, and still is not a clock
+
+§3 scoped the drawn axis as *"every session up to 2026-07-27"*. That scope was right, and what happened
+after it matters: identical-delta share **99.4 % on 2026-07-27 → 2.2 % on 2026-08-01**. Something in the
+capture changed. It did not become a clock — the same night's fragments disagree by **2282.6 ppm**.
+
+So the drawn check alone no longer disqualifies it. A **cross-fragment spread** refusal was added
+(`MAX_CRYSTAL_SPREAD_PPM = 50`): a crystal does not change rate between fragments of one night, so a
+wide spread is not an imprecise rate but the absence of one, and the median is refused rather than
+printed with a caveat beside it. **Known limit:** with only one usable fragment the spread check cannot
+fire — single-fragment O2Ring nights still print −188.0 / −203.0 / −62.6 ppm, mutually absurd across
+nights but individually unchallenged.
+
+### 7.2 · §1's headline reproduces on nine nights, with the hardened tool
+
+| device | nights | median ppm | range |
+|---|---|---|---|
+| **Polar H10** | 8 | **−20.3** | −18.7 … −21.6 |
+| **Polar Verity** | 8 | **−27.0** | −23.9 … −30.2 |
+
+**Inter-device ≈ 6.7 ppm** — §1's ~7 ppm, now on nine nights instead of four and with every
+non-independent fragment excluded rather than silently averaged in.
+
+### 7.3 · The third source with a real clock is the CAPTURE HOST — and only on box captures
+
+The open item asked for *"a third source that has a real clock"*. It is the **vigil box** (chrony,
+local stratum-1, 0.008 ppm) — the same host column §1 regresses against. Two consequences:
+
+1. **A closure can only be attempted on BOX captures.** On phone captures there is no second clock in
+   the file at all, so a host-anchored leg does not exist to close against. This also re-reads
+   `wearable-clocks-diverge`: H10↔Verity ~3.3 s apart on phone nights against ~0.2 s on box nights,
+   because only the box actually puts the two devices on one timebase.
+2. **The O2Ring is disqualified twice over** — drawn through 2026-07-27, incoherent after.
+
+**NOT DONE, deliberately:** the closure itself needs an *independent* H10↔Verity leg, and the only one
+available is beat-derived — the exact stack that produced four retractions in this family. Deriving
+`H10↔Verity` as the difference of the two host-referenced rates would be algebra, not a check: it
+cannot fail. Running the beat leg honestly is a work unit of its own and is left open rather than
+faked; what is settled here is *which* third clock the closure should use, and on which nights it can
+exist at all.
