@@ -27648,6 +27648,109 @@
       T.ok('n-agnostic — a 3rd source (PpgDex RIIV) folds in with no code change', !!three && three.n === 3 && three.consensusBrpm === 14.5, three ? 'n=' + three.n : 'null');
     });
 
+    /* REGEN-CORPUS-PATH-FOLLOWUPS §3.4 — the two halves of the fixture workflow must look in ONE place.
+       `tools/verify-fixtures.mjs` honored `DEX_UPLOADS`; the regen family hardcoded `<repo>/uploads`. So
+       the sanctioned `regen-goldens.mjs --node ECGDex`, run from the worktree CLAUDE.md §👥.1 tells every
+       agent to use, printed `INPUT ABSENT` for a recording that was sitting in the main checkout with
+       DEX_UPLOADS pointed straight at it — 11 corpus-backed fixtures across 7 nodes, silently, while the
+       run exited 0 and its summary read like a known exemption. Nothing executable spans both tools'
+       path resolution, so this is a source scan: every one of them must reach the corpus through the ONE
+       exported helper, and none may re-derive it.
+       The SECOND leg is the point: `uploads/` holds gitignored recordings AND 133 git-TRACKED artifacts,
+       including every fixture a regen WRITES. Routing the write side through DEX_UPLOADS would make a
+       worktree regen rewrite a tracked file in ANOTHER checkout. So `resolveCorpus` must appear on the
+       read side only, and the write side must stay pinned to this checkout.
+       ANTI-VACUITY: assert the sources were actually loaded and the helper name is actually found —
+       a scan over absent text passes trivially, which is the failure this repo keeps re-learning. */
+    group('Regen + verify resolve the corpus through ONE helper — REGEN-CORPUS-PATH-FOLLOWUPS §3.4', 'tools · fixtures · corpus-path', function (T) {
+      var CONSUMERS = [
+        'tools/verify-fixtures.mjs',
+        'tools/regen-oxydex-goldens.mjs',
+        'tools/regen-ecgdex-goldens.mjs',
+        'tools/regen-ppgdex-goldens.mjs',
+        'tools/regen-pulsedex-goldens.mjs',
+        'tools/regen-hrvdex-goldens.mjs',
+        'tools/regen-glucodex-goldens.mjs',
+        'tools/regen-cpap-goldens.mjs',
+        'tools/regen-motiondex-goldens.mjs'
+      ];
+      var core = env.sources && env.sources['tools/regen-goldens-core.mjs'];
+      if (!core) {
+        T.skip('regen-goldens-core.mjs source not wired into this lane — add it to BOTH runners');
+        return;
+      }
+      // ── anti-vacuity ──────────────────────────────────────────────────────────────────────────
+      T.ok('ANTI-VACUITY · the core source is non-trivial', String(core).length > 2000, 'len=' + String(core).length);
+      T.ok(
+        'ANTI-VACUITY · the helper this scan is named after actually exists in the core',
+        /export function resolveCorpus\s*\(/.test(core),
+        'no `export function resolveCorpus(` in tools/regen-goldens-core.mjs — the scan below would be hollow'
+      );
+      var loaded = CONSUMERS.filter(function (f) {
+        return env.sources && typeof env.sources[f] === 'string' && env.sources[f].length > 500;
+      });
+      T.ok('ANTI-VACUITY · every consumer source is loaded in this lane', loaded.length === CONSUMERS.length, loaded.length + '/' + CONSUMERS.length + ' loaded; missing ' + JSON.stringify(CONSUMERS.filter(function (f) { return loaded.indexOf(f) < 0; })));
+      if (loaded.length !== CONSUMERS.length) return;
+      // ── the invariant ─────────────────────────────────────────────────────────────────────────
+      T.ok(
+        'the corpus resolver is DEX_UPLOADS-aware in exactly one place',
+        /resolveCorpus\s*\(repo\)\s*\{[\s\S]{0,240}?process\.env\.DEX_UPLOADS/.test(core),
+        'resolveCorpus must read process.env.DEX_UPLOADS'
+      );
+      var reDex = /process\.env\.DEX_UPLOADS/;
+      var offenders = CONSUMERS.filter(function (f) {
+        // Comments and the help text legitimately NAME the variable; a re-derivation READS it in code.
+        var body = String(env.sources[f])
+          .replace(/\/\*[\s\S]*?\*\//g, ' ')
+          .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ')
+          .replace(/'[^'\n]*'|"[^"\n]*"|`[^`]*`/g, "''");
+        return reDex.test(body);
+      });
+      T.ok('no consumer re-derives the corpus path from DEX_UPLOADS itself', offenders.length === 0, offenders.length ? 'must call resolveCorpus(): ' + JSON.stringify(offenders) : 'all 9 go through the helper');
+      var noImport = CONSUMERS.filter(function (f) {
+        return !/resolveCorpus/.test(String(env.sources[f]));
+      });
+      T.ok('every consumer names resolveCorpus', noImport.length === 0, JSON.stringify(noImport));
+      // ── CORPUS ≠ FIXTURES: the write side must stay in THIS checkout ──────────────────────────
+      T.ok(
+        'the core writes fixtures to fixturesDir, never to the redirected corpus',
+        /path\.join\(fixturesDir, F\.name\)/.test(core) && !/path\.join\(corpusDir, F\.name\)/.test(core),
+        'runRegen must resolve the fixture it writes against fixturesDir'
+      );
+      var writeOffenders = CONSUMERS.filter(function (f) {
+        return /regen-/.test(f) && !/fixturesDir:\s*UP\b/.test(String(env.sources[f]));
+      });
+      T.ok(
+        'every regen tool pins its fixture (write) dir to <repo>/uploads',
+        writeOffenders.length === 0,
+        writeOffenders.length ? 'fixturesDir must be the repo-local UP in: ' + JSON.stringify(writeOffenders) : '8 regen tools pinned'
+      );
+      // ── the message that turned a dead end into a one-step recovery ───────────────────────────
+      T.ok('an absent input names the path that was searched', /looked in \$\{corpusDir\}/.test(core), 'INPUT ABSENT must print the resolved corpus dir');
+      T.ok('the summary separates an unreached input from a deliberate skip', /NOT REACHED/.test(core) && /absent\+\+/.test(core), 'a hole must not be counted as `skipped`');
+    });
+
+    /* REGEN-CORPUS-PATH-FOLLOWUPS §4 — ONE Mode/AMo50, decided option (a).
+       `ecgdex-dsp.js` carried dead `modeV` (5-ms bins) + `amo50` (±25-ms window) directly above the
+       `baevskyGeom` (50-ms bins) the exports use. Dead code is not the hazard; a dead duplicate under
+       the name a future author will reach for IS — it would emit a different number under the same
+       export key, invisibly. Deleted. This pins the deletion: re-introducing a second binning here
+       reds, and the assertion is on the BIN WIDTH, which is what actually diverged. */
+    group('ECGDex has ONE Mode/AMo50 implementation — REGEN-CORPUS-PATH-FOLLOWUPS §4', 'ecgdex-dsp · baevsky · single-source', function (T) {
+      var src = env.sources && env.sources['ecgdex-dsp.js'];
+      T.ok('ANTI-VACUITY · ecgdex-dsp.js source is loaded and non-trivial', typeof src === 'string' && src.length > 5000, 'len=' + (src ? src.length : 'absent'));
+      if (typeof src !== 'string' || src.length < 5000) return;
+      var code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+      T.ok('ANTI-VACUITY · the surviving single source is present', /function baevskyGeom\s*\(/.test(code), 'baevskyGeom must exist or this scan pins nothing');
+      T.ok('no second modal-RR helper', !/\bmodeV\b/.test(code), 'modeV is back — call baevskyGeom instead');
+      T.ok(
+        'no 5-ms modal binning (baevskyGeom bins at 50 ms)',
+        !/Math\.round\(\s*\w+\s*\/\s*5\s*\)\s*\*\s*5/.test(code),
+        'a 5-ms bin would emit a different Mode under the same export key'
+      );
+      T.ok('no ±25-ms AMo50 window (baevskyGeom uses the 50-ms bin count)', !/Math\.abs\(\s*\w+\s*-\s*\w+\s*\)\s*<=\s*25\b/.test(code), 'a ±25-ms window diverges from the exported AMo50');
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
        HRV off a night full of movement is worth less than the same number off a still night. This SCORES
        that (it never alters or excludes an HRV value). The invariant that matters is the same tri-state

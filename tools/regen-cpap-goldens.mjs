@@ -27,14 +27,17 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { makeRerecord, runRegen } from './regen-goldens-core.mjs';
+import { makeRerecord, resolveCorpus, runRegen } from './regen-goldens-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // ESM-MIGRATION: cpapdex-dsp.js is a dual-mode ES module — shed its top-level export/import via the
 // single classicify source before vm-loading. No-op on the classic co-load files.
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
+// Committed fixtures are TRACKED artifacts of this checkout — never redirected (see resolveCorpus).
 const UP = path.join(REPO, 'uploads');
+// Raw recordings are gitignored and may live elsewhere; DEX_UPLOADS-aware, shared with verify-fixtures.
+const CORPUS = resolveCorpus(REPO);
 const CHECK = process.argv.includes('--check');
 
 /* ── the CPAPDex.src.html script order (headless subset — no render/app) ── */
@@ -124,7 +127,7 @@ const KINDS = ['BRP', 'PLD', 'SA2', 'EVE', 'CSL'];
 function readSet(stamps) {
   const set = {};
   for (const [type, file] of Object.entries(stamps)) {
-    const p = path.join(UP, file);
+    const p = path.join(CORPUS, file);
     if (!fs.existsSync(p)) return null;
     set[type] = CpapEdf.readEDF(ab(p));
   }
@@ -190,5 +193,5 @@ const FIXTURES = [
   }
 ];
 
-const rerecord = makeRerecord({ repo: REPO, node: 'CPAPDex', bundle: 'CPAPDex.html', uploadsDir: UP, ManifestGate });
-await runRegen({ fixtures: FIXTURES, uploadsDir: UP, check: CHECK, rerecord, absentInputHint: 'copy the EDFs into uploads/ to regenerate' });
+const rerecord = makeRerecord({ repo: REPO, node: 'CPAPDex', bundle: 'CPAPDex.html', fixturesDir: UP, corpusDir: CORPUS, ManifestGate });
+await runRegen({ fixtures: FIXTURES, fixturesDir: UP, corpusDir: CORPUS, check: CHECK, rerecord, absentInputHint: 'copy the EDFs into uploads/ to regenerate' });

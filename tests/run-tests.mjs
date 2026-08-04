@@ -273,6 +273,20 @@ function readSources() {
     // verify-fixtures.mjs is the only tool allowed to author it, and only after a green real run.
     'tools/build.mjs',
     'tools/verify-fixtures.mjs',
+    /* REGEN-CORPUS-PATH-FOLLOWUPS §3.4 — the corpus-resolution scan reads the WHOLE regen family plus
+       verify-fixtures above. These two tools are the write half and the verify half of one workflow and
+       they silently disagreed about where uploads/ is; a scan that covered only the core would miss a
+       per-node tool that re-hardcodes the path, which is exactly how the divergence arose. Listed in
+       BOTH lanes — the browser lane fetches the same set or the scan reads nothing there. */
+    'tools/regen-goldens-core.mjs',
+    'tools/regen-oxydex-goldens.mjs',
+    'tools/regen-ecgdex-goldens.mjs',
+    'tools/regen-ppgdex-goldens.mjs',
+    'tools/regen-pulsedex-goldens.mjs',
+    'tools/regen-hrvdex-goldens.mjs',
+    'tools/regen-glucodex-goldens.mjs',
+    'tools/regen-cpap-goldens.mjs',
+    'tools/regen-motiondex-goldens.mjs',
     // The release-hygiene leg scans these two: build-docs.mjs owns the list of deploy paths it
     // rewrites, and release.mjs must NOT carry a second copy of it (its hardcoded copy had drifted
     // and omitted sitemap.xml / feed.xml / llms-full.txt / docs/index.html).

@@ -35,10 +35,13 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { makeRerecord, runRegen } from './regen-goldens-core.mjs';
+import { makeRerecord, resolveCorpus, runRegen } from './regen-goldens-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Committed fixtures are TRACKED artifacts of this checkout — never redirected (see resolveCorpus).
 const UP = path.join(REPO, 'uploads');
+// Raw recordings are gitignored and may live elsewhere; DEX_UPLOADS-aware, shared with verify-fixtures.
+const CORPUS = resolveCorpus(REPO);
 const CHECK = process.argv.includes('--check');
 const require = createRequire(import.meta.url);
 const ManifestGate = require(path.join(REPO, 'manifest-gate.js'));
@@ -131,5 +134,12 @@ const buildTch = () => {
 
 const FIXTURES = [{ name: 'integrator_tch_golden.node-export.json', real: false, build: buildTch }];
 
-const rerecord = makeRerecord({ repo: REPO, node: 'Integrator', bundle: 'Integrator.html', uploadsDir: UP, ManifestGate });
-await runRegen({ fixtures: FIXTURES, uploadsDir: UP, check: CHECK, rerecord, absentInputHint: 'inputs are rebuilt in-code — an absent build means the Integrator realm failed to load' });
+const rerecord = makeRerecord({ repo: REPO, node: 'Integrator', bundle: 'Integrator.html', fixturesDir: UP, corpusDir: CORPUS, ManifestGate });
+await runRegen({
+  fixtures: FIXTURES,
+  fixturesDir: UP,
+  corpusDir: CORPUS,
+  check: CHECK,
+  rerecord,
+  absentInputHint: 'inputs are rebuilt in-code — an absent build means the Integrator realm failed to load'
+});

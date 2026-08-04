@@ -97,20 +97,14 @@
     for (let i = 0; i < a.length; i++) if (a[i] > m) m = a[i];
     return m;
   };
-  const modeV = (a) => {
-    const f = {};
-    a.forEach((v) => {
-      const k = Math.round(v / 5) * 5;
-      f[k] = (f[k] || 0) + 1;
-    });
-    return +Object.entries(f).sort((x, y) => y[1] - x[1])[0][0];
-  };
-  const amo50 = (a, mo) => (a.filter((v) => Math.abs(v - mo) <= 25).length / a.length) * 100;
-  // ⚠️ `modeV`/`amo50` above are DEAD (no call sites) and bin differently from the exported
-  // Baevsky inputs — 5-ms bins / a ±25-ms window, against `baevskyGeom`'s 50-ms bins below.
-  // If you need Mode/AMo50 for anything that LEAVES this module, call `baevskyGeom` — reaching
-  // for these would emit a different number under the same key, which is worse than the omission
-  // FOLLOWUP-FINDINGS P4 was about.
+  /* DELETED 2026-08-03 (REGEN-CORPUS-PATH-FOLLOWUPS §4, decided option (a)): local `modeV` (5-ms bins)
+     and `amo50` (±25-ms window) used to sit here, dead — no call sites — immediately above the
+     `baevskyGeom` (50-ms bins) the exports actually use. FOLLOWUP-FINDINGS P4 left them in place with a
+     warning, but a warning does not stop the move it warns about: the obvious thing for a future author
+     needing Mode/AMo50 is to reach for the identifiers already named that, and get a DIFFERENT number
+     under the same export key — invisible, where P4's original defect was merely null. `baevskyGeom`
+     below is THE single source for Mode/AMo50/MxDMn; there is deliberately no second one. The
+     `no second Mode/AMo50 implementation` leg in tests/dex-tests.js keeps it that way. */
   // Baevsky geometric inputs (Mode, AMo50, MxDMn) from the NN series — 50-ms bins.
   // THE single source of truth for these three numbers (FOLLOWUP-FINDINGS P4). ECGDex has two
   // node-export builders — `ecgdex-app.js buildV2` (the app's ⬇ Export) and `ecgBuildNodeExport`

@@ -34,10 +34,13 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { makeRerecord, runRegen } from './regen-goldens-core.mjs';
+import { makeRerecord, resolveCorpus, runRegen } from './regen-goldens-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Committed fixtures are TRACKED artifacts of this checkout — never redirected (see resolveCorpus).
 const UP = path.join(REPO, 'uploads');
+// Raw recordings are gitignored and may live elsewhere; DEX_UPLOADS-aware, shared with verify-fixtures.
+const CORPUS = resolveCorpus(REPO);
 const CHECK = process.argv.includes('--check');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
@@ -123,7 +126,7 @@ const { OxyDex } = realm();
 /* O2Ring CSV → compute() → nights[0], or null when the input is absent (gitignored recording).
    `wrap` reproduces the fixture's existing container: [night] for the summaries, night for the twin. */
 const fromCSV = (file, wrap) => {
-  const p = path.join(UP, file);
+  const p = path.join(CORPUS, file);
   if (!fs.existsSync(p)) return null;
   const res = OxyDex.compute({ text: fs.readFileSync(p, 'utf8') });
   const night = res && res.nights && res.nights[0];
@@ -137,5 +140,5 @@ const FIXTURES = [
   { name: 'synthetic_oxydex_golden.node-export.json', build: () => fromCSV('synthetic_oxydex_o2ring.csv', false) }
 ];
 
-const rerecord = makeRerecord({ repo: REPO, node: 'OxyDex', bundle: 'OxyDex.html', uploadsDir: UP, ManifestGate });
-await runRegen({ fixtures: FIXTURES, uploadsDir: UP, check: CHECK, rerecord, absentInputHint: 'copy the O2Ring *.csv into uploads/ to regenerate' });
+const rerecord = makeRerecord({ repo: REPO, node: 'OxyDex', bundle: 'OxyDex.html', fixturesDir: UP, corpusDir: CORPUS, ManifestGate });
+await runRegen({ fixtures: FIXTURES, fixturesDir: UP, corpusDir: CORPUS, check: CHECK, rerecord, absentInputHint: 'copy the O2Ring *.csv into uploads/ to regenerate' });
