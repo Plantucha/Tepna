@@ -5124,6 +5124,33 @@
          Pinned as characterization, same discipline as the 24/min pin it replaces. */
       T.approx('KNOWN LIMITATION · 8/min still reads ~11.3 (+43 %) — the LOW band edge, untouched by this fix', respAt(8, 20260601), 11.3, 0.4);
       T.approx('KNOWN LIMITATION · …and 10/min still reads ~12', respAt(10, 20260601), 12, 0.4);
+
+      /* ── THE HARMONIC CHECK IS LOAD-BEARING — pinned on FIVE seeds, because one proves nothing ──
+         (ECGDEX-EDR-RESP-ACCURACY §5, executed 2026-08-04.) Disabling the harmonic check and re-running
+         a true 24/min carrier at the 900 s these legs use:
+
+             seed      with check   without
+             20260601      23.4       12.0
+             42            23.8       12.0
+             7             23.6       12.0
+             1234          23.7       12.1
+             99            23.7       12.0
+
+         EVERY seed halves without it. The check is the whole fix for the §1 headline (24/min → 12), and
+         nothing else in the estimator prevents the octave error.
+         Worth recording because it nearly went the other way: isolating the check at the SHORTER default
+         duration shows no change on seed 20260601 and on seed 7 — only 3 of 5 seeds double there — which
+         reads exactly like dead code. An earlier pass concluded precisely that, from one seed. Whether
+         the doubling appears depends on record length AND seed (both move where the carrier's phase
+         lands relative to the 4 Hz EDR grid), so a single-condition test of this estimator is not
+         evidence in either direction. These legs pin several, so deleting the check reds loudly.
+         The residual −2 % (23.4–23.8 rather than 24.0) is the parabolic interpolation pulling toward
+         band centre — measured, and left in place pending the §4 owner call. */
+      T.approx('24/min · seed 42 — halves to 12 without the harmonic check', respAt(24, 42), 23.8, 0.35);
+      T.approx('24/min · seed 1234 — same', respAt(24, 1234), 23.7, 0.35);
+      T.approx('24/min · seed 99 — same', respAt(24, 99), 23.7, 0.35);
+      T.approx('24/min · seed 7 — same', respAt(24, 7), 23.6, 0.35);
+      T.approx('24/min · seed 20260601 — same', respAt(24, 20260601), 23.4, 0.35);
       // The working range, as the counterweight — now 14–24/min rather than 14–22.
       T.approx('CONTROL · 18/min — inside the trustworthy range — resolves accurately', respAt(18, 20260601), 18.2, 0.6);
       // Tolerance 0.15, not 0.4: at 0.4 the leg still passed with interpolation DISABLED (15.0 sits
