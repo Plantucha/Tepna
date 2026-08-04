@@ -216,8 +216,35 @@ Contract (floating `tMs` via `Date.UTC`, read back with `getUTC*`/`{timeZone:'UT
       no numeric severity cut-points to any of them. So the documentation cannot arbitrate, and this
       stays an owner call rather than something the audit can close. Recorded so it is not re-derived.
 
-- [ ] Every metric card's grade == node registry `evidence` (gate-green); disc CSS ≡ engine; no retired
-      vocabulary; tier chip/`data-tier` matches `depth`.
+- [x] **DONE 2026-08-04 — the first three were already gate-green; the FOURTH was gated nowhere, and
+      gating it found a real defect in the generated guide.**
+
+      Grade ≡ registry `evidence`, disc CSS ≡ engine, and the retired-vocabulary ban are all covered by
+      `cohesion-badges`. The **tier chip / `data-tier`** axis was not: `data-tier` occurred **336 times
+      across the guides and ZERO times in the entire test suite.**
+
+      Across the 7 authored guides the mapping was already perfect — `secondary`↔Advanced(`.ta`),
+      `research`↔Research(`.tr`), attribute **absent**↔Core(`.tc`), 397/397 with no exceptions. So the
+      new gate is a ratchet, not a fix… **for the authored guides.**
+
+      ⚠ **The GENERATED EEGDex guide did not conform, and an ad-hoc sweep could not have seen it** — it
+      lives at `codegen/generated/eegdex-reference.html`, so a `*Reference.html` glob at the repo root
+      misses it entirely. `codegen/dex-gen.js` emitted `<div class="mc">` with **no `data-tier` at all**
+      while rendering the chip from the very same `m.tier` it declined to project. Every generated card
+      therefore read as **Core** to anything consuming the attribute while **displaying** Advanced or
+      Research. Fixed at the generator (one expression, mirroring the authored convention: emit for
+      secondary/research, omit for core) and regenerated — 5 attributes now present. The gate reads
+      `env.docs`, which includes the generated guide, which is why it caught what the sweep did not.
+
+      ⚠ **`data-tier` is INERT.** No JS reads it (`dataset.tier`, `getAttribute`) and no CSS selects on
+      it in any guide, and the guides are self-contained, so that is the whole picture. It is metadata,
+      not behaviour — a drift misrenders nothing today, which is exactly why nothing would notice. If the
+      two ever disagree, **trust the CHIP**: it is what the reader sees.
+
+      **Gated** by `cohesion-badges · guide-tier` (6 assertions, both lanes, 407 cards across 8 guides),
+      anti-vacuity first (card count ≥ 300, every card has a chip, all three tiers present). Two mutants
+      confirm failure by value: flipping one authored chip (2 legs) and introducing an unknown tier value
+      (4). Its RED was demonstrated on the real EEGDex defect before the fix, not only on a planted one.
 - [~] **Internal half DONE + gate-backed (2026-08-04); external half is UNGATEABLE, deliberately.**
       Measured across all 7 authored guides + the generated EEGDex one: **128 distinct in-page anchors,
       284 ids, ZERO dead and ZERO duplicated.** Nothing needed fixing, so what landed is a **ratchet**

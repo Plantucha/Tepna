@@ -4156,6 +4156,74 @@
      the link; (a) no retired badge vocabulary; (b) every reference metric the
      node's OWN resolver (OxyRegistry.idForLabel) maps MUST carry the same grade
      as its registry. No hand crosswalk. */
+    /* REFERENCE-GUIDE-AUDIT — "tier chip / `data-tier` matches depth". `cohesion-badges` gates the
+       EVIDENCE badge (grade ≡ registry, disc CSS ≡ engine); the TIER chip is a separate axis and was
+       gated nowhere: `data-tier` occurs 336 times across the guides and ZERO times in the whole suite.
+
+       Measured 2026-08-04 across 397 cards in 8 guides, the mapping is already perfect —
+       `secondary`↔Advanced(.ta) 181, `research`↔Research(.tr) 155, attribute ABSENT↔Core(.tc) 61, with
+       no exceptions. So this is not a fix; it is a ratchet on a rule that currently holds and nothing
+       protects.
+
+       ⚠ AND `data-tier` IS INERT. No JS reads it (`dataset.tier`, `getAttribute('data-tier')`) and no
+       CSS selects on it (`[data-tier=…]`) in any guide — the guides are self-contained, so that is the
+       whole picture. It is METADATA, not behaviour: a drift would not misrender anything today, which is
+       precisely why nothing would notice. Do not "fix" the chip to match a wrong attribute on the
+       assumption the attribute drives the UI — neither drives anything yet; the CHIP is what the reader
+       sees, so it is the side to trust if they ever disagree. */
+    group('every metric card’s tier chip agrees with its data-tier attribute', 'cohesion-badges · guide-tier', function (T) {
+      var docs = env.docs || {};
+      var names = Object.keys(docs).filter(function (k) {
+        return / Reference\.html$/.test(k);
+      });
+      T.ok('reference guides are loaded in this lane', names.length >= 7, 'found ' + names.length + ' — the group below would vacuously pass');
+      if (names.length < 7) return;
+
+      /* attribute value -> [expected chip text, expected chip class]. `null` = attribute absent. */
+      var MAP = { secondary: ['Advanced', 'ta'], research: ['Research', 'tr'], null: ['Core', 'tc'] };
+      var seen = { secondary: 0, research: 0, null: 0 },
+        bad = [],
+        cards = 0,
+        chipless = 0;
+
+      for (var i = 0; i < names.length; i++) {
+        var t = docs[names[i]];
+        var re = /<div class="mc"([^>]*)>/g,
+          m;
+        while ((m = re.exec(t))) {
+          cards++;
+          var attrs = m[1];
+          var tm = /data-tier="([^"]+)"/.exec(attrs);
+          var tier = tm ? tm[1] : 'null';
+          var seg = t.slice(m.index + m[0].length, m.index + m[0].length + 900);
+          var cm = /<span class="mt([^"]*)">([^<]*)<\/span>/.exec(seg);
+          if (!cm) {
+            chipless++;
+            continue;
+          }
+          var want = MAP[tier];
+          if (!want) {
+            bad.push(names[i] + ': unknown data-tier "' + tier + '"');
+            continue;
+          }
+          seen[tier] = (seen[tier] || 0) + 1;
+          if (cm[2].trim() !== want[0] || cm[1].trim() !== want[1]) bad.push(names[i] + ': data-tier=' + tier + ' but chip "' + cm[2].trim() + '"/.' + cm[1].trim() + ' (want "' + want[0] + '"/.' + want[1] + ')');
+        }
+      }
+
+      /* Anti-vacuity FIRST: a mapping check over zero cards passes trivially. */
+      T.ok('a substantial number of cards were parsed', cards >= 300, 'parsed ' + cards + ' cards');
+      T.ok('every card carries a tier chip', chipless === 0, chipless + ' card(s) had no .mt chip');
+      T.ok('all THREE tiers are represented, so no branch is untested', seen.secondary > 0 && seen.research > 0 && seen['null'] > 0, JSON.stringify(seen));
+
+      T.ok('every card’s chip matches its data-tier', bad.length === 0, bad.slice(0, 6).join(' | '));
+
+      /* The vocabulary is CLOSED — a new tier value must be added here deliberately, not absorbed. */
+      T.eq('no data-tier value outside {secondary, research, absent}', bad.filter(function (b) {
+        return /unknown data-tier/.test(b);
+      }).length, 0);
+    });
+
     group('Cohesion single-source — evidence badges', 'cohesion-badges · cpapdex-registry · glucodex-registry · hrvdex-registry', function (T) {
       var M = env.MetricRegistry,
         docs = env.docs || {};
