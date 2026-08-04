@@ -221,7 +221,35 @@ metrics withdrawn as indefensible (HRV→BP, ANS-age); those are a **safety** re
       the `cohesion-badges` group asserts every reference-guide card the node's OWN resolver maps carries
       the registry's grade, and that each guide `<link>`s `dex-badges.css` rather than inlining disc CSS.
       **74/74 green, re-run 2026-08-04.** A doc that disagrees now reds the suite.
-- [ ] All output layers (fixtures, uploads exports) consistent with corrected runtime strings.
+- [x] **AUDITED 2026-08-04 — 269 labelled strings across 215 committed artifacts; ONE is stale, and it
+      states the opposite of what the code now says.**
+
+      Method: deep-walk every committed `uploads/**/*.json` for values keyed `*Method` / `*Note` /
+      `*Label`, then require each to be traceable to current source. **The naive check is useless** — a
+      literal match reports ~40 % false positives, because these strings are built three ways: literal
+      (164), **interpolated** (`SpO₂ DFA (α1=1.612) — …`, 38 variants of one template at
+      `oxydex-dsp.js:1618`), and **concatenated** (`'beat-template energy median' + (reconciled ? … : …)`
+      at `ecgdex-app.js:2477`, which never exists as a whole literal anywhere). Four successive
+      narrowings were needed; each residue was template output, not staleness.
+
+      **The one real hit:** `uploads/qrs-yield-stats.json` → `arms.ECG.rmssdNote` =
+      *"reconstructed-rMSSD attenuated by the synthetic R-peak phase rendering; ECG certified for YIELD
+      only"*. No source emits it — three distinct fragments are absent from every `.js`/`.mjs`/`.html` in
+      the repo. `qrs-yield-analysis.js:319` now emits *"faithful (R-peaks rendered at true beat times;
+      reference arm)"*. Its sibling `arms.PPG.rmssdNote` matches source exactly, so this is one arm, not
+      a whole orphaned field.
+
+      ⚠ **Not cosmetic — the two strings make opposite claims.** The committed one says that arm's rMSSD
+      is *attenuated* and fit for yield only; the current one says it is *faithful* and is the
+      **reference** arm. `papers/qrs-yield.html` already uses the corrected framing ("faithful" ×4), so
+      the tool and the paper were both updated and **only the committed artifact was left behind** — a
+      reader who opens the stats file gets a retracted caveat.
+
+      **ROUTED, not fixed here.** The artifact is regenerable (the tool is synthetic-only, no corpus
+      needed) but re-running it is a fresh Monte-Carlo pass: it would move **every number in a published
+      paper's stats file**, not just the string. Changing a paper's numbers to correct one caveat is an
+      owner call, and the honest options are (a) re-run and re-publish the table, or (b) hand-correct the
+      single string with the reason recorded. This audit deliberately does neither.
 - [~] **Surgical re-bundle where source changed** — satisfied in practice (no source changed for the
       formula half; `build.mjs --check` clean). ⚠️ **This criterion cites a RETIRED signal:** `buildHash`
       was retired as a provenance signal by SIGNAL-ADAPTER-AND-FRONTIER Phase 7 and **no gate reads it**
