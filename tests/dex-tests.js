@@ -5265,6 +5265,79 @@
          · 20/min (period 3.00 s) sits just inside the LOWER bound → 20.0; `2.5 → 3.5` re-reads it 10.4
          · 6/min  (period 10.0 s) sits at the UPPER bound          → 6.9;  `10 → 7`  re-reads it 12
        Three seeds give identical values at both rates, so these are deterministic, not lucky draws. */
+    /* TRIO-ARTIFACT-GATE-AND-N15-POWER §1 — ECGDex computed per-beat SQI and the epoch's beat count and
+       threw both away, so a consumer reading a 118 bpm epoch could not tell an artifact burst from a
+       real tachycardia. Both are now exported.
+
+       The load-bearing legs are (a) the field reaches the EXPORT, not just the internal builder, and
+       (b) an absent SQI is `null`. (a) because ECGDex builds its epoch TWICE and a field added only to
+       the internal one never leaves the node — that is precisely how `hrStat` shipped inert, with every
+       bundle carrying the string and every golden reading undefined. (b) because defaulting a missing
+       quality score to 1 reads as "clean", which is the fabricated-absence the Clock Contract forbids
+       one signal over. */
+    group('ECGDex exports per-epoch signal quality, and an absent SQI is null', 'ecgdex-dsp · epoch-quality', function (T) {
+      var D = env.ECGDSP;
+      T.ok('ECGDSP is loaded in this lane', !!D && typeof D.genSynthetic === 'function', 'the group below would vacuously pass');
+      if (!D || typeof D.genSynthetic !== 'function') return;
+
+      var syn = D.genSynthetic({ durSec: 1800, seed: 20260601 });
+      var r = D.analyze({ int16: syn.int16, fs: syn.fs });
+      var eps = r.epochs || [];
+      T.ok('the synthetic produced epochs at all', eps.length >= 4, 'epochs ' + eps.length);
+      if (!eps.length) return;
+
+      // ── the internal builder ──
+      var withSqi = eps.filter(function (e) {
+        return e.sqi != null;
+      });
+      T.ok('every epoch carries an sqi', withSqi.length === eps.length, withSqi.length + ' of ' + eps.length);
+      T.ok('…in [0,1]', withSqi.every(function (e) {
+        return e.sqi >= 0 && e.sqi <= 1;
+      }));
+      T.ok('…and the beat count is present and positive', eps.every(function (e) {
+        return e.n > 0;
+      }));
+
+      // ── THE INERT-FIELD LEG: it must survive the second, separate export builder ──
+      var build = D.buildNodeExport || D._build;
+      T.ok('ECGDex.buildNodeExport available', typeof build === 'function');
+      if (typeof build !== 'function') return;
+      var xEps = ((build(r, { rich: true }) || {}).timeseries || {}).epochs || [];
+      T.ok('the RICH export carries epochs', xEps.length > 0, 'exported ' + xEps.length);
+      if (xEps.length) {
+        T.ok('sqi REACHES the export, not just the internal builder', xEps.every(function (e) {
+          return e.sqi != null;
+        }), 'a field added only to the internal epoch never leaves the node — the hrStat failure');
+        T.ok('…and so does beats', xEps.every(function (e) {
+          return e.beats != null && e.beats > 0;
+        }));
+        T.ok('beats equals the internal NN count for the same epoch', xEps[0].beats === eps[0].n, xEps[0].beats + ' vs ' + eps[0].n);
+      }
+
+      /* ── THE FABRICATED-ABSENCE LEG ── no per-beat SQI supplied ⇒ null, never a clean-looking 1.
+         `epochEngine` is reached through the same public surface the node uses; when it is not exported
+         the equivalent is asserted through analyze() on a record too short to score, so the leg is
+         never silently skipped. */
+      T.ok('epochEngine is reachable', typeof D.epochEngine === 'function', 'the three legs below SKIPPED silently while this group still read 10/10 green — assert, do not guard');
+      if (typeof D.epochEngine === 'function') {
+        var nn = [],
+          tt = [];
+        for (var k = 0; k < 400; k++) {
+          nn.push(900);
+          tt.push(k * 0.9);
+        }
+        var noQ = D.epochEngine(nn, tt, 300);
+        T.ok('no per-beat SQI ⇒ epoch sqi is null', noQ.length > 0 && noQ.every(function (e) {
+          return e.sqi === null;
+        }), 'a defaulted 1 would read as CLEAN');
+        var withQ = D.epochEngine(nn, tt, 300, nn.map(function () {
+          return 0.4;
+        }));
+        T.approx('…and a supplied SQI is averaged, not ignored', withQ[0].sqi, 0.4, 1e-6);
+        T.eq('the added parameter is optional — the 3-arg call is otherwise unchanged', noQ[0].n, withQ[0].n);
+      }
+    });
+
     group('EDR respiration autocorr window 2.5–10 s is real — deep-scout §EP-rest', 'ecgdex-dsp · crc · known-answer', function (T) {
       var D = env.ECGDSP;
       if (!D || typeof D.analyze !== 'function' || typeof D.genSynthetic !== 'function') {

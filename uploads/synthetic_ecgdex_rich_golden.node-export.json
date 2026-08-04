@@ -75,6 +75,8 @@
         "lfhf": 0.012,
         "resp": 13.2,
         "hrStat": "rate-of-mean",
+        "sqi": 0.959,
+        "beats": 60,
         "motionIndex": null,
         "position": "unknown"
       }
