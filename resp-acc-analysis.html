@@ -1815,7 +1815,19 @@
     }
     return {
       kernel: kfmt,
-      schema: { name: 'ganglior.node-export', version: 1, node: 'MotionDex' },
+      /* schema v2.0, matching the rest of the fleet. This was `version: 1` — a NUMBER — and the label
+         was the only thing about it that was v1: the payload already carries the v2 contract
+         (`recording.startEpochMs` as the floating t0, and `ganglior_events[]` whose entries hold
+         `impulse`/`node`/`conf`/`t` plus the absolute `tMs` CLAUDE.md §6 says new emitters SHOULD
+         write). So this describes what the export already is; it does not relabel a v1 payload.
+
+         The numeric form was not merely cosmetic. `validateNodeExport` warns "schema.version missing"
+         (wrong — it was present, just not a string) and, worse, guards its unknown-MAJOR check with
+         `typeof s.version !== 'string' || …`, so a numeric version short-circuits PAST the very
+         warning that exists to catch an unrecognised major. `dex-contracts.js` also declares
+         `version` a string. Measured over the 98 committed node-exports, this was one of only two
+         warnings in the whole corpus. */
+      schema: { name: 'ganglior.node-export', version: '2.0', node: 'MotionDex', nodeVersion: '1.0', bus: 'ganglior' },
       recording: { startEpochMs: t0, durSec: summary.durSec },
       motion: {
         streams: summary.streams,

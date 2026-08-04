@@ -27455,6 +27455,60 @@
             across epochs where the strap was not recording.
        §4.3 `parseSensorXYZ` finite-checked only X and range-checked nothing, so a real capture-host
             file's 136 corrupt samples (up to 1.6e38 mg) were ingested verbatim. */
+    /* ════ MotionDex's schema label is v2.0 and a STRING (EXPORT-HARDENING-FOLLOWUP §4 sweep) ══════
+       It shipped `version: 1` — a number — while every sibling emitted "2.0". That was not cosmetic:
+       `validateNodeExport` warns "schema.version missing" (wrong; it was present, just not a string)
+       and guards its unknown-MAJOR check with `typeof s.version !== 'string' || …`, so the numeric
+       form short-circuits PAST the very warning that exists to catch an unrecognised major — a node
+       could have shipped `version: 9` unchallenged. `dex-contracts.js` also declares it a string.
+       Over the 98 committed node-exports this was one of only two warnings in the whole corpus. */
+    group('MotionDex export declares schema 2.0 as a STRING, and validates clean', 'motiondex-dsp · export · regression', function (T) {
+      var MD = env.MOTIONDSP;
+      var CNE = env.CrossNightEnvelope;
+      if (!(MD && typeof MD.buildNodeExport === 'function')) {
+        T.skip('MOTIONDSP.buildNodeExport available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      /* Drive it the way `tools/regen-motiondex-goldens.mjs` does — buildNodeExport(compute({acc,
+         chestAcc})) — off the COMMITTED ACC input. Calling buildNodeExport with nothing returns an
+         empty `recording`, which would let the shape assertions below pass vacuously. */
+      var accTxt = env.equiv && env.equiv.motiondex ? env.equiv.motiondex.input : null;
+      var ex = null;
+      try {
+        ex = accTxt && typeof MD.compute === 'function' ? MD.buildNodeExport(MD.compute({ acc: accTxt, chestAcc: accTxt })) : null;
+      } catch (e) {
+        ex = null;
+      }
+      if (!ex || !ex.schema) {
+        T.skip('buildNodeExport driven off the committed ACC input', 'uploads/synthetic_motiondex_acc.txt not reachable in this lane');
+        return;
+      }
+      T.eq('schema.name is the bus contract', ex.schema.name, 'ganglior.node-export');
+      // THE PIN: a STRING "2.0", not the number 1. Asserting the type separately from the value
+      // because the type is what defeated the validator's major-version guard.
+      T.eq('schema.version is the string "2.0"', ex.schema.version, '2.0');
+      T.eq('…and is genuinely a string, which is what the major-version guard requires', typeof ex.schema.version, 'string');
+      T.eq('schema.node names the node', ex.schema.node, 'MotionDex');
+
+      // The label is only honest if the payload really is v2-shaped — assert the two things v2 means.
+      T.ok('recording.startEpochMs carries the floating t0', !!(ex.recording && typeof ex.recording.startEpochMs === 'number'), JSON.stringify(ex.recording));
+      var evs = ex.ganglior_events || [];
+      T.ok('ganglior_events[] is present', Array.isArray(evs));
+
+      // And the whole thing must pass the shipped validator with NO warnings — the corpus sweep that
+      // found this is only worth anything if the fix actually clears it.
+      if (CNE && typeof CNE.validateNodeExport === 'function') {
+        var v = CNE.validateNodeExport(ex);
+        T.ok('validateNodeExport reports no errors', v.ok, JSON.stringify(v.errors));
+        var versionWarn = (v.warnings || []).filter(function (w) {
+          return /schema\.version/.test(w);
+        });
+        T.eq('…and no schema.version warning at all', versionWarn.length, 0, JSON.stringify(v.warnings));
+      } else {
+        T.skip('CrossNightEnvelope.validateNodeExport available', 'not wired in this lane');
+      }
+    });
+
     group('MotionDex: rate, coverage and plausibility — §4', 'motiondex-dsp · absence · units', function (T) {
       var MD = env.MOTIONDSP;
       if (!(MD && typeof MD.parseSensorXYZ === 'function' && typeof MD.respiratoryRate === 'function')) {

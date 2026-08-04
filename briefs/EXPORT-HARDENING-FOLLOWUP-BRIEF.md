@@ -132,6 +132,35 @@ So across 98 exports the validator's only two complaints are about itself. That 
 **wiring export-time validation today would emit two spurious warnings and zero true ones.** Fix the
 validator first; then wiring is worth doing and cheap.
 
+#### ✅ Finding 1 FIXED 2026-08-03 — MotionDex now declares schema `"2.0"`
+
+`motiondex-dsp.js` emitted `schema: { …, version: 1 }` — a **number** — where the fleet emits `"2.0"`
+with `nodeVersion`/`bus`. Now aligned.
+
+**Checked before relabelling, because a version bump on a v1 payload would be a fabrication.** The
+export is already v2-shaped: `recording.startEpochMs` carries the floating t0, and `ganglior_events[]`
+entries hold `impulse`/`node`/`conf`/`t` **plus the absolute `tMs`** that `CLAUDE.md` §6 says new
+emitters SHOULD write. The label was the only v1 thing about it. Also confirmed nothing branches on
+`schema.version === 1` anywhere in the tree, and `dex-contracts.js:65` already declares `version` a
+**string** — so the numeric form violated the documented type as well.
+
+Gated by 8 assertions driven off the **committed** ACC input the way `regen-motiondex-goldens.mjs`
+drives it — `buildNodeExport(compute({acc, chestAcc}))`. The first draft called `buildNodeExport()`
+with no argument, which returns an empty `recording` and let the shape assertions pass vacuously; that
+is fixed, and the gate now asserts the payload really is v2-shaped alongside the label. Verified RED by
+value against the pre-fix DSP (`got 1 · want "2.0"`, `got "number" · want "string"`, and the
+`schema.version` warning count `got 1 · want 0`).
+
+Blast radius was small enough to land against an open bundle PR: `motiondex-dsp.js` is inlined into
+**`MotionDex.src.html` only**, not the orchestrators — so no collision with the in-flight ECGDex work.
+`build-analysis.mjs` did rebuild `resp-acc-analysis.html`, which embeds the DSP transitively.
+
+**Still owed from this sweep** (both touch `crossnight-envelope.js`, inlined into five bundles including
+ECGDex, so they wait for a clear window): the validator's `"schema.version missing"` message is wrong
+for a present-but-non-string value, and its unknown-MAJOR check is guarded by
+`typeof s.version !== 'string' || …` so a numeric version short-circuits past it; and it has no notion
+of `schema.multiNight: true`, so it warns spuriously on a correctly-formed multi-night envelope.
+
 #### Not landed here
 
 All three fixes (multi-night awareness · numeric-version guard · MotionDex schema bump) touch modules
