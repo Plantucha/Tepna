@@ -132,6 +132,57 @@ bundle** — so one clock change moves **every** app's `manifestHash` (and thus 
 Note the release layer *already* solves parallelism — §📦's changesets exist precisely so parallel coders
 never hand-pick a version. This section extends that thinking to the tree and the build.
 
+### 4 · NEVER wait on a process by command name — `until ! pgrep -f "<cmd>"` waits on ITSELF
+
+The gates here run for minutes (`pytest --cov` ~9 min, the node suite >10 min), so every session
+eventually writes a "tell me when it's done" loop. **Do not write this one:**
+
+```sh
+until ! pgrep -f "pytest -q --cov"; do sleep 20; done      # ← NEVER EXITS
+```
+
+It hangs for two independent reasons, and **the first is unconditional — it does not need another
+session to be running at all:**
+
+1. **SELF-MATCH.** The waiter itself runs as `bash -c '… until ! pgrep -f "pytest -q --cov" …'`, so its
+   own `/proc/<pid>/cmdline` **contains the pattern it is searching for**. `pgrep -f` matches it, and it
+   waits for itself to exit. Measured 2026-08-04: with **zero** pytest processes anywhere on the box,
+   that pattern matched **six** processes — every one of them a waiter, mutually and self-blocked.
+2. **CROSS-SESSION MATCH** (§1's world): several sessions run the *same* gate commands concurrently, so
+   even a self-match-proof pattern blocks on somebody else's run.
+
+This is not hypothetical bookkeeping: **13 such shells were found deadlocked across 5+ sessions** on
+2026-08-04, each spinning a `sleep` loop forever, each meaning a session never got the notification it
+was waiting for — two of them had been waiting on a `mutate_diff.py` run and a `verify-fixtures` run that
+could never report back. They are invisible because a hung waiter looks exactly like a slow gate.
+
+**⚠️ The `[p]ytest` bracket trick is NOT a fix.** It defeats (1) — the regex no longer matches its own
+bracketed literal — and was **tested here and still matched**, because other sessions' waiters carry the
+unbracketed string. Necessary, not sufficient. Do not reach for it and assume you are done.
+
+**What to do instead**, in order:
+
+1. **Don't poll.** Run the real command as a background task and let the harness notify you on exit. No
+   waiter process exists, so neither failure mode can occur. This is the default; prefer it.
+2. **Own the PID** — no pattern matching at all, and it yields the **exit code**, which `pgrep`
+   structurally cannot:
+   ```sh
+   pytest … > /tmp/mine.$$.log 2>&1 & PID=$!
+   while kill -0 "$PID" 2>/dev/null; do sleep 20; done
+   wait "$PID"; echo "EXIT=$?"
+   ```
+3. **Wait on a sentinel you control**, in a `$$`-unique file (immune to both failure modes):
+   ```sh
+   ( pytest … ; echo "EXIT=$?" ) > /tmp/mine.$$.log 2>&1
+   until grep -q '^EXIT=' /tmp/mine.$$.log; do sleep 20; done
+   ```
+
+**The same day, the same trap on the other side: `pytest … | tail -20` reports TAIL's exit code.** A
+coverage run that FAILED at 91.19 % printed `EXIT=0` and read as green. Capture `$?` of the command
+itself — as (2) and (3) do — before any pipe. And identify *your own* processes by a token you put in
+the command line, never by a session id that only appears in an output path: that under-reports for the
+mirror-image reason `pgrep -f` over-reports (it did, on 2026-08-04, in the same hour).
+
 ---
 
 ## 📌 Brief lifecycle — date NEW filenames at creation; mark DONE in the HEADER, never rename (non-negotiable)
