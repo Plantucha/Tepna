@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-04 · **Spawned-by:** `R5-HR-TRIPLET-REFERENCE-2026-07-12-BRIEF.md` (bias item, executed) · **Affects:** every cross-node HR comparison — `oxydex-dsp.js` `oxyBuildEpochSeries`, `ecgdex-dsp.js` epoch builder, the HR three-cornered hat
+**Status:** IN-PROGRESS · **Created:** 2026-08-04 · **Spawned-by:** `R5-HR-TRIPLET-REFERENCE-2026-07-12-BRIEF.md` (bias item, executed) · **Affects:** every cross-node HR comparison — `oxydex-dsp.js` `oxyBuildEpochSeries`, `ecgdex-dsp.js` epoch builder, the HR three-cornered hat
 
 # The bias was an estimator; the σ is almost untouched — and one of those needs saying out loud
 
@@ -46,14 +46,47 @@ too small to be the real story and keeps hunting. Both waste the finding.
 
 ## 3 · What is actually owed
 
-- [ ] **Pick ONE epoch-HR statistic across the fleet, or publish the choice per node.** Today ECGDex,
-      OxyDex and PpgDex each summarise an epoch and nothing states which statistic, so a consumer
-      differencing them is measuring the choice. Note the third option exists and reads the other way:
-      `mean(rate) − 60000/mean(RR) = +0.203 bpm` on the same blocks. The decision is not binary and
-      picking one silently is how this recurs.
-- [ ] **Whichever is chosen, the epoch block must NAME it** — a `hrStat: 'median-rate' | 'rate-of-mean'`
-      field beside `hr`, so a cross-node consumer can refuse a mismatched pair instead of differencing
-      it. Additive; the Integrator's `normalizeFile` ignores unknown keys.
+- [~] **MEASURED 2026-08-04 — the fleet statistic is `rate-of-mean`, and OxyDex's closest unbiased
+      proxy for it is the arithmetic MEAN of its 1 Hz rates. The switch itself is routed, not taken.**
+
+      **OxyDex cannot compute the fleet statistic directly.** It has no intervals — `parseCSV` yields
+      `tMs, t, spo2, hr, motion, pi`, a 1 Hz rate column and nothing else. So `60000/mean(RR)` is not
+      available to it and the question is which aggregation of a rate series best estimates it.
+
+      Measured against ECGDex over 726 paired epochs:
+
+      | OxyDex estimator | bias vs ECGDex | | spread SD |
+      |---|---|---|---|
+      | `median(rate)` — **ships today** | −0.244 | 5.7σ | 1.16 |
+      | trimmed 20 % | −0.201 | 4.8σ | 1.14 |
+      | trimmed 10 % | −0.156 | 3.6σ | 1.17 |
+      | trimmed 5 % | −0.113 | 2.5σ | 1.20 |
+      | **`mean(rate)`** | **+0.013** | **0.3σ** | 1.23 |
+
+      Monotonic and one-sided: the robustness the median buys costs **0.26 bpm of bias** and saves
+      **6 % of spread**. `mean` removes essentially the whole cross-node HR bias this brief family began
+      with.
+
+      ⚠ **The theoretically-correct estimator LOSES, and the reason is measurable.** For instantaneous
+      rates the harmonic mean equals `60000/mean(RR)` exactly, so it should win — it does not
+      (−0.083, 1.9σ). The ring's `pr` is **already smoothed**: same overall SD as beat-to-beat ECG
+      (4.09 vs 4.19) but **5.1× less consecutive-sample jitter** (0.256 vs 1.298 bpm). Applying a
+      convexity correction to a series that has already absorbed one over-corrects. Do not "fix" this
+      back to the harmonic mean on theory.
+
+      **Not switched here, deliberately.** It is a one-word change (`_median(b.hr)` → `_mean(b.hr)`) but
+      it moves a published field on a shipped node, re-records OxyDex's fixtures, and — because
+      `mean-rate` is still not `rate-of-mean` — requires deciding what the `hrStatMixed` flag should say
+      when the legs differ in NAME but agree to 0.3σ in VALUE. That last part is a design question this
+      measurement does not answer, and shipping the switch without it would leave a flag that fires on
+      every night while the bias it warns about is gone.
+- [x] **SHIPPED — the epoch block NAMES its statistic.** `hrStat` is emitted beside `hr` by OxyDex
+      (`'median-rate'`), ECGDex and PpgDex (`'rate-of-mean'`), at BOTH the internal epoch builder and the
+      export projection — each node builds epochs twice and a first attempt labelled only one, shipping a
+      field that every golden read as `undefined`. The Integrator's epoch adapter is a whitelist, so it
+      needed the key added explicitly; it now publishes `hrStats` / `hrStatMixed` and appends a ⚠ to the
+      HR hat's note when the corners disagree. A cross-node consumer can now refuse a mismatched pair
+      instead of differencing it.
 - [x] **ISOLATED 2026-08-04 — it is the interval distribution's SHAPE, dominated by variability.**
       Regressing the per-block gap on the block's own RR statistics, 1670 real blocks:
 
@@ -76,9 +109,28 @@ too small to be the real story and keeps hunting. Both waste the finding.
 
       Not claimed: a closed form. 60 % of variance explained by two shape statistics is a driver, not a
       derivation — the residual 0.309 bpm is unmodelled.
-- [ ] **Re-read §2 of the parent** with the confound removed. Its bias table compared node epoch HR
-      directly; every row inherits the same artifact, so the *ordering* of the corners may survive while
-      the magnitudes do not.
+- [x] **RE-READ 2026-08-04 — the parent's §2 ATTRIBUTION is wrong, and the correction is paired.**
+      §2 reads *"OxyDex systematically under-reads HR by ≈ 0.36 bpm, and it survives artifact gating — so
+      it is not contamination, **it is the device** (or the pulse-oximetry HR path)."* The device is not
+      what that measured.
+
+      The decisive test is **paired**: hold the epochs, the nights and the pairing fixed and change only
+      the aggregation. Over the same 726 paired epochs, `median(rate) → mean(rate)` moves the OxyDex−ECGDex
+      bias from **−0.244 bpm (5.7σ) to +0.013 bpm (0.3σ)**. No device property can move by 0.26 bpm because
+      the analyst picked a different average. **~0.26 bpm of the parent's −0.36 is the estimator.**
+
+      It is corroborated from the other side: the ring's own firmware HR agrees with chest-ECG to **0.6σ
+      over 237 windows** (`tools/o2ring-finger-validate-batch.mjs`). Both legs say the ring is unbiased.
+
+      **The ordering does NOT survive — it inverts.** §2 reads as *PpgDex clean, OxyDex biased by hardware*.
+      PpgDex already computes `rate-of-mean`, i.e. ECGDex's own statistic, so its **−0.028** row never
+      carried this confound and stands. OxyDex's row is the one made of artifact. The honest re-reading is
+      that **both optical corners are unbiased against chest-ECG**, and the fleet's one measured HR bias was
+      a comparison artifact — which is a *stronger* statement of `TCH-REFERENCE-VALIDATION` Finding A than
+      the parent made: the hat was blind to a bias that was not even real.
+
+      ⚠ Not a re-derivation of the parent's absolute −0.436/−0.357 (different gating, n=1192 vs 726). The
+      claim is the **paired delta**, which is gating-independent by construction, and the **attribution**.
 
 ## 4 · Explicitly NOT owed
 
