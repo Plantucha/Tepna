@@ -194,7 +194,21 @@ def plan_ops(lo: int, hi: int, limit: int | None = None, skip=()) -> list:
     return ops[:limit] if limit else ops
 
 
-async def run(address, adapter, lo, hi, dry, limit=None, skip=()) -> dict:
+def _flush(path, out):
+    """Write the report NOW, after every opcode.
+
+    THE HUMAN IS PART OF THE INSTRUMENT and cannot be asked to wait for a clean exit. This device has
+    actuators — a vibration motor and a display — and NOTHING in the data frame reveals them, so the only
+    detector for that whole class of effect is the person wearing it. Twice on 2026-08-03 a run was killed
+    the moment an actuator fired (once buzzing, once a white display) and took its entire record with it,
+    because the report was written only at the end. Nine opcodes went unlogged the second time. A report
+    that exists only on a clean exit does not exist during the runs that matter most."""
+    if path:
+        with open(path, "w") as fh:
+            fh.write(json.dumps(out, indent=2, default=str) + "\n")
+
+
+async def run(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None) -> dict:
     plan = plan_ops(lo, hi, limit, skip)
     out = {"address": address, "range": f"{lo:#04x}-{hi:#04x}",
            "method": "empty-payload command; REPLY vs SILENCE only — this protocol has no status field, "
@@ -261,7 +275,11 @@ async def run(address, adapter, lo, hi, dry, limit=None, skip=()) -> dict:
             for op in plan:
                 try:
                     f = await r.send(op)
-                    res[f"{op:#04x}"] = {"replied": f is not None, "frame": f.hex()[:80] if f else None}
+                    res[f"{op:#04x}"] = {"replied": f is not None, "frame": f.hex()[:80] if f else None,
+                                         # WALL-CLOCK PER OPCODE, so "it buzzed at 18:00:20" resolves to
+                                         # one command instead of an estimate from elapsed time.
+                                         "at": _dt.datetime.now().strftime("%H:%M:%S.%f")[:12]}
+                    _flush(json_path, out)
                     if f is not None:
                         # The verification snapshot is INSIDE the guard too — a link that dies while
                         # confirming an op's effect must not cost the ops already mapped.
@@ -333,7 +351,7 @@ def main(argv=None) -> int:
     if not a.dry_run:
         require_free_link()
     skip = [int(x, 0) for x in a.skip.split(",") if x.strip()]
-    res = asyncio.run(run(a.address, a.adapter, a.lo, a.hi, a.dry_run, a.limit, skip))
+    res = asyncio.run(run(a.address, a.adapter, a.lo, a.hi, a.dry_run, a.limit, skip, a.json_path))
     text = json.dumps(res, indent=2, default=str)
     if a.json_path:
         with open(a.json_path, "w") as fh:

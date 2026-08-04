@@ -1,0 +1,167 @@
+<!--
+  O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+-->
+
+**Status:** REFERENCE (living — protocol reverse-engineering, validated on hardware) · **Created:** 2026-08-03
+
+# The O2Ring command space, swept end to end
+
+`O2RING-PROTOCOL-2026-07-17-BRIEF.md` documents **8** OxyII opcodes: `0xFF` AUTH · `0x10` SETUP ·
+`0x04` LIVE · `0xC0` SET_UTC_TIME · `0xF1`–`0xF4` file ops. On 2026-08-03 all **256** addresses were
+swept with `capture-host/probe_oxyii_opcodes.py` against device `S8AW2100` (`D1:98:62:7C:92:B3`).
+Coverage is complete: every opcode was sent at least once, none remain unprobed.
+
+**Backups first.** Both un-synced sessions (`20260802203208`, `20260803063220`) were pulled and verified
+by VALUE before anything was sent — 36 000 records (median SpO₂ 97 / HR 52) and 4 294 records (99 / 59).
+Reading durations would not have been enough; see [[presence-of-file-is-not-presence-of-data]].
+
+## 1 · 25 undocumented responders
+
+`0x00 0x01 0x02 0x03 0x05 0x06 0x07 0x08 0x09 0x15` · `0x80 0x81 0x82 0x83 0x84 0x85 0x86` ·
+`0xE0 0xE1 0xE3 0xE4 0xEA 0xEC 0xEE 0xFA`
+
+Three clusters, every one adjacent to a documented command — which is why the sweep orders its plan
+**nearest-known-first** rather than `0x00` upward. That ordering found 4 responders in the first 11
+probes and the whole `0x80`–`0x86` cluster in a region a linear crawl reaches last.
+
+| opcode | payload | reading |
+|---|---|---|
+| `0x03` | count-prefixed sample buffer | **PPG waveform tap — see §3** |
+| `0x83` | empty ack | **VIBRATION MOTOR — see §2** |
+| `0xE1` | 60 B, ASCII `2D010002`, `2592302100` | model / serial strings |
+| `0x06` | ASCII `20260527040055`, later just `00` | see §5 — conditional, do not quote as a constant |
+| `0x84` `0x86` `0xE4` | 4 B, **differ between reads** | live counters, not identity |
+| `0x05` | up to 922 B | unidentified buffer |
+| `0x02` | 20 B | unidentified |
+
+**Reply byte 3 (the "flag") is not always `0x01`** — `0xFC` for `0x01`/`0xEA`/`0xEC`, `0xE1` for
+`0x07`/`0x08`, consistent across sessions and both on empty payloads. That is the shape of an ACK/NACK
+status field, i.e. the discriminator `probe_oxyii_opcodes.py`'s header says this protocol lacks. **Not
+decoded, not asserted** — three values over 25 samples is a pattern, and reading structure into bytes
+early is what produced §6.
+
+## 2 · `0x83` = VIBRATE (confirmed)
+
+Fired 5 times, felt 5 times, **with contact held throughout** (HR 58→60, zero invalid samples, so the
+ring had no cause to self-alert). `0x80`–`0x82` and `0x7C`–`0x7F` fired individually under the same
+conditions: nothing.
+
+⚠️ **The ring buzzes BY ITSELF on lost contact.** That confound is why an earlier "fired twice, buzzed
+twice" was downgraded to *likely* and only the counted trial with a contact precondition settled it.
+
+**Why it matters beyond protocol:** the suite has no way to reach the wearer during the night — OxyDex
+scores desaturations after the fact. `0x83` is a silent alert channel to the finger that ViHealth does
+not expose: a cue on a sustained desat, or a position prompt for supine apnoea. Untested before use:
+whether buzzing mid-recording contaminates the ring's own motion column (already fragile — see
+[[o2ring-motion-column-fault]]), and the battery cost.
+
+## 3 · `0x03` = drain the PPG buffer, and it truncates silently
+
+Payload is `[4 B][count u16 LE][samples…]`; `count` matched sample length on every read. Measured by
+varying the interval between drains:
+
+| gap | payload | count | samples | samples ÷ gap |
+|---|---|---|---|---|
+| 0.5 s | 68 | 62 | 62 | 124 |
+| 1.0 s | 137 | 131 | 131 | 131 |
+| 2.0 s | 256 | **250** | 250 | 125 |
+| 4.0 s | 256 | **250** | 250 | 62 ⚠ |
+| 8.0 s | 256 | **250** | 250 | 31 ⚠ |
+
+**The buffer caps at 250 samples ≈ 2 s and DISCARDS the overflow with no error and no gap marker.** At a
+4 s poll you receive a full-looking 250-sample payload covering 4 s of time — half the signal gone, and
+nothing in the reply says so. Any consumer must poll at **≤2 s** and treat `count == 250` as a
+saturation warning, exactly as `-1` fill and the truncating pipe had to be treated
+([[presence-of-file-is-not-presence-of-data]], [[child-stdout-pipe-truncates]]).
+
+It does **not** disturb measurement: A/B over 12 samples each, LIVE-only vs LIVE+`0x03`, 0/12 invalid HR
+in both arms.
+
+**Open:** whether these samples are the ones the `0x04` LIVE body already carries (the daemon's current
+source, `O2RING-LIVE-PPG-WAVEFORM-2026-07-17-BRIEF`) or a second channel. Read both in one session and
+look for a shared run; the test is written (`compare.py`) and was blocked by link availability.
+
+## 4 · What this says about the timebase — and about PAT
+
+`O2RING-PROTOCOL` §"125.738 Hz" and `O2RING-SYNTHESISED-AXIS-2026-08-02` already establish that the
+delivered rate is a **fit, not a clock**: per-session spread 125.59–125.88 Hz, no per-sample timestamp,
+and any constant used to synthesise one yields a drawn axis whose apparent ppm is the error in the
+constant. **`0x03` does not change that** — it is the same crystal, so a second stream cannot be a second
+clock. Comparing two streams from one device measures their ratio, never an absolute rate.
+
+What `0x03` **does** change is the reference. A drain gives an exact sample **count** between two
+**host-timestamped** reads, so the host clock — disciplined to 0.008 ppm on the capture box — becomes the
+axis, and the ring supplies only counts. That is `DexClock.hostAxis`'s discipline applied to a device
+that previously offered nothing to anchor: it converts "no timestamps at all" into "host-stamped batches
+of known size", and the residual is bounded by one batch rather than accumulating across a night.
+
+**For PAT the limiting term then becomes BLE delivery jitter, not rate error.** CLAUDE.md §7 records
+~0.1 s typical and 470 ms observed; `pat-gate.js` demands residIQR ≤ 60 ms. So the decisive question is
+whether batch-arrival jitter, median-filtered as `hostAxis` does, lands under that bound — not whether
+the nominal rate is 125.0 or 125.738. **Do not re-calibrate the constant** (the existing brief is
+explicit); measure counts against the host instead.
+
+## 5 · Negative and retracted results
+
+Recorded because they cost the most and would otherwise be re-derived:
+
+- **`0x06`'s `20260527040055`** reproduced byte-for-byte across sessions, power states and reconnects
+  early in the day — matching the date the hourly-HR firmware artifact ended
+  ([[o2ring-hourly-hr-artifact]]) — and later returned a single `00`. Conditional; not a fixed constant.
+- **The white screen is UNATTRIBUTED.** It appeared during a sweep and did not reproduce when the same
+  three opcodes were re-fired in the same order and spacing. Possibly state-dependent (worn, measuring).
+- **The download icon is probably not a command effect.** It appeared when a run connected, authenticated
+  and died mid-read, self-cleared in ~15 s and resumed measuring. That is a sync indicator, not DFU — an
+  alarm raised in-session and withdrawn on the evidence.
+- **`0x80`–`0x82`, `0x84`–`0x86`, `0x7C`–`0x7F`** individually: no buzz, no display state beyond the
+  ordinary command wake.
+
+## 6 · The method, which is the real result
+
+**The sweep's own detector reads the live DATA FRAME. It sees what the ring REPORTS, never what the ring
+DOES.** `0x83` drives a motor and is invisible to it; a human felt it. Actuators — motor, display, LEDs —
+are a whole class of effect no data-frame comparison can reach, and any sweep of an unknown command space
+needs a human observer for them.
+
+Five "findings" were retracted in one day, each an artifact of the instrument:
+
+1. **A churning frame.** On a worn ring 4 of 4 consecutive live frames differ with nothing sent
+   (plethysmogram, sequence counter, checksum). Fixed by measuring a passive null.
+2. **Byte 17 — a command scratch field.** It sat at `0xC7` across every passive sample (34 of 34 bytes
+   "stable" on a docked ring) and moved for `0x00`, `0x03`, `0x06`. Then `0xF1` — DOCUMENTED, read-only,
+   and on a worn ring it does not even reply — moved it too. **A passive null cannot see what commanding
+   costs.** The null now fires a documented harmless command.
+3. **SpO₂ drift.** The null spans ~10 s, a sweep spans minutes; byte 13 went 98→95 and was read as an
+   effect. Now adjudicated against the control command.
+4. **Motion as a buzz proxy.** The motor shakes the accelerometer, so motion "should" spike. It read `0`
+   across the opcode that buzzed. A plausible inference; the hardware disagreed.
+5. **The display as a signal.** `0x50` "woke the display" — until `0xF1` did the same. **Every** command
+   wakes it.
+
+**The rule that survived: the null must be a documented harmless command, never silence.** Every
+retraction came from comparing against *nothing sent* instead of against *something harmless sent*, and
+every one was caught by running a control rather than by reasoning about the data.
+
+## 7 · Tooling changes this forced
+
+- `out["opcodes"]` bound **before** anything that can throw, and the report written **after every
+  opcode** — two runs were killed the instant an actuator fired and took their whole record with them.
+- Per-opcode **wall-clock stamps**, so "it buzzed at 18:00:20" resolves to one command instead of an
+  estimate from elapsed time. That is what narrowed the buzzer from 59 candidates to 6.
+- **Nearest-known-first** planning, `--skip`, `--max-ops`: a short window is a prefix and resumes.
+- Scan wrapped in the guard with adapter recovery — `BleakScanner.find_device_by_address` was the last
+  call outside it and killed a resumed sweep before a single opcode was sent.
+
+## 8 · Preconditions that cost windows
+
+- **The capture daemon holds the ring's single link**, and a connected device does not advertise — so the
+  symptom is "not reachable" while the ring's own display shows a Bluetooth icon. Several "the ring is
+  asleep" conclusions were this. `link_guard.require_free_link()` exists for it; the one-off scripts
+  written during the session did not call it, and that gap was hand-made.
+- **The BlueZ adapter wedges after disconnects**, reporting `org.bluez.Error.InProgress` while
+  `bluetoothctl show` says `Discovering: no`. The tell is a scan returning in 2–3 s when a real one takes
+  45. `bluetoothctl power off/on` sometimes clears it; **`tepna-restart.sh radio` reliably does**.
+- **Reachability**: worn = continuously discoverable; docked = a brief burst around the plug event only.
+  See [[o2ring-ble-reachability]].
