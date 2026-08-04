@@ -12,10 +12,13 @@
 >   every fusion finding type. Only owner *ratification* of the grades remains.
 > - **§5.1 · §5.2** — data-gated (no PSG dataset / no Kubios-NeuroKit2 tooling committed). Not startable.
 > - **§5.4 · §5.5 · §5.6** — cosmetic / curation calls.
-> - 🔴 **One NEW finding, from §5.3's scan: `VO₂ GT` (`pulsedex-render.js:260`) surfaces with NO evidence
->   badge.** Measured by executing the real `badgeForLabel(label, true)` over all 68 rows of the table
->   (63 badged, probe non-vacuous). Deliberately NOT fixed here — the fix is a **tier assignment**, which
->   is a NODE fact owned by `PULSE_REGISTRY` and an owner call. See §5.3.
+> - ~~🔴 One NEW finding from §5.3's scan: `VO₂ GT` surfaces with no evidence badge.~~
+>   ✅ **RETRACTED 2026-08-04 — this was a FALSE POSITIVE; nothing is owed.** `VO₂ GT` is an explicit key
+>   of **`_META_DENY`** (`pulsedex-registry.js:242`) — *"never badge even with fallback"* — alongside
+>   `date`/`source`/`duration`, and the path is gate-pinned at `tests/dex-tests.js:5608`. It is a
+>   user-entered laboratory reference value, i.e. an input, not a node-surfaced measurement. The probe
+>   was correct; the **interpretation** was not — an empty return was read as a missing badge without
+>   checking whether empty was intended. See §5.3 for the full retraction and the tell that was missed.
 
 > **⚠️ Correction — §1 is SHIPPED, and this header previously said it was not.**
 > An earlier 2026-08-03 pass stamped §1 *"NOT BUILT: zero matches in `integrator-app.js` or
@@ -258,18 +261,36 @@ With the BP leak closed, the review's top item is done. Remaining (in their orde
    `badgeForLabel(l)` alone gives a different answer. Result: **68 labels scanned, 63 badged, 5 not**
    (probe non-vacuous — 63 badges produced, so a zero result would have been a failed scan, not a clean one).
 
-   Of the 5: `DateTime` · `Recording` · `Duration` are recording **metadata**, and
-   `— ADVANCED / RESEARCH —` is a section separator, not a row — all four correctly unbadged.
+   All 5 unbadged labels are **BY DESIGN**, and the scan result is exactly the designed behaviour:
+   `DateTime` · `Recording` · `Duration` · `VO₂ GT` are all verbatim keys of **`_META_DENY`** in
+   `pulsedex-registry.js:231`–`:244` — *"Pure metadata / non-metric rows — never badge even with
+   fallback"* — and `— ADVANCED / RESEARCH —` is a section separator, not a row. The deny list is
+   consulted inside `badgeForLabel` itself (`if (fallback && !_META_DENY[_norm(label)])`), so these
+   return `''` **deliberately**, not by falling through a guard. The mechanism is gate-backed:
+   `tests/dex-tests.js:5608` pins it — *"metadata Date must STAY bare (a badge on a date is meaningless
+   — the `_META_DENY` path)"*.
 
-   ⚠️ **The fifth is a real finding: `VO₂ GT` (`:260`) renders with NO badge at all.** It is a surfaced
-   measurement — user-entered laboratory ground-truth VO₂max — so under the §🎫 coverage mandate an
-   unbadged number is a bug, the same silent class as `staging_disagreement` in §4.4 above (which fell
-   through `evBadge()`'s `!key` guard and returned `''`). **Left unfixed deliberately:** the fix is a
-   tier assignment, and a tier is a NODE fact owned by `PULSE_REGISTRY`, never assigned in a sweep.
-   **Owner-decision** — the plausible reading is `measured` (a real lab value, the strongest evidence in
-   the table), but that is the owner's call, and it needs a `PULSE_REGISTRY` entry, not a local grade.
-   Note the row renders even when the value is absent (`r.vo2gt || '—'`), so the empty badge is visible
-   in the common case.
+   > ⚠️ **RETRACTED 2026-08-04 — an earlier version of this item called `VO₂ GT` "a real finding" and an
+   > unbadged-number bug. It is not, and no fix is owed.** The classification is coherent: `VO₂ GT` is a
+   > *user-entered laboratory reference value*, not a PulseDex-computed output, so it sits with `date` /
+   > `source` / `duration` / `active flags` as recording context. The §🎫 mandate covers measurements the
+   > node **surfaces as its own**; a value the user types in as ground truth is an input, the same
+   > reading §7 already applies to the user-entered cuff `p.sbp`/`p.dbp`. It is also **not** the
+   > `staging_disagreement` class it was compared to — that one was absent from its grade map and fell
+   > through a `!key` guard silently; this one is named in an explicit deny list with a comment.
+   >
+   > **How the false positive happened, so the next sweep doesn't repeat it:** the probe was right
+   > (`badgeForLabel(label, true)`, correct second arg, non-vacuous) and the *interpretation* was wrong —
+   > an empty return was read as "unbadged" without asking whether empty was **intended**. The deny list
+   > is twenty lines above `badgeForLabel` in the same file. The tell was in the output and was
+   > hand-waved: 4 of the 5 unbadged labels were exact `_META_DENY` keys, i.e. the scan had rediscovered
+   > the deny list. **Executing the call is not the same as understanding the answer** — when a scan's
+   > result matches a list the code already maintains, check for that list before reporting a bug.
+
+   If the owner ever wants `VO₂ GT` badged as `measured` (defensible — it *is* a real lab measurement,
+   unlike a date), that is a deliberate re-classification: remove both `'vo₂ gt'`/`'vo2 gt'` keys from
+   `_META_DENY` **and** add a `PULSE_REGISTRY` entry. Not a bug fix, and it would need a PulseDex
+   re-bundle + provenance pass. Current state is correct as it stands.
 
    ⚠️ Also note this item's line reference was stale: the VO₂ rows are at `:258`–`:260`, not `~L194–195`.
 4. **Rename the wellness-coded composites** (Coherence/Welfare/Energy) to neutral autonomic terms, or
