@@ -6290,6 +6290,8 @@
         }
         T.ok(n + ' loads entrance-guard.js', /entrance-guard\.js/.test(txt), 'this app inherits the from-opacity:0 entrances with nothing pinning them');
       });
+    });
+
     /* ════ FOLLOWUP-FINDINGS P4 — ECGDex has TWO node-export builders, and only one carried Baevsky ════
      `ecgdex-app.js buildV2` (the app's ⬇ Export) emitted `hrv.time.{amo50,mode,mxDMn}`; `ecgdex-dsp.js
      ecgBuildNodeExport` (the ORCHESTRATE path behind Data Unifier / OverDex) emitted none of them. Since
