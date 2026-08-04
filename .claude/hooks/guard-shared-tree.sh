@@ -34,14 +34,56 @@ set -uo pipefail
 cmd="$(jq -r '.tool_input.command // empty' 2>/dev/null)" || exit 0
 [ -z "$cmd" ] && exit 0
 
+# QUOTE-STRIPPED FORM, defined once and used by every rule below.
+#
+# Matching the RAW command makes a guard fire on a command that merely MENTIONS the forbidden one —
+# `grep "git add -A" CONTRIBUTING.md` was denied while trying to READ the rule it documents. A guard
+# that blocks reading its own documentation is a guard someone turns off, so the pattern is matched
+# against the command with quoted strings blanked out: a real invocation is unquoted and still caught.
+cmd_noquotes="$(sed "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g" <<<"$cmd")"
+
 deny() {
   jq -nc --arg r "$1" \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
 
+# `git update-ref refs/heads/X` — moving a ref that may be CHECKED OUT
+#
+# THE REF IS NOT THE TREE. `update-ref` is PLUMBING: it moves the ref and touches neither the
+# working tree nor the index, and unlike every porcelain equivalent it performs NO worktree check.
+# Compare, on a checked-out `main`:
+#     git fetch origin main:main      -> "refusing to fetch into branch ... checked out at ..."
+#     git branch -f main origin/main  -> "cannot force update the branch 'main' used by worktree ..."
+#     git push . origin/main:main     -> refused
+#     git update-ref refs/heads/main  -> SILENTLY SUCCEEDS
+#
+# 2026-08-03: a session ran it every iteration to "sync local main". Sound while main was not
+# checked out; it later was, and nobody re-checked. HEAD then advanced while the tree stayed frozen,
+# so every file a merged PR ADDED read as deleted. A subsequent `git add -A` staged 214 entries
+# including 47 live-file deletions — 25 of them changesets, which would have silently dropped ~20
+# parallel work-units from the next changelog. The count GREW with every merge instead of converging.
+#
+# The check that hid it: `git rev-list --count HEAD..origin/main` returned 0. The ref WAS synced.
+if grep -qE '(^|[;&|(]|&&|\|\|)[[:space:]]*git[[:space:]]+update-ref[[:space:]]+refs/heads/' <<<"$cmd_noquotes"; then
+  deny "BLOCKED: 'git update-ref refs/heads/...' in a shared checkout.
+
+THE REF IS NOT THE TREE. update-ref is plumbing — it moves the ref and touches neither the working tree nor the index, and it is the ONLY form that skips git's checked-out-branch check. Every porcelain equivalent already refuses by name:
+
+    git fetch origin main:main      refusing to fetch into branch ... checked out at ...
+    git branch -f main origin/main  cannot force update the branch 'main' used by worktree ...
+
+If the branch is checked out anywhere, moving its ref silently desynchronises that tree: files a merged PR ADDED then read as DELETED, and the next blanket add stages them for removal. That happened on 2026-08-03 — 47 live files, 25 of them changesets.
+
+Instead, use the porcelain and let it refuse:
+    git fetch origin main:main          # fails loudly if main is checked out
+    # or work in your own worktree off origin/main and never touch local main at all
+
+And to CHECK a tree is in sync, use 'git status --porcelain' (the tree), not 'git rev-list --count HEAD..origin/main' (the ref). The ref comparison returned 0 the whole time."
+fi
+
 # `git add -A` / `--all` / `.` / `:/`  — blanket staging
-if grep -qE '(^|[;&|(]|&&|\|\|)[[:space:]]*git[[:space:]]+add[[:space:]]+([^;&|]*[[:space:]])?(-A\b|--all\b|\.([[:space:]]|$)|:/)' <<<"$cmd"; then
+if grep -qE '(^|[;&|(]|&&|\|\|)[[:space:]]*git[[:space:]]+add[[:space:]]+([^;&|]*[[:space:]])?(-A\b|--all\b|\.([[:space:]]|$)|:/)' <<<"$cmd_noquotes"; then
   deny "BLOCKED: blanket staging in a SHARED checkout (CONTRIBUTING §6).
 
 Several agent sessions work this repo at once, so the working tree is not yours alone — a blanket add sweeps their in-flight files into your commit, under your message. That is exactly how cabd7f7 ended up carrying an unrelated brief.
@@ -58,7 +100,6 @@ fi
 # Test against a QUOTE-STRIPPED copy: a commit MESSAGE may legitimately contain "-a"
 # (e.g. git commit -m 'fix -a flag parsing') and must not be mistaken for the flag.
 # Only this rule strips quotes — `git add "."` must still be caught by the rule above.
-cmd_noquotes="$(sed "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g" <<<"$cmd")"
 if grep -qE '(^|[;&|(]|&&|\|\|)[[:space:]]*git[[:space:]]+commit\b[^;&|]*([[:space:]]-[a-zA-Z]*a[a-zA-Z]*\b|[[:space:]]--all\b)' <<<"$cmd_noquotes"; then
   deny "BLOCKED: 'git commit -a' stages every tracked modification in a SHARED checkout (CONTRIBUTING §6) — including other sessions' in-flight edits.
 

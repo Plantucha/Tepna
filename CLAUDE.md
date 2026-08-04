@@ -72,6 +72,28 @@ tree, don't bother.
 all of the above — plus hand ref-moves — with an explanation. Escape hatch when the tree is genuinely yours alone:
 `CLAUDE_ALLOW_BLANKET_GIT=1`.
 
+### 2b · THE REF IS NOT THE TREE — never move a branch ref that is checked out
+
+**`git update-ref refs/heads/main refs/remotes/origin/main` is forbidden here.** It looks like the
+careful way to sync local `main` because it avoids `checkout`/`pull`. It is the opposite: `update-ref`
+is *plumbing* — it moves the ref, touches neither the working tree nor the index, and is the ONLY form
+that skips git's checked-out-branch check. `git fetch origin main:main`, `git branch -f`, and
+`git push .` all refuse by name when the branch is checked out; `update-ref` succeeds silently.
+
+If the branch IS checked out, that tree then freezes while HEAD advances, so every file a later merge
+**adds** reads as **deleted** — and a blanket add stages them for removal. Measured 2026-08-03: 47 live
+files, 25 of them pending changesets, growing with every merge rather than converging.
+
+* **To sync:** `git fetch origin main:main` — and let it refuse. Better, work in your own worktree off
+  `origin/main` (§1) so local `main` never needs syncing at all.
+* **To CHECK a tree is in sync, measure the TREE** — `git status --porcelain`, not
+  `git rev-list --count HEAD..origin/main`. The ref comparison returned **0** while the tree was 214
+  files stale; it answers a different question than the one you are asking.
+
+Hook-enforced (`guard-shared-tree.sh`). There is deliberately **no commit-time guard on deletions**:
+deleting files that exist on `origin/main` is what deleting a file *is*, and such a rule would block
+`tools/release.mjs`'s changeset prune, so it would be overridden into uselessness.
+
 ### 3 · Bundles and ledgers must be SERIALIZED — a worktree does not save you here
 
 Isolation solves the *tree*. The old single-file ledger collision is **mostly SOLVED** (ARCHITECTURE-DEBT-
