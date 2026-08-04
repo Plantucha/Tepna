@@ -313,7 +313,9 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
   rate — it roughly quintuples it — for no PPV gain. Apparatus: `tools/ppg-foot-consensus-e1.mjs`.
   The run's *incidental* finding (§6.2) is the one worth acting on.
 - **E-2** — does autogain step repair (#9) move jitter at all? One measurement says no.
-- **E-3** — re-score waveform fusion on **PPI jitter with the shipped detector** (§3.1 residual).
+- **E-3 — ANSWERED 2026-08-04 (§6.4): the refutation STANDS, residual CLOSED.** On sleep nights fusion
+  is a wash (+0.03 ms, 1.003x); the apparent 0.94 ms all-nights win lives entirely in daytime segments
+  where nothing could promote. Apparatus: `tools/ppg-fusion-e3.mjs`.
 - **E-4** — occlusion ramp to zero perfusion, to resolve the OFFDAC question (§1.6).
 
 ### 6.1 · E-1 is answered, and the answer is no
@@ -427,6 +429,44 @@ tests of the function. The call-site assertion written to close that then *also*
 deleted, because its regex matched the function **declaration**. Final state: **7 of 8 mutants killed**,
 the survivor documented equivalent (`signs.length < 2` → `< 1`, already covered by the `neg === 0`
 branch). The lesson is the repo's own: a gate you have not watched fail is not evidence.
+
+### 6.4 · E-3 answered — fusion still loses, and PCA-1 is the mean
+
+§3.1 refuted waveform fusion on SNR and on whole-record PPI sd, leaving one residual: *"One dossier
+measurement scoring timing on a much weaker detector favoured fusion; it may only show that fusion
+rescues a weak detector. If ever revisited, score on PPI jitter with the SHIPPED detector, nothing
+else."* Done, on 18 Verity nights against paired H10 ECG, every variant detected with `detectBeats`.
+
+| variant | jitter, ALL nights (18) | jitter, SLEEP only (7) |
+|---|---|---|
+| consensus (shipped) | 21.17 ms | **8.50 ms** |
+| best single channel | 21.49 (+0.32) | 8.50 (+0.00) |
+| mean-of-3 | 20.23 (**−0.94**, 0.956×) | 8.53 (**+0.03**, 1.003×) |
+| PCA-1 | 20.23 (−0.94) | 8.52 (+0.02) |
+
+**The residual is closed, and it closed against fusion.** The all-nights column is the "win" — and it
+is entirely daytime. Filter to sleep, the regime the promotion bar is about, and fusion is a dead
+wash. PPV and recall move the same way (fusion's advantage sits in the IQR's lower half — the
+87–89 % nights — never at the median). This is the identical shape to §3.2's ambient result, whose
+apparent gains also came only from daytime/exercise files, and it is exactly the artifact the residual
+named: fusion rescues a weak signal, and a weak signal is one no metric can promote on anyway.
+
+**One §3.1 expectation does NOT survive, and it is worth correcting.** §3.1 found the GEV beamformer
+collapsing to `[0.0006, 0.0397, −0.9992]` and concluded fusion "rediscovers channel selection". PCA-1
+does not do that here: its weights are `[0.577, 0.577, 0.577]` = 1/√3 on **every** night, so PCA-1
+rediscovers the equal-weight **mean** — and mean-of-3 and PCA-1 return identical beat trains, which is
+why their rows above agree to 0.01 ms. That is a direct confirmation of §3.1's own ρ = 0.942–0.987
+figure: when channels are near-collinear the leading eigenvector *is* their average. Collapsing onto
+one channel is a property of the GEVD estimator, not of this sensor geometry. The refutation is
+unaffected — fusion still loses — but the stated reason for it was wrong for PCA-1.
+
+**A prerequisite worth recording.** Fusion could not have been measured honestly before E-5: averaging
+or projecting channels whose polarity disagrees **cancels** the pulse, and the polarity split affects
+3 of 7 sleep nights here. The shipped `applyConsensusPolarity` pass runs before any fusion in this
+tool, so what is measured is fusion rather than the polarity defect. Pinned by a selftest assertion.
+
+**Remaining open in §6: E-2** (autogain step repair — one measurement already says no) and **E-4**
+(occlusion ramp to zero perfusion, which needs a deliberate capture, not analysis).
 
 ## 7 · References
 
