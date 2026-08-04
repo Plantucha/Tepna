@@ -25514,6 +25514,34 @@
       var scored = PH.scoreWindow(Float64Array.from(rr), Float64Array.from(feet), 8);
       T.ok('coupled input is scored, not refused', !scored.refused, scored.refused || '');
       T.ok('...and its strict matchRate is finite and high', isFinite(scored.strict) && scored.strict > 0.9, 'strict=' + scored.strict);
+
+      /* THE OFFSET SCAN's identifiable quantity is δ MOD ONE RR. A beat train is periodic, so matching
+         it cannot distinguish δ from δ ± RR — the constraint `beat-trains-align-only-mod-rr` records.
+         A reader comparing raw `bestOffsetMs` across windows would see it "jump" by ~one RR and read
+         wander where there is only aliasing, so the reduction is published and asserted here.
+
+         Planted: feet a fixed 420 ms after each R. The scan must find that, and δ + RR must reduce to
+         the same place. */
+      var rr2 = [],
+        ft2 = [];
+      for (var w2 = 0; w2 < 600; w2++) {
+        rr2.push(1000000 + w2 * 1000);
+        ft2.push(1000000 + w2 * 1000 + 420);
+      }
+      var sc2 = PH.scanOffsets(Float64Array.from(rr2), Float64Array.from(ft2), 6, -600, 600, 25);
+      T.ok('the scan finds the planted coupling', !sc2.refused && sc2.bestScore > 0.9, 'best=' + sc2.bestScore);
+      /* NOT `bestOffsetMs ~ 0`. A first draft asserted that and FAILED at -200, which is the code
+         being right: any δ that keeps the lag inside the acceptance window [PHYS_LO, PHYS_HI] scores
+         IDENTICALLY, so the argmax sits on a PLATEAU as wide as that window (450 ms), not at a point.
+         What is true — and all that is true — is that the scan puts the lag inside the window. */
+      T.ok('...at an offset that puts the planted 420 ms lag inside [PHYS_LO, PHYS_HI]', 420 + sc2.bestOffsetMs >= 200 && 420 + sc2.bestOffsetMs <= 650, 'lag would be ' + (420 + sc2.bestOffsetMs));
+      T.ok('the median RR is published so the mod-RR reduction is checkable, not assumed', Math.abs(sc2.medRRms - 1000) < 1e-6, 'medRR=' + sc2.medRRms);
+      T.ok('and the reduction is reported in [0, RR)', sc2.bestOffsetModRR >= 0 && sc2.bestOffsetModRR < sc2.medRRms, 'modRR=' + sc2.bestOffsetModRR);
+
+      /* ANTI-VACUITY for the scan: its p must be able to be non-significant. A surrogate count of n
+         floors p at 1/(n+1), so a scan run with too few surrogates reports the SAME p everywhere and
+         cannot fail — observed at n=8, where four real windows all read exactly 0.111. */
+      T.ok('the scan p cannot beat its own floor of 1/(n+1)', sc2.scanP >= 1 / 7 - 1e-9, 'scanP=' + sc2.scanP + ' with 6 surrogates (floor ' + (1 / 7).toFixed(3) + ')');
     });
 
     group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {

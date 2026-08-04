@@ -66,6 +66,15 @@ const WINDOW_MIN = Number(arg('window', 120));
 const N_SURR = Number(arg('surrogates', 50));
 const CANDIDATES = Number(arg('candidates', 4));
 const JSON_OUT = process.argv.includes('--json');
+const SCAN = process.argv.includes('--scan');
+const SCAN_LO = Number(arg('scan-lo', -1200)),
+  SCAN_HI = Number(arg('scan-hi', 1200)),
+  SCAN_STEP = Number(arg('scan-step', 25));
+/* The scan gets its OWN surrogate count. Its p is floored at 1/(n+1), so re-using a divided-down
+   count silently caps it ABOVE 0.05 and every window then reports the same non-significant p —
+   observed at n=8, where all four windows read exactly 0.111 and the statistic could not have come
+   out any other way. Defaults to the main count rather than a fraction of it. */
+const SCAN_SURR = Number(arg('scan-surrogates', N_SURR));
 /* Anchors are sampled, not taken per row: a 9 h ECG is ~4 M rows and `hostAxis`'s running median is
    O(n·win). One anchor per ANCHOR_STEP rows is ~0.5 s at 130 Hz, far denser than the ~1 s wander the
    correction describes, and the median needs density only relative to that. */
@@ -182,6 +191,68 @@ function biggest(dir, re, n) {
    that reports success about something it never examined. `null` here becomes a loud refusal. */
 const MIN_LAGS = 50;
 
+/* ── OFFSET SCAN — attributing §3f's intermittency ────────────────────────────────────────────────
+   §3f found strict coupling on 20/57 windows and a MEDIAN window at exactly its chance floor. Two
+   explanations predict that shape and §3f.4 could not separate them: the physiology genuinely comes
+   and goes, or the residual inter-device offset wanders in and out of the `[200,650]` ms acceptance
+   window. This asks the question that separates them: **is there ANY constant offset at which this
+   window couples?**
+
+   The statistic is `max over δ` — which is a selection, so THE NULL IS MAXED THE SAME WAY. Each
+   circular-shift surrogate is scanned over the identical δ grid and its own maximum taken, so
+   whatever advantage scanning grants the observation it grants the null identically. That is the same
+   discipline `pat-matchrate-strict`'s surrogate already applies to alignment, one level up.
+
+   `bestOffsetMs` is the other half and is free: a δ that is STABLE across a night's windows while the
+   score varies says the offset was fine and the coupling moved; a δ that jumps says the offset moved. */
+function scanOffsets(rT, fT, nSurr, loMs, hiMs, stepMs) {
+  const best = (feet) => {
+    let bs = -Infinity,
+      bd = NaN;
+    for (let d = loMs; d <= hiMs; d += stepMs) {
+      const sh = new Float64Array(feet.length);
+      for (let i = 0; i < feet.length; i++) sh[i] = feet[i] + d;
+      const l = rawLags(rT, sh);
+      if (l.length < MIN_LAGS) continue;
+      const m = strictMatchRate(l, rT.length).matchRate;
+      if (isFinite(m) && m > bs) {
+        bs = m;
+        bd = d;
+      }
+    }
+    return { score: bs, offset: bd };
+  };
+  const obs = best(fT);
+  if (!isFinite(obs.score)) return { refused: 'no offset in the scan produced enough lags' };
+  /* ⚠ A beat train is PERIODIC, so matching it pins an offset only MOD ONE RR INTERVAL — δ and
+     δ ± RR are indistinguishable by construction. `bestOffsetMs` alone therefore looks like it
+     "jumps" between windows when it may only be aliasing. The identifiable quantity is δ mod RR,
+     and the median RR is published beside it so the reduction is checkable rather than assumed.
+
+     ⚠ AND IT IS WEAKER STILL: any δ that keeps the lag inside [PHYS_LO, PHYS_HI] scores IDENTICALLY,
+     so the argmax sits on a PLATEAU as wide as that acceptance window (450 ms), not at a point. Found
+     by a gate assertion that expected ~0 on planted data and got -200 — the code being right. So
+     `bestOffsetMs` bounds the offset to a 450 ms band mod RR; it does not estimate it, and two windows
+     differing by less than that band are NOT evidence the offset moved. */
+  const rr = [];
+  for (let i = 1; i < rT.length; i++) rr.push(rT[i] - rT[i - 1]);
+  rr.sort((a, b) => a - b);
+  const medRR = rr.length ? rr[rr.length >> 1] : NaN;
+  const modRR = isFinite(medRR) && medRR > 0 ? ((obs.offset % medRR) + medRR) % medRR : NaN;
+  const span = fT[fT.length - 1] - fT[0];
+  const sur = [];
+  for (let s = 0; s < nSurr; s++) sur.push(best(circShift(fT, span, (s + 1) / (nSurr + 1))).score);
+  const ok = sur.filter(isFinite);
+  return {
+    bestScore: obs.score,
+    bestOffsetMs: obs.offset,
+    medRRms: medRR,
+    bestOffsetModRR: modRR,
+    scanChance: ok.length ? ok.reduce((a, b) => a + b, 0) / ok.length : NaN,
+    scanP: ok.length ? (ok.filter((x) => x >= obs.score).length + 1) / (ok.length + 1) : NaN
+  };
+}
+
 function scoreWindow(rT, fT, nSurr) {
   const lag = rawLags(rT, fT);
   if (lag.length < MIN_LAGS) return { refused: `only ${lag.length} stage-one lag(s) in the window (< ${MIN_LAGS})` };
@@ -217,7 +288,7 @@ function scoreWindow(rT, fT, nSurr) {
   };
 }
 
-export { hostAnchors, hostCorrector, toHostAxis, scoreWindow };
+export { hostAnchors, hostCorrector, toHostAxis, scoreWindow, scanOffsets };
 
 const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (IS_CLI) {
@@ -292,7 +363,9 @@ if (IS_CLI) {
             refusals.push(`${night} win${win}: ${sc.refused}`);
             continue;
           }
-          rows.push({ night, win, ppmE: ax.ppm, ppmP: px.ppm, ...sc });
+          const extra = SCAN ? scanOffsets(rW, fW, SCAN_SURR, SCAN_LO, SCAN_HI, SCAN_STEP) : {};
+          if (extra.refused) refusals.push(`${night} win${win}: scan — ${extra.refused}`);
+          rows.push({ night, win, ppmE: ax.ppm, ppmP: px.ppm, ...sc, ...(extra.refused ? {} : extra) });
         }
       }
   }
@@ -301,12 +374,14 @@ if (IS_CLI) {
   } else {
     console.log(`\nPAT under a hostAxis-READ inter-device offset (PAT-UNDER-PERBLOCK-ALIGNMENT §3e.4)`);
     console.log(`windows ${WINDOW_MIN} min · ${N_SURR} surrogates · every pair and window scored, none selected\n`);
-    console.log('night        win  beats |  legacy  chance     p  |  strict  chance     p');
-    console.log('─'.repeat(74));
+    console.log(SCAN ? 'night        win  beats |  strict  chance     p  |  BEST  chance     p  bestOff modRR    RR' : 'night        win  beats |  legacy  chance     p  |  strict  chance     p');
+    console.log('─'.repeat(SCAN ? 82 : 74));
     const f = (x) => (x == null || !isFinite(x) ? '  —  ' : (x * 100).toFixed(0).padStart(4) + '%');
     for (const r of rows)
       console.log(
-        `${r.night} ${String(r.win).padStart(4)} ${String(r.n).padStart(6)} | ${f(r.legacy)} ${f(r.legacyChance)} ${r.legacyP.toFixed(3).padStart(6)} | ${f(r.strict)} ${f(r.strictChance)} ${r.strictP.toFixed(3).padStart(6)}`
+        SCAN
+          ? `${r.night} ${String(r.win).padStart(4)} ${String(r.n).padStart(6)} | ${f(r.strict)} ${f(r.strictChance)} ${r.strictP.toFixed(3).padStart(6)} | ${f(r.bestScore)} ${f(r.scanChance)} ${(isFinite(r.scanP) ? r.scanP.toFixed(3) : '  —  ').padStart(6)} ${(isFinite(r.bestOffsetMs) ? r.bestOffsetMs + '' : '—').padStart(6)} ${(isFinite(r.bestOffsetModRR) ? Math.round(r.bestOffsetModRR) + '' : '—').padStart(6)} ${(isFinite(r.medRRms) ? Math.round(r.medRRms) + '' : '—').padStart(5)}`
+          : `${r.night} ${String(r.win).padStart(4)} ${String(r.n).padStart(6)} | ${f(r.legacy)} ${f(r.legacyChance)} ${r.legacyP.toFixed(3).padStart(6)} | ${f(r.strict)} ${f(r.strictChance)} ${r.strictP.toFixed(3).padStart(6)}`
       );
     console.log('─'.repeat(74));
     if (rows.length) {
