@@ -45,6 +45,20 @@ tree, don't bother.
 - **`git status` before every commit.** Files you don't recognize? **Leave them.** They're someone's work-unit.
 - **Never** `git reset --hard` / `git checkout .` / `git restore .` / `git stash` / `git clean -f` on a
   tree you did not dirty. That is someone's only copy.
+- **Never move a branch ref by hand — `git update-ref refs/heads/<b>`, `git branch -f`, `git push . <src>:<b>`.**
+  A bare ref move looks like the *safe* way to "sync local main" precisely because it touches no files —
+  and that is the trap. If that branch is CHECKED OUT anywhere, the ref advances and the tree does not, so
+  every file a merged PR **added** starts reading as `deleted` and every file it changed reads as reverted.
+  On 2026-08-03 this reached **47 phantom deletions + 167 phantom modifications** in the shared root, all
+  staged by a later blanket `git add -A`; committing it would have removed ~25 pending changesets, live
+  briefs and 6 tools from `main`, and tripped `release-ledger` check 7. The count **grows with every merge
+  instead of converging** — that growth is the diagnostic tell.
+  **You almost never need a local branch ref:** `git worktree add ../wt-<task> -b claude/<task> origin/main`
+  reads the remote-tracking ref directly. If one must advance, do it *in the checkout that holds it*
+  (`git -C <checkout> merge --ff-only origin/<b>`) so tree + index + ref move together.
+  ⚠️ **`git rev-list --count main..origin/main` returning 0 does NOT mean the checkout is synced** — only
+  that the ref is. It reads green while the tree is hundreds of files stale. Check
+  `git -C <checkout> status --short` as well; that one command, run once, would have caught this on day one.
 - Found **finished, uncommitted work** that isn't yours? **Snapshot it, don't step on it** — a temp-index
   commit preserves everything without touching the tree:
   ```sh
@@ -55,7 +69,7 @@ tree, don't bother.
   Then tell the user. Do **not** merge it — you don't know whose it is or whether it's finished.
 
 **This is hook-enforced.** `.claude/hooks/guard-shared-tree.sh` (wired via `.claude/settings.json`) denies
-all of the above with an explanation. Escape hatch when the tree is genuinely yours alone:
+all of the above — plus hand ref-moves — with an explanation. Escape hatch when the tree is genuinely yours alone:
 `CLAUDE_ALLOW_BLANKET_GIT=1`.
 
 ### 3 · Bundles and ledgers must be SERIALIZED — a worktree does not save you here

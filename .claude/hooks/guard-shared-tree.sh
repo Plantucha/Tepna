@@ -100,4 +100,33 @@ if grep -qE '(^|[;&|(]|&&|\|\|)[[:space:]]*git[[:space:]]+clean\b[^;&|]*-[a-zA-Z
 Delete only what you created, by name."
 fi
 
+# `git update-ref refs/heads/<b>` / `git branch -f <b>` / `git push . <src>:<b>` — moving a ref that
+# is CHECKED OUT desyncs that checkout silently. Real incident, 2026-08-03: a session advanced
+# `refs/heads/main` to `origin/main` each iteration to "sync local main", choosing a bare ref move
+# precisely BECAUSE it touches no files. That is safe only while the branch is checked out NOWHERE.
+# `main` was checked out in the shared root. HEAD moved, the tree did not, and every file a merged PR
+# ADDED began reading as `deleted` while every file it CHANGED read as reverted — 47 D + 167 M, growing
+# with each merge. A later blanket `git add -A` staged all 214; committing it would have removed ~25
+# pending changesets, live briefs and 6 tools from main, and tripped release-ledger check 7.
+# The tell it hides: `git rev-list --count main..origin/main` reads 0 — the REF is synced, the checkout
+# is not. Verifying the ref and reporting it as the checkout is how this ran unnoticed for 5 iterations.
+if grep -qE '(^|[;&|(]|&&|\|\|)[[:space:]]*git[[:space:]]+(update-ref[[:space:]]+refs/heads/|branch[[:space:]]+(-f|--force)[[:space:]])' <<<"$cmd" \
+   || grep -qE '(^|[;&|(]|&&|\|\|)[[:space:]]*git[[:space:]]+push[[:space:]]+\.[[:space:]]' <<<"$cmd"; then
+  deny "BLOCKED: moving a branch ref by hand desyncs any checkout that HAS that branch out — the ref
+advances, the working tree does not, and every newly-merged file then reads as DELETED. That is what
+produced 47 phantom deletions of live files on 2026-08-03.
+
+You almost certainly do not need a local branch ref at all — a worktree can branch straight off the
+remote-tracking ref:
+    git worktree add ../wt-<task> -b claude/<task> origin/main
+
+If a local branch really must advance, do it IN the checkout that holds it, so tree + index + ref move
+together — and confirm first that it is checked out nowhere else:
+    git worktree list | grep '\[<branch>\]'
+    git -C <that-checkout> merge --ff-only origin/<branch>
+
+Note: 'git rev-list --count <branch>..origin/<branch>' returning 0 does NOT mean the checkout is in
+sync — only that the ref is. Check 'git -C <checkout> status --short' too."
+fi
+
 exit 0
