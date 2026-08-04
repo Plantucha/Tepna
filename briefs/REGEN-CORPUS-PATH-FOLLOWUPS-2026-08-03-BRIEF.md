@@ -106,5 +106,8 @@ surfaced it.
 
 ## Cross-references
 - Parent: `FOLLOWUP-FINDINGS-BRIEF.md` (DONE 2026-08-03) — P4's execution surfaced both items.
+- Spawned: `REGEN-CORPUS-PATH-FOLLOWUPS-II-2026-08-03-BRIEF.md` — three tools that silently do less
+  than asked, found while executing this one (A2's borrowed scope, `build.mjs --app` dropping repeats,
+  no `--all` on the regen dispatcher).
 - `CLAUDE.md` §🔒 (`verifiedUnder`, and why an unrun verification is a false claim) · §👥.1 (work in a
   worktree — the arrangement that exposes this).
