@@ -3,7 +3,52 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-20
+**Status:** REFERENCE (living field-observation record · last-verified 2026-08-04) · **Created:** 2026-07-20
+
+> ## Reclassified PROPOSED → REFERENCE, 2026-08-04
+>
+> **This brief proposes no code — it says so itself** (*"It proposes no code; it is the evidence other
+> briefs execute against"*). It is an observation record, so `PROPOSED` was never the right status: there
+> is nothing in it to execute, and that is why it has sat in the open backlog since 2026-07-20. Every item
+> it raised is now closed or owned by a named brief; the two that remain are recorded below with their
+> measured current state.
+>
+> **E2 is now MERGED** — its heading still reads *"fix exists, UNMERGED"*, and §E2 still describes
+> `f43122b` as *"1 commit not in `origin/main`"*. Verified by **commit identity**, not by inference:
+> `git merge-base --is-ancestor f43122b origin/main` returns true — it landed via **PR #286**
+> (`4151011`). The behaviour is there to match: `capture.py:3822` registers the `SIGINT`/`SIGTERM`
+> handlers, `:3933` carries the *"SHUTDOWN MUST TERMINATE, AND MUST SAY WHAT WENT WRONG"* note citing
+> this brief's own 2026-07-20 measurement, `webmon.py:169` documents the open-SSE-stream cause, and
+> `capture.py:1794` handles a child that ignores `SIGTERM`. Covered by
+> `tests/test_offline_op_deadlock.py` among others.
+>
+> ### ⚠️ Measured on the live box 2026-08-04 (`ssh vigil`) — the E6 half of item 5 has MOVED
+>
+> The box was **replaced** since this record was written, so the §"Field re-corroboration 2026-07-22"
+> numbers below describe hardware that is gone. Measured now:
+>
+> | recorded here (2026-07-22) | measured 2026-08-04 |
+> |---|---|
+> | disk **17 GB free of 158 GB — 90 % used** | **19 G used of 98 G — 20 % used.** A different volume size, i.e. a different machine; the disk pressure that motivated E6 is **gone** |
+> | *"`keep_nights: 14` + `archive.enabled` live on the box"* | `keep_nights: 14` ✓ — but **`archive` is absent, and deliberately so**: `config.yaml:14` reads *"Archive is DELIBERATELY absent until you set a target in the monitor's Storage card."* **0** `.archived` markers across the 11 night directories present (2026-07-25 → 08-04). The claim that archiving is live is now false |
+> | *"`alerts:` is still `None`"* | **there is no `alerts:` key at all** — no `webhook_url`, so a low-disk alert would fire to nobody. **Still open**, unchanged in substance |
+>
+> ### The two genuinely open items, and who owns them
+>
+> 1. **`alerts.webhook_url` unset** (E6 / next-steps item 5) — a live-box **configuration** call, not code,
+>    and the owner's to make. Note the alert is currently moot: at 20 % used there is no low-disk condition
+>    to report.
+> 2. **E1's real-night validation** (next-steps item 2) — structurally hard rather than merely unstarted.
+>    E1 was *"the only occurrence across every capture log on the box"*, so validating the stall watchdog
+>    requires the fault to **recur**; its absence since is weak evidence either way. ⚠️ The watchdog in
+>    `VIGIL-OVERNIGHT-FINDINGS-2026-07-24` is the **adapter** watchdog (radio reset) — a different
+>    mechanism. Do not read its findings as E1 validation.
+>
+> Everything else is closed: E1 code (v1.17.0), **E2 (merged, above)**, E3 + E5
+> (`VIGIL-RECONNECT-BACKOFF-AND-LINK-COUNT`, `VIGIL-ADAPTER-FALSE-WEDGE`), E4
+> (`VIGIL-WEAR-GATE-AND-ACC-CAP` — with motion wear-gating **removed as disproven**), E6 retention
+> (`VIGIL-OFFLOAD-AND-RETENTION`). E7/E8 were informational, and **E8 was re-confirmed true on new
+> hardware** — its "parsers must not assume the phone column sorts" mandate still holds.
 
 _Field-observation record for `VIGIL-BLE-ROBUSTNESS-2026-07-19-BRIEF.md` and
 `VIGIL-NIGHT-GUARDRAILS-2026-07-19-BRIEF.md`._
