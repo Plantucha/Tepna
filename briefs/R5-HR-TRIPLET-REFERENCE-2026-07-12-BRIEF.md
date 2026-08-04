@@ -164,6 +164,12 @@ mechanistically twinned with a corner. Do not simply add it as a fourth and hope
       nodes agree on one statistic. §2's table and the "OxyDex under-reads" headline are confounded, and
       the ResMed fourth corner is not what unblocks this one — agreeing on an estimator is.
 
+      **Spawned:** `R5-HR-TRIPLET-FOLLOWUPS-2026-08-04-BRIEF.md` — carries the question this raises
+      (is the σ an artifact too? **no**, under 2 % on the affected leg, and that upper bound assumes
+      an independence the two statistics do not have) and what is owed: one epoch statistic
+      fleet-wide, NAMED in the export so a consumer can refuse a mismatched pair, and the
+      still-unisolated mechanism inside real RR.
+
 - [~] *(superseded by the entry above)* **Investigated 2026-08-04 — one candidate ELIMINATED, the other two BOUNDED but not separable
       here.** Reproducible via `tools/oxy-hr-bias.mjs` (no number without a tool that reproduces it).
 
