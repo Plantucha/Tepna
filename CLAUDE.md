@@ -90,9 +90,16 @@ files, 25 of them pending changesets, growing with every merge rather than conve
   `git rev-list --count HEAD..origin/main`. The ref comparison returned **0** while the tree was 214
   files stale; it answers a different question than the one you are asking.
 
-Hook-enforced (`guard-shared-tree.sh`). There is deliberately **no commit-time guard on deletions**:
-deleting files that exist on `origin/main` is what deleting a file *is*, and such a rule would block
-`tools/release.mjs`'s changeset prune, so it would be overridden into uselessness.
+Hook-enforced (`guard-shared-tree.sh`). There is deliberately **no commit-time guard on deletions**,
+and the reason is measurable rather than a matter of taste: **the release commit has the same signature
+as the corruption.** `tools/release.mjs` prunes every consumed changeset — 13-51 per release
+historically — and those changesets were added only 8-20 commits earlier (checked against
+`aee1e10 release: v2.4.0`). So "many recent files deleted in a block, changeset-heavy, bounded by a
+commit" describes a release *and* a stale tree identically. Any rule tuned to catch the 2026-08-03
+incident reds every release; any rule loosened to pass releases passes the incident. That signal
+collision is also why the accident was camouflaged — genuine `uploads/trio/**` deletions sat in the
+same list. **Prevent the cause; do not try to detect the damage.** If you think you have a
+discriminator, test it against a release commit first.
 
 ### 3 · Bundles and ledgers must be SERIALIZED — a worktree does not save you here
 
