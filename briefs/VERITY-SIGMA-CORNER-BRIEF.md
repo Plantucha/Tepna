@@ -1,4 +1,35 @@
-**Status:** PROPOSED (largely absorbed, formally open 2026-08-03 — `sigma-no-reference-analysis.html` and `papers/sigma-no-reference.html` ship, and the 37-night trio corpus means the capture-protocol box was answered in practice, but **all seven §7 boxes are literally unchecked** and the estimator has since moved on to the TCH chain (`TCH-FUSED-ROBUST-HAT`, `TRIO-ARTIFACT-GATE-AND-N15-POWER`). Reconcile §7 against that chain before stamping — do not stamp on the file listing alone) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** DONE — 2026-08-04 · **Created:** (undated — pre-2026-07-03, grandfathered)
+
+> **Closed by reconciliation, not by new work (2026-08-04).** The prior header asked that §7 be reconciled
+> against the TCH chain rather than stamped on a file listing. That reconciliation was done, box by box,
+> against the shipped artifacts — every one is satisfied, and the achieved N is far past what §7 asked for.
+> Absorbed by `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md` (DONE 2026-07-07, the folder-ingest paper rewrite)
+> and carried forward by the TCH chain (`TCH-FUSED-ROBUST-HAT`, commit `4d10a81`/`faa908d`).
+>
+> | §7 box | Evidence (verified in the artifact, not the prose) |
+> |---|---|
+> | `TRIO`→`TRIOS[]`, per-window kernel, intersection builder | `sigma-no-reference-analysis.js:74` (`TRIOS[]`), `:324` "build one three-device window from a TRIOS entry (intersection on tMs)", `MIN_WIN_S=1000` `:138` |
+> | aggregate σ + CI + N_windows + total simultaneous s | `:308` across-window percentile bootstrap (`B_ACROSS=2000`, N≥3), `:274` within-window block bootstrap (`BLOCK_S=30`) when N<3; surfaced at `:548`/`:1191` as `N · totalS · ciKind` |
+> | negative-variance / instability check + H10↔O2Ring control leg | `neg_var_windows` + `control_drift_windows` written to stats.json at `:1130`; CI-overlap tie detection `:702` |
+> | derivation path documented/scripted | `docs/SIGMA-WINDOW-DERIVATION.md` §A–§B, §D (ready-to-run commands) |
+> | capture protocol delivered | `docs/SIGMA-WINDOW-DERIVATION.md` §C |
+> | Table 3 + Figure 2 + Limitations + §6 + stats.json | `papers/sigma-no-reference.html`: σ+CI columns `:106–113`, Figure 2 CI whiskers (drawn `analysis.js:1033–1076`), Limitations `:128`, §6 Table 4 **"achieved: 26 nights, 291,561 simultaneous s"** `:148` |
+> | no node code touched | analysis tool + paper only; `build-analysis.mjs --check` clean, no bundle/provenance move |
+>
+> **Two premises of this brief have since been overtaken — read §0–§4 as history, not as instructions:**
+> 1. **§0/§1's headline σ (O2Ring 1.67 · H10 2.17 · Verity 6.22 bpm, one 7,057 s window) is superseded.**
+>    The noisy corner *reordered* on the larger corpus — see `SIGMA-PAPER-REWRITE`'s reconciliation. Do not
+>    quote 6.22 as Verity's σ.
+> 2. **§3/§7's "commit `uploads/*-derived-*-HR.txt`" is obsolete by design.** Nothing is pre-derived or
+>    committed any more: the worker derives each corner at ingest (Verity←raw PPG via `PPGDSP.analyze`,
+>    H10←raw ECG via `ECGDSP` Pan–Tompkins, O2Ring native). No `*-derived-*-HR.txt` is git-tracked, and
+>    that is correct — `uploads/` is gitignored. The committed-window path is now only a fallback
+>    (`analysis.js:530`).
+>
+> **Residue (recorded here rather than spawned as a follow-up, per `CLAUDE.md` §📌):** §4's "at least one
+> non-resting session" remains genuinely open — the corpus is still **resting-only**, and both the paper's
+> §6 table and its "Next" line already say so in the right place. It is a *capture* ask on the wearer, not
+> a code task, so it needs no brief of its own; it is already tracked where a reader will meet it.
 
 # BRIEF — Verity σ corner: from one overlap window to a distribution with a CI
 
@@ -132,14 +163,20 @@ session:
 - Keep all numbers traceable to a fresh tool run; export `sigma-no-reference-stats.json`.
 
 ## 7. Definition of done
-- [ ] `TRIO` generalized to `TRIOS[]`; per-window TCH kernel; window-intersection builder (Clock-
+*(All boxes verified against the shipped artifacts on 2026-08-04 — the per-box evidence is in the
+header table. Ticked as part of the closing reconciliation, not by new work in this brief.)*
+
+- [x] `TRIO` generalized to `TRIOS[]`; per-window TCH kernel; window-intersection builder (Clock-
       Contract aligned).
-- [ ] Aggregate per-device σ with CI + N_windows + total simultaneous seconds.
-- [ ] Uncorrelated-error / negative-variance instability check; H10↔O2Ring control leg surfaced.
-- [ ] Derivation path documented/scripted for new nights (raw PPG→PPGDSP, raw ECG→ECGDSP), committed
-      as `*-derived-*-HR.txt`.
-- [ ] Capture protocol delivered to the user (3-device + Verity raw PPG + ≥1 non-resting session).
-- [ ] Tables 3 + Figure 2 + Limitations + §6 updated; stats.json re-exported.
+- [x] Aggregate per-device σ with CI + N_windows + total simultaneous seconds.
+- [x] Uncorrelated-error / negative-variance instability check; H10↔O2Ring control leg surfaced.
+- [x] Derivation path documented/scripted for new nights (raw PPG→PPGDSP, raw ECG→ECGDSP) —
+      `docs/SIGMA-WINDOW-DERIVATION.md`. **The "committed as `*-derived-*-HR.txt`" half is obsolete:**
+      the worker now derives every corner at ingest, so nothing is pre-derived or git-tracked.
+- [x] Capture protocol delivered to the user (`SIGMA-WINDOW-DERIVATION.md` §C). The **≥1 non-resting
+      session** within it is still outstanding on the wearer — the corpus remains resting-only, and the
+      paper's §6 table + "Next" line both say so.
+- [x] Tables 3 + Figure 2 + Limitations + §6 updated; stats.json re-exported.
 - [ ] If any node code was touched (shouldn't be): full CLAUDE.md gate.
 
 ## 8. Pointers (files)

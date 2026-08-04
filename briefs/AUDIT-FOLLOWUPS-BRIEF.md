@@ -172,29 +172,50 @@ flips 6 manifest rows for an inert addition — only do it as part of the §6 sw
 ## 4. INTEGRATOR-EXPORT-FIX secondary list — surfaced, owner must pick (each its own package)
 
 P1/P2 of that brief are **DONE** (`buildFusionExport` serializes `positional`/`hrvConsensus`/
-`deviceScoredAHI`, `schema.version 1.2`; `findings.sort` nulls-last). The "Secondary" list was never
-actioned and each needs a decision:
+`deviceScoredAHI` at `integrator-dsp.js:6060`–`:6070`; `findings.sort` nulls-last at `:5936`).
+**`schema.version` now reads `'1.3'`, not the `1.2` this line originally said** — it moved again after
+that bump.
 
-1. **🔴 Suite-wide blank-on-print/PDF/export.** `ans-design.css` animates `.main-content`/`.chart-card`/
+> **Update 2026-08-04 (backlog sweep): items 1 and 2 are CLOSED; only 3 and 4 remain open owner
+> decisions.** `INTEGRATOR-EXPORT-FIX-BRIEF.md` was stamped DONE on the strength of this. Items 1–2 are
+> kept below with their resolution appended rather than deleted, so the decision history stays readable.
+
+1. ~~**🔴 Suite-wide blank-on-print/PDF/export.**~~ ✅ **CLOSED** — fixed and gated by
+   `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` (DONE 2026-08-03; the guard's gate *derives* its expectation
+   from `ans-design.css` and is mutant-verified ×5). **The description below is inverted and is kept only
+   as history:** measured 2026-08-04, `entrance-guard.js` ships in **all 8 nodes** (src *and* bundle) and
+   **not** in the Integrator, which keeps its own scoped injected CSS (`integrator-render.js:28–37`).
+   `ans-design.css` was deliberately left untouched, so the "re-bundle all 7 + regenerate fixtures" cost
+   priced here was never paid — and that pricing is itself stale (`buildHash` is retired; `manifestHash`
+   is the identity). *Original text:* `ans-design.css` animates `.main-content`/`.chart-card`/
    `.kpi` **from `opacity:0` with `fill:both`**, so frozen-timeline contexts (print, PDF, capture,
-   throttled tab) render blank. **Only the Integrator was patched** (scoped CSS in
-   `integrator-render.js`); the other six apps still blank out. Root fix = make the visible end-state
-   the base in `ans-design.css` and animate from hidden only while playing. ⚠️ `ans-design.css` is
-   inlined into every bundle's `__bundler/template` → editing it moves **every** app's `buildHash` →
-   re-bundle all 7 + regenerate fixtures + full suite + regen `BUILD-MANIFEST.json`. Big, deliberate
-   pass (fold into §6).
-2. **Badge-coverage audit of the other six apps.** The 🔴 coverage mandate (every surfaced
-   measurement carries an evidence badge, bottom-right corner or inline-before-label) was only made
-   compliant in the Integrator. Audit OxyDex/HRVDex/PulseDex/GlucoDex/ECGDex/CPAPDex for unbadged
-   surfaces. (Removing PulseDex's BP rows this pass eliminated three unbadged numbers; the rest of the
-   sweep remains.)
+   throttled tab) render blank. Only the Integrator was patched; the other six apps still blank out.
+2. ~~**Badge-coverage audit of the other six apps.**~~ ✅ **CLOSED** — `BADGE-COVERAGE-AUDIT-BRIEF.md`,
+   DONE **2026-06-23**, i.e. the sweep this item asks for had already run when the item was written.
+   ⚠️ Note for anyone re-checking it: node UIs reach badges via the mandated indirection
+   `evBadge(…)` → `<Node>Registry.badgeForLabel(label, fallback)` → `MetricRegistry.badge()`. Counting
+   `.badge(` call sites or `class="ev ev-"` occurrences measures the wrong thing and will report
+   false non-compliance (`class="ev ev-"` in a bundle is mostly **CSS rules**, not markup).
+   *Original text:* the 🔴 coverage mandate was only made compliant in the Integrator; audit
+   OxyDex/HRVDex/PulseDex/GlucoDex/ECGDex/CPAPDex for unbadged surfaces.
 3. **`Integrator.src.html` has 3 duplicate `<nav class="mobile-nav">` blocks** (deduped at runtime by
-   `bindNav`). Cleaning the markup moves `buildHash` → flips the 3 committed
-   `uploads/integrator_fusion_*.json` fixtures, whose source node-export inputs aren't in the repo →
-   can't regenerate. Currently keep the runtime workaround. Decide deliberately.
+   `bindNav`). ⏳ **STILL OPEN** — re-confirmed 2026-08-04: 3 real `<nav>` elements (2 bare +
+   1 `id="mobileNav"`), counted as elements (the bare string `mobile-nav` appears 22×, mostly CSS —
+   don't count that). ⚠️ **Its costing is STALE:** it is priced in `buildHash`, retired by Phase 7.
+   Re-cost against `manifestHash` + the content-addressed fixture rules (`CLAUDE.md` §🔏) before
+   deciding — including whether "can't regenerate" still holds. Currently keep the runtime workaround.
 4. **Fusion-finding evidence tiers are author-assigned, not test-backed** (`FINDING_EVIDENCE` in
-   `integrator-render.js`). Ratify the grades (a science-governance call) and consider moving them
-   into a small node-style registry so the `cohesion-badges` gate anchors them.
+   `integrator-render.js`). ⚠️ **Premise largely OVERTAKEN 2026-08-04** — the "not test-backed" half is
+   no longer true: `tests/dex-tests.js:6466`–`:6504` parses `FINDING_EVIDENCE` straight out of the
+   renderer and asserts **every emitted finding type carries a grade**, with a non-vacuity assertion at
+   `:6495` (it anchors on the *declaration*, not the bare name, because prose above `FINDING_EVIDENCE`
+   mentions `TYPE_EV`). That gate landed with `changes/2026-08-04-fusion-finding-grades.md`, after
+   `staging_disagreement` was found rendering with **no badge at all**. Tiers are no longer assigned
+   locally either — `staging_disagreement`'s is documented as **INHERITED** from `ECG_REGISTRY` per
+   `CLAUDE.md` §🎫 (a disagreement between two `heuristic` estimators cannot be stronger evidence than
+   its inputs). **Genuinely remaining:** owner ratification of the other five grades, and confirming each
+   traces to an owning node registry the way `staging_disagreement` now does. Still an owner decision —
+   tier assignment is a NODE fact, never assigned in a sweep.
 
 ---
 
