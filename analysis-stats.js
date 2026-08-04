@@ -151,6 +151,132 @@
   function threeCorneredHat(vAB, vAC, vBC) {
     return { a: 0.5 * (vAB + vAC - vBC), b: 0.5 * (vAB + vBC - vAC), c: 0.5 * (vAC + vBC - vAB) };
   }
+  /* ── PAIRWISE-ρ three-cornered hat (TCH-REFERENCE-VALIDATION R2) ──────────────────────────────────
+     Classic TCH assumes the three corners' errors are MUTUALLY INDEPENDENT:
+         Var(x_i − x_j) = σ²_i + σ²_j
+     That assumption is measurably false for a respiration triplet: ECG-RSA and PPG-RSA are not
+     independent looks at breathing — they read the same modulation — and the reference measured
+     ρ(ECG,PPG) = 0.42. Under a violated assumption the solve does not fail loudly; it MOVES VARIANCE
+     between corners, which is how a chest strap acquires an implausible σ.
+
+     `integrator-tch.js` already has a correlated path, but it applies ONE COMMON-MODE ρ to all three
+     pairs equally. That cannot express the actual structure — "ECG and PPG are coupled, the CPAP is
+     independent" — and inflates every corner instead of the two that are really coupled (the brief's
+     §4: common-mode ρ=0.42 moves CPAP 2.07 → 2.71, which is the wrong direction for the corner that
+     is not part of the correlated pair).
+
+     The honest model keeps a ρ PER PAIR:
+         Var(x_i − x_j) = σ²_i + σ²_j − 2·ρ_ij·σ_i·σ_j
+     Three equations, three unknowns — but NONLINEAR, so there is no closed form like the classic
+     half-sum. Solved by Newton on (σ_a, σ_b, σ_c) with an analytic Jacobian, seeded from the classic
+     ρ=0 solution (the right seed: it is the exact answer when every ρ is 0, so the correlated solve
+     starts on the answer it is correcting).
+
+     REFUSAL, not a fabricated number. Returns `{ok:false, reason}` when the seed is unusable, when
+     Newton fails to converge, or when the solution is not physical (a negative variance). A ρ triple
+     can be jointly impossible; producing a σ anyway is exactly the failure this generalisation exists
+     to stop. */
+  function tchSigmasPairwiseFromVars(vAB, vAC, vBC, rho) {
+    rho = rho || {};
+    var rAB = rho.ab || 0,
+      rAC = rho.ac || 0,
+      rBC = rho.bc || 0;
+    /* SEEDING. The classic ρ=0 solve is the natural seed — it is the exact answer when every ρ is 0.
+       But it must NOT be a precondition: a classic solve that returns a negative variance is precisely
+       the symptom of correlated corners, i.e. the case this generalisation exists to solve. Refusing
+       there would make the pairwise hat useless exactly where it is needed. (Found by this function's
+       own self-test: planted σ = 1.5/1.5/5.0 with ρ = 0.6/−0.2/0.3 is a perfectly real triple whose
+       classic seed is non-physical.) So fall back to an isotropic seed built from the observed
+       variances, which carries no independence assumption at all. */
+    var seed = threeCorneredHat(vAB, vAC, vBC);
+    var x;
+    if (seed.a > 0 && seed.b > 0 && seed.c > 0) {
+      x = [Math.sqrt(seed.a), Math.sqrt(seed.b), Math.sqrt(seed.c)];
+    } else {
+      var iso = Math.sqrt(Math.max((vAB + vAC + vBC) / 6, 1e-9));
+      x = [iso, iso, iso];
+    }
+    // residuals: f0 = σa²+σb²−2ρab·σa·σb − vAB, and the AC / BC siblings
+    function F(v) {
+      return [v[0] * v[0] + v[1] * v[1] - 2 * rAB * v[0] * v[1] - vAB, v[0] * v[0] + v[2] * v[2] - 2 * rAC * v[0] * v[2] - vAC, v[1] * v[1] + v[2] * v[2] - 2 * rBC * v[1] * v[2] - vBC];
+    }
+    for (var it = 0; it < 100; it++) {
+      var f = F(x);
+      if (Math.abs(f[0]) < 1e-12 && Math.abs(f[1]) < 1e-12 && Math.abs(f[2]) < 1e-12) break;
+      // analytic Jacobian — each equation involves exactly two of the three unknowns
+      var J = [
+        [2 * x[0] - 2 * rAB * x[1], 2 * x[1] - 2 * rAB * x[0], 0],
+        [2 * x[0] - 2 * rAC * x[2], 0, 2 * x[2] - 2 * rAC * x[0]],
+        [0, 2 * x[1] - 2 * rBC * x[2], 2 * x[2] - 2 * rBC * x[1]]
+      ];
+      var d = _solve3(J, [-f[0], -f[1], -f[2]]);
+      if (!d) return { ok: false, reason: 'Jacobian singular at iteration ' + it + ' — no locally unique solution for this (variance, ρ) combination' };
+      // damped step: a full Newton step can overshoot a σ straight through zero
+      var damp = 1;
+      for (var k = 0; k < 3; k++) if (x[k] + damp * d[k] <= 0) damp = Math.min(damp, (0.5 * x[k]) / Math.abs(d[k] || 1e-12));
+      x = [x[0] + damp * d[0], x[1] + damp * d[1], x[2] + damp * d[2]];
+    }
+    var fin = F(x);
+    var worst = Math.max(Math.abs(fin[0]), Math.abs(fin[1]), Math.abs(fin[2]));
+    if (!(worst < 1e-6)) return { ok: false, reason: 'Newton did not converge (residual ' + worst.toExponential(2) + ') — this (variance, ρ) combination admits no consistent σ triple' };
+    if (!(x[0] > 0 && x[1] > 0 && x[2] > 0) || !isFinite(x[0] + x[1] + x[2])) return { ok: false, reason: 'solution is not physical (a σ is ≤ 0 or non-finite)' };
+    return {
+      ok: true,
+      a: x[0],
+      b: x[1],
+      c: x[2],
+      rho: { ab: rAB, ac: rAC, bc: rBC },
+      classic: seed.a > 0 && seed.b > 0 && seed.c > 0 ? { a: Math.sqrt(seed.a), b: Math.sqrt(seed.b), c: Math.sqrt(seed.c) } : null,
+      classicWasNonPhysical: !(seed.a > 0 && seed.b > 0 && seed.c > 0),
+      residual: worst
+    };
+  }
+  // 3×3 solve by Gaussian elimination with partial pivoting; null when singular.
+  function _solve3(M, r) {
+    var A = [M[0].slice(), M[1].slice(), M[2].slice()],
+      b = r.slice(),
+      i,
+      j,
+      k;
+    for (i = 0; i < 3; i++) {
+      var p = i;
+      for (j = i + 1; j < 3; j++) if (Math.abs(A[j][i]) > Math.abs(A[p][i])) p = j;
+      if (Math.abs(A[p][i]) < 1e-14) return null;
+      if (p !== i) {
+        var t = A[p];
+        A[p] = A[i];
+        A[i] = t;
+        var tb = b[p];
+        b[p] = b[i];
+        b[i] = tb;
+      }
+      for (j = i + 1; j < 3; j++) {
+        var m = A[j][i] / A[i][i];
+        for (k = i; k < 3; k++) A[j][k] -= m * A[i][k];
+        b[j] -= m * b[i];
+      }
+    }
+    var x = [0, 0, 0];
+    for (i = 2; i >= 0; i--) {
+      var s = b[i];
+      for (j = i + 1; j < 3; j++) s -= A[i][j] * x[j];
+      x[i] = s / A[i][i];
+    }
+    return x;
+  }
+  // Series-level sibling of `tchSigmas`, taking a per-PAIR ρ instead of assuming independence.
+  function tchSigmasPairwise(hh, vv, oo, rho) {
+    var dHV = [],
+      dHO = [],
+      dVO = [];
+    for (var i = 0; i < hh.length; i++) {
+      dHV.push(hh[i] - vv[i]);
+      dHO.push(hh[i] - oo[i]);
+      dVO.push(vv[i] - oo[i]);
+    }
+    return tchSigmasPairwiseFromVars(variance(dHV), variance(dHO), variance(dVO), rho);
+  }
+
   // Per-triple three-cornered-hat σ kernel. A=H10(ECG), B=Verity(PPG), C=O2Ring(pulse).
   function tchSigmas(hh, vv, oo) {
     var dHV = [],
@@ -526,6 +652,8 @@
     threeCorneredHat: threeCorneredHat,
     tchSigmas: tchSigmas,
     tchSigmasFused: tchSigmasFused,
+    tchSigmasPairwise: tchSigmasPairwise,
+    tchSigmasPairwiseFromVars: tchSigmasPairwiseFromVars,
     blandAltman: blandAltman,
     pearson: pearson,
     // correlation decomposition

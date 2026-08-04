@@ -4689,6 +4689,48 @@
         T.approx('fused ≈ classic on clean data (o2)', fusClean.o2, clsClean.o2, 0.06);
         // (2) missing confidences default to 1 (⇒ identical to the all-ones call)
         T.approx('fused: missing cH/cV/cO default to 1', S.tchSigmasFused(hhc, vvc, ooc).h10, fusClean.h10, 1e-12);
+
+        /* ── PAIRWISE-ρ hat (TCH-REFERENCE-VALIDATION R2) ────────────────────────────────────────
+           Classic TCH assumes mutually independent corners. For a respiration triplet that is
+           measurably false — ECG-RSA and PPG-RSA read the same modulation, ρ = 0.42 against the
+           reference — and a violated assumption does not fail loudly, it MOVES variance between
+           corners. `integrator-tch.js`'s existing correlated path applies ONE common-mode ρ to all
+           three pairs, which cannot express "these two are coupled, the third is not".
+
+           The self-test is a KNOWN ANSWER, not a property: plant σ and a per-pair ρ, build the three
+           difference variances from the model exactly, and require the solve to return the planted
+           σ. A solver that merely returns something plausible fails this. */
+        if (typeof S.tchSigmasPairwiseFromVars === 'function') {
+          var mkV = function (a, b, r) {
+            return a * a + b * b - 2 * r * a * b;
+          };
+          var plant = function (a, b, c, rab, rac, rbc) {
+            return S.tchSigmasPairwiseFromVars(mkV(a, b, rab), mkV(a, c, rac), mkV(b, c, rbc), { ab: rab, ac: rac, bc: rbc });
+          };
+          var p0 = plant(2, 3, 4, 0, 0, 0);
+          T.approx('pairwise · ρ=0 reproduces the classic solve exactly (a)', p0.a, 2, 1e-9);
+          T.approx('pairwise · ρ=0 reproduces the classic solve exactly (b)', p0.b, 3, 1e-9);
+          T.approx('pairwise · ρ=0 reproduces the classic solve exactly (c)', p0.c, 4, 1e-9);
+          var p1 = plant(2, 3, 4, 0.42, 0, 0);
+          T.approx('pairwise · recovers planted σ under a single correlated pair (a)', p1.a, 2, 1e-6);
+          T.approx('pairwise · …and does not disturb the uncorrelated corner (c)', p1.c, 4, 1e-6);
+          var p2 = plant(3, 3, 3, 0.5, 0.5, 0.5);
+          T.approx('pairwise · recovers planted σ with all three pairs correlated', p2.b, 3, 1e-6);
+          var p3 = plant(1.5, 1.5, 5, 0.6, -0.2, 0.3);
+          /* This triple's CLASSIC seed is non-physical — a negative variance. That is the symptom of
+             correlated corners, i.e. exactly the case this generalisation exists for, so refusing
+             here would make it useless where it is needed. Caught by this assertion during
+             development: the first implementation seeded only from the classic solve and refused. */
+          T.ok('pairwise · solves a triple whose CLASSIC seed is non-physical', p3.ok === true, p3.ok ? '' : p3.reason);
+          T.approx('pairwise · …and recovers its planted σ (mixed-sign ρ)', p3.c, 5, 1e-6);
+          T.eq('pairwise · reports that the classic seed was unusable', p3.classicWasNonPhysical, true);
+          /* Refusal is a first-class outcome: a (variance, ρ) combination can admit no consistent σ
+             triple, and producing a number anyway is the failure this whole generalisation objects
+             to. ρ=0.95 on the brief's own triplet is past where a solution exists. */
+          var bad = S.tchSigmasPairwiseFromVars(8.9074, 11.5749, 11.9125, { bc: 0.95 });
+          T.eq('pairwise · refuses rather than inventing a σ when none exists', bad.ok, false);
+          T.ok('pairwise · the refusal names a reason', typeof bad.reason === 'string' && bad.reason.length > 10, bad.reason);
+        }
         // (3) inject a 20-s H10 over-detection burst (spurious QRS ⇒ HR spikes) ⇒ classic σ_h10 detonates
         var hhb = hhc.slice(),
           cH = ones.slice();
