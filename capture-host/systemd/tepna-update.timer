@@ -1,0 +1,17 @@
+# tepna-update.timer — Tepna Vigil
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# Hourly, because the GUARD decides when it is safe, not the clock: the updater defers while any device
+# is recording, so a nightly window would only add a second, weaker interlock that could disagree with
+# the first. Persistent=true so a box that was asleep at the tick still catches up.
+[Unit]
+Description=Tepna — hourly deploy completion
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1h
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

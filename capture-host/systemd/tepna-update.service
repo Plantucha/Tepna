@@ -1,0 +1,19 @@
+# tepna-update.service — Tepna Vigil
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# Unprivileged on purpose (User=vigil). The one privileged thing the updater does — restarting the
+# capture daemon — goes through the existing scoped NOPASSWD grant on tepna-restart.sh, which names a
+# single unit. Nothing here may install /etc; see tepna-update.sh's header for why that stays manual.
+[Unit]
+Description=Tepna — finish the deploy (fast-forward, serve bundles, restart when idle)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=vigil
+Group=vigil
+ExecStart=/opt/tepna/capture-host/tepna-update.sh
+# A deferral is a normal outcome, but drift and a failed restart must land in `systemctl --failed`,
+# which is the only place they become visible on a box nobody logs into.
+TimeoutStartSec=600
