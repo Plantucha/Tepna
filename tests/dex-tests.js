@@ -25371,6 +25371,78 @@
        fails. Pinning the flaw as a test is the point.
 
        NODE-ONLY: the tool is an .mjs orchestrator, so the browser lane has no PatStrict and skips. */
+    /* ════ EXPERT-LABEL JOIN — scoring the shipped stager against PSG (REM-STAGING-FOLLOWUPS §2b) ══
+       The grids do not match: expert labels are 30 s, the shipped stager's epochs are FIVE MINUTES.
+       An elementwise comparison would silently score epoch 1 against second 30 and produce a
+       confident wrong recall — the exact class of quiet arithmetic error that makes a validation
+       number worse than no number. This group pins the join and the scoring; the EDF/DSP half is
+       proved separately by the tool's `--selftest`.
+
+       NODE-ONLY (.mjs tool), so the browser lane skips. */
+    group('Expert-label join — 30 s PSG labels onto 5-min stager epochs (REM-STAGING-FOLLOWUPS §2b)', 'nsrr · staging · join', function (T) {
+      var NS = env.NsrrStage;
+      if (!NS || !NS.joinToExpert) {
+        T.skip('NsrrStage not in env (browser lane — .mjs tool)');
+        return;
+      }
+      // 3 detector epochs of 5 min; expert grid is 30 s ⇒ 10 expert epochs per detector epoch
+      var det = [{ tMin: 0 }, { tMin: 5 }, { tMin: 10 }];
+      var stages = ['REM', 'N2', 'REM'];
+      /* Every block's FIRST expert epoch deliberately DISAGREES with its majority. Without that the
+         fixture is degenerate: a buggy elementwise join (per = 1, the classic grid error) samples
+         only expert[i0] and, on constant blocks, returns the right answer for the wrong reason. The
+         first draft of this fixture was constant-per-block and the elementwise mutant SURVIVED it. */
+      var exp = [];
+      exp.push('N2'); //  0–5 min  → 1×N2 then 9×REM ⇒ majority REM, elementwise would say N2
+      for (var i = 0; i < 9; i++) exp.push('REM');
+      exp.push('REM'); //  5–10 min → 1×REM then 9×N2 ⇒ majority N2, elementwise would say REM
+      for (i = 0; i < 9; i++) exp.push('N2');
+      for (i = 0; i < 4; i++) exp.push('REM'); // 10–15 min → 4×REM then 6×N2 ⇒ majority N2,
+      for (i = 0; i < 6; i++) exp.push('N2'); //             elementwise would say REM
+      var pairs = NS.joinToExpert(det, stages, exp, 0, 5, 0.5);
+      T.eq('one graded pair per detector epoch', pairs.length, 3);
+      T.eq('epoch 0 · expert majority REM', pairs[0].expert, 'REM');
+      T.eq('epoch 1 · expert majority N2', pairs[1].expert, 'N2');
+      T.eq('epoch 2 · 6×N2 vs 4×REM ⇒ majority N2, not "any REM"', pairs[2].expert, 'N2');
+      T.eq('the detector stage travels with its own epoch', pairs[2].detected, 'REM');
+
+      /* An unscored gap is NOT a stage. A detector epoch the scorer mostly did not label cannot grade
+         anything, so it is EXCLUDED — counting it as a miss would charge the detector for the
+         scorer's silence. Same discipline as the coverable-beat denominator in pat-matchrate-strict. */
+      var sparse = exp.slice(0, 10);
+      sparse.length = 30; // epochs 10..29 undefined ⇒ detector epochs 1 and 2 uncovered
+      var sp = NS.joinToExpert(det, stages, sparse, 0, 5, 0.5);
+      T.eq('a mostly-unlabelled window is excluded, not scored as a miss', sp.length, 1);
+      T.eq('…and the one covered window survives', sp[0].expert, 'REM');
+      var partial = exp.slice();
+      for (i = 10; i < 16; i++) partial[i] = undefined; // epoch 1 keeps 4/10 ⇒ below the 0.5 bar
+      T.eq('coverage below the bar drops the window', NS.joinToExpert(det, stages, partial, 0, 5, 0.5).length, 2);
+
+      // scoring: REM is the positive class
+      var sc = NS.scoreREM(
+        [
+          { expert: 'REM', detected: 'REM' },
+          { expert: 'REM', detected: 'N2' },
+          { expert: 'N2', detected: 'REM' },
+          { expert: 'N2', detected: 'N2' },
+          { expert: 'N3', detected: 'N2' }
+        ],
+        'REM'
+      );
+      T.eq('tp', sc.tp, 1);
+      T.eq('fn — expert REM the detector missed', sc.fn, 1);
+      T.eq('fp — detector REM the expert did not call', sc.fp, 1);
+      T.eq('tn counts every other agreement', sc.tn, 2);
+      T.approx('recall = tp/(tp+fn)', sc.recall, 0.5, 1e-12);
+      T.approx('precision = tp/(tp+fp)', sc.precision, 0.5, 1e-12);
+      T.approx('expert REM fraction is reported alongside — a recall is meaningless without prevalence', sc.expertRemFrac, 0.4, 1e-12);
+      T.eq('the confusion table keeps the stage the detector confused REM WITH', sc.confusion.REM.N2, 1);
+      // a night with no expert REM must not report recall 0 — it has no positives to recall
+      var none = NS.scoreREM([{ expert: 'N2', detected: 'N2' }], 'REM');
+      T.eq('no expert REM ⇒ recall null, never 0', none.recall, null);
+      T.eq('…and precision null when nothing was called', none.precision, null);
+    });
+
     group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {
       var PS = env.PatStrict;
       if (!PS || !PS.strictMatchRate) {

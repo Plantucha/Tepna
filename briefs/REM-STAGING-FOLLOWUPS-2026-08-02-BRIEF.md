@@ -105,9 +105,17 @@ irregularity-linked**, and any candidate built from stability proxies is a prior
 - [x] **2a** — **DONE 2026-08-03.** Established, and stronger than "labels or gap": the labels were being
       parsed and discarded. A per-epoch stage series is now emitted (+ a latent TST bug fixed), gated in
       both lanes, mutation-checked.
-- [ ] **2b** — the shipped conjunction scored against **real** PSG labels; REM recall/precision recorded.
-      **Blocked on records only** — code path complete as of 2a; NSRR requires a signed DUA and the suite
-      cannot fetch, so this needs a human to supply EDF + annotation-XML pairs.
+- [~] **2b** — the shipped conjunction scored against **real** PSG labels; REM recall/precision recorded.
+      **The PATH IS BUILT AND PROVEN as of 2026-08-04** — `tools/nsrr-stage-validate.mjs` drives
+      EDF bytes → `CpapEdf.readEDF` → ECG channel → `ECGDSP.analyze` (Pan-Tompkins, 5-min epochs) →
+      `ECGDSP.stageSleep` → join to the 30 s expert grid → REM recall/precision/confusion, and
+      `--selftest` runs that whole chain on a synthesised EDF + profusion XML with no records needed.
+      **Still blocked on records only**, and now literally so: the only variable left is the record.
+      NSRR requires a signed DUA and the suite cannot fetch, so it needs a human to drop EDF +
+      annotation-XML pairs in and run `--dir`.
+      *(The tool refuses to print recall/precision from `--selftest` — see §1: a synthetic record scored
+      by the detector's own assumptions is the circular oracle this brief bans. It proves the pipeline,
+      never the detector.)*
 - [ ] **2c** — a detector change proposed only after 2b, or the stage explicitly declared not recoverable
       from single-lead ECG + chest ACC, which is also a publishable answer.
 - [x] §1's constraint (no staging validation on `genSynthetic`) recorded where a future contributor will
