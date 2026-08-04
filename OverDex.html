@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-DwpERTv9a2GT+m0/NAl6GPegC0Eh95sA0OXQurE8dq8=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-HYNc9eM5hXz01ODK/jDTsPvbLOtTGlDct6Pl8kpexxA=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90=' 'sha256-rbZtILoKBsUDI+cKQFITVkw/6ech9wsAql3iGrzpFQ8=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9w/Hze7WDwjxB60MW2gvsvP0vxPqAyy6NHTlb1l2f4I=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-DwpERTv9a2GT+m0/NAl6GPegC0Eh95sA0OXQurE8dq8=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90=' 'sha256-rbZtILoKBsUDI+cKQFITVkw/6ech9wsAql3iGrzpFQ8=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -5014,6 +5014,32 @@ function fuseRespirationRate(recs) {
     sources.push({ node: c.node, method: c.method, brpm: c.brpm });
   });
   if (sources.length < 2) return null;
+  /* (c) ONE OBSERVER PER MECHANISM IS NOT THE SAME AS ONE PER NODE
+     (TCH-REFERENCE-VALIDATION R3). §3.4 above stopped two exports from the same DEVICE being sold as
+     "2 independent estimates"; two different devices deriving respiration the SAME WAY is the same
+     overclaim one level up. ECGDex and PpgDex both report `RSA (HF-peak of RR spectrum)` — respiratory
+     sinus arrhythmia read off the interval series — so they are two looks at one mechanism, not two
+     looks at respiration. When RSA is wrong (Cheyne-Stokes, a paced or irregular rhythm, a sub-HF
+     respiratory rate) it is wrong on both, and their agreement is partly tautological.
+     Only MotionDex's `chest-ACC (thoraco-abdominal)` is mechanically independent of the RSA pair —
+     which also matters because the ±RR_AGREE_BRPM band quoted below is Ryser 2022's CHEST-ACC
+     validation band, derived against an independent comparator.
+     R3 asked for "refuse, or loudly flag". Flag: the consensus is still the best available number and
+     suppressing it would lose information — what is withdrawn is the claim of independence. */
+  var famOf = function (m) {
+    var t = String(m || '').toLowerCase();
+    if (/rsa|hf[- ]peak/.test(t)) return 'RSA';
+    if (/acc|thoraco/.test(t)) return 'chest-ACC';
+    return 'other';
+  };
+  var mechs = sources.map(function (s) {
+    return famOf(s.method);
+  });
+  var uniqMech = mechs.filter(function (m, i) {
+    return mechs.indexOf(m) === i;
+  });
+  var mechIndependent = uniqMech.length > 1;
+
   var vals = sources.map(function (s) {
     return s.brpm;
   });
@@ -5035,9 +5061,12 @@ function fuseRespirationRate(recs) {
     spreadBrpm: spread,
     agree: agree,
     agreeThresholdBrpm: RR_AGREE_BRPM,
+    // R3: the mechanism behind each estimate, and whether the set spans more than one.
+    mechanisms: mechs,
+    mechanismsIndependent: mechIndependent,
     note:
       sources.length +
-      ' independent estimates (' +
+      (mechIndependent ? ' independent estimates (' : ' estimates sharing ONE mechanism (' + uniqMech.join('/') + ') (') +
       sources
         .map(function (s) {
           return s.node;
@@ -5048,7 +5077,14 @@ function fuseRespirationRate(recs) {
       ' br/min — ' +
       (agree
         ? 'agreement within the ±' + RR_AGREE_BRPM + ' br/min chest-ACC validation band (Ryser 2022).'
-        : 'DISAGREEMENT beyond the ±' + RR_AGREE_BRPM + ' br/min band; treat the consensus as provisional.')
+        : 'DISAGREEMENT beyond the ±' + RR_AGREE_BRPM + ' br/min band; treat the consensus as provisional.') +
+      (mechIndependent
+        ? ''
+        : ' ⚠ Not independent looks at respiration: every corner is ' +
+          uniqMech.join('/') +
+          ', so a mechanism-level failure (Cheyne-Stokes, irregular rhythm, a sub-HF rate) moves them together and the agreement above is partly tautological. The ±' +
+          RR_AGREE_BRPM +
+          " br/min band is Ryser 2022's CHEST-ACC band, derived against an independent comparator.")
   };
 }
 

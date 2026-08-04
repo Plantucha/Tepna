@@ -27648,6 +27648,64 @@
       T.ok('n-agnostic — a 3rd source (PpgDex RIIV) folds in with no code change', !!three && three.n === 3 && three.consensusBrpm === 14.5, three ? 'n=' + three.n : 'null');
     });
 
+    /* TCH-REFERENCE-VALIDATION R3 — a mechanism collision is not an independent look.
+       §2.2 above already stopped two exports from the same NODE being sold as two estimates. This is the
+       same overclaim one level up: ECGDex's `RSA (ECG)` and PpgDex's `RSA (HF-peak of RR spectrum)` are
+       two devices reading ONE mechanism — respiratory sinus arrhythmia off the interval series. When RSA
+       is the wrong model (Cheyne-Stokes, an irregular or paced rhythm, a respiratory rate below the HF
+       band) it is wrong on both at once, so their agreement is partly tautological — and the ±2 br/min
+       band it is graded against is Ryser 2022's CHEST-ACC band, measured against an INDEPENDENT
+       comparator. The consensus is still emitted (suppressing the best available number loses
+       information); what is withdrawn is the word "independent". Pre-fix, an ECGDex+PpgDex pair
+       published "2 independent estimates" with no mechanism field at all. */
+    group('Respiration fusion flags a mechanism collision — R3', 'integrator-dsp · respiration · independence', function (T) {
+      var FR = env.IntegratorDSP && env.IntegratorDSP.fuseRespirationRate;
+      T.ok('fuseRespirationRate available', typeof FR === 'function');
+      if (typeof FR !== 'function') return;
+      var t0 = U(2026, 5, 10, 22, 0, 0);
+      function rec(node, brpm, method) {
+        return { node: node, t0Ms: t0, endMs: t0 + 7200000, dateUnknown: false, events: [], summary: { respRateBrpm: brpm, respRateMethod: method }, series: {} };
+      }
+      // The real strings the ingest path writes: integrator-dsp.js:353 (HRV family) and ppgdex-dsp.js.
+      var rsaOnly = FR([rec('ECGDex', 14.2, 'RSA (ECG)'), rec('PpgDex', 15.1, 'RSA (HF-peak of RR spectrum)')]);
+      T.ok('two RSA corners still produce a consensus (flag, do not refuse)', !!rsaOnly && rsaOnly.n === 2, rsaOnly ? 'n=' + rsaOnly.n : 'null');
+      T.ok(
+        'ECG-RSA + PPG-RSA ⇒ mechanismsIndependent === false',
+        (rsaOnly || {}).mechanismsIndependent === false,
+        'got ' + JSON.stringify((rsaOnly || {}).mechanismsIndependent) + ' want false'
+      );
+      T.ok(
+        'both corners classify as the RSA mechanism',
+        JSON.stringify(((rsaOnly || {}).mechanisms || []).slice()) === '["RSA","RSA"]',
+        'got ' + JSON.stringify((rsaOnly || {}).mechanisms)
+      );
+      T.ok(
+        'the note STOPS claiming independence when the mechanism is shared',
+        !!rsaOnly && !/independent estimates/.test(String(rsaOnly.note)) && /ONE mechanism \(RSA\)/.test(String(rsaOnly.note)),
+        rsaOnly ? String(rsaOnly.note).slice(0, 140) : 'null'
+      );
+      T.ok('the note names the failure the shared mechanism hides', !!rsaOnly && /Cheyne-Stokes/.test(String(rsaOnly.note)) && /tautological/.test(String(rsaOnly.note)));
+      T.ok('the note re-states that the ±2 band came from an independent comparator', !!rsaOnly && /CHEST-ACC band/.test(String(rsaOnly.note)));
+      // A genuinely independent pair must be UNCHANGED — the flag must not fire on the case §2.2 built for.
+      var mixed = FR([rec('MotionDex', 14.2, 'chest-ACC (thoraco-abdominal)'), rec('ECGDex', 15.1, 'RSA (ECG)')]);
+      T.ok(
+        'chest-ACC + RSA ⇒ mechanismsIndependent === true, wording unchanged',
+        (mixed || {}).mechanismsIndependent === true && /2 independent estimates/.test(String((mixed || {}).note)),
+        'got ' + JSON.stringify((mixed || {}).mechanismsIndependent) + ' / ' + String((mixed || {}).note).slice(0, 80)
+      );
+      T.ok('a mechanically-independent pair carries no ⚠ caveat', !!mixed && !/⚠/.test(String(mixed.note)));
+      // Three corners, two of which collide: still independent (the ACC corner supplies the second look).
+      var trio = FR([rec('MotionDex', 14, 'chest-ACC (thoraco-abdominal)'), rec('ECGDex', 15, 'RSA (ECG)'), rec('PpgDex', 14.5, 'RSA (HF-peak of RR spectrum)')]);
+      T.ok(
+        'a colliding PAIR inside a trio does not sink independence — the ACC corner still spans it',
+        (trio || {}).mechanismsIndependent === true && JSON.stringify(((trio || {}).mechanisms || []).slice()) === '["chest-ACC","RSA","RSA"]',
+        'got ' + JSON.stringify((trio || {}).mechanisms)
+      );
+      // An unrecognised method is 'other' — it must not be silently folded into RSA.
+      var unk = FR([rec('ECGDex', 14, 'RSA (ECG)'), rec('CpapDex', 15, 'flow-derived')]);
+      T.ok("an unrecognised method classifies as 'other', not as the RSA it is not", JSON.stringify(((unk || {}).mechanisms || []).slice()) === '["RSA","other"]', 'got ' + JSON.stringify((unk || {}).mechanisms));
+    });
+
     /* REGEN-CORPUS-PATH-FOLLOWUPS §3.4 — the two halves of the fixture workflow must look in ONE place.
        `tools/verify-fixtures.mjs` honored `DEX_UPLOADS`; the regen family hardcoded `<repo>/uploads`. So
        the sanctioned `regen-goldens.mjs --node ECGDex`, run from the worktree CLAUDE.md §👥.1 tells every

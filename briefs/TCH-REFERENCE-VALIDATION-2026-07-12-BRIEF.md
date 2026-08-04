@@ -169,7 +169,23 @@ audit PRs** (#29 holds `clock.js`, which is inlined into every bundle). Do not s
 ## 8 · Done when
 
 - [ ] **R2** — pairwise-ρ solve lands with a self-test; this triplet re-solved and σ(CPAP) recovers to a value consistent with a calibrated sensor.
-- [ ] **R3** — a mechanism-collision guard exists (or the Integrator documents why it is safe to ignore).
+- [x] **R3** — **DONE 2026-08-03.** Two parts, because the collision was not where R3 looked for it.
+  *(a) The TCH path never had it.* `_tchHat` is called at exactly two sites — `integrator-dsp.js:2657`
+  (`'rmssd'`) and `:3174` (`'hr'`). It is **never** called with `'resp'`, so no respiration triplet has
+  ever been three-cornered-hatted and R3's literal worry is unreachable there. Gate-locked so it stays
+  that way is *not* claimed — a future `_tchHat(…, 'resp')` would need the guard R2 is really about.
+  *(b) The collision that IS live sits in `fuseRespirationRate` (`:2968`), which deduped by **node** but
+  not by **mechanism**, and published `"2 independent estimates (ECGDex + PpgDex)"` — both of them RSA
+  (`:353` writes `'RSA (ECG)'` for the HRV family; PpgDex emits `'RSA (HF-peak of RR spectrum)'`) —
+  graded against Ryser 2022's **chest-ACC** band, which was measured against an independent comparator.
+  Only MotionDex's `'chest-ACC (thoraco-abdominal)'` is mechanically independent of that pair. Fixed by
+  classifying each source's `respRateMethod` into a mechanism family and publishing additive
+  `mechanisms` / `mechanismsIndependent`; when the set spans one family the note drops the word
+  *independent* and states what a mechanism-level failure (Cheyne–Stokes, irregular rhythm, a sub-HF
+  rate — cf. **R6**) would do to both corners at once. **Flag, not refuse**: the consensus is still the
+  best available number, so what is withdrawn is the independence claim, not the estimate. Gated by
+  `Respiration fusion flags a mechanism collision — R3` in `tests/dex-tests.js` (verified RED by value
+  on the pre-fix code: 8 assertions, the note printing the overclaim verbatim).
 - [ ] **R4** — D1 + D2 fixed, re-bundled, fixtures regenerated (AFTER the audit PRs land).
 - [ ] Findings folded into `SIGMA-PAPER-REWRITE` — the paper currently reports reference-free σ with no statement that the estimator has never been validated against truth, and no bias term at all.
 - [ ] Follow-up brief spawned per §📌 with whatever R2 turns up.
