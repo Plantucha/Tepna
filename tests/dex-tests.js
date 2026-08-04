@@ -5275,6 +5275,87 @@
        bundle carrying the string and every golden reading undefined. (b) because defaulting a missing
        quality score to 1 reads as "clean", which is the fabricated-absence the Clock Contract forbids
        one signal over. */
+    /* TRIO-ARTIFACT-GATE-AND-N15-POWER §2 asked to "relativise `buildNN`'s epoch-level guard — prefer an
+       epoch-level RELATIVE test (epoch mean SQI well below the record's own median)". Measured on the
+       real corpus, that remedy CANNOT WORK, and this group pins why so it is not re-proposed.
+
+       A burst of spurious detections lasts seconds; a 5-minute epoch mean dilutes it to a few percent.
+       On 2026-06-12_2254 — a night with 664 s (2.59 %) of CONFIRMED burst artifact — the lowest epoch
+       SQI is 0.938× the record median, against 0.953× on a night with ZERO artifact seconds. Pooled over
+       474 epochs on 7 real nights the whole ratio range is 0.879–1.364: there is no low tail for a
+       relative test to fire on. The proposal is wrong in TIMESCALE, not in threshold.
+
+       What already ships is the right-timescale answer: `beatConfidence` slides a ±30 s window and
+       requires beat-density to be an upper outlier AND SQI depressed, both against the record's own
+       median — and it fires (664 s on that night). So the guard §2 asks for exists, one level finer.
+
+       Truth is planted here, so this asserts the mechanism rather than describing it. */
+    group('an epoch-mean SQI test sees a burst only when the burst DOMINATES the epoch — §2 refuted', 'ecgdex-dsp · burst-timescale', function (T) {
+      var D = env.ECGDSP;
+      T.ok('ECGDSP primitives reachable', !!D && typeof D.beatConfidence === 'function' && typeof D.epochEngine === 'function', 'the group below would vacuously pass');
+      if (!D || typeof D.beatConfidence !== 'function' || typeof D.epochEngine !== 'function') return;
+
+      var FS = 130,
+        BURST_AT = 600;
+
+      /* One planted record per burst LENGTH. `share` is what fraction of its epoch's beats the burst
+         contributes — the quantity that actually decides whether an epoch mean can see it. */
+      function plant(burstLen) {
+        var peaks = [],
+          sqi = [],
+          t = 0;
+        while (t < 1500) {
+          var inB = t >= BURST_AT && t < BURST_AT + burstLen;
+          peaks.push(Math.round(t * FS));
+          sqi.push(inB ? 0.41 : 0.95); // the 0.37-0.45 band §2 names: depressed, but passing sqiThr=0.30
+          t += inB ? 0.12 : 1.0;
+        }
+        var conf = D.beatConfidence(peaks, sqi, FS, 0);
+        var flagged = 0;
+        conf.forEach(function (c, sec) {
+          if (c < 0.5 && sec >= BURST_AT - 30 && sec < BURST_AT + burstLen + 30) flagged++;
+        });
+        var nn = [],
+          tt = [];
+        for (var k = 1; k < peaks.length; k++) {
+          nn.push(((peaks[k] - peaks[k - 1]) / FS) * 1000);
+          tt.push(peaks[k] / FS);
+        }
+        var qs = D.epochEngine(nn, tt, 300, sqi.slice(1))
+          .map(function (e) {
+            return e.sqi;
+          })
+          .filter(function (v) {
+            return v != null;
+          });
+        var srt = qs.slice().sort(function (a, b) {
+          return a - b;
+        });
+        var burstBeats = Math.round(burstLen / 0.12);
+        return { flagged: flagged, ratio: srt.length ? srt[0] / srt[srt.length >> 1] : null, share: burstBeats / (burstBeats + (300 - burstLen)) };
+      }
+
+      /* ── SEVERE: a 20 s burst is ~37 % of its epoch's beats. The epoch mean DOES see this. ──
+         Asserted so the refutation below is bounded rather than absolute — the epoch test is not
+         useless, it is insensitive in the regime that actually occurs. */
+      var sev = plant(20);
+      T.ok('a 20 s burst is a large share of its epoch', sev.share > 0.3, 'share ' + sev.share.toFixed(2));
+      T.ok('…the ±30 s guard flags it', sev.flagged > 0, 'flagged ' + sev.flagged + ' s');
+      T.ok('…and the epoch mean ALSO sees it (this regime is not the refutation)', sev.ratio < 0.85, 'ratio ' + sev.ratio.toFixed(3));
+
+      /* ── REALISTIC: a 2 s burst, ~5 % of the epoch's beats — the regime the corpus shows. ──
+         On 2026-06-12_2254, 664 s of confirmed artifact across a 428-min night left the worst epoch at
+         0.938x the record median, against 0.953x on a night with ZERO artifact seconds. Pooled over 474
+         real epochs the entire ratio range is 0.879-1.364 — no low tail to threshold on. */
+      var real = plant(2);
+      T.ok('a 2 s burst is a small share of its epoch', real.share < 0.12, 'share ' + real.share.toFixed(3));
+      T.ok('the ±30 s guard STILL flags it', real.flagged > 0, 'flagged ' + real.flagged + ' s — this is the guard §2 asks for, one level finer');
+      T.ok('…but the epoch mean is BLIND to it', real.ratio > 0.9, 'ratio ' + real.ratio.toFixed(3) + ' — indistinguishable from a clean record');
+
+      /* The separation IS the finding: same burst, same beats, two aggregations, opposite verdicts. */
+      T.ok('so the guard and the epoch mean disagree exactly where §2 proposed to rely on the epoch mean', real.flagged > 0 && real.ratio > 0.9 && sev.ratio < 0.85, 'severe ' + sev.ratio.toFixed(3) + ' vs realistic ' + real.ratio.toFixed(3));
+    });
+
     group('ECGDex exports per-epoch signal quality, and an absent SQI is null', 'ecgdex-dsp · epoch-quality', function (T) {
       var D = env.ECGDSP;
       T.ok('ECGDSP is loaded in this lane', !!D && typeof D.genSynthetic === 'function', 'the group below would vacuously pass');

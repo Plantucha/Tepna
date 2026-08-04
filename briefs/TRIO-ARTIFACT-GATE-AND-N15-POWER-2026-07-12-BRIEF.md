@@ -174,9 +174,43 @@ most stable corner in the trio** (SD 0.49 across nights) — the opposite of wha
       at all, which is the same light/rich split this brief family noted. Regenerated with
       `tools/regen-ecgdex-goldens.mjs`, never hand-edited.
       but it moves the beat/export series ⇒ regenerate the ECGDex fixtures per §🔏 (re-run, never hand-edit).
-- [ ] **Raise/relativise `buildNN`'s epoch-level guard.** `sqiThr = 0.30` is too low: burst beats at 0.37–0.45
-      pass it. Prefer an epoch-level **relative** test (epoch mean SQI well below the record's own median)
-      over raising the absolute per-beat threshold, which would reject good beats on quiet records.
+- [x] **REFUTED 2026-08-04 — the proposed remedy cannot work, and the right-timescale one already ships.**
+
+      The premise is correct: burst beats at 0.37–0.45 do pass `sqiThr = 0.30`. The proposed fix — "epoch
+      mean SQI well below the record's own median" — is wrong in **TIMESCALE**, not in threshold. A burst
+      lasts seconds; a 5-minute epoch mean dilutes it to a few percent.
+
+      **Measured on the real corpus.** On **2026-06-12_2254**, a night carrying **664 s (2.59 %) of
+      confirmed burst artifact**, the lowest epoch SQI is **0.938×** the record median — against
+      **0.953×** on a night with **zero** artifact seconds. Pooled over **474 epochs across 7 real
+      nights**, the entire ratio range is **0.879–1.364**. There is no low tail for a relative test to
+      fire on; it would rank the burst night as clean.
+
+      **The guard §2 asks for already exists, one level finer.** `beatConfidence` slides a **±30 s**
+      window and requires beat density to be an upper outlier **and** SQI depressed, both against the
+      record's own median — and it fires: 664 s on that night, 8 s on 2026-06-10. Raising the absolute
+      per-beat threshold is also unnecessary, and the item's own objection to it (it would reject good
+      beats on quiet records) stands.
+
+      **The boundary is measured, not asserted** — gated in `ecgdex-dsp · burst-timescale` (8 assertions,
+      both lanes, planted truth):
+
+      | planted burst | share of its epoch's beats | ±30 s guard | epoch mean (worst / median) |
+      |---|---|---|---|
+      | 20 s | 37 % | flags 80 s | **0.787** — sees it |
+      | 2 s | 5.4 % | flags 62 s | **0.969** — blind |
+
+      So the epoch-mean test is **not useless — it is insensitive in the regime that actually occurs**.
+      That bound is asserted in both directions deliberately: if a corpus ever shows epoch ratios far
+      below 0.85, a relative epoch test becomes viable and this item can be reopened on evidence.
+      Two mutants confirm the gate fails by value (`beatConfidence` trusting everything: 6 legs;
+      `epochEngine` ignoring its SQI argument: 4).
+
+      ⚠ The first version of this gate planted a 20 s burst and asserted blindness — and **its own
+      assertion failed at ratio 0.787**, because a 20 s burst is 37 % of a 5-minute epoch and nothing
+      like a real one. It also counted the ±30 s window's neighbouring seconds as false positives when
+      they are the window working as designed. Both were corrected before landing; a synthetic burst
+      must be sized against the corpus, or it refutes the wrong claim.
 - [x] ~~**Add the cross-corner consensus gate to the TCH path**~~ — **RETIRED 2026-08-01, do not build.**
       This box asked for exactly the thing the ⚠️ banner at the top of this brief says is **DISPROVEN**:
       `TCH-FUSED-ROBUST-HAT` prototyped the gate on the real corpus and found it *"either unreliable or
