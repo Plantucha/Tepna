@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-03 · **Spawned-by:** `FOLLOWUP-FINDINGS-BRIEF.md` (P4 execution) · **Affects:** `tools/regen-goldens-core.mjs`, `tools/regen-*-goldens.mjs`, `tools/verify-fixtures.mjs`
+**Status:** DONE — 2026-08-03 · **Created:** 2026-08-03 · **Spawned-by:** `FOLLOWUP-FINDINGS-BRIEF.md` (P4 execution) · **Affects:** `tools/regen-goldens-core.mjs`, `tools/regen-*-goldens.mjs`, `tools/verify-fixtures.mjs`
 
 # The regen tools and the verify tool disagree about where the corpus is, and only one of them says so
 
@@ -67,13 +67,42 @@ and the worst one.
 
 ## Done when
 
-- [ ] The regen family and `verify-fixtures` resolve `uploads/` through one shared, `DEX_UPLOADS`-aware
-      helper, gated by a non-vacuous source scan.
-- [ ] An absent input names the path it searched, and the summary separates "input absent" from a
-      deliberate exemption.
-- [ ] §4 decided: `modeV`/`amo50` deleted, or given a call site and a test.
-- [ ] Verified the way the defect was found: run a regen from a **worktree** with `DEX_UPLOADS` set and
-      confirm the corpus-backed fixtures are reached — not just that the command exits 0.
+- [x] **DONE.** `resolveCorpus(repo)` is exported from `regen-goldens-core.mjs` and imported by all
+      nine regen tools **and** `verify-fixtures.mjs` (whose hardcoded `:48` expression is gone). Gated by
+      `Regen + verify resolve the corpus through ONE helper — §3.4` — 10 assertions, of which 8 fail on
+      the pre-fix tools **by value**, while the three anti-vacuity legs still PASS (sources loaded and
+      non-trivial), which is what shows the scan isn't hollow.
+- [x] **DONE.** `INPUT ABSENT` now prints `looked in <resolved corpus>` plus either `(from DEX_UPLOADS)`
+      or the recovery hint, and the summary reports `N NOT REACHED (input absent — this run did not
+      cover them)` separately from `skipped`.
+- [x] **§4 DECIDED: (a) delete.** `modeV`/`amo50` had no call site anywhere in the tree, and
+      `baevskyGeom` is already THE single source. Option (b) was rejected: inventing a call site to
+      justify a second binning is how the two numbers diverge under one export key. The deletion is
+      pinned by `ECGDex has ONE Mode/AMo50 implementation — §4`, which asserts on the **bin width**
+      (`Math.round(v/5)*5`, `|v−mo| <= 25`) rather than the identifier names — the identifiers can be
+      renamed, the divergence cannot be hidden.
+- [x] **DONE, and it found more than the report did.** Run from this worktree with `DEX_UPLOADS` set:
+      before, **11 corpus-backed fixtures across 7 nodes** were unreachable (OxyDex 2 · ECGDex 1 ·
+      PpgDex 1 · PulseDex 2 · HRVDex 2 · GlucoDex 1 · CPAPDex 2) — the report named one. After, all nine
+      nodes report `0 NOT REACHED` and `ECGDex_2026-06-27_equiv.node-export.json` — the fixture §1
+      opened with — is re-run and compared, not skipped. Verified on the **reached fixture list**, not
+      on the exit code.
+
+## Executed — one correction to §3.1 as written
+
+§3.1 asked for one resolver "identical in precedence" across both tools. Applied literally to
+`uploadsDir` that would have been a **worse** bug than the one it fixes: `uploads/` holds gitignored
+recordings *and* **133 git-tracked** artifacts, including every `*_equiv.node-export.json` a regen
+**writes** (`runRegen` resolved both against the same dir). Routing the write side through
+`DEX_UPLOADS` would make a worktree regen silently rewrite a tracked file in **another checkout** —
+invisible to the worktree's git, and precisely the shared-tree failure `CLAUDE.md` §👥 exists to
+prevent. So the two paths are **split, named, and gated apart**: `corpusDir` (DEX_UPLOADS-aware, read
+side) vs `fixturesDir` (always this checkout, write side). `verify-fixtures` never writes to
+`uploads/`, so it needs only the corpus half and the shared-helper invariant still holds.
+
+Also fixed in passing: `tools/regen-ppgdex-goldens.mjs` carried **no SPDX header**. It was invisible
+because the A2 lint only scans wired sources — adding the regen family to the source list is what
+surfaced it.
 
 ## Cross-references
 - Parent: `FOLLOWUP-FINDINGS-BRIEF.md` (DONE 2026-08-03) — P4's execution surfaced both items.

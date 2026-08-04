@@ -25,10 +25,13 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { makeRerecord, runRegen } from './regen-goldens-core.mjs';
+import { makeRerecord, resolveCorpus, runRegen } from './regen-goldens-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Committed fixtures are TRACKED artifacts of this checkout — never redirected (see resolveCorpus).
 const UP = path.join(REPO, 'uploads');
+// Raw recordings are gitignored and may live elsewhere; DEX_UPLOADS-aware, shared with verify-fixtures.
+const CORPUS = resolveCorpus(REPO);
 const CHECK = process.argv.includes('--check');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
 // motiondex-dsp.js is a dual-mode ES module; classic-load it into the vm realm.
@@ -86,7 +89,7 @@ const { MotionDex } = realm();
 
 /* buildNodeExport(compute({acc,chestAcc:same})) off a committed ACC input, or null when it is absent */
 const fromAcc = (file) => {
-  const p = path.join(UP, file);
+  const p = path.join(CORPUS, file);
   if (!fs.existsSync(p)) return null;
   const t = fs.readFileSync(p, 'utf8');
   return MotionDex.buildNodeExport(MotionDex.compute({ acc: t, chestAcc: t }));
@@ -100,10 +103,11 @@ const FIXTURES = [
   }
 ];
 
-const rerecord = makeRerecord({ repo: REPO, node: 'MotionDex', bundle: 'MotionDex.html', uploadsDir: UP, ManifestGate });
+const rerecord = makeRerecord({ repo: REPO, node: 'MotionDex', bundle: 'MotionDex.html', fixturesDir: UP, corpusDir: CORPUS, ManifestGate });
 await runRegen({
   fixtures: FIXTURES,
-  uploadsDir: UP,
+  fixturesDir: UP,
+  corpusDir: CORPUS,
   check: CHECK,
   rerecord,
   absentInputHint: 'the committed synthetic ACC is git-tracked; regenerate it via MOTIONDSP.genSyntheticACC if it changes'

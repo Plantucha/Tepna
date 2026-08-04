@@ -59,12 +59,32 @@ export function diff(a, b, p, out) {
   }
 }
 
+/* ── WHERE THE CORPUS IS — the ONE resolver, shared with `tools/verify-fixtures.mjs`
+   (REGEN-CORPUS-PATH-FOLLOWUPS §3.1). These two tools are the two halves of the sanctioned fixture
+   workflow, and they used to disagree: verify-fixtures honored `DEX_UPLOADS` and the regen family
+   hardcoded `<repo>/uploads`, so a regen run from a worktree reported `INPUT ABSENT` for a recording
+   that was sitting in the main checkout with `DEX_UPLOADS` pointed straight at it. Importing this from
+   both files is what stops them drifting apart a third time (gated by a source scan in dex-tests.js).
+
+   ⚠ CORPUS ≠ FIXTURES, and conflating them is a WORSE bug than the one this fixes. `uploads/` holds
+   two different kinds of file: gitignored raw recordings (what DEX_UPLOADS redirects) and 133
+   git-TRACKED committed artifacts, including every `*_equiv.node-export.json` a regen WRITES. Routing
+   the write side through DEX_UPLOADS would make a worktree regen silently rewrite a tracked file in
+   ANOTHER checkout — invisible to the worktree's git, and the shared-tree failure CLAUDE.md §👥 exists
+   to prevent. So: raw inputs resolve through `resolveCorpus`; fixture outputs are always written to the
+   `uploads/` of the checkout you are running in. Callers pass both, named. ── */
+export function resolveCorpus(repo) {
+  return process.env.DEX_UPLOADS ? path.resolve(process.env.DEX_UPLOADS) : path.join(repo, 'uploads');
+}
+
 /* ── ledger re-record: outputHash (+ inputHashes) hashed with the gates' OWN sha16, never hand-typed.
    `node`/`bundle` scope it to provenance/<Node>.json; a fixture carrying `newRecord` may be MINTED if
    its ledger record is absent (a first generation), rather than skipped. ── */
-export function makeRerecord({ repo, node, bundle, uploadsDir, ManifestGate }) {
+export function makeRerecord({ repo, node, bundle, fixturesDir, corpusDir, ManifestGate }) {
   const fragPath = path.join(repo, 'provenance', node + '.json');
-  const sha16Of = (file) => ManifestGate.sha16(new Uint8Array(fs.readFileSync(path.join(uploadsDir, file))));
+  // The OUTPUT is a tracked artifact of this checkout; the INPUTS may live in a redirected corpus.
+  const sha16Out = (file) => ManifestGate.sha16(new Uint8Array(fs.readFileSync(path.join(fixturesDir, file))));
+  const sha16In = (file) => ManifestGate.sha16(new Uint8Array(fs.readFileSync(path.join(corpusDir, file))));
   return async function rerecord(fixtureName, fixture) {
     const frag = JSON.parse(fs.readFileSync(fragPath, 'utf8'));
     frag.fixtures = frag.fixtures || {};
@@ -80,9 +100,9 @@ export function makeRerecord({ repo, node, bundle, uploadsDir, ManifestGate }) {
     }
     if (!rec) return console.log(`      ⚠ no provenance/${node}.json record for ${fixtureName} — ledger NOT re-recorded`);
     if (rec.historical) return console.log(`      ∘ ${fixtureName} is historical (byte-pinned, not code-gated) — ledger left alone`);
-    const outputHash = await sha16Of(fixtureName);
+    const outputHash = await sha16Out(fixtureName);
     const inputHashes = {};
-    for (const f of rec.inputs || []) inputHashes[f] = await sha16Of(f);
+    for (const f of rec.inputs || []) inputHashes[f] = await sha16In(f);
     const wasOut = rec.outputHash;
     // Already-true ledger ⇒ write nothing and say nothing. This makes rerecord() safe to call on
     // EVERY fixture each run (including ones whose output did not move), which is what lets an
@@ -114,12 +134,16 @@ export function makeRerecord({ repo, node, bundle, uploadsDir, ManifestGate }) {
 /* The regenerate/check loop shared by every node. `fixtures`: [{ name, real?, build:()=>export|null,
    newRecord? }]. Absent committed file + no newRecord ⇒ skip; + newRecord ⇒ mint. build()→null ⇒ input
    absent (gitignored recording). Preserves the exact read→build→diff→merge→write→rerecord flow. */
-export async function runRegen({ fixtures, uploadsDir, check, rerecord, absentInputHint }) {
+export async function runRegen({ fixtures, fixturesDir, corpusDir, check, rerecord, absentInputHint }) {
   let moved = 0,
     minted = 0,
-    skipped = 0;
+    skipped = 0,
+    /* §3.3 — an ABSENT INPUT IS A HOLE, a missing committed fixture is a known exemption, and one
+       `skipped` count conflated them. That conflation is what let a run which regenerated only the
+       synthetic fixtures read as a normal, complete pass. Counted and reported apart. */
+    absent = 0;
   for (const F of fixtures) {
-    const p = path.join(uploadsDir, F.name);
+    const p = path.join(fixturesDir, F.name);
     const isNew = !fs.existsSync(p);
     if (isNew && !F.newRecord) {
       console.log(`  ⊘ ${F.name} — committed fixture absent`);
@@ -135,8 +159,12 @@ export async function runRegen({ fixtures, uploadsDir, check, rerecord, absentIn
       continue;
     }
     if (!fresh) {
-      console.log(`  ⊘ ${F.name} — INPUT ABSENT${F.real ? ' (real recording, gitignored' + (absentInputHint ? ' — ' + absentInputHint : '') + ')' : ''}`);
-      skipped++;
+      // §3.2 — "does not exist" and "is not at this path" license opposite next actions. Say which.
+      console.log(
+        `  ⊘ ${F.name} — INPUT ABSENT${F.real ? ' (real recording, gitignored' + (absentInputHint ? ' — ' + absentInputHint : '') + ')' : ''}` +
+          `\n      looked in ${corpusDir}${process.env.DEX_UPLOADS ? ' (from DEX_UPLOADS)' : ' — set DEX_UPLOADS=<corpus> if yours is elsewhere'}`
+      );
+      absent++;
       continue;
     }
     fresh = JSON.parse(JSON.stringify(fresh));
@@ -176,6 +204,8 @@ export async function runRegen({ fixtures, uploadsDir, check, rerecord, absentIn
     if (d.length > 8) console.log(`      … +${d.length - 8} more`);
     if (!check) await rerecord(F.name, F);
   }
-  console.log(`\n${check ? 'check' : 'regen'}: ${moved} fixture(s) moved, ${minted} minted, ${skipped} skipped`);
+  console.log(
+    `\n${check ? 'check' : 'regen'}: ${moved} fixture(s) moved, ${minted} minted, ${skipped} skipped` + (absent ? `, ${absent} NOT REACHED (input absent — this run did not cover them)` : '')
+  );
   if (check && (moved || minted)) process.exitCode = 1;
 }

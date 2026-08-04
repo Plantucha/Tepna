@@ -34,6 +34,7 @@
  *   node tools/verify-fixtures.mjs --check    # report UNVERIFIED fixtures, write nothing (CI-safe)
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
+import { resolveCorpus } from './regen-goldens-core.mjs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -45,7 +46,9 @@ const CHECK = process.argv.includes('--check');
 // P3 — fixtures live as per-app provenance/<App>.json fragments; verify-fixtures reads them directly
 // (keeping the fragment objects as write targets) and only rewrites the fragment(s) it stamps.
 const PROV_DIR = path.join(REPO, 'provenance');
-const UPLOADS = process.env.DEX_UPLOADS || path.join(REPO, 'uploads');
+// ONE resolver, shared with the regen family so the two halves of the fixture workflow cannot look
+// in different places again (REGEN-CORPUS-PATH-FOLLOWUPS §3.1).
+const UPLOADS = resolveCorpus(REPO);
 
 const C = { red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', yellow: '\x1b[33m', reset: '\x1b[0m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);

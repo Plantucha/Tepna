@@ -27,10 +27,13 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { makeRerecord, runRegen } from './regen-goldens-core.mjs';
+import { makeRerecord, resolveCorpus, runRegen } from './regen-goldens-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Committed fixtures are TRACKED artifacts of this checkout — never redirected (see resolveCorpus).
 const UP = path.join(REPO, 'uploads');
+// Raw recordings are gitignored and may live elsewhere; DEX_UPLOADS-aware, shared with verify-fixtures.
+const CORPUS = resolveCorpus(REPO);
 const CHECK = process.argv.includes('--check');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
 // ESM-MIGRATION: pulsedex-dsp.js is a dual-mode ES module — shed its top-level export/import via the
@@ -104,7 +107,7 @@ const { PulseDex } = realm();
 
 /* RR text → parsed frame → compute(), or null when the input is absent (gitignored recording) */
 const fromRR = (file) => {
-  const p = path.join(UP, file);
+  const p = path.join(CORPUS, file);
   if (!fs.existsSync(p)) return null;
   const fr = PulseDex.parseRRInput(fs.readFileSync(p, 'utf8'));
   if (!fr) return null;
@@ -117,5 +120,5 @@ const FIXTURES = [
   { name: 'synthetic_pulsedex_golden.node-export.json', build: () => fromRR('synthetic_pulsedex_rr.txt') }
 ];
 
-const rerecord = makeRerecord({ repo: REPO, node: 'PulseDex', bundle: 'PulseDex.html', uploadsDir: UP, ManifestGate });
-await runRegen({ fixtures: FIXTURES, uploadsDir: UP, check: CHECK, rerecord, absentInputHint: 'copy the *_RR.txt into uploads/ to regenerate' });
+const rerecord = makeRerecord({ repo: REPO, node: 'PulseDex', bundle: 'PulseDex.html', fixturesDir: UP, corpusDir: CORPUS, ManifestGate });
+await runRegen({ fixtures: FIXTURES, fixturesDir: UP, corpusDir: CORPUS, check: CHECK, rerecord, absentInputHint: 'copy the *_RR.txt into uploads/ to regenerate' });

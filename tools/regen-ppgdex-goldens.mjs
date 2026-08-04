@@ -1,5 +1,7 @@
 /*
  * tools/regen-ppgdex-goldens.mjs — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
  * ────────────────────────────────────────────────────────────────────────────────────────────────
  * Regenerate PpgDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their
  * committed inputs, then re-recording each fixture. The shared diff/merge/rerecord/loop scaffolding
@@ -28,10 +30,13 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { makeRerecord, runRegen } from './regen-goldens-core.mjs';
+import { makeRerecord, resolveCorpus, runRegen } from './regen-goldens-core.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Committed fixtures are TRACKED artifacts of this checkout — never redirected (see resolveCorpus).
 const UP = path.join(REPO, 'uploads');
+// Raw recordings are gitignored and may live elsewhere; DEX_UPLOADS-aware, shared with verify-fixtures.
+const CORPUS = resolveCorpus(REPO);
 const CHECK = process.argv.includes('--check');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
@@ -117,7 +122,7 @@ const { PpgDex } = realm();
 /* Polar Verity *_PPG.txt → compute({ text }) → the node-export (the equiv gate's pick is identity),
    or null when the input is absent (gitignored recording). */
 const fromPPG = (file) => {
-  const p = path.join(UP, file);
+  const p = path.join(CORPUS, file);
   if (!fs.existsSync(p)) return null;
   return PpgDex.compute({ text: fs.readFileSync(p, 'utf8') });
 };
@@ -125,7 +130,7 @@ const fromPPG = (file) => {
 /* The RICH export — `compute(input, { rich: true })`. Only `signal-orchestrate.emitPpgNodeExport`
    passes that flag in production, and it is the shape the INTEGRATOR consumes. */
 const fromPPGRich = (file) => {
-  const p = path.join(UP, file);
+  const p = path.join(CORPUS, file);
   if (!fs.existsSync(p)) return null;
   return PpgDex.compute({ text: fs.readFileSync(p, 'utf8') }, { rich: true });
 };
@@ -166,5 +171,5 @@ const FIXTURES = [
   }
 ];
 
-const rerecord = makeRerecord({ repo: REPO, node: 'PpgDex', bundle: 'PpgDex.html', uploadsDir: UP, ManifestGate });
-await runRegen({ fixtures: FIXTURES, uploadsDir: UP, check: CHECK, rerecord, absentInputHint: 'copy the Polar Verity *_PPG.txt into uploads/ to regenerate' });
+const rerecord = makeRerecord({ repo: REPO, node: 'PpgDex', bundle: 'PpgDex.html', fixturesDir: UP, corpusDir: CORPUS, ManifestGate });
+await runRegen({ fixtures: FIXTURES, fixturesDir: UP, corpusDir: CORPUS, check: CHECK, rerecord, absentInputHint: 'copy the Polar Verity *_PPG.txt into uploads/ to regenerate' });
