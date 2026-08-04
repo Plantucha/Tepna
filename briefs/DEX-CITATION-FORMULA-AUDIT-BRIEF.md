@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED (not verified 2026-08-03 — the guides ship and `cohesion-badges` gate-enforces guide↔registry grade parity, but *"every citation verified against the literature"* is not a property the tree can show. Any resumption is now governed by `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** IN-PROGRESS — 2026-08-03 (**§3 formula dimension CHECKED and CLEAN, now gated** — HRmax/Tanaka, QTc Bazett-vs-Fridericia, SampEn m=2 r=0.2·SD all verified against the code; ApEn is N/A (nothing computes it). One real cross-node SD1 difference measured at 0.002–0.008 % on five overnight RR files — immaterial, and the divergent node is the canonically-correct one. The CITATION half (§1/§2) stays open: it needs network verification and is governed by `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`)
 
 # Build Brief — Citation & Formula Audit for the Remaining Dexes
 
@@ -101,6 +101,43 @@ grade or badge disagrees with the registry, fix the **doc**. Do not edit the reg
 unless the registry itself is wrong on the merits (and if so, keep back-compat per CLAUDE.md).
 
 ---
+
+### §3-RESULT — the formula dimension is CLEAN, checked 2026-08-03, and now gated
+
+This brief's status says *"every citation verified against the literature is not a property the tree can
+show"* — true of the **citation** half. The **formula** half is, and §3's spot targets are objective, so
+they were checked against the code rather than left open. Every one is clean:
+
+| §3 target | verdict |
+|---|---|
+| `HRmax = 208 − 0.7·age`, never 220−age | **clean** — no `220 − age` anywhere; OxyDex cites Tanaka 2001 and explicitly names Haskell–Fox as superseded |
+| QTc Bazett vs Fridericia, labelled correctly | **clean** — `ecgdex-morph` computes both, `qtcTrend` emits Bazett as the primary `qtc`; the registry carries `qtc` (Bazett) *and* `qtcFrid`, the guide names both, `idForLabel` maps both |
+| ApEn = Φ(m) − Φ(m+1), mean-of-logs | **N/A** — nothing in the fleet computes ApEn; only SampEn |
+| SampEn m=2, r=0.2·SD | **clean** — every explicit call site is `(…, 2, 0.2·SD)`, consistent across ECGDex · PulseDex · PpgDex and stated identically in all three guides |
+| GMI · eA1c · TIR 70–180 | **clean** — verified against `glucodex-dsp.js` in the sibling `REFERENCE-GUIDE-AUDIT` pass |
+
+**One genuine cross-node difference, measured rather than assumed.** SD1 is computed two ways:
+`hrvdex`/`pulsedex` use `RMSSD/√2` (root-mean-square of successive differences), `ppgdex:1680` uses
+`√0.5·SD(Δ)`. These coincide only when mean(Δ) = 0, so they are different estimators sharing a name and
+a unit — AUDIT-PROMPT bug class 5. Measured on **five real overnight RR files (6 020–24 443 intervals)**
+they differ by **0.002–0.008 %**, far below the 0.1 ms both nodes round to.
+
+Immaterial — and note the direction: **`ppgdex`'s is the canonical one** (SD1² = ½·SDSD², i.e. the
+*standard deviation* of differences), while `RMSSD/√2` is the common approximation the brief itself
+writes with an "≈". So nobody should "unify" ppgdex toward the other two.
+
+**Gated, because a clean result is worth keeping clean.** Two groups in `tests/dex-tests.js`: a
+source-scan pinning no-220−age / Tanaka-present / SampEn-(2, 0.2), and a differential oracle asserting
+the two SD1 forms agree to <0.05 % on a series that carries a real 22.5 ms overnight drift (asserted, so
+the agreement is not trivially true). Both verified RED by planting the defects
+(`got "hrvdex-dsp.js" · want ""`, `got "hrvdex-dsp.js: m=2 r=0.15" · want ""`).
+
+The scan **strips comments first**, and that is load-bearing: `ppgdex-dsp.js` documents its default
+tolerance by naming the value it is *not* — "≠ `sampEn(nn, 2, 0.15)`" — and the first version of the gate
+read that prose as a call site and reported a defect that does not exist.
+
+**Still open:** the citation half (§1/§2 — author·title·journal·DOI resolution) for ECGDex · PulseDex ·
+HRVDex · GlucoDex, which needs network verification and is governed by `LITERATURE-USE-POLICY`.
 
 ## Propagation map — fix ALL layers, not just the guide
 A citation in OxyDex lived in up to five places. For each node, check and fix every layer it appears in:
