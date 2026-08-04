@@ -139,9 +139,40 @@ Every inflated corner collapses into the normal band; **untouched nights are bit
 most stable corner in the trio** (SD 0.49 across nights) — the opposite of what the uncorrected numbers say.
 
 **Done when**
-- [ ] **ECGDex exports per-epoch quality.** Add `sqi` (mean per-beat SQI in the epoch) and `beats` to the 5-min
-      epoch objects. The node already computes both and throws them away; without them no consumer can
-      distinguish a 118 bpm artifact epoch from a real one. Additive (new fields), so back-compat holds —
+- [x] **DONE 2026-08-04 — `sqi` and `beats` ship on the exported 5-min epoch.**
+
+      Per-beat SQI is carried into `epochEngine` in the **same pass that builds `nn`/`tt`**, which is the
+      file's own existing idiom and is load-bearing: `peaks[i]`, `nnRes.nn[i]` and `sqi[i]` share an index
+      only BEFORE the confidence filter, so deriving it afterwards would hand a consumer a mask of one
+      length and a series of another. `beats` is the epoch's NN count after artifact gating.
+
+      **Both are projected at the EXPORT seam as well as the internal builder**, because ECGDex builds its
+      epoch twice and a field added only to the first never leaves the node — exactly how `hrStat` shipped
+      inert, with every bundle carrying the string and every golden reading `undefined`.
+
+      **An absent SQI is `null`, never a defaulted 1** — a fabricated 1 reads as "clean", which is §2.6's
+      never-fabricate rule applied one signal over.
+
+      Measured on 12 real H10 nights (573 exported epochs): `sqi` spans **0.47–0.97** with ~50 distinct
+      values per night, `beats` spans **116–657**. So it is a measurement, not a constant.
+
+      ⚠ **What it does and does not settle.** The 10 epochs at hr ≥ 100 in this corpus carry *higher* sqi
+      than the rest (**0.753 vs 0.554**) and a beat count matching their rate — i.e. they are real
+      tachycardia, and the new fields say so. That is the intended use. But note `beats / (hr × 5) ≈ 1.00`
+      in **both** groups: `hr` is derived from the same gated NN that `beats` counts, so that ratio is
+      near-tautological and is **not** an independent artifact check. `sqi` is the informative field;
+      `beats` reports how much data backs the epoch.
+
+      **Gated** by `ecgdex-dsp · epoch-quality` (14 assertions, both lanes), three mutants confirmed to
+      red: dropping `sqi` from the export projection (2), defaulting an absent SQI to 1 (2), dropping
+      `beats` (4). `epochEngine` is exposed on `ECGDSP` so the null-SQI leg is reachable — the first
+      attempt attached it to `ECGDex` instead and **three legs skipped silently while the group still read
+      10/10 green**, so the guard is now an assertion rather than an `if`.
+
+      ECGDex re-bundled `c8a4977c79c4 → af1e7fabc235`; only `synthetic_ecgdex_rich_golden` moved
+      (`sqi: undefined → 0.959`, `beats: undefined → 60`) — the light exports carry no `timeseries.epochs`
+      at all, which is the same light/rich split this brief family noted. Regenerated with
+      `tools/regen-ecgdex-goldens.mjs`, never hand-edited.
       but it moves the beat/export series ⇒ regenerate the ECGDex fixtures per §🔏 (re-run, never hand-edit).
 - [ ] **Raise/relativise `buildNN`'s epoch-level guard.** `sqiThr = 0.30` is too low: burst beats at 0.37–0.45
       pass it. Prefer an epoch-level **relative** test (epoch mean SQI well below the record's own median)

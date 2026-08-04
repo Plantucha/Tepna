@@ -1378,7 +1378,7 @@
   // ════════════════════════════════════════════════════════════════════════
   //  5-MIN EPOCH ENGINE — window the NN series; per-epoch short-term suite.
   // ════════════════════════════════════════════════════════════════════════
-  function epochEngine(nn, tt, winSec) {
+  function epochEngine(nn, tt, winSec, sqiPerBeat) {
     winSec = winSec || 300;
     const N = nn.length,
       tEnd = tt[N - 1];
@@ -1387,10 +1387,12 @@
     for (let w0 = 0; w0 <= tEnd; w0 += winSec) {
       const w1 = w0 + winSec,
         seg = [],
-        segT = [];
+        segT = [],
+        segQ = [];
       while (i < N && tt[i] < w1) {
         seg.push(nn[i]);
         segT.push(tt[i]);
+        if (sqiPerBeat && Number.isFinite(sqiPerBeat[i])) segQ.push(sqiPerBeat[i]);
         i++;
       }
       // back up i so windows that share a boundary still see beats (non-overlap, simple advance is fine)
@@ -1406,6 +1408,10 @@
           // follow-up brief rather than in a half-calibrated gate.
           respCv: _respCv(seg, segT, w0, w1),
           n: seg.length,
+          /* EPOCH-LEVEL SIGNAL QUALITY (TRIO-ARTIFACT-GATE §1). `null` when no per-beat SQI reached
+             this epoch — an absent measurement, never a default 1, which would read as "clean" and be
+             exactly the fabricated-absence the Clock Contract §2.6 forbids one signal over. */
+          sqi: segQ.length ? +(segQ.reduce((a, b) => a + b, 0) / segQ.length).toFixed(3) : null,
           hr: +(60000 / m).toFixed(1),
           /* WHICH STATISTIC THIS IS (R5-HR-TRIPLET-FOLLOWUPS). The three hat corners summarise an
              epoch differently — OxyDex publishes median(1 Hz rate), which sits 0.299 bpm below this
@@ -2291,7 +2297,12 @@
          loop below drops low-confidence beats — so exporting nnRes.corrected directly would hand a
          consumer a mask one length and a series another, silently mis-attributing every correction
          after the first drop. Pushed in the same pass instead. */
-      nnCorr = [];
+      nnCorr = [],
+      /* Per-beat SQI, aligned with nn/tt the same way and for the same reason. TRIO-ARTIFACT-GATE §1:
+         the node computed this and threw it away, so a consumer reading a 118 bpm epoch could not tell
+         an artifact burst from a real tachycardia. Pushed in this pass rather than re-derived later —
+         `peaks[i]`, `nnRes.nn[i]` and `sqi[i]` share an index only BEFORE the confidence filter below. */
+      nnSqi = [];
     let artifactSec = 0,
       _pSec = null;
     for (let i = 0; i < nnRes.nn.length; i++) {
@@ -2301,6 +2312,7 @@
         nn.push(nnRes.nn[i]);
         tt.push(nnRes.tt[i]);
         nnCorr.push(nnRes.corrected[i] ? 1 : 0);
+        nnSqi.push(Number.isFinite(sqi[i]) ? sqi[i] : null);
       } else if (secAbs !== _pSec) {
         artifactSec++;
         _pSec = secAbs;
@@ -2323,7 +2335,7 @@
     const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;
 
     prog(72, '5-min epoch engine…');
-    const epochs = epochEngine(nn, tt, 300);
+    const epochs = epochEngine(nn, tt, 300, nnSqi);
 
     // representative window for advanced metrics (epoch with rmssd closest to median)
     let repSeg = nn,
@@ -4524,6 +4536,13 @@
                on the first attempt: the bundles carried the string and every committed golden still
                read `hrStat: undefined`. Same statistic as the internal builder (60000/mean(RR)). */
             hrStat: 'rate-of-mean',
+            /* PER-EPOCH QUALITY (TRIO-ARTIFACT-GATE §1) — projected at this seam too, because the
+               exported epoch is built separately from the internal one and a field added only to the
+               builder never leaves the node (that is exactly how `hrStat` shipped inert the first
+               time). `beats` is the epoch's NN count AFTER artifact gating, so a consumer can tell a
+               118 bpm epoch backed by 590 clean beats from one backed by 40. */
+            sqi: nz(e.sqi),
+            beats: e.n == null ? null : e.n,
             motionIndex: _mot == null ? null : _mot,
             position: e.position || 'unknown'
           };
@@ -4681,6 +4700,11 @@
   global.ECGDSP.parseDeviceACC = parseDeviceACC;
   global.ECGDSP.planCompanionGraft = planCompanionGraft; // §10.4 — pure, so the graft rule is gateable
   global.ECGDSP.hrvStability = hrvStability; // DEEP-AUDIT-II #39 — pure, so the per-window epoch count n is gateable
+  /* TRIO-ARTIFACT-GATE §1 — pure, so "an absent per-beat SQI yields a null epoch sqi, never a
+     clean-looking 1" is reachable. Attached to ECGDSP (the surface the suite consumes) rather than to
+     ECGDex: the first attempt put it on ECGDex, and the three legs that depend on it SKIPPED silently
+     while the group still read 10/10 green. A leg that cannot run is not a gate. */
+  global.ECGDSP.epochEngine = epochEngine;
   global.ECGDSP.baevskyGeom = baevskyGeom; // FOLLOWUP-FINDINGS P4 — ONE source for both node-export builders (app buildV2 + orchestrate); pure, so the two are gateable against each other
   global.ECGDSP.compute = compute;
   global.ECGDSP.buildNodeExport = ecgBuildNodeExport;
