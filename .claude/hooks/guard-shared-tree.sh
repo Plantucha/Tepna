@@ -36,7 +36,7 @@ cmd="$(jq -r '.tool_input.command // empty' 2>/dev/null)" || exit 0
 
 cmdn="${cmd//\\$'\n'/ }"; cmdn="${cmdn//$'\n'/ }"      # fold continuations + newlines
 cmd_noquotes="$(sed "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g" <<<"$cmdn")"
-GITX='(^|[^[:alnum:]_-])([^[:space:];&|]*/)?git([[:space:]]+(-[cC][[:space:]]*[^[:space:]]+|--git-dir=[^[:space:]]+|--work-tree=[^[:space:]]+|--exec-path=[^[:space:]]*|--no-pager))*[[:space:]]+'
+GITX='(^|[^[:alnum:]_-])([^[:space:];&|]*/)?git([[:space:]]+(-[cC][[:space:]]*("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--git-dir=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--work-tree=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--exec-path=[^[:space:]]*|--no-pager))*[[:space:]]+'
 QT='["'"'"']?'
 
 # HOW A RULE IS MATCHED — read this before adding one.
@@ -162,33 +162,45 @@ if grep -qE "$GITX"'clean\b[^;&|]*-[a-zA-Z]*f' <<<"$cmdn"; then
 Delete only what you created, by name."
 fi
 
-# `git update-ref refs/heads/<b>` / `git branch -f <b>` / `git push . <src>:<b>` — moving a ref that
-# is CHECKED OUT desyncs that checkout silently. Real incident, 2026-08-03: a session advanced
-# `refs/heads/main` to `origin/main` each iteration to "sync local main", choosing a bare ref move
-# precisely BECAUSE it touches no files. That is safe only while the branch is checked out NOWHERE.
-# `main` was checked out in the shared root. HEAD moved, the tree did not, and every file a merged PR
-# ADDED began reading as `deleted` while every file it CHANGED read as reverted — 47 D + 167 M, growing
-# with each merge. A later blanket `git add -A` staged all 214; committing it would have removed ~25
-# pending changesets, live briefs and 6 tools from main, and tripped release-ledger check 7.
-# The tell it hides: `git rev-list --count main..origin/main` reads 0 — the REF is synced, the checkout
-# is not. Verifying the ref and reporting it as the checkout is how this ran unnoticed for 5 iterations.
-if grep -qE '(^|[;&|(]|&&|\|\|)[[:space:]]*git[[:space:]]+(update-ref[[:space:]]+refs/heads/|branch[[:space:]]+(-f|--force)[[:space:]])' <<<"$cmd" \
-   || grep -qE '(^|[;&|(]|&&|\|\|)[[:space:]]*git[[:space:]]+push[[:space:]]+\.[[:space:]]' <<<"$cmd"; then
-  deny "BLOCKED: moving a branch ref by hand desyncs any checkout that HAS that branch out — the ref
-advances, the working tree does not, and every newly-merged file then reads as DELETED. That is what
-produced 47 phantom deletions of live files on 2026-08-03.
 
-You almost certainly do not need a local branch ref at all — a worktree can branch straight off the
-remote-tracking ref:
-    git worktree add ../wt-<task> -b claude/<task> origin/main
+# `git rm -r --cached .` / `git rm -rf .` — blanket removal. Same damage class as blanket staging
+# (it stages a deletion of everything, including files that are another session's only copy), and
+# there was no rule for it at all.
+if grep -qE "$GITX"'rm[[:space:]]+([^;&|]*[[:space:]])?(-[a-zA-Z]*r[a-zA-Z]*\b|--cached\b)[^;&|]*(\.([[:space:]]|$)|:/)' <<<"$cmdn"; then
+  deny "BLOCKED: blanket 'git rm' in a SHARED checkout.
 
-If a local branch really must advance, do it IN the checkout that holds it, so tree + index + ref move
-together — and confirm first that it is checked out nowhere else:
-    git worktree list | grep '\[<branch>\]'
-    git -C <that-checkout> merge --ff-only origin/<branch>
+This stages a deletion of every matching file — including files another session created and has not
+committed. Remove by EXPLICIT PATH instead: git rm path/to/file.
 
-Note: 'git rev-list --count <branch>..origin/<branch>' returning 0 does NOT mean the checkout is in
-sync — only that the ref is. Check 'git -C <checkout> status --short' too."
+Escape hatch when the tree is genuinely yours alone: CLAUDE_ALLOW_BLANKET_GIT=1"
 fi
+
+# Flags whose ONLY purpose is to override a safety check that exists to protect UNCOMMITTED or
+# UNMERGED work — i.e. exactly the other session's work this guard exists for. The unforced form of
+# each is allowed, because git's own refusal is the protection.
+#   git worktree remove --force   overrides "contains modified or untracked files"
+#   git branch -D                 overrides "not fully merged"
+# A reviewer of THIS PR had their worktree removed out from under them mid-session. That is the
+# failure being prevented, observed, in this repo, today.
+if grep -qE "$GITX"'worktree[[:space:]]+remove[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)' <<<"$cmdn"; then
+  deny "BLOCKED: 'git worktree remove --force' in a SHARED checkout.
+
+--force exists to override git's refusal to remove a worktree holding modified or untracked files.
+That refusal is the protection: those files may be another session's only copy.
+
+Run it WITHOUT --force. If git refuses, that is the guard working — look at what is in there first.
+
+Escape hatch when the tree is genuinely yours alone: CLAUDE_ALLOW_BLANKET_GIT=1"
+fi
+
+if grep -qE "$GITX"'branch[[:space:]]+([^;&|]*[[:space:]])?-D\b' <<<"$cmdn"; then
+  deny "BLOCKED: 'git branch -D' in a SHARED checkout.
+
+-D overrides git's refusal to delete a branch that is not fully merged — which is how another
+session's unmerged work disappears. Use -d; if git refuses, the branch still holds unmerged commits.
+
+Escape hatch when the tree is genuinely yours alone: CLAUDE_ALLOW_BLANKET_GIT=1"
+fi
+
 
 exit 0

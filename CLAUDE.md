@@ -99,7 +99,7 @@ Two features separate the populations perfectly, over all 33 commits in history 
 | | 29 release commits | the 2026-08-03 corruption |
 |---|---|---|
 | deletions **outside** `changes/` | **0**, every one | 22 — `briefs/ tools/ docs-archive/ uploads/` |
-| co-modifies `suite.manifest.json` + `CHANGELOG.md` + `RELEASE-MANIFEST.json` | **3/3**, every one | **0/3** (still 2.4.0, 105 changesets pending) |
+| co-modifies `suite.manifest.json` + `CHANGELOG.md` + `RELEASE-MANIFEST.json` | **3/3**, every one | **0/3** (version not bumped, no changelog entry) |
 
 So: **a commit deleting a changeset without a release-ledger update, or deleting anything outside
 `changes/` alongside one, is not a release.** Zero false positives on every release v1.1.0 → v2.4.0
