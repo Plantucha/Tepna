@@ -66,7 +66,25 @@
 > `evidence:'experimental'` for unknown ids, which had CPAPDex showing ECGDex's `validated` rMSSD as
 > `experimental`.
 >
-> **Still open, deliberately not this brief's work:** **§4.3/§4.4** and **§5**
+> **✅ §4.3 — EXECUTED 2026-08-04. Its blocker was obsolete and its premise was slightly wrong.**
+> The stated cost was *"cleaning the markup moves `buildHash` → flips the 3 committed
+> `integrator_fusion_*.json` fixtures … can't regenerate"*. `buildHash` was RETIRED as a provenance
+> signal by Phase 7 on 2026-06-30 — eight days after this brief was written — and both fusion fixtures
+> (there are **2**, not 3) are `historical: true`, byte-pinned with **no `manifestHash` and no
+> `inputHashes`**, so a markup change cannot flip them. Measured in `provenance/`, not assumed.
+> They were also never true *duplicates*: two carried five views as `div.mobile-nav-item`, the third
+> six (it has Longitudinal) as `button.mnav-item.nav-item` — and only `.mnav-item` is styled, so the
+> dead pair rendered unstyled and half-overlapping until `bindNav` deleted them on every boot.
+> **Decision taken: delete the two dead blocks in the shell and remove the runtime workaround**, which
+> existed only to paper over them. Verified on the shipped artifact rather than argued — Chrome
+> headless renders `main` and the fix to an **identical DOM** (1 rail, same buttons, same Longitudinal
+> entries), so it is behaviourally inert. `computeHash` **stable at `1f053ea1052e`** ⇒ export-inert
+> PROVEN; GATE A 9/9, GATE B 29/29.
+>
+> **Still open, deliberately not this brief's work:** **§4.4** (fusion-finding grade ratification —
+> the *engineering* half is gated as of 2026-08-04; ratifying the nine tiers is a science-governance
+> call) and **§5** (external-review list: three items data-gated, two cosmetic) · **§8** (deferred by
+> design).
 > (owner-pick lists, each explicitly "its own package") · **§8** (deferred by design).
 
 # Brief — Audit follow-ups from the 6-brief execution review (2026-06-22)

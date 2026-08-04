@@ -263,14 +263,15 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
 
   /* ── nav ─────────────────────────────────────────────────────────────── */
   function bindNav() {
-    // The skeleton ships 3 legacy .mobile-nav blocks (only the last is complete —
-    // it includes Longitudinal); collapse to one so mobile shows a single correct
-    // rail instead of three stacked, half-overlapping ones.
-    var mnavs = document.querySelectorAll('.mobile-nav');
-    for (var i = 0; i < mnavs.length - 1; i++) {
-      if (mnavs[i].parentNode) mnavs[i].parentNode.removeChild(mnavs[i]);
-    }
-    document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(function (a) {
+    // AUDIT-FOLLOWUPS §4.3 — the runtime de-duplication that used to live here is GONE, because the
+    // duplicates it papered over are gone. `Integrator.src.html` shipped THREE `.mobile-nav` blocks and
+    // this function deleted all but the last on every boot. They were never true duplicates: the two
+    // dead ones carried five views with `div.mobile-nav-item`, while the live one carries SIX (it has
+    // Longitudinal) as `button.mnav-item.nav-item` — and only `.mnav-item` is styled, so the other two
+    // rendered unstyled and half-overlapping until this ran. Deleting them in the shell is the fix; the
+    // loop was the workaround. The `.mobile-nav-item` selectors went with them (nothing in the
+    // Integrator carries that class now — `.nav-item` covers the live rail).
+    document.querySelectorAll('.nav-item').forEach(function (a) {
       a.addEventListener('click', function (e) {
         e.preventDefault();
         showView(a.dataset.view);
@@ -278,10 +279,9 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     });
   }
   function showView(v) {
+    // one pass: the live mobile rail's buttons carry BOTH `.mnav-item` and `.nav-item`, so the
+    // former `.mobile-nav-item` sweep here only ever matched the two dead blocks (§4.3).
     document.querySelectorAll('.nav-item').forEach(function (a) {
-      a.classList.toggle('active', a.dataset.view === v);
-    });
-    document.querySelectorAll('.mobile-nav-item').forEach(function (a) {
       a.classList.toggle('active', a.dataset.view === v);
     });
     document.querySelectorAll('.view').forEach(function (s) {
