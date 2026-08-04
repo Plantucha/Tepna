@@ -2,9 +2,16 @@
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # The settings-response fixtures are REAL bytes captured from the H10 + Verity Sense on 2026-07-16 —
 # the ones that proved the fixed START table was per-device-wrong (Verity ACC is 52 Hz, not 200).
+import pytest
+import struct
 import datetime as _dt
 
 import polar_pmd as pmd
+
+
+def _i24_bytes(vals):
+    """Little-endian signed int24 samples, the uncompressed ECG payload shape."""
+    return b"".join(int(v).to_bytes(3, "little", signed=True) for v in vals)
 
 
 def test_parse_features_bitmask():
@@ -519,7 +526,6 @@ def test_stop_never_carries_the_recording_type_bit():
 def test_a_truncated_command_is_rejected_rather_than_silently_reindexed():
     """A 1-byte command has no measurement byte; setting 'bit 7 of cmd[1]' on it would either crash in
     a device write or, worse, corrupt the op byte."""
-    import pytest
     for bad in (b"", b"\x02"):
         with pytest.raises(ValueError):
             pmd.as_offline(bad)
@@ -570,3 +576,41 @@ def test_the_0xf0_envelope_is_stripped_rather_than_parsed_as_data():
 def test_an_empty_or_unknown_status_reply_yields_nothing_rather_than_a_guess():
     assert pmd.parse_status_response(b"") == {}
     assert pmd.parse_status_response(_status_byte(0x3F, pmd.ONLINE_ACTIVE)) == {}, "unknown type ignored"
+
+
+# ── the device clock is not a clock: corpus-checked ─────────────────────────────────────────────────
+# Measured 2026-08-04 against the Polar Sensor Logger corpus (19 GB, `Ecg nightly/`, PSL's OWN decode of
+# the same H10 `02849638`): a row stamped `2026-06-13T12:14:31.755` by the phone carries
+# `sensor timestamp [ns] = 599616205067012864`, which is 2019-01-01 00:03:25 since the PMD epoch —
+# the device clock is 7.45 YEARS off, because it is unset and counting up from a power-on default.
+#
+# So `last_ns` is usable as an INTERVAL and never as an INSTANT. `decode_frame` back-times from
+# `arrival` (host time) for exactly this reason, and uses device stamps only for the STEP between
+# consecutive frames. Nothing tested that separation.
+
+def test_sample_times_come_from_the_host_arrival_not_the_device_stamp():
+    """A frame whose device stamp says 2019 must still produce 2026 sample times, because the arrival
+    is the only trustworthy instant. Using `last_ns` as an absolute would place a night's data seven
+    years in the past — and it would look internally consistent while doing it."""
+    arrival = _dt.datetime(2026, 6, 13, 12, 14, 31, 755000)
+    junk_ns = 599616205067012864                     # the real value from the corpus: reads as 2019
+    data = bytes([pmd.ECG]) + struct.pack("<Q", junk_ns) + bytes([0x00]) + _i24_bytes([10, 20, 30])
+
+    meas, samples = pmd.decode_frame(data, arrival, fs=130.0)
+    assert meas == pmd.ECG and len(samples) == 3
+    for s in samples:
+        assert s.phone.year == 2026, "sample times must derive from the HOST arrival, not the device epoch"
+        assert abs((s.phone - arrival).total_seconds()) < 1.0, "and land at the frame, not seven years away"
+    assert samples[-1].sensor_ns == junk_ns, \
+        "the device stamp is CARRIED verbatim, it is simply not used as the instant — the two live in "\
+        "separate fields precisely so a consumer cannot confuse them"
+
+
+def test_a_frame_too_short_to_carry_a_header_decodes_to_nothing():
+    assert pmd.decode_frame(b"\x00" * 9, _dt.datetime(2026, 6, 13), fs=130.0) == (None, [])
+
+
+# NOT WRITTEN, deliberately: the step-from-`prev_last_ns` path and the truncated-delta raise. Both need
+# a genuinely well-formed delta frame, and a hand-built one that merely happens to trip the branch is a
+# test that passes for the wrong reason — the failure mode this whole campaign exists to find. They are
+# worth doing from a REAL captured frame (the `Ecg nightly` corpus has them) rather than from a guess.

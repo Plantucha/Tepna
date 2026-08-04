@@ -59,3 +59,27 @@ def test_spo2_and_pr_independent():
     # a valid SpO2 with an invalid pulse still reports the SpO2 (never all-or-nothing).
     d = viatom.decode_packet(_pkt(spo2=95, pr=0))
     assert d["spo2"] == 95 and d["pr"] is None
+
+
+# ── the SpO2 validity window, landed on both edges ──────────────────────────────────────────────────
+def _frame(spo2=97, pr=60):
+    """A minimal 19-byte real-time frame with spo2 at [7] and pr at [8]."""
+    b = bytearray(19)
+    b[7], b[8] = spo2, pr
+    return bytes(b)
+
+
+def test_the_spo2_window_is_closed_at_both_ends(monkeypatch):
+    """`50 <= spo2 <= 100`. Both bounds are inclusive and both matter clinically.
+
+    100 is a REAL reading — a healthy sleeper hits it — so an exclusive upper bound silently discards
+    the best minutes of a night and biases every nightly mean downward. 50 is the floor for
+    "implausible, not merely low": the O2Ring reports 0 and 255 for invalid, and a genuine 50 is a
+    severe desaturation that must be recorded rather than dropped. Nothing landed on either edge, so
+    tightening or loosening them by one was invisible."""
+    assert viatom.decode_packet(_frame(spo2=100))["spo2"] == 100, "100 % is a real reading, not an error"
+    assert viatom.decode_packet(_frame(spo2=50))["spo2"] == 50, "a severe desat must be recorded"
+    assert viatom.decode_packet(_frame(spo2=49))["spo2"] is None, "below 50 is implausible"
+    assert viatom.decode_packet(_frame(spo2=101))["spo2"] is None, "above 100 is impossible"
+    assert viatom.decode_packet(_frame(spo2=0))["spo2"] is None
+    assert viatom.decode_packet(_frame(spo2=255))["spo2"] is None, "255 is the invalid sentinel"

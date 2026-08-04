@@ -192,3 +192,24 @@ def test_the_two_named_constant_defaults_match_capture():
     import capture
     assert ss.SETTINGS["o2ring.ppg_fs"][4] == capture.O2PPG_FS_DEFAULT
     assert ss.SETTINGS["o2ring.rtc_resync_sec"][4] == capture._OXYII_RTC_RESYNC_SEC
+
+
+def test_set_nested_walks_every_parent_and_assigns_the_last_key():
+    """`parts[:-1]` walks the parents; `parts[-1]` is the leaf. Both are negative indices and both
+    become `+1` under mutation — `parts[:1]` stops after the FIRST parent, so a three-deep key writes
+    into the wrong dict, and `parts[+1]` assigns under the SECOND segment's name. Neither raises; the
+    setting simply lands somewhere the reader never looks, which is a config change that appears to
+    succeed and does nothing."""
+    cfg = {}
+    ss.set_nested(cfg, "power.drop_not_worn_sec", 180)
+    assert cfg == {"power": {"drop_not_worn_sec": 180}}
+
+    ss.set_nested(cfg, "a.b.c", 1)
+    assert cfg["a"]["b"]["c"] == 1, "a three-deep key must walk BOTH parents, not stop at the first"
+
+    ss.set_nested(cfg, "flat", 2)
+    assert cfg["flat"] == 2, "a single-segment key assigns at the top level"
+
+    cfg2 = {"power": "not-a-dict"}
+    ss.set_nested(cfg2, "power.x", 3)
+    assert cfg2 == {"power": {"x": 3}}, "a non-dict parent is replaced, not indexed into"

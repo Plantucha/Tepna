@@ -8,6 +8,10 @@
 import link_rssi
 
 
+def _run(coro):
+    return asyncio.run(coro)
+
+
 def test_parse_rssi_from_hcitool_output():
     assert link_rssi.parse_rssi("RSSI return value: -63") == -63
     # `0` was asserted to parse as a READING here until 2026-07-25. It is not one: BlueZ returns 0 from
@@ -143,3 +147,37 @@ def test_real_negative_rssi_still_parses():
 
 def test_out_of_range_negative_is_still_rejected():
     assert link_rssi.parse_rssi("RSSI return value: -128") is None
+
+
+# ── parse_rssi: the two shapes, the plausibility window, and case-insensitivity ─────────────────────
+def test_rssi_is_read_from_hcitools_wording_and_from_a_bare_number():
+    """Two producers, one parser. hcitool prints `RSSI return value: -63`; the helper prints just the
+    number. Losing either shape silently returns None, and a None RSSI reads as "no link data" rather
+    than as "the parser did not understand" — so a working adapter looks like an absent one."""
+    assert link_rssi.parse_rssi("RSSI return value: -63") == -63
+    assert link_rssi.parse_rssi("rssi RETURN value:  -70") == -70, "re.I — the case varies by tool version"
+    assert link_rssi.parse_rssi("-55\n") == -55, "the helper prints a bare number"
+    assert link_rssi.parse_rssi("") is None
+    assert link_rssi.parse_rssi("no signal here") is None
+
+
+def test_the_plausible_rssi_window_is_closed_at_both_ends():
+    """`-127 <= val <= -1`. BLE RSSI is negative dBm; -127 is the floor the controller reports for
+    "no measurement" boundary cases and IS a real reading, while 0 or positive means the parser picked
+    up the wrong number (a count, a handle) and must be rejected rather than logged as a signal."""
+    assert link_rssi.parse_rssi("RSSI return value: -127") == -127, "the floor is a real reading"
+    assert link_rssi.parse_rssi("RSSI return value: -1") == -1
+    assert link_rssi.parse_rssi("RSSI return value: -128") is None, "below the floor is a misparse"
+    assert link_rssi.parse_rssi("RSSI return value: 0") is None, "0 dBm is not a BLE RSSI"
+
+
+def test_read_rssi_refuses_without_a_device_or_without_the_helper(monkeypatch, tmp_path):
+    """`not dev_mac OR not exists(_HELPER)` — either alone is disqualifying. As `and`, a missing MAC
+    with the helper present would proceed and query the wrong thing; the guard exists because vigil
+    runs without hcitool at all (Pi 5), which is what the nmcli-only first cut discovered the hard way.
+    """
+    monkeypatch.setattr(link_rssi.os.path, "exists", lambda p: True)
+    assert _run(link_rssi.read_rssi("", "AA:BB")) is None, "no device MAC -> refuse, even with a helper"
+
+    monkeypatch.setattr(link_rssi.os.path, "exists", lambda p: False)
+    assert _run(link_rssi.read_rssi("AA:BB:CC:DD:EE:FF", "AA:BB")) is None, "no helper -> refuse"
