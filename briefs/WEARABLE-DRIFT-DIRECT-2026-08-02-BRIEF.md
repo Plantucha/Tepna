@@ -92,8 +92,18 @@ device ms, prints ppm per fragment. Reads the Clock Contract way (explicit regex
 - [x] **The instrument now refuses when there is no second clock (2026-08-03).** See §7.
 - [ ] *(owner)* Correct `papers/wearable-clock-drift.html`'s scope note; it is another session's paper
       and the correction is flagged there rather than applied.
-- [x] **RUN 2026-08-04 — and it CANNOT be run on this corpus. The two requirements are met by DISJOINT
-      night sets.** §7.3 identified the third clock (the box host) and left the leg open rather than
+- [~] **⛔ CORRECTED 2026-08-04 (same day). The claim below — "it CANNOT be run on this corpus" — is
+      RETRACTED. It IS runnable; I checked the wrong artifact.** The table below is about the committed
+      *exports*, and leg C never needed them: it comes from the **raw captures**, which carry both
+      `Phone timestamp` and `sensor timestamp [ns]`. Scanning them, **38 fragment pairs have >30 min of
+      simultaneous H10+Verity coverage, the longest 563 min (9.4 h)**. Nothing about the corpus blocks
+      the closure. See §7.4 for what actually does.
+
+      *(Original entry retained below, since its export-level facts are correct and its legs A/B table is
+      what §7.4 builds on.)*
+
+- [x] **RUN 2026-08-04 — the committed EXPORTS cannot supply leg C; the two export requirements are met
+      by DISJOINT night sets.** §7.3 identified the third clock (the box host) and left the leg open rather than
       faking it. Attempting it honestly shows why it stays open, and exactly what would unblock it.
 
       | requirement | needs | available |
@@ -177,6 +187,43 @@ nights but individually unchallenged.
 
 **Inter-device ≈ 6.7 ppm** — §1's ~7 ppm, now on nine nights instead of four and with every
 non-independent fragment excluded rather than silently averaged in.
+
+### 7.4 · The closure IS runnable — and the blocker is the beat estimator, not the corpus (2026-08-04)
+
+§7.3 left the beat leg open; the entry above then over-read that as "the corpus cannot supply it". Both
+were wrong about *where* the obstruction is. Correcting it, with what was actually measured.
+
+**The corpus is fine.** Leg C needs beat times on each device's OWN clock — not exports. The raw
+Polar files carry `sensor timestamp [ns]` beside `Phone timestamp`, so both axes are present in every
+capture. 38 fragment pairs exceed 30 min of simultaneous H10+Verity coverage; the longest is 563 min.
+
+**The mod-one-heartbeat ambiguity does not bite at this span.** `beat-trains-align-only-mod-RR` is the
+reason whole-night comb matching fails, but here the *expected* divergence is ~8 ppm over 563 min =
+**0.27 s**, a quarter of one RR. The pairing is unambiguous if it is tracked rather than searched.
+
+**Legs A and B, on the identical fragments (2026-08-01):**
+
+| leg | ppm vs host | span |
+|---|---|---|
+| H10 | **−20.9** | 563 min |
+| Verity | **−28.6** | 589 min |
+| ⇒ predicted H10↔Verity | **+7.7** | |
+
+**Beat extraction works** — 30,222 H10 beats (Pan–Tompkins, fs 130.0) and 30,616 Verity beats
+(`consensusBeats.feet`), each on its own device ns axis, so leg C is genuinely independent of the host
+column.
+
+⛔ **BUT NO CLOSURE IS CLAIMED, because the estimator fails its own known-answer test.** A first
+per-block nearest-lag + Theil–Sen leg C read **+9.6 ppm** against the predicted +7.7 — agreement close
+enough to be tempting. Planting truth instead: with **V running −20.0 ppm relative to H**, the same
+estimator reports **+17.9 ppm** — **sign inverted, magnitude 11 % low**. The nearest-beat pairing walks
+to the adjacent beat as lag accumulates, which inverts the trend. So the +9.6 is not evidence of
+anything, and the apparent agreement with +7.7 is coincidence until the estimator is fixed.
+
+**This family has four retractions from exactly this stack.** A number that looks right, from an
+estimator that cannot recover planted truth, would be the fifth. What is owed is not a closure run but a
+leg-C matcher that recovers a planted rate in **sign and magnitude** — then, and only then, the
+comparison against +7.7 means something.
 
 ### 7.3 · The third source with a real clock is the CAPTURE HOST — and only on box captures
 
