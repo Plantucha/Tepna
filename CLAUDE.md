@@ -72,6 +72,46 @@ tree, don't bother.
 all of the above — plus hand ref-moves — with an explanation. Escape hatch when the tree is genuinely yours alone:
 `CLAUDE_ALLOW_BLANKET_GIT=1`.
 
+### 2b · THE REF IS NOT THE TREE — never move a branch ref that is checked out
+
+**`git update-ref refs/heads/main refs/remotes/origin/main` is forbidden here.** It looks like the
+careful way to sync local `main` because it avoids `checkout`/`pull`. It is the opposite: `update-ref`
+is *plumbing* — it moves the ref, touches neither the working tree nor the index, and is the ONLY form
+that skips git's checked-out-branch check. `git fetch origin main:main`, `git branch -f`, and
+`git push .` all refuse by name when the branch is checked out; `update-ref` succeeds silently.
+
+If the branch IS checked out, that tree then freezes while HEAD advances, so every file a later merge
+**adds** reads as **deleted** — and a blanket add stages them for removal. Measured 2026-08-03: 47 live
+files, 25 of them pending changesets, growing with every merge rather than converging.
+
+* **To sync:** `git fetch origin main:main` — and let it refuse. Better, work in your own worktree off
+  `origin/main` (§1) so local `main` never needs syncing at all.
+* **To CHECK a tree is in sync, measure the TREE** — `git status --porcelain`, not
+  `git rev-list --count HEAD..origin/main`. The ref comparison returned **0** while the tree was 214
+  files stale; it answers a different question than the one you are asking.
+
+Hook-enforced (`guard-shared-tree.sh`), and **a commit-time detector is possible** — an earlier draft
+of this section claimed it was not, arguing the release commit is signal-identical to the corruption.
+That claim was wrong, and it was wrong in the way this repo keeps being wrong: it reasoned from the
+features that *do* collide (many files, recent, changeset-heavy, one block) and never ran the query.
+Two features separate the populations perfectly, over all 33 commits in history that delete a changeset:
+
+| | 29 release commits | the 2026-08-03 corruption |
+|---|---|---|
+| deletions **outside** `changes/` | **0**, every one | 22 — `briefs/ tools/ docs-archive/ uploads/` |
+| co-modifies `suite.manifest.json` + `CHANGELOG.md` + `RELEASE-MANIFEST.json` | **3/3**, every one | **0/3** (version not bumped, no changelog entry) |
+
+So: **a commit deleting a changeset without a release-ledger update, or deleting anything outside
+`changes/` alongside one, is not a release.** Zero false positives on every release v1.1.0 → v2.4.0
+including `aee1e10`; the only other commits it flags are the three `rescue:` snapshots (which *are*
+this failure) and one `Revert` (exemptible by provenance). A release deletes only changesets and
+always bumps the version; the accident did neither.
+
+Prevention still comes first — the hook stops the cause, and that is cheaper than catching the damage
+after it is staged. But do not repeat the impossibility claim. If you think two populations are
+inseparable, **run the query before writing that down**; five reviewers falsified this paragraph in
+minutes with one `git log`.
+
 ### 3 · Bundles and ledgers must be SERIALIZED — a worktree does not save you here
 
 Isolation solves the *tree*. The old single-file ledger collision is **mostly SOLVED** (ARCHITECTURE-DEBT-
