@@ -159,5 +159,54 @@ block trades against drift *within* the block — and `concentration` is the met
       **~595 ms** half-tooth, so unwrapping is viable on 3–4 of 6 nights.
 - [x] The obvious explanation (PTT contamination) tested and **refuted** — optical↔optical is wider,
       not tighter.
-- [ ] *(open, now with a target)* Get per-block residual scatter well below ~450 ms. Estimator problem:
-      more beats per block trades against drift within the block. `concentration` is the metric.
+- [x] **MEASURED 2026-08-04 (§5) — the box's own diagnosis is wrong in BOTH halves.** Within-block
+      drift is not the limit (removing it changes nothing), and more beats per block is not the limit
+      either (scatter is flat against block length while concentration rises). The residual is a
+      per-NIGHT property: about half the nights sit comfortably under 450 ms at every setting and the
+      other half sit far above it at every setting. The estimator has no knob left to turn; the open
+      question is what makes a night un-lockable. Apparatus: `tools/integrator-block-precision.mjs`.
+
+## 5 · The trade named in §4 does not exist — measured 2026-08-04
+
+§4's open box diagnosed the blocker as an estimator trade: *"more beats per block trades against drift
+within the block"*. Within-block drift is not noise — it is a known linear ramp whose slope the coarse
+fit already reports — so it can simply be removed before blocking, which would break the trade. Three
+arms, same 12 nights, same shipped `fitClockDrift`: **raw**, **de1** (coarse ppm removed once), **de2**
+(removed twice). Endpoint is the robust scatter (IQR/1.349) of the per-block offsets about their own
+regression line, which is the quantity the ~450 ms target names.
+
+| block | raw | de1 | de2 | concentration (raw) |
+|---|---|---|---|---|
+| 300 s | 412 ms (IQR 248–737) · 6/12 under | 424 (259–725) · 6/12 | 434 (255–687) · 6/12 | 0.47 |
+| 900 s | 359 ms (277–862) · 7/12 | 402 (283–919) · 6/12 | 395 (239–943) · 6/12 | 0.50 |
+| 1800 s | 379 ms (288–838) · 7/12 | 287 (261–948) · 8/12 | 377 (290–997) · 7/12 | 0.58 |
+
+**De-drifting does not help.** It is slightly *worse* at 300 s and 900 s in both arms. One cell — de1 at
+1800 s — reads 287 ms against raw's 379, and that cell is **not** claimed: its IQR (261–948) is wider
+than the arm it supposedly beats, one improvement in nine comparisons is what noise looks like, and
+this brief family has retracted a point-estimate-without-an-error-bar four times. §2 already recorded
+the same discipline when one of nine closures landed on 0. It is recorded, not used.
+
+**More beats per block does not help either, and this is the sharper finding.** Concentration rises
+with block length exactly as §2 measured (0.47 → 0.50 → 0.58), reproducing that result — but **scatter
+does not fall with it** (412 → 359 → 379). The two metrics disagree, and the disagreement is
+interpretable: longer blocks make the wrapped residuals more phase-coherent without making them
+smaller. Concentration was the right falsifier for "is there a phase to regress"; it is not a proxy for
+the millisecond precision the unwrap actually needs, and §4 treating it as one is what pointed the box
+at the estimator.
+
+**What the numbers actually say.** Every IQR spans roughly 250 → 700-1000 ms. That is not a
+distribution to be tightened by tuning; it is **two populations**. Around half the nights sit near
+250-290 ms — comfortably inside the ~595 ms half-tooth — at *any* block length and in *any* arm, and
+the other half sit near 700-950 ms at every setting. That matches §3.5's corrected "viable on 3-4 of
+6 nights" from a different corpus and a different measurement, which is the strongest form of
+agreement available here.
+
+**So the box is closed as an estimator problem and reopened as a data one.** No setting of block length,
+and no removal of drift, moves a night from one population to the other. The next question is not "how
+do we make the offsets more precise" but "what distinguishes a lockable night from an un-lockable one"
+— slip, coverage, posture, or a period where one device simply was not on the body. That is a
+different investigation, and the honest end of this one.
+
+*(Method: the 5-min arm reproduces §3.5's earlier robust-scatter range on the nights they share, so the
+apparatus is not measuring something new — it is the same quantity, swept.)*
