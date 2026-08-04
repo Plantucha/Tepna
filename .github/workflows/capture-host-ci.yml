@@ -123,7 +123,32 @@ jobs:
 
   test:
     needs: changes
-    if: needs.changes.outputs.run == 'true'
+    # ⚠️ NO JOB-LEVEL `if:` HERE — THE SKIP IS ON THE STEPS, AND THAT DIFFERENCE IS THE WHOLE POINT.
+    #
+    # The note above `on:` says a job skipped by a condition "reports as skipped and satisfies the
+    # requirement, whereas a workflow skipped by `paths:` reports nothing." That is true for a PLAIN job
+    # and FALSE for a MATRIX job, which is what this one is. A skipped matrix job never expands its
+    # matrix, so it reports ONE check under the unexpanded literal name — `test (py${{ matrix.python-
+    # version }})` — and the two required contexts `test (py3.12)` / `test (py3.13)` never appear at all.
+    # GitHub then holds them in "Expected — waiting for status" and the PR is BLOCKED FOREVER with every
+    # visible check green. Exactly the deadlock the `paths:` note was written to prevent, via a different
+    # door.
+    #
+    # This was latent and MASKED until 2026-08-04. The unscoped `push:` trigger produced a second run per
+    # commit that DID expand the matrix, so the required names arrived from the duplicate. Scoping `push:`
+    # to main (#837) correctly killed the duplicate-run deadlock — and removed the only run that was
+    # accidentally satisfying the requirement on a PR touching nothing in capture-host/. PRs #838, #840
+    # and #842 were all blocked with 18/18 green; #841 predates it and has two runs. The workflow's own
+    # comment even records the unexpanded-literal symptom, but attributes it to the duplicate run rather
+    # than to skipping a matrix, which is why the fix landed on the wrong side.
+    #
+    # So the job now ALWAYS runs and always expands to the two required names; each step carries the
+    # relevance condition instead. An irrelevant PR pays one runner spin-up per matrix leg (~5-10 s, no
+    # checkout, no pip) instead of ~80 s, which keeps the cost saving the `changes` job exists for while
+    # making the required contexts unconditionally reportable.
+    #
+    # RULE: never let a REQUIRED check live on a matrix job that can be skipped. Either run the matrix and
+    # skip inside the steps (this), or require a non-matrix summary job instead of the expanded names.
     runs-on: ubuntu-latest
     # ⚠️ THE BOX'S VERSION MUST BE IN THIS MATRIX. It was pinned to 3.12 alone while the Vigil box ran
     # 3.13.11 — CI was green on a Python the hardware does not execute. That is not hypothetical here:
@@ -137,10 +162,13 @@ jobs:
     name: test (py${{ matrix.python-version }})
     steps:
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.run == 'true'
       - uses: actions/setup-python@v5
+        if: needs.changes.outputs.run == 'true'
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install tooling + runtime deps
+        if: needs.changes.outputs.run == 'true'
         # The runtime deps are installed even though there is no BLE hardware here. They import fine
         # without an adapter (bleak defers all D-Bus contact to connect time), and WITHOUT them
         # polar_psftp/pull_session cannot even be imported — so any test touching them fails outright, or
@@ -151,6 +179,7 @@ jobs:
           pip install pytest pytest-cov ruff shellcheck-py
           pip install -r requirements.txt
       - name: Lint (ruff — real errors only)
+        if: needs.changes.outputs.run == 'true'
         run: ruff check .
       # ⚠️ THE SHELL FLOOR IS `style` — the STRICTEST level, and it is a floor for the same reason the
       # coverage number is. Python coverage here is 100% statement+branch, but that denominator is .py
@@ -167,8 +196,10 @@ jobs:
       # developer's `pytest` uses (tests/test_shell_surface.py runs the identical check), and so this
       # does not depend on what the runner image happens to ship.
       - name: Lint (shellcheck — every .sh, strictest level)
+        if: needs.changes.outputs.run == 'true'
         run: shellcheck --severity=style $(find . -name '*.sh' -not -path './.venv*')
       - name: Unit tests + coverage (pytest)
+        if: needs.changes.outputs.run == 'true'
         # Bare `--cov` (no path) on purpose — it defers to pyproject's `source = [".", "deploy"]`. An
         # explicit `--cov=.` OVERRIDES that list and silently drops deploy/ back out of the denominator,
         # which is how deploy/ezparse.py sat untested and invisible.
