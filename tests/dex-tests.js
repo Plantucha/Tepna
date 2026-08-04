@@ -13299,6 +13299,29 @@
       });
       T.ok('A2 · EVERY authored .js/.mjs in the tree carries SPDX-License-Identifier: Apache-2.0', wNoSpdx.length === 0, wNoSpdx.length ? 'missing in: ' + wNoSpdx.join(', ') : 'present across ' + allJs.length + ' files');
       T.ok('A2 · EVERY authored .js/.mjs in the tree carries the Copyright 2026 Michal Planicka line', wNoCopy.length === 0, wNoCopy.length ? 'missing in: ' + wNoCopy.join(', ') : 'present across ' + allJs.length + ' files');
+
+      /* ── the walk's SUBJECT, not just its result ────────────────────────────────────────────────
+         A2 asserts every authored file carries a header; it says nothing about WHICH files are
+         "in the tree". A nested git worktree — the house rule puts them at ../wt-<task>, but sessions
+         do nest them inside the checkout — carries a `.git` entry that the walker skipped as a
+         dot-entry, so the marker was invisible while the worktree's whole contents were walked as
+         this repo's source. Observed 2026-08-04: A2 reported 10 missing SPDX headers, every one
+         inside another session's worktree at an older commit. CI clones clean and could never
+         reproduce it, which is the worst shape a gate can fail in — red locally, green in CI, and the
+         same walker feeds the docs-ledger link inventory, where a link would resolve against a file
+         that exists only in someone else's worktree.
+
+         Checked against a SYNTHETIC fixture (built by the runner), never against whatever worktrees
+         happen to be lying around: a check that only fires when someone nests one is vacuous in CI. */
+      var W = env.walkerNestedRepo;
+      if (!W) {
+        T.skip('env.walkerNestedRepo provided to the runner', 'Node-lane only (fs fixture) — the browser lane cannot build one');
+      } else {
+        T.ok('the walker still descends a NORMAL directory', W.sawNormalDir && W.sawNormalFile, JSON.stringify(W));
+        T.ok('a nested repo/worktree is not walked — its files stay out of the tree', !W.sawNestedFile, 'nested/inside.js was walked');
+        T.ok('…nor is anything deeper inside it', !W.sawNestedDeep, 'nested/deep/deeper.js was walked');
+        T.ok('…and the nested directory itself is omitted, so it cannot resolve a link either', !W.sawNestedDir, 'nested/ is in the inventory');
+      }
       T.ok('A2 · no non-Apache SPDX identifier anywhere in the tree', wOther.length === 0, wOther.length ? 'in: ' + wOther.join(', ') : 'clean');
     });
 

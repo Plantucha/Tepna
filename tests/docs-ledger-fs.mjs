@@ -12,7 +12,7 @@
  * reads the tree straight from fs. Deterministic: sorted, forward-slash relative paths, no timestamps,
  * no absolute paths.
  */
-import { readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /* Dirs a DOCS-INDEX link never targets — dependencies, transient agent/diagnostic output, and raw
@@ -25,6 +25,24 @@ export const EXCLUDE_DIRS = new Set(['node_modules', 'screenshots', 'scraps', '_
 /* Dot-entries (.git, .github, .gitignore, .thumbnail, …) are never a DOCS-INDEX link target and add
    only noise + churn; skipping them keeps the walk deterministic and the inventory focused. */
 const isExcluded = (name) => name.charAt(0) === '.' || EXCLUDE_DIRS.has(name);
+
+/* A NESTED REPOSITORY OR WORKTREE IS NOT PART OF THIS TREE. `git worktree add ../wt-x` is the house
+   rule (CLAUDE.md §👥.1), and sessions routinely place one INSIDE the checkout — `Tepna/wt-odigate`,
+   `Tepna/wt-verity-offline`. Such a directory carries a `.git` entry, which `isExcluded` skips as a
+   dot-entry, so the marker was invisible while the directory's whole contents were walked as if they
+   were this repo's own source.
+
+   Two live consequences, both observed 2026-08-04 on the shared checkout:
+     · the A2 SPDX gate reported 10 missing headers, every one inside another session's worktree at an
+       older commit — a RED that CI could never reproduce, because CI clones clean;
+     · the docs-ledger link inventory (check4b) would resolve a DOCS-INDEX link against a file that
+       exists ONLY in someone else's worktree, so a genuinely dead link could read green.
+   The first is noisy, the second is a gate lying in the direction that matters.
+
+   Detected by the `.git` entry rather than by a name pattern (`wt-*`): the marker is what git itself
+   uses, it is present for both nested clones (dir) and linked worktrees (file), and a name convention
+   would miss any worktree someone names differently. */
+const isNestedRepo = (dirPath) => existsSync(join(dirPath, '.git'));
 
 /* Every non-excluded file AND directory under `root`, as forward-slash relative path strings.
    Directories are included so a directory-targeted link (`](wiring)`) resolves too. Returns a sorted
@@ -41,14 +59,18 @@ export function walkRepoPaths(root) {
     for (const name of ents) {
       if (isExcluded(name)) continue;
       const rel = prefix ? prefix + '/' + name : name;
-      out.push(rel);
+      const abs = join(dir, name);
       let isDir = false;
       try {
-        isDir = statSync(join(dir, name)).isDirectory();
+        isDir = statSync(abs).isDirectory();
       } catch (e) {
         /* unreadable → treat as leaf */
       }
-      if (isDir) rec(join(dir, name), rel);
+      // A nested repo/worktree is skipped ENTIRELY — not merely un-recursed — so its own directory
+      // name cannot resolve a link either.
+      if (isDir && isNestedRepo(abs)) continue;
+      out.push(rel);
+      if (isDir) rec(abs, rel);
     }
   })(root, '');
   return out.sort();

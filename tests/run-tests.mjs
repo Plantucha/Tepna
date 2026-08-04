@@ -16,13 +16,13 @@
    browser modules are loaded into a `vm` sandbox with minimal window/
    document/localStorage shims.
    ════════════════════════════════════════════════════════════════════════ */
-import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 import { spawn, execSync } from 'node:child_process';
-import { cpus } from 'node:os';
+import { cpus, tmpdir } from 'node:os';
 import { walkRepoPaths } from './docs-ledger-fs.mjs';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 
@@ -1317,6 +1317,45 @@ async function main() {
        tree instead (same walker docs-ledger uses, same exclusions) and hands the gate the first 4 KB of
        every .js/.mjs — headers live at the top, and 203 × 4 KB is cheap. The gate keeps its own regexes;
        handing it a precomputed boolean would move the predicate out of the gate. Node-lane only. */
+    /* WALKER · nested repositories. `walkRepoPaths` feeds BOTH the A2 SPDX gate and the docs-ledger
+       link inventory, and a git worktree placed inside the checkout (the house rule puts them at
+       ../wt-<task>, but sessions do nest them) carries a `.git` entry that `isExcluded` skips as a
+       dot-entry — so the marker was invisible while the whole worktree was walked as this repo's
+       source. Observed 2026-08-04: A2 reported 10 missing SPDX headers, all inside other sessions'
+       worktrees at older commits, a RED that CI cannot reproduce because CI clones clean.
+
+       Verified against a SYNTHETIC fixture rather than against whatever worktrees happen to exist —
+       a check that only fires when someone nests one is a check that is vacuous in CI, which is the
+       failure mode this repo keeps meeting. Built and torn down here; the assertions live in the
+       house-lint group. */
+    walkerNestedRepo: (() => {
+      let tmp = null;
+      try {
+        tmp = mkdtempSync(join(tmpdir(), 'tepna-walk-'));
+        mkdirSync(join(tmp, 'normal'));
+        writeFileSync(join(tmp, 'normal', 'keep.js'), '// keep\n');
+        mkdirSync(join(tmp, 'nested'));
+        writeFileSync(join(tmp, 'nested', '.git'), 'gitdir: /elsewhere\n'); // linked-worktree marker
+        writeFileSync(join(tmp, 'nested', 'inside.js'), '// must not be walked\n');
+        mkdirSync(join(tmp, 'nested', 'deep'));
+        writeFileSync(join(tmp, 'nested', 'deep', 'deeper.js'), '// nor this\n');
+        const paths = walkRepoPaths(tmp);
+        return {
+          sawNormalDir: paths.indexOf('normal') >= 0,
+          sawNormalFile: paths.indexOf('normal/keep.js') >= 0,
+          sawNestedDir: paths.indexOf('nested') >= 0,
+          sawNestedFile: paths.indexOf('nested/inside.js') >= 0,
+          sawNestedDeep: paths.indexOf('nested/deep/deeper.js') >= 0,
+          n: paths.length
+        };
+      } catch (e) {
+        return null;
+      } finally {
+        try {
+          if (tmp) rmSync(tmp, { recursive: true, force: true });
+        } catch {}
+      }
+    })(),
     authoredJsHeads: (() => {
       try {
         const out = {};
