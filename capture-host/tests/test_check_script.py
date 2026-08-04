@@ -110,7 +110,24 @@ def test_it_reports_the_actual_exit_code_of_a_failing_gate(tmp_path):
 
 
 def test_check_sh_is_executable_and_shebanged():
-    assert os.access(CHECK, os.X_OK), "check.sh must be executable to be the documented entry point"
+    """The mode GIT RECORDS, not the working tree's.
+
+    `os.access(X_OK)` alone was not enough and CI proved it: the primary checkout lives on an ntfs3
+    volume with `core.fileMode=false`, so a local `chmod +x` sets the on-disk bit and git records
+    100644 anyway. The file was executable here, unexecutable in the clone, and every run of this
+    script in CI died with PermissionError while this test passed locally. The committed mode is the
+    only one that reaches anybody else — fix with `git update-index --chmod=+x`.
+    """
+    out = subprocess.run(["git", "ls-files", "-s", "--", os.path.basename(CHECK)],
+                         cwd=HERE, capture_output=True, text=True, timeout=30)
+    assert out.returncode == 0 and out.stdout.strip(), (
+        "could not read the committed mode from git — an unverifiable mode is the gap itself, "
+        f"not a reason to skip: {out.stderr}")
+    mode = out.stdout.split()[0]
+    assert mode == "100755", (
+        f"check.sh is committed as {mode}, not 100755 — it will be non-executable for everyone who "
+        "clones. `chmod` alone does not fix this where core.fileMode=false; use "
+        "`git update-index --chmod=+x capture-host/check.sh`")
     with open(CHECK, encoding="utf-8") as fh:
         assert fh.readline().startswith("#!"), "check.sh needs a shebang"
 
