@@ -162,8 +162,14 @@ finding about the vasculature.
       The port and the ACC alignment were both confirmed identical and explain nothing.
       **§3c.3: this inverts §3a's coupling verdict** — on a better pair of the same night, strict reads
       29-35 % against an unchanged 7 % floor (ratio 4.19 / 5.27) where §3a read 0.79-1.22.
-      **§3c.4: neither rule is principled**, so no coupling verdict may be quoted from §2 or §3a until
-      pair selection is made on outcome-independent signal quality (§3c.5).
+      **§3c.4: neither rule is principled.**
+      **§3d (2026-08-04) then WITHDRAWS §3c.5's proposed fix and finds the real term:** signal quality
+      does not vary (28 pairs — ECG continuity 100 % in every one, feet/beat 0.91-1.00, all |r| <= 0.22
+      against a matchRate spanning 1-99 %), while scoring the SAME pair with and without the ACC
+      alignment moves it by up to **+53 / -72 points** and yields **94-100 %** on four pairs — §2's
+      range, reproduced. So §3a's negative measures **alignment error, not absence of coupling** —
+      which was §3a's own first listed possibility. No coupling verdict is quotable from §2, §3a or
+      §3c until the per-pair offset is measured directly (§3d.4).
 - [ ] *(open)* Whether PAT is worth pursuing at all on single-site optical, given that the obstacle is
       PTT variability rather than instrumentation. That is a scientific call, not an engineering one.
       §3a *weakens* the case further — under a definition that can fail, the coupling leg does fail —
@@ -232,3 +238,70 @@ presence of both recordings across the window (no dropout), ECG SNR, PPG perfusi
 definitions on that pair and let the strict statistic answer with the selection no longer free. Until
 that lands, **no coupling verdict should be quoted from either §2 or §3a**, including §3a's negative
 and including `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` §5.4's, which inherits the same rule.
+
+## 3d · The signal-quality rule §3c.5 asked for cannot be built — and the real term is ALIGNMENT
+
+§3c.5 recommended selecting the pair on signal quality computed independently of the statistic. That
+recommendation is **withdrawn: there is no quality variation to select on.** Measured over **28
+candidate pairs** on the six nights, every outcome-independent quality feature is near-constant while
+`matchRate` spans almost the whole range `[CORPUS]`:
+
+| feature | range across 28 pairs | pooled r vs `matchRate` |
+|---|---|---|
+| ECG continuity (30 s epochs ≥ 20 beats) | **100 % in every pair** | — (constant) |
+| feet-per-beat ratio | 0.91 – 1.00 | +0.22 |
+| PPG continuity | 92 – 100 % | −0.06 |
+| overlap minutes | 11 – 365 | −0.19 |
+| ACC anchor count | 0 – 29 | −0.22 |
+| **legacy `matchRate`** | **1 % – 99 %** | — |
+
+Both detectors work in *every* pair, at ~1:1 feet per beat. The obvious mechanism — a PPG dropout
+capping `matchRate` — would show as a feet/beat deficit, and there is none.
+
+### 3d.1 · Same pair, aligned vs unaligned — the alignment is the term  `[CORPUS]`
+Scoring each pair **both ways** removes the short-fragment confound (the pairs whose ACC alignment
+fails are all short, so §3c's aligned/unaligned split was entangled with duration). Pairs where the
+alignment could not run score **+0** by construction, which validates the probe. Where it did run:
+
+| pair | ACC-aligned | zero-offset | Δ |
+|---|---|---|---|
+| 2026-07-20 30 m | 77 % | **100 %** | +23 |
+| 2026-07-26 26 m | 51 % | **99 %** | +49 |
+| 2026-07-28 51 m | 45 % | **94 %** | +48 |
+| 2026-07-20 91 m | 30 % | **83 %** | +53 |
+| 2026-07-22 266 m | 25 % | 52 % | +27 |
+| 2026-07-22 45 m | 74 % | **2 %** | −72 |
+| 2026-07-20 365 m | 33 % | 26 % | −7 |
+
+**Removing the ACC alignment produces 94–100 % `matchRate` on four pairs** — §2's 90–96 % range,
+reproduced. It also destroys others (74 % → 2 %). The distribution is **bimodal**: when the raw
+offset lands inside the `[200, 650]` ms window coupling is near-total, and when it does not it
+collapses. The ACC correction pulls both cases toward the mediocre middle §3a reported.
+
+### 3d.2 · What this means for §3a's verdict
+§3a listed two possibilities and could not choose between them:
+
+> either §2's pairing/alignment is **better** than this harness's (in which case the strict result is
+> measuring a worse alignment, not an absence of coupling), or §2's numbers are inflated …
+
+**The first one.** There is strong R→foot coupling in this corpus — up to **100 %** `matchRate` — and
+§3a's harness is measuring alignment error on top of it. Its negative is **not** evidence that pulse
+transit is uncoupled from the ECG.
+
+### 3d.3 · Why zero-offset is a legitimate comparison and not another circular choice
+Picking the best pair *by* `matchRate` is circular (§3c.4). **Zero offset is not fitted to anything**
+— it is the a-priori model for a **box-captured** pair: both streams are stamped by the *same*
+NTP-disciplined daemon, so the offset between them should already be ~0 and the ACC estimate is
+correcting a quantity that was not wrong. That is a hypothesis about the capture path, testable
+without reference to the outcome, which is why it may be tested against the outcome.
+
+It is **not** a proposed default: it fails badly on some pairs, so a per-pair residual (differential
+BLE delivery latency) plainly exists.
+
+### 3d.4 · What to do instead of §3c.5
+1. **Measure the per-pair offset directly** rather than estimating it from ACC — for box captures the
+   two host-stamp series are the measurement, and `DexClock.hostAxis` already formalises this shape.
+2. **Then** re-run both `matchRate` definitions under it, with the pair rule fixed a priori.
+3. Until (1) lands, **no coupling verdict from §2, §3a or §3c is quotable** — nor
+   `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` §5.4's, whose zero-offset run now looks like the *right*
+   model for a box capture rather than a compromise forced by the ring having no ACC.
