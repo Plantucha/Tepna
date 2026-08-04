@@ -452,6 +452,32 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         <button class="btn-primary" onclick='saveSettings(this)'>Save settings</button>
         <span class="hint" id="setMsg"></span>
       </div>
+
+      <!-- PUSH ALERTS. The monitor is a PULL surface — a low disk, or a sensor that died at 01:00, is
+           only seen if somebody goes looking. This is the destination those alerts fire to. The URL is
+           WRITE-ONLY on purpose: for ntfy/Discord/Slack/Telegram the URL *is* the credential, and this
+           page is LAN-reachable, so the box accepts a new one but never displays the stored one. -->
+      <div class="card">
+        <div class="section-title">Push alerts</div>
+        <p class="hint">Where the box sends a sensor-offline or low-disk alert. Any webhook that accepts
+          a JSON POST works — ntfy, Discord, Slack, a Telegram bridge, Home Assistant.
+          <b>The saved address is never shown again</b> (for these services the URL is the password);
+          to change it, type a new one. Leave the box empty and save to keep the current one.</p>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem">
+          <label style="display:flex;gap:.4rem;align-items:center">
+            <input type="checkbox" id="alEnabled"> Send alerts
+          </label>
+          <span class="hint" id="alState">—</span>
+        </div>
+        <input id="alUrl" type="password" autocomplete="new-password" spellcheck="false"
+               placeholder="https://ntfy.sh/your-topic" style="width:100%;max-width:38rem">
+        <div style="display:flex;gap:.5rem;align-items:center;margin-top:.6rem;flex-wrap:wrap">
+          <button class="btn-primary" onclick="saveAlerts(this)">Save alerts</button>
+          <button class="btn" onclick="testAlerts(this)">Send test alert</button>
+          <button class="btn" onclick="clearAlerts(this)">Clear</button>
+          <span class="hint" id="alMsg"></span>
+        </div>
+      </div>
     </section>
 
     <section class="view" id="view-devices">
@@ -741,7 +767,7 @@ function showView(v){
   $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices', settings:'Settings', storage:'Storage'}[v] || v;
   if(v==='overview'){ ovStart(); scopeStop(); clkStop(); }
   else if(v==='scope'){ ovStop(); scopeResume(); clkStop(); }
-  else if(v==='settings'){ ovStop(); scopeStop(); clkStop(); loadSettings(); }
+  else if(v==='settings'){ ovStop(); scopeStop(); clkStop(); loadSettings(); loadAlerts(); }
   else if(v==='storage'){ ovStop(); scopeStop(); clkStop(); loadStorage(); }
   else { ovStop(); scopeStop(); clkStart(); }   // devices view owns the clock/NTP panel
 }
@@ -826,6 +852,60 @@ function stBody(){
   const sched = {mode:$v('stMode')};
   if(sched.mode==='daily'){ sched.at=$v('stAt'); sched.window_min=Number($v('stWin'))||120; }
   return {enabled:true, target:t, schedule:sched};
+}
+
+// ── Push alerts (webhook destination) ────────────────────────────────────────────────────────────
+// The URL is WRITE-ONLY: /api/alerts returns {enabled, configured, hint} and never the URL itself, so
+// the input starts empty even when one is stored. "Empty means keep" is therefore load-bearing — if an
+// empty field meant "clear", toggling the checkbox would silently delete the destination.
+async function loadAlerts(){
+  try{
+    const a = await api('/api/alerts');
+    $('#alEnabled').checked = !!a.enabled;
+    $('#alUrl').value = '';
+    $('#alState').innerHTML = a.configured
+      ? `configured \u2192 <b>${esc(a.hint||'set')}</b>${a.enabled?'':' <span class="bad">(off)</span>'}`
+      : '<span class="bad">no destination set \u2014 alerts go nowhere</span>';
+  }catch(e){ $('#alState').innerHTML = `<span class="bad">${esc(e)}</span>`; }
+}
+
+async function postAlerts(btn, body, verb){
+  btn.disabled = true; $('#alMsg').textContent = verb + '\u2026';
+  try{
+    const r = await api('/api/alerts',{method:'POST',headers:{'content-type':'application/json'},
+                                       body:JSON.stringify(body)});
+    if(!r.ok){ $('#alMsg').innerHTML = `<span class="bad">${esc(r.error||'failed')}</span>`; return false; }
+    $('#alUrl').value = '';
+    $('#alEnabled').checked = !!r.enabled;
+    $('#alState').innerHTML = r.configured
+      ? `configured \u2192 <b>${esc(r.hint||'set')}</b>${r.enabled?'':' <span class="bad">(off)</span>'}`
+      : '<span class="bad">no destination set \u2014 alerts go nowhere</span>';
+    $('#alMsg').innerHTML = '<span class="ok">saved</span>';
+    return true;
+  }catch(e){ $('#alMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; return false; }
+  finally{ btn.disabled = false; }
+}
+
+function saveAlerts(btn){
+  const url = $v('alUrl').trim();
+  const body = {enabled: $('#alEnabled').checked};
+  if(url) body.webhook_url = url;      // omitted => the box keeps the stored one
+  return postAlerts(btn, body, 'saving');
+}
+
+function clearAlerts(btn){
+  // The explicit clear. Sent as "" rather than by omission, which is the keep case.
+  return postAlerts(btn, {webhook_url:'', enabled:false}, 'clearing');
+}
+
+async function testAlerts(btn){
+  btn.disabled = true; $('#alMsg').textContent = 'sending\u2026';
+  try{
+    const r = await api('/api/alerts/test',{method:'POST'});
+    $('#alMsg').innerHTML = r.ok ? '<span class="ok">test alert delivered</span>'
+                                 : `<span class="bad">${esc(r.error||'not delivered')}</span>`;
+  }catch(e){ $('#alMsg').innerHTML = `<span class="bad">${esc(e)}</span>`; }
+  finally{ btn.disabled = false; }
 }
 
 async function saveStorage(btn){

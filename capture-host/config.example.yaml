@@ -125,6 +125,12 @@ o2ring:                   # Wellue O2Ring-S / T8520 specifics.
 # A generic webhook (ntfy.sh, Discord/Slack/Telegram bridge, Home Assistant …). Fires on: a sensor offline
 # past offline_sec, its recovery, the daemon (re)starting, and low disk. A lost bedside night is
 # unrecoverable — this is the difference between fixing it at 1am and finding out at breakfast.
+#
+# SETTABLE FROM THE MONITOR — Settings -> Push alerts. That is the intended way to set it on a headless
+# box, and the field applies to the RUNNING daemon (no restart, so no dropped BLE links mid-night).
+# The monitor will never display a saved URL back to you: for ntfy/Discord/Slack/Telegram the URL *is*
+# the credential and the page is LAN-reachable, so it shows only a scheme+host hint. To change it, type
+# a new one; leave the field empty and save to keep the current one.
 alerts:
   enabled: false
   webhook_url: ""         # e.g. https://ntfy.sh/your-private-topic   (POSTs {"title","message"} JSON)

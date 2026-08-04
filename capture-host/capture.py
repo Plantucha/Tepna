@@ -3949,7 +3949,7 @@ async def main():
             webmon.make_app(BUS, cfg, args.config, ADAPTER, STATUS, _spawn,
                             pull_stored=_pull, polar_pause=polar_offline_op,
                             sync_time=sync_device_time, forget_device=_forget,
-                            on_tz_change=reset_clock_anchor), host, port)
+                            on_tz_change=reset_clock_anchor, notifier=notifier), host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
     # Surface the resolved adapter at boot: a silent mis-pin (hci re-enumeration) is exactly the failure
