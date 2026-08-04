@@ -9,7 +9,7 @@ failure modes that do not look like failures. Read §1 before your first run.
 
 ---
 
-## 1 · Four ways a run fails while looking fine
+## 1 · Six ways a run fails while looking fine
 
 None of these prints anything resembling a test failure. Each cost an hour before it was recognised.
 
@@ -21,6 +21,39 @@ None of these prints anything resembling a test failure. Each cost an hour befor
 | `failed to collect stats` | a test **scans module source** | see §5 — gate-backed since 2026-08-03 |
 | **a rate of 100 %** | `mutmut results` returned EMPTY and something divided by it | `rc != 0`; see below |
 | **`rc` absent from the record** | the printed JSON was truncated | fixed 2026-08-03 — verdict fields now print first |
+| a mutant you reverted **still behaves as mutated** | **stale `.pyc`** — the source is clean, the CODE OBJECT is not | `git status` clean, `inspect.getsource` clean, behaviour wrong; see below |
+| results that do not match the committed source | the source was **edited while the run was copying** | compare the run's start time against the file's mtime |
+
+**⚠️ STALE BYTECODE DEFEATS THE NEGATIVE CONTROL ITSELF — clear `__pycache__` before EVERY run.**
+Measured 2026-08-04 on `cpap_harvest`. The repo lives on a volume with coarse mtime granularity, so a
+mutate → test → restore cycle completing inside one timestamp bucket leaves Python's `(mtime, size)`
+validity check satisfied and the **mutant's `.pyc` is reused against restored source**. The two mutants
+here differed only in a digit (`want <= 0` → `want <= 1`), so the size matched too.
+
+What makes it the worst failure mode in this file: **every surface you would check to diagnose it reads
+clean.** `git status` shows nothing. `git diff` shows nothing. `inspect.getsource` prints the correct
+body — it re-reads the FILE by line number, not the code object. The only tell is that a hand-trace of
+the function disagrees with what the function returns.
+
+It corrupts the audit in BOTH directions: two killable mutants read as survivors (and would have been
+filed as findings, or "fixed" with tests that were already correct), and any mutant that read as killed
+could equally have been killed by a stale cache rather than by the test. **A negative-control matrix run
+without clearing bytecode is not evidence.** Put the clear inside the loop, before each pytest:
+
+```sh
+find . -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null
+```
+
+`mutmut` itself is NOT exposed to this — mutmut 3 keeps every mutant in one inline file and selects at
+runtime by env var, so the module source never changes between mutants and the cache stays valid. The
+exposure is exactly the hand-rolled apply/revert loop this runbook tells you to write.
+
+**⚠️ DO NOT EDIT THE SOURCE WHILE A RUN IS IN FLIGHT.** Also 2026-08-04, same module: a confirmation run
+started at 05:33:39 and the negative-control cycles rewrote `cpap_harvest.py` at 05:37:15, underneath
+it. Whatever it copied was a moving target, so its numbers describe no particular version of the code.
+Kill such a run rather than waiting it out — a 26-minute result you cannot attribute is worth less than
+starting again. Note this makes the two hazards compound: the apply/revert loop that needs the cache
+clear is the same loop that must not overlap a run.
 
 **The 100 % case is the dangerous one and it was self-inflicted.** On 2026-08-03 the scratch-reuse
 refreshed only the test files NAMED IN THE SELECTION; `tests/_srcscan.py` is a helper, never named, so a
