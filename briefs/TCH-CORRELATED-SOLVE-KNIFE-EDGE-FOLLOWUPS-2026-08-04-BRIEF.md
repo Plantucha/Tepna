@@ -75,11 +75,34 @@ the obvious suspect.
       ⚠ The first implementation **blew the stack**: `tchRhoCrit` probes the solver ~120 times, each probe
       re-entered `tchRhoCrit`, and the `_noCrit` guard was set on the caller's object rather than on the
       one actually passed. Guard the object you hand over, not the one you were handed.
-- [ ] **Refuse, do not report, inside a margin of ρ_crit.** Pick the margin from the data, not by taste:
-      measure how σ(uncorrelated corner) varies with ρ near the boundary and refuse where the derivative
-      makes σ unidentifiable. Record the measured sensitivity beside the choice — and note the sibling
-      lesson from `EDR-THRESHOLD-MARGIN-FOLLOWUPS` §3: state a margin only where the two regimes actually
-      separate; where they do not, publish the sensitivity instead of inventing a boundary.
+- [x] **MEASURED 2026-08-04 — there is NO margin to pick, so the sensitivity is published instead.**
+      This item hedged correctly: the sibling lesson applies, and the regimes do not separate.
+
+      | distance from ρ_crit | 0.200 | 0.100 | 0.050 | 0.020 | 0.010 | 0.005 | 0.002 |
+      |---|---|---|---|---|---|---|---|
+      | σ(collapsing corner) | 1.618 | 1.227 | 0.902 | 0.584 | 0.417 | 0.296 | **0.188** |
+      | dσ per 0.01 of ρ | −0.030 | −0.051 | −0.080 | −0.133 | −0.183 | −0.242 | **−0.324** |
+
+      **Smooth and monotonic all the way in.** No point at which σ becomes "suddenly" unidentifiable, so
+      any refusal threshold would be taste wearing a number — exactly what
+      `EDR-THRESHOLD-MARGIN-FOLLOWUPS` §3 warns against after the same thing happened with the RR-
+      regularity constants.
+
+      **So the question is re-framed, and that is the deliverable.** Not *"how close to ρ_crit is too
+      close"* but **"how precisely is ρ known?"** — which only the caller can answer, so the solve now
+      publishes the arithmetic rather than a verdict:
+
+      - `nearest.sigmaPerRho` — the local dσ/dρ, in bpm per 0.01 of ρ.
+      - `nearest.rhoFor0p1` — the ρ precision needed to pin σ to ±0.1 bpm.
+
+      At the measured ρ = 0.42 that is **−0.324 bpm per 0.01**, i.e. **ρ must be known to ±0.0031**. A
+      night-level ρ estimated from one recording is nowhere near that precise, so **σ(CPAP) is not
+      identifiable here — and would not be even if the operating point sat further from the boundary**.
+      That is a stronger and more useful statement than a refusal flag.
+
+      **Gated** — `analysis-stats · rho-crit` grows to 18 assertions, with the anti-vacuity leg carrying
+      the meaning: far from the boundary the same field reports **−0.030** and tolerates **±0.0338**, a
+      10× contrast against the operating point.
 - [ ] **Test whether one constant ρ per pair is the mis-specification.** ρ(ECG,PPG) is estimated over a
       whole night; if it varies by epoch, the night-level value can sit near ρ_crit while no epoch does.
       Re-estimate per epoch and re-solve; if the per-epoch solves are stable while the pooled one

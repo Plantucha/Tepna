@@ -3162,6 +3162,25 @@
       T.ok('a well-conditioned triple solves', wide.ok === true);
       if (wide.ok && wide.rhoCrit && wide.rhoCrit.nearest) T.ok('…and reports a MUCH larger margin', wide.rhoCrit.nearest.margin > 10 * (c42.rhoCrit ? c42.rhoCrit.nearest.margin : 1), 'wide ' + wide.rhoCrit.nearest.margin.toFixed(3) + ' vs real ' + (c42.rhoCrit ? c42.rhoCrit.nearest.margin.toFixed(4) : '—'));
 
+      /* ── SENSITIVITY, not a refusal threshold (KNIFE-EDGE §2) ────────────────────────────────
+         §2 asked for a refusal margin "picked from the data". There is none to pick: σ's sensitivity to
+         ρ rises smoothly to the boundary with no regime change (0.200 → 0.002 from ρ_crit takes
+         dσ/dρ from −0.030 to −0.324 per 0.01, monotonically). That is EDR-THRESHOLD-MARGIN §3 again —
+         publish the sensitivity where the regimes do not separate. `rhoFor0p1` turns it into arithmetic
+         the caller can do: if its ρ estimate is looser than that, the σ is not identifiable however far
+         from the boundary it sits. */
+      if (c42.rhoCrit && c42.rhoCrit.nearest) {
+        var s42 = c42.rhoCrit.nearest;
+        T.ok('the solve publishes dσ/dρ', typeof s42.sigmaPerRho === 'number', 'sigmaPerRho absent — the σ is unqualified');
+        T.approx('…and it matches the standalone sweep at the operating point', s42.sigmaPerRho, -0.324, 0.02);
+        T.approx('…and the ρ precision needed to pin σ to ±0.1 bpm', s42.rhoFor0p1, 0.0031, 0.0005);
+        /* ANTI-VACUITY: far from the boundary the SAME field must report a far gentler slope, or
+           "steep" means nothing. */
+        var far = A.tchSigmasPairwiseFromVars(vAB, vAC, vBC, { bc: 0.222 });
+        T.ok('far from ρ_crit the slope is much gentler', far.ok && Math.abs(far.rhoCrit.nearest.sigmaPerRho) < 0.5 * Math.abs(s42.sigmaPerRho), far.ok ? 'far ' + far.rhoCrit.nearest.sigmaPerRho.toFixed(3) + ' vs near ' + s42.sigmaPerRho.toFixed(3) : 'no solve');
+        T.ok('…and correspondingly tolerates a looser ρ', far.ok && far.rhoCrit.nearest.rhoFor0p1 > 3 * s42.rhoFor0p1, far.ok ? '±' + far.rhoCrit.nearest.rhoFor0p1.toFixed(4) + ' vs ±' + s42.rhoFor0p1.toFixed(4) : '');
+      }
+
       // ── reported even at ρ=0: "how far is independence from collapse" is information ──
       T.ok('a classic (ρ=0) solve still reports its distance to collapse', !!(c0.rhoCrit && c0.rhoCrit.nearest), 'absent at ρ=0');
 

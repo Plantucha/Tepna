@@ -244,6 +244,40 @@
         if (nearest === null || dirs[d].margin < nearest.margin) nearest = { pair: pair, dir: d, at: dirs[d].at, margin: dirs[d].margin };
       });
     });
+    /* ── SENSITIVITY, NOT A REFUSAL THRESHOLD (KNIFE-EDGE §2) ────────────────────────────────────
+       §2 asked to "refuse inside a margin of ρ_crit, picked from the data". Measured, there is no
+       margin to pick: σ's sensitivity to ρ rises SMOOTHLY all the way to the boundary, with no regime
+       change to threshold on —
+
+         distance from ρ_crit   0.200   0.100   0.050   0.020   0.010   0.005   0.002
+         σ(collapsing corner)   1.618   1.227   0.902   0.584   0.417   0.296   0.188
+         dσ per 0.01 of ρ      −0.030  −0.051  −0.080  −0.133  −0.183  −0.242  −0.324
+
+       That is EDR-THRESHOLD-MARGIN-FOLLOWUPS §3's rule applying again: state a margin only where the
+       regimes separate; where they do not, publish the sensitivity. So the useful question is not "how
+       close to ρ_crit is too close" but "HOW PRECISELY IS ρ KNOWN?" — and that is arithmetic the caller
+       can do, because only the caller knows its ρ's uncertainty. `rhoFor0p1` is the ρ precision needed
+       to pin σ to ±0.1 bpm; if the ρ estimate is looser than that, the σ is not identifiable, however
+       far from the boundary it sits. */
+    if (nearest) {
+      var h = 0.005;
+      var probe = function (v) {
+        var r = { ab: base.ab, ac: base.ac, bc: base.bc, _noCrit: true };
+        r[nearest.pair] = v;
+        var o = tchSigmasPairwiseFromVars(vAB, vAC, vBC, r);
+        if (!o || !o.ok) return null;
+        // the corner that collapses is the one nearest zero at the operating point
+        var m = Math.min(o.a, o.b, o.c);
+        return m;
+      };
+      var atOp = probe(base[nearest.pair]);
+      var away = probe(base[nearest.pair] - Math.sign(nearest.at - base[nearest.pair] || 1) * h);
+      if (atOp !== null && away !== null && h > 0) {
+        var dSigma = (atOp - away) / h; // per unit ρ
+        nearest.sigmaPerRho = dSigma * 0.01; // per 0.01 of ρ — the readable unit
+        nearest.rhoFor0p1 = Math.abs(dSigma) > 0 ? 0.1 / Math.abs(dSigma) : null;
+      }
+    }
     return { pairs: per, nearest: nearest };
   }
 
