@@ -226,7 +226,16 @@ def test_model_OVER_predicts_when_the_interval_is_measured_with_noise():
     `E[eps+]` is convex, so independent noise on the measured interval can only INCREASE it. The sidecar
     records HOST ARRIVAL times while the ring samples its counter when it builds the reply, so the
     measured interval carries BLE delivery jitter the ring never saw — and the prediction inflates.
-    Measured over 66 clean sessions: median 1.85x too high (IQR 1.46-2.21).
+    Measured over 66 clean sessions: median 1.85x too high (IQR 1.46-2.21); re-measured 2026-08-04 over
+    the whole 220-sidecar box corpus (62 sessions, 324,073 intervals) at 1.24x flat / 1.45x double,
+    pooled 1.31x, median per session 1.64x.
+
+    That the cause is DELIVERY JITTER rather than a modelling error is no longer a hypothesis: the excess
+    vanishes monotonically under running-median smoothing of the host stamps and crosses 1.00 at width ~2,
+    which places it at the adjacent-sample scale — real clock divergence is the low-frequency part and
+    would survive. A phase-accumulator variant, the obvious rival explanation, is WORSE (1.35x/1.63x).
+    See O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2.1a. Do NOT scale the output by any of these numbers, and do
+    NOT pick a smoothing width by the ratio it produces — signal and noise share a band here.
 
     If someone later 'fixes' the over-prediction by scaling the output, this still holds and the scale
     factor is revealed as the fudge it would be — the defect is in the INPUT, not the formula."""
