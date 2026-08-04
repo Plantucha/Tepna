@@ -77,7 +77,16 @@ a full backfill is using the slower one.
 
 - [ ] §1 — `alerts:` configured on the box **and** deployed (`git pull` + `sync-apps.sh`), proven by an
       induced failure delivering a real webhook
-- [ ] §2 — `_read_char`'s absence-is-absence promise gated with a fake client, by the PMD work-unit
+- [x] **§2 — DONE 2026-08-04.** `capture-host/tests/test_probe_read_char.py`, 13 assertions, no hardware
+      (the whole surface is one awaitable, so a fake client covers every branch). The routing in §2 —
+      *"whoever lands the PMD work should take it"* — had **passed without anyone taking it**:
+      `POLAR-PMD-COMMAND-SURFACE-2026-08-02` is now `REFERENCE (living)`, so the collision the note was
+      avoiding no longer existed. Mutation-verified rather than asserted: narrowing `except Exception`
+      to `except TimeoutError` (the exact rot a fail-open shape invites) kills **6** assertions, and
+      deleting the `UnicodeDecodeError → hex` fallback kills 1. Two assertions cover `read_identity`
+      rather than `_read_char` alone, because the promise is about the *sweep* surviving — one checks
+      the later reads are still **attempted**, since a version that returned placeholders without
+      trying would satisfy a shape-only test while collecting nothing.
 - [x] **§3 — the guarantee sweep is run over the JS spine, and the reusable half is now a TOOL**
       (2026-08-03). `tools/guarantees.mjs`; census below. The non-reusable half — cross-referencing
       names against the test tree — is deliberately not built, for the reason §3 gives.
