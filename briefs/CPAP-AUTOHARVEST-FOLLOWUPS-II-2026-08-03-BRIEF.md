@@ -13,7 +13,54 @@ residue — none of it blocks what shipped, and two of the four items are not co
 
 ---
 
-## 1 · The alert transport is still OFF on the box (owner)
+## 1 · The alert transport — MEASURED IN THE FIELD 2026-08-04: both stated causes are GONE, one link unproven
+
+**Status change, from the box itself rather than from the repo.** §1 named two independent reasons no
+failure could page anyone. Checked directly over ssh, and neither still holds:
+
+| §1's cause | state on 2026-08-04 |
+|---|---|
+| no `alerts:` block ⇒ `Notifier(None, enabled=False)` | **resolved** — `alerts:` present, `enabled: true`, real `webhook_url` |
+| the fix is committed, not shipped | **still true** — see below |
+
+Three things had to be true for an alert to leave the box, and two are now verified:
+
+- **The config is read by the RUNNING process, not just present on disk.** This is a distinct question
+  from "is the file right", and the same *committed-not-shipped* shape one level down: a daemon started
+  before the edit holds the old, disabled `Notifier` in memory while the file reads correctly. Config
+  mtime `2026-08-03 21:26`, `tepna-capture` ActiveEnterTimestamp `2026-08-04 08:30` — the daemon started
+  **after** the edit. Confirmed by constructing the notifier exactly as `capture.py:3677` does against
+  the deployed config: **`notifier.enabled = True`**.
+- **The transport dependency is present.** `aiohttp 3.14.3` in the daemon's own venv
+  (`/opt/tepna/capture-host/.venv`, python3.14).
+- **The decision half fires on a failure state.** The shipped predicates, run against synthetic state:
+  `offline_alert_due(down 600 s, threshold 300) = True`, `(down 60 s) = False`,
+  `device_is_recording(connected, stale 900 s) = False`. A ten-minute outage raises; a one-minute blip
+  does not.
+
+**What is still unproven is the POST itself** — no alert has yet been observed to arrive. The harness is
+written and sits at `/tmp/alerttest.py` on the box; it needs one execution under the daemon's venv
+interpreter. Until that runs, §1's Done-when is NOT met, and this section deliberately does not claim it.
+
+**A methodological warning worth more than the result.** The first run of that harness returned
+`send() = False` with `ModuleNotFoundError: aiohttp` — and that was the HARNESS, not the box: it used
+the system `python3`, which has no aiohttp, while the daemon runs `.venv/bin/python`. Filed as-is it
+would have been a false defect against a working transport, and the same trap has already cost this
+family a silently-incomplete pytest collection. **On this box, use the daemon's own interpreter or
+measure nothing.**
+
+**§1.2 stands and is now quantified: the box is 111 commits behind `origin/main`,** and the
+raising-harvest alert fix is confirmed absent from the deployed `capture.py` (grep finds no such alert).
+So even with the transport live, that particular alert still cannot fire in the field. Deploying is the
+two-step (`git pull` **and** `sync-apps.sh`) and is an owner-timed action: pushing 111 commits to a live
+capture box can interrupt an active recording, so it wants a quiet window, not an autopilot moment.
+
+**A design note that survives the outcome.** `alerts.py`'s `send()` swallows the exception — a webhook
+must never crash capture — but logs `alert %r not delivered: %r` at WARNING, with a comment recording
+that an earlier audit fixed exactly the silent-swallow this brief family cares about. The alert is lost
+either way; the *record* of losing it is not. That is the right shape and needs no change.
+
+### 1-original · The alert transport is still OFF on the box (owner)
 
 Carried verbatim from the parent §2.2, because it is the one item where the repo is green and the
 **field is not**. Two independent reasons no failure can page anyone today:
@@ -75,8 +122,12 @@ a full backfill is using the slower one.
 
 ## 5 · Done when
 
-- [ ] §1 — `alerts:` configured on the box **and** deployed (`git pull` + `sync-apps.sh`), proven by an
-      induced failure delivering a real webhook
+- [~] §1 — **`alerts:` IS configured and IS read by the running daemon (verified 2026-08-04, §1 above);
+      `aiohttp` is present in the daemon venv; the failure predicates fire.** Two of the section's three
+      links are proven. Outstanding: (a) one execution of `/tmp/alerttest.py` under
+      `/opt/tepna/capture-host/.venv/bin/python` to observe a real delivery, and (b) the deploy — the box
+      is **111 commits behind** and the raising-harvest alert is confirmed absent from the deployed
+      `capture.py`, so that alert cannot fire in the field regardless of transport.
 - [x] **§2 — DONE 2026-08-04.** `capture-host/tests/test_probe_read_char.py`, 13 assertions, no hardware
       (the whole surface is one awaitable, so a fake client covers every branch). The routing in §2 —
       *"whoever lands the PMD work should take it"* — had **passed without anyone taking it**:
