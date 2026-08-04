@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-12 (**§A + §B EXECUTED** — and in BOTH cases this brief's own prescription was wrong; the corrections are recorded in place. **§D1 · §D2 · §E1 EXECUTED 2026-07-13** — EVENT-LEXICON §7 records the CPAPDex-annotation + HRVDex-window decisions, and the fixture content-claims are swept-clean + byte-locked as a new gate. **§C1 EXECUTED 2026-07-29** — movement PROVEN across 76 real nights and it was not marginal (`respRateBpm` changed its published label on 76/76 nights); `spo2Ac1` is now whole-record and the three LOCAL metrics are medians over 30-min windows, all four disclosing `basis`. **§C2 EXECUTED 2026-07-29** — the corpus showed "one denominator" is UNACHIEVABLE (OxyDex's only sleep estimate reads 99.1–99.9 % on every night, missing ECGDex TST by a median 58 min, and converting puts REM above 100 % of sleep on four nights), so each leg now DECLARES `remFractionBasis` and the fusion refuses to compare across clocks. **Still open:** §C3 (ROUTED to `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`, which now owns it) + §E2 (version-into-bundle, deferred)) · **Created:** 2026-07-12 · **Supersedes:** — · **Parent:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, all 21 findings executed)
+**Status:** DONE — 2026-08-04 (**Every section executed; the two 'still open' items are not open work — see below.** **§C3** was routed on 2026-07-29 to a brief that never named it and has since closed; **re-routed 2026-08-04** to `REM-STAGING-FOLLOWUPS-2026-08-02` §2b, which genuinely owns it (real-PSG-label scoring; path built and proven, blocked only on DUA records). **§E2** version-into-bundle is a **standing deferral in CLAUDE.md §📦** — *"rides the next behavioral re-bundle; don't re-bundle 8 apps to carry a string"* — so it is repo policy, not an outstanding task for this brief. Prior note follows.) · **2026-07-12:** (**§A + §B EXECUTED** — and in BOTH cases this brief's own prescription was wrong; the corrections are recorded in place. **§D1 · §D2 · §E1 EXECUTED 2026-07-13** — EVENT-LEXICON §7 records the CPAPDex-annotation + HRVDex-window decisions, and the fixture content-claims are swept-clean + byte-locked as a new gate. **§C1 EXECUTED 2026-07-29** — movement PROVEN across 76 real nights and it was not marginal (`respRateBpm` changed its published label on 76/76 nights); `spo2Ac1` is now whole-record and the three LOCAL metrics are medians over 30-min windows, all four disclosing `basis`. **§C2 EXECUTED 2026-07-29** — the corpus showed "one denominator" is UNACHIEVABLE (OxyDex's only sleep estimate reads 99.1–99.9 % on every night, missing ECGDex TST by a median 58 min, and converting puts REM above 100 % of sleep on four nights), so each leg now DECLARES `remFractionBasis` and the fusion refuses to compare across clocks. **Still open:** §C3 (ROUTED to `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`, which now owns it) + §E2 (version-into-bundle, deferred)) · **Created:** 2026-07-12 · **Supersedes:** — · **Parent:** `DEEP-AUDIT-2026-07-11-BRIEF.md` (DONE 2026-07-12, all 21 findings executed)
 
 # Deep-audit follow-ups — the residue, and the blind spot that hid it
 
@@ -275,6 +275,25 @@ self-report `plausible:false`; 0 render "good", previously 39/39 did). It did **
 *increased* HR variability). That is research, not an audit fix. **Do:** re-derive against a staged
 reference, or demote the metric out of the surfaced set entirely.
 
+> **⚠️ C3 — RE-ROUTED 2026-08-04. The 2026-07-29 routing pointed at a brief that never accepted it.**
+> `REM-STAGING-REDESIGN-2026-07-28` contains **zero** references to C3 or to this brief, and has since
+> closed as `DONE — measured negative`. An item handed to a brief that does not name it, and that then
+> closes, is not routed — it is dropped. (**Third instance found today**, after `CPAP-AUTOHARVEST-FOLLOWUPS-II`
+> §2 and `TCH-FUSED-ROBUST-HAT`'s fused-overlay item. The pattern is worth naming: routing is only real
+> when the *target* records the item, and nothing in this repo checks that it did.)
+>
+> **The substance is alive, under a different owner.** C3 asks to *"re-derive against a staged reference,
+> or demote the metric out of the surfaced set entirely."* That is precisely
+> **`REM-STAGING-FOLLOWUPS-2026-08-02` §2b** — score the shipped conjunction against **real PSG labels** —
+> whose path is now built and proven end-to-end (`tools/nsrr-stage-validate.mjs`, 2026-08-04) and blocked
+> only on obtaining NSRR records under a DUA. C3 is therefore re-pointed there, at a brief that does name it.
+>
+> **And C3's *second* option has gained weight since it was written.** `REM-STAGING-REDESIGN` ended in a
+> measured negative and `REM-STAGING-FOLLOWUPS` §3 showed the score is a *stability* detector while REM is
+> the least stable stage. "Demote the metric out of the surfaced set" is no longer the fallback — it is a
+> live candidate that a staged reference would either rescue or settle.
+>
+> *(Original 2026-07-29 note follows.)*
 > **C3 — ROUTED, not executed 2026-07-29.** This is research, as the section says, and it now has an
 > owner: `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md`, actively being executed by a parallel session
 > (PRs #521/#522/#523 landed today). That brief has already established what C3 suspected and more —
