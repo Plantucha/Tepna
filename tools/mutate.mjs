@@ -299,12 +299,21 @@ let _pool = null;
 function workerPool() {
   if (_pool) return _pool;
   _pool = [];
+  /* SETUP IS NOT FREE AND MUST NOT BE SILENT. Each worker is a full `git worktree add` (~71 MB here),
+     so building the pool takes MINUTES before a single mutant is tested — measured at ~11 min for 16
+     workers. Printing nothing for that window makes a healthy run indistinguishable from a hang at
+     exactly the moment a watcher first checks, which is the failure this tool's own header objects to
+     elsewhere ("a measurement harness that lies about its own state"). One line per worker, on stderr,
+     in every mode. */
+  const _poolT0 = Date.now();
+  process.stderr.write('  building worker pool: ' + JOBS + ' worktree(s), each a full checkout — this takes minutes\n');
   for (let w = 0; w < JOBS; w++) {
     const dir = join(ROOT, '..', '.mutate-w' + w + '-' + process.pid);
     try {
       execFileSync('git', ['worktree', 'add', '--detach', '--quiet', dir, 'HEAD'], { cwd: ROOT, stdio: 'ignore' });
       syncDirty(dir);
       _pool.push(dir);
+      process.stderr.write('    worker ' + _pool.length + '/' + JOBS + ' ready  (' + Math.round((Date.now() - _poolT0) / 1000) + 's)\n');
     } catch (e) {
       /* Out of disk, or git cannot add a worktree here. Do NOT abort the run: carry on with however
          many workers were created, and fall back to the serial in-place path if that is none. Each
@@ -413,6 +422,7 @@ async function runFile(file) {
   const trees = [];
   const _t0 = Date.now();
   let _lastLine = 0;
+  const _stamps = []; // completion times, for a trailing-window rate
   const tick = () => {
     /* Progress on stderr in EVERY mode. It was gated on !AS_JSON, so a --json run printed nothing at
        all for its whole duration: no way to distinguish a working run from a stalled one, and no way
@@ -436,10 +446,24 @@ async function runFile(file) {
     const dueTime = el - _lastLine >= 30;
     if (!dueCount && !dueTime) return;
     _lastLine = el;
-    const rate = done / Math.max(el, 0.001);
+    /* ETA FROM A TRAILING WINDOW, not from `done/elapsed`. The first mutant carries the whole pool
+       build, so a cumulative rate projected 644 min for a run that takes ~10 h and would have read
+       far worse on a shorter one — an ETA that wrong is noise, and a watcher who learns to ignore it
+       has lost the only signal that says whether to wait. Measure the recent slope instead: the time
+       for the last `_win` completions, which after the first few is the steady-state rate. */
+    _stamps.push(el);
+    if (_stamps.length > 12) _stamps.shift();
+    let rate;
+    if (_stamps.length >= 3) {
+      const span = _stamps[_stamps.length - 1] - _stamps[0];
+      rate = span > 0 ? (_stamps.length - 1) / span : 0;
+    } else {
+      rate = done / Math.max(el, 0.001); // too few samples to trend — cumulative, and it says so below
+    }
     const etaS = rate > 0 ? Math.round((picked.length - done) / rate) : 0;
+    const etaWarm = _stamps.length >= 3;
     const mmss = (t) => Math.floor(t / 60) + 'm' + String(Math.round(t % 60)).padStart(2, '0') + 's';
-    process.stderr.write('  ' + body + '  elapsed ' + mmss(el) + (done < picked.length ? '  eta ' + mmss(etaS) : '  done') + '\n');
+    process.stderr.write('  ' + body + '  elapsed ' + mmss(el) + (done < picked.length ? '  eta ' + mmss(etaS) + (etaWarm ? '' : ' (warming — includes pool build)') : '  done') + '\n');
   };
   /* `v` is either the legacy string (the serial in-place path, which still uses the sync runner) or
      `{ verdict, killers }` from the async pool. Normalising here keeps both paths on one classifier

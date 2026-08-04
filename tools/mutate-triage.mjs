@@ -143,9 +143,30 @@ if (IS_CLI) {
       console.error('usage: --report <mutate.mjs --json output>');
       process.exit(2);
     }
+    /* `mutate.mjs --json` emits NDJSON — ONE OBJECT PER FILE, not a wrapper with a `files` array.
+       The first version of this reader assumed the wrapper shape and reported "no survivors" on a run
+       carrying 34 of them: a triage tool that silently finds nothing is worse than one that errors,
+       because "nothing to triage" reads like good news. Accept both shapes, and refuse loudly if
+       neither parses. */
     const raw = readFileSync(runPath, 'utf8');
-    const run = JSON.parse(raw.slice(raw.indexOf('{')));
-    const files = run.files || run.results || [];
+    const files = [];
+    for (const line of raw.split('\n')) {
+      const t = line.trim();
+      if (!t.startsWith('{')) continue;
+      let o;
+      try {
+        o = JSON.parse(t);
+      } catch {
+        continue;
+      }
+      if (Array.isArray(o.files)) files.push(...o.files);
+      else if (Array.isArray(o.results)) files.push(...o.results);
+      else if (o.file) files.push(o);
+    }
+    if (!files.length) {
+      console.error('--report: no per-file records found in ' + runPath + ' — expected NDJSON from `mutate.mjs --json`');
+      process.exit(2);
+    }
     const rows = [];
     for (const f of files) {
       const surv = f.survivors || [];
