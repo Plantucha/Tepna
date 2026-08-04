@@ -17,9 +17,16 @@
  * WHAT IT DOES NOT DO, deliberately:
  *   · it never edits a BRIEF. The header is the source of truth; a tool that could rewrite the source
  *     of truth to match its copy would be able to make any disagreement disappear in the wrong
- *     direction. Only the index row moves.
+ *     direction. Only `DOCS-INDEX.md` moves.
  *   · it never ADDS a marker to a row that has none. check3b reports those separately as `statusBlind`,
  *     and there are legitimately status-less rows; inventing a marker would silence a different check.
+ *
+ * SCOPE — every status marker attached to a brief LINK, not only table rows. Observed on first real use
+ * (2026-08-04): `REPO-DISCOVERABILITY-2026-07-03` is referenced twice — the table row at :215 AND a
+ * prose blockquote at :34 carrying its own `*(IN-PROGRESS 2026-07-04)*`. Both were stale and both were
+ * synced. That is correct and is the intent: a stale marker misleads wherever it sits, and check3b's
+ * `statusBlind`/decoration rules apply the same way in prose. The earlier wording here said "only the
+ * index row", which described less than the tool does.
  *   · it does not touch REFERENCE or CHECKPOINT briefs — check3b only compares the three executable
  *     statuses, so neither should this.
  *
