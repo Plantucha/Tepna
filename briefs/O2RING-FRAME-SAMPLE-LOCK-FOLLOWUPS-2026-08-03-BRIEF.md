@@ -25,15 +25,50 @@ be the third reading of the same data.
 `ppg_n` now records the declared count directly. **One night reads it off the file**: group `ppg_n` by
 `ppg_dur_step` and confirm `+2` steps carry ~127 rather than ~252. Costs a night and no code.
 
-## 2 · Model the step quantization, then predict the ratio
+## 2 · MEASURED 2026-08-04 — the model predicts the SHAPE, and the level to within ~2x
 
-§7.2 explains the 159/180 split as a beat between the ring's 1.00346 s second and the 1.0028 s poll
-interval, but only *qualitatively* — it does not predict that particular ratio. If the model is right,
-the imbalance `steps_ahead − steps_flat` should track the poll interval, which is testable against
-sessions captured at different cadences (the corpus has them). A model that predicts the ratio would
-turn §7.2 from an explanation into a measurement.
+Built as `capture.predict_step_split` and tested against **66 clean sessions**. The quantitative form:
+the ring's counter reads `floor(t / ring + phase)`, so between two polls it advances by 1 plus whichever
+way the fractional phase wrapped. With the phase equidistributed — it sweeps ~22 full cycles across a
+night — and a per-poll relative error `eps = (delta - ring) / ring`:
 
-Until then, treat `step_imbalance` as descriptive.
+```
+n(step=2) / N = E[eps+]          n(step=0) / N = E[eps-]
+```
+
+**What it gets right:** the step alphabet ({0,1,2} and nothing else, matching the corpus), the sign
+(a poll interval shorter than the ring second slips the phase backwards, so 0s must outnumber 2s — and
+they do, 180 vs 159), and the scale.
+
+**What it gets wrong: the level, by a stable factor.** Median over-prediction **1.85x**, IQR
+**1.46-2.21**. So §2 as posed — *"a model that predicts the ratio would turn §7.2 from an explanation
+into a measurement"* — is **not achieved**. It is a bound, good to about a factor of two.
+
+⚠️ **The identity is not evidence.** `n0 - n2 = N * (1 - mean step)` follows from `mean = (n1 + 2*n2)/N`
+and `N = n0+n1+n2` by algebra alone — it holds for *any* data with steps in {0,1,2} and cannot test
+anything. A first pass here mistook its agreement (predicted 22, observed 21) for a confirmation.
+
+### 2.1 · Why it over-predicts, and why that cannot be settled from what is recorded
+`E[eps+]` is **convex**, so independent noise on the measured interval can only inflate it. The sidecar
+records **host arrival** times, while the ring samples its counter when it builds the reply — so the
+measured interval carries BLE delivery jitter the ring never saw. Simulation puts a 1.85x inflation at
+plausible ratios (~5 ms true poll jitter with ~8 ms delivery jitter).
+
+That explanation is **not refuted** by the near-zero correlation between over-prediction and total
+arrival jitter (**r = +0.06**, 66 sessions), because the inflation depends on the delivery/poll **ratio**
+— roughly constant across one daemon — and not on the total. But it is also **not confirmed**, and it
+cannot be from this data: nothing records when the poll was *issued*.
+
+**The cheap fix is capture-side:** one more column, the poll-issue time beside the arrival time, makes
+the model directly testable. Same shape as §1's dependency — a recording change, not an analysis one.
+
+### 2.2 · Gated
+`predict_step_split` ships with the 1.85x bound in its own docstring, so the output cannot be read as
+exact. Four assertions: pure drift gives backward wraps only; zero-mean jitter moves n0 and n2 together
+and leaves their difference alone; **noise on the input inflates both predictions** (the convexity that
+explains the 1.85x, asserted so that "fixing" the gap by scaling the output is visibly a fudge — the
+defect is in the input, not the formula); and no usable input returns NaN rather than a guess.
+Mutation-verified: collapsing the sign split fails the drift assertion.
 
 ## 3 · RESOLVED 2026-08-04 — `counted_loss` is RETIRED, because neither option works
 

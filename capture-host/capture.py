@@ -9,7 +9,7 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, contextlib, json, logging, os, signal, time as _time, datetime as _dt
+import argparse, asyncio, contextlib, json, logging, math, os, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter,
                      HostClockLogWriter, capture_filename, missing_identity, night_dir,
                      open_sample_writers)
@@ -355,6 +355,48 @@ _O2PPG_EST_BAND = 0.05      # hard clamp: the estimate may not claim a rate more
                             # belongs in `o2ring.ppg_fs` where a human can see it.
 _O2PPG_EST_SLEW = 0.002     # and it may not move more than 0.2 % per frame, so no single pathological
                             # arrival can step the grid's rate.
+
+
+def predict_step_split(deltas_ms, ring_ms):
+    """Predict how many of the ring's duration steps will be 0 and 2, from the poll intervals alone.
+
+    O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2. §7.2 explained the 159/180 split as a beat between the ring's
+    second and the poll interval, but only qualitatively. The quantitative form: the ring's counter reads
+    `floor(t / ring_ms + phase)`, so between two polls it advances by 1 plus whichever way the fractional
+    phase wrapped. With the phase equidistributed (it sweeps ~22 full cycles across a night) and a
+    per-poll relative error `eps = (delta - ring_ms) / ring_ms`:
+
+        n(step=2) / N = E[eps+]        n(step=0) / N = E[eps-]
+
+    ⚠️ IT OVER-PREDICTS BY ~1.85x AND THAT IS THE POINT OF SHIPPING IT. Measured over 66 clean sessions:
+    median **1.85x** (IQR 1.46-2.21). The identity it CANNOT get wrong — `n0 - n2 = N * (1 - mean step)`
+    — is arithmetic, not evidence; the level is the testable part and it is off by about a factor of two.
+
+    The leading explanation is that `E[eps+]` is CONVEX, so noise in `eps` inflates it: the sidecar
+    records HOST ARRIVAL times, while the ring samples its counter when it builds the reply, so the
+    measured interval is the true poll interval plus BLE delivery jitter. Simulation puts a 1.85x
+    inflation at plausible ratios (~5 ms true poll jitter with ~8 ms delivery jitter). That explanation
+    is NOT refuted by the near-zero correlation between over-prediction and total arrival jitter
+    (r = +0.06, 66 sessions), because the inflation depends on the delivery/poll RATIO — roughly constant
+    across one daemon — and not on the total.
+
+    It also cannot be CONFIRMED with what is recorded. Settling it needs the poll-ISSUE time beside the
+    arrival time, which the sidecar does not carry. Until then this is a bound, not a predictor: treat
+    the output as an upper bound on the non-unit step counts, good to about a factor of two.
+
+    Returns {n0, n2, n} — expected counts, not rounded, so a caller can see the fractional part.
+    """
+    d = [float(x) for x in deltas_ms if x is not None and math.isfinite(float(x))]
+    if not d or not (ring_ms and math.isfinite(ring_ms) and ring_ms > 0):
+        return {"n0": float("nan"), "n2": float("nan"), "n": len(d)}
+    pos = neg = 0.0
+    for x in d:
+        e = (x - ring_ms) / ring_ms
+        if e > 0:
+            pos += e
+        else:
+            neg -= e
+    return {"n0": neg, "n2": pos, "n": len(d)}
 
 
 class O2PpgFrameLedger:
