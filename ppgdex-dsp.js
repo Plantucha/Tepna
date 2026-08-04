@@ -2835,8 +2835,18 @@
     // ── Segment-wise SDNN (SDNN-VS-ECG-GROUND-TRUTH, validated on the 2026-07-07 paired night) ──
     // Whole-record SDNN folds in SDANN (drift BETWEEN 5-min means) + a few motion/artifact epochs,
     // which optical baseline-wander/PTT inflates most → +26% vs chest ECG. Segment-wise aggregation
-    // removes both: sdnnIndex (mean per-5-min SDNN, Task-Force) → +18%; the QUALITY-GATED MEDIAN of
-    // per-5-min SDNN → +3.5% vs ECG truth. These are additive; whole-record `sdnn` is unchanged.
+    // removes both: sdnnIndex (mean per-5-min SDNN, Task-Force); the QUALITY-GATED MEDIAN of per-5-min
+    // SDNN removes the most. These are additive; whole-record `sdnn` is unchanged.
+    //
+    // THE BIAS MAGNITUDES ARE NOT QUOTED, deliberately (PPGDEX-JITTER-AND-REFERENCE-FOLLOWUPS §1,
+    // owner-ratified 2026-08-04). The former +26/+18/+3.5% came from ONE paired night (2026-07-07).
+    // Re-derived with the committed apparatus on the multi-night corpus, sdnnRobust reads +10.8%
+    // (finger) and +18.7% (Verity) against ECGDex's dispSd — so +3.5% does not reproduce, and it was
+    // shipping to users inside `sdnnNote` as an accuracy claim. The gap is NOT attributable (corpus,
+    // method and the original figure are indistinguishable with no committed original), so the number
+    // is withdrawn rather than replaced: swapping one unverifiable constant for another repeats the
+    // defect in fresher paint. The ORDERING — whole > index > robust — is what was actually observed
+    // and is what the note now states.
     // Same gate extends to the long-term-dominated metrics that inherit the SDANN inflation:
     // SD2 (whole +54% → robust +4%), LF/HF band power (whole totalPower +89% → gated-median LF+HF +7%).
     // VLF is deliberately NOT robust-corrected — a 5-min epoch can't resolve <0.04 Hz — it stays
@@ -3682,7 +3692,7 @@
           ...(r.hrvShapeViolation ? { shapeViolation: true } : {}),
           windowNote: 'sdnn/rmssd are whole-record (single-site PPG); per-5-min values live in epochs[]. Directly comparable to another node\u2019s wholeRecord SDNN/RMSSD.',
           sdnnNote:
-            'whole-record sdnn runs high on optical (SDANN/baseline-wander inflation, ~+26% vs chest ECG). sdnnIndex = mean of per-5-min SDNN (~+18%); sdnnRobust = quality-gated MEDIAN of per-5-min SDNN (~+3.5% vs ECG truth) — use sdnnRobust for cross-node SDNN comparison.'
+            'whole-record sdnn runs high on optical — SDANN/baseline-wander inflation the chest ECG does not carry. sdnnIndex (mean of per-5-min SDNN) and sdnnRobust (quality-gated MEDIAN of per-5-min SDNN) both remove it, sdnnRobust the most; use sdnnRobust for cross-node SDNN comparison. Bias magnitudes are deliberately not quoted here: the earlier figures came from a single paired night and did not reproduce on the multi-night corpus.'
         },
         /* DEEP-AUDIT-2026-07-11 §10/§11: export the 5-MIN EPOCH-MEDIAN spectrum as the primary band set —
          PpgDex already computed it (the *Robust twins) but shipped the WHOLE-RECORD Lomb–Scargle instead.
