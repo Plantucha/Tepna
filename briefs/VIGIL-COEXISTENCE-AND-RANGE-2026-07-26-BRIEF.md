@@ -1,5 +1,40 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-26
+**Status:** PROPOSED (**§1 EXECUTED 2026-08-04** — the sequencing-critical item is done, so §2/§3 can now be re-measured through an instrument that can see warnings; §2·§3·§4·§5 remain) · **Created:** 2026-07-26
+
+> ## ✅ §1 executed 2026-08-04 — journal severity is now expressed, not just printed
+>
+> §"Sequencing" said *"§1 first and alone — until it lands **every other item here is being measured
+> through an instrument that cannot see warnings**"*. It had not landed: `capture.py` still called a bare
+> `logging.basicConfig(...)` nine days later, so the blocker was real and was blocking the rest of its own
+> brief.
+>
+> **Built exactly as §1 specifies** — the `<N>` syslog prefix, no new dependency, no unit change
+> (`SyslogLevelPrefix=yes` is the default). `python3-systemd`'s `JournalHandler` was not taken, for the
+> reason §1 gives: it adds a dependency to an appliance whose SOUP list is deliberately empty.
+> `_SYSLOG_PRIORITY` + `_PriorityFormatter` + `_install_logging()` in `capture.py`; call site swapped.
+>
+> **Done-when, item by item:**
+> - *"a unit test asserts the formatter maps WARNING→`<4>` and INFO→`<6>`"* — `tests/test_journal_priority.py`
+>   asserts the whole scale (2/3/4/6/7) **and** the emitted bytes, not just the map, since the bug being
+>   guarded is a severity that is printed but not expressed.
+> - *"the prefix does not appear in the interactive console output path"* — honoured, and gated. The
+>   discriminator is systemd's own **`JOURNAL_STREAM`**, deliberately **not** `isatty()`: a run redirected
+>   to a file is equally not-a-TTY, and prefixing there would corrupt the file with `<6>` markers nothing
+>   parses.
+> - *"`journalctl -p warning` returns the link-error lines and not the INFO lines"* — **not yet observed on
+>   the box**; that needs a deploy. The unit level is proven; the field confirmation is owed.
+>
+> **Verified by re-applying the defect, not by the tests passing.** Five mutants, all killed: never-prefix
+> (the original bug) · `WARNING`→5 (wrong scale) · always-prefix (console leak) · call site reverted to
+> `basicConfig` · and `force=True` reintroduced.
+>
+> ⚠️ **That last mutant is a bug I wrote and the suite caught.** The first version used
+> `logging.basicConfig(..., force=True)`, which *removes every existing root handler* — under pytest that
+> is `caplog`'s, so four tests driving `main()` and asserting on `caplog.records` saw an empty list while
+> the logging itself worked perfectly (`test_shutdown_names_a_task_that_ignores_cancellation` + 3
+> siblings). `force=True` reads as harmless tidiness and is not. It is gone, and
+> `test_install_logging_does_not_clobber_an_existing_root_handler` now states the property directly rather
+> than leaving it to be caught incidentally by unrelated tests.
 
 # Vigil — radio coexistence, range recovery, and a journal that hides its own warnings
 

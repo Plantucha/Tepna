@@ -30,6 +30,54 @@ import nightarchive
 import storage_targets
 from telemetry import TelemetryBus
 
+# ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
+# systemd assigns ONE priority to a service's whole stdout stream, so with a plain basicConfig every line
+# — INFO, WARNING, ERROR alike — lands in the journal at priority 6. Measured 2026-07-26: 33 application
+# warnings in one daemon lifetime while `journalctl -u tepna-capture -p warning` returned NOTHING. The
+# severity was printed in the text but never *expressed*, so every standard operator tool (`-p warning`,
+# `-p err`, journald alert rules, log-shipping severity filters, systemctl's red-line extraction) came
+# back clean on a box that had 33 warnings. The overnight watch made exactly that mistake five times.
+#
+# The fix is a syslog priority prefix: systemd parses a leading `<N>` when `SyslogLevelPrefix=yes`, which
+# is the DEFAULT, so this needs no unit change and no new dependency. `python3-systemd`'s JournalHandler
+# is the other option and is deliberately NOT taken — it adds a dependency to an appliance whose SOUP list
+# is intentionally empty, and it reframes every line.
+_SYSLOG_PRIORITY = {logging.CRITICAL: 2, logging.ERROR: 3, logging.WARNING: 4, logging.INFO: 6, logging.DEBUG: 7}
+
+
+class _PriorityFormatter(logging.Formatter):
+    """Prefix each record with its syslog priority so journald can filter on severity."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return f"<{_SYSLOG_PRIORITY.get(record.levelno, 6)}>" + super().format(record)
+
+
+def _install_logging(stream=None) -> logging.Formatter:
+    """Configure root logging; add the `<N>` prefix ONLY when journald is consuming the stream.
+
+    The discriminator is systemd's own `JOURNAL_STREAM`, not `isatty()`: a run whose output is
+    redirected to a file is equally not-a-TTY, and prefixing there would just corrupt the file with
+    `<6>` markers nothing parses. Absent that variable we are interactive or file-logged, so the plain
+    format is used and the prefix never reaches a human's console.
+
+    ⚠️ NO `force=True`. This mirrors the plain `basicConfig` it replaced: a no-op when the root logger
+    already has handlers. `force=True` looks harmless here and is not — it *removes* every existing root
+    handler, which under pytest is `caplog`'s, so any test that drives `main()` and then asserts on
+    `caplog.records` silently sees an empty list. Measured: it broke four such tests
+    (`test_shutdown_names_a_task_that_ignores_cancellation` and three siblings) while the logging itself
+    worked perfectly. Callers wanting a specific sink pass `stream` and clear the root handlers first.
+    """
+    fmt: logging.Formatter = (
+        _PriorityFormatter("%(asctime)s %(levelname)s %(message)s")
+        if os.environ.get("JOURNAL_STREAM")
+        else logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    )
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(fmt)
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
+    return fmt
+
+
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
 BATTERY_UUID = "00002a19-0000-1000-8000-00805f9b34fb"   # standard Battery Level (0x2A19) — uint8 percent
 log = logging.getLogger("tepna-capture")
@@ -3816,7 +3864,7 @@ async def main():
     _sc = cfg.get("stream") or {}
     if "stall_sec" in _sc:
         _STREAM_STALL_S = float(_sc["stall_sec"])                # 0 disables the started-stream watchdog
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    _install_logging()
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
