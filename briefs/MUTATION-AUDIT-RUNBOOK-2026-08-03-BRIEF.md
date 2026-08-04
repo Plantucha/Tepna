@@ -9,7 +9,7 @@ failure modes that do not look like failures. Read §1 before your first run.
 
 ---
 
-## 1 · Six ways a run fails while looking fine
+## 1 · Seven ways a run fails while looking fine
 
 None of these prints anything resembling a test failure. Each cost an hour before it was recognised.
 
@@ -23,12 +23,30 @@ None of these prints anything resembling a test failure. Each cost an hour befor
 | **`rc` absent from the record** | the printed JSON was truncated | fixed 2026-08-03 — verdict fields now print first |
 | a mutant you reverted **still behaves as mutated** | **stale `.pyc`** — the source is clean, the CODE OBJECT is not | `git status` clean, `inspect.getsource` clean, behaviour wrong; see below |
 | results that do not match the committed source | the source was **edited while the run was copying** | compare the run's start time against the file's mtime |
+| three mutants `survived` in a function the tests never touch | the apply/revert loop's **anchor was not unique** — `str.replace(old,new,1)` mutated the FIRST match | `s.count(anchor)` > 1 |
 
 **⚠️ STALE BYTECODE DEFEATS THE NEGATIVE CONTROL ITSELF — clear `__pycache__` before EVERY run.**
 Measured 2026-08-04 on `cpap_harvest`. The repo lives on a volume with coarse mtime granularity, so a
 mutate → test → restore cycle completing inside one timestamp bucket leaves Python's `(mtime, size)`
 validity check satisfied and the **mutant's `.pyc` is reused against restored source**. The two mutants
 here differed only in a digit (`want <= 0` → `want <= 1`), so the size matched too.
+
+**⚠️ A NON-UNIQUE ANCHOR MEASURES THE WRONG FUNCTION, AND REPORTS IT AS A SURVIVOR.**
+`s.replace(old, new, 1)` mutates the first match, so an anchor appearing twice silently relocates the
+mutation. Measured 2026-08-04 on `storage_targets`: `"-o", "BatchMode=yes",` occurs in BOTH `rsync_argv`
+and `test_target`, so three mutants intended for one landed in the other and read as **survived** while
+the control was scoring a function the tests never claimed to cover. Assert uniqueness at apply time:
+
+```python
+assert s.count(anchor) == 1, "ANCHOR NOT UNIQUE (%d matches)" % s.count(anchor)
+```
+
+Note `>= 1` is NOT the check — it passes on exactly the case that breaks. Once made unique, two of
+those three turned out to be **real gaps**: every test set `port` explicitly so `get("port", 22)` was
+never exercised, and nothing observed the `rsync --version` probe's own 5 s bound (invisible through
+`create_subprocess_exec`, because the deadline is applied by `proc_util.communicate` — it has to be
+watched at the `_run` boundary). A wrong instrument was hiding two genuine findings behind a wrong
+verdict, which is the same shape as every other row in this table.
 
 What makes it the worst failure mode in this file: **every surface you would check to diagnose it reads
 clean.** `git status` shows nothing. `git diff` shows nothing. `inspect.getsource` prints the correct
@@ -48,7 +66,15 @@ find . -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null
 runtime by env var, so the module source never changes between mutants and the cache stays valid. The
 exposure is exactly the hand-rolled apply/revert loop this runbook tells you to write.
 
-**⚠️ DO NOT EDIT THE SOURCE WHILE A RUN IS IN FLIGHT.** Also 2026-08-04, same module: a confirmation run
+**⚠️ NOTHING THAT *READS* THE TREE MAY OVERLAP ANYTHING THAT *WRITES* IT.**
+*(Widened 2026-08-04 from the narrower "do not edit the source while a run is in flight": the same
+day, the coverage gate was run in a worktree while the negative control was rewriting the module
+underneath it, and the gate's 100 % was meaningless. Reads are victims too, not just writers.)*
+A pre-flight costs one command — count live `pytest`/`mutate.py` processes and `git status` the
+module. ⚠️ That check cannot use a bare `pgrep`/`grep` for its own pattern: **the checking command's
+own cmdline matches**, the same self-match that left waiters spinning for 10 h 45 m (`CLAUDE.md` §4).
+
+ Also 2026-08-04, same module: a confirmation run
 started at 05:33:39 and the negative-control cycles rewrote `cpap_harvest.py` at 05:37:15, underneath
 it. Whatever it copied was a moving target, so its numbers describe no particular version of the code.
 Kill such a run rather than waiting it out — a 26-minute result you cannot attribute is worth less than
@@ -150,6 +176,17 @@ optimising — skipping that step cost an hour on `capture.py`.
 `fork()`s children that inherit it. That is why webmon averaged 1.5 s/mutant while its module took 26
 minutes to import: 1 578 s of its 3 432 s run was the single cold compile. Do **not** conclude from a
 low per-mutant average that a module is compile-free; compute `total − mutants × per_mutant` instead.
+
+**⚠️ A SLOW TEST SPENDS OTHER MUTANTS' BUDGET — test runtime is not a neutral cost here.**
+Measured 2026-08-04: one test patched `time.sleep` to a no-op but left `time.monotonic` real, so it sat
+out the full 5 s association floor — **5.18 s of the file's 5.22 s**. A mutation run pays that *per
+mutant*, and it pushed three `wifi_up` mutants from **KILLED to TIMEOUT**: coverage lost in a function
+that test was not even touching, reported as neither pass nor fail. A synthetic clock took the file to
+**0.04 s** and all three came back killed.
+
+So a wall-clock wait anywhere in the suite is drawn from the budget deciding whether *unrelated* mutants
+get a verdict at all. Profile a new test file with `--durations` before landing it; anything that spins
+a real clock wants a fake one.
 With the cache warm, webmon's run should be **~31 min rather than ~57**.
 
 Two fixes are in `tools/mutate.py` and need no action; they are recorded so nobody reverts them:

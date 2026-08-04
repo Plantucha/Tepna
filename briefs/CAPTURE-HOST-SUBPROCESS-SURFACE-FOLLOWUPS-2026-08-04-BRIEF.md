@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-04
+**Status:** PROPOSED (**two of three §8 items DONE 2026-08-04** — the runbook transfers landed and §5's hook is declined in favour of a tested aggregate gate, `capture-host/check.sh`. The third, §6's 21-mutant `harvest` cluster, is deliberately LEFT with the reason recorded: it is a fresh campaign, not this one's residue) · **Created:** 2026-08-04
 
 # What executing the subprocess-surface brief turned up
 
@@ -151,7 +151,35 @@ Each established by SEARCHING for a distinguishing input, not by argument:
 
 ## 8 · Done when
 
-* §2 and §3 are in `MUTATION-AUDIT-RUNBOOK-2026-08-03-BRIEF.md` §1 and §4, and §4 replaces the
-  narrower in-flight wording there.
-* §5 is either implemented and tested against a release, or explicitly declined with the reason.
-* §6's `harvest` cluster has a PR, or a note saying why it was left.
+* [x] **§2 and §3 are in the runbook, and §4 replaced the narrower wording — DONE 2026-08-04.**
+  `MUTATION-AUDIT-RUNBOOK-2026-08-03` §1 is now *"**Seven** ways a run fails while looking fine"*: the
+  non-unique-anchor row is in the table and the prose block below it carries the `s.count(anchor) == 1`
+  assertion, explicitly noting that `>= 1` is **not** the check because it passes on exactly the case
+  that breaks. §3's cost lesson is in runbook §4 beside the compile-once paragraph. The in-flight rule
+  is widened in place to **"nothing that READS the tree may overlap anything that WRITES it"**, keeping
+  the self-match warning about `pgrep`.
+* [x] **§5 — the pre-commit hook is DECLINED; an aggregate gate is implemented instead. DONE 2026-08-04.**
+  `capture-host/check.sh` runs ruff · shellcheck · pytest, **continues after a failure**, and computes
+  its verdict from the collected exit codes. Documented in `capture-host/README.md` as the entry point.
+
+  *Why not the hook §5 proposed:* a hook must be **installed**, and `core.hooksPath` is not set in this
+  repo while several agent sessions work the tree — so the common state is a hook that exists in-repo
+  and runs for nobody, which is a gate that does not gate rather than a mitigation of one. It also fires
+  on deliberate WIP commits. §5's own warning applies directly: the last hook proposed there
+  (`CLAUDE.md` §2b's outcome guard) would have blocked every release, found only by testing it against
+  a real workflow. The JS side already solved this exact problem with an aggregate (`npm run check` —
+  *"the only invocation that cannot silently omit a builder"*), so this is that, for capture-host.
+
+  Verified by re-applying the defect — 5 mutants, all killed, including **`set -e`** (which would abort
+  at the first failing gate and silently undo the entire point) and a verdict that ignores the collected
+  codes. `check.sh` is itself owned by `tests/test_check_script.py` and listed in the shell-surface
+  inventory; an ungated gate would have been the joke.
+* [ ] **§6's `harvest` cluster (21 logic mutants) — LEFT, deliberately, and this is the note.**
+  Not declined on cost: §6 states it is *"reachable work rather than a fixture problem"* now that
+  `reachable` → `_wpa_up` → `EzShare` → `_wpa_down` are all observable. It is left because it is a
+  **fresh campaign**, not residue of this one — the brief it follows is closed, its own §6 marks
+  `cpap_harvest` at 85.6 % and *at its ceiling for prose*, and picking up 21 orchestration mutants is a
+  scoped piece of work that deserves its own brief rather than being tacked onto a method write-up.
+  `pull_session` at 68.9 % is called out there as the larger and more valuable target of the two.
+  **Whoever takes either: read §7 first** — the equivalents are recorded precisely so they are not
+  re-derived.

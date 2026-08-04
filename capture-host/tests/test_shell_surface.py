@@ -32,6 +32,7 @@ TESTS = os.path.dirname(os.path.abspath(__file__))
 
 # script (repo-relative) -> the test module that exercises it
 COVERED = {
+    "check.sh": "test_check_script.py",
     "tepna-clock.sh": "test_tepna_clock_sh.py",
     "tepna-restart.sh": "test_tepna_restart_sh.py",
     "tepna-rssi.sh": "test_tepna_rssi_sh.py",
