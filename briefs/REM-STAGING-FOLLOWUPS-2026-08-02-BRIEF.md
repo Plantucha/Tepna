@@ -23,13 +23,50 @@ regression harness — it proves a detector still does what it did — and it is
 accuracy. This is worth stating as a rule because two separate features have now passed it and failed
 reality, and a third will be proposed eventually.
 
+**Recorded outside this brief (§5's last box, 2026-08-03):** the constraint now heads
+`REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` as a standing ⛔ block, where anyone reading the parent
+before proposing a third feature will hit it. It is **deliberately NOT written into `ecgdex-dsp.js`'s
+`genSynthetic` itself** — that file is inlined into ECGDex, so a comment there moves `manifestHash`
+AND `computeHash`, forcing a re-bundle plus a real-corpus `verify-fixtures` re-stamp to carry a
+sentence. CLAUDE.md's inert-addition rule says such a change rides the next behavioral ECGDex
+re-bundle rather than causing one; this is that deferral, named rather than skipped.
+
 ## 2 · What actually needs building: an NSRR-labelled validation path
 
 `nsrr-adapter.js` already exists. The National Sleep Research Resource ships **PSG-scored** polysomnography
 — 30 s epochs with expert stage labels — which is precisely the missing label. The work is:
 
-- **2a** Establish what the adapter currently ingests and whether stage annotations come with it, or only
-  signals. If only signals, the annotation files are the gap.
+- **2a** ✅ **EXECUTED 2026-08-03 — the answer is neither of the two this brief anticipated.** The labels
+  are not absent, and the annotation files are not the gap: **`parseNsrrXml` was already walking every
+  scored stage event and discarding the stage identity on the same line it read it.** The parser tested
+  `STAGE_RE.test(concept) && !WAKE_RE.test(concept)` and, on a hit, did exactly two things —
+  `sleepEpochs++` and `stageDurSec += durSec`. Every REM/N1/N2/N3 label in a PSG-scored NSRR record
+  reached this code and was reduced to one scalar for total sleep time. The missing ground truth that
+  has blocked two staging efforts was being parsed and thrown away.
+
+  `parseNsrrXml` now additionally returns `stages[]` (scored blocks, file order), `epochs[]` (the 30 s
+  grid indexed from recording start — the join key §2b needs: feature vector ↔ expert label by index),
+  `stageCounts`, `nSleepEpochs`, `remFrac`, `hasStageLabels`. Every pre-existing field is byte-identical
+  in shape, so `analyzeRecord` and `odi-bias-analysis.html` are unaffected.
+
+  **A latent TST bug fell out of it.** Stage recognition keyed on the WORDS "stage"/"sleep"; NSRR's
+  authoritative marker is the numeric code in `"<text>|<code>"` (0 Wake · 1–4 NREM · 5 REM · 6 Movement ·
+  9 Unscored). A cohort writing a bare **`REM|5`** matched neither `STAGE_RE` nor `WAKE_RE`, so **REM fell
+  out of total sleep time entirely** — shrinking the AHI denominator and inflating every AHI derived from
+  it. Recognition is now code-first, text-fallback. `Stage 2 sleep|2` was never affected, which is exactly
+  why the existing known-answer test could not see it.
+
+  **Where the gate now runs.** `parseNsrrXml` needs `DOMParser`, so its whole known-answer block is
+  **browser-lane only** — skipped by the Node CI that gates every PR. The two pure pieces (`stageOf`, the
+  concept vocabulary; `stagesToEpochs`, the grid arithmetic) were therefore split out and are asserted in
+  **both** lanes. 44 new assertions; three mutants confirm they bite (`5:'REM'`→`'N3'` kills 2, hole-fill
+  kills 1, first-block-wins-on-overlap kills 1). The browser-only legs were run headless rather than
+  shipped unrun: 5070 passing, 0 failing.
+
+  **What 2b still needs is the records, and only the records.** No NSRR data is on this machine, and
+  none can be fetched — NSRR/PhysioNet require a signed DUA and the suite is 100 % local by construction.
+  2b is unblocked on code and blocked on a human dropping EDF+XML pairs in. That is a materially different
+  status from "the annotation files are the gap".
 - **2b** Derive ECGDex's per-epoch feature vector (LF/HF, RMSSD, motionIndex, resp, respCv) from NSRR ECG
   on records that also carry expert staging, and evaluate the shipped conjunction against *real* labels.
   That single number — real recall/precision for REM — has never existed and is the thing every staging
@@ -65,9 +102,15 @@ irregularity-linked**, and any candidate built from stability proxies is a prior
 
 ## 5 · Done when
 
-- [ ] **2a** — NSRR adapter's stage-annotation capability established (ingests labels, or the gap named).
+- [x] **2a** — **DONE 2026-08-03.** Established, and stronger than "labels or gap": the labels were being
+      parsed and discarded. A per-epoch stage series is now emitted (+ a latent TST bug fixed), gated in
+      both lanes, mutation-checked.
 - [ ] **2b** — the shipped conjunction scored against **real** PSG labels; REM recall/precision recorded.
+      **Blocked on records only** — code path complete as of 2a; NSRR requires a signed DUA and the suite
+      cannot fetch, so this needs a human to supply EDF + annotation-XML pairs.
 - [ ] **2c** — a detector change proposed only after 2b, or the stage explicitly declared not recoverable
       from single-lead ECG + chest ACC, which is also a publishable answer.
-- [ ] §1's constraint (no staging validation on `genSynthetic`) recorded where a future contributor will
-      hit it — the parent brief and the generator's own docs, not only here.
+- [x] §1's constraint (no staging validation on `genSynthetic`) recorded where a future contributor will
+      hit it — **DONE 2026-08-03** as a standing ⛔ block heading the parent brief. Writing it into
+      `ecgdex-dsp.js` itself is a NAMED deferral (see §2a): it would move `manifestHash`+`computeHash` and
+      force a corpus re-verification to carry a comment, so it rides the next behavioral ECGDex re-bundle.

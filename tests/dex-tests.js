@@ -25033,6 +25033,121 @@
         T.eq('parseNsrrXml · Clock-Contract absolute tMs = t0 + Start·1000', p.events[0].tMs, t0 + 100000);
         T.eq('parseNsrrXml · second event classified hypopnea', p.events[1].kind, 'hypopnea');
       }
+
+      /* ── PER-EPOCH STAGE LABELS (REM-STAGING-FOLLOWUPS §2a) ────────────────────────────────────
+         Two staging efforts are blocked on the same missing thing — an expert stage label. §2a asked
+         whether NSRR annotations lack them or the adapter merely fails to read them. Neither: the
+         parser walked every scored stage event and collapsed the lot into ONE scalar (`stageDurSec`,
+         for TST), throwing the stage IDENTITY away on the same line it read it.
+
+         `stageOf` is PURE — no DOMParser — so unlike the block above it runs in BOTH lanes. That
+         matters: the vocabulary is the part that varies across cohorts, and the browser-only leg
+         above is skipped by the Node CI that actually gates every PR. */
+      if (N.stageOf) {
+        // profusion "<text>|<code>" — the code is authoritative because the text varies by cohort
+        T.eq('stageOf · Stage 2 sleep|2 → N2', N.stageOf('Stage 2 sleep|2'), 'N2');
+        T.eq('stageOf · REM sleep|5 → REM', N.stageOf('REM sleep|5'), 'REM');
+        T.eq('stageOf · Wake|0 → Wake', N.stageOf('Wake|0'), 'Wake');
+        T.eq('stageOf · Stage 4 sleep|4 → N3 (N4 folded under AASM)', N.stageOf('Stage 4 sleep|4'), 'N3');
+        T.eq('stageOf · Movement|6 is a stage event but not sleep', N.stageOf('Movement|6'), 'Movement');
+        T.eq('stageOf · Unscored|9 → Unscored', N.stageOf('Unscored|9'), 'Unscored');
+        T.eq('stageOf · SLEEP_STAGES excludes Wake/Movement/Unscored', [N.SLEEP_STAGES.Wake, N.SLEEP_STAGES.Movement, N.SLEEP_STAGES.Unscored, N.SLEEP_STAGES.REM].join(','), ',,,1');
+        // the bug the code-first rule fixes: a bare `REM|5` matched neither STAGE_RE nor WAKE_RE
+        T.eq('stageOf · a code-only REM|5 (no "stage"/"sleep" text) is still REM', N.stageOf('REM|5'), 'REM');
+        // text fallback for cohorts that omit the code
+        T.eq('stageOf · text-only "Sleep stage N2" → N2', N.stageOf('Sleep stage N2'), 'N2');
+        T.eq('stageOf · EDF+ "Sleep stage R" → REM', N.stageOf('Sleep stage R'), 'REM');
+        T.eq('stageOf · EDF+ "Sleep stage W" → Wake', N.stageOf('Sleep stage W'), 'Wake');
+        T.eq('stageOf · bare "NREM1" → N1', N.stageOf('NREM1'), 'N1');
+        /* The narrowness is the point. A stage series polluted by arousal events is WORSE than no
+           series, because it looks like labels — and "ARO RES"/desaturation events sit right next to
+           the stages in the same file. A loose \brem\b or a bare "R" would eventually eat one. */
+        T.eq('stageOf · an arousal is NOT a stage', N.stageOf('Arousal (ARO RES)|Arousal ()'), null);
+        T.eq('stageOf · a desaturation is NOT a stage', N.stageOf('SpO2 desaturation|SpO2 desaturation'), null);
+        T.eq('stageOf · "Recording Start Time" is NOT a stage', N.stageOf('Recording Start Time'), null);
+        T.eq('stageOf · says "sleep" but names no stage ⇒ null, not a guess', N.stageOf('Sleep efficiency'), null);
+      }
+
+      /* The epoch grid is the join key for §2b (feature vector ↔ expert label, by index). It is pure
+         arithmetic, so it is tested HERE rather than only through parseNsrrXml — which needs
+         DOMParser and so skips in the Node lane that gates every PR. */
+      if (N.stagesToEpochs) {
+        var g = N.stagesToEpochs([
+          { stage: 'Wake', sec: 0, durSec: 60 },
+          { stage: 'N2', sec: 60, durSec: 60 },
+          { stage: 'REM', sec: 120, durSec: 90 }
+        ]);
+        T.eq('stagesToEpochs · a multi-epoch block expands to every epoch it covers', g.epochs.join(','), 'Wake,Wake,N2,N2,REM,REM,REM');
+        T.eq('stagesToEpochs · counts are in EPOCHS, not blocks', g.stageCounts.REM, 3);
+        T.eq('stagesToEpochs · Wake is excluded from the sleep denominator', g.nSleepEpochs, 5);
+        T.eq('stagesToEpochs · remFrac = REM/sleep = 3/5', g.remFrac, 0.6);
+        /* An unscored gap must stay a HOLE. Filling it with Wake would invent labels for a truncated
+           file, and §2b would then score a detector against fiction — the exact failure §1 of the
+           brief exists to stop (a detector validated against a label it was handed by us). */
+        var gap = N.stagesToEpochs([
+          { stage: 'N2', sec: 0, durSec: 30 },
+          { stage: 'REM', sec: 120, durSec: 30 }
+        ]);
+        T.eq('stagesToEpochs · an unscored gap stays a hole, not Wake', gap.epochs[1] === undefined && gap.epochs[2] === undefined, true);
+        T.eq('stagesToEpochs · holes are not counted as sleep', gap.nSleepEpochs, 2);
+        // a re-scored epoch: the later block is the scorer's correction and must win
+        var ovl = N.stagesToEpochs([
+          { stage: 'N2', sec: 0, durSec: 60 },
+          { stage: 'REM', sec: 30, durSec: 30 }
+        ]);
+        T.eq('stagesToEpochs · later block wins on overlap (a re-score)', ovl.epochs.join(','), 'N2,REM');
+        // a block with no Start cannot be placed; it must not land at epoch 0 and shift the whole night
+        var nostart = N.stagesToEpochs([
+          { stage: 'REM', sec: null, durSec: 30 },
+          { stage: 'N2', sec: 0, durSec: 30 }
+        ]);
+        T.eq('stagesToEpochs · an unplaceable block does not silently land at epoch 0', nostart.epochs.join(','), 'N2');
+        T.eq('stagesToEpochs · …but it is still counted (it counted toward TST upstream)', nostart.stageCounts.REM, 1);
+        T.eq('stagesToEpochs · no blocks ⇒ remFrac null, never 0 (0 would read as "no REM")', N.stagesToEpochs([]).remFrac, null);
+      }
+
+      if (typeof DOMParser !== 'undefined' && N.parseNsrrXml) {
+        var sx =
+          '<CMPStudyConfig><ScoredEvents>' +
+          '<ScoredEvent><EventConcept>Wake|0</EventConcept><Start>0</Start><Duration>60</Duration></ScoredEvent>' +
+          '<ScoredEvent><EventConcept>Stage 2 sleep|2</EventConcept><Start>60</Start><Duration>60</Duration></ScoredEvent>' +
+          '<ScoredEvent><EventConcept>REM sleep|5</EventConcept><Start>120</Start><Duration>90</Duration></ScoredEvent>' +
+          '<ScoredEvent><EventConcept>Arousal (ARO RES)|Arousal ()</EventConcept><Start>150</Start><Duration>3</Duration></ScoredEvent>' +
+          '</ScoredEvents></CMPStudyConfig>';
+        var sp = N.parseNsrrXml(sx, t0);
+        T.eq('stage series · 3 scored stage blocks (the arousal is not one)', sp.stages.length, 3);
+        T.eq('stage series · hasStageLabels', sp.hasStageLabels, true);
+        T.eq('stage series · 30 s grid from recording start', sp.epochSec, 30);
+        T.eq('stage series · epoch grid spans 210 s ⇒ 7 epochs', sp.epochs.length, 7);
+        T.eq('stage series · a multi-epoch block expands to every epoch it covers', sp.epochs.join(','), 'Wake,Wake,N2,N2,REM,REM,REM');
+        T.eq('stage series · REM epochs counted', sp.stageCounts.REM, 3);
+        T.eq('stage series · Wake epochs counted but excluded from sleep', sp.nSleepEpochs, 5);
+        T.eq('stage series · remFrac = REM/sleep epochs = 3/5', sp.remFrac, 0.6);
+        T.eq('stage series · block carries Clock-Contract absolute tMs', sp.stages[2].tMs, t0 + 120000);
+        T.eq('stage series · TST counts N2+REM only (150 s)', +sp.tstHours.toFixed(6), +(150 / 3600).toFixed(6));
+
+        /* The TST bug the code-first rule fixes, isolated. Before §2a a cohort writing a bare
+           `REM|5` matched neither STAGE_RE (/stage|sleep/) nor WAKE_RE, so REM fell out of total
+           sleep time ENTIRELY and inflated every AHI derived from it. `Stage 2 sleep|2` was never
+           affected — which is exactly why the known-answer test above could not see it. */
+        var bare = N.parseNsrrXml(
+          '<CMPStudyConfig><ScoredEvents>' +
+            '<ScoredEvent><EventConcept>REM|5</EventConcept><Start>0</Start><Duration>1800</Duration></ScoredEvent>' +
+            '<ScoredEvent><EventConcept>Obstructive apnea|Obstructive Apnea</EventConcept><Start>10</Start><Duration>15</Duration></ScoredEvent>' +
+            '</ScoredEvents></CMPStudyConfig>',
+          t0
+        );
+        T.eq('TST fix · a code-only REM block now counts toward TST (0.5 h)', bare.tstHours, 0.5);
+        T.eq('TST fix · so AHI is 1/0.5 = 2, not null-from-zero-TST', bare.scoredAHI, 2);
+        T.eq('TST fix · and the night reads as staged', bare.staged, true);
+
+        // an annotation file with no staging at all must still behave exactly as before
+        var nost = N.parseNsrrXml('<CMPStudyConfig><ScoredEvents>' + '<ScoredEvent><EventConcept>Hypopnea|Hypopnea</EventConcept><Start>5</Start><Duration>20</Duration></ScoredEvent>' + '</ScoredEvents></CMPStudyConfig>', t0);
+        T.eq('no staging · hasStageLabels false', nost.hasStageLabels, false);
+        T.eq('no staging · empty epoch grid, not a fabricated one', nost.epochs.length, 0);
+        T.eq('no staging · remFrac null (never 0 — that would read as "no REM")', nost.remFrac, null);
+        T.eq('no staging · tstHours still null ⇒ scoredAHI null (unchanged)', nost.scoredAHI, null);
+      }
     });
 
     /* ════ 21c-bis · THE ODI-4 → AHI SURROGATE (deep-scout §AD, the last adapter residue) ════

@@ -7,6 +7,19 @@
 
 # REM is under-called 4× — and the rule's shape, not its thresholds, is why
 
+> **⛔ STANDING CONSTRAINT (added 2026-08-03 by `REM-STAGING-FOLLOWUPS-2026-08-02-BRIEF.md` §1 — read
+> before proposing a staging change).** **No REM or Deep detector may be validated on `genSynthetic`
+> (`ecgdex-dsp.js`).** The oracle is circular: it plants REM carrying the exact signature the rule
+> looks for. The shipped conjunction scores **92.6 % recall / 92.6 % precision** against planted truth
+> while under-calling REM **~4×** on real nights, and `respCv` reached **AUC 0.990** on the same oracle
+> while failing every real-night falsifier. `genSynthetic` is a REGRESSION harness — it proves a
+> detector still does what it did — and it is not evidence about staging accuracy. Two separate
+> features have now passed it and failed reality; a third will be proposed eventually.
+>
+> The label that would settle it is now half-built: `nsrr-adapter.js` emits a per-epoch **expert**
+> stage series as of FOLLOWUPS §2a (2026-08-03), so the next detector change has a real denominator
+> available and does not need this oracle. What is still missing is the records themselves (§2b).
+
 > **Origin.** Folding the 2026-07-27 capture-box night through the Dexes returned **REM = 0 min across
 > 5.5 h of sleep**, alongside 99.8 % sleep efficiency and zero WASO. Three defects were found and fixed
 > (`9f1edbc`); they removed the structural zero and left the under-detection standing. This brief is the
