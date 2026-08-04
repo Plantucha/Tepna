@@ -278,3 +278,60 @@ both a de-suspended dongle and the internal radio fail you.*
 - P3.1 decision documented; P3.2 prune gated; P3.3 archive dest validated at startup.
 - `vigil.sh` moved under `capture-host/` with its fixes and a pytest smoke test.
 - Follow-up brief spawned per house rule for whatever executing this surfaces.
+
+---
+
+## THIN-NIGHT SIGNATURE — measured 2026-08-04, and it is not what it looked like
+
+Investigated because the trio corpus stopped growing: recent nights kept missing a device, and the
+daemon journal is full of `org.bluez.Error.InProgress`, `BleakDeviceNotFoundError`, and
+*"offline op exceeded 45 s and was abandoned — … the adapter is wedged"*. 620 / 389 / 181 respectively
+in 24 h. It reads like a wedged radio.
+
+**It is not a wedged radio, and three checks say so.**
+
+1. **"the adapter is wedged" is not a diagnosis.** It is part of a message that names *three* possible
+   causes ("sensor off, out of range, or the adapter is wedged"). Counting occurrences of that string
+   counts timeouts, not wedges. `hci0` — the adapter capture is pinned to — shows 62 MB RX, 373 864
+   events and **`errors:0`** at the HCI layer.
+2. **`adapter_watchdog` is not being starved.** The obvious hypothesis was that it skips while
+   `_POLAR_PAUSED` is non-empty (the code says so itself at `capture.py:2365`: *"the one mechanism built
+   to unwedge a stuck radio is disabled by exactly the condition that wedges it"*). Measured from the
+   journal, the pause duty cycle is **36.6 %** (1024 windows, median 42 s, median free gap 10 s), so a
+   60 s check lands free ~63 % of the time and two consecutive free checks are ~40 % likely — several
+   hundred opportunities a day. It fires **zero** times.
+3. **Because it correctly declines.** `classify_adapter_health` treats a clean not-found as *not worn,
+   leave alone*. During the day the sensors genuinely are off. The watchdog abstaining is the design
+   working, not failing.
+
+### The actual discriminator: errors AGAINST connects and output
+
+| night | files 21:00→09:00 | errors | connects | reading |
+|---|---|---|---|---|
+| 2026-07-27 | 131 | **282** | 89 | good night — *with* heavy error churn |
+| 2026-08-01 | 14 | 36 | 15 | low everything — not worn |
+| 2026-08-02 | 152 | 10 | 58 | good night, quiet |
+| **2026-08-03** | **14** | **296** | **13** | **tried hard, captured almost nothing** |
+
+**Error count alone is worthless as a health signal** — 2026-07-27 produced a complete trio while
+logging 282 errors overnight. What separates a failure from an idle night is the *ratio*: 2026-08-03
+logged nearly as many errors as 07-27 with **one seventh the connects and one ninth the output**. That
+is a night where capture was attempted and largely failed. 2026-08-01, by contrast, is low on every
+axis — nobody wore the devices.
+
+### What is actually missing
+
+**Nothing alerted on 2026-08-03.** The alert surface covers device-offline against a 300 s threshold,
+and `offline_alert_suppressed(optional, ever_connected)` deliberately silences a device that was never
+worn — correct, since not wearing them is normal. But a night that *tries and fails* looks the same to
+that logic as a night nobody slept with the sensors on, and the first is a defect while the second is
+a Tuesday.
+
+A **thin-night signal** — "the sleep window produced < N files despite > M connect attempts" — is the
+missing check, and the two numbers above give it a shape. It is deliberately NOT proposed as a code
+change here: the threshold is a judgement about how many nights a person is expected to wear three
+devices, which is an owner call, not a measurement. Recorded so the next reader starts from the
+discriminator rather than from the error log.
+
+**Re-runnable:** the measurement is three `journalctl` window queries plus a `find -newermt` per night;
+no apparatus was committed because the input lives only on the box.
