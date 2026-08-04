@@ -25178,9 +25178,32 @@
       T.ok('event pairing tolerates thousands of ppm', coarse > 4000 && coarse < 5000, Math.round(coarse) + ' ppm');
       T.ok('beat matching tolerates only a few ppm', beat > 2 && beat < 4, beat.toFixed(1) + ' ppm');
       T.ok('the PAT bar is tighter still', pat < beat, pat.toFixed(1) + ' ppm');
-      /* THE POINT: measured wearable drift (order 100 ppm) is safe for the first and not the second,
-         and the ratio is what makes the CPAP path safe by design rather than by luck. */
-      T.ok('a 100 ppm wearable pair is SAFE for event pairing and UNSAFE at beat resolution', 100 < coarse && 100 > beat);
+      /* THE POINT, with the rate CORRECTED (2026-08-04). This leg used to read "measured wearable
+         drift (order 100 ppm)". That figure was beat-derived — match, block, unwrap, regress — and is
+         RETRACTED; WEARABLE-DRIFT-DIRECT measured the pair directly off the two clocks already in each
+         capture file and got ~7 ppm (H10 −20.3, Verity −27.0 against the capture host, stable to ±2–3
+         across fragments and nights). The verdicts do not flip — 7 ppm still exceeds a ~3 ppm budget —
+         but the margin is 2–3×, not 30×, and a leg that passes for the wrong reason is the thing this
+         suite exists to prevent. Both rates are asserted so the ORDERING is pinned either way. */
+      var MEAS = D.MEASURED_WEARABLE_PAIR_PPM;
+      T.eq('the measured inter-device rate is carried as a named constant, not a literal', MEAS, 7);
+      T.ok('the MEASURED 7 ppm pair is SAFE for event pairing and UNSAFE at beat resolution', MEAS < coarse && MEAS > beat, '7 ppm vs coarse ' + Math.round(coarse) + ' / beat ' + beat.toFixed(1));
+      T.ok('…and the retracted 100 ppm would have given the same VERDICT for the wrong reason', 100 < coarse && 100 > beat, 'ordering holds at both rates — which is why the stale number survived');
+
+      /* The precondition asked the way a caller can act on it. Under the retracted rate the answer was
+         ~10 min and nobody would bother; at the measured rate a beat-resolution constant offset is
+         defensible for HOURS, which is a different engineering conclusion. */
+      T.ok('maxSafeSpanSec available', typeof D.maxSafeSpanSec === 'function');
+      if (typeof D.maxSafeSpanSec === 'function') {
+        var patSpan = D.maxSafeSpanSec(0.06);
+        var beatSpan = D.maxSafeSpanSec(0.08);
+        T.ok('PAT (≤60 ms) is defensible for ~2.4 h at the measured rate', Math.abs(patSpan / 3600 - 2.38) < 0.05, (patSpan / 3600).toFixed(2) + ' h');
+        T.ok('beat matching (±80 ms) for ~3.2 h', Math.abs(beatSpan / 3600 - 3.17) < 0.05, (beatSpan / 3600).toFixed(2) + ' h');
+        T.ok('…both far SHORTER than a 7 h night — the "not safe over a night" verdict stands', patSpan < night && beatSpan < night);
+        T.ok('the retracted 100 ppm would have said ~10 min instead — the correction changes the engineering answer', D.maxSafeSpanSec(0.06, 100) < 700);
+        T.ok('a caller may pass its own pair rate, and sign is irrelevant', D.maxSafeSpanSec(0.06, -7) === patSpan);
+        T.ok('a zero or non-finite rate REFUSES rather than returning Infinity — "no limit" is a claim', D.maxSafeSpanSec(0.06, 0) === null && D.maxSafeSpanSec(0.06, Number.NaN) === null && D.maxSafeSpanSec(0, 7) === null);
+      }
       T.ok('degenerate inputs refuse rather than return a number', D.maxTolerableDriftPpm(0, 1) === null && D.maxTolerableDriftPpm(1, 0) === null);
     });
 
