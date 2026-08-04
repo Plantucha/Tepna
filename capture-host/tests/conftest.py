@@ -5,3 +5,85 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+# ── recording subprocess double ──────────────────────────────────────────────────────────────────────
+# CAPTURE-HOST-SUBPROCESS-SURFACE-2026-08-04 §2. The whole privileged surface of cpap_harvest reaches
+# the outside world through one `subprocess.run`, so a double for it is the unit of work — but only if
+# it RECORDS. A double that accepts an argument and discards it makes the code computing that argument
+# unobservable while coverage still reads 100 %, which is the defect this campaign keeps finding.
+#
+# Note what is deliberately NOT defaulted: `capture_output`, `text` and `timeout` are REQUIRED keyword
+# arguments here even though the real `subprocess.run` defaults them. Production passes all three; if a
+# change drops one, the real call would silently inherit a default (uncaptured output, bytes instead of
+# str, no deadline) and every assertion about the RESULT would still pass. Requiring them turns that
+# into a TypeError at the call site instead.
+import subprocess as _subprocess
+
+import pytest as _pytest
+
+
+class RecordedRun:
+    """One recorded `subprocess.run` call."""
+
+    def __init__(self, argv, kw):
+        self.argv, self.kw = list(argv) if argv is not None else argv, dict(kw)
+
+    @property
+    def program(self):
+        return self.argv[0] if self.argv else None
+
+    @property
+    def sudo(self):
+        return bool(self.argv) and self.argv[:2] == ["sudo", "-n"]
+
+
+class SubprocessRecorder:
+    """Replaces `subprocess.run`. `reply` is a callable taking the argv and returning a completed-process
+    stand-in, or an exception INSTANCE to raise (so the caller's except-arms can be driven)."""
+
+    def __init__(self):
+        self.calls = []
+        self.reply = lambda argv: _Completed(0, "", "")
+
+    def __call__(self, argv=None, *, capture_output, text, timeout, **rest):
+        self.calls.append(RecordedRun(argv, dict(capture_output=capture_output, text=text,
+                                                 timeout=timeout, **rest)))
+        r = self.reply(argv)
+        if isinstance(r, BaseException):
+            raise r
+        return r
+
+    def argv_for(self, program):
+        return [c.argv for c in self.calls if c.argv and program in c.argv]
+
+    @property
+    def last(self):
+        return self.calls[-1]
+
+
+class _Completed:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
+
+
+@_pytest.fixture
+def recorded_run(monkeypatch):
+    """Patches `subprocess.run` in the cpap_harvest module namespace and hands back the recorder."""
+    import cpap_harvest
+
+    rec = SubprocessRecorder()
+    monkeypatch.setattr(cpap_harvest._subprocess if hasattr(cpap_harvest, "_subprocess")
+                        else cpap_harvest.subprocess, "run", rec)
+    return rec
+
+
+@_pytest.fixture
+def completed():
+    """Factory for a completed-process stand-in, so tests do not each define one."""
+    return _Completed
+
+
+@_pytest.fixture
+def timeout_error():
+    return _subprocess.TimeoutExpired
