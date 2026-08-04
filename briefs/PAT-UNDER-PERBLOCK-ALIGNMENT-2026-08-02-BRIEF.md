@@ -611,3 +611,37 @@ The tool built to expose a self-referential statistic carries one on a different
   centre and loose in its detail* — their §II.3's phrase, and the opposite of what PAT needs.
 - **Their H10→O2Ring finger leg already exists** (n=11, 19.2 % offset-free, `residIQR` 98.7 ms, 0/11), which
   `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` §5 treated as open. That scoping was also a duplicate.
+
+## 3j · The scatter is NOT the pre-ejection period — dual-site does not rescue PAT
+
+§3i located the blocker as ~84–96 ms of beat-to-beat scatter and could not say whether it is cardiac or
+downstream. **PAT = PEP + PTT**, and the pre-ejection period varies beat-to-beat with contractility and
+preload — so an arm→finger interval, which cancels PEP by construction, decides it. Run over the
+Verity-arm → O2Ring-finger corpus (**40.6 h, 8 nights**, no ECG in the chain) `[CORPUS]`:
+
+| | ECG → foot (§3i) | **arm foot → finger foot** |
+|---|---|---|
+| gate-comparable `scatterIQR` | median **84 ms** | median **92 ms** (53–100) |
+| windows clearing the 60 ms bar | 10 / 52 | **1 / 43** |
+| best-scan `matchRate` | median 15–16 % | median **10 %** |
+| significant vs matched null | 47 / 57 | **0 / 43** |
+
+**The scatter does not collapse — it is 8 ms WORSE with PEP removed.** So the looseness in the R→foot
+interval is **not** the pre-ejection period; it is downstream of the heart — vascular variability, or
+foot-detection noise, or both. **`INTEGRATOR-PAT-VASCULAR` §4's differentiator does not differentiate.**
+
+That brief's Phase 2 — *"dual-site PAT (one R-peak → two peripheral feet), whose difference cancels the
+pre-ejection-period"* — was parked behind a NO-GO Phase 0 and never measured. Measured now, in its
+direct form: it removes the confound and the number gets no better.
+
+### 3j.1 · The one caveat, and why it does not rescue the idea
+The **differenced** form matches each site to the **same R-peak** and subtracts; the **direct** form run
+here matches arm feet to finger feet. Algebraically identical when the matching is right, but the direct
+form leans on a foot↔foot nearest-neighbour step, which is the aliasing-prone one — so this measurement
+may be *pessimistic* about coupling.
+
+It is **not** pessimistic about the thing that matters. `scatterIQR` is an IQR about the modal lag, and a
+mismatch inflates it; the honest reading is that arm→finger scatter is **≤ 92 ms**, still far above the
+60 ms bar, and nothing here suggests the remaining gap is PEP. The differenced form is worth running for
+completeness — cheaply, since both legs already exist — but it must clear ~92 → ≤60 ms to change the
+verdict, and removing a confound that is demonstrably not present cannot do that.
