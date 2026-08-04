@@ -6,7 +6,7 @@
   project root, or http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-07-13 (**§2 docs rewrite DONE** — `CLAUDE.md` §🔏 was the last stale surface [the
+**Status:** DONE — 2026-08-04 (**§5 D.2 verified COMPLETE 2026-08-04 — the last open item; see the block below.** Original 2026-07-13 note follows.) · **2026-07-13:** (**§2 docs rewrite DONE** — `CLAUDE.md` §🔏 was the last stale surface [the
 retired hand-update prose was still the body text, with a "superseded" note bolted on top]; also corrected "8
 bundles"→10 owned, retired the PROVENANCE-NONDETERMINISM "wait for the build to settle" rule whose cause is gone,
 and fixed a 4th surface this brief never listed [`CONTRIBUTING.md`'s reconcile helper]. `ARCHITECTURE-PRINCIPLES`
@@ -17,6 +17,34 @@ SpiroDex existing] **and the D.2 spine decision.** The 2026-07-06 "environment-b
 STALE — there is a Node host and `types.yml` was green all along) · **Created:** 2026-07-03 · **Follows:** `OWN-THE-BUILD-2026-06-30-BRIEF.md`
 
 # Own the build — follow-ups (Part A Phases 0–3 DONE; Parts C / D.2 / D.3 + Part-B new-node remain)
+
+> ## ✅ CLOSED 2026-08-04 — D.2 was already complete; only this brief's status block was stale
+>
+> The §5 status line still read **`D.2 ◐ PARTIAL`** with *"the next wins are shared-spine and cost a
+> fleet re-bundle"*. That was true on 2026-07-13 morning and was overtaken the same day: `tsconfig.json`'s
+> own `//d2` log records **ten passes**, ending
+> *"✅ TYPE-GATE COMPLETE — all 8 node DSPs + signal-orchestrate + the core adapter/spine layer are now
+> under checkJs."* The log was updated; this brief was not.
+>
+> **Verified 2026-08-04, not taken from either note:**
+> - `tsconfig.json` `include` carries **33 files**, and all eight node DSPs are among them —
+>   `pulsedex` · `hrvdex` · `glucodex` · `ecgdex` · `cpapdex` · `ppgdex` · `integrator` · `oxydex`.
+> - The **pinned CI invocation** — `npx -y -p typescript@5.5.4 tsc --noEmit -p tsconfig.json`, exactly what
+>   `types.yml` runs — exits **0** with no diagnostics. (Run pinned on purpose: a bare `npx tsc` exits 0
+>   without checking anything, which is how a green typecheck can mean nothing.)
+>
+> **Every other section was already closed:** §1 Phase 3 ✅ · §2 Phase 4 ✅ · §3 A5 ✅ · §6 orchestrators ✅ ·
+> §7 `OverDex.html` drift ✅ · §5 Part C ✅ · D.1 ✅ (ESLint retired, Biome is sole linter+formatter) ·
+> D.3 ✅ satisfied by design.
+>
+> **Part B is not open work — it is a gate waiting for a subject.** The `born-clean` group ships and
+> passes (24 assertions, verified 2026-08-04); what "awaits EEGDex/SpiroDex" is the *node*, not the gate.
+> The brief's own Done-when says Parts B/C/D flip **independently**, so a gate that is built, green, and
+> locking the five nodes that meet it today does not hold this brief open. When EEGDex lands it will be
+> enforced on arrival, which is the entire point of building the gate first.
+>
+> Nothing new surfaced during this verification, so no follow-up brief is spawned — per §📌, that is
+> stated here rather than left implicit.
 
 > **▶ NEXT CODER — RESUME HERE (2026-07-03; this thread may have closed mid-brief).** Current state:
 > **all 8 bundles are owned deterministic plain-inline**, and BOTH gates are GREEN (`verify-provenance.html`
