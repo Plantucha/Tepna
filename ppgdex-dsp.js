@@ -2551,6 +2551,11 @@
         tMin: Math.round(e0 / 60),
         beats: idx.length,
         hr: td.hr,
+        /* Same STATISTIC as ECGDex (60000/mean(RR)) but a different PRECISION: `td.hr` is
+           `Math.round(hr)`, so every epoch here is an integer where ECGDex keeps a decimal. A ±0.5
+           uniform rounding is SD 0.289 bpm on a hat leg resolving σ≈1.5. Labelled, not changed —
+           un-rounding moves every epoch and the fleet has not chosen a precision (R5-FOLLOWUPS). */
+        hrStat: 'rate-of-mean',
         meanRR: td.meanRR,
         rmssd: td.rmssd,
         sdnn: td.sdnn,
@@ -3748,6 +3753,12 @@
           return {
             tMin: e.tMin,
             hr: nz(e.hr),
+            /* Repeated at the EXPORT seam, not only on the internal epoch — this projection is a
+               whitelist, so a label added upstream never leaves the node. That is exactly how the
+               first attempt shipped inert: the bundle carried the string, every golden read
+               `hrStat: undefined`. `rate-of-mean`, same statistic as ECGDex — but note this leg is
+               integer-rounded where ECGDex keeps a decimal (R5-HR-TRIPLET-FOLLOWUPS). */
+            hrStat: 'rate-of-mean',
             rmssd: nz(e.rmssd),
             sdnn: nz(e.sdnn),
             lfhf: nz(e.lfhf),

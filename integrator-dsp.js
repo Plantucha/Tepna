@@ -634,6 +634,12 @@ function adaptEnvelopeNode(json, node, filename) {
           tMs: t0Ms != null ? t0Ms + tMin * 60000 : null,
           rmssd: e.rmssd != null && isFinite(e.rmssd) ? e.rmssd : null,
           hr: e.hr != null && isFinite(e.hr) ? e.hr : null,
+          /* This map is a WHITELIST — a key the node adds is dropped here unless named. `hrStat` says
+             WHICH statistic the node's `hr` is (R5-HR-TRIPLET-FOLLOWUPS); without it the HR-hat
+             differences three legs that do not agree on the question, which is how a 0.299 bpm
+             estimator gap was read as a 0.36 bpm device bias. `null` on a node that has not declared
+             one — absent, never assumed. */
+          hrStat: typeof e.hrStat === 'string' && e.hrStat ? e.hrStat : null,
           motion: e.motionIndex != null && isFinite(e.motionIndex) ? e.motionIndex : null
         };
       })
@@ -3208,6 +3214,24 @@ function fuseHRVConsensus(recs, dtMs) {
           hrLike.push(rc);
       });
       var tchHR = _tchHat(hrLike, _hrPts, 'hr');
+      /* ── DO THE THREE LEGS EVEN ANSWER THE SAME QUESTION? (R5-HR-TRIPLET-FOLLOWUPS) ──────────────
+         The hat differences three nodes' epoch HR. That is only a comparison of SENSORS if all three
+         summarise an epoch with the same statistic — and they do not: OxyDex publishes
+         `median(1 Hz rate)` where ECGDex and PpgDex publish `60000/mean(RR)`, a 0.299 bpm gap on real
+         RR. That gap is the entire "OxyDex under-reads by 0.36 bpm" finding this hat was used to
+         support. So the hat must SAY when its legs disagree rather than quietly attributing the
+         difference to a device. Reported, not refused: the σ effect is under 2 %, so suppressing an
+         otherwise-good hat would lose more than it protects. A node that declares nothing is `null`
+         and counts as unknown, never as agreeing. */
+      var _hrStats = hrLike.map(function (rc) {
+        var eps = (rc.series && rc.series.hrvEpochs) || [];
+        for (var i = 0; i < eps.length; i++) if (eps[i] && eps[i].hrStat) return eps[i].hrStat;
+        return null;
+      });
+      var _hrStatSet = _hrStats.filter(function (v, i) {
+        return v != null && _hrStats.indexOf(v) === i;
+      });
+      var _hrStatMixed = _hrStatSet.length > 1 || _hrStats.indexOf(null) >= 0;
       var hrReconciled = null;
       if (tchHR && tchHR.ok && tchHR.levels) {
         // inverse-variance reconciled HR (weight ∝ 1/σ²)
@@ -3248,8 +3272,21 @@ function fuseHRVConsensus(recs, dtMs) {
           tchHR.method +
           (tchHR.rho ? ', ρ=' + tchHR.rho : '') +
           ')' +
-          (hrReconciled != null ? '; reconciled HR ' + hrReconciled + ' bpm.' : '.');
+          (hrReconciled != null ? '; reconciled HR ' + hrReconciled + ' bpm.' : '.') +
+          (_hrStatMixed
+            ? ' ⚠ Its legs do NOT share one epoch statistic (' +
+              hrLike
+                .map(function (rc, i) {
+                  return rc.node + '=' + (_hrStats[i] || 'undeclared');
+                })
+                .join(', ') +
+              '), so part of this spread is the choice of statistic, not the sensors: median-rate sits ≈0.3 bpm below rate-of-mean on real RR. Do not read a per-device bias off it.'
+            : '');
       return {
+        // R5-HR-TRIPLET-FOLLOWUPS — machine-readable siblings of the ⚠ in `note`, so a consumer can
+        // gate on the confound instead of parsing prose. Additive; null when there is no HR hat.
+        hrStats: tchHR && tchHR.ok ? _hrStats : null,
+        hrStatMixed: tchHR && tchHR.ok ? _hrStatMixed : null,
         nodes: like.map(function (s) {
           return s.node;
         }),

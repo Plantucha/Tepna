@@ -108,6 +108,7 @@
       {
         "tMin": 0,
         "hr": 66,
+        "hrStat": "rate-of-mean",
         "rmssd": 2.1,
         "sdnn": 19.4,
         "lfhf": 3.65,

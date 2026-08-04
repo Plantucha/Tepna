@@ -74,6 +74,7 @@
         "totalPower": 778,
         "lfhf": 0.012,
         "resp": 13.2,
+        "hrStat": "rate-of-mean",
         "motionIndex": null,
         "position": "unknown"
       }
