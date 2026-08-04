@@ -40,10 +40,37 @@ name: capture-host-ci
 # That is exactly what the `changes` job below now does, so the trigger stays unfiltered (the checks
 # always report) while a JS-only PR pays ~8 s instead of ~80 s. This matters because coders here merge
 # the moment CI is green rather than rebasing, so anything on the critical path is paid by every PR.
+# ⚠️ `push:` IS SCOPED TO main — and that is about DUPLICATE RUNS, not about path-filtering.
+#
+# A bare `push:` fires on every branch push. For a PR from a branch in this repo that is a SECOND run of
+# this same workflow on the same commit, alongside the `pull_request:` one. Measured before this change:
+# 21 of the last 39 commits had more than one `capture-host-ci` run (54 %), against 0 of 60 for both
+# `tests` and `browser-gates`.
+#
+# That is not merely wasteful — it deadlocks PRs. The two runs register the SAME required contexts
+# (`test (py3.12)` / `test (py3.13)`), so if either one wedges, the check sits `in_progress` forever and
+# auto-merge waits on it with nothing to report. It happened on PR #776: one run stuck ~9 min with no
+# heartbeat while a duplicate had already succeeded. Worse, the duplicate had SKIPPED the python matrix
+# (its check registered as the unexpanded literal `test (py${{ matrix.python-version }})`), so "a newer
+# run passed" was not evidence the jobs had run — cancelling the wedged one turned a pending required
+# check into a CANCELLED one and blocked the PR harder.
+#
+# Scoping to main is the same shape `tests.yml` already uses, and it does NOT weaken the required-check
+# invariant the note above defends: a PR still gets its report from the `pull_request:` trigger, and main
+# still gets one from the push after merge. A branch with no PR reports nothing, but has no PR to block.
 on:
   push:
+    branches: [main, master]
   pull_request:
   workflow_dispatch:
+
+# Supersede an in-flight run when the same PR is pushed again — force-pushing a rebase otherwise leaves
+# the older run racing the newer one for the same required contexts. `cancel-in-progress` is deliberately
+# PR-ONLY: cancelling a run on `main` would leave main's history with a cancelled required check and no
+# successor to replace it.
+concurrency:
+  group: capture-host-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
