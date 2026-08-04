@@ -396,3 +396,58 @@ precision by any method examined here.
 ⚠️ Scouting only, and it does not license a verdict: `hostAxis`'s contract was **re-implemented** for
 this measurement rather than called, one pair per night was used, and the offset difference was sampled
 at 10 s. A shipped result must drive `DexClock.hostAxis` itself.
+
+## 3f · The shipped measurement, run over both corpora — coupling is REAL, INTERMITTENT, and mostly absent
+
+`tools/pat-host-offset.mjs` (§3e.4's route, shipped): the inter-device offset is **read** from
+`DexClock.hostAxis`, scoring is **windowed**, and **no pair is selected — every pair and every
+non-overlapping window is scored**. §3c.4's circularity is answered by enumerating rather than by a
+better rule; a distribution cannot be cherry-picked.
+
+### 3f.1 · The phone-captured corpus cannot support this measurement AT ALL  `[CORPUS]`
+34 nights of the older tri-device tree (`Ecg nightly`, 208 ECG/PPG/ACC files): **29 refusals, 100 % of
+them `NOT INDEPENDENT`, zero windows scored.** Measured residual spread **exactly 1.00 ms ≤ 2 ms** —
+one stamp quantum. The host column *is* the device stamp rounded, so there is no second clock to read
+an offset from.
+
+This is `clock.js`'s documented phone/box bimodality (§7: box 101.89–5124 ms, phone 0.13–1.00 ms)
+reproduced on an independent corpus by a tool that had no knowledge of which tree was which. **Any PAT
+attempt on phone-captured nights is measuring nothing**, and the guard says so rather than silently
+falling back to an uncorrected axis.
+
+### 3f.2 · The box-captured corpus: 20 of 57 windows beat their own null  `[CORPUS]`
+20 nights, 14 with scorable pairs, **57 windows / 179 389 beats**, 60-min windows, 40 surrogates:
+
+| | |
+|---|---|
+| strict beats its own circular-shift null at p<0.05 | **20 / 57 (35 %)** — against ~1.4 expected |
+| **median** strict `matchRate` | **7 %** — *exactly its chance floor* |
+| windows at or below chance | **33 / 57** |
+| windows > 2× chance | 8 / 57 |
+| strongest windows | **48 %** and **47 %**, against a 7 % floor |
+
+**Both halves are the finding.** The typical window shows nothing; a minority show coupling far above
+chance. This is not "PAT works" — it is "PAT is present intermittently and absent most of the time",
+which is the first statement in this brief with a shape a verdict could eventually be built on.
+
+Per night it concentrates: 2026-08-01 **7/9**, 08-03 **4/6**, 07-22 **3/4**, while 07-18, 07-25, 07-26
+and 07-28 are **0 / N**.
+
+### 3f.3 · A consistency check that runs the RIGHT way
+The two nights carrying the most significant windows — **08-01 and 08-03** — are exactly the two with
+the **worst whole-night offset IQR** in §3e.4 (**128 ms** and **126 ms**), while 07-24, the best
+(**39 ms**), scores **0/1**. Windowing rescues precisely the nights whose whole-night offset was least
+stable, which is what §3e.4's mechanism predicts and the opposite of what "those nights just had better
+clocks" would produce.
+
+### 3f.4 · What is NOT claimed
+- **The 20/57 count is a magnitude, not a p-value.** Windows from one night and from overlapping pairs
+  are **not independent**, so the binomial tail this invites (2.8 × 10⁻¹⁸) is not quotable and is
+  deliberately not quoted.
+- **The intermittency is not yet attributed.** Physiology coming and going, and the offset wandering in
+  and out of the `[200, 650]` ms window, both predict this shape. The tool already carries per-window
+  `ppm` for that test; it has not been run.
+- **A defect this run found in the tool itself**, now gated: `strictMatchRate` returns `NaN` on an empty
+  lag list, and a permutation p of `count(surrogate ≥ NaN)+1` over `n+1` is `(0+1)/41` = **0.024** — so
+  **two of sixty windows reported NO DATA as SIGNIFICANT** in the first pass. Windows with < 50 lags or
+  a non-finite rate are now refused loudly. The corrected figure is 20/57, not the 22/60 that pass gave.
