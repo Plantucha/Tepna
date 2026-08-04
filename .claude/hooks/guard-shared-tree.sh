@@ -83,7 +83,7 @@ deny() {
 # parallel work-units from the next changelog. The count GREW with every merge instead of converging.
 #
 # The check that hid it: `git rev-list --count HEAD..origin/main` returned 0. The ref WAS synced.
-_RE2="$GITX"'(update-ref([[:space:]]+--stdin|[[:space:]]+(-d[[:space:]]+|--no-deref[[:space:]]+)*'"$QT"'refs/heads/)|branch[[:space:]]+([^;&|]*[[:space:]])?(-f|--force)|push[[:space:]]+\.([[:space:]]|$)|symbolic-ref[[:space:]]+HEAD)'
+_RE2="$GITX"'(update-ref([[:space:]]+--stdin|[[:space:]]+(-d[[:space:]]+|--no-deref[[:space:]]+)*'"$QT"'refs/heads/)|branch[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)|push[[:space:]]+\.([[:space:]]|$)|symbolic-ref[[:space:]]+HEAD)'
 if grep -qE "$_RE2" <<<"$cmdn"; then
   deny "BLOCKED: 'git update-ref refs/heads/...' in a shared checkout.
 
