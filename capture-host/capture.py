@@ -2633,7 +2633,25 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     interval = float(wcfg.get("interval_sec", 60))
     grace = int(wcfg.get("grace_checks", 2))
     max_cycles = int(wcfg.get("max_adapter_cycles", 3))
-    consecutive = cycles = silent = 0
+    # RECOVERY NEEDS HYSTERESIS, THE WAY THE WEDGE VERDICT ALREADY DOES (VIGIL-OVERNIGHT-FINDINGS P1.1).
+    # `grace_checks` exists because ONE bad poll must not trigger an escalation. The mirror was missing:
+    # ONE good poll cleared `consecutive` outright, so a FLAPPING adapter — wedged, blip, wedged, blip —
+    # never accumulated `grace` in a row and the ladder was never reached. On 2026-07-24 that shape cost
+    # ~65 minutes of deferred escalation, logging "adapter healthy again" 25×+ between wedges.
+    #
+    # `adapter_up` (added since) stops a DOWN radio reading healthy at all, which kills the original
+    # 25× case. It does NOT stop the flap: an adapter genuinely up on one poll and wedged on the next
+    # still resets the counter every time it blips. Requiring N CONSECUTIVE clean polls closes that.
+    #
+    # `cycles` is reset here too, and that matters more than it looks: it is the power-cycle budget
+    # (`max_adapter_cycles`). Clearing it on a single good poll let a flapping radio be power-cycled
+    # without bound, because the cap could never be reached either.
+    # No max(1, …) guard: it would be dead code. `healthy_run >= recover` is already satisfied by the
+    # first clean poll for ANY value <= 1, so 0 and negatives mean "recover immediately" — i.e. the
+    # pre-hysteresis behaviour — which is a legible opt-out, not a footgun. A guard whose removal no
+    # test can detect is a claim nobody is checking.
+    recover = int(wcfg.get("recover_checks", 2))
+    consecutive = cycles = silent = healthy_run = 0
     sel = f"select {adapter_mac}\n" if adapter_mac else ""
     while not _STOP.is_set():
         await asyncio.sleep(interval)
@@ -2698,10 +2716,17 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                     silent = 0
                     log.error("watchdog: adapter reports UP but hears nothing — restarting bluetooth")
                     await _restart_radio()
-            if consecutive:
-                log.info("watchdog: adapter healthy again")
-            consecutive = cycles = 0
+            # Clean poll — but do not declare recovery until `recover` of them in a row.
+            healthy_run += 1
+            if consecutive and healthy_run < recover:
+                log.info("watchdog: clean poll %d/%d — holding the wedge count at %d until recovery is "
+                         "stable (a flap is not a recovery)", healthy_run, recover, consecutive)
+            elif healthy_run >= recover:
+                if consecutive:
+                    log.info("watchdog: adapter healthy again (%d consecutive clean polls)", healthy_run)
+                consecutive = cycles = 0
             continue
+        healthy_run = 0                               # a wedged poll breaks the recovery run
         consecutive += 1
         log.warning("watchdog: wedge sign %d/%d — %s", consecutive, grace, "; ".join(h["reasons"]))
         for addr in h["phantom"]:                     # L1: clear stale links (cheap, non-disruptive)

@@ -262,6 +262,18 @@ def _wedge_rig(monkeypatch, hci="hci0", adapter_up=False):
     monkeypatch.setattr(capture, "_adapter_is_up", fake_up)
 
 
+def _quiet_deafness_probe(monkeypatch):
+    """Stub the deafness scan out of the hysteresis tests.
+
+    A CLEAN poll with nothing connected runs `bonding.scan`, which sleeps — and `_stop_after` counts
+    every sleep, not every poll, so an unstubbed scan silently eats the poll budget and the loop stops
+    early. Returning one neighbour also keeps `silent` at 0, so no radio restart fires: these tests are
+    about the wedge counter, not the deafness ladder."""
+    async def scan(_mac, seconds=0):
+        return [{"address": "AA:AA:AA:AA:AA:AA"}]
+    monkeypatch.setattr(capture.bonding, "scan", scan)
+
+
 def test_an_optional_backup_device_is_not_wedge_evidence(monkeypatch):
     """A device marked `optional: true` is known-but-not-expected — a spare strap in a drawer. Counting
     its permanent absence as an unreachable sensor would keep the adapter permanently "wedged" and
@@ -289,6 +301,7 @@ def test_the_watchdog_says_so_when_the_adapter_comes_back(monkeypatch, caplog):
     """Recovery is as newsworthy as the fault. Without this line the journal shows an escalating wedge
     and then simply stops, which reads identically to the daemon having died."""
     _wedge_rig(monkeypatch, adapter_up=False)
+    _quiet_deafness_probe(monkeypatch)
     cfg = {"devices": [_dev(name="H10")], "watchdog": {"interval_sec": 1, "grace_checks": 9}}
     state = {"n": 0}
 
@@ -296,10 +309,134 @@ def test_the_watchdog_says_so_when_the_adapter_comes_back(monkeypatch, caplog):
         state["n"] += 1
         return state["n"] > 1                      # wedged on poll 1, healthy from poll 2
     monkeypatch.setattr(capture, "_adapter_is_up", flip)
-    _stop_after(monkeypatch, 2)
+    # THREE polls, not two: recovery now needs `recover_checks` (default 2) clean polls in a row, so
+    # wedge → clean → clean is the shortest run that legitimately announces recovery. Two polls would
+    # only reach "clean poll 1/2 — holding", which is the point of the hysteresis, not a regression.
+    _stop_after(monkeypatch, 3)
     with caplog.at_level("INFO"):
         _run(capture.adapter_watchdog(None, cfg))
     assert any("adapter healthy again" in r.getMessage() for r in caplog.records)
+
+
+def test_a_flapping_adapter_does_not_reset_the_wedge_count(monkeypatch, caplog):
+    """THE 2026-07-24 defect (VIGIL-OVERNIGHT-FINDINGS P1.1), in its surviving form.
+
+    `grace_checks` means one bad poll cannot escalate. The mirror was missing: one GOOD poll cleared the
+    count outright, so wedged → blip → wedged → blip never accumulated `grace` in a row and the recovery
+    ladder was never reached — ~65 minutes of deferred escalation on the night this was measured.
+
+    `adapter_up` (added since) stops a DOWN radio reading healthy at all, which kills the original 25×
+    shape. It does NOT stop this one: the adapter here is genuinely up on the even polls. Without
+    hysteresis the wedge count returns to 0 every other poll and never reaches 9."""
+    _wedge_rig(monkeypatch, adapter_up=False)
+    _quiet_deafness_probe(monkeypatch)
+    state = {"n": 0}
+
+    async def flap(_hci):
+        state["n"] += 1
+        return state["n"] % 2 == 0                 # wedged, up, wedged, up, …
+    monkeypatch.setattr(capture, "_adapter_is_up", flap)
+    _stop_after(monkeypatch, 8)
+    cfg = {"devices": [_dev(name="H10")], "watchdog": {"interval_sec": 1, "grace_checks": 9}}
+    with caplog.at_level("INFO"):
+        _run(capture.adapter_watchdog(None, cfg))
+    msgs = [r.getMessage() for r in caplog.records]
+    # the count must CLIMB across the flaps rather than restarting at 1 each time
+    assert any("wedge sign 4/9" in m for m in msgs), [m for m in msgs if "wedge sign" in m]
+    assert not any("adapter healthy again" in m for m in msgs), "a flap is not a recovery"
+    assert any("holding the wedge count" in m for m in msgs)
+
+
+def test_a_sustained_recovery_still_clears_the_count(monkeypatch, caplog):
+    """The hysteresis must not become a ratchet: once the adapter is genuinely stable the count clears,
+    or the ladder would escalate against a working radio."""
+    _wedge_rig(monkeypatch, adapter_up=False)
+    _quiet_deafness_probe(monkeypatch)
+    state = {"n": 0}
+
+    async def settle(_hci):
+        state["n"] += 1
+        return state["n"] >= 2                     # wedged once, then up for good
+    monkeypatch.setattr(capture, "_adapter_is_up", settle)
+    _stop_after(monkeypatch, 4)
+    cfg = {"devices": [_dev(name="H10")], "watchdog": {"interval_sec": 1, "grace_checks": 9}}
+    with caplog.at_level("INFO"):
+        _run(capture.adapter_watchdog(None, cfg))
+    assert any("adapter healthy again" in r.getMessage() for r in caplog.records)
+
+
+def test_recover_checks_is_honoured_as_configured(monkeypatch, caplog):
+    """The knob is real: at `recover_checks: 3`, two clean polls are NOT a recovery and three are.
+
+    (An earlier version of this test asserted a `max(1, …)` floor. That guard was dead — `healthy_run >=
+    recover` is already true on the first clean poll for any value <= 1 — and no mutant could kill it,
+    so the guard went rather than the claim staying unverified.)"""
+    _wedge_rig(monkeypatch, adapter_up=False)
+    _quiet_deafness_probe(monkeypatch)
+    state = {"n": 0}
+
+    async def settle(_hci):
+        state["n"] += 1
+        return state["n"] >= 2
+    monkeypatch.setattr(capture, "_adapter_is_up", settle)
+    cfg = {"devices": [_dev(name="H10")],
+           "watchdog": {"interval_sec": 1, "grace_checks": 9, "recover_checks": 3}}
+    _stop_after(monkeypatch, 3)                    # wedge + 2 clean — one short of the configured 3
+    with caplog.at_level("INFO"):
+        _run(capture.adapter_watchdog(None, cfg))
+    assert not any("adapter healthy again" in r.getMessage() for r in caplog.records), \
+        "2 clean polls announced recovery while recover_checks=3"
+    assert any("clean poll 2/3" in r.getMessage() for r in caplog.records)
+
+    caplog.clear()
+    capture._STOP.clear()
+    state["n"] = 0
+    _stop_after(monkeypatch, 4)                    # wedge + 3 clean — exactly the configured run
+    with caplog.at_level("INFO"):
+        _run(capture.adapter_watchdog(None, cfg))
+    assert any("adapter healthy again" in r.getMessage() for r in caplog.records)
+
+
+def test_a_sustained_recovery_restores_the_power_cycle_BUDGET(monkeypatch, caplog):
+    """`cycles` is reset alongside `consecutive`, and that is a real property, not tidiness.
+
+    `cycles` is the power-cycle budget (`max_adapter_cycles`). A box that wedges, recovers properly, and
+    wedges again hours later must get a fresh budget — otherwise one bad patch early in the night
+    permanently disarms the ladder for the rest of it. The mirror risk is why the reset sits BEHIND the
+    hysteresis: clearing it on a single flap would let a flapping radio be power-cycled without bound.
+
+    Shape: wedge → power-cycle (budget spent, max=1) → two clean polls → wedge again. With the budget
+    restored the second wedge power-cycles again; without it, the run logs CRITICAL instead."""
+    _wedge_rig(monkeypatch, adapter_up=False)
+    _quiet_deafness_probe(monkeypatch)
+    state = {"n": 0}
+
+    async def wedge_recover_wedge(_hci):
+        state["n"] += 1
+        return state["n"] in (2, 3)                # wedged, clean, clean, wedged
+    monkeypatch.setattr(capture, "_adapter_is_up", wedge_recover_wedge)
+
+    ticks = {"n": 0}
+
+    async def fake_sleep(secs):                    # count only the top-of-loop interval, as the
+        if secs == 1:                              # power-cycle path sleeps internally too
+            ticks["n"] += 1
+            if ticks["n"] >= 4:
+                capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    cfg = {"devices": [_dev(name="H10")],
+           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
+                        "recover_checks": 2}}
+    with caplog.at_level("INFO"):
+        _run(capture.adapter_watchdog("AA:BB:CC:DD:EE:FF", cfg))
+    msgs = [r.getMessage() for r in caplog.records]
+    # NOTE there is deliberately no "adapter healthy again" here: the power-cycle path already sets
+    # `consecutive = 0`, and that line is gated on a non-zero count. The recovery is silent in this
+    # shape, and the budget reset is the only observable — which is precisely what is being pinned.
+    assert sum("power-cycling adapter" in m for m in msgs) == 2, \
+        [m for m in msgs if "power-cycl" in m or "STILL wedged" in m]
+    assert not any("STILL wedged after" in m for m in msgs), \
+        "the budget was not restored — one early wedge disarmed the ladder for the rest of the night"
 
 
 def test_the_last_power_cycle_escalates_to_hci_reset_and_a_usb_rebind(monkeypatch):
