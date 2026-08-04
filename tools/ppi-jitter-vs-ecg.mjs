@@ -65,6 +65,26 @@ const MAX_NIGHTS = +opt('--max-nights', 20);
    silently excluding a real one. Reported alongside the unfiltered figure so the filter's effect is
    visible rather than assumed. */
 const SLEEP_ONLY = has('--sleep-only');
+/* SESSION MERGE (default ON; --no-merge reproduces the pre-2026-08-04 single-file behaviour).
+   The O2Ring and the Polar loggers split ONE night across many session files — 1632 finger files across
+   18 nights, and the early nights are 100-400 fragments with no single continuous recording. Treating
+   one FILE as one night therefore made most of the corpus invisible: only the 9 nights that happened to
+   contain one long unbroken file ever produced a row, and raising --max-nights from 30 to 120 changed
+   nothing because the cap was never the binding constraint. `trio-batch.mjs` already merges concurrent
+   sessions per night ("47 concurrent session(s), 12.2 h merged"); this is that idea, applied here.
+   NIGHT KEY is trio-batch's: the date of (start - 12 h), so an evening start and the post-midnight hours
+   of the same sleep land on one key. */
+/* ⚠ INCOMPLETE — the FINGER side merges, the ECG side does not yet. A merged finger train is still
+   paired against a SINGLE best-overlapping ECG file, so finger beats outside that file's window have
+   nothing to match and the match rate falls structurally on heavily-fragmented nights (measured: 80.6 %
+   on 2026-07-24 with 45 sessions, 65.2 % on 07-31 with 8). The jitter median therefore READS worse
+   under merge (7.03 → 11.99 ms) for a reason that is an artifact of this asymmetry, not a property of
+   the corpus. Do not quote merged jitter until the ECG side merges too.
+   CVHR is likewise NOT merged: `cvhrFromNN` / `detectCVHR` live inside analyze() and are not exported,
+   so a merged night carries its LARGEST session's cvhrIndex. A merged-night CVHR n therefore does not
+   satisfy §3.1's ≥10-night bar and must not be read as doing so. */
+const MERGE = !has('--no-merge');
+const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600 * 1000).toISOString().slice(0, 10);
 const isSleepNight = (name, durSec) => {
   const m = /_(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(name) || /(\d{8})(\d{2})(\d{2})(\d{2})_PPG/.exec(name);
   const hh = m ? +(m.length > 6 ? m[4] : m[2]) : null;
@@ -201,7 +221,7 @@ const walk = (d, o = []) => {
   return o;
 };
 const all = walk(DIR);
-const fingers = all
+const fingerFiles = all
   .filter((f) => PPG_RE.test(f.p))
   .sort((a, b) => b.size - a.size)
   .slice(0, MAX_NIGHTS);
@@ -211,21 +231,77 @@ console.log('O2RING-FINGER-HRV-VALIDATION §3 — PPI-jitter sd vs paired H10 EC
 console.log('device: ' + (DEVICE === 'verity' ? 'Polar Verity Sense (WRIST — the deep-dive reference leg)' : "Wellue O2Ring (FINGER — this brief's subject)") + '\n');
 console.log('night                                        eps  jitter_sd  match%   lag_ms   RMSSD_f  RMSSD_e  bias%   sdnnRob%');
 
-const nights = [];
-for (const f of fingers) {
-  let frec, fres;
-  try {
-    const txt = readFileSync(f.p, 'utf8');
-    frec = P.parsePPG(txt);
-    fres = P.analyze(frec);
-  } catch (_e) {
-    continue;
+/* Build the UNITS to score. Merged: one unit per NIGHT, its beat train the union of every session's
+   beats on the shared absolute (floating) clock. Unmerged: one unit per file, the legacy behaviour.
+   Each session is parsed and analysed INDEPENDENTLY — detection stays per-recording, which is correct,
+   since a fragment boundary is real time in which no signal arrived. Only the resulting beat TIMES are
+   pooled, and an interval spanning a boundary is dropped downstream by ppiJitterMs' own 300-2000 ms
+   window rather than being bridged (the same discipline ppgdex-dsp applies to a gap). */
+function buildUnits(files) {
+  const parsed = [];
+  for (const f of files) {
+    try {
+      const rec = P.parsePPG(readFileSync(f.p, 'utf8'));
+      if (rec.t0Ms == null) continue;
+      const res = P.analyze(rec);
+      if (!res || !res.beatTimes) continue;
+      parsed.push({ f, rec, res, beats: (res.footSec || []).map((x) => rec.t0Ms + x * 1000) });
+    } catch (_e) {}
   }
-  if (frec.t0Ms == null || !fres.beatTimes) continue;
-  if (SLEEP_ONLY && !isSleepNight(f.p.split('/').pop(), frec.durSec || 0)) continue; // §4: sleep nights only
-  const fBeats = (fres.footSec || []).map((s) => frec.t0Ms + s * 1000);
+  if (!MERGE) {
+    return parsed.map((u) => ({
+      name: u.f.p.split('/').pop(),
+      t0: u.rec.t0Ms,
+      t1: u.rec.t0Ms + (u.rec.durSec || 0) * 1000,
+      beats: u.beats,
+      res: u.res,
+      nSess: 1
+    }));
+  }
+  const byNight = new Map();
+  for (const u of parsed) {
+    const k = nightKeyOf(u.rec.t0Ms);
+    if (!byNight.has(k)) byNight.set(k, []);
+    byNight.get(k).push(u);
+  }
+  const out = [];
+  for (const [k, us] of byNight) {
+    const beats = [];
+    for (const u of us) beats.push(...u.beats);
+    beats.sort((a, b) => a - b);
+    // representative analyse result = the LARGEST session, used only for the per-node HRV columns
+    // (RMSSD / sdnnRobust / cvhrIndex live inside analyze() and cannot be recomputed from beat times
+    // without exporting cvhrFromNN/detectCVHR — see the follow-up note in the brief).
+    const rep = us.slice().sort((a, b) => b.f.size - a.f.size)[0];
+    out.push({
+      name: k + ' (' + us.length + ' sess)',
+      t0: Math.min(...us.map((u) => u.rec.t0Ms)),
+      t1: Math.max(...us.map((u) => u.rec.t0Ms + (u.rec.durSec || 0) * 1000)),
+      beats,
+      res: rep.res,
+      nSess: us.length,
+      repName: rep.f.p.split('/').pop()
+    });
+  }
+  return out.sort((a, b) => b.beats.length - a.beats.length);
+}
+
+const nights = [];
+for (const unit of buildUnits(fingerFiles)) {
+  const fres = unit.res;
+  const frec = { t0Ms: unit.t0, durSec: (unit.t1 - unit.t0) / 1000 };
+  const f = { p: unit.name };
+  /* Sleep filter on the MERGED window, not on a filename stamp: a merged night starts at its earliest
+     session, which is not necessarily the largest file. Read with getUTC* because tMs is floating
+     wall-clock (CLAUDE.md §5) — using local getters would make the filter depend on the reader's zone. */
+  if (SLEEP_ONLY) {
+    const hh = new Date(unit.t0).getUTCHours();
+    const okHour = hh >= 20 || hh < 4;
+    if (!(okHour && (frec.durSec || 0) >= 4 * 3600)) continue; // §4: sleep nights only
+  }
+  const fBeats = unit.beats;
   if (fBeats.length < 100) continue;
-  const fw = [frec.t0Ms, frec.t0Ms + (frec.durSec || 0) * 1000];
+  const fw = [unit.t0, unit.t1];
   let best = null;
   for (const e of ecgs) {
     let er, eres;
