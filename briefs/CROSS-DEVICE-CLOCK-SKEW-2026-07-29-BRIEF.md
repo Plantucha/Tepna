@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-07-31 (every Done-when item is closed; the ONE residual — confirming the predicted ≈21 min post-correction offset on a third clean tri-device night, currently n=2 fitting −22.25/−21.13 min — is owned by `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` §4, not by this brief) · **Created:** 2026-07-29 · **Found while executing:** `MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS-2026-07-29-BRIEF.md` §1.1 · **Affects:** Integrator fusion, `tools/cpap-oxy-couple.mjs`, every CPAP↔other-node event comparison · **Spawned:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md`
+**Status:** DONE — 2026-07-31 (every Done-when item is closed; the ONE residual — confirming the predicted ≈21 min post-correction offset on a third clean tri-device night, currently n=2 fitting −22.25/−21.13 min — is owned by `POOLED-CLOCK-FIT-2026-07-31-BRIEF.md` §4, not by this brief — **CLOSED 2026-08-04 at that brief's §4a: 2026-08-01 fits −22.13 min, Z 8.1, p 0.032, making it three nights at −21.9 ± 0.6**) · **Created:** 2026-07-29 · **Found while executing:** `MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS-2026-07-29-BRIEF.md` §1.1 · **Affects:** Integrator fusion, `tools/cpap-oxy-couple.mjs`, every CPAP↔other-node event comparison · **Spawned:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md`
 
 # The CPAP's clock is ~39 minutes wrong, and nothing in the suite can tell
 
