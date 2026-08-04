@@ -145,8 +145,35 @@ Contract (floating `tMs` via `Date.UTC`, read back with `getUTC*`/`{timeZone:'UT
    5 internal anchors jump correctly.
 
 ## Per-guide acceptance criteria
-- [ ] Every citation verified to a real paper with a **resolving** DOI/PMID (or replaced with a verified
-      source, or removed + labelled internal); shared sources identical across guides.
+- [x] **DONE 2026-08-04 — all 55 DOIs verified against the DOI registry, and the shared-source
+      inconsistency was real but stylistic.**
+
+      **Resolution.** Every DOI in the seven guides (55 distinct, extracted from the `href` form so the
+      match cannot be a prose artifact) resolves at `doi.org`. Three initially read as failures — 405 on
+      a Thieme DOI, 202 on two IEEE ones — and all three are **publisher-side HTTP behaviour, not
+      unregistered DOIs**: `doi.org` returns 302 with a correct `Location` for each. Do not re-flag them;
+      resolve against `doi.org`, not against what the publisher does afterwards.
+
+      **Identity — the stronger check.** "Resolves" only proves a DOI exists, not that it is *this*
+      paper. Every DOI's registry metadata (CSL JSON: journal · year · volume · issue · pages) was
+      compared against the citation text beside it. **55 of 55 match.** Two flagged on year and both were
+      disproved: `10.1007/s00421-003-0988-y` (registry `issued` 2003) and `10.1093/eurheartj/ehy624`
+      (2018) are **online-first** dates; their `published-print` fields are 2004-01 and 2019-04, and the
+      guides' `2004;91(1):111–115` / `2019;40(14):1149–1157` are the correct print citations. **Compare
+      against `published-print`, not `issued`, or this brief will keep re-finding two false positives.**
+
+      **Shared sources.** 9 DOIs are cited in more than one guide. All 9 name the same paper; 6 differed
+      only in **page-range style** — ECGDex/OxyDex expanded (`1043–1065`), HRVDex/PpgDex/PulseDex
+      Vancouver-abbreviated (`1043–65`). Both are valid, but the item asks for identical shared sources,
+      so 15 ranges across 3 guides were expanded to **the registry's own `page` value** — an authoritative
+      normalisation rather than a house preference. Re-checked after: **0 shared DOIs differ.**
+
+      ⚠ Two of the 19 candidates the sweep produced were **regex artifacts**, not defects (`R1–R39` read
+      as `1–R39`, `H2039–H2049` as `2039–H2049` — a leading letter dropped by the capture group). They
+      were excluded by hand. A page-range sweep that does not special-case letter-prefixed pagination
+      over-reports; only exact-string replacements with a per-edit assertion were applied (15 of 15).
+
+      No citation was replaced or removed — none needed it.
 - [~] **Dimension 2, the NAMED formulas — audited 2026-08-04. Three verify clean; the fourth found a
       cross-node trap.**
 
