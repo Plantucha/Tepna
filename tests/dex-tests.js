@@ -25645,6 +25645,45 @@
        proved separately by the tool's `--selftest`.
 
        NODE-ONLY (.mjs tool), so the browser lane skips. */
+    /* ════ MUTATION TRIAGE — turning a kill-rate into a work list ═══════════════════════════════
+       `mutate.mjs` reports a percentage; raising it needs to know WHERE the survivors are. A flat
+       list of 34 survivors reads as 34 problems, but grouped by enclosing function it is usually
+       three or four functions the suite never exercises — one test each, not 34. This gates the
+       attribution + grouping, which is the part that decides what a person works on next.
+
+       NODE-ONLY (.mjs tool), so the browser lane skips. */
+    group('Mutation triage — survivors group by enclosing function (mutate-triage)', 'tools · mutation · triage', function (T) {
+      var M = env.MutTriage;
+      if (!M || !M.groupSurvivors) {
+        T.skip('MutTriage not in env (browser lane — .mjs tool)');
+        return;
+      }
+      var src = ['function alpha() {', '  var a = 1;', '  if (a > 0) {', '    a = a + 1;', '  }', '}', 'const beta = function () {', '  return 2;', '};', 'var gamma = (x) => {', '  return x;', '};'].join('\n');
+      var lines = src.split('\n');
+      T.eq('attributes a line inside a `function name()` block', M.enclosingFn(lines, 2), 'alpha');
+      T.eq('attributes a `const name = function` block', M.enclosingFn(lines, 8), 'beta');
+      T.eq('attributes an arrow assigned to a var', M.enclosingFn(lines, 11), 'gamma');
+      /* `if (x) {` matches the bare `name(args) {` declaration shape. Without a keyword guard the
+         report attributes survivors to a function called "if" — caught on the first real run. */
+      T.eq('a line inside an `if` block belongs to the enclosing FUNCTION, not to "if"', M.enclosingFn(lines, 4), 'alpha');
+      T.eq('a line before any declaration is (top level)', M.enclosingFn(['var x = 1;'], 1), '(top level)');
+
+      var surv = [
+        { line: 2, op: 'cmp > → >=', before: 'a', after: 'b' },
+        { line: 4, op: 'num → 0', before: 'a', after: 'b' },
+        { line: 4, op: 'cmp > → >=', before: 'a', after: 'b' },
+        { line: 8, op: 'num → 0', before: 'a', after: 'b' }
+      ];
+      var g = M.groupSurvivors(surv, src);
+      T.eq('groups into one entry per enclosing function', g.length, 2);
+      T.eq('the biggest cluster ranks FIRST — that is the work order', g[0].fn, 'alpha');
+      T.eq('…with its survivor count', g[0].n, 3);
+      T.eq('…and its first line, so the reader knows where to look', g[0].firstLine, 2);
+      T.eq('operator mix is tallied within the group', JSON.stringify(g[0].ops), JSON.stringify([['cmp > → >=', 2], ['num → 0', 1]]));
+      T.eq('the smaller group follows', g[1].fn + ':' + g[1].n, 'beta:1');
+      T.eq('no survivors ⇒ no groups (not an empty-shaped one)', M.groupSurvivors([], src).length, 0);
+    });
+
     group('Expert-label join — 30 s PSG labels onto 5-min stager epochs (REM-STAGING-FOLLOWUPS §2b)', 'nsrr · staging · join', function (T) {
       var NS = env.NsrrStage;
       if (!NS || !NS.joinToExpert) {
