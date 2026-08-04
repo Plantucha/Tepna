@@ -147,7 +147,38 @@ Contract (floating `tMs` via `Date.UTC`, read back with `getUTC*`/`{timeZone:'UT
 ## Per-guide acceptance criteria
 - [ ] Every citation verified to a real paper with a **resolving** DOI/PMID (or replaced with a verified
       source, or removed + labelled internal); shared sources identical across guides.
-- [ ] Every formula canonically correct AND consistent with the node `*-dsp.js` (constants/thresholds match).
+- [~] **Dimension 2, the NAMED formulas — audited 2026-08-04. Three verify clean; the fourth found a
+      cross-node trap.**
+
+      | formula | guide | code | verdict |
+      |---|---|---|---|
+      | HRmax (Tanaka) | `208 − 0.7 × age` | `oxydex-dsp` ×2, `hrvdex-dsp` ×1 — identical | ✓ |
+      | GMI (Bergenstal 2018) | `3.31 + 0.02392 × mean` | `glucodex-dsp`: `3.31 + 0.02392 * m` | ✓ |
+      | QTc | Bazett `QT/√RR` primary, Fridericia `QT/∛RR` alternative | `ecgdex-dsp` both present | ✓ |
+      | **SampEn** | every guide: `m=2, r=0.2` | **values right, ARGUMENT divergent** | ⚠ |
+
+      **`sampEn`'s `r` means two different things.** `ECGDex`/`PulseDex` take it as the **absolute**
+      tolerance (callers pass `0.2 * std(seg)`); `PpgDex` takes it as a **multiplier**
+      (`tol = (r || 0.2) * sd`); `OxyDex` inlines `r = 0.2 * stdv`. Same name, same arity, opposite
+      meaning — in sibling files that are routinely copied between. PpgDex's own comment says its cap
+      "matches PulseDex", which is true of the decimation and false of `r`.
+
+      Every node computes r = 0.2·SD today, so no output is wrong. The hazard is the next caller.
+      Measured on one 400-interval series (SD 91.4 ms):
+
+      ```
+      ECGDSP.sampEn(x,2,0.2*SD) = 0.514     PPGDSP.sampEn(x,2,0.2)    = 0.52   ← same quantity
+      ECGDSP.sampEn(x,2,0.2)    = null      PPGDSP.sampEn(x,2,0.2*SD) = 0.01
+      ```
+
+      **The asymmetry is the finding.** Mis-calling ECGDex returns `null` — visible. Mis-calling PpgDex
+      returns **0.01**: not an error, a plausible value that reads as pathological regularity ("Low
+      (regular)" on OxyDex's own scale). A 52× error that renders as a finding.
+
+      **Not unified** — changing either signature moves a DSP, re-bundles and re-records fixtures for a
+      defect with **no live instance**. Pinned instead (`dsp · sampen · cross-node-convention`), so a
+      future harmonisation is deliberate and a cross-node copy-paste reds. Mutation-verified.
+      The other guide dimensions (1, 3, 6, 7) remain per-guide work.
 - [ ] Every normative table is published/consensus (cited) or explicitly marked relative; no invented
       clinical cut-points; units/directions/boundaries sane.
       **2026-08-04 — the guides cannot settle the OxyDex conflict.** The code-side sweep left 4 real
