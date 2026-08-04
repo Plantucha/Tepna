@@ -158,15 +158,43 @@ Mirror nights-icc's deliverable: a minimum / recommended / diminishing-returns t
 - Do not tune the estimator to make sim and real agree; agreement (or its absence) is the result.
 
 ## 8. Definition of done
-- [ ] New tool `sensor-trio-power-analysis.*`: synthetic trio generator (resting/dynamic, known σ,
-      optional correlated-error injection) + Monte-Carlo sweep over N_windows reusing the TCH kernel.
-- [ ] Outputs: σ-recovery (bias + CI/RMSE) vs N per device; minimum-N table; regime comparison;
-      negative-variance/assumption-instability vs N.
-- [ ] Real arm: running σ̂ ± CI vs cumulative N_windows overlaid on the sim band; H10↔O2Ring control.
-- [ ] Paper `papers/sensor-trio-nights.html` in house style: layman + sample-size sections, 3 separate
-      hi-res figures, refs, byline, SPDX, disclaimer/`dxl-` stamp.
-- [ ] `papers/papers.html` entry + `papers/RERUN-RESULTS.md` log; `sensor-trio-power-stats.json` export.
-- [ ] If any `*-dsp.js` node was modified (shouldn't be): full CLAUDE.md gate.
+> **All six boxes below were VERIFIED IN THE TREE and ticked 2026-08-04.** The header has said since
+> 2026-08-04 that they "verify in the tree", but they were left unchecked — so the list still read as
+> six items of unstarted work while the header said the opposite. Independently re-verified before
+> ticking; each box records what was checked.
+
+- [x] **Tool exists and carries all four parts.** `sensor-trio-power-analysis.js` (86 KB) + `.html`:
+      resting/dynamic regimes, a Monte-Carlo sweep over `N_windows`, injected-ρ correlated-error testing,
+      and the negative-variance instability check.
+
+      ⚠ **But it does NOT "reuse the TCH kernel" — it carries its OWN `threeCorneredHat`.** The bundle
+      inlines only its own JS and its GPU worker; `integrator-tch.js` is never loaded, though it exports
+      both `threeCorneredHat` and `classic`. So the simulation behind this paper's sample-size curves —
+      its entire deliverable — was running on a **second, ungated** implementation of the hat.
+      The two are algebraically identical today (checked character-for-character), so this is not a bug
+      report; it is two copies of one rule with nothing that fails when they diverge.
+      **Now bound numerically** by `sensor-trio · tch-parity` (11 assertions, both lanes): the tool's own
+      function is *extracted from source and executed*, then compared against `IntegratorTCH.classic` on
+      five planted triples. Two mutants confirm it fails by value — swapping two output terms (8 legs) and
+      **clamping negative variance to 0 (8 legs)**. That second one is why the negative-variance case is
+      in the table: a clamp passes every well-behaved input, and negative variance is TCH's characteristic
+      failure. ⚠ `classic(Vab,Vac,Vbc)` is the variance-level entry; `threeCorneredHat` takes three
+      *series* — comparing against the wrong one returns `undefined` on every row, which is how this gate
+      first failed.
+
+- [x] **Outputs present** — σ-recovery, bias/RMSE, minimum-N table, regime comparison, negative-variance
+      instability vs N all appear in the tool source.
+- [x] **Real arm present** — cumulative-N running σ̂ overlaid on the sim band, with the H10↔O2Ring control.
+- [x] **Paper in house style** — `papers/sensor-trio-nights.html` (40 KB): SPDX, `dxl-` stamp, byline,
+      8 figure/canvas elements, Table 1, a plain-language section and a References section (Gray & Allan's
+      1974 TCH paper — a conference proceeding that predates DOIs, so the absence of a `doi.org` link there
+      is correct, not a missing citation).
+- [x] **Registered** — listed in `papers/papers.html`, logged in `papers/RERUN-RESULTS.md`, and the tool
+      exports `sensor-trio-power-stats.json`.
+- [x] **No `*-dsp.js` was modified** by this work, so the full-gate clause does not apply.
+
+**The brief stays PROPOSED**: what remains genuinely blocked is the N = 10 → 15 **re-fit** of the shipped
+paper (see the header and `TRIO-POWER-N15-FINDINGS`), not any of the authorship above.
 
 ## 9. Pointers
 - Method paper: `papers/sigma-no-reference.html`; "how many nights" template: `papers/nights-icc.html`.

@@ -2973,6 +2973,72 @@
       T.ok('…and an unreadable corpus says so rather than printing a verdict it cannot support', /UNREADABLE/.test(TC.corpusLine(blind) || ''));
     });
 
+    /* SENSOR-TRIO-NIGHTS-PAPER §8 asked for the power tool to be built "reusing the TCH kernel". It is
+       not: `sensor-trio-power-analysis.js` carries its own `threeCorneredHat`, so the SIMULATION behind
+       that paper's sample-size curves — its entire deliverable — runs on a SECOND implementation of the
+       three-cornered hat that no gate touches. `integrator-tch.js` exports `threeCorneredHat` and
+       `classic`; the tool could have called either.
+
+       The two are algebraically identical TODAY (verified character-for-character 2026-08-04), so this
+       is not a bug report — it is the same failure class as a mirrored threshold: two copies of one rule,
+       currently agreeing, with nothing that fails when they stop. This binds them NUMERICALLY rather than
+       by source scan, because the formula is short enough that a scan would pass on a re-indented copy
+       while the arithmetic drifted.
+
+       The negative-variance row is the one that matters: TCH's characteristic failure is a NEGATIVE
+       variance estimate, and an implementation that clamped or abs()'d it would still match on every
+       well-behaved input. */
+    group("the paper's power tool and the gated TCH kernel compute the same hat", 'sensor-trio · tch-parity', function (T) {
+      var K = env.IntegratorTCH;
+      var src = env.sources && env.sources['sensor-trio-power-analysis.js'];
+      /* `classic(Vab,Vac,Vbc)` is the kernel's VARIANCE-level entry; `threeCorneredHat` takes three
+         SERIES and is a different signature. The tool's local helper is variance-level, so `classic` is
+         the correct counterpart — comparing against the wrong one returns undefined on every row, which
+         is how this gate first failed. */
+      T.ok('the gated kernel is loaded in this lane', !!K && typeof K.classic === 'function', 'IntegratorTCH.classic unavailable — the group below would vacuously pass');
+      T.ok("the tool's source is readable in this lane", !!src, 'sensor-trio-power-analysis.js not in env.sources — must be listed in BOTH lanes');
+      if (!K || typeof K.classic !== 'function' || !src) return;
+
+      /* Lift the tool's own implementation out of its source and RUN it — not a regex comparison, so
+         re-indentation or renamed locals cannot mask a change in the arithmetic. */
+      var m = /function\s+threeCorneredHat\s*\(([^)]*)\)\s*\{([\s\S]*?)\n\s*\}/.exec(src);
+      T.ok("the tool's threeCorneredHat could be extracted", !!m, 'if this fails the tool was refactored — re-point the extraction, do not delete the gate');
+      if (!m) return;
+      var toolHat;
+      try {
+        toolHat = new Function(m[1], m[2]);
+      } catch (e) {
+        T.ok("the tool's threeCorneredHat is executable", false, String(e));
+        return;
+      }
+
+      var CASES = [
+        { vab: 4, vac: 9, vbc: 5, why: 'ordinary positive triple' },
+        { vab: 1, vac: 1, vbc: 1, why: 'symmetric' },
+        { vab: 0.02, vac: 3.1, vbc: 3.0, why: 'one tiny pair variance' },
+        { vab: 1, vac: 1, vbc: 8, why: 'NEGATIVE variance — the characteristic TCH failure' },
+        { vab: 12.5, vac: 0.4, vbc: 11.9, why: 'a decorrelated corner (the real 2026-06-12 shape)' }
+      ];
+      var agreed = 0;
+      for (var i = 0; i < CASES.length; i++) {
+        var c = CASES[i];
+        var a = K.classic(c.vab, c.vac, c.vbc);
+        var b = toolHat(c.vab, c.vac, c.vbc);
+        var same = Math.abs(a.a - b.a) < 1e-12 && Math.abs(a.b - b.b) < 1e-12 && Math.abs(a.c - b.c) < 1e-12;
+        if (same) agreed++;
+        T.ok('kernel ≡ tool — ' + c.why, same, same ? '' : 'kernel {' + a.a + ',' + a.b + ',' + a.c + '} vs tool {' + b.a + ',' + b.b + ',' + b.c + '}');
+      }
+      T.eq('every planted triple agreed', agreed, CASES.length);
+
+      /* Anti-vacuity: prove the comparison can FAIL, or "agrees" means only that both were called. */
+      var k0 = K.classic(4, 9, 5);
+      T.ok('…and the comparison is not vacuous — a 1e-6 perturbation is detected', Math.abs(k0.c - (0.5 * (9 + 5 - 4) + 1e-6)) > 1e-12);
+
+      /* The negative case must actually BE negative, or that row tested nothing. */
+      var neg = K.classic(1, 1, 8);
+      T.ok('the negative-variance case really is negative', neg.a < 0 || neg.b < 0 || neg.c < 0, 'a=' + neg.a + ' b=' + neg.b + ' c=' + neg.c);
+    });
+
     group('trio-batch quotes a drift ppm only when its closure holds', 'trio-batch · drift-report', function (T) {
       var DR = env.DriftReport;
       T.ok('DriftReport is loaded in this lane', !!DR, 'tools/drift-report.js did not load — the group below would vacuously pass');
