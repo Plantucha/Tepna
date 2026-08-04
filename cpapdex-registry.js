@@ -176,7 +176,60 @@
     spo2Nadir: { label: 'SpO₂ Nadir', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Lowest valid SpO₂ — direct SA2 reading' },
     spo2Mean: { label: 'Mean SpO₂', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Mean valid SpO₂ — direct SA2 reading' },
     pulseMedian: { label: 'Pulse', unit: 'bpm', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Median in-band pulse — direct SA2 reading' },
-    pulseRange: { label: 'Pulse Range', unit: 'bpm', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: 'P95−P5 of in-band pulse — direct SA2 reading' }
+    pulseRange: { label: 'Pulse Range', unit: 'bpm', goodDirection: 'down', depth: 'research', evidence: 'measured', cite: 'P95−P5 of in-band pulse — direct SA2 reading' },
+
+    /* ── CROSS-NODE DISPLAY (BADGE-COVERAGE-AUDIT §5, corrected on execution) ──────────────────
+       The "Cross-Node Corroboration" card renders values CPAPDex does NOT compute — every tile is
+       source-attributed with an `xn-tag` reading ECG. None of them had an entry here, so
+       `CpapRegistry.evBadge(id)` fell through `MetricRegistry.entry`'s unknown-id path, which
+       fabricates `evidence:'experimental'`, sets `_missing:true` that no caller reads, and emits one
+       console.warn. That is not a MISSING badge — it is a WRONG one. ECG_REGISTRY grades rMSSD
+       `validated`; the tile captioned "real RR-based HRV" rendered it `experimental`, an under-grade
+       of two tiers on a correctly-computed number, which §🎫 rates as severe as a wrong unit.
+       Every tier below is INHERITED VERBATIM from a NAMED ECG_REGISTRY sibling — never assigned here.
+       §🎫: a metric's tier is a NODE fact and the owner is ECGDex. If ECGDex re-grades one of these,
+       this must follow (same discipline as the `registry-defs-parity` projection gate). The
+       `no-fabricated-tier` gate in tests/dex-tests.js keeps the fall-through unreachable. ── */
+    rmssd: {
+      label: 'RMSSD',
+      unit: 'ms',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'validated',
+      cite: 'Cross-node display of ECGDex rMSSD — tier inherited from ECG_REGISTRY.rmssd (validated). CPAPDex does not compute it.'
+    },
+    cvhrIndex: {
+      label: 'CVHR Index',
+      unit: '/hr',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'emerging',
+      cite: 'Cross-node display of ECGDex CVHR index — tier inherited from ECG_REGISTRY.cvhrIndex (emerging). Cyclic variation, NOT an apnea count.'
+    },
+    respRateSd: {
+      label: 'Resp-rate SD',
+      unit: 'br/min',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'emerging',
+      cite: 'Cross-node display of the dispersion of ECGDex resp rate — tier inherited from ECG_REGISTRY.respRate (emerging).'
+    },
+    plvDrop: {
+      label: 'Coupling drop',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'emerging',
+      cite: 'Cross-node display of ECGDex cardioresp phase-lock loss — tier inherited from ECG_REGISTRY.crcPLV (emerging).'
+    },
+    nights: {
+      label: 'Nights',
+      unit: 'count',
+      goodDirection: 'up',
+      depth: 'basic',
+      evidence: 'measured',
+      cite: 'Count of recordings folded into the multi-night view — directly observed, same class as ECG_REGISTRY.couplets (measured).'
+    }
   };
 
   /* ── Alias map: UI label (as rendered) → registry id ──────────────────────

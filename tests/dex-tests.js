@@ -27873,6 +27873,89 @@
       T.ok('a refusal never carries a usable rate', [phone, drawnAndDerived].every(function (v) { return v.usable === false && !!v.reason; }));
     });
 
+    /* BADGE-COVERAGE-AUDIT §5 (corrected on execution) — no badge may carry a tier nobody assigned.
+       The audit's headline was that five nodes emit NO badge. That is refuted: every one of them calls
+       a registry-resolved `evBadge(...)` 3–30 times per bundle; the audit counted `.badge(` and missed
+       the node-level indirection `evBadge → <Node>Registry.badgeForLabel/evBadge → MetricRegistry.badge`,
+       which IS the mandated pattern. The real defect ran the other way. `MetricRegistry.entry(reg, id)`
+       returns, for an UNKNOWN id, a synthetic entry with `evidence:'experimental'` + `_missing:true`,
+       and every caller discards `_missing`. So CPAPDex's "Cross-Node Corroboration" card — tiles it
+       does not compute, each tagged ECG — rendered a confident `experimental` disc for five ids absent
+       from its registry, including ECGDex's rMSSD, which ECG_REGISTRY grades `validated`, on a tile
+       captioned "real RR-based HRV". A two-tier UNDER-GRADE on a correct number, surfaced by one
+       console.warn in an app nobody has a console open on.
+       An absent badge is a visible, countable bug; a fabricated one is an invisible lie, and §🎫 rates
+       a wrong tier as severe as a wrong unit. This gate makes the fabricated case unshippable. */
+    group('No badge carries a tier nobody assigned — BADGE-COVERAGE-AUDIT §5', 'badges · registry · no-fabricated-tier', function (T) {
+      var UI = env.nodeUiSources;
+      if (!UI) {
+        T.skip('env.nodeUiSources provided to the runner', 'Node-lane only (run-tests.mjs readdir) — the browser lane can’t list the tree so it SKIPs; CI runs the Node lane');
+        return;
+      }
+      var NODES = [
+        { pre: 'ecgdex', reg: env.EcgRegistry },
+        { pre: 'pulsedex', reg: env.PulseRegistry },
+        { pre: 'glucodex', reg: env.GlucoRegistry },
+        { pre: 'cpapdex', reg: env.CpapRegistry },
+        { pre: 'motiondex', reg: env.MotionRegistry },
+        { pre: 'oxydex', reg: env.OxyRegistry },
+        { pre: 'hrvdex', reg: env.HrvRegistry },
+        { pre: 'ppgdex', reg: env.PpgRegistry }
+      ].filter(function (n) {
+        return n.reg && n.reg.REGISTRY && UI[n.pre];
+      });
+      /* ANTI-VACUITY. A scan that resolves nothing passes trivially — the exact shape of the audit
+         error this gate replaces. Assert the node set, that call sites were actually FOUND, and that
+         the resolver really rejects a bogus id (otherwise "all resolve" means nothing). */
+      T.ok('ANTI-VACUITY · node UI sources + registries are wired', NODES.length >= 6, NODES.length + ' node(s) resolvable');
+      if (NODES.length < 6) return;
+      var strip = function (t) {
+        return String(t)
+          .replace(/\/\*[\s\S]*?\*\//g, ' ')
+          .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+      };
+      var totalSites = 0,
+        offenders = [];
+      NODES.forEach(function (n) {
+        var toks = {};
+        for (var f in UI[n.pre]) {
+          var body = strip(UI[n.pre][f]);
+          var re = /evBadge\s*\(\s*(['"`])([^'"`\n]{1,80})\1/g,
+            m;
+          while ((m = re.exec(body))) toks[m[2]] = f;
+        }
+        for (var tok in toks) {
+          totalSites++;
+          // An ID-SHAPED token goes through the id path; a prose label goes through idForLabel.
+          var idish = /^[a-z][A-Za-z0-9_]*$/.test(tok);
+          var known = !!n.reg.REGISTRY[tok] || !!(n.reg.idForLabel && n.reg.idForLabel(tok));
+          if (idish && !known) offenders.push(n.pre + ' → ' + tok + ' (' + toks[tok] + ')');
+        }
+      });
+      T.ok('ANTI-VACUITY · the scan actually found evBadge call sites', totalSites >= 20, 'found ' + totalSites + ' literal-token call sites across ' + NODES.length + ' nodes');
+      var probe = NODES[0].reg;
+      T.ok(
+        'ANTI-VACUITY · the resolver rejects an id no registry contains',
+        !probe.REGISTRY['__definitelyNotAMetric__'] && !(probe.idForLabel && probe.idForLabel('__definitelyNotAMetric__')),
+        'if every id "resolves", the check below is hollow'
+      );
+      T.ok(
+        'every id-shaped evBadge token exists in its own node registry',
+        offenders.length === 0,
+        offenders.length ? 'these render a FABRICATED experimental disc: ' + offenders.join(' · ') : 'no fabricated tiers across ' + totalSites + ' call sites'
+      );
+      /* The floor the audit asked for, correctly scoped: mechanism presence per node. Zero call sites
+         cannot badge anything under any loop, so this cannot regress to zero unnoticed. */
+      var silent = NODES.filter(function (n) {
+        var any = false;
+        for (var f in UI[n.pre]) if (/evBadge\s*\(/.test(strip(UI[n.pre][f]))) any = true;
+        return !any;
+      }).map(function (n) {
+        return n.pre;
+      });
+      T.ok('every node UI has at least one evBadge call site', silent.length === 0, silent.length ? 'no badge mechanism at all in: ' + silent.join(', ') : NODES.length + ' nodes badge');
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
        HRV off a night full of movement is worth less than the same number off a still night. This SCORES
        that (it never alters or excludes an HRV value). The invariant that matters is the same tri-state
