@@ -13487,9 +13487,14 @@
       if (!paper) {
         T.skip('papers/sensor-trio-nights.html wired to the lane', 'add it to BOTH runners’ docs list');
       } else {
+        /* `<\/script\s*>` not `<\/script>` — HTML allows whitespace before the closing bracket, so
+           `</script >` slips past the tight form and the whole script BODY survives into what this
+           calls "visible text". Here that would feed the σ-scrape a table of JS literals. CodeQL flags
+           it as js/bad-tag-filter; it is right about the regex even though this input is a trusted
+           local paper rather than untrusted markup. */
         var vis = String(paper)
-          .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-          .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+          .replace(/<script[\s\S]*?<\/script\s*>/gi, ' ')
+          .replace(/<style[\s\S]*?<\/style\s*>/gi, ' ')
           .replace(/<[^>]+>/g, ' ')
           .replace(/&[a-z]+;/gi, ' ');
         var head = vis.indexOf('Planted \u03c3');
