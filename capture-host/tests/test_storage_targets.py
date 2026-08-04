@@ -387,3 +387,57 @@ def test_ordinary_targets_still_validate():
     rs = st.validate({"protocol": "rsync", "host": "nas.local", "user": "tepna",
                                    "share": "/volume1/tepna", "identity": "/srv/tepna/.ssh/id_ed25519"})
     assert rs["identity"].endswith("id_ed25519")
+
+
+# ── due(): the boundaries the window tests step over ────────────────────────────────────────────────
+def test_daily_window_is_half_open_at_its_far_edge():
+    """`>= window` closes the window AT the boundary. The existing tests check 10:59 and 11:01 and step
+    straight over 11:00, where `>=` and `>` disagree — and `>` would leave the window open for one more
+    tick every day, letting a second offload start as the first is still finishing."""
+    sched = {"mode": "daily", "at": "09:00", "window_min": 120}
+    assert st.due(sched, dt.datetime(2026, 7, 25, 10, 59, 59), None) is True, "one second inside"
+    assert st.due(sched, dt.datetime(2026, 7, 25, 11, 0, 0), None) is False, \
+        "exactly window_min after opening is OUTSIDE — the window is [at, at+window)"
+
+
+def test_a_run_exactly_at_the_window_opening_counts_as_already_run():
+    """`last_run < opened` is strict on purpose: a run stamped at exactly the opening IS this window's
+    run. Making it `<=` re-fires the offload every poll for as long as the window stays open."""
+    sched = {"mode": "daily", "at": "09:00", "window_min": 120}
+    opened = dt.datetime(2026, 7, 25, 9, 0)
+    assert st.due(sched, dt.datetime(2026, 7, 25, 9, 30), opened) is False
+    assert st.due(sched, dt.datetime(2026, 7, 25, 9, 30),
+                  opened - dt.timedelta(seconds=1)) is True, "a run from BEFORE the window is stale"
+
+
+def test_window_min_default_applies_when_the_key_is_absent():
+    """Every other due() test passes window_min explicitly, so the 120 default is never exercised and a
+    changed default is invisible. A schedule without the key is the common hand-written case."""
+    sched = {"mode": "daily", "at": "09:00"}                     # no window_min
+    assert st.due(sched, dt.datetime(2026, 7, 25, 10, 59), None) is True
+    assert st.due(sched, dt.datetime(2026, 7, 25, 11, 0, 30), None) is False, \
+        "the default window is 120 min, so 11:00:30 is outside it"
+
+
+def test_a_configured_window_overrides_the_default_rather_than_being_ignored():
+    """Reading the wrong key (or dropping the lookup) silently falls back to 120, which looks correct
+    on a 120-minute schedule and is wrong on every other one."""
+    sched = {"mode": "daily", "at": "09:00", "window_min": 60}
+    assert st.due(sched, dt.datetime(2026, 7, 25, 9, 59), None) is True
+    assert st.due(sched, dt.datetime(2026, 7, 25, 10, 1), None) is False, \
+        "a 60-minute window must close at 10:00, not at the default 120"
+
+
+def test_the_window_opens_on_the_minute_regardless_of_the_current_second():
+    """`opened` is `now` with hour/minute replaced and second+microsecond ZEROED. Keeping now's seconds
+    makes the anchor drift with whenever the poller happened to fire, so a last_run from seconds ago can
+    read as older than the window and re-trigger the offload."""
+    sched = {"mode": "daily", "at": "09:00", "window_min": 120}
+    now = dt.datetime(2026, 7, 25, 9, 0, 30, 500_000)
+    assert st.due(sched, now, dt.datetime(2026, 7, 25, 9, 0, 10)) is False, \
+        "a run at 09:00:10 is inside this window; a drifting anchor would call it stale"
+    assert st.due(sched, now, None) is True
+    # microsecond=0 matters on its own: without it the anchor lands at 09:00:00.500000, so a run
+    # stamped in that sub-second band reads as older than the window and the offload re-fires.
+    assert st.due(sched, now, dt.datetime(2026, 7, 25, 9, 0, 0, 250_000)) is False, \
+        "a run 250 ms after the opening is this window's run — the anchor must not carry now's microseconds"
