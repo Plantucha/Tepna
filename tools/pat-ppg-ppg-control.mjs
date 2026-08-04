@@ -60,9 +60,17 @@ const arg = (k, d) => {
 const DIR = arg('--dir', null);
 const ONLY = arg('--night', null);
 const N_SURR = +arg('--surrogates', 100);
-const WIN_MS = +arg('--window', 400);      // symmetric search: wrist->finger is tens of ms, not 200-650
+const WIN_MS = +arg('--window', 400); // symmetric search: wrist->finger is tens of ms, not 200-650
 const STRICT_W_MS = 40;
-const RATE_LO = 30, RATE_HI = 120;
+const RATE_LO = 30,
+  RATE_HI = 120;
+/* AXIS — host | grid. The whole point of the A/B (this brief's Done-when 1): coupling grouped perfectly
+   by the ring's axis provenance, drawn grids coupling and host-measured axes failing, which is backwards
+   for a physiological result. `host` uses parsePPG's relSec (device ns, host-disciplined via hostAxis).
+   `grid` forces index/fs — the drawn axis, a uniform `index x constant`. Coupling ONLY on grid means the
+   agreement is an artifact of regularity; coupling on BOTH with more scatter on host means the per-frame
+   re-anchor jitter is the term, and that is a capture-path finding rather than an analysis one. */
+const AXIS = arg('--axis', 'host');
 const BLOCK_MS = BIN_MIN * 60000;
 
 function fiducialTimes(text) {
@@ -70,15 +78,29 @@ function fiducialTimes(text) {
   const rec = PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) return null;
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
-  let refIdx = 0, best = -1;
-  per.forEach((p, i) => { if (p.peaks.length > best) { best = p.peaks.length; refIdx = i; } });
+  let refIdx = 0,
+    best = -1;
+  per.forEach((p, i) => {
+    if (p.peaks.length > best) {
+      best = p.peaks.length;
+      refIdx = i;
+    }
+  });
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   const rel = rec.relSec;
-  const at = (idx) => {                    // feet are FRACTIONAL (refineFeet interpolates sub-sample)
-    const lo = Math.floor(idx), hi = Math.min(lo + 1, rel.length - 1), f = idx - lo;
-    return rec.t0Ms + (rel[lo] + (rel[hi] - rel[lo]) * f) * 1000;
-  };
-  const t = Array.from(cons.feet, at).filter(isFinite).sort((a, b) => a - b);
+  const at =
+    AXIS === 'grid'
+      ? (idx) => rec.t0Ms + (idx / rec.fs) * 1000 // the DRAWN axis: index x constant
+      : (idx) => {
+          // feet are FRACTIONAL (refineFeet interpolates sub-sample)
+          const lo = Math.floor(idx),
+            hi = Math.min(lo + 1, rel.length - 1),
+            f = idx - lo;
+          return rec.t0Ms + (rel[lo] + (rel[hi] - rel[lo]) * f) * 1000;
+        };
+  const t = Array.from(cons.feet, at)
+    .filter(isFinite)
+    .sort((a, b) => a - b);
   return { t0Ms: rec.t0Ms, durSec: rec.durSec, times: t, site: rec.site };
 }
 
@@ -88,10 +110,14 @@ function signedLags(A, B) {
   let j = 0;
   for (const a of A) {
     while (j < B.length && B[j] < a - WIN_MS) j++;
-    let bestIdx = -1, bestAbs = Infinity;
+    let bestIdx = -1,
+      bestAbs = Infinity;
     for (let k = j; k < B.length && B[k] <= a + WIN_MS; k++) {
       const d = Math.abs(B[k] - a);
-      if (d < bestAbs) { bestAbs = d; bestIdx = k; }
+      if (d < bestAbs) {
+        bestAbs = d;
+        bestIdx = k;
+      }
     }
     if (bestIdx >= 0) out.push({ t: a, lag: B[bestIdx] - a });
   }
@@ -120,7 +146,10 @@ function strictRate(lags, nA) {
     for (const k of keys) if (k !== b) others.push(...by.get(k));
     const c = median(others);
     const d = e.lag - c;
-    if (Math.abs(d) <= STRICT_W_MS) { kept++; resid.push(d); }
+    if (Math.abs(d) <= STRICT_W_MS) {
+      kept++;
+      resid.push(d);
+    }
   }
   return {
     rate: nA ? kept / nA : NaN,
@@ -136,9 +165,11 @@ function circShift(t, span, frac) {
 }
 
 function biggest(dir, re, n) {
-  return readdirSync(dir).filter((f) => re.test(f))
+  return readdirSync(dir)
+    .filter((f) => re.test(f))
     .map((f) => ({ f: join(dir, f), size: statSync(join(dir, f)).size }))
-    .sort((a, b) => b.size - a.size).slice(0, n);
+    .sort((a, b) => b.size - a.size)
+    .slice(0, n);
 }
 
 function scorePair(A, B) {
@@ -148,7 +179,8 @@ function scorePair(A, B) {
   if (ovl < 10) return null;
   const a = A.times.filter((x) => x >= t0 && x <= t1);
   const b = B.times.filter((x) => x >= t0 && x <= t1);
-  const rA = a.length / ovl, rB = b.length / ovl;
+  const rA = a.length / ovl,
+    rB = b.length / ovl;
   if (rA < RATE_LO || rA > RATE_HI || rB < RATE_LO || rB > RATE_HI) return { ovl, skip: `rate ${rA.toFixed(0)}/${rB.toFixed(0)}` };
   const obs = signedLags(a, b);
   const o = strictRate(obs, a.length);
@@ -159,19 +191,30 @@ function scorePair(A, B) {
   const m = clean.length ? median(clean) : NaN;
   const p = (clean.filter((x) => x >= o.rate).length + 1) / (clean.length + 1);
   return {
-    ovl, beatsA: a.length, beatsB: b.length,
+    ovl,
+    beatsA: a.length,
+    beatsB: b.length,
     medLag: obs.length ? median(obs.map((e) => e.lag)) : null,
-    rate: o.rate, resid: o.resid, blocks: o.blocks, chance: m,
-    ratio: m > 0 ? o.rate / m : NaN, p
+    rate: o.rate,
+    resid: o.resid,
+    blocks: o.blocks,
+    chance: m,
+    ratio: m > 0 ? o.rate / m : NaN,
+    p
   };
 }
 
 function main() {
-  if (!DIR || !existsSync(DIR)) { console.error('--dir <captures root> required'); process.exit(2); }
+  if (!DIR || !existsSync(DIR)) {
+    console.error('--dir <captures root> required');
+    process.exit(2);
+  }
   loadDsps();
-  const nights = readdirSync(DIR).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && statSync(join(DIR, d)).isDirectory())
-    .filter((d) => !ONLY || d === ONLY).sort();
-  console.log(`FINGER (O2Ring) <-> WRIST (Verity) pulse coupling — the positive control`);
+  const nights = readdirSync(DIR)
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && statSync(join(DIR, d)).isDirectory())
+    .filter((d) => !ONLY || d === ONLY)
+    .sort();
+  console.log(`FINGER (O2Ring, right index) <-> ANKLE (Verity, left) — axis=${AXIS}`);
   console.log(`symmetric window +-${WIN_MS} ms - strict +-${STRICT_W_MS} ms - ${N_SURR} surrogates - EVERY pair scored\n`);
   console.log('night        pairs  best: ovl  beatsF  beatsA  medLag  strict chance ratio     p   residIQR');
   console.log('  (medLag = ankle minus finger; POSITIVE is the only anatomically possible sign)');
@@ -183,31 +226,55 @@ function main() {
     const fs_ = biggest(dir, /o2ring.*_PPG\.txt$/i, 3);
     const ws = biggest(dir, /verity.*_PPG\.txt$/i, 3);
     if (!fs_.length || !ws.length) continue;
-    const F = fs_.map((c) => { try { return fiducialTimes(readFileSync(c.f, 'utf8')); } catch { return null; } }).filter(Boolean);
-    const W = ws.map((c) => { try { return fiducialTimes(readFileSync(c.f, 'utf8')); } catch { return null; } }).filter(Boolean);
-    let best = null, nPairs = 0;
-    for (const a of F) for (const b of W) {
-      const r = scorePair(a, b);
-      if (!r || r.skip) continue;
-      nPairs++;
-      if (!best || (isFinite(r.ratio) && r.ratio > best.ratio)) best = r;
+    const F = fs_
+      .map((c) => {
+        try {
+          return fiducialTimes(readFileSync(c.f, 'utf8'));
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+    const W = ws
+      .map((c) => {
+        try {
+          return fiducialTimes(readFileSync(c.f, 'utf8'));
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+    let best = null,
+      nPairs = 0;
+    for (const a of F)
+      for (const b of W) {
+        const r = scorePair(a, b);
+        if (!r || r.skip) continue;
+        nPairs++;
+        if (!best || (isFinite(r.ratio) && r.ratio > best.ratio)) best = r;
+      }
+    if (!best) {
+      console.log(`${n}  no scorable pair`);
+      continue;
     }
-    if (!best) { console.log(`${n}  no scorable pair`); continue; }
     bests.push({ ...best, night: n });
     writeFileSync(OUT, JSON.stringify(bests, null, 1));
-    console.log(`${n}  ${String(nPairs).padStart(5)}  ${best.ovl.toFixed(0).padStart(9)} ${String(best.beatsA).padStart(7)} ` +
-      `${String(best.beatsB).padStart(7)} ${(best.medLag ?? NaN).toFixed(0).padStart(7)} ` +
-      `${(best.rate * 100).toFixed(0).padStart(5)}% ${(best.chance * 100).toFixed(0).padStart(5)}% ` +
-      `${best.ratio.toFixed(2).padStart(5)} ${best.p.toFixed(3)} ${(best.resid ?? NaN).toFixed(0).padStart(8)}`);
+    console.log(
+      `${n}  ${String(nPairs).padStart(5)}  ${best.ovl.toFixed(0).padStart(9)} ${String(best.beatsA).padStart(7)} ` +
+        `${String(best.beatsB).padStart(7)} ${(best.medLag ?? NaN).toFixed(0).padStart(7)} ` +
+        `${(best.rate * 100).toFixed(0).padStart(5)}% ${(best.chance * 100).toFixed(0).padStart(5)}% ` +
+        `${best.ratio.toFixed(2).padStart(5)} ${best.p.toFixed(3)} ${(best.resid ?? NaN).toFixed(0).padStart(8)}`
+    );
   }
   if (bests.length) {
     console.log('-'.repeat(100));
     const sig = bests.filter((b) => b.p < 0.05 && b.ratio > 1);
-    console.log(`${bests.length} night(s) - best-pair ratio median ${median(bests.map((b) => b.ratio)).toFixed(2)} - ` +
-      `${sig.length}/${bests.length} with p<0.05 and ratio>1`);
-    console.log(sig.length >= bests.length * 0.5
-      ? 'CONTROL PASSES: two PPG streams on one host DO couple -> the machinery works.'
-      : 'CONTROL FAILS: even two PPG streams on one host do not couple -> the machinery, not the physiology, is the term. NO PAT verdict from this repo is meaningful.');
+    console.log(`${bests.length} night(s) - best-pair ratio median ${median(bests.map((b) => b.ratio)).toFixed(2)} - ` + `${sig.length}/${bests.length} with p<0.05 and ratio>1`);
+    console.log(
+      sig.length >= bests.length * 0.5
+        ? 'CONTROL PASSES: two PPG streams on one host DO couple -> the machinery works.'
+        : 'CONTROL FAILS: even two PPG streams on one host do not couple -> the machinery, not the physiology, is the term. NO PAT verdict from this repo is meaningful.'
+    );
     console.log('NOTE: best-of-pairs is an UPPER bound (§3c.4) — valid for "is it detectable at all", not for a level.');
   }
 }

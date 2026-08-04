@@ -454,7 +454,10 @@ export { legacyMatchRate, strictMatchRate, circShift, rawLags, STRICT_W_MS, PHYS
    the trough where SNR is worst, while the systolic PEAK detects far more reliably and merely adds a
    (near-constant) ejection interval — which the strict statistic's leave-one-block-out centre absorbs
    exactly as it absorbs delta. A null under one fiducial is not a null under the other. */
-function getDsps() { loadDsps(); return { ECGDSP, PPGDSP, PATAlign }; }
+function getDsps() {
+  loadDsps();
+  return { ECGDSP, PPGDSP, PATAlign };
+}
 export { loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes, median, quantile, BIN_MIN };
 
 const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;

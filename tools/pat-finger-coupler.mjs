@@ -39,11 +39,7 @@
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import {
-  loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes,
-  legacyMatchRate, strictMatchRate, circShift, rawLags,
-  median, STRICT_W_MS
-} from './pat-matchrate-strict.mjs';
+import { loadDsps, getDsps, ecgRpeakTimes, ppgFootTimes, legacyMatchRate, strictMatchRate, circShift, rawLags, median, STRICT_W_MS } from './pat-matchrate-strict.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (k, d) => {
@@ -65,7 +61,8 @@ const MIN_OVERLAP_MIN = 20;
    so the statistic saturates upward. Measured: the three largest coupling ratios in the first peak
    run (11.25, 6.77, 3.91) were exactly the three nights at 696/595/233 per min. A rate outside a
    generous human band is a DETECTOR fault and the night must be excluded, not scored. */
-const RATE_LO = 30, RATE_HI = 120;
+const RATE_LO = 30,
+  RATE_HI = 120;
 
 /* The ring writes `Wellue_O2Ring-S_<sn>_<stamp>_PPG.txt`; the Verity writes `Polar_VeritySense_…_PPG.txt`.
    Matching on the O2Ring name is what keeps this tool on the FINGER — the sibling's fallback to any
@@ -88,8 +85,14 @@ function ppgFiducialTimes(text, which) {
   const rec = PPGDSP.parsePPG(text);
   if (rec.t0Ms == null) throw new Error('PPG file carried no phone timestamp.');
   const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
-  let refIdx = 0, best = -1;
-  per.forEach((p, i) => { if (p.peaks.length > best) { best = p.peaks.length; refIdx = i; } });
+  let refIdx = 0,
+    best = -1;
+  per.forEach((p, i) => {
+    if (p.peaks.length > best) {
+      best = p.peaks.length;
+      refIdx = i;
+    }
+  });
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
   const src = cons.peaks;
   const t = new Float64Array(src.length);
@@ -131,15 +134,14 @@ function pairsIn(dir) {
 function analyse(night, pair) {
   const { ecg, ppg, overlapMin } = pair;
   if (overlapMin < MIN_OVERLAP_MIN) return { night, skip: `overlap ${overlapMin.toFixed(0)} min < ${MIN_OVERLAP_MIN}` };
-  const R = ecg.rec.times, F = ppg.rec.times;
+  const R = ecg.rec.times,
+    F = ppg.rec.times;
   const ppgRate = F.length / (overlapMin || 1);
   const ecgRate = R.length / (overlapMin || 1);
-  if (ppgRate < RATE_LO || ppgRate > RATE_HI)
-    return { night, skip: `PPG detector at ${ppgRate.toFixed(0)}/min — outside ${RATE_LO}-${RATE_HI}, not beats` };
-  if (ecgRate < RATE_LO || ecgRate > RATE_HI)
-    return { night, skip: `ECG detector at ${ecgRate.toFixed(0)}/min — outside ${RATE_LO}-${RATE_HI}` };
+  if (ppgRate < RATE_LO || ppgRate > RATE_HI) return { night, skip: `PPG detector at ${ppgRate.toFixed(0)}/min — outside ${RATE_LO}-${RATE_HI}, not beats` };
+  if (ecgRate < RATE_LO || ecgRate > RATE_HI) return { night, skip: `ECG detector at ${ecgRate.toFixed(0)}/min — outside ${RATE_LO}-${RATE_HI}` };
   const span = Math.max(R[R.length - 1], F[F.length - 1]) - Math.min(R[0], F[0]);
-  const obsLags = rawLags(R, F);                       // NO ACC alignment — constant δ, see header
+  const obsLags = rawLags(R, F); // NO ACC alignment — constant δ, see header
   const nR = R.length;
   /* Both statistics return an OBJECT {matchRate, residIQR}, and rawLags returns {t, lag} entries.
      Taking either for a scalar yields NaN through every downstream arithmetic op — and a NaN ratio
@@ -169,7 +171,8 @@ function analyse(night, pair) {
     feet: F.length,
     overlapMin,
     medLagMs: lagsOnly.length ? median(lagsOnly) : null,
-    ppgRate, ecgRate,
+    ppgRate,
+    ecgRate,
     pairs: lagsOnly.length,
     residIQR: residIQR,
     legacy: summarise(obs.legacy, chance.legacy),
@@ -224,17 +227,20 @@ function main() {
     console.log('-'.repeat(112));
     const usable = scored.filter((r) => isFinite(r.strict.ratio));
     if (usable.length < scored.length)
-      console.log(`WARNING: ${scored.length - usable.length}/${scored.length} night(s) produced a non-finite ` +
-        `statistic and are EXCLUDED - a NaN ratio is not a null result.`);
+      console.log(`WARNING: ${scored.length - usable.length}/${scored.length} night(s) produced a non-finite ` + `statistic and are EXCLUDED - a NaN ratio is not a null result.`);
     const sig = usable.filter((r) => r.strict.p < 0.05 && r.strict.ratio > 1);
-    console.log(`${usable.length} night(s) usable - strict ratio median ` +
-      `${usable.length ? median(usable.map((r) => r.strict.ratio)).toFixed(2) : 'n/a'} - ` +
-      `${sig.length}/${usable.length} with p<0.05 AND ratio>1`);
-    console.log(!usable.length
-      ? 'NO usable night - the tool produced no valid statistic, which is NOT evidence either way.'
-      : sig.length
-        ? `COUPLED on ${sig.length} night(s): ${sig.map((r) => r.night).join(', ')}`
-        : 'NO usable night shows coupling above its own chance floor.');
+    console.log(
+      `${usable.length} night(s) usable - strict ratio median ` +
+        `${usable.length ? median(usable.map((r) => r.strict.ratio)).toFixed(2) : 'n/a'} - ` +
+        `${sig.length}/${usable.length} with p<0.05 AND ratio>1`
+    );
+    console.log(
+      !usable.length
+        ? 'NO usable night - the tool produced no valid statistic, which is NOT evidence either way.'
+        : sig.length
+          ? `COUPLED on ${sig.length} night(s): ${sig.map((r) => r.night).join(', ')}`
+          : 'NO usable night shows coupling above its own chance floor.'
+    );
   }
 }
 
