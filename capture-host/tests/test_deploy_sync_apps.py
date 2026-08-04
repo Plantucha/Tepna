@@ -404,9 +404,19 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #     test_the_bluetooth_adapter_cannot_be_deauthorized);
     #   • the non-root test asserts the write FAILS, and skips when euid == 0 so it cannot touch a real
     #     sysfs even in a root container.
+    # check.sh added 2026-08-04 (test_check_script.py) — the local aggregate gate. It is the easiest
+    # confirmation on this list, because the script WRITES NOTHING AT ALL:
+    #   • no redirection seam is needed because there is no destination — it creates no file, no
+    #     directory, and touches nothing under /etc, /sys or the repo. Its only effects are the exit
+    #     codes it collects and the summary it prints;
+    #   • its entire external surface is three commands — `$PYTHON -m ruff`, `shellcheck`,
+    #     `$PYTHON -m pytest` — and the tests stub ALL of them: `PYTHON` is redirected to a fake
+    #     interpreter and a stub `shellcheck` is prepended to PATH, so no real gate is invoked;
+    #   • even an UNSTUBBED run would be read-only. ruff, shellcheck and pytest inspect the tree; the
+    #     worst case is a slow test, not a mutated host. That is why this one needs no euid guard.
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
                         "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
-                        "tepna-usbreset.sh"}, (
+                        "tepna-usbreset.sh", "check.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 

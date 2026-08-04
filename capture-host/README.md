@@ -96,6 +96,21 @@ not the IP) so the suite's profile + longitudinal history stay consistent.
 3. **Filenames** `<Vendor>_<Model>_<DeviceId>_<YYYYMMDDHHMMSS>_<STREAM>.<ext>` → companion pairing +
    date anchor for free. One device-id per physical sensor.
 
+## Gates — run `./check.sh`, not one of them
+
+```sh
+./check.sh          # ruff · shellcheck · pytest (100% statement+branch) — one verdict
+```
+
+**Run the aggregate, not a hand-picked subset.** CI runs the three as separate steps, and reading only
+one of them has cost two PRs: `pytest --cov` printed `100%` while `ruff` failed on the very next line —
+same defect (an unused import), same position, in #852 and again in #880. `check.sh` runs **every** gate
+even after one fails and computes its verdict from the collected exit codes, so one pass tells you
+everything that is wrong rather than the first thing.
+
+(This is the capture-host twin of the JS side's `npm run check`. A pre-commit hook was considered and
+declined — see `check.sh`'s header for why.)
+
 ## Test plan (do before trusting a night)
 - **Decode parity:** capture ~30 s of H10 ECG, open the file in `ECGDex.html` → R-peaks + a sane HR.
   Capture the same window with Polar Sensor Logger and diff the row values.
