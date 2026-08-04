@@ -12206,6 +12206,87 @@
         statusBlind.length ? 'blind rows (' + statusBlind.length + '): ' + statusBlind.slice(0, 8).join('; ') : 'all rows state one'
       );
 
+      /* ── check3d · a ROUTED item's target must actually ACCEPT it ──────────────────────────────
+         Handing an item to another brief is the sanctioned way to move work. Nothing checked that
+         the target ever heard about it, and on 2026-08-04 a sweep found THREE items that had been
+         "routed" into silence:
+           · CPAP-AUTOHARVEST-FOLLOWUPS-II §2 → "whoever lands the PMD work". That work landed and
+             became REFERENCE (living); nobody took the item. 6 days.
+           · TCH-FUSED-ROBUST-HAT's fused-overlay item → two TRIO briefs. Neither mentions it; one
+             only points back at the source. 16 days.
+           · DEEP-AUDIT-FOLLOWUPS §C3 → REM-STAGING-REDESIGN, which never names C3 and has since
+             CLOSED as DONE. 26 days, and the target is gone.
+         Each read as handled in its own brief while no brief owned it. That is worse than an open
+         item, because an open item is still counted.
+
+         ACCEPTANCE, deliberately generous — this gate must catch dropped work, not police prose:
+         a routing is satisfied if the target NAMES the source brief, OR the routing cites a section
+         (`§2.7`) that the target actually has. The second clause is why
+         `MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS → PAPERS-ROADMAP §2.7` passes: the roadmap grew a real
+         §2.7 for it without back-linking, which is a genuine hand-off. Only explicit
+         "ROUTED … `<FILE>.md`" claims are examined; vaguer prose is left alone on purpose.
+
+         The stem match is a SUBSTRING test, so a very short brief name would match loosely. Real names
+         are long and dated (`DEEP-AUDIT-FOLLOWUPS-2026-07-12`), so in practice it is tight — but that is
+         a property of the corpus, not of the check, and a future one-word brief name would weaken it. */
+      var routedOrphans = [];
+      Object.keys(DL.briefs).forEach(function (src) {
+        var re = /ROUTED[^\n]{0,120}?`([A-Za-z0-9][A-Za-z0-9._-]+\.md)`([^\n]{0,40})/g;
+        var m;
+        while ((m = re.exec(DL.briefs[src]))) {
+          var tgt = m[1],
+            tail = m[2] || '';
+          if (!DL.briefs[tgt]) {
+            routedOrphans.push(src + ' → ' + tgt + ' (target not in briefs/)');
+            continue;
+          }
+          var stem = src.replace(/-BRIEF\.md$/, '').replace(/\.md$/, '');
+          if (DL.briefs[tgt].indexOf(stem) >= 0) continue; // target names the source
+          var sec = /§\s*([0-9]+(?:\.[0-9]+)?[a-z]?)/.exec(tail);
+          if (sec && new RegExp('(^|\\s)(#{1,4}|[-*]\\s*(\\[[ x~]\\]\\s*)?)\\**\\s*' + sec[1].replace('.', '\\.') + '\\b').test(DL.briefs[tgt])) continue; // cited § exists as a heading OR a list/bold item
+          routedOrphans.push(src.replace(/-BRIEF\.md$/, '') + ' → ' + tgt.replace(/-BRIEF\.md$/, ''));
+        }
+      });
+      T.ok(
+        'check3d · a ROUTED item is accepted by its target (names the source, or the cited § exists)',
+        routedOrphans.length === 0,
+        routedOrphans.length ? 'orphaned routings (' + routedOrphans.length + '): ' + routedOrphans.slice(0, 6).join('; ') + ' — the target must name the source brief, or the routing must cite a § the target really has' : 'every routing is accepted'
+      );
+
+      /* Self-tests — a gate nobody has seen fail is not evidence it works. These drive the same
+         acceptance logic over synthetic brief pairs. */
+      (function () {
+        function orphans(briefs) {
+          var out = [];
+          Object.keys(briefs).forEach(function (src) {
+            var re = /ROUTED[^\n]{0,120}?`([A-Za-z0-9][A-Za-z0-9._-]+\.md)`([^\n]{0,40})/g,
+              m;
+            while ((m = re.exec(briefs[src]))) {
+              var tgt = m[1],
+                tail = m[2] || '';
+              if (!briefs[tgt]) {
+                out.push(src + '→missing');
+                continue;
+              }
+              var stem = src.replace(/-BRIEF\.md$/, '').replace(/\.md$/, '');
+              if (briefs[tgt].indexOf(stem) >= 0) continue;
+              var sec = /§\s*([0-9]+(?:\.[0-9]+)?[a-z]?)/.exec(tail);
+              if (sec && new RegExp('(^|\\s)(#{1,4}|[-*]\\s*(\\[[ x~]\\]\\s*)?)\\**\\s*' + sec[1].replace('.', '\\.') + '\\b').test(briefs[tgt])) continue;
+              out.push(src + '→' + tgt);
+            }
+          });
+          return out;
+        }
+        T.eq('check3d self-test · a routing the target never names is CAUGHT', orphans({ 'A-BRIEF.md': 'x ROUTED to `B-BRIEF.md` now', 'B-BRIEF.md': '# unrelated' }).length, 1);
+        T.eq('check3d self-test · a routing the target names by FULL FILENAME is accepted', orphans({ 'LONG-NAME-2026-01-01-BRIEF.md': 'x ROUTED to `B-BRIEF.md` now', 'B-BRIEF.md': 'owns LONG-NAME-2026-01-01 work' }).length, 0);
+        T.eq('check3d self-test · …and accepted when the target names the source stem', orphans({ 'A-BRIEF.md': 'x ROUTED to `B-BRIEF.md` now', 'B-BRIEF.md': 'carries A work' }).length, 0);
+        T.eq('check3d self-test · a cited § that EXISTS as a HEADING is accepted', orphans({ 'A-BRIEF.md': 'x ROUTED to `B-BRIEF.md` §2.7 now', 'B-BRIEF.md': '### 2.7 the item\n' }).length, 0);
+        T.eq('check3d self-test · …or as a Done-when LIST ITEM (`- [~] **2b**`)', orphans({ 'A-BRIEF.md': 'x ROUTED to `B-BRIEF.md` §2b now', 'B-BRIEF.md': '- [~] **2b** the item\n' }).length, 0);
+        T.eq('check3d self-test · a cited § the target LACKS is caught', orphans({ 'A-BRIEF.md': 'x ROUTED to `B-BRIEF.md` §9.9 now', 'B-BRIEF.md': '### 2.7 other\n' }).length, 1);
+        T.eq('check3d self-test · a routing to a MISSING brief is caught', orphans({ 'A-BRIEF.md': 'x ROUTED to `GONE-BRIEF.md` now' }).length, 1);
+        T.eq('check3d self-test · prose without an explicit ROUTED claim is ignored', orphans({ 'A-BRIEF.md': 'see `B-BRIEF.md`', 'B-BRIEF.md': 'z' }).length, 0);
+      })();
+
       /* ── CHECK 3c · a brief must not claim a section is BOTH closed and still open ────────────────
          DOCS-LEDGER-CHECK3B-BLIND-ROW §4a named this hole and deliberately did NOT build it: check3b
          compares a brief's DOCS-INDEX row against its header, and *nothing* looks inside a brief for
