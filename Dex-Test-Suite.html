@@ -288,6 +288,7 @@ async function main(){
   // WEARABLE-HOST-AXIS-FOLLOWUPS §F5: trio-batch's clock LINES (window.DriftReport). Pure formatters —
   // extracted precisely so a lane can reach them; nothing in trio-batch.mjs is callable from a test.
   { const _dr = await fetchText('tools/drift-report.js'); if(_dr) (0, eval)(esmClassicify(_dr)); }
+  { const _tc = await fetchText('tools/tch-corpus.js'); if(_tc) (0, eval)(esmClassicify(_tc)); }
   // TEST-COVERAGE-FOLLOWUPS-II Item 1b: HRVDex personalization leaks calcVo2Cat/getAgeBand as bare globals
   // (Object.assign(window,{…})) and loads headless — no re-bundle owed. Load it so env can grab them.
   { const _hp = await fetchText('hrvdex-profile.js'); if(_hp) (0, eval)(esmClassicify(_hp)); }
@@ -562,6 +563,7 @@ async function main(){
     QrsEquiv: window.QrsEquiv,
     RespAccAnalysis: window.RespAccAnalysis,
     DriftReport: window.DriftReport,
+    TchCorpus: window.TchCorpus,
     HrvCalcVo2Cat: window.calcVo2Cat,
     HrvGetAgeBand: window.getAgeBand,
     OxyKarvonenZone: window.upKarvonenZone,

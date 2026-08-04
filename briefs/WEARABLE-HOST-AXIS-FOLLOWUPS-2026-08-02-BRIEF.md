@@ -108,6 +108,101 @@ which is the signature of a corner the fix could not reach.
 the two runs cover different night sets (37 vs 28 estimated), so the medians are not matched. Resolving
 it needs a per-night matched comparison, and the old per-night σ values were never recorded. Open.
 
+## F3-quater · The corpus is CODE-MIXED — measured 2026-08-04
+
+§F3 refused to attribute PpgDex's 2.71 → 3.44 because the two runs covered different night sets, and
+asked for a per-night matched comparison. That comparison cannot be run, and the obstacle is not the
+night set.
+
+**Of the 40 trio nights, 25 carry `quality.timingSource` — the field the host-axis work added — and 15
+do not.** The 15 were exported before that change and never regenerated (mtimes 2026-07-31 vs 08-03).
+The split is **perfectly confounded with date**: every night 2026-06-10…07-13 is post, every night
+07-16…07-30 is pre. So a comparison between date ranges is also a comparison between code versions, and
+no subsetting of this corpus separates them.
+
+**The size of the confound, one run, one estimator:**
+
+| cohort | n | σ ECGDex | σ PpgDex | σ OxyDex |
+|---|---|---|---|---|
+| ALL (mixed) | 35 | 0.65 | **2.71** | 1.12 |
+| post-host-axis | 23 | 0.49 | **2.54** | 1.11 |
+| pre-host-axis | 12 | 1.03 | **4.02** | 1.35 |
+
+The cohorts differ by **1.5 bpm of PpgDex σ — larger than the 0.73 bpm shift §F3 was trying to
+attribute** — so any median over this corpus tracks the mix, and both 2.71 and 3.44 sit inside that
+range. §F3's "not attributable" was right; this is the mechanism, and it is now computed rather than
+suspected.
+
+⚠ **Do not read the cohort medians as the change's effect either.** Code version and date are the same
+variable here. The 1.5 bpm is an upper bound on what the mix can explain, not an estimate of what the
+host-axis change did. **The remedy is to regenerate the 15 stale nights**, after which the comparison
+becomes matched by construction.
+
+### Gated, and it fails CLOSED
+
+`tools/tch-corpus.js` (pure, both lanes) computes the cohort split from a marker the export itself
+carries, and `tch-multinight.mjs` now prints the verdict **before** the medians it qualifies — printing
+first and qualifying afterwards is the ordering bug `drift-report.js` was extracted to fix. Four states,
+one of which licenses the number: `homogeneous` (quotable) · `mixed` (pair the nights) · `confounded`
+(regenerate, do not subset) · `unreadable`.
+
+**`unreadable` is the load-bearing state.** An unmarked night's cohort is `pre-host-axis`, so a reader
+that silently stops populating markers makes *every* night pre and the corpus reads HOMOGENEOUS — a green
+verdict produced by reading nothing. That is not hypothetical: it happened on the first wiring of this
+module, when `runNight` rebuilt its row object and dropped the field, and a corpus measured at 25/15
+printed *"all 40 night(s) from one producing code version"*. "No night carries the marker" cannot be told
+apart from "the marker was never read", so it is refused. Gated by 16 assertions, three mutants each
+confirmed to red (removing the fail-closed branch: 6 legs; disabling date-confounding: 6; treating an
+unmarked night as post: 18).
+
+### Per-night σ — recorded, so the next comparison is matched
+
+`est ✓` = contributed to the medians; `—` = excluded for negative classic variance (the boundary case,
+where a member's σ is ~0 by construction rather than by measurement).
+
+| night | cohort | n | σ ECGDex | σ PpgDex | σ OxyDex | est |
+|---|---|---|---|---|---|---|
+| 2026-06-10 | post | 85 | 0.17 | 0.48 | 1.03 | ✓ |
+| 2026-06-11 | post | 92 | 0.80 | 2.71 | 0.01 | ✓ |
+| 2026-06-12 | post | 85 | 1.27 | 7.16 | 2.16 | ✓ |
+| 2026-06-14 | post | 88 | 0.69 | 3.17 | 0.01 | ✓ |
+| 2026-06-15 | post | 83 | 0.04 | 7.02 | 1.49 | ✓ |
+| 2026-06-16 | post | 71 | 0.24 | 5.33 | 1.11 | ✓ |
+| 2026-06-19 | post | 77 | 0.56 | 0.37 | 0.81 | ✓ |
+| 2026-06-20 | post | 88 | 0.60 | 3.21 | 2.05 | ✓ |
+| 2026-06-24 | post | 73 | 1.23 | 1.85 | 0.07 | — |
+| 2026-06-25 | post | 83 | 0.65 | 4.35 | 1.12 | ✓ |
+| 2026-06-27 | post | 82 | 0.27 | 2.54 | 1.47 | ✓ |
+| 2026-06-28 | post | 84 | 0.33 | 0.91 | 3.25 | ✓ |
+| 2026-06-29 | post | 67 | 1.29 | 4.47 | 0.04 | ✓ |
+| 2026-06-30 | post | 67 | 0.91 | 1.45 | 1.64 | ✓ |
+| 2026-07-01 | post | 86 | 0.49 | 0.32 | 0.52 | ✓ |
+| 2026-07-02 | post | 67 | 0.06 | 0.44 | 1.16 | ✓ |
+| 2026-07-04 | post | 44 | 0.02 | 10.45 | 1.28 | ✓ |
+| 2026-07-05 | post | 57 | 0.27 | 0.44 | 0.83 | ✓ |
+| 2026-07-06 | post | 80 | 0.95 | 6.22 | 0.04 | ✓ |
+| 2026-07-07 | post | 74 | 3.36 | 5.19 | 0.01 | — |
+| 2026-07-08 | post | 71 | 0.46 | 2.42 | 1.67 | ✓ |
+| 2026-07-09 | post | 82 | 0.29 | 0.00 | 0.85 | ✓ |
+| 2026-07-11 | post | 20 | 0.30 | 1.03 | 0.44 | ✓ |
+| 2026-07-12 | post | 81 | 0.78 | 6.67 | 0.03 | ✓ |
+| 2026-07-13 | post | 73 | 0.87 | 1.54 | 3.00 | ✓ |
+| 2026-07-16 | **pre** | 71 | 1.18 | 7.56 | 0.02 | — |
+| 2026-07-17 | **pre** | 85 | 1.11 | 0.01 | 1.64 | — |
+| 2026-07-18 | **pre** | 112 | 3.08 | 2.24 | 2.02 | ✓ |
+| 2026-07-19 | **pre** | 84 | 1.51 | 6.15 | 2.01 | ✓ |
+| 2026-07-20 | **pre** | 83 | 0.52 | 0.72 | 0.89 | ✓ |
+| 2026-07-21 | **pre** | 78 | 1.16 | 3.07 | 0.02 | ✓ |
+| 2026-07-22 | **pre** | 81 | 3.64 | 5.52 | 1.84 | ✓ |
+| 2026-07-23 | **pre** | 31 | 1.86 | 7.29 | 0.02 | ✓ |
+| 2026-07-24 | **pre** | 70 | 0.84 | 0.01 | 2.35 | ✓ |
+| 2026-07-25 | **pre** | 97 | 0.02 | 1.51 | 3.30 | ✓ |
+| 2026-07-26 | **pre** | 89 | 0.85 | 1.51 | 0.01 | — |
+| 2026-07-27 | **pre** | 87 | 0.76 | 1.34 | 0.87 | ✓ |
+| 2026-07-28 | **pre** | 89 | 1.29 | 4.97 | 1.29 | ✓ |
+| 2026-07-29 | **pre** | 34 | 0.90 | 5.77 | 0.01 | ✓ |
+| 2026-07-30 | **pre** | 84 | 0.01 | 5.73 | 1.41 | ✓ |
+
 ## F3-ter · PAT re-run, and the refusal wired — **DONE 2026-08-02**
 
 > ### ⚠️ RETRACTED 2026-08-02 (same day) — see F7. The conclusion below does not hold.
@@ -568,8 +663,8 @@ afc169a65a1e`) rather than asserted export-inert.
       `quality.timingSource` now tells a clock consumer whether this recording may be used as a leg.
 - [x] **Corpus re-run** under the disciplined axis (34 trios); the asymmetry check held — closure moved
       101.2→−15.5 and 58.4→−11.4 ppm while ECGDex's TCH σ stayed identical at 0.91 bpm.
-- [ ] A per-night MATCHED TCH comparison — the 2.71→3.44 PpgDex σ shift spans different night sets and
-      is therefore unattributed. The old per-night σ values were never recorded; record them this time.
+- [x] **DONE 2026-08-04 — the matched comparison CANNOT be run on this corpus, and the reason is worse
+      than an unmatched night set. Per-night σ recorded below, as asked.** See §F3-quater.
 - [x] **Closure and TCH re-asked.** Closure improved ~7x; TCH shown structurally unexposed.
 - [ ] **PAT — RE-OPENED and HANDED OFF.** The NO was produced by a harness that fitted a free offset per
       block, absorbing the very quantity being measured. The clean-night re-run then disproved this brief's
