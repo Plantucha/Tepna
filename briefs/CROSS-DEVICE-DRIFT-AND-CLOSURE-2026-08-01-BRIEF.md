@@ -351,11 +351,43 @@ The defence is redundancy in the measurement, not more surrogates.
 
 ## 5 · Done when
 
-- [ ] Drift is measured with **unwrapping** and reported with a **closure residual**; a figure without
-      one is not published. `tools/beat-comb-analysis.mjs --local` gains both, or a sibling tool does.
-- [ ] The unwrap is made robust by using the closure constraint across all three pairs **jointly**
-      rather than unwrapping each pair independently — three pairs with one constraint is
-      over-determined, which is the actual leverage three devices give.
+- [x] **DONE 2026-08-04 — the closure residual now gates the figure, and the first run says the corpus
+      cannot close AT ALL.**
+
+      *"…or a sibling tool does"* had already happened: `tools/drift-report.js` owns the four-state
+      `driftVerdict` and `trio-batch` routes every clock line through it. **`beat-comb-analysis.mjs` was
+      the straggler** — it derives drift from per-block lag by Theil–Sen, not `fitClockDrift`, so no
+      closure could reach it, and it printed a bare `ppm` column spanning **−133 to +185 ppm against a
+      crystal error of ~20**. Precisely the §6 guardrail, violated by the tool §5 names.
+
+      Fixed by closing over the legs *that tool* fitted. `DriftReport.closeTriple(legs)` takes directed
+      `{a,b,ppm}` legs and checks `d(A,B)+d(B,C)+d(C,A)=0`; the tool's three pairs are the three edges of
+      one triangle over `{ECGDex, PpgDex, PpgDexFinger}`, so `--pair all` is the only mode that can check
+      itself. A night's rows are now **buffered, closed, then printed** — printing first and closing
+      twenty lines later is the ordering bug `drift-report.js` was extracted to fix.
+
+      ⚠ **THE FIRST HONEST RUN: 0 closed · 0 inconsistent · 25 unclosed, of 25 nights.** Not one ppm this
+      tool has ever printed was a measurement. The cause is not a failing check but an **absent** one:
+      **0 of 41 nights carry a `PpgDexFinger` export**, so two of its three pairs (`optical`,
+      `ecg-finger`) produce no rows at all — silently, because a pair with no data has no lines. The tool
+      now names the silent pairs rather than leaving them invisible. OxyDex cannot substitute: its export
+      carries `spo2`/`epochs` and **no beat timeseries**, so there is no third beat train on those nights.
+
+      **Gated, and verified RED by value** — `drift-report · closure-identity`, 14 assertions in both
+      lanes. Two mutants confirm it fails on the value: a constant tolerance kills 4 assertions, and
+      letting an absent leg default to 0 produces exactly the fabricated pass (`consistent: true` on a
+      hole) the §2.6 never-default rule forbids. The tolerance `max(5, 0.25·max|leg|)` is **mirrored**
+      from `fitClockClosure` (one is bundled, one is not) and the gate reads the rule out of **both**
+      sources as text, so the two copies cannot drift apart.
+
+- [x] **ANSWERED 2026-08-04 — attempted twice, and it is not the blocker.** Superseded by
+      `JOINT-UNWRAP-ATTEMPT-2026-08-02-BRIEF.md`, which implemented both readings. Sequential per-pair
+      unwrap made closure **worse** (101/101/58 ppm → −266/209/−202: one wrong multiple rides the
+      cumulative sum). Wrapped-residual slope regression removes the propagation entirely and leaves
+      closure free — and still does not lock, because **per-block offset precision** is the real
+      constraint: phase concentration runs 0.15–0.38 where 1 is total agreement, so there is no phase to
+      regress. `_wrappedSlopeFit` ships as a diagnostic. Do not re-attempt the unwrap; the leverage three
+      devices give is real but unreachable until a block offset is good to well under one RR.
 - [x] **DONE — the contract existed; its RATE was retracted (fixed 2026-08-04).** `maxTolerableDriftPpm`
       already shipped, exported, with a per-consumer table. But it justified its two "NOT safe" rows with
       *"(wearables run 100+)"* — the beat-derived figure `WEARABLE-DRIFT-DIRECT` **retracted**. Measured

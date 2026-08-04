@@ -2865,6 +2865,64 @@
        The load-bearing assertion is the seconds clause: it is the strongest statement on the line and
        the one a reader carries away, so it exists only in the closed state. Both directions are
        asserted — a one-sided test would pass against a formatter that always prints it. */
+    /* CROSS-DEVICE-DRIFT-AND-CLOSURE §5 — *"Drift is measured with unwrapping and reported with a
+       closure residual; a figure without one is not published."* `driftVerdict` (gated below) decides
+       what a closure LICENSES, but it takes the closure as given. Nothing gated the closure ITSELF over
+       legs a caller fitted, so `beat-comb-analysis.mjs` — which derives drift from per-block lag by
+       Theil–Sen, not `fitClockDrift` — printed a ppm column that no closure had ever seen, on a corpus
+       where that column spans −133 to +185 ppm against a crystal error of ~20.
+
+       The load-bearing assertions are the two that must FAIL: an inconsistent triangle, and an
+       incomplete one. A closure check that only ever confirms is the vacuous-gate failure this repo
+       keeps re-finding — two legs and a hole would otherwise "close" at whatever the two legs sum to,
+       which is a fabricated pass of exactly the §2.6 never-default-a-missing-value kind. */
+    group('a drift closure catches a wrong leg and refuses an absent one', 'drift-report · closure-identity', function (T) {
+      var DR = env.DriftReport;
+      T.ok('DriftReport is loaded in this lane', !!DR, 'tools/drift-report.js did not load — the group below would vacuously pass');
+      if (!DR) return;
+      var L = function (a, b, ppm) {
+        return { a: a, b: b, ppm: ppm };
+      };
+
+      // Wrist +30 ppm and finger +50 ppm relative to the ECG ⇒ the optical leg MUST read +20.
+      var good = DR.closeTriple([L('ECGDex', 'PpgDex', 30), L('PpgDex', 'PpgDexFinger', 20), L('ECGDex', 'PpgDexFinger', 50)]);
+      T.ok('a consistent triangle closes at the identity', good && Math.abs(good.closurePpm) < 1e-9);
+      T.ok('…and is quotable', DR.driftVerdict(good).quotable === true);
+
+      // THE RED — the optical leg off by 40 ppm, the shape a tooth-hop leaves behind.
+      var bad = DR.closeTriple([L('ECGDex', 'PpgDex', 30), L('PpgDex', 'PpgDexFinger', 60), L('ECGDex', 'PpgDexFinger', 50)]);
+      T.ok('one wrong leg breaks the closure', bad && bad.consistent === false);
+      T.ok('…and an inconsistent closure is NOT quotable', DR.driftVerdict(bad).quotable === false);
+
+      // Direction is the caller's convenience, not a second convention: d(B,A) = −d(A,B).
+      var flipped = DR.closeTriple([L('PpgDex', 'ECGDex', -30), L('PpgDex', 'PpgDexFinger', 20), L('PpgDexFinger', 'ECGDex', -50)]);
+      T.ok('a leg handed over reversed closes identically', flipped && Math.abs(flipped.closurePpm) < 1e-9);
+
+      // An absent leg must not close trivially.
+      T.eq('two legs and a hole is null, not a pass', DR.closeTriple([L('ECGDex', 'PpgDex', 30), L('PpgDex', 'PpgDexFinger', 20)]), null);
+      T.eq('…as is a triangle whose third leg failed to fit', DR.closeTriple([L('a', 'b', 1), L('b', 'c', 1), L('c', 'a', null)]), null);
+      T.ok('…and unclosed is not quotable', DR.driftVerdict(null).quotable === false);
+
+      /* The tolerance is the LEGS' own scale, so the same residual is judged differently against sharp
+         legs and weak ones — asserted both ways, because a one-sided test passes against a constant. */
+      T.ok('6 ppm is tolerated against 400 ppm legs', DR.closeTriple([L('a', 'b', 400), L('b', 'c', 400), L('c', 'a', -794)]).consistent === true);
+      T.ok('…and the SAME 6 ppm is refused against 4 ppm legs', DR.closeTriple([L('a', 'b', 4), L('b', 'c', 4), L('c', 'a', -2)]).consistent === false);
+
+      /* PARITY, not duplication. `fitClockClosure` owns this rule and is inlined into every bundle;
+         `closeTriple` mirrors it for the tool lane. Two copies of a threshold drift apart silently, so
+         the rule is read out of BOTH sources and compared as text. */
+      var integ = env.sources && env.sources['integrator-dsp.js'];
+      var report = env.sources && env.sources['tools/drift-report.js'];
+      T.ok('both closure sources are readable in this lane', !!integ && !!report, 'parity leg would vacuously pass');
+      if (integ && report) {
+        var RULE = /Math\.max\(5,\s*0\.25\s*\*\s*Math\.max\(Math\.abs\((\w+)\),\s*Math\.abs\((\w+)\),\s*Math\.abs\((\w+)\)\)\)/;
+        var a = RULE.exec(integ);
+        var b = RULE.exec(report);
+        T.ok('integrator-dsp still carries the max(5, 0.25·max|leg|) rule', !!a, 'fitClockClosure changed its tolerance — closeTriple must follow');
+        T.ok('…and drift-report mirrors it verbatim', !!b, 'closeTriple no longer states the mirrored rule');
+      }
+    });
+
     group('trio-batch quotes a drift ppm only when its closure holds', 'trio-batch · drift-report', function (T) {
       var DR = env.DriftReport;
       T.ok('DriftReport is loaded in this lane', !!DR, 'tools/drift-report.js did not load — the group below would vacuously pass');

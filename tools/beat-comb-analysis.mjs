@@ -75,6 +75,12 @@
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
+
+/* The closure identity + the four-state verdict, from the module `trio-batch` already routes its
+   clock lines through. Imported rather than reimplemented: a second copy of "when is a ppm a
+   measurement" is how this tool came to publish one that no closure had ever seen. */
+const DriftReport = createRequire(import.meta.url)('./drift-report.js');
 
 const argv = process.argv.slice(2);
 const flag = (n) => argv.includes(n);
@@ -180,6 +186,16 @@ const PAIRS = {
   'ecg-finger': { label: 'ECG→finger', a: ['ECGDex', 'rr'], b: ['PpgDexFinger', 'ppi'] }
 };
 
+/* The three pairs above are not three unrelated measurements — they are the three edges of ONE
+   triangle over {ECGDex, PpgDex, PpgDexFinger}, so their drifts are over-determined by exactly one
+   constraint. `--pair all` is therefore the only mode that can check itself, which is why closure is
+   gated on it rather than offered as a flag: a single pair has nothing to close against.
+
+   A lag tau maximises coincidence(A, B, tau), i.e. B's beats sit at A + tau, so tau is B relative to
+   A and the pair is the directed leg a->b. Then tau(ecg,wrist) + tau(wrist,finger) = tau(ecg,finger)
+   by construction, and differentiating gives the rate identity closeTriple checks. */
+const TRIANGLE = { optical: ['PpgDex', 'PpgDexFinger'], 'ecg-wrist': ['ECGDex', 'PpgDex'], 'ecg-finger': ['ECGDex', 'PpgDexFinger'] };
+
 /**
  * Beat correspondence with the offset REFIT PER BLOCK — the measurement the whole-night
  * sweep cannot make. Returns the median per-block coincidence and the drift implied by
@@ -223,14 +239,60 @@ function localCorrespondence(A, B, tol, blockMs, shiftMs) {
   return { blocks: fracs.length, median: med(fracs), best: Math.max(...fracs), driftMsPerMin, ppm: driftMsPerMin == null ? null : (driftMsPerMin / 60000) * 1e6 };
 }
 
+/**
+ * Print one night's per-block rows, gated on the three-source closure over its own legs.
+ *
+ * §6 of `CROSS-DEVICE-DRIFT-AND-CLOSURE`: *"Do not quote a ppm figure that has not closed. The six
+ * nights here produce drift estimates spanning -21 to +754 ppm; two of them are credible. The rest
+ * are unwrap failures wearing the same units, and they are indistinguishable from real measurements
+ * without the closure column beside them."* This tool printed that column for a year with no closure
+ * beside it, on a corpus where its own ppm spans -133 to +185 against a crystal error of ~20.
+ *
+ * The number is still PRINTED in every state — a refusal is a result and suppressing the fit would
+ * cost the diagnostic — but it is marked unquotable, exactly as `driftFitLine` marks its own.
+ */
+const closureTally = { closed: 0, inconsistent: 0, unclosed: 0, legsSeen: {} };
+
+function flushNight(night, local) {
+  const legs = local.filter((r) => r.L && r.L.ppm != null && isFinite(r.L.ppm) && TRIANGLE[r.key]).map((r) => ({ a: TRIANGLE[r.key][0], b: TRIANGLE[r.key][1], ppm: r.L.ppm }));
+  /* null when the triangle is incomplete — which is the honest answer for `--pair optical`, not a
+     pass. driftVerdict(null) is the 'unclosed' state, and unclosed is not quotable. */
+  const tri = legs.length === 3 ? DriftReport.closeTriple(legs) : null;
+  const v = DriftReport.driftVerdict(tri);
+  closureTally[tri ? (tri.consistent ? 'closed' : 'inconsistent') : 'unclosed']++;
+  for (const r of local) closureTally.legsSeen[r.key] = (closureTally.legsSeen[r.key] || 0) + 1;
+
+  for (const r of local) {
+    console.log(
+      night.padEnd(14),
+      r.label.padEnd(15),
+      r.wholeNight.toFixed(1).padStart(9) + '%',
+      (r.L ? r.L.median.toFixed(1) : '—').padStart(11) + '%',
+      (r.L ? r.L.best.toFixed(1) : '—').padStart(8) + '%',
+      (r.L && r.L.ppm != null ? r.L.ppm.toFixed(0) : '—').padStart(9),
+      (v.quotable ? 'yes' : v.state.toUpperCase()).padStart(11),
+      r.C ? (r.C.median.toFixed(1) + '%').padStart(11) : ''
+    );
+  }
+  if (tri) {
+    console.log(
+      `${''.padEnd(14)} ⏱ 3-source closure: ${tri.closurePpm.toFixed(1)} ppm (identity 0, tol ${tri.tolPpm.toFixed(0)})` +
+        `   ${tri.consistent ? 'consistent — ppm above is a measurement' : '⚠ INCONSISTENT — at least one pairwise fit is wrong; the ppm above is not a measurement'}`
+    );
+  } else if (local.length) {
+    console.log(`${''.padEnd(14)} ⏱ 3-source closure: UNCLOSED — ${v.why}; the ppm above is a fit, not a measurement`);
+  }
+}
+
 function runDir(dir, which) {
   const nights = readdirSync(dir).sort();
   const pairs = which === 'all' ? Object.keys(PAIRS) : [which];
   console.log(`beat-comb — ${dir}   tol ±${TOL} ms, sweep ±${SPAN_RR} RR\n`);
-  if (LOCAL) console.log('night          pair            whole-night   per-block   best     ppm' + (CONTROL ? '     control' : ''));
+  if (LOCAL) console.log('night          pair            whole-night   per-block   best     ppm   quotable' + (CONTROL ? '     control' : ''));
   else console.log('night          pair            meanRR   @lag0%   peak%   floor%   ratio   teeth   spacing (ms)');
   let seen = 0;
   for (const night of nights) {
+    const local = [];
     for (const key of pairs) {
       const P = PAIRS[key];
       const A = loadBeats(join(dir, night, `${P.a[0]}_${night}.node-export.json`), P.a[1]);
@@ -242,15 +304,10 @@ function runDir(dir, which) {
       if (LOCAL) {
         const L = localCorrespondence(A.t, B.t, TOL, 5 * 60 * 1000, 0);
         const C = CONTROL ? localCorrespondence(A.t, B.t, TOL, 5 * 60 * 1000, 3600000) : null;
-        console.log(
-          night.padEnd(14),
-          P.label.padEnd(15),
-          ((100 * s.best.n) / A.t.length).toFixed(1).padStart(9) + '%',
-          (L ? L.median.toFixed(1) : '—').padStart(11) + '%',
-          (L ? L.best.toFixed(1) : '—').padStart(8) + '%',
-          (L && L.ppm != null ? L.ppm.toFixed(0) : '—').padStart(9),
-          C ? (C.median.toFixed(1) + '%').padStart(11) : ''
-        );
+        /* BUFFERED, not printed. The whole point of `drift-report.js` is that the closure is computed
+           BEFORE the line that quotes the number — printing here and closing afterwards is the exact
+           ordering bug that module was extracted to fix. */
+        local.push({ key, label: P.label, wholeNight: (100 * s.best.n) / A.t.length, L, C });
         continue;
       }
       const sp = [];
@@ -267,12 +324,29 @@ function runDir(dir, which) {
         '  ' + sp.join(' ')
       );
     }
+    if (LOCAL && local.length) flushNight(night, local);
   }
   if (!seen) {
     console.log('\n(no night carried both halves of the requested pair with a beat timeseries)');
     return;
   }
   if (LOCAL) {
+    const tallied = closureTally.closed + closureTally.inconsistent + closureTally.unclosed;
+    console.log(
+      `\nCLOSURE: ${closureTally.closed} closed · ${closureTally.inconsistent} inconsistent · ${closureTally.unclosed} unclosed, of ${tallied} night(s).` +
+        (closureTally.closed ? '' : '  NOT ONE ppm ABOVE IS A MEASUREMENT.')
+    );
+    /* A pair that produced no rows is INVISIBLE in the table — it simply has no lines — and an absent
+       leg is the one thing that makes closure structurally impossible rather than merely failing. So
+       the pairs that ran are named against the pairs that were asked for. */
+    const askedFor = which === 'all' ? Object.keys(PAIRS) : [which];
+    const silent = askedFor.filter((k) => !closureTally.legsSeen[k]);
+    if (silent.length)
+      console.log(
+        `  ⚠ ${silent.length} of ${askedFor.length} requested pair(s) produced NO rows: ${silent.join(', ')}.` +
+          `\n    A triangle needs all three legs, so closure cannot be evaluated at all — this is not a` +
+          `\n    failed check, it is an absent one. Supply the missing node export(s) or do not quote a ppm.`
+      );
     console.log(`\n${seen} row(s). PER-BLOCK is the honest correspondence; WHOLE-NIGHT is that number`);
     console.log('confounded with relative clock drift, which the ppm column quantifies. Compare each');
     console.log('row against its own CONTROL (partner shifted +1 h, identical per-block search) — the');
@@ -401,6 +475,34 @@ function selftest() {
   }
   const rc = sweep(A, C, meanRR, 100, 3, 10);
   ok('independent trains produce no tooth above 1.5× chance', rc.teeth.length === 0, `${rc.teeth.length} teeth`);
+
+  /* ── the closure gate, on PLANTED legs ────────────────────────────────────────────────────────
+     The identity is checked here rather than only in the shared suite because this is the tool that
+     PUBLISHES the ppm, and the failure being guarded against is a consistent-looking closure over an
+     incomplete or wrong triangle. Truth is planted, so these assert rather than describe. */
+  const L = (a, b, ppm) => ({ a, b, ppm });
+  /* Three legs that genuinely come from three clocks: wrist +30 ppm and finger +50 ppm relative to
+     the ECG, so the optical pair MUST read +20 or one of the three fits is wrong. */
+  const good = DriftReport.closeTriple([L('ECGDex', 'PpgDex', 30), L('PpgDex', 'PpgDexFinger', 20), L('ECGDex', 'PpgDexFinger', 50)]);
+  ok('a consistent triangle closes at 0', good && Math.abs(good.closurePpm) < 1e-9, good ? `${good.closurePpm}` : 'null');
+  ok('…and is quotable', DriftReport.driftVerdict(good).quotable === true);
+
+  /* THE RED. Same triangle with the optical leg off by 40 ppm — the shape every corpus row has when
+     its per-block lag hopped a tooth. It must be caught BY VALUE, not by throwing. */
+  const bad = DriftReport.closeTriple([L('ECGDex', 'PpgDex', 30), L('PpgDex', 'PpgDexFinger', 60), L('ECGDex', 'PpgDexFinger', 50)]);
+  ok('an inconsistent triangle does NOT close', bad && !bad.consistent, bad ? `${bad.closurePpm.toFixed(1)} ppm vs tol ${bad.tolPpm.toFixed(1)}` : 'null');
+  ok('…and is NOT quotable', DriftReport.driftVerdict(bad).quotable === false);
+
+  /* An absent leg must not close trivially — two legs and a hole would sum to whatever the two are. */
+  ok('two legs and a hole is unclosed, not consistent', DriftReport.closeTriple([L('ECGDex', 'PpgDex', 30), L('PpgDex', 'PpgDexFinger', 20)]) === null);
+  ok('…and unclosed is not quotable', DriftReport.driftVerdict(null).quotable === false);
+
+  /* The tolerance scales with the legs, so the SAME residual is judged differently against sharp
+     legs and against weak ones — a fixed threshold would excuse the first or condemn the second. */
+  const sharp = DriftReport.closeTriple([L('a', 'b', 4), L('b', 'c', 4), L('c', 'a', -2)]);
+  const weak = DriftReport.closeTriple([L('a', 'b', 400), L('b', 'c', 400), L('c', 'a', -794)]);
+  ok('a 6 ppm residual is tolerated against 400 ppm legs', weak && weak.consistent, weak ? `tol ${weak.tolPpm.toFixed(0)}` : 'null');
+  ok('…and the same 6 ppm is NOT tolerated against 4 ppm legs', sharp && !sharp.consistent, sharp ? `tol ${sharp.tolPpm.toFixed(0)}` : 'null');
 
   console.log(`\n${fail === 0 ? '✓' : '✗'} selftest — ${pass} passed, ${fail} failed`);
   return fail === 0;
