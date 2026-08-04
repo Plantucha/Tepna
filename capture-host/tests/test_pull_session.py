@@ -645,3 +645,30 @@ def test_pull_defaults_are_the_ones_the_cli_documents(tmp_path, monkeypatch):
     assert _run(pull_session.pull("D1:98:62:7C:92:B3", str(tmp_path))) == []
     assert seen["args"][2:] == ("latest", 0, None, "0000", None)
     assert calls["n"] == 1, "wait defaults to 0 — one attempt, no retry"
+
+
+# ── the --ftype argument must actually reach the wire ───────────────────────────────────────────────
+def test_ftype_reaches_the_file_start_frame(tmp_path, monkeypatch):
+    """`_pull_once(..., ftype, ...)` builds the FILE_START frame with `oxyii.file_start_frame(ts, ftype)`,
+    and that parameter DEFAULTS to 0. Every other test in this file pulls with ftype=0, so dropping the
+    argument entirely is invisible to all of them — the frame comes out byte-identical. It is not
+    The verifiable consequence is a DEAD CONFIG KNOB: capture.py reads `ftype` from config.yaml
+    (`int(pcfg.get("ftype", 0))`) and threads it down to this frame, so dropping the argument pins the
+    wire value to 0 no matter what the operator configured — the setting silently stops working. What
+    a non-zero ftype actually returns is the device's business and is NOT asserted here: the vigil box
+    runs `ftype: 0` and all 15 stored pulls used it, so there is no observation on hand, and the
+    "selects a different file type" reading comes only from the flag's help text and the
+    "try a different --ftype" error message.
+
+    Asserting on the encoded payload rather than on a spy: the four little-endian bytes after the
+    14-char stamp + 2 pad ARE the wire contract (oxyii.file_start_frame)."""
+    ring = FakeRing(["20260720010000"], b"\x01\x03" + b"z" * 90)
+    _install(monkeypatch, ring)
+    _run(pull_session._pull_once("A", str(tmp_path), "all", 7, None, "0000"))
+
+    starts = [w for w in ring.writes if w[1] == oxyii.OP_FILE_START]
+    assert starts, "the pull must have sent a FILE_START"
+    payload = starts[0][7:-1]                       # oxyii.encode: 7-byte header, payload, 1 CRC byte
+    assert payload[:14] == b"20260720010000", "stamp must lead the payload"
+    assert int.from_bytes(payload[16:20], "little") == 7, \
+        "the requested --ftype must reach the device; a dropped argument silently defaults it to 0"
