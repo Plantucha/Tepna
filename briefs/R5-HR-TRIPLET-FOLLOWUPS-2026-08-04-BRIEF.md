@@ -54,10 +54,28 @@ too small to be the real story and keeps hunting. Both waste the finding.
 - [ ] **Whichever is chosen, the epoch block must NAME it** — a `hrStat: 'median-rate' | 'rate-of-mean'`
       field beside `hr`, so a cross-node consumer can refuse a mismatched pair instead of differencing
       it. Additive; the Integrator's `normalizeFile` ignores unknown keys.
-- [ ] **Isolate the mechanism inside real RR, or stop claiming one.** The gap is *not* estimator
-      arithmetic that holds on any series: symmetric RR gives **+0.03**, injected long pauses **+0.54
-      (opposite sign)**, a within-block trend −0.03. None reproduces −0.299. Until a synthetic series
-      does, the confound is gated by source scan only and the number lives in the corpus.
+- [x] **ISOLATED 2026-08-04 — it is the interval distribution's SHAPE, dominated by variability.**
+      Regressing the per-block gap on the block's own RR statistics, 1670 real blocks:
+
+      ```
+      gap ≈ 0.2989 − 8.7175·CV + 0.2121·skew        R² = 0.601, residual SD 0.309 bpm (raw 0.489)
+      r(gap, CV) = −0.719    r(gap, skew) = +0.690    r(gap, HR level) = −0.134  (negligible)
+      ```
+
+      Real overnight RR has **mean CV 0.0522, mean skew −0.671**; substituting gives **−0.298** against
+      the measured **−0.299**.
+
+      **That also explains why the three probes failed**, which was the evidence for "no mechanism":
+      a smooth series has too little CV, and injected long **pauses are POSITIVELY skewed** where real
+      overnight RR is **negatively** skewed — hence the +0.54 sign flip. The probes were not evidence of
+      no mechanism, they were three points off the surface.
+
+      With the driver known the number is reproducible **without a corpus**: a synthetic at CV 0.0506
+      and negative skew gives **−0.307**. The gate is upgraded from source-scan-only to asserting the
+      value, so a fresh clone checks the magnitude and not merely that the two estimators differ.
+
+      Not claimed: a closed form. 60 % of variance explained by two shape statistics is a driver, not a
+      derivation — the residual 0.309 bpm is unmodelled.
 - [ ] **Re-read §2 of the parent** with the confound removed. Its bias table compared node epoch HR
       directly; every row inherits the same artifact, so the *ordering* of the corners may survive while
       the magnitudes do not.
