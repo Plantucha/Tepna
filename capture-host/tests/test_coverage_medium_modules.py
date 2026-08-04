@@ -237,13 +237,65 @@ def test_read_rssi_none_when_both_privilege_modes_fail(monkeypatch):
 
 
 def test_pull_session_main_parses_argv_and_drives_pull(monkeypatch):
+    """Every argv value must reach pull() at the RIGHT POSITION, and every default must be the
+    documented one. The previous version of this test recorded all seven arguments and asserted two
+    (address, which), so `out`, `ftype`, `adapter`, `serial` and `wait` were captured and discarded —
+    the exact shape that leaves code unobservable while coverage still reads 100% because the line
+    ran. Mutation testing found ~30 survivors here: every argparse default, both `type=int` casts,
+    `required=True` on both mandatory flags, and six re-orderings of the positional call.
+    """
     seen = {}
+
     async def fake_pull(*a, **k):
         seen["args"] = a
+        seen["kwargs"] = k
         return []
+
     monkeypatch.setattr(pull_session, "pull", fake_pull)
     import sys as _sys
+
+    # ── 1 · minimal argv: pins every DEFAULT, and the position each lands in ──────────────────────
     monkeypatch.setattr(_sys, "argv",
-                        ["pull_session.py", "--address", "AA:BB", "--out", "/tmp/x", "--which", "all"])
+                        ["pull_session.py", "--address", "AA:BB", "--out", "/tmp/x"])
     pull_session.main()
-    assert seen["args"][0] == "AA:BB" and seen["args"][2] == "all"    # address, ..., which
+    assert seen["args"] == ("AA:BB", "/tmp/x", "latest", 0, None, "0000", 0), (
+        "argv -> pull() must preserve (address, out, which, ftype, adapter, serial, wait) with the "
+        "documented defaults; a changed default or a swapped position lands here")
+    assert seen["kwargs"] == {}, "main passes positionally — a keyword here changes pull()'s contract"
+    # types, not just values: `type=int` dropped would deliver the string "0"
+    assert isinstance(seen["args"][3], int) and not isinstance(seen["args"][3], bool)
+    assert isinstance(seen["args"][6], int) and not isinstance(seen["args"][6], bool)
+
+    # ── 2 · full argv: pins that each flag reaches its OWN position, not merely that some did ─────
+    monkeypatch.setattr(_sys, "argv",
+                        ["pull_session.py", "--address", "CC:DD", "--out", "/tmp/y",
+                         "--which", "all", "--ftype", "7", "--adapter", "hci1",
+                         "--serial", "1234", "--wait", "45"])
+    pull_session.main()
+    assert seen["args"] == ("CC:DD", "/tmp/y", "all", 7, "hci1", "1234", 45)
+    # every value distinct above, so a transposition cannot pass by coincidence
+    assert len(set(map(str, seen["args"]))) == 7
+
+
+@pytest.mark.parametrize("missing", ["--address", "--out"])
+def test_pull_session_main_requires_address_and_out(monkeypatch, missing):
+    """Both flags are required=True. Dropping either requirement makes argparse hand pull() a None
+    instead of exiting, which is how a pull silently runs against no device or writes nowhere."""
+    argv = ["pull_session.py", "--address", "AA:BB", "--out", "/tmp/x"]
+    i = argv.index(missing)
+    del argv[i:i + 2]
+
+    called = False
+
+    async def fake_pull(*a, **k):
+        nonlocal called
+        called = True
+        return []
+
+    monkeypatch.setattr(pull_session, "pull", fake_pull)
+    import sys as _sys
+    monkeypatch.setattr(_sys, "argv", argv)
+    with pytest.raises(SystemExit) as e:
+        pull_session.main()
+    assert e.value.code == 2, "argparse exits 2 on a missing required flag"
+    assert not called, "pull() must not run when a required flag is absent"
