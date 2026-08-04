@@ -209,6 +209,17 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
     positional_apnea: { evidence: 'experimental', cite: 'Supine vs non-supine event rate from ECGDex ACC posture. Directional, small-n.' },
     auto_glycemic: { evidence: 'heuristic', cite: 'Directional night-to-night association between glucose variability and autonomic load. Hypothesis-generating, not causal.' },
     hrv_consensus: { evidence: 'emerging', cite: 'Cross-device consensus of time-domain HRV (rMSSD / SDNN; Task Force 1996). Divergence flags a QC conflict, not a disease state.' },
+    /* AUDIT-FOLLOWUPS §4.3-sibling (§4.4): `staging_disagreement` is emitted by integrator-dsp.js:5913
+       and was the ONE finding type absent from TYPE_EV, so evBadge() fell through its `!key` guard and
+       returned '' — the card rendered with NO badge at all, silently, against the §🎫 mandate.
+       The tier is INHERITED, not assigned here: ECGDex owns the staging proxies this compares
+       (`deepMin` / `remMin`, both `heuristic` in ECG_REGISTRY), and a disagreement BETWEEN two
+       heuristic estimators cannot be stronger evidence than its own inputs. Per §🎫 the tier is a NODE
+       fact — if ECGDex ever re-grades its stager, this must follow it, not drift on its own. */
+    staging_disagreement: {
+      evidence: 'heuristic',
+      cite: 'Disagreement between per-node sleep-stage PROXIES (HR/HRV-derived, not EEG). Inherits the heuristic tier of the estimators it compares (ECGDex deepMin/remMin). A flag that two proxies disagree — never evidence that either is right, and not a staging claim.'
+    },
     tch_error: {
       evidence: 'experimental',
       cite: "Reference-free three-cornered hat (Gray & Allan 1974): each sensor's own error variance recovered from the three pairwise-difference variances of a shared quantity (per-epoch rMSSD). Estimates PRECISION, not trueness — a bias shared by all three is invisible. Needs ≥3 co-recorded sites; degrades to pairwise consensus otherwise."
@@ -226,7 +237,16 @@ body.light #exportBtn{ background:rgba(88,166,255,.12); color:#2563eb; border-co
       cite: 'Cross-signal corroboration of periodic breathing / Cheyne–Stokes — SpO₂ oscillation (OxyDex), device flow (CPAPDex), and/or cardiac CVHR (ECGDex). Tier-weighted, down-weighted; a corroboration signal, not a scored CSR index.'
     }
   };
-  var TYPE_EV = { confirmed_apnea_event: 'confirmed_apnea', glucose_autonomic_correlation: 'auto_glycemic', periodic_breathing: 'periodic_breathing' };
+  /* Every `type:` integrator-dsp.js can push into `findings` MUST have a key here, or evBadge() hits
+     its `!key` guard and the card renders unbadged. `staging_disagreement` was missing and did exactly
+     that. Gated by the 'fusion finding types are all graded' group — derived from the DSP source, so a
+     NEW finding type reds until it is graded rather than shipping silently bare. */
+  var TYPE_EV = {
+    confirmed_apnea_event: 'confirmed_apnea',
+    glucose_autonomic_correlation: 'auto_glycemic',
+    periodic_breathing: 'periodic_breathing',
+    staging_disagreement: 'staging_disagreement'
+  };
   function evBadge(key) {
     var R = window.MetricRegistry;
     if (!R || !R.badge || !key) return '';
