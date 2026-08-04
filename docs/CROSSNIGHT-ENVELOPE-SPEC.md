@@ -212,13 +212,15 @@ produced each stored aggregate so historical trends aren't silently re-mixed.
 | **MotionDex** | v2.0 ✓ | ✗ **no `*-cross.js`** — and **no longitudinal read anywhere** (the unmitigated case) |
 | **Integrator** | — | consumer; reads this shape only |
 
-**5 of 9 nodes emit.** *(Table completed 2026-07-18 — it previously omitted CPAPDex, which does emit, and
+**5 of the 8 nodes emit** (the `Integrator` row below is a consumer, not a candidate emitter — an earlier
+"5 of 9" counted it). *(Table completed 2026-07-18 — it previously omitted CPAPDex, which does emit, and
 listed no non-emitters at all, so it read as full adoption. Verified by `ls -1 *-cross.js` = exactly 5, and by
 executing `integrator-longitudinal.js`: an HRVDex-shaped node-export ingests as `{"count":0}`, a real envelope
 as `{"count":1}`. The generic longitudinal consumer presupposes the producer — a node with no envelope is
 structurally absent from the cross-node date join, per `ENGINE-VERIFICATION-FINDINGS-2026-07-18-BRIEF.md` §1.7.
-Related stale prose: `integrator-longitudinal.js:7` still says "envelopes that every node now emits" — left
-for whoever next re-bundles the Integrator, since a comment-only edit would force a bundle churn for no
-runtime change.)*
+The related stale prose in `integrator-longitudinal.js` has since been FIXED — its header now reads
+"FIVE of the eight nodes emit" and names them, so this note's own warning is retired. Both statements are
+now gate-backed: `crossnight-adoption` asserts this table against `ls *-cross.js` in both directions, so
+neither the doc nor the header can drift from the filesystem again.)*
 
 Migration is shape-only and additive — no node's `crossNight()` math changes.

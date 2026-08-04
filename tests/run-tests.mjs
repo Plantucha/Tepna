@@ -881,7 +881,14 @@ function readDocsLedger() {
     const p = join(ROOT, f);
     if (existsSync(p)) rootDocs[f] = readFileSync(p, 'utf8');
   }
-  return { briefs, indexText, rootBriefNames, fsBriefNames, fsPaths, rootDocs };
+  /* CROSSNIGHT-ENVELOPE-SPEC §7's adoption table drifted from the filesystem twice (it omitted CPAPDex,
+     then listed no non-emitters at all, so it read as full adoption). Hand it to the gate so the table
+     is checked against `ls *-cross.js` rather than maintained by hand. */
+  const csP = join(ROOT, 'docs/CROSSNIGHT-ENVELOPE-SPEC.md');
+  const crossSpec = existsSync(csP) ? readFileSync(csP, 'utf8') : '';
+  const longP = join(ROOT, 'integrator-longitudinal.js');
+  const longHeader = existsSync(longP) ? readFileSync(longP, 'utf8').slice(0, 1600) : '';
+  return { briefs, indexText, rootBriefNames, fsBriefNames, fsPaths, rootDocs, crossSpec, longHeader };
 }
 
 // release-ledger gate (CONTROLLED-RELEASES-2026-07-05): controlled releases machine-checked. Node-lane

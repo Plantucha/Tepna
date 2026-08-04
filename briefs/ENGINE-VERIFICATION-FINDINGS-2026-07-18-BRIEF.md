@@ -321,6 +321,28 @@ survives intact rather than being steamrolled.
 
 ### 1.7 🟢 LOW — three nodes emit no crossnight envelope
 
+> **✅ The PROSE half of §1.7 is closed and now GATE-BACKED (2026-08-04); the producer half is not.**
+>
+> Both stale statements §1.7 named are fixed: `integrator-longitudinal.js`'s header now reads *"FIVE of
+> the eight nodes emit"* and names them, and SPEC §7 is a full adoption table marking the three
+> non-emitters. Verified in the files, not from this header.
+>
+> Two things were still wrong and are corrected here:
+> - §7's headline said **"5 of 9 nodes emit"**. There are **eight** nodes — the `Integrator` row in that
+>   table is a *consumer*, and counting it inflated the denominator. Now "5 of the 8 nodes emit".
+> - §7 still carried a note warning that `integrator-longitudinal.js:7` *"still says every node"* and
+>   leaving it "for whoever next re-bundles". That code was fixed; the warning had outlived it.
+>
+> **`docs-ledger` check3e now derives both statements from `ls *-cross.js`** rather than trusting prose:
+> the §7 rows claiming to emit must equal the nodes that actually have a `*-cross.js`, the "N of M"
+> headline must match the filesystem and the node count, and the Integrator header must not reassert
+> "every node". **Mutation-verified against the two real historical drifts** — removing CPAPDex's emit
+> claim (the original 2026-07-18 defect) and restoring "5 of 9" each red two assertions.
+>
+> **Still open, unchanged:** HRVDex, GlucoDex and MotionDex emit no envelope. HRVDex/GlucoDex are
+> DEGRADED (native intra-file trending); **MotionDex remains the unmitigated case** — no longitudinal
+> read anywhere. Building those producers is the remaining work.
+
 `ls -1 *-cross.js` → exactly 5 (oxydex, cpapdex, ppgdex, ecgdex, pulsedex). Zero `crossNight` hits in
 hrvdex/glucodex/motiondex. Executed: an HRVDex-shaped node-export ingests as `{"count":0}`; a real envelope as
 `{"count":1, nodes:["OxyDex"], rows:2}` (gate at `integrator-longitudinal.js:167`).
