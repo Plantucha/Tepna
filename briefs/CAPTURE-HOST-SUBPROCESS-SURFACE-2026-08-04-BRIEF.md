@@ -4,7 +4,8 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-04
+**Status:** DONE — 2026-08-04 · **Created:** 2026-08-04
+**Follow-up:** `CAPTURE-HOST-SUBPROCESS-SURFACE-FOLLOWUPS-2026-08-04-BRIEF.md`
 
 # The subprocess surface is where the surviving mutants live
 
