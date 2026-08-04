@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-18 (**§4 Phase 3 — the degenerate-channel guard — EXECUTED** ahead of
+**Status:** IN-PROGRESS — 2026-07-18 (**§2 Phase 1 MEASURED 2026-08-04: the ambient column is read, carried, gated — and never subtracted. Subtraction is NOT inert (median 3.2 ms but +101 % on one night); however only 6 of 12 corpus nights give a plausible rMSSD at all, so the corpus cannot yet decide. See §2.** **§4 Phase 3 — the degenerate-channel guard — EXECUTED** ahead of
 Phases 1–2, because it is the honesty half and was fixing a live defect: the capture host replicates the
 O2Ring's single finger pleth across `ppg0/1/2`, so `ledAgreementPct` reported a structurally-guaranteed
 `100` at `measured` tier. `analyze` now dedupes bit-identical channels before the consensus vote and takes
@@ -109,6 +109,51 @@ be filled before any runtime constant, per `LITERATURE-USE-POLICY`.
 ---
 
 ## 2 · Phase 1 — ambient subtraction (small, independent, ship first)
+
+> ### 📏 MEASURED 2026-08-04 — §8's "measure and record" answered, and the answer is *not yet*
+>
+> **Status of the code first: the ambient column is READ AND DISCARDED.** `parsePPG` locates it
+> (`/ambient/` → `amb` index), carries it as a `Float32Array` on `rec.amb`, ships it through both PPG
+> adapters, and `tests/dex-tests.js:7350` even gates that it is *the ambient column and not a leaked PPG
+> channel*. **It is never subtracted from anything.** Phase 1 is not partially done; it is unstarted, with
+> a fully-plumbed input sitting unused. (Third instance of this shape found today, after the NSRR stage
+> labels and the PAT coupling denominator.)
+>
+> **What subtraction would do, measured on the real Verity corpus** — 12 nights, shipped path vs
+> `ch[k] − amb` through the *same* `detectChannel → consensusBeats → buildPPI → correctRR` chain:
+>
+> | | shipped rMSSD | amb-subtracted | Δ |
+> |---|---|---|---|
+> | 2026-07-16 | 91.9 | 93.0 | +1.0 (1 %) |
+> | 2026-07-17 | 60.8 | 64.0 | +3.2 (5 %) |
+> | **2026-07-19** | **41.2** | **83.0** | **+41.8 (+101 %)** |
+> | 2026-07-22 | 49.7 | 51.0 | +1.4 (3 %) |
+> | 2026-07-24 | 96.5 | 98.8 | +2.2 (2 %) |
+> | 2026-07-27 | 77.7 | 88.2 | +10.5 (13 %) |
+>
+> median |Δ| **3.2 ms**, mean **10.0 ms**, night-to-night SD **22.7 ms**, ratio **0.44**.
+>
+> **So ambient subtraction is NOT inert** — §8 anticipated a possible negative result, and this is not
+> one. It is negligible on four nights and **doubles rMSSD on 2026-07-19**.
+>
+> **⚠️ But the corpus cannot yet decide whether that is an improvement, and this is the finding that
+> matters.** Only **6 of 12** nights produce a physiologically plausible rMSSD at all. The other six read
+> **164, 251, 253, 278, 324 and 2332 ms** — impossible for a resting adult, and matching the known
+> PPG beat-alternation defect that inflates rMSSD 3–6×. Judging a waveform-source change on a corpus
+> where half the nights are already artifact-dominated would measure the artifact, not the change.
+>
+> **First numbers I computed were 21.0 ms mean |Δ| against a 636.7 ms "night-to-night SD" — a ratio of
+> 0.033 that reads as a decisive negative.** That denominator was the 2332 ms night. Quoted uncritically
+> it would have retired Phases 1–2 on the strength of one broken recording. The plausible-nights ratio is
+> **0.44**, thirteen times larger.
+>
+> **Consequence for sequencing:** the alternation nights must be excluded or fixed *before* Phase 1/2 can
+> be evaluated, otherwise §8's acceptance test ("does fusion move HRV by less than the night-to-night
+> spread?") is computed against a spread that is mostly artifact.
+>
+> **Caveat on the measurement itself:** this used a naive `ch − amb`. If Phase 1 specifies a scaled or
+> regressed subtraction, these deltas are an approximation of it, not it. No DSP was changed — this is a
+> measurement, and `ppgdex-dsp.js` is untouched.
 
 Subtract `amb` from each optical channel at parse time, before any filtering. One subtraction per
 sample; it is what the sensor vendor's own community says the channel is for.
