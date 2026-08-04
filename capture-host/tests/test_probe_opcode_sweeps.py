@@ -245,11 +245,28 @@ class _RingClient:
             self._cb(0, bytearray(oxs.oxyii.encode(op, b"\x01")))
 
 
+_DEV_SENTINEL = object()   # identity matters: the device handed to BleakClient must be the one FOUND
+
+
 def _patch_ring(monkeypatch, client):
-    async def find(_a, timeout=0):
-        return object()
+    """The double RECORDS what it was called with.
+
+    A double that ignores its arguments makes every argument untestable, and coverage cannot see the
+    hole. The diff-scoped mutation gate found 43 survivors on this file at 100% statement+branch, and
+    almost all were of the form `f(address, …)` -> `f(None, …)`: nothing observable changed because
+    nothing looked. `seen` is what closes that."""
+    seen = {"find": [], "client": []}
+
+    async def find(addr, timeout=0):
+        seen["find"].append((addr, timeout))
+        return _DEV_SENTINEL
+
+    def mk(dev, **kw):
+        seen["client"].append(dev)
+        return client
     monkeypatch.setattr(oxs.BleakScanner, "find_device_by_address", find)
-    monkeypatch.setattr(oxs, "BleakClient", lambda dev, **kw: client)
+    monkeypatch.setattr(oxs, "BleakClient", mk)
+    return seen
 
 
 def test_oxyii_records_which_ops_replied(monkeypatch):
@@ -664,3 +681,92 @@ def test_oxyii_every_opcode_carries_a_wall_clock_stamp(monkeypatch, tmp_path):
 def test_oxyii_no_json_path_still_runs(monkeypatch):
     _patch_ring(monkeypatch, _Live(responders={0x20}))
     assert len(_run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))["opcodes"]) == 2
+
+
+# ══ arguments the doubles used to swallow ════════════════════════════════════════════════════════════
+# Every test below kills a mutant that survived at 100% statement+branch coverage. They exist because
+# coverage answers "was this line run", and these defects are all "was this line run WITH THE RIGHT
+# VALUE" — a distinction only an assertion on the argument can make.
+
+def test_oxyii_the_scan_is_asked_for_THIS_ring_with_a_real_timeout(monkeypatch):
+    """`find_device_by_address(address, timeout=15.0)` -> `(None, …)` / `timeout=None` both survived:
+    the double took any arguments and returned a device regardless, so the address was decorative."""
+    seen = _patch_ring(monkeypatch, _Live(responders={0x20}))
+    _run(oxs.run("AA:BB:CC", None, 0x20, 0x21, dry=False))
+    addrs = [a for a, _ in seen["find"]]
+    timeouts = [t for _, t in seen["find"]]
+    assert addrs == ["AA:BB:CC"], f"the scan must ask for the ring, not {addrs}"
+    assert all(t and t > 0 for t in timeouts), f"a scan with no timeout never returns: {timeouts}"
+
+
+def test_oxyii_the_client_connects_to_the_device_that_was_found(monkeypatch):
+    """`BleakClient(dev, **kw)` -> `BleakClient(None, **kw)` survived — the patch ignored `dev`."""
+    seen = _patch_ring(monkeypatch, _Live(responders={0x20}))
+    _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))
+    assert seen["client"] == [_DEV_SENTINEL], "connected to something other than the discovered device"
+
+
+def test_oxyii_the_handshake_carries_its_payload(monkeypatch):
+    """`r.send(OP_AUTH, oxyii.auth_payload())` -> `r.send(OP_AUTH)` survived. An AUTH with no payload is
+    not a handshake, and the ring answers nothing afterwards — but the fake never looked at the bytes."""
+    class _Recording(_Live):
+        def __init__(self, **kw):
+            super().__init__(**kw)
+            self.payloads = {}
+
+        async def write_gatt_char(self, ch, data, response=False):
+            b = bytes(data)
+            self.payloads.setdefault(b[1], []).append(b[7:-1])   # op -> payload
+            await _Live.write_gatt_char(self, ch, data, response)
+
+    c = _Recording(responders={0x20})
+    _patch_ring(monkeypatch, c)
+    _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))
+    assert c.payloads.get(oxs.oxyii.OP_AUTH, [b""])[0], "AUTH was sent with an EMPTY payload"
+    assert c.payloads.get(oxs.oxyii.OP_SETUP, [b""])[0] == b"\x00", "SETUP lost its argument"
+
+
+def test_oxyii_the_scan_retries_exactly_twice_before_giving_up(monkeypatch):
+    """`if attempt < 2` -> `<= 2` / `< 3` survived: the old test used a ring that recovered on the third
+    attempt, where both bounds give the same cycle count. Only an ALWAYS-failing scan separates them."""
+    w = _WedgedAdapter(fails=99)
+    monkeypatch.setattr(oxs.BleakScanner, "find_device_by_address", w.find)
+    cycles = {"n": 0}
+
+    async def cycle():
+        cycles["n"] += 1
+        return True
+    monkeypatch.setattr(oxs, "_cycle_adapter", cycle)
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))
+    assert w.calls == 3, f"three scan attempts, not {w.calls}"
+    assert cycles["n"] == 2, f"a cycle BETWEEN attempts only — 2, not {cycles['n']}"
+    assert len(res["scan_errors"]) == 3
+
+
+def test_oxyii_max_ops_is_honoured_inside_run_not_just_at_the_cli(monkeypatch):
+    """`plan_ops(lo, hi, limit, skip)` -> `(lo, hi, None, skip)` survived: the CLI test asserted the
+    value reached `run`, and every run-level test passed no limit, so nothing checked it was USED."""
+    _patch_ring(monkeypatch, _Live(responders=set()))
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x40, dry=False, limit=3))
+    assert len(res["opcodes"]) == 3, f"limit ignored: probed {len(res['opcodes'])}"
+
+
+def test_oxyii_the_report_is_readable_and_survives_unserialisable_values(monkeypatch, tmp_path):
+    """`json.dumps(res, indent=2, default=str)` -> dropping `indent` or `default` survived. `default`
+    is load-bearing: a report carrying anything json cannot encode would raise INSTEAD of being written,
+    which is the failure the incremental-write change exists to prevent."""
+    p = str(tmp_path / "r.json")
+
+    async def fake(*a, **k):
+        return {"ok": True, "when": _dt_obj()}
+    monkeypatch.setattr(oxs, "run", fake)
+    monkeypatch.setattr(oxs, "require_free_link", lambda: None)
+    assert oxs.main(["--address", "AA:BB", "--i-accept-the-risk", "--json", p]) == 0
+    txt = open(p).read()
+    assert "\n  " in txt, "the report is not indented — unreadable at 250 opcodes"
+    assert "2026" in txt, "a non-serialisable value was dropped rather than stringified"
+
+
+def _dt_obj():
+    import datetime
+    return datetime.datetime(2026, 8, 4, 3, 0, 0)
