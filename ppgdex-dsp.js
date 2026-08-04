@@ -709,6 +709,49 @@
     return skew >= 0 ? 1 : -1;
   }
 
+  /* The device-wide polarity a set of per-channel `orient` guesses implies — the rule behind the
+     consensus-polarity pass in `analyze` (PPGDEX-ALGORITHM-DEEP-DIVE §6.2 / E-5). Extracted so the
+     rule is directly testable rather than buried in a 300-line function.
+       → +1 / −1  a STRICT majority of channels agrees on that polarity AND at least one dissents
+       →  0       nothing to do: already unanimous, no strict majority (a 1-1 split), or < 2 channels
+     Returning 0 for "unanimous" is what keeps the pass export-inert on every record that is already
+     consistent — the caller does no work at all, so no re-detection and no fixture movement. A 1-1
+     split also returns 0 on purpose: there is nothing to prefer between two equally-confident
+     channels, and inventing a winner would be worse than the condition being corrected. */
+  /* Apply the consensus polarity to a channel set. Split out from `analyze` for the same reason
+     `consensusSign` was: the WIRING is where a fix silently stops being applied. `redetect(i, sign)`
+     returns a replacement channel for dissenter `i`; injecting it keeps this function free of the
+     record/gap plumbing and lets a test assert that EXACTLY the dissenters are re-detected, with the
+     majority sign, and that a unanimous set is touched not at all.
+     → the number of channels replaced (0 whenever there is no strict majority to adopt). */
+  function applyConsensusPolarity(perChannel, redetect) {
+    if (!perChannel || !perChannel.length) return 0;
+    const signs = perChannel.map((pc) => (pc ? pc.sign : null));
+    const maj = consensusSign(signs);
+    if (maj === 0) return 0;
+    let changed = 0;
+    for (let i = 0; i < perChannel.length; i++) {
+      if (signs[i] !== maj) {
+        perChannel[i] = redetect(i, maj);
+        changed++;
+      }
+    }
+    return changed;
+  }
+
+  function consensusSign(signs) {
+    if (!signs || signs.length < 2) return 0;
+    let neg = 0,
+      pos = 0;
+    for (let i = 0; i < signs.length; i++) {
+      if (signs[i] === -1) neg++;
+      else if (signs[i] === 1) pos++;
+    }
+    if (neg === 0 || pos === 0) return 0; // unanimous (or no usable signs) — nothing dissents
+    if (neg === pos) return 0; // no strict majority
+    return neg > pos ? -1 : 1;
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  OPTICAL BEAT DETECTION — O(N) TERMA (Elgendi 2013, "the Pan-Tompkins of PPG")
   //  PPGDEX-BEAT-DETECTION-PERF §1. Two event-related moving averages + a beat-
@@ -981,9 +1024,14 @@
   // (closes over nothing but the module's pure helpers) so the §2b Web-Worker pool can
   // run it verbatim off its own .toString() — serial + worker paths are then byte-
   // identical by construction. Returns the reference-usable band-passed waveform too.
-  function detectChannel(chan, fs) {
+  /* `forceSign` (OPTIONAL, added LAST per CLAUDE.md §🧪) replaces `orient`'s per-channel guess with a
+     polarity decided across the WHOLE device — see the consensus-polarity pass in `analyze`. Omitted or
+     not ±1 ⇒ byte-identical to before, so every existing caller is unaffected, INCLUDING the worker:
+     `_buildWorkerURL` serialises this function's own `.toString()` and calls it with two arguments, so
+     the serial and worker paths stay identical by construction (the property the comment above pins). */
+  function detectChannel(chan, fs, forceSign) {
     const bp0 = bandpass(chan, fs, 0.5, 8.0);
-    const sign = orient(bp0);
+    const sign = forceSign === 1 || forceSign === -1 ? forceSign : orient(bp0);
     const bp = sign === 1 ? bp0 : negate(bp0);
     const det = detectBeats(bp, fs);
     return { bp, sign, peaks: det.peaks, feet: det.feet, T: det.T };
@@ -2582,6 +2630,31 @@
     // (three real photodiodes are never bit-identical), so this is export-inert for them.
     const keepIdx = distinctChannelIdx(rec.ch);
     const perChannel = keepIdx.map((c) => perChannelAll[c]);
+    /* ── CONSENSUS POLARITY (PPGDEX-ALGORITHM-DEEP-DIVE §6.2 / E-5) ────────────────────────────────
+       `orient` decides each channel's polarity ALONE, from the sign of its derivative-skewness with a
+       hard threshold at zero. Three co-located photodiodes on one device share a polarity convention,
+       so a channel whose skew sits near zero can flip against two confident siblings on noise.
+
+       When that happens the consequence is silent and total: the inverted channel's "systolic peaks"
+       land on the opposite phase of the pulse — measured at a fixed ~236 ms, 4.7x the ±50 ms vote
+       window — so it joins NO cluster. `kept3/3` is 0 for the entire night, every surviving beat is
+       2-of-3, and the 3-LED vote runs as a 2-LED vote with no third opinion left to outvote a later
+       failure. Measured on 3 of 18 real Verity nights (16.7 %); the exports stayed CORRECT throughout,
+       because the two agreeing channels carry the record — what was lost was the redundancy, plus the
+       honesty of two statistics (a ~51 % "drop rate" that is a phase offset, not a detection failure,
+       and a 2/3 agreement ribbon on a healthy 3-LED capture).
+
+       So a STRICT majority of channels decides the sign for all of them, and dissenters are re-detected
+       under it. Deliberately conservative in three ways:
+         · only a STRICT majority acts — a 1-1 split on two channels has no majority and is left alone,
+           because there is nothing to prefer and inventing a winner would be worse than the symptom;
+         · unanimous records (the overwhelming majority, and ALL four committed fixtures) take the
+           `size > 1` early-out and are byte-identical — no re-detection, no export movement;
+         · it re-runs the SHIPPED detector on the corrected orientation rather than shifting timestamps,
+           so nothing is compensated after the fact.
+       Measured effect on the three affected nights: kept3/3 0 → 21818 / 15486 / 7925 and 1-of-3 drops
+       23202 → 795, 15662 → 67, 8305 → 187, with every inter-channel peak offset collapsing to 0.0 ms. */
+    applyConsensusPolarity(perChannel, (i, sgn) => detectChannel(chIn[keepIdx[i]], rec.fs, sgn));
     // remap the reference channel onto the deduped set; if the best-SNR channel was itself a
     // duplicate, its first occurrence carries the identical waveform, so the reference is preserved.
     const refIdx = Math.max(
@@ -3410,6 +3483,8 @@
     detectBeats,
     detectChannel,
     consensusBeats,
+    consensusSign,
+    applyConsensusPolarity,
     distinctChannelIdx,
     intervalsSpanningTimeGap,
     hrvShapeViolates,

@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-DwpERTv9a2GT+m0/NAl6GPegC0Eh95sA0OXQurE8dq8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-Lt1pAs4hP4633JGMrNgrMNCFTXY6pqwg4nA3/YmY3Rk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-lLE3ChuuD+h8YOsosYQVpNHlnRsA0xSJ00vPiVHh81I=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1pmgUIPMOHPPHm8f6Yub7BPimfysxekeXIid7QdPO64=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-Lt1pAs4hP4633JGMrNgrMNCFTXY6pqwg4nA3/YmY3Rk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-lLE3ChuuD+h8YOsosYQVpNHlnRsA0xSJ00vPiVHh81I=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -7235,6 +7235,49 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     return skew >= 0 ? 1 : -1;
   }
 
+  /* The device-wide polarity a set of per-channel `orient` guesses implies — the rule behind the
+     consensus-polarity pass in `analyze` (PPGDEX-ALGORITHM-DEEP-DIVE §6.2 / E-5). Extracted so the
+     rule is directly testable rather than buried in a 300-line function.
+       → +1 / −1  a STRICT majority of channels agrees on that polarity AND at least one dissents
+       →  0       nothing to do: already unanimous, no strict majority (a 1-1 split), or < 2 channels
+     Returning 0 for "unanimous" is what keeps the pass export-inert on every record that is already
+     consistent — the caller does no work at all, so no re-detection and no fixture movement. A 1-1
+     split also returns 0 on purpose: there is nothing to prefer between two equally-confident
+     channels, and inventing a winner would be worse than the condition being corrected. */
+  /* Apply the consensus polarity to a channel set. Split out from `analyze` for the same reason
+     `consensusSign` was: the WIRING is where a fix silently stops being applied. `redetect(i, sign)`
+     returns a replacement channel for dissenter `i`; injecting it keeps this function free of the
+     record/gap plumbing and lets a test assert that EXACTLY the dissenters are re-detected, with the
+     majority sign, and that a unanimous set is touched not at all.
+     → the number of channels replaced (0 whenever there is no strict majority to adopt). */
+  function applyConsensusPolarity(perChannel, redetect) {
+    if (!perChannel || !perChannel.length) return 0;
+    const signs = perChannel.map((pc) => (pc ? pc.sign : null));
+    const maj = consensusSign(signs);
+    if (maj === 0) return 0;
+    let changed = 0;
+    for (let i = 0; i < perChannel.length; i++) {
+      if (signs[i] !== maj) {
+        perChannel[i] = redetect(i, maj);
+        changed++;
+      }
+    }
+    return changed;
+  }
+
+  function consensusSign(signs) {
+    if (!signs || signs.length < 2) return 0;
+    let neg = 0,
+      pos = 0;
+    for (let i = 0; i < signs.length; i++) {
+      if (signs[i] === -1) neg++;
+      else if (signs[i] === 1) pos++;
+    }
+    if (neg === 0 || pos === 0) return 0; // unanimous (or no usable signs) — nothing dissents
+    if (neg === pos) return 0; // no strict majority
+    return neg > pos ? -1 : 1;
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  OPTICAL BEAT DETECTION — O(N) TERMA (Elgendi 2013, "the Pan-Tompkins of PPG")
   //  PPGDEX-BEAT-DETECTION-PERF §1. Two event-related moving averages + a beat-
@@ -7507,9 +7550,14 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
   // (closes over nothing but the module's pure helpers) so the §2b Web-Worker pool can
   // run it verbatim off its own .toString() — serial + worker paths are then byte-
   // identical by construction. Returns the reference-usable band-passed waveform too.
-  function detectChannel(chan, fs) {
+  /* `forceSign` (OPTIONAL, added LAST per CLAUDE.md §🧪) replaces `orient`'s per-channel guess with a
+     polarity decided across the WHOLE device — see the consensus-polarity pass in `analyze`. Omitted or
+     not ±1 ⇒ byte-identical to before, so every existing caller is unaffected, INCLUDING the worker:
+     `_buildWorkerURL` serialises this function's own `.toString()` and calls it with two arguments, so
+     the serial and worker paths stay identical by construction (the property the comment above pins). */
+  function detectChannel(chan, fs, forceSign) {
     const bp0 = bandpass(chan, fs, 0.5, 8.0);
-    const sign = orient(bp0);
+    const sign = forceSign === 1 || forceSign === -1 ? forceSign : orient(bp0);
     const bp = sign === 1 ? bp0 : negate(bp0);
     const det = detectBeats(bp, fs);
     return { bp, sign, peaks: det.peaks, feet: det.feet, T: det.T };
@@ -9108,6 +9156,31 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     // (three real photodiodes are never bit-identical), so this is export-inert for them.
     const keepIdx = distinctChannelIdx(rec.ch);
     const perChannel = keepIdx.map((c) => perChannelAll[c]);
+    /* ── CONSENSUS POLARITY (PPGDEX-ALGORITHM-DEEP-DIVE §6.2 / E-5) ────────────────────────────────
+       `orient` decides each channel's polarity ALONE, from the sign of its derivative-skewness with a
+       hard threshold at zero. Three co-located photodiodes on one device share a polarity convention,
+       so a channel whose skew sits near zero can flip against two confident siblings on noise.
+
+       When that happens the consequence is silent and total: the inverted channel's "systolic peaks"
+       land on the opposite phase of the pulse — measured at a fixed ~236 ms, 4.7x the ±50 ms vote
+       window — so it joins NO cluster. `kept3/3` is 0 for the entire night, every surviving beat is
+       2-of-3, and the 3-LED vote runs as a 2-LED vote with no third opinion left to outvote a later
+       failure. Measured on 3 of 18 real Verity nights (16.7 %); the exports stayed CORRECT throughout,
+       because the two agreeing channels carry the record — what was lost was the redundancy, plus the
+       honesty of two statistics (a ~51 % "drop rate" that is a phase offset, not a detection failure,
+       and a 2/3 agreement ribbon on a healthy 3-LED capture).
+
+       So a STRICT majority of channels decides the sign for all of them, and dissenters are re-detected
+       under it. Deliberately conservative in three ways:
+         · only a STRICT majority acts — a 1-1 split on two channels has no majority and is left alone,
+           because there is nothing to prefer and inventing a winner would be worse than the symptom;
+         · unanimous records (the overwhelming majority, and ALL four committed fixtures) take the
+           `size > 1` early-out and are byte-identical — no re-detection, no export movement;
+         · it re-runs the SHIPPED detector on the corrected orientation rather than shifting timestamps,
+           so nothing is compensated after the fact.
+       Measured effect on the three affected nights: kept3/3 0 → 21818 / 15486 / 7925 and 1-of-3 drops
+       23202 → 795, 15662 → 67, 8305 → 187, with every inter-channel peak offset collapsing to 0.0 ms. */
+    applyConsensusPolarity(perChannel, (i, sgn) => detectChannel(chIn[keepIdx[i]], rec.fs, sgn));
     // remap the reference channel onto the deduped set; if the best-SNR channel was itself a
     // duplicate, its first occurrence carries the identical waveform, so the reference is preserved.
     const refIdx = Math.max(
@@ -9936,6 +10009,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     detectBeats,
     detectChannel,
     consensusBeats,
+    consensusSign,
+    applyConsensusPolarity,
     distinctChannelIdx,
     intervalsSpanningTimeGap,
     hrvShapeViolates,

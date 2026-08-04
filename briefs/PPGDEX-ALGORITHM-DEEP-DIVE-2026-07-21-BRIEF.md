@@ -380,9 +380,53 @@ decision instead of the current per-channel one) addresses exactly this. That is
 compute-path change with fixture consequences, so it is recorded here as the next experiment rather
 than smuggled into a measurement PR:
 
-- **E-5** — does a consensus-wide polarity decision (or a peak-domain de-offset) restore `kept3/3` on
-  the 3 affected nights **without** moving any other night's export? Scored with the same tool. Note
-  16.7 % of Verity nights are affected, so this is not a corner case.
+- **E-5 — EXECUTED 2026-08-04 (§6.3): yes, on both halves.** A consensus-wide polarity decision
+  restores `kept3/3` on all three affected nights and moves no other night's export — proven by
+  `verify-fixtures`, not asserted.
+
+### 6.3 · E-5 executed — the polarity decision is now device-wide
+
+`orient` decided each channel's polarity **alone**, from the sign of its derivative-skewness with a
+hard threshold at zero. Three co-located photodiodes share a polarity convention, so a channel whose
+skew sits near zero could flip against two confident siblings on noise — and then never join a cluster
+again for the rest of the night.
+
+**The fix.** A *strict* majority of channels now decides the sign for all of them, and dissenters are
+re-detected under it (`consensusSign` → `applyConsensusPolarity` → `detectChannel(chan, fs, forceSign)`,
+the last param OPTIONAL and added LAST per §🧪, so the worker path is byte-unchanged). Deliberately
+conservative in three ways, each pinned by a test:
+
+* **only a strict majority acts** — a 1-1 split has no majority and is left alone; inventing a winner
+  between two equally-confident channels would be worse than the condition being corrected;
+* **unanimous records take an early-out and are byte-identical** — no re-detection, no export movement;
+* **it re-runs the shipped detector on the corrected orientation** rather than shifting timestamps, so
+  nothing is compensated after the fact.
+
+**Measured effect** (real Verity captures, before → after):
+
+| night | `kept3/3` | 1-of-3 drops | peak offset |
+|---|---|---|---|
+| 20260720210 | 0 → **21818** | 23202 → 795 | −235.8 ms → 0.0 |
+| 20260725235 | 0 → **15486** | 15662 → 67 | −235.8 ms → 0.0 |
+| 20260721205 | 0 → **7925** | 8305 → 187 | −235.8 ms → 0.0 |
+
+End-to-end through `analyze`, the first night recovers **22154 → 22467 beats**. A clean night
+(18166) and the committed fixture input (337) are **bit-identical**.
+
+**Export-inertness is COMPUTED, not claimed** (§🔒). `computeHash` moved, as a DSP edit must, so the
+claim was owed a re-verification rather than an assertion: `DEX_UPLOADS=… node tools/verify-fixtures.mjs`
+re-ran the real corpus, the equiv fixture **reproduced**, and only `verifiedUnder` was re-stamped
+(`40dbe2eceaf6 → 79869c74608d`). No fixture was regenerated. All four PpgDex fixture inputs have
+unanimous signs, which is *why* they are untouched — checked before the code was written, not after.
+
+**A note on how this was verified, because the first two attempts were wrong.** The mutation harness
+initially reported every mutant SURVIVED — it was grepping the TAP count line instead of the summary,
+so it could not have reported a kill. Once fixed, a real survivor appeared: deleting the call site from
+`analyze` passed all 36 behavioural assertions, because a pure function nobody invokes is invisible to
+tests of the function. The call-site assertion written to close that then *also* passed with the call
+deleted, because its regex matched the function **declaration**. Final state: **7 of 8 mutants killed**,
+the survivor documented equivalent (`signs.length < 2` → `< 1`, already covered by the `neg === 0`
+branch). The lesson is the repo's own: a gate you have not watched fail is not evidence.
 
 ## 7 · References
 
