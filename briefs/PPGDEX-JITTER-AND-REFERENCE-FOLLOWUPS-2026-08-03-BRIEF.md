@@ -226,3 +226,55 @@ absence at source.)
 logging `org.bluez.Error.InProgress` on the O2Ring and repeated *"offline op exceeded 45s and was
 abandoned"* on the Verity — the adapter-wedge signature — which is the likely reason recent nights keep
 missing a device, and therefore the real obstacle to reaching n = 10.
+
+---
+
+## §7 · The corpus is roughly DOUBLE what the apparatus could see — session fragmentation (2026-08-04)
+
+§6.5 recorded CVHR as blocked on reaching ten nights and treated n as a property of how often three
+devices get worn. It is not. It is a property of **`tools/ppi-jitter-vs-ecg.mjs`**, which assumes
+**one file = one night**.
+
+**The corpus holds 1632 O2Ring raw-PPG files spanning only 18 nights.** The loggers split a night into
+many session files, and the early nights are the worst: 2026-07-20 has 335 files and **not one** over
+50 MB; 07-24 has 153, 07-25 has 120, 07-18 has 141 — all with zero long files. The tool needs ≥3
+comparable 5-min epochs *from a single file*, so a night that exists only as fragments produces no row
+at all. The nine nights that ever scored are **exactly** the nights that happen to contain one long
+unbroken recording.
+
+**Three wrong diagnoses preceded the right one, and the sequence is the lesson.**
+
+1. *"Blocked on more nights."* Two complete trio nights (2026-08-02, 08-03) were sitting on the capture
+   host unpulled — §6.5 already corrected that one.
+2. *"`--max-nights` is the limiter."* It genuinely caps FILES rather than nights (top-30 files → 15
+   nights, top-120 → 17), so it looked decisive. Raising it 30 → 120 changed the result by **zero
+   nights**. A plausible mechanism that survives inspection is still worth one run before it is called
+   the cause.
+3. **Fragmentation**, confirmed by the file-size census above and by the merge actually recovering the
+   hidden nights.
+
+**`trio-batch.mjs` already merges concurrent sessions per night** — its log reads *"47 concurrent
+session(s), 12.2 h merged"*. The jitter apparatus never received that treatment, which is why two tools
+over the same corpus disagree about how much data exists.
+
+**Demonstrated, on branch `claude/ppi-merge-sessions` (deliberately NOT merged to main):** with a
+finger-side session merge, four previously-invisible nights score, including **2026-07-25 — 22 sessions
+→ 74 epochs at 7.75 ms jitter and 98.5 % match**, which is among the better nights in the corpus and was
+entirely unreachable before.
+
+**Why it is not shipped.** The merge is half-done and the half matters: a merged finger train is still
+paired against a SINGLE best-overlapping ECG file, so finger beats outside that window cannot match and
+the match rate collapses structurally on fragmented nights (80.6 % on 07-24 with 45 sessions, 65.2 % on
+07-31 with 8). The jitter median consequently READS worse under merge — 7.03 → 11.99 ms — for a reason
+that is an artifact of the asymmetry, not a property of the corpus. Shipping a tool that reports a worse
+number without disclosing why would be the same defect class this brief family keeps finding elsewhere.
+
+**CVHR is a separate and larger job.** `cvhrFromNN` and `detectCVHR` live inside `analyze()` and are not
+exported, so a merged night can only carry its largest session's `cvhrIndex`. Any merged-night CVHR
+count therefore does **not** satisfy §3.1's ≥10-night bar and must not be read as doing so. Exporting
+them is a compute-path change with a re-bundle and a `verify-fixtures` pass behind it.
+
+**Consequence for the ≥10-night bar.** Combined with §6.5's finding that CVHR |Δ| tracks *overlap
+duration* rather than signal quality, the criterion is counting the wrong thing twice: nights instead of
+paired overlap, and files instead of nights. The bar should be **total paired overlap**, and the four
+nights already exceeding 900 min agree to 1.50–2.20 /h with no outlier.
