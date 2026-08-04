@@ -200,3 +200,49 @@ def test_an_empty_ledger_reports_nothing_rather_than_a_clean_bill():
 # moves and the report never executes) and asserts the real wording, "quantization — not lost frames".
 
 
+
+
+# ── The step-quantization model (FOLLOWUPS §2) ──────────────────────────────────────────────────────
+def test_model_predicts_pure_drift_as_backward_wraps_only():
+    """The ring's counter is `floor(t / ring + phase)`. With NO jitter and a poll interval slightly
+    SHORTER than the ring second, the phase only ever slips backwards — so every non-unit step is a 0
+    and there are no 2s. 1000 polls at 999.34 ms against a 1000 ms ring second slip 0.66 of a cycle."""
+    r = capture.predict_step_split([999.34] * 1000, 1000.0)
+    assert abs(r["n0"] - 0.66) < 0.01, r
+    assert r["n2"] == 0.0, "a consistently short poll cannot wrap the phase FORWARD"
+
+
+def test_model_predicts_symmetric_jitter_as_equal_counts():
+    """Jitter with zero mean adds wraps in PAIRS — every forward excursion is undone — so it moves n0
+    and n2 together and leaves their DIFFERENCE alone. That difference is what the drift sets."""
+    r = capture.predict_step_split([990.0, 1010.0] * 500, 1000.0)
+    assert abs(r["n0"] - 5.0) < 1e-9 and abs(r["n2"] - 5.0) < 1e-9, r
+    assert abs(r["n0"] - r["n2"]) < 1e-9, "zero-mean jitter must not bias the difference"
+
+
+def test_model_OVER_predicts_when_the_interval_is_measured_with_noise():
+    """THE ASSERTION THAT EXPLAINS THE 1.85x, and the reason this function ships as a BOUND.
+
+    `E[eps+]` is convex, so independent noise on the measured interval can only INCREASE it. The sidecar
+    records HOST ARRIVAL times while the ring samples its counter when it builds the reply, so the
+    measured interval carries BLE delivery jitter the ring never saw — and the prediction inflates.
+    Measured over 66 clean sessions: median 1.85x too high (IQR 1.46-2.21).
+
+    If someone later 'fixes' the over-prediction by scaling the output, this still holds and the scale
+    factor is revealed as the fudge it would be — the defect is in the INPUT, not the formula."""
+    clean = [1000.0, 1000.0, 999.0, 1001.0] * 250
+    noisy = [v + (12.0 if i % 2 else -12.0) for i, v in enumerate(clean)]
+    c = capture.predict_step_split(clean, 1000.0)
+    n = capture.predict_step_split(noisy, 1000.0)
+    assert n["n2"] > c["n2"], f"noise must inflate the forward-wrap prediction: {c} -> {n}"
+    assert n["n0"] > c["n0"], f"...and the backward one: {c} -> {n}"
+    # the difference is what the drift sets, so noise must NOT move it
+    assert abs((n["n0"] - n["n2"]) - (c["n0"] - c["n2"])) < 1e-9, "noise moved the DIFFERENCE — it must not"
+
+
+def test_model_refuses_rather_than_guessing():
+    for bad in ([], [None, float("nan")]):
+        r = capture.predict_step_split(bad, 1000.0)
+        assert r["n0"] != r["n0"], f"no usable intervals must give NaN, got {r}"
+    r = capture.predict_step_split([1000.0] * 10, 0)
+    assert r["n0"] != r["n0"], "a non-positive ring second must give NaN, not a division"

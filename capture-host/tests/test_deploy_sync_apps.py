@@ -328,6 +328,58 @@ def test_a_stale_privileged_helper_goes_RED(tmp_path):
     assert "STALE" in r.stdout and "tepna-clock.sh" in r.stdout, r.stdout
 
 
+def test_the_four_privileged_helpers_are_installed_EXECUTABLE(tmp_path):
+    """The defect #914 shipped, and the reason the mode column exists.
+
+    #914 correctly put the four NOPASSWD helpers on the manifest — but both install sites still forced
+    `install -m 0644`. Those helpers are reached as `sudo -n /usr/local/lib/tepna/<x>.sh …`, so a 0644
+    copy is not merely untidy, it is UNRUNNABLE: every scoped grant breaks, including tepna-restart.sh,
+    the one that lets a deploy finish itself without an interactive password.
+
+    That made `--install` strictly worse than the drift it repairs, and it was newly reachable, because
+    before #914 these files were not managed and --install never touched them. The mode is per-file
+    manifest data now; this test is the thing that would have caught it."""
+    src, sd, ud = _tree(tmp_path)
+    lib = tmp_path / "lib-tepna"
+    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh"):
+        (lib / h).unlink()
+    # --install still exits 1 after repairing (it reports the drift it found), so the MODE is the
+    # assertion here, not the status.
+    _chk(src, sd, ud, "--install")
+    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh"):
+        assert os.access(lib / h, os.X_OK), f"{h} installed non-executable — every sudoers grant on it is dead"
+
+
+def test_the_mode_is_per_file_and_not_globally_0755(tmp_path):
+    """The mode column has to be DATA, not a second hardcoded constant. Flipping `install -m 0644` to
+    `-m 0755` would pass the test above while making three /etc config files world-executable — trading
+    one wrong global mode for another. A unit file is not a program."""
+    src, sd, ud = _tree(tmp_path)
+    (sd / "tepna-capture.service").unlink()
+    (ud / "99-tepna-btdongle.rules").unlink()
+    _chk(src, sd, ud, "--install")
+    for f in (sd / "tepna-capture.service", ud / "99-tepna-btdongle.rules"):
+        assert not os.access(f, os.X_OK), f"{f.name} installed executable — the mode is hardcoded, not per-file"
+
+
+def test_a_file_counted_as_drift_is_never_ALSO_reported_in_sync(tmp_path):
+    """Observed on the live box, 2026-08-04: `--install` printed "3 managed, 1 drifted, 1 AMBIGUOUS"
+    and exited 1 while EVERY ROW of the table read `✓ in sync`. There was nothing to point at.
+
+    An ambiguous source (the same filename resolvable from two roots) is counted into `drift` and does
+    force exit 1, so the row must not claim to be in sync. The bytes matching is a narrower statement
+    than the file being fine, and the row now says exactly that much and marks the rest."""
+    # deploy/ (the installed source) matches /etc byte-for-byte, so the CONTENT really is in sync —
+    # while systemd/ holds a different twin of the same filename, which is the ambiguity. Exactly the
+    # combination that produced the all-green table on the box.
+    src, sd, ud = _tree_two_sources(tmp_path, UNIT_V, UNIT_T, UNIT_V)
+    r = _chk(src, sd, ud)
+    assert r.returncode == 1, r.stdout
+    row = [l for l in r.stdout.splitlines() if "tepna-capture.service" in l and "sync" in l]
+    assert row, r.stdout
+    assert "ambiguous source" in row[0], f"counted as drift and exits 1, but the row claims: {row[0]!r}"
+
+
 def test_a_never_installed_privileged_helper_goes_RED(tmp_path):
     """The other half of the same finding: tepna-usbreset.sh existed in the repo and had never been
     installed, so the USB unbind/bind recovery step — the only reliable way to clear a wedged adapter

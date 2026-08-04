@@ -47,15 +47,23 @@ LIB_TEPNA="${TEPNA_LIB_DIR:-/usr/local/lib/tepna}"
 INSTALL=0
 [ "${1:-}" = "--install" ] && INSTALL=1
 
-# file | destination | class
+# file | destination | class | mode (optional, default 0644)
+#
+# ⚠️ THE MODE COLUMN IS LOAD-BEARING, added 2026-08-04. The four root helpers below are EXECUTABLE
+# scripts reached through scoped NOPASSWD sudoers grants (`sudo -n /usr/local/lib/tepna/<x>.sh …`).
+# Both install sites used to force `install -m 0644`, so the moment any helper drifted, `--install`
+# would "repair" it into a NON-EXECUTABLE file and break every one of those grants — including
+# tepna-restart.sh, the one thing that lets a deploy finish itself without an interactive password.
+# That is strictly worse than the drift it repairs, and it became reachable the moment these files
+# were made MANAGED. A file that is installed must be installed with the mode it needs to work.
 MANIFEST="
-systemd/99-tepna-btdongle.rules|$ETC_UDEV/99-tepna-btdongle.rules|MANAGED
-systemd/tepna-usb-autosuspend.service|$ETC_SYSTEMD/tepna-usb-autosuspend.service|MANAGED
-deploy/tepna-capture.service|$ETC_SYSTEMD/tepna-capture.service|MANAGED
-tepna-clock.sh|$LIB_TEPNA/tepna-clock.sh|MANAGED
-tepna-restart.sh|$LIB_TEPNA/tepna-restart.sh|MANAGED
-tepna-rssi.sh|$LIB_TEPNA/tepna-rssi.sh|MANAGED
-tepna-usbreset.sh|$LIB_TEPNA/tepna-usbreset.sh|MANAGED
+systemd/99-tepna-btdongle.rules|$ETC_UDEV/99-tepna-btdongle.rules|MANAGED|0644
+systemd/tepna-usb-autosuspend.service|$ETC_SYSTEMD/tepna-usb-autosuspend.service|MANAGED|0644
+deploy/tepna-capture.service|$ETC_SYSTEMD/tepna-capture.service|MANAGED|0644
+tepna-clock.sh|$LIB_TEPNA/tepna-clock.sh|MANAGED|0755
+tepna-restart.sh|$LIB_TEPNA/tepna-restart.sh|MANAGED|0755
+tepna-rssi.sh|$LIB_TEPNA/tepna-rssi.sh|MANAGED|0755
+tepna-usbreset.sh|$LIB_TEPNA/tepna-usbreset.sh|MANAGED|0755
 "
 
 # A managed file with a second, DIFFERENT copy somewhere else in the repo means "which one is the
@@ -77,8 +85,9 @@ ambiguous() {
 
 drift=0 managed=0 missing=0 installed=0 ambig=0
 printf '  %-38s %-10s %s\n' "file" "class" "state"
-while IFS='|' read -r rel dest cls; do
+while IFS='|' read -r rel dest cls mode; do
   [ -n "$rel" ] || continue
+  mode="${mode:-0644}"
   src="$SRC/$rel"
   name="$(basename "$rel")"
   if [ ! -f "$src" ]; then
@@ -89,20 +98,24 @@ while IFS='|' read -r rel dest cls; do
     printf '  %-38s %-10s %s\n' "$name" "$cls" "✗ NOT INSTALLED  → $dest"
     missing=$((missing + 1)); drift=$((drift + 1))
     if [ "$INSTALL" = "1" ] && [ "$cls" = "MANAGED" ]; then
-      install -m 0644 "$src" "$dest" && { echo "      installed"; installed=$((installed + 1)); }
+      install -D -m "$mode" "$src" "$dest" && { echo "      installed"; installed=$((installed + 1)); }
     fi
     continue
   fi
 
   managed=$((managed + 1))
-  ambiguous "$rel" || { ambig=$((ambig + 1)); drift=$((drift + 1)); }
+  # An ambiguous source counts as drift (below) and forces exit 1 — so it MUST NOT also print
+  # "in sync". Until 2026-08-04 it did: the table said ✓ for a file the summary counted as drifted,
+  # which on the real box read as "3 managed, 1 drifted" with EVERY ROW GREEN and nothing to point at.
+  amb=""
+  ambiguous "$rel" || { ambig=$((ambig + 1)); drift=$((drift + 1)); amb="  ⚠ ambiguous source"; }
   if cmp -s "$src" "$dest"; then
-    printf '  %-38s %-10s %s\n' "$name" "$cls" "✓ in sync"
+    printf '  %-38s %-10s %s\n' "$name" "$cls" "✓ content in sync$amb"
   else
     printf '  %-38s %-10s %s\n' "$name" "$cls" "✗ STALE — /etc differs from the repo"
     drift=$((drift + 1))
     if [ "$INSTALL" = "1" ]; then
-      if install -m 0644 "$src" "$dest"; then
+      if install -D -m "$mode" "$src" "$dest"; then
         echo "      installed"
         installed=$((installed + 1))
       else
