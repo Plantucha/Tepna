@@ -2994,6 +2994,32 @@ function fuseRespirationRate(recs) {
     sources.push({ node: c.node, method: c.method, brpm: c.brpm });
   });
   if (sources.length < 2) return null;
+  /* (c) ONE OBSERVER PER MECHANISM IS NOT THE SAME AS ONE PER NODE
+     (TCH-REFERENCE-VALIDATION R3). §3.4 above stopped two exports from the same DEVICE being sold as
+     "2 independent estimates"; two different devices deriving respiration the SAME WAY is the same
+     overclaim one level up. ECGDex and PpgDex both report `RSA (HF-peak of RR spectrum)` — respiratory
+     sinus arrhythmia read off the interval series — so they are two looks at one mechanism, not two
+     looks at respiration. When RSA is wrong (Cheyne-Stokes, a paced or irregular rhythm, a sub-HF
+     respiratory rate) it is wrong on both, and their agreement is partly tautological.
+     Only MotionDex's `chest-ACC (thoraco-abdominal)` is mechanically independent of the RSA pair —
+     which also matters because the ±RR_AGREE_BRPM band quoted below is Ryser 2022's CHEST-ACC
+     validation band, derived against an independent comparator.
+     R3 asked for "refuse, or loudly flag". Flag: the consensus is still the best available number and
+     suppressing it would lose information — what is withdrawn is the claim of independence. */
+  var famOf = function (m) {
+    var t = String(m || '').toLowerCase();
+    if (/rsa|hf[- ]peak/.test(t)) return 'RSA';
+    if (/acc|thoraco/.test(t)) return 'chest-ACC';
+    return 'other';
+  };
+  var mechs = sources.map(function (s) {
+    return famOf(s.method);
+  });
+  var uniqMech = mechs.filter(function (m, i) {
+    return mechs.indexOf(m) === i;
+  });
+  var mechIndependent = uniqMech.length > 1;
+
   var vals = sources.map(function (s) {
     return s.brpm;
   });
@@ -3015,9 +3041,12 @@ function fuseRespirationRate(recs) {
     spreadBrpm: spread,
     agree: agree,
     agreeThresholdBrpm: RR_AGREE_BRPM,
+    // R3: the mechanism behind each estimate, and whether the set spans more than one.
+    mechanisms: mechs,
+    mechanismsIndependent: mechIndependent,
     note:
       sources.length +
-      ' independent estimates (' +
+      (mechIndependent ? ' independent estimates (' : ' estimates sharing ONE mechanism (' + uniqMech.join('/') + ') (') +
       sources
         .map(function (s) {
           return s.node;
@@ -3028,7 +3057,14 @@ function fuseRespirationRate(recs) {
       ' br/min — ' +
       (agree
         ? 'agreement within the ±' + RR_AGREE_BRPM + ' br/min chest-ACC validation band (Ryser 2022).'
-        : 'DISAGREEMENT beyond the ±' + RR_AGREE_BRPM + ' br/min band; treat the consensus as provisional.')
+        : 'DISAGREEMENT beyond the ±' + RR_AGREE_BRPM + ' br/min band; treat the consensus as provisional.') +
+      (mechIndependent
+        ? ''
+        : ' ⚠ Not independent looks at respiration: every corner is ' +
+          uniqMech.join('/') +
+          ', so a mechanism-level failure (Cheyne-Stokes, irregular rhythm, a sub-HF rate) moves them together and the agreement above is partly tautological. The ±' +
+          RR_AGREE_BRPM +
+          " br/min band is Ryser 2022's CHEST-ACC band, derived against an independent comparator.")
   };
 }
 
