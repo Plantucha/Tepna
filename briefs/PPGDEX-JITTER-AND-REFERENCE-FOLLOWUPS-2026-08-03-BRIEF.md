@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-03 (**§6: 2 of 4 closed** — the jitter bound is re-based on a re-derivation, and CVHR is adjudicated at 7/7 sleep nights inside the band but n=7 < the ≥10 bar. Open: the shipped sdnnNote string and the RMSSD-surfacing decision, both owner calls.) · **Created:** 2026-08-03 · **Follows:** `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8/§8.6 · **Verdict doc:** `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` · **Apparatus:** `tools/ppi-jitter-vs-ecg.mjs`
+**Status:** IN-PROGRESS — 2026-08-03 (**§6: all 4 boxes closed or decided** — the jitter bound is re-based on a re-derivation; the sdnnNote string and the RMSSD-surfacing question were both owner-decided 2026-08-04 (§5). CVHR is re-measured on an enlarged corpus (§6.5): **n = 9, 8/9 in band** — still short of the ≥10 bar, and the first out-of-band night has appeared.) · **Created:** 2026-08-03 · **Follows:** `O2RING-FINGER-HRV-VALIDATION-2026-07-21-BRIEF.md` §8/§8.6 · **Verdict doc:** `docs/PPGDEX-FINGER-HRV-VALIDATION-2026-08-03.md` · **Apparatus:** `tools/ppi-jitter-vs-ecg.mjs`
 
 # Two published PPG reference figures do not reproduce, and the jitter budget says why nothing can promote
 
@@ -66,9 +66,11 @@ single-device validation here should run a second device for that reason alone.
       Both figures were re-derived (Verity 8.36 ms · `sdnnRobust` +18.7 %); the **gap remains
       unattributable** and is recorded as such. The shipped `sdnnNote` string is **still open** — a
       compute-path edit to a user-facing accuracy claim, owner's call.
-- [x] **CVHR measured on sleep nights and adjudicated (§6.2): 7/7 finger nights inside the Integrator
-      band, median |Δ| 1.80 /h, IQR 1.50–2.65 entirely inside ±5.** The criterion's substance is met
-      decisively. **n = 7 < §3.1's ≥10-night bar**, so this is a recommendation to ratify, not a pass.
+- [x] **CVHR measured on sleep nights and adjudicated (§6.2), then RE-MEASURED on an enlarged corpus
+      (§6.5, 2026-08-04): n = 9, median |Δ| 2.20 /h, IQR 1.50–3.00, 8/9 in band.** The IQR still sits
+      entirely inside ±5, so the substance holds — but **n = 9 is still short of §3.1's ≥10-night bar**,
+      and the earlier 7/7 is now 8/9. Still a recommendation to ratify, not a pass, and now with a
+      counter-example on record.
 - [x] **A decision recorded on whether whole-record RMSSD should be surfaced (owner, 2026-08-04): KEEP
       SURFACING, badge unchanged.** It already sits at a low evidence tier and the jitter budget is
       documented in §3, so the number stays useful within-night and within-device even though it cannot
@@ -190,3 +192,37 @@ cohesion failure blocks the fixture work rather than being discovered after it.
 **The checklist a tier move actually owes**, then: registry + reference guide (or `cohesion-badges`
 reds) → re-bundle → `DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs` (or the release is blocked) →
 changeset. The `computeHash` movement is real but benign; the cohesion coupling is the part that bites.
+
+## §6.5 · CVHR re-measured on an enlarged corpus — closer to the bar, and no longer perfect (2026-08-04)
+
+§6.2 adjudicated CVHR at **7/7** sleep nights and flagged the corpus size, not the substance, as what
+was missing. Two nights (2026-08-02, 2026-08-03) turned out to exist **on the capture host but not
+locally** — all three devices present, simply never pulled. Pulled and re-run through the same
+committed apparatus:
+
+| | §6.2 (2026-08-03) | §6.5 (2026-08-04) |
+|---|---|---|
+| sleep nights | 7 | **9** |
+| CVHR median \|Δ\| | 1.80 /h | 2.20 /h |
+| IQR | 1.50–2.65 | 1.50–3.00 |
+| inside the ±5 band | **7/7** | **8/9** |
+| PPI-jitter median | 7.03 ms | 7.03 ms |
+
+**Two things changed and both are worth stating.** n moved 7 → 9, still **one night short** of §3.1's
+≥10-night bar — so the criterion still cannot ratify. And the perfect record broke: one of the two new
+nights falls outside ±5. The IQR (1.50–3.00) remains entirely inside the band and the finger/ECG
+medians still agree closely (4.90 vs 4.70 /h), so the *substance* is unchanged — but "7/7" was a
+small-sample artifact as much as a result, and reporting it without the counter-example would now be
+selective.
+
+**The lesson is about where the shortage actually was.** §6.2 recorded CVHR as blocked on *more
+nights*, which read as "wait for more sleep". It was partly blocked on **data already captured and not
+transferred** — the local mirror was two nights stale while the box held complete trios. A corpus-size
+claim should be checked against the SOURCE, not the working copy, before it is used to defer a
+criterion. (`presence of a file is not presence of the data` has a mirror image: absence locally is not
+absence at source.)
+
+**What still gates ratification:** one more clean trio sleep night. Note the capture host is currently
+logging `org.bluez.Error.InProgress` on the O2Ring and repeated *"offline op exceeded 45s and was
+abandoned"* on the Verity — the adapter-wedge signature — which is the likely reason recent nights keep
+missing a device, and therefore the real obstacle to reaching n = 10.
