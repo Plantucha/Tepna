@@ -527,6 +527,67 @@
       T.eq('unlocked · a = 13 proves a is the day', JSON.stringify(C._ckDMY(13, 5, true, false)), JSON.stringify({ d: 13, mo: 5 }));
     });
 
+    /* ════ hostAxis / correctionAt — the THREE guards a mutation sweep could distinguish ════════
+       A 127-mutant sweep of `clock.js` left 33 survivors, 15 of them in `hostAxis`/`correctionAt`.
+       Probing each with a battery of anchor geometries (n=2/3/4/11/41/60, flat, tied, zero-span,
+       negative drift × window 0/1/2/3/99 × correctionAt at 11 offsets) found that only THREE can be
+       distinguished by any input at all — the other twelve are ties and clamps where the mutated
+       operator cannot change the result. Those three are pinned here; see
+       `MUTATION-EQUIVALENCE-2026-08-04-BRIEF.md` for the twelve and the reasoning.
+
+       Each assertion below names the exact mutant it kills, so a future reader can tell a real
+       regression from a lucky pass. */
+    group('hostAxis · correctionAt — the guards a mutant can actually reach', 'clock · host-axis · mutation-pinned', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.hostAxis !== 'function') {
+        T.skip('DexClock.hostAxis available', 'clock.js not loaded');
+        return;
+      }
+      var mk = function (n, f) {
+        var a = [];
+        for (var i = 0; i < n; i++) a.push({ devMs: i * 1000, hostMs: i * 1000 + f(i) });
+        return a;
+      };
+
+      /* KILLS `var win = opts.window > 0 ? … : CK_AXIS_WIN` → `>=`.
+         `window: 0` must fall back to the DEFAULT window. Under `>=`, zero is accepted as a window,
+         `win >> 1` is 0, every smoothing window collapses to a single point, and the running median
+         stops smoothing entirely — silently returning the raw residuals as if they were smoothed. */
+      var drift = mk(3, function (i) {
+        return i;
+      });
+      var wDefault = C.hostAxis(drift, {});
+      var wZero = C.hostAxis(drift, { window: 0 });
+      T.ok('window:0 falls back to the default window, it is not a zero-width window', wDefault.ok && wZero.ok && wDefault.ppm === wZero.ppm, 'default ppm ' + (wDefault.ppm != null ? wDefault.ppm.toFixed(3) : '-') + ' vs window:0 ppm ' + (wZero.ppm != null ? wZero.ppm.toFixed(3) : '-'));
+
+      /* KILLS `var ppm = span > 0 ? … : 0` → `>=`.
+         Every anchor at the SAME device time gives span 0. Guarded, ppm is 0; under `>=` it divides
+         by zero and reports NaN — and `ok` then turns false, so a degenerate input stops being a
+         reported zero and becomes a refusal for the wrong reason. */
+      var flat = [];
+      for (var z = 0; z < 6; z++) flat.push({ devMs: 1000, hostMs: 1500 });
+      var zeroSpan = C.hostAxis(flat, {});
+      T.eq('zero device span ⇒ ppm is 0, never NaN (no divide-by-zero)', zeroSpan.ok && zeroSpan.ppm === 0, true);
+      T.ok('…and such a record is still ok:true — a flat axis is a measurement, not a failure', zeroSpan.ok === true, JSON.stringify({ ok: zeroSpan.ok, ppm: zeroSpan.ppm }));
+
+      /* KILLS `if (!(dx > 0)) return sm[lo2]` → dropping the `!`.
+         `dx` is the gap between the two bracketing anchors, so it is > 0 on every real interior
+         query and the guard is the DEGENERATE branch. Inverted, the guard fires on exactly the
+         normal case: interpolation is skipped and correctionAt returns the left endpoint, so a
+         mid-interval query silently snaps backwards. */
+      /* n=13, not n=3: with the default 11-wide window a 3-anchor set has every smoothing window
+         covering the whole series, so all three smoothed points collapse to one value and
+         interpolation is invisible. Caught by this assertion failing on the first attempt. */
+      var interp = C.hostAxis(
+        mk(13, function (i) {
+          return i * 3;
+        }),
+        {}
+      );
+      T.ok('a mid-interval correction INTERPOLATES rather than snapping to the left anchor', interp.ok && interp.correctionAt(500) !== interp.correctionAt(0), 'cA(500)=' + interp.correctionAt(500) + ' cA(0)=' + interp.correctionAt(0));
+      T.approx('…and lands between its two bracketing anchors', interp.correctionAt(500), (interp.correctionAt(0) + interp.correctionAt(1000)) / 2, 1e-9);
+    });
+
     group('hostAxis — recover a planted device drift without disturbing the intervals', 'clock · host-axis', function (T) {
       var C = env.DexClock;
       if (!C || typeof C.hostAxis !== 'function') {
