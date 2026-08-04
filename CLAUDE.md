@@ -173,15 +173,38 @@ unbracketed string. Necessary, not sufficient. Do not reach for it and assume yo
    ```
 3. **Wait on a sentinel you control**, in a `$$`-unique file (immune to both failure modes):
    ```sh
-   ( pytest … ; echo "EXIT=$?" ) > /tmp/mine.$$.log 2>&1
+   ( pytest … ; echo "EXIT=$?" ) > /tmp/mine.$$.log 2>&1 &     # ← the & is LOAD-BEARING
    until grep -q '^EXIT=' /tmp/mine.$$.log; do sleep 20; done
    ```
+   **Do not drop that `&`.** Without it the first line runs synchronously, so the sentinel is already in
+   the file before the loop starts and the loop exits on its first check — measured **0 polls**. It still
+   prints the right exit code, which is exactly why it passes review: you get blocking execution followed
+   by a no-op loop, in the one place you were trying not to block. (This section shipped without the `&`
+   in #825 and was caught in review; with it, the same test polls 3 times and reports the same `EXIT=7`.)
 
-**The same day, the same trap on the other side: `pytest … | tail -20` reports TAIL's exit code.** A
-coverage run that FAILED at 91.19 % printed `EXIT=0` and read as green. Capture `$?` of the command
-itself — as (2) and (3) do — before any pipe. And identify *your own* processes by a token you put in
-the command line, never by a session id that only appears in an output path: that under-reports for the
-mirror-image reason `pgrep -f` over-reports (it did, on 2026-08-04, in the same hour).
+### 4b · The general form: TRUNCATING A RESULT AND READING THE REMAINDER AS THE WHOLE
+
+`| tail -N` is how a long gate is made readable, and it is how a long gate is made to lie. This is **not
+only** a pipeline-exit-code issue — that is one instance. Two, both on 2026-08-04, in different tools:
+
+- **`pytest … | tail -20`** reports **tail's** exit code. A coverage run that FAILED at 91.19 % printed
+  `EXIT=0` and read as green.
+- **`gh pr checks <N> | tail -15`** has no exit-code problem at all — it simply **cut two failing checks
+  out of the listing**, so a failing PR looked like it was merely hanging.
+
+The second is the reason to state the general rule rather than the pipeline one: **if you truncate, you
+must know the discarded part cannot change the verdict.** For a gate summary it always can.
+
+- **Never read a verdict off a tail.** Aggregate instead: `grep -cE '^(FAILED|ERROR)'`,
+  `gh pr checks <N> --json bucket --jq 'group_by(.bucket)|map({(.[0].bucket):length})|add'`, a
+  `TOTAL`/`Required` line. Tail the log afterwards for *detail*, never for the answer.
+- **Capture `$?` of the command itself, before any pipe** — as (2) and (3) above do.
+- Related: identify *your own* processes by a token you put in the command line, never by a session id
+  that only appears in an output path — that **under**-reports for the mirror-image reason `pgrep -f`
+  **over**-reports. Both happened, in the same hour, to the session that wrote §4.
+
+The family (`grep -q` exit codes, `npx` no-op greens, a child's JSON truncated through a pipe) all share
+one shape: **the check ran, and reported success about something it never examined.**
 
 ---
 
