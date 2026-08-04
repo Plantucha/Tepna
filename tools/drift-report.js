@@ -63,6 +63,66 @@
     return { state: 'closed', quotable: true, why: 'closure ' + closure.closurePpm.toFixed(1) + ' ppm consistent' };
   }
 
+  /* ── THE CLOSURE IDENTITY ITSELF, over drift legs a CALLER already fitted ────────────────────
+     CROSS-DEVICE-DRIFT-AND-CLOSURE §5: *"Drift is measured with unwrapping and reported with a closure
+     residual; a figure without one is not published."* `driftVerdict` above encodes what a closure
+     LICENSES, but it takes the closure as given, so it can only gate a caller that already has one.
+     `integrator-dsp.js fitClockClosure` computes one — but it fits its OWN legs with `fitClockDrift`,
+     so it cannot close over a ppm some other estimator produced. `beat-comb-analysis.mjs` is exactly
+     that other estimator: it derives drift from per-block lag by Theil-Sen and printed the result with
+     no closure at all, which is the guardrail the brief wrote against.
+
+     Closing over legs the caller supplies is what makes the check FREE: each pair is fitted
+     independently, so the identity is a constraint the fit never used and cannot have fabricated.
+
+     Directed legs, `{ a, b, ppm }` meaning b's clock runs `ppm` fast relative to a's. Around any cycle
+     the rates must sum to zero, so d(A,B) + d(B,C) + d(C,A) = 0 — and d(B,A) = -d(A,B) lets the caller
+     hand over whichever direction it happened to fit.
+
+     ⚠ THE TOLERANCE IS MIRRORED, NOT SHARED. `max(5, 0.25 * max|leg|)` is `fitClockClosure`'s rule
+     verbatim — the legs' own scale, so a triple of weak fits is allowed a looser closure than a triple
+     of sharp ones. It is duplicated here because that function is inlined into every bundle and this
+     one is not, and a gate (`drift-closure-identity`) reads BOTH sources and fails if they diverge. */
+  function closeTriple(legs, opts) {
+    opts = opts || {};
+    if (!legs || legs.length < 3) return null;
+    var names = [];
+    legs.forEach(function (l) {
+      if (!l || !l.a || !l.b) return;
+      if (names.indexOf(l.a) < 0) names.push(l.a);
+      if (names.indexOf(l.b) < 0) names.push(l.b);
+    });
+    if (names.length !== 3) return null;
+
+    var dOf = function (a, b) {
+      for (var i = 0; i < legs.length; i++) {
+        var l = legs[i];
+        if (!l || l.ppm == null || !isFinite(l.ppm)) continue;
+        if (l.a === a && l.b === b) return l.ppm;
+        if (l.a === b && l.b === a) return -l.ppm; // d(B,A) = -d(A,B)
+      }
+      return null;
+    };
+    var A = names[0],
+      B = names[1],
+      C = names[2];
+    var d1 = dOf(A, B),
+      d2 = dOf(B, C),
+      d3 = dOf(C, A);
+    /* An absent leg is not a zero. Two legs and a hole close trivially at whatever the two sum to,
+       which is a fabricated pass — the same failure as defaulting a missing timestamp to now(). */
+    if (d1 == null || d2 == null || d3 == null) return null;
+
+    var err = d1 + d2 + d3;
+    var tol = opts.closureTolPpm != null ? opts.closureTolPpm : Math.max(5, 0.25 * Math.max(Math.abs(d1), Math.abs(d2), Math.abs(d3)));
+    return {
+      nodes: [A, B, C],
+      closurePpm: err,
+      tolPpm: tol,
+      consistent: Math.abs(err) <= tol
+    };
+  }
+
   /* One drift line. `r` is a `fitClockDrift` result, `closure` the triple summary computed BEFORE
      this is called (that ordering is the whole fix — see the header). */
   function driftFitLine(r, closure, label) {
@@ -158,6 +218,7 @@
 
   root.DriftReport = {
     driftVerdict: driftVerdict,
+    closeTriple: closeTriple,
     driftFitLine: driftFitLine,
     closureLine: closureLine,
     clockFitLine: clockFitLine

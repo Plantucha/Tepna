@@ -218,6 +218,10 @@ function readSources() {
     // The fold itself is gated by source scan: it routes the O2Ring finger pleth and owns the trio
     // completeness count, and neither is reachable by executing anything from here.
     'tools/trio-batch.mjs',
+    /* CROSS-DEVICE-DRIFT-AND-CLOSURE §5 — `closeTriple` mirrors `fitClockClosure`'s tolerance rule
+       because one is bundled and the other is not. Two copies of a threshold drift apart silently, so
+       the closure-identity gate reads the rule out of BOTH files as text and compares them. */
+    'tools/drift-report.js',
     'tools/regen-integrator-goldens.mjs',
     /* CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS §3 — the cohort desat-recall matcher is implemented TWICE
        (cohort-regression.js + cohort-runner.html), independently, with the same [-10s,+60s] window. No
