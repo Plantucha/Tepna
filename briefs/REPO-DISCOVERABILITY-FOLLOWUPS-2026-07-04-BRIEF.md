@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-14 (§3 + §5.1 + §5.4 + §5.6-text + §5.8-feed + **§5.2 cohesion gate** + **§5.3/§5.6 per-page meta on guides+content** + §5.9 EXECUTED; off-repo §4/§5.8-DOI + author-scoped glossary/FAQ deferred — see the execution log) · **Created:** 2026-07-04 · **Parent:** `REPO-DISCOVERABILITY-2026-07-03-BRIEF.md` (IN-PROGRESS — §1 executed 2026-07-04)
+**Status:** IN-PROGRESS — 2026-08-04 (§3 + §5.1 + §5.4 + §5.6-text + §5.8-feed + **§5.2 cohesion gate** + **§5.3/§5.6 per-page meta on guides+content** + §5.9 EXECUTED. **§4 is NO LONGER deferred — it is DONE: the repo carries 13 GitHub topics** (`cgm`, `cpap`, `ecg`, `h10`, `hrv`, `lingo`, `o2ring`, `oximetry`, …), verified against the GitHub API on 2026-08-04 by a status sweep, not from this header. **Remaining: §5.8's DOI** (off-repo — needs a Zenodo deposit, an owner action) **and the author-scoped glossary/FAQ.** Those two are the whole of what is left; when they land or are consciously dropped, this brief is DONE.) · **Created:** 2026-07-04 · **Parent:** `REPO-DISCOVERABILITY-2026-07-03-BRIEF.md` (DONE — 2026-08-04)
 
 # Repo discoverability — follow-ups (everything after the §1 front-door links)
 

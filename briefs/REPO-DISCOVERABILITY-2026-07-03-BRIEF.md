@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-07-04 (§1 front-door links EXECUTED; §2 no-rename decision affirmed; §3/§4/§5 + gated §5.9 carried to `REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md`) · **Created:** 2026-07-03
+**Status:** DONE — 2026-08-04 (§1 front-door links EXECUTED; §2 no-rename decision affirmed; §3/§4/§5 + gated §5.9 carried to `REPO-DISCOVERABILITY-FOLLOWUPS-2026-07-04-BRIEF.md`. **Stamped 2026-08-04 by a status sweep** — nothing in this brief was still open: every section is executed, decided, or carried, and the three executed claims were re-verified IN THE TREE rather than from this header — §1's link block is present in `README.md`, and the carried §3/§4 have since landed too: `docs/sitemap.xml` + `docs/robots.txt` ship, and the repo carries **13 GitHub topics**.) · **Created:** 2026-07-03
 
 > **Execution note (2026-07-04) — §1 done, rest handed off.** §1 (the "do first — cheapest, highest
 > value" step) is EXECUTED, pure-markdown, no re-bundle and no gate touched: `DOCS-INDEX.md` gained an
