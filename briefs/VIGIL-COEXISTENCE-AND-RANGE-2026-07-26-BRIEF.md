@@ -1,6 +1,34 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (**§1 EXECUTED 2026-08-04** — the sequencing-critical item is done, so §2/§3 can now be re-measured through an instrument that can see warnings; §2·§3·§4·§5 remain) · **Created:** 2026-07-26
+**Status:** PROPOSED (**NO CODE WORK REMAINS — re-measured 2026-08-04.** §1 EXECUTED; §2's guards are both in place and gate the real call site; §5 RESOLVED on the box (udev rule byte-identical, autosuspend off on both real adapters). What is left is two FIELD re-measurements (§2, §3) and one owner DECISION (§4) — this is owner/hardware-gated, not actionable. Original §1 note: **§1 EXECUTED 2026-08-04** — the sequencing-critical item is done, so §2/§3 can now be re-measured through an instrument that can see warnings; §2·§3·§4·§5 remain) · **Created:** 2026-07-26
 
+> ## Status of every section, measured 2026-08-04 — NO CODE WORK REMAINS
+>
+> | § | state |
+> |---|---|
+> | §1 journal severity | ✅ **DONE** — the `<N>` syslog prefix ships (see below) |
+> | §2 WiFi/BLE coexistence | ✅ **CODE DONE.** Both halves of the Done-when are enforced: `cpap_harvest.blocking_devices` refuses a harvest while any sensor is actually **streaming** (refined since — `connected` alone was wrong, a docked sensor reports connected while producing nothing), and `due_now(now, at_hour, last_run_date, window_h=2)` confines the run to `[at_hour, at_hour+2)` with `at_hour: 13`. The nocturnal band is therefore excluded **by construction**, which is stronger than a band check. Both gate the real call site (`capture.py:3708`/`:3712`). ⏳ The *re-measurement* clause is a field task |
+> | §3 re-acquisition | ⏳ **FIELD ONLY** — its Done-when is a repeat walk-away outside a transfer window. Nothing to build |
+> | §4 ladder disarmed | 🧑 **A DECISION, not code** — the brief's own §"Sequencing" says so |
+> | §5 udev rules two fixes behind | ✅ **RESOLVED — measured on the box today**, see below |
+> | §6 refuted hypotheses | 📝 record only |
+>
+> **So this brief is no longer "actionable now".** What is left is two field re-measurements and one owner
+> decision. It stays PROPOSED because those Done-whens are genuinely unmet — not because work is queued.
+>
+> ### §5 — resolved. Measured, not assumed.
+>
+> The brief recorded `/etc/udev/rules.d/99-tepna-btdongle.rules` on the box as **two fixes behind** the
+> repo, covering only `2357:0604` and `8087` and missing `0bda`, `1915`, `2fe3` and the class catch-all.
+> Today the installed file is **byte-identical to the repo** (`md5 d3de673f…`) and carries all five vendor
+> ids. And the defence it exists for is **in force**: resolving each `hci` to its USB parent the way
+> `capture.py` does gives `hci0 → 2357:0604 power/control=on` and `hci1 → 8087:0a2b power/control=on` —
+> autosuspend disabled on both real adapters.
+>
+> ⚠️ A naive sweep of `/sys/bus/usb/devices/*/power/control` **does** return `auto` entries — for `usb1`
+> and `usb2`, which are the USB **root hubs**, not the dongle. Root hubs default to `auto` and that is
+> normal. Reading those as "the defence is off" would be the same wrong-subject error §2 corrects for RSSI:
+> a true measurement of the wrong thing. Resolve the adapter first, then read its parent.
+>
 > ## ✅ §1 executed 2026-08-04 — journal severity is now expressed, not just printed
 >
 > §"Sequencing" said *"§1 first and alone — until it lands **every other item here is being measured
