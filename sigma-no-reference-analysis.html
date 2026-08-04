@@ -1883,7 +1883,7 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
   // strip bulky per-sample arrays (grids + aligned window series) from the JSON
   function exportStats() {
     const drop = new Set(['grids', 'hh', 'vv', 'oo', 'keys', 'dHV', 'dHO', 'dVO']);
-    dl('sigma-no-reference-stats.json', new Blob([JSON.stringify(RESULT, (k, v) => (drop.has(k) ? undefined : v), 2)], { type: 'application/json' }));
+    dl('sigma-no-reference-stats.json', new Blob([JSON.stringify(RESULT, (k, v) => (drop.has(k) ? undefined : v), 2)], { type: 'application/json;charset=utf-8;' }));
   }
   function exportFig() {
     const cs = ['tsCanvas', 'baO2', 'nightCanvas', 'tchCanvas'].map($);
