@@ -4,7 +4,38 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-06-24
+**Status:** REFERENCE (living — the forward papers agenda; candidates flip to DONE in the tables as they ship) · **last-verified:** 2026-08-04 · **Created:** 2026-06-24
+
+> **Agenda updated 2026-08-04** — three measured negatives added to §2.2's wall list (PAT/PTT,
+> the self-referential coupling statistic, the REM stability detector); **new candidate §2.8** (the
+> identifiability boundary of reference-free σ — ρ_crit ≈ 0.422 against a measured ρ = 0.42); and **§3.2
+> re-sequenced** now that expert PSG stage labels are reachable without EEGDex.
+
+> **Reclassified 2026-08-04 (PROPOSED → REFERENCE).** This was never an executable brief and cannot
+> become one: it has **no Done-when list and no checkboxes**, its §6 is titled "Done criteria" but
+> describes a *state of the world* rather than acceptance items, and its own text says
+> *"Living agenda — flip individual candidates to `DONE` in the table as they ship; do not rename the
+> file."* CLAUDE.md's §📌 provides exactly this status for such a doc. Held as PROPOSED it was the
+> **oldest outstanding brief in the repo** (41 days) and would have stayed outstanding permanently,
+> because an agenda is never finished — it accumulates.
+>
+> **Verified before reclassifying, in the tree rather than from §6:** all three artifacts §6 claims
+> shipped do exist — `papers/timestamp-pathology.html` (21 KB), `papers/dead-ends.html` (29 KB), and
+> the real-data `papers/ppg-ecg-hrv-validation.html` (27 KB) that closes §0's real-data-arm gap.
+>
+> ⚠️ **§6's "the brief is done for now" is STALE and is left in place as a dated record, not a claim.**
+> It reconciled criterion (a) on 2026-07-08; `papers/PAPERS-AUDIT.md` then gained **open residuals on
+> 2026-07-22** which reopened it. **R2 — the three respiratory papers stay DRAFT until the full 26-night
+> corpus is re-run end-to-end through `resp-acc-analysis.html`** (spot-checked on four nights so far:
+> clock offsets within 8 s, per-night MAE within 0.06 br/min) **and figures are emitted into
+> `papers/figures/`.** Until then their headline numbers trace to the original external harness, which
+> does not satisfy the house rule *"no number without a tool that reproduces it"*; each paper carries a
+> visible banner saying so — **do not clear it early**. R3 (`effort-typing-null`) is explicitly PARKED,
+> which criterion (a) allows.
+>
+> That open work is **owned by `papers/PAPERS-AUDIT.md`, not by this file** — §Scope-split says this
+> brief does not restate per-paper triage. Reclassifying here does not park R2; it puts the agenda in
+> the status that matches what it is, and leaves R2 tracked where it belongs.
 
 # Papers roadmap — forward agenda + new-deliverable potential
 
@@ -81,6 +112,27 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
   CGM-CV has ICC≈0 (a state, not a trait, `nights-icc`); SQI stays green while beat-yield fails under
   apnea (`qrs-yield`); the rolling-mean ODI self-suppression (`odi4-ahi-bias`). A public "map of the
   walls in the maze" — exactly the project manifesto, made into a citable artifact.
+- **⊕ THREE NEW WALLS, measured 2026-08-02 → 08-04**, each with the falsifier that killed it — which is
+  the standard this candidate exists to hold:
+  - **PAT on single-site optical is blocked by PTT itself, not by instrumentation.** Under per-block
+    ACC-anchor alignment the median lag is physiological on every night (405–496 ms) — but beat-to-beat
+    IQR is 139–197 ms against a ≤60 ms bar, and the across-night spread 325–535 ms. That is what pulse
+    transit time *does* (posture, blood pressure, vasomotor tone). Removing the alignment artifact made
+    the alignment good and revealed a **larger** obstacle that is not a software problem
+    (`PAT-UNDER-PERBLOCK-ALIGNMENT` §1–§2).
+  - **…and the statistic that said otherwise could not fail.** Its `matchRate` compared each lag to a
+    median computed from *those same lags* — a 53–69 % chance floor. A held-out-anchor definition scored
+    against circular-shift surrogates drops the floor to **6–9 %**, and four of six nights then score
+    **below chance** (§3a). Independently, its denominator counted R-peaks the PPG never spanned, so it
+    partly measured *recording overlap* rather than coupling (fixed 2026-08-04).
+  - **The REM score is a stability detector, pointing the wrong way.** `z(LF/HF) − z(RMSSD) − z(motion)`
+    selects the most physiologically *stable* epochs — **zero** desaturations fell in selected epochs
+    across 41 nights — and REM is the *least* stable stage (`REM-STAGING-FOLLOWUPS` §3). A future REM
+    feature must be arousal- or irregularity-linked; stability proxies are a priori wrong.
+- **⚠️ Honesty constraint this candidate must carry.** The PAT wall's harness does **not** reproduce the
+  parent brief's `matchRate` (24–42 % vs 90–96 % on the same six nights) and that is unreconciled. The
+  *mechanism* (PTT variability) is solid; the *coupling number* is not publishable yet. **Write the wall,
+  not the figure.**
 - **Data class:** mixed (re-uses already-published runs). **Needs:** current stack only. **Bounding
   limitation:** synthesis paper — its novelty is framing + honesty, not new compute. **Effort:** LOW–MED
   (mostly writing). Pairs with the adapter brief's "machine-readable graveyard registry" idea so the
@@ -158,6 +210,42 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
 
 ---
 
+### 2.8 ✦✦ When is reference-free σ identifiable? — the degeneracy boundary of the three-cornered hat <span title="candidate">[CANDIDATE — NEW 2026-08-04]</span>
+- **Claim:** the three-cornered hat is the series' own tool for measuring device error without a
+  reference (`sigma-no-reference`), and it rests on an assumption — mutually independent corner errors —
+  that is **routinely false and fails silently**. A violated assumption does not produce an error; it
+  **moves variance between corners**, which is how a chest strap acquires an implausible σ. The paper
+  states the identifiability condition and shows a real triplet sitting on the wrong side of it.
+- **The measurement that makes it a paper, not a caveat** (`TCH-REFERENCE-VALIDATION` §8a, 2026-08-04):
+  generalising the hat to a ρ **per pair** — `Var(x_i − x_j) = σ²_i + σ²_j − 2ρ_ij σ_i σ_j`, nonlinear,
+  no closed form — and sweeping the measured ρ(ECG-RSA, PPG-RSA) = 0.42 gives
+
+  | ρ | σ(CPAP) |
+  |---|---|
+  | 0.00 (classic) | 2.07 |
+  | 0.30 | 1.33 |
+  | **0.42 (measured)** | **0.19** |
+  | 0.50 | *no solution exists* |
+
+  **ρ_crit ≈ 0.422.** The measured correlation sits within **0.5 %** of the value at which σ collapses to
+  zero and past which the system has no solution at all. So the estimate is not merely uncertain — it is
+  **not identifiable**, and a quantity that is 1.33 at ρ = 0.30, 0.19 at 0.42 and undefined at 0.43
+  cannot be reported as a measurement.
+- **Why it generalises beyond this suite:** every reference-free metrology programme built on TCH (GNSS
+  timing, clock ensembles, multi-instrument climate records) inherits the same boundary, and the
+  literature discusses correlated corners far less than it discusses negative variances. The deliverable
+  is a **usable admissibility test**: given three difference variances and a ρ structure, does a positive
+  solution exist, and how far is this triplet from the edge?
+- **Data class:** REAL (own corpus, one triplet) + synthetic for the boundary map. **Needs:** current
+  stack only — the kernel ships in `analysis-stats.js` with a known-answer self-test and a first-class
+  refusal path. **Bounding limitation:** n = 1 triplet on one subject; the *boundary* is analytic and
+  general, the *specific ρ* is not. **Effort:** MED. **Pairs with:** `sigma-no-reference` (this is its
+  missing limitations section, promoted to a result) and §2.2's dead-ends framing.
+- **⚠️ Do not overclaim the recovery.** σ(CPAP) moving 2.07 → 0.19 is *not* "the CPAP is a near-perfect
+  sensor" — it is the model running out of room. The finding is the **boundary**, not the number.
+
+---
+
 ## 3 · New paper candidates — unlocked by the PLANNED stack
 
 These are the real-validation front. Each names the **stack dependency** so sequencing is explicit.
@@ -185,6 +273,31 @@ These are the real-validation front. Each names the **stack dependency** so sequ
   EEG as a *new signal type* still needing real DSP, not just ingest). **Bounding limitation:** Muse is
   consumer EEG, not lab PSG — anchor, not gold standard; state it. **Effort:** HIGH (new node + study),
   but the highest scientific payoff on the roadmap.
+- **⊕ RE-SEQUENCED 2026-08-04 — this is no longer the only route to a stage label, and no longer the
+  first one.** `nsrr-adapter.js` now emits **per-epoch expert PSG stage labels** (`stages[]`, a 30 s
+  `epochs[]` grid indexed from recording start, `remFrac`). They were always in the annotation files —
+  the parser was walking every scored stage event and discarding the stage *identity* on the same line
+  it read it, keeping only a scalar for total sleep time. So a **clinically-scored** validation arm is
+  reachable on the **current** stack, with no new node:
+  - it is **expert PSG**, strictly stronger than a consumer-EEG anchor, so it does not carry §3.2's
+    "anchor, not gold standard" caveat;
+  - it is the missing denominator for two blocked staging efforts — `REM-STAGING-REDESIGN` and
+    `DEEP-STAGE-DESAT-CONFOUND` both ended in measured negatives for want of a label, and the standing
+    constraint from that work is that **no staging detector may be validated on `genSynthetic`** (the
+    oracle plants the exact signature the rule looks for: 92.6 % recall against planted truth while
+    under-calling REM ~4× on real nights);
+  - it is blocked on **records only** — NSRR requires a signed DUA and the suite is 100 % local, so this
+    needs a human to drop EDF + annotation-XML pairs in. That is a materially cheaper unblock than
+    building a node.
+  - **Carry the domain-shift caveat:** NSRR is clinical PSG on a clinical population, not a consumer
+    chest strap on a healthy sleeper at home. A detector tuned on NSRR and deployed on H10 data inherits
+    a domain shift, and the real-night falsifiers remain the only check that survives the move — a good
+    NSRR number must not retire them.
+
+  **Sequencing consequence:** an NSRR-labelled staging-validation paper is a **§2 candidate in
+  everything but data access**, and should precede §3.2 rather than wait on it. EEGDex then answers a
+  *different* and still-valuable question — can a consumer EEG anchor stand in for lab PSG at home? —
+  which is a better framing for it than "the only way to get a label".
 
 ### 3.3 ✦ Longitudinal reference-free σ drift — OverDex-enabled metrology
 - **Claim:** `sigma-no-reference` pinned device σ from one ~2-hour hat. OverDex auto-detects **every**
