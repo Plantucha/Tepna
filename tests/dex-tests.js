@@ -12289,6 +12289,54 @@
           routedOrphans.push(src.replace(/-BRIEF\.md$/, '') + ' → ' + tgt.replace(/-BRIEF\.md$/, ''));
         }
       });
+      /* ── check3e · the crossnight ADOPTION TABLE must match the filesystem ─────────────────────
+         CROSSNIGHT-ENVELOPE-SPEC §7 drifted from reality twice: it first omitted CPAPDex (which does
+         emit), then listed no non-emitters at all — so it read as full adoption while only five of the
+         eight nodes had a `*-cross.js`. A reader went looking for an HRVDex envelope that never existed.
+         `integrator-longitudinal.js`'s header carried the same false "every node" claim.
+
+         Both statements are derivable from `ls *-cross.js`, so neither should be maintained by hand. */
+      var crossFiles = (DL.fsPaths || []).filter(function (p) {
+        return /(^|\/)[a-z]+dex-cross\.js$/.test(p);
+      });
+      var NODE_OF = { oxydex: 'OxyDex', pulsedex: 'PulseDex', ecgdex: 'ECGDex', ppgdex: 'PpgDex', cpapdex: 'CPAPDex', hrvdex: 'HRVDex', glucodex: 'GlucoDex', motiondex: 'MotionDex' };
+      var emitters = crossFiles
+        .map(function (p) {
+          return NODE_OF[(/([a-z]+dex)-cross\.js$/.exec(p) || [])[1]];
+        })
+        .filter(Boolean)
+        .sort();
+      T.ok('check3e · the *-cross.js emitter set is non-empty (scan is non-vacuous)', emitters.length > 0, emitters.join(', ') || 'NONE FOUND — the walker missed them');
+
+      var spec = DL.crossSpec || '';
+      if (spec) {
+        // a §7 row marked as emitting must have a file, and every file must have a row
+        var claimed = [];
+        spec.split('\n').forEach(function (line) {
+          var m = /^\|\s*\*\*([A-Za-z]+)\*\*\s*\|/.exec(line);
+          if (m && /emits `ganglior\.crossnight`/.test(line)) claimed.push(m[1]);
+        });
+        claimed.sort();
+        T.eq('check3e · §7 rows claiming to emit ≡ the nodes that actually have a *-cross.js', claimed.join(','), emitters.join(','));
+        // and the headline count must match, counting NODES (the Integrator row is a consumer)
+        var cnt = /\*\*(\d+) of the (\d+) nodes emit\*\*/.exec(spec);
+        T.ok('check3e · §7 states an "N of M nodes emit" headline', !!cnt, cnt ? cnt[0] : 'no headline found — the table can drift silently without one');
+        if (cnt) {
+          T.eq('check3e · …and N matches the filesystem', +cnt[1], emitters.length);
+          T.eq('check3e · …and M is the NODE count, not the table row count', +cnt[2], Object.keys(NODE_OF).length);
+        }
+      }
+      var lh = DL.longHeader || '';
+      if (lh) {
+        T.ok(
+          'check3e · integrator-longitudinal.js no longer claims EVERY node emits an envelope',
+          !/envelopes that every node now emits/.test(lh),
+          'the header made this exact false claim until 2026-08-04; it is what sent a reader looking for an HRVDex envelope'
+        );
+        var five = /\b(FIVE|five|5)\s+of\s+the\s+eight\s+nodes/.test(lh);
+        T.ok('check3e · …and its stated count agrees with the filesystem', !five || emitters.length === 5, 'header says five of eight; filesystem says ' + emitters.length);
+      }
+
       T.ok(
         'check3d · a ROUTED item is accepted by its target (names the source, or the cited § exists)',
         routedOrphans.length === 0,
