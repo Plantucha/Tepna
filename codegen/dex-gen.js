@@ -209,8 +209,15 @@ function genMetricCard(m, sectionId) {
       ${m.formulaNote ? `<div class="fn">${esc(m.formulaNote)}</div>` : ''}
     </div>`;
 
+  /* `data-tier` mirrors the authored guides' convention exactly: emitted for secondary/research,
+     ABSENT for core (the default). The generator had the tier in hand — `m.tier` drives the chip on the
+     next line — and simply never projected it onto the card, so every generated card read as core to
+     anything reading the attribute while DISPLAYING Advanced/Research. Gated by
+     `cohesion-badges · guide-tier`, which is what found it. */
+  const tierAttr = m.tier && m.tier !== 'core' ? ` data-tier="${esc(m.tier)}"` : '';
+
   return `
-  <div class="mc">
+  <div class="mc"${tierAttr}>
     <div class="mh">
       <div class="mi">
         <span class="ma">${esc(m.abbr || m.id)}</span>
