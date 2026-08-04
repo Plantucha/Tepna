@@ -477,8 +477,16 @@ null identically. Over all **57 windows** `[CORPUS]`:
 
 **The intermittency is the offset, not the physiology.** In 29 of the 39 windows that failed at δ=0,
 there is a constant offset at which coupling appears against a matched null. A third candidate — that
-the PPG *timing point* degrades — was tested with `--timing-point peak` and is **not supported**: the
-foot scores as well or better on every comparable window and the peak loses one outright.
+the PPG *timing point* degrades — was tested with `--timing-point peak` and is **not supported**: over
+**45 comparable windows** the two are statistically indistinguishable (paired foot − peak **−0.5 ± 5.1
+points**, median **0.0**; **40/45 significant under scan for each**; mean best-scan foot 20.4 % vs peak
+21.0 %). Neither timing point is the limiting factor.
+
+> ⚠ **A one-night version of this said the opposite and was wrong.** On 2026-07-22 alone the foot
+> scored "as well or better on every comparable window and the peak lost one outright" — at corpus
+> scale the peak produces *more* scorable windows (48 vs 47) and wins slightly more head-to-heads
+> (21 vs 12). **The conclusion survives; the reason given for it did not.** Fourth single-night result
+> in this session to fail on widening (cf. §3e.4's 53.9 ms → 3/8 nights, §3f's 22/60 → 20/57).
 
 Corroborated by the identifiable offset itself: reduced mod RR, the per-window offsets are **stable
 within a night on 4 of 11 nights and exceed the plateau on 7**, i.e. the offset genuinely moves within
