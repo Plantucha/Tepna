@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (**P1.1 — the brief's own "single most important software fix" — DONE 2026-08-04**, hysteresis on recovery + the power-cycle budget, 5 mutants killed. ⚠️ **P1.2/P1.3 are BLOCKED ON A DEPLOY, not on code:** `tepna-usbreset.sh` exists in the repo but was never installed on the box and has no sudoers grant — measured 2026-08-04, now gate-backed in `deploy/check-system-files.sh`. P1.4·P1.5·P2.x remain) · **Created:** 2026-07-24
+**Status:** PROPOSED (**P1.1 — the brief's own "single most important software fix" — and P1.4 both DONE 2026-08-04**, hysteresis on recovery + the power-cycle budget, 5 mutants killed. ⚠️ **P1.2/P1.3 are BLOCKED ON A DEPLOY, not on code:** `tepna-usbreset.sh` exists in the repo but was never installed on the box and has no sudoers grant — measured 2026-08-04, now gate-backed in `deploy/check-system-files.sh`. P1.4·P1.5·P2.x remain) · **Created:** 2026-07-24
 
 # Vigil overnight findings — the night the dongle wedged (2026-07-23 → 24)
 
@@ -163,7 +163,27 @@ both a de-suspended dongle and the internal radio fail you.*
   specific USB unbind/bind paths. Without this the ladder is decorative.
 - **P1.3 Enable `watchdog.usb_path` (now known: `11-1.2`).** A USB unbind/bind is the only reliable clear
   for an RTL8761B firmware hang when a soft reset can't; needs P1.2's privilege.
-- **P1.4 Startup self-test of the defences.** At boot, verify (a) the ladder can run (caps present),
+- ✅ **P1.4 — COMPLETED 2026-08-04.** The self-test already existed (`defense_warnings` +
+  `startup_defense_check`) and covered item (a), the recovery ladder's `CAP_NET_ADMIN`, plus the
+  autosuspend prevention. **Items (b) and (c) were not checked**, so the two defences most likely to be
+  silently off were the two nothing looked at:
+  - **(b) `usb_path` unset** — the last rung of the ladder. A soft power-cycle does not clear an RTL8761B
+    firmware hang, so a wedge surviving it had no remaining fix. §P1.3 identified the bus-port (`11-1.2`)
+    on 2026-07-24 and recovery still could not use it, because the key was never written. Warned, not
+    defaulted: the id is host-specific and guessing one would rebind the wrong device.
+  - **(c) archive destination** — measured on the live box 2026-08-04: **no archive configured, 0
+    `.archived` markers across 11 nights**, so every night existed in exactly one copy while capture ran
+    perfectly. Also warns when a dest IS set but is not a **mountpoint** — `ismount`, never `isdir`,
+    because an unmounted mountpoint is a writable empty directory on the boot disk and the mirror
+    "succeeds" onto the wrong filesystem (`storage_targets`' own reasoning; VIGIL-OFFLOAD-AND-RETENTION
+    recorded exactly that, a removable disk unmounted at the check). And `enabled: true` with no
+    destination counts as unconfigured — the flag alone is the most reassuring possible misconfiguration.
+
+  Absence is distinguished from disarmed throughout: called without a `cfg`, the config-derived defences
+  are **not judged** rather than reported armed. 7 mutants applied, 6 killed; the 7th is a genuine
+  equivalent (the `_UNCHECKED` sentinel is truthy, so the explicit guard and a bare falsiness test behave
+  identically) and is recorded here so nobody re-derives it.
+- ~~**P1.4 Startup self-test of the defences.**~~ *(original text)* At boot, verify (a) the ladder can run (caps present),
   (b) `usb_path` is set, (c) the archive dest is mounted. If any defence is disarmed, log **LOUD** at
   22:00 — do not discover it at 01:39. (A disarmed resilience feature you *believe* is armed is worse than
   none, because you plan the night around it.)

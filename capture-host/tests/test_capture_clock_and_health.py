@@ -320,6 +320,55 @@ def test_all_defenses_armed_warns_nothing():
     assert capture.defense_warnings("on", "0000000000000800") == []
 
 
+ARMED = ("on", "0000000000000800")          # autosuspend off + CAP_NET_ADMIN present
+
+
+def test_omitting_a_defense_is_NOT_the_same_as_it_being_disarmed():
+    """The self-test must never report on something it did not look at.
+
+    `usb_path=None` legitimately means "unset, therefore disarmed", so absence needs its own marker —
+    otherwise every existing two-argument call would start announcing defenses disarmed that it never
+    inspected. That is the same class of lie this whole check exists to catch, pointed the other way."""
+    assert capture.defense_warnings(*ARMED) == []
+
+
+def test_an_unset_usb_path_warns_that_the_last_rung_is_disabled():
+    """§P1.4 item (b). A soft power-cycle does not clear an RTL8761B firmware hang, so with usb_path unset
+    a wedge that survives the cycle has no remaining fix. On 2026-07-24 the bus-port was already known
+    (`11-1.2`) and recovery still could not use it, because the key was never written."""
+    ws = capture.defense_warnings(*ARMED, usb_path=None)
+    assert len(ws) == 1 and "usb_path is UNSET" in ws[0]
+    assert capture.defense_warnings(*ARMED, usb_path="11-1.2") == []
+
+
+def test_an_unconfigured_archive_warns_that_nights_never_leave():
+    """§P1.4 item (c). Measured on the live box 2026-08-04: 0 `.archived` markers across 11 nights, so
+    every night existed in exactly one copy — and capture was working perfectly the whole time, which is
+    why nothing surfaced it."""
+    ws = capture.defense_warnings(*ARMED, usb_path="11-1.2", archive_enabled=False)
+    assert len(ws) == 1 and "archive is NOT configured" in ws[0]
+
+
+def test_an_enabled_archive_on_an_UNMOUNTED_dest_is_worse_than_none():
+    """`ismount`, not `isdir`: an unmounted mountpoint is a present, empty, writable directory on the BOOT
+    disk, so the mirror reports success while ~350 MB/night lands on the wrong filesystem and the operator
+    believes it is on the NAS. VIGIL-OFFLOAD-AND-RETENTION recorded exactly this — the dest was a removable
+    disk, unmounted at the check."""
+    ws = capture.defense_warnings(*ARMED, usb_path="x", archive_enabled=True, archive_dest_ready=False)
+    assert len(ws) == 1 and "NOT ready (not mounted)" in ws[0]
+    # ready, and unknown-because-unprobed, are both silent — the second deliberately
+    assert capture.defense_warnings(*ARMED, usb_path="x", archive_enabled=True,
+                                    archive_dest_ready=True) == []
+    assert capture.defense_warnings(*ARMED, usb_path="x", archive_enabled=True,
+                                    archive_dest_ready=None) == []
+
+
+def test_every_disarmed_defense_is_reported_not_just_the_first():
+    """A self-test that names one of four faults sends the operator round the loop three more times."""
+    ws = capture.defense_warnings("auto", "0000000000000000", usb_path=None, archive_enabled=False)
+    assert len(ws) == 4, ws
+
+
 def test_autosuspend_auto_warns_about_the_wedge_prevention():
     ws = capture.defense_warnings("auto", "0000000000000800")
     assert len(ws) == 1 and "autosuspend is ENABLED" in ws[0] and "50-tepna-btdongle.rules" in ws[0]

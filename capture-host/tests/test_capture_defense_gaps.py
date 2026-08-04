@@ -75,6 +75,87 @@ def test_startup_defense_check_is_quiet_when_autosuspend_is_off(tmp_path, monkey
     assert not any("power/control=auto" in r.getMessage() for r in caplog.records)
 
 
+def test_startup_defense_check_uses_ISMOUNT_not_isdir_for_the_archive_dest(tmp_path, monkeypatch, caplog):
+    """THE trap `storage_targets` names, reached through the real wiring.
+
+    An unmounted mountpoint is a present, empty, WRITABLE directory on the boot disk. `isdir` says yes, so
+    ~350 MB/night lands on the wrong filesystem while the mirror reports success and the operator believes
+    the nights are on the NAS. Only `ismount` can tell those apart.
+
+    The pure-function tests above take `archive_dest_ready` as an argument, so they cannot see which probe
+    produced it — this one drives `startup_defense_check` against a real directory that exists and is not a
+    mount, which is exactly the failing shape."""
+    ctrl = tmp_path / "control"
+    ctrl.write_text("on\n")
+    monkeypatch.setattr(capture, "_usb_power_control_path", lambda _h: str(ctrl))
+    dest = tmp_path / "archive"                 # exists, writable, NOT a mountpoint
+    dest.mkdir()
+    cfg = {"watchdog": {"usb_path": "11-1.2"},
+           "archive": {"enabled": True, "dest": str(dest)}}
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture.startup_defense_check("hci0", cfg))
+    assert any("NOT ready (not mounted)" in r.getMessage() for r in caplog.records), \
+        [r.getMessage() for r in caplog.records]
+
+
+def test_startup_defense_check_warns_when_nothing_offloads(tmp_path, monkeypatch, caplog):
+    """Measured on the live box 2026-08-04: no archive configured, 0 `.archived` markers across 11 nights.
+    Capture was working perfectly, which is precisely why nothing surfaced it."""
+    ctrl = tmp_path / "control"
+    ctrl.write_text("on\n")
+    monkeypatch.setattr(capture, "_usb_power_control_path", lambda _h: str(ctrl))
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture.startup_defense_check("hci0", {"watchdog": {"usb_path": "x"}}))
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("archive is NOT configured" in m for m in msgs), msgs
+
+
+def test_archive_enabled_with_NO_destination_still_counts_as_unconfigured(tmp_path, monkeypatch, caplog):
+    """`enabled: true` with no `dest`/`target` is the most reassuring possible misconfiguration: the config
+    reads as if offloading is on, and nothing is ever copied. Armed-looking is the failure mode this whole
+    self-test exists to catch, so the flag alone is not enough — a destination has to exist too."""
+    ctrl = tmp_path / "control"
+    ctrl.write_text("on\n")
+    monkeypatch.setattr(capture, "_usb_power_control_path", lambda _h: str(ctrl))
+    cfg = {"watchdog": {"usb_path": "x"}, "archive": {"enabled": True}}      # no dest, no target
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture.startup_defense_check("hci0", cfg))
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("archive is NOT configured" in m for m in msgs), msgs
+
+
+def test_an_unprobeable_archive_dest_is_silent_rather_than_alarming(tmp_path, monkeypatch, caplog):
+    """`ismount` can raise on a path the process cannot stat. Neither answer is knowable then, so the
+    check says nothing about mountedness rather than guessing — the same rule as every other probe here.
+    The "not configured" warning is separate and correctly stays quiet, since a dest IS set."""
+    ctrl = tmp_path / "control"
+    ctrl.write_text("on\n")
+    monkeypatch.setattr(capture, "_usb_power_control_path", lambda _h: str(ctrl))
+
+    def boom(_p):
+        raise OSError("permission denied")
+    monkeypatch.setattr(capture.os.path, "ismount", boom)
+    cfg = {"watchdog": {"usb_path": "x"},
+           "archive": {"enabled": True, "dest": str(tmp_path / "arch")}}
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture.startup_defense_check("hci0", cfg))
+    msgs = [r.getMessage() for r in caplog.records]
+    assert not any("NOT ready (not mounted)" in m for m in msgs), msgs
+    assert not any("archive is NOT configured" in m for m in msgs), msgs
+
+
+def test_startup_defense_check_without_a_cfg_judges_no_config_defense(tmp_path, monkeypatch, caplog):
+    """A check that cannot see its input must not report on it — in either direction. Called without a
+    cfg (the pre-existing signature), the config-derived defenses are simply not assessed."""
+    ctrl = tmp_path / "control"
+    ctrl.write_text("on\n")
+    monkeypatch.setattr(capture, "_usb_power_control_path", lambda _h: str(ctrl))
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture.startup_defense_check("hci0"))
+    msgs = [r.getMessage() for r in caplog.records]
+    assert not any("usb_path is UNSET" in m or "archive is NOT" in m for m in msgs), msgs
+
+
 def test_startup_defense_check_survives_an_unreadable_control_file(monkeypatch):
     """The path resolved but the read failed. Report what it can, never raise."""
     monkeypatch.setattr(capture, "_usb_power_control_path", lambda _h: "/nonexistent/control")

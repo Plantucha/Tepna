@@ -744,7 +744,16 @@ def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = Non
     return {"wedged": bool(reasons), "reasons": reasons, "phantom": phantom}
 
 
-def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None") -> list[str]:
+# "the caller did not ask about this", which is NOT the same as "the caller said it is unset". `None` is a
+# legitimate value for usb_path (meaning disarmed), so absence needs its own marker — otherwise a two-arg
+# call would start reporting defenses disarmed that it never looked at, which is the same class of lie
+# this self-test exists to catch, pointed the other way.
+_UNCHECKED = object()
+
+
+def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None", *,
+                     usb_path=_UNCHECKED, archive_enabled=_UNCHECKED,
+                     archive_dest_ready: "bool | None" = None) -> list[str]:
     """PURE (testable): given the pinned adapter's USB `power/control` value ('auto' | 'on' | None if
     unknown) and the process CapEff hex ('0000…' | None), return the LOUD startup warnings for any wedge
     defense that is DISARMED. Empty when everything is armed.
@@ -768,6 +777,33 @@ def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None") 
                     "primary defense; grant the cap for recovery. See VIGIL-OVERNIGHT-FINDINGS §P1.2.")
         except ValueError:
             pass
+    # §P1.4 item (b) — usb_path. Added 2026-08-04: the LAST rung of the ladder is off by default, and a box
+    # that has already needed it once is a box that should have it set. On 2026-07-24 the bus-port was
+    # identified as `11-1.2` and the recovery still could not use it, because the key was never written.
+    # Warned rather than defaulted: the id is host-specific, and guessing one would rebind the wrong device.
+    if usb_path is not _UNCHECKED and not usb_path:
+        out.append(
+            "watchdog.usb_path is UNSET — the last recovery rung (USB unbind/bind) is disabled. A soft "
+            "power-cycle does NOT clear an RTL8761B firmware hang, so a wedge that survives it has no "
+            "remaining fix. Set it to the dongle's bus-port from `ls /sys/bus/usb/devices/` "
+            "(VIGIL-OVERNIGHT-FINDINGS §P1.3).")
+    # §P1.4 item (c) — the archive destination. A box that never offloads holds the ONLY copy of every
+    # night, and that failure is silent by construction: capture keeps working perfectly.
+    if archive_enabled is _UNCHECKED:
+        pass
+    elif not archive_enabled:
+        out.append(
+            "archive is NOT configured — finished nights never leave this box, so each night exists in "
+            "exactly one copy on one disk. Set a target in the monitor's Storage card "
+            "(VIGIL-OFFLOAD-AND-RETENTION).")
+    elif archive_dest_ready is False:
+        # `ismount`, not `isdir`, upstream: an unmounted mountpoint is a present, empty, writable directory
+        # on the BOOT disk, so the mirror "succeeds" onto the wrong filesystem and the operator believes
+        # the nights are on the NAS (storage_targets' own reasoning).
+        out.append(
+            "archive is enabled but its destination is NOT ready (not mounted) — the mirror will write "
+            "into an empty mountpoint on the boot disk and report success. Check the target in the "
+            "monitor's Storage card.")
     return out
 
 
@@ -787,10 +823,14 @@ def _usb_power_control_path(hci: str) -> "str | None":
     return None
 
 
-async def startup_defense_check(hci: "str | None") -> None:
+async def startup_defense_check(hci: "str | None", cfg: "dict | None" = None) -> None:
     """Log a LOUD warning at boot for each DISARMED wedge defense (VIGIL-OVERNIGHT-FINDINGS §P1.4). Reads
-    the pinned adapter's autosuspend state + this process's CapEff, and defers the decision to the pure
-    `defense_warnings`. Bounded, never raises — a self-test must never keep capture from starting."""
+    the pinned adapter's autosuspend state + this process's CapEff + the config's recovery/archive keys,
+    and defers the decision to the pure `defense_warnings`. Bounded, never raises — a self-test must never
+    keep capture from starting.
+
+    `cfg` is trailing + optional so existing callers keep working (CLAUDE.md's back-compat rule); absent,
+    the config-derived checks are simply not made rather than fabricated as armed."""
     autosuspend = None
     try:
         ctrl = _usb_power_control_path(hci) if hci else None
@@ -808,7 +848,22 @@ async def startup_defense_check(hci: "str | None") -> None:
                     break
     except Exception:
         pass
-    for w in defense_warnings(autosuspend, capeff):
+    # Config-derived defenses. Only judged when a cfg was passed — a check that cannot see its input must
+    # not report "armed", which is the exact failure this whole self-test exists to prevent.
+    kw: dict = {}
+    if cfg is not None:
+        wcfg = (cfg.get("watchdog") or {})
+        acfg = (cfg.get("archive") or {})
+        kw["usb_path"] = wcfg.get("usb_path")
+        kw["archive_enabled"] = bool(acfg.get("enabled")) and bool(acfg.get("dest") or acfg.get("target"))
+        dest = acfg.get("dest")
+        if kw["archive_enabled"] and dest:
+            try:
+                # ismount, NOT isdir — an unmounted mountpoint is a writable empty dir on the boot disk.
+                kw["archive_dest_ready"] = os.path.ismount(str(dest))
+            except Exception:
+                kw["archive_dest_ready"] = None
+    for w in defense_warnings(autosuspend, capeff, **kw):
         log.warning("STARTUP: %s", w)
 
 
@@ -4026,7 +4081,7 @@ async def main():
         "adapter_resolved": _hci,
         "adapter_ok": ADAPTER is None or bool(_hci),   # a pinned-but-unresolved adapter is the failure
     }
-    await startup_defense_check(_hci)         # LOUD-warn if a wedge defense is disarmed (§P1.4)
+    await startup_defense_check(_hci, cfg)    # LOUD-warn if a wedge defense is disarmed (§P1.4)
     log.info("tepna-capture up: %d device(s), root=%s", len(cfg.get("devices", [])), root)
     sdnotify.sd_notify("READY=1")             # Type=notify: `systemctl start` unblocks once capture is up
     # A (re)start is otherwise invisible overnight — a spurious restart mid-night is exactly what you want
