@@ -4,7 +4,45 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-06-29
+**Status:** DONE — 2026-08-04 · **Created:** 2026-06-29 · **As-built ≠ as-specified — read the block below before provisioning a second box.**
+
+> ## ✅ Verified as-built 2026-08-04, on the running appliance — not from this document
+>
+> §11's DONE condition was *"the box exists and a real overnight file from **each live device**
+> round-trips through the served suite."* **It does.** Every ☐ below was checked against the live host
+> over SSH and against the repo, item by item:
+>
+> | ☐ | as specified | as built, verified 2026-08-04 |
+> |---|---|---|
+> | Pi provisioned; TZ + NTP; dongle as `hci0` | Raspberry Pi | **⚠️ NOT a Pi — x86_64 Intel i5-6500T.** NTP active + `System clock synchronized: yes`; `hci0` = the TP-Link UB500 ✓ |
+> | `tepna-capture` emitting §3/§7 layouts | systemd unit | **active**; 11 night directories under `/srv/tepna/captures/`, vendor filenames + device ids as §7 specifies ✓ |
+> | `tepna-web` serving at `http://tepna.local` | `tepna-web` unit | **⚠️ `tepna-web` is inactive — `caddy` serves instead** (`:80 → 301`). Served, different unit than named |
+> | night store + `status.json` | `/srv/tepna/captures/<night>/` | ✓ 11 nights; `status.json` live (2179 B, per-device `connected` / `worn` / `battery` / `clock_synced`) |
+> | five `how-to-collect/` notes | 5 files | ✓ all five present (`polar-h10-ecg`, `verity-ppg`, `muse-eeg`, `cpap-edf`, `health-box`) |
+>
+> **Round-trip, the actual gate — all three live devices, not just the two the 2026-07-22 note proved.**
+> `uploads/trio/` carries **40 nights × 3** committed node-exports: `ECGDex` (H10 chest ECG), `OxyDex`
+> (O2Ring oximetry) and `PpgDex` (Verity arm PPG). The 2026-07-22 progress note demonstrated H10 + O2Ring
+> on a desktop rig; the Verity leg has since closed too, which is what completes "*each* live device".
+>
+> ### ⚠️ The hardware divergence is the one thing a future reader must not miss
+> This brief is titled *"Raspberry Pi bedside appliance"* and **§5 is a Raspberry Pi bill of materials**.
+> The appliance that exists is an **x86_64 mini-PC**, and the 2026-07-22 note's "real-*Pi* bring-up" blocker
+> was never closed — it was **superseded in practice**. §5 is therefore a *procurement plan that was not
+> followed*, and is retained as the original design rather than as a description of the running box.
+> Anyone provisioning a second box should treat §5 as one option, not as the reference build, and should
+> expect the `usb_path` in `config.yaml` to be host-specific (its own comment says so: *"the old box's
+> 11-1.2 is meaningless here"*).
+>
+> **Not a defect, checked because it looked like one:** the host runs `America/New_York`, and per the
+> host-axis fix every exported time rides this clock. Filename stamps are box-LOCAL (`…20260804075817…`
+> against an 08:06 EDT mtime), which is the Clock Contract's floating wall-clock model working as
+> designed — and BLE range means the wearer is co-located with the box, so the host's zone *is* the
+> recording's civil time. No offset.
+>
+> **Findings route to the existing follow-ups**, not to a new brief: `CAPTURE-HOST-FOLLOWUPS-2026-07-16`
+> and `-II` are both open and own the residue (the `tepna-web`/caddy divergence, FOLLOWUPS-II's V1–V5,
+> and whether §5 should be rewritten as an x86 BOM or kept as the Pi design with an as-built note).
 
 # Capture Host → the Tepna Health Box (Raspberry Pi bedside appliance)
 
