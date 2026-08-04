@@ -36,6 +36,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 # The CLASSIFIER lives in `mutation_triage.py`, one directory up, because that directory is inside the
 # coverage floor and this one is not. These ~40 lines of decision logic are the only part of this tool
@@ -87,12 +88,23 @@ def main() -> int:
               "sweep. Do not divide by it.", file=sys.stderr)
         return 2
 
+    # PROGRESS TO STDERR. One `mutmut show` per survivor is ~0.2 s, so 280 survivors is a minute of
+    # silence — long enough to be indistinguishable from a hang, which is how a finished run went
+    # unnoticed for six hours. stdout stays clean so --json and --work remain pipeable.
     rows = []
-    for mid in surv:
+    n = len(surv)
+    t0 = time.monotonic()
+    for i, mid in enumerate(surv, 1):
+        if i == 1 or i % 10 == 0 or i == n:
+            el = time.monotonic() - t0
+            eta = (el / i) * (n - i) if i else 0.0
+            print(f"\r  triaging {i}/{n}  ({100*i//n}%)  eta {eta:4.0f}s ",
+                  end="", file=sys.stderr, flush=True)
         m, p = mutmut_diff(work, py, mid)
         bucket, why = classify(m, p)
         fn = re.sub(r".*x_?(.+?)__mutmut_\d+.*", r"\1", mid)
         rows.append({"id": mid, "fn": fn, "bucket": bucket, "why": why, "minus": m.strip(), "plus": p.strip()})
+    print("\r" + " " * 48 + "\r", end="", file=sys.stderr, flush=True)
 
     if a.work:
         for r in rows:

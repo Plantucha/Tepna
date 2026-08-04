@@ -62,7 +62,10 @@ import argparse
 import json
 import os
 import shutil
+import pathlib
+import re
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -161,9 +164,33 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     appears in 76 of 78 test files, so scoping buys nothing and a full-suite run per mutant is
     hopeless. For a 3,600-line module the honest unit of work is one SUBSYSTEM: mutate the clock
     functions with `--only 'capture.x__now__*'` against the four clock test files."""
+    # FIRST STATEMENT, deliberately. Two earlier attempts put the first heartbeat after the scratch
+    # copy and then after test discovery, and both times the caller still saw ~70 s of nothing —
+    # because the guess about where the time went was wrong, twice. The only placement that cannot be
+    # wrong is before anything else runs; every later phase overwrites this line.
+    # `module` carries the .py suffix; `stem` does not, and the verdict heartbeat below uses `stem`.
+    # Writing both under one name matters more than which: a reader polling two different paths sees
+    # a phase vanish and concludes the code never ran — which is exactly what happened three times
+    # while diagnosing this, each time "fixed" by moving the beat earlier for no reason.
+    _stem = module[:-3] if module.endswith(".py") else module
+    _prog = pathlib.Path(f"/tmp/mutate-{_stem}.progress")
+
+    def _beat(msg: str, final: bool = False) -> None:
+        """Every line carries the PID and a wall-clock stamp, and the last one says LIVE=no.
+
+        Without those a finished run's last line is indistinguishable from a running one — a reader
+        polls, sees `1231 mutants  killed=1081`, and cannot tell whether that is this run's progress or
+        yesterday's leftovers. Reporting a stale file as live is worse than reporting nothing, and it is
+        the same failure that had a completed run sitting unnoticed for six hours on 2026-08-04.
+        """
+        _prog.write_text(f"{_stem}  {msg}\n"
+                         f"  pid={os.getpid()}  updated={time.strftime('%H:%M:%S')}  "
+                         f"LIVE={'no' if final else 'yes'}\n")
+    _beat("starting — selecting tests")
     tests = tests_override or tests_for(module)
     if not tests:
         return {"module": module, "error": "no test file names this module"}
+    _beat("timing the clean baseline suite  (mutmut not started)")
     clean = clean_run_seconds(tests)
     cap = timeout if timeout is not None else budget_for(clean)
     plan = {"module": module, "tests": tests, "clean_run_sec": round(clean, 2),
@@ -228,6 +255,11 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         work = scratch / "work"
         shutil.rmtree(scratch, ignore_errors=True)
         # Copy the tree WITHOUT .venv/mutants — 7.7 MB, so this is cheaper than being clever.
+        # The two phases BEFORE mutmut starts — copying the tree and running the clean baseline —
+        # are ~84 s on cpap_harvest and had no signal at all, because `t0` (and therefore the verdict
+        # heartbeat) starts after them. A caller watching the progress file saw nothing for that whole
+        # stretch, which is precisely the window in which "starting" and "wedged" look identical.
+        _beat("copying scratch tree  (mutmut not started)")
         shutil.copytree(HERE, work, ignore=shutil.ignore_patterns(
             ".venv", "mutants", "__pycache__", "*.pyc", ".coverage*", "htmlcov"))
     (work / "pyproject.toml").write_text(CONFIG.format(
@@ -249,15 +281,60 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # and webmon went into the audit as simply unmeasured. mutmut writes its results incrementally, so
     # the partial verdict is on disk and worth reading; what is not honest is presenting it as
     # complete, hence the explicit `timed_out` flag on the record.
-    timed_out = False
+    # STREAMED, NOT CAPTURED. mutmut prints a live counter, and `capture_output=True` swallowed it —
+    # which is why a 26-minute cpap_harvest run looked identical to a wedged one, and why the runbook
+    # had to record "there is no live progress" as a fact rather than a bug. It also means a run killed
+    # by the cap left no trace of how far it got. Tee it to stderr (stdout stays the JSON record) and
+    # keep the text for `tail`.
+    timed_out, rc, buf = False, None, []
+    proc = subprocess.Popen([str(VENV_PY), "-m", "mutmut", "run", only or f"{stem}.*"],
+                            cwd=work, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, env=env, bufsize=1)
+    # A PROGRESS FILE, not just a stream. Streaming to stderr only helps someone watching a terminal;
+    # a run launched in the background surfaces nothing until it exits, so a 26-minute cpap_harvest run
+    # is silent to the caller either way. This file is rewritten on every verdict so anyone — a person,
+    # or an agent polling it — can answer "how far in, and is it moving" at any instant.
+    seen = {"killed": 0, "survived": 0, "timeout": 0, "n": 0, "ids": set()}
     try:
-        proc = subprocess.run([str(VENV_PY), "-m", "mutmut", "run", only or f"{stem}.*"],
-                              cwd=work, capture_output=True, text=True, env=env, timeout=cap)
-        rc, tail = proc.returncode, (proc.stdout[-2000:] or proc.stderr[-2000:])
-    except subprocess.TimeoutExpired as e:
-        timed_out, rc = True, None
-        tail = (e.stdout or b"").decode("utf-8", "replace")[-2000:] if isinstance(e.stdout, bytes) \
-            else (e.stdout or "")[-2000:]
+        for line in proc.stdout:                       # line-buffered; mutmut rewrites one status line
+            buf.append(line)
+            sys.stderr.write(line)
+            sys.stderr.flush()
+            # COUNT DISTINCT MUTANT IDS, not verdict LINES. mutmut re-emits a killed mutant's line
+            # more than once, so line-counting reported 2463 mutants for a module that has 1231 — a
+            # progress figure that is confidently wrong is worse than none, because it is the number a
+            # reader uses to decide whether to keep waiting. The survivor count was right by luck:
+            # those are emitted once.
+            # HEARTBEAT THROUGH THE SILENT PHASE. mutmut generates every mutant before running any,
+            # and on cpap_harvest that phase alone is 5-6 minutes with no verdict to count — which is
+            # exactly the stretch where a caller most wants to know the difference between "working"
+            # and "wedged". It does print a spinner there; counting those gives the phase a pulse.
+            if "Generating mutants" in line:
+                _beat(f"generating mutants  {time.monotonic() - t0:.0f}s elapsed  (no verdicts yet)")
+                continue
+            for mark, key in (("\N{PARTY POPPER}", "killed"), ("\N{DOTTED LINE FACE}", "survived"),
+                              ("\N{ALARM CLOCK}", "timeout"), ("\N{SLIGHTLY FROWNING FACE}", "survived")):
+                if mark in line:
+                    mid = re.search(r"[\w.]+__mutmut_\d+", line)
+                    if not mid or mid.group(0) in seen["ids"]:
+                        break
+                    seen["ids"].add(mid.group(0))
+                    seen[key] += 1
+                    seen["n"] += 1
+                    el = time.monotonic() - t0
+                    rate = seen["n"] / el if el > 0 else 0
+                    _beat(f"{seen['n']} mutants  {el:.0f}s elapsed  {rate:.1f}/s  "
+                          f"killed={seen['killed']} survived={seen['survived']} timeout={seen['timeout']}")
+                    break
+        rc = proc.wait(timeout=max(1, cap - (time.monotonic() - t0)))
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        proc.kill()
+        proc.wait(timeout=30)
+    finally:
+        if proc.stdout:
+            proc.stdout.close()
+    tail = "".join(buf)[-2000:]
     elapsed = time.monotonic() - t0
     res = subprocess.run([str(VENV_PY), "-m", "mutmut", "results"],
                          cwd=work, capture_output=True, text=True, env=env, timeout=300)
@@ -271,6 +348,7 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     out = {**plan, "rc": rc, "elapsed_sec": round(elapsed, 1), "timed_out": timed_out,
            "scratch_id": scratch.name, "mutant_generation": src_hash,
            "results": res.stdout, "tail": tail, "work": str(work)}
+    _beat(f"FINISHED  rc={rc}  {round(elapsed, 1)}s", final=True)
     if plan.get("pruned_scratches"):
         out["WARNING"] = (
             f"pruned {len(plan['pruned_scratches'])} older scratch(es) for this module: "
