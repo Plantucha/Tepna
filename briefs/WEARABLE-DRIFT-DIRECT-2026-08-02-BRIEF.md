@@ -92,7 +92,41 @@ device ms, prints ppm per fragment. Reads the Clock Contract way (explicit regex
 - [x] **The instrument now refuses when there is no second clock (2026-08-03).** See §7.
 - [ ] *(owner)* Correct `papers/wearable-clock-drift.html`'s scope note; it is another session's paper
       and the correction is flagged there rather than applied.
-- [ ] *(open — third source IDENTIFIED, closure leg not yet run)* See §7.3.
+- [x] **RUN 2026-08-04 — and it CANNOT be run on this corpus. The two requirements are met by DISJOINT
+      night sets.** §7.3 identified the third clock (the box host) and left the leg open rather than
+      faking it. Attempting it honestly shows why it stays open, and exactly what would unblock it.
+
+      | requirement | needs | available |
+      |---|---|---|
+      | legs A/B — device↔host | a **box** capture with a genuinely independent host clock | **2026-07-16 →** |
+      | leg C — H10↔Verity, independent of A/B | beat intervals in **device-axis** exports | **≤ 2026-07-13** |
+
+      **No night satisfies both.** The box nights' trio exports carry `rr: 0` / `ppi: 0` — no interval
+      series at all; they predate `INTERVAL-SERIES-EXPORT`. And the interval-bearing nights are phone
+      captures: `dual-clock-rate` on 2026-07-13 reports **`no-second-clock`**, residual spread **1.00 ms
+      = exactly one stamp quantum**, i.e. the "host" column is the device stamp rounded. That is §7 of
+      the Clock Contract confirming itself on this very question.
+
+      **Legs A and B are solid and are recorded here so the check is ready when C exists** — five box
+      nights with both devices:
+
+      | night | H10 vs host | Verity vs host | ⇒ predicted H10↔Verity |
+      |---|---|---|---|
+      | 2026-07-24 | −21.9 | −27.6 | **+5.7** |
+      | 2026-07-25 | −20.0 | −23.9 | **+3.9** |
+      | 2026-07-26 | −19.2 | −30.2 | **+11.0** |
+      | 2026-07-27 | −20.3 | −26.0 | **+5.7** |
+      | 2026-07-28 | −21.6 | −26.7 | **+5.1** |
+
+      Median predicted **+5.7 ppm**, and every crystal lands in the physically sensible −19…−30 ppm band.
+      **This prediction is NOT the closure** — it is precisely the algebra §7.3 forbids passing off as
+      one. It is the number an independent leg C would have to reproduce.
+
+      **The remedy is concrete: regenerate the box nights' trio exports WITH the interval series.**
+      ⚠ And regenerate them **on the device axis**. If they come back host-disciplined, leg C becomes the
+      difference of two host-referenced series — the check that cannot fail. The stale pre-host-axis
+      cohort flagged in `WEARABLE-HOST-AXIS-FOLLOWUPS` §F3-quater is, for this one purpose, the *correct*
+      state: it is what makes leg C independent.
 
 ## 7 · The tool could not tell "the clocks agree" from "there is only one clock" (2026-08-03)
 
