@@ -136,7 +136,36 @@ posture-robustness claim may be made anywhere — code comment, paper, or regist
 test showed applying it makes a clean 15 br/min signal read 15.7). It is one person's offset against
 `60/median(period)`. Re-derive per subject; never promote it to a default.
 
-## 8 · Where the estimator still loses, and the cheapest lever
+## 8 · Where the estimator still loses — the cheapest lever is REFUTED (measured 2026-08-04)
+
+**There is nothing left to notch.** §8 proposed cardiac suppression as "the highest-value untried
+improvement" and supplied its own caveat — *"measure before building"*. Measured, on 12 nights of H10
+accelerometer against the f_HR of the ECG co-recorded on the same strap
+(`tools/resp-cardiac-suppression-e8.mjs`):
+
+| cardiac : respiratory-peak power | before the band-pass | after it |
+|---|---|---|
+| at f_HR | median **−14.6 dB** (IQR −15.7 to −12.7) | median **−52.7 dB** (IQR −56.8 to −50.0) |
+| at 2f_HR | median −18.3 dB | median **−129.1 dB** |
+
+The cardiac component is genuinely there in the raw accelerometer — −14.6 dB below the respiratory
+peak, which is seismocardiography working as advertised. The shipped 0.13–0.5 Hz zero-phase band-pass
+then removes a further **~38 dB** of it, because f_HR for this corpus sits at 0.8–0.9 Hz, comfortably
+*above* the 0.5 Hz corner rather than inside the passband. The worst post-filter ratio on any of the 12
+nights is **−41.3 dB** — cardiac power at 0.007 % of the peak it would have to compete with.
+
+The estimator picks the **largest** peak in 0.13–0.5 Hz. A component 41 dB down cannot move that pick,
+so an adaptive notch has nothing to recover and the MAE 4.98 on event-overlapping epochs is not caused
+by cardiac contamination. **Do not build it.** The caveat was right and the lever is closed; whatever
+drives the event-epoch error is elsewhere, and §8's remaining value is that it now says so with a
+number instead of a plausible mechanism.
+
+*(Method note: f_HR is taken from the ECG's own detector, never from a spectral peak in the
+accelerometer — reading the heart rate off the signal being tested for cardiac contamination would be
+circular. The ratio, not the absolute power, is the endpoint, because what corrupts a peak-pick is
+another comparable peak.)*
+
+## 8-original · Where the estimator still loses, and the cheapest lever
 
 Epochs overlapping a scored event are ~6% of the night but carry MAE 4.98 vs 0.77 on clean epochs.
 The research synthesis proposed **cardiac suppression using the H10's own ECG** — an adaptive notch
