@@ -380,9 +380,32 @@ def predict_step_split(deltas_ms, ring_ms):
     (r = +0.06, 66 sessions), because the inflation depends on the delivery/poll RATIO — roughly constant
     across one daemon — and not on the total.
 
-    It also cannot be CONFIRMED with what is recorded. Settling it needs the poll-ISSUE time beside the
-    arrival time, which the sidecar does not carry. Until then this is a bound, not a predictor: treat
-    the output as an upper bound on the non-unit step counts, good to about a factor of two.
+    CONFIRMED 2026-08-04 by its FREQUENCY SIGNATURE, on 62 sessions / 324,073 intervals (the whole
+    2026-07-25 → 08-04 box corpus, an order of magnitude more than the 66 above). An earlier draft of
+    this paragraph said the explanation "cannot be confirmed with what is recorded" and named the
+    poll-ISSUE column as the only route. That was wrong — the poll-issue column is the DIRECT test, not
+    the only one, and the indirect one needed no new recording at all:
+
+      • replacing the per-interval expectation with a PHASE ACCUMULATOR (carrying fractional phase
+        across polls) makes it WORSE — 1.35x/1.63x against 1.24x/1.45x. So the equidistributed-phase
+        assumption is not what fails, which kills the obvious rival explanation;
+      • running-median smoothing of the host stamps removes the excess MONOTONICALLY and crosses 1.00
+        between raw and width 3 (raw 1.24/1.45 → med-3 0.87/0.76 → med-21 0.64/0.32). An excess that
+        lives at the ADJACENT-SAMPLE scale is delivery jitter; real clock divergence is by construction
+        the low-frequency part and would survive smoothing;
+      • that jitter measures 20.8 ms robust sigma (IQR 13.3-29.7, max 315.8) = 2.1 % of a ring second,
+        and integrated over a session its pressure (5192) is the same order as the ENTIRE observed step
+        count (5617).
+
+    ⚠️ DO NOT PICK A SMOOTHING WIDTH TO MAKE THE RATIO 1.00. Signal and noise share a band here, so
+    every width that flattens the bias also destroys the divergence being measured — med-21 under-reads
+    doubles by 3x. Choosing a width by the ratio it produces is selecting on the outcome, which is the
+    method error this repo has already paid for twice (PAT-VERDICT-CONSOLIDATED §5).
+
+    So: still a BOUND, not a predictor — treat the output as an upper bound on the non-unit step counts,
+    good to about a factor of two — but now a bound whose slack has a measured cause rather than a
+    plausible one. On the larger corpus the level is 1.24x (flat) / 1.45x (double), pooled 1.31x, median
+    per session 1.64x (IQR 1.01-2.18); the 1.85x above sits inside that spread.
 
     Returns {n0, n2, n} — expected counts, not rounded, so a caller can see the fractional part.
     """

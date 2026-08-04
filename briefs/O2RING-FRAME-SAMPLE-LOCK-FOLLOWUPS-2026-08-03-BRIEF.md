@@ -10,11 +10,21 @@
 Residue from building `O2RING-FRAME-SAMPLE-LOCK` §4(a) (executed 2026-08-03, recorded in that brief's
 §7). Each item is a question the execution raised and could not close, with the reason.
 
-## 1 · Confirm §7.2 forward, from `ppg_n` rather than by reconstruction — BLOCKED ON A DEPLOY
+## 1 · Confirm §7.2 forward, from `ppg_n` rather than by reconstruction — UNBLOCKED, NEEDS ONE NIGHT
 
-> **Checked 2026-08-04: not yet possible.** No capture carries the `ppg_n` column — the most recent
-> `OXYFRAME` (2026-08-03 21:22) still has the 10-column header, so the box has not been redeployed since
-> the counter shipped. This item needs a deploy and then one night; it needs no code and no analysis.
+> **Re-checked 2026-08-04, later the same day: the deploy half is DONE, the night half is not.**
+> `/opt/tepna` is at `d6b8fa5` and its `writers.py:431` carries the 12-column header, and the daemon was
+> restarted at **12:22:07 EDT**, so the *running* process now writes `ppg_n` / `ppg_dur_step`.
+>
+> **No file has them yet, and the reason is worth stating precisely rather than as "not yet deployed":**
+> every one of the 220 sidecars on the box predates that restart — the newest is `20260804083004`, four
+> hours before it. The earlier check above read the same absence and attributed it to the box not having
+> the code; the box *had* the code, on disk, unexecuted. **Having the code and running it are two facts,
+> and the sidecar can only ever witness the second.** (Same distinction, one layer down, as the four-day
+> stale-daemon event that `VIGIL-AUTO-UPDATE` exists to prevent — and the reason that updater restarts
+> rather than merely pulling.)
+>
+> So this item now costs exactly **one night worn**, with no deploy, no code and no analysis in front of it.
 
 The per-frame sample counts in §7.2 were recovered **indirectly** — by matching `OXYFRAME` arrival
 stamps against the `PPG` phone-timestamp column, exploiting that each frame's last sample is stamped at
@@ -61,6 +71,61 @@ cannot be from this data: nothing records when the poll was *issued*.
 
 **The cheap fix is capture-side:** one more column, the poll-issue time beside the arrival time, makes
 the model directly testable. Same shape as §1's dependency — a recording change, not an analysis one.
+
+### 2.1a · CONFIRMED 2026-08-04 — and the sentence above it is wrong
+
+> ⚠️ **"It cannot be settled from what is recorded" was false, and false in this repo's signature way:**
+> it reasoned from the one test that would be *direct* (the poll-issue column) and never asked whether an
+> *indirect* one existed. It does, it needed no new recording, and it took one afternoon on data that had
+> been sitting on the box the whole time. The poll-issue column is still the direct test; it was never the
+> only one. **Before writing that something cannot be measured, look for the oblique measurement.**
+
+Re-run over the **whole box corpus** — 220 OXYFRAME sidecars, 2026-07-25 → 08-04, of which **62 sessions
+carry ≥200 usable intervals: 324,073 intervals**, an order of magnitude past §2's 66 sessions. Excluded:
+28 intervals as dropouts (>5 s) or counter resets.
+
+**The over-prediction reproduces**, a little lower than §2's figure and containing it:
+
+| | flat (step 0) | double (step 2+) |
+|---|---|---|
+| observed | 3,659 | 1,958 |
+| predicted | 4,532 | 2,838 |
+| **ratio** | **1.24x** | **1.45x** |
+
+Pooled **1.31x**; median per session **1.64x** (IQR 1.01–2.21). §2's 1.85x sits inside that spread.
+
+**Two measurements identify the cause, neither needing a new column:**
+
+1. **A phase accumulator is WORSE** — carrying fractional phase across polls instead of taking a
+   per-interval expectation gives **1.35x / 1.63x** against the shipped **1.24x / 1.45x**. So the
+   equidistributed-phase assumption is *not* what fails. This was the author's own leading hypothesis
+   (that summing `|eps|` double-counts jitter which cancels), and it is **refuted** — recorded rather
+   than quietly dropped, because a wrong hypothesis that was tested is worth more than a right one that
+   was assumed.
+2. **Smoothing removes the excess monotonically, and crosses 1.00 at width ~2**:
+
+   | host stamps | flat ratio | double ratio |
+   |---|---|---|
+   | raw | 1.24 | 1.45 |
+   | median 3 | 0.87 | 0.76 |
+   | median 9 | 0.69 | 0.43 |
+   | median 21 | 0.64 | 0.32 |
+   | median 81 | 0.60 | 0.26 |
+
+   **An excess that lives at the adjacent-sample scale is delivery jitter.** Real clock divergence is by
+   construction the *low-frequency* part and would survive smoothing; this does not. That is the
+   signature, and it is what the direct test would have confirmed.
+
+**The jitter, measured:** 20.8 ms robust sigma against each session's own 21-median (IQR 13.3–29.7, max
+315.8) — **2.1 % of a ring second** — and integrated over a session its pressure (**5,192**) is the same
+order as the *entire* observed step count (**5,617**). Consistent with `DexClock.hostAxis`'s own finding
+that host stamps carry ~0.1 s of BLE delivery jitter, which is why that function medians rather than fits.
+
+⚠️ **Do not pick a smoothing width to make the ratio 1.00.** Signal and noise share a band here, so every
+width that flattens the bias also destroys the divergence being measured — med-21 under-reads doubles by
+3x. Choosing a width by the ratio it produces is **selecting on the outcome**, the error
+`PAT-VERDICT-CONSOLIDATED` §5 records this repo paying for twice. `predict_step_split` therefore stays a
+**bound** — but a bound whose slack now has a measured cause instead of a plausible one.
 
 ### 2.2 · Gated
 `predict_step_split` ships with the 1.85x bound in its own docstring, so the output cannot be read as
