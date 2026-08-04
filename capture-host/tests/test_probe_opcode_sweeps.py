@@ -460,7 +460,7 @@ def test_oxyii_max_ops_truncates_without_losing_a_neighbourhood():
 def test_oxyii_main_passes_the_plan_controls_through(monkeypatch, capsys):
     seen = {}
 
-    async def fake(address, adapter, lo, hi, dry, limit=None, skip=()):
+    async def fake(address, adapter, lo, hi, dry, limit=None, skip=(), json_path=None):
         seen.update(lo=lo, hi=hi, limit=limit, skip=list(skip))
         return {"ok": True}
     monkeypatch.setattr(oxs, "run", fake)
@@ -628,3 +628,39 @@ def test_oxyii_a_real_effect_survives_the_drift_adjudication(monkeypatch):
     assert res["aborted_at"] == "0x21"
     assert res["opcodes"]["0x21"]["state_changed"]["byte_positions"] == [12, 19]   # 19 = the CRC
     assert "drift_suspected" not in res["opcodes"]["0x21"]
+
+
+def test_oxyii_the_report_exists_before_the_run_ends(monkeypatch, tmp_path):
+    """THE HUMAN IS PART OF THE INSTRUMENT and cannot wait for a clean exit. This ring has actuators — a
+    motor and a display — that NOTHING in the data frame reveals, so the only detector for that class is
+    the person wearing it. Twice on 2026-08-03 a run was killed the instant an actuator fired and took its
+    whole record with it; nine opcodes went unlogged the second time. A report that exists only on a clean
+    exit does not exist during the runs that matter most."""
+    seen = {}
+
+    class _Watching(_Live):
+        async def write_gatt_char(self, _c, data, response=False):
+            if data[1] == 0x21 and "mid" not in seen:     # while the SECOND opcode is in flight
+                seen["mid"] = json.load(open(p))["opcodes"]
+            await _Live.write_gatt_char(self, _c, data, response)
+
+    p = str(tmp_path / "live.json")
+    _patch_ring(monkeypatch, _Watching(responders={0x20, 0x21, 0x22}))
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x22, dry=False, json_path=p))
+    assert "0x20" in seen["mid"], "the first opcode must be on disk before the second is sent"
+    assert len(res["opcodes"]) == 3
+
+
+def test_oxyii_every_opcode_carries_a_wall_clock_stamp(monkeypatch, tmp_path):
+    """So that "it buzzed at 18:00:20" resolves to ONE command instead of an estimate from elapsed time —
+    which is how the culprit stayed unidentified across two runs."""
+    p = str(tmp_path / "s.json")
+    _patch_ring(monkeypatch, _Live(responders={0x20}))
+    res = _run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False, json_path=p))
+    for k, v in res["opcodes"].items():
+        assert len(v["at"]) == 12 and v["at"][2] == ":", f"{k} has no usable stamp: {v.get('at')}"
+
+
+def test_oxyii_no_json_path_still_runs(monkeypatch):
+    _patch_ring(monkeypatch, _Live(responders={0x20}))
+    assert len(_run(oxs.run("AA:BB", None, 0x20, 0x21, dry=False))["opcodes"]) == 2
