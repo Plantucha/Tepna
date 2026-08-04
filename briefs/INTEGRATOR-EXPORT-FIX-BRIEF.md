@@ -23,13 +23,15 @@
 > |---|---|
 > | 1 · blank-on-print | ✅ **RESOLVED** by `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` (DONE 2026-08-03). **This brief's premise is inverted:** it says only the Integrator was patched and "the other six apps still blank out". Measured today, `entrance-guard.js` ships in **all 8 nodes** (Oxy·HRV·Pulse·Gluco·ECG·CPAP·Ppg·Motion — src *and* bundle) and **not** in the Integrator, which keeps its own scoped injected CSS (`integrator-render.js:28–37`). Both paths pin the same visible end-state; `ans-design.css` is deliberately untouched. |
 > | 2 · badge coverage of the other six apps | ✅ **DONE** — `BADGE-COVERAGE-AUDIT-BRIEF.md`, DONE **2026-06-23**. |
-> | 3 · 3 duplicate `<nav class="mobile-nav">` | ⏳ **Still real** — confirmed 3 actual `<nav>` elements in `Integrator.src.html` (2 bare + 1 `id="mobileNav"`; counted as elements, not string hits — the raw string appears 22×, mostly CSS). **But its costing is stale:** it is priced in `buildHash`, retired by Phase 7. Re-cost against `manifestHash` + the content-addressed fixture rules before deciding. Owner-decision. |
+> | 3 · 3 duplicate `<nav class="mobile-nav">` | ✅ **EXECUTED 2026-08-04** in `015dc82` (#824) — **exactly 1** `<nav class="mobile-nav">` remains, down from 3. *(This sweep first recorded it as still-open-with-a-stale-costing; a concurrent session landed the fix mid-sweep. Corrected rather than left standing.)* The diagnosis was right and was the unblock: the cost was priced in `buildHash`, retired by Phase 7, and the 2 fusion fixtures (not 3) are `historical: true` — byte-pinned, no `manifestHash`, no `inputHashes` — so markup could never have flipped them. |
 > | 4 · `FINDING_EVIDENCE` tiers author-assigned | ⚠️ **Premise now largely FALSE — it moved on 2026-08-04.** "not test-backed" no longer holds: `tests/dex-tests.js:6466–6504` parses `FINDING_EVIDENCE` out of the renderer and asserts **every emitted finding type carries a grade**, with an explicit non-vacuity check (`:6495`) — so the unbadged-card failure this item worried about is now gated. Tiers are also no longer author-assigned in the sense meant: `staging_disagreement` documents its tier as **INHERITED** from `ECG_REGISTRY` per `CLAUDE.md` §🎫 (a disagreement between two `heuristic` estimators cannot outrank its inputs). **What genuinely remains:** owner ratification of the other five grades, and confirming each traces to an owning node registry the way `staging_disagreement` now does. Owner-decision — tier assignment is not a sweep's call. |
 > | 5 · provenance fingerprints the template not executed JS | ❌ **OBSOLETE** — closed by Phase 7. `manifestHash` is the sole executed-code identity and `buildHash` is retired inert metadata (`CLAUDE.md` §🔏). The "second code-hash column (looks half-started)" it describes was that work landing. |
 >
-> **Residue (recorded here per `CLAUDE.md` §📌, not spawned):** secondary items **3 and 4** remain open
-> owner-decisions and are already owned by `AUDIT-FOLLOWUPS-BRIEF.md` §4 — which this brief itself routes
-> them to. No follow-up file is created: one would duplicate that live §4 rather than add anything.
+> **Residue (recorded here per `CLAUDE.md` §📌, not spawned):** only secondary item **4** remains — owner
+> ratification of the fusion-finding grades — and it is already owned by `AUDIT-FOLLOWUPS-BRIEF.md` §4.4,
+> which this brief itself routes to. No follow-up file is created: one would duplicate that live §4 rather
+> than add anything. (Item 3 was still open when this stamp was written and was executed the same day by
+> `015dc82`; the row above is corrected.)
 
 # Build Brief — Integrator fusion-export completeness + ordering (and session follow-ups)
 
