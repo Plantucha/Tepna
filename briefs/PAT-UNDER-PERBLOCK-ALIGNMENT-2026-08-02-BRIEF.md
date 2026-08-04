@@ -305,3 +305,55 @@ BLE delivery latency) plainly exists.
 3. Until (1) lands, **no coupling verdict from §2, §3a or §3c is quotable** — nor
    `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` §5.4's, whose zero-offset run now looks like the *right*
    model for a box capture rather than a compromise forced by the ring having no ACC.
+
+## 3e · §3d.4 step 1, answered: the ACC anchors cannot supply an offset at PAT precision
+
+§3d blamed the ACC correction's *wander* and asked for the per-pair offset to be measured directly.
+Measured — and the framing in §3d was too generous. **There is no stable offset for the interpolation
+to wander around.** Over the **18 pairs** that produce anchors at all `[CORPUS]`:
+
+| | measured | PAT's requirement | ratio |
+|---|---|---|---|
+| **offsetRange** (max − min of the anchor offsets **within one pair**) | **1171 – 3094 ms** | stage-two tolerance ±90 ms | **13 – 34×** |
+| | | whole acceptance window 450 ms | **2.6 – 6.9×** |
+| | | `pat-gate.js` `residIQR` bar 60 ms | **19 – 51×** |
+| median anchor offset, across pairs | −91 … +1400 ms | — | — |
+
+The anchors inside a single fragment disagree with **each other** by one to three *seconds* about a
+quantity that must be known to tens of milliseconds. `offsetRangeMs` is exactly `max − min` of those
+offsets (`pat-align.js`), so this is not a derived or modelled figure.
+
+### 3e.1 · Which is why no offset model wins
+Three models over the **same** anchors — piecewise-linear `interp` (what ships), a single `const` =
+median of the same anchors, and `zero` (the a-priori box-capture model):
+
+```
+mean legacy matchRate     interp 37 %      const 35 %      zero 42 %
+head-to-head              const > interp  9/18      zero > interp  8/18      zero > const  8/18
+```
+
+Three coin-flips. That is the signature of all three being **noise around the same mid-range**, not of
+one model being better — and it is what §3d's "no consistent winner" looked like before the anchor
+spread explained it.
+
+### 3e.2 · What survives
+- **The 94–100 % pairs of §3d.1 remain the only direct evidence of real R→foot coupling in this
+  corpus** — and they are evidence *because* they applied **no estimated offset at all**, not because
+  zero is the right model (§3d.3 already said it is not a default; §3e.1 confirms it wins only 8/18).
+- **§3a's negative is confirmed uninterpretable**, now with a number: its alignment carries 1.2–3.1 s
+  of internal inconsistency against a 450 ms window.
+- **Nothing here indicts `PATAlign.alignByAnchors` outside this use.** Anchoring two accelerometers on
+  shared movement is sound for coarse work; it is being asked here for ~30× more precision than it
+  delivers on this corpus.
+
+### 3e.3 · The remaining route, and why it is different in kind
+Stop *estimating* the inter-device offset and *read* it. On a **box** capture both streams are stamped
+by the **same** daemon, so what separates them is each device's own BLE delivery latency — and each
+device carries the pair needed to measure it: `sensor timestamp [ns]` (its counter) against
+`Phone timestamp` (that one host clock). `DexClock.hostAxis` §7 already formalises exactly this shape
+and publishes `independent` / `spreadMs` to say whether the second clock is real. The difference
+between the two devices' host-axis mappings **is** the offset, measured rather than inferred from
+motion.
+
+Until that exists, **no PAT coupling verdict from this brief's harness family is quotable** — §2, §3a,
+§3c, §3d and `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` §5.4 alike.
