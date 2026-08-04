@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-08-04 · **Answers:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` §4.2 / Done-when 2 · **Follows:** `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §3c–§3j, `O2RING-RAW-STREAMS-ABSENT-2026-08-04-BRIEF.md`
+**Status:** IN-PROGRESS (§2 withdrawal REVERSED at §2a, 2026-08-04) · **Created:** 2026-08-04 · **Answers:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` §4.2 / Done-when 2 · **Follows:** `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §3c–§3j, `O2RING-RAW-STREAMS-ABSENT-2026-08-04-BRIEF.md`
 
 # The proximal→distal pair exists — finger↔ankle — and its coupling tracks the ring's TIMEBASE PROVENANCE, not anatomy
 
@@ -77,6 +77,44 @@ axis, and on the ring it lands every 126 samples with a median +11 ms correction
 past the ±40 ms acceptance — meaning **the correction that makes wall-clock right destroys beat-level
 timing**. That would be a capture-path finding, not an analysis one.
 
+## 2a · The withdrawal in §2 is REVERSED — the axis A/B refutes the artifact
+
+Done-when 1 ran. Same nights, same pairs, same surrogates; only the time axis changes. `host` =
+`parsePPG`'s `relSec` (device ns, host-disciplined through `hostAxis`). `grid` = forced `index / fs`,
+the drawn uniform axis §2 feared was manufacturing the agreement.
+
+| night | host lag | host ratio | grid lag | grid ratio | carries it |
+|---|---|---|---|---|---|
+| 07-19 | +53 | **10.82** | +27 | 0.98 | HOST |
+| 07-20 | +23 | **9.40** | −77 | 1.22 | HOST |
+| 07-21 | +35 | **7.11** | +101 | 1.33 | HOST |
+| 07-22 | +81 | **9.10** | +25 | 5.39 | both |
+| 07-24 | +72 | **10.08** | +36 | 1.28 | HOST |
+| 07-25 | +43 | **7.16** | −101 | 2.67 | HOST |
+| 07-27 | +73 | **9.13** | +12 | 0.94 | HOST |
+| 07-28 | +77 | **8.96** | −17 | 0.73 | HOST |
+| 08-02 | −57 | **11.47** | −41 | 1.32 | HOST ⚠ sign |
+| 07-18 07-26 07-29 07-30 08-01 08-03 | — | 0.11–0.69 | — | 0.89–2.02 | neither |
+
+**Median best-pair ratio: host 7.16, grid 1.14 — a 6.3× collapse when the axis is forced to the grid.
+And NOT ONE night couples on the grid while failing on the host axis.** If uniform spacing were
+producing the agreement, the grid would win somewhere. It wins nowhere.
+
+So §2's artifact hypothesis is **refuted**, and its withdrawal of §1 is **reversed**: the coupling is
+carried by the host-disciplined axis, which is the only reading consistent with a physiological signal.
+The corollary matters for the capture path — **host re-anchoring RECOVERS beat-level timing rather than
+smearing it**, contradicting §2's second reading (that the +11 ms per-frame correction destroys it).
+
+**What §2 got right, and what it now needs.** The provenance correlation is real and still unexplained:
+the coupling nights are the ones whose ring axis reads `quantizedShare` ≈ 1. Since forcing that same
+uniform grid *destroys* coupling, `quantizedShare` cannot be the cause — it is most likely a **marker of
+a healthy device stream**, where good `hostAxis` anchors yield both a clean axis and clean beats. Common
+cause, not mechanism. That is a hypothesis, not a measurement, and it is not load-bearing for §2a.
+
+**One anomaly, recorded rather than smoothed:** `08-02` couples hardest of all (11.47) with a **−57 ms**
+lag — the ankle pulse arriving *before* the finger's, which is anatomically impossible. 8 of 9 coupling
+nights carry the correct positive sign at +23…+81 ms; this one does not, and it is not explained.
+
 ## 3 · Corrections to my own reporting, per `PAT-VERDICT-CONSOLIDATED` §5
 
 - **`residIQR` 20–43 ms was quoted against the 60 ms bar. Withdrawn.** §5 states it is an IQR over only
@@ -92,9 +130,9 @@ timing**. That would be a capture-path finding, not an analysis one.
 
 ## 4 · Done when
 
-- [ ] **Score the same nights on the raw device grid AND the host-disciplined axis.** Coupling only on
-      the grid ⇒ artifact of regularity, and §1 dies. Coupling on both with more scatter on the
-      disciplined axis ⇒ the re-anchor jitter is the term, and that is actionable in the capture path.
+- [x] **Score the same nights on the raw device grid AND the host-disciplined axis — DONE 2026-08-04
+      (§2a).** Neither branch of the prediction held: coupling appears on the HOST axis and collapses on
+      the grid (median 7.16 → 1.14, no night grid-only). Artifact refuted, §1 restored.
 - [ ] **Report the full per-pair distribution**, not the maximum (§5, enumeration).
 - [ ] **Scatter measured offset-free**, so it is comparable with the family's ~84–99 ms — the accepted-set
       `residIQR` cannot serve.
