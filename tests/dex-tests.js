@@ -28514,6 +28514,63 @@
       T.ok('no correction history in a reader-facing registry string', metaHits.length === 0, metaHits.length ? metaHits.slice(0, 6).join(' · ') : nStr + ' strings clean');
     });
 
+    /* REFERENCE-GUIDE-AUDIT dimension 2 / DEX-CITATION-FORMULA-AUDIT — `sampEn`'s `r` means TWO
+       DIFFERENT THINGS across the fleet, and the guides state only one of them.
+       Every reference guide writes the tolerance the literature way: "SampEn(m=2, r=0.2)", meaning
+       r = 0.2·SD (Richman–Moorman). Each node computes exactly that today — the VALUES are right. What
+       differs is the ARGUMENT:
+         ECGDex   `sampEn(a, m, r)` — r is the ABSOLUTE tolerance; the caller passes `0.2 * std(seg)`.
+         PulseDex `sampEn(a, m, r)` — same, absolute.
+         PpgDex   `sampEn(nn, m, r)` — r is a MULTIPLIER; internally `tol = (r || 0.2) * sd`.
+         OxyDex   inline, computes `r = 0.2 * stdv` itself.
+       Same name, same arity, opposite meaning — in sibling files that are routinely copied between.
+       PpgDex's own comment even says its cap "matches PulseDex", which is true of the decimation and
+       false of `r`.
+       Measured on one 400-interval series (SD 91.4 ms):
+         ECGDSP.sampEn(x, 2, 0.2*SD) = 0.514      PPGDSP.sampEn(x, 2, 0.2)    = 0.52   ← same quantity
+         ECGDSP.sampEn(x, 2, 0.2)    = null       PPGDSP.sampEn(x, 2, 0.2*SD) = 0.01
+       THE ASYMMETRY IS THE POINT. Mis-calling ECGDex returns null — visible. Mis-calling PpgDex returns
+       **0.01**, which is not an error, it is a plausible number that reads as pathological regularity
+       ("Low (regular)" on OxyDex's own scale). A 50x error that renders as a finding.
+       Not unified here: changing either signature moves a DSP, re-bundles, and re-records fixtures for
+       a defect with no live instance. Pinned instead, so a future harmonisation is deliberate and a
+       cross-node copy-paste reds. */
+    group('sampEn: r means MULTIPLIER in PpgDex and ABSOLUTE in ECGDex — pinned, not unified', 'dsp · sampen · cross-node-convention', function (T) {
+      var E = env.ECGDSP,
+        G = env.PPGDSP || env.PpgDSP;
+      if (!E || typeof E.sampEn !== 'function' || !G || typeof G.sampEn !== 'function') {
+        T.skip('ECGDSP.sampEn + PPGDSP.sampEn available', 'wire both DSPs into this lane');
+        return;
+      }
+      // A deterministic, realistic NN series — no RNG, so the numbers below are reproducible.
+      var x = [],
+        v = 1000;
+      for (var i = 0; i < 400; i++) {
+        v += Math.sin(i / 7) * 18 + (((i * 2654435761) % 97) - 48) * 0.35;
+        x.push(v > 600 ? v : 1000);
+      }
+      var mu = x.reduce(function (a, b) {
+          return a + b;
+        }, 0) / x.length,
+        sd = Math.sqrt(
+          x.reduce(function (a, b) {
+            return a + (b - mu) * (b - mu);
+          }, 0) / x.length
+        );
+      T.ok('ANTI-VACUITY · the series is non-degenerate', x.length === 400 && sd > 50 && sd < 200, 'SD=' + sd.toFixed(1) + ' ms');
+
+      var ecgRight = E.sampEn(x, 2, 0.2 * sd);
+      var ppgRight = G.sampEn(x, 2, 0.2);
+      T.ok('called each by ITS OWN convention, both return a real entropy', typeof ecgRight === 'number' && typeof ppgRight === 'number', 'ecg=' + ecgRight + ' ppg=' + ppgRight);
+      T.ok('…and they agree — the two conventions compute the SAME quantity (r = 0.2·SD)', Math.abs(ecgRight - ppgRight) < 0.02, 'ecg=' + ecgRight + ' vs ppg=' + ppgRight);
+
+      /* The trap, asserted in both directions so neither can quietly change. */
+      var ppgWrong = G.sampEn(x, 2, 0.2 * sd);
+      T.ok('PpgDex given an ABSOLUTE r returns a WRONG number, not an error', typeof ppgWrong === 'number' && ppgWrong < 0.1, 'got ' + ppgWrong + ' vs the correct ' + ppgRight);
+      T.ok('…and it is ~50x low — plausible, and it reads as pathological regularity', ppgRight / Math.max(ppgWrong, 1e-9) > 20, 'ratio ' + (ppgRight / Math.max(ppgWrong, 1e-9)).toFixed(0) + 'x');
+      T.eq('ECGDex given a MULTIPLIER r refuses instead — the visible direction', E.sampEn(x, 2, 0.2), null);
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
        HRV off a night full of movement is worth less than the same number off a still night. This SCORES
        that (it never alters or excludes an HRV value). The invariant that matters is the same tri-state
