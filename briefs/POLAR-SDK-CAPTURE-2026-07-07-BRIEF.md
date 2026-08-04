@@ -4,7 +4,48 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-07
+**Status:** DONE — 2026-08-04 · **Created:** 2026-07-07
+
+> ## Decided: **Track A**, and it is built. Closed on this brief's own terms.
+>
+> §6 says this flips DONE *"when a human picks Track A / B1 / both (or neither) and any accepted work
+> opens its own dated build brief."* Track A was not merely picked — it was **executed**, which is the
+> stronger signal, and the follow-on work opened dated briefs as required.
+>
+> **Track A shipped, exactly as §3 framed it (the SDK as a *reference spec*, not a dependency).**
+> `polar_pmd.py` decodes the PMD wire format against the specification Polar publishes with its SDK, and
+> the provenance is explicit in the source — `:123` quotes the SDK's own Kotlin
+> (`asBitField(): UByte = (this.numVal.toUInt() shl 7)` → `OFFLINE => 0x80`). Nothing links to, vendors
+> or redistributes the SDK; `THIRD-PARTY.md` § Device protocols records the position.
+>
+> **The open question that gated everything is ANSWERED — and the answer is the good one.** §6 asked:
+> *"Is offline-recording control reachable over `bleak`/PMD, or only via the SDK? (Decides whether the
+> automated-fetch backstop is a Track-A win or a Track-B-only feature.)"* It is reachable over
+> `bleak`/PMD: `polar_pmd.py:116` opens an **OFFLINE RECORDING** section, `OFFLINE_BIT = 0x80` at `:130`,
+> and the fetch path ships as `polar_psftp.py` + `polar_mirror.py`. **A Track-A win.** Track B was never
+> needed to unlock it.
+>
+> **The brief's own reopen-condition was met and passed.** `polar_pmd.py`'s header named the missing
+> compressed-frame decoder *"the one open gap, and the only thing that would reopen the SDK question"*.
+> That decoder exists (`_decode_delta` / `_decode_delta_ex`), dispatches on the PMD high bit, and is
+> pinned by known-answer tests in `tests/test_polar_pmd.py` — landed in `487407bf`, hardened in
+> `01b99a3c` (a truncated frame is a **gap**, never a guessed sample). So the SDK question does not
+> reopen. ⚠️ That header was still asserting the opposite on 2026-08-04 and has been corrected in place:
+> stale prose claiming a shipped decoder does not exist is precisely how a settled decision gets
+> relitigated.
+>
+> **§2's constraint held and was never fought.** The SDK is Android/iOS-only with no Linux/Python build,
+> so the box daemon stayed `bleak` + a hand-written decoder. That was the right call, and it is now
+> hardware-proven: measured rates match the negotiated ones (ECG 129.94 Hz vs 130, Verity PPG 55.11 vs
+> 55) with the largest inter-sample gap on every stream equal to exactly one sample period.
+>
+> **Track B routed to dated briefs, as §6 requires** — `SPORT-CAPTURE-ANDROID-2026-07-18` (the B1 native
+> companion), `POLAR-OFFLINE-DOWNLOAD-2026-07-17` and `POLAR-ONBOARD-BACKUP-2026-08-01` (the
+> onboard-recording backstop). Each carries its own status; none is blocked on this decision doc.
+>
+> **No follow-up brief spawned** (`CLAUDE.md` §📌): every §6 open question is either answered above or
+> already owned by one of those three dated briefs, so a `POLAR-SDK-CAPTURE-FOLLOWUPS-*` file would only
+> duplicate them.
 
 # Polar BLE SDK as a capture foundation — hardening the daemon and the "capture companion" app option
 
