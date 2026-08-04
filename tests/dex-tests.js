@@ -28766,6 +28766,30 @@
         /hr:\s*\+\(60000\s*\/\s*m\)/.test(ec) !== /_median\(/.test(ec),
         'if ECGDex ever adopts a median too this leg should be revisited, not deleted'
       );
+
+      /* ── AND A SECOND MISMATCH IN THE SAME THREE CORNERS: PRECISION ────────────────────────────
+         Measured over the folded corpus, share of epoch `hr` values that are integer-valued:
+             ECGDex 10.0 %   ·   PpgDex 100.0 %   ·   OxyDex 99.0 %
+         PpgDex rounds (`hr: Math.round(hr)`); ECGDex keeps a decimal (`+(60000 / m).toFixed(1)`);
+         OxyDex inherits integers from the device's `Pulse Rate` column, so its median is one too.
+         A uniform ±0.5 rounding carries SD 1/√12 = 0.289 bpm — on TWO of the three legs of a hat that
+         resolves σ ≈ 1.5–2.6. It is the same order as the 0.489 estimator gap and pushes the same way:
+         both inflate the very quantity the hat is trying to measure.
+         Pinned as a SOURCE fact, not a corpus number, so it holds on a fresh clone. Not "fixed" here —
+         un-rounding PpgDex moves every one of its epochs and re-records its fixtures, and this brief
+         has not established that 1 decimal is the right target rather than 2 or 0 across the fleet. */
+      var Pp = env.sources && env.sources['ppgdex-dsp.js'];
+      T.ok('ANTI-VACUITY · ppgdex-dsp.js source is loaded', typeof Pp === 'string' && Pp.length > 5000, 'len=' + (Pp ? Pp.length : 'absent'));
+      if (typeof Pp === 'string') {
+        var pc = strip(Pp);
+        T.ok('PpgDex ROUNDS its epoch hr to an integer', /hr:\s*Math\.round\(hr\)/.test(pc), 'expected `hr: Math.round(hr)` in the time-domain return');
+        T.ok('…while ECGDex keeps a decimal — the two legs are quantised differently', /\+\(60000\s*\/\s*m\)\.toFixed\(1\)/.test(ec), 'expected `+(60000 / m).toFixed(1)`');
+        T.ok(
+          'PpgDex uses the SAME statistic as ECGDex (rate-of-mean) — so precision is the only axis it differs on',
+          /const hr = 60000 \/ meanRR;/.test(pc),
+          'if PpgDex switches statistic too, the confound gains a third variant'
+        );
+      }
     });
 
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
