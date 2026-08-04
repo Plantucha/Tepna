@@ -309,11 +309,80 @@ Ordered by gain ÷ cost. **★ = do first.** Sites are `ppgdex-dsp.js` unless st
 
 ## 6 · Open experiments
 
-- **E-1** — does foot-domain consensus (feet on all three channels, de-offset, ±40 ms) recover the 1-of-3
-  drop rate without admitting false beats? PPV@75 ms must not fall. Blocking for any consensus rework.
+- **E-1 — ANSWERED 2026-08-03: NO** (§6.1). Foot-domain consensus does not recover the 1-of-3 drop
+  rate — it roughly quintuples it — for no PPV gain. Apparatus: `tools/ppg-foot-consensus-e1.mjs`.
+  The run's *incidental* finding (§6.2) is the one worth acting on.
 - **E-2** — does autogain step repair (#9) move jitter at all? One measurement says no.
 - **E-3** — re-score waveform fusion on **PPI jitter with the shipped detector** (§3.1 residual).
 - **E-4** — occlusion ramp to zero perfusion, to resolve the OFFDAC question (§1.6).
+
+### 6.1 · E-1 is answered, and the answer is no
+
+Scored on **18 Verity nights** against paired H10 chest ECG, shipped peak vote vs foot-domain vote,
+identical chaining/refractory discipline so the two differ only in the domain they vote in:
+
+| | peak vote (shipped) | foot vote (E-1) | Δ median |
+|---|---|---|---|
+| 1-of-3 drop rate | median 3.05 % (IQR 0.39–8.32) | median 16.10 % (IQR 1.16–28.82) | **+13.04 pp** |
+| PPV @75 ms | median 95.76 % | median 95.76 % | +0.00 pp |
+| recall of R-peaks | median 94.76 % | median 94.45 % | −0.31 pp |
+| PPI-jitter sd | median 21.17 ms | median 21.47 ms | +0.29 ms |
+
+E-1's premise was that the foot, being amplitude-invariant, should agree across channels *better* than
+the peak. **It agrees worse.** The foot is a derived landmark (a tangent intersection reconstructed
+from a minimum and a max-slope point), so its per-channel localisation noise is larger than the
+peak's, and voting on it discards more beats rather than fewer. PPV is unmoved and jitter is
+marginally worse, so there is no residual case for it either — E-1 is closed, and "blocking for any
+consensus rework" is discharged.
+
+Two qualifications, both against my own numbers. (a) The drop-rate columns count **clusters** in each
+variant's own domain and are not a like-for-like ratio; the PPV/recall/jitter legs are the ones that
+carry the verdict, and they are a wash. (b) On the *worst* nights (PPV 60–89 %) the foot vote was
+consistently slightly better (e.g. 76.5 → 78.4 % PPV, 37.1 → 35.7 ms jitter). That is a real but small
+effect confined to already-unusable nights, and it does not survive to the median.
+
+**The de-offset step measured ~0 on every night** (per-channel median foot offsets 0.0–0.9 samples).
+The premise that three wavelengths place the foot at measurably different instants is not borne out,
+so that half of E-1 is inert — which matters for §6.2.
+
+**E-1 does not apply to the O2Ring finger, and that is now measured rather than assumed:** all 6
+finger nights collapse to **1 distinct channel** (`distinctChannelIdx` folds the replicated stream),
+so `consensusBeats` takes its honest `nCh < 2` path and there is no vote to improve.
+
+### 6.2 · What the run actually found — a channel that never joins the vote
+
+**On 3 of 18 Verity nights one LED's peaks sit a fixed ~236 ms (13 samples) from the other two.** The
+vote window is ±50 ms, so that channel joins **no** cluster: `kept3/3 = 0` for the entire night, every
+surviving beat is 2-of-3, and the 3-LED vote silently runs as a 2-LED vote.
+
+```
+Polar_VeritySense_0C301E3F_20260720210   sign -1/-1/1   peak offset vs ch0 (ms) 0.0/0.0/-235.8   kept3/3=0
+Polar_VeritySense_AC0C301E_20260725235   sign -1/1/-1   peak offset vs ch0 (ms) 0.0/-235.8/0.0   kept3/3=0
+Polar_VeritySense_0C301E3F_20260721205   sign -1/1/-1   peak offset vs ch0 (ms) 0.0/-235.8/0.0   kept3/3=0
+```
+
+The displaced channel is in every case the one whose `detectChannel` **`sign`** was inferred opposite
+to the other two — its "systolic peaks" land on the opposite phase of the pulse. A 4th night has
+divergent signs with peaks still aligned (`kept3/3 = 7`), so **an inverted sign is correlated with,
+but not sufficient for, the failure**; the operative condition is the displacement, which is what the
+tool now flags.
+
+**Severity — this is not a wrong number, it is a silent loss of redundancy.** Those nights still read
+PPV 100 % and jitter 4.6–8.4 ms, because the two agreeing channels carry the record. What is lost is
+the thing the vote exists for: there is no third opinion left, so a subsequent failure in either
+survivor has nothing to outvote it. It also makes two shipped statistics misleading on those nights —
+the drop rate reads ~51 % for what is a phase offset rather than a detection failure, and the
+agreement ribbon reports 2/3 for every beat of a healthy 3-LED capture.
+
+**The fix E-1 proposed was right; it was proposed in the wrong domain.** Measured foot offsets are
+~0, so de-offsetting feet buys nothing — but a **peak**-domain de-offset (or a consensus-wide polarity
+decision instead of the current per-channel one) addresses exactly this. That is a `ppgdex-dsp.js`
+compute-path change with fixture consequences, so it is recorded here as the next experiment rather
+than smuggled into a measurement PR:
+
+- **E-5** — does a consensus-wide polarity decision (or a peak-domain de-offset) restore `kept3/3` on
+  the 3 affected nights **without** moving any other night's export? Scored with the same tool. Note
+  16.7 % of Verity nights are affected, so this is not a corner case.
 
 ## 7 · References
 
