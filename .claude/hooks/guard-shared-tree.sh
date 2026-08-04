@@ -40,18 +40,9 @@ cmd="$(jq -r '.tool_input.command // empty' 2>/dev/null)" || exit 0
 # `grep "git add -A" CONTRIBUTING.md` was denied while trying to READ the rule it documents. A guard
 # that blocks reading its own documentation is a guard someone turns off, so the pattern is matched
 # against the command with quoted strings blanked out: a real invocation is unquoted and still caught.
-cmd_noquotes="$(sed "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g" <<<"$cmd")"
+# NOTE: no quote-stripping. A stripped match cannot see `bash -c "git add -A"`, and that bypass is
+# worse than the false positive on `grep "git add -A" docs`. Rules match the RAW command, always.
 
-# A rule must match the RAW command: matching the quote-stripped form misses `bash -c "git add -A"`.
-# But the raw form fires on a command that merely MENTIONS the forbidden one — `grep "git add -A"
-# CONTRIBUTING.md` was denied while trying to READ the rule it documents, and a guard that blocks
-# reading its own docs gets switched off. So: deny on the raw match, and exempt ONLY when the text is
-# inert — it survives only inside quotes AND the leading token cannot execute a string.
-inert() {   # $1 = regex
-  ! grep -qE "$1" <<<"$cmd_noquotes" \
-    && grep -qE '^[[:space:]]*(grep|rg|ag|sed|awk|cat|head|tail|less|find|ls|echo|printf|jq|wc|diff)[[:space:]]' <<<"$cmd" \
-    && ! grep -qE '(bash|sh|zsh|env)[[:space:]]+[^;&|]*-c[[:space:]]|[^[:alnum:]_](eval|xargs)[[:space:]]' <<<"$cmd"
-}
 
 deny() {
   jq -nc --arg r "$1" \
@@ -77,7 +68,7 @@ deny() {
 #
 # The check that hid it: `git rev-list --count HEAD..origin/main` returned 0. The ref WAS synced.
 _RE2='(^|[^[:alnum:]_./-])[[:space:]]*git[[:space:]]+(-C[[:space:]]+[^[:space:]]+[[:space:]]+)?update-ref([[:space:]]+--stdin|[[:space:]]+(-d[[:space:]]+)?refs/heads/)'
-if grep -qE "$_RE2" <<<"$cmd" && ! inert "$_RE2"; then
+if grep -qE "$_RE2" <<<"$cmd"; then
   deny "BLOCKED: 'git update-ref refs/heads/...' in a shared checkout.
 
 THE REF IS NOT THE TREE. update-ref is plumbing — it moves the ref and touches neither the working tree nor the index, and it is the ONLY form that skips git's checked-out-branch check. Every porcelain equivalent already refuses by name:
@@ -96,7 +87,7 @@ fi
 
 # `git add -A` / `--all` / `.` / `:/`  — blanket staging
 _RE='(^|[^[:alnum:]_./-])[[:space:]]*git[[:space:]]+add[[:space:]]+([^;&|]*[[:space:]])?(-A\b|--all\b|\.([[:space:]]|$)|:/)'
-if grep -qE "$_RE" <<<"$cmd" && ! inert "$_RE"; then
+if grep -qE "$_RE" <<<"$cmd"; then
   deny "BLOCKED: blanket staging in a SHARED checkout (CONTRIBUTING §6).
 
 Several agent sessions work this repo at once, so the working tree is not yours alone — a blanket add sweeps their in-flight files into your commit, under your message. That is exactly how cabd7f7 ended up carrying an unrelated brief.
@@ -113,7 +104,7 @@ fi
 # Test against a QUOTE-STRIPPED copy: a commit MESSAGE may legitimately contain "-a"
 # (e.g. git commit -m 'fix -a flag parsing') and must not be mistaken for the flag.
 # Only this rule strips quotes — `git add "."` must still be caught by the rule above.
-if grep -qE '(^|[^[:alnum:]_./-])[[:space:]]*git[[:space:]]+commit\b[^;&|]*([[:space:]]-[a-zA-Z]*a[a-zA-Z]*\b|[[:space:]]--all\b)' <<<"$cmd_noquotes"; then
+if grep -qE '(^|[^[:alnum:]_./-])[[:space:]]*git[[:space:]]+commit\b[^;&|]*([[:space:]]-[a-zA-Z]*a[a-zA-Z]*\b|[[:space:]]--all\b)' <<<"$cmd"; then
   deny "BLOCKED: 'git commit -a' stages every tracked modification in a SHARED checkout (CONTRIBUTING §6) — including other sessions' in-flight edits.
 
 Instead: 'git add <explicit paths>' then a bare 'git commit'."
