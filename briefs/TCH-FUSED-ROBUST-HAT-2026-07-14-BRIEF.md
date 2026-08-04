@@ -92,6 +92,33 @@ Every threshold is the **record's own median** (self-calibrating) or a **univers
 ## Done when
 - [x] `beatConfidence` in ECGDSP + PPGDSP, unit-tested (burst → c≈0 in-window, clean/AF → c≈1) — **done 2026-07-14**; ECG confirmed on the REAL 06-12 night (density z 13–22 **and** SQI-depression z 8–10 both fire → c 0.00–0.51; benign sleep-onset high-density windows keep SQI high → c=1). **Permanent suite coverage added 2026-07-15** (was scratchpad-only): `ECGDSP.beatConfidence` known-answer group in `tests/dex-tests.js` — short<20→trust-all, clean→c≈1, 2× density **+ depressed SQI**→c≈0, and the AF contrast (2× density, **clean QRS ⇒ SQI ≥ baseline**→c≈1).
 - [~] worker carries `cH`/`cV`; `tchSigmasFused` wired into both sigma tools + the power real-overlay. — **worker + `sigma-no-reference` DONE** (merged PR #114). **`tchSigmasFused` single-sourced into `analysis-stats.js` 2026-07-15** (the brief's "add it in the shared kernel"): the sigma page now DELEGATES (like `tchSigmas`), the worker keeps its Worker-local mirror, and a delegation-parity leg guards against a divergent copy. **STILL OPEN:** the **power tool's REAL overlay** (`sensor-trio-power-analysis.js` `loadReal`) still uses classic `tchSigmas` — its `derivedMap` reads 2-col `ms;hr` with no per-second confidence, so routing it through the fused hat needs a confidence-carrying (`ms;hr;c`) corpus re-derivation. Entangled with the N15-power work → **routed to `TRIO-ARTIFACT-GATE-AND-N15-POWER` / `TRIO-POWER-N15-FINDINGS`**.
+
+  > **⚠️ RE-ROUTED 2026-08-04 — the routing above was a dead end, and the item sat orphaned for 16 days.**
+  > This item was handed to `TRIO-ARTIFACT-GATE-AND-N15-POWER` / `TRIO-POWER-N15-FINDINGS`. Checked today:
+  > **neither owns it.** `TRIO-POWER-N15-FINDINGS` never mentions `tchSigmasFused` or the real overlay at
+  > all, and `TRIO-ARTIFACT-GATE-AND-N15-POWER`'s single mention is its ⚠️ DISPROVEN-§3 banner pointing
+  > *back at this brief*. A routed item whose target does not accept it is not routed — it is dropped.
+  > (Second instance of this pattern today: `CPAP-AUTOHARVEST-FOLLOWUPS-II` §2 was routed to "whoever
+  > lands the PMD work", that work landed as `REFERENCE (living)`, and nobody took the item either.)
+  >
+  > **Measured, so the item is now stated in terms of what is actually true of the code:**
+  > `sensor-trio-power-analysis.js:225` does not merely fail to use the *fused* hat — it carries its
+  > **own local copy of the classic `tchSigmas`**, used at `:323`, `:480`, `:515`, instead of delegating
+  > to `analysis-stats.js` the way the sigma page does. The copy is **numerically identical today**:
+  > `max |local − shared| = 0.000e+0` over 300 random triplets, with no null-disagreements. The
+  > differences are `var`→`const` and four diagnostic return fields (`negVar`, `dHV`, `dHO`, `dVO`) the
+  > power tool never reads.
+  >
+  > **So there is no defect — there is an ungated duplicate.** The sigma page is protected by a
+  > delegation-parity leg precisely so a divergent copy cannot appear; the power tool has no such guard,
+  > so a future fix to the shared kernel silently would not reach the figures this tool produces.
+  >
+  > **The item therefore splits in two, and only one half needs the corpus:**
+  > 1. **Delegate + parity-gate the CLASSIC hat** — free of the corpus entirely, and it removes the
+  >    divergence risk. This is the next concrete step.
+  > 2. **Wire the FUSED hat into the real overlay** — still genuinely blocked: `derivedMap` reads 2-col
+  >    `ms;hr` with no per-second confidence, so it needs a confidence-carrying (`ms;hr;c`) corpus
+  >    re-derivation. That half, and only that half, is what "awaits the corpus" means.
 - [x] 06-12 σ_H10 across-night CI collapses (≈9.6→≈1.5 point; CI ±1.28→±0.3); clean nights bit-stable. — merged PR #114 (papers restated on 2.41/1.28/1.42).
 - [x] AF-safety unit test: irregular-but-clean-QRS → 0 down-weighted. — **done 2026-07-15**, at BOTH tiers: `beatConfidence` (clean-QRS high density kept, above) and the hat (`tchSigmasFused` — a large **common-mode** excursion cancels in every difference & the cross-sensor spread ⇒ fused σ bit-unchanged; known-answer group asserts it).
 - [x] Re-bundle + fixture regen; all gates green; corpus re-derived; papers restated on the clean numbers. — merged PR #114.
