@@ -2464,10 +2464,39 @@ async def polar_offline_op(address: str, op, timeout: float | None = None):
             log.info("Polar %s: offline op finished — resuming live capture", address)
 
 
-async def status_loop(root: str):
+def publish_recording(now_mono: float, grace_sec: float) -> bool:
+    """Stamp `recording` onto every device in STATUS and return whether ANY is. Returns the top-level
+    value so the caller does not re-derive it from the dict it just wrote.
+
+    WHY THIS IS PUBLISHED AT ALL. `alert_loop` has always computed exactly this and then thrown it away;
+    what `status.json` carried was `connected`, and `alerts.device_is_recording`'s own docstring is four
+    paragraphs on why those are not the same thing — an unbonded H10 reads connected=True inside each
+    doomed 1-2 s connect, which is how 2026-07-29 produced four "recovered" notices with NOT ONE BYTE
+    written after 23:48.
+
+    So any consumer asking "is it safe to interrupt the daemon?" off `connected` would decide YES in the
+    middle of exactly the failure it needs to respect. The unattended updater (VIGIL-AUTO-UPDATE §3) is
+    the first such consumer, and the honest fix is to publish the answer rather than have it re-derived
+    in shell — one definition, `alerts.device_is_recording`, called from both places.
+
+    It lives in `status_loop`, NOT `alert_loop`, because alerting is OPTIONAL and its interval is
+    configurable: on a box with alerts off, `alert_loop`'s copy never runs at all. A safety interlock
+    that is only published when an unrelated feature happens to be enabled is not an interlock. This
+    runs every 10 s unconditionally, so a stale `updated` means the daemon is gone — which a consumer
+    must read as "do not touch", never as "idle"."""
+    any_rec = False
+    for name, d in STATUS["devices"].items():
+        rec = alerts.device_is_recording(bool(d.get("connected")), _LAST_DATA.get(name), now_mono, grace_sec)
+        d["recording"] = rec
+        any_rec = any_rec or rec
+    return any_rec
+
+
+async def status_loop(root: str, data_stale_sec: float = 120.0):
     path = os.path.join(root, "captures", "status.json")
     while not _STOP.is_set():
         STATUS["updated"] = _now().isoformat()
+        STATUS["recording"] = publish_recording(_time.monotonic(), data_stale_sec)
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             _tmp = path + ".tmp"
@@ -3909,7 +3938,9 @@ async def main():
     # EVERY background task is supervised. Several of them are the recovery ladder itself — adapter_watchdog
     # is the one thing that un-wedges a dead radio — so a task dying quietly is strictly worse here than
     # anywhere else: the box keeps running, believes it is healthy, and has lost the ability to fix itself.
-    _BACKGROUND = [("status_loop", lambda: status_loop(root)),
+    # Same `data_stale_sec` the alert loop uses — one grace, so `recording` cannot mean two things
+    # depending on which loop a reader happened to ask.
+    _BACKGROUND = [("status_loop", lambda: status_loop(root, float(_acfg.get("data_stale_sec", 120)))),
                    ("adapter_watchdog", lambda: adapter_watchdog(ADAPTER, cfg)),
                    ("rssi_poller", lambda: rssi_poller(ADAPTER, cfg, root)),
                    ("clock_watchdog", lambda: clock_watchdog(cfg)),

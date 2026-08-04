@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# tepna-update.sh — Tepna Vigil
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# Finish a deploy without a human. Runs UNPRIVILEGED, as `vigil`, on a timer.
+#
+# WHY THIS EXISTS. Three measured staleness events, one class — a deploy step that needs a person does
+# not happen (VIGIL-AUTO-UPDATE §1):
+#   • 2026-07-30  the daemon served the pre-fix build; the restart wanted a password nobody was awake to type
+#   • 2026-08-03  the daemon ran FOUR DAYS of stale code — the pull had happened, nothing restarted the unit
+#   • 2026-08-04  #914's root helpers sat eight days behind the checkout, unnoticed
+# Note that automating `git pull` ALONE fixes none of the three. The pull was never the missing step.
+#
+# WHY IT DOES NOT RUN AS ROOT, AND WILL NOT INSTALL /etc. `deploy-vigil.sh` runs
+# `sudo bash $DEST/…/check-system-files.sh --install`, which is fine when a human types it after a pull
+# they initiated, and is a root-executes-freshly-pulled-repo-code path on a SCHEDULE. It fails both
+# halves of the rule already written in tepna-restart.sh's header — a NOPASSWD grant must name something
+# the granted user CANNOT rewrite, and must not be general-purpose — because `vigil` can rewrite
+# /opt/tepna, and `--install` writes arbitrary repo bytes into /etc and /usr/local/lib, including the
+# unit file and the granted helpers themselves. A compromise of the capture user would become root by
+# waiting for the next tick.
+#
+# So: this automates only what fits through the ONE narrow grant that already exists (tepna-restart.sh,
+# which names a single unit), and REPORTS everything whose blast radius is root. That still closes the
+# first two events outright and makes the third visible — which is what was missing, since #914's drift
+# was silent for eight days, not unfixable.
+set -uo pipefail
+
+REPO_DIR="${TEPNA_REPO_DIR:-/opt/tepna}"
+STATUS_JSON="${TEPNA_STATUS_JSON:-/srv/tepna/captures/status.json}"
+RESTART_SH="${TEPNA_RESTART_SH:-/usr/local/lib/tepna/tepna-restart.sh}"
+# A recording that has not been heard from in this long means the DAEMON is gone, not that the box is
+# idle — see the fail-safe in `recording_state`.
+MAX_STATUS_AGE="${TEPNA_MAX_STATUS_AGE:-60}"
+BRANCH="${TEPNA_BRANCH:-main}"
+# The privilege seam, named so a test can substitute it. `sudo -n` NEVER prompts: an unattended timer
+# that blocks on a password is the 2026-07-30 failure wearing a different hat, so a missing grant must
+# fail loudly and immediately rather than hang until the timeout.
+read -r -a SUDO <<<"${TEPNA_SUDO:-sudo -n}"
+
+say()  { printf '%s\n' "$*"; }
+warn() { printf 'WARN: %s\n' "$*" >&2; }
+die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+# --- the recording interlock -------------------------------------------------------------------
+# Prints one of: recording | idle | unknown:<why>
+#
+# EVERY non-answer is `unknown`, and `unknown` blocks the restart. A missing, stale, truncated or
+# unparseable status.json is not evidence of an idle box; it is the absence of evidence, and the cost of
+# being wrong is a destroyed night against the benefit of waiting one hour. `capture.py` rewrites this
+# file every 10 s unconditionally (not on the alert interval, which is optional), so `stale` really does
+# mean the daemon is not running — and a daemon that is not running is one whose state we cannot see.
+recording_state() {
+  [ -r "$STATUS_JSON" ] || { echo "unknown:no status.json at $STATUS_JSON"; return; }
+  TEPNA_MAX_STATUS_AGE="$MAX_STATUS_AGE" python3 - "$STATUS_JSON" <<'PY' 2>/dev/null || echo "unknown:status.json unreadable or malformed"
+import json, os, sys, time
+p = sys.argv[1]
+with open(p) as f:
+    d = json.load(f)
+age = time.time() - os.path.getmtime(p)
+limit = float(os.environ["TEPNA_MAX_STATUS_AGE"])
+if age > limit:
+    print("unknown:status.json is %.0fs old (> %.0fs) — the daemon is not writing it" % (age, limit))
+    sys.exit(0)
+devs = d.get("devices")
+if not isinstance(devs, dict):
+    print("unknown:status.json has no devices map")
+    sys.exit(0)
+# The top-level flag is what capture.py publishes; the per-device map is the cross-check. Requiring the
+# key to be PRESENT is deliberate — an older daemon that predates it must read as unknown, not idle.
+missing = [n for n, v in devs.items() if not isinstance(v, dict) or "recording" not in v]
+if missing or "recording" not in d:
+    print("unknown:this daemon does not publish `recording` (%d device(s)) — deploy the capture fix first"
+          % len(missing))
+    sys.exit(0)
+live = [n for n, v in devs.items() if v.get("recording")]
+print("recording" if (live or d.get("recording")) else "idle")
+PY
+}
+
+# --- 1 · never clobber work done on the box ----------------------------------------------------
+[ -d "$REPO_DIR/.git" ] || die "no git checkout at $REPO_DIR"
+# Measure the TREE, not the ref (CLAUDE.md §2b — a ref comparison read 0 while the tree was 214 files
+# stale, and it answers a different question than the one being asked).
+dirty="$(git -C "$REPO_DIR" status --porcelain 2>/dev/null)"
+[ -z "$dirty" ] || die "$REPO_DIR has uncommitted changes — refusing to touch it:
+$dirty"
+on="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+[ "$on" = "$BRANCH" ] || die "$REPO_DIR is on '$on', not '$BRANCH' — refusing to update"
+
+# --- 2 · fast-forward only ---------------------------------------------------------------------
+before="$(git -C "$REPO_DIR" rev-parse HEAD)"
+git -C "$REPO_DIR" fetch -q origin "$BRANCH" || die "fetch failed"
+# --ff-only, never merge or reset: this must be incapable of inventing a tree that exists nowhere else.
+git -C "$REPO_DIR" merge -q --ff-only "origin/$BRANCH" || die "not a fast-forward — $REPO_DIR has diverged from origin/$BRANCH"
+after="$(git -C "$REPO_DIR" rev-parse HEAD)"
+
+drifted=0
+if [ "$before" = "$after" ]; then
+  say "up to date at ${after:0:12} — nothing to do"
+else
+  say "updated ${before:0:12} → ${after:0:12}"
+
+  # --- 3 · a git pull is only HALF a deploy: the bundles are served separately ------------------
+  if [ -x "$REPO_DIR/capture-host/deploy/sync-apps.sh" ]; then
+    bash "$REPO_DIR/capture-host/deploy/sync-apps.sh" || { warn "bundle sync FAILED — the served apps are now older than the code"; drifted=1; }
+  fi
+fi
+
+# --- 4 · report /etc + root-helper drift; NEVER install it (see the header) --------------------
+# Runs on every tick, not only after a move: #914's drift appeared without this checkout changing at all.
+if [ -x "$REPO_DIR/capture-host/deploy/check-system-files.sh" ]; then
+  if ! out="$(bash "$REPO_DIR/capture-host/deploy/check-system-files.sh" 2>&1)"; then
+    drifted=1
+    warn "/etc or /usr/local/lib drift — a HUMAN must run check-system-files.sh --install:"
+    printf '%s\n' "$out" >&2
+  fi
+fi
+
+# --- 5 · restart, but only into an idle box ----------------------------------------------------
+if [ "$before" = "$after" ]; then
+  :                                      # no new code — nothing to restart into
+else
+  state="$(recording_state)"
+  case "$state" in
+    idle)
+      [ -x "$RESTART_SH" ] || die "new code is on disk but $RESTART_SH is missing — cannot complete the deploy"
+      say "box is idle — restarting the daemon"
+      # tepna-restart.sh already confirms the unit came back (it sleeps, then checks is-active) and
+      # reports a failed restart as a failure, so this does not need to re-check and must not assume.
+      "${SUDO[@]}" "$RESTART_SH" restart || die "restart FAILED — the box is now running NEW code on disk with the OLD process, which is the exact state this script exists to prevent"
+      say "daemon restarted on ${after:0:12}"
+      ;;
+    recording)
+      # NOT an error, and must never be reported as one: deferring is this script working. The code is
+      # on disk and the next tick will take it once the night ends.
+      say "deferred — a device is recording; the daemon keeps the old code until the box is idle"
+      ;;
+    *)
+      warn "deferred — cannot establish whether the box is recording (${state#unknown:}); refusing to restart blind"
+      drifted=1
+      ;;
+  esac
+fi
+
+# A nonzero exit puts the unit in `failed`, which is the whole point: it is the one thing that makes
+# root-level drift VISIBLE on a box nobody logs into. Silent success is the failure class this replaces.
+exit "$drifted"

@@ -192,6 +192,9 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
     # after the live box was found running a STALE root-owned tepna-clock.sh and tepna-restart.sh, with
     # tepna-usbreset.sh never installed at all — drift in the most privileged files on the box, invisible
     # because they were not on this list.
+    for u in ("tepna-update.service", "tepna-update.timer"):
+        (src / u).write_text(f"[Unit]\nDescription={u}\n")
+        (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()
     for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh"):
         body = f"#!/usr/bin/env bash\n# {h}\n"
@@ -278,6 +281,9 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
     (systemd / "tepna-capture.service").write_text(etc_body)
     # The privileged helpers, in sync — this fixture is about AMBIGUOUS SOURCES, so they must not be
     # the thing that reds it.
+    for u in ("tepna-update.service", "tepna-update.timer"):
+        (src / "systemd" / u).write_text(f"[Unit]\nDescription={u}\n")
+        (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()
     for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh"):
         body = f"#!/usr/bin/env bash\n# {h}\n"
@@ -524,9 +530,24 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #     interpreter and a stub `shellcheck` is prepended to PATH, so no real gate is invoked;
     #   • even an UNSTUBBED run would be read-only. ruff, shellcheck and pytest inspect the tree; the
     #     worst case is a slow test, not a mutated host. That is why this one needs no euid guard.
+    # tepna-update.sh added 2026-08-04 (test_vigil_update.py) — the unattended updater, and the first
+    # entry that runs git and can reach a PRIVILEGE ESCALATION seam, so the confirmation is explicit:
+    #   • every destination is redirected and `_run()` sets ALL of them unconditionally, so no default
+    #     is reachable: TEPNA_REPO_DIR (else /opt/tepna), TEPNA_STATUS_JSON (else /srv/tepna/…) and
+    #     TEPNA_RESTART_SH (else /usr/local/lib/tepna/tepna-restart.sh);
+    #   • the privilege seam TEPNA_SUDO is set to `env`, so the tests never invoke sudo — and the script
+    #     reaches systemctl ONLY through $RESTART_SH, which the tests point at a stub that appends to a
+    #     file. There is no direct systemctl/udevadm/mount/install anywhere in it (asserted by
+    #     test_the_updater_has_no_privileged_command_outside_the_seam);
+    #   • its git surface is `-C "$REPO_DIR"` on every call — status, rev-parse, fetch, merge --ff-only.
+    #     No push, no reset, no clean, no checkout, and no ref-move (CLAUDE.md §2b), so the worst case
+    #     against a real checkout is a read;
+    #   • the only other scripts it runs are sync-apps.sh and check-system-files.sh from UNDER
+    #     $REPO_DIR — i.e. from the tmp_path clone, never the developer's own tree — and the latter is
+    #     invoked WITHOUT --install, which a test asserts by capturing its argv.
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
                         "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
-                        "tepna-usbreset.sh", "check.sh"}, (
+                        "tepna-usbreset.sh", "check.sh", "tepna-update.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 

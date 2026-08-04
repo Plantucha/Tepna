@@ -3,7 +3,18 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-04
+**Status:** IN-PROGRESS · **Created:** 2026-08-04
+
+> **§1–§5 BUILT 2026-08-04.** `capture.publish_recording` publishes the predicate `alert_loop` was
+> discarding; `capture-host/tepna-update.sh` + `tepna-update.service`/`.timer` implement §4; the units are
+> on `check-system-files.sh`'s manifest and `install-services.sh` enables the timer. 24 tests, four
+> mutants killed (fail-open on `unknown`, falling back to `connected`, dropping the dirty refusal, keying
+> `publish_recording` on `connected`).
+>
+> **It stays IN-PROGRESS deliberately.** §6's last item is *one real cycle watched happening on the box*,
+> and that has not happened yet — the units are not deployed. Stamping DONE on machinery whose only
+> untested property is "does it work unattended" would reproduce this brief's own §5 in the act of
+> closing it.
 
 # A capture box that cannot finish its own deploy runs stale code — automate to the blast radius of the daemon, and *report* the rest
 

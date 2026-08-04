@@ -27,6 +27,24 @@ else
   echo "  ✗ NOT active:"; journalctl -u tepna-capture -n 15 --no-pager | sed 's/^/    /'
 fi
 
+say "1b/5  unattended deploy completion (VIGIL-AUTO-UPDATE)"
+# Installed from the repo for the same reason as the capture unit above — a hand-placed copy is a file
+# nothing keeps in step. The updater it schedules runs UNPRIVILEGED as vigil and cannot write /etc; the
+# one privileged thing it does goes through the existing tepna-restart.sh grant. See tepna-update.sh.
+UPD_SRC="$(cd "$(dirname "$0")/.." && pwd)/systemd"
+if [ -f "$UPD_SRC/tepna-update.service" ] && [ -f "$UPD_SRC/tepna-update.timer" ]; then
+  install -m644 "$UPD_SRC/tepna-update.service" /etc/systemd/system/tepna-update.service
+  install -m644 "$UPD_SRC/tepna-update.timer"   /etc/systemd/system/tepna-update.timer
+  systemctl daemon-reload
+  # `enable --now` the TIMER, never the service: the service is oneshot, so starting it here would run a
+  # deploy in the middle of an install.
+  systemctl enable --now tepna-update.timer >/dev/null 2>&1 \
+    && echo "  ✓ tepna-update.timer $(systemctl is-active tepna-update.timer)" \
+    || echo "  ✗ tepna-update.timer failed to enable"
+else
+  echo "  ✗ updater units missing under $UPD_SRC"
+fi
+
 say "2/5  mDNS so the origin is a NAME, not an IP"
 # PIN ONE ORIGIN. localStorage is per-origin, so http://vigil.local, http://localhost and
 # http://192.168.0.61 are THREE different profiles + longitudinal histories. A DHCP lease change would
