@@ -728,7 +728,7 @@
           };
         })
     };
-    var blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    var blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json;charset=utf-8;' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'pat-feasibility-batch.json';

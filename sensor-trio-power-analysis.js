@@ -1768,7 +1768,7 @@
   }
   function exportStats() {
     const out = JSON.parse(JSON.stringify(RESULT, (k, v) => (k === 'true' ? undefined : v)));
-    dl('sensor-trio-power-stats.json', new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
+    dl('sensor-trio-power-stats.json', new Blob([JSON.stringify(out, null, 2)], { type: 'application/json;charset=utf-8;' }));
   }
 
   // headless figure capture: render one figure to a fullscreen fixed canvas at

@@ -95,7 +95,7 @@ import { MOTIONUI } from './motiondex-render.js';
     if (!RESULT) return;
     var env = MOTIONDSP.buildNodeExport(RESULT, { kernel: window.DexKernel || null });
     if (MOTIONDSP && window.MotionDex && typeof window.MotionDex.scrubExport === 'function') env = window.MotionDex.scrubExport(env);
-    var blob = new Blob([JSON.stringify(env, null, 2)], { type: 'application/json' });
+    var blob = new Blob([JSON.stringify(env, null, 2)], { type: 'application/json;charset=utf-8;' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;

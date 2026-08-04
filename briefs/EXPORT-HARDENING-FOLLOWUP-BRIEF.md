@@ -1,4 +1,4 @@
-**Status:** IN-PROGRESS — 2026-08-03 (**§4 MEASURED**: its drift premise is stale — every bundle that inlines `crossnight-envelope.js` carries the current version and `build.mjs --check` now guards it. The wiring half would catch NOTHING: 98 committed exports, 0 failing. Both warnings are validator blind spots — MotionDex's numeric `schema.version` bypasses the unknown-major guard, and the multi-night shape is unknown to it. §2's GlucoDex `tMs` did land)
+**Status:** DONE — 2026-08-04 (**all 8 items closed; each verified IN CODE 2026-08-04, not from this header — table below.** §6 executed this pass; §7 was already deleted. Prior note follows.) · **2026-08-03:** **§4 MEASURED**: its drift premise is stale — every bundle that inlines `crossnight-envelope.js` carries the current version and `build.mjs --check` now guards it. The wiring half would catch NOTHING: 98 committed exports, 0 failing. Both warnings are validator blind spots — MotionDex's numeric `schema.version` bypasses the unknown-major guard, and the multi-night shape is unknown to it. §2's GlucoDex `tMs` did land)
 
 # Export-Hardening — Follow-up Brief for the Next Coder
 
@@ -9,6 +9,27 @@ nodes, page-break polish). Suite is green (**632 passed, 39 groups**), provenanc
 This brief lists what was **found but NOT fixed**, ranked, each with exact location, rationale, the
 fix, and the gate to run. Read `CLAUDE.md` first — the gate/re-bundle/provenance rules below are
 non-negotiable.
+
+> ## ✅ CLOSED 2026-08-04 — every item re-verified in the source, item by item
+>
+> | § | claim | state 2026-08-04 |
+> |---|---|---|
+> | **1** ⛔ | ECGDex fabricates `Date.now()` for stampless recordings | **FIXED** — the call site now reads `rec.t0Ms != null ? rec.t0Ms : null`, and `Date.now()` appears **nowhere** in `ecgdex-dsp.js`. The Clock Contract §2.6 violation (a missing stamp must be visible, never fabricated) is gone |
+> | **2** | GlucoDex fusion events omit `tMs` | **LANDED** — `glucodex-dsp.js` carries 60 `tMs` references |
+> | **3** | `render-coverage` flaky on slow loads | **FIXED** — a leg whose bundle never fires `onload` within the **retry budget** records an environmental **⊘ SKIP**, counted as neither pass nor fail, so a cold boot no longer reds the pill |
+> | **4** | `validateNodeExport` drift | **MEASURED 2026-08-03** — drift half gone, wiring half would catch nothing (98 exports, 0 failing) |
+> | **5** | no precision policy on PpgDex epochs | **FIXED** — `_round(e.rmssd, 2)` in both the export and the CSV path |
+> | **6** | JSON blobs omit `;charset=utf-8` | **EXECUTED THIS PASS** — all four remaining sites patched (`motiondex-app.js`, `pat-feasibility.js`, `sigma-no-reference-analysis.js`, `sensor-trio-power-analysis.js`); zero bare `application/json'` blob types remain |
+> | **7** | `_hrvTs()` duplicates `_exportTs()` | **ALREADY DONE** — both were **deleted**; the only surviving mention is the comment at `hrvdex-app.js:430` recording the removal |
+> | **8** | deferred verification (8a reverted, 8b unverified) | **stays deferred**, in place, as §8 already says — a deliberately-parked sub-item inside a DONE brief per §📌 |
+>
+> **§6's re-bundle is EXPORT-INERT, computed rather than claimed.** `motiondex-app.js` is app-layer, so
+> MotionDex's `manifestHash` moved **696d1d47931d → 29c4bf42d7ae** while its **`computeHash` held at
+> `73f4f271f032`** — proof the compute closure is untouched and no export can have moved. GATE A 9/9 and
+> GATE B 16 reproducible confirm it. The two analysis tools re-bundled via `build-analysis.mjs`
+> (no `manifestHash`); `pat-feasibility.js` is inlined into nothing.
+>
+> Nothing new surfaced, so no follow-up brief — stated here per §📌 rather than left implicit.
 
 ## Ground rules (from CLAUDE.md — apply to every item)
 - **Edit `*.js` / `*.src.html`, never the bundled `Foo.html`. Re-bundle after changes** via the
