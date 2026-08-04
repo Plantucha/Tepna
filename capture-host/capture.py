@@ -369,8 +369,16 @@ class O2PpgFrameLedger:
         constant-free, and the only one here whose being non-zero means something is genuinely broken.
       * `device_seconds` = SUM(step) — the ring's own elapsed count over the span. Sound in the LONG RUN
         because its per-step noise cancels (see below), which is why it anchors the arithmetic.
-      * `counted_loss` = `expected - span_declared`, the `PPG_FRAME_SAMPLES * seconds` arithmetic. Carries
-        a constant AND rides `device_seconds`; weakest of the three. See the third warning.
+    ⚠️ THERE IS NO THIRD COUNTER, AND THAT IS A CONCLUSION. A `PPG_FRAME_SAMPLES * seconds - declared`
+    arithmetic was shipped here and RETIRED 2026-08-04, because it cannot be made informative either way:
+      * with a **fitted** nominal (the rate estimated from the session itself) `expected` converges on
+        `declared` and the residual is identically ~0 — a statistic whose reference comes from the data
+        it is testing, which is the exact defect this brief family keeps finding;
+      * with a **fixed** nominal the constant's error is the same order as any loss it could detect —
+        126 against a measured 126.04 per device-second with a 125.6-126.5 per-session spread, which
+        read **-5 120 samples** (a *surplus*) on the reference night.
+    Those are the only two options, so the counter was removed rather than documented. `truncated` and
+    the step counters need no constant and stay.
 
     ⚠️ `Δduration` IS NOT A FRAME-LOSS SIGNAL. A step of 2 looks exactly like "one status frame never
     arrived", and it is not one. Measured on 2026-08-01 — 33 513 frames, steps: 33 172 x +1, 180 x 0,
@@ -401,17 +409,9 @@ class O2PpgFrameLedger:
 
     A signal that costs its samples must read -126.04. The gap logic is RIGHT and stays.
 
-    ⚠️ `counted_loss` IS NOT A DROP COUNT. `PPG_FRAME_SAMPLES` is 126 while real delivery is 126.04 per
-    device-second with a 125.6-126.5 per-session spread, so on a clean night the subtraction lands
-    NEGATIVE (~-7 800 on 2026-08-01, i.e. ~7 800 samples "found" — reconstructed from the written grid,
-    since that night predates the column that records the declared count). That sign is the honest output
-    of the arithmetic, not a bug to clamp away: it is what a nominal constant does against a quantity
-    varying +-0.4 %. Recorded because a value you can watch be wrong is worth more than one you assumed
-    was right.
     """
 
-    def __init__(self, nominal: int = oxyii.PPG_FRAME_SAMPLES):
-        self.nominal = int(nominal)
+    def __init__(self):
         self.frames = 0            # 0x04 replies received that carried a waveform body
         self.device_seconds = 0    # seconds the RING counted across the span we observed
         # ⚠️ COUNTER QUANTIZATION, NOT LOSS — see the class warning. Named for what they ARE (a step in
@@ -424,7 +424,6 @@ class O2PpgFrameLedger:
         self.declared = 0          # SUM of the count the device declared, every frame
         self.delivered = 0         # SUM of the samples that actually arrived, every frame
         self.truncated = 0         # SUM of declared-minus-delivered where the frame came up short
-        self.span_declared = 0     # ... declared, but only over the span `device_seconds` covers
         self._prev = None          # previous frame's session second
 
     @property
@@ -437,10 +436,9 @@ class O2PpgFrameLedger:
     def frame(self, duration: int, declared: int, delivered: int) -> dict:
         """Absorb one live frame; return the per-row facts for the sidecar.
 
-        The arithmetic window opens at the FIRST frame and its declared count is deliberately excluded
-        from `span_declared`: that frame carries the connect-time backlog (250 samples observed — ~2 s
-        the ring accumulated before we were listening), which no elapsed device-second accounts for.
-        Counting it would make every short session read as a sample surplus."""
+        The first frame closes no step, so it contributes to `declared` but not to `device_seconds` —
+        it carries the connect-time backlog (250 samples observed, ~2 s accumulated before we were
+        listening) that no elapsed device-second accounts for."""
         self.frames += 1
         self.declared += declared
         self.delivered += delivered
@@ -454,9 +452,8 @@ class O2PpgFrameLedger:
             # counter, so attributing seconds — or missing frames — across it would fabricate both.
             if step is not None:
                 self.restarts += 1
-            return {"n": declared, "step": None, "expected": None}
+            return {"n": declared, "step": None}
         self.device_seconds += step
-        self.span_declared += declared
         if step == 0:
             self.steps_flat += 1
         elif step > 1:
@@ -466,17 +463,9 @@ class O2PpgFrameLedger:
         # The RAW step is what goes in the row — not a derived "frames missing". The interpretation is
         # the part that was wrong (see the class warning), and a file that records the primitive can be
         # re-asked a question it did not anticipate. A derived column cannot.
-        return {"n": declared, "step": step, "expected": self.nominal * step}
+        return {"n": declared, "step": step}
 
-    @property
-    def expected(self) -> int:
-        """Samples the ring should have produced over the span, at the nominal per-second count."""
-        return self.nominal * self.device_seconds
 
-    @property
-    def counted_loss(self) -> int:
-        """`expected - span_declared`. Signed on purpose — see the class warning."""
-        return self.expected - self.span_declared
 
 
 class O2PpgGrid:
@@ -2268,17 +2257,18 @@ async def run_oxyii(dev: dict, root: str):
                 # The COUNTED half, reported BESIDE the inferred one rather than instead of it — the two
                 # are only comparable if a night prints both. Worded as what was COUNTED and nothing
                 # more: the duration steps are the ring's counter quantizing (NOT missing frames — see
-                # O2PpgFrameLedger), `counted_loss` is the signed nominal-constant arithmetic, and
-                # `truncated` is the only one whose being non-zero means something actually broke.
+                # O2PpgFrameLedger), and `truncated` is the only one whose being non-zero means
+                # something actually broke. The nominal-constant arithmetic that used to sit here was
+                # retired 2026-08-04 — it could not be made informative under any nominal.
                 _l = ppg_led[0]
                 if _l.device_seconds:
                     log.info("%s: PPG frames — %d received over %d device-second(s); duration steps "
                              "%d ahead / %d flat (imbalance %+d, quantization — not lost frames), "
                              "%d anomalous, %d restart; declared %d sample(s), delivered %d "
-                             "(%d truncated); counted %+d vs %d expected at %d/device-second",
+                             "(%d truncated)",
                              name, _l.frames, _l.device_seconds, _l.steps_ahead, _l.steps_flat,
                              _l.step_imbalance, _l.steps_anomalous, _l.restarts, _l.declared,
-                             _l.delivered, _l.truncated, _l.counted_loss, _l.expected, _l.nominal)
+                             _l.delivered, _l.truncated)
             # DISCARD HEADER-ONLY FILES, exactly as run_polar does. Writers are opened before the ring is
             # known to be streaming, so every session that ends without data leaves a file containing
             # nothing but its header — indistinguishable from a real capture until something opens it,

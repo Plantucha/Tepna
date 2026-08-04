@@ -415,18 +415,20 @@ class OxyFrameLogWriter:
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
-        # ppg_n / ppg_dur_step / ppg_expected APPENDED, never inserted — the same "never shift an
+        # ppg_n / ppg_dur_step APPENDED, never inserted — the same "never shift an
         # existing column" discipline LinkLogWriter keeps, so a reader written against the 10-column
         # layout still parses positionally. They carry the per-frame PPG arithmetic
-        # (O2RING-FRAME-SAMPLE-LOCK): the sample count the DEVICE declared, the RAW step in its own
-        # session-second counter since the previous row, and the samples that step nominally owes.
+        # (O2RING-FRAME-SAMPLE-LOCK): the sample count the DEVICE declared, and the RAW step in its own
+        # session-second counter since the previous row. A third column holding `PPG_FRAME_SAMPLES x
+        # step` was retired 2026-08-04 before any capture was written in this format — see
+        # O2PpgFrameLedger for why no nominal makes that number informative.
         #
         # `ppg_dur_step` is deliberately the raw step and NOT a derived "frames missing" — a step of 2
         # resembles a lost frame and is actually the ring's counter quantizing (measured: identical host
         # arrival interval, identical sample count). Recording the primitive is what lets a night be
         # re-audited from the file when the interpretation turns out to be wrong, which here it did.
         self._fh.write("Phone timestamp;duration_s;pi_pct;motion;spo2;pr;contact;battery_pct;"
-                       "batt_state;flag;ppg_n;ppg_dur_step;ppg_expected\n")
+                       "batt_state;flag;ppg_n;ppg_dur_step\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
@@ -441,9 +443,9 @@ class OxyFrameLogWriter:
         `ppg` is the per-frame dict `capture.O2PpgFrameLedger.frame()` returns, or None when the PPG
         stream is switched off — OPTIONAL AND LAST, so an existing caller keeps working and the three
         columns simply read blank. That blank is load-bearing here: a night captured with `ppg` disabled
-        must not claim `ppg_n = 0`, which would read as "the ring declared no samples". `step` and
-        `expected` are None on the first row of a session and across a session restart, where no step
-        exists to measure — again blank, because 0 there would assert a step we never observed."""
+        must not claim `ppg_n = 0`, which would read as "the ring declared no samples". `step` is None
+        on the first row of a session and across a session restart, where no step exists to measure —
+        again blank, because 0 there would assert a step we never observed."""
         def _f(v):
             return "" if v is None else str(v)
         p = ppg or {}
@@ -452,8 +454,7 @@ class OxyFrameLogWriter:
                                  _f(live.get("motion")), _f(live.get("spo2")), _f(live.get("pr")),
                                  _f(live.get("contact")), _f(live.get("batt")),
                                  _f(live.get("batt_state")), _f(live.get("flag")),
-                                 _f(p.get("n")), _f(p.get("step")),
-                                 _f(p.get("expected")))) + "\n")
+                                 _f(p.get("n")), _f(p.get("step")))) + "\n")
         self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:

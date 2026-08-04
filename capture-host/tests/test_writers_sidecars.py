@@ -37,12 +37,12 @@ def test_oxyframe_header_and_row_layout(tmp_path):
     head, row = _lines(str(p))[0], _rows(str(p))[0]
     assert head.split(";") == ["Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr",
                               "contact", "battery_pct", "batt_state", "flag",
-                              "ppg_n", "ppg_dur_step", "ppg_expected"]
+                              "ppg_n", "ppg_dur_step"]
     cells = row.split(";")
     assert cells[0] == "2026-07-19T03:04:05.678"
     # The PPG trio is blank: this caller passed no `ppg`, and the ORIGINAL ten columns are unmoved —
     # the append-never-insert rule, asserted rather than assumed (O2RING-FRAME-SAMPLE-LOCK).
-    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0", "", "", ""]
+    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0", "", ""]
     assert len(cells) == len(head.split(";")), "row must have exactly as many cells as the header"
 
 
@@ -53,12 +53,12 @@ def test_oxyframe_carries_the_per_frame_ppg_arithmetic(tmp_path):
     keeps the primitive and lets the reader ask again (O2RING-FRAME-SAMPLE-LOCK)."""
     p = tmp_path / "o.txt"
     w = OxyFrameLogWriter(str(p), fsync=False)
-    w.write(WHEN, {"spo2": 96}, {"n": 126, "step": 1, "expected": 126})
-    w.write(WHEN, {"spo2": 96}, {"n": 251, "step": 2, "expected": 252})
+    w.write(WHEN, {"spo2": 96}, {"n": 126, "step": 1})
+    w.write(WHEN, {"spo2": 96}, {"n": 251, "step": 2})
     w.close()
     a, b = (r.split(";") for r in _rows(str(p)))
-    assert a[10:] == ["126", "1", "126"]
-    assert b[10:] == ["251", "2", "252"], "a +2 step is recorded as 2, not as '1 frame missing'"
+    assert a[10:] == ["126", "1"]
+    assert b[10:] == ["251", "2"], "a +2 step is recorded as 2, not as '1 frame missing'"
 
 
 def test_oxyframe_blanks_the_ppg_columns_rather_than_claiming_zero(tmp_path):
@@ -69,12 +69,12 @@ def test_oxyframe_blanks_the_ppg_columns_rather_than_claiming_zero(tmp_path):
     value here (a flat step, 180 of them in one night), so the fabrication would be invisible."""
     p = tmp_path / "o.txt"
     w = OxyFrameLogWriter(str(p), fsync=False)
-    w.write(WHEN, {"spo2": 96}, {"n": 250, "step": None, "expected": None})
-    w.write(WHEN, {"spo2": 96}, {"n": 0, "step": 0, "expected": 0})
+    w.write(WHEN, {"spo2": 96}, {"n": 250, "step": None})
+    w.write(WHEN, {"spo2": 96}, {"n": 0, "step": 0})
     w.close()
     first, second = (r.split(";") for r in _rows(str(p)))
-    assert first[10:] == ["250", "", ""], "an unmeasurable step must be blank, never 0"
-    assert second[10:] == ["0", "0", "0"], "a real declared count of 0, and a real flat step, survive as 0"
+    assert first[10:] == ["250", ""], "an unmeasurable step must be blank, never 0"
+    assert second[10:] == ["0", "0"], "a real declared count of 0, and a real flat step, survive as 0"
 
 
 def test_oxyframe_writes_blank_for_absent_but_zero_for_a_real_zero(tmp_path):
