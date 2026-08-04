@@ -39,11 +39,43 @@ Two cheap habits follow, and §6.4 used both:
 
 ## 3 · What is owed
 
-- [ ] **Audit the suite's other tuned thresholds for margin.** The candidates are the literal ratio/factor
-      constants inside detectors that a gate pins only by outcome. For each: what are the two populations,
-      where does the constant sit between them, and is that recorded? Start with the ones a single golden
-      pins. This is a *survey* — the deliverable is a table of `constant · separation · margin`, and only
-      the ones with thin margins become work.
+- [x] **SURVEYED 2026-08-04 — and the survey's first result is that §2's prescription DOES NOT
+      GENERALISE. Most thresholds have no two populations to sit between.**
+
+      Scanned every DSP / fusion / morph module for the exact shape of the §1 defect — a comparison
+      against a scaled other quantity, `x <op> K * y`. **22 occurrences.** Most are **structural**, not
+      decisions: loop and window bounds (`n > 2*WIN`, `k < 2*L`, `W < 4*L`, `N < 2*m`, `s > 2*half`).
+      They admit no margin question and are excluded.
+
+      **The one real family: RR-regularity gating, and it carries THREE different constants.**
+
+      | site | bound | purpose | rejects (93 600 real beats) |
+      |---|---|---|---|
+      | `ecgdex-dsp.js:914` `ectopyThr` | **±20 %** | ectopic **correction** — Malik rule, cited (Task Force 1996 / Kubios) | 3.97 % |
+      | `ecgdex-morph.js` :225 :271 :379 | **±15 %** | select regular beats for template / MMA | 6.33 % |
+      | `ecgdex-morph.js:92` (`classifyBeats`) | **±12 %** | select beats for the *normal template* | 8.89 % |
+
+      The 20 % is a different job (correction, not selection) and is cited, so it is not an
+      inconsistency. **The ±12 % is**: it is a lone value among four sibling "select regular beats"
+      filters in one file, with no comment justifying the tighter bound. The two constants disagree about
+      **2.56 % of real beats**.
+
+      ⛔ **But there is NO GAP to put a constant in, and that is the finding.** The deviation
+      distribution `|RR/medRR − 1|` is **smooth and unimodal-decaying** — p50 0.036, p90 **0.111**, p95
+      0.176, p99 0.309. The 12 % bound sits essentially **on the p90 shoulder**; 12 %, 15 % and 20 % are
+      three arbitrary points on one continuous curve. §1's EDR case had genuinely non-overlapping
+      populations (−1.26…−2.89 vs +0.745, a gap of 2.0); this family has none.
+
+      **So §2's rule needs the qualifier it was missing:** *measure the two populations and put the
+      constant in the gap* applies **only when a gap exists**. Where the distribution is continuous, the
+      honest record is not a margin but **the exclusion fraction** — "±12 % drops 8.89 % of beats" is a
+      statement someone can audit; "±12 % has good margin" would be meaningless. Recording the fraction
+      beside such a constant is the transferable action, not re-deriving a boundary that is not there.
+
+      **No code changed.** Nothing here is a defect: the ±12 % is defensible for template construction
+      (a tighter beat set makes a cleaner template) and is 2.56 % of beats from its siblings. It is
+      *undocumented*, which is a comment-level fix an owner may or may not want, not a behavioural one —
+      and changing it would move every morphology golden for no measured benefit.
 - [ ] **Where a threshold's margin is thin, prefer re-deriving the KIND of test** (sign, order-of-magnitude,
       physical admissibility) over re-tuning the number, and record the measured separation beside it.
 - [ ] **A duration/seed sweep becomes standard for `genSynthetic`-gated estimators.** §6.2 already found
