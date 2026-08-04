@@ -23,6 +23,13 @@ watchdog:                               # auto-recover a WEDGED BLE controller (
   enabled: true                         #   Acts ONLY on unambiguous wedge signs (InProgress / phantom
   interval_sec: 60                      #   BlueZ link) — NEVER on 'sensors not worn' (clean not-found).
   grace_checks: 2                       #   consecutive wedged checks before a controller power-cycle
+  recover_checks: 2                     #   consecutive CLEAN checks before the wedge count is cleared.
+  #                                     #     The mirror of grace_checks: one bad poll must not escalate,
+  #                                     #     and one good poll must not un-escalate. Without it a
+  #                                     #     FLAPPING adapter reset the count every other poll and the
+  #                                     #     ladder was never reached (~65 min deferred, 2026-07-24).
+  #                                     #     <=1 restores the old behaviour: recover on the first
+  #                                     #     clean poll.
   max_adapter_cycles: 3                 #   hard cap so recovery can never loop (external supervisor beyond)
   hci_reset: true                       #   escalation: after the soft power-cycle, `hciconfig <hci> reset`
   # usb_path: "3-1"                     #   LAST-RESORT: re-enumerate the USB dongle (unbind+bind) on the

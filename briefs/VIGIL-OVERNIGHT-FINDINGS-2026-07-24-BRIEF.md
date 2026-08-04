@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-24
+**Status:** PROPOSED (**P1.1 — the brief's own "single most important software fix" — DONE 2026-08-04**, hysteresis on recovery + the power-cycle budget, 5 mutants killed. ⚠️ **P1.2/P1.3 are BLOCKED ON A DEPLOY, not on code:** `tepna-usbreset.sh` exists in the repo but was never installed on the box and has no sudoers grant — measured 2026-08-04, now gate-backed in `deploy/check-system-files.sh`. P1.4·P1.5·P2.x remain) · **Created:** 2026-07-24
 
 # Vigil overnight findings — the night the dongle wedged (2026-07-23 → 24)
 
@@ -133,7 +133,26 @@ both a de-suspended dongle and the internal radio fail you.*
   per-adapter), run a night. A different chipset may simply not have the fault. Keep whichever wins.
 
 ### P1 — make a radio fault survivable, not lucky (software resilience; the correctness fixes)
-- **P1.1 The watchdog health check must assert the PINNED adapter is `UP RUNNING`.** Tonight it logged
+- ✅ **P1.1 — DONE 2026-08-04, in two halves landed a week apart.** *(a)* The health check now asserts the
+  pinned adapter: `_adapter_is_up()` feeds `classify_adapter_health(devs, adapter_up=…)`, and
+  `capture.py:2623` states the intent — *"this is what stops the watchdog declaring health over a dead
+  radio."* That half was already in when this was picked up, and it kills the original 25× shape.
+  *(b)* **The hysteresis this item actually asked for was still missing**, and it is a distinct live
+  path to the same outcome: `adapter_up` stops a DOWN radio reading healthy, but a **flapping** adapter
+  — genuinely up on alternate polls — still cleared `consecutive` every time it blipped, so `grace` was
+  never accumulated and the ladder was never reached. Now `recover_checks` (default 2) consecutive clean
+  polls are required before the wedge count is cleared; a wedged poll breaks the run.
+
+  `cycles` is reset behind the same gate, which matters more than it looks: it is the power-cycle budget,
+  so clearing it on a single flap allowed unbounded power-cycling, while never clearing it would let one
+  early wedge disarm the ladder for the rest of the night. Both directions are now tested.
+
+  Verified by re-applying the defect — 5 mutants, all killed. Two of them **survived the first pass**
+  (the `cycles` reset, and a `max(1,…)` guard on the config). The guard turned out to be dead code —
+  `healthy_run >= recover` is already satisfied by the first clean poll for any value ≤ 1 — so it was
+  removed rather than left as a claim nothing could check; the config test now pins an observable
+  (`recover_checks: 3` needs three clean polls) instead.
+- ~~**P1.1 The watchdog health check must assert the PINNED adapter is `UP RUNNING`.**~~ *(original text)* Tonight it logged
   "adapter healthy again" 25+ times over a DOWN radio, each time resetting the wedge counter and *delaying
   its own escalation by ~65 min*. Add **hysteresis**: require the pinned adapter UP and stable for N polls
   before declaring recovery. This is the **single most important software fix** — a health check decoupled
