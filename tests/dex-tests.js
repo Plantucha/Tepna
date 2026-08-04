@@ -29142,6 +29142,59 @@
          Pinned as a SOURCE fact, not a corpus number, so it holds on a fresh clone. Not "fixed" here —
          un-rounding PpgDex moves every one of its epochs and re-records its fixtures, and this brief
          has not established that 1 decimal is the right target rather than 2 or 0 across the fleet. */
+      /* ── THE MECHANISM, NOW ISOLATED (R5-HR-TRIPLET-FOLLOWUPS, 2026-08-04) ─────────────────────
+         This group used to say the gap was "NOT estimator arithmetic that holds on any series" and
+         refuse to assert a number, because three synthetic probes gave +0.03, +0.54 and −0.03 and none
+         reproduced the corpus −0.299. That was true and the conclusion was too weak: the driver is
+         findable. Regressing the per-block gap on the block's own RR shape over 1670 real blocks:
+
+             gap ≈ 0.2989 − 8.7175·CV + 0.2121·skew        R² = 0.601, residual SD 0.309 bpm
+             r(gap, CV) = −0.719   r(gap, skew) = +0.690   r(gap, HR level) = −0.134 (negligible)
+
+         Real overnight RR has mean CV 0.0522 and mean skew −0.671; substituting gives −0.298 against
+         the measured −0.299. So the gap is a function of the interval distribution's SHAPE, dominated
+         by variability — which is exactly why my probes failed: a smooth series has too little CV, and
+         injected PAUSES are positively skewed where real RR is negatively skewed, flipping the sign.
+         With the driver known the number IS reproducible without a corpus, so the leg below asserts it
+         on a synthetic built to real CV and negative skew. */
+      var rr2 = [];
+      for (var q = 0; q < 1200; q++) {
+        var vq = 1150 + 40 * Math.sin(q / 4.3) + 22 * Math.sin(q / 19.7) + (((q * 2654435761) % 89) - 44) * 0.55;
+        if (q % 13 === 0) vq -= 170; // short-RR outliers ⇒ NEGATIVE skew, as real overnight RR has
+        rr2.push(vq);
+      }
+      var mean2 = function (a) {
+        return a.reduce(function (x, y) {
+          return x + y;
+        }, 0) / a.length;
+      };
+      var mu2 = mean2(rr2);
+      var sd2 = Math.sqrt(
+        rr2.reduce(function (x, y) {
+          return x + (y - mu2) * (y - mu2);
+        }, 0) /
+          (rr2.length - 1)
+      );
+      T.ok('ANTI-VACUITY · the synthetic matches real RR shape (CV ≈ 0.05, negative skew)', Math.abs(sd2 / mu2 - 0.052) < 0.01 && mean2(rr2.map(function (v) { return Math.pow((v - mu2) / sd2, 3); })) < -0.3, 'CV=' + (sd2 / mu2).toFixed(4));
+      var gaps2 = [];
+      for (var b2 = 0; b2 + 300 <= rr2.length; b2 += 300) {
+        var seg2 = rr2.slice(b2, b2 + 300);
+        var rates2 = seg2
+          .map(function (v) {
+            return 60000 / v;
+          })
+          .sort(function (x, y) {
+            return x - y;
+          });
+        gaps2.push(rates2[rates2.length >> 1] - 60000 / mean2(seg2));
+      }
+      T.ok(
+        'the −0.3 bpm gap REPRODUCES on a shape-matched synthetic — corpus no longer required',
+        Math.abs(mean2(gaps2) - -0.3) < 0.12,
+        'synthetic ' + mean2(gaps2).toFixed(3) + ' bpm vs corpus −0.299'
+      );
+      T.ok('…and it is the same sign and order as the cross-node figure R5 blamed on the device', mean2(gaps2) < -0.15 && mean2(gaps2) > -0.6, mean2(gaps2).toFixed(3));
+
       var Pp = env.sources && env.sources['ppgdex-dsp.js'];
       T.ok('ANTI-VACUITY · ppgdex-dsp.js source is loaded', typeof Pp === 'string' && Pp.length > 5000, 'len=' + (Pp ? Pp.length : 'absent'));
       if (typeof Pp === 'string') {
