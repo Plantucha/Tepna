@@ -186,7 +186,22 @@ audit PRs** (#29 holds `clock.js`, which is inlined into every bundle). Do not s
   best available number, so what is withdrawn is the independence claim, not the estimate. Gated by
   `Respiration fusion flags a mechanism collision — R3` in `tests/dex-tests.js` (verified RED by value
   on the pre-fix code: 8 assertions, the note printing the overclaim verbatim).
-- [ ] **R4** — D1 + D2 fixed, re-bundled, fixtures regenerated (AFTER the audit PRs land).
+- [x] **R4 — ALREADY DONE; §5's D2 text is STALE (verified 2026-08-04).** D2 says *"the export's
+      `hrv.frequency` carries only `{lf, hf, lfhf, method}` — no respiration at all"*. It landed in
+      `74f6b1c` (2026-07-12, *"put respiration on the ganglior bus"*). Every committed **rich** ECGDex
+      export carries 11 frequency keys including both estimates — `respRate` 10.9–15.2 across 9 goldens,
+      plus `respFromEDR`. The light/equiv exports have no `hrv` block **by design**, which is what makes
+      the stale reading easy: check a rich golden, not `*_equiv`. D1 was already retracted in-brief.
+
+      **One real gap found while verifying, and it ties R4 to R3.** `respFromEDR`, its method, and
+      `respRate` were each pinned — but **`respRateMethod` was not**. That string became load-bearing
+      when R3 shipped: `integrator-dsp.js famOf` classifies a fusion source by it (`/rsa|hf[- ]peak/` →
+      RSA). Had it drifted, ECGDex would classify as `other`, `mechanismsIndependent` would flip true,
+      and the fusion would resume publishing *"2 independent estimates"* for two RSA corners — the exact
+      overclaim R3 removed, **silently**, because R3's own legs use synthetic method strings and would
+      have stayed green. Now pinned, plus a leg asserting the two estimates name *different* mechanisms.
+      Mutation-verified: renaming it to `'HF spectral peak'` reds with
+      *"famOf would return other ⇒ the mechanism-collision flag goes blind"*.
 - [ ] Findings folded into `SIGMA-PAPER-REWRITE` — the paper currently reports reference-free σ with no statement that the estimator has never been validated against truth, and no bias term at all.
 - [ ] Follow-up brief spawned per §📌 with whatever R2 turns up.
 
