@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-01 · **Created:** 2026-07-31 · §4 options 1+2 EXECUTED; the 8–12/min band remains (option 3, deliberately not taken) · **Spawned-by:** `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md` §EP-rest
+**Status:** IN-PROGRESS — 2026-08-04 · **Created:** 2026-07-31 · §4 options 1+2 EXECUTED; the 8–12/min band remains (option 3, deliberately not taken) · **Spawned-by:** `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md` §EP-rest
 
 # `crc.respFromEDR` reads exactly HALF at 24 breaths/min — the estimator degrades at both edges of its own declared window
 
@@ -80,13 +80,78 @@ they address the two measured mechanisms.
 
 ## 5 · Done when
 
-- [ ] A decision is recorded between §4's options (owner call — this brief does not presume it).
-- [ ] The sweep in §1 is re-run and the table updated; the accurate range should widen.
+## 6 · Executed 2026-08-04 — the sweep re-run, and what it changes
+
+### 6.1 · §1's table, re-measured (median of 5 seeds: 20260601 · 42 · 7 · 1234 · 99)
+
+| true /min | §1 (pre-fix) | now | | true /min | §1 | now |
+|---|---|---|---|---|---|---|
+| 6 | 6.9 (+15 %) | 6.8 (+13 %) | | 16 | 16 (0 %) | 16.0 (0 %) |
+| 8 | **11.4 (+43 %)** | 11.1 (+39 %) | | 18 | 18.5 (+3 %) | 17.7 (−2 %) |
+| 10 | 12 (+20 %) | 11.7 (+17 %) | | 20 | 20 (0 %) | 19.4 (−3 %) |
+| 12 | 13.3 (+11 %) | 12.8 (+7 %) | | 22 | 21.8 (−1 %) | 21.2 (−4 %) |
+| 14 | 15 (+6 %) | 14.3 (+2 %) | | **24** | **12 (−50 %)** | **23.2 (−3 %)** |
+
+**The accurate range widened at the top, as §1 predicted: 14–22 → ~12–24.** The 8–10/min band is
+untouched, exactly as the header says (option 3 not taken).
+
+### 6.2 · Which half did the work — and the trap in finding out
+
+**The harmonic check (option 2) is the entire fix.** Disabled, at the 900 s the gate legs use, a true
+24/min carrier reads **12.0 on all five seeds**; enabled, 23.4–23.8. Nothing else in the estimator
+prevents the octave error.
+
+⚠ **A single-condition isolation of this estimator is not evidence.** At the shorter default duration
+only **3 of 5** seeds double, and seed 20260601 — the seed every other leg here uses — is one of the two
+that never does. Isolating the check on it shows *no change at all*, which reads exactly like dead code;
+an earlier pass through this brief concluded precisely that and was wrong. Whether the doubling appears
+depends on record length **and** seed, both of which move where the carrier's phase falls on the 4 Hz
+EDR grid. Now pinned on five seeds (`ecgdex-dsp · crc · known-answer`); disabling the check reds 14 legs.
+
+### 6.3 · §4 option 1 (parabolic interpolation) — MEASURED, and it is a real trade, not a free win
+
+§4 predicted it would *"remove the quantisation error at every rate … no new assumption"*. Isolating it
+(5 seeds × 10 rates) shows it **pulls every estimate toward the middle of the band (~16/min)** — up at
+6–14, down at 18–24:
+
+| true | 6 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 22 | 24 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| with interp | 6.8 | 11.1 | 11.7 | 12.8 | 14.3 | 16.0 | 17.7 | 19.4 | 21.2 | 23.2 |
+| **without** | 6.9 | 10.9 | 11.4 | 12.6 | 14.1 | 16.0 | **17.1** | **20.0** | **21.8** | **24.0** |
+
+Mean |error| **9.0 % with, 7.7 % without**; without is exact at 16, 20 and 24. The mechanism is visible
+in the split: those three periods land **exactly on an integer lag** of the 4 Hz grid (3.75 / 3.00 /
+2.50 s), so interpolation can only move them *off* truth — and it does, systematically, because
+`_bandResp`'s gain varies across the window and leaves the peak's two shoulders asymmetric. Where the
+true period falls *between* lags (14/min = 4.286 s ≈ lag 17.1) it genuinely helps. "No new assumption"
+was the error: local symmetry **is** an assumption, and this filter violates it.
+
+**NOT REMOVED — this is the owner call §5 reserves, and the synthetic does not settle it.** Removing it
+also moves the REAL-corpus golden (`ECGDex_2026-06-27_equiv`) `respFromEDR` **16.3 → 17.1**, i.e.
+*further* from that night's RSA estimate of 13.2, which is the only cross-check the real night has.
+Synthetic aggregate says remove; the one real night says keep. Options: (a) remove — best synthetic
+accuracy, exact on-grid; (b) keep — closer on the single real night; (c) interpolate only when the peak
+is off-grid. Each needs a fixture regeneration and (a)/(c) move an exported field.
+
+- [x] **A decision is recorded between §4's options** — options 1+2 shipped earlier; option 2 is now
+      proven load-bearing and option 1 is measured above with the trade stated. The remaining choice
+      (keep/remove/gate option 1) is **routed to the owner in §6.3**, not presumed.
+- [x] **The sweep in §1 is re-run and the table updated** — §6.1. The accurate range widened as predicted.
 - [ ] The two `KNOWN LIMITATION` legs in `ecgdex-dsp · crc · known-answer` — which pin 24/min → **12**
       deliberately, so the defect cannot change unnoticed — are **updated in the same commit as the fix**.
       They are characterization pins, not correctness claims; a fix is SUPPOSED to red them.
-- [ ] The CPC/PLV consequence (§3) is measured, not assumed: does a corrected `f0` move `crcPLV` or the
-      CPC band shares at 24/min?
+- [x] **The CPC/PLV consequence (§3) is MEASURED — and §3's fear is largely unfounded.** On seed 42 at
+      24/min, where `f0` was halved (12.0 vs 23.2, a **93 %** error), the downstream metrics barely move:
+      `crcPLV` 0.496 → 0.491 (**1.0 %**), `plvDuringSurges` 1.3 %, `plvBaseline` 0.6 %, `couplingStrength`
+      0.7 %. A wrong `f0` mis-centres `_narrowPhase`, but the band it opens is wide enough that the true
+      carrier still falls inside it, so PLV degrades gently rather than collapsing. §3 called this "the
+      more serious consequence"; measured, it is the *lesser* one — the exported `respFromEDR` itself was
+      the real damage, and that is fixed.
+- [x] **`cpc.hfcPct` is structurally independent of `f0` — nothing to re-check.** The CPC band shares
+      integrate power in FIXED bands (`bandOf(k*df)`) and never read `f0`; measured bit-identical
+      (67.5 / 28.0 / 4.6 %) with `f0` halved. The validated r = −0.408 vs device-scored residual AHI is
+      unaffected by this brief in either direction.
+
 - [ ] `ECGDEX-CARDIOPULMONARY-COUPLING`'s validated `cpc.hfcPct` result is re-checked against the fix —
       it is the one CRC metric with a real correlation (r = −0.408, p = 0.009) and must not regress.
 - [ ] Gates green; ECGDex re-bundled; `computeHash` moves ⇒ `DEX_UPLOADS=<corpus> tools/verify-fixtures.mjs`.
