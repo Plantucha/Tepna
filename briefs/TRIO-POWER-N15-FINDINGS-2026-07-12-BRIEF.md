@@ -1,6 +1,38 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (**the N is no longer the blocker — a clean 25-night fold exists as of 2026-08-04**; what remains is deciding WHICH estimator seeds the sim, which is a judgement, not a data gap) · **Created:** 2026-07-12
+**Status:** PROPOSED (**NOT data-blocked, and never was — `uploads/trio/` already commits 25 post-host-axis nights against this brief's target of 15.** The 2026-08-04 fold turned out to REPRODUCE that committed set, not extend it. The 15 further nights on disk are CONFOUNDED — code version and date are the same variable — so they must be regenerated, not subset. What remains is a judgement: which estimator seeds the sim) · **Created:** 2026-07-12
 
+> ## ⚠️ CORRECTION, same day — the fold below was a REPRODUCTION, not new data
+>
+> The note below closed by saying the overlap with the existing corpus was "not established". It is now,
+> and the answer is the unflattering one: **`uploads/trio/` is TRACKED and holds those exact 25 nights**
+> (75 committed exports, 2026-06-10 … 2026-07-13 — the identical set). The fold re-derived the committed
+> corpus. It is a useful reproduction check, and it is **not** an increase in N.
+>
+> **But the conclusion survives, for a better reason.** This brief blocks the paper on N = 10 → 15. The
+> committed corpus is **25 post-host-axis nights**, and `tch-multinight` confirms it as a single
+> producing-code version — *"all 25 night(s) from one producing code version — medians are corpus
+> figures."* **The re-fit was never data-blocked. It can run today, on committed data, at N = 25 against a
+> target of 15.**
+>
+> ### The 15 extra nights on disk are a trap, and the tool says so
+>
+> The working tree also carries `uploads/trio/2026-07-16 … 2026-07-30` (15 nights, uncommitted). Adding
+> them looks like N = 40. Running the hat over all 40 returns:
+>
+> ```
+> ⚠ CONFOUNDED — corpus mixes producing-code versions (post-host-axis 25, pre-host-axis 15)
+>   AND each cohort occupies its own date range, so code version and date are the same
+>   variable — regenerate, do not subset
+> ```
+>
+> Code version and date are **perfectly confounded**, so no subsetting recovers a clean comparison: any
+> date-based split is also a code split. The instruction is explicit — **regenerate, do not subset**.
+>
+> **Regenerating them is possible but not cheap.** The raw capture for 2026-07-25 … 08-04 (11 nights, 5 of
+> them entirely new) lives on the vigil box; `node` is absent there, and the link measures ~2 MB/s, so
+> pulling the ~5.5 GB of trio-relevant streams is ≈ 40 min. Worth doing to push N past 25 — but it is an
+> enhancement, not a blocker, and it should not be confused with one.
+>
 > ## 📊 25-night trio fold, 2026-08-04 — the data half of this brief
 >
 > This brief blocks `SENSOR-TRIO-NIGHTS-PAPER` on an N = 10 → 15 re-fit whose CI is *"that paper's entire
