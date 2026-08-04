@@ -85,6 +85,20 @@ const SCAN_SURR = Number(arg('scan-surrogates', N_SURR));
    the [PHYS_LO, PHYS_HI] window that was calibrated for feet. Compare the two under --scan, which is
    free to absorb that constant, and not on the raw δ=0 score. */
 const TIMING_POINT = arg('timing-point', 'foot');
+/* ── THE REFERENCE TRAIN — `ecg` (default) or `ppg-ppg` ──────────────────────────────────────────────
+   PAT = PEP + PTT. The pre-ejection period varies beat-to-beat with contractility and preload, so an
+   ECG→foot interval carries it and a foot→foot interval does not: two peripheral sites CANCEL PEP by
+   construction. §3i located the blocker as ~84-96 ms of beat-to-beat scatter and could not say whether
+   it is cardiac or vascular/detector. This decides it — if the scatter is PEP, an arm→finger
+   measurement collapses it; if it does not move, the looseness is downstream of the heart and dual-site
+   PTT will not rescue PAT either. Either result is informative, which is the point.
+   `INTEGRATOR-PAT-VASCULAR` §4 proposes the DIFFERENCED form (one R → two feet) as Phase 2; it was
+   parked behind a NO-GO Phase 0 and never measured. This is the direct form, which needs no ECG and
+   therefore takes the H10 out of the timing chain entirely.
+   ⚠ Arm→finger transit is TENS of ms, far below PHYS_LO=200, so the un-scanned δ=0 score is meaningless
+   for this pairing — run it with --scan, which is free to carry the lag into the window. The scatter
+   statistic is an IQR about the MODAL lag and is unaffected by that shift. */
+const REF_MODE = arg('ref', 'ecg');
 /* Anchors are sampled, not taken per row: a 9 h ECG is ~4 M rows and `hostAxis`'s running median is
    O(n·win). One anchor per ANCHOR_STEP rows is ~0.5 s at 130 Hz, far denser than the ~1 s wander the
    correction describes, and the median needs density only relative to that. */
@@ -352,10 +366,15 @@ if (IS_CLI) {
     let E = [],
       P = [];
     try {
-      E = biggest(dir, /_ECG\.txt$/i, CANDIDATES);
-      let pp = biggest(dir, /verity.*_PPG\.txt$/i, CANDIDATES);
-      if (!pp.length) pp = biggest(dir, /_PPG\.txt$/i, CANDIDATES);
-      P = pp;
+      if (REF_MODE === 'ppg-ppg') {
+        E = biggest(dir, /verity.*_PPG\.txt$/i, CANDIDATES); // reference = ARM foot train
+        P = biggest(dir, /Wellue.*_PPG\.txt$/i, CANDIDATES); // target    = FINGER foot train
+      } else {
+        E = biggest(dir, /_ECG\.txt$/i, CANDIDATES);
+        let pp = biggest(dir, /verity.*_PPG\.txt$/i, CANDIDATES);
+        if (!pp.length) pp = biggest(dir, /_PPG\.txt$/i, CANDIDATES);
+        P = pp;
+      }
     } catch {
       continue;
     }
@@ -363,7 +382,7 @@ if (IS_CLI) {
       for (const pf of P) {
         let er, pr, ea, pa;
         try {
-          er = ecgBeats(readFileSync(ef.f, 'utf8'));
+          er = REF_MODE === 'ppg-ppg' ? ppgFeet(readFileSync(ef.f, 'utf8')) : ecgBeats(readFileSync(ef.f, 'utf8'));
           pr = ppgFeet(readFileSync(pf.f, 'utf8'));
         } catch (e) {
           // Reported, not swallowed — see the header. A `continue` here would let a detector failure
@@ -416,7 +435,7 @@ if (IS_CLI) {
     console.log(JSON.stringify({ windowMin: WINDOW_MIN, surrogates: N_SURR, rows, refusals }, null, 2));
   } else {
     console.log(`\nPAT under a hostAxis-READ inter-device offset (PAT-UNDER-PERBLOCK-ALIGNMENT §3e.4)`);
-    console.log(`windows ${WINDOW_MIN} min · ${N_SURR} surrogates · PPG timing point: ${TIMING_POINT} · every pair and window scored, none selected\n`);
+    console.log(`windows ${WINDOW_MIN} min · ${N_SURR} surrogates · ref: ${REF_MODE} · PPG timing point: ${TIMING_POINT} · every pair and window scored, none selected\n`);
     console.log(
       SCAN ? 'night        win  beats |  strict  chance     p  |  BEST  chance     p  bestOff modRR    RR resIQR scatIQR' : 'night        win  beats |  legacy  chance     p  |  strict  chance     p'
     );

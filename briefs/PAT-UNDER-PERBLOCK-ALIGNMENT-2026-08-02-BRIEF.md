@@ -515,13 +515,12 @@ its 139–197 ms beat-to-beat variation. **A quantity known only to ±450 ms can
 - **Absolute PAT: STILL BLOCKED**, and now blocked for a *stated, measured* reason — offset
   identifiability — rather than by an alignment nobody had characterised.
 
-### 3g.3 · What would unblock it
-An offset fixed by something **aperiodic**, since a beat train cannot fix it beyond mod-RR by
-construction. The ACC route is measured dead (§3e: 1171–3094 ms of internal disagreement). The
-host-stamp route reaches 39–128 ms (§3e.4) — inside the 450 ms plateau and therefore the strongest
-candidate — but it clears `pat-gate.js`'s 60 ms bar on only 3 of 8 nights. **Closing that last factor
-of ~2 is the whole remaining problem**, and it is a capture-side question (BLE delivery latency), not
-an analysis one.
+### 3g.3 · ~~What would unblock it~~ — **RETRACTED, see §3i**
+> This section said an aperiodic offset was the last obstacle and that *"closing that last factor of ~2
+> is the whole remaining problem"*. **It is not.** `INTEGRATOR-PAT-VASCULAR` §2-RESULT-II.3 had already
+> measured the binding constraint offset-free, and §3i reproduces it here: **beat-to-beat scatter**,
+> not the offset. A perfect offset does not move it. Retained for the record; do not act on it.
+
 
 ## 3h · CORRECTION — §3c–§3g were written without reading `PAT-NO-VALID-ANCHOR`, and partly duplicate it
 
@@ -560,3 +559,89 @@ the best available case."* §3c–§3g then repeated it four more times — the 
 signal-quality pair rule, "the wander is the defect", and the foot-vs-peak claim — each corrected only by
 widening the sample. **Reading the family's own prior brief would have supplied the warning before the
 first of them.** Check the sibling briefs before measuring, not after publishing.
+
+## 3i · RECONCILED with `INTEGRATOR-PAT-VASCULAR` §2-RESULT-II — the binding constraint is SCATTER, not the offset
+
+That brief re-measured Phase 0 **offset-free** on 2026-07-29 (`couplingStable` = fraction of beats within
+±100 ms of the night's own modal lag, so the offset cancels by construction) and found **0 of 54 pairings**
+clear the gate. §3g reported 47/57 windows beating a matched null. Reconciled `[CORPUS]`:
+
+### 3i.1 · The two agree on the LEVEL; only the bar differs
+| | theirs, offset-free | here, best-scan |
+|---|---|---|
+| coupling level | **18.8 / 19.2 / 19.0 %** | median **15–16 %** |
+| acceptance band | ±100 ms of the modal lag | ±40 ms, leave-one-block-out |
+| bar | **≥ 55 %** | "beats a matched null" |
+| verdict | **0 / 54** | 47 / 57 |
+
+Their band is the **more generous** of the two and still yields ~19 %. **§3g's 47/57 means *above chance*,
+not *high*** — and it was written in a way that invited the stronger reading. Against the gate's 55 % bar
+both harnesses say the same thing.
+
+### 3i.2 · Their binding number, reproduced from a different harness
+`residIQR` ≈ 96 ms is the constraint they identify. Measured here the same way — IQR of (lag − modal lag)
+over beats within ±100 ms, at the best-scan offset, over 52 windows:
+
+| | median | range | clears the 60 ms bar |
+|---|---|---|---|
+| **theirs** (whole-night pairings) | **95.6 – 98.7 ms** | — | **0 / 54** |
+| **here** (60-min windows) | **84 ms** | 36 – 99 | **10 / 52** |
+
+**Reproduced.** The one nuance windowing adds: at 60-min granularity **10 of 52 windows do** clear the bar,
+against 0 of 54 whole nights — so windowing helps, and not nearly enough.
+
+### 3i.3 · ⚠ A trap in a shipped tool — `strictMatchRate.residIQR` is NOT gate-comparable
+This was nearly published as a contradiction of their result. `pat-matchrate-strict.mjs` builds `residIQR`
+**only from residuals it already accepted**, and acceptance is `|d0| ≤ STRICT_W_MS` (40 ms):
+
+```js
+if (Math.abs(d0) <= STRICT_W_MS) { kept++; resid.push(d0); }
+residIQR: quantile(resid, .75) - quantile(resid, .25)
+```
+
+So it is bounded by its own window — measured **31–44 ms on all 52 windows regardless of signal**, and read
+against a 60 ms bar it reports **52/52 passing**. That is a tautology, and it is the *inverse* of the truth.
+The tool built to expose a self-referential statistic carries one on a different field. **Never compare
+`strictMatchRate.residIQR` to `pat-gate.js`'s bar**; use the wide-band scatter (`scatterIQRms`, added here).
+
+### 3i.4 · Consequences
+- **§3g.3 retracted.** The offset is not the last obstacle. Beat-to-beat scatter is, they measured it three
+  independent ways (`halfDrift` passes 47/54, median 19.7 ms, implied **1.46 ppm**), and this reproduces it.
+- **The remaining problem is not capture-side clock work.** It is that the R→foot interval is *stable in its
+  centre and loose in its detail* — their §II.3's phrase, and the opposite of what PAT needs.
+- **Their H10→O2Ring finger leg already exists** (n=11, 19.2 % offset-free, `residIQR` 98.7 ms, 0/11), which
+  `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` §5 treated as open. That scoping was also a duplicate.
+
+## 3j · The scatter is NOT the pre-ejection period — dual-site does not rescue PAT
+
+§3i located the blocker as ~84–96 ms of beat-to-beat scatter and could not say whether it is cardiac or
+downstream. **PAT = PEP + PTT**, and the pre-ejection period varies beat-to-beat with contractility and
+preload — so an arm→finger interval, which cancels PEP by construction, decides it. Run over the
+Verity-arm → O2Ring-finger corpus (**40.6 h, 8 nights**, no ECG in the chain) `[CORPUS]`:
+
+| | ECG → foot (§3i) | **arm foot → finger foot** |
+|---|---|---|
+| gate-comparable `scatterIQR` | median **84 ms** | median **92 ms** (53–100) |
+| windows clearing the 60 ms bar | 10 / 52 | **1 / 43** |
+| best-scan `matchRate` | median 15–16 % | median **10 %** |
+| significant vs matched null | 47 / 57 | **0 / 43** |
+
+**The scatter does not collapse — it is 8 ms WORSE with PEP removed.** So the looseness in the R→foot
+interval is **not** the pre-ejection period; it is downstream of the heart — vascular variability, or
+foot-detection noise, or both. **`INTEGRATOR-PAT-VASCULAR` §4's differentiator does not differentiate.**
+
+That brief's Phase 2 — *"dual-site PAT (one R-peak → two peripheral feet), whose difference cancels the
+pre-ejection-period"* — was parked behind a NO-GO Phase 0 and never measured. Measured now, in its
+direct form: it removes the confound and the number gets no better.
+
+### 3j.1 · The one caveat, and why it does not rescue the idea
+The **differenced** form matches each site to the **same R-peak** and subtracts; the **direct** form run
+here matches arm feet to finger feet. Algebraically identical when the matching is right, but the direct
+form leans on a foot↔foot nearest-neighbour step, which is the aliasing-prone one — so this measurement
+may be *pessimistic* about coupling.
+
+It is **not** pessimistic about the thing that matters. `scatterIQR` is an IQR about the modal lag, and a
+mismatch inflates it; the honest reading is that arm→finger scatter is **≤ 92 ms**, still far above the
+60 ms bar, and nothing here suggests the remaining gap is PEP. The differenced form is worth running for
+completeness — cheaply, since both legs already exist — but it must clear ~92 → ≤60 ms to change the
+verdict, and removing a confound that is demonstrably not present cannot do that.
