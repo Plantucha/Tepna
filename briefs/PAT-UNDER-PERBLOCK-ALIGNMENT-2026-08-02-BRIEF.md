@@ -357,3 +357,42 @@ motion.
 
 Until that exists, **no PAT coupling verdict from this brief's harness family is quotable** — §2, §3a,
 §3c, §3d and `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` §5.4 alike.
+
+### 3e.4 · The host-stamp route, scouted: 15–79× better than ACC, but it clears the bar on 3 of 8 nights
+
+§3e.3 named the remaining route. Scouted `[CORPUS]`. Both Polars do carry a genuine `{devMs, hostMs}`
+pair on the **same row** (`sensor timestamp [ns]` vs `Phone timestamp`) and both read **independent**
+(post-line residual sd 114–161 ms, far above `hostAxis`'s 2 ms quantum test), so the route exists.
+
+Applying `hostAxis`'s contract to each device — running median of measured divergence, linear between,
+flat outside — and taking **the difference between the two devices' corrections**, which is exactly the
+inter-device offset PAT needs:
+
+| night | overlap | median offset | **IQR** | vs `residIQR ≤ 60 ms` |
+|---|---|---|---|---|
+| 2026-07-24 | 123 m | −113 ms | **39** | inside 1.6× |
+| 2026-07-21 | 153 m | +274 ms | **54** | inside 1.1× |
+| 2026-07-28 | 182 m | −50 ms | **54** | inside 1.1× |
+| 2026-07-22 | 266 m | +66 ms | **67** | out 1.1× |
+| 2026-07-27 | 373 m | −155 ms | **77** | out 1.3× |
+| 2026-07-20 | 365 m | +257 ms | **83** | out 1.4× |
+| 2026-08-03 | 446 m | +163 ms | **126** | out 2.1× |
+| 2026-08-01 | 563 m | +392 ms | **128** | out 2.1× |
+
+**Against ACC's 1171–3094 ms internal spread this is 15–79× better** — the route is real. But the bar
+is cleared on **3 of 8 nights**, and missed by up to 2.1× on the longest. This is *at* the requirement,
+not inside it.
+
+**And it explains §3c.2 mechanically.** The IQR grows monotonically with overlap length (123 m → 39 ms;
+563 m → 128 ms): the inter-device offset **wanders over hours**, so a long fragment accumulates more
+offset variation and scores lower. That is precisely the inverse length↔`matchRate` relationship §3c.2
+measured and could not explain — and it is why §3c's "shorter pairs score better" is not a selection
+artefact but a real property of the timebase.
+
+**So the actionable form of PAT on this corpus is a short window, not a whole night** — roughly ≤ 3 h,
+where the offset is stable to the gate's tolerance. A 9 h night cannot be scored as one block at this
+precision by any method examined here.
+
+⚠️ Scouting only, and it does not license a verdict: `hostAxis`'s contract was **re-implemented** for
+this measurement rather than called, one pair per night was used, and the offset difference was sampled
+at 10 s. A shipped result must drive `DexClock.hostAxis` itself.
