@@ -115,6 +115,39 @@ cause, not mechanism. That is a hypothesis, not a measurement, and it is not loa
 lag — the ankle pulse arriving *before* the finger's, which is anatomically impossible. 8 of 9 coupling
 nights carry the correct positive sign at +23…+81 ms; this one does not, and it is not explained.
 
+## 2b · The scatter, measured offset-free — §4.2 improves it by ~27 % and still does not clear the bar
+
+The statistic that decides whether this is a MEASUREMENT or only a DETECTION. §5 forbids the
+accepted-set `residIQR`; this is the honest quantity: pair every beat inside ±400 ms, subtract the
+median lag **within each 60-min window** (removing the unknown constant δ and any slow wander by
+construction, as the family's offset-free legs do), then take the IQR over **all** residuals — accepted
+and rejected alike.
+
+**Enumerated over all 29 pairs, not selected** (§5: selecting the lowest-IQR pair and reporting that IQR
+is selection on the outcome, one level up):
+
+| set | median offset-free IQR | ≤60 ms |
+|---|---|---|
+| all 29 pairs | **67 ms** (min 28, max 586) | 11/29 |
+| pairs with ≥1000 residuals (n=20) | **70 ms** | 6/20 |
+
+**Against the family's numbers:** `PAT-VERDICT-CONSOLIDATED` §3 reports 84–99 ms for ECG→pulse, and §3j
+reports **92 ms** for arm→finger — the other PEP-cancelled pair, and therefore the like-for-like
+comparison. Finger↔ankle gives **67 ms**: a ~27 % reduction, in exactly the direction §4.2 predicted
+from a longer arterial path.
+
+**But `pat-gate.js` wants ≤60 ms and the enumerated median does not reach it.** So §4.2 is answered
+QUANTITATIVELY and NEGATIVELY: a proximal→distal pair helps measurably and is not sufficient on its own.
+`PAT-VERDICT-CONSOLIDATED` §1 stands — the binding constraint remains beat-to-beat scatter downstream of
+the heart — with its magnitude now known to be site-dependent rather than fixed.
+
+**Selection bias, quantified for once.** Best-of-pairs on the same data reads 44–60 ms; enumeration reads
+67 ms. That gap — ~20 ms, a third of the bar — is what §5's rule is worth in this corpus.
+
+**Remaining upside is §4.1, not §4.2.** If a materially tighter foot (176 Hz Verity, where one sample at
+55 Hz is 18 ms) removes detection noise from the 67 ms, the two effects could compose. Nothing here
+measures that.
+
 ## 3 · Corrections to my own reporting, per `PAT-VERDICT-CONSOLIDATED` §5
 
 - **`residIQR` 20–43 ms was quoted against the 60 ms bar. Withdrawn.** §5 states it is an IQR over only
@@ -133,9 +166,10 @@ nights carry the correct positive sign at +23…+81 ms; this one does not, and i
 - [x] **Score the same nights on the raw device grid AND the host-disciplined axis — DONE 2026-08-04
       (§2a).** Neither branch of the prediction held: coupling appears on the HOST axis and collapses on
       the grid (median 7.16 → 1.14, no night grid-only). Artifact refuted, §1 restored.
-- [ ] **Report the full per-pair distribution**, not the maximum (§5, enumeration).
-- [ ] **Scatter measured offset-free**, so it is comparable with the family's ~84–99 ms — the accepted-set
-      `residIQR` cannot serve.
+- [x] **Report the full per-pair distribution — DONE 2026-08-04 (§2b).** Best-of-pairs 44–60 ms vs
+      enumerated 67 ms; the selection was worth ~20 ms, a third of the bar.
+- [x] **Scatter measured offset-free — DONE 2026-08-04 (§2b).** 67 ms enumerated over 29 pairs against
+      §3j's 92 ms arm→finger: better by ~27 %, still above the 60 ms bar.
 - [ ] Resolve `07-29`/`07-30`/`08-01`/`08-03`, whose lags (−381 −360 −313 −269) crowd the −400 ms window
       edge and may simply be truncated rather than uncoupled.
 
