@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-04 · **Created:** 2026-07-31 · §4 options 1+2 EXECUTED; the 8–12/min band remains (option 3, deliberately not taken) · **Spawned-by:** `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md` §EP-rest
+**Status:** DONE — 2026-08-04 · **Created:** 2026-07-31 · options 1+2 shipped 2026-08-01; option 2 FINISHED 2026-08-04 (§6.4 — its threshold was 0.035 on the wrong side and 24/min still doubled at some record lengths); the 8–12/min band remains (option 3, deliberately not taken) · **Followed-by:** `EDR-THRESHOLD-MARGIN-FOLLOWUPS-2026-08-04-BRIEF.md` · **Spawned-by:** `DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS-2026-07-18-BRIEF.md` §EP-rest
 
 # `crc.respFromEDR` reads exactly HALF at 24 breaths/min — the estimator degrades at both edges of its own declared window
 
@@ -133,13 +133,62 @@ Synthetic aggregate says remove; the one real night says keep. Options: (a) remo
 accuracy, exact on-grid; (b) keep — closer on the single real night; (c) interpolate only when the peak
 is off-grid. Each needs a fixture regeneration and (a)/(c) move an exported field.
 
+### 6.4 · ⛔ 2026-08-04 — OPTION 2 SHIPPED BUT DID NOT FINISH THE JOB. Its threshold was on the wrong side by 0.035.
+
+§6.2 concluded *"the harmonic check is the entire fix"* and pinned it at 900 s on five seeds. Both halves
+of that are true and the legs are honest. What neither caught is that the check was passing **by a
+margin of −0.035**, i.e. failing, at any record length where the carrier's phase lands differently on the
+4 Hz EDR grid.
+
+`ac[half] > 0.8 * best` was the test. Measured, the band-edge fundamental carries **0.745 · best**
+(0.766 on a second seed) — so at 24/min the check RAN, evaluated the true answer, and **rejected it**.
+§6.2's own sentence *"whether the doubling appears depends on record length and seed"* was the symptom;
+read as a property of the defect rather than of the threshold, it stopped one step short.
+
+**A true 24/min carrier, harmonic check ENABLED, shipped 0.8 vs the corrected 0.5:**
+
+| durSec | 0.8 (as shipped) | 0.5 (now) |
+|---|---|---|
+| 180 | **12.5 · 12.5** | 24.4 · 24.4 |
+| 300 | **12.4 · 12.5** | 24.1 · 24.4 |
+| 600 | 23.0 · 23.3 | 23.0 · 23.3 |
+| 900 | 23.4 · 23.8 | 23.4 · 23.8 ← the only length §6.2 pinned |
+| 1800 | 23.6 · **11.9** | 23.6 · 23.7 ← seed 42 period-doubles at 30 min |
+| 3600 | 23.4 · 23.5 | 23.4 · 23.5 |
+
+**The threshold is a SIGN test, not a near-equality test — and that is why 0.8 was wrong in kind, not
+merely in value.** Lowering 0.8 to 0.7 would fit the one observation. What actually separates the two
+cases is the physics: if the found lag is the OCTAVE, the half-lag is a real period ⇒ `ac[half]` is
+positive; if the found lag is already the FUNDAMENTAL, the half-lag is ANTI-PHASE ⇒ `ac[half]` is
+strongly negative. Measured over 6–24/min × 2 seeds the populations do not overlap and the gap is wide:
+
+```
+half is WRONG (keep the lag):   ac[half]/best = −1.26 … −2.89     every rate 6–22
+half is RIGHT (take the octave): ac[half]/best = +0.745, +0.766   24/min, both seeds
+```
+
+`0.5 · best` sits inside that gap with **0.245 of margin** instead of −0.035.
+
+**Nothing else moves.** Across 6–22/min × 4 seeds every reported value is byte-identical; only 24/min
+changes. On **10 real trio-corpus ECG nights** (`Ecg nightly/`, Polar H10) `respFromEDR` is unchanged on
+all 10 — no real night in this corpus sits at the band edge — and `cpc.hfcPct` is likewise unchanged
+(real values read: 36.0, 28.5, 24.0 — not a vacuous probe). This satisfies §6's guardrail: the fix was
+checked against real ECG, not tuned on `genSynthetic` alone.
+
+**Gated, verified RED by value.** Four new legs in `ecgdex-dsp · crc · known-answer` pin a SHORT record
+(180 s, 300 s) and a LONG one (1800 s, both seeds). Restoring 0.8 reds exactly three of them, by value
+(`got 12.4 · want ≈24`); the fourth — seed 20260601 at 1800 s — stays green under both, and is pinned
+deliberately so the both-directions claim is not one-sided.
+
 - [x] **A decision is recorded between §4's options** — options 1+2 shipped earlier; option 2 is now
       proven load-bearing and option 1 is measured above with the trade stated. The remaining choice
       (keep/remove/gate option 1) is **routed to the owner in §6.3**, not presumed.
 - [x] **The sweep in §1 is re-run and the table updated** — §6.1. The accurate range widened as predicted.
-- [ ] The two `KNOWN LIMITATION` legs in `ecgdex-dsp · crc · known-answer` — which pin 24/min → **12**
-      deliberately, so the defect cannot change unnoticed — are **updated in the same commit as the fix**.
-      They are characterization pins, not correctness claims; a fix is SUPPOSED to red them.
+- [x] **The characterization pins were updated with the fix, and now pin the LOW band only.** The
+      24/min → 12 pins were replaced when options 1+2 shipped; the two surviving `KNOWN LIMITATION` legs
+      pin 8/min ≈ 11.3 and 10/min ≈ 12 — the low band edge, which option 3 would be needed for and which
+      is deliberately untouched. Both still hold after §6.4's correction (re-run green), as they must:
+      the sign test only reaches the top edge.
 - [x] **The CPC/PLV consequence (§3) is MEASURED — and §3's fear is largely unfounded.** On seed 42 at
       24/min, where `f0` was halved (12.0 vs 23.2, a **93 %** error), the downstream metrics barely move:
       `crcPLV` 0.496 → 0.491 (**1.0 %**), `plvDuringSurges` 1.3 %, `plvBaseline` 0.6 %, `couplingStrength`
@@ -152,9 +201,14 @@ is off-grid. Each needs a fixture regeneration and (a)/(c) move an exported fiel
       (67.5 / 28.0 / 4.6 %) with `f0` halved. The validated r = −0.408 vs device-scored residual AHI is
       unaffected by this brief in either direction.
 
-- [ ] `ECGDEX-CARDIOPULMONARY-COUPLING`'s validated `cpc.hfcPct` result is re-checked against the fix —
-      it is the one CRC metric with a real correlation (r = −0.408, p = 0.009) and must not regress.
-- [ ] Gates green; ECGDex re-bundled; `computeHash` moves ⇒ `DEX_UPLOADS=<corpus> tools/verify-fixtures.mjs`.
+- [x] **`cpc.hfcPct` re-checked against §6.4's fix — unchanged, and it cannot be otherwise.** `_cpc` takes
+      the raw HR and EDR series and integrates FIXED bands; it never reads `f0` or `respFromEDR`, so the
+      harmonic check cannot reach it. Confirmed empirically on 10 real nights with real values read
+      (36.0 / 28.5 / 24.0), not merely asserted from the call graph. The validated r = −0.408 stands.
+- [x] **Gates green; ECGDex re-bundled; fixtures re-verified.** `manifestHash` 5889ad23cb50 → c8a4977c79c4;
+      all three build systems `--check` clean (the ECGDex change also re-bundles the two orchestrators,
+      8 analysis tools and `docs/ECGDex.html`); GATE A 9/9, GATE B 16 reproducible; corpus-backed fixtures
+      re-verified with `DEX_UPLOADS`.
 
 ## 6 · Guardrail
 
