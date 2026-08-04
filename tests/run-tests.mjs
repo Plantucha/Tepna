@@ -768,7 +768,6 @@ function readNonBundleCsp() {
     'nights-icc-analysis.html',
     'sensor-trio-power-analysis.html',
     'treatment-response-analysis.html',
-    'odi-bias-analysis.html',
     'sigma-no-reference-analysis.html',
     'qrs-equiv-analysis.html',
     'qrs-yield-analysis.html',
@@ -778,7 +777,15 @@ function readNonBundleCsp() {
     'PAT Feasibility.html',
     'index.html'
   ];
-  const self = ['PpgDex Fusion Prototype.html'];
+  /* PAPER-ODI4-REPRODUCIBILITY §6.3 — `odi-bias-analysis.html` moved from 'none' to 'self' because its
+     SubjectA path FETCHES five committed LOCAL sample files, and under 'none' the browser refused every
+     one: the page rendered an EMPTY TABLE with no error a reader would see, so the paper's own recipe
+     could not be followed by anyone. Measured: 'none' -> 0 rows / 10 CSP errors; 'self' -> 5 nights,
+     5 rows, 0 errors. 'self' still blocks every REMOTE origin, so the no-network invariant holds —
+     same-origin cannot reach a CDN, a DOI or a dataset. Identical reasoning to CPAPDex.src.html, which
+     already takes 'self' for exactly this reason. A page belongs in `self` ONLY if it demonstrably
+     fetches a committed local corpus; the default for everything else stays 'none'. */
+  const self = ['PpgDex Fusion Prototype.html', 'odi-bias-analysis.html'];
   const out = {};
   for (const f of none) {
     const p = join(ROOT, f);

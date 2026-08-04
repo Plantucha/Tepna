@@ -26,7 +26,16 @@
   if (typeof parseCSV !== 'function' || typeof processNight !== 'function') {
     throw new Error('odi-bias-analysis: OxyDex._bare.{parseCSV,processNight} unavailable — load oxydex-dsp.js first');
   }
-  var DIR = 'uploads/synthetic/';
+  /* PAPER-ODI4-REPRODUCIBILITY §3 — READ THE PINNED CORPUS, not the scratch one.
+     This said 'uploads/synthetic/'. Those five files are GITIGNORED (`.gitignore: uploads/*`, and the
+     allow-list entries below it name `uploads/…`, not `uploads/synthetic/…`), so on a FRESH CLONE the
+     directory does not exist and the paper's own recipe — "open odi-bias-analysis.html → Run SubjectA
+     corpus" — fetches five 404s and renders an empty table. That is §3's finding in one line: the pilot
+     corpus behind a PUBLISHED claim was the one artifact in this repo that was not content-addressed.
+     The bytes are committed at `uploads/` (§4, "Committed as BYTES, not as a regeneration recipe"), and
+     they are what the reader must read. Both copies happen to be byte-identical on the authoring
+     machine today, which is exactly why this went unnoticed — the defect only appears on a clone. */
+  var DIR = 'uploads/';
   var NIGHTS = [
     { n: 1, oxy: 'O2Ring S 2100_20260511231000.csv', gt: 'ground_truth_night1.json' },
     { n: 2, oxy: 'O2Ring S 2100_20260512235500.csv', gt: 'ground_truth_night2.json' },
