@@ -25441,6 +25441,8 @@
       var none = NS.scoreREM([{ expert: 'N2', detected: 'N2' }], 'REM');
       T.eq('no expert REM ⇒ recall null, never 0', none.recall, null);
       T.eq('…and precision null when nothing was called', none.precision, null);
+    });
+
     /* THE HOST-READ INTER-DEVICE OFFSET (PAT-UNDER-PERBLOCK-ALIGNMENT §3e.4, tools/pat-host-offset.mjs).
        §3e measured the ACC anchors disagreeing with THEMSELVES by 1171-3094 ms inside one pair, so the
        offset is now READ from each device's {devMs, hostMs} pair through DexClock.hostAxis instead of
