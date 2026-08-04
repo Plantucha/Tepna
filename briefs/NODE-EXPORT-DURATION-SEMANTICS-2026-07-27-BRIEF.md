@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-07-27 · **Created:** 2026-07-27 · **Follows:** `NODE-EXPORT-RECORDING-DURATION-2026-07-24-BRIEF.md` (which asked whether a node declares a length at all; this one asks what it MEANS) · **Decision:** owner-ratified 2026-07-27 (option (c)) · **Builds-on:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` §6.2 (`recording.coverage`, landed `986d17e`) · **Relates:** `INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md` (§5 — the coverage model this ruling completes), `CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md` (added the `durSec` key whose meaning this pins down)
+**Status:** IN-PROGRESS — 2026-08-04 · **Created:** 2026-07-27 · **Follows:** `NODE-EXPORT-RECORDING-DURATION-2026-07-24-BRIEF.md` (which asked whether a node declares a length at all; this one asks what it MEANS) · **Decision:** owner-ratified 2026-07-27 (option (c)) · **Builds-on:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` §6.2 (`recording.coverage`, landed `986d17e`) · **Relates:** `INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md` (§5 — the coverage model this ruling completes), `CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md` (added the `durSec` key whose meaning this pins down)
 
 # `recording` publishes BOTH a data duration and a clock end — one scalar cannot answer two questions
 
@@ -97,7 +97,31 @@ work-unit to schedule, not a drive-by.
       the clock end by construction (±1–3 s of rounding). The field there is uniformity, not a fix,
       and §7.3 recommends it ride each node's next behavioural re-bundle rather than churn six
       bundles and every fixture for seconds.
-- [ ] `durSec` normalised to data-seconds on PpgDex/OxyDex (**not** additive — needs the coverage definition + a CHANGELOG note that the field's meaning changed).
+- [~] **OxyDex re-audited 2026-08-04 — §4's `pending` is STALE; it already satisfies (c), in its own
+      vocabulary.** Measured over the 42-night O2Ring corpus (12 sampled): `durationMin` is the
+      ENVELOPE and `recording.coverage.recordedSec` is the DATA, exactly the two-scalar split the ruling
+      asks for — only the names differ from ECGDex's `endEpochMs`/`durSec`.
+
+      | durationMin | cov.kind | spanSec | recordedSec | data/span | segs |
+      |---|---|---|---|---|---|
+      | 460.0 | sparse | 27599 | 27528 | 0.9974 | 2 |
+      | 440.0 | sparse | 26399 | 26328 | 0.9973 | 2 |
+
+      `durationMin × 60` tracks `spanSec` to within a second, **not** `recordedSec`. The other 10
+      sampled nights are contiguous and carry **no coverage block at all** — deliberate: a contiguous
+      night has no hole to declare, so claiming 100 % would be a measurement nobody made.
+
+      So the remaining work is **naming uniformity, not missing information**, which §7.3 already routes
+      to "ride each node's next behavioural re-bundle". Renaming now would change a published field's
+      meaning to buy nothing a consumer cannot already read.
+
+      **Gated instead** (`oxydex-dsp · export · duration-semantics`, 10 assertions): the invariant that
+      the remaining item could break is that `durationMin` keeps meaning the envelope. Mutation-verified
+      — making it report data-seconds reds by value (`durationMin*60=2520s · spanSec=4199`). A silent
+      denominator change is now impossible, which was the actual risk.
+
+      Still open for **PpgDex** (its `durSec` is a gap-filled-grid span). Not touched here: it is the
+      node where the rename genuinely changes a published number.
 - [ ] `bump: minor` — the export gains a field. The ECGDex-only step is already `minor` for that reason.
 - [ ] Per node: regen goldens, re-bundle, `build.mjs --check`, `verify-manifest.mjs` GATE A+B, and — since `computeHash` moves — `DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs`.
 
