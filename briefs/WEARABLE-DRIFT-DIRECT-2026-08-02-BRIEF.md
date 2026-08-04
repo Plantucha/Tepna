@@ -188,6 +188,46 @@ nights but individually unchallenged.
 **Inter-device ≈ 6.7 ppm** — §1's ~7 ppm, now on nine nights instead of four and with every
 non-independent fragment excluded rather than silently averaged in.
 
+### 7.5 · ✅ THE CLOSURE CLOSES — 4 of 4 box nights, residual −0.3…+3.0 ppm (2026-08-04)
+
+The third source is the box host and the check is now **run and passed**. Leg C is beat-derived on each
+device's own `sensor timestamp [ns]`, so it never touches the host column: it could have failed.
+
+| night | H10 fast vs host | Verity fast vs host | ⇒ predicted V−H | **leg C (independent)** | residual | tol | |
+|---|---|---|---|---|---|---|---|
+| 2026-07-20 | +22.6 | +28.1 | +5.5 | **+7.6** | +2.1 | 7.0 | ✅ |
+| 2026-07-27 | +20.3 | +27.6 | +7.3 | **+7.0** | −0.3 | 6.9 | ✅ |
+| 2026-08-01 | +20.9 | +28.6 | +7.7 | **+10.7** | +3.0 | 7.2 | ✅ |
+| 2026-08-03 | +20.5 | +29.6 | +9.1 | **+10.4** | +1.3 | 7.4 | ✅ |
+
+Tolerance is `closeTriple`'s own rule, `max(5, 0.25·max|leg|)`. **The physical picture is coherent:**
+both Polar crystals run FAST against the chrony-disciplined box (H10 +20.3…+22.6, Verity +27.6…+29.6),
+the Verity faster by 5.5–9.1 ppm, and an entirely separate beat-derived measurement independently
+returns +7.0…+10.7. Tool: `tools/beat-leg-closure.mjs` (`--selftest` for the known-answer).
+
+#### ⚠ Two sign conventions, both established only by PLANTING TRUTH — and I assumed both wrong first
+
+Each error alone produced a confident, publishable, wrong answer. Recorded because neither convention is
+stated in prose anywhere, and the next reader will assume as I did.
+
+1. **`dual-clock-rate`'s ppm is NEGATIVE when the device runs FAST** — it reports `(slope − 1)` where
+   `slope = host ms per device ms`. Planted a device fast by +20 ppm → it reports **−19.5**. Assuming the
+   opposite inverts the prediction and turns this closing triple into an **18 ppm INCONSISTENT** verdict.
+2. **`legC` returns `(V_rate − H_rate)`.** Planted −20 ppm → returns −20.0.
+
+#### ⚠ And the matcher must TRACK, not band-filter
+
+The first leg C used a fixed acceptance window. Once accumulated drift pushes the true lag outside it,
+the estimator silently adopts the adjacent beat one RR away and **the trend inverts**: planted −20 ppm
+read **+17.9**. It also happened to return +9.6 on 2026-08-01 against a then-assumed +7.7 — agreement
+close enough to publish, from an estimator that could not recover planted truth. Tracking the pairing
+from a seeded reference recovers −40…+40 ppm to **0.0 ppm** under realistic HRV (CV 0.0522), 2 % dropouts
+per side and ±20 ms PAT jitter.
+
+Tracking is safe *here* specifically because block-to-block lag change is ~12 ms against an RR of ~1000.
+That is the opposite of `JOINT-UNWRAP-ATTEMPT`'s regime, where per-block offsets were themselves
+imprecise to a large fraction of an RR and no unwrap could work. **Do not generalise either verdict.**
+
 ### 7.4 · The closure IS runnable — and the blocker is the beat estimator, not the corpus (2026-08-04)
 
 §7.3 left the beat leg open; the entry above then over-read that as "the corpus cannot supply it". Both
