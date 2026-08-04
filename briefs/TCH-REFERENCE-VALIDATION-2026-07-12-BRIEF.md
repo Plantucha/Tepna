@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-12 · **Executes:** `CPAP-REAL-CORPUS-2026-07-11-BRIEF.md` §P6 · **Complements:** `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` · **Feeds:** `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md` · `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md`
+**Status:** DONE — 2026-08-04 (all Done-when items closed; R1/R2/R3 executed, findings folded into `papers/sigma-no-reference.html`) · **Created:** 2026-07-12 · **Followed-by:** `TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS-2026-08-04-BRIEF.md` · **Executes:** `CPAP-REAL-CORPUS-2026-07-11-BRIEF.md` §P6 · **Complements:** `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` · **Feeds:** `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md` · `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-III-2026-07-06-BRIEF.md`
 
 # The three-cornered hat, finally measured against a TRUE reference — it is blind to bias, and its independence assumption does not hold
 
@@ -206,8 +206,8 @@ audit PRs** (#29 holds `clock.js`, which is inlined into every bundle). Do not s
       have stayed green. Now pinned, plus a leg asserting the two estimates name *different* mechanisms.
       Mutation-verified: renaming it to `'HF spectral peak'` reds with
       *"famOf would return other ⇒ the mechanism-collision flag goes blind"*.
-- [ ] Findings folded into `SIGMA-PAPER-REWRITE` — the paper currently reports reference-free σ with no statement that the estimator has never been validated against truth, and no bias term at all.
-- [ ] Follow-up brief spawned per §📌 with whatever R2 turns up.
+- [x] **DONE — verified 2026-08-04, and the remaining stale clause was corrected.** `papers/sigma-no-reference.html` item (ix) already carried the fold: *"the estimator itself has never been validated against an external truth… the three-cornered hat carries no bias term at all… structurally blind to any offset"*, plus the −0.269 bpm attempted-bias story and its retraction as an estimator confound. **One clause had gone stale:** it said the −0.299 mechanism *"is not fully isolated… depends on some feature of real overnight R-R not yet identified"*. `R5-HR-TRIPLET-FOLLOWUPS` isolated it — `gap ≈ 0.2989 − 8.7175·CV + 0.2121·skew` (R² = 0.601 over 1,670 real blocks; substituting real overnight CV 0.0522 / skew −0.671 returns −0.298 against the measured −0.299). Folded in, and it also explains the synthetics the paper called puzzling: +0.03 / +0.54 / −0.03 differ because each carries a different CV and skew, not because the effect is capricious.
+- [x] **DONE — follow-up spawned:** `TCH-CORRELATED-SOLVE-KNIFE-EDGE-FOLLOWUPS-2026-08-04-BRIEF.md`. R2's result is that the correlated solve is *sound* (known-answer recovery to 1e-6 on six triples) while **this triplet is degenerate**: the measured ρ = 0.42 sits within 0.5 % of ρ_crit ≈ 0.422, where σ(CPAP) hits zero and past which there is no solution. The 0.19 bpm it returns is the non-negativity boundary seen from the inside, and — unlike the classic hat's negative-variance case, which `tch-multinight` already excludes — it happens at a *positive* σ, so no existing check catches it.
 
 ## 8a · R2 EXECUTED 2026-08-04 — the solve lands; the triplet does **not** re-solve credibly
 
