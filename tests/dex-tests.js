@@ -11937,7 +11937,15 @@
       T.ok(
         'check3b · DOCS-INDEX row status ≡ brief header status (header is source of truth)',
         statusMismatch.length === 0,
-        statusMismatch.length ? 'stale rows (' + statusMismatch.length + '): ' + statusMismatch.slice(0, 8).join('; ') : 'in sync'
+        /* The failure message names the FIXER. This exact staleness was hit three times in one day,
+           and every time the repair was mechanical — copy one word from the header into one row. A
+           gate that reds without saying which command ends it makes the reader re-derive the fix each
+           time. `tools/sync-docs-index.mjs` moves the row only (never the brief: the header is the
+           source of truth, so a tool able to rewrite it could make a disagreement vanish the wrong
+           way round). */
+        statusMismatch.length
+          ? 'stale rows (' + statusMismatch.length + '): ' + statusMismatch.slice(0, 8).join('; ') + ' — fix: node tools/sync-docs-index.mjs'
+          : 'in sync'
       );
       T.ok(
         'check3b · …and every such row STATES a status (a silent row is not "in sync")',
