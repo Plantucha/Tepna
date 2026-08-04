@@ -90,16 +90,27 @@ files, 25 of them pending changesets, growing with every merge rather than conve
   `git rev-list --count HEAD..origin/main`. The ref comparison returned **0** while the tree was 214
   files stale; it answers a different question than the one you are asking.
 
-Hook-enforced (`guard-shared-tree.sh`). There is deliberately **no commit-time guard on deletions**,
-and the reason is measurable rather than a matter of taste: **the release commit has the same signature
-as the corruption.** `tools/release.mjs` prunes every consumed changeset — 13-51 per release
-historically — and those changesets were added only 8-20 commits earlier (checked against
-`aee1e10 release: v2.4.0`). So "many recent files deleted in a block, changeset-heavy, bounded by a
-commit" describes a release *and* a stale tree identically. Any rule tuned to catch the 2026-08-03
-incident reds every release; any rule loosened to pass releases passes the incident. That signal
-collision is also why the accident was camouflaged — genuine `uploads/trio/**` deletions sat in the
-same list. **Prevent the cause; do not try to detect the damage.** If you think you have a
-discriminator, test it against a release commit first.
+Hook-enforced (`guard-shared-tree.sh`), and **a commit-time detector is possible** — an earlier draft
+of this section claimed it was not, arguing the release commit is signal-identical to the corruption.
+That claim was wrong, and it was wrong in the way this repo keeps being wrong: it reasoned from the
+features that *do* collide (many files, recent, changeset-heavy, one block) and never ran the query.
+Two features separate the populations perfectly, over all 33 commits in history that delete a changeset:
+
+| | 29 release commits | the 2026-08-03 corruption |
+|---|---|---|
+| deletions **outside** `changes/` | **0**, every one | 22 — `briefs/ tools/ docs-archive/ uploads/` |
+| co-modifies `suite.manifest.json` + `CHANGELOG.md` + `RELEASE-MANIFEST.json` | **3/3**, every one | **0/3** (still 2.4.0, 105 changesets pending) |
+
+So: **a commit deleting a changeset without a release-ledger update, or deleting anything outside
+`changes/` alongside one, is not a release.** Zero false positives on every release v1.1.0 → v2.4.0
+including `aee1e10`; the only other commits it flags are the three `rescue:` snapshots (which *are*
+this failure) and one `Revert` (exemptible by provenance). A release deletes only changesets and
+always bumps the version; the accident did neither.
+
+Prevention still comes first — the hook stops the cause, and that is cheaper than catching the damage
+after it is staged. But do not repeat the impossibility claim. If you think two populations are
+inseparable, **run the query before writing that down**; five reviewers falsified this paragraph in
+minutes with one `git log`.
 
 ### 3 · Bundles and ledgers must be SERIALIZED — a worktree does not save you here
 

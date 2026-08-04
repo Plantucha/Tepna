@@ -34,14 +34,30 @@ set -uo pipefail
 cmd="$(jq -r '.tool_input.command // empty' 2>/dev/null)" || exit 0
 [ -z "$cmd" ] && exit 0
 
-# QUOTE-STRIPPED FORM, defined once and used by every rule below.
+cmdn="${cmd//\\$'\n'/ }"; cmdn="${cmdn//$'\n'/ }"      # fold continuations + newlines
+cmd_noquotes="$(sed "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g" <<<"$cmdn")"
+GITX='(^|[^[:alnum:]_-])([^[:space:];&|]*/)?git([[:space:]]+(-[cC][[:space:]]*[^[:space:]]+|--git-dir=[^[:space:]]+|--work-tree=[^[:space:]]+|--exec-path=[^[:space:]]*|--no-pager))*[[:space:]]+'
+QT='["'"'"']?'
+
+# HOW A RULE IS MATCHED — read this before adding one.
 #
-# Matching the RAW command makes a guard fire on a command that merely MENTIONS the forbidden one —
-# `grep "git add -A" CONTRIBUTING.md` was denied while trying to READ the rule it documents. A guard
-# that blocks reading its own documentation is a guard someone turns off, so the pattern is matched
-# against the command with quoted strings blanked out: a real invocation is unquoted and still caught.
-# NOTE: no quote-stripping. A stripped match cannot see `bash -c "git add -A"`, and that bypass is
-# worse than the false positive on `grep "git add -A" docs`. Rules match the RAW command, always.
+# Rules match $cmdn: the RAW command with line-continuations and newlines folded to spaces. RAW,
+# because a quote-stripped match cannot see `bash -c "git add -A"`. FOLDED, because grep is
+# line-oriented, so `git add \<newline> -A` otherwise splits across two lines and matches nothing —
+# that one defeats every rule in this file at once.
+#
+# The single exception is the `commit` rule, which matches $cmd_noquotes: a commit MESSAGE legitimately
+# contains these strings ("fix -a flag parsing"), and there is no non-Bash path to a commit message,
+# so a raw match there blocks documenting the very rules in this file. Stripping quotes for that ONE
+# rule does not reopen `bash -c "..."`, because the add/reset/clean rules still match it raw.
+#
+# Every rule composes $GITX rather than spelling its own anchor. $GITX absorbs a path prefix
+# (/usr/bin/git) and git's global options (-C <p>, -c k=v, --git-dir=). Those defeated six of the
+# seven rules when each rule hand-rolled its anchor and only update-ref handled -C.
+#
+# KNOWN GAPS — this guard stops the accidental form, not a determined one. It cannot see through
+# shell evaluation: `G=git; $G add -A`, `$(echo git) add -A`, `echo -A | xargs git add`, or a
+# `-c alias.z=...` indirection. Do not describe it as complete.
 
 
 deny() {
@@ -67,8 +83,8 @@ deny() {
 # parallel work-units from the next changelog. The count GREW with every merge instead of converging.
 #
 # The check that hid it: `git rev-list --count HEAD..origin/main` returned 0. The ref WAS synced.
-_RE2='(^|[^[:alnum:]_./-])[[:space:]]*git[[:space:]]+(-C[[:space:]]+[^[:space:]]+[[:space:]]+)?update-ref([[:space:]]+--stdin|[[:space:]]+(-d[[:space:]]+)?refs/heads/)'
-if grep -qE "$_RE2" <<<"$cmd"; then
+_RE2="$GITX"'(update-ref([[:space:]]+--stdin|[[:space:]]+(-d[[:space:]]+|--no-deref[[:space:]]+)*'"$QT"'refs/heads/)|branch[[:space:]]+([^;&|]*[[:space:]])?(-f|--force)|push[[:space:]]+\.([[:space:]]|$)|symbolic-ref[[:space:]]+HEAD)'
+if grep -qE "$_RE2" <<<"$cmdn"; then
   deny "BLOCKED: 'git update-ref refs/heads/...' in a shared checkout.
 
 THE REF IS NOT THE TREE. update-ref is plumbing — it moves the ref and touches neither the working tree nor the index, and it is the ONLY form that skips git's checked-out-branch check. Every porcelain equivalent already refuses by name:
@@ -86,8 +102,8 @@ And to CHECK a tree is in sync, use 'git status --porcelain' (the tree), not 'gi
 fi
 
 # `git add -A` / `--all` / `.` / `:/`  — blanket staging
-_RE='(^|[^[:alnum:]_./-])[[:space:]]*git[[:space:]]+add[[:space:]]+([^;&|]*[[:space:]])?(-A\b|--all\b|\.([[:space:]]|$)|:/)'
-if grep -qE "$_RE" <<<"$cmd"; then
+_RE="$GITX"'add[[:space:]]+([^;&|]*[[:space:]])?(-A\b|--all\b|-u\b|--update\b|\.([[:space:]]|$)|:/)'
+if grep -qE "$_RE" <<<"$cmdn"; then
   deny "BLOCKED: blanket staging in a SHARED checkout (CONTRIBUTING §6).
 
 Several agent sessions work this repo at once, so the working tree is not yours alone — a blanket add sweeps their in-flight files into your commit, under your message. That is exactly how cabd7f7 ended up carrying an unrelated brief.
@@ -103,15 +119,15 @@ fi
 # `git commit -a` / `-am` / `--all`  — blanket staging via commit.
 # Test against a QUOTE-STRIPPED copy: a commit MESSAGE may legitimately contain "-a"
 # (e.g. git commit -m 'fix -a flag parsing') and must not be mistaken for the flag.
-# Only this rule strips quotes — `git add "."` must still be caught by the rule above.
-if grep -qE '(^|[^[:alnum:]_./-])[[:space:]]*git[[:space:]]+commit\b[^;&|]*([[:space:]]-[a-zA-Z]*a[a-zA-Z]*\b|[[:space:]]--all\b)' <<<"$cmd"; then
+# Only this rule strips quotes (see the header block) — `git add "."` must still be caught by the rule above.
+if grep -qE "$GITX"'commit\b[^;&|]*([[:space:]]-[a-zA-Z]*a[a-zA-Z]*\b|[[:space:]]--all\b)' <<<"$cmd_noquotes"; then
   deny "BLOCKED: 'git commit -a' stages every tracked modification in a SHARED checkout (CONTRIBUTING §6) — including other sessions' in-flight edits.
 
 Instead: 'git add <explicit paths>' then a bare 'git commit'."
 fi
 
 # `git reset --hard` — destroys uncommitted work
-if grep -qE '(^|[^[:alnum:]_./-])[[:space:]]*git[[:space:]]+reset\b[^;&|]*--hard' <<<"$cmd"; then
+if grep -qE "$GITX"'reset\b[^;&|]*(--hard|--keep)\b' <<<"$cmdn"; then
   deny "BLOCKED: 'git reset --hard' discards uncommitted work in a SHARED checkout — which may be another session's ONLY copy.
 
 If you must reset, FIRST preserve what is there (this does not touch the tree):
@@ -121,7 +137,7 @@ If you must reset, FIRST preserve what is there (this does not touch the tree):
 fi
 
 # `git checkout .` / `git checkout -- .` / `git restore .` — discards working-tree changes
-if grep -qE '(^|[^[:alnum:]_./-])[[:space:]]*git[[:space:]]+(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?\.([[:space:]]|$)' <<<"$cmd"; then
+if grep -qE "$GITX"'(checkout[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)|(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?(\.([[:space:]]|$)|:/))' <<<"$cmdn"; then
   deny "BLOCKED: discarding ALL working-tree changes in a SHARED checkout — they may be another session's only copy.
 
 Restore only the paths you own:
@@ -129,8 +145,7 @@ Restore only the paths you own:
 fi
 
 # `git stash` (mutating forms) — hides another session's work out from under it
-if grep -qE '(^|[^[:alnum:]_./-])[[:space:]]*git[[:space:]]+stash([[:space:]]+(push|save|-[a-zA-Z]|--))?([[:space:]]|$)' <<<"$cmd" \
-   && ! grep -qE 'git[[:space:]]+stash[[:space:]]+(list|show)\b' <<<"$cmd"; then
+if grep -qE "$GITX"'stash([[:space:]]+(push|save|-[a-zA-Z]|--)|[[:space:]]*($|[;&|]))' <<<"$cmdn"; then
   deny "BLOCKED: 'git stash' in a SHARED checkout would sweep another session's uncommitted work into your stash — invisible to them, and easy to lose.
 
 If you need a clean tree, use your OWN worktree instead:
@@ -139,7 +154,7 @@ If you need a clean tree, use your OWN worktree instead:
 fi
 
 # `git clean -f` — deletes untracked files (another session's new files)
-if grep -qE '(^|[^[:alnum:]_./-])[[:space:]]*git[[:space:]]+clean\b[^;&|]*-[a-zA-Z]*f' <<<"$cmd"; then
+if grep -qE "$GITX"'clean\b[^;&|]*-[a-zA-Z]*f' <<<"$cmdn"; then
   deny "BLOCKED: 'git clean -f' DELETES untracked files — which in a shared checkout includes new files another session has not committed yet (briefs, changesets, fixtures).
 
 Delete only what you created, by name."
