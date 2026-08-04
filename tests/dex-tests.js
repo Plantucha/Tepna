@@ -13591,7 +13591,14 @@
       T.ok('WORKER_SRC template found', i >= 0);
       if (i < 0) return;
       // un-escape the template literal exactly as the runtime does when the blob is minted
-      var ws = app.slice(i, app.indexOf('`;', i)).replace(/\\\\/g, '\\').replace(/\\`/g, '`');
+      /* ONE pass, not two. The former `.replace(/\\\\/g,'\\').replace(/\\`/g,'`')` unescaped in
+         sequence, so a backslash PRODUCED by the first pass could pair with a following backtick and
+         be unescaped a second time — `\\` + '`' came out as a bare backtick instead of `\` + '`'
+         (CodeQL js/double-escaping). A single alternation consumes each escape exactly once, left to
+         right, which is what unescaping a template literal actually means. This reconstructs the
+         worker source the equivalence gate below compares against, so getting it wrong would make
+         that gate compare the wrong string — a passing gate that checked nothing. */
+      var ws = app.slice(i, app.indexOf('`;', i)).replace(/\\([\\`])/g, '$1');
       var s0 = ws.indexOf('const _ckPF');
       T.ok('the worker declares its own inline clock parser (_ckPF)', s0 >= 0);
       if (s0 < 0) return;
@@ -13647,6 +13654,142 @@
         if (String(av) !== String(bv)) diverged.push(s + ' → clock.js ' + av + ' vs worker ' + bv);
       });
       T.eq('the worker parser agrees with clock.js on EVERY vendor format (a drift here would corrupt ONLY >5 MB recordings)', diverged, []);
+    });
+
+    /* ════ CONSENSUS POLARITY — a lone inverted channel must not silently leave the vote (E-5) ════
+       `orient` decides each channel's polarity ALONE from the sign of its derivative-skewness. Three
+       co-located photodiodes share a polarity convention, so a channel whose skew sits near zero can
+       flip against two confident siblings — and then its "systolic peaks" land on the opposite phase
+       of the pulse, ~236 ms away on real captures, which is 4.7x the ±50 ms vote window. It therefore
+       joins NO cluster: kept3/3 = 0 for the whole record and the 3-LED vote silently degrades to
+       2-LED. Measured on 3 of 18 real Verity nights (PPGDEX-ALGORITHM-DEEP-DIVE §6.2).
+
+       This is two-directional on purpose. The FIRST assertion reproduces the defect (an inverted
+       channel detected on its own orientation contributes nothing), and only then does the second
+       show the fix restoring it. Without `detectChannel`'s forceSign the second assertion cannot
+       pass, so this group fails on the pre-fix module rather than merely describing it. */
+    group('PpgDex consensus polarity — an inverted channel rejoins the vote (E-5)', 'ppgdex-dsp · consensus · regression', function (T) {
+      var D = env.PPGDSP;
+      T.ok('PPGDSP.detectChannel + consensusBeats available', !!(D && typeof D.detectChannel === 'function' && typeof D.consensusBeats === 'function'));
+      if (!D || typeof D.detectChannel !== 'function' || typeof D.consensusBeats !== 'function') return;
+
+      // Synthetic PPG: steep systolic upstroke, slow diastolic decay — the asymmetry `orient` reads.
+      var fs = 55,
+        secs = 60,
+        rr = 1.0,
+        n = fs * secs;
+      function pulse(invert) {
+        var a = new Float32Array(n);
+        for (var i = 0; i < n; i++) {
+          var ph = ((i / fs) % rr) / rr; // 0..1 within a beat
+          var v = ph < 0.15 ? ph / 0.15 : Math.exp(-(ph - 0.15) * 4);
+          a[i] = invert ? -v : v;
+        }
+        return a;
+      }
+      var chUp = pulse(false),
+        chDown = pulse(true);
+
+      var c0 = D.detectChannel(chUp, fs),
+        c1 = D.detectChannel(chUp, fs);
+
+      /* A GENUINELY inverted channel is NOT the defect — `orient` detects the inversion and undoes it,
+         so such a channel votes normally. Pinned so the real failure is not misattributed. */
+      var cInv = D.detectChannel(chDown, fs);
+      T.ok('a genuinely inverted channel is corrected by orient and still votes', D.consensusBeats([c0, c1, cInv], 0, fs).kept33 > 0);
+
+      /* The defect is `orient` MISFIRING — a channel that is not inverted, whose derivative-skew sits
+         near zero, flipped by noise. Modelled by detecting a good channel under the wrong polarity,
+         which is exactly the state the real captures are in. */
+      var s = c0.sign;
+      var c2bad = D.detectChannel(chUp, fs, -s);
+      T.eq('the mis-oriented channel carries the wrong polarity (the precondition)', c2bad.sign, -s);
+
+      var before = D.consensusBeats([c0, c1, c2bad], 0, fs);
+      T.eq('DEFECT REPRODUCED: a mis-oriented channel contributes to NO 3/3 cluster', before.kept33, 0);
+      T.ok('…so every surviving beat is only 2-of-3 — the vote silently runs as 2-LED', before.kept22 > 0, 'kept22=' + before.kept22);
+
+      var c2fixed = D.detectChannel(chUp, fs, s);
+      var after = D.consensusBeats([c0, c1, c2fixed], 0, fs);
+      T.ok('FIX: re-detected under the majority sign, the channel rejoins the vote (kept3/3 > 0)', after.kept33 > 0, 'kept33=' + after.kept33);
+      T.ok('…and 3/3 agreement now dominates 2/3', after.kept33 > after.kept22, 'kept33=' + after.kept33 + ' kept22=' + after.kept22);
+
+      // forceSign must be INERT unless it is exactly ±1 — a truthy check here would silently
+      // reinterpret 0 / undefined / a stray string as a polarity decision.
+      T.eq('omitted forceSign ⇒ orient decides (unchanged contract)', D.detectChannel(chDown, fs).sign, cInv.sign);
+      T.eq('forceSign = 0 is NOT a polarity — falls back to orient', D.detectChannel(chDown, fs, 0).sign, cInv.sign);
+      T.eq('forceSign = undefined falls back to orient', D.detectChannel(chDown, fs, undefined).sign, cInv.sign);
+      T.eq('a non-±1 value falls back to orient rather than being coerced', D.detectChannel(chDown, fs, 'x').sign, cInv.sign);
+      T.eq('forceSign = +1 is honoured', D.detectChannel(chDown, fs, 1).sign, 1);
+      T.eq('forceSign = -1 is honoured', D.detectChannel(chDown, fs, -1).sign, -1);
+
+      /* THE RULE ITSELF. The pass in analyze() is one `if` over consensusSign's verdict, so the rule is
+         where the behaviour lives — and 0 vs +/-1 is the difference between "leave every record alone"
+         and "re-detect channels on records that never needed it". */
+      if (typeof D.consensusSign !== 'function') {
+        T.ok('PPGDSP.consensusSign is exported', false);
+      } else {
+        T.eq('a 2-1 split adopts the majority', D.consensusSign([-1, -1, 1]), -1);
+        T.eq('...in the other direction too', D.consensusSign([1, 1, -1]), 1);
+        T.eq('UNANIMOUS => 0 — the pass does nothing, which is what keeps it export-inert', D.consensusSign([-1, -1, -1]), 0);
+        T.eq('unanimous +1 => 0 as well', D.consensusSign([1, 1, 1]), 0);
+        T.eq('a 1-1 split has NO majority => 0, rather than inventing a winner', D.consensusSign([-1, 1]), 0);
+        T.eq('a 2-2 split is also no majority', D.consensusSign([-1, -1, 1, 1]), 0);
+        T.eq('3-1 adopts the majority', D.consensusSign([1, 1, 1, -1]), 1);
+        T.eq('a single channel has no consensus to take', D.consensusSign([1]), 0);
+        T.eq('empty => 0', D.consensusSign([]), 0);
+        T.eq('missing input => 0, never a thrown polarity', D.consensusSign(null), 0);
+        T.eq('non-+/-1 entries are not counted as votes', D.consensusSign([null, null, 1]), 0);
+      }
+
+      /* THE WIRING. consensusSign can be perfectly right while analyze() never applies it — that is
+         precisely the mutant that survived the first pass of this group (inverting the dissenter test
+         re-detects the AGREEING channels, a silent no-op that leaves the defect in place). A spy for
+         `redetect` pins WHICH channels are replaced and WITH WHAT. */
+      if (typeof D.applyConsensusPolarity !== 'function') {
+        T.ok('PPGDSP.applyConsensusPolarity is exported', false);
+      } else {
+        var calls = [];
+        var spy = function (i, sgn) {
+          calls.push([i, sgn]);
+          return { sign: sgn, peaks: [], feet: [], bp: new Float32Array(0), T: 0 };
+        };
+
+        var set = [{ sign: -1 }, { sign: -1 }, { sign: 1 }];
+        var n = D.applyConsensusPolarity(set, spy);
+        T.eq('exactly ONE channel is re-detected on a 2-1 split', n, 1);
+        T.eq('...and it is the DISSENTER, not an agreeing channel', JSON.stringify(calls), JSON.stringify([[2, -1]]));
+        T.eq('the replaced channel now carries the majority sign', set[2].sign, -1);
+        T.eq('the agreeing channels are left untouched (same object)', set[0].sign + '' + set[1].sign, '-1-1');
+
+        calls = [];
+        T.eq('a UNANIMOUS set re-detects nothing', D.applyConsensusPolarity([{ sign: 1 }, { sign: 1 }, { sign: 1 }], spy), 0);
+        T.eq('...and calls redetect zero times — the export-inert path', calls.length, 0);
+
+        calls = [];
+        T.eq('a 1-1 split re-detects nothing', D.applyConsensusPolarity([{ sign: 1 }, { sign: -1 }], spy), 0);
+        T.eq('...and calls redetect zero times', calls.length, 0);
+
+        T.eq('an empty channel set is a no-op', D.applyConsensusPolarity([], spy), 0);
+        T.eq('a missing channel set is a no-op', D.applyConsensusPolarity(null, spy), 0);
+      }
+
+      /* ...and that analyze() INVOKES it. Both functions above can be perfectly correct while the
+         call site is gone — deleting the one line from analyze() survived every behavioural assertion
+         in this group. A pure function nothing invokes is not a fix, so the call site is pinned. */
+      var psrc = (env.sources && env.sources['ppgdex-dsp.js']) || '';
+      if (!psrc) {
+        T.skip('ppgdex-dsp.js source unavailable — call-site check skipped');
+      } else {
+        /* Match the CALL, not the DECLARATION. `function applyConsensusPolarity(perChannel, redetect)`
+           satisfies a naive /applyConsensusPolarity\(perChannel,/ — so the first version of this
+           assertion passed with the call site DELETED. The call passes an arrow, so an open paren
+           after the comma distinguishes it from the declaration's identifier. */
+        var callRe = /applyConsensusPolarity\(perChannel,\s*\(/;
+        T.ok('analyze() CALLS applyConsensusPolarity (deleting the call must not pass)', callRe.test(psrc));
+        T.ok('the pattern does NOT match the declaration alone (this assertion can fail)', !callRe.test('function applyConsensusPolarity(perChannel, redetect) {'));
+        T.ok('...and the call precedes consensusBeats consuming perChannel', psrc.search(callRe) > 0 && psrc.search(callRe) < psrc.indexOf('consensusBeats(perChannel, refIdxUsed'));
+      }
     });
 
     /* ════ The PPG worker blob must actually RUN, and agree with the serial path ════

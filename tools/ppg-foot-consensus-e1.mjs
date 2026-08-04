@@ -429,9 +429,16 @@ for (const f of ppgs) {
   const refIdx = Math.max(0, keepIdx.indexOf(sel.idx));
 
   // ── variant A: the shipped peak vote (feet re-derived on the reference channel)
-  const consA = P.consensusBeats(perChannel, refIdx, rec0.fs);
   const signs = perChannel.map((pc) => pc.sign);
   const pkOff = peakOffsetsMs(perChannel, rec0.fs);
+  /* Apply the SHIPPED consensus-polarity pass (E-5) before scoring, mirroring analyze(). Without this
+     the tool measures the RAW per-channel detection and reports a split that the pipeline already
+     resolves — which is exactly how it read after E-5 landed, until this line was added. `signs`/`pkOff`
+     above are captured BEFORE the pass on purpose: they are the diagnosis, and `polarityCorrected`
+     records whether the shipped code fixed it. */
+  const polarityCorrected = typeof P.applyConsensusPolarity === 'function' ? P.applyConsensusPolarity(perChannel, (i, sgn) => P.detectChannel(rec0.ch[keepIdx[i]], rec0.fs, sgn)) : 0;
+  const pkOffAfter = peakOffsetsMs(perChannel, rec0.fs);
+  const consA = P.consensusBeats(perChannel, refIdx, rec0.fs);
   /* The operative defect is a peak DISPLACEMENT, not a sign difference per se: one night in this
      corpus has divergent signs with peaks still aligned (kept3/3 > 0). So flag on the offset and
      report the sign beside it, rather than treating the two as the same condition. */
@@ -496,6 +503,9 @@ for (const f of ppgs) {
     offs: consB.offsets,
     signs,
     pkOff,
+    pkOffAfter,
+    polarityCorrected,
+    kept33after: 0,
     offsetSplit,
     signSplit: new Set(signs).size > 1,
     kept33: consA.kept33
@@ -539,10 +549,10 @@ for (const r of split) {
   console.log(`    ${r.name.padEnd(40)} sign ${r.signs.join('/')}  peak offset vs ch0 (ms) ${r.pkOff.map((o) => (o == null ? 'n/a' : o.toFixed(1))).join('/')}  kept3/3=${r.kept33}`);
 }
 if (split.length) {
-  console.log('    ^ an inverted channel sits ~236 ms off — 4.7x the ±50 ms vote window — so it joins NO');
-  console.log('      cluster (kept3/3 = 0) and the 3-LED vote silently degrades to 2-of-3. Output stays');
-  console.log('      correct; the REDUNDANCY does not. This is a PEAK-domain offset, and E-1 proposed');
-  console.log('      de-offset only in the FOOT domain, where the measured offsets are ~0.');
+  const fixed = split.filter((r) => r.polarityCorrected > 0 && r.kept33 > 0).length;
+  console.log(`    ^ diagnosed BEFORE the shipped consensus-polarity pass (E-5); ${fixed} of ${split.length} resolved by it`);
+  console.log('      (kept3/3 > 0 after correction). A row still reading kept3/3 = 0 here would be a');
+  console.log('      REGRESSION — the pass exists precisely to make that impossible.');
   console.log(`    A further ${signOnly.length} night(s) differ in SIGN with peaks still aligned — so an inverted`);
   console.log('    sign is correlated with, but not sufficient for, the failure.');
 }
