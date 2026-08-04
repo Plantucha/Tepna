@@ -14,8 +14,69 @@
 # swallowed; the worst case is a missed notification, never a missed night.
 from __future__ import annotations
 import logging
+from urllib.parse import urlsplit
 
 _log = logging.getLogger("tepna-capture")
+
+
+class AlertsError(ValueError):
+    """A rejected webhook URL. Mirrors storage_targets.StorageError so webmon can 400 uniformly."""
+
+
+# ── THE WEBHOOK URL IS A CREDENTIAL, AND IS TREATED AS ONE ────────────────────────────────────────
+# For every transport this targets — ntfy, Discord, Slack, Telegram, Home Assistant — possession of the
+# URL *is* the authorisation to post. It is a bearer token shaped like a link. So it follows the same
+# rule storage_targets states for passwords: the operator may SET it from the monitor, and the monitor
+# will never hand it back. The API returns whether one is configured plus a scheme+host HINT with the
+# path (i.e. the token) stripped — enough to answer "which endpoint is this pointed at?" without putting
+# the credential on a LAN-reachable page.
+#
+# This is also why the key is NOT in settings_schema.SETTINGS: `/api/settings` echoes every value it
+# owns straight back to the UI, which for this one would publish the secret to anyone who can reach the
+# box. A dedicated write-only endpoint is the whole reason this lives here instead.
+_MAX_URL = 2048
+
+
+def validate_webhook_url(value) -> str:
+    """Coerce + validate a webhook URL. Returns "" for an explicit clear, else a vetted absolute URL."""
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise AlertsError("webhook_url must be a string")
+    v = value.strip()
+    if not v:
+        return ""                              # explicit clear — the one way to switch alerting off
+    if len(v) > _MAX_URL:
+        raise AlertsError(f"webhook_url is too long (max {_MAX_URL})")
+    # Control characters are a header/log-injection vector once this reaches aiohttp and the journal.
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in v):
+        raise AlertsError("webhook_url contains control characters")
+    try:
+        parts = urlsplit(v)
+    except ValueError as e:                    # malformed IPv6 literal, bad port, …
+        raise AlertsError(f"webhook_url is not a valid URL: {e}") from None
+    if parts.scheme not in ("http", "https"):
+        # An allowlist, not a denylist: `file://` would make the box read a local file, and there is no
+        # reason to POST an alert anywhere but HTTP(S).
+        raise AlertsError("webhook_url must start with http:// or https://")
+    if not parts.hostname:
+        raise AlertsError("webhook_url has no host")
+    return v
+
+
+def webhook_hint(url: str | None) -> str:
+    """A safe, non-secret label for a configured URL: scheme://host[:port], PATH AND QUERY REMOVED.
+
+    The path is exactly where these services put the token (`/hooks/T00/B00/xxxx`,
+    `/api/webhooks/<id>/<token>`), so returning it would defeat the point of not returning the URL.
+    """
+    if not url:
+        return ""
+    try:
+        p = urlsplit(url)
+    except ValueError:            # never produced by a validated value, but a STORED one can predate
+        return ""                 # this validation — degrade to no hint rather than raise
+    return f"{p.scheme}://{p.netloc}" if p.scheme and p.netloc else ""
 
 
 async def _http_post(url: str, payload: dict) -> bool:
@@ -68,6 +129,26 @@ class Notifier:
     def reset(self, key: str) -> None:
         """Forget a dedupe key so the NEXT occurrence alerts immediately (call when a sensor recovers)."""
         self._last.pop(key, None)
+
+    def configure(self, url: str | None, enabled: bool) -> None:
+        """Re-point the notifier at runtime, so a monitor edit applies WITHOUT restarting the daemon.
+
+        Restarting to pick up a webhook change would drop every BLE link mid-night, which is a far worse
+        outcome than the thing being configured. `enabled` is re-derived through the same `enabled and
+        url` rule the constructor uses, so clearing the URL cannot leave alerting nominally "on" and
+        silently dead.
+
+        The dedupe ledger is CLEARED on a real change: those timestamps say "the operator has already
+        been told", which is only true of the previous destination. Keeping them would silence the first
+        alert to a newly-configured endpoint — precisely the one the operator is waiting for to confirm
+        it works. An idempotent re-save (same URL, same flag) is not a change and leaves it intact, so
+        clicking Save twice cannot be used to bypass dedupe.
+        """
+        changed = (url != self.url) or (bool(enabled and url) != self.enabled)
+        self.url = url
+        self.enabled = bool(enabled and url)
+        if changed:
+            self._last.clear()
 
 
 def device_is_recording(connected: bool, last_data_mono: float | None, now: float,

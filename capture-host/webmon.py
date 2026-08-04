@@ -24,6 +24,7 @@ import clockcfg
 import offline_lock
 import polar_psftp
 import storage_targets
+import alerts
 import timeline as _timeline
 import settings_schema
 from writers import missing_identity, StreamWriter
@@ -143,7 +144,7 @@ def _warn_comment_loss(path: str) -> None:
 
 def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_device,
              pull_stored=None, polar_pause=None, sync_time=None, forget_device=None,
-             on_tz_change=None) -> web.Application:
+             on_tz_change=None, notifier=None) -> web.Application:
     # Optional shared-secret gate on the CONTROL surface. When web.token is set, every POST (bond / forget
     # / remember / pull / settings / clock — all the state-changing verbs) needs the token; GET reads stay
     # open so the monitor can still display without it. Default OFF (no token → current wide-open behaviour;
@@ -811,6 +812,73 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         except Exception as e:      # a probe must never 500 the monitor
             return web.json_response({"ok": False, "detail": f"{type(e).__name__}: {e}"})
 
+    # ── Push alerts / webhook destination (VIGIL-OBSERVED-ERRORS E6) ────────────────────────────
+    # The low-disk and sensor-offline alerts fired to nobody because `alerts.webhook_url` could only be
+    # set by hand-editing config.yaml on a headless box. This surface owns the destination.
+    #
+    # ⚠️ WRITE-ONLY BY DESIGN — the URL goes in and never comes back out. For ntfy / Discord / Slack /
+    # Telegram / Home Assistant the URL *is* the bearer credential, and this page is LAN-reachable
+    # through Caddy. So it follows the rule storage_targets states for passwords: settable, never
+    # echoed. `hint` is scheme://host with the path (the token) stripped, which answers "where is this
+    # pointed?" without publishing the secret. That is also why the key is absent from
+    # settings_schema.SETTINGS — `/api/settings` returns every value it owns straight to the client.
+
+    def _alerts_cfg() -> dict:
+        a = cfg.get("alerts") or {}
+        url = a.get("webhook_url") or ""
+        return {"enabled": bool(a.get("enabled")) and bool(url),
+                "configured": bool(url),
+                "hint": alerts.webhook_hint(url)}
+
+    async def alerts_get(_req):
+        return web.json_response(_alerts_cfg())
+
+    async def alerts_post(req):
+        """Set / change / clear the webhook destination, applied to the LIVE notifier.
+
+        Absent `webhook_url` KEEPS the stored one, so the operator can toggle `enabled` without
+        re-typing a secret the UI never showed them. `""` is the explicit clear — the distinction
+        matters precisely because the field renders empty even when one IS configured, so treating
+        "the client didn't send it" as "delete it" would wipe the destination on every toggle."""
+        if not req.body_exists:
+            return _bad_body_response()
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        a = cfg.setdefault("alerts", {})
+        try:
+            url = alerts.validate_webhook_url(body["webhook_url"]) if "webhook_url" in body \
+                else (a.get("webhook_url") or "")
+        except alerts.AlertsError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=400)
+        enabled = bool(body.get("enabled", a.get("enabled", False)))
+        if url:
+            a["webhook_url"] = url
+        else:
+            a.pop("webhook_url", None)
+        # Cannot be enabled with nothing to fire at — the same rule Notifier applies, kept in the stored
+        # config too so a restart reads back exactly what the UI is showing.
+        a["enabled"] = enabled and bool(url)
+        if not _save():
+            return web.json_response({"ok": False, "error": "config write failed (disk?)"}, status=500)
+        if notifier is not None:
+            notifier.configure(url or None, a["enabled"])   # live — no restart, no dropped BLE links
+        return web.json_response({"ok": True, **_alerts_cfg()})
+
+    async def alerts_test(_req):
+        """Fire one real alert to the CURRENT destination, so the operator learns it works now rather
+        than discovering at 03:00 that the token was wrong. Deliberately sends through the LIVE
+        notifier: a probe with its own transport would prove the URL reachable, not that alerting is
+        wired up."""
+        if notifier is None or not notifier.enabled:
+            return web.json_response({"ok": False, "error": "alerts are not enabled"}, status=400)
+        try:
+            ok = await notifier.send("Tepna test", "Test alert from the Tepna monitor.")
+        except Exception as e:                  # a probe must never 500 the monitor
+            return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"})
+        return web.json_response({"ok": bool(ok),
+                                  "error": "" if ok else "the webhook did not accept the alert"})
+
     # ── Capture timeline (per-stream state strip + per-device dBm trace) ────────────────────────
     # Deliberately NOT folded into /api/state: state is polled every 5 s by every open tab, while this
     # walks the night's files. Cached per (night, buckets) and recomputed at most every 60 s — a night
@@ -959,6 +1027,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/settings", settings_post),
         web.get("/api/timeline", timeline_get),
         web.get("/api/storage", storage_get),
+        web.get("/api/alerts", alerts_get),
+        web.post("/api/alerts", alerts_post),
+        web.post("/api/alerts/test", alerts_test),
         web.post("/api/storage", storage_post),
         web.post("/api/storage/test", storage_test),
         web.post("/api/timesync", timesync),

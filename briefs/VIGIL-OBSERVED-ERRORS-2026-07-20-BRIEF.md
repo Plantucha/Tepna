@@ -35,9 +35,22 @@
 >
 > ### The two genuinely open items, and who owns them
 >
-> 1. **`alerts.webhook_url` unset** (E6 / next-steps item 5) — a live-box **configuration** call, not code,
->    and the owner's to make. Note the alert is currently moot: at 20 % used there is no low-disk condition
->    to report.
+> 1. ~~**`alerts.webhook_url` unset** (E6 / next-steps item 5)~~ ✅ **UNBLOCKED 2026-08-04 — it is no longer
+>    a config call, because there is now a UI for it.** It had sat open since 2026-07-20 for the reason
+>    headless boxes always stall: the only way to set it was hand-editing `config.yaml` over SSH. The
+>    monitor now owns the destination — **Settings → Push alerts** — and applies it to the **running**
+>    notifier, so setting it costs no restart and drops no BLE links mid-night.
+>
+>    ⚠️ **The field is WRITE-ONLY, deliberately.** For ntfy / Discord / Slack / Telegram the URL *is* the
+>    bearer credential, and the monitor is LAN-reachable through Caddy, so the API returns
+>    `{enabled, configured, hint}` and never the URL — `hint` being scheme://host with the path (the
+>    token) stripped. This is the same rule `storage_targets` already states for passwords, and it is why
+>    the key is **not** in `settings_schema.SETTINGS`: `/api/settings` echoes every value it owns straight
+>    back to the client. Omitting the field on save KEEPS the stored URL (the input necessarily renders
+>    empty); `""` is the explicit clear.
+>
+>    Still the owner's to *do* — the box has no destination configured yet. The alert remains moot at
+>    20 % disk, but the sensor-offline alert is not.
 > 2. **E1's real-night validation** (next-steps item 2) — structurally hard rather than merely unstarted.
 >    E1 was *"the only occurrence across every capture log on the box"*, so validating the stall watchdog
 >    requires the fault to **recur**; its absence since is weak evidence either way. ⚠️ The watchdog in
