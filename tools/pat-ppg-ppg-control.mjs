@@ -276,7 +276,7 @@ function main() {
   for (const n of nights) {
     const dir = join(DIR, n);
     const fs_ = biggest(dir, /o2ring.*_PPG\.txt$/i, 3);
-    const ws = biggest(dir, /verity.*_PPG\.txt$/i, 3);
+    const ws = biggest(dir, RE_WRIST, 3);
     if (!fs_.length || !ws.length) continue;
     const F = fs_
       .map((c) => {
