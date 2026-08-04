@@ -114,8 +114,31 @@ over the identical interval** — a real cross-validation opportunity for OxyDex
 exactly the nights the ring loses. Flagged in the parent as out of scope; still unclaimed. Probably
 deserves its own brief rather than a section here.
 
+> ## ❌ THE PREMISE OF THIS ENTIRE SECTION IS REFUTED — do not build an SA2 ingest
+>
+> **There is no second SpO₂ source.** `CPAP-SA2-OXIMETRY-SOURCE-2026-08-01` executed and refuted it: the
+> ResMed writes `SA2.edf` on every therapy night *whether or not the optional oximeter accessory is
+> attached*, and when it is not, both channels are filled with the physical value **−1** for the whole
+> session. The table below is real and is about **files**; it says nothing about data.
+>
+> **Re-confirmed 2026-08-04, far wider, on the live box:** all **254** `SA2.edf` currently under
+> `/srv/tepna/captures/cpap/DATALOG` (204 distinct nights, **2026-01-11 → 08-03**) — **5,036,280 samples
+> of `SpO2.1s` and 5,036,280 of `Pulse.1s`, 100.00 % `−1`, both channels, zero plausible values.**
+> Headers are immaculate throughout: correct labels, `%` and `bpm` units, gain exactly 1.0, full-length
+> records. *A well-formed file is not a measurement.*
+>
+> ⚠️ **This does NOT overturn the one good night.** The earlier sweep found `20260613_231433_SA2.edf`
+> carrying 2.50 h of real data, and that file is **not on the box** — the box's DATALOG is a different
+> file set (2026-06-13 is present there only as `_201036`). So the honest statement is *"empty across
+> everything the box currently holds"*, not *"empty always"*. Someone did once attach the accessory.
+>
+> Kept rather than deleted because the reasoning is the value: this section is what a corpus claim looks
+> like when it is built from headers instead of values. The routed brief carries the full retraction.
+> **SpO₂ comes from the O2Ring; the CPAP is not a fallback for it.**
+
 **✅ ROUTED 2026-08-01 → `CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF.md`.** The premise was verified before
-routing rather than taken on trust, and the measurement both confirms it and corrects its shape:
+routing rather than taken on trust — but only its *shape* was verified, from headers. The measurement
+below therefore describes file coverage, and execution refuted what it was taken to imply:
 
 | | |
 |---|---|
