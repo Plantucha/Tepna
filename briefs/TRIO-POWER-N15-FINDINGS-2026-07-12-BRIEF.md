@@ -1,5 +1,49 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-12 · **Blocks:** `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md` · **Follows:** `PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md` §181
+**Status:** PROPOSED (**the N is no longer the blocker — a clean 25-night fold exists as of 2026-08-04**; what remains is deciding WHICH estimator seeds the sim, which is a judgement, not a data gap) · **Created:** 2026-07-12
+
+> ## 📊 25-night trio fold, 2026-08-04 — the data half of this brief
+>
+> This brief blocks `SENSOR-TRIO-NIGHTS-PAPER` on an N = 10 → 15 re-fit whose CI is *"that paper's entire
+> deliverable"*. **N is now 25**, from a corpus that was simply not known to be reachable: 19 GB of Polar
+> Sensor Logger output at `Ecg nightly/` on the working volume (see [[psl-corpus-ecg-nightly]] in the
+> session memory, and `CAPTURE-HOST-FOLLOWUPS-II`'s V1/V2 note).
+>
+> Run with the sanctioned tools, not a hand-rolled harness:
+> `tools/trio-batch.mjs --src "…/Ecg nightly" --out <dir>` → 25 nights (2026-06-10 … 07-13), 75
+> node-exports, 190 s — then `tools/tch-multinight.mjs --dir <dir>`.
+>
+> ```
+> corpus: all 25 night(s) from one producing code version — medians are corpus figures
+> distribution (23 estimated / 25 nights)
+>   median σ[ECGDex]  classic=0.56  ρ-on=0.81 bpm
+>   median σ[PpgDex]  classic=2.71  ρ-on=2.99 bpm
+>   median σ[OxyDex]  classic=1.11  ρ-on=1.14 bpm
+>   median culprit σ (ρ-on) = 3.28 bpm
+> ```
+>
+> **⚠️ These are NOT comparable to the paper's published 2.41 / 1.28 / 1.42 (O2Ring / H10 / Verity), and
+> must not be swapped in.** Different estimator: `tch-multinight`'s classic / ρ-on fit versus the paper's
+> **fused-weight artifact-robust** hat. The ordering differs too — this fold puts PpgDex (Verity) noisiest
+> at 2.71 and OxyDex (O2Ring) at 1.11, where the paper has O2Ring noisiest. That difference is a question
+> to answer, not a correction to apply, and answering it is what the re-fit actually is.
+>
+> **Honest limits of this run, all from the tool's own output:**
+> - **2 of 25 nights EXCLUDED** — negative classic variance puts the correlated fit on the non-negativity
+>   boundary, where the boundary member's σ is ~0 *by construction, not by measurement* (2026-06-24,
+>   2026-07-07). The tool excludes them; they are not quietly averaged in.
+> - **7 nights carry `⚠ρ-REJECTED`** — the ρ fit was refused on those, so they fall back to classic.
+> - Per-night drift lines print `UNCLOSED (no third source): not a measurement` — consistent with the
+>   standing rule that a ppm figure needs a 3-source closure before it can be quoted.
+> - **Not established here:** whether these 25 nights overlap the σ-paper's existing 26-night corpus. If
+>   they are largely the same nights, this is a second estimator over the same data rather than new N —
+>   check before claiming the sample grew.
+>
+> ⚠️ **A trap worth recording.** The first run was pointed at a `/tmp` output dir that already held **16
+> nights from earlier runs**, giving a 41-night hat. `tch-multinight` caught it itself — *"⚠ MIXED — corpus
+> mixes producing-code versions (post-host-axis 30, pre-host-axis 11) … a median over this corpus is a
+> statement about the MIX, not about the sensors"* — and the medians shifted once the set was cleaned
+> (ECGDex 0.65 → 0.56, PpgDex 3.07 → 2.71). **Fold into a fresh directory, and read that corpus line
+> before reading the numbers.** · **Blocks:** `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md` · **Follows:** `PPGDEX-OPTICAL-DETECTOR-AND-SIGMA-REDERIVE-2026-07-11-BRIEF.md` §181
 
 # The N=10→15 power re-run: what it changes, and why it is NOT landed yet
 
