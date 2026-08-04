@@ -28103,6 +28103,82 @@
       T.ok('--all exits non-zero when a node did not report', /process\.exit\(failed\.length \|\|/.test(R));
     });
 
+    /* NODE-EXPORT-DURATION-SEMANTICS §3 — OxyDex already satisfies option (c); pin it so it stays true.
+       The ruling: a node publishes BOTH how much signal it has AND where the recording ends, because one
+       scalar cannot answer two questions. §4's table lists OxyDex as `durSec: span ✗ … pending`, which is
+       stale — measured over 42 real O2Ring nights (12 sampled), OxyDex publishes `durationMin` = the
+       ENVELOPE and, when the night is segmented, `recording.coverage.recordedSec` = the DATA:
+
+           durationMin  cov.kind   spanSec  recordedSec  data/span  segs
+                 460.0  sparse       27599        27528     0.9974     2
+                 440.0  sparse       26399        26328     0.9973     2
+           (the other 10 sampled nights are contiguous ⇒ no coverage block at all, by contract)
+
+       `durationMin × 60` tracks `spanSec` to within a second, NOT `recordedSec` — i.e. the field means
+       span, and the data lives in coverage. That is option (c) in OxyDex's own vocabulary.
+       What this gate prevents is the specific way the remaining §6 item could go wrong: someone
+       "normalising `durSec` to data-seconds" and quietly making `durationMin` mean data instead, so
+       every rate computed against it silently changes denominator with no schema change to notice.
+       Also pinned: a CONTIGUOUS night gets NO coverage block rather than a fabricated 100 % — the
+       Clock-Contract §2.6 discipline applied to coverage. Where that is ENFORCED is worth knowing:
+       `dex-export.js coverageFromSegments` refuses twice (before sort at `clean.length < 2`, and again
+       after merging, in case the holes closed), so removing `oxyCoverage`'s own `segs.length < 2`
+       early-return does NOT break it — verified by mutation. The node-local guard is defence in depth,
+       the shared builder is the contract. A future node that skips the shared builder would lose it.
+       Mutation-verified where it counts: making `durationMin` report data-seconds instead of the
+       envelope reds the last leg by value (`durationMin*60=2520s · spanSec=4199`). */
+    group('OxyDex duration means SPAN, coverage means DATA — NODE-EXPORT-DURATION-SEMANTICS §3', 'oxydex-dsp · export · duration-semantics', function (T) {
+      // NOT `_bare` here: `coverage`/`computeNight` hang off the OxyDex namespace itself, and the
+      // `_bare || OxyDex` idiom used elsewhere would resolve to the helper bag that lacks them.
+      var O = env.OxyDex;
+      if (!O || typeof O.coverage !== 'function' || typeof O.computeNight !== 'function') {
+        T.skip('OxyDex.coverage + computeNight available', 'wire env.OxyDex into this lane');
+        return;
+      }
+      var t0 = U(2026, 5, 10, 22, 0, 0);
+      // 1 Hz rows; `mk` builds a contiguous run, `gap` splices a hole out of the middle.
+      function rows(n, from) {
+        var a = [];
+        // Real parsed rows carry BOTH: `tMs` (number, what computeNight reads) and `t` (a Date, what
+        // oxyCoverage reads — it coerces on isFinite/subtraction, which is why a Date works there).
+        for (var i = 0; i < n; i++) {
+          var ms = (from || t0) + i * 1000;
+          a.push({ tMs: ms, t: new Date(ms), spo2: 96, hr: 58, motion: 0, pi: null });
+        }
+        return a;
+      }
+      var contig = rows(3600);
+      var gapped = rows(1800).concat(rows(1800, t0 + (1800 + 600) * 1000)); // 600 s hole
+      T.ok('ANTI-VACUITY · the synthetic rows are what the test thinks', contig.length === 3600 && gapped.length === 3600 && gapped[1800].t - gapped[1799].t === 601000, 'gap=' + (gapped[1800].t - gapped[1799].t) / 1000 + 's');
+
+      // ── a contiguous night makes NO coverage claim (never a fabricated 100 %) ──
+      T.ok('contiguous ⇒ coverage is null, not a manufactured 100 %', O.coverage(contig, t0) === null);
+      T.ok('a stampless night ⇒ null — coverage on a clock it cannot be placed on would be invented', O.coverage(gapped, null) === null);
+      T.ok('too few rows ⇒ null', O.coverage([{ t: t0 }], t0) === null);
+
+      // ── a gapped night reports DATA, and the gap leaves the numerator ──
+      var cov = O.coverage(gapped, t0);
+      T.ok('gapped ⇒ a coverage block with both numbers', !!cov && cov.spanSec != null && cov.recordedSec != null, JSON.stringify(cov && { kind: cov.kind, spanSec: cov.spanSec, recordedSec: cov.recordedSec, segs: cov.segments && cov.segments.length }));
+      if (!cov) return;
+      T.ok('…two segments, because the hole splits the night', cov.segments && cov.segments.length === 2, 'segments=' + (cov.segments ? cov.segments.length : 'none'));
+      T.ok('…recordedSec EXCLUDES the 600 s hole — it is data, not span', Math.abs(cov.spanSec - cov.recordedSec - 600) < 2, 'span−recorded=' + (cov.spanSec - cov.recordedSec).toFixed(1) + 's, want ~600');
+      T.ok('…and recordedSec is strictly less than spanSec on a gapped night', cov.recordedSec < cov.spanSec);
+
+      /* ── THE INVARIANT THE REMAINING §6 ITEM COULD BREAK ────────────────────────────────────────
+         `durationMin` must keep meaning the ENVELOPE. If a future "normalise durSec to data-seconds"
+         pass redefines it, every per-hour rate silently changes denominator with nothing in the schema
+         to notice — which is exactly the failure §1 measured on ECGDex, in reverse. */
+      var night = O.computeNight(gapped, {});
+      var dm = night && night.stats && night.stats.durationMin;
+      T.ok('computeNight produced a night with a duration', dm != null && isFinite(dm), 'durationMin=' + dm);
+      if (dm == null) return;
+      T.ok(
+        'durationMin × 60 tracks coverage.spanSec (the ENVELOPE), not recordedSec (the DATA)',
+        Math.abs(dm * 60 - cov.spanSec) < 5 && Math.abs(dm * 60 - cov.recordedSec) > 500,
+        'durationMin*60=' + (dm * 60).toFixed(0) + 's · spanSec=' + cov.spanSec.toFixed(0) + ' · recordedSec=' + cov.recordedSec.toFixed(0)
+      );
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
        HRV off a night full of movement is worth less than the same number off a still night. This SCORES
        that (it never alters or excludes an HRV value). The invariant that matters is the same tri-state
