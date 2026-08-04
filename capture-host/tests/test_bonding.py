@@ -313,3 +313,80 @@ def test_bond_untrusts_after_pairing_so_bleak_is_the_sole_initiator(monkeypatch)
     cmds = " ".join(c for _, c in [x if isinstance(x, tuple) else (0, x) for x in rec])
     assert "untrust AA:BB:CC:DD:EE:FF" in cmds
     assert "pair AA:BB:CC:DD:EE:FF" in cmds        # still pairs (the bond is kept)
+
+
+# ── _btctl: the pipes, and the script that reaches bluetoothctl ─────────────────────────────────────
+# Every bond, scan and info goes through one `create_subprocess_exec`. Existing tests fake it and assert
+# the PARSED result, so the three pipe arguments and the script bytes were never observed.
+
+def test_btctl_wires_all_three_pipes_and_feeds_the_script_on_stdin(monkeypatch):
+    """bluetoothctl is interactive: without `stdin=PIPE` the script cannot be delivered at all and the
+    session sits at its prompt until the timeout. Without `stdout=PIPE` the answer goes to the daemon's
+    own stdout and `out` is None. And `stderr=STDOUT` is why a failed pair — which bluetoothctl reports
+    on stderr — reaches the `"Pairing successful" in out` test rather than vanishing."""
+    seen = {}
+
+    class P:
+        returncode = 0
+
+    async def fake_exec(*argv, **kw):
+        seen["argv"], seen["kw"] = list(argv), kw
+        return P()
+
+    async def fake_comm(proc, timeout, stdin=None):
+        seen["stdin"], seen["timeout"] = stdin, timeout
+        return b"Bonded: yes\n", b""
+
+    monkeypatch.setattr(bonding.asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(bonding.proc_util, "communicate", fake_comm)
+
+    out = _run(bonding._btctl("info AA:BB\nquit\n", timeout=8))
+    assert out == "Bonded: yes\n"
+    assert seen["argv"] == ["bluetoothctl"]
+    assert seen["kw"]["stdin"] is bonding.asyncio.subprocess.PIPE, "no stdin pipe = the script is never delivered"
+    assert seen["kw"]["stdout"] is bonding.asyncio.subprocess.PIPE, "no stdout pipe = no answer to parse"
+    assert seen["kw"]["stderr"] is bonding.asyncio.subprocess.STDOUT, \
+        "bluetoothctl reports pairing failures on stderr; they must land in the stream that is read"
+    assert seen["stdin"] == b"info AA:BB\nquit\n", "the script must arrive verbatim, as bytes"
+    assert seen["timeout"] == 8, "the caller's bound must reach communicate, which kills AND reaps"
+
+
+def test_a_btctl_timeout_yields_empty_text_rather_than_raising(monkeypatch):
+    """`out = b""` on TimeoutError. Callers do substring tests on the result; a raise here would take
+    down a bond attempt that should simply report "not paired"."""
+    class P:
+        returncode = 0
+
+    async def fake_exec(*a, **k):
+        return P()
+
+    async def boom(proc, timeout, stdin=None):
+        raise bonding.asyncio.TimeoutError()
+
+    monkeypatch.setattr(bonding.asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(bonding.proc_util, "communicate", boom)
+    assert _run(bonding._btctl("x\n")) == ""
+
+
+def test_the_pair_script_revokes_trust_and_ends_cleanly(monkeypatch):
+    """The `untrust` is deliberate and documented: `trust` only sets the kernel auto-reconnect flag,
+    which RACES bleak for the single ACL slot and produces br-connection-canceled. Dropping it leaves
+    the kernel competing with the app for every future connect — a failure that shows up nowhere near
+    the bond that caused it."""
+    seen = {}
+
+    async def fake_delayed(lines):
+        seen["lines"] = list(lines)
+        return "Pairing successful\n"
+
+    monkeypatch.setattr(bonding, "_delayed_script", fake_delayed)
+    _run(bonding.bond("AA:BB:CC:DD:EE:FF"))
+
+    cmds = [c for _d, c in seen["lines"]]
+    assert "pair AA:BB:CC:DD:EE:FF" in cmds, "the address must reach the pair command"
+    assert "untrust AA:BB:CC:DD:EE:FF" in cmds, \
+        "trust is revoked so bleak is the sole initiator — omitting it re-opens the ACL race"
+    assert cmds[-1] == "quit", "the session must be closed, not left for the timeout to reap"
+    assert cmds.index("pair AA:BB:CC:DD:EE:FF") < cmds.index("untrust AA:BB:CC:DD:EE:FF"), \
+        "untrust follows the pair — reversing it revokes nothing"
+    assert all(d >= 0 for d, _c in seen["lines"]), "every step is delay-paced; bluetoothctl drops fast input"

@@ -1,5 +1,7 @@
 # tepna-capture — tests/test_alerts.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+import types
+import sys
 import asyncio
 
 from aiohttp import web
@@ -143,3 +145,87 @@ def test_un_keyed_alerts_do_not_dedupe_against_each_other():
     assert sent == ["disk low", "sensor offline"], (
         f"an un-keyed alert suppressed an unrelated one: {sent}"
     )
+
+
+# ── _http_post: the bound and the accepted status range ─────────────────────────────────────────────
+# `Notifier._post` is injectable, so every existing test replaces it — which means the ONE function
+# that actually talks to the network was never executed by anything. Its timeout and its status test
+# were entirely unobserved.
+
+def test_the_webhook_post_is_bounded_and_only_2xx_counts_as_delivered(monkeypatch):
+    """Two separate things, both invisible from `send()`'s return value.
+
+    THE BOUND. A webhook is an operator-supplied URL that may be a black hole; unbounded, the POST
+    parks a task inside the capture daemon forever. It is set in TWO places — the ClientTimeout and the
+    session that receives it — and dropping either leaves aiohttp's default (5 minutes, or none).
+
+    THE RANGE. 2xx is delivered; 3xx is NOT. A redirect means the webhook moved, and reporting that as
+    delivered latches the caller and tells the operator nothing was wrong — the same
+    silently-lost-alert failure §C1 already had to fix once in the except arm below."""
+    seen = {}
+
+    class _Resp:
+        def __init__(self, status):
+            self.status = status
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+    class _Session:
+        def __init__(self, timeout=None):
+            seen["session_timeout"] = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        def post(self, url, json=None):
+            seen["url"], seen["json"] = url, json
+            return _Resp(seen["status"])
+
+    class _Timeout:
+        def __init__(self, total=None):
+            seen["total"] = total
+
+    fake = types.SimpleNamespace(ClientTimeout=_Timeout, ClientSession=_Session)
+    monkeypatch.setitem(sys.modules, "aiohttp", fake)
+
+    seen["status"] = 204
+    assert _run(alerts._http_post("http://hook", {"title": "t", "message": "m"})) is True
+    assert seen["total"] == 10, "the bound must be 10s — aiohttp's own default is minutes"
+    assert seen["session_timeout"] is not None, "the timeout must reach the SESSION, not just be built"
+    assert seen["url"] == "http://hook" and seen["json"] == {"title": "t", "message": "m"}
+
+    for status, delivered in ((200, True), (299, True), (300, False), (301, False), (500, False)):
+        seen["status"] = status
+        assert _run(alerts._http_post("http://hook", {})) is delivered, \
+            f"{status} must read as delivered={delivered}"
+
+
+def test_a_failed_delivery_is_logged_not_just_swallowed(caplog):
+    """CAPTURE-HOST-DEEP-AUDIT §C1: the exception must not take down capture, but it must leave a
+    record — a delivery that never happened was previously indistinguishable from one that did."""
+    async def boom(url, payload):
+        raise OSError("no route to host")
+
+    n = alerts.Notifier(url="http://hook", enabled=True, _post=boom)
+    with caplog.at_level("WARNING"):
+        assert _run(n.send("disk full", "1 GB left")) is False
+    joined = " ".join(r.getMessage() for r in caplog.records)
+    assert "disk full" in joined, "the lost alert must be named"
+    assert "no route to host" in joined, "and so must the reason it was lost"
+
+
+def test_a_non_2xx_rejection_is_also_logged(caplog):
+    async def rejected(url, payload):
+        return False
+
+    n = alerts.Notifier(url="http://hook", enabled=True, _post=rejected)
+    with caplog.at_level("WARNING"):
+        assert _run(n.send("strap off", "H10")) is False
+    assert "strap off" in " ".join(r.getMessage() for r in caplog.records)

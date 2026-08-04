@@ -164,3 +164,66 @@ def test_free_gb_keeps_two_decimals(tmp_path):
     r = diskguard.disk_report(str(tmp_path))
     assert isinstance(r["free_gb"], float), f"free_gb must stay fractional, got {r['free_gb']!r}"
     assert round(r["free_gb"], 2) == r["free_gb"]
+
+
+# ── disk_report: the walk-up, the rounding, and the low flag ────────────────────────────────────────
+# The box writes ~1.5 GB/night and a full filesystem makes fsync fail while the daemon still looks
+# alive, so this report is the only thing standing between "running" and "silently not recording".
+# 19 tests asserted what it returns for paths that EXIST; nothing observed the walk-up that makes a
+# not-yet-created root reportable, or the threshold arithmetic.
+
+def test_a_path_that_does_not_exist_yet_reports_the_filesystem_it_will_live_on(tmp_path):
+    """`while probe and not exists(probe): probe = dirname(probe) or "/"`. The archive root is
+    configured before it is created, so a report that raised (or answered about "/") would either
+    crash the caller or describe the wrong disk — and "the wrong disk has room" is how a full capture
+    volume goes unnoticed."""
+    deep = tmp_path / "not" / "created" / "yet"
+    r = diskguard.disk_report(str(deep))
+    here = diskguard.disk_report(str(tmp_path))
+    assert r["total_gb"] == here["total_gb"], \
+        "the walk-up must land on the real parent's filesystem, not on / and not on nothing"
+    assert r["free_gb"] > 0
+
+
+def test_a_relative_path_bottoms_out_rather_than_looping(tmp_path, monkeypatch):
+    """`dirname("x")` is `""`, which is falsy — without the `or "/"` the loop would spin on an empty
+    string forever. The guard runs inside the capture daemon; a hang here is the daemon gone."""
+    monkeypatch.chdir(tmp_path)
+    r = diskguard.disk_report("no-such-relative-dir")
+    assert r["total_gb"] > 0 and r["free_gb"] > 0
+
+
+def test_the_low_flag_needs_a_threshold_and_a_shortfall(tmp_path):
+    """`min_free_gb > 0 and free_gb < min_free_gb`. The default of 0.0 means "no threshold configured"
+    and must never flag — an always-low guard is one the operator learns to ignore, which is worse
+    than no guard. And the comparison is strict: exactly at the threshold is not yet low."""
+    r = diskguard.disk_report(str(tmp_path))
+    assert diskguard.disk_report(str(tmp_path))["low"] is False, "no threshold configured -> never low"
+    assert diskguard.disk_report(str(tmp_path), min_free_gb=0.0)["low"] is False
+
+    huge = r["free_gb"] + 1000
+    assert diskguard.disk_report(str(tmp_path), min_free_gb=huge)["low"] is True
+    tiny = max(0.01, r["free_gb"] / 1000)
+    assert diskguard.disk_report(str(tmp_path), min_free_gb=tiny)["low"] is False
+
+
+def test_the_report_is_rounded_for_display_not_left_raw(tmp_path):
+    """These land straight in webmon's Storage card. `round(x, None)` returns an int, so a 0.4 GB
+    remainder renders as `0` — and free space that reads as a whole number of GB is the one figure an
+    operator eyeballs to decide whether tonight will fit."""
+    r = diskguard.disk_report(str(tmp_path))
+    for k in ("free_gb", "total_gb", "free_pct"):
+        assert isinstance(r[k], float), f"{k} must stay a float — an int here hides the remainder"
+    assert round(r["free_gb"], 2) == r["free_gb"], "free_gb is 2dp"
+    assert round(r["free_pct"], 1) == r["free_pct"], "free_pct is 1dp"
+
+
+def test_a_zero_total_reports_zero_percent_rather_than_dividing_by_it(monkeypatch, tmp_path):
+    """A pseudo-filesystem can report total=0. Without the guard this is a ZeroDivisionError out of the
+    daemon's health check — the check that exists to notice trouble becoming the trouble."""
+    class U:
+        free, total, used = 0, 0, 0
+
+    monkeypatch.setattr(diskguard.shutil, "disk_usage", lambda p: U())
+    r = diskguard.disk_report(str(tmp_path))
+    assert r["free_pct"] == 0.0 and r["total_gb"] == 0.0

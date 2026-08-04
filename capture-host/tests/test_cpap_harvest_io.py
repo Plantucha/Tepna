@@ -6,6 +6,7 @@ outlives its transfer, and the default route wandering onto a card that routes n
 """
 import io
 import os
+import time
 import subprocess
 import sys
 
@@ -670,3 +671,137 @@ def test_wpa_down_still_flushes_and_downs_even_when_terminate_fails(monkeypatch)
     flat = [c for c, _ in calls]
     assert flat[0].startswith("ip addr flush"), "the flush must still come first"
     assert any("link set wlp1s0 down" in c for c in flat), "and the link must still go down"
+
+
+# ── harvest's own parameters must reach the client it builds ────────────────────────────────────────
+def test_harvest_threads_its_bounds_and_ignore_list_into_the_client(tmp_path, monkeypatch):
+    """`EzShare(base, timeout=timeout, retries=retries, ignore=ignore)`. Every one of those is a
+    parameter `harvest` accepts and forwards, and nothing observed the forwarding — so each could be
+    dropped or None'd while every assertion about the MIRRORED FILES still passed.
+
+    They are not cosmetic. `timeout` and `retries` bound a client talking to a Wi-Fi SD card over an
+    ad-hoc AP; dropping them silently substitutes the class defaults (20 s / 5), which is right today
+    and wrong the moment an operator tunes them for a slow card. `ignore` is what keeps the mirror from
+    dragging the card's own junk into the archive."""
+    _card(monkeypatch)
+    seen = {}
+    real = ch.EzShare
+
+    def spy(base, **kw):
+        seen["base"], seen["kw"] = base, dict(kw)
+        return real(base, **kw)
+
+    monkeypatch.setattr(ch, "EzShare", spy)
+    ch.harvest(str(tmp_path), base="http://card.local", nights={"20260725"},
+               timeout=7.5, retries=2, ignore=("*.TMP",))
+
+    assert seen["base"] == "http://card.local", "the configured base must reach the client"
+    assert seen["kw"]["timeout"] == 7.5, "a tuned timeout must not silently become the class default"
+    assert seen["kw"]["retries"] == 2
+    assert seen["kw"]["ignore"] == ("*.TMP",), "the ignore list is what keeps card junk out of the archive"
+
+
+def test_harvest_starts_its_tally_at_zero_and_accumulates_real_bytes(tmp_path, monkeypatch):
+    """The stats dict is the caller's only report — webmon renders it and the poller decides on it. A
+    key initialised wrong or an accumulator that never adds reads as "nothing happened" for a run that
+    did work, which is indistinguishable from a card that was not there."""
+    _card(monkeypatch)
+    st = ch.harvest(str(tmp_path), nights={"20260725"})
+
+    for k in ("files", "bytes", "skipped", "nights", "nights_on_card", "reaped"):
+        assert isinstance(st[k], int), f"{k} must be an int counter"
+    assert st["short"] == [] and st["errors"] == [], "list keys start empty, not None"
+    assert st["partial"] is False, "a completed run is not partial"
+
+    on_disk = sum(p.stat().st_size for p in tmp_path.rglob("*") if p.is_file())
+    assert st["bytes"] == on_disk > 0, \
+        "the byte tally must be the bytes actually written — an accumulator that never adds reads as a no-op run"
+
+
+def test_a_passed_deadline_stops_cleanly_and_says_it_was_partial(tmp_path, monkeypatch):
+    """`deadline` is a monotonic cap, and the docstring is explicit: a truncated run is fine because
+    skip-if-present resumes tomorrow, but a run that never returns is not. The caller can only act on
+    that if `partial` says so — a truncated run reporting `partial: False` is a silently short mirror."""
+    _card(monkeypatch)
+    st = ch.harvest(str(tmp_path), nights={"20260725"}, deadline=time.monotonic() - 1)
+    assert st["partial"] is True, "a run stopped by its deadline must report itself partial"
+    assert st["files"] == 0, "and must not claim work it did not do"
+
+
+# ── EzShare._get: the retry ladder and the declared length ──────────────────────────────────────────
+def _urlopen_script(monkeypatch, script, headers=None):
+    """Drives _get with a scripted sequence: each entry is bytes (a body) or an exception to raise.
+    Records the timeout it was called with, because that bound is the whole reason the harvest cannot
+    hang on a card that stops answering mid-transfer."""
+    seen = {"timeouts": [], "sleeps": []}
+    it = iter(script)
+
+    class R:
+        def __init__(self, body):
+            self._b, self.headers = body, (headers or {})
+
+        def read(self):
+            return self._b
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(u, timeout=None, **kw):
+        seen["timeouts"].append(timeout)
+        nxt = next(it)
+        if isinstance(nxt, BaseException):
+            raise nxt
+        return R(nxt)
+
+    monkeypatch.setattr(ch.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(ch.time, "sleep", lambda s: seen["sleeps"].append(s))
+    return seen
+
+
+def test_get_retries_with_a_widening_backoff_rather_than_hammering(monkeypatch):
+    """`time.sleep(0.4 * (attempt + 1))`. The card is a Wi-Fi SD adapter that drops requests under
+    load, so the retry is the difference between a night collected and a night missed — but a FLAT
+    retry just re-hits a card that is already struggling. The widening is the point, and no test
+    observed either the delays or how many attempts were made."""
+    seen = _urlopen_script(monkeypatch, [OSError("reset"), OSError("reset"), b"ok"])
+    ez = ch.EzShare("http://card", timeout=9.0, retries=5)
+    assert ez._get("http://card/x") == b"ok"
+    assert seen["sleeps"] == [0.4, 0.8], "each retry waits longer than the last"
+    assert seen["timeouts"] == [9.0, 9.0, 9.0], "the configured timeout bounds EVERY attempt, not just the first"
+
+
+def test_get_gives_up_after_the_configured_number_of_attempts(monkeypatch):
+    """`retries` is an operator dial. Exhausting it raises a RuntimeError that WRAPS the last transport
+    error and names the URL — both halves matter: the URL says which file of ~1200 failed, and the
+    wrapped error says whether the card refused, timed out, or vanished. Dropping either leaves the
+    operator with "harvest failed" and nothing to act on."""
+    seen = _urlopen_script(monkeypatch, [OSError("boom-1"), OSError("boom-2")])
+    ez = ch.EzShare("http://card", retries=2)
+    with pytest.raises(RuntimeError) as e:
+        ez._get("http://card/x")
+    assert "http://card/x" in str(e.value), "the failing URL must be named"
+    assert "boom-2" in str(e.value), "and the LAST error, not the first — that is the one that stuck"
+    assert len(seen["timeouts"]) == 2, "exactly `retries` attempts, no more and no fewer"
+    assert seen["sleeps"] == [0.4, 0.8], "a backoff after every failed attempt, including the last"
+
+
+def test_get_returns_the_servers_declared_length_not_the_listings_guess(monkeypatch):
+    """Content-Length is EXACT; the listing prints a ceil-rounded KB string. `short_read` trusts the
+    declared value first precisely because comparing received bytes against display text made half of
+    every download look truncated."""
+    _urlopen_script(monkeypatch, [b"12345"], headers={"Content-Length": "5"})
+    ez = ch.EzShare("http://card")
+    assert ez._get("http://card/x", want_length=True) == (b"12345", 5)
+
+
+def test_a_server_that_declares_nothing_usable_reports_zero_not_a_crash(monkeypatch):
+    """`int(...)` on a missing or garbage header. Zero means "no declaration", which `short_read` reads
+    as "fall back to the listing" — a raise here would take down a harvest over a header."""
+    _urlopen_script(monkeypatch, [b"body"], headers={})
+    assert ch.EzShare("http://card")._get("http://card/x", want_length=True) == (b"body", 0)
+
+    _urlopen_script(monkeypatch, [b"body"], headers={"Content-Length": "not-a-number"})
+    assert ch.EzShare("http://card")._get("http://card/x", want_length=True) == (b"body", 0)
