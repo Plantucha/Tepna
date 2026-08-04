@@ -69,8 +69,23 @@ single-device validation here should run a second device for that reason alone.
 - [x] **CVHR measured on sleep nights and adjudicated (§6.2): 7/7 finger nights inside the Integrator
       band, median |Δ| 1.80 /h, IQR 1.50–2.65 entirely inside ±5.** The criterion's substance is met
       decisively. **n = 7 < §3.1's ≥10-night bar**, so this is a recommendation to ratify, not a pass.
-- [ ] A decision recorded on whether whole-record RMSSD should be surfaced at all for these devices, given
-      it cannot promote until jitter halves.
+- [x] **A decision recorded on whether whole-record RMSSD should be surfaced (owner, 2026-08-04): KEEP
+      SURFACING, badge unchanged.** It already sits at a low evidence tier and the jitter budget is
+      documented in §3, so the number stays useful within-night and within-device even though it cannot
+      be compared to ECG until jitter roughly halves. No code change — and deliberately so: removing it
+      would be a compute-path + UI change costing a re-bundle and a fixture pass to delete a number some
+      readers already track.
+- [x] **The shipped `sdnnNote` string is CORRECTED (owner, 2026-08-04): state the observation, drop the
+      number.** §1 flagged it as the urgent one because it ships to users as guidance. The former
+      "~+3.5% vs ECG truth" (with ~+26% / ~+18% beside it) came from ONE paired night, 2026-07-07;
+      re-derived with the committed apparatus it reads **+10.8 % (finger) / +18.7 % (Verity)** against
+      ECGDex's `dispSd`. The gap is **not attributable** — with no committed original, corpus, method and
+      figure are indistinguishable — so per §1's own instruction the number is **withdrawn rather than
+      replaced**: overwriting it with 10.8/18.7 would repeat the defect in fresher paint. What survives
+      is what was actually observed, the ORDERING (whole > index > robust) and the actionable guidance
+      (use `sdnnRobust` for cross-node comparison), plus an explicit note that magnitudes are not quoted
+      and why. The `OXYDEX-PB-OVERCALL` §4.3 precedent — state an observation, not an unearned number —
+      is the one applied.
 - [x] **The parent's open `computeHash` question is ANSWERED BY MEASUREMENT** (2026-08-03) — see
       §7 below. Short version: **yes it moves, no the export cannot, and it still is not free.** The
       remaining half of this box (what a tier move itself owes) is unchanged and applies whenever one
