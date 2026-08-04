@@ -10,13 +10,26 @@
 # proprietary, and NOT a dependency of this repo: nothing here links to, vendors, or redistributes
 # it). UUIDs, opcodes and frame layouts are protocol facts. See `THIRD-PARTY.md` § Device protocols.
 #
-# ⚠️ UNVERIFIED ON HARDWARE in this environment (no BLE / no Python runtime here). Before trusting
-#    it: (1) some firmware emits COMPRESSED (delta) frames (frame_type >= 1 for ACC/PPG) that need
-#    a delta decoder we have not written — handle_* below warns on an unexpected frame_type instead of
-#    guessing (this is the one open gap, and the only thing that would reopen the SDK question);
-#    (2) the start-command TLVs (sample rate / resolution / range) must match what the device's
-#    requestStreamSettings (control op 0x01) reports for YOUR firmware. Query first if start fails.
-#    Capture a few frames raw and diff against PSL output before relying on a night.
+# ── STATUS: both caveats this header used to carry are now CLOSED (corrected 2026-08-04) ──────────
+# The text here read "UNVERIFIED ON HARDWARE" and named the missing delta decoder as "the one open gap,
+# and the only thing that would reopen the SDK question". Both statements outlived their truth by weeks
+# and were still being read as current, which is exactly how a settled question gets reopened:
+#
+#   • COMPRESSED (delta) FRAMES ARE DECODED. `_decode_delta` / `_decode_delta_ex` (below) implement the
+#     LSB-first bit-packed reference+deltas layout, `decode_frame` dispatches on the PMD high bit
+#     (`frame_type & 0x80`), and `tests/test_polar_pmd.py` pins both with known-answer vectors. Landed
+#     in `487407bf` (Verity PPG delta decoder) and hardened in `01b99a3c` (a truncated frame is a GAP,
+#     never a guessed sample). So the condition this header set for reopening the Polar-SDK question
+#     was met and passed — see `POLAR-SDK-CAPTURE-2026-07-07-BRIEF.md`, closed on that basis.
+#   • IT IS VERIFIED ON HARDWARE. The daemon captures nightly on the Vigil box; measured rates match
+#     the negotiated ones (ECG 129.94 Hz vs 130, H10 ACC 50.72 vs 50, Verity PPG 55.11 vs 55) and the
+#     largest inter-sample gap on every stream equals exactly one sample period
+#     (VIGIL-OBSERVED-ERRORS-2026-07-20 §"What was confirmed HEALTHY").
+#
+# ⚠️ STILL TRUE, and the reason this block is not simply deleted: the start-command TLVs (sample rate /
+#    resolution / range) must match what the device's `requestStreamSettings` (control op 0x01) reports
+#    for YOUR firmware — query first if a START is rejected. On new firmware or a new device, capture a
+#    few frames raw and diff against PSL output before relying on a night.
 
 from __future__ import annotations
 import struct, datetime as _dt
