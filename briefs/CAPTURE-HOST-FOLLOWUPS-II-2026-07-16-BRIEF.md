@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-16 (**Field-verified 2026-07-22 on `rig-x870`:** the whole
+**Status:** PROPOSED (**§2 re-measured on the live box 2026-08-04** — V4 partially observed, V5's sudoers rule found installed, and a 🔴 **live finding**: two of the four root-owned NOPASSWD helpers have drifted from the checkout and a third was never installed, with `helper_path` preferring the stale copies. Now gate-backed in `deploy/check-system-files.sh`. V1·V2·V3 remain hardware-gated) · **Created:** 2026-07-16 (**Field-verified 2026-07-22 on `rig-x870`:** the whole
 `capture-host/` test suite is green (~40 files incl. `test_capture_clock` F2, `test_pmd_delta`,
 `test_oxyii`, writers/fsync R1) and real captured files round-trip to node-exports (H10 ECG → ECGDex 21
 events, O2Ring SpO₂ → OxyDex meanSpo₂ 96.1 %). **§2 V1–V5 stay OPEN — all hardware-gated** exactly as
@@ -71,10 +71,36 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
   frames — confirmed PPI-only + on-skin + clean START; the reference PSL app never got it either), so `ppi`
   was dropped from `config.yaml`. The `PPI and base==0` decoder in `polar_pmd` therefore has **never run on
   real bytes**; kept for a possible OH1 / other device. Validate there before trusting it.
-- **V4 · Monotonic `_now()` re-anchor untested vs a real NTP step.** Only unit-tested for normal advance +
+- **V4 · Monotonic `_now()` re-anchor — OBSERVED ON HARDWARE 2026-08-04, though not by the trigger this
+  item names.** The journal on the live box carries the re-anchor firing **twice**:
+  `Jul 27 22:12:07 … INFO capture clock re-anchored to civil time (timezone set to America/New_York)` and
+  again `Jul 29 20:57:17`. So the path is no longer "only unit-tested" — it runs, logs once per event, and
+  the box kept capturing across both. ⚠️ **Both were TIMEZONE sets, not the NTP step V4 asks for**, so the
+  original experiment (start with the clock deliberately wrong, let NTP step it) is still unrun. Partial,
+  and recorded as partial.
+- **V4-original · Monotonic `_now()` re-anchor untested vs a real NTP step.** Only unit-tested for normal advance +
   the DST edge (F2) reasoned, not observed. Exercise it: start capture with the clock deliberately wrong,
   let NTP step it, confirm the re-anchor log fires once and stamps stay sane after.
-- **V5 · Clock apply path untested on hardware.** `tepna-clock.sh` (ntp/sync/tz) via `sudo -n` was only
+- **V5 · Clock apply path — the sudoers rule IS installed; the apply path is still unexercised, and the
+  installed helper is STALE. Measured on the box 2026-08-04.**
+  - The grant exists: `(root) NOPASSWD: /usr/local/lib/tepna/tepna-clock.sh` (plus `tepna-rssi.sh`,
+    `tepna-restart.sh`, and `ip`/`wpa_supplicant`/`wpa_cli`). Note the path — `/usr/local/lib/tepna`, which
+    is `helper_path.SYSTEM_DIRS[0]`, **not** the `/opt/tepna/capture-host/…` this item specifies.
+  - **It has never written anything:** `/etc/systemd/timesyncd.conf.d/` does not exist, so the ntp/sync half
+    of the helper has not run on this box. The timezone half evidently has (see V4).
+  - 🔴 **The privileged copies have DRIFTED from the checkout, and the stale ones win.** `helper_path.resolve()`
+    returns the first existing `SYSTEM_DIRS` entry, so `/usr/local/lib/tepna` is preferred over the in-repo
+    copy. Measured md5s: `tepna-clock.sh` and `tepna-restart.sh` differ between the root-owned copy and the
+    (repo-identical) checkout; `tepna-rssi.sh` matches; **`tepna-usbreset.sh` was never installed at all and
+    has no sudoers grant** — which means the USB unbind/bind step `VIGIL-OVERNIGHT-FINDINGS` P1.3 calls
+    *"the only reliable clear"* for a wedged adapter cannot run.
+  - **Now gate-backed:** the four privileged helpers were absent from `deploy/check-system-files.sh`'s
+    manifest, which is why this was invisible. They are on it as of 2026-08-04, with tests reproducing both
+    halves (stale, and never-installed) and a non-vacuity check deriving the helper list from
+    `enable-clock-control.sh` so the two cannot drift apart. **Owner action to fix the box:**
+    `sudo bash /opt/tepna/capture-host/deploy/enable-clock-control.sh` (needs the password), then re-run
+    `deploy/check-system-files.sh` to confirm 0 drifted.
+- **V5-original · Clock apply path untested on hardware.** `tepna-clock.sh` (ntp/sync/tz) via `sudo -n` was only
   verified to **fail gracefully** without the sudoers rule. On a real box: add
   `tepna ALL=(root) NOPASSWD: /opt/tepna/capture-host/tepna-clock.sh`, then confirm the timesyncd drop-in
   writes, the service restarts, `timedatectl set-timezone` works, and the monitor reflects it.
@@ -96,6 +122,15 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
 - **D2 · `offsetMin` in exports.** Clock Contract §1's optional `offsetMin` (real UTC offset when known)
   would enable true cross-timezone simultaneity — deliberately deferred here because it touches the export
   format; do it as a gated change if wanted.
+- **D5 · Sharpen the PPG averaged-pulse** — *re-homed here 2026-08-04 from `CAPTURE-HOST-FOLLOWUPS`
+  §4.2, which closed on the Done-when's "executed or re-homed" clause.* State verified in code the same
+  day and unchanged since 2026-07-18: it is a two-pass foot-aligned ensemble with correlation rejection
+  (`corr(w,avg) > 0.85` over the last 24 pulses, `monitor.html:2049`) plus a ±60 ms foot re-delineation
+  (`:2060`). Better than the slope-detect it started as — but the alignment anchor is still the **foot**,
+  which is precisely what the long-crest complaint was about (see the note at `:1998`).
+  **Low priority, and the reason is measurable:** nothing computes a metric from it — a grep for any
+  consumer of the averaged pulse returns none — so this is live-view cosmetics, not a number anyone
+  reads. Pick it up only if the averaged pulse ever feeds something.
 - **D3 · Monitor "lite" mode.** The Overview/scope do client-side beat/pulse detection; harmless off-box but
   it's Pi CPU if the box kiosk-displays its own monitor. A lite (traces-only) mode would keep the box light.
 - **D4 · Multi-sensor DERIVATIONS agenda — promote to its own brief** (`MULTI-SENSOR-DERIVATIONS-BRIEF`).

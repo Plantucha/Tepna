@@ -41,6 +41,9 @@ SRC="${TEPNA_SRC:-$(cd "$(dirname "$0")/.." && pwd)}"          # …/capture-hos
 ETC_SYSTEMD="${TEPNA_ETC_SYSTEMD:-/etc/systemd/system}"
 ETC_UDEV="${TEPNA_ETC_UDEV:-/etc/udev/rules.d}"
 ETC_NETWORKD="${TEPNA_ETC_NETWORKD:-/etc/systemd/network}"
+# helper_path.SYSTEM_DIRS[0] — the ROOT-OWNED copies that hold the NOPASSWD sudoers grants, and the
+# ones `helper_path.resolve()` returns in preference to the in-repo copy.
+LIB_TEPNA="${TEPNA_LIB_DIR:-/usr/local/lib/tepna}"
 INSTALL=0
 [ "${1:-}" = "--install" ] && INSTALL=1
 
@@ -49,6 +52,10 @@ MANIFEST="
 systemd/99-tepna-btdongle.rules|$ETC_UDEV/99-tepna-btdongle.rules|MANAGED
 systemd/tepna-usb-autosuspend.service|$ETC_SYSTEMD/tepna-usb-autosuspend.service|MANAGED
 deploy/tepna-capture.service|$ETC_SYSTEMD/tepna-capture.service|MANAGED
+tepna-clock.sh|$LIB_TEPNA/tepna-clock.sh|MANAGED
+tepna-restart.sh|$LIB_TEPNA/tepna-restart.sh|MANAGED
+tepna-rssi.sh|$LIB_TEPNA/tepna-rssi.sh|MANAGED
+tepna-usbreset.sh|$LIB_TEPNA/tepna-usbreset.sh|MANAGED
 "
 
 # A managed file with a second, DIFFERENT copy somewhere else in the repo means "which one is the
