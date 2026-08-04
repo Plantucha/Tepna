@@ -4052,3 +4052,46 @@ def test_a_strap_with_no_contact_bit_is_never_given_a_grace_clock(tmp_path, monk
     st = _hr_session(tmp_path, monkeypatch, bytes([0x00, 57]), clear=True)   # no contact-support bit
     assert st.get("worn") is None, "unknown, not fabricated as False"
     assert addr not in capture._WORN_SINCE, "and no grace clock — it can never be known not-worn"
+
+
+# ── the live bus seam: keys, shapes and lifecycle ───────────────────────────────────────────────────
+# `run_polar` holds 502 reachable mutants and they are SCATTERED — the densest single line is 13 of
+# them. The one coherent sub-cluster is the telemetry bus: register / push / unregister, all keyed by
+# `_live_key`. Nothing asserted the key it registers under, the SHAPE it pushes, or that what it
+# registers is what it later unregisters — so a stream could be published under one key and torn down
+# under another, leaving a dead card in the monitor for the daemon's lifetime.
+
+def test_the_live_key_is_device_qualified_except_for_ecg():
+    """Issue #410, recorded in the docstring: `ppg` WAS in the unique set and is not any more, because
+    the O2Ring streams a finger pleth too. Both it and the Verity declare `ppg`, and monitor.html's
+    deviceForStream() falls back to "first device whose stream list contains this name" — so on the real
+    box the Verity's PPG card showed the RING's battery and RSSI. Order-dependent, so it would flip
+    silently if config.yaml were reordered.
+
+    ECG stays bare because only the H10 produces it. That asymmetry is the whole function."""
+    assert capture._live_key("ecg", "h10") == "ecg", "ecg is genuinely device-unique — no suffix"
+    assert capture._live_key("ppg", "verity") == "ppg_verity", "ppg is NOT unique; it must be qualified"
+    assert capture._live_key("acc", "h10") == "acc_h10"
+    assert capture._live_key("ppi", "verity") == "ppi_verity"
+    assert capture._live_key("ppg", "ring") != capture._live_key("ppg", "verity"), \
+        "two devices streaming ppg must not collide — that collision IS #410"
+
+
+def test_what_is_registered_is_what_is_unregistered(monkeypatch):
+    """register() and unregister() derive the key SEPARATELY — one via `MEAS_NAME[meas]`, the other via
+    `MEAS_NAME.get(meas, str(meas))`. They must agree for every measurement the runner handles, or a
+    stream is published under one key and torn down under another and the monitor keeps a dead card."""
+    import polar_pmd as pmd
+
+    for meas in (pmd.ECG, pmd.ACC, pmd.PPG, pmd.PPI, pmd.GYRO, pmd.MAG):
+        reg = capture._live_key(pmd.MEAS_NAME[meas], "h10")
+        unreg = capture._live_key(pmd.MEAS_NAME.get(meas, str(meas)), "h10")
+        assert reg == unreg, f"{pmd.MEAS_NAME[meas]}: registered as {reg!r} but torn down as {unreg!r}"
+
+
+# NOT WRITTEN: the PPI push order. A first attempt asserted on a list comprehension the TEST itself
+# evaluated — `[[s.values[1], s.values[0]] for s in samples]` computed in the test, then compared to its
+# own output. It never called capture and would have passed with that line deleted from the source: a
+# test encoding the SHAPE of the code instead of its contract, which is the exact defect this campaign
+# exists to find. Reaching that push for real means driving `run_polar` far enough to decode a PPI
+# frame, which is a fixture, not an assertion. Worth doing; not worth faking.
