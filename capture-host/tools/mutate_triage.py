@@ -37,45 +37,12 @@ import re
 import subprocess
 import sys
 
-STR_RE = re.compile(r"""(['"]).*?\1""", re.S)
-
-
-def _strip_strings(s: str) -> str:
-    return STR_RE.sub("STR", s)
-
-
-def classify(minus: str, plus: str) -> tuple[str, str]:
-    """-> (bucket, why). Order matters: the most specific unobservable forms are tested first."""
-    a, b = minus.strip(), plus.strip()
-    if a == b:
-        return "EQUIVALENT?", "identical after normalisation"
-
-    # `flush=` is the single largest unobservable family. capsys/capfd read the buffer regardless, so
-    # True/False/None are indistinguishable to any assertion on captured output.
-    if re.sub(r"flush\s*=\s*\w+", "F", a) == re.sub(r"flush\s*=\s*\w+", "F", b):
-        return "UNOBSERVABLE", "differs only in flush= — captured output is identical"
-
-    # mutmut wraps string literals as "XXtextXX" and flips their case. Both are killable ONLY by
-    # asserting the exact text, which is what turns a suite into a change-detector.
-    if re.search(r'"XX|XX"|\'XX|XX\'', b):
-        return "UNOBSERVABLE", "XX-wrapped literal — needs exact-text assertion"
-    if a.lower() == b.lower():
-        return "UNOBSERVABLE", "case flip only — needs exact-text assertion"
-
-    same_code = _strip_strings(a) == _strip_strings(b)
-    is_msg = re.match(r"(print|log|logger|_log|sys\.stderr\.write)\b", a) is not None
-
-    if same_code and is_msg:
-        return "PROSE", "log/print wording only, interpolated values intact"
-    if same_code:
-        return "PROSE", "string literal only, surrounding code unchanged"
-
-    # A dropped/None-d ARGUMENT to a message call is reachable: assert the message NAMES its value.
-    if is_msg and re.search(r"\(\s*None|=\s*None|,\s*\)", b):
-        return "REACHABLE", "message call lost an argument — assert the message names its value"
-    if is_msg:
-        return "REACHABLE", "message call changed structurally"
-    return "REACHABLE", "code change"
+# The CLASSIFIER lives in `mutation_triage.py`, one directory up, because that directory is inside the
+# coverage floor and this one is not. These ~40 lines of decision logic are the only part of this tool
+# that can silently mislead — the plumbing below is deliberately left uncovered. See that module's
+# header for why the split is partial on purpose.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from mutation_triage import ceiling, classify  # noqa: E402
 
 
 def newest_scratch(module: str) -> str | None:
@@ -147,14 +114,13 @@ def main() -> int:
         if counts.get(b):
             print(f"  {b:<14} {counts[b]:>4}")
     if a.total:
-        killed = a.total - len(surv) - tmo
-        unobs = counts.get("UNOBSERVABLE", 0)
-        print(f"\n  now      {killed:>4}/{a.total} = {100*killed/a.total:.1f}%")
-        print(f"  CEILING  {a.total-unobs:>4}/{a.total} = {100*(a.total-unobs)/a.total:.1f}%"
+        unobs, reach = counts.get("UNOBSERVABLE", 0), counts.get("REACHABLE", 0)
+        c = ceiling(a.total, len(surv), tmo, unobs, reach)
+        print(f"\n  now      {c['killed']:>4}/{a.total} = {c['now_pct']:.1f}%")
+        print(f"  CEILING  {c['ceiling']:>4}/{a.total} = {c['ceiling_pct']:.1f}%"
               f"   ({unobs} unobservable — reachable only by asserting exact wording)")
-        reach = counts.get("REACHABLE", 0)
-        print(f"  if every REACHABLE dies: {killed+reach}/{a.total} = "
-              f"{100*(killed+reach)/a.total:.1f}%   ({reach} mutants of real work)")
+        print(f"  if every REACHABLE dies: {c['if_all_reachable']}/{a.total} = "
+              f"{c['if_all_reachable_pct']:.1f}%   ({reach} mutants of real work)")
     print("\n  --work for the work-list.  Confirm any EQUIVALENT? with a witness search before dismissing.")
     return 0
 

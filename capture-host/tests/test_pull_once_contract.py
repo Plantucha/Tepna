@@ -13,13 +13,11 @@
 # them stays green while dropping the interpolated value goes red. That distinction is the whole point:
 # pinning phrasing turns the suite into a change-detector, pinning the VALUES pins the diagnostic.
 
-import asyncio
 import json
 import os
 
 import pytest
 
-import oxyii
 import pull_session
 
 from test_pull_session import FakeRing, _dat, _install, _run
