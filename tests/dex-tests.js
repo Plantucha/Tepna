@@ -6433,6 +6433,79 @@
       }
     });
 
+    /* ════ EVERY FUSION FINDING TYPE MUST RESOLVE TO A GRADE — AUDIT-FOLLOWUPS §4.4 ════
+     A fusion finding is badged by `evBadge(TYPE_EV[f.type])` (`integrator-render.js` :807, :1205).
+     `evBadge` opens with `if (!R || !R.badge || !key) return ''` — so a `type` absent from `TYPE_EV`
+     yields an EMPTY STRING and the card renders with **no badge at all**, silently. That is the §🎫
+     failure ("a number that reaches a user's eye unbadged is a bug, same severity as a wrong unit"),
+     and it had already happened: `staging_disagreement` is pushed by `integrator-dsp.js:5913` and was
+     the one emitted type missing from the map.
+
+     The expectation is DERIVED from the DSP source — every `type: '…'` the fusion layer can push —
+     rather than hard-coded, so a NEW finding type reds this gate until it is graded instead of
+     shipping bare. Anti-vacuity throughout: if the scan finds no types, or the maps do not parse,
+     that FAILS rather than passing on silence. Verified by mutation: deleting the
+     `staging_disagreement` key from TYPE_EV reds it. ════ */
+    group('Every fusion finding type resolves to an evidence grade (AUDIT-FOLLOWUPS §4.4)', 'integrator-render · integrator-dsp · badges · source-scan', function (T) {
+      var src = env.sources || {};
+      var dsp = src['integrator-dsp.js'] || '';
+      var rnd = src['integrator-render.js'] || '';
+      if (dsp.length < 5000 || rnd.length < 5000) {
+        T.skip('integrator-dsp.js + integrator-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+
+      // ── derive: the finding types the fusion layer can emit ──
+      var types = [];
+      (dsp.match(/type:\s*'[a-z_]+'/g) || []).forEach(function (m) {
+        var t = m.replace(/^type:\s*'/, '').replace(/'$/, '');
+        if (types.indexOf(t) < 0) types.push(t);
+      });
+      T.ok('derivation is non-vacuous — found emitted finding types', types.length >= 3, types.length + ' type(s): ' + types.join(' '));
+
+      // ── parse TYPE_EV and FINDING_EVIDENCE out of the renderer ──
+      // anchor on the DECLARATION, not the bare name: prose above FINDING_EVIDENCE mentions TYPE_EV,
+      // and anchoring on the first textual hit sliced a comment instead of the map (caught in review —
+      // the parse read 1 entry and reported every type unmapped, a false RED of my own making).
+      var tvIdx = rnd.indexOf('var TYPE_EV');
+      var tvBlock = tvIdx < 0 ? '' : rnd.slice(tvIdx, rnd.indexOf('}', tvIdx) + 1);
+      var mapped = {};
+      (tvBlock.match(/(\w+)\s*:\s*'(\w+)'/g) || []).forEach(function (p) {
+        var kv = p.split(':');
+        mapped[kv[0].trim()] = kv[1].trim().replace(/'/g, '');
+      });
+      var feIdx = rnd.indexOf('FINDING_EVIDENCE');
+      var feBlock = feIdx < 0 ? '' : rnd.slice(feIdx, rnd.indexOf('\n  };', feIdx));
+      /* Slice between entry starts explicitly. A `(?=…|$)` lookahead under the /m flag matches end of
+         LINE, not end of string, so a non-greedy body stops at the first newline — single-line entries
+         parsed and every MULTI-line one silently didn't (5 of 10). Caught by the gate reporting real
+         entries as ungraded; a scanner that under-reads fails toward a false RED here, which is the
+         safe direction, but it is still a broken instrument. */
+      var graded = {};
+      var starts = [],
+        reStart = /^ {4}(\w+)\s*:\s*\{/gm,
+        sm;
+      while ((sm = reStart.exec(feBlock))) starts.push({ name: sm[1], at: sm.index });
+      starts.forEach(function (s, i) {
+        var body = feBlock.slice(s.at, i + 1 < starts.length ? starts[i + 1].at : feBlock.length);
+        var ev = /evidence:\s*'(\w+)'/.exec(body);
+        if (ev) graded[s.name] = ev[1];
+      });
+      T.ok('TYPE_EV parsed (non-vacuous)', Object.keys(mapped).length >= 3, Object.keys(mapped).length + ' entries');
+      T.ok('FINDING_EVIDENCE parsed (non-vacuous)', Object.keys(graded).length >= 5, Object.keys(graded).length + ' entries');
+
+      // ── the assertion: every emitted type reaches a real tier ──
+      var TIERS = ['measured', 'validated', 'emerging', 'experimental', 'heuristic'];
+      types.forEach(function (t) {
+        var key = mapped[t];
+        T.ok('finding type "' + t + '" is mapped in TYPE_EV', !!key, 'unmapped ⇒ evBadge() returns "" and the card renders UNBADGED (§🎫)');
+        if (!key) return;
+        var tier = graded[key];
+        T.ok('  …and "' + key + '" carries a grade in FINDING_EVIDENCE', !!tier, 'mapped to a key with no entry ⇒ still no badge');
+        if (tier) T.ok('  …with a canonical tier', TIERS.indexOf(tier) >= 0, 'got ' + tier + ' — retired vocabulary is forbidden (§🎫)');
+      });
+    });
+
     group('ECGDex respRate aggregation (median, not HF-peak)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
