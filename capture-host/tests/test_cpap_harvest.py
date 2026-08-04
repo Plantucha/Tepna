@@ -235,3 +235,85 @@ def test_the_default_window_is_unaffected_by_the_wrap_fix():
     import datetime as _d
     for h, want in ((12, False), (13, True), (14, True), (15, False), (0, False)):
         assert ch.due_now(_d.datetime(2026, 7, 26, h, 0), 13, None) is want, h
+
+
+# ── the size-window boundaries, landed ON rather than either side ───────────────────────────────────
+def test_a_file_exactly_one_quantum_short_is_refetched_not_trusted():
+    """The window is HALF-OPEN at the bottom: `(P - q, P]`. A file of exactly `P - q` KB is OUTSIDE it
+    and must be re-fetched. The existing tests bracket this edge (100 KB and 40 KB against a 100 KB
+    listing) without ever landing on it, so opening the low bound to `<=` is invisible to them — and
+    that mutation silently ACCEPTS a file a whole quantum short, which is the §C5 hole this family
+    exists to close."""
+    lo, hi = ch.size_window_kb("2229KB")
+    assert (lo, round(hi)) == (2228.0, 2229), "guard: the window is (P-1, P] for an integer-KB listing"
+    assert ch.short_read({"size": "2229KB"}, int(lo * 1024)), \
+        "exactly one quantum short is short — the low bound is exclusive"
+    assert not ch.short_read({"size": "2229KB"}, int(lo * 1024) + 1), "one byte inside is complete"
+
+
+def test_a_one_kb_listing_is_still_size_checked():
+    """`want <= 0` means 'the listing told us nothing'. Moving it to `<= 1` makes every 1 KB file
+    unverifiable — and the real card serves them (CSL is 832 B, listed 1KB)."""
+    assert ch.size_kb("1KB") == 1.0
+    assert ch.short_read({"size": "1KB"}, 0), "an empty body against a 1KB listing is short"
+    assert not ch.short_read({"size": "1KB"}, 1024)
+
+
+def test_content_length_zero_does_not_certify_an_empty_body():
+    """`content_length > 0` is the guard for 'the server declared a length'. At `>= 0` a declared ZERO
+    would be taken as authoritative and `got < 0` is never true, so an empty body reads as complete
+    instead of falling through to the listing check."""
+    assert ch.short_read({"size": "104KB"}, 0, 0), "0 bytes against a 104KB listing is short"
+    # and a declared length of 1 must still be honoured rather than skipped
+    assert ch.short_read({"size": "104KB"}, 0, 1)
+    assert not ch.short_read({"size": "104KB"}, 1, 1)
+
+
+def test_a_fractional_gigabyte_listing_scales_by_its_own_precision():
+    """The G branch multiplies the decimal quantum by 1024^2. Every test here uses integer KB, where
+    that branch never runs and any arithmetic in it — replacing the multiply, dividing instead, or an
+    off-by-one on either 1024 — is unobservable. A whole `2GB` cannot see it either (quantum is 1.0 and
+    `q = 1024*1024` equals `q *= 1024*1024`); it takes a FRACTIONAL value."""
+    assert abs(ch.size_tolerance_kb("1.5GB") - 52428.8) < 1e-6, \
+        "one decimal place on a GB listing is 0.1 GB, half of it is the tolerance"
+    assert abs(ch.size_tolerance_kb("2GB") - 524288.0) < 1e-6
+    assert abs(ch.size_tolerance_kb("1.5MB") - 51.2) < 1e-6
+
+
+def test_a_part_that_differs_beyond_the_first_chunk_is_not_reaped(tmp_path):
+    """`reap_stale_part` compares in 64 KB chunks and breaks on EOF. Breaking on a NON-empty chunk
+    instead stops after the first one, so two files identical for 64 KB and different afterwards are
+    declared identical and the `.part` is DELETED — destroying the only copy of an interrupted
+    download's bytes, which is the one thing the .part convention exists to prevent. Same size on both
+    sides, because the cheap getsize check would otherwise catch it first."""
+    dest = tmp_path / "x.edf"
+    dest.write_bytes(b"A" * 65536 + b"B" * 4000)
+    part = tmp_path / "x.edf.part"
+    part.write_bytes(b"A" * 65536 + b"C" * 4000)          # identical first chunk, differs after
+    assert ch.reap_stale_part(str(dest)) is False
+    assert part.exists(), "a .part that differs is evidence, not residue — it must survive"
+    # the genuine case still reaps
+    part.write_bytes(dest.read_bytes())
+    assert ch.reap_stale_part(str(dest)) is True
+    assert not part.exists()
+
+
+def test_should_fetch_shares_short_reads_boundaries_not_just_its_verdict(tmp_path):
+    """`should_fetch` and `short_read` carry PARALLEL copies of the window test and the `want <= 0`
+    guard. Testing the boundaries on one leaves the other's copy unobservable — which is the §C5 hole
+    in miniature: the two drifting apart is exactly the failure `size_tolerance_kb` was written to
+    prevent, so both sides need the same edges landed on."""
+    lo, _ = ch.size_window_kb("2229KB")
+    p = tmp_path / "b.edf"
+    p.write_bytes(b"\0" * int(lo * 1024))                  # exactly one quantum short
+    assert ch.should_fetch({"size": "2229KB", "name": p.name}, str(p)), \
+        "a file exactly at the low bound is OUTSIDE the half-open window — re-fetch it"
+    p.write_bytes(b"\0" * (int(lo * 1024) + 1))
+    assert not ch.should_fetch({"size": "2229KB", "name": p.name}, str(p))
+
+    # `want <= 0` means "the listing told us nothing"; at `<= 1` every 1 KB file becomes untrustable,
+    # and the real card serves them (CSL is 832 B, listed 1KB).
+    q = tmp_path / "csl.edf"
+    q.write_bytes(b"")
+    assert ch.should_fetch({"size": "1KB", "name": q.name}, str(q)), \
+        "an empty file against a 1KB listing must be re-fetched, not skipped as unverifiable"
