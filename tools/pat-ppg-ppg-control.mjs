@@ -71,6 +71,15 @@ const RATE_LO = 30,
    agreement is an artifact of regularity; coupling on BOTH with more scatter on host means the per-frame
    re-anchor jitter is the term, and that is a capture-path finding rather than an analysis one. */
 const AXIS = arg('--axis', 'host');
+/* SCATTER mode — the only statistic comparable with the PAT family's 84-99 ms.
+   PAT-VERDICT-CONSOLIDATED §5: strictMatchRate.residIQR is an IQR over ONLY the residuals its own
+   ±40 ms window accepted, so it reads 31-44 ms regardless of signal and must never be compared to the
+   60 ms bar. This computes the honest quantity instead: pair every beat inside a wide window, subtract
+   the median lag WITHIN EACH WINDOW (so the unknown constant delta and any slow wander are removed by
+   construction, exactly as the family's offset-free legs do), then take the IQR over ALL residuals —
+   accepted and rejected alike. That number is what `pat-gate.js`'s <=60 ms bar is written against. */
+const SCATTER = argv.includes('--scatter');
+const WIN_MIN = +arg('--win-min', 60); // the family's 60-min windows
 const BLOCK_MS = BIN_MIN * 60000;
 
 function fiducialTimes(text) {
@@ -172,6 +181,43 @@ function biggest(dir, re, n) {
     .slice(0, n);
 }
 
+/* Offset-free scatter: per WIN_MIN window, remove that window's own median lag, pool the residuals. */
+function scatterOf(lags) {
+  if (!lags.length) return { iqr: NaN, n: 0, windows: 0, med: NaN };
+  const t0 = lags[0].t;
+  const W = WIN_MIN * 60000;
+  const by = new Map();
+  for (const e of lags) {
+    const w = Math.floor((e.t - t0) / W);
+    if (!by.has(w)) by.set(w, []);
+    by.get(w).push(e);
+  }
+  const resid = [];
+  const perWin = [];
+  for (const [, es] of by) {
+    if (es.length < 30) continue; // a window too sparse to have a stable centre
+    const c = median(es.map((e) => e.lag));
+    perWin.push(
+      quantile(
+        es.map((e) => e.lag - c),
+        0.75
+      ) -
+        quantile(
+          es.map((e) => e.lag - c),
+          0.25
+        )
+    );
+    for (const e of es) resid.push(e.lag - c);
+  }
+  return {
+    iqr: resid.length ? quantile(resid, 0.75) - quantile(resid, 0.25) : NaN,
+    perWindowIQR: perWin.length ? median(perWin) : NaN,
+    n: resid.length,
+    windows: perWin.length,
+    med: median(lags.map((e) => e.lag))
+  };
+}
+
 function scorePair(A, B) {
   const t0 = Math.max(A.times[0], B.times[0]);
   const t1 = Math.min(A.times[A.times.length - 1], B.times[B.times.length - 1]);
@@ -183,6 +229,10 @@ function scorePair(A, B) {
     rB = b.length / ovl;
   if (rA < RATE_LO || rA > RATE_HI || rB < RATE_LO || rB > RATE_HI) return { ovl, skip: `rate ${rA.toFixed(0)}/${rB.toFixed(0)}` };
   const obs = signedLags(a, b);
+  if (SCATTER) {
+    const sc = scatterOf(obs);
+    return { ovl, beatsA: a.length, beatsB: b.length, scatter: sc, medLag: sc.med, ratio: NaN, p: NaN, rate: NaN, chance: NaN };
+  }
   const o = strictRate(obs, a.length);
   const span = t1 - t0;
   const ch = [];
@@ -216,10 +266,12 @@ function main() {
     .sort();
   console.log(`FINGER (O2Ring, right index) <-> ANKLE (Verity, left) — axis=${AXIS}`);
   console.log(`symmetric window +-${WIN_MS} ms - strict +-${STRICT_W_MS} ms - ${N_SURR} surrogates - EVERY pair scored\n`);
-  console.log('night        pairs  best: ovl  beatsF  beatsA  medLag  strict chance ratio     p   residIQR');
+  if (SCATTER) console.log(`night        pairs  best: ovl  resid  wins  medLag  IQRall  IQRperWin   vs pat-gate 60 ms`);
+  else console.log('night        pairs  best: ovl  beatsF  beatsA  medLag  strict chance ratio     p   residIQR');
   console.log('  (medLag = ankle minus finger; POSITIVE is the only anatomically possible sign)');
   console.log('-'.repeat(100));
   const bests = [];
+  const allPairs = [];
   const OUT = arg('--json-out', '/tmp/ppg-ppg-control.json');
   for (const n of nights) {
     const dir = join(DIR, n);
@@ -251,7 +303,13 @@ function main() {
         const r = scorePair(a, b);
         if (!r || r.skip) continue;
         nPairs++;
-        if (!best || (isFinite(r.ratio) && r.ratio > best.ratio)) best = r;
+        if (SCATTER) {
+          /* ENUMERATE, never select. Picking the pair with the LOWEST IQR and then reporting that IQR is
+           selection on the outcome — PAT-VERDICT-CONSOLIDATED §5, one level up. Every pair is kept and
+           the summary reports the distribution; `best` survives only to anchor the per-night row. */
+          if (isFinite(r.scatter?.iqr)) allPairs.push({ night: n, ovl: r.ovl, ...r.scatter });
+          if (!best || (isFinite(r.scatter?.iqr) && (!isFinite(best.scatter?.iqr) || r.scatter.iqr < best.scatter.iqr))) best = r;
+        } else if (!best || (isFinite(r.ratio) && r.ratio > best.ratio)) best = r;
       }
     if (!best) {
       console.log(`${n}  no scorable pair`);
@@ -259,12 +317,40 @@ function main() {
     }
     bests.push({ ...best, night: n });
     writeFileSync(OUT, JSON.stringify(bests, null, 1));
+    if (SCATTER) {
+      const sc = best.scatter || {};
+      console.log(
+        `${n}  ${String(nPairs).padStart(5)}  ${best.ovl.toFixed(0).padStart(9)} ${String(sc.n ?? 0).padStart(6)} ` +
+          `${String(sc.windows ?? 0).padStart(5)} ${(sc.med ?? NaN).toFixed(0).padStart(7)} ` +
+          `${(sc.iqr ?? NaN).toFixed(0).padStart(7)} ${(sc.perWindowIQR ?? NaN).toFixed(0).padStart(10)}   ` +
+          `${isFinite(sc.iqr) ? (sc.iqr <= 60 ? 'PASSES <=60 ms' : 'over the 60 ms bar') : 'no usable window'}`
+      );
+      continue;
+    }
     console.log(
       `${n}  ${String(nPairs).padStart(5)}  ${best.ovl.toFixed(0).padStart(9)} ${String(best.beatsA).padStart(7)} ` +
         `${String(best.beatsB).padStart(7)} ${(best.medLag ?? NaN).toFixed(0).padStart(7)} ` +
         `${(best.rate * 100).toFixed(0).padStart(5)}% ${(best.chance * 100).toFixed(0).padStart(5)}% ` +
         `${best.ratio.toFixed(2).padStart(5)} ${best.p.toFixed(3)} ${(best.resid ?? NaN).toFixed(0).padStart(8)}`
     );
+  }
+  if (bests.length && SCATTER) {
+    console.log('-'.repeat(100));
+    const iq = allPairs.map((b) => b.iqr).filter(isFinite);
+    const pass = iq.filter((x) => x <= 60);
+    const weighted = allPairs.filter((b) => b.n >= 1000).map((b) => b.iqr);
+    console.log(
+      `ALL ${iq.length} PAIRS (enumerated, not selected) - offset-free IQR median ` +
+        `${median(iq).toFixed(0)} ms (min ${Math.min(...iq).toFixed(0)}, max ${Math.max(...iq).toFixed(0)}) - ` +
+        `${pass.length}/${iq.length} at or under 60 ms`
+    );
+    if (weighted.length)
+      console.log(
+        `pairs with >=1000 residuals only (n=${weighted.length}): median ${median(weighted).toFixed(0)} ms - ` + `${weighted.filter((x) => x <= 60).length}/${weighted.length} at or under 60 ms`
+      );
+    console.log('Comparable with PAT-VERDICT-CONSOLIDATED §3 (84-99 ms, ECG->pulse). This is offset-free by');
+    console.log('construction (per-window median removed) and pools ALL residuals, accepted and rejected.');
+    return;
   }
   if (bests.length) {
     console.log('-'.repeat(100));
