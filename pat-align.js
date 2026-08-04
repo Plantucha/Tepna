@@ -244,7 +244,26 @@
      reports real coupling instead of a trivially-high number.
 
      ⚠️ `driftRange` is still NOT a clock-drift estimator — post-fix it tracks the window width under
-     low coupling (~420 ms vs a 450 ms window). It is returned for continuity, never as drift. */
+     low coupling (~420 ms vs a 450 ms window). It is returned for continuity, never as drift.
+
+     ── SECOND DEFECT, fixed 2026-08-04: the DENOMINATOR counted uncoverable beats ──────────────────
+     `matchRate` was `pairs.length / R.length` — every R-peak in the ECG recording, including those
+     the PPG recording does not span at all. A beat with no optical coverage cannot be paired, so it
+     was counted as a coupling failure. The statistic therefore measured RECORDING OVERLAP as much as
+     coupling, and the two devices routinely disagree on length (different batteries, different BLE
+     reconnect patterns; a night in this corpus is dozens of fragments per device).
+
+     The consequence is not cosmetic — it flips the gate. `pat-gate.js` bars on `COUPLING_MIN 0.55`,
+     so pairing a perfectly-coupled 2 h ECG with the 1 h PPG that overlaps it scored 0.50, FAILED the
+     `goodMatch` leg and was downgraded from `go`/FEASIBLE to `maybe`/PROMISING — with every other leg
+     (tightBeat, physical, driftOK) identical, so the only thing separating the two verdicts was how
+     long the ECG ran. And `overlap()` already reports the shared span as its OWN gate leg (`ov.min`),
+     so the overlap fact was being counted twice while the coupling fact was not measured at all.
+
+     The denominator is now the R-peaks inside the SHARED span, which both trains already determine —
+     no new parameter, no caller change. The pre-fix value is kept as `matchRateRaw` for continuity.
+     Where the trains have equal extent (the common case, and every pre-existing test) the two are
+     identical, which is why nothing caught this. */
   var PHYS = { LO_MS: 200, HI_MS: 650 };
   function coupleRtoFoot(rTimes, fTimes, opts) {
     opts = opts || {};
@@ -281,10 +300,21 @@
         h = Math.ceil(x);
       return l === h ? srt[l] : srt[l] + (srt[h] - srt[l]) * (x - l);
     };
+    /* Beats the PPG could physically have covered. A foot for beat r can only exist at r+[lo,hi], so
+       the last coverable R is F[last]-lo, not F[last]. Using the raw span would still count the final
+       few beats as failures. */
+    var nCoverable = 0;
+    if (F.length) {
+      var wLo = F[0] - hi,
+        wHi = F[nf - 1] - lo;
+      for (var w = 0; w < R.length; w++) if (R[w] >= wLo && R[w] <= wHi) nCoverable++;
+    }
     return {
       ok: true,
       pairs: pairs,
-      matchRate: pairs.length / Math.max(R.length, 1),
+      matchRate: pairs.length / Math.max(nCoverable, 1),
+      matchRateRaw: pairs.length / Math.max(R.length, 1), // pre-2026-08-04 value, kept for continuity
+      nCoverable: nCoverable,
       medianPatMs: srt[srt.length >> 1],
       patIQRms: q(0.75) - q(0.25),
       minPatMs: srt[0],
