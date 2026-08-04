@@ -27956,6 +27956,60 @@
       T.ok('every node UI has at least one evBadge call site', silent.length === 0, silent.length ? 'no badge mechanism at all in: ' + silent.join(', ') : NODES.length + ' nodes badge');
     });
 
+    /* REFERENCE-GUIDE-AUDIT dimension 5 (offline half) — in-page navigation must actually navigate.
+       The guides are hand-authored static HTML with a quick-jump nav; an `href="#x"` whose `id` was
+       renamed or deleted fails SILENTLY — the browser scrolls nowhere and the reader concludes the
+       section does not exist. A DUPLICATE `id` is the same failure wearing the opposite mask: the
+       anchor resolves, to whichever copy came first, so the link works and points at the wrong place.
+       Measured across all 7 authored guides + the generated EEGDex one when this landed: 128 distinct
+       internal anchors, 284 ids, ZERO dead and ZERO duplicated. Nothing was fixed here — this is a
+       RATCHET over a verified-clean state, which is the cheap half of dimension 5.
+       The other half — that external DOIs resolve — is NOT gated and cannot be: the suite takes no
+       network (§📚's hard line), so a resolving DOI is checkable only by a human with a browser. Saying
+       so here is deliberate; a gate named "zero dead links" that silently checks only the internal ones
+       would be exactly the borrowed-scope dishonesty the neighbouring gates were written to remove. */
+    group('Reference guides — every in-page anchor resolves, no duplicate ids (REFERENCE-GUIDE-AUDIT §5)', 'docs · reference-guides · link-integrity', function (T) {
+      var D = env.docs || {};
+      var guides = Object.keys(D).filter(function (f) {
+        return /Reference\.html$/.test(f);
+      });
+      T.ok('ANTI-VACUITY · the reference guides are wired into this lane', guides.length >= 7, 'found ' + guides.length + ' guide(s): ' + guides.join(', '));
+      if (guides.length < 7) return;
+      var dead = [],
+        dup = [],
+        nAnchor = 0,
+        nId = 0;
+      guides.forEach(function (g) {
+        var t = String(D[g]);
+        var ids = {},
+          dupHere = {};
+        var re = /\bid\s*=\s*["']([^"']+)["']/g,
+          m;
+        while ((m = re.exec(t))) {
+          if (ids[m[1]]) dupHere[m[1]] = 1;
+          ids[m[1]] = 1;
+          nId++;
+        }
+        // `name=` still anchors in every browser and some guides use it on older markup.
+        var rn = /\bname\s*=\s*["']([^"']+)["']/g;
+        while ((m = rn.exec(t))) ids[m[1]] = 1;
+        for (var k in dupHere) dup.push(g + ' #' + k);
+        var seen = {};
+        var ra = /href\s*=\s*["']#([^"']+)["']/g;
+        while ((m = ra.exec(t))) {
+          var a = m[1];
+          if (!a || a === 'top' || seen[a]) continue; // '#top' is the browser's own document top
+          seen[a] = 1;
+          nAnchor++;
+          if (!ids[a]) dead.push(g + ' → #' + a);
+        }
+      });
+      /* ANTI-VACUITY: a regex that matched nothing would report zero dead links over zero links. */
+      T.ok('ANTI-VACUITY · the scan found real anchors and ids', nAnchor >= 60 && nId >= 150, nAnchor + ' distinct in-page anchors, ' + nId + ' ids across ' + guides.length + ' guides');
+      T.ok('every in-page anchor resolves to an id in the same guide', dead.length === 0, dead.length ? dead.slice(0, 10).join(' · ') + (dead.length > 10 ? ' … +' + (dead.length - 10) : '') : nAnchor + ' anchors, none dead');
+      T.ok('no duplicate id in any guide (a duplicate anchors to the wrong copy, silently)', dup.length === 0, dup.length ? dup.slice(0, 10).join(' · ') : nId + ' ids, all unique per guide');
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
        HRV off a night full of movement is worth less than the same number off a still night. This SCORES
        that (it never alters or excludes an HRV value). The invariant that matters is the same tri-state
