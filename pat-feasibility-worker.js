@@ -178,7 +178,24 @@ function coupledPAT(rTimes, fTimes) {
       resid.push(d0);
     }
   }
-  var matchRate = pat.length / rTimes.length;
+  /* DENOMINATOR = beats the PPG could physically have covered, NOT every beat in the ECG file.
+     `pat.length / rTimes.length` counted an R-peak the optical recording never spans as a coupling
+     failure, so `matchRate` measured RECORDING OVERLAP as much as coupling — and the two devices
+     routinely disagree on length (batteries, BLE reconnects). It flipped the verdict: a perfectly
+     coupled 2 h ECG paired with the 1 h PPG overlapping it scored 0.50 against `COUPLING_MIN 0.55`,
+     failed the `goodMatch` leg and dropped from `go`/FEASIBLE to `maybe`/PROMISING — a downgrade
+     caused by a battery, with every other gate leg identical. `overlap()`
+     already reports the shared span as its own gate leg, so that fact was counted twice while
+     coupling was not measured at all. Mirrors the fix in `pat-align.js coupleRtoFoot`; see the long
+     note there. `matchRateRaw` keeps the pre-2026-08-04 value. */
+  var nCoverable = 0;
+  if (nf) {
+    var covLo = fTimes[0] - PHYS_HI,
+      covHi = fTimes[nf - 1] - PHYS_LO;
+    for (var ci = 0; ci < rTimes.length; ci++) if (rTimes[ci] >= covLo && rTimes[ci] <= covHi) nCoverable++;
+  }
+  var matchRate = pat.length / Math.max(nCoverable, 1);
+  var matchRateRaw = pat.length / Math.max(rTimes.length, 1);
   var residIQR = resid.length ? quantile(resid, 0.75) - quantile(resid, 0.25) : NaN;
   var t0 = patAtR.length ? patAtR[0].t : 0,
     bins = {};
@@ -235,6 +252,8 @@ function coupledPAT(rTimes, fTimes) {
     p25: quantile(pat, 0.25),
     p75: quantile(pat, 0.75),
     matchRate: matchRate,
+    matchRateRaw: matchRateRaw, // pre-2026-08-04 value (denominator = every ECG beat)
+    nCoverable: nCoverable,
     nCoupled: pat.length,
     residIQR: residIQR,
     binMed: binMed,

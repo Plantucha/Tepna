@@ -3800,6 +3800,45 @@
       // Refusal is explicit and counted.
       var few = P.coupleRtoFoot(R.slice(0, 5), F.slice(0, 5), {});
       T.ok('too few pairs ⇒ ok:false naming the count', few.ok === false && /too few/.test(few.reason), few.reason);
+
+      /* ── THE DENOMINATOR COUNTED UNCOVERABLE BEATS (fixed 2026-08-04) ────────────────────────────
+         `matchRate` was `pairs.length / R.length` — every R-peak in the ECG, including beats the PPG
+         recording does not span. Those cannot be paired, so they were counted as coupling failures
+         and the statistic measured RECORDING OVERLAP as much as coupling. The two devices routinely
+         disagree on length (batteries, BLE reconnects).
+
+         Every pre-existing assertion above uses trains of EQUAL extent, where the bug is invisible.
+         That is why it survived: the corpus-free tests could not see it and the corpus runs read the
+         deflated number as a real finding about the vasculature. */
+      var Rlong = [],
+        Fshort = [];
+      for (var q2 = 0; q2 < 400; q2++) Rlong.push(1000000 + q2 * 1000); // 400 beats
+      for (var q3 = 0; q3 < 200; q3++) Fshort.push(1000000 + q3 * 1000 + 420); // PPG covers the first half
+      var half = P.coupleRtoFoot(Rlong, Fshort, {});
+      T.ok('perfect coupling over the shared span scores ~1.0, not ~0.5', half.matchRate > 0.95, 'matchRate = ' + half.matchRate.toFixed(3));
+      T.ok('the pre-fix value is preserved as matchRateRaw, and IS ~0.5', half.matchRateRaw < 0.55, 'matchRateRaw = ' + half.matchRateRaw.toFixed(3));
+      T.ok('nCoverable counts beats the PPG could reach, not every ECG beat', half.nCoverable > 190 && half.nCoverable <= 200, 'nCoverable = ' + half.nCoverable + ' of ' + Rlong.length);
+
+      /* The consequence, asserted through the REAL gate rather than described. Measured, not assumed:
+         the pre-fix denominator drops `goodMatch` (0.50 against COUPLING_MIN 0.55) and downgrades the
+         tier from go/FEASIBLE to maybe/PROMISING. Every other leg — tightBeat, physical, driftOK —
+         is identical, so the ONLY thing separating the two verdicts is how long the ECG ran. */
+      if (env.PATGate && env.PATGate.verdict) {
+        var ovStub = { min: 200 },
+          scStub = { ok: true },
+          cpNew = { ok: true, matchRate: half.matchRate, residIQR: 10, med: 420, driftRange: 20 },
+          cpOld = { ok: true, matchRate: half.matchRateRaw, residIQR: 10, med: 420, driftRange: 20 };
+        var vNew = env.PATGate.verdict(ovStub, cpNew, scStub),
+          vOld = env.PATGate.verdict(ovStub, cpOld, scStub);
+        T.eq('pre-fix: a perfectly coupled pair FAILS the coupling leg', vOld.why.goodMatch, false);
+        T.eq('pre-fix: and is downgraded off the go tier', vOld.tier, 'maybe');
+        T.eq('post-fix: the same pair passes the coupling leg', vNew.why.goodMatch, true);
+        T.eq('post-fix: and reaches the go tier', vNew.tier, 'go');
+        T.eq('every OTHER leg is identical — only the denominator differed', JSON.stringify([vOld.why.tightBeat, vOld.why.physical, vOld.why.driftOK]), JSON.stringify([vNew.why.tightBeat, vNew.why.physical, vNew.why.driftOK]));
+      }
+
+      // equal-extent trains must be UNCHANGED — the fix may not move the common case
+      T.eq('equal-extent trains: matchRate ≡ matchRateRaw (no silent shift)', clean.matchRate, clean.matchRateRaw);
     });
 
     /* PAT-ALIGN — the anchor-based inter-device aligner, extracted from pat-feasibility-worker.js

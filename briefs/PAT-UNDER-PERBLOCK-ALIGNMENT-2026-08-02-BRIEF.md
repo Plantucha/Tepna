@@ -116,6 +116,34 @@ and 1.35. There is no R→foot coupling here beyond what a phase-randomised foot
 > fragments (2026-07-18: 110 ECG × 414 Verity PPG) and this tool picks the largest-true-overlap pair,
 > which need not be the one §2 scored.
 
+## 3b · A shipped defect found while building §3a — the denominator counted uncoverable beats
+
+Fixed 2026-08-04 in **both** copies of the coupler (`pat-align.js coupleRtoFoot`,
+`pat-feasibility-worker.js coupledPAT`).
+
+`matchRate` was `pairs / (every R-peak in the ECG recording)` — including beats the PPG recording does
+not span at all. Those cannot be paired, so each was counted as a **coupling failure**. The statistic
+therefore measured **recording overlap** as much as coupling, and the two devices routinely disagree on
+length (batteries, BLE reconnects; a night in this corpus is dozens of fragments per device).
+
+It flipped the gate, measured through `PATGate.verdict` itself: a perfectly-coupled 2 h ECG paired with
+the 1 h PPG overlapping it scores 0.50 against `COUPLING_MIN 0.55`, **fails `goodMatch`, and drops from
+`go`/FEASIBLE to `maybe`/PROMISING** — with `tightBeat`, `physical` and `driftOK` all identical. The only
+thing separating the two verdicts was how long the ECG ran. And `overlap()` already reports the shared
+span as its **own** gate leg (`ov.min`), so the overlap fact was counted twice while coupling was not
+measured at all.
+
+The denominator is now the R-peaks the PPG could physically have covered — `[F.first − hi, F.last − lo]`,
+since a foot for beat *r* can only exist at *r*+[lo,hi]. No new parameter; `matchRateRaw` keeps the old
+value. Where the trains have equal extent the two are identical, **which is why nothing caught it**:
+every pre-existing assertion used equal-extent trains, and the corpus runs read the deflated number as a
+finding about the vasculature.
+
+> **This does NOT close the §2 reconciliation below — it slightly widens it.** The old denominator
+> *deflates* `matchRate`, so §2's 90–96 % is a lower bound on its own pairs, while §3a's 24–42 % was
+> already computed on beats clipped to the shared window (i.e. the corrected basis). Fixing the defect
+> can only raise §2's numbers, not lower them toward §3a's. The gap remains unexplained.
+
 ## 4 · Done when
 
 - [x] PAT scored by `pat-gate.js` itself, not by a hand-rolled proxy, under per-block alignment.
@@ -125,10 +153,13 @@ and 1.35. There is no R→foot coupling here beyond what a phase-randomised foot
       `tools/pat-matchrate-strict.mjs`: leave-one-block-out acceptance centre, ±40 ms, scored against
       circular-shift surrogates. Measured floor **6–9 %**. Gate-backed in the Node lane by a synthetic
       group that pins the self-referential flaw rather than a corpus number.
+- [x] **A shipped defect in the coupler's denominator, found while building §3a** — fixed 2026-08-04
+      in both copies, gate-backed through `PATGate.verdict` (§3b).
 - [ ] *(open)* **Reconcile this harness with §2** — legacy `matchRate` reads 24–42 % here against
       90–96 % there, and its chance floor 18–23 % against 53–69 %, on the same six nights. Most likely
       pair selection among the BLE-reconnect fragments. **This blocks the coupling verdict**, not the
-      method: §3a's floor result stands on its own.
+      method: §3a's floor result stands on its own. **§3b is not the explanation** — that defect
+      deflates `matchRate`, so correcting it moves §2 *up*, away from §3a.
 - [ ] *(open)* Whether PAT is worth pursuing at all on single-site optical, given that the obstacle is
       PTT variability rather than instrumentation. That is a scientific call, not an engineering one.
       §3a *weakens* the case further — under a definition that can fail, the coupling leg does fail —
