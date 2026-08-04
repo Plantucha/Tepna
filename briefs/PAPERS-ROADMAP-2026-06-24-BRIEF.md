@@ -4,7 +4,33 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-06-24
+**Status:** REFERENCE (living — the forward papers agenda; candidates flip to DONE in the tables as they ship) · **last-verified:** 2026-08-04 · **Created:** 2026-06-24
+
+> **Reclassified 2026-08-04 (PROPOSED → REFERENCE).** This was never an executable brief and cannot
+> become one: it has **no Done-when list and no checkboxes**, its §6 is titled "Done criteria" but
+> describes a *state of the world* rather than acceptance items, and its own text says
+> *"Living agenda — flip individual candidates to `DONE` in the table as they ship; do not rename the
+> file."* CLAUDE.md's §📌 provides exactly this status for such a doc. Held as PROPOSED it was the
+> **oldest outstanding brief in the repo** (41 days) and would have stayed outstanding permanently,
+> because an agenda is never finished — it accumulates.
+>
+> **Verified before reclassifying, in the tree rather than from §6:** all three artifacts §6 claims
+> shipped do exist — `papers/timestamp-pathology.html` (21 KB), `papers/dead-ends.html` (29 KB), and
+> the real-data `papers/ppg-ecg-hrv-validation.html` (27 KB) that closes §0's real-data-arm gap.
+>
+> ⚠️ **§6's "the brief is done for now" is STALE and is left in place as a dated record, not a claim.**
+> It reconciled criterion (a) on 2026-07-08; `papers/PAPERS-AUDIT.md` then gained **open residuals on
+> 2026-07-22** which reopened it. **R2 — the three respiratory papers stay DRAFT until the full 26-night
+> corpus is re-run end-to-end through `resp-acc-analysis.html`** (spot-checked on four nights so far:
+> clock offsets within 8 s, per-night MAE within 0.06 br/min) **and figures are emitted into
+> `papers/figures/`.** Until then their headline numbers trace to the original external harness, which
+> does not satisfy the house rule *"no number without a tool that reproduces it"*; each paper carries a
+> visible banner saying so — **do not clear it early**. R3 (`effort-typing-null`) is explicitly PARKED,
+> which criterion (a) allows.
+>
+> That open work is **owned by `papers/PAPERS-AUDIT.md`, not by this file** — §Scope-split says this
+> brief does not restate per-paper triage. Reclassifying here does not park R2; it puts the agenda in
+> the status that matches what it is, and leaves R2 tracked where it belongs.
 
 # Papers roadmap — forward agenda + new-deliverable potential
 
