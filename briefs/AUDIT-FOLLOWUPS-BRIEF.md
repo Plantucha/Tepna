@@ -1,6 +1,21 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED (§1·§2·§3·§6·§7 all RESOLVED; §4.1 routed to its own brief — re-verified in code 2026-08-03 · ⚠️ **two earlier stamps here were WRONG, both corrected below**) · **Spawns:** `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** PROPOSED (§1·§2·§3·§4.1·§4.2·§4.3·§6·§7 RESOLVED · §5.3 ANSWERED 2026-08-04 — everything still open is **owner-decision** (§4.4 ratification · §5.4–§5.6 cosmetic), **data-gated** (§5.1 no PSG set · §5.2 no Kubios/NeuroKit2 tooling) or **deferred** (§8); nothing is merely unstarted · ⚠️ **three earlier stamps here were WRONG, all corrected below**) · **Spawns:** `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` · **Created:** (undated — pre-2026-07-03, grandfathered)
+
+> **2026-08-04 backlog sweep — what is left, and why none of it is "just do it":**
+> - **§4.3** — ✅ **EXECUTED**, see the §4.3 correction below. (This sweep independently reached the same
+>   diagnosis — that the blocker was priced in a retired `buildHash` — and wrote it up as an owner-decision
+>   still pending; a concurrent session had already *executed* it in `015dc82` (#824) while this was being
+>   written. Corrected here rather than left standing: the brief moved under the sweep, which is the exact
+>   failure this sweep exists to catch.)
+> - **§4.4** (`FINDING_EVIDENCE`) — its "not test-backed" half is **no longer true**; a gate now anchors
+>   every fusion finding type. Only owner *ratification* of the grades remains.
+> - **§5.1 · §5.2** — data-gated (no PSG dataset / no Kubios-NeuroKit2 tooling committed). Not startable.
+> - **§5.4 · §5.5 · §5.6** — cosmetic / curation calls.
+> - 🔴 **One NEW finding, from §5.3's scan: `VO₂ GT` (`pulsedex-render.js:260`) surfaces with NO evidence
+>   badge.** Measured by executing the real `badgeForLabel(label, true)` over all 68 rows of the table
+>   (63 badged, probe non-vacuous). Deliberately NOT fixed here — the fix is a **tier assignment**, which
+>   is a NODE fact owned by `PULSE_REGISTRY` and an owner call. See §5.3.
 
 > **⚠️ Correction — §1 is SHIPPED, and this header previously said it was not.**
 > An earlier 2026-08-03 pass stamped §1 *"NOT BUILT: zero matches in `integrator-app.js` or
@@ -198,12 +213,17 @@ that bump.
    false non-compliance (`class="ev ev-"` in a bundle is mostly **CSS rules**, not markup).
    *Original text:* the 🔴 coverage mandate was only made compliant in the Integrator; audit
    OxyDex/HRVDex/PulseDex/GlucoDex/ECGDex/CPAPDex for unbadged surfaces.
-3. **`Integrator.src.html` has 3 duplicate `<nav class="mobile-nav">` blocks** (deduped at runtime by
-   `bindNav`). ⏳ **STILL OPEN** — re-confirmed 2026-08-04: 3 real `<nav>` elements (2 bare +
-   1 `id="mobileNav"`), counted as elements (the bare string `mobile-nav` appears 22×, mostly CSS —
-   don't count that). ⚠️ **Its costing is STALE:** it is priced in `buildHash`, retired by Phase 7.
-   Re-cost against `manifestHash` + the content-addressed fixture rules (`CLAUDE.md` §🔏) before
-   deciding — including whether "can't regenerate" still holds. Currently keep the runtime workaround.
+3. ~~**`Integrator.src.html` has 3 duplicate `<nav class="mobile-nav">` blocks**~~ ✅ **EXECUTED
+   2026-08-04** in `015dc82` (#824) — see the detailed §4.3 correction in the header block above.
+   Verified in the tree after that landed: **exactly 1** `<nav class="mobile-nav">` element remains
+   (down from 3), counted as elements — note the bare string `mobile-nav` appears 22× and is mostly CSS,
+   so counting occurrences measures the wrong thing.
+
+   Its stated blocker was **obsolete**: the cost was priced in `buildHash`, which Phase 7 retired as a
+   provenance signal eight days after this item was written. The two fusion fixtures (there are **2**,
+   not 3) are `historical: true` — byte-pinned, no `manifestHash`, no `inputHashes` — so a markup change
+   could not have flipped them. They were also never true duplicates: only `.mnav-item` is styled, so
+   the dead pair rendered unstyled and half-overlapping until `bindNav` deleted them on every boot.
 4. **Fusion-finding evidence tiers are author-assigned, not test-backed** (`FINDING_EVIDENCE` in
    `integrator-render.js`). ⚠️ **Premise largely OVERTAKEN 2026-08-04** — the "not test-backed" half is
    no longer true: `tests/dex-tests.js:6466`–`:6504` parses `FINDING_EVIDENCE` straight out of the
@@ -227,10 +247,31 @@ With the BP leak closed, the review's top item is done. Remaining (in their orde
    dataset committed).
 2. **Kubios/NeuroKit2 cross-check** on RR the harness already re-detects (converts §B from "method
    correct" to "agrees with the reference"). Also data/tooling-gated.
-3. **Sweep orphaned research-depth render rows.** PulseDex still lists `VO₂ base`/`VO₂ adj`
-   (`pulsedex-render.js` ~L194–195) — these have registry entries (`vo2`/`vo2base`) so they're
-   surfaceable, but confirm they resolve a badge under the coverage mandate, or demote/remove. (Fold
-   into §4.2.)
+3. ~~**Sweep orphaned research-depth render rows.**~~ ✅ **ANSWERED 2026-08-04 — and it turned up one
+   row this item did not name.** The confirm it asks for: `VO₂ base` and `VO₂ adj` **do** resolve
+   badges — both `heuristic` (*"Uth–Sørensen HR-ratio VO₂ estimate"* / *"HRV→VO₂max estimate —
+   population proxy"*). No demote/remove needed.
+
+   Measured, not read: the whole `rows` table (`pulsedex-render.js:205`–`:348`, rendered at `:351`–`:354`
+   where every row does `${evBadge(m)}${m}`) was scanned by **executing** `PulseRegistry.badgeForLabel(label, true)`
+   — called with the second `fallback` arg exactly as `evBadge` at `:20`–`:22` passes it, since
+   `badgeForLabel(l)` alone gives a different answer. Result: **68 labels scanned, 63 badged, 5 not**
+   (probe non-vacuous — 63 badges produced, so a zero result would have been a failed scan, not a clean one).
+
+   Of the 5: `DateTime` · `Recording` · `Duration` are recording **metadata**, and
+   `— ADVANCED / RESEARCH —` is a section separator, not a row — all four correctly unbadged.
+
+   ⚠️ **The fifth is a real finding: `VO₂ GT` (`:260`) renders with NO badge at all.** It is a surfaced
+   measurement — user-entered laboratory ground-truth VO₂max — so under the §🎫 coverage mandate an
+   unbadged number is a bug, the same silent class as `staging_disagreement` in §4.4 above (which fell
+   through `evBadge()`'s `!key` guard and returned `''`). **Left unfixed deliberately:** the fix is a
+   tier assignment, and a tier is a NODE fact owned by `PULSE_REGISTRY`, never assigned in a sweep.
+   **Owner-decision** — the plausible reading is `measured` (a real lab value, the strongest evidence in
+   the table), but that is the owner's call, and it needs a `PULSE_REGISTRY` entry, not a local grade.
+   Note the row renders even when the value is absent (`r.vo2gt || '—'`), so the empty badge is visible
+   in the common case.
+
+   ⚠️ Also note this item's line reference was stale: the VO₂ rows are at `:258`–`:260`, not `~L194–195`.
 4. **Rename the wellness-coded composites** (Coherence/Welfare/Energy) to neutral autonomic terms, or
    keep strictly research-depth. Cosmetic; last gimmick smell.
 5. **Surface the data-quality stamp prominently** (`correctionRate`/`analyzablePct`/`motionRejectedPct`)
