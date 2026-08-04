@@ -10982,7 +10982,99 @@ const OxyDex = window.OxyDex;
   var STAGE_RE = /(stage|sleep)/i;
   var WAKE_RE = /wake|stage 0|^0$|\|0\b/i;
 
-  /* Parse an NSRR profusion-style annotation XML → { scoredAHI, tstHours, nApnea, nHypop, events:[{tMs?,sec,kind}] }.
+  /* ── PER-EPOCH STAGE LABELS (REM-STAGING-FOLLOWUPS §2a) ──────────────────────────────────────────
+     These annotation files are PSG-scored: every 30 s epoch carries an expert stage. Until now this
+     parser reduced all of them to ONE scalar — `stageDurSec`, for total sleep time — so the stage
+     IDENTITY (the thing two blocked staging efforts are short of) was read off disk and discarded on
+     the same line. §2a asked whether the labels were absent or merely unparsed. They are unparsed.
+
+     NSRR/Compumedics writes a stage EventConcept as "<text>|<code>", and the CODE is authoritative
+     because the text varies across cohorts ("Stage 1 sleep" · "NREM1" · "N1"):
+         0 Wake · 1 N1 · 2 N2 · 3 N3 · 4 N4 (scored as N3 under AASM) · 5 REM · 6 Movement · 9 Unscored
+     Recognising the code — not just the words "stage"/"sleep" — also FIXES a TST bug: a cohort that
+     writes a bare `REM|5` matched neither STAGE_RE nor WAKE_RE, so REM fell out of total sleep time
+     entirely and inflated every AHI computed from it. `Stage 2 sleep|2` was never affected, which is
+     why the existing known-answer test could not see it. */
+  var EPOCH_SEC = 30;
+  var STAGE_CODE_RE = /\|\s*([0-9])\s*$/;
+  var STAGE_BY_CODE = { 0: 'Wake', 1: 'N1', 2: 'N2', 3: 'N3', 4: 'N3', 5: 'REM', 6: 'Movement', 9: 'Unscored' };
+  var SLEEP_STAGES = { N1: 1, N2: 1, N3: 1, REM: 1 }; // what counts toward TST — Wake/Movement/Unscored do not
+  var REM_TEXT_RE = /\brem\b/i;
+  var N1_RE = /(stage\s*1|nrem\s*1|\bn1\b)/i;
+  var N2_RE = /(stage\s*2|nrem\s*2|\bn2\b)/i;
+  var N3_RE = /(stage\s*[34]|nrem\s*[34]|\bn[34]\b|slow\s*wave)/i;
+
+  /* concept → canonical stage name, or null if this event is not a stage at all.
+     Code first (authoritative), text second (cohorts that omit the code).
+
+     The text fallback is deliberately NARROW. "Arousal (ARO RES)|Arousal ()" is not a stage, and a
+     loose word-match would eventually classify one as N-something; a stage series polluted by arousal
+     events is worse than no series, because it looks like labels. So text is trusted only when the
+     concept SAYS stage/sleep, or when the whole leading token IS the stage name. */
+  var BARE_STAGE_RE = /^\s*(wake|rem|nrem\s*[1234]|n[1234]|s[01234])\b/i;
+  /* EDF+ Annotations spell it "Sleep stage W|R|N1|N2|N3|N4|1|2|3|4" — unambiguous, but W/R are single
+     letters that must NOT be matched loosely anywhere else. Anchored whole-string, so they cannot. */
+  var EDFPLUS_RE = /^\s*sleep\s+stage\s+([WR]|N?[1234])\s*$/i;
+  var EDFPLUS_MAP = { W: 'Wake', R: 'REM', 1: 'N1', 2: 'N2', 3: 'N3', 4: 'N3' };
+  function stageOf(concept) {
+    var m = STAGE_CODE_RE.exec(concept);
+    if (m) {
+      var byCode = STAGE_BY_CODE[+m[1]];
+      if (byCode) return byCode;
+    }
+    var ep = EDFPLUS_RE.exec(concept);
+    if (ep) return EDFPLUS_MAP[ep[1].toUpperCase().replace(/^N/, '')] || null;
+    if (!STAGE_RE.test(concept) && !BARE_STAGE_RE.test(concept)) return null;
+    if (WAKE_RE.test(concept)) return 'Wake';
+    if (REM_TEXT_RE.test(concept)) return 'REM';
+    if (N1_RE.test(concept)) return 'N1';
+    if (N2_RE.test(concept)) return 'N2';
+    if (N3_RE.test(concept)) return 'N3';
+    return null; // says "stage"/"sleep" but names no stage we can pin — do not guess
+  }
+
+  /* Scored blocks → the 30 s epoch grid the scorer used, indexed from recording start, so a feature
+     vector computed per epoch joins to a label by INDEX alone — which is the whole point of §2b.
+
+     Kept separate from parseNsrrXml on purpose: parseNsrrXml needs DOMParser and therefore runs in the
+     BROWSER lane only, while the Node lane is what gates every PR. The XML walk cannot escape that;
+     this arithmetic can, so it does.
+
+     A block with no Start cannot be placed and is left out of the GRID — but it still counted toward
+     TST upstream, and dropping it from both would silently move an existing number. Later blocks win
+     on overlap (a re-scored epoch is the scorer's correction). Holes stay `undefined`: an unscored
+     gap is not Wake, and filling it would invent 8 h of labels out of a truncated file. */
+  function stagesToEpochs(stages) {
+    var epochs = [];
+    var stageCounts = {};
+    for (var s = 0; s < stages.length; s++) {
+      var b = stages[s];
+      var n = Math.max(1, Math.round(b.durSec / EPOCH_SEC));
+      stageCounts[b.stage] = (stageCounts[b.stage] || 0) + n;
+      if (b.sec == null || !isFinite(b.sec)) continue;
+      var i0 = Math.round(b.sec / EPOCH_SEC);
+      if (i0 < 0) continue;
+      for (var k = 0; k < n; k++) epochs[i0 + k] = b.stage;
+    }
+    var nSleepEp = 0,
+      nRemEp = 0;
+    for (var e = 0; e < epochs.length; e++) {
+      if (!epochs[e]) continue;
+      if (SLEEP_STAGES[epochs[e]]) nSleepEp++;
+      if (epochs[e] === 'REM') nRemEp++;
+    }
+    return {
+      epochs: epochs,
+      stageCounts: stageCounts,
+      nSleepEpochs: nSleepEp,
+      nRemEpochs: nRemEp,
+      remFrac: nSleepEp > 0 ? +(nRemEp / nSleepEp).toFixed(4) : null
+    };
+  }
+
+  /* Parse an NSRR profusion-style annotation XML →
+       { scoredAHI, tstHours, nApnea, nHypop, events:[{tMs?,sec,kind}],
+         stages:[{stage,sec,durSec,tMs?}], epochs:[stage…], epochSec, stageCounts, remFrac, hasStageLabels }.
      Robust to the two common shapes: <ScoredEvents><ScoredEvent><EventConcept>…</EventConcept>
      <Start>…</Start><Duration>…</Duration></ScoredEvent>…  AHI = (apnea+hypopnea)/TST_hours.
      TST from staged sleep epochs (each 30 s, non-Wake). Falls back to recording duration if no staging. */
@@ -11001,6 +11093,7 @@ const OxyDex = window.OxyDex;
       sleepEpochs = 0,
       events = [];
     var stageDurSec = 0;
+    var stages = [];
     evNodes.forEach(function (ev) {
       var conceptEl = ev.querySelector('EventConcept, Name, Type');
       var concept = conceptEl ? conceptEl.textContent.trim() : (ev.textContent || '').trim();
@@ -11013,15 +11106,46 @@ const OxyDex = window.OxyDex;
         if (kind === 'hypopnea') nHypop++;
         else nApnea++;
         events.push({ kind: kind, sec: startSec, durSec: durSec, tMs: t0Ms != null && startSec != null ? t0Ms + startSec * 1000 : null, concept: concept });
-      } else if (STAGE_RE.test(concept) && !WAKE_RE.test(concept)) {
-        // a staged sleep epoch (or block); accumulate its duration if present, else count 30 s
-        sleepEpochs++;
-        stageDurSec += durSec != null && durSec > 0 ? durSec : 30;
+      } else {
+        var stage = stageOf(concept);
+        if (!stage) return;
+        // a staged block (one epoch, or many consecutive epochs of one stage sharing a Duration)
+        var blockSec = durSec != null && durSec > 0 ? durSec : EPOCH_SEC;
+        stages.push({
+          stage: stage,
+          sec: startSec,
+          durSec: blockSec,
+          tMs: t0Ms != null && startSec != null ? t0Ms + startSec * 1000 : null,
+          concept: concept
+        });
+        if (SLEEP_STAGES[stage]) {
+          sleepEpochs++;
+          stageDurSec += blockSec;
+        }
       }
     });
     var tstHours = stageDurSec > 0 ? stageDurSec / 3600 : null;
     var scoredAHI = tstHours && tstHours > 0 ? +((nApnea + nHypop) / tstHours).toFixed(2) : null;
-    return { scoredAHI: scoredAHI, tstHours: tstHours, nApnea: nApnea, nHypop: nHypop, nResp: nApnea + nHypop, nEvents: evNodes.length, events: events, staged: sleepEpochs > 0 };
+
+    var grid = stagesToEpochs(stages);
+    return {
+      scoredAHI: scoredAHI,
+      tstHours: tstHours,
+      nApnea: nApnea,
+      nHypop: nHypop,
+      nResp: nApnea + nHypop,
+      nEvents: evNodes.length,
+      events: events,
+      staged: sleepEpochs > 0,
+      // ── §2a: the expert labels, no longer discarded ──
+      stages: stages, // scored blocks, file order
+      epochs: grid.epochs, // 30 s grid from recording start; holes are unscored gaps
+      epochSec: EPOCH_SEC,
+      stageCounts: grid.stageCounts, // epochs per stage, from block durations
+      nSleepEpochs: grid.nSleepEpochs,
+      remFrac: grid.remFrac,
+      hasStageLabels: stages.length > 0
+    };
   }
 
   /* Full record: EDF buffer (+ optional XML text, or an explicit scoredAHI override) → result row. */
@@ -11102,6 +11226,10 @@ const OxyDex = window.OxyDex;
     analyzeRecord: analyzeRecord,
     severityOf: severityOf,
     findSignal: findSignal,
+    stageOf: stageOf,
+    stagesToEpochs: stagesToEpochs,
+    STAGE_BY_CODE: STAGE_BY_CODE,
+    SLEEP_STAGES: SLEEP_STAGES,
     SPO2_LABELS: SPO2_LABELS
   };
 })(typeof window !== 'undefined' ? window : this);
