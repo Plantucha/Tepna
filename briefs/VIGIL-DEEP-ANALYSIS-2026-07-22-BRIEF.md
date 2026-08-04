@@ -3,7 +3,52 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-22
+**Status:** PROPOSED (**§1's entire ranked top-5 and Phases 0–2 are EXECUTED** — verified in code 2026-08-04, each with an in-source citation back to this brief. Phase 3 is partial with two named residues, Phase 4 is a gated multi-day campaign, Phase 5 is low-priority, Phase 6 is out-of-code/owner) · **Created:** 2026-07-22
+
+> ## Phase map, measured in code 2026-08-04 — this brief reads as fully open and is not
+>
+> A 479-line audit with no status markers reads as untouched. Most of it has shipped, and several fixes
+> cite this brief by name in their own comments. Checked file by file:
+>
+> | §1 ranked item | state |
+> |---|---|
+> | 1 · bound every post-connect GATT await — *"the single most severe correctness hole"* | ✅ `_bounded_setup` (`capture.py:261`) wraps `start_notify` / `read_gatt_char` / the auth+setup writes in all three runners. The O2Ring stored-session pull is bounded **and** under `_CONNECT_LOCK` — the sibling hole its own comment describes |
+> | 2 · robust detector threshold | ✅ `detectRs` is median-centre + **MAD** scale (`monitor.html:1869-1882`), replacing `0.55·max`; the comment records the proving case (*one 12× spike → 0 beats*) |
+> | 3 · adapter pin off `hcitool` | ✅ `resolve_hci` is **sysfs first**, `hcitool` only as fallback, with a D-Bus overlay for a controller that has no public address (`link_rssi.py:128-148`, citing §1.3) |
+> | 4 · stop leaving sensors `Trusted` | ✅ `untrust` after pairing (`bonding.py:199/203`, citing §2D) |
+> | 5 · per-stream stall watchdog | ✅ indexed per stream — `rows_now[_i] != last_rows[_i]` (`capture.py:1794`) |
+>
+> **Phase 0** — all present: MAC validation at the webmon boundary · `_save()` surfacing a write failure as
+> 500 · the `BAD_BODY` guard across POST handlers · `os.replace` for `status.json`. `alerts.webhook_url` is
+> now settable from the monitor (2026-08-04) rather than requiring a hand-edit.
+> **Phase 1** — done (items 1, 3, 4 above).
+> **Phase 2** — done (item 5 above, plus GATT service-cache invalidation and the auto-pull settle guard).
+>
+> ### What actually remains
+>
+> - **Phase 3 — PARTIAL, two named residues.** The robust threshold landed; these did not:
+>   - **no IIR bandpass** in `detectRs` — it runs on the raw buffer. MAD makes the *threshold* robust; it
+>     does not remove baseline wander or HF noise before detection.
+>   - **no staleness stamp** — searched for `rateAt`/`stale`/`lastRate`/`ageMs`: **zero hits**. A live HR
+>     that has stopped updating renders identically to a current one, which is the "a number that looks
+>     live but isn't" class this suite treats as a bug elsewhere. Of the two, this is the one worth doing
+>     first: it is honesty, not accuracy.
+> - **Phase 4 — not started** (`MSPTD`: zero hits). Explicitly **L**/multi-day and gated on a real
+>   tri-device-corpus A/B, not MIT-BIH — a deliberate campaign, not residue.
+> - **Phase 5 — not started** (`xcorr`: zero hits); the brief itself marks it low priority.
+> - **Phase 6 — out of code.** Its Pi bring-up gate is **superseded**: `CAPTURE-HOST-2026-06-29` closed
+>   2026-08-04 and the appliance is an x86_64 mini-PC, recorded there under *As-built ≠ as-specified*. The
+>   rest (V1–V5, the sudoers apply path, the production-box/NAS decisions) is owner/hardware-gated and
+>   tracked in `CAPTURE-HOST-FOLLOWUPS-II` §2.
+>
+> **Not stamped DONE, deliberately.** Phase 4 is real, unstarted work that this brief owns. But the open
+> surface is one gated campaign plus two live-view residues — not 479 lines of audit.
+>
+> ⚠️ **Why the Phase 3 residues were left rather than built:** `monitor.html` is unbundled UI on a host
+> surface with **no executable test lane** — the existing tests read it as text (the house pattern is
+> `test_device_identity.py`, which extracts the shipped regex rather than re-typing it), and this session
+> cannot drive a browser. Adding live-detector logic here would grow exactly the unverified surface the
+> rest of this work is trying to shrink. Whoever has a browser should take them.
 
 _Deep analysis of the Vigil bedside capture appliance — the monitor/control server, the in-browser live
 detectors, the BLE capture supervisor, and the bonding/BlueZ layer — plus detector-algorithm, robust-BLE,
