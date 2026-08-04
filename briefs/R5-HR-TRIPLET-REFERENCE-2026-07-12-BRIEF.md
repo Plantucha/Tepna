@@ -194,13 +194,20 @@ mechanistically twinned with a corner. Do not simply add it as a fourth and hope
 - [x] **State the blindness in the papers — DONE 2026-08-04.** Neither paper said it (measured: zero matches
       for `bias-blind`/`variance-only`/`no bias term`/`never been validated` in either file). Added
       `papers/sigma-no-reference.html` **Limitations (ix)**: every σ there is variance-only and the estimator
-      has never been validated against an external truth; carries the measured O2Ring under-read
-      (**−0.269 bpm**, n=3,136 epochs / 40 nights, SEM 0.024, 11.0 σ, reproducible via
-      `tools/oxy-hr-bias.mjs`), the reasons it is neither an OxyDex artifact (−0.0138 bpm, output rounding)
-      nor pure quantization (integer column ⇒ truncation predicts −0.500, rounding 0.000, measurement sits
-      between), the per-night invisibility (means span −0.87…+0.08 against per-epoch SD 1.37), and the §1
-      identity with its zero-power consequence. Closes with: these are **precision** estimates, not accuracy
-      statements.
+      has never been validated against an external truth, plus the §1 identity with its zero-power
+      consequence. Closes with: these are **precision** estimates, not accuracy statements.
+
+      ⚠️ **REWRITTEN 2026-08-04 (same day) — the first version of (ix) shipped the −0.269 bpm figure as a
+      measured *O2Ring* bias, which §5's own bias item then overturned** (see the `[~]` entry above and
+      `changes/2026-08-04-hr-estimator-confound.md`). That was a false claim in a published preprint, and
+      it survived because this write-up item was executed from §2's headline before §5's investigation had
+      landed. (ix) now states the corrected account: the cross-node −0.269 is an **estimator confound**
+      (ECGDex `60000/mean(RR)` vs OxyDex `median(1 Hz rate)` gives −0.299 on one real series through both
+      statistics, no device involved), the ring's firmware HR is **indistinguishable from chest ECG**
+      (−0.027 bpm, 0.6 σ, 237 windows, `tools/o2ring-finger-validate-batch.mjs`), the −0.299 mechanism is
+      **not** isolated (synthetic series give +0.03 / +0.54 / −0.03), and therefore **no per-device HR bias
+      may be read off cross-node epoch HR until the nodes agree on one statistic**. The limitation is
+      stronger for it: there is at present no validated bias figure for any corner to be blind to.
 - [x] **Fold the §1 identity into `SENSOR-TRIO-NIGHTS` methods — DONE 2026-08-04.** Added to **§2.2**, directly
       after the TCH kernel and its negative-output note, as the paper's own justification for having a
       Monte-Carlo arm at all: the e_P/e_O shared-term expansion, the collapse σ²_E = cov(e_P, e_O), the
