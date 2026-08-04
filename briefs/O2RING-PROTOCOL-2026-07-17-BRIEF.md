@@ -119,6 +119,14 @@ against the paired ECG at 49 bpm) — see `oxyii.parse_ppg`:
 | `[26:26+N]` | `N` **unsigned 8-bit** optical samples, **single channel** |
 
 - **Single channel, not interleaved LEDs** — even/odd samples are near-identical.
+- **`N` is EXACTLY 126, and that is a LOCK** — measured 2026-08-03 over 90 captured sessions: median
+  125.997 samples per status frame, 0.003 off the integer (`O2RING-FRAME-SAMPLE-LOCK-2026-08-03-BRIEF`).
+  Two consequences. **(1) The two streams are ONE clock** — status frames and PPG samples are counted off
+  a single oscillator at a fixed ratio, so comparing their rates measures a hardware constant. A second
+  stream is *not* a second clock; no ppm, absolute rate or independent timebase can be recovered that way.
+  **(2) Sample loss becomes COUNTABLE rather than inferred** — `126 × frames − samples` is an exact count
+  of dropped samples with no rate assumption, where `O2PPG_GAP_MIN_S` infers loss from arrival timing.
+  Confirmed independently by the host column's re-anchor cadence, which falls every 126 samples = 1.00 s.
 - **Rate: 125.738 Hz measured**, not the ~100 Hz the upstream reference states, and not the round 125.0
   first guessed (which was 0.59 % low ⇒ ~212 s of divergence over a 10 h night between the phone-timestamp
   column and the synthesized relative-ms column). Calibrated over 12 sessions / 5.8 h / 2 616 483 samples,
