@@ -7,6 +7,14 @@
 
 # PAT is not blocked by alignment. It is blocked by pulse transit time itself.
 
+> ### ⚠ THE TITLE CLAIM IS WITHDRAWN — §3c–§3g (2026-08-04)
+> It was blocked by alignment after all, and by offset *identifiability*. The IQR/driftRange legs §1–§2
+> report are real, but the **coupling** leg they rest beside was measuring alignment error: §3a's
+> negative reverses under a better pair (§3c), under no alignment at all (§3d), and under a matched-null
+> offset scan on **47 of 57** windows (§3g). The ACC anchors it used disagree with *themselves* by
+> **1171–3094 ms** (§3e). Coupling is real; **absolute PAT remains blocked**, now for the stated reason
+> that the offset is knowable only to a **~450 ms band mod one RR** (§3g.2). Read §3g first.
+
 §3.2 says the alignment precision PAT needs *"is reachable on this hardware, which the previous
 measurement concluded it was not"*, citing **43–112 ms, median ≈50 ms**. That citation traces back to
 `WEARABLE-DRIFT-FIT` §3 — **and it is the wrong quantity.** The 50 ms is the residual of the
@@ -451,3 +459,55 @@ clocks" would produce.
   lag list, and a permutation p of `count(surrogate ≥ NaN)+1` over `n+1` is `(0+1)/41` = **0.024** — so
   **two of sixty windows reported NO DATA as SIGNIFICANT** in the first pass. Windows with < 50 lags or
   a non-finite rate are now refused loudly. The corrected figure is 20/57, not the 22/60 that pass gave.
+
+## 3g · VERDICT — the coupling is real and the intermittency is the OFFSET; absolute PAT stays blocked
+
+§3f left one thing between this brief and a quotable statement: whether the 20/57 intermittency was
+the physiology coming and going or the residual offset wandering. `--scan` answers it — sweep a
+constant δ, take the max, and take the **null's max the same way** so scanning favours observation and
+null identically. Over all **57 windows** `[CORPUS]`:
+
+| | |
+|---|---|
+| strict significant at δ = 0 | **18 / 57** |
+| strict significant under the offset scan | **47 / 57** |
+| δ=0 failures **rescued** by allowing a constant offset | **29 / 39** |
+| windows showing nothing at **any** offset | **10 / 57** |
+| best-scan `matchRate` | median **15 %**, max **74 %** (scan chance ~8 %) |
+
+**The intermittency is the offset, not the physiology.** In 29 of the 39 windows that failed at δ=0,
+there is a constant offset at which coupling appears against a matched null. A third candidate — that
+the PPG *timing point* degrades — was tested with `--timing-point peak` and is **not supported**: the
+foot scores as well or better on every comparable window and the peak loses one outright.
+
+Corroborated by the identifiable offset itself: reduced mod RR, the per-window offsets are **stable
+within a night on 4 of 11 nights and exceed the plateau on 7**, i.e. the offset genuinely moves within
+most nights.
+
+### 3g.1 · What this DOES license
+**R-peak → pulse-foot coupling in this corpus is real, and `PAT-UNDER-PERBLOCK-ALIGNMENT` §3a's
+negative was an artefact of its alignment.** §3a's own first listed possibility was the right one, and
+this is now measured three independent ways: pair selection (§3c), aligned-vs-unaligned on the same
+pair (§3d), and a matched-null offset scan over every window (§3g).
+
+### 3g.2 · What it does NOT license — and this is the load-bearing caveat
+**Allowing a free constant offset per window means we are no longer measuring PAT.** The scan
+establishes that the two beat trains are *temporally coupled*; it says nothing about the **magnitude**
+of the lag, because §3f's plateau result caps what the offset can be known to: **a ~450 ms band, mod
+one RR** (any δ keeping the lag inside `[PHYS_LO, PHYS_HI]` scores identically, and a periodic train
+cannot distinguish δ from δ ± RR).
+
+Pulse arrival time is a *magnitude* — 405–496 ms on §2's table, and the physiology of interest lives in
+its 139–197 ms beat-to-beat variation. **A quantity known only to ±450 ms cannot report it.** So:
+
+- **Coupling leg: PASSES.** 47/57 windows, matched null.
+- **Absolute PAT: STILL BLOCKED**, and now blocked for a *stated, measured* reason — offset
+  identifiability — rather than by an alignment nobody had characterised.
+
+### 3g.3 · What would unblock it
+An offset fixed by something **aperiodic**, since a beat train cannot fix it beyond mod-RR by
+construction. The ACC route is measured dead (§3e: 1171–3094 ms of internal disagreement). The
+host-stamp route reaches 39–128 ms (§3e.4) — inside the 450 ms plateau and therefore the strongest
+candidate — but it clears `pat-gate.js`'s 60 ms bar on only 3 of 8 nights. **Closing that last factor
+of ~2 is the whole remaining problem**, and it is a capture-side question (BLE delivery latency), not
+an analysis one.
