@@ -9,6 +9,7 @@
 
 import asyncio
 import contextlib
+import logging
 
 import pytest
 
@@ -790,6 +791,45 @@ def test_run_oxyii_captures_the_ppg_waveform(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg"]), str(tmp_path)))
     assert list((tmp_path / "captures").rglob("*_PPG.txt"))
+
+
+def test_run_oxyii_reports_the_ppg_frame_ledger_at_session_end(tmp_path, monkeypatch, caplog):
+    """The COUNTED half of the session report (O2RING-FRAME-SAMPLE-LOCK §7), driven through the REAL
+    runner rather than a hand-built logging call.
+
+    ⚠️ The sibling test above replies with a CONSTANT `duration`, so every step is 0, `device_seconds`
+    never advances, and this report line never executes — the code path was exercised while its
+    condition never was. Here the ring's session second ADVANCES, and one reply skips a second so a
+    `+2` step lands on the record too.
+
+    Asserting the shipped line's WORDING matters as much as its numbers: it is the only place a reader
+    meets these counters, and "not lost frames" is the clause that stops a `+2` step being re-read as
+    loss for the fourth time (see the ledger's own class docstring)."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    N = 126
+    body = N.to_bytes(2, "little") + bytes(i % 256 for i in range(N))
+    # 900 -> 901 -> 903: an ordinary tick, then the +2 step this whole brief is about.
+    secs, seen = [900, 901, 903, 904, 905, 906, 907, 908], [0]
+
+    def reply():
+        d = secs[min(seen[0], len(secs) - 1)]
+        seen[0] += 1
+        hdr = bytearray(24); hdr[6] = 96; hdr[8] = 55; hdr[10] = 1; hdr[13] = 90
+        hdr[0:4] = d.to_bytes(4, "little")
+        return oxyii.encode(oxyii.OP_LIVE, bytes(hdr) + body)
+
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, reply()) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    # 8, not 4: the auth/setup/RTC handshake burns three sleeps before the poll loop starts, so a
+    # smaller budget delivers ONE frame and one frame closes no step at all.
+    _stop_after(monkeypatch, 8)
+    caplog.set_level(logging.INFO)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg"]), str(tmp_path)))
+    msg = caplog.text
+    assert "PPG frames —" in msg, "the counted half of the report must reach the log"
+    assert "quantization — not lost frames" in msg
+    assert "declared" in msg and "truncated" in msg
 
 
 # ── connect except-guards (disconnect raises in the finally) ────────────────────────────────────────

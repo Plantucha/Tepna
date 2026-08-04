@@ -88,3 +88,103 @@ column is drawn", "anchors every 20 samples", and finally the correct "re-anchor
 refinement came from asking what *else* could produce the pattern, not from more data. The 20-sample
 result in particular was millisecond rounding wearing the shape of a signal. See
 `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md` §6 for the same failure mode on the same device the same day.
+
+---
+
+## 7 · EXECUTED 2026-08-03 — §4(a) built, and two refinements this brief owes its own §1
+
+§4(a) is implemented: `oxyii.ppg_sample_count` surfaces the declared `N`, `capture.O2PpgFrameLedger`
+accumulates it **beside** `O2PpgGrid` (never replacing it), and `writers.OxyFrameLogWriter` records
+`ppg_n;ppg_dur_step;ppg_expected` per frame. Executing it produced two corrections to the sections
+above, both measured, and this brief is `REFERENCE (living)` — so they land here rather than in a note.
+
+### 7.1 · The 126 lock is an AVERAGE, not a per-frame constant
+
+§1's `median 125.997` is a **per-session** ratio, and it stands. But the per-frame value it averages is
+**not** 126. Decoded off the 90-frame protocol probe, the device-declared `N` in `[24:26]`:
+
+| declared `N` | 57 | 60 | 61 | 66 | 108 | 123 | 124 | 125 | **126** | 127 | 128 | 129 | 250 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| frames | 1 | 1 | 1 | 1 | 1 | 1 | 7 | 21 | **35** | 16 | 3 | 1 | 1 |
+
+126 is the *mode*. Steady state is **124–128**, because the poll interval jitters (0.989–1.007 s
+observed) and the ring hands back whatever accumulated since the last poll; `250` is the connect-time
+backlog flush and `57–108` are the next five frames while the cadence settles.
+
+**Consequence for §4(a):** `126 × frames − samples` carries ±2 samples per frame of device-side jitter,
+and the constant is 126.00 against a real 126.04. Evaluated on the largest clean night in the corpus
+(`…20260801224728`, 9.3 h, 4 228 155 rows) it returns **−5 120** — a *surplus* of five thousand samples.
+The subtraction is therefore shipped **signed**, as `counted_loss`, documented as the weakest of the
+three counters. **What §4(a) actually detects** is intra-frame loss (the frame arrived, its samples did
+not), which is exactly `declared − delivered`; that ships as **`truncated`** — exact, constant-free, and
+the only counter here whose being non-zero means something is genuinely broken.
+
+### 7.2 · `Δduration` is a ±1 s quantized counter — do NOT read a step of 2 as a lost frame
+
+The obvious way to make §4(a) catch *whole* lost frames is the ring's own session second (`[0:4]`): a
+step of 2 between consecutive replies looks exactly like one status frame that never arrived. **It is
+not one.** On the reference night — 33 513 frames, steps `33 172 × +1`, `180 × 0`, `159 × +2`, and none
+of `+3` or more — frame boundaries are recoverable (each frame's last PPG sample is stamped at its host
+arrival; 2 ms median match residual), and grouped by step they read:
+
+| duration step | n | **host arrival interval** | **samples in the next frame** |
+|---|---|---|---|
+| `+0` | 180 | 1.000 s | 125 |
+| `+1` | 33 172 | 1.005 s | 126 |
+| `+2` | **159** | **1.005 s** | **127** |
+
+A genuinely missing frame would show a **~2.0 s** host interval; a recovered backlog would show **~252**
+samples. Both read one second's worth. **No frame is missing.** The ring's second is **1.00346
+host-seconds** (§5's territory: this is the same −3446 ppm seen as 33 490 device-seconds against
+33 605.8 host-seconds) while the poll interval is **1.0028 s** — two nearly-equal periods, so which side
+of a ring-tick a poll lands on wanders and the counter occasionally ticks twice or not at all. The 159
+and the 180 nearly cancel, which is why the **span** survives as a long-run measure while no single step
+is a measurement.
+
+Read as loss, those 159 steps would have claimed **~20 000 dropped samples** on a night where
+`O2PpgGrid` found **397** — a 50× overstatement that would have read as authoritative precisely because
+it was arithmetic rather than a threshold. The counters therefore ship as `steps_ahead` / `steps_flat` /
+`steps_anomalous`, named for what they are, and `ppg_dur_step` records the **raw** step so a wrong
+reading can be re-asked from the file.
+
+**This is the third misreading of that field.** `frame_gap()` read it as a sequence counter and emitted
+phantom loss for weeks (`session_restarted()` replaced it); this section's own first draft made the
+third, and §6's method note applies to it exactly — a "buffering" story fitted three corroborating
+facts, none of which *tested* it, while the discriminating query (is the host interval 1 s or 2 s?) took
+one command and had not been run.
+
+### 7.3 · `O2PpgGrid` is vindicated, and nothing is retired
+
+The same corpus measures the arrival-timing inference §4(a) proposed to replace. Weighted regression of
+delivered samples per device-second over 60 clean sessions / 60.9 h:
+
+```
+samples/device-second  ~  126.04  −  6.9 × steps_ahead_frac  −  128.9 × inferred_gap_frac
+```
+
+A signal that costs its samples must read **−126.04**. The inferred gaps read **−128.9 (102 %)** — real
+loss, essentially 1:1 — and the duration steps read **−6.9**, i.e. nothing. `O2PPG_GAP_MIN_S = 0.040`
+stays, and the counters run beside it rather than instead of it.
+
+### 7.4 · PAT — §4(b) is the stronger route, and this adds one thing to it
+
+§4(b)'s re-anchor residual (median +11 ms against `pat-gate.js`'s 60 ms `residIQR` bound) is the
+better-grounded argument and is not restated here. What the declared count adds is that cumulative
+`Σ N` is the ring's **own sample index** — exact and device-side — which paired with each frame's host
+arrival is precisely the `{devMs, hostMs}` anchor pair `DexClock.hostAxis` §7 consumes, ~33 000 anchors
+a night. It also escapes `CROSS-DEVICE-DRIFT-AND-CLOSURE` §3.6's trap by construction: frame arrivals
+are independent of cardiac timing, so an alignment built on them cannot absorb the pulse transit. Still
+**not claimed:** that PAT passes its gate. §4's open item (the *phase* of the status frame relative to
+its 126 samples) is untouched by this work.
+
+### 7.5 · What shipped, and the gates
+
+`oxyii.ppg_sample_count` + `PPG_FRAME_SAMPLES` · `capture.O2PpgFrameLedger` (per session; a restart
+breaks the span rather than fabricating one; the connect backlog is excluded from the arithmetic
+window) · three columns **appended** to the `OXYFRAME` sidecar · both halves in the session-end log.
+`O2PPG_FS_DEFAULT` is **untouched**, gate-asserted. Gates: capture-host **2557 passed at 100.00 %**
+statement+branch (the CI command); 21 new assertions, the load-bearing one pinning that a `+2` step
+costs no samples, plus a JS-lane guard that `oxydex-dsp.parseCSV` ingests the 13-column `OXYFRAME`
+byte-identically to the 10-column form. No bundle moved.
+
+**Residue → `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS-2026-08-03-BRIEF.md`.**

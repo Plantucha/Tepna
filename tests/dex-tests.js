@@ -9549,6 +9549,31 @@
       T.ok('meanPi is the mean of the READINGS, excluding the sentinel', Math.abs(oxSt.meanPi - 4.0) < 0.001, 'got ' + oxSt.meanPi);
       T.eq('piFrames counts only the frames with a reading', oxSt.piFrames, 3);
 
+      /* The SAME four frames in the 13-column layout the capture host writes since
+         O2RING-FRAME-SAMPLE-LOCK — `ppg_n;ppg_dur_step;ppg_expected` APPENDED after `flag`.
+
+         This is the assertion that makes the append-never-insert rule real on THIS side of the fence.
+         `oxydex-dsp.parseCSV` resolves its columns by NAME, so appending is safe — but "is safe" was a
+         property nothing checked: the fixture above is a hand-written string, so it would have gone on
+         passing forever while every newly captured night carried a layout no test had ever parsed. The
+         readings must be byte-identical to the 10-column form, and none of the three new names may be
+         mistaken for a column OxyDex wants (`ppg_n` normalises to `ppgn`, which must NOT match the
+         `pi`-prefix perfusion-index rule, and neither `ppg_dur_step` nor `ppg_expected` may match `pr`/`hr`). */
+      var OXF13 =
+        'Phone timestamp;duration_s;pi_pct;motion;spo2;pr;contact;battery_pct;batt_state;flag;ppg_n;ppg_dur_step;ppg_expected\n' +
+        '2026-07-20T19:07:53.936;165;3.6;0;96;60;1;100;0;1;126;;\n' +
+        '2026-07-20T19:07:54.936;166;4.4;0;95;60;1;100;0;1;126;1;126\n' +
+        '2026-07-20T19:07:55.936;167;0;0;96;60;1;100;0;1;253;2;252\n' +
+        '2026-07-20T19:07:56.936;168;4.0;0;96;60;1;100;0;1;126;1;126\n';
+      var ox13 = OB.parseCSV(OXF13, { fname: 'Wellue_O2Ring-S_x_OXYFRAME.txt' });
+      T.eq('the 13-column OXYFRAME parses all 4 frames', ox13.length, 4);
+      var st13 = OB.computeStats(ox13);
+      T.eq('appending the PPG columns moves NO SpO2 reading', st13.meanSpo2, oxSt.meanSpo2);
+      T.eq('...nor the pulse rate', st13.meanHr, oxSt.meanHr);
+      T.eq('...nor the perfusion index (ppg_n must not be read as a pi column)', st13.meanPi, oxSt.meanPi);
+      T.eq('...nor the PI frame count', st13.piFrames, oxSt.piFrames);
+      T.eq('the pi_pct=0 sentinel is still null in the wider layout', ox13[2].pi, null);
+
       // the SAME night as a ViHealth comma CSV — no PI column
       var CSV =
         'Time,Oxygen Level,Pulse Rate,Motion\n' +

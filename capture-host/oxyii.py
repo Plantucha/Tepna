@@ -245,6 +245,38 @@ def parse_live(payload: bytes) -> dict | None:
 # ~0.66/frame, scattered — not a fixed marker) are left in place for a downstream consumer to reject.
 PPG_INVALID = 156          # 0x9C — the device's INVALID-SAMPLE sentinel, NOT a signal excursion
 
+# Samples the ring produces per SESSION-SECOND — the unit that makes PPG loss ARITHMETIC instead of
+# inferred (O2RING-FRAME-SAMPLE-LOCK). Note carefully what this is NOT: it is not a per-FRAME constant.
+# Measured over 60 clean sessions / 60.9 h of the real corpus, delivery is 126.04 samples per session-
+# second (the u32 `duration` counter in [0:4]) with a per-session spread of 125.6-126.5. Per FRAME it is
+# 124-128 — the ring hands back whatever accumulated since the last poll, and the poll interval jitters
+# (0.989-1.007 s observed), so a frame count is NOT a fixed quantity and 126*frames is not an expectation.
+#
+# It is also NOT a sample RATE and must never be used as one: 126 samples per DEVICE second is 125.80
+# samples per HOST second, because the ring's own second runs -3446 ppm against the NTP-disciplined host
+# (measured, 2026-08-01, 33 490 device-seconds vs 33 605.8 host-seconds). The device axis is the ring's,
+# and it is the right axis for COUNTING what the ring produced; it is the wrong axis for TIMING, which is
+# why the samples are still host-arrival stamped (O2RING-SYNTHESISED-AXIS §6). Do not reconcile this
+# number with `O2PPG_FS_DEFAULT`; they are counts on two different clocks and both are correct.
+PPG_FRAME_SAMPLES = 126
+
+
+def ppg_sample_count(payload: bytes) -> int | None:
+    """The count of PPG samples the DEVICE DECLARES for this 0x04 frame ([24:26], u16 LE) — or None
+    when the frame carries no waveform section at all.
+
+    Surfaced separately from `parse_ppg` because the declared count and the delivered samples answer
+    different questions and are allowed to disagree. `parse_ppg` slices `[26:26+N]`, which silently
+    returns SHORT if the frame's own length field and its declared count are inconsistent — so
+    `len(parse_ppg(p))` cannot distinguish "the ring sent 60 samples" from "the ring said 126 and we got
+    60". `declared - delivered` is that distinction, and it costs one u16 read to keep.
+
+    None (no body) is deliberately NOT 0 (a body declaring zero samples). The first is a frame shape,
+    the second is a measurement of nothing — the same blank-vs-zero rule the writers keep."""
+    if len(payload) < 26:
+        return None
+    return int.from_bytes(payload[24:26], "little")
+
 
 def parse_ppg(payload: bytes) -> list[int]:
     """cmd=0x04 body → the raw ~125 Hz PPG waveform samples (u8), or [] if no body/too short.
@@ -260,10 +292,12 @@ def parse_ppg(payload: bytes) -> list[int]:
     vendor's rendered pleth is INVERTED relative to these raw bytes. Anything comparing our waveform to
     a vendor screenshot, or assuming systolic peaks are maxima, must account for that.
     """
-    if len(payload) < 27:
-        return []
     # u16 LE, not u8: the vendor SDK splits the payload at 20 and reads the wave section as
     # [20:24] u32 counter, [24:26] u16 LE sample count, [26:] samples. Our [26:] start was already
     # right; [25] was mislabelled "flag/reserved, seen 0x00" — it is this count's HIGH byte.
-    n = int.from_bytes(payload[24:26], "little")
+    # Single-sourced on ppg_sample_count so the declared count has ONE reader; a frame with no body
+    # (None) and a body declaring nothing (0) both slice to [], which is what this function promises.
+    n = ppg_sample_count(payload)
+    if n is None:
+        return []
     return list(payload[26:26 + n])
