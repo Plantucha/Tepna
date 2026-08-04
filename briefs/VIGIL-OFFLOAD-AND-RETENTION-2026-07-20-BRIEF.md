@@ -3,10 +3,37 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-07-20
+**Status:** PROPOSED (all three stated blockers have MOVED — re-measured on the live box 2026-08-04; the requirement stands, but its urgency and its shape both changed) · **Created:** 2026-07-20
 
 _Executes E6 of `VIGIL-OBSERVED-ERRORS-2026-07-20-BRIEF.md` (retention + offload are configured off).
 Deployment / config work — no `*-dsp.js` or bundle change._
+
+> ## ⚠️ Re-measured on the live box 2026-08-04 (`ssh vigil`) — read this before acting on anything below
+>
+> **The box was REPLACED.** Every number in this brief describes hardware that is gone, so the premises
+> need re-reading rather than re-executing. Measured now, against the three items its header block lists
+> as *"Still blocking DONE"*:
+>
+> | blocker as stated | measured 2026-08-04 |
+> |---|---|
+> | (1) archive `dest` is a **removable disk, unmounted** at the 2026-07-22 check → a mount guard is owed | **Superseded.** There is no archive `dest` at all now, and that is deliberate: `config.yaml:14` reads *"Archive is DELIBERATELY absent until you set a target in the monitor's Storage card."* The failure mode is no longer *"a configured mirror silently drops when its disk is absent"* — it is *"no mirror is configured, on purpose, pending an owner target."* A mount guard is still worth having; it is no longer the blocker |
+> | (2) disk pressure is real — **17 GB of 158 GB, 90 % used** | **Gone. 19 G used of 98 G — 20 % used.** The volume is a different size, which is the tell that this is a different machine. ⚠️ The *"flat trend over a keep-window"* Done-when item is still **not demonstrated** — there is now no pressure to demonstrate it against |
+> | (3) production-box + TrueNAS-pull **owner decisions** | Unchanged — still open, still the owner's |
+>
+> **The core deliverable is measurably NOT happening:** **0** `.archived` markers across the **11** night
+> directories on the box (2026-07-25 → 2026-08-04). Nights are not leaving. The single-copy risk this
+> brief exists to defuse is live again on the new hardware — it is simply no longer *urgent*, because the
+> disk sits at 20 %.
+>
+> **Retention itself cannot be judged from this snapshot, and I am not claiming it works.** `keep_nights: 14`
+> is set and there are 11 night dirs, so pruning is **not yet due** — 11 < 14 proves nothing either way.
+> (My first count said "16 nights"; it had counted `cpap`, `device-mirror`, `stored`, `status.json` and
+> `watchdog.log` as nights. The real figure is 11 — count the thing, not the directory listing.)
+>
+> **Disposition: stays PROPOSED, and correctly so** — the requirement is unmet and the §"Open items" owner
+> decisions are genuinely open. What changed is that this is no longer a *pressure* problem to solve before
+> the disk fills; it is a durability problem with one clear next action: set an archive target in the
+> monitor's Storage card, then re-check for `.archived` markers.
 
 > **INTERIM EXECUTED (2026-07-20) — the single-copy risk is defused; the production/NAS decision is still
 > open, so this stays PROPOSED.** On the reference box: (a) `nightarchive.archive_night` was validated on
