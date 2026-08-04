@@ -27462,6 +27462,98 @@
        form short-circuits PAST the very warning that exists to catch an unrecognised major — a node
        could have shipped `version: 9` unchallenged. `dex-contracts.js` also declares it a string.
        Over the 98 committed node-exports this was one of only two warnings in the whole corpus. */
+    /* ════ DEX-CITATION-FORMULA-AUDIT §3 — the canonical-formula invariants, pinned ═══════════════
+       That brief's status says the formula dimension "was not re-checked per guide". It has been now
+       (2026-08-03) and it is CLEAN — so this gate exists to keep it that way. Each assertion is one of
+       the brief's own named spot targets, and each has already regressed once somewhere in this suite's
+       history (the OxyDex pass found `220 − age` shipped under a Tanaka citation). */
+    group('Canonical HRV/HR formulas match the code (DEX-CITATION-FORMULA-AUDIT §3)', 'formula-audit · regression', function (T) {
+      var src = env.sources || {};
+      var names = Object.keys(src);
+      if (!names.length) {
+        T.skip('env.sources wired', 'source scan is Node-lane only');
+        return;
+      }
+
+      /* 1 · HRmax is Tanaka (208 − 0.7·age), never the obsolete Haskell–Fox 220−age. The OxyDex audit
+         found 220−age shipped *under a Tanaka citation*, so the risk is a silent revert, not a typo. */
+      var stripEarly = function (t) {
+        return String(t)
+          .replace(/\/\*[\s\S]*?\*\//g, ' ')
+          .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+      };
+      // Comments stripped here too: a comment that says "never 220 − age" must not red the guard
+      // that enforces it. (The OxyDex guide legitimately prints the string to name the obsolete form.)
+      var hrmaxOffenders = names.filter(function (f) {
+        return /220\s*[-\u2212]\s*age/i.test(stripEarly(src[f] || ''));
+      });
+      T.eq('no file computes or prints the obsolete 220 − age', hrmaxOffenders.join(','), '');
+      var tanaka = names.filter(function (f) {
+        return /208\s*-\s*0\.7\s*\*/.test(src[f] || '');
+      });
+      T.ok('…and the Tanaka form 208 − 0.7·age IS present where HRmax is computed', tanaka.length >= 1, tanaka.join(','));
+
+      /* 2 · SampEn is Richman–Moorman m=2, r=0.2·SD at EVERY call site. A second node quietly using
+         r=0.15 would make two nodes' "SampEn" incomparable while sharing a name and a unit. */
+      /* STRIP COMMENTS FIRST. `ppgdex-dsp.js` documents its default tolerance by naming the value it
+         is NOT — "`sampEn(nn)` ≡ `sampEn(nn, 2, 0.2)`, and ≠ `sampEn(nn, 2, 0.15)`" — and a raw text
+         scan reads that prose as a call site with r=0.15. Scanning comments for code is how a checker
+         reports a defect that does not exist. */
+      var strip = function (t) {
+        return String(t)
+          .replace(/\/\*[\s\S]*?\*\//g, ' ')
+          .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+      };
+      var bad = [];
+      names.forEach(function (f) {
+        var t = strip(src[f] || '');
+        var re = /sampEn\(\s*[A-Za-z_$][\w$]*\s*,\s*([0-9.]+)\s*,\s*([^)]*)\)/g;
+        var m;
+        while ((m = re.exec(t))) {
+          if (m[1] !== '2' || !/0\.2/.test(m[2])) bad.push(f + ': m=' + m[1] + ' r=' + m[2].trim().slice(0, 30));
+        }
+      });
+      T.eq('every explicit sampEn() call site is m=2, r=0.2·SD', bad.join(' | '), '');
+    });
+
+    /* ════ SD1 is computed two ways across the fleet — differentially oracled ════════════════════
+       `hrvdex`/`pulsedex` use RMSSD/√2 (root-mean-square of successive differences); `ppgdex` uses
+       √0.5·SD(Δ) — the CANONICAL Poincaré definition, since SD1² = ½·SDSD². They coincide only when
+       mean(Δ) = 0. Measured on five real overnight RR files (6k–24k intervals) the two differ by
+       0.002–0.008 %, far below the 0.1 ms both nodes round to — immaterial, and ppgdex's is the
+       correct one, so nobody should "unify" it toward the approximation. This pins that equivalence
+       so a series where it STOPS holding (a strong monotonic drift) is caught rather than assumed. */
+    group('SD1: RMSSD/√2 and √0.5·SD(Δ) agree on a physiological series (AUDIT-PROMPT §5)', 'formula-audit · differential', function (T) {
+      var nn = [];
+      var seed = 20260803;
+      var rnd = function () {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff - 0.5;
+      };
+      // 4000 beats: a slow respiratory sinus oscillation on a gentle overnight downward drift.
+      for (var i = 0; i < 4000; i++) nn.push(900 - i * 0.01 + 25 * Math.sin((2 * Math.PI * i) / 18) + 8 * rnd());
+      var d = [];
+      for (var k = 1; k < nn.length; k++) d.push(nn[k] - nn[k - 1]);
+      var n = d.length;
+      var mean = d.reduce(function (a, b) {
+        return a + b;
+      }, 0) / n;
+      var rms = Math.sqrt(
+        d.reduce(function (a, b) {
+          return a + b * b;
+        }, 0) / n
+      );
+      var sd = Math.sqrt(
+        d.reduce(function (a, b) {
+          return a + (b - mean) * (b - mean);
+        }, 0) / (n - 1)
+      );
+      var viaRmssd = rms / Math.SQRT2;
+      var viaSd = Math.sqrt(0.5) * sd;
+      T.ok('the fixture really has a non-zero drift, or the two are equal trivially', Math.abs(nn[0] - nn[nn.length - 1]) > 20, 'drift=' + (nn[0] - nn[nn.length - 1]).toFixed(1) + ' ms');
+      T.ok('the two SD1 formulations agree to <0.05 %', Math.abs(viaRmssd - viaSd) / viaRmssd < 0.0005, 'RMSSD/√2=' + viaRmssd.toFixed(4) + ' √0.5·SD=' + viaSd.toFixed(4));
+    });
+
     group('MotionDex export declares schema 2.0 as a STRING, and validates clean', 'motiondex-dsp · export · regression', function (T) {
       var MD = env.MOTIONDSP;
       var CNE = env.CrossNightEnvelope;
