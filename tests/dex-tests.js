@@ -15620,6 +15620,78 @@
      Structural on purpose: it reads each node's OWN export builder rather than constructing eight
      exports, because the defect is a MISSING KEY IN THE SOURCE and every instance of it was invisible
      until a real night happened to be event-sparse. ════ */
+    /* ════ THE ADAPTER MUST NOT READ A KEY THE EXPORT NEVER EMITS ═══════════════════════════════
+       INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §3. `hypoxicBurden` was null for the ENTIRE LIFE of
+       the field because the Integrator read OxyDex's *internal* night key (`n.hb`) while the export
+       builder renames it (`hypoxicBurden: n.hb`). Nothing caught it, because `null` is a plausible
+       value for a metric — the failure is silent by construction.
+
+       §3 asked for an audit of every key `adaptOxyDex` reads. Run 2026-08-04 against the 40 real
+       corpus exports: **no second instance** — every key it reads is emitted, and the only
+       always-null fields are the three the privacy scrub deliberately strips (`contentId`, `file`,
+       `provenance`) plus `ecgFusion`/`ansAge`, which `oxydex-dsp.js:6259` documents as null without a
+       paired ECG. `n.desat` looked like a second instance and is not: it is the fallback half of
+       `n.desatProfile || n.desat`, and `desatProfile` is present on 40/40.
+
+       This gate is the STRUCTURAL version of that audit, so it does not need the corpus. A corpus
+       check would SKIP wherever `uploads/` is absent — which is CI, i.e. exactly where it must run. */
+    group('Integrator adapter reads only keys the node export emits (INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §3)', 'fleet · integrator-dsp · adapter-keys', function (T) {
+      var S = env.sources || {};
+      var intg = S['integrator-dsp.js'],
+        oxy = S['oxydex-dsp.js'];
+      T.ok('both sources wired into env (scan is non-vacuous)', !!(intg && oxy), 'integrator-dsp.js + oxydex-dsp.js must be in BOTH lanes source lists');
+      if (!intg || !oxy) return;
+
+      var fnAt = intg.indexOf('function adaptOxyDex');
+      T.ok('adaptOxyDex located in integrator-dsp.js', fnAt >= 0);
+      if (fnAt < 0) return;
+      var body = intg.slice(fnAt, fnAt + 4000);
+
+      /* Keys the adapter reads off a NIGHT object. Only `nn.`/`n.` reads are considered — `json.` reads
+         are envelope-level and covered by the recording-duration gate below. */
+      var read = {};
+      var rd = /\bnn?\.([a-zA-Z_][a-zA-Z0-9_]*)/g,
+        mm;
+      while ((mm = rd.exec(body))) read[mm[1]] = true;
+
+      // Keys the OxyDex export builder emits, as `key:` at the night level.
+      var emitted = {};
+      var em = /^\s{4,8}([a-zA-Z_][a-zA-Z0-9_]*):/gm,
+        me;
+      while ((me = em.exec(oxy))) emitted[me[1]] = true;
+
+      /* Envelope/derived names that are not night-level export keys — reading them is correct.
+         `desat` is here because it is the documented legacy FALLBACK in `n.desatProfile || n.desat`. */
+      var ENVELOPE = { nights: 1, recording: 1, ganglior_events: 1, kernel: 1, schema: 1, length: 1, map: 1, filter: 1, forEach: 1, slice: 1, push: 1, desat: 1 };
+
+      var unemitted = Object.keys(read).filter(function (k) {
+        return !ENVELOPE[k] && !emitted[k];
+      });
+      T.ok(
+        'every night-level key adaptOxyDex reads is emitted by the OxyDex export builder',
+        unemitted.length === 0,
+        unemitted.length ? 'adapter reads keys the export never emits (' + unemitted.length + '): ' + unemitted.join(', ') + ' — this is the `hypoxicBurden` shape: the adapter reads the INTERNAL name while the builder renames it on export, and null is a plausible value so nothing reds' : Object.keys(read).length + ' night-level reads, all emitted'
+      );
+
+      // the original defect, pinned so a rename cannot silently reintroduce it
+      T.ok('the export still renames the internal `n.hb` to `hypoxicBurden`', /hypoxicBurden:\s*n\.hb\b/.test(oxy), 'the rename that caused the original null');
+      T.ok('…and the adapter does NOT read the internal name `hb`', !/\bnn?\.hb\b/.test(body), 'reading n.hb in the adapter is the exact original defect');
+
+      // self-test: the check must catch a planted unemitted read
+      (function () {
+        var fakeBody = 'function adaptOxyDex(){ var x = n.totallyMadeUpKey; }';
+        var r = {},
+          g = /\bnn?\.([a-zA-Z_][a-zA-Z0-9_]*)/g,
+          z;
+        while ((z = g.exec(fakeBody))) r[z[1]] = true;
+        var miss = Object.keys(r).filter(function (k) {
+          return !ENVELOPE[k] && !emitted[k];
+        });
+        T.eq('self-test · a planted read of an unemitted key is CAUGHT', miss.length, 1);
+        T.eq('self-test · …and it names the key', miss[0], 'totallyMadeUpKey');
+      })();
+    });
+
     group('Every node declares a recording length the Integrator can read (NODE-EXPORT-RECORDING-DURATION §4.3)', 'fleet · integrator-dsp · node-export', function (T) {
       var SRC = env.sources || {};
       // The keys `integrator-dsp.js adaptEnvelopeNode` actually consults, in its own order.

@@ -97,6 +97,27 @@ whatever the code did on the day they were written, silently. That is the same s
 
 ## 3 · `hypoxicBurden` was null for the entire life of the field — check for other renamed-on-export keys
 
+> ### ✅ AUDITED + GATED 2026-08-04 — there is no second `hypoxicBurden`
+>
+> **The audit §3 asked for, run against the 40 real corpus exports.** Every night-level key
+> `adaptOxyDex` reads is emitted by the export builder. The only fields null on **40/40** nights are
+> `contentId`, `file`, `provenance` — the three `dexScrubExport` deliberately strips — plus `ecgFusion`
+> and `ansAge`, which `oxydex-dsp.js:6259` documents as null when `compute()` runs without a paired ECG
+> ("identical to dropping a raw O2Ring file into the app"). All five are correct.
+>
+> **One near-miss worth recording.** `adaptOxyDex` reads `n.desat`, and **no export carries a `desat`
+> key (0 of 40)** — which looks exactly like the original defect. It is not: the line is
+> `n.desatProfile || n.desat || null`, a legacy fallback, and `desatProfile` is present on 40/40. A
+> key-presence diff alone would have filed this; reading the line is what settled it.
+>
+> **And the durable half.** §3 asked for an anti-vacuity assertion per field. A corpus-driven one would
+> **SKIP wherever `uploads/` is absent — which is CI**, so it would be green precisely where it needs to
+> bite. The gate that shipped is **structural** instead: *every night-level key `adaptOxyDex` reads must
+> appear as an emitted key in the OxyDex export builder*, plus two pins on the original defect (the
+> export still renames `n.hb → hypoxicBurden`; the adapter must **not** read `n.hb`). Corpus-free, runs
+> in both lanes. **Mutation-verified**: re-inserting `var _hb = n.hb` into the adapter — the exact
+> original defect — reds it.
+
 The defect was structural: the Integrator read OxyDex's **internal** night key (`n.hb`) while the export
 renames it (`oxydex-dsp.js:5712 hypoxicBurden: n.hb`). Nothing detected it because `null` is a plausible
 value. That rename is unlikely to be the only one — `adaptOxyDex` also reads `n.odi4`, `n.hrv`, `n.stats`,
