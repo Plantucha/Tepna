@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS — 2026-08-03 (**§3 formula dimension CHECKED and CLEAN, now gated** — HRmax/Tanaka, QTc Bazett-vs-Fridericia, SampEn m=2 r=0.2·SD all verified against the code; ApEn is N/A (nothing computes it). One real cross-node SD1 difference measured at 0.002–0.008 % on five overnight RR files — immaterial, and the divergent node is the canonically-correct one. The CITATION half (§1/§2) stays open: it needs network verification and is governed by `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`)
+**Status:** IN-PROGRESS — 2026-08-03 (**2026-08-04: four more acceptance boxes verified and closed — reader-facing correction-history 0/7 guides, badge conformance gate-enforced 74/74, gates green 9/9 + 16 fixtures. ONE blocker remains and it is not code: §1/§2 citation verification needs NETWORK, which this suite forbids by construction.** §3 formula dimension CHECKED and CLEAN, now gated — HRmax/Tanaka, QTc Bazett-vs-Fridericia, SampEn m=2 r=0.2·SD all verified against the code; ApEn is N/A (nothing computes it). One real cross-node SD1 difference measured at 0.002–0.008 % on five overnight RR files — immaterial, and the divergent node is the canonically-correct one. The CITATION half (§1/§2) stays open: it needs network verification and is governed by `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`)
 
 # Build Brief — Citation & Formula Audit for the Remaining Dexes
 
@@ -209,13 +209,26 @@ metrics withdrawn as indefensible (HRV→BP, ANS-age); those are a **safety** re
       this needs a human with a browser, per node.
 - [x] **No guessed DOIs, no stray non-ASCII in citation strings — verified 2026-08-04 and gated.**
       (The "no fabricated/misattributed authors" half is a literature claim and rides criterion 1.)
-- [ ] Standard formulas correct AND consistent between code and doc (esp. HRmax = 208−0.7·age, QTc,
-      SampEn/ApEn, DFA, GMI/TIR). Internal coefficients labeled "no external source."
-- [ ] No correction-history meta-commentary in reader-facing text; clean final statements only.
-- [ ] Guide grades/badges conform to the node registry (not vice-versa).
+- [x] **Standard formulas correct AND consistent between code and doc** — **§3, 2026-08-03:** HRmax/Tanaka,
+      QTc Bazett-vs-Fridericia and SampEn `m=2, r=0.2·SD` all verified against the code; ApEn is N/A (nothing
+      computes it). The one cross-node SD1 difference measured at 0.002–0.008 % on five overnight RR files —
+      immaterial, and the divergent node is the canonically-correct one. Now gated.
+- [x] **No correction-history meta-commentary in reader-facing text** — **AUDITED 2026-08-04:** all seven
+      `* Reference.html` guides scanned for `was previously|was wrong|now corrected|used to say|formerly|
+      this was a bug`-class phrasing. **0 hits in 7 of 7.** The one repo-wide hit is in
+      `sigma-no-reference-analysis.html`, an analysis tool rather than a reader-facing guide.
+- [x] **Guide grades/badges conform to the node registry** — enforced by construction, not inspection:
+      the `cohesion-badges` group asserts every reference-guide card the node's OWN resolver maps carries
+      the registry's grade, and that each guide `<link>`s `dex-badges.css` rather than inlining disc CSS.
+      **74/74 green, re-run 2026-08-04.** A doc that disagrees now reds the suite.
 - [ ] All output layers (fixtures, uploads exports) consistent with corrected runtime strings.
-- [ ] Surgical re-bundle done where source changed; `buildHash` unchanged.
-- [ ] `Dex-Test-Suite.html` all green; `verify-provenance.html` 0 mismatches.
+- [~] **Surgical re-bundle where source changed** — satisfied in practice (no source changed for the
+      formula half; `build.mjs --check` clean). ⚠️ **This criterion cites a RETIRED signal:** `buildHash`
+      was retired as a provenance signal by SIGNAL-ADAPTER-AND-FRONTIER Phase 7 and **no gate reads it**
+      (CLAUDE.md §🔏). The live equivalents are `manifestHash` (executed-code identity) and `computeHash`
+      (export-inertness). Re-word if this brief is ever revised; do not go looking for a stable `buildHash`.
+- [x] **Gates green** — full suite green throughout the 2026-08-04 sweep; `verify-manifest` reports
+      **GATE A 9/9 bundles matching, GATE B 16 fixtures reproducible, 0 mismatches**.
 
 ## Order of operations per node (checklist)
 1. Inventory citations/formulas (grep). 2. Web-verify each. 3. Fix source (registry/dsp/app) +
