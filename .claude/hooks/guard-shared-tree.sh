@@ -145,7 +145,9 @@ Restore only the paths you own:
 fi
 
 # `git stash` (mutating forms) — hides another session's work out from under it
-if grep -qE "$GITX"'stash([[:space:]]+(push|save|-[a-zA-Z]|--)|[[:space:]]*($|[;&|]))' <<<"$cmdn"; then
+if grep -qE "$GITX"'stash([[:space:]]|$)' <<<"$cmdn" \
+   && grep -oE "$GITX"'stash([[:space:]]+[^[:space:];&|]+)?' <<<"$cmdn" \
+      | grep -qvE 'stash[[:space:]]+(list|show)$'; then
   deny "BLOCKED: 'git stash' in a SHARED checkout would sweep another session's uncommitted work into your stash — invisible to them, and easy to lose.
 
 If you need a clean tree, use your OWN worktree instead:
