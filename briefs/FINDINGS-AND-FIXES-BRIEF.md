@@ -1,4 +1,4 @@
-**Status:** IN-PROGRESS — 2026-08-03 (**§6 AUDITED** — the brief is 4 generator versions stale (v1.9, and 1.6–1.9 are this same artifact class); the remaining live instance is `cohort-gen.js:534`, where every desat event bottoms at exactly 86.6 % with no jitter, so SpO₂ nadir/depth have ZERO variance. Not fixed — the fix and the §9 paper re-run are one unit. **§2 and §3 verified already resolved.** §4/§5/§7/§8 open)
+**Status:** IN-PROGRESS — 2026-08-03 (**§6 MEASURED 2026-08-04 — the surviving artifact is degenerate, not merely biased: SpO₂ nadir and desat depth take exactly ONE value each across 2000 events (86.6 % / 8.4 %, SD 0), so any statistic computed on them is uninformative. Blast radius bounded to 3 of the 10 cohort-gen papers (`odi4-ahi-bias`, `robustness-benchmark`, `cgm-hrv-coupling`). Still unfixed on purpose — `cohort-gen.js` is in 5 bundles, so the edit moves 5 manifestHashes + computeHash and owes a corpus re-stamp, on top of re-running 3 papers: an owner call.** §6 AUDITED — the brief is 4 generator versions stale (v1.9, and 1.6–1.9 are this same artifact class); the remaining live instance is `cohort-gen.js:534`, where every desat event bottoms at exactly 86.6 % with no jitter, so SpO₂ nadir/depth have ZERO variance. Not fixed — the fix and the §9 paper re-run are one unit. **§2 and §3 verified already resolved.** §4/§5/§7/§8 open)
 
 # Dex Suite — Findings & Fix Brief (for AI coder)
 *Compiled June 19 2026, during the v1.5 generator re-run pass. Apply AFTER the eligible pilots are
@@ -110,6 +110,41 @@ horizontal if y). Fixed in `cohort-gen.js`, versions stamped in `CohortGen.VERSI
 for the same hard-clamp-to-constant pattern BEFORE any paper plots it — candidates: glucose mean/CV,
 SpO₂ nadir/T90, desat depth, HR. Jitter or saturate each bound. Add a one-line comment tagging each
 intentional jitter so it isn't "tidied" back to a constant.
+
+### §6-MEASURED (2026-08-04) — the surviving artifact is QUANTIFIED, and its blast radius bounded
+
+The 2026-08-03 audit named the live instance but not its size. Measured now, so the fix/re-run decision
+has a number instead of an adjective.
+
+**`cohort-gen.js:534`** writes every desaturation with the same deterministic curve:
+
+```js
+for (var d = 0; d < 25 && di + d < n1; d++) spo2[di + d] = Math.max(85, 95 - Math.min(d, 12) * 0.7);
+```
+
+`95 − 12×0.7 = 86.6`. Over **2000 generated events** that yields:
+
+| quantity | distinct values | SD |
+|---|---|---|
+| SpO₂ nadir | **1** — `86.6 %` | **0** |
+| desaturation depth | **1** — `8.4 %` | **0** |
+
+**This is worse than a bias — it is a degenerate variable.** Nadir and depth are not merely wrong on
+average, they carry *no* information: any correlation, regression slope, ICC or agreement statistic
+computed against them is undefined or trivially degenerate, and a detector scored on nadir cannot be
+distinguished from one that ignores it. (A plausible jittered curve at 6–14 % depth would span roughly
+81–89 %.)
+
+**Blast radius, bounded rather than assumed.** Ten papers consume `cohort-gen`, but only the ones that
+actually *report* a nadir/depth quantity are affected: **`odi4-ahi-bias`** (3 references),
+**`robustness-benchmark`** (3), and **`cgm-hrv-coupling`** (1). The other seven use the generator for
+HR/HRV/CGM channels this artifact does not touch, so a fix does **not** invalidate them.
+
+**Still not fixed here, and deliberately so — the cost is the reason §6 says the fix and the §9 re-run
+are one unit.** `cohort-gen.js` is inlined into **5 app bundles**, so a source edit moves five
+`manifestHash`es *and* `computeHash` (the closure is a denylist — an unknown asset is inside it), which
+owes a real-corpus `verify-fixtures` re-stamp on top of re-running three papers. That is an owner call
+about the published series, not a drive-by edit. What is no longer missing is the number to decide on.
 
 ### §6-RESULT — audited 2026-08-03. Four more fixes had already landed; ONE live artifact remains.
 
