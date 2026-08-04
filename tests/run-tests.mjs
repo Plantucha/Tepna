@@ -1289,6 +1289,22 @@ async function main() {
     DriftReport: ctx.DriftReport,
     docs: readDocs(),
     docsLedger: readDocsLedger(),
+    /* BADGE-COVERAGE-AUDIT (corrected) — every node's UI-layer source, so the badge gate can read the
+       literal ids each `evBadge(...)` call site passes and resolve them against that node's OWN
+       registry. Node-lane only (readdir); the browser lane SKIPs, as docs-ledger does. */
+    nodeUiSources: (() => {
+      try {
+        const out = {};
+        for (const f of readdirSync(ROOT)) {
+          const m = /^([a-z0-9]+)-(?:render|app|fusion|overview|chartbadges)\.js$/.exec(f);
+          if (!m) continue;
+          (out[m[1]] = out[m[1]] || {})[f] = readFileSync(join(ROOT, f), 'utf8');
+        }
+        return out;
+      } catch {
+        return null;
+      }
+    })(),
     /* WEARABLE-DRIFT-DIRECT §6 — the pure decision predicate from tools/dual-clock-rate.mjs, so the
        "is there a second clock at all" rule is gated on VALUES rather than only source-scanned. The
        module guards its own main, so importing it fires no I/O. Node-lane only; the browser lane has

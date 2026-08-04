@@ -4,9 +4,50 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-04 · **Executes:** `AUDIT-FOLLOWUPS-BRIEF.md` §4.2 (the audit half — the remediation is scoped here, not done) · **Affects:** the six node UI layers · **⚠️ Remediation is a fleet re-bundle and must be scheduled**
+**Status:** DONE — 2026-08-04 · **Created:** 2026-08-04 · **Executes:** `AUDIT-FOLLOWUPS-BRIEF.md` §4.2 (the audit half — the remediation is scoped here, not done) · **Affects:** the six node UI layers · **⚠️ Remediation is a fleet re-bundle and must be scheduled**
 
 # Five of eight node apps emit no evidence badge at all — 233 registry metrics behind zero call sites
+
+> # ⛔ HEADLINE REFUTED ON EXECUTION (2026-08-04). The real defect runs the OTHER WAY.
+>
+> The title above is left verbatim because §📌 freezes it and because being wrong in this exact way is
+> the finding. **Every one of the five "zero" nodes badges**, through a registry-resolved helper:
+>
+> | node | `evBadge(` sites in its UI | in the shipped bundle | resolves via |
+> |---|---|---|---|
+> | ECGDex | 19 | 28 | `EcgRegistry.badgeForLabel` |
+> | PulseDex | 20 | 24 | `PulseRegistry.badgeForLabel` |
+> | GlucoDex | 25 | 30 | `GlucoRegistry.badgeForLabel` |
+> | CPAPDex | 20 | 28 | `CpapRegistry.evBadge(id)` |
+> | MotionDex | 3 | 3 | `MotionRegistry.badgeForLabel` |
+>
+> The audit counted `.badge(` — the raw engine call — and missed the node-level indirection
+> `evBadge → <Node>Registry.badgeForLabel/evBadge → MetricRegistry.badge`, **which is the mandated
+> pattern**: registry-resolved, never hand-assigned. `ecgdex-render.js:18` even documents it as
+> *"Zero-touch: any emit site that passes a known metric label gets a badge automatically."*
+>
+> This is the same class of instrument error §1's own correction warns about (*"count call sites, not
+> class-name occurrences"*) — one instrument was fixed and another substituted. §5's premise
+> (*"nothing asserts the apps badge anything at all"*) is also wrong: `Badge-by-construction —
+> enforced render files route metric values through a badge (OWN-THE-BUILD Part C)` already forbids a
+> bare value tile in the enforced render files, and it caught an intermediate version of this fix.
+>
+> **What was actually wrong, and it is worse.** `MetricRegistry.entry(reg, id)` returns, for an
+> UNKNOWN id, a synthetic entry carrying **`evidence:'experimental'`** plus `_missing:true` that no
+> caller reads, and one `console.warn`. CPAPDex's "Cross-Node Corroboration" card renders five ids it
+> does not own — each tile tagged `ECG` — none of which were in `CPAP_REGISTRY`:
+>
+> | id | rendered | ECGDex (the owner) grades it |
+> |---|---|---|
+> | `rmssd` — tile captioned *"real RR-based HRV"* | `experimental` **(fabricated)** | **`validated`** — under-graded by two tiers |
+> | `cvhrIndex` | `experimental` **(fabricated)** | `emerging` |
+> | `respRateSd` · `plvDrop` · `nights` | `experimental` **(fabricated)** | ungraded — no registry had ever assigned a tier |
+>
+> A missing badge is a visible, countable bug. **A fabricated one is an invisible lie**, and §🎫 rates
+> a wrong tier as severe as a wrong unit — surfaced only by a `console.warn` in a 100 %-local app
+> nobody has a console open on. Fixed by registering all five with tiers **inherited verbatim from a
+> named `ECG_REGISTRY` sibling** (never assigned in CPAPDex — §🎫: the tier is a NODE fact and the
+> owner is ECGDex), and gated so the fall-through is unreachable.
 
 ## 1 · The mandate, and what was actually measured
 
@@ -95,11 +136,22 @@ mutation (delete a node's decorator; the gate must red). That is a cheap, non-va
 
 ## Done when
 
-- [ ] Owner picks the sequencing in §4 and schedules the fleet re-bundle against other bundle work.
-- [ ] Each of the five zero-nodes emits badges for its surfaced measurements, resolved against its own
-      registry (never a hand-assigned tier — `CLAUDE.md` §🎫: the registry is the grade authority).
-- [ ] The §5 floor gate lands and is mutation-verified.
-- [ ] OxyDex/HRVDex/PpgDex re-measured for partial coverage and either closed or carried forward.
+- [x] **MOOT — no fleet re-bundle was needed.** The premise was five non-badging nodes; there were none.
+      One bundle moved (CPAPDex), landed in an open window with no other bundle PR in flight.
+- [x] **ALREADY TRUE, verified.** All five resolve against their own registry via `evBadge`. Measured
+      above. No remediation was owed; doing the §4 sequencing would have been work on a false premise.
+- [x] **DONE, and re-specified.** The floor the brief asked for (≥1 call site per node) is one leg of
+      `No badge carries a tier nobody assigned — §5`; the leg that matters is the one the audit could
+      not see: **every id-shaped token passed to a node's `evBadge` must exist in that node's registry**,
+      across 72 literal call sites and 8 nodes. Verified RED two ways — on the pre-fix tree it names all
+      five fabricated tiers by value, and the brief's requested mutation (strip a node's badge
+      mechanism) reds the floor leg with `no badge mechanism at all in: motiondex`. Three anti-vacuity
+      legs, including one asserting the resolver actually rejects a bogus id — without it, "all resolve"
+      would mean nothing.
+- [ ] *(carried forward)* OxyDex/HRVDex/PpgDex per-surface coverage. §2's second limit still stands and
+      this execution did not close it: call-count measures MECHANISM PRESENCE, not coverage, and most
+      `evBadge` calls pass a variable inside a loop (`evBadge(k.l)`), so no static scan can count the
+      surfaces they badge. Closing it needs DOM enumeration in the browser lane, not another scan.
 
 ## Cross-references
 - Parent: `AUDIT-FOLLOWUPS-BRIEF.md` §4.2 · mandate: `CLAUDE.md` §🎫 · workflow: `CONTRIBUTING.md`.
