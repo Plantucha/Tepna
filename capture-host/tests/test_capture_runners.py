@@ -3944,3 +3944,71 @@ def test_a_first_reading_cannot_imply_a_direction(tmp_path, monkeypatch):
     st = _battery_session(tmp_path, monkeypatch, 60)
     assert st["battery"] == 60
     assert st.get("charging") is not True, "one reading is not a direction"
+
+
+# ── WORN-SINCE: the grace clock that must SURVIVE the duty-cycle reconnects ──────────────────────────
+#
+# A chest strap off the body does not go quiet — it streams electrode noise at the full 130 Hz, which
+# records nothing real AND flattens the battery over a day. So after a generous grace of CONTINUOUS
+# not-worn contact the link is dropped, then re-checked on a slow cadence to see whether it has been put
+# back on.
+#
+# `_WORN_SINCE` is MODULE-LEVEL and only-set-if-absent, and the source says exactly why: the drop
+# re-checks by RECONNECTING, so a per-session clock would be restarted by each probe and the grace would
+# never elapse — the strap would drain forever. That persistence is the contract, and it is invisible to
+# any single-session fixture: within one session, set-if-absent and set-always are identical.
+
+def _hr_session(tmp_path, monkeypatch, hr_frame, clear=False):
+    """One connect cycle delivering `hr_frame`. `_WORN_SINCE` deliberately persists between calls —
+    that is the behaviour under test."""
+    if clear:
+        capture._WORN_SINCE.clear()
+        capture.STATUS["devices"].pop("H10", None)
+    capture._STOP = asyncio.Event()
+    async def bonded(*a, **k):
+        return True
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", bonded)
+    capture._CFG.clear(); capture._CFG.update({"time": {"auto_sync_devices": False}})
+    _inject_connect(monkeypatch, FakePolarClient(start_status=0x00, hr_frame=hr_frame))
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
+    return capture.STATUS["devices"]["H10"]
+
+
+_NOT_WORN = bytes([0x04, 57])      # contact supported, absent
+_WORN     = bytes([0x06, 57])      # contact supported, present
+
+
+def test_a_not_worn_strap_starts_the_grace_clock_once(tmp_path, monkeypatch):
+    """`elif addr not in _WORN_SINCE` — only-set-if-absent. The re-check after a power drop RECONNECTS,
+    so a clock restarted on every probe never elapses and the strap drains forever. Within one session
+    set-if-absent and set-always are indistinguishable; two sessions separate them."""
+    addr = _pdev()["address"]
+    st = _hr_session(tmp_path, monkeypatch, _NOT_WORN, clear=True)
+    assert st["worn"] is False
+    first = capture._WORN_SINCE[addr]
+    _hr_session(tmp_path, monkeypatch, _NOT_WORN)          # a second not-worn probe
+    assert capture._WORN_SINCE[addr] == first, \
+        "the grace clock must NOT restart on each reconnect, or the grace never elapses"
+
+
+def test_putting_the_strap_back_on_clears_the_grace_clock(tmp_path, monkeypatch):
+    """`if contact: _WORN_SINCE.pop(addr, None)`. Without the clear, a strap worn again still carries
+    its old not-worn timestamp and gets dropped for power while it is on the body and recording."""
+    addr = _pdev()["address"]
+    _hr_session(tmp_path, monkeypatch, _NOT_WORN, clear=True)
+    assert addr in capture._WORN_SINCE
+    st = _hr_session(tmp_path, monkeypatch, _WORN)
+    assert st["worn"] is True
+    assert addr not in capture._WORN_SINCE, "worn again clears the clock"
+    assert st["last_error"] is None, "and clears the not-worn note with it"
+
+
+def test_a_strap_with_no_contact_bit_is_never_given_a_grace_clock(tmp_path, monkeypatch):
+    """`if contact is not None`. The H10 does not advertise contact support, and leaving `worn` unknown
+    is honest — but an unknown must also never start the drop clock, or a strap that CANNOT report
+    contact would be dropped for power on a timer while recording perfectly."""
+    addr = _pdev()["address"]
+    st = _hr_session(tmp_path, monkeypatch, bytes([0x00, 57]), clear=True)   # no contact-support bit
+    assert st.get("worn") is None, "unknown, not fabricated as False"
+    assert addr not in capture._WORN_SINCE, "and no grace clock — it can never be known not-worn"
