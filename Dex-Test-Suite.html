@@ -472,7 +472,7 @@ async function main(){
   }
   // doc artifacts for the cohesion-badge single-source group (engine ≡ mirror ≡ reference)
   const docs = {};
-  await Promise.all([['dex-badges.css','dex-badges.css'],['OxyDex Reference.html','OxyDex Reference.html'],['ECGDex Reference.html','ECGDex Reference.html'],['PpgDex Reference.html','PpgDex Reference.html'],['CPAPDex Reference.html','CPAPDex Reference.html'],['PulseDex Reference.html','PulseDex Reference.html'],['HRVDex Reference.html','HRVDex Reference.html'],['GlucoDex Reference.html','GlucoDex Reference.html'],['EEGDex Reference.html','codegen/generated/eegdex-reference.html'],['ORIENTATION.md','ORIENTATION.md']]
+  await Promise.all([['dex-badges.css','dex-badges.css'],['OxyDex Reference.html','OxyDex Reference.html'],['ECGDex Reference.html','ECGDex Reference.html'],['PpgDex Reference.html','PpgDex Reference.html'],['CPAPDex Reference.html','CPAPDex Reference.html'],['PulseDex Reference.html','PulseDex Reference.html'],['HRVDex Reference.html','HRVDex Reference.html'],['GlucoDex Reference.html','GlucoDex Reference.html'],['EEGDex Reference.html','codegen/generated/eegdex-reference.html'],['ORIENTATION.md','ORIENTATION.md'],['papers/sensor-trio-nights.html','papers/sensor-trio-nights.html']]
     .map(async ([k,p]) => { const t = await fetchText(encodeURI(p)); if(t!=null) docs[k]=t; }));
 
   // host realms for the co-load-manifest gate (PPGDEX-FOLLOWUPS §5) — each must co-load every dex-coload module.

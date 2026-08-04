@@ -85,4 +85,26 @@ exclusively**. It now tests the **union** — which is what `eraseAll()` actuall
 - [ ] GPU lane covers the ρ/duration sweeps (or the tool can export the N-sweep alone), so a 50k run finishes.
 - [ ] Reproduce the **published** tables at the 10-night hat at the paper's stated trial count — proves the harness.
 - [ ] Re-fit all three σ copies to the 15-night hat **and** regenerate Tables 1–3 **in the same change** (the gate's expected triple moves with them).
-- [ ] Update §3.4 + Table 4 + Figure 3 (10 → 15 nights; 5 recovered, not "quality-excluded"), and reconcile the abstract's "720 trials" with Table 1's "50,000".
+- [~] **The "720 vs 50,000" half is STALE — already reconciled (verified 2026-08-04).** §44 records
+      *"Table 1 caption says 50,000 MC trials/cell; abstract says 720"*. The paper has **no "50,000"
+      anywhere**; it says **720 trials/cell in all 8 places**. `6001983` (2026-07-14, *"sigma papers to
+      the 26-night folder hat"*) normalised it — **two days after this brief was written**. The
+      10 → 15-night half is untouched and still open.
+
+- [x] **The atomicity the σ gate CLAIMS is now enforced (2026-08-04).** The gate's own comment says the
+      planted σ and the paper's tables are *"ONE ATOMIC UNIT … change both, or neither"* — but it only
+      compared three CODE copies to each other and to a literal in the test file. **Nothing read the
+      paper.** So item 3's own plan — re-fit the paper's tables to a new hat — would have left every
+      assertion green while the simulation stayed at the old hat, which is the precise failure the
+      comment warns about. Added a leg that scrapes the paper's `Planted σ` column and compares it to
+      the simulation's. Mutation-verified **from both sides**: re-fitting the paper alone reds
+      (`got ["2.41","1.86","1.94"] · want ["2.72",…]`), and re-planting the simulation alone reds the
+      three pre-existing legs.
+
+      ⚠ **Read the LABEL, not the digits.** The paper carries **three** different σ triples on purpose
+      and they are not interchangeable: `Planted σ` (the simulation — **2.72 / 1.86 / 1.94**), the
+      `classic raw-ECG broad-hat` overlay band (2.60 / 1.50 / 1.56), and the companion σ-paper's
+      `fused-weight` headline (2.41 / 1.28 / …). I first read the 26-night 2.60/1.50/1.56 as evidence
+      the atomic unit had already broken; it had not. The new leg scrapes the **column**, not the
+      values, so it cannot repeat that mistake — and this note exists so the next reader does not make
+      it either.

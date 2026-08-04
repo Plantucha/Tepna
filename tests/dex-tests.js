@@ -13471,6 +13471,48 @@
          after the detector fix recovered 5 nights) requires regenerating Tables 1-3 at the paper's
          stated trial count IN THE SAME CHANGE — see SENSOR-TRIO-NIGHTS §181. Change both, or neither. */
       T.eq('planted at the hat the published tables were computed at (O2 2.72 / H10 1.86 / Verity 1.94)', ref, ['2.72', '1.86', '1.94']);
+
+      /* …AND against the PAPER, which is the half "change both, or neither" was missing.
+         (TRIO-POWER-N15-FINDINGS §181, closed 2026-08-04.) Everything above compares three CODE copies
+         to each other and to a literal in this file. If someone re-fit the paper's Table 1 to a new hat
+         and left the simulation alone — exactly what §181's remaining items propose doing — all of it
+         would stay green, because none of it reads the paper. The atomicity was asserted in a comment
+         and enforced nowhere.
+         ⚠ Read the LABEL, not the digits. This paper carries THREE different σ triples on purpose and
+         they are not interchangeable: `Planted σ` (the simulation, 2.72/1.86/1.94), the `classic
+         raw-ECG broad-hat` overlay band (2.60/1.50/1.56), and the companion σ-paper's `fused-weight`
+         headline (2.41/1.28/…). Matching on bare numbers would flag the healthy state as a break — it
+         is why this leg scrapes the "Planted σ" COLUMN rather than grepping for the values. */
+      var paper = (env.docs && env.docs['papers/sensor-trio-nights.html']) || '';
+      if (!paper) {
+        T.skip('papers/sensor-trio-nights.html wired to the lane', 'add it to BOTH runners’ docs list');
+      } else {
+        /* `<\/script\s*>` not `<\/script>` — HTML allows whitespace before the closing bracket, so
+           `</script >` slips past the tight form and the whole script BODY survives into what this
+           calls "visible text". Here that would feed the σ-scrape a table of JS literals. CodeQL flags
+           it as js/bad-tag-filter; it is right about the regex even though this input is a trusted
+           local paper rather than untrusted markup. */
+        var vis = String(paper)
+          .replace(/<script[\s\S]*?<\/script\s*>/gi, ' ')
+          .replace(/<style[\s\S]*?<\/style\s*>/gi, ' ')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&[a-z]+;/gi, ' ');
+        var head = vis.indexOf('Planted \u03c3');
+        T.ok('ANTI-VACUITY · the paper carries a "Planted σ" table at all', head >= 0, head < 0 ? 'header not found — the scrape would silently match nothing' : 'found');
+        if (head >= 0) {
+          // The three device rows follow the header, each "<device …> <σ> <counts…>". Take the first
+          // decimal on each of the three known device rows, in the paper's own order.
+          var after = vis.slice(head, head + 900);
+          var trip = ['O2Ring', 'H10', 'Verity'].map(function (dev) {
+            var i = after.indexOf(dev);
+            if (i < 0) return null;
+            var m = /(\d+\.\d{2})/.exec(after.slice(i, i + 90));
+            return m ? m[1] : null;
+          });
+          T.ok('ANTI-VACUITY · all three device rows yielded a number', trip.every(Boolean), JSON.stringify(trip));
+          T.eq('the paper’s published "Planted σ" IS the simulation’s planted σ — the atomic unit, now checked', trip, ref);
+        }
+      }
     });
 
     group('Verity gate classifies the FAILURE (detector harmonic vs lost contact), not just rejects it', 'sensor-trio-worker · trio · regression', function (T) {
