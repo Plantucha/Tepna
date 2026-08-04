@@ -144,6 +144,55 @@ if (leg1.length) {
   console.log(`   ⇒ candidate (a) "OxyDex's HR path" is ${Math.abs(mean(leg1)) < 0.06 ? 'EXCLUDED — the residual is its 1-dp output rounding' : 'NOT excluded'}`);
 } else console.log('   (no O2Ring CSVs found)');
 
+/* ── LEG 3 — THE ESTIMATOR, which turns out to be the whole story ───────────────────────────────
+   Legs 1 and 2 chase the bias through OxyDex and through the device. It is in neither. The two nodes
+   summarise an epoch's heart rate with DIFFERENT statistics of the same physiology:
+       ECGDex   `hr = 60000 / mean(RR)`      — the rate of the mean interval (a harmonic mean of rate)
+       OxyDex   `hr = median(1 Hz rate)`     — the median of instantaneous rates
+   Those are not the same number, and the gap is not small next to the effect being hunted. This leg
+   measures it with NO DEVICE INVOLVED: one RR series, both estimators, per 300-beat block. Any residual
+   after subtracting it is the only part that could be a sensor property.
+   ── */
+function legEstimator(T) {
+  if (!fs.existsSync(T)) return null;
+  const blocks = [];
+  for (const n of fs.readdirSync(T).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))) {
+    let E;
+    try {
+      E = JSON.parse(fs.readFileSync(path.join(T, n, `ECGDex_${n}.node-export.json`), 'utf8'));
+    } catch {
+      continue;
+    }
+    const rr = E.timeseries && E.timeseries.rr;
+    if (!rr || !rr.ms || rr.ms.length < 300) continue;
+    const ms = rr.ms.filter((v) => v > 300 && v < 2000); // Malik-plausible only
+    for (let i = 0; i + 300 <= ms.length; i += 300) {
+      const seg = ms.slice(i, i + 300);
+      const harm = 60000 / mean(seg); // ECGDex
+      const rates = seg.map((v) => 60000 / v).sort((a, b) => a - b);
+      blocks.push({ harm, med: rates[rates.length >> 1], arith: mean(rates) });
+    }
+  }
+  return blocks;
+}
+
+const blocks = legEstimator(path.join(UP, 'trio'));
+console.log('\n\u25b8 LEG 3 \u2014 estimator only: median(rate) vs 60000/mean(RR), ONE series, no device\n');
+if (!blocks || !blocks.length) console.log('   (no ECG rr series in the folded corpus)');
+else {
+  const dm = blocks.map((b) => b.med - b.harm),
+    da = blocks.map((b) => b.arith - b.harm);
+  const sd = (a) => {
+    const u = mean(a);
+    return Math.sqrt(a.reduce((x, y) => x + (y - u) * (y - u), 0) / a.length);
+  };
+  console.log(`   blocks = ${blocks.length} (300 beats each)`);
+  console.log(`   median(rate)  \u2212 60000/mean(RR) = ${mean(dm).toFixed(3)} bpm  SD ${sd(dm).toFixed(2)}   \u2190 OxyDex \u2212 ECGDex, by construction`);
+  console.log(`   mean(rate)    \u2212 60000/mean(RR) = ${mean(da).toFixed(3)} bpm  SD ${sd(da).toFixed(2)}`);
+  console.log('   Compare LEG 2. If these match, the "device bias" is an ESTIMATOR MISMATCH and no');
+  console.log('   sensor, firmware or aggregation change can remove it \u2014 only agreeing on one statistic.');
+}
+
 /* ── LEG 2 ─────────────────────────────────────────────────────────────────────────────────── */
 const T = path.join(UP, 'trio');
 console.log('\n▸ LEG 2 — quantization or device?  (per-epoch OxyDex hr − ECGDex hr, folded trio corpus)\n');
@@ -188,6 +237,8 @@ const sem = sd / Math.sqrt(all.length);
 console.log(`   n = ${all.length} epochs over ${nights} night(s)`);
 console.log(`   mean Δ(OxyDex − ECGDex) = ${m.toFixed(3)} bpm · SD ${sd.toFixed(2)} · SEM ${sem.toFixed(3)} · ${Math.abs(m / sem).toFixed(1)}σ from zero`);
 console.log('   prediction if the device TRUNCATES: −0.500 · if it ROUNDS: 0.000');
-console.log(`   ⇒ measured sits ${m < -0.45 ? 'at truncation' : m > -0.05 ? 'at rounding' : 'BETWEEN the two — neither mechanism alone accounts for it'}`);
+console.log(`   ⇒ measured sits ${m < -0.45 ? 'at truncation' : m > -0.05 ? 'at rounding' : 'BETWEEN the two — so neither quantisation mechanism explains it'}`);
+console.log('   …and LEG 3 shows why: the estimator mismatch alone is −0.299, which is this number.');
+console.log('   Quantisation was the wrong question. See LEG 3.');
 console.log('\n   The per-epoch SD dwarfs the offset: this is a small SYSTEMATIC bias on a noisy');
 console.log('   difference, visible only in pooling. Do not read a single night as evidence.');

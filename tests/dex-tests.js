@@ -28636,6 +28636,43 @@
       T.eq('ECGDex given a MULTIPLIER r refuses instead — the visible direction', E.sampEn(x, 2, 0.2), null);
     });
 
+    /* R5-HR-TRIPLET-REFERENCE §5 — the two nodes' epoch HR are DIFFERENT STATISTICS of the same
+       physiology, so a cross-node difference is confounded before any sensor is considered.
+           ECGDex  `hr = 60000 / mean(RR)`   — the rate of the mean interval (a harmonic mean of rate)
+           OxyDex  `hr = median(1 Hz rate)`  — the median of instantaneous rates
+       Measured on 1670 real 300-beat blocks from the folded corpus, ONE series through both statistics:
+       **median(rate) − 60000/mean(RR) = −0.299 bpm (SD 0.49)**. The cross-node epoch difference R5
+       attributed to the O2Ring is **−0.269**. And the ring's own firmware column agrees with chest ECG
+       to −0.027 bpm (0.6σ) over 237 windows / 20 nights, so the sensor is not the biased leg.
+       ⚠ WHAT THIS GATE DOES NOT CLAIM. The gap is NOT estimator arithmetic that holds on any series —
+       I checked, and that is why this leg is a source scan rather than a number. On a smooth symmetric
+       RR series the two agree to +0.03; injecting long pauses gives +0.54, the OPPOSITE sign; a
+       within-block trend gives −0.03. None reproduces −0.299, so the effect depends on a feature of
+       real overnight RR I have not isolated. The defensible statement is the confound, not a mechanism:
+       the two nodes use different estimators, the measured gap is the size of the reported "device
+       bias", and no per-device bias may be read off cross-node epoch HR until they agree on one
+       statistic. Reproduce the number with `DEX_UPLOADS=<corpus> node tools/oxy-hr-bias.mjs` (LEG 3). */
+    group('cross-node epoch HR uses TWO different estimators — the confound behind R5 §5', 'hr · estimator · cross-node', function (T) {
+      var E = env.sources && env.sources['ecgdex-dsp.js'];
+      var O = env.sources && env.sources['oxydex-dsp.js'];
+      T.ok('ANTI-VACUITY · both DSP sources are loaded', typeof E === 'string' && E.length > 5000 && typeof O === 'string' && O.length > 5000, 'ecg=' + (E ? E.length : 'absent') + ' oxy=' + (O ? O.length : 'absent'));
+      if (typeof E !== 'string' || typeof O !== 'string') return;
+      var strip = function (t) {
+        return t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+      };
+      var ec = strip(E),
+        oc = strip(O);
+      T.ok("ECGDex's epoch hr is the rate of the MEAN interval (60000 / mean(RR))", /hr:\s*\+\(60000\s*\/\s*m\)/.test(ec), 'expected `hr: +(60000 / m)` where m = mean(seg)');
+      // Anchored on the EPOCH HR ASSIGNMENT, not on `_median(` anywhere — the helper is called all
+      // over oxydex-dsp.js, so a loose match would stay green while the estimator itself changed.
+      T.ok("OxyDex's epoch hr is a MEDIAN of rates, not the same statistic", /var mh = _median\(b\.hr\)/.test(oc), 'expected `var mh = _median(b.hr)` in oxyBuildEpochSeries');
+      T.ok(
+        'the two are therefore NOT comparable without agreeing on one — the R5 confound, pinned',
+        /hr:\s*\+\(60000\s*\/\s*m\)/.test(ec) !== /_median\(/.test(ec),
+        'if ECGDex ever adopts a median too this leg should be revisited, not deleted'
+      );
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
        HRV off a night full of movement is worth less than the same number off a still night. This SCORES
        that (it never alters or excludes an HRV value). The invariant that matters is the same tri-state

@@ -130,7 +130,41 @@ mechanistically twinned with a corner. Do not simply add it as a fourth and hope
 - [ ] **Connect the ResMed oximeter** for ≥ 5 quad-modal nights (CPAP + H10 + Verity + O2Ring). Zero code cost.
 - [ ] Re-run the R5 experiment with **ResMed pulse as the external reference** — then, and only then, the HR
       triplet's **independence** and **σ accuracy** become measurable.
-- [~] **Investigated 2026-08-04 — one candidate ELIMINATED, the other two BOUNDED but not separable
+- [x] **RESOLVED 2026-08-04 (second pass) — the −0.36 bpm is NOT the O2Ring. It is a CONFOUND between
+      two nodes' epoch-HR estimators, and the earlier bounding below is superseded.**
+
+      **(1) The ring's firmware HR agrees with chest ECG.** `tools/o2ring-finger-validate-batch.mjs`
+      already existed — it derives HR from the ring's OWN pleth and compares it against both the ring's
+      1 Hz HR field and the paired H10 ECG. Run over **all 20 capture nights → 252 windows, 237 PASS**:
+
+      | comparison | all PASS (n=237) | long ≥30 min (n=39) |
+      |---|---|---|
+      | derived pleth − firmware | −0.290 (6.9σ) | −0.221 (3.1σ) |
+      | **firmware − ECG** | **−0.027 (0.6σ)** | −0.249 (2.6σ) |
+      | derived pleth − ECG | −0.317 (7.7σ) | −0.469 (4.7σ) |
+
+      Over all windows the firmware column is **statistically indistinguishable from the ECG**. The
+      sensor is not the biased leg. (The long-window subset disagrees at 2.6σ on n=39 — thin, and the
+      15 FAILs, several gross at 16–21 bpm, are excluded as lost contact / harmonic counting.)
+
+      **(2) The two nodes summarise an epoch differently.** `ECGDex: hr = 60000/mean(RR)` (the rate of
+      the mean interval); `OxyDex: hr = median(1 Hz rate)`. On **1670 real 300-beat blocks**, one series
+      through both statistics: **median(rate) − 60000/mean(RR) = −0.299 bpm (SD 0.49)** — against the
+      **−0.269** cross-node figure §5 attributed to the device. The confound is the size of the finding.
+
+      ⚠ **What I could NOT establish, having tried:** that this is estimator arithmetic holding on any
+      series. On a smooth symmetric RR series the two agree to +0.03; injecting long pauses gives
+      **+0.54, the opposite sign**; a within-block trend gives −0.03. None reproduces −0.299, so the
+      effect depends on a feature of real overnight RR I have not isolated. The gate is therefore a
+      **source scan on the confound** (the two estimators differ, anchored on the epoch-HR assignment
+      and mutation-verified), not a numeric claim. Reproduce the numbers with
+      `DEX_UPLOADS=<corpus> node tools/oxy-hr-bias.mjs` — LEG 3 is new.
+
+      **Consequence for the brief:** no per-device HR bias may be read off cross-node epoch HR until the
+      nodes agree on one statistic. §2's table and the "OxyDex under-reads" headline are confounded, and
+      the ResMed fourth corner is not what unblocks this one — agreeing on an estimator is.
+
+- [~] *(superseded by the entry above)* **Investigated 2026-08-04 — one candidate ELIMINATED, the other two BOUNDED but not separable
       here.** Reproducible via `tools/oxy-hr-bias.mjs` (no number without a tool that reproduces it).
 
       **(a) OxyDex's own HR path — EXCLUDED.** Over **42 nights**, the mean of the raw `Pulse Rate` CSV
