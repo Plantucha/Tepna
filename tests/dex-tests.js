@@ -3039,6 +3039,75 @@
       T.ok('the negative-variance case really is negative', neg.a < 0 || neg.b < 0 || neg.c < 0, 'a=' + neg.a + ' b=' + neg.b + ' c=' + neg.c);
     });
 
+    /* TCH-CORRELATED-SOLVE-KNIFE-EDGE §3 — a correlated σ is not interpretable without its distance to
+       the singularity. On the real CPAP/ECG/PPG triplet the measured ρ(ECG,PPG) = 0.42 sits within
+       0.5 % of ρ_crit ≈ 0.422, where σ(CPAP) reaches zero and past which there is no solution. The
+       0.19 bpm returned there is the non-negativity boundary seen from the inside — and it happens at a
+       POSITIVE σ, so the classic negative-variance check that `tch-multinight` uses to exclude nights
+       never fires.
+
+       `rhoCrit` is computed by BISECTING THE SOLVER, not by a closed form: a second derivation of the
+       boundary would be a second implementation of the model, free to disagree with the σ it qualifies.
+       (The sensor-trio power tool shipped exactly that duplication; see `sensor-trio · tch-parity`.)
+
+       The load-bearing leg is the known answer: §8a derived ρ_crit ≈ 0.422 by an independent sweep, and
+       the bisection must land on it. */
+    group('a correlated σ reports how far it sits from the singularity', 'analysis-stats · rho-crit', function (T) {
+      /* Node-lane only, matching the three sibling `analysis-stats` groups: run-tests.mjs co-loads
+         analysis-stats.js and the browser suite deliberately does not, so this SKIPs there (like
+         docs/release-ledger). A skip, not a failure — the first version asserted presence and reddened
+         the browser lane, which misreports a documented lane boundary as a defect. */
+      var A = env.AnalysisStats;
+      if (!A || typeof A.tchSigmasPairwiseFromVars !== 'function') {
+        T.skip('env.AnalysisStats provided to the runner', 'Node-lane only — run-tests.mjs co-loads analysis-stats.js');
+        return;
+      }
+      T.ok('AnalysisStats exposes the pairwise solver', typeof A.tchSigmasPairwiseFromVars === 'function');
+
+      /* The real triplet, reconstructed from §8a's classic row (CPAP 2.07 / ECG 2.15 / PPG 2.70) by
+         inverting the ρ=0 hat: v(i,j) = σi² + σj². a = CPAP, b = ECG, c = PPG. */
+      var sa = 2.07 * 2.07,
+        sb = 2.15 * 2.15,
+        sc = 2.7 * 2.7;
+      var vAB = sa + sb,
+        vAC = sa + sc,
+        vBC = sb + sc;
+
+      // ── §8a's sweep, reproduced ──
+      var at = function (r) {
+        return A.tchSigmasPairwiseFromVars(vAB, vAC, vBC, { bc: r });
+      };
+      var c0 = at(0),
+        c3 = at(0.3),
+        c42 = at(0.42),
+        c5 = at(0.5);
+      T.approx('ρ=0 returns the classic triple', c0.a, 2.07, 0.01);
+      T.approx('ρ=0.30 — σ(CPAP) already falling', c3.a, 1.33, 0.01);
+      T.approx('ρ=0.42 (measured) — σ(CPAP) has collapsed', c42.a, 0.19, 0.01);
+      T.ok('ρ=0.50 — the model has NO solution', c5.ok === false, c5.ok ? 'it solved: ' + c5.a : '');
+
+      // ── THE KNOWN ANSWER: the bisection must find §8a's independently-derived boundary ──
+      T.ok('a solve reports rhoCrit', !!(c42.rhoCrit && c42.rhoCrit.nearest), 'rhoCrit absent — the σ is unqualified');
+      if (c42.rhoCrit && c42.rhoCrit.nearest) {
+        var n = c42.rhoCrit.nearest;
+        T.eq('…and names the correlated pair', n.pair, 'bc');
+        T.approx('…landing on §8a’s ρ_crit ≈ 0.422', n.at, 0.422, 0.002);
+        T.ok('…with a margin that is TINY — this is the finding', n.margin < 0.01, 'margin ' + n.margin.toFixed(4));
+      }
+
+      /* ── ANTI-VACUITY: a well-conditioned triple must report a LARGE margin, or "tiny" means nothing.
+         Three near-equal variances sit far from any boundary. */
+      var wide = A.tchSigmasPairwiseFromVars(8, 8, 8, { bc: 0 });
+      T.ok('a well-conditioned triple solves', wide.ok === true);
+      if (wide.ok && wide.rhoCrit && wide.rhoCrit.nearest) T.ok('…and reports a MUCH larger margin', wide.rhoCrit.nearest.margin > 10 * (c42.rhoCrit ? c42.rhoCrit.nearest.margin : 1), 'wide ' + wide.rhoCrit.nearest.margin.toFixed(3) + ' vs real ' + (c42.rhoCrit ? c42.rhoCrit.nearest.margin.toFixed(4) : '—'));
+
+      // ── reported even at ρ=0: "how far is independence from collapse" is information ──
+      T.ok('a classic (ρ=0) solve still reports its distance to collapse', !!(c0.rhoCrit && c0.rhoCrit.nearest), 'absent at ρ=0');
+
+      // ── additive: the field is new, and the σ it rides beside is unchanged ──
+      T.approx('adding rhoCrit did not move the σ it qualifies', at(0.42).b, c42.b, 1e-12);
+    });
+
     group('trio-batch quotes a drift ppm only when its closure holds', 'trio-batch · drift-report', function (T) {
       var DR = env.DriftReport;
       T.ok('DriftReport is loaded in this lane', !!DR, 'tools/drift-report.js did not load — the group below would vacuously pass');

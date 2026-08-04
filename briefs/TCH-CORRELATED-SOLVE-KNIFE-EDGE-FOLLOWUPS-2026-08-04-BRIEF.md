@@ -41,10 +41,40 @@ the obvious suspect.
 
 ## 3 · What is owed
 
-- [ ] **Publish ρ_crit beside every correlated solve.** It is a closed-form property of the three input
-      variances, so it costs nothing to compute, and a σ quoted without its distance to the singularity
-      is not interpretable. The existing four-state precedent is `drift-report.js`'s `driftVerdict` —
-      a result is a MEASUREMENT only in one of its states.
+- [x] **DONE 2026-08-04 — every correlated solve now carries `rhoCrit`, and it reproduces §8a's
+      independently-derived boundary exactly.**
+
+      ⚠ **This item said "closed-form". Do NOT implement it that way — I did not.** A second derivation
+      of the boundary is a second implementation of the model, free to disagree with the very σ it
+      qualifies; the sensor-trio power tool shipped exactly that duplication and needed a parity gate to
+      bind it back (`sensor-trio · tch-parity`). `rhoCrit` instead **bisects the real solver** — it asks
+      the thing that produces the σ where it fails, so the answer cannot drift from what it describes.
+
+      **Known-answer: the whole §8a sweep reproduces to the digit**, from pair variances reconstructed by
+      inverting the classic hat on §8a's own ρ=0 row:
+
+      | ρ(ECG,PPG) | σ CPAP · ECG · PPG | §8a |
+      |---|---|---|
+      | 0 | 2.07 · 2.15 · 2.70 | 2.07 · 2.15 · 2.70 |
+      | 0.30 | 1.33 · 2.67 · 3.13 | 1.33 · 2.67 · 3.13 |
+      | 0.42 | **0.19** · 2.98 · 3.40 | 0.19 · 2.98 · 3.40 |
+      | 0.50 | *no solution* | *no solution* |
+
+      and the bisection lands on **ρ_crit = 0.42199**, margin **0.0020** — against §8a's ≈ 0.422, derived
+      by a different route.
+
+      Reported for **every** pair, including ones at ρ = 0: *how far independence sits from collapse* is
+      information even when no correlation was measured. `nearest` is the smallest move in any single ρ
+      that breaks the solve. Additive field, so every existing caller is byte-unchanged.
+
+      **Gated** by `analysis-stats · rho-crit` (13 assertions, both lanes). Two mutants confirm failure
+      by value: returning `null` (4 legs) and skipping the bisection refinement, which reports 0.47
+      instead of 0.422. The **anti-vacuity** leg is the one that gives "tiny" meaning — a well-conditioned
+      triple reports margin **0.500** against the real triplet's **0.0020**, a 250× separation.
+
+      ⚠ The first implementation **blew the stack**: `tchRhoCrit` probes the solver ~120 times, each probe
+      re-entered `tchRhoCrit`, and the `_noCrit` guard was set on the caller's object rather than on the
+      one actually passed. Guard the object you hand over, not the one you were handed.
 - [ ] **Refuse, do not report, inside a margin of ρ_crit.** Pick the margin from the data, not by taste:
       measure how σ(uncorrelated corner) varies with ρ near the boundary and refuse where the derivative
       makes σ unidentifiable. Record the measured sensitivity beside the choice — and note the sibling

@@ -1912,6 +1912,77 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
      Newton fails to converge, or when the solution is not physical (a negative variance). A ρ triple
      can be jointly impossible; producing a σ anyway is exactly the failure this generalisation exists
      to stop. */
+  /* ── DISTANCE TO THE SINGULARITY (TCH-CORRELATED-SOLVE-KNIFE-EDGE §3) ────────────────────────────
+     A correlated σ is not interpretable without it. On the real CPAP/ECG/PPG triplet the measured
+     ρ(ECG,PPG) = 0.42 sits within 0.5 % of ρ_crit ≈ 0.422 — the correlation at which σ(CPAP) reaches
+     zero and past which the model has no solution at all. The 0.19 bpm it returns there is the
+     non-negativity boundary seen from the inside, not a quiet sensor. Crucially this happens at a
+     POSITIVE σ, so the classic hat's negative-variance check (which `tch-multinight` already uses to
+     exclude nights) never fires.
+
+     COMPUTED BY BISECTING THE SOLVER, deliberately — not by a closed form. A second derivation of the
+     boundary would be a second implementation of the model, free to disagree with the one that produces
+     the σ being qualified; the sensor-trio power tool shipped exactly that duplication and needed a
+     parity gate to bind it back. Bisection asks the real solver where it fails, so the answer cannot
+     drift from the thing it describes.
+
+     Reported for EVERY pair, including ones at ρ = 0: "how far is independence from collapse" is
+     information even when no correlation was measured. `nearest` is the smallest move in any single ρ
+     that breaks the solve. */
+  function tchRhoCrit(vAB, vAC, vBC, rho) {
+    var base = { ab: (rho && rho.ab) || 0, ac: (rho && rho.ac) || 0, bc: (rho && rho.bc) || 0 };
+    var solves = function (pair, val) {
+      /* _noCrit MUST ride along: without it each probe starts its own bisection and the recursion is
+         unbounded (it blew the stack on the first run). The guard belongs on the object actually
+         passed, not on the caller's. */
+      var r = { ab: base.ab, ac: base.ac, bc: base.bc, _noCrit: true };
+      r[pair] = val;
+      var out = tchSigmasPairwiseFromVars(vAB, vAC, vBC, r);
+      return !!(out && out.ok);
+    };
+    var LIM = 0.999;
+    var per = {},
+      nearest = null;
+    ['ab', 'ac', 'bc'].forEach(function (pair) {
+      if (!solves(pair, base[pair])) {
+        per[pair] = null;
+        return;
+      }
+      var dirs = {};
+      [1, -1].forEach(function (sign) {
+        // walk out until it breaks — coarse, then bisect the bracket
+        var lo = base[pair],
+          hi = null;
+        for (var step = 0.05; step <= 2.0; step += 0.05) {
+          var v = base[pair] + sign * step;
+          if (Math.abs(v) > LIM) {
+            v = sign * LIM;
+            if (solves(pair, v)) break; // never breaks inside the admissible range
+            hi = v;
+            break;
+          }
+          if (!solves(pair, v)) {
+            hi = v;
+            break;
+          }
+          lo = v;
+        }
+        if (hi === null) return; // no singularity in this direction
+        for (var i = 0; i < 40; i++) {
+          var mid = 0.5 * (lo + hi);
+          if (solves(pair, mid)) lo = mid;
+          else hi = mid;
+        }
+        dirs[sign > 0 ? 'up' : 'down'] = { at: hi, margin: Math.abs(hi - base[pair]) };
+      });
+      per[pair] = Object.keys(dirs).length ? dirs : null;
+      Object.keys(dirs).forEach(function (d) {
+        if (nearest === null || dirs[d].margin < nearest.margin) nearest = { pair: pair, dir: d, at: dirs[d].at, margin: dirs[d].margin };
+      });
+    });
+    return { pairs: per, nearest: nearest };
+  }
+
   function tchSigmasPairwiseFromVars(vAB, vAC, vBC, rho) {
     rho = rho || {};
     var rAB = rho.ab || 0,
@@ -1956,11 +2027,16 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     var worst = Math.max(Math.abs(fin[0]), Math.abs(fin[1]), Math.abs(fin[2]));
     if (!(worst < 1e-6)) return { ok: false, reason: 'Newton did not converge (residual ' + worst.toExponential(2) + ') — this (variance, ρ) combination admits no consistent σ triple' };
     if (!(x[0] > 0 && x[1] > 0 && x[2] > 0) || !isFinite(x[0] + x[1] + x[2])) return { ok: false, reason: 'solution is not physical (a σ is ≤ 0 or non-finite)' };
+    /* ADDITIVE — a new field, so every existing caller is byte-unchanged. `_noCrit` breaks the
+       recursion: tchRhoCrit calls this function ~120 times while bisecting, and each of those must not
+       start its own bisection. */
+    var crit = rho && rho._noCrit ? null : tchRhoCrit(vAB, vAC, vBC, { ab: rAB, ac: rAC, bc: rBC, _noCrit: true });
     return {
       ok: true,
       a: x[0],
       b: x[1],
       c: x[2],
+      rhoCrit: crit,
       rho: { ab: rAB, ac: rAC, bc: rBC },
       classic: seed.a > 0 && seed.b > 0 && seed.c > 0 ? { a: Math.sqrt(seed.a), b: Math.sqrt(seed.b), c: Math.sqrt(seed.c) } : null,
       classicWasNonPhysical: !(seed.a > 0 && seed.b > 0 && seed.c > 0),
@@ -2390,6 +2466,7 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     tchSigmasFused: tchSigmasFused,
     tchSigmasPairwise: tchSigmasPairwise,
     tchSigmasPairwiseFromVars: tchSigmasPairwiseFromVars,
+    tchRhoCrit: tchRhoCrit,
     blandAltman: blandAltman,
     pearson: pearson,
     // correlation decomposition
