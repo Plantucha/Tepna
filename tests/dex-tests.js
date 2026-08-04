@@ -6783,6 +6783,20 @@
         T.ok('…respFromEDR is a number, not null — THE field #634 changed', typeof f.respFromEDR === 'number', 'respFromEDR=' + f.respFromEDR);
         T.ok('…and it names its method, so a consumer knows it is EDR and not the RSA estimate', f.respFromEDRMethod === 'EDR (R-peak amplitude modulation)');
         T.ok('…respRate (the independent RSA estimate) is also present', typeof f.respRate === 'number', 'respRate=' + f.respRate);
+        /* …and it must NAME its mechanism, not merely exist. TCH-REFERENCE-VALIDATION R4 closed D2 by
+           exporting both estimates; R3 then made the Integrator's respiration fusion CLASSIFY each
+           source by `respRateMethod` (`integrator-dsp.js famOf`: /rsa|hf[- ]peak/ → RSA). So this string
+           is now load-bearing across nodes: if it drifted or vanished, ECGDex would classify as `other`,
+           `mechanismsIndependent` would flip to true, and the fusion would resume calling ECG-RSA and
+           PPG-RSA "2 independent estimates" — the exact overclaim R3 removed, silently, because R3's own
+           legs use synthetic method strings and would stay green. This is the leg that ties them. */
+        T.eq('…and respRate names its mechanism — the string R3 classifies on', f.respRateMethod, 'RSA (HF-peak of RR spectrum)');
+        T.ok(
+          "…which the Integrator's famOf() resolves to the RSA family, not 'other'",
+          /rsa|hf[- ]peak/.test(String(f.respRateMethod).toLowerCase()),
+          'famOf would return other ⇒ the mechanism-collision flag goes blind'
+        );
+        T.ok('…and the two estimates name DIFFERENT mechanisms — they are not one measurement twice', f.respRateMethod !== f.respFromEDRMethod);
       }
       T.ok('the golden carries hrv.time', !!(rich.hrv && rich.hrv.time && typeof rich.hrv.time.sdnn === 'number'));
       T.ok('the golden carries quality + timeseries', !!rich.quality && !!rich.timeseries);
