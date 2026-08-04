@@ -1155,7 +1155,8 @@ async function main() {
        zero coverage because nothing in trio-batch.mjs is callable (its night loop runs at import), so
        the one place a ppm becomes a sentence was the one place no assertion could reach. The formatters
        are pure and live here now; load failure → env.DriftReport undefined → that group's assert reds. */
-    'tools/drift-report.js'
+    'tools/drift-report.js',
+    'tools/tch-corpus.js'
   ].forEach((f) => {
     try {
       loadInto(ctx, f);
@@ -1337,6 +1338,7 @@ async function main() {
     AnalysisStats: ctx.AnalysisStats,
     RespAccAnalysis: ctx.RespAccAnalysis,
     DriftReport: ctx.DriftReport,
+    TchCorpus: ctx.TchCorpus,
     docs: readDocs(),
     docsLedger: readDocsLedger(),
     /* REGEN-CORPUS-PATH-FOLLOWUPS-II §1 — A2's OWN scope. The SPDX lint used to read `env.sources`,

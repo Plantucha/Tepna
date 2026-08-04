@@ -47,6 +47,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const require = createRequire(import.meta.url);
 const TCH = require(join(ROOT, 'integrator-tch.js'));
+/* Corpus homogeneity — whether a multi-night median is a corpus figure at all. See tools/tch-corpus.js:
+   this harness reported a PpgDex σ of 2.71 and later 3.44 over corpora that mixed two producing-code
+   versions, and nothing in the output said so. */
+const TchCorpus = require(join(ROOT, 'tools', 'tch-corpus.js'));
 
 /* ── deterministic seeded normals (same generator family as tests/tch-selftest) ── */
 function mulberry32(a) {
@@ -120,7 +124,7 @@ function rhoFromMotion(motions) {
 function runNight(night, labels) {
   const [LA, LB, LC] = labels;
   const al = TCH.alignTriplet(night.series[LA], night.series[LB], night.series[LC], { key: 'tMin', val: 'v' });
-  const base = { label: night.label, n: al.keys.length };
+  const base = { label: night.label, n: al.keys.length, marker: night.marker };
   if (al.keys.length < 12) return { ...base, ok: false, reason: 'overlap ' + al.keys.length + ' < 12' };
 
   // align motion onto the SAME shared epoch keys the HR triplet resolved on
@@ -261,6 +265,10 @@ function readNightDir(dir) {
   const files = readdirSync(dir).filter((f) => /\.json$/i.test(f));
   const series = {},
     motion = {};
+  /* The producing-code marker, read off the export rather than remembered. `quality.timingSource` is
+     the field the host-axis work added, so its ABSENCE dates a night to before that change — which is
+     exactly the cohort split that made two published σ medians incomparable. */
+  let marker;
   for (const f of files) {
     let j;
     try {
@@ -270,6 +278,7 @@ function readNightDir(dir) {
     }
     const node = nodeOf(j, f);
     if (!node || !LABELS.includes(node)) continue;
+    if (node === 'PpgDex' && j.quality && j.quality.timingSource !== undefined) marker = j.quality.timingSource;
     const eps = (j.timeseries && j.timeseries.epochs) || (j.series && j.series.epochs) || [];
     const hr = [],
       mo = [];
@@ -282,7 +291,7 @@ function readNightDir(dir) {
     if (hr.length) series[node] = hr;
     if (mo.length) motion[node] = mo;
   }
-  return { label: dir.split('/').pop(), series, motion };
+  return { label: dir.split('/').pop(), series, motion, marker };
 }
 function nodeOf(j, fname) {
   const s = (j.schema && (j.schema.node || j.node)) || j.node || '';
@@ -369,6 +378,11 @@ function report(rows, { json } = {}) {
   const degenerate = solvedAll.filter(isBoundary);
   const solved = solvedAll.filter((x) => !isBoundary(x));
   const culpritSig = solved.map((x) => (x.sigmaRho ? x.sigmaRho[x.withRho.culprit] : null));
+  /* BEFORE the medians, not after. §F3's PpgDex 2.71 → 3.44 was published and only later found to span
+     different night sets; a reader must meet the corpus verdict before the number it qualifies. */
+  const split = TchCorpus.cohortSplit(rows.map((x) => ({ night: x.label, marker: x.marker })));
+  const corpusLine = TchCorpus.corpusLine(split);
+  if (corpusLine) console.log('\n' + corpusLine);
   console.log('\n  distribution (' + solved.length + ' estimated / ' + rows.length + ' nights):');
   if (degenerate.length) {
     console.log(
@@ -389,6 +403,25 @@ function report(rows, { json } = {}) {
       '    median σ[' + L + ']  classic=' + fmt(median(solved.map((x) => x.sigmaClassic && x.sigmaClassic[L]))) + '  ρ-on=' + fmt(median(solved.map((x) => x.sigmaRho && x.sigmaRho[L]))) + ' bpm'
     );
   });
+  /* PER-COHORT medians when the corpus is mixed. Saying "mixed" without saying what the mix is worth
+     leaves a reader unable to judge whether it matters — on this corpus it is 1.5 bpm of PpgDex σ,
+     which is larger than the shift §F3 was trying to attribute. */
+  if (split && !split.homogeneous) {
+    console.log('\n    per-cohort medians (classic) — the mix is worth this much:');
+    Object.keys(split.cohorts)
+      .sort()
+      .forEach((c) => {
+        const set = new Set(split.cohorts[c]);
+        const sub = solved.filter((x) => set.has(x.label));
+        if (!sub.length) {
+          console.log('      ' + c.padEnd(15) + ' n=  0   (no night in this cohort produced a solution)');
+          return;
+        }
+        console.log(
+          '      ' + c.padEnd(15) + ' n=' + String(sub.length).padStart(3) + '   ' + LABELS.map((L) => L + ' ' + fmt(median(sub.map((x) => x.sigmaClassic && x.sigmaClassic[L])))).join('  ')
+        );
+      });
+  }
 }
 function fmt(x) {
   return x == null ? ' — ' : x.toFixed(2);

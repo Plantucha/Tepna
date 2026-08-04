@@ -2923,6 +2923,56 @@
       }
     });
 
+    /* WEARABLE-HOST-AXIS-FOLLOWUPS §F3 — PpgDex's three-cornered-hat σ was reported at 2.71 bpm and later
+       at 3.44, and the brief correctly refused to attribute the shift because the two runs covered
+       different night sets. Measured 2026-08-04, the reason is worse than an unmatched set: the corpus is
+       CODE-MIXED (25 nights carry `quality.timingSource`, 15 predate it) and the split is perfectly
+       confounded with date, so no subsetting can separate code version from night. The per-cohort medians
+       differ by 1.5 bpm of PpgDex σ — larger than the shift being attributed.
+
+       The load-bearing assertion is `unreadable`. The cohort of an unmarked night is 'pre-host-axis', so a
+       reader that silently stops populating markers makes every night pre and the corpus reads
+       HOMOGENEOUS — a green verdict produced by reading nothing. That is not hypothetical: it happened on
+       the first wiring, when `runNight` rebuilt its row object and dropped the field, and a corpus
+       measured at 25/15 reported "all 40 from one producing code version". */
+    group('a multi-night median is quotable only over one producing-code version', 'tch-corpus · homogeneity', function (T) {
+      var TC = env.TchCorpus;
+      T.ok('TchCorpus is loaded in this lane', !!TC, 'tools/tch-corpus.js did not load — the group below would vacuously pass');
+      if (!TC) return;
+      var N = function (night, marker) {
+        return { night: night, marker: marker };
+      };
+
+      // ── one version ⇒ the median is a corpus figure ──
+      var homo = TC.cohortSplit([N('2026-06-10', 'device+host'), N('2026-06-11', 'device+host'), N('2026-06-12', 'host')]);
+      T.ok('all nights marked ⇒ homogeneous', homo && homo.homogeneous === true);
+      T.ok('…and quotable', TC.corpusVerdict(homo).quotable === true);
+
+      // ── THE FAIL-OPEN LEG. No marker anywhere is indistinguishable from a broken reader. ──
+      var blind = TC.cohortSplit([N('2026-06-10'), N('2026-06-11'), N('2026-06-12')]);
+      T.ok('no marker on ANY night ⇒ every night falls in one cohort', blind && blind.homogeneous === true);
+      T.eq('…but that is REFUSED, not quoted — it cannot be told from a reader that read none', TC.corpusVerdict(blind).state, 'unreadable');
+      T.ok('…and is not quotable', TC.corpusVerdict(blind).quotable === false);
+
+      // ── mixed, interleaved: a matched comparison is still possible ──
+      var mixed = TC.cohortSplit([N('2026-06-10', 'device+host'), N('2026-06-11'), N('2026-06-12', 'device+host'), N('2026-06-13')]);
+      T.eq('interleaved cohorts ⇒ mixed', TC.corpusVerdict(mixed).state, 'mixed');
+      T.ok('…and not quotable', TC.corpusVerdict(mixed).quotable === false);
+      T.ok('…but NOT date-confounded — the nights can be paired', mixed.dateConfounded === false);
+
+      // ── mixed, contiguous: code version and date are the same variable ──
+      var conf = TC.cohortSplit([N('2026-06-10', 'device+host'), N('2026-06-11', 'device+host'), N('2026-07-16'), N('2026-07-17')]);
+      T.eq('cohorts in disjoint date ranges ⇒ confounded', TC.corpusVerdict(conf).state, 'confounded');
+      T.ok('…which is a STRONGER refusal than mixed, and says regenerate', /regenerate/.test(TC.corpusVerdict(conf).why));
+      T.ok('…and confounded is its own flag, not folded into mixed', conf.dateConfounded === true && mixed.dateConfounded === false);
+
+      // ── the shape a caller depends on ──
+      T.eq('an empty corpus is null, not an empty pass', TC.cohortSplit([]), null);
+      T.ok('…and null is not quotable', TC.corpusVerdict(null).quotable === false);
+      T.ok('the report names both cohorts and their spans', /post-host-axis: 2 night\(s\), 2026-06-10 … 2026-06-11/.test(TC.corpusLine(conf) || ''));
+      T.ok('…and an unreadable corpus says so rather than printing a verdict it cannot support', /UNREADABLE/.test(TC.corpusLine(blind) || ''));
+    });
+
     group('trio-batch quotes a drift ppm only when its closure holds', 'trio-batch · drift-report', function (T) {
       var DR = env.DriftReport;
       T.ok('DriftReport is loaded in this lane', !!DR, 'tools/drift-report.js did not load — the group below would vacuously pass');
