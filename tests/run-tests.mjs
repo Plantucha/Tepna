@@ -946,7 +946,12 @@ function readDocs() {
     'PulseDex Reference.html',
     'HRVDex Reference.html',
     'GlucoDex Reference.html',
-    'ORIENTATION.md'
+    'ORIENTATION.md',
+    /* TRIO-POWER-N15-FINDINGS §181 — the sigma-triple gate calls the planted σ and this paper's
+       published tables "ONE ATOMIC UNIT … change both, or neither", but it only ever compared three
+       CODE copies to a hardcoded literal. Reading the paper lets it compare against the artifact it
+       claims atomicity with, which is the half that was aspirational. */
+    'papers/sensor-trio-nights.html'
   ];
   const out = {};
   for (const f of wanted) {
