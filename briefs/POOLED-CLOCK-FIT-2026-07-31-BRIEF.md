@@ -130,6 +130,36 @@ agreeing that closely by chance is ~1%.
 **Not yet "confirmed"** — two nights, one with Z inside the null range. One more clean tri-device night
 settles it. But the prediction is no longer untestable, which it was for the whole of 2026-07-30.
 
+### 4a · CONFIRMED 2026-08-04 — the third night landed
+
+`2026-08-01`, a night that postdates this brief, run through the same path
+(`trio-batch --cpap … --night 2026-08-01`):
+
+```
+2026-08-01   -22.13 min (-1328 s)   ±3 s   Z 8.1 vs own null 7.1   p 0.0323   [13 apnea events]
+```
+
+| night | offset | Z | vs own null |
+|---|---|---|---|
+| 2026-07-29 | −22.33 min | 9.9 | — |
+| 2026-07-30 | −21.17 min | 6.2 | inside the null range |
+| **2026-08-01** | **−22.13 min** | **8.1** | **clears it, p = 0.032** |
+
+Three independent nights at **−21.9 ± 0.6 min**, spanning 1.16 min. `CROSS-DEVICE-CLOCK-SKEW` §2b's
+prediction — that the post-timezone-correction offset flips sign to ≈21 min rather than falling to zero
+— is **met**, and the residual that brief handed to this §4 is closed.
+
+**Two nights were tried and correctly refused**, which is the in-run null of §5.2 working as designed
+rather than a shortage of data:
+
+* `2026-08-03` — **−65.06 min, p 0.710, 9 apnea events**, with its own channels peaking 46 min apart
+  (`autonomic_surge` −90.00, `stage_light` −44.33). Indistinguishable from that night's own null.
+* `2026-08-02` — produced no fit at all.
+
+A pooled estimator that reported −65 min from nine events would have been worse than useless. The
+self-calibrating null §5.2 chose over a corpus constant is what rejects it, and it rejected the night
+whose headline number was most tempting to quote.
+
 ---
 
 ## 5 · What to do
