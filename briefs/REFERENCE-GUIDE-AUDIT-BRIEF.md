@@ -1,4 +1,4 @@
-**Status:** IN-PROGRESS — 2026-08-03 (dimension 4 gate-enforced by `cohesion-badges`; **dimension 3's code-side half now swept** — `tools/severity-ladder-audit.mjs`, 5 conflicting of 198 laddered expressions, 4 real and all OxyDex: the same night is banded two ways between `renderSmartSummary` and `nightDetail`, and **ODI-3 has no published band at all** yet is given two different invented ones. Findings in `audits/REFERENCE-GUIDE-AUDIT-FINDINGS.md`; the fix is an owner cut-point call. Dimensions 1–2 and 5–7 still unchecked per guide) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** IN-PROGRESS — 2026-08-03 (**2026-08-04: the browser/interaction box is DRIVEN and CLEAN — 7/7 guides, 0 console errors, theme·quick-jump·both searches·drawer all exercised and observed changing state, 0 px overflow at 390 px; nav-highlight scroll-spy is the one part still unproven.** dimension 4 gate-enforced by `cohesion-badges`; **dimension 3's code-side half now swept** — `tools/severity-ladder-audit.mjs`, 5 conflicting of 198 laddered expressions, 4 real and all OxyDex: the same night is banded two ways between `renderSmartSummary` and `nightDetail`, and **ODI-3 has no published band at all** yet is given two different invented ones. Findings in `audits/REFERENCE-GUIDE-AUDIT-FINDINGS.md`; the fix is an owner cut-point call. Dimensions 1–2 and 5–7 still unchecked per guide) · **Created:** (undated — pre-2026-07-03, grandfathered)
 
 # Build Brief — Deep Audit of ALL Reference Guides
 
@@ -203,7 +203,31 @@ Contract (floating `tMs` via `Date.UTC`, read back with `getUTC*`/`{timeZone:'UT
       resolving DOI is checkable only by a human with a browser. It is left explicitly ungated rather
       than folded in, because a gate named "zero dead links" that silently checks only the internal ones
       is precisely the borrowed-scope dishonesty the neighbouring gates exist to remove.
-- [ ] Console clean; quick-jump / abbr search / theme / drawer / nav-highlight all work; responsive at ~390 px.
+- [x] **Console clean; quick-jump / abbr search / theme / drawer all work; responsive at ~390 px** —
+      **DRIVEN HEADLESS 2026-08-04**, all 7 authored guides, via Playwright + Chromium against a local
+      HTTP server. Not "the element exists" — each widget was **exercised** and its state change observed:
+
+      | check | how it was proven | result |
+      |---|---|---|
+      | console clean | `console`+`pageerror` listeners for the whole load | **0 errors × 7** |
+      | theme toggle | click `#themeToggleBtn`, diff `body.light` + computed background | **flips × 7** |
+      | quick-jump toggle | click `#qjToggle`, diff `aria-expanded` + panel `hidden` | **opens × 7** |
+      | quick-jump search | type into `#qjSearch`, count `.qm:not(.qm-hide)` | **filters × 7** (e.g. OxyDex 113 → 0 on a miss) |
+      | abbr search | type into `.abbr-search-inp`, count `#abbrGrid .abbr-card` with `display !== 'none'` | **filters × 7** |
+      | mobile drawer | call `openDrawer()` at 390 px, diff computed transform/visibility/opacity | **opens × 7** |
+      | responsive 390 px | `scrollWidth − clientWidth` at 390×844 | **0 px overflow × 7** |
+
+      ⚠️ **Read the abbr-search row carefully — it took four attempts and three of the failures were the
+      probe, not the page.** (1) Selectors guessed from convention (`#theme`, `[data-search]`) matched
+      nothing, reporting theme+search "absent" on all 7 when both exist as `#themeToggleBtn` /
+      `.abbr-search-inp`. (2) The probe then typed into the ABBR input while counting the QUICK-JUMP
+      mechanism (`[data-hidden]` on `.qj-group`) — two different IIFEs, so it read NO-OP × 7. (3) With the
+      right mechanism, CPAPDex and GlucoDex still looked broken because the probe searched `"hr"`, which is
+      **not in a CPAP or CGM glossary**; searching `"ap"` → 13 hits (AHI, APAP, ASV) and `"gl"` → 12 (AGP,
+      CGM, CONGA) shows the filter working. **A UI probe that reports "broken" is far more likely to be a
+      wrong selector than a broken page — verify the mechanism in the source before filing the defect.**
+- [ ] *(nav-highlight — scroll-spy — not covered by the run above; it needs a scroll simulation, so it is
+      the one part of this box still unproven.)*
 - [ ] No correction-history meta-commentary; internal composites/projections honestly labelled and
       consistent with the Validation Matrix.
 - [ ] `Dex-Test-Suite.html` all green after each guide; `node tests/run-tests.mjs` green.
