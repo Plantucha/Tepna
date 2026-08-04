@@ -103,6 +103,12 @@ Ran with a zero constant offset over the 9.3 h night (scratch probe, not committ
 Indistinguishable from chance under the statistic that can fail — the legacy-says-yes / strict-says-no
 pattern `PAT-UNDER-PERBLOCK-ALIGNMENT` §3a built its null to expose.
 
+> ⚠️ **SUPERSEDED IN PART 2026-08-04 — this result inherits a rule now known to be biased.**
+> `PAT-UNDER-PERBLOCK-ALIGNMENT` §3c shows the largest-true-overlap pair rule is **anti-correlated**
+> with `matchRate`, so the run above scored the *least* favourable pair. It remains true that the ring
+> matches the Verity leg under the same rule (below) — the comparison is like-for-like — but the
+> **negative itself must not be quoted** until §3c.5's outcome-independent selection lands.
+
 **The control was already published and it exonerates the ring.** §3a's six **Verity** nights, run *with*
 the real ACC alignment, score strict **5–9 %**, **four of six below chance** (e.g. 0.93 at p = 0.83).
 The ring's numbers are statistically identical. **Nothing here is ring-specific.**

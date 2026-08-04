@@ -155,12 +155,80 @@ finding about the vasculature.
       group that pins the self-referential flaw rather than a corpus number.
 - [x] **A shipped defect in the coupler's denominator, found while building §3a** — fixed 2026-08-04
       in both copies, gate-backed through `PATGate.verdict` (§3b).
-- [ ] *(open)* **Reconcile this harness with §2** — legacy `matchRate` reads 24–42 % here against
-      90–96 % there, and its chance floor 18–23 % against 53–69 %, on the same six nights. Most likely
-      pair selection among the BLE-reconnect fragments. **This blocks the coupling verdict**, not the
-      method: §3a's floor result stands on its own. **§3b is not the explanation** — that defect
-      deflates `matchRate`, so correcting it moves §2 *up*, away from §3a.
+- [x] **Reconcile this harness with §2 — DONE 2026-08-04 (§3c).** It is **pair selection**, measured:
+      legacy `matchRate` spans **0-77 %** across candidate pairs *within a single night*, it is
+      inversely related to overlap length, and §3a selects on maximum overlap — so §3a sits near the
+      bottom of that range on all four nights checked and §2 (hand-loaded short fragments) near the top.
+      The port and the ACC alignment were both confirmed identical and explain nothing.
+      **§3c.3: this inverts §3a's coupling verdict** — on a better pair of the same night, strict reads
+      29-35 % against an unchanged 7 % floor (ratio 4.19 / 5.27) where §3a read 0.79-1.22.
+      **§3c.4: neither rule is principled**, so no coupling verdict may be quoted from §2 or §3a until
+      pair selection is made on outcome-independent signal quality (§3c.5).
 - [ ] *(open)* Whether PAT is worth pursuing at all on single-site optical, given that the obstacle is
       PTT variability rather than instrumentation. That is a scientific call, not an engineering one.
       §3a *weakens* the case further — under a definition that can fail, the coupling leg does fail —
       but the item above must close before that is used as an argument.
+
+---
+
+## 3c · RECONCILED 2026-08-04 — the gap is pair selection, and §3a's rule picks the WORST pair
+
+§3a's open item ("**until the 24–42 % vs 90–96 % gap is explained, the strict numbers are a method
+result, not a verdict on PAT**") is closed. Its own guess was right, and the consequence is larger than
+the guess: the selection rule is **anti-correlated with the statistic it feeds**.
+
+### 3c.1 · §3a reproduces exactly — so the port and the alignment are not the difference
+Re-running §3a's own code reproduces its table row-for-row on every night checked
+(2026-07-20 `365 m / 18 155 / 33 %`, 07-22 `266 m / 13 328 / 25 %`, 07-25 `153 m / 7 542 / 42 %`,
+07-26 `177 m / 12 919 / 33 %`). Both harnesses were also confirmed to share stage-one acceptance
+verbatim (`PHYS_LO=200`, `PHYS_HI=650`, `LAG_SEARCH_MS=2000`, identical break conditions) and the
+**same** `PATAlign.alignByAnchors` ACC alignment — `pat-feasibility-worker.js` contains no per-block
+beat-fitted refit, so §2's "the offset is refit locally" describes those ACC anchors, not a second
+mechanism. **Neither the port nor the alignment explains anything.**
+
+### 3c.2 · Pair choice alone spans the gap  `[CORPUS]`
+Legacy `matchRate`, every candidate pair of the 10 largest ECG × 10 largest Verity-PPG fragments:
+
+| night | §3a's pick (largest overlap) | range across pairs | best pair |
+|---|---|---|---|
+| 2026-07-20 | 33 % (365 m) | **20 – 77 %** | 77 % (30 m) |
+| 2026-07-22 | 25 % (266 m) | **0 – 74 %** | 74 % (45 m) |
+| 2026-07-25 | 42 % (153 m) | **13 – 72 %** | 72 % (16 m) |
+| 2026-07-26 | 33 % (177 m) | **0 – 72 %** | 72 % (20 m) |
+
+**`matchRate` is inversely related to overlap length**, and §3a selects on *maximum* overlap — so on
+all four nights it picks a pair near the bottom of the available range. §2, driven by hand in
+`PAT Feasibility.html` one file at a time, would have loaded a short well-matched fragment: the high
+end of exactly this distribution. **§3a's numbers are a lower bound and §2's an upper bound of one
+quantity**, which is why "the ratio agrees even where the levels do not".
+
+### 3c.3 · And it inverts §3a's coupling verdict  `[CORPUS]`
+Same night, same code, same surrogates — only the pair rule changes:
+
+| night | rule | beats | legacy | chance | **strict** | **chance** | **ratio** |
+|---|---|---|---|---|---|---|---|
+| 2026-07-20 | largest overlap | 18 155 | 33 % | 19 % | 8 % | 7 % | **1.22** |
+| 2026-07-20 | best legacy | 1 584 | 77 % | 26 % | **29 %** | 7 % | **4.19** |
+| 2026-07-26 | largest overlap | 12 919 | 33 % | 23 % | 7 % | 9 % | **0.79** |
+| 2026-07-26 | best legacy | 1 366 | 51 % | 26 % | **35 %** | 7 % | **5.27** |
+
+§3a concluded *"there is no R→foot coupling here beyond what a phase-randomised foot train
+produces."* On a better pair of the same night there plainly is — 29 % and 35 % against an unchanged
+**7 %** floor. **That conclusion was drawn on the least favourable pair available, every night.**
+
+### 3c.4 · What this does NOT license
+**Selecting a pair BY `matchRate` and then reporting `matchRate` is circular** — the same
+self-reference §3a diagnosed in stage two, moved up a level. 4.19 is an upper bound exactly as 1.22 is
+a lower bound, and neither p-value accounts for the selection. The best pairs are also **short**
+(16–45 min, 1.3–2.6 k beats against 12–18 k), so they are noisier and give leave-one-block-out only a
+handful of blocks.
+
+**The real finding is that `matchRate` is not well defined without a pair-selection rule, and neither
+existing rule is a principled one** — one is arbitrary (longest), one is circular (highest-scoring).
+
+### 3c.5 · What to do
+Select the pair on **signal quality computed independently of the PAT statistic** — continuous
+presence of both recordings across the window (no dropout), ECG SNR, PPG perfusion — then re-run both
+definitions on that pair and let the strict statistic answer with the selection no longer free. Until
+that lands, **no coupling verdict should be quoted from either §2 or §3a**, including §3a's negative
+and including `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` §5.4's, which inherits the same rule.
