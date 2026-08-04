@@ -168,7 +168,11 @@ audit PRs** (#29 holds `clock.js`, which is inlined into every bundle). Do not s
 
 ## 8 · Done when
 
-- [ ] **R2** — pairwise-ρ solve lands with a self-test; this triplet re-solved and σ(CPAP) recovers to a value consistent with a calibrated sensor.
+- [x] **R2** — **EXECUTED 2026-08-04, split verdict (§8a).** The pairwise-ρ solve lands in
+      `analysis-stats.js` with a known-answer self-test (6 planted triples, gated in both lanes) and a
+      first-class refusal path. **But σ(CPAP) does NOT recover to a credible value** — it collapses to
+      0.19 at the measured ρ = 0.42, and **ρ_crit ≈ 0.422**, so the triplet is degenerate within 0.5 %
+      of its own input. Not identifiable ⇒ R2 re-rated "med, kernel only"; **R1 absorbs its value.**
 - [x] **R3** — **DONE 2026-08-03.** Two parts, because the collision was not where R3 looked for it.
   *(a) The TCH path never had it.* `_tchHat` is called at exactly two sites — `integrator-dsp.js:2657`
   (`'rmssd'`) and `:3174` (`'hr'`). It is **never** called with `'resp'`, so no respiration triplet has
@@ -204,6 +208,56 @@ audit PRs** (#29 holds `clock.js`, which is inlined into every bundle). Do not s
       *"famOf would return other ⇒ the mechanism-collision flag goes blind"*.
 - [ ] Findings folded into `SIGMA-PAPER-REWRITE` — the paper currently reports reference-free σ with no statement that the estimator has never been validated against truth, and no bias term at all.
 - [ ] Follow-up brief spawned per §📌 with whatever R2 turns up.
+
+## 8a · R2 EXECUTED 2026-08-04 — the solve lands; the triplet does **not** re-solve credibly
+
+`AnalysisStats.tchSigmasPairwise` / `…FromVars` (`analysis-stats.js`) implement the per-pair model
+
+```
+Var(x_i − x_j) = σ²_i + σ²_j − 2·ρ_ij·σ_i·σ_j
+```
+
+Nonlinear, so there is no closed form like the classic half-sum; solved by Newton with an analytic
+Jacobian. **Refusal is a first-class outcome** — a (variance, ρ) combination can admit no consistent σ
+triple, and producing one anyway is the failure this generalisation objects to.
+
+**Self-test (the first half of the Done-when): PASSES.** Known-answer, not a property — plant σ and a
+per-pair ρ, build the three difference variances from the model exactly, require the planted σ back.
+Six triples recover to 1e-6, including all-pairs-correlated and mixed-sign ρ.
+
+**Re-solving this triplet (the second half): the premise is NOT confirmed.** Sweeping ρ(ECG,PPG) with
+ρ(CPAP,·) = 0, from the brief's own §4 variances:
+
+| ρ(ECG,PPG) | σ CPAP | σ ECG | σ PPG |
+|---|---|---|---|
+| 0.00 (classic) | 2.07 | 2.15 | 2.70 |
+| 0.20 | 1.68 | 2.47 | 2.96 |
+| 0.30 | 1.33 | 2.67 | 3.13 |
+| **0.42 (measured)** | **0.19** | 2.98 | 3.40 |
+| 0.50 | *no solution* | — | — |
+
+σ(CPAP) moves in the predicted direction — down, and the common-mode path's 2.71 was indeed the wrong
+direction for a corner outside the correlated pair. **But it does not land on a credible value; it
+collapses.** And the reason is structural:
+
+> **ρ_crit ≈ 0.422 — the measured ρ = 0.42 sits within 0.5 % of the correlation at which σ(CPAP) hits
+> zero and past which the model has no solution at all.**
+
+So the estimate is not identifiable here: σ(CPAP) is 1.33 at ρ = 0.30, 0.19 at 0.42, and undefined at
+0.43. A quantity whose value swings an order of magnitude across the confidence interval of its own
+input is not a measurement. **R2's second clause — "σ(CPAP) recovers to a value consistent with a
+calibrated sensor" — is therefore answered NO on this triplet**, not because the solve is wrong but
+because this triplet is degenerate at its measured ρ.
+
+What that means for §7's ordering: R2 was rated "high" on the assumption it would rescue the triplet.
+It does not. **R1 (keep a measured reference in the corpus) absorbs R2's value entirely** — with a
+reference you do not need to infer σ(CPAP) from a degenerate three-corner system at all. R2 is still
+worth having as a kernel (it is the honest model, it self-tests, and it refuses), but it should be
+re-rated from "high" to "med, kernel only".
+
+**Not wired into the Integrator.** `integrator-tch.js`'s common-mode path is untouched: given the above,
+switching the shipped estimator to a model that returns *no solution* just past the measured ρ needs its
+own decision, and `integrator-dsp.js` re-bundles two orchestrator bundles. Kernel + gate first.
 
 ## 9 · Reproducing
 
