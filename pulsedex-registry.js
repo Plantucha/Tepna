@@ -115,7 +115,21 @@
      PulseDex computes true RR-interval HRV — the validated rMSSD/SDNN bench is
      the honest hero. VO₂ retained at research depth. */
     vo2: { label: 'VO₂max Est', unit: 'ml/kg/min', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'HRV→VO₂max estimate — population proxy, not CPET' },
-    vo2base: { label: 'VO₂ base', unit: 'ml/kg/min', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Uth–Sørensen HR-ratio VO₂ estimate — proxy' }
+    vo2base: { label: 'VO₂ base', unit: 'ml/kg/min', goodDirection: 'up', depth: 'research', evidence: 'heuristic', cite: 'Uth–Sørensen HR-ratio VO₂ estimate — proxy' },
+    /* Reclassified 2026-08-04 (owner decision, AUDIT-FOLLOWUPS §5.3). This was a `_META_DENY` key —
+       grouped with `date`/`source`/`duration` as recording context because the user types it in. But
+       entered-ness is not a tier; PROVENANCE is. It is a real laboratory VO₂max, and the only directly
+       measured value in this table: the two estimates beside it (`vo2`, `vo2base`) are `heuristic`
+       population proxies, and this is the CPET number they are proxies FOR. `measured` is the honest
+       tier precisely because PulseDex does not compute it. */
+    vo2gt: {
+      label: 'VO₂ GT',
+      unit: 'ml/kg/min',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'measured',
+      cite: 'Laboratory ground-truth VO₂max (CPET or equivalent), entered by the user — a direct measurement, not derived by PulseDex'
+    }
   };
 
   /* ── Alias map: UI label (as rendered) → registry id ───────────────────── */
@@ -210,7 +224,9 @@
     'vo₂ adj': 'vo2',
     'vo2 adj': 'vo2',
     'vo₂ base': 'vo2base',
-    'vo2 base': 'vo2base'
+    'vo2 base': 'vo2base',
+    'vo₂ gt': 'vo2gt',
+    'vo2 gt': 'vo2gt'
   };
 
   function _norm(s) {
@@ -239,8 +255,10 @@
     duration: 1,
     mode: 0,
     'active flags': 1,
-    'vo₂ gt': 1,
-    'vo2 gt': 1,
+    /* 'vo₂ gt' / 'vo2 gt' were REMOVED here 2026-08-04 — they are now a real PULSE_REGISTRY entry
+       (`vo2gt`, evidence `measured`). Do not re-add: a laboratory VO₂max is a measurement the user
+       supplies, not recording context, and denying it left the one directly-measured number in the
+       table as the only unbadged one. See the note on `vo2gt` above. */
     '— advanced / research —': 1
   };
   /* note: 'mode' is a real metric (modeRR) so it is NOT denied (set 0 above is ignored). */

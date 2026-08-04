@@ -13,12 +13,14 @@
 > - **§5.1 · §5.2** — data-gated (no PSG dataset / no Kubios-NeuroKit2 tooling committed). Not startable.
 > - **§5.4 · §5.5 · §5.6** — cosmetic / curation calls.
 > - ~~🔴 One NEW finding from §5.3's scan: `VO₂ GT` surfaces with no evidence badge.~~
->   ✅ **RETRACTED 2026-08-04 — this was a FALSE POSITIVE; nothing is owed.** `VO₂ GT` is an explicit key
->   of **`_META_DENY`** (`pulsedex-registry.js:242`) — *"never badge even with fallback"* — alongside
->   `date`/`source`/`duration`, and the path is gate-pinned at `tests/dex-tests.js:5608`. It is a
->   user-entered laboratory reference value, i.e. an input, not a node-surfaced measurement. The probe
->   was correct; the **interpretation** was not — an empty return was read as a missing badge without
->   checking whether empty was intended. See §5.3 for the full retraction and the tell that was missed.
+>   **Retracted as a false positive, then RECLASSIFIED by owner decision — both on 2026-08-04. Net: the
+>   badge exists, but not for the reason first claimed.** The finding was wrong: `VO₂ GT` was an explicit
+>   `_META_DENY` key — *"never badge even with fallback"* — so the empty return was **intended**, not a
+>   silent gap, and calling it a bug was a misreading (the probe was right; the interpretation was not).
+>   The owner then judged the *classification itself* wrong and reclassified: entered-ness is not a tier,
+>   provenance is, and a laboratory VO₂max is the one **directly measured** number in that table. It now
+>   carries `evidence: 'measured'` via a real `PULSE_REGISTRY` entry. See §5.3 for both halves — the tell
+>   that was missed, and what shipped.
 
 > **⚠️ Correction — §1 is SHIPPED, and this header previously said it was not.**
 > An earlier 2026-08-03 pass stamped §1 *"NOT BUILT: zero matches in `integrator-app.js` or
@@ -287,10 +289,28 @@ With the BP leak closed, the review's top item is done. Remaining (in their orde
    > the deny list. **Executing the call is not the same as understanding the answer** — when a scan's
    > result matches a list the code already maintains, check for that list before reporting a bug.
 
-   If the owner ever wants `VO₂ GT` badged as `measured` (defensible — it *is* a real lab measurement,
-   unlike a date), that is a deliberate re-classification: remove both `'vo₂ gt'`/`'vo2 gt'` keys from
-   `_META_DENY` **and** add a `PULSE_REGISTRY` entry. Not a bug fix, and it would need a PulseDex
-   re-bundle + provenance pass. Current state is correct as it stands.
+   ✅ **RECLASSIFIED 2026-08-04 — the owner took exactly that option, so the deny-list state above is now
+   HISTORY.** This is a deliberate re-classification, not the bug fix the retracted finding asked for, and
+   the distinction is the point: nothing was broken, the tier was simply wrong.
+
+   **The argument that carried it:** entered-ness is not a tier — *provenance* is. `VO₂ GT` is a real
+   laboratory VO₂max and the only **directly measured** value in this table; the two estimates beside it
+   (`vo2`, `vo2base`) are `heuristic` population proxies, and this is the CPET number they are proxies
+   **for**. Denying it left the single most-evidenced number in the table as the only unbadged one, sitting
+   next to two badged guesses at it. `measured` is honest precisely *because* PulseDex does not compute it.
+
+   **What shipped:** both `'vo₂ gt'`/`'vo2 gt'` keys removed from `_META_DENY` (with a do-not-re-add note),
+   a `vo2gt` entry added to `PULSE_REGISTRY` (`evidence: 'measured'`, `depth: 'research'`, cited), and the
+   two label aliases. Verified by execution, not reading — the same 68-row scan now reports **64 badged, 4
+   unbadged**, and the 4 are `DateTime` · `Recording` · `Duration` · the section separator, i.e. genuine
+   metadata only. `VO₂ GT` resolves `id=vo2gt`, tier `measured`.
+
+   **Gates:** PulseDex re-bundled (`manifestHash 954546478f4d → b194b9db26fb`). `computeHash` **also** moved
+   (`bb8ff7dd1faf → 6ecbd5da2dc2`) — the registry sits inside the compute closure — so re-verification was
+   **owed and performed**, not asserted: `DEX_UPLOADS=… node tools/verify-fixtures.mjs` re-ran the real
+   corpus green and re-stamped the two corpus-backed fixtures' `verifiedUnder`. The suite passing is what
+   proves the export bytes did **not** move; only the closure hash did. Full `npm run check` green — 5,650
+   assertions / 373 groups, GATE A 9/9, GATE B 29 reproducible / 0 drift, `docs/` + analysis current.
 
    ⚠️ Also note this item's line reference was stale: the VO₂ rows are at `:258`–`:260`, not `~L194–195`.
 4. **Rename the wellness-coded composites** (Coherence/Welfare/Energy) to neutral autonomic terms, or
