@@ -51,8 +51,22 @@
 > is the proof of mechanism and the tested fix. Root fix is spine work (`ans-design.css` is inlined into
 > every bundle) so it must be **scheduled**, not slipped in — hence its own brief.
 >
-> **Still open, deliberately not this brief's work:** **§4.2** (evidence-badge coverage audit of the six
-> non-Integrator apps — a real §🎫 mandate gap, carried into the new brief's §5) · **§4.3/§4.4** and **§5**
+> **⛔ §4.2 — RESOLVED, and it was already resolved when this brief was written.** It says the badge
+> coverage mandate "was only made compliant in the Integrator" and the six-node sweep remains. Both
+> halves are false: `BADGE-COVERAGE-AUDIT-BRIEF.md` — *"Evidence-Badge Coverage & Correctness Audit
+> (every element, every Dex)"*, findings in `audits/BADGE-COVERAGE-AUDIT-FINDINGS.md` — landed
+> **DONE 2026-06-23**, one day after this brief was written, and every node now badges through the
+> mandated registry-resolved indirection (`evBadge(` → `<Node>Registry.badgeForLabel` →
+> `MetricRegistry.badge`): ECGDex 22 sites, OxyDex 31, PpgDex 32, GlucoDex 26, PulseDex 22, CPAPDex 20,
+> HRVDex 8, MotionDex 4. A 2026-08-04 re-run of the sweep
+> (`BADGE-COVERAGE-AUDIT-2026-08-04-BRIEF.md`) took this line at face value, counted the raw
+> `.badge(` engine call instead of the indirection, and "confirmed" it. **The stale prose and the
+> broken instrument agreed, which is what made the false finding survive.** That re-run is kept only
+> for the genuine defect it turned up on the way — `MetricRegistry.entry()` fabricating
+> `evidence:'experimental'` for unknown ids, which had CPAPDex showing ECGDex's `validated` rMSSD as
+> `experimental`.
+>
+> **Still open, deliberately not this brief's work:** **§4.3/§4.4** and **§5**
 > (owner-pick lists, each explicitly "its own package") · **§8** (deferred by design).
 
 # Brief — Audit follow-ups from the 6-brief execution review (2026-06-22)
