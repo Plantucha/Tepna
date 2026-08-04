@@ -10,7 +10,11 @@
 Residue from building `O2RING-FRAME-SAMPLE-LOCK` §4(a) (executed 2026-08-03, recorded in that brief's
 §7). Each item is a question the execution raised and could not close, with the reason.
 
-## 1 · Confirm §7.2 forward, from `ppg_n` rather than by reconstruction
+## 1 · Confirm §7.2 forward, from `ppg_n` rather than by reconstruction — BLOCKED ON A DEPLOY
+
+> **Checked 2026-08-04: not yet possible.** No capture carries the `ppg_n` column — the most recent
+> `OXYFRAME` (2026-08-03 21:22) still has the 10-column header, so the box has not been redeployed since
+> the counter shipped. This item needs a deploy and then one night; it needs no code and no analysis.
 
 The per-frame sample counts in §7.2 were recovered **indirectly** — by matching `OXYFRAME` arrival
 stamps against the `PPG` phone-timestamp column, exploiting that each frame's last sample is stamped at
@@ -31,12 +35,26 @@ turn §7.2 from an explanation into a measurement.
 
 Until then, treat `step_imbalance` as descriptive.
 
-## 3 · Retire `counted_loss`, or give it a measured nominal
+## 3 · RESOLVED 2026-08-04 — `counted_loss` is RETIRED, because neither option works
 
-It is the only counter of the three carrying a constant, it also rides `device_seconds`, and it reports
-a **surplus** on clean nights (−5 120 on the reference night, §7.1). It ships signed and documented, but
-"documented as unreliable" is a weaker resting place than either removing it or replacing 126 with a
-per-session measured mean. Decide which.
+Decided, and the decision is closed rather than preferred: **the counter cannot be made informative
+under any nominal.**
+
+- With a **fitted** nominal — the per-second rate estimated from the session itself — `expected`
+  converges on `declared` and the residual is identically ~0. That is a statistic whose reference comes
+  from the data it is testing, the exact defect this brief family keeps finding (`matchRate`'s stage
+  two; `strictMatchRate.residIQR`).
+- With a **fixed** nominal the constant's error is the same order as any loss it could detect: 126
+  against a measured **126.04** per device-second with a **125.6–126.5** per-session spread. On the
+  reference night it read **−5 120 samples** — a *surplus*.
+
+There is no third option, so it was removed rather than documented, along with `expected`, the
+`nominal` parameter and the `ppg_expected` sidecar column. **Removed before any capture was written in
+that format** — the box had not been redeployed since the counter shipped, so the column cost nothing
+to take back. `truncated` and the step counters need no constant and stay.
+
+The 126-per-device-second figure remains in `oxyii.PPG_FRAME_SAMPLES` as documented protocol knowledge;
+it is simply no longer used to compute anything.
 
 ## 4 · The status frame's PHASE relative to its 126 samples — the same unknown as §5.3's δ
 
@@ -144,7 +162,8 @@ the lock and the counter quantization.
       2026-08-03 and still writes the old 10-column header, and 2026-08-04 has Verity files only — no
       O2Ring at all. §1 costs "a night and no code" and **the night has not happened**. It needs one
       recorded with the ring connected on current capture-host; nothing in the repo unblocks it.
-- [ ] §3 decided (retired, or given a measured nominal).
+- [x] **§3 decided 2026-08-04 — RETIRED.** Neither a fitted nor a fixed nominal can make it
+      informative; the first is self-referential, the second carries bias the size of the signal.
 - [x] **§5 SCOPED 2026-08-04** — corpus adequate (38.1 h / 16 pairs), ring timing adequate (IQR 8.0 ms,
       7.5× inside the PAT bound), route identified (constant-δ + LOBO), coupling run **negative** and the
       published Verity control shows it is **not ring-specific**. The blocker is `PAT-UNDER-PERBLOCK-

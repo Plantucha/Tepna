@@ -29,8 +29,6 @@ counter) rather than what they resemble. `test_a_duration_step_of_two_is_not_a_m
 assertion that stops this being re-read as loss — which has now happened twice, `frame_gap()` being
 the first.
 """
-import pytest
-
 import capture
 import oxyii
 
@@ -86,12 +84,12 @@ def test_frame_samples_nominal_is_per_device_second_and_is_not_the_sample_rate()
 
 
 # ── The ledger ──────────────────────────────────────────────────────────────────────────────────────
-def _run(steps, nominal=oxyii.PPG_FRAME_SAMPLES):
+def _run(steps):
     """Drive THE REAL ledger over a (duration, declared, delivered) sequence.
 
     Frames are given as absolute session seconds on purpose — that is what the device sends, and a
     harness that re-derived them from a step list would be testing its own arithmetic."""
-    led = capture.O2PpgFrameLedger(nominal=nominal)
+    led = capture.O2PpgFrameLedger()
     rows = [led.frame(*s) for s in steps]
     return led, rows
 
@@ -100,10 +98,8 @@ def test_a_clean_run_counts_no_loss_at_all():
     led, rows = _run([(100, 126, 126), (101, 126, 126), (102, 126, 126)])
     assert (led.frames, led.device_seconds, led.steps_ahead) == (3, 2, 0)
     assert led.truncated == 0
-    assert led.counted_loss == 0, "126/s declared against 126/s expected must net exactly zero"
     assert rows[0]["step"] is None, "the first frame closes no step"
     assert [r["step"] for r in rows[1:]] == [1, 1], "the RAW counter step — an ordinary tick is 1"
-    assert [r["expected"] for r in rows[1:]] == [126, 126]
 
 
 def test_the_first_frames_connect_backlog_is_excluded_from_the_span():
@@ -111,10 +107,8 @@ def test_the_first_frames_connect_backlog_is_excluded_from_the_span():
     observed on the real probe. No elapsed device-second accounts for it, so counting it would make
     every short session read as a sample SURPLUS."""
     led, _ = _run([(100, 250, 250), (101, 126, 126)])
-    assert led.declared == 376, "the honest total still includes it"
-    assert led.span_declared == 126, "the ARITHMETIC window does not"
-    assert led.device_seconds == 1
-    assert led.counted_loss == 0
+    assert led.declared == 376, "the connect backlog is still in the honest total"
+    assert led.device_seconds == 1, "...but it closes no step, so it buys no device-seconds"
 
 
 def test_a_duration_step_of_two_is_not_a_missing_frame():
@@ -122,16 +116,16 @@ def test_a_duration_step_of_two_is_not_a_missing_frame():
     it — 127 samples, not the ~252 a recovered backlog would carry — so the ledger must count it as a
     counter step and NOT convert it into lost samples.
 
-    The `counted_loss == 0` here is the whole point: it is what makes a counter that reported "one frame
-    dropped, ~126 samples lost" fail. On the reference night that misreading would have claimed ~20 000
-    lost samples against the 397 the grid actually found."""
+    The delivered-sample assertion is the point: the samples are all there across the step, so a counter
+    that reported "one frame dropped, ~126 samples lost" would be wrong by ~126 every time. On the
+    reference night that misreading would have claimed ~20 000 lost samples against the 397 the grid
+    actually found."""
     led, rows = _run([(100, 126, 126), (102, 253, 253), (103, 126, 126)])
     assert led.steps_ahead == 1, "the step is recorded..."
     assert led.steps_anomalous == 0
     assert led.device_seconds == 3
     assert rows[1]["step"] == 2, "the RAW step goes in the row, not a derived frames-missing"
-    assert rows[1]["expected"] == 252
-    assert led.counted_loss == -1, "...and it cost no samples: one extra tick, one extra sample"
+    assert led.delivered == 505, "...and the samples are all present: 126 + 253 + 126"
 
 
 def test_the_step_imbalance_is_the_only_link_reading_the_steps_support():
@@ -151,7 +145,6 @@ def test_an_anomalous_step_is_counted_apart_from_ordinary_quantization():
     assert led.steps_ahead == 4
     assert led.steps_anomalous == 1, "one anomalous STEP — not one per second it spanned"
     assert rows[1]["step"] == 5
-    assert led.counted_loss == 378
 
 
 def test_a_flat_step_advances_no_device_time_and_owes_nothing():
@@ -163,8 +156,7 @@ def test_a_flat_step_advances_no_device_time_and_owes_nothing():
     assert led.device_seconds == 1
     # NOT -1. An earlier draft returned `step - 1` here — a negative count, written into the sidecar on
     # every one of a night's 180 flat steps. The bug this assertion caught.
-    assert rows[1]["step"] == 0 and rows[1]["expected"] == 0, "a zero-second step owes nothing"
-    assert led.counted_loss == 0, "the split second's samples still total one second's worth"
+    assert rows[1]["step"] == 0, "a zero-second step is recorded as 0, not as -1"
 
 
 def test_a_session_restart_breaks_the_span_instead_of_fabricating_one():
@@ -175,7 +167,7 @@ def test_a_session_restart_breaks_the_span_instead_of_fabricating_one():
     assert led.restarts == 1
     assert led.steps_ahead == 0, "a restart is not a 900-second counter jump"
     assert led.device_seconds == 2, "one step before the restart, one after — not the 900 between"
-    assert rows[2]["step"] is None and rows[2]["expected"] is None
+    assert rows[2]["step"] is None
     assert rows[2]["n"] == 126, "the declared count is still a fact across a restart"
 
 
@@ -189,29 +181,13 @@ def test_truncation_is_counted_and_is_independent_of_the_duration_steps():
     assert led.declared == 378 and led.delivered == 312
 
 
-def test_counted_loss_is_signed_and_goes_negative_on_a_clean_night():
-    """Real delivery is 126.04 per device-second against a nominal 126, so the subtraction lands
-    NEGATIVE on a clean run (~-7 800 reconstructed on 2026-08-01). Pinned as a PROPERTY, not tolerated
-    as a quirk: clamping it at zero would hide exactly the bias that makes `truncated` — which uses no
-    constant at all — the one to trust."""
-    led, _ = _run([(100, 126, 126)] + [(100 + i, 127, 127) for i in range(1, 11)])
-    assert led.counted_loss < 0
-    assert led.counted_loss == 126 * 10 - 127 * 10
-
-
-def test_expected_tracks_device_seconds_at_the_configured_nominal():
-    led, _ = _run([(100, 100, 100), (101, 100, 100), (103, 100, 100)], nominal=100)
-    assert led.nominal == 100
-    assert led.device_seconds == 3
-    assert led.expected == 300
-    assert led.counted_loss == 100, "one frame's worth was owed and never declared"
 
 
 def test_an_empty_ledger_reports_nothing_rather_than_a_clean_bill():
     """A session that decoded no frame must not read as zero loss over zero seconds and be logged as
     healthy — the capture path gates its report on `device_seconds` for this reason."""
     led = capture.O2PpgFrameLedger()
-    assert (led.frames, led.device_seconds, led.expected, led.counted_loss) == (0, 0, 0, 0)
+    assert (led.frames, led.device_seconds, led.declared, led.truncated) == (0, 0, 0, 0)
 
 
 # ── The report ──────────────────────────────────────────────────────────────────────────────────────
@@ -224,8 +200,3 @@ def test_an_empty_ledger_reports_nothing_rather_than_a_clean_bill():
 # moves and the report never executes) and asserts the real wording, "quantization — not lost frames".
 
 
-@pytest.mark.parametrize("nominal", [126, 125, 130])
-def test_the_nominal_is_a_parameter_not_a_hardcode(nominal):
-    """Another unit will not deliver 126/s — the constant is validated on ONE ring (S8-AW 2100)."""
-    led, _ = _run([(0, nominal, nominal), (1, nominal, nominal)], nominal=nominal)
-    assert led.counted_loss == 0
