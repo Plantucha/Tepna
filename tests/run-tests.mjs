@@ -1146,7 +1146,19 @@ async function main() {
     }
   });
 
+  /* PAT-UNDER-PERBLOCK-ALIGNMENT §4 — the strict-matchRate statistics. NODE-ONLY (an .mjs
+     orchestrator, not a bundled module), so the browser lane skips the group. The tool guards its
+     CLI behind an entry-point check precisely so this import stays INERT — importing a tool that
+     executes at module scope would start a full corpus run inside the test process. */
+  let PatStrict = null;
+  try {
+    PatStrict = await import(new URL('../tools/pat-matchrate-strict.mjs', import.meta.url).href);
+  } catch (e) {
+    console.error(paint('  ! pat-matchrate-strict failed to load: ' + e.message, C.yellow));
+  }
+
   const env = {
+    PatStrict: PatStrict,
     DexKernel: ctx.DexKernel,
     MetricRegistry: ctx.MetricRegistry,
     DexProfile: ctx.DexProfile,

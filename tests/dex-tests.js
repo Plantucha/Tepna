@@ -24928,6 +24928,91 @@
       }
     });
 
+    /* ════ PAT matchRate — the shipped statistic vs a statistic that can FAIL ═══════════════════
+       PAT-UNDER-PERBLOCK-ALIGNMENT §4 left open: "a stricter matchRate whose chance floor is not
+       60 %. Until then the coupling leg is not evidence either way."
+
+       This group asserts no corpus number. It asserts the PROPERTY that motivates the new statistic,
+       on synthetic input, so the claim survives without the gitignored corpus:
+
+         · fed a foot train with NO relationship to the R-peaks, the SHIPPED definition still returns
+           a high matchRate — because its second stage compares each lag to a median computed FROM
+           those same lags. A test whose reference is derived from the data it is testing cannot
+           fail, and this pins the fact that it does not.
+         · the STRICT definition, whose acceptance centre for each block is the median of the OTHER
+           blocks, collapses on the same input.
+
+       If someone later "fixes" the strict statistic into another self-referential one, assertion two
+       fails. Pinning the flaw as a test is the point.
+
+       NODE-ONLY: the tool is an .mjs orchestrator, so the browser lane has no PatStrict and skips. */
+    group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {
+      var PS = env.PatStrict;
+      if (!PS || !PS.strictMatchRate) {
+        T.skip('PatStrict not in env (browser lane — .mjs tool)');
+        return;
+      }
+      /* 40 min at exactly 1000 ms RR, against a foot train at 1013 ms — the trains slide against
+         each other so NO fixed lag exists. This is the null the coupling leg is meant to reject. */
+      var R = [],
+        F = [],
+        T0 = Date.UTC(2026, 6, 20, 23, 0, 0);
+      for (var i = 0; i < 2400; i++) R.push(T0 + i * 1000);
+      for (var k = 0; k < 2400; k++) F.push(T0 + 300 + k * 1013);
+      var noiseLags = PS.rawLags(R, F);
+      var legacyOnNoise = PS.legacyMatchRate(noiseLags, R.length).matchRate;
+      var strictOnNoise = PS.strictMatchRate(noiseLags, R.length).matchRate;
+      /* Measured, not predicted. The first draft of this group asserted legacy ≥ 0.35 on the null,
+         reasoning that a 450 ms window over a ~1000 ms beat must pass ~45 %. It scores 0.172 — the
+         second stage removes more than expected because a sliding lag leaves the ±90 ms band as it
+         sweeps. The assertion below is the property that IS true and IS the reason for the change:
+         the strict floor is less than half the legacy floor on identical uncoupled input. */
+      T.ok('strict definition collapses on uncoupled input (<0.12)', strictOnNoise < 0.12, 'strict on noise = ' + strictOnNoise.toFixed(3));
+      T.ok('strict chance floor is less than HALF the legacy floor on identical input', strictOnNoise < legacyOnNoise / 2, 'strict ' + strictOnNoise.toFixed(3) + ' vs legacy ' + legacyOnNoise.toFixed(3));
+
+      /* Genuinely coupled: each foot a fixed 420 ms after its R with ±9 ms jitter, inside the strict
+         ±40 ms window. Both must score high, or the strict statistic is merely broken. */
+      var Fc = [];
+      for (var c = 0; c < 2400; c++) Fc.push(T0 + c * 1000 + 420 + ((c % 7) - 3) * 3);
+      var goodLags = PS.rawLags(R, Fc);
+      T.ok('coupled input: shipped definition scores high', PS.legacyMatchRate(goodLags, R.length).matchRate > 0.9);
+      T.ok('coupled input: strict definition ALSO scores high (stricter, not broken)', PS.strictMatchRate(goodLags, R.length).matchRate > 0.9);
+
+      // stage one is shared, so any difference between the definitions is entirely the acceptance rule
+      T.ok(
+        'rawLags accepts only PHYSIOLOGICAL lags',
+        goodLags.every(function (e) {
+          return e.lag >= PS.PHYS_LO && e.lag <= PS.PHYS_HI;
+        })
+      );
+      T.ok('rawLags emits at most one pairing per R-peak', goodLags.length <= R.length);
+
+      /* The surrogate must be a genuine rotation. One that silently dropped feet would lower the
+         measured chance floor and flatter the observation it is supposed to be a null for. */
+      var span = F[F.length - 1] - F[0];
+      var sh = PS.circShift(Float64Array.from(F), span, 0.37);
+      T.eq('circShift preserves the foot count', sh.length, F.length);
+      T.ok('circShift keeps every foot inside the original span', sh[0] >= F[0] - 1 && sh[sh.length - 1] <= F[0] + span + 1);
+      T.ok(
+        'circShift output is sorted (rawLags assumes a monotonic train)',
+        sh.every(function (v, ix) {
+          return ix === 0 || v >= sh[ix - 1];
+        })
+      );
+      /* NOT `sh[0] !== F[0]`: the output is sorted, so whichever foot wrapped past the end lands
+         back at the start and the first element barely moves. A rotation is visible in the SET, not
+         at the endpoints — so compare elementwise. */
+      /* And the displacement is bounded by ONE foot-interval, not by the shift: rotating a regular
+         train and re-sorting moves every element by `shift mod interval`. That is not a defect — it
+         is what makes this a PHASE randomiser, which is the correct null here. The R↔foot phase is
+         destroyed while the train's own rate and regularity are untouched. A first draft of this
+         assertion used a 1000 ms threshold against a 1013 ms interval and read 0/2400 "moved". */
+      var moved = 0;
+      for (var mi = 0; mi < sh.length; mi++) if (Math.abs(sh[mi] - F[mi]) > 50) moved++;
+      T.ok('circShift rotates the phase of the train', moved > sh.length * 0.9, moved + '/' + sh.length + ' moved >50 ms');
+      T.ok('a full-span shift would be a no-op — the caller must never pass frac 0 or 1', PS.circShift(Float64Array.from(F), span, 0.0)[0] === F[0]);
+    });
+
     group('NSRR PSG ingest adapter — known-answer (TEST-COVERAGE-FOLLOWUPS §2)', 'nsrr-adapter · ingest · known-answer', function (T) {
       var N = env.NSRR;
       T.ok('NSRR adapter is wired into env (both lanes)', !!(N && N.findSignal && N.edfToOxyRows && N.severityOf), 'window.NSRR missing or incomplete');
