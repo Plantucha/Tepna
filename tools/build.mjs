@@ -184,10 +184,12 @@ function check() {
 function main() {
   const argv = process.argv.slice(2);
   const has = (f) => argv.includes(f);
-  const appArg = (() => {
-    const i = argv.findIndex((a) => a === '--app');
-    return i >= 0 ? argv[i + 1] : null;
-  })();
+  /* REGEN-CORPUS-PATH-FOLLOWUPS-II §2 — REPEATED --app used to be silently DROPPED. This was
+     `argv.findIndex(a => a === '--app')`, so `--app Integrator --app OverDex --app "Data Unifier"`
+     built Integrator, printed one success line and exited 0. Hit for real landing PR #808: OverDex
+     drifted and only `--check` caught it. An unknown flag is an error and a rejected flag is honest;
+     a RECOGNISED flag silently ignored is worse than either, because the run looks complete. */
+  const appArgs = argv.reduce((acc, a, i) => (a === '--app' && argv[i + 1] ? acc.concat(argv[i + 1]) : acc), []);
 
   if (has('--check')) {
     process.exit(check() ? 1 : 0);
@@ -204,16 +206,22 @@ function main() {
     process.exit(0);
   }
 
-  if (appArg) {
-    const bundleFile = /\.html$/.test(appArg) ? appArg : appArg + '.html';
-    if (!ALL.includes(bundleFile)) return die(2, appArg + ' is not a known bundle (' + ALL.join(', ') + ')');
-    console.log(paint('\u25b8 build --app ' + bundleFile, C.bold));
-    writeBundle(bundleFile);
-    console.log(paint('\u2713 done. Run `node tests/verify-manifest.mjs` + Dex-Test-Suite.html?full to gate.', C.green));
+  if (appArgs.length) {
+    // Validate EVERY name before building ANY — a typo in the third --app must not leave the first
+    // two rebuilt and the tree half-migrated.
+    const bundleFiles = appArgs.map((a) => (/\.html$/.test(a) ? a : a + '.html'));
+    for (let i = 0; i < bundleFiles.length; i++) {
+      if (!ALL.includes(bundleFiles[i])) return die(2, appArgs[i] + ' is not a known bundle (' + ALL.join(', ') + ')');
+    }
+    for (const bundleFile of bundleFiles) {
+      console.log(paint('\u25b8 build --app ' + bundleFile, C.bold));
+      writeBundle(bundleFile);
+    }
+    console.log(paint('\u2713 done (' + bundleFiles.length + ' bundle(s)). Run `node tests/verify-manifest.mjs` + Dex-Test-Suite.html?full to gate.', C.green));
     process.exit(0);
   }
 
-  console.log('usage: node tools/build.mjs [--check | --all | --app <Name>]');
+  console.log('usage: node tools/build.mjs [--check | --all | --app <Name> [--app <Name> ...]]');
   process.exit(2);
 }
 

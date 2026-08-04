@@ -1,3 +1,5 @@
+// Copyright 2026 Michal Planicka
+// SPDX-License-Identifier: Apache-2.0
 // Batch real-data validation of the O2Ring finger-site round-trip (PPGDEX-O2RING-FINGER-SITE §6).
 // Discovers every capture session with an O2Ring PPG + a paired H10 ECG + the ring's SPO2, matches
 // each substantial PPG segment to the best-overlapping ECG, and runs the three-way HR comparison.

@@ -1,3 +1,5 @@
+// Copyright 2026 Michal Planicka
+// SPDX-License-Identifier: Apache-2.0
 // PPGDEX-O2RING-FINGER-SITE §6 — the round-trip acceptance, on a REAL capture.
 // The finger O2Ring PPI-HR must match (a) the ring's own 1 Hz HR field and (b) the paired H10 ECG HR
 // within a couple bpm, with feet/peaks detected. Run against a real capture session on disk.

@@ -1,4 +1,6 @@
 // @ds-adherence-ignore -- omelette starter scaffold (raw elements/hex/px by design)
+// Copyright 2026 Michal Planicka
+// SPDX-License-Identifier: Apache-2.0
 /* BEGIN USAGE */
 /**
  * <image-slot> — user-fillable image placeholder.
