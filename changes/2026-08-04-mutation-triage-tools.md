@@ -1,7 +1,7 @@
 ---
 bump: minor
 type: added
-brief: TEST-COVERAGE-FOLLOWUPS
+brief: TEST-COVERAGE-FOLLOWUPS-II-2026-07-17-BRIEF.md
 ---
 
 `tools/mutate-triage.mjs` — the triage half of mutation testing, matching what the Python side has had
