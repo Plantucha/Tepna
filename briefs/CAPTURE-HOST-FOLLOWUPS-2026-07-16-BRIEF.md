@@ -4,11 +4,41 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-16 (**§1 fs-fix VERIFIED on real bytes 2026-07-22:** a real
+**Status:** DONE — 2026-08-04 · **Created:** 2026-07-16 (**§1 fs-fix VERIFIED on real bytes 2026-07-22:** a real
 44 MB / 724,160-sample H10 ECG capture round-trips through the served suite to a valid ECGDex
 `ganglior.node-export` at **fs 129.99 Hz** — the exact failure this brief's §1 fixed no longer occurs on
 real data. Full `capture-host/` test suite + the ECG parity harness green. §3-open/§4.2 items remain
 hardware-gated (overnight round-trip, PPG averaged-pulse cosmetics). See CAPTURE-HOST parent §11 note.)
+
+> ## Closed 2026-08-04 on the Done-when's own terms
+>
+> §5 says this flips DONE *"when items §3-still-open + §4 are either executed or **re-homed** into
+> `CAPTURE-HOST`/their own briefs."* Both halves are now satisfied — and the re-homing clause is what
+> does it, not a claim that everything got built.
+>
+> **§3's "Still open" list is resolved by the parent, which went DONE the same day.**
+> `CAPTURE-HOST-2026-06-29` §11's gating condition — *"a real overnight file from each live device
+> round-trips through the served suite"* — was verified as-built against the running appliance over SSH.
+> The two blockers listed here map straight onto it:
+> - *"No real overnight round-trip yet"* → **met**; that was §11's DONE condition.
+> - *"On a real Pi"* → **superseded, not skipped.** The appliance that exists is an **x86_64 mini-PC**
+>   (Intel i5-6500T), and the parent records the divergence explicitly under *"As-built ≠ as-specified"*
+>   rather than quietly dropping it. A Pi-specific bring-up blocker cannot gate a box that is not a Pi.
+> - *"No `how-to-collect/` notes"* → already struck through here as DONE.
+>
+> **§4, item by item:** 1 (writer flush) DONE · 3 (O2Ring scan-by-name) DONE · 5 (config drift) and 6
+> (`aiohttp` dependency) are informational notes, not work · 4 (ACC delta path unexercised) was already
+> **re-homed** to `CAPTURE-HOST-FOLLOWUPS-II` as **V2**, and stays hardware-gated there · 2 (sharpen the
+> PPG averaged-pulse) is **re-homed 2026-08-04 to FOLLOWUPS-II §4 as D5**.
+>
+> That last one was the only item with nowhere to live. Its state was re-verified in code before moving,
+> not carried on this brief's own description: the ensemble still anchors on the **foot** with
+> `corr(w,avg) > 0.85` (`monitor.html:2049`) and a ±60 ms re-delineation (`:2060`), so the long-crest
+> complaint stands — and **nothing consumes the averaged pulse**, which is why it is correctly low
+> priority rather than merely unloved. It is live-view cosmetics, and D5 says so.
+>
+> **This brief carried no gates of its own** (§5, all work out-of-suite), so there is nothing to re-run.
+> No follow-up spawned: every live item now sits in FOLLOWUPS-II, where V2 and D5 are already tracked.
 
 # Capture-Host follow-ups — what the first real multi-sensor bring-up surfaced
 

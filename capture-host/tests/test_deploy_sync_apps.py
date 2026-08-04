@@ -14,6 +14,7 @@ suite operates on the REPO copy, so GATE A can be green on a `manifestHash` that
 being served.
 """
 import os
+import re
 import subprocess
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -167,6 +168,9 @@ def _chk(src, systemd, udev, *args, networkd=None):
     # The networkd destination is redirected for the same reason as the other two: an install that
     # writes into a tmpdir must never touch the developer's own /etc (§E6).
     env["TEPNA_ETC_NETWORKD"] = str(networkd if networkd is not None else systemd)
+    # Same §E6 reasoning for the privileged helper dir: /usr/local/lib/tepna holds the root-owned copies
+    # that carry the NOPASSWD sudoers grants, so a redirected run must never be able to write the real one.
+    env["TEPNA_LIB_DIR"] = str(systemd.parent / "lib-tepna")
     return subprocess.run(["bash", CHK, *args], capture_output=True, text=True, env=env)
 
 
@@ -184,6 +188,15 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
     (udev / "99-tepna-btdongle.rules").write_text('ACTION=="add", ATTR{idVendor}=="2357"\n')
     (systemd / "tepna-usb-autosuspend.service").write_text("[Service]\nType=oneshot\n")
     (systemd / "tepna-capture.service").write_text(unit.format(u=capture_user_etc))
+    # The four privileged NOPASSWD helpers (helper_path.SYSTEM_DIRS[0]). Added to the manifest 2026-08-04
+    # after the live box was found running a STALE root-owned tepna-clock.sh and tepna-restart.sh, with
+    # tepna-usbreset.sh never installed at all — drift in the most privileged files on the box, invisible
+    # because they were not on this list.
+    lib = tmp_path / "lib-tepna"; lib.mkdir()
+    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh"):
+        body = f"#!/usr/bin/env bash\n# {h}\n"
+        (tmp_path / "capture-host" / h).write_text(body)
+        (lib / h).write_text(body)
     return tmp_path / "capture-host", systemd, udev
 
 
@@ -263,6 +276,13 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
     (src / "deploy" / "tepna-capture.service").write_text(deploy_body)
     (src / "systemd" / "tepna-capture.service").write_text(systemd_body)
     (systemd / "tepna-capture.service").write_text(etc_body)
+    # The privileged helpers, in sync — this fixture is about AMBIGUOUS SOURCES, so they must not be
+    # the thing that reds it.
+    lib = tmp_path / "lib-tepna"; lib.mkdir()
+    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh"):
+        body = f"#!/usr/bin/env bash\n# {h}\n"
+        (src / h).write_text(body)
+        (lib / h).write_text(body)
     return src, systemd, udev
 
 
@@ -291,6 +311,44 @@ def test_no_ambiguity_when_the_copies_agree(tmp_path):
     r = _chk(src, sd, ud)
     assert "AMBIGUOUS" not in r.stdout, r.stdout
     assert r.returncode == 0, r.stdout
+
+
+def test_a_stale_privileged_helper_goes_RED(tmp_path):
+    """THE 2026-08-04 finding, reproduced. The live box was running a root-owned tepna-clock.sh eight
+    days older than its own checkout, and tepna-restart.sh likewise — invisible because the four
+    NOPASSWD helpers were not on this script's manifest.
+
+    It matters more than ordinary drift: `helper_path.SYSTEM_DIRS[0]` is `/usr/local/lib/tepna`, checked
+    BEFORE the in-repo copy, so the stale privileged file is the one that actually runs under sudo. A
+    fixed helper can sit in the checkout indefinitely while the box keeps executing the old one."""
+    src, sd, ud = _tree(tmp_path)
+    (tmp_path / "lib-tepna" / "tepna-clock.sh").write_text("#!/usr/bin/env bash\n# EIGHT DAYS OLD\n")
+    r = _chk(src, sd, ud)
+    assert r.returncode == 1, r.stdout
+    assert "STALE" in r.stdout and "tepna-clock.sh" in r.stdout, r.stdout
+
+
+def test_a_never_installed_privileged_helper_goes_RED(tmp_path):
+    """The other half of the same finding: tepna-usbreset.sh existed in the repo and had never been
+    installed, so the USB unbind/bind recovery step — the only reliable way to clear a wedged adapter
+    (VIGIL-OVERNIGHT-FINDINGS P1.3) — could not run, and nothing said so."""
+    src, sd, ud = _tree(tmp_path)
+    (tmp_path / "lib-tepna" / "tepna-usbreset.sh").unlink()
+    r = _chk(src, sd, ud)
+    assert r.returncode == 1, r.stdout
+    assert "NOT INSTALLED" in r.stdout and "tepna-usbreset.sh" in r.stdout, r.stdout
+
+
+def test_every_sudoers_granted_helper_is_on_the_manifest():
+    """Non-vacuity, and the rule that keeps it true: a helper is added to the manifest because it holds
+    a root NOPASSWD grant, so the two lists must not drift apart. Derived from enable-clock-control.sh's
+    own helper list rather than restated, so adding a fifth helper there fails here until it is checked."""
+    grant = open(os.path.join(HERE, "deploy", "enable-clock-control.sh"), encoding="utf-8").read()
+    manifest = open(CHK, encoding="utf-8").read()
+    helpers = set(re.findall(r"tepna-[a-z]+\.sh", grant))
+    assert helpers, "found no helpers in enable-clock-control.sh — the scan has stopped working"
+    missing = sorted(h for h in helpers if h not in manifest)
+    assert not missing, f"privileged helper(s) with a sudoers grant but no drift check: {missing}"
 
 
 def test_drift_in_the_installed_file_is_still_caught(tmp_path):
