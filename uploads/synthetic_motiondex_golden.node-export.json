@@ -1,8 +1,14 @@
 {
+  "kernel": {
+    "version": "1.0.0",
+    "hash": "118ebed5"
+  },
   "schema": {
     "name": "ganglior.node-export",
-    "version": 1,
-    "node": "MotionDex"
+    "version": "2.0",
+    "node": "MotionDex",
+    "nodeVersion": "1.0",
+    "bus": "ganglior"
   },
   "recording": {
     "startEpochMs": 1781128800000,
