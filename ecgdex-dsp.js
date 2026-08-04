@@ -3003,11 +3003,28 @@
        exactly the upper band edge = the 2.5 s lower period bound) reported 12/min — exactly HALF —
        deterministically across three seeds.
        So: if HALF this lag is admissible and carries comparable correlation, the shorter period is the
-       fundamental and the one found is its octave. The 0.8 factor is deliberately permissive — an
-       attenuated fundamental will NOT match its harmonic's peak, which is the whole failure mode; it
-       only has to be close. Requiring equality would leave the defect in place. */
+       fundamental and the one found is its octave.
+
+       ⚠ THE THRESHOLD IS A SIGN TEST, NOT A NEAR-EQUALITY TEST — and getting that wrong left the defect
+       in place for the one rate this check exists for. The first version required `ac[half] > 0.8·best`,
+       reasoning that an attenuated fundamental "only has to be close". It is not close: at 24/min the
+       fundamental measures 0.745·best (0.766 on a second seed), so the check RAN and rejected the true
+       answer by 0.035, and 24/min kept reporting 12. Tuning 0.8 down to 0.7 would just fit that one
+       measurement.
+
+       What actually separates the two cases is the SIGN, and the physics says why. If the found lag is
+       the OCTAVE, the half-lag is a real period of the signal ⇒ ac[half] is positive. If the found lag
+       is already the FUNDAMENTAL, the half-lag is ANTI-PHASE ⇒ ac[half] is strongly negative. Measured
+       across 6–24/min × 2 seeds, that is exactly what happens and the populations do not overlap:
+
+         half is WRONG (keep the lag found):  ac[half]/best = −1.26 … −2.89   (every rate 6–22)
+         half is RIGHT (take the octave):     ac[half]/best = +0.745, +0.766  (24/min, both seeds)
+
+       0.5·best sits in that gap with margin on both sides — 0.245 below the true positives, 1.76 above
+       the nearest negative — and states the physical claim: the half-lag must be a genuine positive
+       peak, not merely a shallower trough. */
     const half = Math.round(bestLag / 2);
-    if (half >= start && half <= maxL && ac[half] > 0.8 * best) {
+    if (half >= start && half <= maxL && ac[half] > 0.5 * best) {
       best = ac[half];
       bestLag = half;
     }

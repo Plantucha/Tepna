@@ -5221,8 +5221,11 @@
         T.skip('env.ECGDSP.analyze + genSynthetic available', 'ECGDSP not co-loaded in this runner');
         return;
       }
-      function respAt(bpm, seed) {
-        var s = bpm == null ? D.genSynthetic({ durSec: 900, seed: seed }) : D.genSynthetic({ durSec: 900, seed: seed, respHz: bpm / 60 });
+      function respAt(bpm, seed, durSec) {
+        /* `durSec` is LAST and optional so every existing call is byte-unchanged. It exists because the
+           harmonic check turned out to be DURATION-SENSITIVE and pinning one length hid that. */
+        var dur = durSec || 900;
+        var s = bpm == null ? D.genSynthetic({ durSec: dur, seed: seed }) : D.genSynthetic({ durSec: dur, seed: seed, respHz: bpm / 60 });
         var r = D.analyze({ int16: s.int16, fs: s.fs });
         return r.crc ? r.crc.respFromEDR : null;
       }
@@ -5251,11 +5254,39 @@
          0.4 Hz upper edge is attenuated while its second harmonic is not, and the search locked onto the
          harmonic. The pins said a fix SHOULD red them — it did, and they are updated here in the same
          commit, as the brief required.
-         A harmonic check (prefer half the winning lag when it is admissible and carries ≥0.8× the
+         A harmonic check (prefer half the winning lag when it is admissible and carries ≥0.5× the
          correlation) plus parabolic interpolation of the peak now give 23.4–23.8 across seeds: −2.5 %
-         instead of −50 %. */
+         instead of −50 %.
+
+         ⚠ THAT FACTOR WAS 0.8 UNTIL 2026-08-04, AND 0.8 DID NOT ACTUALLY FIX THIS. The fundamental at
+         the band edge measures 0.745·best, so the check ran and rejected the true answer by 0.035 —
+         leaving the estimator ~0.05 from a decision boundary, where whether 24/min reads 24 or 12
+         depends on RECORD LENGTH and SEED. These legs pinned 900 s, which is one of the lengths where
+         it happened to pass. The threshold is now a SIGN test (see `_autocorrPeriod`): a true
+         fundamental puts the half-lag at anti-phase, so ac[half] is strongly NEGATIVE (−1.26…−2.89
+         measured over 6–22/min), while a genuine octave error puts it POSITIVE (+0.745). 0.5 sits in
+         that gap with 0.245 of margin instead of −0.035. */
       T.approx('24/min no longer period-doubles — 23.6, not the 12 it used to report', respAt(24, 20260601), 23.6, 0.5);
       T.approx('…and it is seed-stable, as the old defect also was', respAt(24, 42), 23.6, 0.5);
+
+      /* ── THE MARGINALITY LEGS, and they are the load-bearing ones ─────────────────────────────────
+         A threshold 0.035 from the boundary does not fail everywhere — it fails at SOME record lengths
+         and SOME seeds, which is worse than failing outright because the gate that pins one length
+         reads green. Measured against the shipped 0.8, at a true 24/min carrier:
+
+             durSec    0.8 (before)        0.5 (now)
+               180     12.5 · 12.5         24.4 · 24.4
+               300     12.4 · 12.5         24.1 · 24.4
+               900     23.4 · 23.8         23.4 · 23.8   ← the only length the old legs pinned
+              1800     23.6 · **11.9**     23.6 · 23.7   ← seed 42 period-doubles at 30 min
+              3600     23.4 · 23.5         23.4 · 23.5
+
+         So: a SHORT record and a LONG one, plus the exact seed/length pair that period-doubled. Each is
+         RED against 0.8 and green against 0.5 — verified by re-running with the old factor restored. */
+      T.approx('a 5-minute record resolves 24/min (0.8 reported 12.4 here)', respAt(24, 20260601, 300), 24, 1);
+      T.approx('…and a 3-minute one (0.8 reported 12.5)', respAt(24, 42, 180), 24, 1);
+      T.approx('a 30-minute record does NOT period-double on seed 42 (0.8 reported 11.9)', respAt(24, 42, 1800), 23.7, 1);
+      T.approx('…nor on seed 20260601, where 0.8 already passed — both directions pinned', respAt(24, 20260601, 1800), 23.6, 1);
       /* ⚠ STILL A KNOWN LIMITATION, and honesty requires pinning it too: the 8–12/min band is
          over-read by up to +43 % and options 1+2 did NOT touch it. That is a THIRD mechanism — the
          fundamental attenuated at the LOW band edge, where no harmonic substitution helps — and it needs
