@@ -124,9 +124,33 @@ mechanistically twinned with a corner. Do not simply add it as a fourth and hope
 - [ ] **Connect the ResMed oximeter** for ≥ 5 quad-modal nights (CPAP + H10 + Verity + O2Ring). Zero code cost.
 - [ ] Re-run the R5 experiment with **ResMed pulse as the external reference** — then, and only then, the HR
       triplet's **independence** and **σ accuracy** become measurable.
-- [ ] **Investigate OxyDex's −0.36 bpm bias.** Candidates: the pulse-oximetry HR path (rolling median /
-      smoothing), a 1 Hz bucketing bias, or a genuine device offset. It is small but systematic and it is in
-      every published OxyDex number.
+- [~] **Investigated 2026-08-04 — one candidate ELIMINATED, the other two BOUNDED but not separable
+      here.** Reproducible via `tools/oxy-hr-bias.mjs` (no number without a tool that reproduces it).
+
+      **(a) OxyDex's own HR path — EXCLUDED.** Over **42 nights**, the mean of the raw `Pulse Rate` CSV
+      column and `computeNight().stats.meanHr` differ by **−0.0138 bpm**, and that residual is entirely
+      OxyDex's 1-decimal output rounding (52.628 → 52.6). There is no rolling median, no smoothing, no
+      aggregation bias. Whatever the offset is, it is **upstream of OxyDex**.
+
+      **(b) 1 Hz bucketing — real, but it does not account for the size.** The column is confirmed
+      integer-quantized: **0 non-integer values in 42 nights**. That gives a sharp prediction, because
+      averaging does NOT wash quantization out — every sample is biased the same way, so if the device
+      **truncates**, the epoch mean sits exactly **−0.500** below truth; if it **rounds**, **0.000**.
+
+      **Measured against the raw-ECG leg** (folded trio corpus, per-5-min epoch, keyed on the ABSOLUTE
+      floating-ms grid because the two nodes' `tMin` are node-local): **n = 3136 epochs over 40 nights,
+      mean Δ = −0.269 bpm, SD 1.37, SEM 0.024 — 11.0σ from zero.** The bias is unambiguously real and
+      unambiguously **not** pure truncation: it sits roughly halfway between the two predictions.
+
+      **(c) a genuine device offset — survives, now bounded.** If the ring truncates, the residual
+      device offset is ≈ **+0.23**; if it rounds, it is the full ≈ **−0.27**. Those cannot be separated
+      against a reference that is itself one of the three corners — which is exactly what this brief's
+      first two items are for. **The ResMed oximeter is still the experiment**; what changed is that it
+      now has one fewer candidate to distinguish and a numeric target to hit.
+
+      Caveat kept in view: the per-epoch SD (1.37) dwarfs the offset, so this is a small systematic bias
+      on a noisy difference, visible only in pooling. A single night says nothing — the per-night means
+      range from **−0.87 to +0.08**.
 - [ ] **State the blindness in the papers.** `SIGMA-PAPER-REWRITE` reports reference-free σ with **no bias term
       and no statement that the estimator has never been validated against truth**. Both papers should say so
       plainly — the σ values are not wrong, but they are **variance-only, and bias-blind by construction**.
