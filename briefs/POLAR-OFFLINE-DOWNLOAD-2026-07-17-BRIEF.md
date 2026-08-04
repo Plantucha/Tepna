@@ -106,6 +106,34 @@ live capture and make sure it's idle before pulling.**
 > **`/api/polar/recordings`** + **`/api/polar/pull`** so both coexist (O2Ring keeps `/api/pull`). `polar_psftp.py`
 > is unchanged; only the webmon route strings + the monitor's `pullRec`/`doPull` fetch paths differ.
 - [ ] **Web-triggered pull demonstrated green** — blocked only by the BLE trusted-auto-reconnect race
+
+  > **📡 PRECONDITION RE-STATED 2026-08-04, from the live box — "idle-device gated" was too vague to act on.**
+  > Observed this morning (09:57 EDT) on the running appliance:
+  >
+  > | device | state |
+  > |---|---|
+  > | Wellue O2Ring-S | `connected=True`, `worn=False` (`no finger contact`) |
+  > | Polar H10 | `connected=False` — **`TimeoutError` on connect** |
+  > | Polar Verity Sense | `connected=False` — **`TimeoutError` on connect** |
+  >
+  > The watchdog has logged `Polar:off, Polar:off` on every 30-min tick since at least 09:00. **The two
+  > Polars are not busy — they are unreachable**, powered down or out of range after the night. So the
+  > blocker is not "wait for the device to go idle"; there is no idle-but-reachable state to wait for,
+  > because the moment a Polar *is* reachable the capture daemon takes the one BLE link.
+  >
+  > **The precondition, stated so it can actually be met:** *a Polar powered on and in range, while the
+  > operator triggers the pull through the daemon's own web path* (which is what this item tests — the
+  > daemon owning the link is the design, not an obstacle). Practically that is a deliberate daytime
+  > window with the strap on the charger but awake, not an opportunistic overnight moment.
+  >
+  > **Last night was NOT a miss** — all three legs captured: H10 `219.9 MB` ECG from 21:21, Verity
+  > `97.0 MB` from 21:21 plus `6.4 MB` from 04:48, O2Ring `153 MB`. The link works; only the *pull* is
+  > unexercised.
+  >
+  > **Bonus confirmation from the same log:** at 08:30 the watchdog caught
+  > `connected-but-silent: Wellue O2Ring-S=1757s` and fixed it with `restart 1/3`, after which
+  > `daemon=active` and `Wellue:up`. The silent-stream detector is working **in production**, on a real
+  > wedge, unprompted — the failure mode it was written for.
       above in a churned test env; not reproduced clean. Re-verify on the box (or after a fresh
       `bluetoothctl disconnect`, idle device). **2026-07-22: still open — IDLE-DEVICE-GATED.** The box is
       running under a `systemd --user` service (see `CAPTURE-HOST` §11 note) but both Polars were
