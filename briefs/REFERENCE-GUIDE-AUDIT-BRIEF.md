@@ -150,9 +150,28 @@ Contract (floating `tMs` via `Date.UTC`, read back with `getUTC*`/`{timeZone:'UT
 - [ ] Every formula canonically correct AND consistent with the node `*-dsp.js` (constants/thresholds match).
 - [ ] Every normative table is published/consensus (cited) or explicitly marked relative; no invented
       clinical cut-points; units/directions/boundaries sane.
+      **2026-08-04 — the guides cannot settle the OxyDex conflict.** The code-side sweep left 4 real
+      conflicts (`n.odi3.rate` `<5/<15` vs `<15/<30`; `h.hrSdnn` `>=3/>=2` vs `>=4/>=2.5`; `h.hrSlope`
+      `<=0/<1` vs `<0/<1.5`; and the `<=55/<=65` pair) pending an owner cut-point call. The obvious
+      tie-breaker would be the documented band — `OxyDex Reference.html` is the published contract. It
+      **states none**: the guide defines ODI-1/2/3/4, the SDNN proxy and the slope metrics, but attaches
+      no numeric severity cut-points to any of them. So the documentation cannot arbitrate, and this
+      stays an owner call rather than something the audit can close. Recorded so it is not re-derived.
+
 - [ ] Every metric card's grade == node registry `evidence` (gate-green); disc CSS ≡ engine; no retired
       vocabulary; tier chip/`data-tier` matches `depth`.
-- [ ] Zero dead links (external DOIs resolve; every internal `#anchor` has a matching `id`).
+- [~] **Internal half DONE + gate-backed (2026-08-04); external half is UNGATEABLE, deliberately.**
+      Measured across all 7 authored guides + the generated EEGDex one: **128 distinct in-page anchors,
+      284 ids, ZERO dead and ZERO duplicated.** Nothing needed fixing, so what landed is a **ratchet**
+      over a verified-clean state — `Reference guides — every in-page anchor resolves, no duplicate ids`
+      in `tests/dex-tests.js`, both lanes (env.docs already carries the guides in each). Mutation-verified
+      two ways: renaming one `id` reds with `OxyDex Reference.html → #quick-jump`, and duplicating an
+      `id` reds with `OxyDex Reference.html #themeToggleBtn`. A duplicate matters as much as a dead
+      anchor and is nastier: the link still *works*, it just lands on the wrong copy.
+      **The DOI half is NOT gated and cannot be** — the suite takes no network (§📚's hard line), so a
+      resolving DOI is checkable only by a human with a browser. It is left explicitly ungated rather
+      than folded in, because a gate named "zero dead links" that silently checks only the internal ones
+      is precisely the borrowed-scope dishonesty the neighbouring gates exist to remove.
 - [ ] Console clean; quick-jump / abbr search / theme / drawer / nav-highlight all work; responsive at ~390 px.
 - [ ] No correction-history meta-commentary; internal composites/projections honestly labelled and
       consistent with the Validation Matrix.
