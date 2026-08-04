@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-04 · **Spawned-by:** `ECGDEX-EDR-RESP-ACCURACY-2026-07-31-BRIEF.md` (executed; §6.4 is the finding this follows up)
+**Status:** DONE — 2026-08-04 (all items closed; the survey REFUTED this brief's own §2 prescription where regimes do not separate — see §3) · **Created:** 2026-08-04 · **Spawned-by:** `ECGDEX-EDR-RESP-ACCURACY-2026-07-31-BRIEF.md` (executed; §6.4 is the finding this follows up)
 
 # A gate can pin a fix that is 0.035 from failing — margin is a measurement, not a property of green
 
@@ -76,12 +76,31 @@ Two cheap habits follow, and §6.4 used both:
       (a tighter beat set makes a cleaner template) and is 2.56 % of beats from its siblings. It is
       *undocumented*, which is a comment-level fix an owner may or may not want, not a behavioural one —
       and changing it would move every morphology golden for no measured benefit.
-- [ ] **Where a threshold's margin is thin, prefer re-deriving the KIND of test** (sign, order-of-magnitude,
-      physical admissibility) over re-tuning the number, and record the measured separation beside it.
-- [ ] **A duration/seed sweep becomes standard for `genSynthetic`-gated estimators.** §6.2 already found
-      that this estimator's behaviour moves with record length and seed, because both change where the
-      carrier's phase falls on the 4 Hz EDR grid. Any estimator with that property must be pinned at more
-      than one length, or the pin is a coincidence. `respAt(bpm, seed, durSec)` now takes the length.
+- [x] **STANDING PRACTICE — applied three times, and each time the KIND of test changed, not the number.**
+      Recorded as demonstrated rather than as a rule awaiting adoption:
+      - **`ecgdex-dsp` harmonic check** — `> 0.8·best` (near-equality) → `> 0.5·best` (a **sign** test:
+        a true fundamental puts the half-lag at anti-phase). Populations −1.26…−2.89 vs +0.745; margin
+        went from −0.035 to +0.245.
+      - **RR-regularity constants** (§3 survey) — no gap exists, so the recorded quantity became the
+        **exclusion fraction** (±12 % drops 8.89 % of beats) rather than a margin.
+      - **`analysis-stats` ρ_crit** — no margin exists, so the published quantity became the **local
+        sensitivity** (`sigmaPerRho`, `rhoFor0p1`) rather than a refusal threshold.
+      The through-line: when the two regimes do not separate, the honest output is a *measured quantity
+      the caller can act on*, never a boundary chosen to look principled.
+
+- [x] **CONVENTION RECORDED — and deliberately NOT made a blanket gate.** `respAt(bpm, seed, durSec)`
+      takes the length, and the EDR estimator is now pinned at **180 / 300 / 900 / 1800 s**, which is what
+      caught the 0.035-margin failure.
+
+      ⚠ **A mechanical "every `genSynthetic` pin needs ≥2 durations" rule would be wrong**, and measuring
+      it says why: `tests/dex-tests.js` has **39 `genSynthetic` call sites across 15 distinct durations**,
+      but most are **2–6 s** — parser and shape tests with no estimator value to be phase-sensitive about.
+      Forcing all 39 to double would be the over-generalisation §3 of the sibling survey warns against.
+
+      **The criterion is the property, not the helper:** an estimator needs a multi-length pin when its
+      answer depends on where a carrier's phase falls on a sampling grid — i.e. when it locks onto a
+      periodicity. That is why EDR at 4 Hz needed it and a parse-shape assertion does not. Apply it by
+      asking whether the estimator can lock onto a harmonic, not by counting `durSec` arguments.
 
 ## 4 · Explicitly NOT owed
 
