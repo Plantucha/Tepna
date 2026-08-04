@@ -28434,6 +28434,72 @@
       );
     });
 
+    /* DEX-CITATION-FORMULA-AUDIT — the OFFLINE-checkable half of "every citation verified".
+       The acceptance criterion asks for a *working DOI/PMID* on every citation. A suite that takes no
+       network cannot check that a DOI RESOLVES — but it can check the two failure modes that need no
+       network, and both were measured clean over the whole registry set (412 `cite:` strings) when this
+       landed, so this is a RATCHET, not a fix.
+         · a MALFORMED DOI — one that trails punctuation or contains a space. A `10.xxxx/…` that cannot
+           resolve because it was copied with the sentence's full stop attached is indistinguishable, to
+           a reader, from a fabricated one.
+         · CORRECTION HISTORY in a reader-facing string. `cite`/`label`/`unit` are rendered next to the
+           number; "previously", "was wrong", "no longer", a PR number are notes to a maintainer, not to
+           the person reading a measurement.
+       ⚠ MEASURED AND WORTH KNOWING: across those 412 citations there are **ZERO DOIs**. The registries
+       cite author-year ("Task Force 1996", "Brennan 2001"). So the criterion "with a working DOI/PMID"
+       is not partially met, it is unmet by construction — and no gate here can change that, because
+       adding a DOI requires reading the literature. The gate deliberately does NOT require a DOI: a
+       requirement that would force 412 fabricated identifiers is worse than the gap it closes.
+       The three papers that DO narrate a correction are out of scope by design — a paper whose finding
+       IS a retraction ("the analysis that came first was wrong") is being honest, not noisy. */
+    group('Citations: no malformed DOI, no correction history in reader-facing strings — DEX-CITATION-FORMULA-AUDIT', 'docs · citations · registry-strings', function (T) {
+      var REGS = [
+        ['OXY_REGISTRY', env.OXY_REGISTRY],
+        ['ECG_REGISTRY', env.ECG_REGISTRY],
+        ['PPG_REGISTRY', env.PPG_REGISTRY],
+        ['CPAP_REGISTRY', env.CPAP_REGISTRY],
+        ['PULSE_REGISTRY', env.PULSE_REGISTRY],
+        ['HRV_REGISTRY', env.HRV_REGISTRY],
+        ['GLUCO_REGISTRY', env.GLUCO_REGISTRY],
+        ['MOTION_REGISTRY', env.MOTION_REGISTRY]
+      ].filter(function (r) {
+        return r[1] && typeof r[1] === 'object';
+      });
+      T.ok('ANTI-VACUITY · the node registries are wired', REGS.length >= 6, REGS.length + ' registries');
+      if (REGS.length < 6) return;
+      var DOI = /10\.\d{4,9}\/[^\s"'<>,;)\]]+/g;
+      /* Deliberately NARROW. "corrected" alone appears in legitimate physiology (`Malik-corrected`,
+         `motion-corrected`); these are phrases that can only be addressed to a maintainer. */
+      var META = /\b(previously reported|used to (?:be|say|read|report)|was wrong|now corrected|no longer reported|formerly|REMOVED 20\d\d|retired 20\d\d|see PR #\d+|this was a bug)\b/i;
+      var nStr = 0,
+        nDoi = 0,
+        badDoi = [],
+        metaHits = [];
+      REGS.forEach(function (pair) {
+        var name = pair[0],
+          reg = pair[1];
+        Object.keys(reg).forEach(function (id) {
+          var e = reg[id];
+          if (!e || typeof e !== 'object') return;
+          ['cite', 'label', 'unit'].forEach(function (k) {
+            var v = e[k];
+            if (typeof v !== 'string' || !v) return;
+            nStr++;
+            var m = String(v).match(DOI) || [];
+            m.forEach(function (d) {
+              nDoi++;
+              if (/[.,;]$/.test(d) || /\s/.test(d)) badDoi.push(name + '.' + id + '.' + k + ' → ' + d);
+            });
+            if (META.test(v)) metaHits.push(name + '.' + id + '.' + k + ' → ' + v.slice(0, 90));
+          });
+        });
+      });
+      T.ok('ANTI-VACUITY · the scan read a realistic number of strings', nStr > 300, nStr + ' cite/label/unit strings across ' + REGS.length + ' registries');
+      T.ok('ANTI-VACUITY · the DOI matcher works on a known-good and a known-bad', 'x 10.1000/abc y'.match(DOI)[0] === '10.1000/abc' && /[.,;]$/.test(('see 10.1000/abc.'.match(DOI) || [''])[0]));
+      T.ok('no malformed DOI in any registry citation', badDoi.length === 0, badDoi.length ? badDoi.slice(0, 6).join(' · ') : nDoi + ' DOI(s) seen, none malformed');
+      T.ok('no correction history in a reader-facing registry string', metaHits.length === 0, metaHits.length ? metaHits.slice(0, 6).join(' · ') : nStr + ' strings clean');
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
        HRV off a night full of movement is worth less than the same number off a still night. This SCORES
        that (it never alters or excludes an HRV value). The invariant that matters is the same tri-state

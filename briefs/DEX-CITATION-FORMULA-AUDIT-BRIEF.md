@@ -178,10 +178,37 @@ The OxyDex pass did exactly this; reuse that approach:
 
 ---
 
+## Audit 2026-08-04 — the offline-checkable half, measured
+
+The suite takes no network, so "a **working** DOI" is not machine-checkable here. What is checkable was
+measured across all node registries — **956 `cite`/`label`/`unit` strings** — and gated
+(`docs · citations · registry-strings`, mutation-verified both ways):
+
+| check | result |
+|---|---|
+| malformed DOI (trailing punctuation / embedded space) | **0** |
+| correction history in a reader-facing string | **0** |
+| stray non-ASCII | **0** — the 72 non-ASCII characters present are all legitimate (`é` in Poincaré, `π`, `§`, `–`, `≈`, `√`) |
+
+⚠ **The headline finding is what is NOT there: across 412 `cite:` strings there are ZERO DOIs.** The
+registries cite author-year — "Task Force 1996", "Brennan 2001", "Uth–Sørensen 2004". So criterion 1 is
+not partially met, it is **unmet by construction**, and no gate can close it: adding a DOI requires
+reading the literature. The gate deliberately does **not** require one — a rule that would pressure 412
+identifiers into existence is worse than the gap, and `LITERATURE-USE-POLICY` §2 already forbids
+fabricated authority.
+
+Out of scope by design: three **papers** narrate their own corrections (`null-calibration`,
+`ppg-quality-gate-pooling`, `papers.html`). A paper whose finding *is* a retraction — *"the analysis
+that came first was wrong, and this paper exists because acting on it would have removed a working
+feature"* — is being honest, not noisy. Two reference guides carry `REMOVED 2026-06-23` notices for
+metrics withdrawn as indefensible (HRV→BP, ANS-age); those are a **safety** record and must stay.
+
 ## Per-node acceptance criteria
-- [ ] Every citation in registry + dsp + app + manifest + guide verified against the literature, with
-      a working DOI/PMID, or replaced with a verified canonical source, or removed + labeled internal.
-- [ ] No fabricated/misattributed authors, no guessed DOIs, no stray non-ASCII in citation strings.
+- [~] Every citation verified against the literature with a working DOI/PMID — **structurally clean,
+      substantively OPEN and unclosable offline.** See the audit above: 0 DOIs exist to verify. Closing
+      this needs a human with a browser, per node.
+- [x] **No guessed DOIs, no stray non-ASCII in citation strings — verified 2026-08-04 and gated.**
+      (The "no fabricated/misattributed authors" half is a literature claim and rides criterion 1.)
 - [ ] Standard formulas correct AND consistent between code and doc (esp. HRmax = 208−0.7·age, QTc,
       SampEn/ApEn, DFA, GMI/TIR). Internal coefficients labeled "no external source."
 - [ ] No correction-history meta-commentary in reader-facing text; clean final statements only.
