@@ -13479,7 +13479,14 @@
       T.ok('WORKER_SRC template found', i >= 0);
       if (i < 0) return;
       // un-escape the template literal exactly as the runtime does when the blob is minted
-      var ws = app.slice(i, app.indexOf('`;', i)).replace(/\\\\/g, '\\').replace(/\\`/g, '`');
+      /* ONE pass, not two. The former `.replace(/\\\\/g,'\\').replace(/\\`/g,'`')` unescaped in
+         sequence, so a backslash PRODUCED by the first pass could pair with a following backtick and
+         be unescaped a second time — `\\` + '`' came out as a bare backtick instead of `\` + '`'
+         (CodeQL js/double-escaping). A single alternation consumes each escape exactly once, left to
+         right, which is what unescaping a template literal actually means. This reconstructs the
+         worker source the equivalence gate below compares against, so getting it wrong would make
+         that gate compare the wrong string — a passing gate that checked nothing. */
+      var ws = app.slice(i, app.indexOf('`;', i)).replace(/\\([\\`])/g, '$1');
       var s0 = ws.indexOf('const _ckPF');
       T.ok('the worker declares its own inline clock parser (_ckPF)', s0 >= 0);
       if (s0 < 0) return;
