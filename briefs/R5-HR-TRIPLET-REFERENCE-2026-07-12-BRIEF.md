@@ -86,6 +86,14 @@ and measuring it against the chest-ECG is *not* circular. Committed 17-night cor
 **OxyDex systematically under-reads HR by ≈ 0.36 bpm**, and it survives artifact gating — so it is not
 contamination, it is the device (or the pulse-oximetry HR path). **Every σ the fleet publishes is blind to it.**
 
+> ⚠ **AMENDED 2026-08-04 — the attribution above ("it is the device") is RETRACTED.** It is the
+> ESTIMATOR. On 726 paired epochs, changing only OxyDex's aggregation (`median(rate)` → `mean(rate)`)
+> moves the bias from −0.244 bpm (5.7σ) to +0.013 (0.3σ) — a device cannot move because the analyst
+> picked a different average. The ring's firmware HR independently agrees with chest-ECG to 0.6σ over
+> 237 windows. PpgDex's row is unaffected (it already uses ECGDex's statistic) and stands. See
+> `R5-HR-TRIPLET-FOLLOWUPS-2026-08-04-BRIEF.md` §3. The *conclusion below* — that the hat is blind to
+> bias — is unchanged and in fact reinforced.
+
 This **confirms `TCH-REFERENCE-VALIDATION` Finding A on a second, independent triplet**: the estimator's
 blindness to bias is not a quirk of the respiration corners, it is a property of the hat.
 
