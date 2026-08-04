@@ -1,5 +1,11 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-07-12 · **Executes:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md` §7 **R5** · **Companion to:** `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` · **Feeds:** `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md` · `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`
+**Status:** PROPOSED (**the two do-now write-ups are DONE 2026-08-04** — §5 items 4 + 5 landed in both papers; what remains is **hardware-gated**, not unstarted: items 1 + 2 need the ResMed oximeter physically connected for ≥5 quad-modal nights, which is zero code and entirely the owner's to do) · **Created:** 2026-07-12 · **Executes:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md` §7 **R5** · **Companion to:** `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` · **Feeds:** `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md` · `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`
+
+> **2026-08-04 backlog sweep.** This brief's headline finding — that the papers report a reference-free σ
+> without ever saying it is variance-only and never validated against truth — was **verifiably still true**
+> when picked up: zero matches for `bias-blind` / `variance-only` / `no bias term` / `never been validated`
+> in either paper. Both write-ups are now landed (see §5), so the honesty gap is closed even though the
+> experiment itself remains blocked. **The remaining blocker is one cable**, named in §4 and unchanged.
 
 # R5 on the HR triplet — the independence test is **not runnable**, and that is the finding
 
@@ -151,12 +157,26 @@ mechanistically twinned with a corner. Do not simply add it as a fourth and hope
       Caveat kept in view: the per-epoch SD (1.37) dwarfs the offset, so this is a small systematic bias
       on a noisy difference, visible only in pooling. A single night says nothing — the per-night means
       range from **−0.87 to +0.08**.
-- [ ] **State the blindness in the papers.** `SIGMA-PAPER-REWRITE` reports reference-free σ with **no bias term
-      and no statement that the estimator has never been validated against truth**. Both papers should say so
-      plainly — the σ values are not wrong, but they are **variance-only, and bias-blind by construction**.
-- [ ] Fold the §1 identity into the `SENSOR-TRIO-NIGHTS` methods section: **a hat cannot be validated by one of
-      its own corners.** It is a one-line derivation and it forecloses an experiment people will otherwise
-      keep proposing.
+- [x] **State the blindness in the papers — DONE 2026-08-04.** Neither paper said it (measured: zero matches
+      for `bias-blind`/`variance-only`/`no bias term`/`never been validated` in either file). Added
+      `papers/sigma-no-reference.html` **Limitations (ix)**: every σ there is variance-only and the estimator
+      has never been validated against an external truth; carries the measured O2Ring under-read
+      (**−0.269 bpm**, n=3,136 epochs / 40 nights, SEM 0.024, 11.0 σ, reproducible via
+      `tools/oxy-hr-bias.mjs`), the reasons it is neither an OxyDex artifact (−0.0138 bpm, output rounding)
+      nor pure quantization (integer column ⇒ truncation predicts −0.500, rounding 0.000, measurement sits
+      between), the per-night invisibility (means span −0.87…+0.08 against per-epoch SD 1.37), and the §1
+      identity with its zero-power consequence. Closes with: these are **precision** estimates, not accuracy
+      statements.
+- [x] **Fold the §1 identity into `SENSOR-TRIO-NIGHTS` methods — DONE 2026-08-04.** Added to **§2.2**, directly
+      after the TCH kernel and its negative-output note, as the paper's own justification for having a
+      Monte-Carlo arm at all: the e_P/e_O shared-term expansion, the collapse σ²_E = cov(e_P, e_O), the
+      numerical check (6.068154 vs 6.068154, diff 7×10⁻¹⁴), and the conclusion that validation needs either a
+      genuinely external Nth device or planted ground truth. This is the placement the item asked for — it
+      forecloses the experiment at the point a reader would propose it.
+      ⚠️ `papers/` is a **served tree**: both edits required `node tools/build-docs.mjs` and the
+      `docs/papers/*.html` copies. `--check` caught it (`STALE (2)`). As `CLAUDE.md` warns, the tool's printed
+      `git add` line named **nine paths, zero of them changed**, and omitted the two it had just rewritten —
+      stage from `git status`.
 
 ## 6 · Reproducing
 

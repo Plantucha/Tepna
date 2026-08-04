@@ -1,4 +1,28 @@
-**Status:** PROPOSED (blocked 2026-08-03 — `TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md` names this brief in its **Blocks:** header, and the confidence-carrying `ms;hr;c` corpus re-derivation it needs is owned by `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md`. Do not start the paper ahead of them) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** PROPOSED (blocked — but **not in the way the previous header implied**; re-verified 2026-08-04) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
+> **⚠️ "Do not start the paper" was misleading — the paper ALREADY SHIPS, and has since June 2026.**
+> The previous header read as though nothing existed yet; a reader following it would have set out to
+> write a paper that is already published. All six §8 *Definition of done* boxes verify in the tree:
+> `sensor-trio-power-analysis.html`/`.js` exist and carry the synthetic generator (resting/dynamic),
+> the `N_windows` Monte-Carlo sweep, injected-ρ correlated-error testing and the negative-variance
+> instability check; `papers/sensor-trio-nights.html` is written in house style with the minimum-N
+> **Table 1** (±0.5 / ±0.25 / ±0.15) and the H10↔O2Ring control leg; it is listed in `papers/papers.html`
+> and logged in `papers/RERUN-RESULTS.md`; `sensor-trio-power-stats.json` is exported. No `*-dsp.js` was
+> modified.
+>
+> **What is genuinely blocked is a RE-FIT of the shipped paper, not its authorship.**
+> `TRIO-POWER-N15-FINDINGS-2026-07-12-BRIEF.md` states plainly: *"The re-fit is NOT landed"* — the
+> N = 10 → 15 power re-run *"changes the CI, which is that paper's entire deliverable."* The paper is
+> self-consistent about this: its real arm already runs on the twenty-six-night corpus, but its
+> **simulation is still seeded at the pre-fused planted σ (2.7 / 1.9 / 1.9)**, and the sample-size curves
+> — the actual deliverable — come from that simulation. So the numbers a reader would cite are precisely
+> the ones awaiting the re-fit.
+>
+> **Therefore: do not re-write this paper, and do not stamp this brief DONE on the file's existence.**
+> The remaining work is the `ms;hr;c` confidence-carrying corpus re-derivation owned by
+> `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` (still LIVE), then re-fitting the planted σ and
+> re-running the sweep. Until then the paper stands as published, with its own limitations section
+> carrying the caveat.
 
 # BRIEF — New paper: "How many nights to measure a sensor? Sample-size for reference-free σ across a device trio"
 

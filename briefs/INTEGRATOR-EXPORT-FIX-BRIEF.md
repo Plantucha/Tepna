@@ -1,6 +1,37 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED (not verified 2026-08-03 — export completeness + ordering were not re-checked against a current Integrator export, and the brief's own secondary list is explicitly routed to the owner via `AUDIT-FOLLOWUPS-BRIEF.md` §4, which is itself still open) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** DONE — 2026-08-04 · **Created:** (undated — pre-2026-07-03, grandfathered)
+
+> **Both primaries verified shipped in `integrator-dsp.js` (2026-08-04 backlog sweep).** The prior header
+> was right that they had not been re-checked; checked now, in the file and against the identifiers this
+> brief's own step lists name.
+>
+> - **P1 — DONE, and past the ask.** All three blocks are in `buildFusionExport`'s returned object:
+>   `positional:` `:6060` · `hrvConsensus:` `:6061` · `deviceScoredAHI:` `:6070`, each `|| null` exactly as
+>   specified. `schema.version` is **`'1.3'`** (`:5995`) — the brief asked for `1.2`; it has since moved on
+>   again, so the version bump landed and was superseded, not skipped.
+> - **P2 — DONE, in the right place.** `findings.sort` at `:5936`, carrying the brief's own nulls-last
+>   comparator verbatim, tagged `// P2: one canonical chronological order shared by UI table, JSON and CSV`.
+>   Critically it sits in `runFusion` **after** the `glucose_autonomic_correlation` push (`:5897`) and after
+>   the later `staging_disagreement` / `periodic_breathing` pushes, before the return — so UI table, JSON and
+>   CSV genuinely share one order, which is what P2 asked for and what sorting inside `buildFusionExport`
+>   would not have achieved.
+>
+> **Secondary list — 3 of 5 are now resolved or obsolete:**
+>
+> | # | Disposition |
+> |---|---|
+> | 1 · blank-on-print | ✅ **RESOLVED** by `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` (DONE 2026-08-03). **This brief's premise is inverted:** it says only the Integrator was patched and "the other six apps still blank out". Measured today, `entrance-guard.js` ships in **all 8 nodes** (Oxy·HRV·Pulse·Gluco·ECG·CPAP·Ppg·Motion — src *and* bundle) and **not** in the Integrator, which keeps its own scoped injected CSS (`integrator-render.js:28–37`). Both paths pin the same visible end-state; `ans-design.css` is deliberately untouched. |
+> | 2 · badge coverage of the other six apps | ✅ **DONE** — `BADGE-COVERAGE-AUDIT-BRIEF.md`, DONE **2026-06-23**. |
+> | 3 · 3 duplicate `<nav class="mobile-nav">` | ✅ **EXECUTED 2026-08-04** in `015dc82` (#824) — **exactly 1** `<nav class="mobile-nav">` remains, down from 3. *(This sweep first recorded it as still-open-with-a-stale-costing; a concurrent session landed the fix mid-sweep. Corrected rather than left standing.)* The diagnosis was right and was the unblock: the cost was priced in `buildHash`, retired by Phase 7, and the 2 fusion fixtures (not 3) are `historical: true` — byte-pinned, no `manifestHash`, no `inputHashes` — so markup could never have flipped them. |
+> | 4 · `FINDING_EVIDENCE` tiers author-assigned | ⚠️ **Premise now largely FALSE — it moved on 2026-08-04.** "not test-backed" no longer holds: `tests/dex-tests.js:6466–6504` parses `FINDING_EVIDENCE` out of the renderer and asserts **every emitted finding type carries a grade**, with an explicit non-vacuity check (`:6495`) — so the unbadged-card failure this item worried about is now gated. Tiers are also no longer author-assigned in the sense meant: `staging_disagreement` documents its tier as **INHERITED** from `ECG_REGISTRY` per `CLAUDE.md` §🎫 (a disagreement between two `heuristic` estimators cannot outrank its inputs). **What genuinely remains:** owner ratification of the other five grades, and confirming each traces to an owning node registry the way `staging_disagreement` now does. Owner-decision — tier assignment is not a sweep's call. |
+> | 5 · provenance fingerprints the template not executed JS | ❌ **OBSOLETE** — closed by Phase 7. `manifestHash` is the sole executed-code identity and `buildHash` is retired inert metadata (`CLAUDE.md` §🔏). The "second code-hash column (looks half-started)" it describes was that work landing. |
+>
+> **Residue (recorded here per `CLAUDE.md` §📌, not spawned):** only secondary item **4** remains — owner
+> ratification of the fusion-finding grades — and it is already owned by `AUDIT-FOLLOWUPS-BRIEF.md` §4.4,
+> which this brief itself routes to. No follow-up file is created: one would duplicate that live §4 rather
+> than add anything. (Item 3 was still open when this stamp was written and was executed the same day by
+> `015dc82`; the row above is corrected.)
 
 # Build Brief — Integrator fusion-export completeness + ordering (and session follow-ups)
 

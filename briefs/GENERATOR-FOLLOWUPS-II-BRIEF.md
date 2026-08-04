@@ -22,6 +22,29 @@
 >
 > **§3 is the only thing left** — ECGDex raw multi-night coherence, self-marked *"BIG, maybe-not-worth-it"*
 > and still unbuilt. This brief is one owner decision on §3 away from DONE.
+>
+> **Re-verified 2026-08-04 (backlog sweep) — §2 confirmed again, and one claim in this brief is FALSE.**
+> §2 re-checked by grepping §2's own identifiers in the file §2's own step list names
+> (`integrator-longitudinal.js`, *not* `integrator-app.js` — that mis-aimed grep is what produced the
+> earlier wrong "not built" stamp): `clearSynthetic` exported on `global.IntegratorLong` at `:844`,
+> `includeSynthetic` threaded 26×, pure `filterSynthetic` present. §2 stands.
+>
+> ⚠️ **The "decision comment on `ecgdex-app.js genSynthetic`" cited by §0 and §3 does not exist, and
+> never has.** `git log -S'deliberately single-recording' -- ecgdex-app.js` returns **empty over all
+> branches**; the only nearby comments are the §1b multi-*recording* retrofit note (`:27`) and an HRVDex
+> append note (`:1568`) — neither is the single-recording decision. So §3's promise that the decision is
+> "documented here so it is reversible with eyes open" is only **half** kept: it is recorded in this
+> brief's prose and nowhere in the code a reader of `genSynthetic()` would ever see.
+>
+> §3 itself is genuinely unbuilt, independently confirmed: **`ECGDex.src.html` includes neither
+> `synth-gen.js` nor `dex-patient-gen.js`**, which §3 step 2 requires.
+>
+> **Disposition: owner-decision.** §3 turns on whether raw-µV multi-night coherence is a real product
+> need — not a call a sweep gets to make, and it would touch the shared `synth-gen.js` engine plus an
+> ECGDex re-bundle. Left PROPOSED deliberately. The cheap half of the unblock, if the owner says "no":
+> land the missing decision comment on `genSynthetic()` during ECGDex's **next** re-bundle (inert on its
+> own — do not re-bundle just to carry a comment, same economics as `CLAUDE.md` §🎫's inert-export rule),
+> and this brief goes DONE.
 
 # Brief — Generator Follow-ups, Round II (June 2026)
 
