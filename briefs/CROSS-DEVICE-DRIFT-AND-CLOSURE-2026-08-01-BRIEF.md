@@ -356,9 +356,30 @@ The defence is redundancy in the measurement, not more surrogates.
 - [ ] The unwrap is made robust by using the closure constraint across all three pairs **jointly**
       rather than unwrapping each pair independently — three pairs with one constraint is
       over-determined, which is the actual leverage three devices give.
-- [ ] A stated **precondition** wherever a per-night constant offset is used: the pair's drift × night
-      length must be small against the measurement's own resolution. `fitClockOffsetPooled` should say
-      so in its contract, since it is safe for CPAP and not for wearable↔wearable.
+- [x] **DONE — the contract existed; its RATE was retracted (fixed 2026-08-04).** `maxTolerableDriftPpm`
+      already shipped, exported, with a per-consumer table. But it justified its two "NOT safe" rows with
+      *"(wearables run 100+)"* — the beat-derived figure `WEARABLE-DRIFT-DIRECT` **retracted**. Measured
+      directly off the two clocks in every capture file: H10 −20.3 ppm, Verity −27.0 ppm vs the capture
+      host, each stable to ±2–3 across fragments and nights ⇒ **inter-device ≈ 7 ppm**, not 100+. Over
+      7 h that is **202 ms, not 2.5 s**.
+
+      **The verdicts do not flip** — 7 ppm still exceeds a ~3 / 2.4 ppm budget — which is exactly why the
+      stale number survived: the ordering holds at both rates, so every assertion stayed green while the
+      stated reason was wrong by an order of magnitude. Both rates are now asserted, so the leg can no
+      longer pass for the wrong reason.
+
+      **What the correction changes is the engineering answer.** The margin is 2–3×, not 30×, so a
+      constant offset at beat resolution IS defensible over a short enough window. Added
+      `maxSafeSpanSec(resolutionSec, driftPpm)` — the precondition asked the way a caller can act on it:
+
+      | consumer | resolution | safe window at 7 ppm | under the retracted 100+ ppm |
+      |---|---|---|---|
+      | `pat-gate.js` | ≤60 ms | **2.4 h** | ~10 min |
+      | `fitClockDrift` beat matching | ±80 ms | **3.2 h** | ~13 min |
+
+      At ~10 minutes nobody would bother; at hours it is a real option for PAT. A zero or non-finite
+      rate **refuses** rather than returning `Infinity` — "no limit" is a claim, and this function has
+      not measured one.
 - [ ] PAT re-tested under drift-aware alignment, against `pat-gate.js`'s full bar (IQR **and** coupling
       **and** a physiological median), on the nights where closure holds.
 - [ ] A decision recorded on §3.3: capture-time offset measurement vs an exported envelope. Both are

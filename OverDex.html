@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-1pmgUIPMOHPPHm8f6Yub7BPimfysxekeXIid7QdPO64=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9w/Hze7WDwjxB60MW2gvsvP0vxPqAyy6NHTlb1l2f4I=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90=' 'sha256-rbZtILoKBsUDI+cKQFITVkw/6ech9wsAql3iGrzpFQ8=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-1pmgUIPMOHPPHm8f6Yub7BPimfysxekeXIid7QdPO64=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UJuG0nvXCgvoeOISu95cNBmgypLmig0AgISbTHSZMuo=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90=' 'sha256-rbZtILoKBsUDI+cKQFITVkw/6ech9wsAql3iGrzpFQ8=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -7087,19 +7087,46 @@ function fitClockClosure(sources, opts) {
    relative drift, times the night, is small against that consumer's OWN resolution. The tolerance is
    therefore a property of the CONSUMER, not of the fit — which is why one number cannot be baked in:
 
-     consumer                        resolution     max drift over a 7 h night
-     runFusion event pairing         +-120 s        ~4,700 ppm     safe
-     desat<->apnea coupling          -15..+60 s     ~2,400 ppm     safe
-     fitClockOffsetPooled support     ~30 s         ~1,200 ppm     safe for CPAP (-9..-29 ppm)
-     fitClockDrift beat matching     +-80 ms        ~3 ppm         NOT safe (wearables run 100+)
-     pat-gate.js                     <=60 ms        ~2.4 ppm       NOT safe
+     consumer                        resolution     max drift over a 7 h night   at the MEASURED 7 ppm
+     runFusion event pairing         +-120 s        ~4,700 ppm     safe          safe
+     desat<->apnea coupling          -15..+60 s     ~2,400 ppm     safe          safe
+     fitClockOffsetPooled support     ~30 s         ~1,200 ppm     safe for CPAP safe
+     fitClockDrift beat matching     +-80 ms        ~3 ppm         NOT safe      NOT safe over 7 h — but safe under 3.2 h
+     pat-gate.js                     <=60 ms        ~2.4 ppm       NOT safe      NOT safe over 7 h — but safe under 2.4 h
 
    So the CPAP path is not safe by luck, as §3.1 supposed — it is safe by three orders of magnitude.
-   What is unsafe is anything at BEAT resolution, which is exactly the two consumers that matter for
-   PAT. Exported so a caller can ask rather than assume. */
+   What is unsafe is anything at BEAT resolution, which is exactly the two consumers that matter for PAT.
+
+   ⚠ THE RATE IN THE OLD PARENTHETICAL WAS RETRACTED. This table used to justify the last two rows with
+   "(wearables run 100+)". That figure came from the beat-derived stack — match beats, block, unwrap a
+   comb, regress — which produced four retractions in two days. WEARABLE-DRIFT-DIRECT measured the rate
+   DIRECTLY off the two clocks already in every capture file (host stamp vs device counter): Polar H10
+   -20.3 ppm and Verity -27.0 ppm against the capture host, each stable to +-2-3 ppm across fragments
+   AND across nights, so the INTER-DEVICE rate is ~7 ppm, not 100+. Over 7 h that is 202 ms, not 2.5 s.
+
+   The two verdicts do NOT flip — 7 ppm still exceeds a 3 / 2.4 ppm budget — but the margin is 2-3x,
+   not 30x, and that changes what is POSSIBLE: a constant offset is defensible at beat resolution over a
+   SHORT ENOUGH window. `maxSafeSpanSec` below is that question asked the useful way round. Under
+   "100+ ppm" the answer was ~10 minutes and nobody would bother; at the measured rate it is hours.
+   Exported so a caller can ask rather than assume. */
 function maxTolerableDriftPpm(spanSec, resolutionSec) {
   if (!(spanSec > 0) || !(resolutionSec > 0)) return null;
   return (resolutionSec / spanSec) * 1e6;
+}
+
+/* The same precondition asked the way a caller can ACT on: given my resolution and the pair's measured
+   drift, how long may the window be before a constant offset stops being defensible? The other
+   direction only ever answers "no"; this one answers "not longer than this".
+   `driftPpm` defaults to WEARABLE-DRIFT-DIRECT's measured inter-device rate. It is a DEFAULT, not a
+   constant of nature — a caller with its own measured pair rate should pass it, and a caller comparing
+   against the CPAP (-9..-29 ppm vs a wearable) has a much larger figure to pass. Sign is irrelevant, so
+   the magnitude is taken; a zero or non-finite rate has no bound to give and returns null rather than
+   Infinity, because "no limit" is a claim and this function has not measured one. */
+var MEASURED_WEARABLE_PAIR_PPM = 7;
+function maxSafeSpanSec(resolutionSec, driftPpm) {
+  var ppm = driftPpm == null ? MEASURED_WEARABLE_PAIR_PPM : Math.abs(driftPpm);
+  if (!(resolutionSec > 0) || !isFinite(ppm) || !(ppm > 0)) return null;
+  return resolutionSec / (ppm * 1e-6);
 }
 
 function fitClockOffsetPooled(anchorTimes, channels, opts) {
@@ -8190,6 +8217,8 @@ window.IntegratorDSP = {
   fitClockOffset,
   fitClockOffsetPooled,
   maxTolerableDriftPpm,
+  maxSafeSpanSec,
+  MEASURED_WEARABLE_PAIR_PPM,
   fitClockDrift,
   fitClockClosure,
   _wrappedSlopeFit,

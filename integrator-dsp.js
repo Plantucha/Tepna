@@ -5067,19 +5067,46 @@ function fitClockClosure(sources, opts) {
    relative drift, times the night, is small against that consumer's OWN resolution. The tolerance is
    therefore a property of the CONSUMER, not of the fit — which is why one number cannot be baked in:
 
-     consumer                        resolution     max drift over a 7 h night
-     runFusion event pairing         +-120 s        ~4,700 ppm     safe
-     desat<->apnea coupling          -15..+60 s     ~2,400 ppm     safe
-     fitClockOffsetPooled support     ~30 s         ~1,200 ppm     safe for CPAP (-9..-29 ppm)
-     fitClockDrift beat matching     +-80 ms        ~3 ppm         NOT safe (wearables run 100+)
-     pat-gate.js                     <=60 ms        ~2.4 ppm       NOT safe
+     consumer                        resolution     max drift over a 7 h night   at the MEASURED 7 ppm
+     runFusion event pairing         +-120 s        ~4,700 ppm     safe          safe
+     desat<->apnea coupling          -15..+60 s     ~2,400 ppm     safe          safe
+     fitClockOffsetPooled support     ~30 s         ~1,200 ppm     safe for CPAP safe
+     fitClockDrift beat matching     +-80 ms        ~3 ppm         NOT safe      NOT safe over 7 h — but safe under 3.2 h
+     pat-gate.js                     <=60 ms        ~2.4 ppm       NOT safe      NOT safe over 7 h — but safe under 2.4 h
 
    So the CPAP path is not safe by luck, as §3.1 supposed — it is safe by three orders of magnitude.
-   What is unsafe is anything at BEAT resolution, which is exactly the two consumers that matter for
-   PAT. Exported so a caller can ask rather than assume. */
+   What is unsafe is anything at BEAT resolution, which is exactly the two consumers that matter for PAT.
+
+   ⚠ THE RATE IN THE OLD PARENTHETICAL WAS RETRACTED. This table used to justify the last two rows with
+   "(wearables run 100+)". That figure came from the beat-derived stack — match beats, block, unwrap a
+   comb, regress — which produced four retractions in two days. WEARABLE-DRIFT-DIRECT measured the rate
+   DIRECTLY off the two clocks already in every capture file (host stamp vs device counter): Polar H10
+   -20.3 ppm and Verity -27.0 ppm against the capture host, each stable to +-2-3 ppm across fragments
+   AND across nights, so the INTER-DEVICE rate is ~7 ppm, not 100+. Over 7 h that is 202 ms, not 2.5 s.
+
+   The two verdicts do NOT flip — 7 ppm still exceeds a 3 / 2.4 ppm budget — but the margin is 2-3x,
+   not 30x, and that changes what is POSSIBLE: a constant offset is defensible at beat resolution over a
+   SHORT ENOUGH window. `maxSafeSpanSec` below is that question asked the useful way round. Under
+   "100+ ppm" the answer was ~10 minutes and nobody would bother; at the measured rate it is hours.
+   Exported so a caller can ask rather than assume. */
 function maxTolerableDriftPpm(spanSec, resolutionSec) {
   if (!(spanSec > 0) || !(resolutionSec > 0)) return null;
   return (resolutionSec / spanSec) * 1e6;
+}
+
+/* The same precondition asked the way a caller can ACT on: given my resolution and the pair's measured
+   drift, how long may the window be before a constant offset stops being defensible? The other
+   direction only ever answers "no"; this one answers "not longer than this".
+   `driftPpm` defaults to WEARABLE-DRIFT-DIRECT's measured inter-device rate. It is a DEFAULT, not a
+   constant of nature — a caller with its own measured pair rate should pass it, and a caller comparing
+   against the CPAP (-9..-29 ppm vs a wearable) has a much larger figure to pass. Sign is irrelevant, so
+   the magnitude is taken; a zero or non-finite rate has no bound to give and returns null rather than
+   Infinity, because "no limit" is a claim and this function has not measured one. */
+var MEASURED_WEARABLE_PAIR_PPM = 7;
+function maxSafeSpanSec(resolutionSec, driftPpm) {
+  var ppm = driftPpm == null ? MEASURED_WEARABLE_PAIR_PPM : Math.abs(driftPpm);
+  if (!(resolutionSec > 0) || !isFinite(ppm) || !(ppm > 0)) return null;
+  return resolutionSec / (ppm * 1e-6);
 }
 
 function fitClockOffsetPooled(anchorTimes, channels, opts) {
@@ -6170,6 +6197,8 @@ window.IntegratorDSP = {
   fitClockOffset,
   fitClockOffsetPooled,
   maxTolerableDriftPpm,
+  maxSafeSpanSec,
+  MEASURED_WEARABLE_PAIR_PPM,
   fitClockDrift,
   fitClockClosure,
   _wrappedSlopeFit,
