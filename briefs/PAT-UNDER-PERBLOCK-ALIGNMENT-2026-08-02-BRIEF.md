@@ -13,7 +13,10 @@
 > negative reverses under a better pair (§3c), under no alignment at all (§3d), and under a matched-null
 > offset scan on **47 of 57** windows (§3g). The ACC anchors it used disagree with *themselves* by
 > **1171–3094 ms** (§3e). Coupling is real; **absolute PAT remains blocked**, now for the stated reason
-> that the offset is knowable only to a **~450 ms band mod one RR** (§3g.2). Read §3g first.
+> that the offset is knowable only to a **~450 ms band mod one RR** (§3g.2).
+> **Read §3h before §3g** — §3c–§3g were written without reading `PAT-NO-VALID-ANCHOR-2026-08-02`, which
+> is IN-PROGRESS in this same family and already contains parts of them at larger n. Where the two speak
+> to the same question, that one wins.
 
 §3.2 says the alignment precision PAT needs *"is reachable on this hardware, which the previous
 measurement concluded it was not"*, citing **43–112 ms, median ≈50 ms**. That citation traces back to
