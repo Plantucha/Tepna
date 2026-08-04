@@ -16,7 +16,7 @@
    browser modules are loaded into a `vm` sandbox with minimal window/
    document/localStorage shims.
    ════════════════════════════════════════════════════════════════════════ */
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
@@ -1289,6 +1289,30 @@ async function main() {
     DriftReport: ctx.DriftReport,
     docs: readDocs(),
     docsLedger: readDocsLedger(),
+    /* REGEN-CORPUS-PATH-FOLLOWUPS-II §1 — A2's OWN scope. The SPDX lint used to read `env.sources`,
+       a list curated to serve OTHER source-scan gates, so a file was licence-checked iff some unrelated
+       scan happened to want its text. `CLAUDE.md` §📜 states the invariant as universal. This walks the
+       tree instead (same walker docs-ledger uses, same exclusions) and hands the gate the first 4 KB of
+       every .js/.mjs — headers live at the top, and 203 × 4 KB is cheap. The gate keeps its own regexes;
+       handing it a precomputed boolean would move the predicate out of the gate. Node-lane only. */
+    authoredJsHeads: (() => {
+      try {
+        const out = {};
+        for (const rel of walkRepoPaths(ROOT)) {
+          if (!/\.(?:js|mjs)$/.test(rel)) continue;
+          try {
+            const fd = openSync(join(ROOT, rel), 'r');
+            const buf = Buffer.alloc(4096);
+            const n = readSync(fd, buf, 0, 4096, 0);
+            closeSync(fd);
+            out[rel] = buf.slice(0, n).toString('utf8');
+          } catch {}
+        }
+        return out;
+      } catch {
+        return null;
+      }
+    })(),
     /* BADGE-COVERAGE-AUDIT (corrected) — every node's UI-layer source, so the badge gate can read the
        literal ids each `evBadge(...)` call site passes and resolve them against that node's OWN
        registry. Node-lane only (readdir); the browser lane SKIPs, as docs-ledger does. */

@@ -13108,6 +13108,45 @@
       // positive controls — proof the gate is not a silent no-op
       T.ok('A2 · positive control: flags a file with no SPDX header', !SPDX_RE.test('var x = 1; // no header here'));
       T.ok('A2 · positive control: flags a non-Apache identifier (and passes Apache)', OTHER_RE.test('SPDX-License-Identifier: MIT') && !OTHER_RE.test('SPDX-License-Identifier: Apache-2.0'));
+
+      /* REGEN-CORPUS-PATH-FOLLOWUPS-II §1 — A2's OWN scope, not one borrowed from other gates.
+         Everything above reads `env.sources`, a list curated to feed unrelated source scans. So a file
+         was licence-checked iff some OTHER gate happened to need its text, while CLAUDE.md §📜 states
+         the invariant as universal — and the gap was not theoretical: `tools/regen-ppgdex-goldens.mjs`
+         had shipped headerless since it was written, and surfaced only when the regen family was added
+         to the scan list for a different reason. Nothing about that file had changed.
+         Measured when this leg landed: env.sources covered 124 of the 203 authored .js/.mjs in the
+         tree, and a whole-tree walk found FOUR headerless files — ALL of them outside that 124, two
+         (`how-to-collect/image-slot.js` and its generated `docs/` mirror) in no scan list and never
+         would be. Node-lane only — the browser lane cannot walk the tree, so it SKIPs, as docs-ledger. */
+      var HEADS = env.authoredJsHeads;
+      if (!HEADS) {
+        T.skip('env.authoredJsHeads provided to the runner', 'Node-lane only (run-tests.mjs walkRepoPaths, fs truth) — the browser lane can’t walk the tree so it SKIPs; CI runs the Node lane');
+        return;
+      }
+      var allJs = Object.keys(HEADS).sort();
+      /* ANTI-VACUITY. An enumeration gate that silently enumerates nothing is the exact failure this
+         leg exists to remove, one level up — so assert the walk found a realistic tree AND that it
+         reached a file no curated list would have volunteered. */
+      T.ok('ANTI-VACUITY · the walk found the authored js/mjs tree', allJs.length > 150, 'found ' + allJs.length + ' .js/.mjs (expected the low 200s)');
+      T.ok(
+        'ANTI-VACUITY · it reaches files no scan list contains',
+        allJs.indexOf('how-to-collect/image-slot.js') >= 0 && allJs.indexOf('tools/o2ring-finger-validate-batch.mjs') >= 0,
+        'the walk must include unwired authored sources — that is the whole point'
+      );
+      T.ok('ANTI-VACUITY · A2 now covers strictly MORE than env.sources', allJs.length > jsFiles.length, allJs.length + ' walked vs ' + jsFiles.length + ' wired');
+      var wNoSpdx = [],
+        wNoCopy = [],
+        wOther = [];
+      allJs.forEach(function (f) {
+        var t = HEADS[f];
+        if (!SPDX_RE.test(t)) wNoSpdx.push(f);
+        if (!COPY_RE.test(t)) wNoCopy.push(f);
+        if (OTHER_RE.test(t)) wOther.push(f);
+      });
+      T.ok('A2 · EVERY authored .js/.mjs in the tree carries SPDX-License-Identifier: Apache-2.0', wNoSpdx.length === 0, wNoSpdx.length ? 'missing in: ' + wNoSpdx.join(', ') : 'present across ' + allJs.length + ' files');
+      T.ok('A2 · EVERY authored .js/.mjs in the tree carries the Copyright 2026 Michal Planicka line', wNoCopy.length === 0, wNoCopy.length ? 'missing in: ' + wNoCopy.join(', ') : 'present across ' + allJs.length + ' files');
+      T.ok('A2 · no non-Apache SPDX identifier anywhere in the tree', wOther.length === 0, wOther.length ? 'in: ' + wOther.join(', ') : 'clean');
     });
 
     /* ════ HOUSE-INVARIANT LINT · DSP reach-in allow-list (DEV-TOOLCHAIN Part A · A4) ════
@@ -28008,6 +28047,33 @@
       T.ok('ANTI-VACUITY · the scan found real anchors and ids', nAnchor >= 60 && nId >= 150, nAnchor + ' distinct in-page anchors, ' + nId + ' ids across ' + guides.length + ' guides');
       T.ok('every in-page anchor resolves to an id in the same guide', dead.length === 0, dead.length ? dead.slice(0, 10).join(' · ') + (dead.length > 10 ? ' … +' + (dead.length - 10) : '') : nAnchor + ' anchors, none dead');
       T.ok('no duplicate id in any guide (a duplicate anchors to the wrong copy, silently)', dup.length === 0, dup.length ? dup.slice(0, 10).join(' · ') : nId + ' ids, all unique per guide');
+    });
+
+    /* REGEN-CORPUS-PATH-FOLLOWUPS-II §2/§3 — two tools that silently did LESS than asked.
+       §2: `build.mjs --app` was `argv.findIndex(a => a === '--app')`, so three `--app` flags built one
+       bundle, printed one success line and exited 0. An unknown flag is an error and a rejected flag is
+       honest; a RECOGNISED flag silently dropped is worse than either, because the run looks complete —
+       that is how OverDex drifted on PR #808 with only `--check` to catch it.
+       §3: `regen-goldens.mjs` had no `--all`, so "regenerate everything" was an uncommitted nine-node
+       shell loop printing nine separate summaries — and a HOLE in one node disappears into that wall,
+       which is the exact conflation the parent brief removed one level down.
+       Source-scanned because neither is reachable by executing anything from here: `build.mjs` writes
+       bundles and `regen-goldens.mjs` spawns nine children. The assertions are on the SHAPE that failed
+       (findIndex-vs-reduce, a combined summary that keeps NOT REACHED distinct), not on prose. */
+    group('build.mjs and regen-goldens cannot silently do less than asked — FOLLOWUPS-II §2/§3', 'tools · cli · no-silent-partial', function (T) {
+      var B = env.sources && env.sources['tools/build.mjs'];
+      var R = env.sources && env.sources['tools/regen-goldens.mjs'];
+      T.ok('ANTI-VACUITY · both tool sources are loaded and non-trivial', typeof B === 'string' && B.length > 3000 && typeof R === 'string' && R.length > 1000, 'build=' + (B ? B.length : 'absent') + ' regen=' + (R ? R.length : 'absent'));
+      if (typeof B !== 'string' || typeof R !== 'string') return;
+      T.ok('build.mjs no longer takes only the FIRST --app', !/findIndex\(\(a\)\s*=>\s*a === '--app'\)/.test(B), "argv.findIndex(a => a === '--app') is back — repeated --app would be silently dropped");
+      T.ok('build.mjs collects every --app occurrence', /--app'\s*&&\s*argv\[i \+ 1\]/.test(B) && /appArgs/.test(B), 'expected a reduce over argv collecting each --app value');
+      T.ok('build.mjs validates ALL names before writing ANY bundle', B.indexOf('is not a known bundle') < B.indexOf('for (const bundleFile of bundleFiles)'), 'a typo in the third --app must not leave the first two rebuilt');
+      T.ok('the usage line advertises the repeatable form', /--app <Name> \[--app <Name> \.\.\.\]/.test(B));
+      T.ok('regen-goldens.mjs accepts --all', /--all/.test(R) && /const ALL = process\.argv\.includes\('--all'\)/.test(R));
+      T.ok('--all runs a CHILD PROCESS per node, not nine imports into one realm', /spawnSync/.test(R), 'co-loaded realms define the same globals; sharing a process lets one node answer another');
+      T.ok('the combined summary keeps NOT REACHED distinct from skipped', /NOT REACHED/.test(R) && /skipped/.test(R) && /absent/.test(R), 'a hole folded into `skipped` is the conflation the parent brief removed');
+      T.ok('a node that prints no summary is a FAILURE, never folded into a zero', /no summary line/.test(R) && /failed\.push/.test(R));
+      T.ok('--all exits non-zero when a node did not report', /process\.exit\(failed\.length \|\|/.test(R));
     });
 
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.

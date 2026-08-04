@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-03 · **Spawned-by:** `REGEN-CORPUS-PATH-FOLLOWUPS-2026-08-03-BRIEF.md` (execution) · **Affects:** `tests/run-tests.mjs`, `tools/build.mjs`, `tools/regen-goldens.mjs`
+**Status:** DONE — 2026-08-03 · **Created:** 2026-08-03 · **Spawned-by:** `REGEN-CORPUS-PATH-FOLLOWUPS-2026-08-03-BRIEF.md` (execution) · **Affects:** `tests/run-tests.mjs`, `tools/build.mjs`, `tools/regen-goldens.mjs`
 
 # Three tools that silently do less than you asked, and a lint whose coverage is an accident
 
@@ -20,11 +20,24 @@ carries the SPDX header"* — but A2's scope is `readSources()`'s `wanted` list,
 source-scan gates. A file is checked for licensing **iff** some unrelated scan happens to want to read
 it. Measured now:
 
+> ### ⚠ CORRECTION (2026-08-03, on execution) — the counts below were WRONG, in both directions
+>
+> They were produced with `grep -q PAT "$f" || echo MISSING`, and in this environment **`grep` is a
+> shell function**, not GNU grep — its `-q` exit code disagrees with `-c` **on the same file in the
+> same shell**. The audit therefore reported `tools/make-synthetic-edf.mjs` as headerless when it is
+> not, and a separate earlier run of the same idiom **missed** files that genuinely were. Re-measured
+> in Python, reading bytes:
+
 | | count |
 |---|---|
-| `tools/*.mjs` in the tree | 56 |
-| `tools/…` entries in the source list | 22 |
-| `tools/*.mjs` still missing SPDX | **3** — `make-synthetic-edf.mjs`, `o2ring-finger-roundtrip.mjs`, `o2ring-finger-validate-batch.mjs` |
+| authored `.js`/`.mjs` in the tree | **203** |
+| of those, in `env.sources` (A2's old scope) | **124** — 61 % |
+| headerless, whole tree | **4** — `how-to-collect/image-slot.js` **and its generated `docs/` mirror**, `tools/o2ring-finger-roundtrip.mjs`, `tools/o2ring-finger-validate-batch.mjs` |
+| headerless **inside** A2's old scope | **0** |
+
+The last row is the finding, sharpened: **every** headerless file sat in the 39 % A2 could not see, and
+two of them (`image-slot.js` and its mirror) are in no scan list and never would be. `make-synthetic-edf.mjs`
+is fine. The original claim of "3, including make-synthetic-edf" was an instrument error, not a measurement.
 
 Three is small; the **shape** is not. A licensing invariant enforced over an arbitrary subset reports
 green for the subset and says nothing about the rest — and the parent brief's whole subject was a step
@@ -73,11 +86,27 @@ conflation the parent fixed, one level up.
 
 ## Done when
 
-- [ ] A2 enumerates its own scope from the tree, with a non-empty anti-vacuity leg; the 3 missing
-      headers added; the count of unscanned authored sources is zero by construction, not by luck.
-- [ ] `build.mjs` cannot silently drop a repeated `--app` — gated.
-- [ ] `node tools/regen-goldens.mjs --all [--check]` exists and reports one combined summary that
-      distinguishes NOT REACHED from skipped.
+- [x] **DONE.** A2 walks the tree itself (`walkRepoPaths`, the same walker + exclusions `docs-ledger`
+      uses) and is handed the first 4 KB of every `.js`/`.mjs`; the gate keeps its own regexes, because
+      handing it a precomputed boolean would move the predicate out of the gate. Three anti-vacuity legs:
+      the walk found >150 files, it **reaches files no scan list contains**, and it covers strictly more
+      than `env.sources` (203 vs 124). All 4 headers added — the `docs/` mirror via `build-docs.mjs`, not
+      by hand. **Verified RED the way that proves the point:** with the headers removed, the OLD wired
+      legs report `present across 124 files` — fully green — while the new whole-tree legs name all four.
+      That single run is the borrowed-scope defect.
+- [x] **DONE.** `build.mjs` collects every `--app` occurrence and **validates all names before writing
+      any bundle**, so a typo in the third flag cannot leave the first two rebuilt. Gated on the shape
+      that failed (`findIndex` must not return).
+- [x] **DONE.** `node tools/regen-goldens.mjs --all [--check]`, one child process per node — **not** nine
+      imports into one realm, because each recipe co-loads the real modules and several define the same
+      globals, so sharing a process would let one node's modules answer another node's regeneration.
+      One combined summary keeping `NOT REACHED` distinct from `skipped`; a node that prints no summary
+      is a failure, never folded into a zero. Measured: without `DEX_UPLOADS` it reports **11 NOT REACHED
+      across 7 nodes** on one line (the parent brief's 11, previously only findable by a shell loop);
+      with the corpus, **0**.
+      **Deliberately NOT a failure:** `--check` still exits 0 when fixtures are unreached. A contributor
+      without the corpus cannot green it, and the wall that matters is already downstream —
+      `tools/release.mjs` refuses to cut a release while a corpus-backed fixture is unverified.
 
 ## Cross-references
 - Parent: `REGEN-CORPUS-PATH-FOLLOWUPS-2026-08-03-BRIEF.md` (DONE 2026-08-03).
