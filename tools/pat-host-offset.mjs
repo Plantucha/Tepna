@@ -75,6 +75,16 @@ const SCAN_LO = Number(arg('scan-lo', -1200)),
    observed at n=8, where all four windows read exactly 0.111 and the statistic could not have come
    out any other way. Defaults to the main count rather than a fraction of it. */
 const SCAN_SURR = Number(arg('scan-surrogates', N_SURR));
+/* WHICH PPG TIMING POINT. The foot is the standard for PAT/PTT and is what O2RING-PPG-GAP §3 argues
+   for on PPI grounds (the intersecting-tangent foot reads the diastolic trough and the steepest rise,
+   and is untouched by a sentinel near the systolic peak). But the foot is also the HARDER of the two
+   to detect in low-perfusion PPG, and that gives §3f's intermittency a THIRD candidate explanation
+   the brief did not list: not the physiology and not the offset, but the timing point itself getting
+   noisier. `consensusBeats` already returns both, so the question costs one argument to ask.
+   ⚠ NOT a like-for-like swap at δ=0: the peak trails the foot by ~100-250 ms, so a peak lag can leave
+   the [PHYS_LO, PHYS_HI] window that was calibrated for feet. Compare the two under --scan, which is
+   free to absorb that constant, and not on the raw δ=0 score. */
+const TIMING_POINT = arg('timing-point', 'foot');
 /* Anchors are sampled, not taken per row: a 9 h ECG is ~4 M rows and `hostAxis`'s running median is
    O(n·win). One anchor per ANCHOR_STEP rows is ~0.5 s at 130 Hz, far denser than the ~1 s wander the
    correction describes, and the median needs density only relative to that. */
@@ -162,7 +172,9 @@ function ppgFeet(text) {
     }
   });
   const cons = PPGDSP.consensusBeats(per, refIdx, rec.fs);
-  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, idx: cons.feet };
+  const pts = TIMING_POINT === 'peak' ? cons.peaks : cons.feet;
+  if (!pts) throw new Error('consensusBeats exposed no `' + TIMING_POINT + '` series');
+  return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, idx: pts };
 }
 /* idx -> host-axis ms. `idx/fs` IS the device's own clock by construction (that is what makes the
    axis drawn), so it is also the right argument to `correctionAt`. */
@@ -373,7 +385,7 @@ if (IS_CLI) {
     console.log(JSON.stringify({ windowMin: WINDOW_MIN, surrogates: N_SURR, rows, refusals }, null, 2));
   } else {
     console.log(`\nPAT under a hostAxis-READ inter-device offset (PAT-UNDER-PERBLOCK-ALIGNMENT §3e.4)`);
-    console.log(`windows ${WINDOW_MIN} min · ${N_SURR} surrogates · every pair and window scored, none selected\n`);
+    console.log(`windows ${WINDOW_MIN} min · ${N_SURR} surrogates · PPG timing point: ${TIMING_POINT} · every pair and window scored, none selected\n`);
     console.log(SCAN ? 'night        win  beats |  strict  chance     p  |  BEST  chance     p  bestOff modRR    RR' : 'night        win  beats |  legacy  chance     p  |  strict  chance     p');
     console.log('─'.repeat(SCAN ? 82 : 74));
     const f = (x) => (x == null || !isFinite(x) ? '  —  ' : (x * 100).toFixed(0).padStart(4) + '%');

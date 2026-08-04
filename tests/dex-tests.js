@@ -25542,6 +25542,26 @@
          floors p at 1/(n+1), so a scan run with too few surrogates reports the SAME p everywhere and
          cannot fail — observed at n=8, where four real windows all read exactly 0.111. */
       T.ok('the scan p cannot beat its own floor of 1/(n+1)', sc2.scanP >= 1 / 7 - 1e-9, 'scanP=' + sc2.scanP + ' with 6 surrogates (floor ' + (1 / 7).toFixed(3) + ')');
+
+      /* THE TIMING POINT IS A PARAMETER, and the peak/foot difference is REAL, not cosmetic: the peak
+         trails the foot by ~100-250 ms, which is enough to push a lag out of the [PHYS_LO, PHYS_HI]
+         window that was calibrated for feet. That is why the two may only be compared under --scan,
+         which is free to absorb a constant — and why a raw δ=0 comparison would be rigged against
+         peaks. Pinned so nobody "simplifies" the two into one code path. */
+      var footLike = [],
+        peakLike = [],
+        rBase = [];
+      for (var z2 = 0; z2 < 600; z2++) {
+        rBase.push(1000000 + z2 * 1000);
+        footLike.push(1000000 + z2 * 1000 + 300); // inside [200,650]
+        peakLike.push(1000000 + z2 * 1000 + 700); // trails the foot — now OUTSIDE the window
+      }
+      var atFoot = PH.scanOffsets(Float64Array.from(rBase), Float64Array.from(footLike), 6, -25, 25, 25);
+      var atPeak = PH.scanOffsets(Float64Array.from(rBase), Float64Array.from(peakLike), 6, -25, 25, 25);
+      T.ok('a foot-like lag scores at delta~0', !atFoot.refused && atFoot.bestScore > 0.9, 'foot best=' + atFoot.bestScore);
+      T.ok('a peak-like lag does NOT, at the same delta — it left the foot-calibrated window', atPeak.refused || atPeak.bestScore < 0.5, 'peak best=' + (atPeak.bestScore || atPeak.refused));
+      var atPeakScanned = PH.scanOffsets(Float64Array.from(rBase), Float64Array.from(peakLike), 6, -400, 400, 25);
+      T.ok('...but a WIDE ENOUGH scan recovers it, which is why the comparison must be scanned', !atPeakScanned.refused && atPeakScanned.bestScore > 0.9, 'peak scanned best=' + atPeakScanned.bestScore);
     });
 
     group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {
