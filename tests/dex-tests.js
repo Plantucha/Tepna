@@ -28913,6 +28913,52 @@
       }
     });
 
+    /* R5-HR-TRIPLET-FOLLOWUPS — the HR hat must SAY when its legs answer different questions.
+       The hat differences three nodes' epoch HR. That is a comparison of SENSORS only if all three
+       summarise an epoch the same way, and they do not: OxyDex publishes `median(1 Hz rate)` where
+       ECGDex and PpgDex publish `60000/mean(RR)` — a 0.299 bpm gap on real RR, which is the whole of
+       the "OxyDex under-reads by 0.36 bpm" finding this hat was used to support.
+       Each node now declares `hrStat` on its epochs and the Integrator carries it through (its epoch
+       adapter is a WHITELIST, so an undeclared key is dropped — the field had to be named there too).
+       REPORTED, NOT REFUSED: the σ effect is under 2 %, so suppressing an otherwise-good hat would
+       lose more than it protects. An undeclared node is `null` and counts as UNKNOWN, never as
+       agreeing — which is why the committed golden, whose synthetic inputs predate the field, flags. */
+    group('the HR hat flags legs that do not share one epoch statistic — R5-FOLLOWUPS', 'integrator-dsp · hr-hat · estimator', function (T) {
+      var D = env.IntegratorDSP;
+      if (!D || typeof D.normalizeFile !== 'function') {
+        T.skip('IntegratorDSP.normalizeFile available', 'not wired into this lane');
+        return;
+      }
+      /* The adapter is the load-bearing half: a node can declare all it likes, the hat never sees it
+         unless the whitelist carries it. Drive the real function rather than asserting on source. */
+      var mk = function (stat) {
+        var eps = [];
+        for (var i = 0; i < 3; i++) {
+          var e = { tMin: i * 5, hr: 60 + i, rmssd: 40 };
+          if (stat) e.hrStat = stat;
+          eps.push(e);
+        }
+        return { schema: { name: 'ganglior.node-export', node: 'ECGDex', bus: 'ganglior' }, recording: { startEpochMs: U(2026, 5, 10, 22, 0, 0) }, timeseries: { epochs: eps } };
+      };
+      // normalizeFile returns { recs, warnings } — the series hangs off recs[0], not the result.
+      var _eps = function (r) {
+        var rec = r && r.recs && r.recs[0];
+        return rec && rec.series ? rec.series.hrvEpochs : null;
+      };
+      var dEps = _eps(D.normalizeFile(mk('rate-of-mean'), 'ECGDex_x.node-export.json'));
+      var sEps = _eps(D.normalizeFile(mk(null), 'ECGDex_x.node-export.json'));
+      T.ok('ANTI-VACUITY · the adapter produced epochs for both cases', !!(dEps && dEps.length === 3 && sEps && sEps.length === 3), 'declared=' + (dEps ? dEps.length : 'none') + ' silent=' + (sEps ? sEps.length : 'none'));
+      if (!dEps || !sEps) return;
+      T.eq('a DECLARED hrStat survives the epoch whitelist', dEps[0].hrStat, 'rate-of-mean');
+      T.eq('an UNDECLARED node yields null — unknown, never assumed to agree', sEps[0].hrStat, null);
+      T.ok('…and hr itself is untouched by the addition', dEps[0].hr === 60 && sEps[0].hr === 60);
+      /* A non-string must not sneak through as a declaration — the guard is `typeof === 'string'`. */
+      var jEps = _eps(
+        D.normalizeFile({ schema: { name: 'ganglior.node-export', node: 'ECGDex', bus: 'ganglior' }, recording: { startEpochMs: U(2026, 5, 10, 22, 0, 0) }, timeseries: { epochs: [{ tMin: 0, hr: 60, hrStat: 7 }] } }, 'ECGDex_x.node-export.json')
+      );
+      T.eq('a non-string hrStat is rejected to null rather than carried', jEps && jEps[0] ? jEps[0].hrStat : 'no-epoch', null);
+    });
+
     /* MULTI-SENSOR-DERIVATIONS §2.4 — motion-gated, confidence-scored HRV.
        HRV off a night full of movement is worth less than the same number off a still night. This SCORES
        that (it never alters or excludes an HRV value). The invariant that matters is the same tri-state

@@ -1407,6 +1407,12 @@
           respCv: _respCv(seg, segT, w0, w1),
           n: seg.length,
           hr: +(60000 / m).toFixed(1),
+          /* WHICH STATISTIC THIS IS (R5-HR-TRIPLET-FOLLOWUPS). The three hat corners summarise an
+             epoch differently — OxyDex publishes median(1 Hz rate), which sits 0.299 bpm below this
+             one on real RR, and that gap is the whole of the "OxyDex under-reads by 0.36 bpm"
+             finding. A consumer differencing two epochs was measuring the choice. Now it can see it.
+             `rate-of-mean` = 60000 / mean(RR); the alternatives are `median-rate` and `mean-rate`. */
+          hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
           rmssd: +rmssd(seg).toFixed(1),
           sdnn: +std(seg).toFixed(1),
@@ -4496,6 +4502,11 @@
             totalPower: nz(e.tp),
             lfhf: nz(e.lfhf),
             resp: nz(e.resp),
+            /* The EXPORTED epoch is built here, separately from the internal one — so the `hrStat`
+               label has to be repeated at this seam or the field never leaves the node. It did not,
+               on the first attempt: the bundles carried the string and every committed golden still
+               read `hrStat: undefined`. Same statistic as the internal builder (60000/mean(RR)). */
+            hrStat: 'rate-of-mean',
             motionIndex: _mot == null ? null : _mot,
             position: e.position || 'unknown'
           };

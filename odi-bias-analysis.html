@@ -8375,7 +8375,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         if (b.hr.length < 60) return; // ≥1 min HR coverage in the 5-min window
         var mh = _median(b.hr),
           mm = _mean(b.mo);
-        out.push({ tMin: k * 5, hr: mh != null ? +mh.toFixed(1) : null, motionIndex: mm != null ? +mm.toFixed(3) : null });
+        /* `hrStat` — R5-HR-TRIPLET-FOLLOWUPS. This leg is the ODD ONE on statistic: ECGDex and
+           PpgDex both publish 60000/mean(RR), this publishes the median of 1 Hz rates, and the two
+           differ by 0.299 bpm on real RR — the size of the bias R5 attributed to the O2Ring itself. */
+        out.push({ tMin: k * 5, hr: mh != null ? +mh.toFixed(1) : null, hrStat: 'median-rate', motionIndex: mm != null ? +mm.toFixed(3) : null });
       });
     return out;
   }

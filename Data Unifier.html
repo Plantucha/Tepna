@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-1pmgUIPMOHPPHm8f6Yub7BPimfysxekeXIid7QdPO64=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-qWrY3Q02BoW86u2u8Uslzjsqgl7owR1zXBQHcKVSL90=' 'sha256-rbZtILoKBsUDI+cKQFITVkw/6ech9wsAql3iGrzpFQ8=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-0Yi44VtYrgt41KpPgRQlXY8t/IJA5TnpHKLqW/NOtwY=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OGWdyS9byzAjRP70lfu3Ms+exEOc+QtAFgkKFS8yss4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-OfFZUQinpOOC1MqdOhICN0O3fDN31UynUW8mIh1SXtA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-ZL96QFEUVYvrWb59wPqDBQjqrNZ6GQfzHqRpHtluiiM=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-j9Sn8yVJbmJAQFEZ478LtwlWaU6IDo2/8FEJBldHNfw=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -9551,7 +9551,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         if (b.hr.length < 60) return; // ≥1 min HR coverage in the 5-min window
         var mh = _median(b.hr),
           mm = _mean(b.mo);
-        out.push({ tMin: k * 5, hr: mh != null ? +mh.toFixed(1) : null, motionIndex: mm != null ? +mm.toFixed(3) : null });
+        /* `hrStat` — R5-HR-TRIPLET-FOLLOWUPS. This leg is the ODD ONE on statistic: ECGDex and
+           PpgDex both publish 60000/mean(RR), this publishes the median of 1 Hz rates, and the two
+           differ by 0.299 bpm on real RR — the size of the bias R5 attributed to the O2Ring itself. */
+        out.push({ tMin: k * 5, hr: mh != null ? +mh.toFixed(1) : null, hrStat: 'median-rate', motionIndex: mm != null ? +mm.toFixed(3) : null });
       });
     return out;
   }
@@ -17649,6 +17652,11 @@ __exports.GlucoDex = window.GlucoDex;
         tMin: Math.round(e0 / 60),
         beats: idx.length,
         hr: td.hr,
+        /* Same STATISTIC as ECGDex (60000/mean(RR)) but a different PRECISION: `td.hr` is
+           `Math.round(hr)`, so every epoch here is an integer where ECGDex keeps a decimal. A ±0.5
+           uniform rounding is SD 0.289 bpm on a hat leg resolving σ≈1.5. Labelled, not changed —
+           un-rounding moves every epoch and the fleet has not chosen a precision (R5-FOLLOWUPS). */
+        hrStat: 'rate-of-mean',
         meanRR: td.meanRR,
         rmssd: td.rmssd,
         sdnn: td.sdnn,
@@ -18846,6 +18854,12 @@ __exports.GlucoDex = window.GlucoDex;
           return {
             tMin: e.tMin,
             hr: nz(e.hr),
+            /* Repeated at the EXPORT seam, not only on the internal epoch — this projection is a
+               whitelist, so a label added upstream never leaves the node. That is exactly how the
+               first attempt shipped inert: the bundle carried the string, every golden read
+               `hrStat: undefined`. `rate-of-mean`, same statistic as ECGDex — but note this leg is
+               integer-rounded where ECGDex keeps a decimal (R5-HR-TRIPLET-FOLLOWUPS). */
+            hrStat: 'rate-of-mean',
             rmssd: nz(e.rmssd),
             sdnn: nz(e.sdnn),
             lfhf: nz(e.lfhf),
@@ -20434,6 +20448,12 @@ __exports.PpgDex = window.PpgDex;
           respCv: _respCv(seg, segT, w0, w1),
           n: seg.length,
           hr: +(60000 / m).toFixed(1),
+          /* WHICH STATISTIC THIS IS (R5-HR-TRIPLET-FOLLOWUPS). The three hat corners summarise an
+             epoch differently — OxyDex publishes median(1 Hz rate), which sits 0.299 bpm below this
+             one on real RR, and that gap is the whole of the "OxyDex under-reads by 0.36 bpm"
+             finding. A consumer differencing two epochs was measuring the choice. Now it can see it.
+             `rate-of-mean` = 60000 / mean(RR); the alternatives are `median-rate` and `mean-rate`. */
+          hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
           rmssd: +rmssd(seg).toFixed(1),
           sdnn: +std(seg).toFixed(1),
@@ -23523,6 +23543,11 @@ __exports.PpgDex = window.PpgDex;
             totalPower: nz(e.tp),
             lfhf: nz(e.lfhf),
             resp: nz(e.resp),
+            /* The EXPORTED epoch is built here, separately from the internal one — so the `hrStat`
+               label has to be repeated at this seam or the field never leaves the node. It did not,
+               on the first attempt: the bundles carried the string and every committed golden still
+               read `hrStat: undefined`. Same statistic as the internal builder (60000/mean(RR)). */
+            hrStat: 'rate-of-mean',
             motionIndex: _mot == null ? null : _mot,
             position: e.position || 'unknown'
           };
