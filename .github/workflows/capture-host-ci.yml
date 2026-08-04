@@ -123,7 +123,21 @@ jobs:
 
   test:
     needs: changes
-    if: needs.changes.outputs.run == 'true'
+    # ⚠️ NO JOB-LEVEL `if:` HERE — the guard is on the STEPS below, and the difference deadlocks the repo.
+    # The note above says "a job skipped by a condition reports as skipped and satisfies the requirement".
+    # That is true for a PLAIN job and FALSE for a MATRIX job: a matrix is only expanded when the job
+    # runs, so a skipped matrix job registers ONE check under the literal `test (py${{ matrix.python-
+    # version }})` and the two REQUIRED contexts `test (py3.12)` / `test (py3.13)` never report at all.
+    # Branch protection then waits forever on checks that will never exist.
+    # Measured 2026-08-04 on PR #842 (docs-only): `decision: run=false`, 18 checks passing, 0 failing,
+    # and `mergeStateStatus: BLOCKED` permanently. The note had even OBSERVED the unexpanded literal on
+    # #776 and attributed it to duplicate runs rather than to skipping a matrix.
+    # Why this was not constantly red: a docs-only PR only deadlocks when nothing else supplies the
+    # contexts. #833 escaped because a `push` run on main happened to report them for the same commit —
+    # i.e. the gate's correctness depended on luck, and the better-behaved the PR (rebased right onto
+    # main, touching nothing under capture-host/) the more likely it hangs.
+    # So: the job ALWAYS runs and the matrix ALWAYS expands; the ~80 s of real work is what is skipped.
+    # Cost on an irrelevant PR is checkout + setup-python (~15 s, both legs in parallel).
     runs-on: ubuntu-latest
     # ⚠️ THE BOX'S VERSION MUST BE IN THIS MATRIX. It was pinned to 3.12 alone while the Vigil box ran
     # 3.13.11 — CI was green on a Python the hardware does not execute. That is not hypothetical here:
@@ -140,7 +154,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Not relevant to this PR — reporting green without running the suite
+        if: needs.changes.outputs.run != 'true'
+        run: echo "No capture-host/ or workflow change in this PR; the Python suite is not run."
       - name: Install tooling + runtime deps
+        if: needs.changes.outputs.run == 'true'
         # The runtime deps are installed even though there is no BLE hardware here. They import fine
         # without an adapter (bleak defers all D-Bus contact to connect time), and WITHOUT them
         # polar_psftp/pull_session cannot even be imported — so any test touching them fails outright, or
@@ -151,6 +169,7 @@ jobs:
           pip install pytest pytest-cov ruff shellcheck-py
           pip install -r requirements.txt
       - name: Lint (ruff — real errors only)
+        if: needs.changes.outputs.run == 'true'
         run: ruff check .
       # ⚠️ THE SHELL FLOOR IS `style` — the STRICTEST level, and it is a floor for the same reason the
       # coverage number is. Python coverage here is 100% statement+branch, but that denominator is .py
@@ -167,8 +186,10 @@ jobs:
       # developer's `pytest` uses (tests/test_shell_surface.py runs the identical check), and so this
       # does not depend on what the runner image happens to ship.
       - name: Lint (shellcheck — every .sh, strictest level)
+        if: needs.changes.outputs.run == 'true'
         run: shellcheck --severity=style $(find . -name '*.sh' -not -path './.venv*')
       - name: Unit tests + coverage (pytest)
+        if: needs.changes.outputs.run == 'true'
         # Bare `--cov` (no path) on purpose — it defers to pyproject's `source = [".", "deploy"]`. An
         # explicit `--cov=.` OVERRIDES that list and silently drops deploy/ back out of the denominator,
         # which is how deploy/ezparse.py sat untested and invisible.
