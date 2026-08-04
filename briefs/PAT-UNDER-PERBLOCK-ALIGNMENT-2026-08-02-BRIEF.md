@@ -522,3 +522,41 @@ host-stamp route reaches 39–128 ms (§3e.4) — inside the 450 ms plateau and 
 candidate — but it clears `pat-gate.js`'s 60 ms bar on only 3 of 8 nights. **Closing that last factor
 of ~2 is the whole remaining problem**, and it is a capture-side question (BLE delivery latency), not
 an analysis one.
+
+## 3h · CORRECTION — §3c–§3g were written without reading `PAT-NO-VALID-ANCHOR`, and partly duplicate it
+
+`PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md` is **IN-PROGRESS**, sits in this brief family, names this brief
+in its own header, and was not read before §3c–§3g were written. Parts of §3f–§3g re-derive it at smaller
+n. Recorded here rather than quietly cross-referenced, because the omission is the finding.
+
+| published here | already there, with more data |
+|---|---|
+| §3f.1 — phone tree not independent (29 refusals, spread 1.00 ms) | **§8**: 76/76 files, median range **1 ms**; **§11**: **0/104** declared independent, box 82/82 |
+| the mod-RR aliasing caveat | a `k ∈ [−4,4]` search over a **measured 384 ms quantum** |
+| §3g.2 — a free offset means we are no longer measuring PAT | **§1**: *"a per-block offset absorbs exactly the quantity PAT is"* — the trap behind a **retracted** verdict |
+| §3g.3 — "what would unblock it: an aperiodic anchor" | **§7**: one is already **derived** — `offset_ACC + Δ_Verity − Δ_H10 = −199 ms` |
+
+### 3h.1 · Reconciling §3g's 47/57 with its 0/13
+They are **not** in conflict, and §3g is the weaker claim. `PAT-NO-VALID-ANCHOR` §10 reports a derived
+anchor recovering a *locked, plausible PAT magnitude* on **0 of 13 box nights**. §3g reports *coupling*
+under a **free per-window offset** — which its own §3g.2 says is not a PAT measurement, and which §1 of
+that brief identifies as the specific move that produced a retracted verdict. **Where the two speak to
+the same question, the published one wins**: PAT magnitude is not established on box nights.
+
+### 3h.2 · What survives as new
+- **§3c** — the harness reconciliation. Legacy `matchRate` spans **0–77 %** across pairs of one night and
+  §3a's largest-overlap rule selects near the bottom every time. Specific to *this* brief's harness.
+- **§3e** — the ACC anchors' **internal** disagreement, 1171–3094 ms *within a single pair*. That brief's
+  §4 finds the ACC anchor does not transfer to the ECG/PPG streams; this measures how badly.
+- **`tools/pat-host-offset.mjs`** and its gates.
+- **One possibly-useful overlap:** that brief's §10.1 concludes *"per-fragment Δ is the more likely
+  requirement"* after box nights failed on fragmentation (one night carries 24 ECG × 68 PPG fragments).
+  This tool computes `hostAxis` **per file**, and every window lives inside one fragment pair — so it may
+  already have the shape §10.1 asks for. **Untested against their pipeline; a hypothesis, not a result.**
+
+### 3h.3 · The habit, now measured
+That brief's header reads: *"Fourth retraction in this brief family from the same habit: concluding from
+the best available case."* §3c–§3g then repeated it four more times — the O2Ring buffering mechanism, the
+signal-quality pair rule, "the wander is the defect", and the foot-vs-peak claim — each corrected only by
+widening the sample. **Reading the family's own prior brief would have supplied the warning before the
+first of them.** Check the sibling briefs before measuring, not after publishing.

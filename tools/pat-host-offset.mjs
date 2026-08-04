@@ -220,22 +220,45 @@ const MIN_LAGS = 50;
 function scanOffsets(rT, fT, nSurr, loMs, hiMs, stepMs) {
   const best = (feet) => {
     let bs = -Infinity,
-      bd = NaN;
+      bd = NaN,
+      bq = NaN;
     for (let d = loMs; d <= hiMs; d += stepMs) {
       const sh = new Float64Array(feet.length);
       for (let i = 0; i < feet.length; i++) sh[i] = feet[i] + d;
       const l = rawLags(rT, sh);
       if (l.length < MIN_LAGS) continue;
-      const m = strictMatchRate(l, rT.length).matchRate;
+      const r = strictMatchRate(l, rT.length);
+      const m = r.matchRate;
       if (isFinite(m) && m > bs) {
         bs = m;
         bd = d;
+        bq = r.residIQR;
       }
     }
-    return { score: bs, offset: bd };
+    return { score: bs, offset: bd, residIQR: bq };
   };
   const obs = best(fT);
   if (!isFinite(obs.score)) return { refused: 'no offset in the scan produced enough lags' };
+  /* ⚠ `strictMatchRate.residIQR` MUST NOT BE COMPARED TO pat-gate.js's 60 ms BAR. It is the IQR of the
+     residuals of the beats strict ACCEPTED, and acceptance is |d0| <= STRICT_W_MS (40 ms) — so it is
+     bounded by its own window and reads 31-44 ms on this corpus no matter what the signal does. Read
+     as a gate result it says 52/52 windows pass, which is a tautology, not a measurement. (Found while
+     trying to reproduce INTEGRATOR-PAT-VASCULAR §2-RESULT-II.3's ~96 ms and getting 38 ms.)
+     The gate-comparable quantity is the one that brief measures: the IQR of (lag - modal lag) over the
+     beats within a WIDE band of the modal lag, which is free to exceed the bar. Computed here so the
+     two harnesses can agree or disagree instead of talking past each other. */
+  const SCATTER_BAND_MS = 100; // theirs, so the numbers are comparable
+  const lags = rawLags(rT, Float64Array.from(Array.from(fT).map((t) => t + obs.offset))).map((e) => e.lag);
+  let scatterIQR = NaN;
+  if (lags.length >= MIN_LAGS) {
+    const so = [...lags].sort((a, b) => a - b);
+    const modal = so[so.length >> 1];
+    const near = lags
+      .filter((l) => Math.abs(l - modal) <= SCATTER_BAND_MS)
+      .map((l) => l - modal)
+      .sort((a, b) => a - b);
+    if (near.length >= 20) scatterIQR = near[Math.floor(near.length * 0.75)] - near[Math.floor(near.length * 0.25)];
+  }
   /* ⚠ A beat train is PERIODIC, so matching it pins an offset only MOD ONE RR INTERVAL — δ and
      δ ± RR are indistinguishable by construction. `bestOffsetMs` alone therefore looks like it
      "jumps" between windows when it may only be aliasing. The identifiable quantity is δ mod RR,
@@ -258,6 +281,14 @@ function scanOffsets(rT, fT, nSurr, loMs, hiMs, stepMs) {
   return {
     bestScore: obs.score,
     bestOffsetMs: obs.offset,
+    /* THE BINDING METRIC, and this tool did not report it until 2026-08-04. The scan maximises a COUNT
+       (matchRate); `pat-gate.js` gates on a DISPERSION (residIQR <= 60 ms). A free offset can raise the
+       count without tightening the scatter, so a high scan score says nothing about whether PAT is
+       measurable. INTEGRATOR-PAT-VASCULAR §2-RESULT-II.3 measured residIQR ~96 ms offset-free across 54
+       pairings and concluded the limit is beat-to-beat scatter, not the offset — reporting it here is
+       what lets this harness agree or disagree with that instead of talking past it. */
+    residIQRms: obs.residIQR,
+    scatterIQRms: scatterIQR,
     medRRms: medRR,
     bestOffsetModRR: modRR,
     scanChance: ok.length ? ok.reduce((a, b) => a + b, 0) / ok.length : NaN,
@@ -386,13 +417,15 @@ if (IS_CLI) {
   } else {
     console.log(`\nPAT under a hostAxis-READ inter-device offset (PAT-UNDER-PERBLOCK-ALIGNMENT §3e.4)`);
     console.log(`windows ${WINDOW_MIN} min · ${N_SURR} surrogates · PPG timing point: ${TIMING_POINT} · every pair and window scored, none selected\n`);
-    console.log(SCAN ? 'night        win  beats |  strict  chance     p  |  BEST  chance     p  bestOff modRR    RR' : 'night        win  beats |  legacy  chance     p  |  strict  chance     p');
+    console.log(
+      SCAN ? 'night        win  beats |  strict  chance     p  |  BEST  chance     p  bestOff modRR    RR resIQR scatIQR' : 'night        win  beats |  legacy  chance     p  |  strict  chance     p'
+    );
     console.log('─'.repeat(SCAN ? 82 : 74));
     const f = (x) => (x == null || !isFinite(x) ? '  —  ' : (x * 100).toFixed(0).padStart(4) + '%');
     for (const r of rows)
       console.log(
         SCAN
-          ? `${r.night} ${String(r.win).padStart(4)} ${String(r.n).padStart(6)} | ${f(r.strict)} ${f(r.strictChance)} ${r.strictP.toFixed(3).padStart(6)} | ${f(r.bestScore)} ${f(r.scanChance)} ${(isFinite(r.scanP) ? r.scanP.toFixed(3) : '  —  ').padStart(6)} ${(isFinite(r.bestOffsetMs) ? r.bestOffsetMs + '' : '—').padStart(6)} ${(isFinite(r.bestOffsetModRR) ? Math.round(r.bestOffsetModRR) + '' : '—').padStart(6)} ${(isFinite(r.medRRms) ? Math.round(r.medRRms) + '' : '—').padStart(5)}`
+          ? `${r.night} ${String(r.win).padStart(4)} ${String(r.n).padStart(6)} | ${f(r.strict)} ${f(r.strictChance)} ${r.strictP.toFixed(3).padStart(6)} | ${f(r.bestScore)} ${f(r.scanChance)} ${(isFinite(r.scanP) ? r.scanP.toFixed(3) : '  —  ').padStart(6)} ${(isFinite(r.bestOffsetMs) ? r.bestOffsetMs + '' : '—').padStart(6)} ${(isFinite(r.bestOffsetModRR) ? Math.round(r.bestOffsetModRR) + '' : '—').padStart(6)} ${(isFinite(r.medRRms) ? Math.round(r.medRRms) + '' : '—').padStart(5)} ${(isFinite(r.residIQRms) ? Math.round(r.residIQRms) + '' : '—').padStart(6)} ${(isFinite(r.scatterIQRms) ? Math.round(r.scatterIQRms) + '' : '—').padStart(7)}`
           : `${r.night} ${String(r.win).padStart(4)} ${String(r.n).padStart(6)} | ${f(r.legacy)} ${f(r.legacyChance)} ${r.legacyP.toFixed(3).padStart(6)} | ${f(r.strict)} ${f(r.strictChance)} ${r.strictP.toFixed(3).padStart(6)}`
       );
     console.log('─'.repeat(74));
