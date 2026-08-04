@@ -138,7 +138,12 @@ residual. `O2RING-PROTOCOL` §3b already flags the rate as unit-specific; the sa
 the lock and the counter quantization.
 
 ## Done when
-- [ ] §1 confirmed from a real night's `ppg_n` column, or the reconstruction shown to be wrong.
+- [ ] §1 confirmed from a real night's `ppg_n` column — **BLOCKED on a capture, not on work
+      (checked 2026-08-04).** `ppg_n`/`ppg_dur_step`/`ppg_expected` landed in `capture-host/writers.py`
+      on **2026-08-03** (`ec85357`). No OXYFRAME on disk carries them: the newest ring capture is
+      2026-08-03 and still writes the old 10-column header, and 2026-08-04 has Verity files only — no
+      O2Ring at all. §1 costs "a night and no code" and **the night has not happened**. It needs one
+      recorded with the ring connected on current capture-host; nothing in the repo unblocks it.
 - [ ] §3 decided (retired, or given a measured nominal).
 - [x] **§5 SCOPED 2026-08-04** — corpus adequate (38.1 h / 16 pairs), ring timing adequate (IQR 8.0 ms,
       7.5× inside the PAT bound), route identified (constant-δ + LOBO), coupling run **negative** and the
@@ -146,5 +151,24 @@ the lock and the counter quantization.
       ALIGNMENT` §3a's unresolved 3× harness discrepancy, which this pass reproduced.
 - [x] **§4 resolved as a duplicate of §5.3** — phase and δ are one unknown; irrelevant to coupling,
       and blocked on hardware (no ACC) for absolute PAT.
-- [ ] §2 parked or measured.
+- [x] **§2 MEASURED 2026-08-04 — the model is FALSIFIED.** §7.2 explains the 159/180 split as a beat
+      between the ring's 1.00346 s second and the ~1.0028 s poll, and §2 asked for the prediction:
+      imbalance should track the poll interval. Over the whole corpus (`tools/o2ring-step-imbalance.mjs`,
+      1558 OXYFRAME sessions, **55 usable**):
+
+      | poll cluster | n | observed imbalance | model predicts |
+      |---|---|---|---|
+      | 0.99030 s | 27 | **+0.00069** | −0.01312 |
+      | 1.00450 s | 28 | **−0.00067** | +0.00104 |
+
+      **Pearson r = −0.084.** The model predicts a sign change and a ~20× magnitude swing across the
+      15 ms poll spread; observed is ~zero in both clusters and the weak trend runs the OPPOSITE way.
+      So §7.2 stays an *explanation* and does not become a measurement, and `step_imbalance` is
+      descriptive permanently rather than "until then". Whatever sets the 159/180 split, it is not the
+      poll interval.
+
+      ⚠ **The filter is the experiment.** 1503 of 1558 sessions have a `duration_s` that never advances
+      (ring idle/disconnected) — every step 0, imbalance a degenerate −1.0. My first run left them in
+      and reported a confident **r = −0.213 over "164 sessions"**, of which 109 were flat lines. A
+      session counts only if a majority of its steps are +1.
 - [ ] §6 — a second ring.
