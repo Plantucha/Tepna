@@ -1185,16 +1185,23 @@ async function main() {
     console.error(paint('  ! nsrr-stage-validate failed to load: ' + e.message, C.yellow));
   }
 
+  let PatHostOffset = null;
   let PatStrict = null;
   try {
     PatStrict = await import(new URL('../tools/pat-matchrate-strict.mjs', import.meta.url).href);
   } catch (e) {
     console.error(paint('  ! pat-matchrate-strict failed to load: ' + e.message, C.yellow));
   }
+  try {
+    PatHostOffset = await import(new URL('../tools/pat-host-offset.mjs', import.meta.url).href);
+  } catch (e) {
+    console.error(paint('  ! pat-host-offset failed to load: ' + e.message, C.yellow));
+  }
 
   const env = {
     PatStrict: PatStrict,
     NsrrStage: NsrrStage,
+    PatHostOffset: PatHostOffset,
     DexKernel: ctx.DexKernel,
     MetricRegistry: ctx.MetricRegistry,
     DexProfile: ctx.DexProfile,

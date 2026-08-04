@@ -25441,6 +25441,77 @@
       var none = NS.scoreREM([{ expert: 'N2', detected: 'N2' }], 'REM');
       T.eq('no expert REM ⇒ recall null, never 0', none.recall, null);
       T.eq('…and precision null when nothing was called', none.precision, null);
+    /* THE HOST-READ INTER-DEVICE OFFSET (PAT-UNDER-PERBLOCK-ALIGNMENT §3e.4, tools/pat-host-offset.mjs).
+       §3e measured the ACC anchors disagreeing with THEMSELVES by 1171-3094 ms inside one pair, so the
+       offset is now READ from each device's {devMs, hostMs} pair through DexClock.hostAxis instead of
+       estimated from motion. What is gated here is the part that tool ADDS — the statistics are already
+       gated by the group above, and hostAxis itself by the clock suite.
+
+       The load-bearing assertion is the DOUBLE-COUNT trap: a stream's drawn axis is `t0Ms + idx/fs`,
+       and `t0Ms` ALREADY anchors the start to the host. Adding hostAxis's ABSOLUTE correction on top
+       would count that anchoring twice — and it would be invisible, because the error is a constant
+       offset of exactly the kind PAT's leave-one-block-out centre absorbs. So the correction must be
+       taken RELATIVE to the first anchor and must be exactly 0 there.
+
+       NODE-ONLY: an .mjs orchestrator, so the browser lane skips. */
+    group('PAT host-read offset: the correction is relative to the anchor, never absolute (§3e.4)', 'pat · hostaxis · offset', function (T) {
+      var PH = env.PatHostOffset,
+        CK = env.DexClock;
+      if (!PH || !PH.hostCorrector || !CK || !CK.hostAxis) {
+        T.skip('PatHostOffset/DexClock not in env (browser lane — .mjs tool)');
+        return;
+      }
+      /* A device whose counter runs 200 ppm fast against the host: every anchor's host-minus-device
+         residual grows by 0.2 ms per 1000 ms device-second. 400 anchors = 400 s of span. */
+      var anchors = [];
+      for (var i = 0; i < 400; i++) anchors.push({ devMs: i * 1000, hostMs: i * 1000 + i * 0.2 });
+      var ax = CK.hostAxis(anchors);
+      T.ok('hostAxis accepts the synthetic anchors', ax.ok, ax.ok ? '' : ax.reason);
+      if (!ax.ok) return;
+      T.ok('and calls them an independent clock (spread is real, not one stamp quantum)', ax.independent === true, 'spreadMs=' + ax.spreadMs);
+
+      var corr = PH.hostCorrector(ax, anchors[0].devMs);
+      /* THE trap. hostAxis's own contract says correctionAt(firstAnchor) is NOT 0 — the running
+         median's clamped window biases it inward (clock.js §7 / CLAUDE.md §7). So a consumer that
+         wants a correction on top of an already-host-anchored t0Ms MUST subtract that value, and this
+         asserts the tool does. If someone "simplifies" hostCorrector to return correctionAt directly,
+         this fails — and nothing else would, because the damage is a constant. */
+      T.ok('correction is EXACTLY zero at the first anchor', corr(anchors[0].devMs) === 0, 'got ' + corr(anchors[0].devMs));
+      T.ok('...and hostAxis alone is NOT zero there, which is why the subtraction is needed', ax.correctionAt(anchors[0].devMs) !== 0, 'correctionAt(first)=' + ax.correctionAt(anchors[0].devMs));
+
+      /* Over the span the correction must recover the planted drift. The running median's clamped
+         ends pull each end inward by floor(win/2)/2 anchors' worth, so this is a band, not equality —
+         the same known bias clock.js documents rather than a tolerance chosen to make it pass. */
+      var late = corr(anchors[380].devMs);
+      T.ok('correction tracks the planted 200 ppm drift over the span', late > 60 && late < 80, 'corr@380s = ' + late.toFixed(1) + ' ms (planted 76 ms)');
+
+      /* toHostAxis must APPLY it: a drawn axis riding the device rate lands on the host axis. */
+      var rec = { t0Ms: 1000000, fs: 1, durSec: 400, idx: [0, 100, 200, 300] };
+      var t = PH.toHostAxis(rec, corr, anchors[0].devMs);
+      T.eq('toHostAxis emits one time per beat', t.length, 4);
+      T.ok('first beat is untouched (t0Ms already anchors the start)', Math.abs(t[0] - 1000000) < 1e-9, 'got ' + t[0]);
+      T.ok('a later beat is pushed LATER by the accumulated host divergence', t[3] > 1000000 + 300000, 'got ' + (t[3] - 1000000 - 300000).toFixed(1) + ' ms of correction');
+
+      /* A WINDOW WITH NO DATA MUST BE REFUSED, NOT SCORED — found in the first corpus run and fixed.
+         `strictMatchRate` returns NaN on an empty stage-one lag list, and a permutation p of
+         `count(surrogate >= NaN) + 1` over `n+1` is (0+1)/41 = 0.024 — so two of sixty windows
+         reported NO DATA as SIGNIFICANT. Same family as every other false green this brief has hit:
+         a check reporting success about something it never examined. */
+      var far = [];
+      for (var z = 0; z < 400; z++) far.push(2000000 + z * 1000);   // feet nowhere near the R-peaks
+      var rr = [];
+      for (var y = 0; y < 400; y++) rr.push(1000000 + y * 1000);
+      var refused = PH.scoreWindow(Float64Array.from(rr), Float64Array.from(far), 8);
+      T.ok('a window with no stage-one lags is REFUSED, not scored', !!refused.refused, 'got ' + JSON.stringify(refused).slice(0, 90));
+      T.ok('...and therefore reports no p-value at all', refused.strictP === undefined, 'strictP=' + refused.strictP);
+
+      /* Anti-vacuity: the same call on genuinely coupled input must NOT refuse, or the guard above
+         would pass by refusing everything. */
+      var feet = [];
+      for (var q = 0; q < 400; q++) feet.push(1000000 + q * 1000 + 420);
+      var scored = PH.scoreWindow(Float64Array.from(rr), Float64Array.from(feet), 8);
+      T.ok('coupled input is scored, not refused', !scored.refused, scored.refused || '');
+      T.ok('...and its strict matchRate is finite and high', isFinite(scored.strict) && scored.strict > 0.9, 'strict=' + scored.strict);
     });
 
     group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {
