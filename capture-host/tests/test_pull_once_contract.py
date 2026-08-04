@@ -158,3 +158,71 @@ def test_an_already_present_session_says_so_with_its_size(tmp_path, monkeypatch,
     assert got == [], "an already-present session is not reported as newly written"
     assert "92" in out, "the size it matched on must be named — that is the evidence for skipping"
     assert len(_dat(tmp_path)) == 1, "and nothing is re-downloaded"
+
+
+# ── every diagnostic branch names the value it is about ─────────────────────────────────────────────
+# Each of these branches is already exercised by test_pull_session.py for its RETURN value. None of
+# them was ever exercised with the output captured, so the line that tells an operator WHY could be
+# emptied without a single test noticing. Same rule throughout: assert the value, never the wording.
+
+def test_a_traversal_id_is_named_in_the_refusal(tmp_path, monkeypatch, capsys):
+    """`which` comes from the LAN webmon /api/pull body — untrusted. The containment guard refuses it,
+    and the refusal has to say WHICH value was refused or the operator cannot tell a typo from an
+    attack."""
+    _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
+    evil = "../" * 40 + "evil"
+    assert _run(pull_session._pull_once("A", str(tmp_path), evil, 0, None, "0000")) == []
+    out = capsys.readouterr().out
+    assert "evil" in out, "the refused id must appear — a bare 'skipping' names nothing"
+    assert "escapes" in out or "output dir" in out
+
+
+def test_an_implausible_id_is_named_in_the_refusal(tmp_path, monkeypatch, capsys):
+    _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
+    assert _run(pull_session._pull_once("A", str(tmp_path), "notastamp", 0, None, "0000")) == []
+    assert "notastamp" in capsys.readouterr().out
+
+
+def test_an_implausible_size_reports_the_size_it_got(tmp_path, monkeypatch, capsys):
+    """The message tells the operator to try a different --ftype, which is only actionable if it also
+    says what size came back — 0 means wrong ftype, a huge number means a framing problem."""
+    blob = b"\x01\x03" + b"z" * 90
+    _install(monkeypatch, FakeRing(["20260719010000", "20260720010000"], blob, declared_seq=[0, len(blob)]))
+    _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    out = capsys.readouterr().out
+    assert "0" in out and "ftype" in out
+
+
+def test_the_connection_lines_name_the_device_and_the_mtu(tmp_path, monkeypatch, capsys):
+    """MTU decides the download chunk size, so a wrong one is the difference between a 20 s pull and a
+    10 min one. It is reported once, at connect, and nowhere else."""
+    ring = FakeRing(["20260720010000"], b"\x01\x03" + b"z" * 90)
+    _install(monkeypatch, ring)
+    _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    out = capsys.readouterr().out
+    assert "D1:98:62:7C:92:B3" in out, "the address actually connected to must be named"
+    assert "O2Ring S8AW" in out, "and the advertised name, so a wrong-peer connect is visible"
+    assert "517" in out, "the negotiated MTU must be reported — it sets the chunk size"
+
+
+def test_an_empty_flash_says_so_rather_than_printing_nothing(tmp_path, monkeypatch, capsys):
+    _install(monkeypatch, FakeRing([], b""))
+    assert _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000")) == []
+    out = capsys.readouterr().out
+    assert "0" in out, "the count from the listing must be reported, even when it is zero"
+    assert "no sessions" in out.lower() or "nothing to pull" in out.lower()
+
+
+def test_the_download_reports_its_offset_against_the_declared_size(tmp_path, monkeypatch, capsys):
+    """The progress line is the only signal during a multi-minute pull over BLE. A blob larger than one
+    chunk forces more than one iteration, which is the only way this line is reached at all."""
+    # the line fires on `off % (512*40) < len(chunk)`, i.e. once every 20 KB of transfer — so the blob
+    # has to cross that boundary or the branch is never reached at all. 1500 bytes does not.
+    blob = b"\x01\x03" + b"y" * (512 * 45)
+    ring = FakeRing(["20260720010000"], blob, chunk=512)
+    _install(monkeypatch, ring)
+    got = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    out = capsys.readouterr().out
+    assert got, "the multi-chunk download must still complete"
+    assert str(len(blob)) in out, "the declared size must appear in the progress line"
+    assert "/" in out and "%" in out, "progress is offset/size and a percentage"
