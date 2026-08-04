@@ -1289,6 +1289,17 @@ async function main() {
     DriftReport: ctx.DriftReport,
     docs: readDocs(),
     docsLedger: readDocsLedger(),
+    /* WEARABLE-DRIFT-DIRECT §6 — the pure decision predicate from tools/dual-clock-rate.mjs, so the
+       "is there a second clock at all" rule is gated on VALUES rather than only source-scanned. The
+       module guards its own main, so importing it fires no I/O. Node-lane only; the browser lane has
+       no ESM tool import and SKIPs, as docs-ledger does. */
+    DualClock: await (async () => {
+      try {
+        return await import('../tools/dual-clock-rate.mjs');
+      } catch {
+        return null;
+      }
+    })(),
     toolSources: readToolSources(),
     sources: readSources(),
     // §F1.5 — the TCH golden's input builder, shared with tools/regen-integrator-goldens.mjs
