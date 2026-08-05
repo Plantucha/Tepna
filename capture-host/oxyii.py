@@ -331,11 +331,11 @@ def ppg_stream_offset(payload: bytes) -> int | None:
 # So the payload is not noise, and "re-deriving SpO2 is impossible on this hardware" no longer follows
 # from the premise it rested on. Whether the ratio-of-ratios is RECOVERABLE is a separate question this
 # does not answer — it only establishes that the two channels exist and are readable.
-# ⚠️ NOT KNOWN TO BE REQUIRED. This is the argument the SDK sends, and it is what was actually on the
-# wire for the measurement above — so it is what we keep sending. But `nglessner/o2ring-s-protocol`
-# records the SAME 922-byte / 102 × 9-record reply from an EMPTY payload, so the structured reply is
-# probably not argument-gated at all. Settling it needs a same-session control: send an empty payload,
-# decode it identically, compare. Do not describe this argument as the thing that unlocked the stream.
+# ⚠️ MEASURED NOT REQUIRED (hardware A/B, 2026-08-05). The SDK sends this argument, so we send it — but
+# a same-session control alternating `{0x07,0x01}` against an EMPTY payload got 15 replies each, every
+# one 922 bytes with 102 records. The argument neither unlocks nor changes the reply. Keep it for
+# fidelity to the vendor flow; do not describe it as the thing that revealed the stream, and do not
+# assume a future opcode's argument matters just because an SDK passes one.
 RT_PPG_ARG = bytes([0x07, 0x01])
 RT_PPG_REC = 9                       # u32 LE chA | u32 LE chB | u8 motion  (see WHICH-IS-WHICH below)
 
@@ -369,6 +369,12 @@ def parse_rt_ppg(payload: bytes) -> list[tuple[int, int, int]]:
     Those two are not decoded here and are not assumed to be padding — the record count is taken from
     the device's own field and the slice is bounded by the buffer, so a trailer of any size is ignored
     rather than silently absorbed into a record.
+
+    ⚠️ THE RATE IS NOT KNOWN AND IS NOT ASSERTED — but it is now CHEAPLY derivable. Measured 2026-08-05,
+    consecutive polls return successive, non-overlapping segments of ONE continuous signal: the boundary
+    step between replies is 1.07x the median step *inside* a reply, so nothing is dropped between polls
+    at ~1 Hz. Therefore fs = 102 / poll_interval, and a probe that records its poll timestamps settles
+    it. This one did not.
 
     ⚠️ THE RATE IS NOT KNOWN AND IS NOT ASSERTED. The SDK's README says 200 Hz. Every reply measured
     here carried EXACTLY 102 records regardless of poll spacing, which is the signature of a fixed

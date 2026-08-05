@@ -35,3 +35,12 @@ argument itself) rather than trusted for passing. The header-parity gate's exhau
 the new stream and was extended, not widened.
 
 Out-of-suite Python only — no shipped bundle, no `manifestHash` movement, no fixture re-recorded.
+
+Hardware run 2026-08-05 (finger worn, ring-reported SpO2 97%, 30 polls / 3060 samples) settled two of the
+three open questions. The `{0x07, 0x01}` argument is IRRELEVANT — an A/B against an empty payload returned
+15 replies each, every one 922 bytes with 102 records. And the buffers TILE: the boundary step between
+consecutive replies is 1.07x the median step inside a reply, so successive polls return successive
+non-overlapping segments of one continuous signal, which makes the rate derivable as `102 / poll interval`
+once a probe records its poll timestamps. Wavelength identity is still NOT settled and the failure is
+informative: the channels are correlated at r=0.9991 with a near-constant ratio, which is not how a red/IR
+pair behaves through a pulse.

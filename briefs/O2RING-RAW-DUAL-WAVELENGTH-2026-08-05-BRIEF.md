@@ -61,7 +61,53 @@ reads a `u8`. The offset is self-proving: at base 2 the u32 pairs decode into sm
 any other base the fields straddle record boundaries and shred into noise. That is a concrete, checkable
 correction to send upstream.
 
-## 2 · Wire format (`cmd = 0x05`, arg `{0x07, 0x01}`)
+## 1.2 · HARDWARE RUN, 2026-08-05 — three questions answered, one still open
+
+Run on device `S8AW2100`, finger worn, ring-reported SpO₂ **97 %** (median of 30 polls). The capture
+daemon was taken off the link with `tepna-restart.sh stop 10` — the sanctioned passwordless verb, which
+arms a deadman timer *before* stopping, so the box restarts itself even if the operator never returns.
+30 polls, 3060 samples. Raw data: `/tmp/rprobe.json` on the capture host.
+
+**① The argument is IRRELEVANT — now measured, not inferred.** The probe alternated `{0x07, 0x01}`
+against an **empty** payload: 15 replies each, **every one 922 bytes with 102 records**. §1.1 predicted
+this from `nglessner`'s empty-payload observation; it is now a direct A/B on our own hardware. The
+argument neither unlocks nor changes the reply. `rt_ppg_frame()` may keep sending it or stop; it makes
+no difference.
+
+**② The record count is a CAP, confirmed.** 102 records on all 30 replies regardless of spacing.
+
+**③ THE BUFFERS TILE A CONTINUOUS SIGNAL — new, and the most useful result.** The last sample of one
+reply and the first of the next are as close as two neighbouring samples *within* a buffer:
+
+| median within-buffer \|step\| | median boundary \|jump\| | ratio |
+|---|---|---|
+| 712 | 760 | **1.07×** |
+
+Consecutive polls return **successive, non-overlapping, non-repeating** segments with no discernible
+gap. Two consequences: the stream can be reassembled across polls into one continuous waveform (done
+here — 3060 samples), and **the rate is derivable** as `102 / poll interval` once a probe records poll
+timestamps, which this one did not. That is the cheap fix for §3.2.
+
+**④ IR vs RED is STILL NOT SETTLED, and the failure is informative.** The ratio-of-ratios came out
+`R = 1.003` one way and `0.997` the other — both implying ~85 % against a reported 97 %, i.e. the test
+did not discriminate and *both* assignments are wrong-ish. A genuine red/IR pair at 97 % should give
+`R ≈ 0.5`, and the two hypotheses should be ~25 points apart. Observed instead: the channels are
+**almost perfectly correlated (Pearson r = 0.9991)** with a near-constant ratio (`ch1/ch0` = 0.712–0.718
+within a buffer, 0.8 % spread), which is not how two wavelengths behave through a pulse — differential
+modulation is the entire basis of the measurement. So either the crude AC estimator (peak-to-peak over a
+sub-cycle window) is inadequate, or **the two columns are not a red/IR pair at all** — two gains of one
+photodiode would look exactly like this. Do not assume the SDK's naming; §3.1's caveat stands and is now
+better motivated than when it was written.
+
+⚠️ **And a caveat on this brief's own headline evidence.** The shuffle test in §1 (`median|Δ|/range`
+0.0148 vs 0.3395) proves the samples are **ordered**. It does *not* prove they are a plethysmogram — a
+smooth monotonic ramp passes it trivially, and buffer 0 of this run is exactly that (102 samples, **zero**
+turning points, an 11.7 % monotonic slide). Reading one buffer would have concluded "not a waveform".
+Across all 30 the mean turning-point count is **9.9** (max 31) and direction splits 17 up / 13 down, which
+is what real structure looks like. The ordering statistic was necessary, never sufficient; the population
+is the evidence.
+
+## 2 · Wire format (`cmd = 0x05`; the argument is optional — §1.2①)
 
 ```
 [0:2]        u16 LE   record count            (observed: 102, every reply)
