@@ -136,6 +136,49 @@ If you must reset, FIRST preserve what is there (this does not touch the tree):
 …then ask the user before discarding anything you did not write."
 fi
 
+# `git checkout <ref> -- <SOURCE path>` — the mid-rebase conflict "shortcut" that silently reverts work
+#
+# Nearly every PR here must rebase, because `main` moves during review and the two orchestrator
+# bundles are re-bundled by ANY change to ANY inlined module — so PRs that share no source at all
+# still collide in them. The obvious shortcut is fatal:
+#
+#     git checkout origin/main -- $(git diff --name-only --diff-filter=U)
+#
+# It is CORRECT for a generated artifact (whose content is a function of source — neither side is
+# authoritative, so you take either and rebuild) and DESTRUCTIVE for a source file, and it fails
+# SILENTLY: the rebase completes, the tree is clean, the branch pushes, and the commit message still
+# describes changes that are no longer in it. Measured 2026-08-05: one such line reverted a test
+# group, a DSP fix and a provenance entry out of a single commit. Only
+# `git show HEAD:<file> | grep` caught it.
+#
+# This rule fires only when the path list contains something OUTSIDE the generated set — a bundle,
+# docs/, provenance/ are all fine and pass through. It deliberately does NOT try to enumerate the
+# generated set in bash: `tools/rebase-safe.mjs` reads it from the builders that own it, and this
+# guard just refuses the hand-rolled form and points there.
+if grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?[^;&|]*\.(js|mjs|md|json|css|src\.html)([[:space:]]|$)' <<<"$cmdn"    && grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmdn"    && ! grep -qE '(^|[[:space:]])(provenance/|docs/)' <<<"$cmdn"; then
+  deny "BLOCKED: 'git checkout <ref> -- <source path>' in a shared checkout.
+
+This is the mid-rebase conflict shortcut, and it is the one that fails SILENTLY. It is correct for a
+GENERATED artifact — a bundle, docs/, provenance/ — whose content is a function of source, so neither
+side of the conflict is authoritative and the answer is to take either and REBUILD. It is DESTRUCTIVE
+for a source file: the rebase finishes, the tree is clean, the push succeeds, and your commit message
+still describes changes that are no longer in the commit. Measured 2026-08-05 — one such line dropped
+a test group, a DSP fix and a provenance entry at once.
+
+Use the tool that knows the difference (it asks the BUILDERS which paths they own, so it cannot
+guess wrong, and it fails CLOSED if it cannot tell):
+
+    node tools/rebase-safe.mjs
+
+It auto-resolves generated conflicts, rebuilds every generated tree, and STOPS on a source conflict
+instead of picking a side. For tests/dex-tests.js specifically: restore main's copy and RE-RUN your
+insertion — never keep one side wholesale.
+
+If you really are restoring one file deliberately (e.g. reverting your own edit), run it on that one
+explicit path outside a rebase, and VERIFY afterwards:
+    git show HEAD:<file> | grep -c <an identifier your change adds>"
+fi
+
 # `git checkout .` / `git checkout -- .` / `git restore .` — discards working-tree changes
 if grep -qE "$GITX"'(checkout[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)|(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?(\.([[:space:]]|$)|:/))' <<<"$cmdn"; then
   deny "BLOCKED: discarding ALL working-tree changes in a SHARED checkout — they may be another session's only copy.

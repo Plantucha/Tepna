@@ -112,6 +112,53 @@ after it is staged. But do not repeat the impossibility claim. If you think two 
 inseparable, **run the query before writing that down**; five reviewers falsified this paragraph in
 minutes with one `git log`.
 
+### 2c · REBASING: `git checkout <ref> -- <conflicted>` reverts source SILENTLY — use `rebase-safe`
+
+**You will rebase.** `main` moves during every review cycle, and the two orchestrator bundles
+(`OverDex.html`, `Data Unifier.html`) are re-bundled by ANY change to ANY inlined module — so two PRs
+that share **no source at all** still collide in them. Rebasing is not the exception here, it is the
+normal path, and the shortcut everyone reaches for is the one that loses work:
+
+```sh
+git checkout origin/main -- $(git diff --name-only --diff-filter=U)   # ← NEVER
+```
+
+It is **correct for a generated artifact** and **destructive for a source file**, and the two are
+mixed in the same conflict list. A generated file's content is a *function of source*, so neither side
+is authoritative — you take either and **rebuild**. A source file has no such function.
+
+**It fails silently, which is what makes it dangerous.** The rebase completes, `git status` is clean,
+the branch pushes, CI may even pass — and your commit message still describes changes that are no
+longer in the commit. Measured 2026-08-05: one such line reverted a **test group, a DSP fix and a
+provenance entry** out of a single commit. Nothing surfaced it; `git show HEAD:<file> | grep` did.
+
+**Use the tool. It asks the BUILDERS which paths they own, so it cannot guess wrong:**
+
+```sh
+node tools/rebase-safe.mjs            # fetch → rebase → auto-resolve generated → rebuild → verify
+node tools/rebase-safe.mjs --onto <ref>
+```
+
+- **Generated** (auto-resolved, then rebuilt): the 9 provenance bundles + the 2 orchestrators
+  (`manifest-gate.js MANIFEST_BUNDLES` + `build.mjs ORCHESTRATORS`), the 10 analysis tools
+  (`build-analysis.mjs TOOLS`), `docs/**`, `provenance/**`.
+- **Source** (it STOPS and aborts the rebase): everything else — every `*.js`, every `*.src.html`,
+  every authored guide, `uploads/` goldens, `tests/dex-tests.js`.
+- The set is **read from the builders**, never globbed. A `*.html` glob would be the second version of
+  this bug: `OxyDex Reference.html` and `Science.html` are authored. If a builder's list cannot be
+  read the tool treats everything as source and **fails closed** — a tool that fails open here
+  reverts work.
+
+⚠️ **`tests/dex-tests.js` conflicts on nearly every parallel PR.** Restore `main`'s copy and
+**re-run your insertion**; never keep one side wholesale. That is the file that got dropped.
+
+⚠️ **After ANY rebase, verify your own change survived before pushing** — the tree being clean proves
+nothing: `git show HEAD:<file> | grep -c <an identifier your change adds>`.
+
+**Hook-enforced.** `guard-shared-tree.sh` denies `git checkout <ref> -- <source path>` and points here;
+generated paths pass through. Escape hatch for a deliberate single-file restore: run it outside a
+rebase on one explicit path, and verify afterwards.
+
 ### 3 · Bundles and ledgers must be SERIALIZED — a worktree does not save you here
 
 Isolation solves the *tree*. The old single-file ledger collision is **mostly SOLVED** (ARCHITECTURE-DEBT-
