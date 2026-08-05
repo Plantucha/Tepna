@@ -14630,7 +14630,26 @@
         CLEAN_HI = 1.012; // measured across all 17 committed trio nights
       T.eq('the measured CLEAN band (0.974) is never called a harmonic', cls(CLEAN_LO), 'poor-contact');
       T.eq('the measured CLEAN band (1.012) is never called a harmonic', cls(CLEAN_HI), 'poor-contact');
-      T.ok('a comfortable margin separates the clean band from the doubling threshold (≥1.5 vs ≤1.012)', 1.5 - CLEAN_HI > 0.4, 'margin=' + (1.5 - CLEAN_HI).toFixed(3));
+      /* PROBE the module for where doubling actually begins — do not restate 1.5 as a literal.
+         This assertion used to read `1.5 - CLEAN_HI > 0.4`, which is arithmetic over two constants
+         DECLARED IN THIS TEST: 1.5 - 1.012 = 0.488, true forever. Its stated purpose one comment up is
+         "if someone widens the threshold toward 1.0, this reds" — it could not, because the module's
+         threshold was never read. Widening `verityFailureClass` to `hrRatio >= 1.1` left it green.
+         Walking `cls()` upward asks the module where its own boundary is, so the guard now fails for
+         the reason it claims to exist. */
+      var firstDouble = null;
+      for (var _r = CLEAN_HI; _r <= 3.0; _r = Math.round((_r + 0.002) * 1000) / 1000) {
+        if (cls(_r) === 'harmonic-double') {
+          firstDouble = _r;
+          break;
+        }
+      }
+      T.ok('the module HAS a doubling threshold to measure against (else the margin is vacuous)',
+           firstDouble != null, firstDouble == null ? 'no ratio in 1.012–3.0 classified harmonic-double' : 'at ' + firstDouble);
+      T.ok('a comfortable margin separates the clean band from the MODULE’s doubling threshold',
+           firstDouble != null && firstDouble - CLEAN_HI > 0.4,
+           'module threshold=' + firstDouble + ' · clean_hi=' + CLEAN_HI +
+             ' · margin=' + (firstDouble == null ? 'n/a' : (firstDouble - CLEAN_HI).toFixed(3)));
 
       // and the skip path must actually USE it + surface the ratio (else the verdict never reaches a human)
       T.ok('the gate calls verityFailureClass() on the skip path', /verityFailureClass\(hrRatio\)/.test(src));
