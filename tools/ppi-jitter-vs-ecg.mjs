@@ -74,15 +74,14 @@ const SLEEP_ONLY = has('--sleep-only');
    sessions per night ("47 concurrent session(s), 12.2 h merged"); this is that idea, applied here.
    NIGHT KEY is trio-batch's: the date of (start - 12 h), so an evening start and the post-midnight hours
    of the same sleep land on one key. */
-/* ⚠ INCOMPLETE — the FINGER side merges, the ECG side does not yet. A merged finger train is still
-   paired against a SINGLE best-overlapping ECG file, so finger beats outside that file's window have
-   nothing to match and the match rate falls structurally on heavily-fragmented nights (measured: 80.6 %
-   on 2026-07-24 with 45 sessions, 65.2 % on 07-31 with 8). The jitter median therefore READS worse
-   under merge (7.03 → 11.99 ms) for a reason that is an artifact of this asymmetry, not a property of
-   the corpus. Do not quote merged jitter until the ECG side merges too.
-   CVHR is likewise NOT merged: `cvhrFromNN` / `detectCVHR` live inside analyze() and are not exported,
-   so a merged night carries its LARGEST session's cvhrIndex. A merged-night CVHR n therefore does not
-   satisfy §3.1's ≥10-night bar and must not be read as doing so. */
+/* SESSION MERGE, both sides (finger and ECG). The earlier finger-only version is superseded; its
+   asymmetry — a merged finger train paired against ONE ECG file — is what made merged jitter read
+   worse. Kept in the history, not in the behaviour.
+   REMAINING LIMITATION, deliberate: CVHR is still per-session. `cvhrFromNN` / `detectCVHR` live inside
+   analyze() and are not exported, so a merged night carries its LARGEST session's cvhrIndex. A
+   merged-night CVHR count therefore does NOT satisfy §3.1's ≥10-night bar and must not be read as
+   doing so; exporting them is a compute-path change with a re-bundle and verify-fixtures behind it.
+   Superseded note (was: ⚠ INCOMPLETE — the FINGER side merges, the ECG side does not yet). */
 const MERGE = !has('--no-merge');
 const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600 * 1000).toISOString().slice(0, 10);
 const isSleepNight = (name, durSec) => {
@@ -286,6 +285,68 @@ function buildUnits(files) {
   return out.sort((a, b) => b.beats.length - a.beats.length);
 }
 
+/* MERGED ECG NIGHTS, built ONCE. Two things were wrong with searching the raw file list inside the
+   finger loop. Correctness: a merged finger train was paired against a SINGLE best-overlapping ECG
+   file, so finger beats outside that one file's window had nothing to match and the rate collapsed on
+   fragmented nights (80.6 % on 2026-07-24's 45 sessions, 65.2 % on 07-31's 8) — the jitter median then
+   read worse under merge purely as an artifact of the asymmetry. Cost: the search re-parsed EVERY ECG
+   file for EVERY candidate night, so a 400-file run did ~400x419 parses and took hours.
+   Both go away by grouping the reference the same way the finger side is grouped. int16 is dropped
+   after refinement — only beat TIMES are retained, so holding every night at once stays cheap. */
+function buildEcgNights(files) {
+  const parsed = [];
+  for (const e of files) {
+    try {
+      const er = E.parseECG(readFileSync(e.p, 'utf8'));
+      if (er.t0Ms == null) continue;
+      const eres = E.analyze(er);
+      if (!eres || !eres.peaks) continue;
+      const bp = E.bandpass(er.int16, er.fs);
+      parsed.push({
+        e,
+        t0: er.t0Ms,
+        t1: er.t0Ms + (er.durSec || 0) * 1000,
+        durMs: (er.durSec || 0) * 1000,
+        beats: refinePeaks(bp, eres.peaks).map((q) => er.t0Ms + (q / er.fs) * 1000),
+        beatsRaw: eres.peaks.map((q) => er.t0Ms + (q / er.fs) * 1000),
+        res: eres
+      });
+    } catch (_x) {}
+  }
+  if (!MERGE) return parsed.map((u) => ({ ...u, nSess: 1 }));
+  const by = new Map();
+  for (const u of parsed) {
+    const k = nightKeyOf(u.t0);
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(u);
+  }
+  const out = [];
+  for (const [k, us] of by) {
+    const beats = [];
+    const beatsRaw = [];
+    for (const u of us) {
+      beats.push(...u.beats);
+      beatsRaw.push(...u.beatsRaw);
+    }
+    beats.sort((a, b) => a - b);
+    beatsRaw.sort((a, b) => a - b);
+    const rep = us.slice().sort((a, b) => b.e.size - a.e.size)[0];
+    out.push({
+      key: k,
+      t0: Math.min(...us.map((u) => u.t0)),
+      t1: Math.max(...us.map((u) => u.t1)),
+      // COVERED duration, not span: a merged night with holes must not claim the holes as reference.
+      durMs: us.reduce((a, u) => a + u.durMs, 0),
+      beats,
+      beatsRaw,
+      res: rep.res,
+      nSess: us.length
+    });
+  }
+  return out;
+}
+const ecgNights = buildEcgNights(ecgs);
+
 const nights = [];
 for (const unit of buildUnits(fingerFiles)) {
   const fres = unit.res;
@@ -302,34 +363,25 @@ for (const unit of buildUnits(fingerFiles)) {
   const fBeats = unit.beats;
   if (fBeats.length < 100) continue;
   const fw = [unit.t0, unit.t1];
+  /* Pair against the merged ECG NIGHT with the greatest overlap. Still an overlap search rather than a
+     key lookup, so a finger night straddling the 12 h boundary still finds its reference. §3.2's
+     sub-sample refinement already happened in buildEcgNights — unrefined, the H10's integer grid
+     injects 3.14 ms of interval quantization into the finger's measured jitter. */
   let best = null;
-  for (const e of ecgs) {
-    let er, eres;
-    try {
-      er = E.parseECG(readFileSync(e.p, 'utf8'));
-      eres = E.analyze(er);
-    } catch (_x) {
-      continue;
-    }
-    if (er.t0Ms == null || !eres.peaks) continue;
-    const ew = [er.t0Ms, er.t0Ms + (er.durSec || 0) * 1000];
-    const ov = Math.min(fw[1], ew[1]) - Math.max(fw[0], ew[0]);
-    if (ov > EPOCH_MS && (!best || ov > best.ov)) best = { ov, er, eres };
+  for (const u of ecgNights) {
+    const ov = Math.min(fw[1], u.t1) - Math.max(fw[0], u.t0);
+    if (ov > EPOCH_MS && (!best || ov > best.ov)) best = { ov, u };
   }
   if (!best) continue;
-  /* §3.2 — refine the REFERENCE before comparing against it. Unrefined, the H10's integer grid injects
-     3.14 ms of interval quantization into the finger's measured jitter. */
-  const eBp = E.bandpass(best.er.int16, best.er.fs);
-  const eRef = refinePeaks(eBp, best.eres.peaks);
-  const eBeats = eRef.map((p) => best.er.t0Ms + (p / best.er.fs) * 1000);
-  const eBeatsRaw = best.eres.peaks.map((p) => best.er.t0Ms + (p / best.er.fs) * 1000);
+  const eBeats = best.u.beats;
+  const eBeatsRaw = best.u.beatsRaw;
 
   const jit = [],
     rawJit = [],
     lags = [],
     rates = [];
-  const lo = Math.max(fw[0], best.er.t0Ms),
-    hi = Math.min(fw[1], best.er.t0Ms + (best.er.durSec || 0) * 1000);
+  const lo = Math.max(fw[0], best.u.t0),
+    hi = Math.min(fw[1], best.u.t1);
   for (let t = lo; t + EPOCH_MS <= hi; t += EPOCH_MS) {
     const fe = fBeats.filter((x) => x >= t && x < t + EPOCH_MS);
     const ee = eBeats.filter((x) => x >= t - MAX_LAG_MS && x < t + EPOCH_MS + MAX_LAG_MS);
@@ -364,12 +416,12 @@ for (const unit of buildUnits(fingerFiles)) {
      evidence of disagreement; it is two different nights being compared, and folding it in silently is
      how a rate comparison fabricates a discrepancy. */
   const cvF = fres.cvhrIndex,
-    cvE = best.eres.cvhr ? best.eres.cvhr.index : null;
+    cvE = best.u.res.cvhr ? best.u.res.cvhr.index : null;
   const fDur = (frec.durSec || 0) * 1000,
-    eDur = (best.er.durSec || 0) * 1000;
+    eDur = best.u.durMs;
   const ovFrac = fDur > 0 && eDur > 0 ? best.ov / (Math.max(fDur, eDur) / 1000) : null;
   const rf = fres.rmssd,
-    re = best.eres.rmssd;
+    re = best.u.res.rmssd;
   /* READ `dispSd`, NOT `sdnn`. This is the field that makes §4's sdnnRobust criterion measurable, and
      getting it wrong produced a confident −29 % that was an artifact of pairing.
 
@@ -383,7 +435,7 @@ for (const unit of buildUnits(fingerFiles)) {
      decimal. On one night the wrong pair reads −35.0 % and the right pair +13.7 %; the wrong pair also
      read −29 % on BOTH devices, which was the tell — a constant offset of construction. */
   const sf = fres.sdnnRobust,
-    se = best.eres.dispSd != null ? best.eres.dispSd : best.eres.sdnn;
+    se = best.u.res.dispSd != null ? best.u.res.dispSd : best.u.res.sdnn;
   nights.push({
     name: f.p.split('/').pop(),
     eps: jit.length,
