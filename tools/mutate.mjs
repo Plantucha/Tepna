@@ -245,6 +245,35 @@ const KILLER_RE = /✕ \[([^\]]+)\]/g;
 /* THE ONE PLACE that decides whether a non-zero suite exit is a kill. Pure, so --selftest can pin it:
    the bug it replaces (every non-zero exit == KILLED) was invisible precisely because nothing could
    assert on it. A mutant caught by a test leaves assertion output; one that never parsed leaves none. */
+/* Returns the warning text when a run's INVALID count is high enough to change how its rate should be
+   read, else null. Pure and exported so --selftest pins the threshold: an alarm nobody has watched
+   fire is not an alarm. One invalid is normal (a mutated regex quantifier cannot compile); a quarter
+   of the population is a machine problem, and both print the same confident-looking rate. */
+export function invalidWarning(invalid, tested, killed) {
+  const pct = tested ? (invalid / tested) * 100 : 0;
+  if (!(invalid > 2 && pct >= 5)) return null;
+  return (
+    '\n  ⚠ ' +
+    invalid +
+    ' of ' +
+    tested +
+    ' mutants (' +
+    pct.toFixed(0) +
+    '%) never RAN — they are excluded from the rate.\n' +
+    '    A mutant is INVALID when its suite run produced no assertion output at all: it did not\n' +
+    '    compile, or it was killed before it could report. A couple is normal; this many usually\n' +
+    '    means the suite TIMED OUT under load — check whether another job was running.\n' +
+    '    ' +
+    killed +
+    '/' +
+    (tested - invalid) +
+    ' is the honest rate; ' +
+    killed +
+    '/' +
+    tested +
+    ' is not.\n'
+  );
+}
 export function verdictFromOutput(out) {
   return String(out).includes('✓') || String(out).includes('✕') ? 'KILLED' : 'INVALID';
 }
@@ -518,7 +547,13 @@ async function runFile(file) {
        so the reader can decide whether to keep waiting. */
     ++done;
     const el = (Date.now() - _t0) / 1000;
-    const body = file + '  ' + done + '/' + picked.length + '  killed ' + killed + '  survived ' + survivors.length + '  [' + (trees.length || 1) + ' job(s)]';
+    /* `invalid` IS PART OF THE PROGRESS LINE, not just the JSON. A run on a contended box timed out
+       24 mutants; each was correctly classified INVALID rather than counted as a kill — but the line
+       read `killed 79 survived 18` and nothing else, so it looked like coverage had collapsed by a
+       quarter. The number that explained it was in a field you had to open the JSON to see. A count
+       that changes how you read every other count belongs beside them. */
+    const body =
+      file + '  ' + done + '/' + picked.length + '  killed ' + killed + '  survived ' + survivors.length + (invalid ? '  invalid ' + invalid : '') + '  [' + (trees.length || 1) + ' job(s)]';
     if (process.stderr.isTTY) {
       process.stderr.write('\r  ' + body + '   ');
       return;
@@ -631,6 +666,12 @@ async function runFile(file) {
   if (firstKill && (canaryState === 'PASSED' || canaryState === 'NONE')) {
     if (canaryState === 'NONE') saveCanary(file, firstKill.mu, firstKill.killers);
   }
+  /* An INVALID mutant is one that never ran, so it is excluded from the denominator — which means a
+     run can quietly measure far fewer mutants than it tested and still report a confident rate. One
+     invalid is normal (a mutated regex quantifier that cannot compile). Twenty-five is a machine
+     problem, and the reader has no way to know which they are looking at unless the tool says so. */
+  const warn = invalidWarning(invalid, picked.length, killed);
+  if (warn) process.stderr.write(warn);
   if (canaryState === 'FAILED') {
     process.stderr.write(
       '\n  ✕ CANARY SURVIVED on ' +
@@ -797,6 +838,14 @@ function selftest() {
   ck('green marks then a late crash → KILLED', verdictFromOutput('✓ clock\nsegfault\n'), 'KILLED');
   ck('unparseable file, no suite output → INVALID', verdictFromOutput('SyntaxError: Invalid regular expression'), 'INVALID');
   ck('empty output → INVALID', verdictFromOutput(''), 'INVALID');
+  console.log('\ninvalidWarning — a run that did not measure what it claims must say so');
+  ck('1 of 123 (the regex quantifier) → silent', invalidWarning(1, 123, 103), null);
+  ck('2 of 123 → still silent', invalidWarning(2, 123, 102), null);
+  ck('25 of 122 → warns', typeof invalidWarning(25, 122, 79) === 'string', true);
+  ck('…and names the honest denominator', /79\/97/.test(invalidWarning(25, 122, 79) || ''), true);
+  ck('3 of 200 (1.5%) → silent, count alone is not enough', invalidWarning(3, 200, 150), null);
+  ck('3 of 10 (30%) → warns', typeof invalidWarning(3, 10, 5) === 'string', true);
+  ck('0 tested → no divide-by-zero', invalidWarning(0, 0, 0), null);
   console.log('\nfindCanary — matched on (line, op, before), never on a positional index');
   const pool = [
     { line: 10, op: 'cmp > → >=', before: 'if (a > b) {' },
