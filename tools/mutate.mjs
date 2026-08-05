@@ -130,8 +130,13 @@ const JOBS = Math.max(1, +opt('--jobs', String(defaultJobs(cpus().length))));
 const OPS = [
   { name: 'cmp >= → >', re: />=/g, to: '>' },
   { name: 'cmp <= → <', re: /<=/g, to: '<' },
-  { name: 'cmp > → >=', re: /([^-=<>!])>(?!=)/g, to: '$1>=' },
-  { name: 'cmp < → <=', re: /([^-=<>!])<(?!=)/g, to: '$1<=' },
+  /* The trailing lookahead excludes the SHIFT operators. Without `(?![=>])`, `win >> 1` matched at the
+     first `>` and became `win >=> 1` — unparseable. Four such mutants were generated on `clock.js`
+     alone, and because a non-zero exit used to mean KILLED, all four were counted as coverage while
+     costing a full suite run each (~30 min of a 108-min sweep). The leading class already protects
+     `=>` and the second `>` of a pair; this protects the first. */
+  { name: 'cmp > → >=', re: /([^-=<>!])>(?![=>])/g, to: '$1>=' },
+  { name: 'cmp < → <=', re: /([^-=<>!])<(?![=<])/g, to: '$1<=' },
   { name: 'eq === → !==', re: /===/g, to: '!==' },
   { name: 'eq !== → ===', re: /!==/g, to: '===' },
   { name: 'bool && → ||', re: /&&/g, to: '||' },
@@ -237,6 +242,12 @@ function groupsForFile(file) {
    Cost is a pipe instead of `ignore` plus one regex over the output; the suite prints a few KB. A
    SURVIVING mutant exits 0 and is not scanned at all, so the common case pays nothing. */
 const KILLER_RE = /✕ \[([^\]]+)\]/g;
+/* THE ONE PLACE that decides whether a non-zero suite exit is a kill. Pure, so --selftest can pin it:
+   the bug it replaces (every non-zero exit == KILLED) was invisible precisely because nothing could
+   assert on it. A mutant caught by a test leaves assertion output; one that never parsed leaves none. */
+export function verdictFromOutput(out) {
+  return String(out).includes('✓') || String(out).includes('✕') ? 'KILLED' : 'INVALID';
+}
 function runSuiteAsync(filter, cwd, timeoutMs) {
   return new Promise((resolve) => {
     const ch = spawn('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd, stdio: ['ignore', 'pipe', 'ignore'], timeout: timeoutMs || 900000 });
@@ -247,6 +258,18 @@ function runSuiteAsync(filter, cwd, timeoutMs) {
     ch.on('error', () => resolve({ verdict: 'INVALID', killers: [] }));
     ch.on('close', (code) => {
       if (code === 0) return resolve({ verdict: 'SURVIVED', killers: [] });
+      /* A NON-ZERO EXIT IS NOT AUTOMATICALLY A KILL. `/^\d{10,0}$/` is a syntactically invalid regex:
+         the file cannot be parsed, node exits 2, and the old classifier scored that as KILLED —
+         indistinguishable from a mutant a test actually caught. Every kill rate this tool has ever
+         reported was inflated by however many mutants produce unparseable code, systematically and in
+         the flattering direction.
+
+         The discriminator is that a mutant killed by a TEST leaves assertion output behind, while one
+         that never loaded leaves none. So: non-zero exit AND no assertion activity at all ⇒ the code
+         did not run ⇒ INVALID, which `tested − invalid` already excludes from the denominator.
+         Deliberately conservative — it only reclassifies runs that produced ZERO assertions, so a
+         mutant that merely makes a group throw still counts as killed. */
+      if (verdictFromOutput(out) === 'INVALID') return resolve({ verdict: 'INVALID', killers: [] });
       const seen = new Set();
       let m;
       KILLER_RE.lastIndex = 0;
@@ -340,11 +363,52 @@ function dropPool() {
 
 function runSuite(filter, cwd, timeoutMs) {
   try {
-    execFileSync('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd: cwd || ROOT, stdio: 'ignore', timeout: timeoutMs || 900000 });
+    execFileSync('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd: cwd || ROOT, encoding: 'utf8', timeout: timeoutMs || 900000 });
     return 'SURVIVED'; // suite green with broken code → nothing tests this line
   } catch (e) {
-    return e.status === undefined ? 'INVALID' : 'KILLED';
+    if (e.status === undefined) return 'INVALID'; // never ran (spawn failure / timeout kill)
+    // Same rule as the pool path: no assertion output ⇒ the file did not parse ⇒ INVALID, not a kill.
+    return verdictFromOutput(String(e.stdout || '') + String(e.stderr || ''));
   }
+}
+
+/* ── THE CANARY ─────────────────────────────────────────────────────────────────────────────────
+   A mutation sweep reports a number nobody can sanity-check by eye. If the harness silently stops
+   detecting kills — a changed suite exit convention, a broken killer regex, a worker whose checkout
+   lost the tests — the run does not error. It reports a LOWER kill rate, which reads exactly like
+   "the suite got worse" and sends you off writing tests against a lie. Nothing in the tool could
+   tell those two apart, and one already bit: every non-zero exit was scored KILLED, so unparseable
+   mutants were counted as coverage (fixed above).
+
+   So each sweep carries a mutant that is KNOWN to die, tested alongside the real ones. If the canary
+   survives, the harness is not detecting kills and the whole run is VOID — the rate is suppressed
+   rather than reported. It is self-maintaining: the first attributed kill of a green sweep is
+   recorded as that file's canary, so a file gets one automatically after its first run.
+
+   Deliberately weak-but-real: it proves kills are still detected AND still attributed. It does not
+   prove the count is right. That is the honest limit of a canary. */
+const CANARY_FILE = join(ROOT, 'tools', 'mutate-canaries.json');
+function loadCanaries() {
+  try {
+    return JSON.parse(readFileSync(CANARY_FILE, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+function saveCanary(file, mu, killerList) {
+  try {
+    const all = loadCanaries();
+    all[file] = { line: mu.line, op: mu.op, before: mu.before, after: mu.after, killers: killerList.slice(0, 3) };
+    writeFileSync(CANARY_FILE, JSON.stringify(all, Object.keys(all).sort(), 2) + '\n');
+  } catch {}
+}
+/* Match a stored canary back onto a freshly enumerated mutant. Matched on (line, op, before) rather
+   than on an index: `file:line:index` shifts the moment anything above it is edited, and a canary
+   that silently points at a DIFFERENT mutant after a refactor is worse than no canary. A miss is
+   reported as 'STALE', never guessed at. */
+function findCanary(all, want) {
+  if (!want) return null;
+  return all.find((m) => m.line === want.line && m.op === want.op && m.before === want.before) || null;
 }
 
 async function runFile(file) {
@@ -399,6 +463,16 @@ async function runFile(file) {
   const original = readFileSync(abs, 'utf8');
   const all = mutantsFor(original);
   const picked = thin(all, LIMIT);
+  /* The canary rides along as an extra mutant. It is EXCLUDED from every counter (see classify), so
+     it can never flatter or dent the reported rate — it only decides whether that rate is reportable. */
+  const canaryWant = loadCanaries()[file];
+  const canaryMu = findCanary(all, canaryWant);
+  if (canaryMu) {
+    canaryMu.__canary = true;
+    if (!picked.includes(canaryMu)) picked.push(canaryMu);
+  }
+  let canaryState = canaryWant ? (canaryMu ? 'PENDING' : 'STALE') : 'NONE';
+  let firstKill = null; // for self-maintenance: adopt the first attributed kill as next run's canary
   /* CRASH-SAFE RESTORE. The first version registered SIGINT only, and a `pkill` (SIGTERM) during a run
      left `clock.js` MUTATED IN THE WORKING TREE — the `finally` never ran, and nothing said so. A tool
      that edits your source must survive being killed the way people actually kill things. So: an
@@ -479,9 +553,19 @@ async function runFile(file) {
   const killers = new Map(); // group title → how many mutants it killed
   const classify = (v, mu) => {
     const verdict = typeof v === 'string' ? v : v.verdict;
+    const ks = (typeof v === 'string' ? [] : v.killers) || [];
+    if (mu.__canary) {
+      /* The canary's verdict IS the run's licence to report a number. A canary that dies with an
+         attributed killer means kills are still being detected and attributed; anything else means
+         they may not be, and a rate computed under that doubt is not evidence. */
+      canaryState = verdict === 'KILLED' && ks.length ? 'PASSED' : 'FAILED';
+      tick();
+      return;
+    }
     if (verdict === 'KILLED') {
       killed++;
-      for (const g of (typeof v === 'string' ? [] : v.killers) || []) killers.set(g, (killers.get(g) || 0) + 1);
+      if (!firstKill && ks.length) firstKill = { mu, killers: ks };
+      for (const g of ks) killers.set(g, (killers.get(g) || 0) + 1);
     } else if (verdict === 'INVALID') invalid++;
     else survivors.push(mu);
     tick();
@@ -541,14 +625,39 @@ async function runFile(file) {
     restore(); // the shared pool is torn down once, by dropPool() at the end of the run
   }
   if (!AS_JSON) process.stderr.write('\r' + ' '.repeat(78) + '\r');
+  /* Self-maintenance: a green sweep donates its first attributed kill as the next run's canary. Only
+     from a run whose own canary passed (or that had none yet) — adopting a canary from a run we
+     already suspect would launder the doubt forward. */
+  if (firstKill && (canaryState === 'PASSED' || canaryState === 'NONE')) {
+    if (canaryState === 'NONE') saveCanary(file, firstKill.mu, firstKill.killers);
+  }
+  if (canaryState === 'FAILED') {
+    process.stderr.write(
+      '\n  ✕ CANARY SURVIVED on ' + file + ' — a mutant known to be killed was not killed.\n' +
+        '    The harness is not reliably detecting kills, so this run\'s kill rate is NOT reported.\n' +
+        '    Expected killers: ' + (canaryWant.killers || []).join(', ') + '\n' +
+        '    Canary: L' + canaryWant.line + ' [' + canaryWant.op + ']\n'
+    );
+  } else if (canaryState === 'STALE') {
+    process.stderr.write(
+      '\n  ⚠ CANARY STALE on ' + file + ' — the recorded canary (L' + canaryWant.line + ' [' + canaryWant.op +
+        ']) no longer matches any generated mutant; the file changed under it.\n' +
+        '    The run is UNGUARDED. Delete its entry in tools/mutate-canaries.json to re-learn one.\n'
+    );
+  }
   return {
     file,
+    /* A rate nobody can trust is worse than no rate: on a failed canary the counts are still emitted
+       for debugging, but `killed`/`rate` are nulled so no reader — human or script — can quote them. */
+    canary: canaryState,
+    voided: canaryState === 'FAILED',
     groupsRun: filter || 'FULL SUITE',
     groupCount: g ? g.count : null,
     groupsSelected: g ? g.selected : null,
     generated: all.length,
-    tested: picked.length,
-    killed,
+    // the canary is scaffolding, not a measurement — it must not enter the denominator it guards
+    tested: picked.length - (canaryMu ? 1 : 0),
+    killed: canaryState === 'FAILED' ? null : killed,
     invalid,
     /* WHICH groups did the killing, and how many mutants each accounted for. The union over a whole
        file is the minimal sufficient selection for that file's tag — the measurement that says whether
@@ -648,6 +757,42 @@ function selftest() {
     t2 = thin(big, 10);
   ok('thinning is deterministic', JSON.stringify(t1) === JSON.stringify(t2));
   ok('thinning preserves order and count', t1.length === 10 && t1[0].i === 0 && t1[9].i > t1[0].i);
+  /* The classifier and the canary matcher — both added after a real miscount, both pure, both
+     asserted here so the next regression is a red selftest rather than a flattering rate. */
+  const ck = (name, got, want) => {
+    const ok = got === want;
+    console.log((ok ? '  ✓ ' : '  ✕ ') + name + (ok ? '' : '  got ' + got + ' want ' + want));
+    if (!ok) fail = (fail || 0) + 1;
+  };
+  /* EVERY generated mutant must PARSE. A mutant that cannot be loaded tests nothing, and until the
+     classifier above was fixed it was scored as a kill — so a generator bug read as coverage. These
+     pin the shift operators, which is where it actually happened. */
+  console.log('\ngenerated mutants must parse — the shift operators are not comparisons');
+  const mutOne = (src, op) => {
+    op.re.lastIndex = 0;
+    return src.replace(op.re, op.to);
+  };
+  const gt = OPS.find((o) => o.name === 'cmp > → >=');
+  const lt = OPS.find((o) => o.name === 'cmp < → <=');
+  ck('>> is not mutated into >=>', mutOne('var m = s.length >> 1;', gt), 'var m = s.length >> 1;');
+  ck('<< is not mutated into <=<', mutOne('var m = s.length << 1;', lt), 'var m = s.length << 1;');
+  ck('=> (arrow) is not mutated', mutOne('var f = (a) => a;', gt), 'var f = (a) => a;');
+  ck('a real > IS still mutated', mutOne('if (a > b) {', gt), 'if (a >= b) {');
+  ck('a real < IS still mutated', mutOne('if (a < b) {', lt), 'if (a <= b) {');
+  console.log('\nverdictFromOutput — a non-zero exit is not automatically a kill');
+  ck('assertion failure → KILLED', verdictFromOutput('✕ [clock] parseTimestamp\n'), 'KILLED');
+  ck('green marks then a late crash → KILLED', verdictFromOutput('✓ clock\nsegfault\n'), 'KILLED');
+  ck('unparseable file, no suite output → INVALID', verdictFromOutput('SyntaxError: Invalid regular expression'), 'INVALID');
+  ck('empty output → INVALID', verdictFromOutput(''), 'INVALID');
+  console.log('\nfindCanary — matched on (line, op, before), never on a positional index');
+  const pool = [
+    { line: 10, op: 'cmp > → >=', before: 'if (a > b) {' },
+    { line: 20, op: 'num → 0', before: 'return 5;' },
+  ];
+  ck('exact match found', findCanary(pool, { line: 20, op: 'num → 0', before: 'return 5;' }) === pool[1], true);
+  ck('line moved → null (STALE, not a wrong guess)', findCanary(pool, { line: 21, op: 'num → 0', before: 'return 5;' }), null);
+  ck('same line, different op → null', findCanary(pool, { line: 10, op: 'num → 0', before: 'if (a > b) {' }), null);
+  ck('no canary recorded → null', findCanary(pool, undefined), null);
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
