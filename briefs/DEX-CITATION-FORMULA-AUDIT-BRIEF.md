@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS — 2026-08-03 (**2026-08-04: four more acceptance boxes verified and closed — reader-facing correction-history 0/7 guides, badge conformance gate-enforced 74/74, gates green 9/9 + 16 fixtures. ONE blocker remains and it is not code: §1/§2 citation verification needs NETWORK, which this suite forbids by construction.** §3 formula dimension CHECKED and CLEAN, now gated — HRmax/Tanaka, QTc Bazett-vs-Fridericia, SampEn m=2 r=0.2·SD all verified against the code; ApEn is N/A (nothing computes it). One real cross-node SD1 difference measured at 0.002–0.008 % on five overnight RR files — immaterial, and the divergent node is the canonically-correct one. The CITATION half (§1/§2) stays open: it needs network verification and is governed by `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`)
+**Status:** DONE — 2026-08-05 (the §1/§2 network blocker is RESOLVED, not waived: all 86 DOIs resolved against Crossref at author time — which `LITERATURE-USE-POLICY` describes as the normal motion, the no-network rule governing *bundles* — and **three cited the wrong paper**, each via a DOI that resolves perfectly. Fixed here; evidence + ledger in `audits/CITATION-VERIFICATION-2026-08-05.md`. Three attribution defects needing a DSP edit are routed to `CITATION-ATTRIBUTION-FOLLOWUPS-2026-08-05-BRIEF.md`.) · §3 formula dimension CHECKED and CLEAN, now gated
 
 # Build Brief — Citation & Formula Audit for the Remaining Dexes
 
