@@ -1468,7 +1468,21 @@ async def run_polar(dev: dict, root: str):
                 for s in streams:
                     if s in meas_of:
                         writers[meas_of[s]] = w(s)
-                        _register(meas_of[s], pmd.SAMPLE_HZ.get(meas_of[s], 0))   # placeholder fs until negotiated
+                        # RATE UNKNOWN UNTIL NEGOTIATED — 0, not the vendor default (2026-08-05).
+                        # This registered `pmd.SAMPLE_HZ[meas]`, which is the rate the hardware ships at,
+                        # NOT the rate this box asks for: PROJECT_HZ picks ACC 50 and MAG 20, and a
+                        # config may narrow further (vigil runs ACC 25 / MAG 10). So between START and
+                        # the re-register at the `used_fs` line below, every stream carried a nominal it
+                        # had never agreed to — and `telemetry.stream_health` judges WEAK as
+                        # `eff_fs < 0.7 * nominal_fs`. ACC delivering its negotiated 25 Hz against a
+                        # declared 200 scores 0.125 and paints amber; MAG's measured 10.28 Hz against a
+                        # declared 50 scores 0.21. Neither is a weak link — it is division by a number
+                        # nobody chose, and it re-fires on every reconnect (link_epoch reached 5 and 6 on
+                        # the night of 2026-08-04 alone).
+                        # 0 means "irregular / rate unknown" and already routes stream_health to the
+                        # silence-only branch — the same honesty PPI has always used. A rate we have not
+                        # agreed is not a rate to be judged against; see §2.6's rule for stamps.
+                        _register(meas_of[s], 0)
                 if "hr" in streams:
                     hr_writer = w("hr")
                     BUS.register(_live_key("hr", tag), f"RR ({name})", "ms", 0)

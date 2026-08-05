@@ -7,6 +7,7 @@
 # telemetry.py is PURE (asyncio stdlib only, no bleak) — was 0% covered.
 
 import telemetry
+from tests._srcscan import module_source
 
 
 def test_default_meta_present_and_inactive_before_data():
@@ -103,6 +104,51 @@ def test_event_stream_only_stalls_never_weak():
     # irregular event stream (ppi/rr, nominal 0) uses the stall floor
     assert telemetry.stream_health(0, 0.0, 3.0) == "good"
     assert telemetry.stream_health(0, 0.0, 10.0) == "stall"
+
+
+def test_a_stream_is_never_judged_WEAK_against_a_rate_it_never_agreed_to():
+    """WEAK is `eff_fs < 0.7 * nominal_fs`, so nominal must be the NEGOTIATED rate, not a vendor default.
+
+    capture.py used to register each PMD stream at `pmd.SAMPLE_HZ[meas]` — the rate the hardware ships
+    at — and only re-register with `used_fs` after negotiation. In that window the denominator was a
+    number nobody had chosen, and the arithmetic below is what the monitor painted. Both cases are
+    measured, not invented: vigil's config asks for ACC 25 and MAG 10, and the 2026-08-04 Verity MAG
+    file delivered 10.28 Hz over 7.75 h (287,004 samples, max inter-arrival 0.924 s — never once
+    silent long enough to be a real stall).
+    """
+    # The defect, stated as arithmetic: a healthy stream at its negotiated rate, judged against the
+    # vendor default, is amber.
+    assert telemetry.stream_health(200, 25.0, 0.1) == "weak", "ACC 25 Hz vs SAMPLE_HZ 200 → 0.125"
+    assert telemetry.stream_health(50, 10.28, 0.1) == "weak", "MAG 10.28 Hz vs SAMPLE_HZ 50 → 0.21"
+
+    # The fix: register 0 ("irregular / rate unknown") until negotiation lands. 0 routes to the
+    # silence-only branch, so an unknown rate can never manufacture WEAK — whatever the stream delivers.
+    for eff in (0.0, 10.28, 25.0, 200.0):
+        assert telemetry.stream_health(0, eff, 0.1) == "good", f"unknown nominal judged rate at {eff}"
+
+    # Silence is still caught while the rate is unknown — this must not become a blind spot.
+    assert telemetry.stream_health(0, 0.0, 10.0) == "stall"
+
+
+def test_capture_registers_pmd_streams_with_an_UNKNOWN_rate_until_negotiated():
+    """Non-vacuity for the test above: it only protects anything while capture.py actually defers.
+
+    Asserted against the source because the registration sits deep inside `run_polar`'s per-connection
+    setup, behind a live BLE session that no unit test reaches. A behavioural test here would need the
+    device; this reads the one line that has to stay honest.
+
+    Via `module_source`, not a raw read: this is an `X not in src` scan, which is one of the shapes
+    that BREAKS against a mutmut-generated capture.py (it emits the forbidden string as a mutation).
+    The helper skips there instead of reporting the whole module unmeasurable — see tests/_srcscan.py.
+    """
+    src = module_source("capture.py")
+    initial = [ln for ln in src.splitlines() if "_register(meas_of[s]" in ln]
+    assert initial, "the initial PMD stream registration moved — this gate is now blind, not green"
+    for ln in initial:
+        assert "SAMPLE_HZ" not in ln, (
+            "capture.py registers a PMD stream at the vendor default again. Between START and the "
+            "`used_fs` re-register, telemetry.stream_health will judge WEAK against a rate the device "
+            f"never agreed to. Register 0 (rate unknown) instead: {ln.strip()}")
 
 
 def test_meta_carries_efffs_and_health():
