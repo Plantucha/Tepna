@@ -177,6 +177,17 @@
   }
 
   function idForLabel(label) {
+    /* AN EXACT REGISTRY ID RESOLVES TO ITSELF (DEEP-AUDIT-V Tier 3.5 — the camelCase blind spot).
+       `_norm` LOWERCASES, so a render site passing a real registry id — `evBadge('usageHours')` —
+       normalised to `usagehours`, matched no key and no alias, and fell through to
+       `badgeForLabel`'s fabricated-`experimental` fallback. The registry had the metric all along
+       and graded it properly: CPAPDex's `residualAHI` and `usageHours` are `measured` and rendered
+       `experimental` — a TWO-tier under-grade on the two headline therapy numbers, silent because
+       the fallback bypasses `MetricRegistry.entry`'s console.warn. Checking the RAW label first
+       only ADDS resolution for tokens that are literally registry keys; every prose label still
+       takes the normalise-then-alias path exactly as before. Applied to all EIGHT registry clones
+       together — a lone fixed sibling is how the next audit re-finds half of one bug. */
+    if (label != null && GLU_REGISTRY[label]) return String(label);
     var k = _norm(label);
     if (GLU_REGISTRY[k]) return k;
     return GLU_LABEL_ALIAS[k] || null;
