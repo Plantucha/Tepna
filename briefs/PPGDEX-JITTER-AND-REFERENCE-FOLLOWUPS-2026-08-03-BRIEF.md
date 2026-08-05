@@ -278,3 +278,46 @@ them is a compute-path change with a re-bundle and a `verify-fixtures` pass behi
 duration* rather than signal quality, the criterion is counting the wrong thing twice: nights instead of
 paired overlap, and files instead of nights. The bar should be **total paired overlap**, and the four
 nights already exceeding 900 min agree to 1.50–2.20 /h with no outlier.
+### §7.1 · Merged, both sides — and 7.03 ms was a selection effect (2026-08-04)
+
+§7 recorded the fragmentation and demonstrated a finger-only merge. The ECG side is now merged the same
+way, which removes the asymmetry that made merged jitter read worse: a merged finger train had been
+paired against a SINGLE best-overlapping ECG file, so finger beats outside that window could not match.
+Fixing it also removed the runtime cost — the old search re-parsed every ECG file for every candidate
+night (~400x419 parses); the reference is now built once.
+
+| night | finger-only merge | both sides merged |
+|---|---|---|
+| 2026-07-31 (8 sess) | 9 eps · 31.32 ms · 65.2 % | **126 eps · 11.96 ms · 89.5 %** |
+| 2026-07-30 (11 sess) | 28 eps · 11.43 ms | 87 eps · 8.39 ms |
+| 2026-07-28 (15 sess) | 42 eps · 6.27 ms | 95 eps · 8.04 ms |
+| 2026-07-25 (22 sess) | 74 eps · 7.75 ms | 94 eps · 7.61 ms |
+
+**The corpus-wide result, and it is worse than what this brief has been quoting:**
+
+| | single-file (as published) | both sides merged |
+|---|---|---|
+| nights | 9 | 10 |
+| PPI-jitter median | **7.03 ms** | **11.02 ms** (IQR 8.61–26.80) |
+| beat match median | 99.40 % | 92.97 % (IQR 82.64–97.61) |
+
+**7.03 ms was a SELECTION EFFECT.** The apparatus could only score a night that contained one long
+unbroken recording — and a night records unbroken because the link held, i.e. because conditions were
+good. Every fragmented night was silently excluded, and fragmentation is itself a symptom of the
+motion, poor contact and dropouts that also raise jitter. So the published figure described the best
+nights in the corpus and was reported as though it described the corpus.
+
+**This makes the promotion picture worse, not better.** §3's budget is ≤4.98 ms for 2 % RMSSD bias. At
+7.03 ms the finger was ~1.4x over; at 11.02 ms it is ~2.2x over. Nothing about that is a regression in
+the device — it is the first honest measurement of it.
+
+**Read the match rate beside it, as §6.2 requires.** The newly-visible nights include genuinely hard
+ones (2026-07-24 at 73.9 %, 07-17 at 78.1 %), and on those the jitter figure describes whichever beats
+paired rather than the night. The median match of 92.97 % is the corpus's real state, not a defect of
+the merge.
+
+**Still not merged: CVHR.** `cvhrFromNN` / `detectCVHR` live inside `analyze()` and are not exported, so
+a merged night carries its largest session's index. The CVHR row in a merged run is therefore per-session
+and **does not** satisfy §3.1's ≥10-night bar. Exporting them is a compute-path change with a re-bundle
+and `verify-fixtures` behind it — the natural next unit, and the one that would let the CVHR criterion be
+adjudicated on merged nights and on total paired overlap rather than on a night count.
