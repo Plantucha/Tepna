@@ -1872,7 +1872,7 @@ async def run_polar(dev: dict, root: str):
                                     "dropping it so the device frees the stream and we re-negotiate",
                                     name, _STREAM_STALL_S)
                         break
-                    if should_drop_not_worn(_WORN_SINCE.get(addr), _time.monotonic(), _DROP_NOT_WORN_SEC):
+                    if should_drop_not_worn(_WORN_SINCE.get(addr), _time.monotonic() + 0.0, _DROP_NOT_WORN_SEC):
                         drop_for_power = True
                         _set(name, last_error="not worn — link dropped to save battery (re-checking)")
                         log.info("%s: not worn for %.0fs — dropping the link to save battery; "
