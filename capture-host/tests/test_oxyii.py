@@ -247,3 +247,57 @@ def test_flag_raw_is_the_whole_byte_beside_the_bit():
     off = oxyii.parse_live(_live_frame(flag=0xC6))
     assert off["flag"] == 0            # bit 0 clear
     assert off["flag_raw"] == 0xC6     # ...while the byte is still reported in full
+
+
+# ── THE CANARY FOR THE MEASUREMENT NIGHT ─────────────────────────────────────────────────────────────
+# `ppg_offset` exists to answer ONE question — does the ring count its PPG_INVALID bytes in its own
+# stream position — and the answer arrives only after a night of capture. If the field is mis-wired, the
+# column still fills with plausible integers and the first thing to notice is the analysis coming back
+# nonsense, a night later. These assert the wiring end-to-end BEFORE the night is spent.
+
+
+def _rt_data(offset: int, n: int, duration: int = 100) -> bytes:
+    """A `cmd=0x04` reply shaped the way the device sends it: RtParam[0:20], then RtWave = offset u32 LE
+    at [20:24], size u16 LE at [24:26], then `n` one-byte samples."""
+    param = bytearray(20)
+    param[0:4] = duration.to_bytes(4, "little")
+    param[5], param[6], param[7] = 0x01, 97, 14          # contact, spo2, pi
+    param[8:10] = (62).to_bytes(2, "little")             # pr
+    param[10], param[11], param[13] = 0xC7, 0, 88        # flag byte, motion, battery
+    return bytes(param) + offset.to_bytes(4, "little") + n.to_bytes(2, "little") + bytes([100] * n)
+
+
+def test_ppg_offset_advances_by_exactly_the_declared_count():
+    """The relationship the whole measurement rests on: frame i starts at offset O_i and carries N_i
+    samples, so O_(i+1) - O_i == N_i. Reading the wrong four bytes, or the wrong endianness, breaks this
+    while still producing a column full of integers."""
+    frames = [(0, 126), (126, 127), (253, 125), (378, 126)]
+    got = [(oxyii.ppg_stream_offset(_rt_data(o, n)), oxyii.ppg_sample_count(_rt_data(o, n)))
+           for o, n in frames]
+    assert got == frames, "offset/count did not round-trip out of a device-shaped frame"
+    for (o1, n1), (o2, _n2) in zip(got, got[1:]):
+        assert o2 - o1 == n1, f"delta offset {o2 - o1} != the declared count {n1} of the frame before it"
+
+
+def test_ppg_offset_is_monotonic_across_a_frame_run():
+    offs = [oxyii.ppg_stream_offset(_rt_data(o, 126)) for o in (0, 126, 252, 378, 504)]
+    assert offs == sorted(offs) and len(set(offs)) == len(offs)
+
+
+def test_offset_and_count_cannot_be_silently_swapped():
+    """Distinct magnitudes, so a transposed read is visible. A u32 offset past 65535 cannot even fit the
+    count's field, and 126 is not a plausible stream position four frames in."""
+    p = _rt_data(70000, 126)
+    assert oxyii.ppg_stream_offset(p) == 70000
+    assert oxyii.ppg_sample_count(p) == 126
+
+
+def test_a_wave_body_that_is_all_sentinel_still_reports_its_offset():
+    """The pathological case the field exists to measure: a frame whose samples are entirely
+    PPG_INVALID. The offset must still be readable — it is the only thing that could say whether the
+    device counted those bytes."""
+    param = bytearray(20)
+    param[10] = 0xC7
+    body = bytes(param) + (900).to_bytes(4, "little") + (3).to_bytes(2, "little") + bytes([156, 156, 156])
+    assert oxyii.ppg_stream_offset(body) == 900
+    assert oxyii.parse_ppg(body) == [156, 156, 156]
