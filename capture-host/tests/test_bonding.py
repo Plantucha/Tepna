@@ -41,6 +41,20 @@ Device 11:22:33:44:55:66 (public)
 """
 
 
+@pytest.fixture(autouse=True)
+def _no_real_bluez(monkeypatch):
+    """This box HAS bluetoothctl and the CI runner does not, so a test that forgets to stub a subprocess
+    entry is green here and red there — which is how two tests below shipped reaching the real binary
+    (#937). `scan()` has TWO entries, `_delayed_script` and `_btctl`; stubbing one is not stubbing it.
+    A test that means to drive the exec itself patches it after this fixture, so its own setattr wins."""
+    async def _forbidden(*argv, **kw):
+        raise AssertionError(
+            f"a bonding test reached the real bluetoothctl ({argv!r}) — use _stub(), which patches "
+            "BOTH _delayed_script and _btctl")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _forbidden)
+
+
 def _run(coro):
     return asyncio.run(coro)
 
@@ -476,31 +490,32 @@ def test_a_session_that_will_not_exit_is_killed_rather_than_left(monkeypatch):
 def test_scan_asks_for_devices_after_scanning_and_quits(monkeypatch):
     """The order is the whole function: scan on -> wait -> scan off -> devices -> quit. Asking for
     `devices` before `scan off` returns a partial list; omitting `quit` leaves the session to time out."""
-    seen = {}
-
-    async def fake_delayed(lines):
-        seen["lines"] = list(lines)
-        return "Device AA:BB:CC:DD:EE:FF Polar H10 ABCDEF\n"
-
-    monkeypatch.setattr(bonding, "_delayed_script", fake_delayed)
+    rec = []
+    _stub(monkeypatch, delayed="Device AA:BB:CC:DD:EE:FF Polar H10 ABCDEF\n",
+          info_by_addr={"AA:BB:CC:DD:EE:FF": "Bonded: yes\n"}, record=rec)
     found = _run(bonding.scan(seconds=3.0))
 
-    cmds = [c for _d, c in seen["lines"]]
-    assert cmds == ["scan on", "scan off", "devices", "quit"], "the order is load-bearing"
-    assert [d for d, c in seen["lines"] if c == "scan off"] == [3.0], \
+    script = [x for x in rec if isinstance(x, tuple)]
+    assert [c for _d, c in script] == ["scan on", "scan off", "devices", "quit"], \
+        "the order is load-bearing"
+    assert [d for d, c in script if c == "scan off"] == [3.0], \
         "the caller's duration is what the scan actually runs for"
+    # The `info` enrichment is part of scan(), not a separate call the caller makes. An earlier version
+    # of this test stubbed only _delayed_script, so this loop ran against the REAL bluetoothctl.
+    assert [x for x in rec if isinstance(x, str)] == ["info AA:BB:CC:DD:EE:FF\nquit\n"], \
+        "one info query per discovered address, and nothing else reaches bluetoothctl"
     assert len(found) == 1 and found[0].address == "AA:BB:CC:DD:EE:FF"
     assert found[0].health is True, "a Polar H10 is a health device"
+    assert found[0].bonded is True, "bonded comes from the info pass; the scan lines cannot supply it"
 
 
 def test_a_real_name_replaces_a_placeholder_for_the_same_address(monkeypatch):
     """bluetoothctl announces a device by MAC first and its real name later. Keeping the first sighting
     would leave every device listed as its own address, which is what the operator picks from."""
-    async def fake_delayed(lines):
-        return ("Device AA:BB:CC:DD:EE:FF AA-BB-CC-DD-EE-FF\n"
-                "Device AA:BB:CC:DD:EE:FF Polar H10 ABCDEF\n")
-
-    monkeypatch.setattr(bonding, "_delayed_script", fake_delayed)
+    _stub(monkeypatch,
+          delayed=("Device AA:BB:CC:DD:EE:FF AA-BB-CC-DD-EE-FF\n"
+                   "Device AA:BB:CC:DD:EE:FF Polar H10 ABCDEF\n"),
+          info_by_addr={"AA:BB:CC:DD:EE:FF": ""})
     found = _run(bonding.scan())
     assert len(found) == 1, "one address, one entry"
     assert "Polar" in found[0].name, "the real name must win over the placeholder"

@@ -8,7 +8,15 @@
 
 import pytest
 
-from mutation_triage import EQUIVALENT, PROSE, REACHABLE, UNOBSERVABLE, ceiling, classify
+from mutation_triage import (
+    EQUIVALENT,
+    PROSE,
+    REACHABLE,
+    UNOBSERVABLE,
+    ceiling,
+    classify,
+    concentration,
+)
 
 
 # ── UNOBSERVABLE: no assertion can distinguish these ────────────────────────────────────────────────
@@ -103,3 +111,46 @@ def test_counts_exceeding_the_total_are_refused():
     """Survivors from one run against a total from another — the stale-list trap in miniature."""
     with pytest.raises(ValueError, match="exceeds total"):
         ceiling(100, 90, 20, 0, 0)
+
+
+# ── concentration: the number the fleet ranking is SORTED by ────────────────────────────────────────
+# This shipped in the same commit as a brief that ranks all 19 modules by it, and shipped untested. The
+# tests below are the ones that would have had to exist before that brief quoted a single figure.
+
+def test_concentration_finds_the_largest_cluster_and_its_share():
+    """The real `clockcfg` shape: 27 of 37 reachable in one function is why six tests returned 40
+    mutants. `top_share` is what §2 of the fleet brief sorts on."""
+    c = concentration(["status"] * 27 + ["_write"] * 7 + ["main"] * 3)
+    assert c["total"] == 37
+    assert c["top"] == "status" and c["top_n"] == 27
+    assert round(c["top_share"], 3) == round(27 / 37, 3)
+
+
+def test_clusters_are_ordered_by_size_then_name_so_a_ranking_is_stable():
+    """Ties broken by name, not by dict order. Without it the same survivor file ranks two equal
+    clusters differently between runs, and a ranking that reorders on re-measurement is not a ranking."""
+    c = concentration(["b", "b", "a", "a", "c"])
+    assert c["clusters"] == [("a", 2), ("b", 2), ("c", 1)], "size desc, then name asc"
+    assert c["top"] == "a", "the tie-break must be deterministic, and it must not be insertion order"
+
+
+def test_no_reachable_mutants_is_zero_share_not_a_division():
+    """A fully-closed module (`settings_schema` reached this) has an empty reachable set. Ranking it
+    must not raise, and it must not report a 100% cluster — there is no cluster."""
+    c = concentration([])
+    assert c == {"total": 0, "clusters": [], "top": None, "top_n": 0, "top_share": 0.0}
+
+
+def test_a_single_function_reports_full_concentration_which_is_the_known_defect():
+    """DELIBERATE, and the reason `capture.run_polar` was mis-ranked as the cheapest big pass.
+
+    Concentration is computed per FUNCTION, so a 1,900-line function scores 1.0 no matter how its
+    mutants spread inside it — `run_polar`'s 502 reachable are spread over hundreds of lines, whose
+    densest holds 13. At this granularity that is indistinguishable from `clockcfg`'s genuinely dense
+    27-in-one-function. Ranking by this figure alone is what produced the claim that it was 'one
+    fixture family'. The fix is per-source-line granularity above some function size; until then this
+    test pins the limitation so it is read as known rather than rediscovered."""
+    dense = concentration(["small_fn"] * 20)
+    sprawling = concentration(["huge_fn"] * 502)
+    assert dense["top_share"] == sprawling["top_share"] == 1.0, \
+        "the metric cannot tell these apart — do not rank on top_share alone"
