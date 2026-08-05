@@ -72,6 +72,13 @@ git restore --source=origin/main -- clock.js
 git -C . checkout origin/main -- tests/dex-tests.js
 git checkout HEAD~1 -- integrator-tch.js
 git checkout origin/main -- OverDex.html tests/dex-tests.js
+git checkout origin/main -- capture-host/capture.py
+git checkout origin/main -- .claude/hooks/guard-shared-tree.sh
+git checkout origin/main -- .github/workflows/tests.yml
+git checkout origin/main -- uploads/synthetic_oxydex_o2ring.csv
+git checkout origin/main -- tests/
+git checkout origin/main clock.js
+git restore -s origin/main clock.js
 git update-ref --stdin
 git update-ref --no-deref refs/heads/main abc
 git branch -f main abc
@@ -127,6 +134,7 @@ git checkout origin/main -- OverDex.html
 git checkout origin/main -- "Data Unifier.html"
 git checkout origin/main -- provenance/Integrator.json
 git checkout origin/main -- docs/OxyDex.html
+git checkout "origin/main" -- OverDex.html
 node tools/rebase-safe.mjs
 git fetch origin main:main
 git merge --ff-only origin/main

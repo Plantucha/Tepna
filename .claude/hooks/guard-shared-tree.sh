@@ -172,7 +172,57 @@ fi
 # does not help: a heredoc body is not quoted. So this rule alone also tests a copy with `<<'W' … W`
 # bodies removed. Same tradeoff, and same reason, as the quote-stripping on `git commit -a` above.
 cmd_nohd="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
-if grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?[^;&|]*\.(js|mjs|md|json|css|src\.html)([[:space:]]|$)' <<<"$cmd_nohd"    && grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmd_nohd"    && ! grep -qE '(^|[[:space:]])(provenance/|docs/)' <<<"$cmd_nohd"; then
+# The ref separator accepts whitespace, `=` AND a quote: `--source=origin/main` and
+# `checkout "origin/main"` are the same operation as the bare form, and each bypassed an
+# earlier version of this rule. Every one was found adversarially, none by review.
+# INVERTED 2026-08-05 after a SECOND adversarial pass. The first version tested an EXTENSION
+# ALLOWLIST — it denied only `.js|.mjs|.md|.json|.css|.src.html` — so it FAILED OPEN on everything
+# it had not thought of: all of `capture-host/*.py`, this hook`s own `.sh`, `.github/**.yml`,
+# `uploads/*.csv`, and a bare directory (`-- tests/`). Seven holes in one battery. An allowlist of
+# what is DANGEROUS is the same mistake this whole rule exists to prevent; the safe shape is an
+# allowlist of what is SAFE. So: a ref-restore is denied unless EVERY path token it names is
+# generated-shaped (a root `*.html` bundle, `docs/…`, `provenance/…`). Anything else — any
+# extension, any directory, any new file type nobody has met yet — is SOURCE and stops.
+_refrestore=0
+_bad=0
+# Branch creation is not a path restore — `git checkout -b x origin/main` / `git switch -c`.
+if ! grep -qE "$GITX"'(checkout|switch)[[:space:]]+([^;&|]*[[:space:]])?-(b|B|c|C)([[:space:]]|$)' <<<"$cmd_nohd"; then
+  grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=]|[^;&|]*'"$QT"')?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmd_nohd" && _refrestore=1
+fi
+if [ "$_refrestore" = "1" ]; then
+  # Collect the PATH tokens: everything after `--` when present, else everything after the bare ref.
+  _paths=""
+  if grep -qE '(^|[[:space:]])--([[:space:]]|$)' <<<"$cmd_nohd"; then
+    _paths="${cmd_nohd#*-- }"
+  else
+    _after=0
+    for _tok in $cmd_nohd; do
+      case "$_tok" in
+        git|*/git|checkout|restore|-*|"") continue ;;
+      esac
+      if [ "$_after" = "0" ]; then _after=1; continue; fi   # the ref itself
+      _paths="$_paths $_tok"
+    done
+  fi
+  # A QUOTED PATH IS ONE TOKEN. `"Data Unifier.html"` is one of the two ORCHESTRATORS — a generated
+  # file whose name contains a space — and naive whitespace splitting turned it into `"Data` +
+  # `Unifier.html`, denying a legitimate restore. Protect spaces inside quotes, split, then strip the
+  # quotes per token. Quotes are removed only AFTER tokenizing, so `'clock.js'` is still seen as a
+  # source path rather than vanishing the way a blanket quote-strip would make it.
+  _paths="$(printf '%s' "$_paths" | sed -E ':a; s/(\"[^\"]*) ([^\"]*\")/\1\x01\2/; ta; :b; s/('"'"'[^'"'"']*) ([^'"'"']*'"'"')/\1\x01\2/; tb')"
+  # SAFE-ALLOWLIST: every path token must be generated-shaped, or this is a source restore.
+  for _tok in $_paths; do
+    _tok="$(printf '%s' "$_tok" | tr '\001' ' ' | sed -E 's/^["'"'"']//; s/["'"'"']$//')"
+    case "$_tok" in
+      -*|"") continue ;;
+      docs/*|provenance/*) continue ;;
+      */*) _bad=1 ;;
+      *.html) continue ;;
+      *) _bad=1 ;;
+    esac
+  done
+fi
+if [ "$_refrestore" = "1" ] && [ "$_bad" = "1" ]; then
   deny "BLOCKED: 'git checkout <ref> -- <source path>' in a shared checkout.
 
 This is the mid-rebase conflict shortcut, and it is the one that fails SILENTLY. It is correct for a
