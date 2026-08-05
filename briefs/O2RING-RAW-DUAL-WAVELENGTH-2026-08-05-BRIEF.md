@@ -5,7 +5,12 @@ SPDX-License-Identifier: Apache-2.0
 **Status:** IN-PROGRESS · **Created:** 2026-08-05
 **Supersedes:** O2RING-RAW-STREAMS-ABSENT-2026-08-04-BRIEF.md
 
-# O2Ring raw dual-wavelength PPG — the stream we concluded did not exist
+# O2Ring `cmd 0x05` — a two-channel raw optical stream we concluded did not exist
+
+> **Framing note (2026-08-05):** earlier revisions called this "raw dual-wavelength PPG". The stream is
+> real, structured and two-channel; that it is a *plethysmogram*, and that the channels are RED and IR,
+> are **not** established — see §1.2④. The title and the capture stream name (`ppg2w`) predate that
+> finding; the name is kept because a shipped stream name is a compatibility surface, not a claim.
 
 ## 1 · The correction
 
@@ -118,41 +123,45 @@ is consistent with it. Still **do not quote a rate**: the three estimators disag
 RMS is 10.3 records against counts of 10–50, and n = 35. What is established is the *bound* (« 200 Hz)
 and the *absence of markers*; a longer starvation run at several spacings settles the value.
 
-**④ IR vs RED — SETTLED: `channel 0` is RED, `channel 1` is IR.** The first attempt did NOT
-discriminate (`R = 1.003` vs `0.997`, both implying ~85 %) and I nearly filed that as "these may not be a
-wavelength pair at all". The estimator was the problem, not the data: peak-to-peak across a single
-102-sample buffer measures the local trend, because a buffer spans well under one cardiac cycle. The fix is to use the WHOLE run rather than one buffer: the 30 replies concatenate into 3060 samples, and
-modulation depth can be measured against a slow baseline over many pulses.
+**④ IR vs RED — CLAIMED SETTLED, THEN WITHDRAWN THE SAME DAY. Treat as UNSAFE.**
 
-(③ retracted the claim that those samples are strictly contiguous. **④ does not depend on it** — AC/DC is
-an amplitude statistic over a representative sample of the waveform, and gaps at the seams add noise
-rather than bias. A *timing* result read off this concatenation would be void; a modulation-depth ratio
-is not.)
+The ratio-of-ratios over the 3060-sample concatenation gave `R = (AC/DC)_ch0 / (AC/DC)_ch1 = 0.4885`
+→ SpO₂ ≈ 97.8 % against a reported 97 %, where the swap gives 59 %. I recorded that as settled
+(`channel 0` = RED, against the SDK). **A later periodicity check removes its foundation**, and the
+number is retained here only so the reasoning can be audited:
 
-| | DC | AC(rms) | **AC/DC** |
-|---|---|---|---|
-| `channel 0` | 1 797 568 | 212 913 | **0.1184** |
-| `channel 1` | 945 562 | 229 265 | **0.2425** |
+| | AC/DC |
+|---|---|
+| `channel 0` | 0.1184 |
+| `channel 1` | 0.2425 |
 
-`R = (AC/DC)_ch0 / (AC/DC)_ch1 = **0.4885**` → SpO₂ ≈ **97.8 %** against the ring's reported **97 %**.
-The swap gives **59 %**, off by 38 points. That is the decisive separation §3.1 predicted, and it lands
-the right way round: at high saturation RED carries the *smaller* modulation, and `channel 0` does.
+**Why it is unsafe.** `R` is defined on the *cardiac* AC — the pulsatile component — and nothing here
+demonstrates the measured AC is cardiac:
 
-**⚠️ Note this contradicts the vendor SDK**, which names the first `u32` IR and the second RED. The
-measurement says the opposite. Trusting the header would have produced a confident wrong saturation —
-precisely the failure §3.1 refused to risk, and the reason the columns were recorded in device order.
+- **An AC/DC of 12–24 % is far too large for a pulse.** Perfusion index at the finger runs ~0.5–2 %.
+  Ten times that is the scale of baseline drift or motion, not a plethysmographic pulse.
+- **No cardiac periodicity is detectable, anywhere.** Autocorrelation over 6547 provably-unsaturated
+  samples is a smooth monotonic decay (0.94 at lag 20 → 0 near lag 175 → −0.45), with **no local bump
+  at any lag from 20 to 2200** — a range covering every sample rate from 1 Hz to ~2400 Hz at the
+  measured 66 bpm. A pulsatile signal must peak at its beat period. This one never does.
+- **Nor within seam-free buffers.** Averaging autocorrelation across 30 full 102-sample buffers (which
+  sidesteps any cross-poll gap) shows the same featureless decay — no peak at lag 51, so **56 Hz is
+  excluded too**.
 
-**The two-gains hypothesis is refuted.** Fitting `ch1 = k · ch0` per buffer: `k` drifts 0.7139 → 0.5320
-across buffers and the residual RMS ranges 0.049 % → 7.06 % of DC. One photodiode read at two gains gives
-a CONSTANT `k` with ~zero residual by construction. These are two genuinely different optical channels.
+So the 97.8 % agreement is not a validated ratio-of-ratios; it may be coincidence, and one coincidence
+at one saturation is exactly the evidence this brief has twice refused elsewhere. **Do not assign
+wavelengths on this basis, and do not compute SpO₂ from these columns.**
 
-**Caveats, because one session is not a validation.** `SpO₂ = 110 − 25R` is a generic textbook
-calibration, not this ring's, so the 0.8-point agreement is partly luck — what is robust is the
-**38-point discrimination between the two assignments**, which no plausible calibration error reverses.
-One subject, one session, one saturation near 97 %; the assignment should be re-confirmed at a different
-saturation before anything computes a clinical number from it. **The recorded file format stays device-order
-`channel 0;channel 1`** — a capture must record what the device sent, and the identification belongs in the
-analysis layer where it can be revised without rewriting history.
+**What the same data still supports:** the two channels are genuinely distinct optical channels, not one
+photodiode at two gains — fitting `ch1 = k · ch0` gives `k` drifting 0.7139 → 0.5320 with residual RMS
+from 0.049 % to 7.06 % of DC, where a gain pair would hold `k` constant at ~zero residual by
+construction. Two channels, differing non-trivially. Which two, and of what, is open.
+
+**The one honest reading of the shape:** each 102-sample buffer contains roughly ONE swing. At the
+measured 66 bpm that would put ~0.91 s in a buffer, i.e. fs ≈ 112 Hz — consistent with ③'s 126–156 Hz
+range and with the ADC's 125.000, and consistent with the swing being the cardiac cycle. Consistent
+with, not evidence for: one cycle per window is precisely the case where periodicity cannot be
+confirmed, because there is no repetition to detect.
 
 ⚠️ **And a caveat on this brief's own headline evidence.** The shuffle test in §1 (`median|Δ|/range`
 0.0148 vs 0.3395) proves the samples are **ordered**. It does *not* prove they are a plethysmogram — a

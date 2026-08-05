@@ -87,7 +87,7 @@ def set_time_frame(dt, seq: int = 0) -> bytes:
 # printing bleak's PLACEHOLDER mtu_size (23 on BlueZ until a characteristic is acquired) plus a 6 s
 # timeout against a ~4.1 s FILE_LIST reply. Do not re-introduce an MTU precondition.
 OP_FILE_LIST, OP_FILE_START, OP_FILE_DATA, OP_FILE_END = 0xF1, 0xF2, 0xF3, 0xF4
-OP_RT_PPG = 0x05          # raw dual-wavelength buffer (see parse_rt_ppg)
+OP_RT_PPG = 0x05          # raw TWO-CHANNEL optical buffer (see parse_rt_ppg + WHICH-IS-WHICH)
 
 
 def file_list_frame(seq: int = 0) -> bytes:
@@ -336,31 +336,28 @@ def ppg_stream_offset(payload: bytes) -> int | None:
 # one 922 bytes with 102 records. The argument neither unlocks nor changes the reply. Keep it for
 # fidelity to the vendor flow; do not describe it as the thing that revealed the stream, and do not
 # assume a future opcode's argument matters just because an SDK passes one.
+# WHICH IS WHICH — NOT ESTABLISHED. DO NOT COMPUTE SpO2 FROM THESE COLUMNS.
+# A ratio-of-ratios over 3060 samples gave R = 0.4885 -> SpO2 ~97.8% against the ring's reported 97%
+# (the swap gives 59%), and that was briefly recorded as proof that chA is RED. It is NOT proof: R is
+# defined on the CARDIAC AC, and nothing shows the measured AC is cardiac. An AC/DC of 12-24% is ~10x a
+# finger perfusion index, and autocorrelation finds NO periodicity at any lag from 20 to 2200 -- which
+# covers every sample rate from 1 Hz to ~2400 Hz at the measured 66 bpm -- nor within seam-free single
+# buffers. A pulsatile signal must peak at its beat period; this one never does. So the 97.8% agreement
+# may be coincidence. See O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF §1.2 (4) for the full reasoning.
+#
+# WHAT IS ESTABLISHED: the two columns are genuinely different optical channels, not one photodiode at
+# two gains -- fitting chB = k*chA gives k drifting 0.7139 -> 0.5320 with residual RMS 0.049% -> 7.06%,
+# where a fixed gain would hold k constant at ~zero residual by construction.
+#
+# The columns are therefore recorded in DEVICE ORDER and named neutrally. That decision is what kept a
+# wrong wavelength assignment from reaching a saturation number when the identification collapsed.
+
 RT_PPG_ARG = bytes([0x07, 0x01])
 RT_PPG_REC = 9                       # u32 LE chA | u32 LE chB | u8 motion  (see WHICH-IS-WHICH below)
 
-# WHICH IS WHICH — MEASURED 2026-08-05: chA (`channel 0`) is RED, chB (`channel 1`) is IR.
-# ⚠️ THAT IS THE OPPOSITE OF THE VENDOR SDK, which names the first u32 IR and the second RED. Trusting
-# the header would have produced a confident WRONG saturation, because SpO2 is the ratio-of-ratios
-# R = (AC/DC)_red / (AC/DC)_ir and a swapped pair does not fail loudly. Over 3060 contiguous samples
-# (see parse_rt_ppg on why they reconstruct): AC/DC = 0.1184 on chA vs 0.2425 on chB, so R = 0.4885 ->
-# SpO2 ~ 97.8% against the ring's own reported 97%. The swap gives 59%, off by 38 points.
-#
-# THE COLUMNS ARE STILL RECORDED IN DEVICE ORDER, deliberately. A capture writes what the device sent;
-# the identification is an interpretation, it rests on ONE session at ONE saturation against a generic
-# `110 - 25R` calibration, and it belongs in the analysis layer where it can be revised without
-# rewriting recorded files. Re-confirm at a different saturation before any clinical number uses it.
-#
-# HOW IT WAS MEASURED, including the way that did NOT work: "take ONE buffer and compute AC/DC" fails —
-# it returns R ~ 1.00 both ways, because 102 samples span well under one cardiac cycle and peak-to-peak
-# over that window measures the local trend, not the pulse. The working method needs the whole
-# reconstruction: concatenate the tiled buffers, subtract a slow moving baseline, take AC as the rms of
-# the residual over many full cycles, then form R both ways and compare against the ring's own reported
-# SpO2 (cmd 0x04) in the same session. The right assignment lands within ~1 point; the swap is ~38 off.
-
-
 def rt_ppg_frame(seq: int = 0) -> bytes:
-    """cmd=0x05 — ask for the raw dual-wavelength buffer."""
+    """cmd=0x05 — ask for the raw two-channel optical buffer (see WHICH-IS-WHICH: not proven to be
+    two wavelengths, and not proven to be a plethysmogram)."""
     return encode(OP_RT_PPG, RT_PPG_ARG, seq)
 
 
