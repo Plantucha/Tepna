@@ -614,3 +614,50 @@ def test_a_frame_too_short_to_carry_a_header_decodes_to_nothing():
 # a genuinely well-formed delta frame, and a hand-built one that merely happens to trip the branch is a
 # test that passes for the wrong reason — the failure mode this whole campaign exists to find. They are
 # worth doing from a REAL captured frame (the `Ecg nightly` corpus has them) rather than from a guess.
+
+
+# ── Control-point traffic classes (DEVICE-RATE-TRUTH §6.2) ───────────────────────────────────────────
+
+
+def test_is_control_response_only_accepts_the_0xf0_marker():
+    assert pmd.is_control_response(bytes([0xF0, 0x02, 0x00, 0x00]))
+    assert not pmd.is_control_response(bytes([0x01, 0x00]))      # a device push
+    assert not pmd.is_control_response(bytes([0xF0]))            # too short to carry an opcode
+    assert not pmd.is_control_response(b"")
+
+
+def test_stopped_measurements_reads_the_types_and_masks_the_flag_bits():
+    assert pmd.stopped_measurements(bytes([0x01, pmd.ECG, pmd.ACC])) == [pmd.ECG, pmd.ACC]
+    # bit 7 is the recording-type flag; the TYPE is the low 6 bits
+    assert pmd.stopped_measurements(bytes([0x01, 0x80 | pmd.PPG])) == [pmd.PPG]
+
+
+def test_stopped_measurements_distinguishes_named_nothing_from_not_a_stop_frame():
+    """[] is a real reading — the device said something stopped and named nothing. None means this frame
+    is not a stop notification at all. Collapsing the two would make a response look like a stop."""
+    assert pmd.stopped_measurements(bytes([0x01])) == []
+    assert pmd.stopped_measurements(bytes([0xF0, 0x02, 0x00, 0x00])) is None
+    assert pmd.stopped_measurements(b"") is None
+
+
+def test_decode_frame_masks_the_recording_type_bit_off_the_measurement_type():
+    """data[0] bit 7 is the recording-type flag (0 online / 1 offline). Comparing it raw fails to match
+    a type the moment it is set, so a frame the vendor decodes fine would raise here."""
+    body = _pmd_header(pmd.ECG, 1_000_000_000, 0x00) + (1234).to_bytes(3, "little", signed=True)
+    meas, samples = pmd.decode_frame(body, _dt.datetime(2026, 7, 16))
+    assert meas == pmd.ECG and len(samples) == 1
+    offline = bytes([0x80 | pmd.ECG]) + body[1:]
+    meas2, samples2 = pmd.decode_frame(offline, _dt.datetime(2026, 7, 16))
+    assert meas2 == pmd.ECG, "the offline flag must not change the decoded measurement type"
+    assert [s.values for s in samples2] == [s.values for s in samples]
+
+
+@pytest.mark.parametrize("meas", [pmd.GYRO, pmd.MAG])
+def test_compressed_gyro_and_mag_refuse_an_undecoded_frame_type(meas):
+    """GYRO type 1 is 3ch x 32-bit FLOAT and MAG type 1 is FOUR channels x 16-bit. Decoding either as
+    3 x 16-bit signed does not fail — it returns plausible, wrong numbers. Refusing is the only safe
+    answer until the layout is implemented; this Verity emits only type 0, so the guard is invisible
+    until a firmware change, which is exactly when it has to hold."""
+    frame = _pmd_header(meas, 1_000_000_000, 0x81) + bytes(16)   # delta bit | frame type 1
+    with pytest.raises(ValueError, match="not decoded"):
+        pmd.decode_frame(frame, _dt.datetime(2026, 7, 16))

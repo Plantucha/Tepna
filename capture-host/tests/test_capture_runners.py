@@ -1025,13 +1025,16 @@ class FlexPolarClient(FakePolarClient):
     PMD_DATA is subscribed, plus optional battery level, a raising feature/battery read, and a spurious
     extra control indication — the levers the deep on_pmd / negotiation branches need."""
     def __init__(self, data_frames=None, hr_frame=None, batt_level=80, raise_feature=False,
-                 raise_batt=False, spurious_ctrl=False, start_status=0x00):
+                 raise_batt=False, spurious_ctrl=False, start_status=0x00,
+                 stop_notify=False, wrong_op_ctrl=False):
         super().__init__(start_status=start_status, hr_frame=hr_frame)
         self.data_frames = data_frames if data_frames is not None else [_ecg_frame()]
         self.batt_level = batt_level
         self.raise_feature = raise_feature
         self.raise_batt = raise_batt
         self.spurious_ctrl = spurious_ctrl
+        self.stop_notify = stop_notify
+        self.wrong_op_ctrl = wrong_op_ctrl
         self._ctrl_writes = 0
 
     async def read_gatt_char(self, uuid):
@@ -1071,6 +1074,14 @@ class FlexPolarClient(FakePolarClient):
         self._ctrl_writes += 1
         if self.spurious_ctrl and self._ctrl_writes == 1:
             ctrl(0, resp)                 # an extra, stale indication → the NEXT _ctrl drains it (L589)
+        if self.stop_notify and self._ctrl_writes == 1:
+            # The device pushing ONLINE_MEASUREMENT_STOPPED (0x01, NOT 0xF0) between our write and its
+            # indication. This used to be returned AS the response.
+            ctrl(0, bytes([pmd.SVC_ONLINE_MEASUREMENT_STOPPED, pmd.ECG, pmd.ACC]))
+        if self.wrong_op_ctrl and self._ctrl_writes == 1:
+            # A well-formed response to a DIFFERENT command — a previous one that timed out and then
+            # answered. Returning it here reads a stale verdict as this command's.
+            ctrl(0, bytes([0xF0, (op ^ 0x0F), meas, 0x03]))
         ctrl(0, resp)
 
 
@@ -4156,3 +4167,36 @@ def test_what_is_registered_is_what_is_unregistered(monkeypatch):
 # test encoding the SHAPE of the code instead of its contract, which is the exact defect this campaign
 # exists to find. Reaching that push for real means driving `run_polar` far enough to decode a PPI
 # frame, which is a fixture, not an assertion. Worth doing; not worth faking.
+
+
+def test_run_polar_ignores_a_device_pushed_stop_notification(tmp_path, monkeypatch):
+    """ONLINE_MEASUREMENT_STOPPED (byte0 = 0x01) is a DEVICE PUSH, not a response. It arrives on the same
+    characteristic between our write and its indication, and taking it as the answer desynchronises every
+    later command — the real response is then dropped by the next _ctrl's drain. It must be routed away
+    and logged, and the START must still see its own ack."""
+    _polar_common(monkeypatch)
+    c = FlexPolarClient(data_frames=[_ecg_frame()], stop_notify=True, start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert capture.STATUS["devices"]["H10"]["connected"] is True
+
+
+def test_run_polar_discards_a_response_to_a_different_command(tmp_path, monkeypatch):
+    """A well-formed 0xF0 response echoing the WRONG opcode is a stale answer from a command that timed
+    out and then replied. Accepting it is how a rejected START reads as accepted — here the stale frame
+    carries status 0x03 (not_supported), so if it were taken as the verdict the stream would be torn
+    down. The real ack follows and must be the one that counts."""
+    _polar_common(monkeypatch)
+    c = FlexPolarClient(data_frames=[_ecg_frame()], wrong_op_ctrl=True, start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert capture.STATUS["devices"]["H10"]["connected"] is True
+    # `connected is True` alone does NOT discriminate — it holds whether the stale frame was accepted or
+    # not. The stale frame carries status 0x03 (not_supported), so if it were taken as this command's
+    # verdict the START would read as REJECTED, which deletes the writer for the whole session. NO_ACK
+    # ("ask again") is the only correct outcome; this is the same discriminator
+    # test_run_polar_start_without_an_ack_keeps_the_stream uses.
+    err = (capture.STATUS["devices"]["H10"].get("last_error") or "").lower()
+    assert "rejected" not in err, f"a stale reply was taken as this command's verdict: {err!r}"

@@ -1600,9 +1600,30 @@ async def run_polar(dev: dict, root: str):
 
                     # Control-point responses (settings + START acks) arrive as indications; queue them.
                     ctrl_q: asyncio.Queue = asyncio.Queue()
+
+                    def _on_ctrl(_s, d) -> None:
+                        """Split the control characteristic's two traffic classes at the door.
+
+                        Everything used to go straight onto `ctrl_q`, so an unsolicited
+                        ONLINE_MEASUREMENT_STOPPED (0x01, NOT 0xF0) landing between a write and its
+                        indication was returned as that command's response — and the real response was
+                        then discarded by the next `_ctrl`'s drain, leaving every later command paired
+                        with the previous one's answer until the queue happened to empty.
+
+                        The push is also the only notice the DEVICE gives that a stream ended on its
+                        side (charger, battery, mode change, button). Logged at WARNING because it means
+                        capture has silently stopped for that type while the link stays up — which is
+                        exactly the state the stall watchdog otherwise has to infer from silence."""
+                        b = bytes(d)
+                        stopped = pmd.stopped_measurements(b)
+                        if stopped is not None:
+                            log.warning("%s device stopped measurement(s) on its own: %s", name,
+                                        ", ".join(pmd.MEAS_NAME.get(m, hex(m)) for m in stopped) or "(none named)")
+                            return
+                        ctrl_q.put_nowait(b)
+
                     try:
-                        await _bounded_setup(client.start_notify(
-                            pmd.PMD_CONTROL, lambda _s, d: ctrl_q.put_nowait(bytes(d))))
+                        await _bounded_setup(client.start_notify(pmd.PMD_CONTROL, _on_ctrl))
                     except Exception as e:
                         # WARNING, not info: without the control channel every _ctrl below times out, so
                         # every START goes unacknowledged and no PMD stream can be confirmed. The session
@@ -1622,10 +1643,29 @@ async def run_polar(dev: dict, root: str):
                                 client.write_gatt_char(pmd.PMD_CONTROL, cmd, response=True), timeout)
                         except Exception:
                             return b""
+                        # MATCH THE ANSWER TO THE QUESTION. Taking whatever arrives next assumes the only
+                        # traffic on this characteristic is our own responses, in order. `_on_ctrl` above
+                        # removes the device pushes; what can still be in flight is a STALE response — a
+                        # previous command that timed out and then answered — and returning that as this
+                        # command's verdict is how a rejected START reads as accepted. Both bytes are
+                        # checked: 0xF0 marks a response, [1] echoes the opcode we asked for.
+                        #
+                        # A mismatch yields NO_ACK rather than a retry loop, deliberately, for two
+                        # reasons. It is TRUE — we did not get our answer — and `NO_ACK` already means
+                        # "ask again", never "rejected", so the stream is kept and re-negotiated rather
+                        # than torn down. And a loop would need a deadline, which means reading the
+                        # clock: `_ctrl` runs inside the stall machinery's patched-clock world, where a
+                        # monotonic() read is not a wall-clock read at all. An earlier draft of this did
+                        # exactly that and expired instantly, re-negotiating a healthy stream.
                         try:
-                            return await asyncio.wait_for(ctrl_q.get(), timeout)
+                            got = await asyncio.wait_for(ctrl_q.get(), timeout)
                         except asyncio.TimeoutError:
                             return b""
+                        if pmd.is_control_response(got) and got[1] == cmd[0]:
+                            return got
+                        log.debug("%s control frame answers a different command (want op %#04x, got %s)"
+                                  " — treating as no ack", name, cmd[0], got[:3].hex())
+                        return b""
 
                     await _bounded_setup(client.start_notify(pmd.PMD_DATA, on_pmd))
                     # ── CHARGING RETRY RUNS ON THE LINK WE ALREADY HOLD ─────────────────────────

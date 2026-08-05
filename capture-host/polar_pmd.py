@@ -55,6 +55,37 @@ CTRL_STATUS = {0x00: "ok", 0x01: "invalid_op", 0x02: "invalid_meas", 0x03: "not_
                0x0A: "invalid_mtu", 0x0B: "invalid_channels", 0x0C: "invalid_state", 0x0D: "in_charger",
                -1: "no_response"}
 
+# ── NOT EVERY CONTROL-POINT NOTIFICATION IS A RESPONSE ───────────────────────────────────────────────
+# A response begins 0xF0 and echoes [op, meas, status, more]. The device ALSO pushes unsolicited frames
+# on the same characteristic, and they do not: `ONLINE_MEASUREMENT_STOPPED` starts with 0x01 and carries
+# the measurement types the device just stopped by itself (charger, battery, mode change, button). It is
+# the ONLY signal that a stream died at the device rather than on the link — there is no other.
+#
+# Reading one as a response desynchronises the whole request/response pairing: the caller returns the
+# stop notification as the answer to whatever it just asked, and the real answer is then thrown away by
+# the next call's queue drain. So the discriminator has to exist before anything reads the queue.
+CTRL_RESPONSE_MARKER = 0xF0
+SVC_ONLINE_MEASUREMENT_STOPPED = 0x01
+
+
+def is_control_response(data: bytes) -> bool:
+    """True when `data` is a control-point RESPONSE (0xF0 …) rather than a device-pushed notification.
+
+    Deliberately not `not is_stop_notification(...)`: an unknown future service-to-client opcode is
+    neither, and must be treated as "not a response" so it can never be handed back as one."""
+    return len(data) >= 2 and data[0] == CTRL_RESPONSE_MARKER
+
+
+def stopped_measurements(data: bytes) -> list[int] | None:
+    """The measurement types in an `ONLINE_MEASUREMENT_STOPPED` push, or None if this is not one.
+
+    An empty list is a real reading — the device said "something stopped" and named nothing — and is
+    NOT None, which means "this frame is not a stop notification at all"."""
+    if len(data) < 1 or data[0] != SVC_ONLINE_MEASUREMENT_STOPPED:
+        return None
+    return [b & 0x3F for b in data[1:]]
+
+
 ALREADY_STREAMING = 0x06
 # NO ANSWER IS NOT A REJECTION. A control-point indication can be lost (BlueZ drops notifications that
 # share a connection interval — bleak#1343), or the control channel may never have subscribed at all. The
@@ -431,7 +462,11 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
     `scale` = physical-units factor (see axis_scale); defaults to the device-class default for `meas`."""
     if len(data) < 10:
         return None, []
-    meas = data[0]
+    # Mask to the type field. Bit 7 is the recording-type flag (0 online, 1 offline) and bit 6 is
+    # unassigned, so a raw compare fails to match a type the moment either is set — we would raise on a
+    # frame the vendor decodes fine. Polar's own SDK masks with 0x3F before matching; nothing in our
+    # captures has set the high bits yet, which is exactly why this has never been noticed.
+    meas = data[0] & 0x3F
     last_ns = struct.unpack_from("<Q", data, 1)[0]   # ns since 2000-01-01 of the LAST sample in the frame
     frame_type = data[9]
     payload = data[10:]
@@ -456,7 +491,15 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
     elif meas == ACC and base == 1:
         for o in range(0, len(payload) - 5, 6):          # int16 x,y,z (mg)
             raw.append(struct.unpack_from("<hhh", payload, o))
-    elif meas in (GYRO, MAG) and delta:                  # Verity IMU streams delta frames (like PPG/ACC)
+    # FRAME TYPE 0 ONLY, and the `base == 0` is the whole point. Both of these types have a defined
+    # type-1 compressed frame with a DIFFERENT shape — GYRO type 1 is 3 channels x 32-bit IEEE-754
+    # float, MAG type 1 is FOUR channels x 16-bit (x, y, z in milligauss plus a calibration-status
+    # word). Decoding either as 3 x 16-bit signed does not fail; it returns plausible, wrong numbers.
+    # This Verity only emits type 0 today, so the branch below is unreachable in practice and its
+    # absence would be invisible until a firmware update — which is precisely the kind of silent
+    # mis-decode this file has already been bitten by (the ACC/GYRO/MAG byte-alignment bug, fixed
+    # 2026-07-18, was the same shape: right-looking output from a wrong reader).
+    elif meas in (GYRO, MAG) and delta and base == 0:    # Verity IMU streams delta frames (like PPG/ACC)
         raw, truncated = _decode_delta_ex(payload, channels=3, ref_bits=16)
     elif meas in (GYRO, MAG) and base == 0:
         for o in range(0, len(payload) - 5, 6):          # int16 x,y,z (gyro dps / mag gauss, raw)
@@ -517,7 +560,11 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
         back = 0 if ppi else (n - 1 - i)
         # Subtract an INTEGER offset — never pull last_ns through float arithmetic. Polar ns-since-2000
         # is ~8.4e17, far past float64's 2^53 exact-integer limit, so `last_ns - back*step_ns` in floats
-        # silently rounds the frame stamp to the nearest ~64 ns (caught by the last-sample identity test).
+        # silently rounds the frame stamp to the nearest 128 ns (caught by the last-sample identity test).
+        # 128, not 64: ns-since-2000 crossed 2^59 on 2018-04-07, so the double ULP has been 128 ns since
+        # then and stays there until 2054. MEASURED in Polar's own output — 98.7 % of Polar Sensor
+        # Logger's per-sample stamps are ≡ 0 mod 128 (its SDK does this arithmetic in float64), and the
+        # 1.3 % that are not are exactly 1/73, the frame-last sample the SDK passes through unrounded.
         sns = last_ns - int(round(back * step_ns))
         if scale != 1.0 and not ppi:                     # never scale PPI — its tuple is hr/ms/ms/flags
             vals = tuple(v * scale for v in vals)
