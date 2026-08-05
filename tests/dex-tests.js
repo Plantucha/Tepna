@@ -29662,10 +29662,24 @@
         }
         for (var tok in toks) {
           totalSites++;
-          // An ID-SHAPED token goes through the id path; a prose label goes through idForLabel.
-          var idish = /^[a-z][A-Za-z0-9_]*$/.test(tok);
-          var known = !!n.reg.REGISTRY[tok] || !!(n.reg.idForLabel && n.reg.idForLabel(tok));
-          if (idish && !known) offenders.push(n.pre + ' → ' + tok + ' (' + toks[tok] + ')');
+          /* ASK THE RESOLVER THE RUNTIME ACTUALLY USES (DEEP-AUDIT-V Tier 3.5).
+             This was `!!n.reg.REGISTRY[tok] || !!n.reg.idForLabel(tok)` behind an `idish` filter, and
+             both halves were blind:
+               · the RAW `REGISTRY[tok]` lookup is not what runs. `evBadge` → `badgeForLabel` →
+                 `idForLabel`, and `idForLabel` LOWERCASED first — so a camelCase id present in the
+                 registry resolved to nothing at runtime while `REGISTRY[tok]` said "known" here.
+                 Six real tokens sat in that gap, including CPAPDex `residualAHI`/`usageHours`, graded
+                 `measured` and rendering `experimental` — a two-tier under-grade on the two headline
+                 therapy numbers, and this gate reported green over it.
+               · the `idish` filter meant a PROSE label that failed to resolve was never reported at
+                 all, which is the other half of the same class.
+             The offender condition is now the DEFINITION of the defect, and needs no knowledge of the
+             deny-list: the label does not resolve, yet a badge is still emitted — i.e. the fabricated-
+             `experimental` fallback fired. A deny-listed or separator label returns '' and is
+             correctly not an offender. */
+          var resolved = n.reg.idForLabel ? n.reg.idForLabel(tok) : null;
+          var emits = typeof n.reg.badgeForLabel === 'function' ? n.reg.badgeForLabel(tok, true) : '';
+          if (!resolved && emits) offenders.push(n.pre + ' → ' + tok + ' (' + toks[tok] + ')');
         }
       });
       T.ok('ANTI-VACUITY · the scan actually found evBadge call sites', totalSites >= 20, 'found ' + totalSites + ' literal-token call sites across ' + NODES.length + ' nodes');
@@ -29675,6 +29689,21 @@
         !probe.REGISTRY['__definitelyNotAMetric__'] && !(probe.idForLabel && probe.idForLabel('__definitelyNotAMetric__')),
         'if every id "resolves", the check below is hollow'
       );
+      /* ANTI-VACUITY for the CONDITION ITSELF — an unresolvable label must actually still emit the
+         fabricated disc, or `!resolved && emits` can never be true and the whole check is hollow. */
+      T.ok('ANTI-VACUITY · an unresolvable, non-denied label DOES emit the fabricated disc', !!(probe.badgeForLabel && probe.badgeForLabel('__definitelyNotAMetric__', true)), 'if this is empty, the offender condition can never fire');
+      /* THE FIX THIS GATE EXISTS TO PIN — an exact registry id must resolve to ITSELF through the
+         runtime resolver, at EVERY node. This is the camelCase blind spot; pin it on all eight so a
+         registry that loses the passthrough reds here instead of silently under-grading. */
+      var idPass = NODES.filter(function (n) {
+        var firstId = Object.keys(n.reg.REGISTRY).filter(function (k) {
+          return /[A-Z]/.test(k);
+        })[0];
+        return firstId && n.reg.idForLabel && n.reg.idForLabel(firstId) !== firstId;
+      }).map(function (n) {
+        return n.pre;
+      });
+      T.ok('a camelCase registry ID resolves to itself at every node (no fabricated fallback)', idPass.length === 0, idPass.length ? 'idForLabel lowercases and loses the id in: ' + idPass.join(', ') : NODES.length + ' nodes pass an exact id through');
       T.ok(
         'every id-shaped evBadge token exists in its own node registry',
         offenders.length === 0,
