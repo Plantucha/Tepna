@@ -2856,6 +2856,7 @@
     let sdnnIndex = null,
       sdnnRobust = null,
       sdnnRobustNEpochs = 0,
+      sdnnRobustBasis = null,
       sd2Robust = null,
       lfRobust = null,
       hfRobust = null,
@@ -2868,10 +2869,34 @@
       const segAll = epochs.map((e) => e.sdnn).filter((v) => v != null && isFinite(v));
       if (segAll.length) {
         sdnnIndex = r1(mean(segAll));
-        // quality gate: keep epochs that are low-motion AND (single-channel OR ≥2/3 LED agreement).
-        // A gated set of <3 epochs is unreliable → fall back to the ungated segment median.
-        const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) && (e.motionIndex == null || e.motionIndex <= 0.5) && (e.ledAgreementPct == null || e.ledAgreementPct >= 67));
+        /* THE QUALITY GATE MUST NOT ADMIT AN EPOCH IT NEVER MEASURED (DEEP-AUDIT-IV §1 — bug class 3a).
+           This read `e.motionIndex == null || e.motionIndex <= 0.5`, and `motionIndex` is null for
+           exactly one reason: the inertial stream was NOT RECORDING during that epoch (:2536-2539
+           averages only beats the ACC actually covered). So a night whose ACC ends early fed
+           UNOBSERVED epochs into every robust HRV metric as if they had been verified still — while
+           genuinely-moving VERIFIED epochs were correctly excluded. Measured on a 40-min synthetic
+           whose ACC covers the first 25 min:
+               shipped gate → 6 epochs → sdnnRobust 39.0 ms
+               honest  gate → 3 epochs → sdnnRobust 15.8 ms   (2.5x)
+           and the same run split `hfRobust` 932 vs `hfRobustLowMotion` 115 — the fixed sibling 25
+           lines below (:2902 `motKnown`) and this unfixed one disagreeing 8x on identical input.
+
+           WHY FOUR PRIOR PASSES MISSED IT, including the §3a fix that shipped in this very file:
+           MULTI-SENSOR-DERIVATIONS-FOLLOWUPS §1 measured on the committed twins, NEITHER OF WHICH
+           CARRIES ACC — and with zero coverage the buggy and honest gates return the IDENTICAL number
+           (every epoch null → `<3` → the ungated fallback). The defect exists only under PARTIAL
+           coverage, which no committed fixture could express.
+
+           The LED half's `== null` exemption stays: it is deliberate and documented (a single-channel
+           session has no agreement to report). Only the motion half was never meant to be there. */
+        const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) && e.motionIndex != null && e.motionIndex <= 0.5 && (e.ledAgreementPct == null || e.ledAgreementPct >= 67));
         const usable = gatedEp.length >= 3 ? gatedEp : epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn));
+        /* NAME THE FALLBACK, or the fix trades a wrong number for an unattributable one. With the
+           null epochs excluded a partial-ACC night lands under the `<3` threshold more often and
+           silently falls back to the UNGATED median — a different quantity wearing the same field
+           name. Publish which one produced it, exactly as `apnea.overlapCoverage.basis`
+           ('recorded'/'envelope') already does for the Integrator's overlapHours. */
+        sdnnRobustBasis = gatedEp.length >= 3 ? 'gated' : 'ungated-fallback';
         const pool = usable.map((e) => e.sdnn);
         sdnnRobust = r1(median(pool));
         sdnnRobustNEpochs = pool.length;
@@ -3107,6 +3132,8 @@
       sdnnIndex,
       sdnnRobust,
       sdnnRobustNEpochs,
+      // DA-IV §1 — which pool produced sdnnRobust: the quality gate, or the ungated fallback.
+      sdnnRobustBasis,
       cvhrIndex: _cvhr.index, // §Phase 4 — CVHR events/hour from the finger PPI NN series (autonomic apnea correlate)
       cvhrEvents: _cvhr.events.length,
       sd2Robust,

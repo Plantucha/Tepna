@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-2X8TK4T4nhs1oVWiGeE2TYoWZR4C4G7ZHm9Ob1PD3Qw=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6Ihl8pw3pmpQ2ZKQoUJaefH7NJ7Rkm9qpB/TVT+dbcA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo=' 'sha256-xdAWQCAveKxywRCzH6XD/WhQWdFXCxiIZAG4pGx7C90=' 'sha256-zfcZj/POD8ANab+TNlp0MrGvruXgueLPhtrRdPgHMlU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-2X8TK4T4nhs1oVWiGeE2TYoWZR4C4G7ZHm9Ob1PD3Qw=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6Ihl8pw3pmpQ2ZKQoUJaefH7NJ7Rkm9qpB/TVT+dbcA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Y2hopoxMDYC0NI/qvemmkjPZnGb7yu1mJ+SXGDmkDSA=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo=' 'sha256-zfcZj/POD8ANab+TNlp0MrGvruXgueLPhtrRdPgHMlU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -25668,6 +25668,7 @@ __exports.GlucoDex = window.GlucoDex;
     let sdnnIndex = null,
       sdnnRobust = null,
       sdnnRobustNEpochs = 0,
+      sdnnRobustBasis = null,
       sd2Robust = null,
       lfRobust = null,
       hfRobust = null,
@@ -25680,10 +25681,34 @@ __exports.GlucoDex = window.GlucoDex;
       const segAll = epochs.map((e) => e.sdnn).filter((v) => v != null && isFinite(v));
       if (segAll.length) {
         sdnnIndex = r1(mean(segAll));
-        // quality gate: keep epochs that are low-motion AND (single-channel OR ≥2/3 LED agreement).
-        // A gated set of <3 epochs is unreliable → fall back to the ungated segment median.
-        const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) && (e.motionIndex == null || e.motionIndex <= 0.5) && (e.ledAgreementPct == null || e.ledAgreementPct >= 67));
+        /* THE QUALITY GATE MUST NOT ADMIT AN EPOCH IT NEVER MEASURED (DEEP-AUDIT-IV §1 — bug class 3a).
+           This read `e.motionIndex == null || e.motionIndex <= 0.5`, and `motionIndex` is null for
+           exactly one reason: the inertial stream was NOT RECORDING during that epoch (:2536-2539
+           averages only beats the ACC actually covered). So a night whose ACC ends early fed
+           UNOBSERVED epochs into every robust HRV metric as if they had been verified still — while
+           genuinely-moving VERIFIED epochs were correctly excluded. Measured on a 40-min synthetic
+           whose ACC covers the first 25 min:
+               shipped gate → 6 epochs → sdnnRobust 39.0 ms
+               honest  gate → 3 epochs → sdnnRobust 15.8 ms   (2.5x)
+           and the same run split `hfRobust` 932 vs `hfRobustLowMotion` 115 — the fixed sibling 25
+           lines below (:2902 `motKnown`) and this unfixed one disagreeing 8x on identical input.
+
+           WHY FOUR PRIOR PASSES MISSED IT, including the §3a fix that shipped in this very file:
+           MULTI-SENSOR-DERIVATIONS-FOLLOWUPS §1 measured on the committed twins, NEITHER OF WHICH
+           CARRIES ACC — and with zero coverage the buggy and honest gates return the IDENTICAL number
+           (every epoch null → `<3` → the ungated fallback). The defect exists only under PARTIAL
+           coverage, which no committed fixture could express.
+
+           The LED half's `== null` exemption stays: it is deliberate and documented (a single-channel
+           session has no agreement to report). Only the motion half was never meant to be there. */
+        const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) && e.motionIndex != null && e.motionIndex <= 0.5 && (e.ledAgreementPct == null || e.ledAgreementPct >= 67));
         const usable = gatedEp.length >= 3 ? gatedEp : epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn));
+        /* NAME THE FALLBACK, or the fix trades a wrong number for an unattributable one. With the
+           null epochs excluded a partial-ACC night lands under the `<3` threshold more often and
+           silently falls back to the UNGATED median — a different quantity wearing the same field
+           name. Publish which one produced it, exactly as `apnea.overlapCoverage.basis`
+           ('recorded'/'envelope') already does for the Integrator's overlapHours. */
+        sdnnRobustBasis = gatedEp.length >= 3 ? 'gated' : 'ungated-fallback';
         const pool = usable.map((e) => e.sdnn);
         sdnnRobust = r1(median(pool));
         sdnnRobustNEpochs = pool.length;
@@ -25919,6 +25944,8 @@ __exports.GlucoDex = window.GlucoDex;
       sdnnIndex,
       sdnnRobust,
       sdnnRobustNEpochs,
+      // DA-IV §1 — which pool produced sdnnRobust: the quality gate, or the ungated fallback.
+      sdnnRobustBasis,
       cvhrIndex: _cvhr.index, // §Phase 4 — CVHR events/hour from the finger PPI NN series (autonomic apnea correlate)
       cvhrEvents: _cvhr.events.length,
       sd2Robust,

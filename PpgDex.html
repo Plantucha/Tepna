@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-Lt1pAs4hP4633JGMrNgrMNCFTXY6pqwg4nA3/YmY3Rk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-lLE3ChuuD+h8YOsosYQVpNHlnRsA0xSJ00vPiVHh81I=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-xdAWQCAveKxywRCzH6XD/WhQWdFXCxiIZAG4pGx7C90='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-Lt1pAs4hP4633JGMrNgrMNCFTXY6pqwg4nA3/YmY3Rk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-Y2hopoxMDYC0NI/qvemmkjPZnGb7yu1mJ+SXGDmkDSA=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-lLE3ChuuD+h8YOsosYQVpNHlnRsA0xSJ00vPiVHh81I=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -9382,6 +9382,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     let sdnnIndex = null,
       sdnnRobust = null,
       sdnnRobustNEpochs = 0,
+      sdnnRobustBasis = null,
       sd2Robust = null,
       lfRobust = null,
       hfRobust = null,
@@ -9394,10 +9395,34 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       const segAll = epochs.map((e) => e.sdnn).filter((v) => v != null && isFinite(v));
       if (segAll.length) {
         sdnnIndex = r1(mean(segAll));
-        // quality gate: keep epochs that are low-motion AND (single-channel OR ≥2/3 LED agreement).
-        // A gated set of <3 epochs is unreliable → fall back to the ungated segment median.
-        const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) && (e.motionIndex == null || e.motionIndex <= 0.5) && (e.ledAgreementPct == null || e.ledAgreementPct >= 67));
+        /* THE QUALITY GATE MUST NOT ADMIT AN EPOCH IT NEVER MEASURED (DEEP-AUDIT-IV §1 — bug class 3a).
+           This read `e.motionIndex == null || e.motionIndex <= 0.5`, and `motionIndex` is null for
+           exactly one reason: the inertial stream was NOT RECORDING during that epoch (:2536-2539
+           averages only beats the ACC actually covered). So a night whose ACC ends early fed
+           UNOBSERVED epochs into every robust HRV metric as if they had been verified still — while
+           genuinely-moving VERIFIED epochs were correctly excluded. Measured on a 40-min synthetic
+           whose ACC covers the first 25 min:
+               shipped gate → 6 epochs → sdnnRobust 39.0 ms
+               honest  gate → 3 epochs → sdnnRobust 15.8 ms   (2.5x)
+           and the same run split `hfRobust` 932 vs `hfRobustLowMotion` 115 — the fixed sibling 25
+           lines below (:2902 `motKnown`) and this unfixed one disagreeing 8x on identical input.
+
+           WHY FOUR PRIOR PASSES MISSED IT, including the §3a fix that shipped in this very file:
+           MULTI-SENSOR-DERIVATIONS-FOLLOWUPS §1 measured on the committed twins, NEITHER OF WHICH
+           CARRIES ACC — and with zero coverage the buggy and honest gates return the IDENTICAL number
+           (every epoch null → `<3` → the ungated fallback). The defect exists only under PARTIAL
+           coverage, which no committed fixture could express.
+
+           The LED half's `== null` exemption stays: it is deliberate and documented (a single-channel
+           session has no agreement to report). Only the motion half was never meant to be there. */
+        const gatedEp = epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn) && e.motionIndex != null && e.motionIndex <= 0.5 && (e.ledAgreementPct == null || e.ledAgreementPct >= 67));
         const usable = gatedEp.length >= 3 ? gatedEp : epochs.filter((e) => e.sdnn != null && isFinite(e.sdnn));
+        /* NAME THE FALLBACK, or the fix trades a wrong number for an unattributable one. With the
+           null epochs excluded a partial-ACC night lands under the `<3` threshold more often and
+           silently falls back to the UNGATED median — a different quantity wearing the same field
+           name. Publish which one produced it, exactly as `apnea.overlapCoverage.basis`
+           ('recorded'/'envelope') already does for the Integrator's overlapHours. */
+        sdnnRobustBasis = gatedEp.length >= 3 ? 'gated' : 'ungated-fallback';
         const pool = usable.map((e) => e.sdnn);
         sdnnRobust = r1(median(pool));
         sdnnRobustNEpochs = pool.length;
@@ -9633,6 +9658,8 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       sdnnIndex,
       sdnnRobust,
       sdnnRobustNEpochs,
+      // DA-IV §1 — which pool produced sdnnRobust: the quality gate, or the ungated fallback.
+      sdnnRobustBasis,
       cvhrIndex: _cvhr.index, // §Phase 4 — CVHR events/hour from the finger PPI NN series (autonomic apnea correlate)
       cvhrEvents: _cvhr.events.length,
       sd2Robust,

@@ -17304,6 +17304,133 @@
       T.eq('magInterferencePct stays null when nothing was measured', res.magInterferencePct, null);
     });
 
+    /* ════ 18d · DEEP-AUDIT-IV §1 — THE FIFTH INSTANCE OF §3a, AND THE ONE THE §3a FIX MISSED ══════
+       The group above fixed FOUR instances of bug class 3a in ppgdex-dsp.js, all in the CONFIDENCE
+       block. `gatedEp` — the quality gate feeding the PUBLISHED robust HRV metrics — is a fifth, and
+       it admitted `motionIndex == null` as satisfying its LOW-MOTION criterion. `motionIndex` is null
+       for exactly one reason: the inertial stream was not recording during that epoch. So a night
+       whose ACC ends early fed UNOBSERVED epochs into sdnnRobust / sd2Robust / lf|hf|vlf|tp|lfhfRobust
+       as if they had been verified still, while genuinely-MOVING verified epochs were excluded.
+
+       WHY IT SURVIVED THE §3a PASS ITSELF, and why this fixture looks the way it does: that pass
+       measured on the committed twins, NEITHER OF WHICH CARRIES ACC — and with zero coverage the
+       buggy and honest gates return the IDENTICAL number (every epoch null → `<3` → ungated
+       fallback). The defect is only visible under PARTIAL coverage. No committed fixture can express
+       that, so this group synthesises one: a 35-min optical record whose ACC covers only the first
+       20 minutes, is still for 15 of them and saturated for 5, with the beat-to-beat variability
+       deliberately stepping up exactly at the ACC cutoff so the unobserved epochs are unmistakable.
+       ~0.7 s to run. Measured on it — 3 verified-still epochs ≈ 16 ms, 3 unobserved ≈ 70 ms. ══════ */
+    group('PPGDex §3a · the robust-HRV gate counts only epochs the ACC actually observed (DA-IV §1)', 'ppgdex-dsp · fabricated-absence · regression', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.parsePPG === 'function' && typeof P.analyze === 'function')) {
+        T.skip('PPGDSP.parsePPG + analyze available', 'ppgdex-dsp not wired in this lane');
+        return;
+      }
+      var _s = 7;
+      var rnd = function () {
+        _s = (_s * 1103515245 + 12345) & 0x7fffffff;
+        return _s / 0x7fffffff;
+      };
+      var gs = function () {
+        var u = 0,
+          v = 0;
+        while (u === 0) u = rnd();
+        while (v === 0) v = rnd();
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+      };
+      var FS = 64,
+        DUR = 2100,
+        ACC_END = 1200; // ACC stops at 20 min of a 35-min record
+      var beats = [];
+      for (var bt = 0.5; bt < DUR; ) {
+        beats.push(bt);
+        bt += 1.0 + (bt < ACC_END ? 0.02 : 0.09) * gs(); // variability steps up AT the cutoff
+      }
+      var ns0 = 835351534233872000,
+        t0 = Date.UTC(2026, 5, 21, 6, 5, 23, 891);
+      var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+      var bi = 0;
+      for (var i = 0; i < FS * DUR; i++) {
+        var t = i / FS;
+        while (bi + 1 < beats.length && beats[bi + 1] <= t) bi++;
+        var rr = (beats[bi + 1] != null ? beats[bi + 1] : beats[bi] + 1) - beats[bi];
+        var ph = Math.max(0, Math.min(1, (t - beats[bi]) / rr));
+        var pulse = 900 * Math.exp(-Math.pow((ph - 0.22) / 0.1, 2)) + 380 * Math.exp(-Math.pow((ph - 0.5) / 0.14, 2));
+        rows.push(
+          new Date(t0 + t * 1000).toISOString().replace('Z', '') +
+            ';' +
+            (BigInt(ns0) + BigInt(Math.round(t * 1e9))) +
+            ';' +
+            Math.round(-500275 + pulse + 6 * gs()) +
+            ';' +
+            Math.round(-509615 + pulse * 0.86 + 6 * gs()) +
+            ';' +
+            Math.round(-517415 + pulse * 1.13 + 6 * gs()) +
+            ';-650690;'
+        );
+      }
+      var rec = P.parsePPG(rows.join('\n'));
+      var acc = [];
+      for (var ai = 0; ai < 52 * ACC_END; ai++) {
+        var s = ai / 52,
+          hi = s >= 900; // still 0–15 min, saturated 15–20 min, NOTHING after 20
+        acc.push({ x: hi ? 500 * Math.sin(s * 7) : 0.7 * gs(), y: hi ? 500 * Math.cos(s * 5) : 0.7 * gs(), z: 1000 + (hi ? 400 * Math.sin(s * 11) : 0.7 * gs()), relNs: s * 1e9 });
+      }
+      rec.acc = acc;
+      var res = P.analyze(rec);
+      var eps = res.epochs || [];
+      // THE FIXTURE MUST BE THE SHAPE THE FINDING NEEDS, or everything below proves nothing.
+      var covered = eps.filter(function (e) {
+        return e.motionIndex != null;
+      });
+      var unobserved = eps.filter(function (e) {
+        return e.motionIndex == null;
+      });
+      T.ok('the fixture really has PARTIAL inertial coverage', covered.length >= 3 && unobserved.length >= 3, covered.length + ' observed / ' + unobserved.length + ' unobserved');
+      T.ok('…and the unobserved epochs really are the high-variability ones', Math.min.apply(null, unobserved.map(function (e) { return e.sdnn; })) > Math.max.apply(null, covered.map(function (e) { return e.sdnn; })), 'unobserved min ' + Math.min.apply(null, unobserved.map(function (e) { return e.sdnn; })) + ' vs observed max ' + Math.max.apply(null, covered.map(function (e) { return e.sdnn; })));
+
+      // THE DEFECT. Pre-fix the gate kept 6 epochs (3 still + 3 unobserved) and published their
+      // median; it must now keep only the 3 the accelerometer actually watched.
+      var stillObserved = eps.filter(function (e) {
+        return e.motionIndex != null && e.motionIndex <= 0.5 && e.sdnn != null;
+      });
+      T.eq('the robust pool counts ONLY epochs the ACC observed', res.sdnnRobustNEpochs, stillObserved.length);
+      var med = function (a) {
+        var x = a.slice().sort(function (p, q) {
+          return p - q;
+        });
+        var m = x.length >> 1;
+        return x.length % 2 ? x[m] : (x[m - 1] + x[m]) / 2;
+      };
+      var honest = med(stillObserved.map(function (e) { return e.sdnn; }));
+      T.ok('sdnnRobust IS that pool median, not the null-diluted one', Math.abs(res.sdnnRobust - honest) < 1.0, 'sdnnRobust=' + res.sdnnRobust + ' honest=' + honest.toFixed(1));
+      // The pre-fix value, computed here so the assertion states the SIZE of the error it prevents.
+      var preFix = med(eps.filter(function (e) { return e.sdnn != null && (e.motionIndex == null || e.motionIndex <= 0.5); }).map(function (e) { return e.sdnn; }));
+      T.ok('…and it is materially BELOW the pre-fix value (this is the defect, quantified)', res.sdnnRobust < preFix * 0.7, 'fixed=' + res.sdnnRobust + ' pre-fix=' + preFix.toFixed(1));
+
+      // THE FALLBACK MUST BE NAMED — else the fix trades a wrong number for an unattributable one.
+      T.eq('the basis of the published figure is declared', res.sdnnRobustBasis, 'gated');
+
+      // THE SIBLING AGREEMENT — hfRobust and hfRobustLowMotion are the SAME quantity computed by the
+      // gate that was fixed and the gate that was not. Pre-fix they differed 8x on this input.
+      if (res.hfRobust != null && res.hfRobustLowMotion != null) {
+        T.ok('hfRobust no longer disagrees with its motion-gated twin', Math.abs(res.hfRobust - res.hfRobustLowMotion) <= Math.max(1, 0.25 * res.hfRobustLowMotion), 'hfRobust=' + res.hfRobust + ' hfRobustLowMotion=' + res.hfRobustLowMotion);
+      }
+
+      // THE CONTROL — a FULLY covered record must be untouched by this change, or the fix would have
+      // bought honesty by shrinking every night's pool.
+      var recFull = P.parsePPG(rows.join('\n'));
+      var accFull = [];
+      for (var fi = 0; fi < 52 * DUR; fi++) {
+        var fsec = fi / 52;
+        accFull.push({ x: 0.7 * gs(), y: 0.7 * gs(), z: 1000 + 0.7 * gs(), relNs: fsec * 1e9 });
+      }
+      recFull.acc = accFull;
+      var full = P.analyze(recFull);
+      T.ok('control · a fully-covered still night keeps every epoch in the pool', full.sdnnRobustNEpochs === (full.epochs || []).filter(function (e) { return e.sdnn != null; }).length, full.sdnnRobustNEpochs + '/' + (full.epochs || []).length);
+      T.eq('control · …and reports a gated basis, not a fallback', full.sdnnRobustBasis, 'gated');
+    });
+
     /* ════ 19 · PPGDex limb posture from ACC (parity, down-weighted) ════ */
     group('PPGDex limb posture from ACC', 'ppgdex-dsp', function (T) {
       var P = env.PPGDSP;
