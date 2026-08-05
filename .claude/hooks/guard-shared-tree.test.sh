@@ -64,6 +64,10 @@ git worktree remove --force ../wt-other
 git branch -D claude/someone-elses
 git update-ref refs/heads/main abc
 git update-ref -d refs/heads/main
+git checkout origin/main -- tests/dex-tests.js
+git checkout origin/main -- integrator-tch.js oxydex-dsp.js
+git checkout HEAD -- ppgdex-dsp.js
+git restore --source origin/main -- clock.js
 git update-ref --stdin
 git update-ref --no-deref refs/heads/main abc
 git branch -f main abc
@@ -115,6 +119,11 @@ git worktree remove ../wt-y
 git worktree list
 git push origin claude/x
 git push --force-with-lease origin claude/x
+git checkout origin/main -- OverDex.html
+git checkout origin/main -- "Data Unifier.html"
+git checkout origin/main -- provenance/Integrator.json
+git checkout origin/main -- docs/OxyDex.html
+node tools/rebase-safe.mjs
 git fetch origin main:main
 git merge --ff-only origin/main
 git status --porcelain
