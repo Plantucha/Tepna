@@ -223,6 +223,15 @@ def parse_live(payload: bytes) -> dict | None:
         "pi":   payload[7] / 10.0,                     # perfusion index, %
         "motion": payload[11],                         # WAS [7] — the swap that caused the data bug
         "flag": payload[10] & 0x01,
+        # The WHOLE byte, beside the bit. The vendor names [10] `flag(标志参数, 0:脉搏音标志)` —
+        # "indicator parameter, bit 0 = pulse-tone flag" — and its SDK reads bit 0 and nothing else, which
+        # is why we did too. Measured 2026-08-05 across 8 nights / 184 362 frames: bit 0 is set on
+        # **100.0 % of frames on every night**, so it carries no per-frame information at all and is a
+        # SETTING (the buzzer is enabled), not an event. The byte itself reads 0xC7, and this module's own
+        # note has said since 2026-07-18 that it "is not a constant either" — so bits 1-7 vary and nothing
+        # has ever looked at them. Recorded raw so a night can answer what changes there without a
+        # re-capture; interpreting them is not attempted here.
+        "flag_raw": payload[10],
         "batt": payload[13],
         "batt_state": payload[12],                     # 0 = not charging
         "run_status": payload[4],
@@ -276,6 +285,36 @@ def ppg_sample_count(payload: bytes) -> int | None:
     if len(payload) < 26:
         return None
     return int.from_bytes(payload[24:26], "little")
+
+
+def ppg_stream_offset(payload: bytes) -> int | None:
+    """The ring's own CUMULATIVE stream position for this frame ([20:24], u32 LE) — or None when the
+    frame is too short to carry the field.
+
+    This is the vendor's `RtWave.offset` (`lepu-blepro` 1.3.6, `doad/Cthrow.java`), and because samples
+    are ONE BYTE it is a sample index, not a byte count. The field has sat in this module's layout
+    comment as "[20:24] u32 counter" since 2026-07-18 and has never been read by anything — the vendor's
+    own SDK decodes it and discards it too.
+
+    WHY IT EARNS A COLUMN. It is the only device-side sequence number the ring exposes, so
+    `SUM(declared)` against `DELTA(offset)` decides — with **no host clock anywhere in the comparison** —
+    whether the ring counts its own `PPG_INVALID` bytes in its stream position. That is the difference
+    between those bytes being INSERTED extras (=> the ADC runs at 125 Hz and the markers are not samples)
+    and being REPLACEMENTS for real ones (=> 126 Hz and they are). Arrival timing cannot separate those
+    two; this counter can. Paired with `duration` ([0:4], session seconds) it also gives
+    `DELTA(offset)/DELTA(duration)` — a sample rate measured entirely on the device's own counters, which
+    is a different class of evidence from every rate figure this project currently holds.
+    See `DEVICE-RATE-TRUTH-2026-08-05-BRIEF.md` §2.2 and §6.1.
+
+    Threshold is 24, not 26: the offset occupies [20:24] and the sample count [24:26], so a frame can
+    carry an offset without carrying a wave header. Requiring 26 would silently drop the field on
+    exactly the malformed frames worth seeing.
+
+    None (field absent) is deliberately NOT 0, matching `ppg_sample_count`: **0 is a real offset** — it
+    is what the first frame of a session reports — while None means the bytes were not there at all."""
+    if len(payload) < 24:
+        return None
+    return int.from_bytes(payload[20:24], "little")
 
 
 def parse_ppg(payload: bytes) -> list[int]:

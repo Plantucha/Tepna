@@ -2204,6 +2204,13 @@ async def run_oxyii(dev: dict, root: str):
                         # slice — `declared - delivered` is only a measurement if both come off the same
                         # frame. Cheap (one u16) and gated on the same writer as the decode.
                         n_decl = oxyii.ppg_sample_count(r[1]) if ppgwr else None
+                        # The ring's OWN stream position for this frame ([20:24], u32 LE). Read here for
+                        # the same reason and under the same gate as n_decl: it is a property of THIS
+                        # frame's bytes, and it is only a measurement paired with the count off the same
+                        # frame. Recorded, never acted on — `SUM(declared)` vs `DELTA(offset)` is the
+                        # host-clock-free test of whether the ring counts its PPG_INVALID bytes in its own
+                        # sequence (DEVICE-RATE-TRUTH-2026-08-05 §6.1).
+                        n_off = oxyii.ppg_stream_offset(r[1]) if ppgwr else None
                         if ppg:
                             arr = _now()
                             nps = len(ppg)
@@ -2245,6 +2252,13 @@ async def run_oxyii(dev: dict, root: str):
                         # NONE is exactly the event worth counting, and that block never runs for it.
                         _ppgrow = (ppg_led[0].frame(live["duration"], n_decl, len(ppg))
                                    if n_decl is not None else None)
+                        # Attached to the row rather than passed through the ledger: the ledger ACCUMULATES
+                        # (it owns truncated/device_seconds across the session) and this is a per-frame
+                        # primitive with nothing to accumulate. Keeping it out of the ledger's state is
+                        # what stops it becoming a fourth counter — the third was retired 2026-08-04
+                        # precisely because no nominal made it informative.
+                        if _ppgrow is not None:
+                            _ppgrow["offset"] = n_off
                         # Unreachable-false: oxyflagwr is opened UNCONDITIONALLY on every connect
                         # (unlike ppgwr, which is gated on the `ppg` stream), so it cannot be None by
                         # the time the poll loop runs. Kept as a guard because the three writers are

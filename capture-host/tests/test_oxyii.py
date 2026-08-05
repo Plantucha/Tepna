@@ -202,3 +202,48 @@ def test_reassembler_still_accepts_a_large_but_plausible_frame():
     r = oxyii.Reassembler()
     big = oxyii.encode(oxyii.OP_FILE_DATA, b"\x5a" * 240)        # ~ATT MTU-sized chunk
     assert big in r.feed(big)
+
+
+# ── RtWave.offset — the ring's own stream position ([20:24], u32 LE) ──────────────────────────────────
+# Recorded so `SUM(declared)` vs `DELTA(offset)` can decide, with no host clock in the comparison,
+# whether the ring counts its PPG_INVALID bytes in its own sequence (DEVICE-RATE-TRUTH-2026-08-05 §6.1).
+
+
+def test_ppg_stream_offset_is_u32_le_at_20():
+    body = bytes(20) + (70000).to_bytes(4, "little") + (3).to_bytes(2, "little") + bytes([1, 2, 3])
+    assert oxyii.ppg_stream_offset(body) == 70000
+    # ...and it does not disturb the count that lives immediately after it
+    assert oxyii.ppg_sample_count(body) == 3
+
+
+def test_ppg_stream_offset_zero_is_a_READING_not_an_absence():
+    """The first frame of a session legitimately reports offset 0. Returning None there would make a
+    real measurement indistinguishable from a missing field — the blank-vs-zero rule the writers keep."""
+    body = bytes(20) + (0).to_bytes(4, "little") + (1).to_bytes(2, "little") + bytes([7])
+    assert oxyii.ppg_stream_offset(body) == 0
+    assert oxyii.ppg_stream_offset(body) is not None
+
+
+def test_ppg_stream_offset_absent_field_is_None_never_zero():
+    for n in (0, 5, 19, 23):
+        assert oxyii.ppg_stream_offset(bytes(n)) is None, n
+
+
+def test_ppg_stream_offset_needs_24_not_26_bytes():
+    """The offset is [20:24] and the sample count [24:26], so a frame can carry an offset and no wave
+    header. Gating this on 26 would drop the field on exactly the malformed frames worth seeing."""
+    body = bytes(20) + (42).to_bytes(4, "little")
+    assert len(body) == 24
+    assert oxyii.ppg_stream_offset(body) == 42
+    assert oxyii.ppg_sample_count(body) is None
+
+
+def test_flag_raw_is_the_whole_byte_beside_the_bit():
+    """Bit 0 is the vendor's pulse-tone flag and is set on 100 % of frames across 8 nights, so it is a
+    SETTING, not an event. The byte's other bits vary and nothing has ever read them."""
+    live = oxyii.parse_live(_live_frame(flag=0xC7))
+    assert live["flag"] == 1
+    assert live["flag_raw"] == 0xC7
+    off = oxyii.parse_live(_live_frame(flag=0xC6))
+    assert off["flag"] == 0            # bit 0 clear
+    assert off["flag_raw"] == 0xC6     # ...while the byte is still reported in full

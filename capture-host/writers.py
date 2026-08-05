@@ -437,8 +437,15 @@ class OxyFrameLogWriter:
         # resembles a lost frame and is actually the ring's counter quantizing (measured: identical host
         # arrival interval, identical sample count). Recording the primitive is what lets a night be
         # re-audited from the file when the interpretation turns out to be wrong, which here it did.
+        # ppg_offset / flag_raw APPENDED after those, same discipline again. `ppg_offset` is the ring's
+        # own u32 stream position ([20:24], oxyii.ppg_stream_offset) — the only device-side sequence
+        # number it exposes, and the one field that can settle whether its PPG_INVALID bytes are inserted
+        # extras or replacements WITHOUT a host clock in the comparison (DEVICE-RATE-TRUTH §6.1).
+        # `flag_raw` is the whole [10] byte whose bit 0 we already record: that bit is set on 100 % of
+        # frames across 8 nights, so it is a setting, not an event — the varying bits are 1-7 and nothing
+        # has ever read them.
         self._fh.write("Phone timestamp;duration_s;pi_pct;motion;spo2;pr;contact;battery_pct;"
-                       "batt_state;flag;ppg_n;ppg_dur_step\n")
+                       "batt_state;flag;ppg_n;ppg_dur_step;ppg_offset;flag_raw\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
@@ -451,8 +458,10 @@ class OxyFrameLogWriter:
         indistinguishable from a real reading of 0 (the bug this suite keeps re-learning).
 
         `ppg` is the per-frame dict `capture.O2PpgFrameLedger.frame()` returns, or None when the PPG
-        stream is switched off — OPTIONAL AND LAST, so an existing caller keeps working and the three
-        columns simply read blank. That blank is load-bearing here: a night captured with `ppg` disabled
+        stream is switched off — OPTIONAL AND LAST, so an existing caller keeps working and the
+        ppg-derived columns (`ppg_n`, `ppg_dur_step`, `ppg_offset`) simply read blank. `flag_raw` comes
+        off `live`, so it is present whenever the frame parsed at all.
+        That blank is load-bearing here: a night captured with `ppg` disabled
         must not claim `ppg_n = 0`, which would read as "the ring declared no samples". `step` is None
         on the first row of a session and across a session restart, where no step exists to measure —
         again blank, because 0 there would assert a step we never observed."""
@@ -464,7 +473,8 @@ class OxyFrameLogWriter:
                                  _f(live.get("motion")), _f(live.get("spo2")), _f(live.get("pr")),
                                  _f(live.get("contact")), _f(live.get("batt")),
                                  _f(live.get("batt_state")), _f(live.get("flag")),
-                                 _f(p.get("n")), _f(p.get("step")))) + "\n")
+                                 _f(p.get("n")), _f(p.get("step")),
+                                 _f(p.get("offset")), _f(live.get("flag_raw")))) + "\n")
         self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
