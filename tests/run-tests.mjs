@@ -18,6 +18,7 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { classify as rebaseClassify } from '../tools/rebase-safe.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -1341,6 +1342,12 @@ async function main() {
     TchCorpus: ctx.TchCorpus,
     docs: readDocs(),
     docsLedger: readDocsLedger(),
+    /* The rebase classifier decides GENERATED-vs-SOURCE for every conflicted path, and being wrong
+       toward GENERATED reverts someone's work silently. It shipped with a `--classify` entry point
+       documented as "used by the self-test" and no self-test — no group, nothing in `npm run check`,
+       nothing calling it. Node-lane only (an ESM import of a tool), so the browser lane SKIPs, exactly
+       like docsLedger. */
+    rebaseClassify: rebaseClassify,
     /* REGEN-CORPUS-PATH-FOLLOWUPS-II §1 — A2's OWN scope. The SPDX lint used to read `env.sources`,
        a list curated to serve OTHER source-scan gates, so a file was licence-checked iff some unrelated
        scan happened to want its text. `CLAUDE.md` §📜 states the invariant as universal. This walks the
