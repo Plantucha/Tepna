@@ -42,8 +42,12 @@ cmd_noquotes="$(sed "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g" <<<"$cmdn")"
 # `git commit -a`, as one documenting THIS FILE must, was denied. Same intent, one more delimiter.
 # Measured 2026-08-05: it blocked the commit shipping the rebase-guard rule.
 cmd_noquotes="$(printf '%s' "$cmd_noquotes" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\1([[:space:]]|$)/ /g")"
-GITX='(^|[^[:alnum:]_-])([^[:space:];&|]*/)?git([[:space:]]+(-[cC][[:space:]]*("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--git-dir=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--work-tree=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--exec-path=[^[:space:]]*|--no-pager))*[[:space:]]+'
+GITX='(^|[^[:alnum:]_-])([^[:space:];&|]*/)?git([[:space:]]+(-[cC][[:space:]]*("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--git-dir=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--work-tree=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--exec-path=[^[:space:]]*|--no-pager|-P\b|--no-optional-locks\b|--literal-pathspecs\b|--noglob-pathspecs\b|--icase-pathspecs\b|--no-replace-objects\b))*[[:space:]]+'
 QT='["'"'"']?'
+# NB on the global-option list above: `-P` is the SHORT form of `--no-pager`, which was already here —
+# so `git -P add -A` walked past every rule while `git --no-pager add -A` was caught. Same for the
+# pathspec-mode flags an IDE or wrapper puts there. A global option git accepts before the subcommand
+# and this list does not know is a bypass of the WHOLE file, not of one rule (adversarial pass III).
 
 # HOW A RULE IS MATCHED — read this before adding one.
 #
@@ -89,7 +93,9 @@ deny() {
 # parallel work-units from the next changelog. The count GREW with every merge instead of converging.
 #
 # The check that hid it: `git rev-list --count HEAD..origin/main` returned 0. The ref WAS synced.
-_RE2="$GITX"'(update-ref([[:space:]]+--stdin|[[:space:]]+(-d[[:space:]]+|--no-deref[[:space:]]+)*'"$QT"'refs/heads/)|branch[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)|push[[:space:]]+\.([[:space:]]|$)|symbolic-ref[[:space:]]+HEAD)'
+_RE2="$GITX"'(update-ref([[:space:]]+--stdin|[[:space:]]+(-d[[:space:]]+|--no-deref[[:space:]]+)*'"$QT"'refs/heads/)|branch[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)|push[[:space:]]+([^;&|]*[[:space:]])?\.([[:space:]]|$)|symbolic-ref[[:space:]]+HEAD)'
+# NB `push[[:space:]]+\.` required the dot to sit IMMEDIATELY after `push`, so `git push --force . HEAD:main`
+# — verified here to move a branch ref — walked past the one rule written to stop ref moves (pass III).
 if grep -qE "$_RE2" <<<"$cmdn"; then
   deny "BLOCKED: 'git update-ref refs/heads/...' in a shared checkout.
 
@@ -108,7 +114,20 @@ And to CHECK a tree is in sync, use 'git status --porcelain' (the tree), not 'gi
 fi
 
 # `git add -A` / `--all` / `.` / `:/`  — blanket staging
-_RE="$GITX"'add[[:space:]]+([^;&|]*[[:space:]])?(-A\b|--all\b|-u\b|--update\b|\.([[:space:]]|$)|:/)'
+#
+# TWO BYPASSES FIXED IN ADVERSARIAL PASS III, both trivial to type by accident:
+#
+#  · BUNDLED SHORT FLAGS. `-A\b` has no word boundary between `A` and a following letter, so `git add
+#    -Av` and `git add -An` matched nothing — while `git add -vA` was caught. git's parse-options
+#    bundles short flags, and `git add -Av` was verified here to stage every modification AND every
+#    untracked file. The sibling rules for `commit -a`, `clean -f` and `rm -r` all already spelled the
+#    bundled form `-[a-zA-Z]*X[a-zA-Z]*`; `add` — the rule this file exists for — was the one that did not.
+#
+#  · THE QUOTED DOT. `git add "."` and `git add '.'` walked past, because the rules match the RAW
+#    command (deliberately — see the header) and `."` is not `.` followed by whitespace. The header
+#    block asserts «`git add "."` must still be caught by the rule above» as the stated reason the
+#    commit rule may strip quotes and this one may not. That claim was false. Hence $QT on both sides.
+_RE="$GITX"'add[[:space:]]+([^;&|]*[[:space:]])?(-[a-zA-Z]*[Au][a-zA-Z]*\b|--all\b|--update\b|'"$QT"'\.'"$QT"'([[:space:]]|$)|:/)'
 if grep -qE "$_RE" <<<"$cmdn"; then
   deny "BLOCKED: blanket staging in a SHARED checkout (CONTRIBUTING §6).
 
@@ -171,8 +190,89 @@ fi
 # committing the rule, because the staged changeset described the bypass it fixes. `$cmd_noquotes`
 # does not help: a heredoc body is not quoted. So this rule alone also tests a copy with `<<'W' … W`
 # bodies removed. Same tradeoff, and same reason, as the quote-stripping on `git commit -a` above.
-cmd_nohd="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
-if grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?[^;&|]*\.(js|mjs|md|json|css|src\.html)([[:space:]]|$)' <<<"$cmd_nohd"    && grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmd_nohd"    && ! grep -qE '(^|[[:space:]])(provenance/|docs/)' <<<"$cmd_nohd"; then
+# ⚠ THE STRIP MUST FAIL CLOSED. `.*` is greedy and newlines are already folded, so a terminator word
+# appearing a THIRD time lets the strip swallow real commands after the heredoc — measured: a body
+# ending `A`, then a real `git checkout origin/main -- oxydex-dsp.js`, then a stray `A`, stripped the
+# checkout and the rule passed. There is no lazy quantifier in POSIX sed, so instead: only strip when
+# the terminator appears EXACTLY ONCE as a standalone word (the closer; the opener is `<<'W'`, quoted,
+# so it does not count). Two standalone occurrences means the body itself contains the terminator word,
+# and greedy `.*` then runs to the SECOND one — measured: a body ending `A`, a real
+# `git checkout origin/main -- oxydex-dsp.js`, then a stray `A`, and the checkout was stripped away.
+# Anything but exactly one keeps the full text and the rule runs on it — over-flagging a weird command,
+# never under-flagging one.
+cmd_nohd="$cmdn"
+# NB: extract with sed, not `tr -d "<-'"` — in tr that is a RANGE ('<' 0x3C to "'" 0x27, reversed),
+# not a set, so the terminator came back empty, the strip was skipped, and the rule false-positived on
+# a heredoc merely DESCRIBING the pattern. Exactly the failure the strip exists to prevent.
+_hdw="$(printf '%s' "$cmdn" | grep -oE "<<-?'?[A-Za-z_][A-Za-z0-9_]*'?" | head -1 | sed -E "s/^<<-?'?//; s/'$//")"
+if [ -n "$_hdw" ] && [ "$(printf '%s' "$cmdn" | grep -oE "(^|[[:space:]])$_hdw([[:space:]]|$)" | wc -l)" -eq 1 ]; then
+  cmd_nohd="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
+fi
+# THREE WIDENINGS, each from a working bypass (adversarial pass 2026-08-05, second round):
+#
+# 1 · THE GENERATED-PATH EXEMPTION WAS COMMAND-WIDE, NOT PER-PATH. `! grep provenance/|docs/` disarmed
+#     the WHOLE rule the moment any token mentioned them — so
+#         git checkout origin/main -- docs/PpgDex.html oxydex-dsp.js
+#     passed, and that is not an exotic input: it IS the shape of a real conflict list here, because the
+#     orchestrators, docs/ and provenance/ regenerate together with the source that moved them. The rule
+#     was therefore disarmed in precisely the case it exists for. Bash cannot classify per path without
+#     re-implementing the builders' ownership — which is the tool's job — so the exemption is GONE and
+#     the rule now fires on any ref-checkout of a path list. A generated-only restore is over-flagged;
+#     that is the correct direction, and `npm run rebase` does that restore for you anyway.
+#     `provenance/../oxydex-dsp.js` also walked out of the prefix test; with no prefix test, it cannot.
+#
+# 2 · THE REF PATTERN ONLY KNEW `origin/`, `HEAD`, AND HEX. `git checkout main -- oxydex-dsp.js`,
+#     `upstream/main`, `@{u}` and a tag all bypassed. A ref is now "a non-flag token before `--`", plus
+#     the `--source=`/`--source ` forms, which is what the operation actually looks like.
+#
+# 3 · THE EXTENSION LIST OMITTED AUTHORED NON-JS SOURCE. `Science.html` and `OxyDex Reference.html` are
+#     authored (a `*.html` glob is wrong for the opposite reason — the bundles are generated), and
+#     `capture-host/*.py`, `.github/workflows/*.yml` and this hook itself are source too. The rule no
+#     longer inspects extensions at all: a ref plus `--` plus a path is the destructive shape whatever
+#     the suffix, and the tool is the thing that knows which side is authoritative.
+#
+# 4 · THE EXEMPTION IS NOW PER-PATH, AND ONLY FOR PREFIXES BASH CAN CHECK. The generated-only restore
+#     stays allowed — it is correct and common — but EVERY path after `--` must be under `provenance/`,
+#     the ONE tree whose generated-ness is a prefix rather than a lookup. A root bundle
+#     (`OverDex.html`) is NOT exempted even though it is generated: distinguishing it from the authored
+#     `Science.html` / `OxyDex Reference.html` needs the builders' list, which is exactly what this hook
+#     must not guess — so it fails closed there and `npm run rebase` covers it. `..` anywhere in the
+#     path list voids the exemption outright.
+# 5 · THE EXEMPTION IS DECIDED PER COMMAND SEGMENT, NOT PER LINE (adversarial pass III). It read
+#     `${cmd_nohd##* -- }` — the text after the LAST ` -- ` in the whole line — so a second, harmless
+#     restore disarmed a destructive first one:
+#         git checkout origin/main -- oxydex-dsp.js; git checkout origin/main -- docs/OxyDex.html
+#     Both were verified to pass. Chaining two restores mid-rebase is ordinary, not exotic, and the
+#     bypass grows the more of the conflict list you resolve. The same one-window read also
+#     FALSE-POSITIVED in the other direction: `git checkout origin/main -- docs/a.html && npm run check`
+#     swept `&& npm run check` into the path list and denied a correct, common command. Splitting on
+#     `; && || |` first fixes both — each segment is judged on its own path list.
+_refco=0
+while IFS= read -r _seg; do
+  [ -z "$_seg" ] && continue
+  grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--source[= ][^[:space:]]+|[^-][^[:space:];&|]*[[:space:]]+--[[:space:]])' <<<"$_seg" || continue
+  _allgen=0
+  case "$_seg" in *" -- "*) _paths="${_seg##* -- }" ;; *) _paths="" ;; esac
+  if [ -n "$_paths" ] && ! grep -q '\.\.' <<<"$_paths"; then
+    _allgen=1
+    for _t in $_paths; do
+      case "$_t" in
+        # `provenance/` ONLY. `docs/` is NOT a generated prefix: 30 authored .md live there
+        # (docs/COMPLIANCE/*, EVENT-LEXICON.md, the specs) with no root twin and no builder — verified
+        # 2026-08-05, and build-docs.mjs filters .md out of its asset list entirely, so a rebuild
+        # cannot put one back. Exempting the prefix would let
+        #     git checkout origin/main -- docs/EVENT-LEXICON.md
+        # silently revert an authored spec: the same defect this rule exists to stop, relocated. The
+        # served bundles under docs/ ARE generated, but the hook cannot tell which — that needs the
+        # builder's own list, which is the tool's job — so it fails closed on all of docs/.
+        provenance/*) ;;
+        *) _allgen=0 ;;
+      esac
+    done
+  fi
+  [ "$_allgen" = "1" ] || _refco=1
+done < <(printf '%s\n' "$cmd_nohd" | sed -E 's/[[:space:]]*(\|\||&&|;|&|\|)[[:space:]]*/\n/g')
+if [ "$_refco" = "1" ]; then
   deny "BLOCKED: 'git checkout <ref> -- <source path>' in a shared checkout.
 
 This is the mid-rebase conflict shortcut, and it is the one that fails SILENTLY. It is correct for a
@@ -196,8 +296,16 @@ explicit path outside a rebase, and VERIFY afterwards:
     git show HEAD:<file> | grep -c <an identifier your change adds>"
 fi
 
-# `git checkout .` / `git checkout -- .` / `git restore .` — discards working-tree changes
-if grep -qE "$GITX"'(checkout[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)|(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?(\.([[:space:]]|$)|:/))' <<<"$cmdn"; then
+# `git checkout .` / `git checkout -- .` / `git restore .` / `git switch -f` — discards working-tree changes
+#
+# `git switch` WAS NOT IN THIS FILE AT ALL (adversarial pass III). It is the modern half of the
+# checkout split — `git switch -f <branch>` is `--discard-changes`, and it was verified here to
+# silently destroy an uncommitted edit exactly as `git checkout -f` does. `checkout -f` was denied and
+# `switch -f` was allowed, which is the worse of the two failures: the guard reads as covering the
+# operation while covering only its older spelling. `restore` was already handled; `switch` completes
+# the pair.  The dot alternatives also take $QT — `git checkout -- "."` had the same quoted-dot hole
+# as `git add "."` above.
+if grep -qE "$GITX"'(checkout[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)|switch[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b|--discard-changes\b)|(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?('"$QT"'\.'"$QT"'([[:space:]]|$)|:/))' <<<"$cmdn"; then
   deny "BLOCKED: discarding ALL working-tree changes in a SHARED checkout — they may be another session's only copy.
 
 Restore only the paths you own:

@@ -39,7 +39,7 @@ chk(){ # chk <expected> <command>
 }
 
 echo "### MUST DENY                                                 now   main"
-while IFS= read -r c; do [ -n "$c" ] && chk DENY "$c"; done <<'DENY'
+while IFS= read -r c; do [ -n "$c" ] && [ "${c###}" = "$c" ] && chk DENY "$c"; done <<'DENY'
 git add -A
 git add .
 git add -u
@@ -72,6 +72,69 @@ git restore --source=origin/main -- clock.js
 git -C . checkout origin/main -- tests/dex-tests.js
 git checkout HEAD~1 -- integrator-tch.js
 git checkout origin/main -- OverDex.html tests/dex-tests.js
+# --- adversarial pass II (2026-08-05). Every line below ALLOWED before this round.
+# A · the generated exemption was COMMAND-WIDE: any mention of docs/ or provenance/ anywhere disarmed
+#     the whole rule, and a real conflict list here mixes them with source by construction.
+git checkout origin/main -- docs/PpgDex.html oxydex-dsp.js
+git checkout origin/main -- provenance/PpgDex.json ppgdex-dsp.js
+git checkout origin/main -- docs/index.html tests/dex-tests.js
+git checkout origin/main -- provenance/../oxydex-dsp.js
+echo docs/ ; git checkout origin/main -- oxydex-dsp.js
+# B · the ref pattern knew only origin/, HEAD and hex — a plain branch, a remote, @{u} and a tag walked past.
+git checkout main -- oxydex-dsp.js
+git checkout upstream/main -- oxydex-dsp.js
+git checkout @{u} -- oxydex-dsp.js
+git checkout v2.4.0 -- oxydex-dsp.js
+git restore --source=main -- oxydex-dsp.js
+# C · authored non-JS source was not in the extension list. A *.html glob is wrong in the OTHER
+#     direction (the bundles are generated), which is why the rule no longer looks at extensions.
+git checkout origin/main -- Science.html
+git checkout origin/main -- "OxyDex Reference.html"
+git checkout origin/main -- capture-host/capture.py
+git checkout origin/main -- .github/workflows/ci.yml
+git checkout origin/main -- .claude/hooks/guard-shared-tree.sh
+# D · a root bundle is generated but INDISTINGUISHABLE in bash from authored Science.html without the
+#     builders' list, so it fails closed here; npm run rebase does this restore for you.
+git checkout origin/main -- OverDex.html
+git checkout origin/main -- "Data Unifier.html"
+# E · docs/ is NOT a generated prefix: 30 authored .md live there with no root twin and no builder,
+#     and build-docs.mjs filters .md out of its asset list, so a rebuild cannot restore one.
+git checkout origin/main -- docs/EVENT-LEXICON.md
+git checkout origin/main -- docs/COMPLIANCE/SOUP.md
+git checkout origin/main -- docs/OxyDex.html
+git checkout origin/main -- docs/OxyDex.html && npm run check
+git checkout origin/main -- docs/OxyDex.html
+# --- adversarial pass III (2026-08-05). Every line below ALLOWED before this round.
+# E · BUNDLED SHORT FLAGS. git bundles them; `-A\b` has no boundary between `A` and a letter, so the
+#     `add` rule — the one this file exists for — missed `-Av` while catching `-vA`. Verified against
+#     real git: `git add -Av` staged every modification AND every untracked file.
+git add -Av
+git add -An
+git add -uv
+# F · THE QUOTED DOT. The header block asserts «`git add "."` must still be caught by the rule above»
+#     as the stated reason only the commit rule may strip quotes. It was not caught. Now it is.
+git add "."
+git add '.'
+git checkout -- "."
+# G · `git switch` WAS ABSENT FROM THE WHOLE FILE. `switch -f` is `--discard-changes`; verified here to
+#     destroy an uncommitted edit exactly as the denied `checkout -f` does.
+git switch -f main
+git switch --force main
+git switch --discard-changes main
+# H · GLOBAL OPTIONS $GITX DID NOT KNOW bypass EVERY rule at once, not one. `-P` is the short form of
+#     `--no-pager`, which was already handled — the long spelling was caught and the short was not.
+git -P add -A
+git --no-optional-locks add -A
+git --literal-pathspecs add -A
+git --icase-pathspecs reset --hard
+# I · `push .` REQUIRED THE DOT IMMEDIATELY AFTER `push`. Verified: this form moved a branch ref.
+git push --force . HEAD:main
+git push --force-with-lease . side:main
+# J · THE GENERATED EXEMPTION READ ONLY THE LAST ` -- ` IN THE LINE, so a harmless trailing restore
+#     disarmed a destructive leading one. Chaining restores mid-rebase is ordinary, and the bypass
+#     widens the more of the conflict list you resolve.
+git checkout origin/main -- oxydex-dsp.js; git checkout origin/main -- clock.js && git checkout origin/main -- provenance/OxyDex.json
+git checkout origin/main -- oxydex-dsp.js && echo -- docs/x.html
 git update-ref --stdin
 git update-ref --no-deref refs/heads/main abc
 git branch -f main abc
@@ -82,7 +145,7 @@ DENY
 
 echo
 echo "### MUST DENY — invocation forms that defeated earlier versions"
-while IFS= read -r c; do [ -n "$c" ] && chk DENY "$c"; done <<'DENY2'
+while IFS= read -r c; do [ -n "$c" ] && [ "${c###}" = "$c" ] && chk DENY "$c"; done <<'DENY2'
 bash -c "git add -A"
 env git add -A
 /usr/bin/git add -A
@@ -101,7 +164,7 @@ printf '  '; chk DENY "$(printf 'git add \\\n  -A')"
 
 echo
 echo "### MUST ALLOW — ordinary work"
-while IFS= read -r c; do [ -n "$c" ] && chk allow "$c"; done <<'ALLOW'
+while IFS= read -r c; do [ -n "$c" ] && [ "${c###}" = "$c" ] && chk allow "$c"; done <<'ALLOW'
 git add path/to/file.js
 git add -- src/a.js src/b.js
 git commit -m "feat: thing"
@@ -123,10 +186,11 @@ git worktree remove ../wt-y
 git worktree list
 git push origin claude/x
 git push --force-with-lease origin claude/x
-git checkout origin/main -- OverDex.html
-git checkout origin/main -- "Data Unifier.html"
 git checkout origin/main -- provenance/Integrator.json
-git checkout origin/main -- docs/OxyDex.html
+# The last-` -- `-window read denied this too — it swept `&& npm run check` into the path list. A
+# generated-only restore chained with anything is correct and common; the per-segment split allows it
+# again. Over-flagging is the safe direction, but not for a command the docs tell you to run.
+git add -p oxydex-dsp.js
 node tools/rebase-safe.mjs
 git fetch origin main:main
 git merge --ff-only origin/main
