@@ -405,6 +405,26 @@ class StreamWriter:
                 _writer_closed()
 
 
+# ── OXYFRAME column order — ONE definition, because two copies is how it went stale ──────────────────
+# The JS lane carries a fixture asserting `oxydex-dsp.parseCSV` ingests this layout byte-identically
+# (tests/dex-tests.js, the OXYFRAME group). That fixture is a hand-written string, so for as long as
+# this header was a hand-written string too, nothing connected them: appending a column here left the
+# fixture passing forever against a layout no capture would ever again produce. Its own docstring warns
+# about exactly that failure and could not prevent it.
+#
+# Naming the columns once, and gating the fixture against this tuple from the Python side
+# (`test_oxyframe_header_is_the_single_source_the_js_fixture_tracks`), is what makes the append-never-
+# insert rule enforceable rather than merely written down. APPEND to the end of this tuple; never
+# insert, never reorder — a positional reader of an older layout must keep working.
+OXYFRAME_COLUMNS = (
+    "Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr", "contact", "battery_pct",
+    "batt_state", "flag",          # ── the original 10
+    "ppg_n", "ppg_dur_step",       # O2RING-FRAME-SAMPLE-LOCK §7
+    "ppg_offset", "flag_raw",      # DEVICE-RATE-TRUTH §6.1
+)
+OXYFRAME_HEADER = ";".join(OXYFRAME_COLUMNS)
+
+
 class OxyFrameLogWriter:
     """O2Ring per-frame sidecar — the live-header fields the vendor SpO2 CSV layout cannot carry.
 
@@ -444,8 +464,7 @@ class OxyFrameLogWriter:
         # `flag_raw` is the whole [10] byte whose bit 0 we already record: that bit is set on 100 % of
         # frames across 8 nights, so it is a setting, not an event — the varying bits are 1-7 and nothing
         # has ever read them.
-        self._fh.write("Phone timestamp;duration_s;pi_pct;motion;spo2;pr;contact;battery_pct;"
-                       "batt_state;flag;ppg_n;ppg_dur_step;ppg_offset;flag_raw\n")
+        self._fh.write(OXYFRAME_HEADER + "\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync

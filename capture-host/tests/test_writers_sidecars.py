@@ -13,7 +13,8 @@ import datetime as dt
 
 import pytest
 
-from writers import HostClockLogWriter, LinkLogWriter, OxyFrameLogWriter, Spo2CsvWriter
+from writers import (HostClockLogWriter, LinkLogWriter, OxyFrameLogWriter, Spo2CsvWriter,
+                     OXYFRAME_COLUMNS, OXYFRAME_HEADER)
 
 WHEN = dt.datetime(2026, 7, 19, 3, 4, 5, 678000)
 
@@ -550,3 +551,43 @@ def test_a_long_flush_interval_really_does_defer_the_flush(tmp_path, monkeypatch
     finally:
         monkeypatch.undo()
         w.close()
+
+
+# ── The cross-lane gate: the JS fixture must track this header ───────────────────────────────────────
+
+
+def test_oxyframe_header_is_the_single_source_the_js_fixture_tracks():
+    """`tests/dex-tests.js` asserts `oxydex-dsp.parseCSV` ingests this sidecar byte-identically, using a
+    HAND-WRITTEN header string. Two hand-written copies of one layout is how it goes stale: append a
+    column here and that fixture passes forever against a layout no capture will ever produce again.
+    Its own docstring warns about precisely that and could not prevent it, because nothing connected the
+    two strings. This is the connection.
+
+    Asserted from the Python side because this is where the layout is DEFINED — the JS lane is the
+    consumer, and a consumer cannot be the authority on its input's shape."""
+    import pathlib
+    js = pathlib.Path(__file__).resolve().parents[2] / "tests" / "dex-tests.js"
+    if not js.exists():                                    # pragma: no cover - capture-host shipped alone
+        pytest.skip("JS lane not present in this checkout")
+    text = js.read_text(encoding="utf-8")
+    hdr = [ln for ln in text.splitlines() if "Phone timestamp;duration_s;pi_pct" in ln]
+    assert hdr, "the OXYFRAME fixture vanished from dex-tests.js — it is the only cross-lane check"
+    # AT LEAST ONE, not every one. The group deliberately keeps a NARROWER fixture too, proving a reader
+    # written against the original 10 columns still parses a widened file — that one must STAY narrow,
+    # and demanding the current header from it would force the append-only rule to be broken in order to
+    # satisfy the test that protects it. What must track the writer is the WIDEST fixture: the one
+    # standing in for what a capture actually produces today.
+    assert any(OXYFRAME_HEADER in ln for ln in hdr), (
+        "dex-tests.js's widest OXYFRAME fixture is stale against writers.OXYFRAME_COLUMNS.\n"
+        f"  writers.py: {OXYFRAME_HEADER}\n"
+        + "".join(f"  fixture   : {ln.strip()}\n" for ln in hdr)
+        + "APPEND the new column(s) to that fixture's header AND to each of its rows.")
+
+
+def test_oxyframe_columns_are_append_only_at_the_known_prefix():
+    """The first ten names are the original layout and a positional reader still depends on them. This
+    pins the PREFIX, not the length, so appending stays free and reordering does not."""
+    assert OXYFRAME_COLUMNS[:10] == (
+        "Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr", "contact", "battery_pct",
+        "batt_state", "flag")
+    assert len(set(OXYFRAME_COLUMNS)) == len(OXYFRAME_COLUMNS), "duplicate column name"
