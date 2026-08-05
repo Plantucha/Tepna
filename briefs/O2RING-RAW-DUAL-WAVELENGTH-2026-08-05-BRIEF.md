@@ -13,12 +13,12 @@ SPDX-License-Identifier: Apache-2.0
 re-deriving SpO₂ from it is therefore impossible. **The premise was wrong, so the conclusion does not
 follow.** The ring does export both channels, on `cmd = 0x05`.
 
-The reason the sweep missed it is worth recording, because it is a general trap rather than an
-oversight. That sweep probed all 256 opcodes with arguments `none / 00 / 01 / 02`. Under those
-arguments `0x05` returns a fixed 922-byte reply, which a generic noise metric scored as noise — a
-correct measurement of the wrong request. The vendor SDK (`lepu-blepro` 1.3.6, `oxyIIGetRtPpg`)
-specifies the argument **`{0x07, 0x01}`**, and no prior probe here ever sent it. Decoded with that
-argument, both channels are ordered waveforms:
+**The miss was a DECODE failure, not an argument failure** — corrected 2026-08-05 after checking the
+prior art this project already cites (see §1.1; the first draft of this brief got the mechanism wrong).
+The sweep probed all 256 opcodes and scored `0x05`'s fixed 922-byte reply with a generic noise metric
+over undifferentiated bytes. Nothing about that reply is noise; the metric simply had no record framing
+to see structure through. Read as 9-byte records of `{u32, u32, u8}`, both channels are ordered
+waveforms:
 
 | | range | median \|Δ\| | ratio = median\|Δ\| / range |
 |---|---|---|---|
@@ -29,9 +29,37 @@ argument, both channels are ordered waveforms:
 A waveform's successive-difference ratio is « 1; the shuffle destroys ordering and the ratio jumps by
 23×. The payload is structured, and the structure is temporal.
 
-**The lesson generalises past this ring:** an opcode sweep tests *opcodes*, not the *argument space*
-behind each one. A negative result from a sweep is "no response to the arguments tried", never "no
-such capability". Our brief stated the stronger claim, and it stood for a day.
+**The lesson generalises past this ring, and it is not the one the first draft drew.** A sweep that
+scores replies with a *generic* statistic can only see structure the statistic is shaped to detect: 922
+bytes of interleaved little-endian u32 pairs are indistinguishable from noise under a byte-wise metric,
+and become obviously periodic under the right framing. So a sweep's negative means **"no structure my
+decoder could see"**, never "no capability". (The weaker trap is real too — a sweep tests opcodes, not
+the argument space behind each — but it is NOT what happened here, and saying so would be a tidier
+story than the truth.)
+
+### 1.1 · Prior art this project already had, and what is actually new
+
+`O2RING-PROTOCOL-2026-07-17-BRIEF.md` §1 and `CAPTURE-HOST-FOLLOWUPS-2026-07-16-BRIEF.md` already
+established the protocol-family split, and both cite
+[`nglessner/o2ring-s-protocol`](https://github.com/nglessner/o2ring-s-protocol) as the reference for the
+family this ring speaks. **That repo documents `0x05` already** — as `922 bytes · count + 102 × 9-byte
+records · "Purpose unknown"`, obtained with an **empty** payload.
+
+Two consequences, both of which cut against the first draft:
+
+1. **The 922-byte structured reply is not argument-gated.** It arrives with an empty payload too. So
+   `{0x07, 0x01}` (the argument `lepu-blepro`'s `oxyIIGetRtPpg` specifies) may be irrelevant here.
+   **Untested** — the ring was unreachable when this was written, and a same-session control decoding an
+   empty-payload reply the identical way is what would settle it. Until then this brief must not claim
+   the argument unlocked anything. `rt_ppg_frame()` keeps sending it because that is what was actually
+   measured, not because it is known to be required.
+2. **The family is NOT publicly undocumented** — an earlier revision of §5 said so, which was wrong.
+
+**What IS new here:** the *purpose* of `0x05` (raw two-wavelength PPG, evidenced by the ordering test
+above rather than asserted), and the **record base offset of 2** — a `u16` LE count, where the reference
+reads a `u8`. The offset is self-proving: at base 2 the u32 pairs decode into smooth waveforms, and at
+any other base the fields straddle record boundaries and shred into noise. That is a concrete, checkable
+correction to send upstream.
 
 ## 2 · Wire format (`cmd = 0x05`, arg `{0x07, 0x01}`)
 
@@ -144,24 +172,30 @@ link the way a failed vitals poll does — an experimental stream may not cost a
 4. **OxyDex SpO₂ derivation** — the actual point of a dual-wavelength stream, and the one piece that is
    genuinely blocked on §3.1. Reference-free SpO₂ needs calibration constants the ring does not publish;
    expect this to be a *comparison* against the ring's own SpO₂ before it is ever a replacement for it.
-5. **Contribute upstream — but to the right protocol family.** Surveyed 2026-08-05, the two public
-   reverse-engineering projects ([`farolone/wellue-o2ring-protocol`](https://github.com/farolone/wellue-o2ring-protocol),
-   [`MackeyStingray/o2r`](https://github.com/MackeyStingray/o2r)) document a **different GATT service
-   from ours**, and the distinction matters more than the opcode numbers:
+5. **Contribute upstream — to the project that documents OUR family.**
+   [`nglessner/o2ring-s-protocol`](https://github.com/nglessner/o2ring-s-protocol) — the reference
+   `O2RING-PROTOCOL` §1 and `CAPTURE-HOST-FOLLOWUPS` already cite, and the one that documents THIS
+   family (`e8fb…`, `0xA5`). It lists `0x05` as `922 bytes · count + 102 × 9-byte records · "Purpose
+   unknown"`. Two checkable things to send it, per §1.1: the **purpose** (raw two-wavelength PPG, with
+   the ordering measurement as evidence) and the **record base offset of 2** (`u16` LE count, where it
+   reads a `u8` — and the offset proves itself, since only base 2 decodes into smooth waveforms).
 
-   | | those projects | this ring (`oxyii.py`) |
+   Do **not** send it to the legacy-family projects. Their opcode table is for a different service:
+
+   | | `farolone/wellue-o2ring-protocol`, `MackeyStingray/o2r`, `ecostech/viatom-ble` | this ring |
    |---|---|---|
    | service UUID | `14839ac4-7d7e-415c-9a42-167340cf2339` | `e8fb0001-a14b-98f9-831b-4e2941d01248` |
    | header byte | `0xAA` | `0xA5` |
-   | `0x03` / `0x04` / `0x05` | FILE_OPEN / FILE_READ / **FILE_CLOSE** | wave buffer / live poll / **RtPpg** |
-   | `0x16` | `CMD_CONFIG`, JSON (`{"SetTIME":"…"}`) | not known here |
+   | `0x03`/`0x04`/`0x05` | FILE_OPEN / FILE_READ / **FILE_CLOSE** | wave buffer / live poll / **RtPpg** |
 
-   A separate service, not a firmware variant of one — so our `0x05` cannot contradict their
-   `FILE_CLOSE`; the two never coexist on a characteristic. The `e8fb…` OxyII family therefore appears
-   **publicly undocumented**, which makes the contribution larger than a single opcode note: it is a
-   second family. Submit it as such, and only after §3.1 and §3.2, so we send results and not
-   hypotheses. `nighttimecf/o2ring-analyzer` is NOT a candidate — it analyses O2 Insight Pro CSV
-   exports and never touches the device.
+   ⚠️ **Both services are present on this device** — an earlier revision of this section said they
+   "never coexist", which is wrong and is contradicted by our own `CAPTURE-HOST-FOLLOWUPS`: the ring
+   *exposes* the legacy `14839ac4…` service and simply **ignores every command on it** (connects, 0
+   data). That is why `o2r` and `viatom-ble` fail silently against it rather than failing to connect.
+   So `0x05` genuinely means FILE_CLOSE on one service and RtPpg on the other, on the same ring.
+
+   `nighttimecf/o2ring-analyzer` is NOT a candidate — it analyses O2 Insight Pro CSV exports and never
+   touches the device.
 
 6. **Look for a JSON config opcode on OUR family.** `o2r`'s `CMD_CONFIG = 0x16` sets time, alert
    thresholds and vibration strength with a JSON payload. If `e8fb…` has an analogue, it is a far

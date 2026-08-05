@@ -320,9 +320,9 @@ def ppg_stream_offset(payload: bytes) -> int | None:
 
 # ── RAW DUAL-WAVELENGTH PPG (cmd 0x05) — MEASURED ON HARDWARE 2026-08-05 ─────────────────────────────
 # `O2RING-RAW-STREAMS-ABSENT-2026-08-04` concluded this ring exports no raw red/IR. It does. That sweep
-# probed all 256 opcodes with args `none/00/01/02` and scored 0x05's fixed 922-byte reply as noise-like
-# against a generic metric; the vendor SDK (`lepu-blepro` 1.3.6, `oxyIIGetRtPpg`) specifies the argument
-# `{0x07, 0x01}` and a 9-byte record layout, and decoded that way both channels are ordered waveforms:
+# scored 0x05's fixed 922-byte reply as noise-like against a GENERIC byte-wise metric — which is exactly
+# what interleaved little-endian u32 pairs look like without record framing. Read as 9-byte records of
+# {u32, u32, u8} (the layout `lepu-blepro` 1.3.6's `oxyIIGetRtPpg` uses), both channels are waveforms:
 #
 #   IR   range 8585  median|delta| 127   ratio 0.0148      ratio = median|delta| / range
 #   RED  range 5471  median|delta|  92   ratio 0.0168      a waveform is << 1
@@ -331,7 +331,12 @@ def ppg_stream_offset(payload: bytes) -> int | None:
 # So the payload is not noise, and "re-deriving SpO2 is impossible on this hardware" no longer follows
 # from the premise it rested on. Whether the ratio-of-ratios is RECOVERABLE is a separate question this
 # does not answer — it only establishes that the two channels exist and are readable.
-RT_PPG_ARG = bytes([0x07, 0x01])     # the argument the SDK specifies; no prior sweep here sent it
+# ⚠️ NOT KNOWN TO BE REQUIRED. This is the argument the SDK sends, and it is what was actually on the
+# wire for the measurement above — so it is what we keep sending. But `nglessner/o2ring-s-protocol`
+# records the SAME 922-byte / 102 × 9-record reply from an EMPTY payload, so the structured reply is
+# probably not argument-gated at all. Settling it needs a same-session control: send an empty payload,
+# decode it identically, compare. Do not describe this argument as the thing that unlocked the stream.
+RT_PPG_ARG = bytes([0x07, 0x01])
 RT_PPG_REC = 9                       # u32 LE chA | u32 LE chB | u8 motion  (see WHICH-IS-WHICH below)
 
 # WHICH-IS-WHICH IS NOT SETTLED, SO THE COLUMNS ARE NOT NAMED `ir`/`red`.
