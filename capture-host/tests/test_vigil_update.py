@@ -351,8 +351,17 @@ def _exec_start_targets():
                     continue
                 target = tok[0].lstrip("-@+!")  # systemd's exec-prefix chars
                 if not target.startswith(DEPLOY_ROOT):
-                    continue  # /usr/bin/caddy, the venv python — not ours to chmod
+                    continue  # /usr/bin/caddy — outside the deploy tree, not ours to chmod
                 rel = os.path.relpath(target, DEPLOY_ROOT)
+                # The VENV INTERPRETER is named by ExecStart= but is not a repo script: it is gitignored,
+                # has no committed mode, and is not ours to chmod. It lives UNDER DEPLOY_ROOT
+                # (`/opt/tepna/capture-host/.venv/bin/python`), so the prefix test above never excluded it
+                # — the comment there used to say it did. What actually excluded it was `.venv/` being
+                # ABSENT, which is true in CI and false on any box using the documented
+                # `.venv/bin/python -m pytest` runner. So this gate passed in CI and failed for every
+                # developer, on `main`, with the assertion pointing at the interpreter instead of a script.
+                if rel.split(os.sep)[0] == ".venv":
+                    continue
                 if os.path.isfile(os.path.join(HERE, rel)):
                     out.append((f"{sub}/{name}", rel))
     return out
@@ -380,3 +389,28 @@ def test_a_unit_that_directly_execs_a_repo_script_requires_the_exec_bit():
         assert mode[0] == "100755", (
             f"{unit} directly exec's {rel}, which is committed {mode[0]}. systemd will fail 203/EXEC. "
             f"Fix with: git update-index --chmod=+x capture-host/{rel}")
+
+
+def test_the_exec_scan_ignores_the_venv_interpreter_even_when_it_exists(tmp_path, monkeypatch):
+    """The venv python IS under DEPLOY_ROOT, so the prefix filter never excluded it — only its ABSENCE
+    did, and it is absent exactly in CI and present exactly on a developer box running the documented
+    `.venv/bin/python -m pytest`. That made this file's exec-bit gate green in CI and RED on `main` for
+    every developer, blaming an interpreter that is gitignored by design.
+
+    This test builds the developer's situation on purpose: a unit naming the venv interpreter, WITH that
+    interpreter present on disk. The scan must return the script it exec's directly and nothing else."""
+    (tmp_path / "systemd").mkdir()
+    (tmp_path / ".venv" / "bin").mkdir(parents=True)
+    (tmp_path / ".venv" / "bin" / "python").write_text("#!/bin/sh\n")      # the interpreter EXISTS
+    (tmp_path / "tepna-update.sh").write_text("#!/bin/bash\n")
+    (tmp_path / "systemd" / "a.service").write_text(
+        f"[Service]\nExecStart={DEPLOY_ROOT}/.venv/bin/python capture.py --config x.yaml\n")
+    (tmp_path / "systemd" / "b.service").write_text(
+        f"[Service]\nExecStart={DEPLOY_ROOT}/tepna-update.sh\n")
+
+    monkeypatch.setitem(globals(), "HERE", str(tmp_path))
+    got = _exec_start_targets()
+
+    assert ("systemd/b.service", "tepna-update.sh") in got, "a direct-exec repo script must still be found"
+    assert not [r for _u, r in got if r.split(os.sep)[0] == ".venv"], \
+        "the venv interpreter is not a repo script — it is gitignored and has no committed mode"
