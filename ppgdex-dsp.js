@@ -511,6 +511,12 @@
     // Keyed on SITE, not on nCh: a replicated 3-column O2Ring file is still an O2Ring, and keying on
     // the column count skipped the sentinel pass on 526 of its files in this corpus alone.
     const sent = site === 'finger' ? markO2Sentinels(chArr[0]) : null;
+    /* See the hostAxis block below (DA-V §2.7 F17). `axisDrawn` is the STATISTICAL signature; this is
+       the PROVENANCE fact — an O2Ring finger layout carries a host-synthesised axis whether or not the
+       writer's rate estimator happens to have left it quantized. Named separately from `axisDrawn` so
+       the two stay distinguishable: `quantizedShare` is still published raw, and a reader can still
+       see that the fingerprint is absent while the verdict is drawn. */
+    const axisSynthetic = axisDrawn || site === 'finger';
     return {
       ch: chArr,
       amb: Float32Array.from(amb),
@@ -546,9 +552,39 @@
       /* What the host discipline actually did, so a consumer can SEE it rather than infer it.
          `maxStepMs` is the one to read: a large value is a real clock STEP smeared across one anchor
          gap, not a rate — the 2026-07-26 corpus carries a 1.90 s O2Ring step and a 3.22 s H10 one. */
+      /* THE O2RING AXIS IS DRAWN BY CONSTRUCTION, WHATEVER `quantizedShare` SAYS (DA-V §2.7 F17).
+         `axisDrawn` infers synthesis from ONE signature — ≥99 % of inter-sample deltas identical —
+         which is what a `sample_index × assumed_rate` grid looks like. On 2026-07-27 capture-host
+         gained a rate-SLEW estimator (`capture.py` `_O2PPG_EST_SLEW`): `step_s` now moves as the
+         measured rate drifts, so the accumulated column stopped being a singleton delta set and
+         `quantizedShare` collapsed from ~1.0 to **0.00083** on a real night. The axis became MORE
+         synthetic and the detector went blind, so every O2Ring night since has certified itself
+         `timingSource:'device+host'` — the TOP provenance tier, the one that says a real second clock
+         disciplined this recording.
+
+         There is no second clock. `capture.py`'s `_O2PpgGrid` accumulates `self.ns += step_ns` from a
+         step it ESTIMATES against host arrival times (`arr`); the ring contributes sample ORDER and
+         nothing else. That is `CLAUDE.md` §7's "a device whose axis was DRAWN is not a clock", and it
+         is true of the O2Ring layout unconditionally — so key on the LAYOUT, which is observable in
+         the file, rather than on a statistical fingerprint the writer can erase.
+
+         `site === 'finger'` is exactly the O2Ring layout here (`deriveSiteFromLayout`: one channel, or
+         several carrying byte-identical samples). Kept as an OR with `axisDrawn` so a genuinely
+         quantized axis from any other source is still caught. Both branches covered — the `ok:false`
+         branch matters more, not less: with no host anchors an O2Ring has NO timing at all, and it
+         used to report `'device'`. */
       hostAxis: hostAx.ok
-        ? { ok: true, anchors: hostAx.n, totalMs: hostAx.totalMs, ppm: hostAx.ppm, maxStepMs: hostAx.maxStepMs, drawn: axisDrawn, quantizedShare, timingSource: axisDrawn ? 'host' : 'device+host' }
-        : { ok: false, reason: hostAx.reason || 'no host anchors', drawn: axisDrawn, quantizedShare, timingSource: axisDrawn ? 'none' : 'device' }
+        ? {
+            ok: true,
+            anchors: hostAx.n,
+            totalMs: hostAx.totalMs,
+            ppm: hostAx.ppm,
+            maxStepMs: hostAx.maxStepMs,
+            drawn: axisSynthetic,
+            quantizedShare,
+            timingSource: axisSynthetic ? 'host' : 'device+host'
+          }
+        : { ok: false, reason: hostAx.reason || 'no host anchors', drawn: axisSynthetic, quantizedShare, timingSource: axisSynthetic ? 'none' : 'device' }
     };
   }
 

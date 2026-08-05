@@ -115,6 +115,28 @@ outright — but it must never be treated as a *second* clock, which is what clo
 
 ## 5 · Done when
 
+> ## ⚠ RETRACTED IN PART — 2026-08-05 (`DEEP-AUDIT-V` §2.7 F17)
+>
+> **The `quantizedShare ≥ 99 %` discriminator was correct when measured and is no longer sufficient.**
+> On 2026-07-27 `capture-host/capture.py` gained a rate-SLEW estimator (`_O2PPG_EST_SLEW`): `step_s`
+> now moves as the measured rate drifts, so the accumulated `sensor_ns` column stopped being a
+> singleton delta set. Measured on a real 2026-08-03 night: **`quantizedShare` 0.00083**, i.e. the
+> fingerprint is gone — while the axis became *more* synthetic, not less. `capture.py` accumulates
+> `self.ns += step_ns` from a step estimated against HOST arrival times; the ring contributes sample
+> ORDER and nothing else.
+>
+> Consequence: from 2026-07-27 until the fix, **every O2Ring night certified itself
+> `timingSource:'device+host'` — the top provenance tier, the one that asserts a real second clock
+> disciplined the recording.** The reasoning in this section is sound; what it did not anticipate is
+> that the WRITER can erase the evidence the reader depends on.
+>
+> The verdict is now keyed on the **layout** (`site === 'finger'` — one channel, or several carrying
+> byte-identical samples), which is the provenance fact itself rather than a statistical proxy for it.
+> `quantizedShare` is still published raw, so a reader can see the fingerprint is absent while the
+> verdict is drawn. **A detector that infers provenance from a signature is only as durable as the
+> writer's habits** — prefer a fact the file states over one it happens to imply.
+
+
 - [x] **`DexClock.hostAxis` flags a capture-constructed axis — provenance, not span** (executed under
       `WEARABLE-HOST-AXIS-FOLLOWUPS` §F1, and extended by #746). ⚠ **The test proposed in §4 does NOT
       work and was replaced**: `first sensor timestamp == 0` is true of *every* O2Ring fragment,

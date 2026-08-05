@@ -79,6 +79,24 @@ timing**. That would be a capture-path finding, not an analysis one.
 
 ## 2a · The withdrawal in §2 is REVERSED — the axis A/B refutes the artifact
 
+> ## ⚠ PROVENANCE CORRECTION — 2026-08-05 (`DEEP-AUDIT-V` §2.7 F17)
+>
+> §2/§2a's A/B contrasts `host` (device ns, host-disciplined) against `grid` (forced `index / fs`) and
+> reads the pair as *device-clocked vs drawn*. **For the O2Ring leg that distinction does not exist:**
+> its `sensor_ns` column is accumulated by `capture.py` from HOST arrival times, so the "host" arm is
+> also a drawn axis — one that has been host-disciplined twice rather than a device crystal corrected
+> once. From 2026-07-27 the rate-slew estimator additionally erased the `quantizedShare` signature
+> (0.00083 on a real night), so the export labelled that leg `timingSource:'device+host'`.
+>
+> **What survives:** the A/B is still a real comparison of two *reconstructions*, and the conclusion
+> that the agreement is not manufactured by a uniform grid still stands — a uniform grid is exactly
+> what the `grid` arm forces, and it did not reproduce the result.
+>
+> **What does not:** any reading of the `host` arm as evidence that the O2Ring carries an independent
+> clock. It does not. Nothing in this brief should be cited for that, and the O2Ring leg must never be
+> spent as a second clock in a closure, a three-cornered hat, or a PAT alignment.
+
+
 Done-when 1 ran. Same nights, same pairs, same surrogates; only the time axis changes. `host` =
 `parsePPG`'s `relSec` (device ns, host-disciplined through `hostAxis`). `grid` = forced `index / fs`,
 the drawn uniform axis §2 feared was manufacturing the agreement.
