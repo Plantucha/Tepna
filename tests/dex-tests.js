@@ -10570,10 +10570,23 @@
       // A short clip must not be condemned: over a handful of samples "never zero" is unremarkable.
       T.ok('a sub-threshold run is never condemned (10 min at 1 Hz is the floor)', stuckFn(mkRows(20000, function (i) { return i % 1200 < 599 ? 22 : 0; })) === false);
       T.ok('exactly at the threshold IS stuck', stuckFn(mkRows(600, function () { return 22; })) === true);
-      T.ok('one sample short of it is not', stuckFn(mkRows(599, function () { return 22; })) === false);
+      /* DELIBERATE CHANGE (DEEP-AUDIT-V §2.3 F23) — this assertion used to read `=== false`, and what
+         it encoded was not a property of the signal but the STRUCTURAL BLINDNESS of an absolute bar:
+         a 599-sample record cannot clear a 600-sample run, so a file stuck for its ENTIRE length was
+         never condemned. Measured on two real files from one device on one night — 642 rows condemned,
+         592 rows not, both 100 % unbroken non-zero motion, fifty samples deciding it. The bar is now
+         `min(600, ceil(0.9 * n))`, so "unbroken across the whole record" is the same evidence at any
+         length, while every record of ≥ 667 samples keeps the 600 bar and its existing verdict. */
+      T.ok('a record STUCK FOR ITS WHOLE LENGTH is caught even below 600 samples', stuckFn(mkRows(599, function () { return 22; })) === true);
+      T.ok('…and the relative bar still clears a healthy short record (worst real run 13 s)', stuckFn(mkRows(599, function (i) { return i % 100 < 13 ? 22 : 0; })) === false);
       T.ok('empty / absent rows ⇒ false, never a throw', stuckFn([]) === false && stuckFn(null) === false);
-      // Absent motion values are missing data, a different condition — not evidence of movement.
-      T.ok('a file with no motion column at all is not "stuck"', stuckFn(mkRows(20000, function () { return null; })) === false);
+      /* Absent motion values are missing data, a different condition — not evidence of movement, and
+         (F23) not evidence of ITS ABSENCE either. Under a minute of usable samples the continuity
+         question is unanswerable, so the verdict is `null` — INDETERMINATE — never a `false` that a
+         reader would take for a clean bill of health. A no-motion-column file has ZERO usable samples,
+         so it lands here; the ABSENCE itself is then handled by processNight (see the F15 group). */
+      T.eq('a file with no motion column at all yields NO verdict, not a false one', stuckFn(mkRows(20000, function () { return null; })), null);
+      T.eq('…and so does a record too short for continuity to mean anything', stuckFn(mkRows(30, function () { return 22; })), null);
 
       /* The subscore half: `stats.motionPct` is null on a faulted night, and `(2.0 - null)/1.8`
          clamps to a PERFECT 100 — a stuck sensor scoring the night's stillness top marks. It must
@@ -10590,6 +10603,83 @@
         T.eq('control · present motionPct still scores and blends unchanged', withMotion.components.motion, 100);
         T.eq('control · present-everything score is unchanged from before the fix', withMotion.score, 90);
       }
+    });
+
+    /* DEEP-AUDIT-V §2.3 — TWO MORE OxyDex FABRICATED ABSENCES, both bug class 3a, both found by
+       asking the §3a question of an input rather than of a series: WHAT DOES THIS SAY WHEN THE
+       SENSOR WAS NEVER THERE?
+
+       F15 · `parseCSV` defaulted a MISSING Motion column to the string '0' for every sample. A
+       3-column oximeter CSV is a SUPPORTED input (`oxydex-spo2` detects it at 0.8), so "this device
+       has no accelerometer" was published as "the body never moved". Measured on a real O2Ring night
+       with the Motion column removed and SpO₂/HR/time byte-identical:
+           motionPct 1.8 → 0 · sleepEff 98.2 → 100 · wasoPct 4 → 0 · wasoMin 8.4 → 0
+           stab.components.motion 11 → 100  (a PERFECT stillness score)  → stab.score 22 → 35
+       Note the sibling EIGHT LINES BELOW the defect in the same function: `pi_pct = 0` is explicitly
+       treated as the ring's "no reading" sentinel and mapped to null, with a comment saying why.
+
+       F22 · `crcIdx` was initialised to 0 and only computed with more than three 5-minute windows, so
+       on ANY recording under ~20 min the un-computed 0 satisfied its consumer's Cheyne-Stokes
+       criterion (`crcIdx < 0.2`) and pushed "Cheyne-Stokes: Possible" into `summary.ranked` at warn
+       severity. The consumer guard was ALREADY `crcIdx != null && …` — written expecting an honest
+       null the producer never emitted.
+
+       Both are asserted END TO END through processNight on REAL committed corpus bytes, because both
+       defects are invisible to any unit test of the function that contains them: the value is
+       correct-looking at the seam and only becomes a claim downstream. */
+    group('OxyDex publishes absence as absence — a missing sensor and an uncomputed correlation (DA-V §2.3)', 'oxydex-dsp · fabricated-absence · regression', function (T) {
+      var OM = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      var eq = env.equiv && (env.equiv.oxydex || env.equiv.oxydex_synth);
+      if (!(OM && typeof OM.parseCSV === 'function' && typeof OM.processNight === 'function')) {
+        T.skip('OxyDex.parseCSV + processNight available', 'oxydex-dsp not wired in this lane');
+        return;
+      }
+      if (!(eq && eq.input)) {
+        T.skip('a committed O2Ring CSV is present', 'no committed OxyDex equiv input in this lane');
+        return;
+      }
+      var lines = String(eq.input).split(/\r?\n/).filter(function (l) {
+        return l.trim();
+      });
+      var run = function (text) {
+        var p = OM.parseCSV(text, { name: 'da-v.csv' });
+        return OM.processNight(p.rows || p, 'da-v.csv');
+      };
+      var withM = run(lines.join('\n'));
+      // The SAME night with the Motion column struck off — SpO₂/HR/time byte-identical.
+      var noM = run(
+        lines
+          .map(function (l) {
+            return l.split(',').slice(0, 3).join(',');
+          })
+          .join('\n')
+      );
+
+      // ── F15 · a device with no accelerometer is not a body that never moved ──────────────
+      T.ok('control · the Motion-bearing night reports real movement', withM.stats.motionPct > 0, 'motionPct=' + withM.stats.motionPct);
+      T.eq('F15 · no Motion column ⇒ motionPct is null, NOT 0', noM.stats.motionPct, null);
+      T.eq('F15 · …and the absence is NAMED, so a reader can tell it from a stuck column', noM.stats.motionColumnAbsent, true);
+      T.ok('F15 · …and is NOT mislabelled as the writer fault it is not', noM.stats.motionColumnStuck === undefined);
+      T.eq('F15 · sleep efficiency is withheld, never a fabricated 100', noM.motSleep, null);
+      T.eq('F15 · WASO minutes likewise (a motion metric wearing a sleep-architecture name)', noM.sleepArch ? noM.sleepArch.wasoMin : null, null);
+      T.eq('F15 · the motion sub-score drops out instead of scoring a PERFECT 100', noM.stab.components.motion, null);
+      T.eq('F15 · the per-window motion profile is withheld whole', noM.motion, null);
+      // THE CONTROL — the fix must not buy honesty by nulling the whole night. Everything that does
+      // NOT depend on the accelerometer must survive, or this is a different bug wearing a fix.
+      T.ok('control · SpO₂ is untouched by the motion verdict', noM.stats.meanSpo2 === withM.stats.meanSpo2 && noM.stats.minSpo2 === withM.stats.minSpo2, 'mean=' + noM.stats.meanSpo2);
+      T.ok('control · so is the HR-derived sleep-onset latency', noM.sleepArch && noM.sleepArch.solMin === (withM.sleepArch && withM.sleepArch.solMin));
+      T.ok('control · and the oximetry event families still compute', noM.odi4 != null && noM.desat != null);
+
+      // ── F22 · an uncomputed correlation is not a measured zero ──────────────────────────
+      var short = run(lines.slice(0, 1 + 19 * 60).join('\n')); // 19 min — under the 4-window floor
+      T.eq('F22 · a recording too short to correlate reports crcIdx null, not 0', short.cross.crcIdx, null);
+      T.eq('F22 · …so the Cheyne-Stokes criterion it used to satisfy does not fire', short.patScore.csScore, 0);
+      T.eq('F22 · …and no CS entry is ranked at all', (short.summary && short.summary.ranked ? short.summary.ranked : []).filter(function (r) { return /cheyne/i.test(String(r.label || r.key || '')); }).length, 0);
+      // THE CONTROL — a recording long enough to correlate must still produce a real number, or the
+      // fix would have abolished the metric rather than made it honest.
+      var long = run(lines.slice(0, 1 + 240 * 60).join('\n'));
+      T.ok('control · a 4 h recording still computes a real coupling', long.cross.crcIdx != null && isFinite(long.cross.crcIdx), 'crcIdx=' + long.cross.crcIdx);
+      T.ok('control · …and its CS verdict is driven by measurements, not by the initialiser', long.patScore.csScore > 0, 'csScore=' + long.patScore.csScore);
     });
 
     /* DEEP-AUDIT FINDING 1 (mis-states-number) — the ODI-3 THRESHOLD family was inflated by

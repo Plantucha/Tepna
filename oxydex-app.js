@@ -350,7 +350,9 @@ function exportCSV() {
         '',
         'CROSS-SIGNAL',
         '  Autonomic Arousal Index (/hr),' + n.cross.autoArousalIdx,
-        '  Cardiorespiratory Coupling (r),' + n.cross.crcIdx,
+        // DA-V §2.3 F22 — a null crcIdx (recording too short to correlate) must export as EMPTY, not
+        // as the string "null" and not as a 0 a spreadsheet would happily average.
+        '  Cardiorespiratory Coupling (r),' + (n.cross.crcIdx != null ? n.cross.crcIdx : ''),
         '  PB-HR Divergent Episodes,' + n.cross.divergeCount,
         '  Divergence %,' + n.cross.divergePct
       );
