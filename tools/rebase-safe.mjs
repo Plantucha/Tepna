@@ -63,7 +63,7 @@ const gitQuiet = (...a) => {
 
 /* ── THE GENERATED SET, read from the builders that own it ──────────────────────────────────────
    Returns null if any source cannot be read — the caller then treats everything as source. */
-function generatedSet() {
+export function generatedSet() {
   const bundles = new Set();
   try {
     const MG = require(join(ROOT, 'manifest-gate.js'));
@@ -88,7 +88,33 @@ function generatedSet() {
   if (!orch || !tools) return null;
   orch.forEach((b) => bundles.add(b));
   tools.forEach((b) => bundles.add(b));
+  /* ASK build-docs WHICH docs/ PATHS IT OWNS — do not assume the prefix (adversarial pass
+     2026-08-05). This used to be `startsWith('docs/')`, and that was FALSE and dangerous:
+     build-docs writes a docs/ file only where a ROOT TWIN exists, plus six artifacts, and `.md` is
+     filtered out of its asset list — so the 30 archival docs (`docs/COMPLIANCE/*`,
+     `EVENT-LEXICON.md`, `LEXICON.md`, `docs/papers/*`, …) are AUTHORED and owned by nobody.
+     Measured before the fix: `--classify docs/EVENT-LEXICON.md` said GENERATED, while
+     `build-docs --check` reported "current" after that file was modified and a full run did not
+     restore it. A conflict there would have been auto-resolved by discarding your side, left
+     unrestorable by the rebuild, and reported `✓` — this tool committing the exact silent revert it
+     exists to prevent. `--list-owned` implies `--check`, so asking cannot write. */
+  const owned = askBuildDocs();
+  if (!owned) return null; // FAIL CLOSED — an unanswerable builder means we know nothing
+  owned.forEach((p) => bundles.add(p));
   return bundles;
+}
+
+function askBuildDocs() {
+  try {
+    const out = execFileSync(process.execPath, [join(ROOT, 'tools/build-docs.mjs'), '--list-owned'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const list = out
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    return list.length ? list : null;
+  } catch {
+    return null;
+  }
 }
 
 /* A path is GENERATED iff a builder owns it. Everything else — including every *.src.html, every
@@ -103,8 +129,12 @@ export function classify(path, gen) {
   const p = String(path == null ? '' : path);
   if (!p || p.startsWith('/') || p.split('/').includes('..') || p.split('/').includes('.')) return 'source';
   if (gen.has(p)) return 'generated';
-  if (p.startsWith('docs/')) return 'generated'; // served copies, written by build-docs.mjs
-  if (p.startsWith('provenance/')) return 'generated'; // ledger fragments, written by build.mjs
+  // NO `docs/` PREFIX RULE — see askBuildDocs(). The owned docs/ paths are in `gen` by name.
+  /* provenance/ IS a whole-prefix rule, and that is verified rather than assumed: the directory holds
+     exactly the per-app ledger fragments plus `_meta.json` and `index.json`, every one written by
+     build.mjs, and nothing authored lives there. If an authored file is ever added under it, this
+     line becomes the same defect `docs/` just had — so enumerate before extending it. */
+  if (p.startsWith('provenance/')) return 'generated';
   return 'source';
 }
 
