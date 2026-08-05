@@ -152,3 +152,49 @@ def recorded_exec(monkeypatch):
 @_pytest.fixture
 def fake_proc():
     return _FakeProc
+
+
+# ── the alert notifier double ───────────────────────────────────────────────────────────────────────
+# THIRTEEN ad-hoc `async def send(self, title, message, **kw): sent.append(title)` doubles existed in
+# this suite, and every one of them threw the message and the keywords away. `tools/find_blindspots.py`
+# found them by reading the tests; a mutation run then confirmed what it cost — swapping `free_gb` and
+# `free_pct` in the "disk low" alert body survives the WHOLE suite (2851 passed), i.e. an alert reading
+# "Only 3 GB free (87%)" for a box at 87 GB / 3% is unobservable. So is inverting the sentence that
+# capture.py:3243 calls "actively misleading" in its own comment.
+#
+# The cure is the one `SubprocessRecorder` already uses: record every argument, and let the test assert
+# on the ones it cares about. `.titles` keeps the old call sites' shape so converting a test is a
+# rename, not a rewrite.
+class AlertRecorder:
+    """Stands in for the notifier. Records the FULL call — title, message and keywords.
+
+    `deliver` decides the return value (alerts.Notifier.send returns True only when actually sent), so a
+    caller that branches on the result can still be driven. Dedupe keys arrive in `kw` and are recorded
+    rather than dropped: `key`/`dedupe_sec` are what make an alert fire once per episode instead of once
+    per poll, and a double that swallows them cannot tell those two behaviours apart."""
+
+    def __init__(self, deliver=True):
+        self.calls = []            # [(title, message, kwargs)]
+        self.deliver = deliver
+
+    async def send(self, title, message, **kw):
+        self.calls.append((title, message, dict(kw)))
+        return self.deliver
+
+    @property
+    def titles(self):
+        return [t for t, _m, _k in self.calls]
+
+    @property
+    def messages(self):
+        return [m for _t, m, _k in self.calls]
+
+    @property
+    def last(self):
+        return self.calls[-1]
+
+
+@_pytest.fixture
+def alert_recorder():
+    """Factory, not an instance — several tests need more than one notifier, or one that refuses."""
+    return AlertRecorder

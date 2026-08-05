@@ -1679,7 +1679,7 @@ def test_sync_device_time_non_h10_readback_failures(monkeypatch):
         async def __aexit__(self, *a): return False
         async def get_local_time(self): raise RuntimeError("no local time")   # both before + after raise
         async def set_local_time(self, with_system_time=True): return None
-    monkeypatch.setattr(polar_psftp, "PolarPsFtp", lambda *a, **k: _FS())
+    monkeypatch.setattr(polar_psftp, "PolarPsFtp", lambda *_a, **_k: _FS())
     async def hci(): return "hci0"
     monkeypatch.setattr(capture, "adapter_hci", hci)
     r = _run(capture.sync_device_time("AA:BB"))
@@ -2125,20 +2125,81 @@ def test_storage_poller_updates_status_and_prunes(tmp_path, monkeypatch):
     assert capture.diskguard.list_nights(str(cap)) == ["2026-07-03"]
 
 
-def test_storage_poller_alerts_once_when_disk_is_low(tmp_path, monkeypatch):
+def test_storage_poller_alerts_once_when_disk_is_low(tmp_path, monkeypatch, alert_recorder):
     """A low-free-space episode fires exactly one alert (edge-triggered), even across polls."""
-    sent = []
-    class _N:
-        async def send(self, title, message, **kw): sent.append(title); return True
+    rec = alert_recorder()
     _stop_after(monkeypatch, 2)                       # two polls; the alert must fire only once
     cfg = {"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}}   # always "low"
-    _run(capture.storage_poller(cfg, str(tmp_path), _N()))
-    assert sent == ["Tepna: disk low"]
+    _run(capture.storage_poller(cfg, str(tmp_path), rec))
+    assert rec.titles == ["Tepna: disk low"]
+
+
+def test_the_disk_low_alert_states_the_free_space_the_right_way_round(tmp_path, monkeypatch,
+                                                                     alert_recorder):
+    """THE MESSAGE — which every previous notifier double discarded.
+
+    Found by `tools/find_blindspots.py` (the doubles dropped `message`), then confirmed by mutation:
+    swapping `free_gb` and `free_pct` in capture.py's alert body survives the ENTIRE suite — 2851
+    passed — so "Only 3 GB free (87%)" for a box at 87 GB and 3% was unobservable. GB and % are not
+    interchangeable to the person reading that alert, who is its only audience."""
+    monkeypatch.setattr(capture.diskguard, "disk_report",
+                        lambda *_a, **_k: {"low": True, "free_gb": 3.5, "free_pct": 87.0})
+    rec = alert_recorder()
+    _stop_after(monkeypatch, 1)
+    _run(capture.storage_poller({"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}},
+                                str(tmp_path), rec))
+    body = rec.messages[0]
+    assert "3.5 GB free" in body, f"the GB figure must be the GB figure — got {body!r}"
+    assert "(87.0%)" in body, f"the percentage must be the percentage — got {body!r}"
+
+
+def test_the_disk_low_alert_gives_the_advice_that_would_actually_help(tmp_path, monkeypatch,
+                                                                     alert_recorder):
+    """capture.py:3243 says a bare "disk low" on a box whose pruning is HELD by a dead backup volume is
+    "actively misleading — it reads as 'raise keep_nights', which is the one action that would not
+    help". That entire piece of reasoning was carried in the discarded `message`: inverting the held
+    sentence AND inverting its no-hold counterpart both survived the suite. Now asserted."""
+    monkeypatch.setattr(capture.diskguard, "disk_report",
+                        lambda *_a, **_k: {"low": True, "free_gb": 1.0, "free_pct": 2.0})
+    rec = alert_recorder()
+    _stop_after(monkeypatch, 1)
+    _run(capture.storage_poller({"storage": {"keep_nights": 0, "min_free_gb": 1e9, "poll_sec": 1}},
+                                str(tmp_path), rec))
+    body = rec.messages[0]
+    # Nothing is held here, so the advice must be the actionable one — and must not claim a hold.
+    assert "free space or raise keep_nights" in body, f"got {body!r}"
+    assert "Retention is HELD" not in body, "nothing is held; naming a hold sends the wrong fix"
+
+
+def test_the_disk_low_alert_names_the_HELD_BACKUP_when_that_is_the_real_cause(tmp_path, monkeypatch,
+                                                                             alert_recorder):
+    """The other arm, and the one capture.py:3243 actually argues for. When retention is HELD by a dead
+    backup volume, telling the operator to raise keep_nights is the one action that cannot help — so
+    the alert must name the backup instead. Inverting this sentence survived the whole suite, because
+    the arm was never driven AND the message was discarded: two independent reasons it was invisible."""
+    monkeypatch.setattr(capture.diskguard, "disk_report",
+                        lambda *_a, **_k: {"low": True, "free_gb": 1.0, "free_pct": 2.0})
+    monkeypatch.setattr(capture.nightarchive, "unarchived_nights", lambda *_a, **_k: {"2026-01-01"})
+    monkeypatch.setattr(capture.nightarchive, "uncovered_subtrees", lambda *_a, **_k: [])
+    monkeypatch.setattr(capture.diskguard, "list_nights", lambda *_a, **_k: ["2026-01-01"])
+    monkeypatch.setattr(capture.diskguard, "plan_prune", lambda *_a, **_k: ["2026-01-01"])
+    monkeypatch.setattr(capture.diskguard, "prune_old_nights", lambda *_a, **_k: [])
+    rec = alert_recorder()
+    _stop_after(monkeypatch, 1)
+    # `archive` is a TOP-LEVEL key, not a member of `storage` (capture.py:3169) — nesting it leaves
+    # archive_enabled False, so `blocked` is never computed and the held arm silently cannot fire.
+    cfg = {"storage": {"keep_nights": 1, "min_free_gb": 1e9, "poll_sec": 1},
+           "archive": {"enabled": True, "dest": "/mnt/backup"}}
+    _run(capture.storage_poller(cfg, str(tmp_path), rec))
+    body = rec.messages[0]
+    assert "Retention is HELD on 1 unmirrored night(s)" in body, f"got {body!r}"
+    assert "/mnt/backup" in body, "the alert must name the volume to fix"
+    assert "will NOT free space" in body, "raising keep_nights is the one action that cannot help"
 
 
 def test_storage_poller_swallows_an_error(tmp_path, monkeypatch):
     monkeypatch.setattr(capture.diskguard, "disk_report",
-                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("statvfs boom")))
+                        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("statvfs boom")))
     _stop_after(monkeypatch, 1)
     _run(capture.storage_poller({"storage": {}}, str(tmp_path)))   # must not raise
 
@@ -2306,7 +2367,7 @@ def test_qc_poller_swallows_an_error(tmp_path, monkeypatch):
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 23, 0, 0))
     (tmp_path / "captures" / "2026-07-19").mkdir(parents=True)
     monkeypatch.setattr(capture.nightqc, "summarize",
-                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("qc boom")))
+                        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("qc boom")))
     _stop_after(monkeypatch, 1)
     _run(capture.qc_poller({"devices": []}, str(tmp_path)))     # must not raise
 
@@ -2518,7 +2579,7 @@ def test_archive_poller_swallows_an_error(tmp_path, monkeypatch):
     import datetime as _dtm
     monkeypatch.setattr(capture, "_now", lambda: _dtm.datetime(2026, 7, 19, 2, 0, 0))
     monkeypatch.setattr(capture.nightarchive, "pending_nights",
-                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("archive boom")))
+                        lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("archive boom")))
     (tmp_path / "b").mkdir()                                    # dest present → past the mount guard
     cfg = {"archive": {"enabled": True, "dest": str(tmp_path / "b"), "poll_sec": 1}}
     _stop_after(monkeypatch, 1)
