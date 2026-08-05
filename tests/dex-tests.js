@@ -10629,23 +10629,28 @@
        correct-looking at the seam and only becomes a claim downstream. */
     group('OxyDex publishes absence as absence — a missing sensor and an uncomputed correlation (DA-V §2.3)', 'oxydex-dsp · fabricated-absence · regression', function (T) {
       var OM = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
-      // `env.equiv.<key>` is registered when EITHER the input or the golden is present (run-tests.mjs:
-      // `if (rec.input !== undefined || rec.fixture !== undefined)`). The real O2Ring recording is
-      // gitignored but ITS GOLDEN IS COMMITTED, so wherever the corpus is absent — i.e. in CI —
-      // `env.equiv.oxydex` is a TRUTHY object carrying no `.input`. `a || b` therefore selected it and
-      // never fell through to the committed synthetic twin, skipping this group in exactly the lane
-      // that has no other way to run it, while passing locally. Take the first leg that HAS an input.
-      var eq = null;
-      var legs = env.equiv ? [env.equiv.oxydex, env.equiv.oxydex_synth] : [];
-      for (var li = 0; li < legs.length && !eq; li++) {
-        if (legs[li] && legs[li].input) eq = legs[li];
-      }
       if (!(OM && typeof OM.parseCSV === 'function' && typeof OM.processNight === 'function')) {
         T.skip('OxyDex.parseCSV + processNight available', 'oxydex-dsp not wired in this lane');
         return;
       }
+      /* DRIVE THE **COMMITTED** TWIN, NOT THE CORPUS NIGHT — this group must RUN in CI, not skip
+         there. First draft picked `env.equiv.oxydex` (the real corpus night), whose record EXISTS in
+         every lane but whose `input` is gitignored, so `eq.input` was absent in CI and the group
+         skipped — which the SKIP-BUDGET gate correctly failed. That gate is right and this is the
+         right fix: `uploads/synthetic_oxydex_o2ring.csv` is COMMITTED, so CI re-runs these assertions
+         from committed bytes on every push and they cannot go stale unseen. It is the same reasoning
+         CLAUDE.md §🔏 gives for preferring an adversarial committed twin over a real recording.
+         Select by INPUT PRESENCE, never by key existence — that distinction is the whole bug. */
+      var _cands = [env.equiv && env.equiv.oxydex_synth, env.equiv && env.equiv.oxydex, env.equiv && env.equiv.oxydex_0439];
+      var eq = null;
+      for (var _ci = 0; _ci < _cands.length; _ci++) {
+        if (_cands[_ci] && _cands[_ci].input) {
+          eq = _cands[_ci];
+          break;
+        }
+      }
       if (!eq) {
-        T.skip('a committed O2Ring CSV is present', 'no committed OxyDex equiv input in this lane');
+        T.skip('an OxyDex CSV input is present', 'no OxyDex equiv input wired in this lane');
         return;
       }
       var lines = String(eq.input).split(/\r?\n/).filter(function (l) {
@@ -10685,22 +10690,40 @@
       T.eq('F22 · a recording too short to correlate reports crcIdx null, not 0', short.cross.crcIdx, null);
       T.eq('F22 · …so the Cheyne-Stokes criterion it used to satisfy does not fire', short.patScore.csScore, 0);
       T.eq('F22 · …and no CS entry is ranked at all', (short.summary && short.summary.ranked ? short.summary.ranked : []).filter(function (r) { return /cheyne/i.test(String(r.label || r.key || '')); }).length, 0);
-      // THE CONTROL — a recording long enough to correlate must still produce a real number, or the
-      // fix would have abolished the metric rather than made it honest.
-      var longEnd = Math.min(lines.length, 1 + 240 * 60); // the twin is shorter than 4 h; use what exists
-      var long = run(lines.slice(0, longEnd).join('\n'));
-      T.ok('control · a long recording still computes a real coupling', long.cross.crcIdx != null && isFinite(long.cross.crcIdx), Math.round(((longEnd - 1) / 3600) * 10) / 10 + ' h · crcIdx=' + long.cross.crcIdx);
-      /* `csScore > 0` is a property of THIS NIGHT, not of the fix. The real corpus night exhibits
-         Cheyne-Stokes; the committed synthetic twin is a CLEAN night and scores 0 correctly. Demanding
-         > 0 from the twin would be demanding the generator fabricate a pathology to keep an assertion
-         green — the same move as pinning a fixture to whatever the code happened to print. What the fix
-         guarantees on ANY input is that the score is computed once the coupling exists rather than left
-         at its initialiser; assert that everywhere, and keep the sharper claim for the leg that can
-         actually carry it. */
-      if (env.equiv && eq === env.equiv.oxydex_synth) {
-        T.ok('control · …and the CS score is computed, not left at the initialiser', typeof long.patScore.csScore === 'number' && isFinite(long.patScore.csScore), 'csScore=' + long.patScore.csScore + ' — synthetic twin is a clean night, so 0 is the right answer');
-      } else {
-        T.ok('control · …and its CS verdict is driven by measurements, not by the initialiser', long.patScore.csScore > 0, 'csScore=' + long.patScore.csScore);
+      /* THE CONTROL — a record long enough to correlate must still produce a REAL number, or the fix
+         would have abolished the metric rather than made it honest. The whole committed twin is 120
+         min, comfortably past the four-window floor. */
+      T.ok('control · a record long enough to correlate still computes a real coupling', withM.cross.crcIdx != null && isFinite(withM.cross.crcIdx), 'crcIdx=' + withM.cross.crcIdx);
+      T.ok('control · …and it is a correlation, not a sentinel', Math.abs(withM.cross.crcIdx) <= 1, 'crcIdx=' + withM.cross.crcIdx);
+      /* …and the CS criterion the null now bypasses is still LIVE — assert it fires on a MEASURED
+         value below the 0.2 threshold. Without this the fix could have silently killed the detector
+         and every assertion above would still pass. Driven through the real scorer, not re-derived. */
+      if (typeof OM.computePatternScores === 'function') {
+        // computePatternScores(pbMet, osc, cross, flags, odi4, comp) — vary ONLY crcIdx.
+        var _pat = function (crc) {
+          return OM.computePatternScores({ pbCycleLen: null }, { episodeCount: 0 }, { crcIdx: crc, autoArousalIdx: 0 }, [], { rate: 99 }, { sfi: 0 });
+        };
+        var _lo = _pat(0.1),
+          _hi = _pat(0.5),
+          _nul = _pat(null);
+        T.ok('control · a MEASURED crcIdx below 0.2 still raises the CS score (the detector is alive)', _lo.csScore > _hi.csScore, 'lo=' + _lo.csScore + ' hi=' + _hi.csScore);
+        T.eq('F22 · …while a NULL crcIdx scores exactly like a value that does not qualify', _nul.csScore, _hi.csScore);
+      }
+      /* OPTIONAL CORROBORATION on the real corpus night, when it is present. Deliberately registers
+         NO assertion when absent — an optional leg must not spend skip budget, and the committed twin
+         above is what actually gates this fix. */
+      var _real = env.equiv && env.equiv.oxydex;
+      if (_real && _real.input) {
+        var rl = String(_real.input).split(/\r?\n/).filter(function (l) {
+          return l.trim();
+        });
+        var rShort = run(rl.slice(0, 1 + 19 * 60).join('\n'));
+        /* Asserted as two values, NOT as `[crcIdx, csScore].join('/') === 'null/0'`. `join` renders
+           null as the EMPTY STRING, so that form evaluates to "/0" and can NEVER pass — and since this
+           leg runs only where a corpus exists, CI could never see it fail. An assertion that cannot
+           pass in the one lane that runs it is the same blind spot as the CI skip this group fixes. */
+        T.eq('corpus · a real 19-min night reports crcIdx null, not 0', rShort.cross.crcIdx, null);
+        T.eq('corpus · …and raises no CS flag', rShort.patScore.csScore, 0);
       }
     });
 
