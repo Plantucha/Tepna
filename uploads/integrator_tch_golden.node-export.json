@@ -142,6 +142,13 @@
               15,
               7
             ],
+            "negativeAt": [
+              false,
+              false,
+              false,
+              false
+            ],
+            "nNegative": 0,
             "epochMin": 5,
             "tausMin": [
               5,
