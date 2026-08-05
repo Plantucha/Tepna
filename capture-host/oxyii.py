@@ -364,7 +364,15 @@ def ppg_stream_offset(payload: bytes) -> int | None:
 # wrong wavelength assignment from reaching a saturation number when the identification collapsed.
 
 RT_PPG_ARG = bytes([0x07, 0x01])
-RT_PPG_REC = 9                       # u32 LE chA | u32 LE chB | u8 motion  (see WHICH-IS-WHICH below)
+RT_PPG_REC = 9                       # i32 LE chA | i32 LE chB | u8 motion  (SIGNED — see below)
+
+# ⚠️ THE CHANNELS ARE SIGNED, and reading them unsigned is catastrophic rather than cosmetic. Measured
+# 2026-08-05 over 61 066 samples: read unsigned the maximum is 4 294 966 954, i.e. within ~3000 of 2**32,
+# because small NEGATIVE values wrap. Read SIGNED the range is -285 410 .. 3 478 709 and NOT ONE sample
+# exceeds the 24-bit signed maximum of 8 388 607 -- so these are 24-bit two's-complement values
+# sign-extended into 32 bits, which is exactly the output format of the TI AFE44xx family this device
+# class is built on. A single wrapped 4.29e9 in a mean destroys it; the first shipped revision of this
+# parser read unsigned and its AC/DC statistics were wrong by an order of magnitude because of it.
 
 def rt_ppg_frame(seq: int = 0) -> bytes:
     """cmd=0x05 — ask for the raw two-channel optical buffer (see WHICH-IS-WHICH: not proven to be
@@ -373,11 +381,11 @@ def rt_ppg_frame(seq: int = 0) -> bytes:
 
 
 def parse_rt_ppg(payload: bytes) -> list[tuple[int, int, int]]:
-    """cmd=0x05 reply -> [(chA, chB, motion), ...], or [] when the frame carries no records.
+    """cmd=0x05 reply -> [(chA, chB, motion), ...] with chA/chB SIGNED, or [] when there are no records.
 
     Layout, measured on device `S8AW2100` and matching the vendor SDK's `RtPpg`:
         [0:2]        u16 LE record count
-        [2 : 2+9N]   N records of {u32 LE chA, u32 LE chB, u8 motion}  (chA/chB per WHICH-IS-WHICH)
+        [2 : 2+9N]   N records of {i32 LE chA, i32 LE chB, u8 motion}  (SIGNED; chA/chB per WHICH-IS-WHICH)
     The observed reply is 922 B with a declared count of 102, i.e. 2 + 9*102 = 920 and TWO BYTES OVER.
     Those two are not decoded here and are not assumed to be padding — the record count is taken from
     the device's own field and the slice is bounded by the buffer, so a trailer of any size is ignored
@@ -409,8 +417,8 @@ def parse_rt_ppg(payload: bytes) -> list[tuple[int, int, int]]:
     out = []
     for i in range(min(n, avail)):
         o = 2 + i * RT_PPG_REC
-        out.append((int.from_bytes(payload[o:o + 4], "little"),
-                    int.from_bytes(payload[o + 4:o + 8], "little"),
+        out.append((int.from_bytes(payload[o:o + 4], "little", signed=True),
+                    int.from_bytes(payload[o + 4:o + 8], "little", signed=True),
                     payload[o + 8]))
     return out
 

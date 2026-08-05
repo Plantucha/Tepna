@@ -422,3 +422,32 @@ def test_rt_ppg_frame_sends_the_argument_the_sdk_specifies():
     fr = oxyii.rt_ppg_frame()
     assert oxyii.RT_PPG_ARG == b"\x07\x01"
     assert b"\x07\x01" in fr and fr[1] == oxyii.OP_RT_PPG
+
+
+def test_parse_rt_ppg_reads_the_channels_as_SIGNED():
+    """The channels are 24-bit two's complement sign-extended into 32 bits, and reading them unsigned
+    turns a small negative into ~4.29e9 — which destroys any mean it lands in rather than looking wrong.
+
+    Values here are REAL: -342 and -285410 were observed on device S8AW2100 (2026-08-05), the extremes
+    of 15 negatives across 61 066 samples. The first shipped revision of this parser read unsigned, and
+    no test caught it because every fixture used small positives — so this one uses the bytes that
+    actually appear on the wire.
+    """
+    recs = [(-342, -285410, 0), (1375820, 639833, 2)]
+    body = b"".join(a.to_bytes(4, "little", signed=True) + b.to_bytes(4, "little", signed=True) + bytes([m])
+                    for a, b, m in recs)
+    got = oxyii.parse_rt_ppg(len(recs).to_bytes(2, "little") + body)
+    assert got == recs, "negatives must survive the round trip"
+    assert all(v > -2**31 for r in got for v in r[:2])
+    # the specific failure mode: an unsigned read yields 2**32 + x, which is what wrecked the statistics
+    assert got[0][0] == -342 and got[0][0] != 2**32 - 342
+
+
+def test_parse_rt_ppg_output_stays_inside_24_bit_signed_range():
+    """A guard on the WIRE FORMAT, not on our decode: every one of 61 066 real samples fit in 24-bit
+    signed (max |v| = 285 410 « 8 388 607). A value outside that range means the layout assumption has
+    broken — a shifted offset or a firmware change — and should be visible, not averaged in silently."""
+    hi, lo = 8388607, -8388608
+    body = hi.to_bytes(4, "little", signed=True) + lo.to_bytes(4, "little", signed=True) + bytes([0])
+    got = oxyii.parse_rt_ppg((1).to_bytes(2, "little") + body)
+    assert got == [(hi, lo, 0)], "the 24-bit signed extremes must decode exactly"
