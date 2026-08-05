@@ -1,0 +1,184 @@
+<!--
+Copyright 2026 Michal Planicka
+SPDX-License-Identifier: Apache-2.0
+-->
+**Status:** IN-PROGRESS · **Created:** 2026-08-05
+
+# `cmd 0x05` follow-ups — the channels are SIGNED, and `0x03` is the real waveform
+
+Follow-up to `O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md` (#994), from a further afternoon on
+hardware. One code defect, one confirmed rate, one sub-argument of the parent brief withdrawn, and three
+failed experiments recorded so nobody repeats them.
+
+## 1 · THE DEFECT: the channels are signed and we shipped an unsigned read
+
+`parse_rt_ppg` read both `i32` fields with `int.from_bytes(..., "little")`. They are **signed**. Across
+**61 066 real samples**:
+
+| read as | min | max |
+|---|---|---|
+| unsigned (shipped) | 2 096 | **4 294 966 954** |
+| signed (correct) | **−285 410** | 3 478 709 |
+
+The unsigned maximum sits within ~3 000 of 2³², which is the signature of a small negative wrapping.
+Fifteen samples were negative. **Not one sample exceeds the 24-bit signed maximum of 8 388 607**, so the
+wire format is 24-bit two's complement sign-extended into 32 bits.
+
+This is not cosmetic. A single wrapped `4.29e9` inside a mean destroys it, and it does so *silently* —
+the value is a legal `u32`, so nothing raises. It corrupted this project's own statistics; see §3.
+
+**Why no test caught it:** every fixture used small positive values, so signed and unsigned agreed on all
+of them. The new tests use the bytes that actually appear on the wire (`−342`, `−285410`) and both fail
+against the old code — verified by re-applying the unsigned read, with `__pycache__` cleared.
+
+**It also corroborates the silicon.** 24-bit two's complement is exactly the output-register format of
+the TI **AFE44xx** family (`LED1VAL`, `LED2VAL`, `ALED1VAL`, `ALED2VAL`, and the ambient-corrected
+differences), which is the standard front end for this device class. Negative values are physically
+meaningful only for a *difference* register — a raw light reading cannot be negative — which is a real
+hint about what `0x05` carries, though not proof.
+
+## 2 · CONFIRMED: `rows − markers = 124.91 Hz`, independently reproducing the 125.000 ADC
+
+`DEVICE-RATE-TRUTH-2026-08-05` §2 derived 125.000 Hz from a divider chain plus a fit. Here it falls out
+of arithmetic on a **daemon-recorded night file**, using only that file's own timestamps — no probe, no
+assumed constant:
+
+```
+span            403.1 s      rows           50 816
+ROW rate        126.06 Hz    156 markers    466  (1.156/s)
+rows − markers  124.91 Hz    <- the ADC rate, within 0.07 %
+```
+
+**And the `156` marker appears on a second opcode.** On `0x03` it is 372 occurrences, **100 % isolated
+single samples**; on the recorded `0x04` pleth, 466 occurrences, **99 % isolated** (445/450). Same value,
+same insertion, same ~100 baseline. One mechanism, two streams — which is why subtracting it recovers a
+clean 125.000 from a messy 126.06.
+
+### 2.1 · OPEN: the marker rate is not the heart rate
+
+| stream | markers | implied bpm | reported HR | ratio |
+|---|---|---|---|---|
+| `0x04` recorded night | 1.156 /s | 69.4 | 57.0 | **1.22** |
+| `0x03` probe | 1.859 /s | 111.6 | 57 | **1.96** |
+
+"One extra row per detected beat" does not hold in either stream, and the two disagree with each other.
+The marker may flag something finer than a beat (a systolic *and* dicrotic feature would give ≈2×), or
+include detections the reported HR filters out. **The rate result in §2 does not depend on resolving
+this** — it counts markers, it does not interpret them.
+
+## 3 · WITHDRAWN (again): "AC/DC is ten times too large"
+
+The parent brief's §1.2④ withdrew the RED/IR assignment, and gave two reasons. **One of them was itself
+wrong**, and it was wrong *because of §1's defect*:
+
+> "An AC/DC of 12–24 % is roughly TEN TIMES a finger perfusion index"
+
+Recomputed with the signed parse on a lossless chain, **AC/DC is 0.0083 on both channels** — 0.83 %, a
+perfectly ordinary perfusion index. The 12–24 % figure was inflated by wrapped values and a coarser
+detrend window. That argument is withdrawn.
+
+**The withdrawal of the wavelength assignment still stands**, on the argument that was always the strong
+one — the **positive control**:
+
+| stream | peaks | implied HR | ring reported |
+|---|---|---|---|
+| `0x03` pleth | 182 | **72.9 bpm** | 73 ✅ |
+| `0x05 ch0` | 146 | 58.5 bpm | 73 ❌ |
+| `0x05 ch1` | 131 | 52.5 bpm | 73 ❌ |
+
+Unchanged under the signed parse. Two plethysmograms of one finger must find the same beats; these
+disagree with the device **and with each other**. Note the two channels' AC/DC are now identical to four
+decimals (0.0083 vs 0.0083), giving `R = 1.000` — which maps to ~85 % against a reported 97 % and is
+another way of saying the ratio-of-ratios is not measuring saturation here.
+
+**Lesson worth keeping:** a withdrawal supported by two arguments is not twice as safe. One of these two
+was an artifact of a defect in the same changeset. Check whether your reasons share a cause.
+
+## 4 · `0x03` is the real waveform, and it is a different stream from `0x05`
+
+| | fs | notes |
+|---|---|---|
+| `0x03` LIVE_SAMPLES_A | **112.9 Hz** (total/elapsed, lossless) · 114.6 Hz (beats × PR) | 8-bit, 6-byte header, `u16` count at `[4:6]`, cap 250 |
+| `0x05` | **≥ 153.3 Hz** | 13/373 replies saturated ⇒ slight under-estimate |
+
+Different rates ⇒ different sources. `0x03`'s raw bytes are visibly a pulse downstroke
+(`150,149,148,…,60,54,…,28`) and its beat count reproduces the ring's own pulse rate to 0.1 bpm.
+
+**Open:** `0x03`'s 112.9 Hz is not 125.000 either, even after removing its markers (114.4 Hz). Recorded
+as an open question, not resolved in either direction.
+
+## 5 · Three optical experiments that FAILED, and why — do not repeat these
+
+The plan was to inject a known-frequency light and read fs off it, and to identify wavelengths by which
+channel responds to IR (a TV remote, ~940 nm) versus visible (a phone torch, ~660 nm and no IR). It is a
+good plan. All three attempts failed **mechanically**, never reaching the question:
+
+1. **Ring off the finger, torch at the window.** The `0x03` control never hit the 8-bit rail (max byte
+   200, zero replies ≥ 250) across 210 s. No light arrived. Worse, off-finger the front end appears to
+   power down — no `PR` is reported — so the data means nothing anyway.
+2. **Ring worn, transillumination through the fingertip.** `PR` present (57–59) so the front end was
+   live, but max byte stayed pinned at **156** — the beat marker — for the whole run. A phone torch
+   through a fingertip is far too lossy.
+3. **Ring worn, bright room vs drawer** (to test the AFE ambient hypothesis). `0x03` swung 3.02× and
+   `0x05 ch0` 3.23× — they move *together*, not differentially. But this test is **inconclusive by
+   construction**: worn, the sensor is pressed against skin, so ambient light barely reaches it.
+
+**The catch-22 is the finding:** exposed sensor ⇒ front end off; worn sensor ⇒ no light path. Any future
+optical stimulus must solve that, not work around it.
+
+### 5.1 · SUNLIGHT is the source that does solve it (owner observation, 2026-08-05)
+
+The owner reports that on the first day of use, **in the sun, the ring produced "crazy values"** —
+undated and unlogged, so anecdote rather than data, but it points straight at the flaw in experiment 3.
+Direct sunlight is on the order of **100 000 lux against a few hundred indoors**: roughly 300×. My
+bright-room-versus-drawer test was not a weak test of ambient sensitivity, it was 300× too dim to be a
+test at all, and its null says nothing.
+
+This also makes the ambient hypothesis *more* plausible rather than less: a device whose readings go
+wrong in sunlight is a device where ambient light reaches the detector through tissue, which is exactly
+the condition an ambient-cancellation register exists to handle.
+
+**⚠️ ATTEMPTED 2026-08-05 AND BLOCKED BY BLE RANGE.** The probe was launched and the ring never
+connected (`BleakDeviceNotFoundError`) — the sunlit window is outside the capture box's radio range,
+which a scan confirmed by seeing the ring again the moment the owner returned. This is a *geometry*
+constraint, not a device one, and it is the fourth distinct mechanical failure in this series. Whoever
+runs it next must solve it first: move the box within range of a sunlit spot, or find a sunlit spot
+within range of the box. **A practical indoor substitute:** a halogen work lamp or a bright LED
+inspection torch at ~5 cm delivers on the order of 10 000+ lux — 30–100× a lit room — which is the same
+order the sun observation implies, without leaving BLE range. The phone torch that failed in experiments
+1 and 2 is roughly a tenth of that and was additionally being asked to cross tissue.
+
+**The experiment this implies** — the cleanest remaining route to identifying `0x05`: ring **worn**,
+capture `0x03` and `0x05` together, and walk from deep shade into direct sun and back, twice. Prediction
+if `0x05` is an ambient or uncorrected channel: `0x05` swings hard while `0x03` — being
+ambient-corrected — holds, and the ring's reported SpO₂/PR degrade. Prediction if the two move together:
+`0x05` is on the corrected path and its lack of pulsatility needs a different explanation. Either way it
+discriminates, and unlike experiments 1–3 the stimulus is strong enough to arrive. **A second value:**
+it would characterise a real failure mode of this deployment, since nights are dark but daytime spot
+checks are not.
+
+## 6 · Literature check — the calibration we assumed does not exist as a constant
+
+Searched the DIY/paper literature and Chinese sources (Viatom is Shenzhen-based; the SDK is Lepu's).
+
+- **The `R` orientation convention is not settled.** One reference gives both
+  `R = (AC₆₆₀/DC₆₆₀)/(AC₉₄₀/DC₉₄₀)` and `R = (IR_AC/IR_DC)/(RD_AC/RD_DC)` in the same article.
+- **`SpO₂ = A·R + B`, with A and B fitted against a reference standard.** The textbook `110 − 25R` the
+  parent brief briefly leaned on is a teaching approximation, not a device constant. This independently
+  vindicates refusing to assign wavelengths from a ratio alone.
+- **Viatom publishes no silicon details** — "intelligent SOC chip", 透射式光电容积法 (transmissive
+  photoplethysmography). The AFE44xx inference in §1 comes from the data format, not from the vendor.
+
+## 7 · What is still open
+
+1. **What `0x05` actually is.** Two 24-bit signed channels, ~153 Hz, r = 0.9991, AC/DC 0.83 %, no
+   consistent beats. The signedness points at a *difference* register. Untested candidates: an
+   ambient-corrected pair at a gain that suppresses pulsatility, an AGC/ambient telemetry pair, a
+   decimated envelope.
+2. **Wavelength identity** — needs an optical stimulus that solves §5's catch-22. §5.1's sunlight walk
+   is the cheapest candidate and is worth running before any teardown is contemplated.
+3. **The marker-rate anomaly** (§2.1).
+4. **`0x03` at 112.9 Hz vs the 125.000 ADC** (§4).
+5. **Upstream contribution** to `nglessner/o2ring-s-protocol`: the purpose of `0x05` is still unknown, but
+   three things are now checkable and worth sending — the **record base offset of 2** (`u16` count where
+   the reference reads a `u8`), the **signed 24-bit** field format, and that the argument is irrelevant.
