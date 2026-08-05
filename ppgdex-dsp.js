@@ -573,6 +573,27 @@
          quantized axis from any other source is still caught. Both branches covered — the `ok:false`
          branch matters more, not less: with no host anchors an O2Ring has NO timing at all, and it
          used to report `'device'`. */
+      /* …AND THE HOST COLUMN MUST BE A SECOND CLOCK BEFORE WE CLAIM ONE (DA-V §2.4 F13).
+         `DexClock.hostAxis` already answers this — it publishes `independent` (residual spread beyond
+         one stamp quantum), `spreadMs` and an `inertReason` naming the verdict — and all three were
+         DROPPED here, so `timingSource` was decided by `axisSynthetic` alone. On a phone-captured
+         Verity night DexClock returned `independent:false` with *"host ≡ device — residual spread
+         0.94 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock"*, and the
+         export said `device+host` — both clocks contributed. That is `CLAUDE.md` §7's explicit
+         instruction ("read `independent`, never a ~0 ppm") discarded one line after it was computed.
+
+         The split is bimodal and real, not a tuned threshold: box captures measure 621–5930 ms of
+         residual spread (BLE delivery jitter), phone captures 0.94 ms — one stamp quantum, because the
+         phone's host column IS the device time rounded. So only phone-captured nights change.
+
+         The lattice, stated once:
+           synthetic + anchors  → 'host'         all timing came from the host clock
+           synthetic + none     → 'none'         no timing information exists at all
+           real axis + independent host → 'device+host'   genuinely two clocks
+           real axis + inert host       → 'device'        the host column added NOTHING
+         Note `independent` is about the two COLUMNS, not about whether the host clock is any good —
+         which is why a DRAWN axis with an inert host column is still `'host'`: the device contributed
+         nothing, so whatever the host column is, it is all the timing there is. */
       hostAxis: hostAx.ok
         ? {
             ok: true,
@@ -582,7 +603,11 @@
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
-            timingSource: axisSynthetic ? 'host' : 'device+host'
+            // Forwarded so a consumer can SEE the verdict instead of inferring it from a ~0 ppm.
+            independent: hostAx.independent === undefined ? null : hostAx.independent,
+            spreadMs: hostAx.spreadMs === undefined ? null : hostAx.spreadMs,
+            inertReason: hostAx.inertReason || null,
+            timingSource: axisSynthetic ? 'host' : hostAx.independent === false ? 'device' : 'device+host'
           }
         : { ok: false, reason: hostAx.reason || 'no host anchors', drawn: axisSynthetic, quantizedShare, timingSource: axisSynthetic ? 'none' : 'device' }
     };

@@ -416,6 +416,48 @@
       T.ok('…so it never claims a second clock', slew.hostAxis.timingSource !== 'device+host', 'got ' + slew.hostAxis.timingSource);
       // And the wrist control must NOT be swept up by the layout rule.
       T.eq('control · a wrist layout with the SAME slewing step is not drawn', P.parsePPG(WHDR + wristRows(function (i) { return Math.round(i * 7953045 * (1 + 0.0004 * Math.sin(i / 250))); })).hostAxis.drawn, false);
+
+      /* F13 · A HOST COLUMN IS NOT AUTOMATICALLY A SECOND CLOCK (DA-V §2.4).
+         `DexClock.hostAxis` already decides this — `independent` is true only when the residual spread
+         exceeds one stamp quantum — and `parsePPG` DROPPED `independent`/`spreadMs`/`inertReason` at
+         the export boundary, deciding `timingSource` from the drawn flag alone. On a real phone-captured
+         Verity night DexClock said `independent:false` ("host ≡ device — residual spread 0.94 ms ≤ 2 ms
+         … this host column is not an independent clock") and the export said `device+host`.
+         Here the host stamp is DERIVED from the device ns (rounded to the ms, which is what a phone
+         capture does), so the two columns carry the same information and no second clock exists. */
+      function inertHostRows(step) {
+        var out = '';
+        for (var i = 0; i < 2000; i++) {
+          var ns = step(i);
+          // host = device, rounded to the millisecond — the phone-capture shape.
+          var d = new Date(Date.UTC(2026, 6, 26, 22, 0, 0) + Math.round(ns / 1e6));
+          out += d.toISOString().slice(0, 23) + ';' + ns + ';' + (124 + (i % 7)) + ';' + (300 + (i % 11)) + ';' + (512 + (i % 13)) + ';0\n';
+        }
+        return out;
+      }
+      var inert = P.parsePPG(WHDR + inertHostRows(jit));
+      T.eq('the inert fixture is a real (non-drawn) device axis', inert.hostAxis.drawn, false);
+      T.eq('…and DexClock judged its host column NOT independent', inert.hostAxis.independent, false);
+      T.ok('…so the export does NOT claim two clocks', inert.hostAxis.timingSource === 'device', 'got ' + inert.hostAxis.timingSource);
+      T.ok('…and it SAYS why, rather than leaving a reader to infer it from a ~0 ppm', typeof inert.hostAxis.inertReason === 'string' && /not an independent clock/.test(inert.hostAxis.inertReason), inert.hostAxis.inertReason);
+      T.ok('…and publishes the spread the verdict rests on', typeof inert.hostAxis.spreadMs === 'number', 'spreadMs=' + inert.hostAxis.spreadMs);
+      /* THE CONTROL — a genuinely independent host column must still read device+host, or the fix
+         would have abolished the top tier rather than made it earned. `meas` above uses host stamps
+         that advance on their OWN 125.9 Hz clock while the ns column jitters independently. */
+      T.eq('control · an INDEPENDENT host column still earns device+host', meas.hostAxis.timingSource, 'device+host');
+      T.eq('control · …and is reported independent', meas.hostAxis.independent, true);
+      /* A DRAWN axis with an inert host column stays 'host' — `independent` is about the two COLUMNS,
+         not about whether the host clock is any good, and with the device contributing nothing the
+         host column is all the timing there is. Pinned so the lattice cannot be "simplified" wrong. */
+      var drawnInert = P.parsePPG(HDR + (function () {
+        var out = '';
+        for (var i = 0; i < 2000; i++) {
+          var ns = i * 7953045;
+          out += new Date(Date.UTC(2026, 6, 26, 22, 0, 0) + Math.round(ns / 1e6)).toISOString().slice(0, 23) + ';' + ns + ';' + (124 + (i % 7)) + '\n';
+        }
+        return out;
+      })());
+      T.ok('a DRAWN axis with an inert host column is still host-timed, not "device"', drawnInert.hostAxis.ok !== true || drawnInert.hostAxis.timingSource === 'host', 'got ' + drawnInert.hostAxis.timingSource);
       T.ok('the share is reported as a NUMBER, not just a verdict', typeof drawn.hostAxis.quantizedShare === 'number' && drawn.hostAxis.quantizedShare >= 0.99);
       /* BOTH files start at ns 0 — the test that was proposed and measured NOT to work. If someone
          re-implements `first ns == 0`, this assertion is what tells them it condemns the good sessions. */
