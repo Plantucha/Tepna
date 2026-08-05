@@ -693,9 +693,16 @@ class Spo2CsvWriter:
                 _writer_closed()
 
 
-# Polar's sensor clock is nanoseconds since 2000-01-01T00:00:00Z. Helpers to (a) keep it as the
-# secondary column and (b) derive the "timestamp [ms]" PSL column (ms since the same epoch).
+# Polar's sensor clock is nanoseconds since 2000-01-01T00:00:00Z, carried verbatim as the secondary
+# column.
+#
+# A `polar_ns_to_t_ms(ns) -> ns / 1e6` helper lived here, described as deriving "the 'timestamp [ms]'
+# PSL column (ms since the same epoch)". That is the OPPOSITE of the real format: PSL's `timestamp [ms]`
+# is RELATIVE to the recording's first sample and fractional — which `_rel_ms` states, verified against
+# a real H10 export, and which a byte-for-byte diff against the vendor corpus confirms (a written ECG
+# row reproduces a real one exactly, leading `0.0` included). It had ZERO production callers and two
+# tests pinning the absolute semantics, so it read as validated. Its own neighbour says what a future
+# caller would have caused: ECGDex infers `fs` from that column's STEP, and absolute ms makes it read
+# 143/125 Hz instead of 130. Removed rather than corrected — `_rel_ms` is the single implementation,
+# and it is the one the writers already use.
 POLAR_EPOCH = _dt.datetime(2000, 1, 1, tzinfo=_dt.timezone.utc)
-
-def polar_ns_to_t_ms(sensor_ns: int) -> float:
-    return sensor_ns / 1e6  # ns -> ms, same Polar epoch (PSL's "timestamp [ms]" column)

@@ -14,7 +14,10 @@
 #   * timing comes from `sensor_ns`, never a frame index — cadence varies with stream bandwidth.
 
 import datetime as _dt
+import os
 import struct
+
+import pytest
 
 import polar_pmd as pmd
 import rec_to_psl as r2p
@@ -171,11 +174,32 @@ def test_the_psl_header_matches_the_stream(tmp_path):
     assert lines[1].count(";") == 4, "timestamp, sensor_ns, then 3 axes"
 
 
-def test_an_unknown_stream_still_gets_a_usable_header(tmp_path):
+def test_a_stream_with_no_known_layout_is_REFUSED_not_written_under_a_guess(tmp_path):
+    """Replaces `…_still_gets_a_usable_header`, which asserted the old `;v0;v1;v2` fallback and called it
+    usable. It is not usable by anything: it only checked the header STARTS WITH "Phone timestamp;sensor
+    timestamp", which the guess satisfies while naming no real column after it.
+
+    Its own example is the reason. PSL's PPI carries NO device-clock column and puts hr LAST, so the
+    guess emits a column that does not exist there and omits the order that does — a file a PSL reader
+    parses into the wrong fields, silently, having been told it was a conversion. The frame scan accepts
+    every measurement in `pmd.MEAS_NAME` while HEADERS covers four, so this path is reachable for real
+    input, not just for a hand-built dict.
+
+    Refusing costs a re-run once the layout is added. The guess costs a mislabelled file nobody knows to
+    distrust."""
     res = {"meas": "ppi", "rows": [(_dt.datetime(2026, 8, 3, 1, 2, 3), 1, (1, 2, 3))]}
     dest = str(tmp_path / "o.txt")
-    r2p.write_psl(res, dest)
-    assert open(dest).read().splitlines()[0].startswith("Phone timestamp;sensor timestamp")
+    with pytest.raises(ValueError, match="no PSL layout"):
+        r2p.write_psl(res, dest)
+    assert not os.path.exists(dest), "a refused conversion must leave no half-written file behind"
+
+
+def test_a_known_stream_still_converts(tmp_path):
+    """The control — refusing the unknown must not break the four layouts that ARE verified."""
+    res = {"meas": "acc", "rows": [(_dt.datetime(2026, 8, 3, 1, 2, 3), 1, (1, 2, 3))]}
+    dest = str(tmp_path / "acc.txt")
+    assert r2p.write_psl(res, dest) == 1
+    assert open(dest).read().splitlines()[0] == r2p.HEADERS[pmd.ACC]
 
 
 def test_main_writes_the_file_and_declares_the_timebase(tmp_path, capsys):

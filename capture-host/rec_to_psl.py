@@ -168,8 +168,21 @@ def convert(path: str, tz_offset_min: int = 0) -> dict:
 
 
 def write_psl(res: dict, dest: str) -> int:
+    """Write one decoded `.REC` as a PSL-layout file. REFUSES a stream whose real layout is not known.
+
+    The frame scan accepts EVERY measurement in `pmd.MEAS_NAME`, but `HEADERS` covers four. The missing
+    ones are not cosmetic: PSL's ECG carries a `timestamp [ms]` column this writer does not produce, and
+    its PPI has neither a device-clock column nor this column order. The old fallback wrote those under
+    `…;v0;v1;v2`, producing a file that every PSL-compatible reader either rejects or — worse — parses
+    into the wrong fields, with nothing said. A conversion we cannot do faithfully must fail loudly:
+    the operator can re-run once the layout is added, but cannot recover a silently mislabelled file
+    they believed was a conversion."""
     meas = {v: k for k, v in pmd.MEAS_NAME.items()}.get(res.get("meas"))
-    head = HEADERS.get(meas, "Phone timestamp;sensor timestamp [ns];v0;v1;v2")
+    if meas not in HEADERS:
+        raise ValueError(
+            f"no PSL layout for stream {res.get('meas')!r} — refusing to write {dest} under a guessed "
+            f"header; add its real header (verified against a vendor export) to HEADERS first")
+    head = HEADERS[meas]
     with open(dest, "w") as fh:
         fh.write(head + "\n")
         for t, ns, vals in res["rows"]:

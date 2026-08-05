@@ -447,13 +447,6 @@ def test_the_open_writer_count_returns_to_zero(tmp_path, monkeypatch):
     assert writers.open_sample_writers() == 0
 
 
-def test_polar_device_nanoseconds_convert_to_whole_milliseconds():
-    """`/ 1e6` → `/ 1000001.0`. A 1-ppm error is invisible on one sample and is ~30 ms over an 8 h
-    night — the same order as the cross-device offsets this host exists to measure."""
-    assert writers.polar_ns_to_t_ms(1_000_000) == 1.0
-    assert writers.polar_ns_to_t_ms(28_800_000_000_000) == 28_800_000.0
-
-
 def test_a_capture_filename_defaults_to_the_txt_extension():
     """The `ext: str = "txt"` default. Every call site passes it explicitly today, which is why the
     default went unpinned — and it is the extension every PSL-compatible reader keys on."""
