@@ -545,9 +545,21 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #   • the only other scripts it runs are sync-apps.sh and check-system-files.sh from UNDER
     #     $REPO_DIR — i.e. from the tmp_path clone, never the developer's own tree — and the latter is
     #     invoked WITHOUT --install, which a test asserts by capturing its argv.
+    # vigil.sh added 2026-08-04 (test_vigil_sh.py) — it LAUNCHES AND KILLS PROCESSES, so the confirmation
+    # is about process blast radius rather than /etc:
+    #   • it contains no sudo, systemctl, udevadm, mount, install, chmod/chown or address-mutating ip —
+    #     `ip -4 route get` is its only ip call and is read-only (asserted by _no_privileged_command below);
+    #   • every path it writes is redirected and `_run()` sets ALL of them unconditionally, so no default
+    #     is reachable: VIGIL_PIDFILE (else $XDG_RUNTIME_DIR/vigil-monitor.pid), VIGIL_LOG, VIGIL_CONFIG
+    #     and VIGIL_DIR. That last one matters most — its fallback is a HARD-CODED developer path, and a
+    #     `stop` resolved against it would signal the author's own live daemon;
+    #   • it only ever kills the pid in $PIDFILE, and only after is_vigil() confirms that pid's
+    #     /proc/<pid>/cmdline contains capture.py AND its cwd is $VIGIL_DIR — i.e. inside tmp_path. A
+    #     stranger that merely inherited the number is rejected (test_a_recycled_pid_… pins this);
+    #   • the one mktemp is on the VIGIL_HOST branch, which no test sets.
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
                         "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
-                        "tepna-usbreset.sh", "check.sh", "tepna-update.sh"}, (
+                        "tepna-usbreset.sh", "check.sh", "tepna-update.sh", "vigil.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 
