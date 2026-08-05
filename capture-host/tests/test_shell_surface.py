@@ -53,6 +53,7 @@ COVERED = {
     "deploy/fix-clock-write.sh": "test_shell_surface.py",
     "deploy/fix-web-origin.sh": "test_shell_surface.py",
     "deploy/flash-nrf52840-hci.sh": "test_shell_surface.py",
+    "unwedge.sh": "test_shell_surface.py",
 }
 
 # Deliberately untested, each with the reason. Empty today; it exists so that "we chose not to" stays a
@@ -278,3 +279,21 @@ def test_the_nrf_flasher_pins_the_board_we_actually_own():
     body = _body("deploy/flash-nrf52840-hci.sh")
     assert 'BOARD="${BOARD:-raytac_mdbt50q_cx_40_dongle/nrf52840}"' in body
     assert "nrf52840dongle" in body, "the wrong-board warning must name the trap it is warning about"
+
+
+def test_unwedge_arms_the_restore_trap_before_it_stops_recording():
+    """`unwedge.sh` stops the capture service to free the O2Ring's BLE link, so the ONE thing it must
+    never do is exit without starting it again — a silent failure that costs a whole night of data and
+    looks exactly like the ring having gone flat.
+
+    The ordering is the real invariant, not the presence of a restart. A `trap` armed AFTER the stop
+    leaves a window where a crash, a `^C` at the password prompt, or a failed adapter cycle strands the
+    box not recording; armed before, every exit path restores it. Asserted against source because the
+    script needs real root, a real service and a real radio, so it cannot be executed here.
+    """
+    body = _body("unwedge.sh")
+    trap = body.index("trap restore EXIT")
+    stop = body.index("systemctl stop tepna-capture")
+    assert trap < stop, "arm the restore trap BEFORE stopping the service, not after"
+    assert "INT TERM" in body[trap:trap + 40], "^C and SIGTERM must restore too, not just a clean exit"
+    assert "systemctl start tepna-capture" in body, "the trap has to actually restart it"

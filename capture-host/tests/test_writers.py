@@ -6,6 +6,7 @@ import datetime as _dt
 
 import pytest
 
+import oxyii
 import writers
 from tests._srcscan import module_source
 
@@ -169,7 +170,14 @@ def test_every_emitted_header_matches_a_real_polar_sensor_logger_export():
     # `ppg1` is ours BY DESIGN — the O2Ring's single photodiode has no PSL equivalent, and writing three
     # replicated columns is what fabricated a 100% LED-agreement statistic (AUDIT-PROMPT class 11).
     assert writers.StreamWriter.HEADERS["ppg1"] == "Phone timestamp;sensor timestamp [ns];channel 0"
-    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1"}, \
+    # `ppg2w` is ours BY DESIGN too — PSL never talked to an O2Ring, so there is no vendor export for a
+    # two-wavelength ring stream to be byte-compatible WITH. It reuses PSL's `channel N` column idiom so
+    # one parser still reads it, and it is deliberately NOT `ir;red`: which u32 is which wavelength is
+    # unverified (oxyii.RT_PPG_REC, "WHICH-IS-WHICH"), and a header is a bad place to publish a guess
+    # that downstream SpO2 math would silently trust.
+    assert writers.StreamWriter.HEADERS["ppg2w"] == \
+        "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion"
+    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1", "ppg2w"}, \
         "a new stream needs its header checked against a real export, or this gate stops covering it"
 
 
@@ -538,3 +546,27 @@ def test_the_filename_fields_are_parsed_from_the_right(fname, stamp, device_id):
     night it belongs to (audit F5)."""
     assert writers.file_stamp(fname) == stamp
     assert writers.file_device_id(fname) == device_id
+
+
+def test_write_ppg2w_round_trips_through_the_parser(tmp_path):
+    """End-to-end on the shape the ring actually sends: parser output feeds the writer unchanged.
+
+    The two halves were written together, so testing either alone proves little — this pins the JOIN,
+    which is where a column swap or an off-by-one silently survives both unit tests.
+    """
+    recs = [(123456, 7890, 4), (123460, 7895, 0)]
+    body = b"".join(a.to_bytes(4, "little") + b.to_bytes(4, "little") + bytes([m]) for a, b, m in recs)
+    parsed = oxyii.parse_rt_ppg(len(recs).to_bytes(2, "little") + body + b"\xff\xff")   # real 2-B trailer
+
+    p = str(tmp_path / "Oxy_S8AW_20260805_010203_ppg2w.txt")
+    w = writers.StreamWriter(p, "ppg2w", fsync=False)
+    for a, b, m in parsed:
+        w.write_ppg2w(_PHONE, 0, a, b, m)
+    w.close()
+
+    rows = open(p).read().strip().split("\n")
+    assert rows[0] == "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion"
+    assert rows[1] == f"{_PTS};0;123456;7890;4"
+    assert rows[2] == f"{_PTS};0;123460;7895;0"
+    # The device exposes no clock on this opcode; a non-zero ns column here would be invented.
+    assert all(r.split(";")[1] == "0" for r in rows[1:])

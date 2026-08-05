@@ -379,3 +379,46 @@ def test_a_wave_body_that_is_all_sentinel_still_reports_its_offset():
     body = bytes(param) + (900).to_bytes(4, "little") + (3).to_bytes(2, "little") + bytes([156, 156, 156])
     assert oxyii.ppg_stream_offset(body) == 900
     assert oxyii.parse_ppg(body) == [156, 156, 156]
+
+
+# ── cmd 0x05 raw dual-wavelength buffer ──────────────────────────────────────────────────────────────
+def _rt_ppg_payload(recs, declared=None, trailer=b""):
+    """Build a cmd=0x05 body: u16 LE count + 9-byte records + an optional trailer."""
+    body = b"".join(a.to_bytes(4, "little") + b.to_bytes(4, "little") + bytes([m]) for a, b, m in recs)
+    n = len(recs) if declared is None else declared
+    return n.to_bytes(2, "little") + body + trailer
+
+
+def test_parse_rt_ppg_decodes_little_endian_u32_pairs():
+    """Byte order is load-bearing: these values differ under big-endian, so a flipped decode cannot pass."""
+    recs = [(0x00010203, 0x04050607, 9), (1, 2, 0)]
+    assert oxyii.parse_rt_ppg(_rt_ppg_payload(recs)) == recs
+
+
+def test_parse_rt_ppg_ignores_a_trailer_of_any_size():
+    """The real 922 B reply declares 102 records = 920 B and carries TWO BYTES OVER. The trailer is not
+    decoded and not assumed to be padding — a record must never be assembled from it."""
+    recs = [(11, 22, 3), (44, 55, 6)]
+    for trailer in (b"", b"\xff\xff", b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a"):
+        assert oxyii.parse_rt_ppg(_rt_ppg_payload(recs, trailer=trailer)) == recs
+
+
+def test_parse_rt_ppg_is_bounded_by_the_buffer_not_the_declared_count():
+    """A truncated reply must yield only whole records present in the bytes. Trusting the device's count
+    would either raise or, worse, emit records zero-padded out of absent bytes — a fabricated sample."""
+    full = _rt_ppg_payload([(7, 8, 1), (9, 10, 2), (11, 12, 3)])
+    assert oxyii.parse_rt_ppg(full[:2 + 9 + 4]) == [(7, 8, 1)]      # one whole record + a partial second
+    assert oxyii.parse_rt_ppg(_rt_ppg_payload([(7, 8, 1)], declared=99)) == [(7, 8, 1)]
+
+
+def test_parse_rt_ppg_returns_empty_rather_than_guessing():
+    for payload in (b"", b"\x05", _rt_ppg_payload([])):
+        assert oxyii.parse_rt_ppg(payload) == []
+
+
+def test_rt_ppg_frame_sends_the_argument_the_sdk_specifies():
+    """`{0x07, 0x01}` is the whole reason this stream was found: the 256-opcode sweep sent
+    `none/00/01/02` to 0x05 and scored the reply as noise. A bare 0x05 is not this request."""
+    fr = oxyii.rt_ppg_frame()
+    assert oxyii.RT_PPG_ARG == b"\x07\x01"
+    assert b"\x07\x01" in fr and fr[1] == oxyii.OP_RT_PPG

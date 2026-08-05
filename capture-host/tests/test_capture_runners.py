@@ -4200,3 +4200,101 @@ def test_run_polar_discards_a_response_to_a_different_command(tmp_path, monkeypa
     # test_run_polar_start_without_an_ack_keeps_the_stream uses.
     err = (capture.STATUS["devices"]["H10"].get("last_error") or "").lower()
     assert "rejected" not in err, f"a stale reply was taken as this command's verdict: {err!r}"
+
+
+def test_run_oxyii_captures_the_raw_two_wavelength_buffer(tmp_path, monkeypatch):
+    """The `ppg2w` stream end-to-end through the REAL runner: cmd 0x05 reply -> decoded -> written.
+
+    Driven through `run_oxyii` rather than the parser alone because the decode branch sits AHEAD of the
+    `OP_LIVE` gate — a 0x05 reply routed through the live path would be dropped as a short frame, and a
+    parser-only test cannot see that.
+    """
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    recs = [(1000 + i, 2000 + i, i) for i in range(4)]
+    body = b"".join(a.to_bytes(4, "little") + b.to_bytes(4, "little") + bytes([m]) for a, b, m in recs)
+    payload = len(recs).to_bytes(2, "little") + body + b"\xff\xff"   # the real reply's 2-byte trailer
+
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_RT_PPG:
+            c.notify(0, oxyii.encode(oxyii.OP_RT_PPG, payload))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg2w"]), str(tmp_path)))
+
+    hits = list((tmp_path / "captures").rglob("*_PPG2W.txt"))
+    assert hits, "a PPG2W file must be written when the stream is enabled"
+    rows = hits[0].read_text().strip().split("\n")
+    assert rows[0] == "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion"
+    # The runner polls once per loop iteration, so the file holds a whole number of identical buffers.
+    # Asserting the MULTIPLE (not a fixed total) keeps the trailer check sharp without pinning the test
+    # to the loop count: absorbing the 2-byte trailer would yield 5 records per cycle, and 5 per cycle
+    # is not a multiple of 4.
+    assert len(rows) - 1 > 0 and (len(rows) - 1) % len(recs) == 0, \
+        "one row per record, and the trailer is not a record"
+    assert [r.split(";")[2:] for r in rows[1:1 + len(recs)]] == [["1000", "2000", "0"], ["1001", "2001", "1"],
+                                                                 ["1002", "2002", "2"], ["1003", "2003", "3"]]
+    assert all(r.split(";")[1] == "0" for r in rows[1:]), "no device clock exists on this opcode"
+
+
+def test_run_oxyii_writes_no_two_wavelength_file_when_the_stream_is_off(tmp_path, monkeypatch):
+    """Opt-in means opt-in: an experimental stream must not appear on a plain spo2 night."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
+    assert not list((tmp_path / "captures").rglob("*_PPG2W.txt"))
+
+
+def test_run_oxyii_survives_an_empty_two_wavelength_reply(tmp_path, monkeypatch):
+    """A 0x05 reply declaring zero records must write nothing and must not break the session.
+
+    The ring answers this way while the finger is off the sensor, so it is the ordinary case rather
+    than a corruption case — and the empty file is then pruned at teardown like any other.
+    """
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_RT_PPG:
+            c.notify(0, oxyii.encode(oxyii.OP_RT_PPG, (0).to_bytes(2, "little")))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg2w"]), str(tmp_path)))
+    assert capture.STATUS["devices"]["Ring"]["spo2"] == 96, "vitals keep flowing"
+    assert not list((tmp_path / "captures").rglob("*_PPG2W.txt")), "a row-less file is pruned, not kept"
+
+
+def test_run_oxyii_keeps_the_link_when_the_two_wavelength_poll_fails(tmp_path, monkeypatch):
+    """THE reason this poll has its own try/except. A failed VITALS poll deliberately drops the link to
+    re-establish it; doing that for an optional experimental stream would let `ppg2w` cost a night of
+    oximetry. The refusal must cost its own samples and nothing else.
+    """
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    real_write = c.write_gatt_char
+
+    async def write(ch, data, response=False):
+        if len(data) > 1 and data[1] == oxyii.OP_RT_PPG:
+            raise RuntimeError("characteristic write refused")
+        return await real_write(ch, data, response=response)
+
+    c.write_gatt_char = write
+    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg2w"]), str(tmp_path)))
+    # The session ran on: vitals were parsed and the SpO2 sidecar was written despite every 0x05 refusal.
+    assert capture.STATUS["devices"]["Ring"]["spo2"] == 96
+    assert list((tmp_path / "captures").rglob("*_SPO2.csv")), "the vitals stream is unaffected"

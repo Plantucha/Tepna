@@ -5,6 +5,7 @@
 -->
 
 **Status:** REFERENCE (living — hardware-validated negative result) · **Created:** 2026-08-04
+**Superseded-by:** O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF.md
 
 # The O2Ring does not export raw red/IR or raw 3-axis ACC
 

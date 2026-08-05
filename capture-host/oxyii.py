@@ -87,6 +87,7 @@ def set_time_frame(dt, seq: int = 0) -> bytes:
 # printing bleak's PLACEHOLDER mtu_size (23 on BlueZ until a characteristic is acquired) plus a 6 s
 # timeout against a ~4.1 s FILE_LIST reply. Do not re-introduce an MTU precondition.
 OP_FILE_LIST, OP_FILE_START, OP_FILE_DATA, OP_FILE_END = 0xF1, 0xF2, 0xF3, 0xF4
+OP_RT_PPG = 0x05          # raw TWO-CHANNEL optical buffer (see parse_rt_ppg + WHICH-IS-WHICH)
 
 
 def file_list_frame(seq: int = 0) -> bytes:
@@ -315,6 +316,103 @@ def ppg_stream_offset(payload: bytes) -> int | None:
     if len(payload) < 24:
         return None
     return int.from_bytes(payload[20:24], "little")
+
+
+# ── RAW DUAL-WAVELENGTH PPG (cmd 0x05) — MEASURED ON HARDWARE 2026-08-05 ─────────────────────────────
+# `O2RING-RAW-STREAMS-ABSENT-2026-08-04` concluded this ring exports no raw red/IR. It does. That sweep
+# scored 0x05's fixed 922-byte reply as noise-like against a GENERIC byte-wise metric — which is exactly
+# what interleaved little-endian u32 pairs look like without record framing. Read as 9-byte records of
+# {u32, u32, u8} (the layout `lepu-blepro` 1.3.6's `oxyIIGetRtPpg` uses), both channels are waveforms:
+#
+#   IR   range 8585  median|delta| 127   ratio 0.0148      ratio = median|delta| / range
+#   RED  range 5471  median|delta|  92   ratio 0.0168      a waveform is << 1
+#   IR, SAME data shuffled                ratio 0.3395      <- 23x rougher; ordering is the signal
+#
+# So the payload is not noise, and "re-deriving SpO2 is impossible on this hardware" no longer follows
+# from the premise it rested on. Whether the ratio-of-ratios is RECOVERABLE is a separate question this
+# does not answer — it only establishes that the two channels exist and are readable.
+# ⚠️ MEASURED NOT REQUIRED (hardware A/B, 2026-08-05). The SDK sends this argument, so we send it — but
+# a same-session control alternating `{0x07,0x01}` against an EMPTY payload got 15 replies each, every
+# one 922 bytes with 102 records. The argument neither unlocks nor changes the reply. Keep it for
+# fidelity to the vendor flow; do not describe it as the thing that revealed the stream, and do not
+# assume a future opcode's argument matters just because an SDK passes one.
+# ⚠️ THIS IS NOT A PLETHYSMOGRAM. Proven 2026-08-05 with a POSITIVE CONTROL: cmd 0x03 (LIVE_SAMPLES_A,
+# an 8-bit pleth, 6-byte header + up to 250 samples) run in the SAME session through the SAME peak
+# detector reproduces the ring's own pulse rate to 0.1 bpm (72.9 detected vs 73 reported). The identical
+# detector on this stream finds 146 peaks on chA and 131 on chB over one 21615-record lossless chain --
+# 58.5 and 52.5 bpm, disagreeing with the device AND WITH EACH OTHER. Two plethysmograms of one finger
+# must find the same beats. These do not, so what varies here is drift, not a pulse.
+# Rates differ too: 0x03 = 112.9 Hz (lossless), this = >=153.3 Hz. Different sources.
+# WHAT THIS STREAM IS remains unknown -- two distinct 32-bit optical channels, r=0.9991, slowly varying,
+# no cardiac content. AGC/ambient telemetry, a long-integration DC channel and a decimated envelope are
+# all untested candidates. The `ppg2w` name predates this and is kept as a compatibility surface.
+#
+# WHICH IS WHICH — NOT ESTABLISHED. DO NOT COMPUTE SpO2 FROM THESE COLUMNS.
+# A ratio-of-ratios over 3060 samples gave R = 0.4885 -> SpO2 ~97.8% against the ring's reported 97%
+# (the swap gives 59%), and that was briefly recorded as proof that chA is RED. It is NOT proof: R is
+# defined on the CARDIAC AC, and nothing shows the measured AC is cardiac. An AC/DC of 12-24% is ~10x a
+# finger perfusion index, and autocorrelation finds NO periodicity at any lag from 20 to 2200 -- which
+# covers every sample rate from 1 Hz to ~2400 Hz at the measured 66 bpm -- nor within seam-free single
+# buffers. A pulsatile signal must peak at its beat period; this one never does. So the 97.8% agreement
+# may be coincidence. See O2RING-RAW-DUAL-WAVELENGTH-2026-08-05-BRIEF §1.2 (4) for the full reasoning.
+#
+# WHAT IS ESTABLISHED: the two columns are genuinely different optical channels, not one photodiode at
+# two gains -- fitting chB = k*chA gives k drifting 0.7139 -> 0.5320 with residual RMS 0.049% -> 7.06%,
+# where a fixed gain would hold k constant at ~zero residual by construction.
+#
+# The columns are therefore recorded in DEVICE ORDER and named neutrally. That decision is what kept a
+# wrong wavelength assignment from reaching a saturation number when the identification collapsed.
+
+RT_PPG_ARG = bytes([0x07, 0x01])
+RT_PPG_REC = 9                       # u32 LE chA | u32 LE chB | u8 motion  (see WHICH-IS-WHICH below)
+
+def rt_ppg_frame(seq: int = 0) -> bytes:
+    """cmd=0x05 — ask for the raw two-channel optical buffer (see WHICH-IS-WHICH: not proven to be
+    two wavelengths, and not proven to be a plethysmogram)."""
+    return encode(OP_RT_PPG, RT_PPG_ARG, seq)
+
+
+def parse_rt_ppg(payload: bytes) -> list[tuple[int, int, int]]:
+    """cmd=0x05 reply -> [(chA, chB, motion), ...], or [] when the frame carries no records.
+
+    Layout, measured on device `S8AW2100` and matching the vendor SDK's `RtPpg`:
+        [0:2]        u16 LE record count
+        [2 : 2+9N]   N records of {u32 LE chA, u32 LE chB, u8 motion}  (chA/chB per WHICH-IS-WHICH)
+    The observed reply is 922 B with a declared count of 102, i.e. 2 + 9*102 = 920 and TWO BYTES OVER.
+    Those two are not decoded here and are not assumed to be padding — the record count is taken from
+    the device's own field and the slice is bounded by the buffer, so a trailer of any size is ignored
+    rather than silently absorbed into a record.
+
+    ⚠️ THE RATE IS BOUNDED, NOT KNOWN, AND IS NOT ASSERTED HERE. 102 is a CAP: polled slowly the count
+    pins at 102, but polled every 0-0.3 s it falls right through 0, 4, 10 ... 70 (measured 2026-08-05),
+    which is what lets `count = fs*dt` be fitted at all. Over 35 unsaturated replies: 125.7 Hz by least
+    squares (intercept 7.9 records), 155.5 Hz forced through the origin, 150.7 Hz as the median per-point
+    ratio. Solid: it is NOT the 200 Hz the SDK claims.
+
+    Compare against 125.000 Hz, NOT 125.738. DEVICE-RATE-TRUTH §2: the ADC is 125.000 exactly
+    (4 MHz / 32000) and O2PPG_FS_DEFAULT = 125.738 is a ROW rate inflated by the pleth's inserted `156`
+    beat marker (125 + ~44 bpm). This stream carries NO such marker -- no fixed sentinel value in 3060
+    samples, and its apparent outliers are AGC LEVEL SHIFTS (a step down that stays down), not inserted
+    rows -- so its row rate should equal the ADC rate flat. 125.7 is consistent with 125.000; the
+    estimators still disagree by 25%, so fs stays 0 on the bus until a longer starvation run settles it.
+
+    ⚠️ AND DO NOT USE A VALUE-BASED SEAM TEST to argue the replies are contiguous. That was tried and
+    RETRACTED: it called consecutive replies contiguous at 0.5s, 1.0s AND 2.0s spacing, which cannot all
+    be true. On a smooth waveform a gap of hundreds of samples still lands close in value.
+
+    `motion` is returned as the raw byte. The vendor doubles it for display (`* 2`); that is a
+    presentation choice and is not applied to a recorded value."""
+    if len(payload) < 2:
+        return []
+    n = int.from_bytes(payload[0:2], "little")
+    avail = max(0, (len(payload) - 2) // RT_PPG_REC)
+    out = []
+    for i in range(min(n, avail)):
+        o = 2 + i * RT_PPG_REC
+        out.append((int.from_bytes(payload[o:o + 4], "little"),
+                    int.from_bytes(payload[o + 4:o + 8], "little"),
+                    payload[o + 8]))
+    return out
 
 
 def parse_ppg(payload: bytes) -> list[int]:
