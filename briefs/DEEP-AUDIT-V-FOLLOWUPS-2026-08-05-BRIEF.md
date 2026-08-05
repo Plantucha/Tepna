@@ -105,7 +105,7 @@ the collapsing corner labels) · F7 (longitudinal sleep-date join) · F13 (PpgDe
 dropped at the export boundary).
 
 **Tier 2:** F20+F21 (ECGDex worker clock, see §3) · F8 (coupling bout-clustering — **validate against a
-real OSA stream first; the trio corpus is a healthy sleeper**) · F19 (capture-host `_PPI.txt` layout).
+real OSA stream first; the trio corpus is a healthy sleeper**) · ~~F19~~ **F18** (capture-host `_PPI.txt` layout) — **LANDED 2026-08-05 as #961**, before this brief was written; the number was also wrong (F19 is `accFs`, F18 is the PPI layout). Found INDEPENDENTLY from the producer side while auditing `capture-host/writers.py` against the vendor corpus: 7 of 8 stream headers match a real Polar Sensor Logger export byte-for-byte and PPI did not. Same mechanism as F18 names, reached through a different consumer (`sigma-no-reference-analysis.js intervalMap`, not `parseDevicePPI`) — the interval sanity band rejects a ~1e15 device clock, so a LIVE stream reads as zero beats. 21 871 real rows were affected on the box. Nothing left to do here.
 
 **Tier 3:** §1 above.
 

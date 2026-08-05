@@ -248,7 +248,7 @@ regardless: write `# axis=host-synthesised fs_source=estimated` into the file he
 provenance from a statistical inference into the data. **Exports MOVE (`device+host` → `host`) ⇒
 `regen-ppgdex-goldens.mjs` FIRST, then `verify-fixtures`.**
 
-**F18 · `_PPI.txt` is written in PMD WIRE order, not PSL file order.** `capture-host/writers.py:233` puts
+**F18 · `_PPI.txt` is written in PMD WIRE order, not PSL file order.** ✅ **FIXED — #961 (2026-08-05).** `capture-host/writers.py:233` puts
 `sensor timestamp [ns]` in column 1 and `HR` before `PP-interval`; real PSL has neither. `parseDevicePPI`
 is **positional**, so every beat is read as a ~8.4e17 ms interval, filtered out, and the device-PPI
 cross-validation lane silently reports `nDevice: 0` — *"the device produced nothing."*
