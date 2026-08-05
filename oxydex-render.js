@@ -2692,8 +2692,16 @@ function nightDetail(n, idx) {
   html += '<div class="sec-label">SpO₂</div>';
   html +=
     '<div class="grid">' +
-    metric('Mean', s.meanSpo2 + '%', 'std ' + s.spo2Std, s.meanSpo2 >= 95 ? 'good' : s.meanSpo2 >= 92 ? 'warn' : 'bad', 'primary') +
-    metric('Min', s.minSpo2 + '%', 'max ' + s.maxSpo2 + '%', s.minSpo2 >= 90 ? 'good' : s.minSpo2 >= 85 ? 'warn' : 'bad', 'primary') +
+    /* NAME THE METRIC, DON'T ALIAS THE FRAGMENT (DEEP-AUDIT-V §2.3 F1). These passed the bare
+       'Mean'/'Min', which resolve to nothing, so both tiles rendered the fabricated `experimental`
+       disc while OXY_REGISTRY grades meanSpo2/minSpo2 `measured` — three tiers off, in the same
+       four-tile grid as T95/T90 which correctly show `validated`. OXY_LABEL_ALIAS already carries
+       'mean spo₂'/'min spo₂'; the render just never used them. Renaming the CALL SITE rather than
+       adding bare `mean`/`min` aliases is deliberate: those labels are section-relative and
+       `meanHr`/`minHr` have an equal claim on them. It also keeps this render-only, so `computeHash`
+       is provably stable and the change is export-inert by construction. */
+    metric('Mean SpO₂', s.meanSpo2 + '%', 'std ' + s.spo2Std, s.meanSpo2 >= 95 ? 'good' : s.meanSpo2 >= 92 ? 'warn' : 'bad', 'primary') +
+    metric('Min SpO₂', s.minSpo2 + '%', 'max ' + s.maxSpo2 + '%', s.minSpo2 >= 90 ? 'good' : s.minSpo2 >= 85 ? 'warn' : 'bad', 'primary') +
     metric('T95', s.t95pct + '%', 'time <95%', s.t95pct < 5 ? 'good' : s.t95pct < 15 ? 'warn' : 'bad', 'primary') +
     metric('T90', s.t90pct + '%', 'time <90%', s.t90pct > 1 ? 'bad' : s.t90pct > 0 ? 'warn' : 'good', 'primary') +
     '</div>';
