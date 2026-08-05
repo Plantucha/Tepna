@@ -671,6 +671,106 @@
       var realWrap = C.parseTimestamp('00:00:01', { dateAnchorMs: A6, prevTMs: A6 + 82800000 });
       T.ok('…but a real ~23 h wrap DOES roll', realWrap && realWrap.tMs > A6 + 82800000, 'got ' + (realWrap && realWrap.tMs));
     });
+    /* WAVE 8 — the four survivors a correctly-sized battery could reach.
+       Waves 1-7 probed `hostAxis` with n = 2/3/4/11/41 anchors and called the rest equivalent. Three
+       of those geometries could not possibly separate anything: the running median is `CK_AXIS_WIN =
+       21` wide, so below n = 23 EVERY window clamps to the whole series and `sm[k]` is the same value
+       for every k. A battery that cannot make two smoothed points differ cannot detect a mutant that
+       returns the wrong one, and it reported "no distinguishing input" for a reason that was about the
+       battery, not the code.
+
+       The second gap was DUPLICATE anchor devMs. `pts` is sorted but never deduped, so two anchors
+       recorded in the same millisecond — a stuck device clock, or two sync events inside one tick —
+       are a real input, and they are the only way an endpoint guard's fall-through can land somewhere
+       different from the guard itself. Every assertion below is written as the CONTRACT the code
+       already claims ("linear between anchors; FLAT outside them", and a monotone drift yields a
+       monotone correction), not as the shape of a mutant. */
+    group('clock.js — wave 8: duplicate anchors, and an anchor that is not a number', 'clock · known-answer · mutation-pinned', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.hostAxis !== 'function') {
+        T.skip('DexClock.hostAxis available', 'clock.js not loaded');
+        return;
+      }
+      /* n = 41 > CK_AXIS_WIN, linear 250 ms-per-anchor drift: sm is a genuine ramp, so returning the
+         wrong index is observable. Below n = 23 it would not be. */
+      var ramp = function (dupAt) {
+        var a = [];
+        for (var i = 0; i < 41; i++) a.push({ devMs: i * 60000, hostMs: i * 60000 + i * 250 });
+        if (dupAt != null) a[dupAt] = { devMs: a[dupAt - 1].devMs, hostMs: a[dupAt].hostMs };
+        return a;
+      };
+
+      // ── FLAT OUTSIDE THE ANCHORS — and the boundary belongs to the flat side ──────────────────
+      var head = C.hostAxis(ramp(1));
+      T.ok('duplicate head anchor still yields a usable axis', head && head.ok === true, 'reason ' + (head && head.reason));
+      var d0 = 0;
+      T.eq(
+        'correctionAt(firstAnchor) == correctionAt(before it) — the first anchor is ON the flat side',
+        head.correctionAt(d0),
+        head.correctionAt(d0 - 600000)
+      );
+      var tail = C.hostAxis(ramp(40));
+      /* NOT 40*60000: duplicating index 40 onto index 39's devMs makes 39*60000 the LAST anchor, and
+         querying past it is the flat region both the guard and its mutant already agree on. The first
+         version of this test used 40*60000, passed under the mutant, and would have shipped as a
+         green test that catches nothing. */
+      var dN = 39 * 60000;
+      T.eq(
+        'correctionAt(lastAnchor) == correctionAt(after it) — the last anchor is ON the flat side',
+        tail.correctionAt(dN),
+        tail.correctionAt(dN + 600000)
+      );
+      /* Both endpoints matter independently: the head guard and the tail guard are separate
+         comparisons, and a duplicate at one end cannot exercise the other. */
+
+      // ── A MONOTONE DRIFT MUST PRODUCE A MONOTONE CORRECTION ───────────────────────────────────
+      var mid = C.hostAxis(ramp(21));
+      var dm = 20 * 60000; // the duplicated devMs, interior
+      T.ok(
+        'correctionAt does not DIP at a duplicated interior anchor (monotone drift ⇒ monotone correction)',
+        mid.correctionAt(dm) >= mid.correctionAt(dm - 1000),
+        'at ' + mid.correctionAt(dm) + ' vs just before ' + mid.correctionAt(dm - 1000)
+      );
+      T.ok(
+        '…and it agrees with the value just after it, so the duplicate resolves to ONE side, not a third value',
+        Math.abs(mid.correctionAt(dm) - mid.correctionAt(dm + 1000)) < 50,
+        'at ' + mid.correctionAt(dm) + ' vs just after ' + mid.correctionAt(dm + 1000)
+      );
+
+      // ── EVERY ANCHOR ON ONE devMs — the degenerate axis still answers at its own anchor ────────
+      var same = [];
+      for (var s = 0; s < 41; s++) same.push({ devMs: 5000000, hostMs: 5000000 + s * 250 });
+      var flat = C.hostAxis(same);
+      if (flat && flat.ok && typeof flat.correctionAt === 'function') {
+        T.eq(
+          'a stuck device clock (all anchors at one devMs) answers at that devMs with the FIRST anchor value',
+          flat.correctionAt(5000000),
+          flat.correctionAt(4000000)
+        );
+      } else {
+        T.ok('a stuck device clock is refused outright, which is also honest', flat && flat.ok === false, 'ok=' + (flat && flat.ok));
+      }
+
+      // ── §2.4 — A NON-NUMERIC ANCHOR IS REFUSED, NEVER LOCALE-PARSED ───────────────────────────
+      /* The Clock Contract forbids `new Date(str)` on a vendor string precisely because it is
+         locale-dependent. `dateAnchorMs` is documented as milliseconds; handed a date STRING the
+         parser must refuse, not quietly resolve it through the platform parser and return a
+         confident timestamp built on a value it was never given. */
+      T.eq(
+        'a STRING dateAnchorMs is refused (§2.4 — never locale-parse an anchor)',
+        C.parseTimestamp('23:45', { dateAnchorMs: '2026-01-01' }),
+        null
+      );
+      /* A Date object is NOT refused — `isFinite(new Date(0))` coerces to 0 and passes. Recorded as
+         found rather than asserted as intended: the value it coerces to IS the documented unit, so
+         this is leniency and not a fabricated instant, but nothing had ever pinned it either way. */
+      var dateObj = C.parseTimestamp('23:45', { dateAnchorMs: new Date(0) });
+      T.ok('…a Date object anchor is ACCEPTED, coercing to its ms value (leniency, pinned as found)', dateObj && dateObj.tMs === 85500000, 'got ' + JSON.stringify(dateObj));
+      T.eq('…NaN is refused', C.parseTimestamp('23:45', { dateAnchorMs: NaN }), null);
+      T.eq('…and null stays refused', C.parseTimestamp('23:45', { dateAnchorMs: null }), null);
+      var good = C.parseTimestamp('23:45', { dateAnchorMs: Date.UTC(2026, 6, 4) });
+      T.ok('…while a real numeric anchor still works, so the guard is not simply always-null', good && good.tMs === Date.UTC(2026, 6, 4, 23, 45), 'got ' + JSON.stringify(good));
+    });
 
     group('clock.js — the four reachable guards left after wave 4', 'clock · known-answer · mutation-pinned', function (T) {
       var C = env.DexClock;
