@@ -222,6 +222,12 @@ class StreamWriter:
         # apart: PpgDex resolves the layout by COUNTING the named optical columns, and a 3-column
         # header over 1-column rows would resolve to the wrist path and read the ns column as light.
         "ppg1": "Phone timestamp;sensor timestamp [ns];channel 0",
+        # RAW DUAL-WAVELENGTH from the O2Ring's cmd=0x05 buffer. Its own stream key, for the same reason
+        # `ppg1` is: the column set IS the contract a reader resolves the layout from, and a two-channel
+        # optical stream must not be mistakable for the Verity's 3-LED `ppg` or the ring's 1-column
+        # `ppg1`. Named `ir`/`red` rather than `channel 0/1` deliberately — these are two WAVELENGTHS,
+        # not two LEDs of one wavelength, and the ratio between them is the whole reason to record them.
+        "ppg2w": "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion",
         # PSL splits HR and RR into TWO files (verified against the real corpus). _HR.txt is HR-only —
         # the HRV/Breathing columns exist in the header but PSL leaves them empty — and the per-beat RR
         # intervals go to a sibling _RR.txt. Matching this lets ONE parser read Vigil and genuine Polar
@@ -291,6 +297,16 @@ class StreamWriter:
 
     def write_acc(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
         self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
+        self._bump()
+
+    def write_ppg2w(self, phone: _dt.datetime, sensor_ns: int, ch0: int, ch1: int, motion: int) -> None:
+        """One raw dual-wavelength sample (O2Ring cmd=0x05).
+
+        A SEPARATE method rather than a branch inside `write_ppg`, because that function selects its
+        layout by COUNTING optical columns — one means the ring's single reflectance path, three means
+        the Verity. A two-wavelength row is neither, and squeezing it through the count would make the
+        header and the row shape drift apart, which is the exact failure `ppg1` exists to prevent."""
+        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{ch0};{ch1};{motion}\n")
         self._bump()
 
     def write_ppg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, ch: Iterable[int], ambient: int) -> None:

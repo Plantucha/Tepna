@@ -336,6 +336,15 @@ O2PPG_NS_STEP = int(1e9 / O2PPG_FS)   # 7_953_041 ns → relative-ms steps of ~7
 # still catches them. Overridable per unit via `o2ring.ppg_gap_min_ms`.
 O2PPG_GAP_MIN_S = 0.040
 
+# How much real time one raw dual-wavelength buffer covers. NOT a rate and not derived from one: the
+# reply is polled once per vitals cycle, so its records span the interval since the previous poll. The
+# ring caps the buffer (102 records every time, whatever the spacing), so when the poll is slower than
+# the true rate the buffer is FULL and this span over-states what it covers — samples were dropped
+# before we asked. Recorded that way on purpose: an honest 1 s span across a full buffer is a visible
+# rate error a reader can find, where a fabricated per-sample rate would hide it.
+_RT_PPG_SPAN_S = 1.0
+
+
 # The configured rate is a STARTING GUESS, not the sample clock (CAPTURE-HOST-DEEP-AUDIT §A3).
 # `O2PPG_FS_DEFAULT` was calibrated once, and it was calibrated LOW: `rows/wall` is bounded ABOVE by the
 # true ADC rate (link loss can only lower it), so each day's MAXIMUM `rows/wall` is a lower bound on the
@@ -2173,7 +2182,8 @@ async def run_oxyii(dev: dict, root: str):
         ndir = night_dir(root, started)
         path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
         ppg_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg", "txt"))
-        wr = ppgwr = oxyflagwr = None
+        ppg2w_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg2w", "txt"))
+        wr = ppgwr = oxyflagwr = ppg2wr = None
         # The synthesized PPG sample clock (O2RING-PPG-GAP §1 + CAPTURE-HOST-DEEP-AUDIT §A3), per
         # SESSION — a reconnect opens a new file and a new grid, so it is rebuilt with the writers
         # rather than persisting across links. Boxed so the BLE callback can reach it.
@@ -2214,6 +2224,11 @@ async def run_oxyii(dev: dict, root: str):
                 # agreement at `measured` tier against one sensor reported three times.
                 ppgwr = (StreamWriter(ppg_path, "ppg1")
                          if "ppg" in (dev.get("streams") or ["spo2", "ppg"]) else None)
+                # RAW DUAL-WAVELENGTH (cmd 0x05). OPT-IN — absent from the default stream list, so a box
+                # that has not asked for it is untouched. It is a SECOND poll on the ring's single BLE
+                # link and ~920 B per reply, so it costs airtime that the 1 Hz vitals poll currently owns.
+                ppg2wr = (StreamWriter(ppg2w_path, "ppg2w")
+                          if "ppg2w" in (dev.get("streams") or []) else None)
                 # Byte-11 identification experiment (see writers.OxyFrameLogWriter). ~1 Hz, ~1 MB/night,
                 # and a SIDECAR so the vendor SpO2 CSV layout OxyDex parses stays byte-identical.
                 oxyflagwr = OxyFrameLogWriter(os.path.join(
@@ -2239,6 +2254,28 @@ async def run_oxyii(dev: dict, root: str):
                 def on_data(_s, d):
                     for frame in reasm.feed(bytes(d)):
                         r = oxyii.decode(frame)
+                        # RAW DUAL-WAVELENGTH reply. Handled before the OP_LIVE gate below, which would
+                        # otherwise drop it — it is a different opcode carrying a different payload.
+                        if r and r[0] == oxyii.OP_RT_PPG and ppg2wr:
+                            recs = oxyii.parse_rt_ppg(r[1])
+                            if recs:
+                                arr2 = _now()
+                                # Back-timed from ARRIVAL across the buffer, exactly as the 125 Hz pleth
+                                # is — the ring stamps nothing, so a device time does not exist to use.
+                                # The step is the BUFFER SPAN divided by its records, not a nominal rate:
+                                # no rate is known here (see oxyii.parse_rt_ppg), and inventing one is
+                                # what the O2PPG grid already had to be rescued from.
+                                step = _RT_PPG_SPAN_S / max(len(recs) - 1, 1)
+                                for i, (a, b, mo) in enumerate(recs):
+                                    ph = arr2 - _dt.timedelta(seconds=(len(recs) - 1 - i) * step)
+                                    # sensor_ns = 0: the ring exposes NO device clock on this opcode, and
+                                    # the 125 Hz pleth's O2PpgGrid cannot be borrowed — it is built on a
+                                    # MEASURED 125 Hz step, so reusing it here would stamp this stream
+                                    # with another stream's rate. A zero column reads as "no device
+                                    # timebase"; a plausible one would read as a measurement.
+                                    ppg2wr.write_ppg2w(ph, 0, a, b, mo)
+                                BUS.push("o2ppg2w", [[a, b] for a, b, _m in recs])
+                            continue
                         if not r or r[0] != oxyii.OP_LIVE:
                             continue
                         if _PPG_PROBE and _ppg_probe_n[0] < _PPG_PROBE_N:   # Phase-0/1 dump (OXYII_PPG_PROBE=1)
@@ -2358,6 +2395,17 @@ async def run_oxyii(dev: dict, root: str):
                 BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0)
                 if ppgwr:                                   # no card for a stream we are not capturing
                     BUS.register("o2ppg", "PPG (O2Ring)", "raw", O2PPG_FS)   # finger pleth, Phase 2
+                if ppg2wr:
+                    # fs=0 DELIBERATELY. Every reply carries exactly 102 records whatever the poll
+                    # spacing, which is a fixed buffer cap and not a rate (cmd 0x03 caps the same way at
+                    # 250). Declaring a rate we have not measured would put a fabricated number on the
+                    # card and into stream_health's weak/stall arithmetic; 0 means "irregular", which is
+                    # what it is until somebody measures it.
+                    # Labels are the DEVICE ORDER, not the wavelengths. The SDK calls these IR and RED;
+                    # that is a vendor-header claim we have not measured, and a monitor card is a bad
+                    # place to publish a guess (see oxyii "WHICH-IS-WHICH" for the test that settles it).
+                    BUS.register("o2ppg2w", "Raw 2-wavelength (O2Ring)", "raw", 0, chans=2,
+                                 labels=("ch0", "ch1"))
                 await _bounded_setup(client.start_notify(nch, on_data))
                 await _bounded_setup(client.write_gatt_char(wch, oxyii.auth_frame(), response=False))   # 0xFF: no reply
                 await asyncio.sleep(0.6)
@@ -2405,6 +2453,17 @@ async def run_oxyii(dev: dict, root: str):
                         log.warning("%s: live-frame poll failed (%r) — dropping the link to re-establish",
                                     name, e)
                         break
+                    # ASK FOR THE RAW BUFFER on the same cadence, and only when it is being captured.
+                    # Failure here must NOT drop the link the way a failed vitals poll does: this stream
+                    # is optional and the vitals are not, so a refusal costs its own samples and nothing
+                    # else.
+                    if ppg2wr:
+                        try:
+                            await asyncio.wait_for(
+                                client.write_gatt_char(wch, oxyii.rt_ppg_frame(), response=False),
+                                _PMD_CTRL_TIMEOUT_S)
+                        except Exception as e:
+                            log.debug("%s: raw IR/RED poll failed (%r) — vitals unaffected", name, e)
                     await asyncio.sleep(1.0)
                     # Same stall guard as the Polar path: a ring that holds its link but stops answering
                     # (auth/setup never accepted, every frame failing CRC, a handler raising inside
@@ -2462,7 +2521,7 @@ async def run_oxyii(dev: dict, root: str):
             # nothing but its header — indistinguishable from a real capture until something opens it,
             # and the Dex ingest walks this directory. On the documented 359-reconnect night that was
             # ~1000 junk files in one night dir. The Polar path already solved this; the ring never got it.
-            for _w in (wr, ppgwr, oxyflagwr):
+            for _w in (wr, ppgwr, oxyflagwr, ppg2wr):
                 if not _w:
                     continue
                 _empty, _p = not _w.rows, _w.path

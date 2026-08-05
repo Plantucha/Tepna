@@ -87,6 +87,7 @@ def set_time_frame(dt, seq: int = 0) -> bytes:
 # printing bleak's PLACEHOLDER mtu_size (23 on BlueZ until a characteristic is acquired) plus a 6 s
 # timeout against a ~4.1 s FILE_LIST reply. Do not re-introduce an MTU precondition.
 OP_FILE_LIST, OP_FILE_START, OP_FILE_DATA, OP_FILE_END = 0xF1, 0xF2, 0xF3, 0xF4
+OP_RT_PPG = 0x05          # raw dual-wavelength buffer (see parse_rt_ppg)
 
 
 def file_list_frame(seq: int = 0) -> bytes:
@@ -315,6 +316,74 @@ def ppg_stream_offset(payload: bytes) -> int | None:
     if len(payload) < 24:
         return None
     return int.from_bytes(payload[20:24], "little")
+
+
+# ── RAW DUAL-WAVELENGTH PPG (cmd 0x05) — MEASURED ON HARDWARE 2026-08-05 ─────────────────────────────
+# `O2RING-RAW-STREAMS-ABSENT-2026-08-04` concluded this ring exports no raw red/IR. It does. That sweep
+# probed all 256 opcodes with args `none/00/01/02` and scored 0x05's fixed 922-byte reply as noise-like
+# against a generic metric; the vendor SDK (`lepu-blepro` 1.3.6, `oxyIIGetRtPpg`) specifies the argument
+# `{0x07, 0x01}` and a 9-byte record layout, and decoded that way both channels are ordered waveforms:
+#
+#   IR   range 8585  median|delta| 127   ratio 0.0148      ratio = median|delta| / range
+#   RED  range 5471  median|delta|  92   ratio 0.0168      a waveform is << 1
+#   IR, SAME data shuffled                ratio 0.3395      <- 23x rougher; ordering is the signal
+#
+# So the payload is not noise, and "re-deriving SpO2 is impossible on this hardware" no longer follows
+# from the premise it rested on. Whether the ratio-of-ratios is RECOVERABLE is a separate question this
+# does not answer — it only establishes that the two channels exist and are readable.
+RT_PPG_ARG = bytes([0x07, 0x01])     # the argument the SDK specifies; no prior sweep here sent it
+RT_PPG_REC = 9                       # u32 LE chA | u32 LE chB | u8 motion  (see WHICH-IS-WHICH below)
+
+# WHICH-IS-WHICH IS NOT SETTLED, SO THE COLUMNS ARE NOT NAMED `ir`/`red`.
+# The SDK calls the first u32 IR and the second RED. That is a claim from a vendor header, not a
+# measurement, and here it would be LOAD-BEARING: SpO2 comes from the ratio-of-ratios
+# R = (AC/DC)_red / (AC/DC)_ir, so a swapped pair does not fail loudly — it yields a confident WRONG
+# saturation. Recording device order under neutral names keeps the bytes honest and costs nothing; a
+# consumer that needs the assignment can compute it (below) instead of inheriting an assumption.
+#
+# THE TEST THAT SETTLES IT, and why it is decisive rather than suggestive: R is ~0.5-0.6 at 98% SpO2 and
+# ~1.0 at 82%, so the two assignments are not near-ties. Take one buffer, compute AC/DC per channel, form
+# R both ways, and compare against the SpO2 the ring itself reports in the same session (cmd 0x04). The
+# correct assignment lands near the ring's own number; the swap lands ~25-30 points below it. One
+# reading with a healthy finger separates them. Blocked 2026-08-05 only because the ring was not
+# reachable (BlueZ held the link while the capture service ran) — it needs no new protocol work.
+
+
+def rt_ppg_frame(seq: int = 0) -> bytes:
+    """cmd=0x05 — ask for the raw dual-wavelength buffer."""
+    return encode(OP_RT_PPG, RT_PPG_ARG, seq)
+
+
+def parse_rt_ppg(payload: bytes) -> list[tuple[int, int, int]]:
+    """cmd=0x05 reply -> [(chA, chB, motion), ...], or [] when the frame carries no records.
+
+    Layout, measured on device `S8AW2100` and matching the vendor SDK's `RtPpg`:
+        [0:2]        u16 LE record count
+        [2 : 2+9N]   N records of {u32 LE chA, u32 LE chB, u8 motion}  (chA/chB per WHICH-IS-WHICH)
+    The observed reply is 922 B with a declared count of 102, i.e. 2 + 9*102 = 920 and TWO BYTES OVER.
+    Those two are not decoded here and are not assumed to be padding — the record count is taken from
+    the device's own field and the slice is bounded by the buffer, so a trailer of any size is ignored
+    rather than silently absorbed into a record.
+
+    ⚠️ THE RATE IS NOT KNOWN AND IS NOT ASSERTED. The SDK's README says 200 Hz. Every reply measured
+    here carried EXACTLY 102 records regardless of poll spacing, which is the signature of a fixed
+    buffer cap (cmd 0x03 behaves the same way and caps at 250), not of a sample rate. A constant count
+    under a varying poll interval cannot distinguish "200 Hz, buffer full" from "102 Hz, buffer sized to
+    the poll". Deriving fs from it would be inventing a number; consumers must measure it.
+
+    `motion` is returned as the raw byte. The vendor doubles it for display (`* 2`); that is a
+    presentation choice and is not applied to a recorded value."""
+    if len(payload) < 2:
+        return []
+    n = int.from_bytes(payload[0:2], "little")
+    avail = max(0, (len(payload) - 2) // RT_PPG_REC)
+    out = []
+    for i in range(min(n, avail)):
+        o = 2 + i * RT_PPG_REC
+        out.append((int.from_bytes(payload[o:o + 4], "little"),
+                    int.from_bytes(payload[o + 4:o + 8], "little"),
+                    payload[o + 8]))
+    return out
 
 
 def parse_ppg(payload: bytes) -> list[int]:

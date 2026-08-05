@@ -13802,7 +13802,13 @@
         if (!briefSet[t]) asym.push(n + ' \u2192Supersedes ' + t + ' (missing)');
         else if (supBy[t] !== n) asym.push(n + ' \u2194 ' + t + ' one-sided');
       });
-      T.ok('check5 · Superseded-by/Supersedes links are bidirectional', asym.length === 0, asym.length ? asym.slice(0, 8).join('; ') : 'no supersede links (ok)');
+      /* The detail reports the PAIR COUNT, not just "ok". It used to print 'no supersede links (ok)'
+         whenever `asym` was empty — which is the message for *no asymmetry*, not for *no links*, and
+         the two were indistinguishable in the output. With two real pairs on disk it still read as
+         though the check had nothing to examine, i.e. exactly like the vacuous pass it was not. A
+         gate has to say how much it looked at, or a genuine zero cannot be told from a working one. */
+      var supN = Object.keys(supBy).length + Object.keys(sup).length;
+      T.ok('check5 · Superseded-by/Supersedes links are bidirectional', asym.length === 0, asym.length ? asym.slice(0, 8).join('; ') : supN + ' supersede link(s) scanned, all symmetric');
 
       // ── CHECK 6 · filename-date discipline for briefs Created ≥ cutoff (older undated names FROZEN) ──
       var c6 = [];
