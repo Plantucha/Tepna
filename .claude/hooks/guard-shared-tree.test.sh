@@ -153,9 +153,16 @@ echo "### INTENTIONALLY RELAXED — main DENIES these, and that was the bug     
 # relaxation is allowed HERE ONLY, one line at a time, each with the reason it is not a regression.
 # The bar is that the command must be provably outside the rule's stated purpose — not merely
 # inconvenient.
+# ⚠ THE ONLY ASSERTION HERE IS `allow`. The first version also FAILED when main allowed the case
+# too, reasoning that a relaxation main already permits is not a relaxation and belongs in MUST
+# ALLOW. That is true on the branch and false one second after it merges: `$BASE` is origin/main, so
+# the moment the loosening lands, base and H agree and the check fires forever. It did — `npm run
+# check` went red on main for every session the moment #991 merged, and the PR that introduced it was
+# green when it was measured, because it was measured against the main that predated it.
+# A case whose expectation flips on merge is not a test, it is a fuse. The base column stays, printed
+# for information: DENY means the loosening has not landed yet, allow means it has.
 relaxed(){ local got; got=$(v "$1" "$H"); local base; base=$(v "$1" "$BASE")
   [ "$got" != allow ] && { fail=$((fail+1)); printf '  %-5s %-5s %s <-- EXPECTED allow\n' "$got" "$base" "$1"; return; }
-  [ "$base" != DENY ] && { fail=$((fail+1)); printf '  %-5s %-5s %s <-- NOT A RELAXATION (main allows it too; move to MUST ALLOW)\n' "$got" "$base" "$1"; return; }
   printf '  %-5s %-5s %s\n' "$got" "$base" "$1"; }
 # Paths were read from the whole command instead of the checkout's own segment, so an unrelated
 # source-looking token in a `&&`-joined step supplied the "source path" for a checkout that touched
