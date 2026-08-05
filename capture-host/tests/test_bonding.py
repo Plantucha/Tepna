@@ -41,6 +41,20 @@ Device 11:22:33:44:55:66 (public)
 """
 
 
+@pytest.fixture(autouse=True)
+def _no_real_bluez(monkeypatch):
+    """This box HAS bluetoothctl and the CI runner does not, so a test that forgets to stub a subprocess
+    entry is green here and red there — which is how two tests below shipped reaching the real binary
+    (#937). `scan()` has TWO entries, `_delayed_script` and `_btctl`; stubbing one is not stubbing it.
+    A test that means to drive the exec itself patches it after this fixture, so its own setattr wins."""
+    async def _forbidden(*argv, **kw):
+        raise AssertionError(
+            f"a bonding test reached the real bluetoothctl ({argv!r}) — use _stub(), which patches "
+            "BOTH _delayed_script and _btctl")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _forbidden)
+
+
 def _run(coro):
     return asyncio.run(coro)
 
@@ -390,3 +404,118 @@ def test_the_pair_script_revokes_trust_and_ends_cleanly(monkeypatch):
     assert cmds.index("pair AA:BB:CC:DD:EE:FF") < cmds.index("untrust AA:BB:CC:DD:EE:FF"), \
         "untrust follows the pair — reversing it revokes nothing"
     assert all(d >= 0 for d, _c in seen["lines"]), "every step is delay-paced; bluetoothctl drops fast input"
+
+
+# ── _delayed_script: the session that must stay open, and be closed ─────────────────────────────────
+def _script_harness(monkeypatch, output=b"", wait_raises=None):
+    """A bluetoothctl stand-in that records the pipes, every byte written, and whether it was reaped."""
+    seen = {"writes": [], "killed": False, "stdin_closed": False, "sleeps": []}
+
+    class _Stdin:
+        def write(self, b):
+            seen["writes"].append(b)
+
+        async def drain(self):
+            pass
+
+        def close(self):
+            seen["stdin_closed"] = True
+
+    class _Stdout:
+        def __init__(self, data):
+            self._d = [data, b""]
+
+        async def read(self, n):
+            return self._d.pop(0) if self._d else b""
+
+    class P:
+        returncode = 0
+
+        def __init__(self):
+            self.stdin, self.stdout = _Stdin(), _Stdout(output)
+
+        async def wait(self):
+            if wait_raises:
+                raise wait_raises
+            return 0
+
+        def kill(self):
+            seen["killed"] = True
+
+    async def fake_exec(*argv, **kw):
+        seen["argv"], seen["kw"] = list(argv), kw
+        return P()
+
+    async def fake_sleep(d):
+        seen["sleeps"].append(d)
+
+    monkeypatch.setattr(bonding.asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(bonding.asyncio, "sleep", fake_sleep)
+    return seen
+
+
+def test_the_scripted_session_writes_every_command_and_closes_stdin(monkeypatch):
+    """ONE bluetoothctl session, because a cross-session scan loses the discovery cache — that is why
+    this exists instead of separate `_btctl` calls. Each command is newline-terminated and delivered on
+    stdin; closing stdin is what makes bluetoothctl exit rather than sit until the 5 s reap."""
+    seen = _script_harness(monkeypatch, output=b"Device AA:BB Polar H10\n")
+    out = _run(bonding._delayed_script([(0.5, "scan on"), (1.0, "scan off"), (0, "quit")]))
+
+    assert out == "Device AA:BB Polar H10\n", "the drained stdout must be returned, decoded"
+    assert seen["writes"] == [b"scan on\n", b"scan off\n", b"quit\n"], \
+        "every command, in order, newline-terminated"
+    assert seen["stdin_closed"] is True, "stdin must close or bluetoothctl never exits on its own"
+    assert seen["kw"]["stdin"] is bonding.asyncio.subprocess.PIPE
+    assert seen["kw"]["stdout"] is bonding.asyncio.subprocess.PIPE
+    assert seen["kw"]["stderr"] is bonding.asyncio.subprocess.STDOUT
+
+
+def test_the_delays_are_honoured_because_discovery_needs_time(monkeypatch):
+    """`scan on` must be given real time before `devices` is asked, or the listing is empty. A dropped
+    delay does not fail — it returns a SHORTER device list, which reads as "nothing was advertising"."""
+    seen = _script_harness(monkeypatch)
+    _run(bonding._delayed_script([(0.5, "scan on"), (8.0, "scan off"), (0, "quit")]))
+    assert 0.5 in seen["sleeps"] and 8.0 in seen["sleeps"], "each stated delay is actually awaited"
+    assert 0 not in seen["sleeps"], "a zero delay is skipped, not slept on"
+
+
+def test_a_session_that_will_not_exit_is_killed_rather_than_left(monkeypatch):
+    """CAPTURE-HOST-DEEP-AUDIT §E1's neighbour: a bluetoothctl that ignores its closed stdin must be
+    killed, or it holds the adapter for the daemon's lifetime and every later scan finds nothing."""
+    seen = _script_harness(monkeypatch, wait_raises=bonding.asyncio.TimeoutError())
+    _run(bonding._delayed_script([(0, "quit")]))
+    assert seen["killed"] is True, "the reap is bounded at 5s and then it is killed"
+
+
+def test_scan_asks_for_devices_after_scanning_and_quits(monkeypatch):
+    """The order is the whole function: scan on -> wait -> scan off -> devices -> quit. Asking for
+    `devices` before `scan off` returns a partial list; omitting `quit` leaves the session to time out."""
+    rec = []
+    _stub(monkeypatch, delayed="Device AA:BB:CC:DD:EE:FF Polar H10 ABCDEF\n",
+          info_by_addr={"AA:BB:CC:DD:EE:FF": "Bonded: yes\n"}, record=rec)
+    found = _run(bonding.scan(seconds=3.0))
+
+    script = [x for x in rec if isinstance(x, tuple)]
+    assert [c for _d, c in script] == ["scan on", "scan off", "devices", "quit"], \
+        "the order is load-bearing"
+    assert [d for d, c in script if c == "scan off"] == [3.0], \
+        "the caller's duration is what the scan actually runs for"
+    # The `info` enrichment is part of scan(), not a separate call the caller makes. An earlier version
+    # of this test stubbed only _delayed_script, so this loop ran against the REAL bluetoothctl.
+    assert [x for x in rec if isinstance(x, str)] == ["info AA:BB:CC:DD:EE:FF\nquit\n"], \
+        "one info query per discovered address, and nothing else reaches bluetoothctl"
+    assert len(found) == 1 and found[0].address == "AA:BB:CC:DD:EE:FF"
+    assert found[0].health is True, "a Polar H10 is a health device"
+    assert found[0].bonded is True, "bonded comes from the info pass; the scan lines cannot supply it"
+
+
+def test_a_real_name_replaces_a_placeholder_for_the_same_address(monkeypatch):
+    """bluetoothctl announces a device by MAC first and its real name later. Keeping the first sighting
+    would leave every device listed as its own address, which is what the operator picks from."""
+    _stub(monkeypatch,
+          delayed=("Device AA:BB:CC:DD:EE:FF AA-BB-CC-DD-EE-FF\n"
+                   "Device AA:BB:CC:DD:EE:FF Polar H10 ABCDEF\n"),
+          info_by_addr={"AA:BB:CC:DD:EE:FF": ""})
+    found = _run(bonding.scan())
+    assert len(found) == 1, "one address, one entry"
+    assert "Polar" in found[0].name, "the real name must win over the placeholder"

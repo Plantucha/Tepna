@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["classify", "ceiling", "REACHABLE", "PROSE", "UNOBSERVABLE", "EQUIVALENT"]
+__all__ = ["classify", "ceiling", "concentration", "REACHABLE", "PROSE", "UNOBSERVABLE",
+           "EQUIVALENT"]
 
 REACHABLE = "REACHABLE"
 PROSE = "PROSE"
@@ -96,3 +97,30 @@ def ceiling(total: int, survived: int, timeouts: int, unobservable: int, reachab
         "if_all_reachable": killed + reachable,
         "if_all_reachable_pct": 100.0 * (killed + reachable) / total,
     }
+
+
+def concentration(fns: list[str]) -> dict:
+    """Where a module's REACHABLE mutants sit, and therefore what a pass will cost.
+
+    MEASURED 2026-08-04 across eight passes: the count of reachable mutants does NOT predict the cost
+    of a pass; their CONCENTRATION does. `clockcfg` returned 40 mutants from six tests because 27 of
+    them sat in one function that no test had driven. `storage_targets` has a comparable count spread
+    across four functions, so the same total costs several separate fixtures.
+
+    That also corrected a wrong reading: after 34 -> 13 -> 14 on already-worked modules it looked like
+    returns had flattened, and then never-measured modules gave 9 -> 11 -> 10 -> 15 -> 40. The
+    flattening was WITHIN a module. Across the fleet, what predicts a cheap pass is one dense cluster —
+    module history does not.
+
+    `top_share` is the largest cluster as a fraction of the module's reachable set. Above ~0.5 a single
+    fixture takes most of them; below ~0.25 the work is scattered and each mutant costs more.
+    """
+    if not fns:
+        return {"total": 0, "clusters": [], "top": None, "top_n": 0, "top_share": 0.0}
+    counts: dict[str, int] = {}
+    for f in fns:
+        counts[f] = counts.get(f, 0) + 1
+    ordered = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    top, top_n = ordered[0]
+    return {"total": len(fns), "clusters": ordered, "top": top, "top_n": top_n,
+            "top_share": top_n / len(fns)}

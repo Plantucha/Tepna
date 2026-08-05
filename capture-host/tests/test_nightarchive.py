@@ -474,3 +474,53 @@ def test_rel_files_enumeration_is_SORTED_not_merely_readdir_order(tmp_path, monk
     assert got == ["a_ECG.txt", "b_PPG.txt", "c_ACC.txt", os.path.join("sub", "d_HR.txt")], (
         f"rel_files returned readdir order, not sorted order: {got}"
     )
+
+
+# ── pending_nights: the marker is not a one-way latch (DEEP-AUDIT §C4) ──────────────────────────────
+def test_a_night_that_grew_after_its_marker_is_offered_again(tmp_path):
+    """§C4, measured on the real box: 7 of 11 nights had a premature-archive window because
+    `writers.night_dir` keys on the SESSION'S START DATE, so a morning session and that evening's
+    session share one YYYY-MM-DD dir with a multi-hour lull between them. During the lull the night
+    looks finished, gets mirrored, and is marked done — and everything written that evening never
+    reaches the mirror, while prune_old_nights deletes the local (and only complete) copy.
+
+    `_grew_since_marker` is what re-offers it, and it needs BOTH arguments: the directory AND the
+    marker whose mtime is the comparison point. Dropping the marker compares against nothing."""
+    root = str(tmp_path)
+    d = _night(root, "2026-07-20", {"a.csv": "morning"})
+    # the marker must be NEWER than the night's files for "quiet since mirroring" to hold — the whole
+    # test is about what happens when that ordering later reverses
+    os.utime(os.path.join(d, "a.csv"), (1000, 1000))
+    marker = os.path.join(d, nightarchive._MARKER)
+    open(marker, "w").close()
+    os.utime(marker, (5000, 5000))
+
+    assert nightarchive.pending_nights(root, active=set()) == [], "quiet since the marker — nothing to do"
+
+    with open(os.path.join(d, "b.csv"), "w") as fh:
+        fh.write("evening")
+    os.utime(os.path.join(d, "b.csv"), (9000, 9000))
+    assert nightarchive.pending_nights(root, active=set()) == ["2026-07-20"], \
+        "a night that GREW after its marker must be offered again, or the evening session is lost"
+
+
+def test_an_active_night_is_skipped_without_abandoning_the_rest(tmp_path):
+    """`continue`, not `break`. A session running past midnight leaves TWO in-progress dirs, and the
+    active one is usually the LAST by name — breaking there would skip every completed night behind it,
+    silently, forever."""
+    root = str(tmp_path)
+    for n in ("2026-07-18", "2026-07-19", "2026-07-20"):
+        _night(root, n, {"a.csv": "x"})
+    got = nightarchive.pending_nights(root, active={"2026-07-19"})
+    assert got == ["2026-07-18", "2026-07-20"], \
+        "the active night is skipped and the ones after it are still offered"
+
+
+def test_the_marker_is_looked_for_inside_the_night_not_at_the_root(tmp_path):
+    """`os.path.join(nd, marker)`. Dropping the directory checks a path relative to the CWD — which
+    almost never exists, so every night reads as unmarked and gets re-mirrored on every cycle."""
+    root = str(tmp_path)
+    d = _night(root, "2026-07-21", {"a.csv": "x"})
+    open(os.path.join(d, nightarchive._MARKER), "w").close()
+    assert nightarchive.pending_nights(root, active=set()) == [], \
+        "the marker inside the night dir must be found"

@@ -116,3 +116,63 @@ def test_every_bounded_wrapper_routes_through_the_helper():
     assert not offenders, (
         "these bound the await but not the process — use proc_util.communicate():\n  "
         + "\n  ".join(offenders))
+
+
+# ── kill(): what it suppresses, and that the reap is not optional ───────────────────────────────────
+def test_kill_reaps_and_never_raises_whatever_the_child_does():
+    """Three exception types are suppressed around `proc.kill()` and each is a real state:
+    ProcessLookupError (already exited between the check and the signal), OSError (the transport is
+    gone), ValueError (asyncio's own guard on a closed transport). Narrowing that tuple turns a
+    teardown into a NEW failure mode, which is exactly what the docstring forbids.
+
+    And the reap is separate and mandatory: without `await proc.wait()` the killed child stays a
+    zombie for the daemon's lifetime — for a unit that is Restart=always with no RuntimeMaxSec, months.
+    """
+    for exc in (ProcessLookupError(), OSError("gone"), ValueError("closed transport")):
+        reaped = []
+
+        class P:
+            def kill(self_inner):
+                raise exc
+
+            async def wait(self_inner):
+                reaped.append(True)
+                return 0
+
+        asyncio.run(proc_util.kill(P()))
+        assert reaped == [True], f"a {type(exc).__name__} from kill() must not skip the reap"
+
+
+def test_kill_bounds_the_reap_rather_than_waiting_forever():
+    """`wait_for(proc.wait(), _REAP_S)`. A child that ignores SIGKILL — uninterruptible in D-state on a
+    stuck USB/BLE transport — would otherwise park the teardown forever. The timeout is swallowed by
+    design: at that point the process is the kernel's problem, not the daemon's."""
+    seen = {}
+
+    class P:
+        def kill(self):
+            seen["killed"] = True
+
+        async def wait(self):
+            await asyncio.sleep(3600)          # never returns
+
+    async def go():
+        await asyncio.wait_for(proc_util.kill(P()), timeout=5)
+
+    asyncio.run(go())
+    assert seen["killed"] is True, "the signal is sent even though the reap times out"
+
+
+def test_kill_reaps_a_cooperative_child_without_error():
+    order = []
+
+    class P:
+        def kill(self):
+            order.append("kill")
+
+        async def wait(self):
+            order.append("wait")
+            return -9
+
+    asyncio.run(proc_util.kill(P()))
+    assert order == ["kill", "wait"], "signal first, then reap — reversing it waits on a live child"

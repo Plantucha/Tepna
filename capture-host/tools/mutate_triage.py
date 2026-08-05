@@ -43,7 +43,7 @@ import time
 # that can silently mislead — the plumbing below is deliberately left uncovered. See that module's
 # header for why the split is partial on purpose.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from mutation_triage import ceiling, classify  # noqa: E402
+from mutation_triage import ceiling, classify, concentration  # noqa: E402
 
 
 def newest_scratch(module: str) -> str | None:
@@ -67,14 +67,56 @@ def mutmut_diff(work: str, python: str, mid: str) -> tuple[str, str]:
     return (minus[0] if minus else ""), (plus[0] if plus else "")
 
 
+def rank_all(py: str) -> int:
+    """Which module's next pass is cheapest — the question eight passes were spent answering by hand.
+
+    Sorted by the size of the largest reachable cluster, not by how much is left: a dense cluster is
+    one fixture, a scattered set of the same size is several.
+    """
+    mods = sorted({os.path.basename(os.path.dirname(w))[4:].rsplit("-", 1)[0]
+                   for w in glob.glob("/tmp/mut-*/work")})
+    rows = []
+    for m in mods:
+        work = newest_scratch(m)
+        if not work:
+            continue
+        try:
+            surv, tmo = mutmut_results(work, py)
+        except Exception:                                   # noqa: BLE001 — a half-written scratch
+            continue
+        if not surv:
+            continue
+        fns = []
+        for mid in surv:
+            a, b = mutmut_diff(work, py, mid)
+            if classify(a, b)[0] == "REACHABLE":
+                fns.append(re.sub(r".*x_?(.+?)__mutmut_\d+.*", r"\1", mid))
+        c = concentration(fns)
+        rows.append((m, len(surv), tmo, c))
+    rows.sort(key=lambda r: -r[3]["top_n"])
+    print("%-18s %9s %10s %-22s %7s" % ("module", "survivors", "reachable", "largest cluster", "share"))
+    for m, ns, tmo, c in rows:
+        top = f"{c['top']}={c['top_n']}" if c["top"] else "-"
+        print("%-18s %9d %10d %-22s %6.0f%%" % (m, ns, c["total"], top, 100 * c["top_share"]))
+    print("\n  Sorted by LARGEST CLUSTER, not by what is left: a dense cluster is one fixture, a")
+    print("  scattered set of the same size is several. Measured over eight passes on 2026-08-04.")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("module")
+    ap.add_argument("module", nargs="?")
     ap.add_argument("--total", type=int, help="total mutants (from the audit stats); enables the ceiling")
     ap.add_argument("--work", action="store_true", help="print only the REACHABLE work-list, with diffs")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--rank", action="store_true",
+                    help="rank every module with a scratch by how cheap its next pass is")
     ap.add_argument("--python", default=".venv/bin/python")
     a = ap.parse_args()
+
+    py_early = os.path.abspath(a.python)
+    if a.rank:
+        return rank_all(py_early)
 
     work = newest_scratch(a.module)
     if not work:
