@@ -1,0 +1,11 @@
+{
+  "clock.js": {
+    "line": 386,
+    "op": "cmp <= → <",
+    "before": "if (x <= pts[0].d) return sm[0];",
+    "after": "if (x < pts[0].d) return sm[0];",
+    "killers": [
+      "clock.js — wave 8: duplicate anchors, and an anchor that is not a number"
+    ]
+  }
+}
