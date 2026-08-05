@@ -1815,12 +1815,23 @@
           !!(blk.tch.allan && blk.tch.allan.adev && blk.tch.allan.adev.PpgDex && blk.tch.allan.tausMin && blk.tch.allan.tausMin.length === 4),
           JSON.stringify(blk.tch.allan && blk.tch.allan.tausMin)
         );
+        /* DELIBERATE UPDATE (DA-V §2.1 F6). This asserted the ordering at tau-1 specifically, and it
+           passed because ECGDex's tau-1 split goes slightly NEGATIVE on this fixture and used to be
+           clamped to a fabricated 0 — anything beats 0. With the clamp replaced by an honest null the
+           comparison at tau-1 is no longer AVAILABLE, which is the correct answer, not a regression.
+           Assert the ordering at the first tau where BOTH nodes actually resolved: the property under
+           test is "the noisier node reads noisier", not "tau-1 in particular". */
         T.ok(
-          'τ-curve: noisiest node (PpgDex) has higher Allan dev than ECGDex at τ1',
+          'τ-curve: noisiest node (PpgDex) reads higher than ECGDex at the first RESOLVED τ',
           (function () {
             var ad = blk.tch.allan && blk.tch.allan.adev;
-            return !!ad && ad.PpgDex[0] != null && ad.ECGDex[0] != null && ad.PpgDex[0] > ad.ECGDex[0];
-          })()
+            if (!ad || !ad.PpgDex || !ad.ECGDex) return false;
+            for (var ti = 0; ti < ad.PpgDex.length; ti++) {
+              if (ad.PpgDex[ti] != null && ad.ECGDex[ti] != null) return ad.PpgDex[ti] > ad.ECGDex[ti];
+            }
+            return false; // no tau resolved for both — the curve says nothing, so neither do we
+          })(),
+          JSON.stringify({ ppg: blk.tch.allan && blk.tch.allan.adev.PpgDex, ecg: blk.tch.allan && blk.tch.allan.adev.ECGDex })
         );
       }
       /* DEEP-AUDIT-V §2.1 F4 — THE SCREEN HAS THREE OUTCOMES AND THE CONSUMER IMPLEMENTED TWO.
@@ -1900,6 +1911,56 @@
           T.eq('F5 · the tau-curve is keyed by label too, so it refuses the same triple', K.allanTriplet(SA, SB, SC, { labels: ['E', 'P', 'P'] }), null);
           T.ok('control · …and still computes for distinct corners', !!(K.allanTriplet(SA, SB, SC, { labels: ['E', 'P', 'H' ] }) || {}).adev);
         }
+      })();
+
+      /* DEEP-AUDIT-V §2.1 F6 — A NEGATIVE ALLAN SPLIT IS NOT RESOLVABLE, NOT ZERO.
+         `allanTriplet` clamped ANY negative classic split to 0 and published it as a real tau-curve
+         point, so the renderer drew a finite marker at the BOTTOM of the chart — "perfectly steady at
+         that averaging time" — from a solve that did not resolve. Measured on the golden's own
+         geometry (N=24, four taus, 400 seeds): 19.8 % of published points were exactly 0.
+         The comment justifying the clamp claimed it matched `threeCorneredHat`'s sigma-bar path. It
+         did NOT: that path clamps only inside +/-1e-9 and anything more negative sets `negative` and
+         diverts. Both now use the SAME tolerance, so the claim is true by construction.
+         The mechanism is deliberately NOT attributed to common-mode noise — injecting a common-mode
+         term moves the count 440 -> 419, i.e. nothing. This is about 0-vs-null, not about why. */
+      (function () {
+        var rr2 = rng(9001),
+          N3 = 24,
+          tr3 = [],
+          a3 = 42;
+        for (var i3 = 0; i3 < N3; i3++) {
+          a3 += (rr2() - 0.5) * 3;
+          tr3.push(a3);
+        }
+        var mk3 = function (sd) {
+          return tr3.map(function (v) {
+            return v + (rr2() - 0.5) * sd;
+          });
+        };
+        var al3 = K.allanTriplet(mk3(2), mk3(6), mk3(14), { labels: ['A', 'B', 'C'], taus: [1, 2, 4, 8] });
+        T.ok('allanTriplet still produces a curve', !!(al3 && al3.adev));
+        if (al3 && al3.adev) {
+          var flat = [],
+            nulls = 0,
+            real = 0;
+          Object.keys(al3.adev).forEach(function (k) {
+            al3.adev[k].forEach(function (v) {
+              if (v === null) nulls++;
+              else if (v === 0) flat.push(k);
+              else real++;
+            });
+          });
+          T.eq('F6 · no tau-point is published as an exact 0 (a clamped negative)', flat.length, 0);
+          T.ok('F6 · the unresolvable points are null instead', nulls > 0, nulls + ' null of ' + (nulls + real + flat.length));
+          T.ok('F6 · …and the curve still carries REAL points (not nulled wholesale)', real > 0, real + ' real');
+          T.ok('F6 · negativeAt names which taus did not resolve', Array.isArray(al3.negativeAt) && al3.negativeAt.length === 4, JSON.stringify(al3.negativeAt));
+          T.ok('F6 · …and nNegative agrees with it', al3.nNegative === al3.negativeAt.filter(Boolean).length, 'nNegative=' + al3.nNegative);
+        }
+        /* THE TOLERANCE IS SHARED WITH threeCorneredHat — the claim the old comment made falsely.
+           A clean, well-separated triplet must produce NO negatives at all, proving the null path is
+           driven by the split going negative and not by the change nulling everything. */
+        var clean = K.allanTriplet(tr3.map(function (v) { return v + 0.01; }), tr3.map(function (v) { return v + 0.4; }), tr3.map(function (v) { return v + 3.0; }), { labels: ['A', 'B', 'C'], taus: [1, 2] });
+        T.ok('control · a cleanly-separated triplet yields a curve with no unresolved taus', !!clean && clean.nNegative === 0, clean && 'nNegative=' + clean.nNegative);
       })();
 
       // DEGRADE — only 2 series-bearing nodes → no TCH, pairwise consensus intact

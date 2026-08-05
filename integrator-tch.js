@@ -143,7 +143,8 @@
       avAC = allanDeviation(diff(seriesA, seriesC), taus),
       avBC = allanDeviation(diff(seriesB, seriesC), taus);
     var adev = {},
-      ns = [];
+      ns = [],
+      negAt = []; // per-tau: did the classic split go negative beyond tolerance (DA-V F6)
     adev[labels[0]] = [];
     adev[labels[1]] = [];
     adev[labels[2]] = [];
@@ -158,15 +159,34 @@
         ns.push(0);
         continue;
       }
-      var cl = classic(Vab, Vac, Vbc); // non-negativity projection: clamp a slightly
-      // negative split (small-variance member swamped by sampling noise) to 0 — same as the
-      // classic σ-bar path (threeCorneredHat's Math.max(cl.x,0)).
-      adev[labels[0]].push(Math.sqrt(Math.max(cl.a, 0)));
-      adev[labels[1]].push(Math.sqrt(Math.max(cl.b, 0)));
-      adev[labels[2]].push(Math.sqrt(Math.max(cl.c, 0)));
+      /* A NEGATIVE SPLIT IS NOT RESOLVABLE AT THIS TAU — IT IS NOT ZERO (DEEP-AUDIT-V §2.1 F6).
+         This clamped ANY negative split to 0 and published it as a real tau-curve point, so the
+         renderer drew a finite marker at the BOTTOM of the chart: "this sensor is perfectly steady at
+         that averaging time", from a solve that did not resolve. Measured on the golden's own
+         geometry (N=24, four taus, 400 seeds): **19.8 % of published points were exactly 0**.
+
+         The comment this replaces claimed the clamp was "the same as the classic sigma-bar path
+         (threeCorneredHat's Math.max(cl.x,0))". THAT WAS FALSE, and it is why the defect looked
+         principled: `threeCorneredHat` clamps only inside a +/-1e-9 tolerance (:346) and ANYTHING
+         more negative sets `negative = true` and diverts to the correlated solve or returns ok:false.
+         It never publishes a clamped negative as a measurement. This now uses the SAME tolerance, so
+         the two really do agree — and the renderer's existing null-break becomes true by construction
+         rather than by hope.
+
+         `negativeAt` is published alongside so a consumer can say "not resolvable here" rather than
+         infer it from a gap. NOTE the mechanism is deliberately NOT attributed to common-mode noise:
+         injecting a common-mode term moved the count 440 -> 419, i.e. nothing. This ships on the
+         honesty of 0-vs-null, not on a story about why the split goes negative. */
+      var cl = classic(Vab, Vac, Vbc);
+      var _tol = -1e-9; // the tolerance threeCorneredHat uses — single rule, two call sites
+      var _neg = cl.a < _tol || cl.b < _tol || cl.c < _tol;
+      adev[labels[0]].push(cl.a < _tol ? null : Math.sqrt(Math.max(cl.a, 0)));
+      adev[labels[1]].push(cl.b < _tol ? null : Math.sqrt(Math.max(cl.b, 0)));
+      adev[labels[2]].push(cl.c < _tol ? null : Math.sqrt(Math.max(cl.c, 0)));
+      negAt.push(_neg);
       ns.push(Math.min(avAB[i].n, avAC[i].n, avBC[i].n));
     }
-    return { taus: taus.slice(), adev: adev, n: ns };
+    return { taus: taus.slice(), adev: adev, n: ns, negativeAt: negAt, nNegative: negAt.filter(Boolean).length };
   }
 
   /* ── classic Gray–Allan closed form (assumes uncorrelated noise) ──────── */
