@@ -37,13 +37,43 @@ def test_oxyframe_header_and_row_layout(tmp_path):
     head, row = _lines(str(p))[0], _rows(str(p))[0]
     assert head.split(";") == ["Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr",
                               "contact", "battery_pct", "batt_state", "flag",
-                              "ppg_n", "ppg_dur_step"]
+                              "ppg_n", "ppg_dur_step", "ppg_offset", "flag_raw"]
     cells = row.split(";")
     assert cells[0] == "2026-07-19T03:04:05.678"
-    # The PPG trio is blank: this caller passed no `ppg`, and the ORIGINAL ten columns are unmoved —
-    # the append-never-insert rule, asserted rather than assumed (O2RING-FRAME-SAMPLE-LOCK).
-    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0", "", ""]
+    # The appended columns are blank: this caller passed no `ppg` and no `flag_raw`, and the ORIGINAL ten
+    # columns are unmoved — the append-never-insert rule, asserted rather than assumed
+    # (O2RING-FRAME-SAMPLE-LOCK, extended by DEVICE-RATE-TRUTH §6.1).
+    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0", "", "", "", ""]
     assert len(cells) == len(head.split(";")), "row must have exactly as many cells as the header"
+
+
+def test_oxyframe_records_the_ring_stream_offset_and_the_whole_flag_byte(tmp_path):
+    """`ppg_offset` is the ring's OWN sequence number and `flag_raw` the whole [10] byte. Both are
+    recorded raw and never derived — the point is being able to re-audit a night from the file when the
+    interpretation turns out to be wrong, which for this device it repeatedly has."""
+    p = tmp_path / "o.txt"
+    w = OxyFrameLogWriter(str(p), fsync=False)
+    w.write(WHEN, {"duration": 900, "flag": 1, "flag_raw": 0xC7}, {"n": 126, "step": 1, "offset": 0})
+    w.write(WHEN, {"duration": 901, "flag": 1, "flag_raw": 0xC7}, {"n": 126, "step": 1, "offset": 126})
+    w.close()
+    rows = [r.split(";") for r in _rows(str(p))]
+    # offset 0 on the first frame is a READING, not an absence — it must not render blank
+    assert rows[0][-2] == "0"
+    assert rows[1][-2] == "126"
+    assert [r[-1] for r in rows] == ["199", "199"]     # 0xC7, reported as the whole byte
+
+
+def test_oxyframe_offset_is_blank_when_the_ppg_stream_is_off(tmp_path):
+    """A night captured without the PPG stream must not claim `ppg_offset = 0` — that is a real first-
+    frame value, and asserting it for a stream that never ran is the fabricated-zero bug this suite keeps
+    re-learning."""
+    p = tmp_path / "o.txt"
+    w = OxyFrameLogWriter(str(p), fsync=False)
+    w.write(WHEN, {"duration": 900, "flag": 1, "flag_raw": 0xC7})   # no `ppg` dict at all
+    w.close()
+    cells = _rows(str(p))[0].split(";")
+    assert cells[-2] == "", "ppg_offset must be blank, never 0, when the stream is off"
+    assert cells[-1] == "199", "flag_raw comes off `live`, so it survives a PPG-less frame"
 
 
 def test_oxyframe_carries_the_per_frame_ppg_arithmetic(tmp_path):
@@ -57,8 +87,11 @@ def test_oxyframe_carries_the_per_frame_ppg_arithmetic(tmp_path):
     w.write(WHEN, {"spo2": 96}, {"n": 251, "step": 2})
     w.close()
     a, b = (r.split(";") for r in _rows(str(p)))
-    assert a[10:] == ["126", "1"]
-    assert b[10:] == ["251", "2"], "a +2 step is recorded as 2, not as '1 frame missing'"
+    # Sliced to the TWO columns under test, not open-ended: an open `[10:]` asserts "and nothing was
+    # ever appended after these", which is the opposite of the append-never-insert rule this file exists
+    # to protect, and it breaks every time the writer legitimately grows.
+    assert a[10:12] == ["126", "1"]
+    assert b[10:12] == ["251", "2"], "a +2 step is recorded as 2, not as '1 frame missing'"
 
 
 def test_oxyframe_blanks_the_ppg_columns_rather_than_claiming_zero(tmp_path):
@@ -73,8 +106,8 @@ def test_oxyframe_blanks_the_ppg_columns_rather_than_claiming_zero(tmp_path):
     w.write(WHEN, {"spo2": 96}, {"n": 0, "step": 0})
     w.close()
     first, second = (r.split(";") for r in _rows(str(p)))
-    assert first[10:] == ["250", ""], "an unmeasurable step must be blank, never 0"
-    assert second[10:] == ["0", "0"], "a real declared count of 0, and a real flat step, survive as 0"
+    assert first[10:12] == ["250", ""], "an unmeasurable step must be blank, never 0"
+    assert second[10:12] == ["0", "0"], "a real declared count of 0, and a real flat step, survive as 0"
 
 
 def test_oxyframe_writes_blank_for_absent_but_zero_for_a_real_zero(tmp_path):
