@@ -14,6 +14,7 @@ import pytest
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPD = os.path.join(HERE, "tepna-update.sh")
+DEPLOY_ROOT = "/opt/tepna/capture-host"  # the path the installed units name; maps back onto HERE
 
 
 def _git(d, *a):
@@ -325,3 +326,57 @@ def test_publish_recording_on_an_empty_device_map_is_idle_not_an_error():
     c = _cap()
     c.STATUS["devices"] = {}
     assert c.publish_recording(1.0, 120.0) is False
+
+
+def _exec_start_targets():
+    """(unit, repo-relative script) for every ExecStart= that exec's a repo file DIRECTLY.
+
+    A leading interpreter (`ExecStart=/bin/bash <script>`) is NOT a direct exec — the kernel exec's the
+    interpreter and the script is just an argument, so it needs no exec bit. Only the first token counts.
+    """
+    out = []
+    for sub in ("systemd", "deploy"):
+        d = os.path.join(HERE, sub)
+        if not os.path.isdir(d):
+            continue
+        for name in sorted(os.listdir(d)):
+            if not name.endswith(".service"):
+                continue
+            for line in open(os.path.join(d, name), encoding="utf-8"):
+                line = line.strip()
+                if not line.startswith("ExecStart="):  # a commented-out alternative is not a unit's exec
+                    continue
+                tok = line[len("ExecStart="):].split()
+                if not tok:
+                    continue
+                target = tok[0].lstrip("-@+!")  # systemd's exec-prefix chars
+                if not target.startswith(DEPLOY_ROOT):
+                    continue  # /usr/bin/caddy, the venv python — not ours to chmod
+                rel = os.path.relpath(target, DEPLOY_ROOT)
+                if os.path.isfile(os.path.join(HERE, rel)):
+                    out.append((f"{sub}/{name}", rel))
+    return out
+
+
+def test_a_unit_that_directly_execs_a_repo_script_requires_the_exec_bit():
+    """systemd's ExecStart= is an execve, and execve on a 0644 file is 203/EXEC.
+
+    THIS IS THE GAP THAT SHIPPED THE TIMER DEAD. Every other test in this file drives the updater as
+    `subprocess.run(["bash", UPD])`, which runs happily at mode 0644 — so 327 lines of green tests said
+    the updater worked while `tepna-update.timer` had never once executed on the real box. Measured
+    2026-08-04 on vigil: `Failed at step EXEC spawning /opt/tepna/capture-host/tepna-update.sh:
+    Permission denied`, hourly, silently, with the suite passing.
+
+    The mode is asserted through GIT, not the filesystem: the box is a clone, so the committed mode is
+    what actually lands there. A local `chmod +x` that git never records would leave the box broken and
+    this test green — the same shape of lie all over again.
+    """
+    targets = _exec_start_targets()
+    assert targets, "no direct-exec ExecStart= found — the scan broke, not the units"
+    for unit, rel in targets:
+        mode = subprocess.run(["git", "-C", HERE, "ls-files", "-s", rel],
+                              capture_output=True, text=True).stdout.split()
+        assert mode, f"{rel} (from {unit}) is not tracked by git"
+        assert mode[0] == "100755", (
+            f"{unit} directly exec's {rel}, which is committed {mode[0]}. systemd will fail 203/EXEC. "
+            f"Fix with: git update-index --chmod=+x capture-host/{rel}")
