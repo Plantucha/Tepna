@@ -633,14 +633,27 @@ async function runFile(file) {
   }
   if (canaryState === 'FAILED') {
     process.stderr.write(
-      '\n  ✕ CANARY SURVIVED on ' + file + ' — a mutant known to be killed was not killed.\n' +
-        '    The harness is not reliably detecting kills, so this run\'s kill rate is NOT reported.\n' +
-        '    Expected killers: ' + (canaryWant.killers || []).join(', ') + '\n' +
-        '    Canary: L' + canaryWant.line + ' [' + canaryWant.op + ']\n'
+      '\n  ✕ CANARY SURVIVED on ' +
+        file +
+        ' — a mutant known to be killed was not killed.\n' +
+        "    The harness is not reliably detecting kills, so this run's kill rate is NOT reported.\n" +
+        '    Expected killers: ' +
+        (canaryWant.killers || []).join(', ') +
+        '\n' +
+        '    Canary: L' +
+        canaryWant.line +
+        ' [' +
+        canaryWant.op +
+        ']\n'
     );
   } else if (canaryState === 'STALE') {
     process.stderr.write(
-      '\n  ⚠ CANARY STALE on ' + file + ' — the recorded canary (L' + canaryWant.line + ' [' + canaryWant.op +
+      '\n  ⚠ CANARY STALE on ' +
+        file +
+        ' — the recorded canary (L' +
+        canaryWant.line +
+        ' [' +
+        canaryWant.op +
         ']) no longer matches any generated mutant; the file changed under it.\n' +
         '    The run is UNGUARDED. Delete its entry in tools/mutate-canaries.json to re-learn one.\n'
     );
@@ -787,7 +800,7 @@ function selftest() {
   console.log('\nfindCanary — matched on (line, op, before), never on a positional index');
   const pool = [
     { line: 10, op: 'cmp > → >=', before: 'if (a > b) {' },
-    { line: 20, op: 'num → 0', before: 'return 5;' },
+    { line: 20, op: 'num → 0', before: 'return 5;' }
   ];
   ck('exact match found', findCanary(pool, { line: 20, op: 'num → 0', before: 'return 5;' }) === pool[1], true);
   ck('line moved → null (STALE, not a wrong guess)', findCanary(pool, { line: 21, op: 'num → 0', before: 'return 5;' }), null);
