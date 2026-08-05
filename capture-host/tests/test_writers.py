@@ -132,10 +132,45 @@ def test_write_gyro_and_mag_headers_carry_correct_units(tmp_path):
 
 
 def test_write_ppi_header_and_flag_bit_decomposition(tmp_path):
+    """PSL's PPI layout, VERIFIED against the vendor corpus: interval first, hr last, no device clock.
+
+    The previous expectation here pinned our OWN divergent layout — an extra `sensor timestamp [ns]`
+    column with HR third — so it read as validation of the bug. A consumer using PSL's order takes
+    column 1 as the interval; under the old layout that was the device clock, which every interval
+    sanity band rejects, so a live PPI stream counted ZERO usable beats.
+    """
     # flags 0b101 → blocker=1, skinContact=0, skinContactSupported=1 (bits 0,1,2)
     rows, _ = _write_read(tmp_path, "ppi", lambda w: w.write_ppi(_PHONE, 5000, 60, 1000, 5, 0b101))
-    assert rows[0].endswith("PP-interval [ms];error estimate [ms];blocker;skin contact;skin contact supported")
-    assert rows[1] == f"{_PTS};5000;60;1000;5;1;0;1"
+    assert rows[0] == "Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]"
+    assert rows[1] == f"{_PTS};1000;5;1;0;1;60"
+    # Column 1 is what a PSL-layout reader takes as the interval; it must survive an interval band.
+    assert 250 < float(rows[1].split(";")[1]) < 2200
+
+
+def test_every_emitted_header_matches_a_real_polar_sensor_logger_export():
+    """Byte-for-byte against headers taken from the real PSL corpus (19 GB, `Ecg nightly/`).
+
+    The file claims these are "exactly as Polar Sensor Logger exports". Seven of the eight were; PPI was
+    not, and nothing asserted the claim — so the one that diverged looked exactly like the seven that
+    did not. PSL splits HR/RR across two files, so each is checked against its own real header.
+    """
+    psl = {
+        "ecg":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
+        "acc":  "Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]",
+        "ppg":  "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient",
+        "gyro": "Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]",
+        "mag":  "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]",
+        "hr":   "Phone timestamp;HR [bpm];HRV [ms];Breathing interval [rpm];",
+        "rr":   "Phone timestamp;RR-interval [ms]",
+        "ppi":  "Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]",
+    }
+    for stream, header in psl.items():
+        assert writers.StreamWriter.HEADERS[stream] == header, f"{stream} diverges from the real vendor export"
+    # `ppg1` is ours BY DESIGN — the O2Ring's single photodiode has no PSL equivalent, and writing three
+    # replicated columns is what fabricated a 100% LED-agreement statistic (AUDIT-PROMPT class 11).
+    assert writers.StreamWriter.HEADERS["ppg1"] == "Phone timestamp;sensor timestamp [ns];channel 0"
+    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1"}, \
+        "a new stream needs its header checked against a real export, or this gate stops covering it"
 
 
 def test_write_hr_splits_into_psl_hr_and_rr_files(tmp_path):
@@ -409,7 +444,9 @@ def test_the_ppi_flag_bits_are_unpacked_from_their_own_positions(tmp_path):
                             (0b010, "0;1;0"), (0b100, "0;0;1"), (0b111, "1;1;1")):
         w.write_ppi(when, 1_000_000, 62, 968, 4, flags)
     w.close()
-    rows = [ln.split(";")[-3:] for ln in open(p).read().splitlines()[1:]]
+    # Columns 3,4,5 under PSL's layout (…;blocker;contact;contact;hr) — NOT the last three, which now
+    # end at `hr [bpm]`. The bits' independence is what is being asserted; only their position moved.
+    rows = [ln.split(";")[3:6] for ln in open(p).read().splitlines()[1:]]
     assert [";".join(r) for r in rows] == ["0;0;0", "1;0;0", "0;1;0", "0;0;1", "1;1;1"], \
         "each bit lands in its own column, independently"
 

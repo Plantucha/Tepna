@@ -230,7 +230,14 @@ class StreamWriter:
         "rr":   "Phone timestamp;RR-interval [ms]",
         "gyro": "Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]",
         "mag":  "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]",
-        "ppi":  "Phone timestamp;sensor timestamp [ns];HR [bpm];PP-interval [ms];error estimate [ms];blocker;skin contact;skin contact supported",
+        # PPI was the ONE stream of the eight whose header did not match a real PSL export, verified
+        # against all 107 `_PPI.txt` files in the Polar Sensor Logger corpus (one distinct header, no
+        # variants). It carried an extra `sensor timestamp [ns]` column and put HR THIRD where PSL puts
+        # it LAST, so a consumer reading PSL's layout took column 1 — our device clock — as the interval.
+        # Every such value is rejected by an interval sanity band, so a live stream read as ZERO usable
+        # beats: 21 871 real rows on the box on 2026-08-04 would have counted as none. That is the exact
+        # shape of "the Verity's PPI is dead", which is the conclusion this layout would have manufactured.
+        "ppi":  "Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]",
     }
 
     def __init__(self, path: str, stream: str, flush_interval: float = FLUSH_INTERVAL_S,
@@ -317,9 +324,12 @@ class StreamWriter:
         self._bump()
 
     def write_ppi(self, phone: _dt.datetime, sensor_ns: int, hr: int, pp_ms: int, err_ms: int, flags: int) -> None:
-        # One row per beat (PSL PPI layout). flags: bit0 blocker, bit1 skin-contact, bit2 skin-contact-supported.
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{hr};{pp_ms};{err_ms};"
-                       f"{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1}\n")
+        # One row per beat, in PSL's PPI column ORDER: interval FIRST, hr LAST, and NO device-clock column.
+        # `sensor_ns` is accepted for call-site compatibility and deliberately not emitted — PPI frames
+        # carry no usable device clock (every row the box has written has sensor_ns == 0), which is what
+        # nightqc.file_span_sec already assumes when it says "HR/RR/PPI carry no device clock".
+        self._fh.write(f"{_phone_ts(phone)};{pp_ms};{err_ms};"
+                       f"{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}\n")
         self._bump()
 
     def write_hr(self, phone: _dt.datetime, sensor_ns: int, bpm: int, rr_ms: Iterable[int]) -> None:
