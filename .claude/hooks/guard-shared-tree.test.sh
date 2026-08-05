@@ -39,13 +39,37 @@ chk(){ # chk <expected> <command>
 }
 
 echo "### MUST DENY                                                 now   main"
-while IFS= read -r c; do [ -n "$c" ] && chk DENY "$c"; done <<'DENY'
+# `#` lines are commentary on WHY a case exists, not cases. Without this the harness runs them as
+# commands, they are allowed, and each one reads as a failure — which is how a genuine 9-case
+# addition first reported 11 problems.
+while IFS= read -r c; do [ -n "$c" ] && [[ "$c" != \#* ]] && chk DENY "$c"; done <<'DENY'
 git add -A
 git add .
 git add -u
 git add -A -- .
 git commit -a -m x
 git commit -am x
+
+# ── source-checkout rule, adversarial pass 2026-08-05 ────────────────────────────────────────────
+# Each of these was ALLOWED before the fix. Every one is the ACCIDENTAL form: the shape a person or
+# agent actually types mid-rebase, not an evasion.
+#
+# 1 · The extension list omitted .py and .sh — i.e. every line of capture-host/, the largest body of
+#     source here, plus its deploy scripts. A Python source revert was invisible to the guard.
+git checkout origin/main -- capture-host/writers.py
+git checkout origin/main -- capture-host/vigil.sh
+git checkout origin/main -- capture-host/pyproject.toml
+git restore --source=origin/main -- capture-host/tests/test_writers.py
+# 2 · The path had to end in whitespace or EOL, so a QUOTED path slipped past — and a quoted path is
+#     how anyone writes one containing a space, which this repo ships ("Data Unifier.html").
+git checkout origin/main -- "clock.js"
+git checkout origin/main -- 'clock.js'
+# 3 · The docs//provenance/ exemption was COMMAND-WIDE: one generated path anywhere in the argument
+#     list disabled the rule for the source files beside it. A real conflict list mixes the two,
+#     which is the entire reason this rule exists.
+git checkout origin/main -- clock.js docs/index.html
+git checkout origin/main -- provenance/OxyDex.json capture-host/writers.py
+git -C /tmp/wt-x checkout origin/main -- clock.js docs/OxyDex.html
 git reset --hard HEAD
 git reset --keep HEAD~1
 git checkout .
@@ -101,7 +125,7 @@ printf '  '; chk DENY "$(printf 'git add \\\n  -A')"
 
 echo
 echo "### MUST ALLOW — ordinary work"
-while IFS= read -r c; do [ -n "$c" ] && chk allow "$c"; done <<'ALLOW'
+while IFS= read -r c; do [ -n "$c" ] && [[ "$c" != \#* ]] && chk allow "$c"; done <<'ALLOW'
 git add path/to/file.js
 git add -- src/a.js src/b.js
 git commit -m "feat: thing"
@@ -137,6 +161,12 @@ git -c user.email=a@b -c user.name=t commit -m "normal"
 ls -l /usr/bin/git
 digit add -A
 legit add -A
+# generated-only argument lists stay allowed — that is the whole point of the distinction, and a
+# tightened rule that also blocks these would push people back to the hand-rolled form.
+git checkout origin/main -- docs/index.html
+git checkout origin/main -- provenance/OxyDex.json
+git checkout origin/main -- docs/OxyDex.html provenance/OxyDex.json
+npm run rebase
 ALLOW
 
 echo

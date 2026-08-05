@@ -13165,6 +13165,64 @@
       T.ok('the script expansion resolved (this gate is not comparing empty strings)', /node tools\/build\.mjs --check/.test(expanded) && expanded.length > check.length, expanded.length + ' vs ' + check.length);
     });
 
+    /* ════ REBASE-SAFE — the GENERATED-vs-SOURCE classifier that decides what may be auto-resolved ══
+       `npm run rebase` auto-resolves a conflict in a GENERATED artifact (content is a function of
+       source, so take either side and rebuild) and ABORTS on a SOURCE conflict. Classifying a source
+       file as generated therefore reverts someone's work silently — the exact failure the tool exists
+       to prevent, committed by the tool.
+
+       It shipped with a `--classify` entry point documented as "used by the self-test", and no
+       self-test: no group here, nothing in `npm run check`, nothing calling it at all. These cases are
+       an adversarial pass (2026-08-05) and every one of them must land on SOURCE, because the whole
+       value of the classifier is that it is wrong in the SAFE direction.
+
+       Node-lane only — it imports a tool — so the browser lane SKIPs, exactly like docs-ledger. ════ */
+    group('Rebase-safe — the generated/source classifier fails CLOSED (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
+      var cls = env.rebaseClassify;
+      if (typeof cls !== 'function') {
+        T.skip('rebase classifier is wired into this lane', 'browser lane cannot import tools/rebase-safe.mjs');
+        return;
+      }
+      var GEN = new Set(['OverDex.html', 'Data Unifier.html', 'OxyDex.html']);
+
+      // The two anchors: a builder-owned path is generated, anything else is not.
+      T.eq('a builder-owned bundle is GENERATED', cls('OverDex.html', GEN), 'generated');
+      T.eq('an orchestrator whose NAME CONTAINS A SPACE is still GENERATED', cls('Data Unifier.html', GEN), 'generated');
+      T.eq('docs/ is GENERATED (served copies)', cls('docs/index.html', GEN), 'generated');
+      T.eq('provenance/ is GENERATED (ledger fragments)', cls('provenance/OxyDex.json', GEN), 'generated');
+      T.eq('a DSP is SOURCE', cls('oxydex-dsp.js', GEN), 'source');
+      T.eq('a .src.html is SOURCE even though its sibling .html is not', cls('OxyDex.src.html', GEN), 'source');
+
+      // An AUTHORED .html — the reason a `*.html` glob would have been the second version of this bug.
+      T.eq('an authored reference page is SOURCE, not a bundle', cls('OxyDex Reference.html', GEN), 'source');
+      T.eq('Science.html is authored, so SOURCE', cls('Science.html', GEN), 'source');
+
+      // Every ambiguous form must fall to SOURCE. Being wrong here costs a rebuild; being wrong the
+      // other way costs somebody's commit.
+      var ambiguous = [
+        ['provenance/../oxydex-dsp.js', 'traversal out of a prefix (the first version got this wrong)'],
+        ['docs/../clock.js', 'traversal out of docs/'],
+        ['a/../docs/index.html', 'traversal INTO docs/ — unresolved, so not understood'],
+        ['./docs/index.html', 'a leading ./ is not a prefix match'],
+        ['DOCS/index.html', 'case differs — the filesystem may not care, the classifier must'],
+        ['docsx/index.html', 'a prefix that is not a directory boundary'],
+        ['provenanceX/f.json', 'same, for provenance'],
+        [' Data Unifier.html', 'leading whitespace — not the path the builder owns'],
+        ['Data Unifier.html ', 'trailing whitespace — likewise'],
+        ['/etc/passwd', 'absolute path'],
+        ['', 'empty'],
+        [null, 'null']
+      ];
+      for (var i = 0; i < ambiguous.length; i++) {
+        T.eq('SOURCE (fail closed) · ' + ambiguous[i][1], cls(ambiguous[i][0], GEN), 'source');
+      }
+
+      // FAIL CLOSED when the builder set itself is missing: an unknown owner map must not make
+      // everything look generated.
+      T.eq('no builder set ⇒ SOURCE, never generated', cls('OverDex.html', null), 'source');
+      T.eq('empty builder set ⇒ SOURCE', cls('OverDex.html', new Set()), 'source');
+    });
+
     group('Docs-ledger — brief lifecycle machine-checked (DOCS-LEDGER-GATE)', 'docs · docs-ledger', function (T) {
       var DL = env.docsLedger;
       if (!DL || !DL.briefs || DL.indexText == null) {

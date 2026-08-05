@@ -172,7 +172,21 @@ fi
 # does not help: a heredoc body is not quoted. So this rule alone also tests a copy with `<<'W' … W`
 # bodies removed. Same tradeoff, and same reason, as the quote-stripping on `git commit -a` above.
 cmd_nohd="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
-if grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?[^;&|]*\.(js|mjs|md|json|css|src\.html)([[:space:]]|$)' <<<"$cmd_nohd"    && grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmd_nohd"    && ! grep -qE '(^|[[:space:]])(provenance/|docs/)' <<<"$cmd_nohd"; then
+# THE SOURCE PATHS ARE EXTRACTED, NOT INFERRED FROM THE WHOLE COMMAND. Three holes in the first
+# version, all found by an adversarial pass 2026-08-05, all of the accidental kind this guard exists
+# to stop:
+#   1. THE EXTENSION LIST OMITTED `.py`/`.sh`. Every line of `capture-host/` is Python and its deploy
+#      scripts are shell, so the single largest body of source in this repo was uncovered.
+#   2. THE PATH HAD TO END IN WHITESPACE OR EOL, so `-- "clock.js"` — a quoted path, which is how
+#      anyone writes one containing a space, and this repo ships "Data Unifier.html" — slipped past.
+#   3. THE docs//provenance/ EXEMPTION WAS COMMAND-WIDE. One generated path anywhere in the argument
+#      list disabled the rule for the SOURCE files beside it. That is not a corner: a real conflict
+#      list mixes the two, which is the whole reason this rule exists.
+# So: pull out every token that LOOKS like a source path, drop the ones that are generated, and fire
+# only if something is left. Wrong in the safe direction — an unrecognised extension is simply not
+# matched, it never suppresses a match elsewhere.
+_srcpaths="$(grep -oE '[^[:space:];&|"'"'"']+\.(js|mjs|py|sh|md|json|css|toml|ya?ml|txt|cff|src\.html)' <<<"$cmd_nohd" | grep -vE '^(\./)?(docs|provenance)/' || true)"
+if [ -n "$_srcpaths" ]    && grep -qE "$GITX"'(checkout|restore)([[:space:]]|$)' <<<"$cmd_nohd"    && grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmd_nohd"; then
   deny "BLOCKED: 'git checkout <ref> -- <source path>' in a shared checkout.
 
 This is the mid-rebase conflict shortcut, and it is the one that fails SILENTLY. It is correct for a
