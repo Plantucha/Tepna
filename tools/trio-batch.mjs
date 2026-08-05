@@ -1414,13 +1414,21 @@ for (const p of work) {
            for it, and the writer can erase the evidence. */
         const isFinger = parts.some((r) => r.site === 'finger');
         const drawn = (share != null && share >= 0.99) || isFinger;
+        /* INDEPENDENCE CARRIES ACROSS THE MERGE TOO (DA-V §2.4 F13). A fold whose fragments all say
+           "this host column is the device stamp rounded" has no second clock either, and dropping the
+           verdict here would re-introduce on the fold path exactly what parsePPG stopped claiming on
+           the single-file one. ANY fragment with a genuinely independent host column is enough to
+           earn `device+host` — independence is a property of the capture setup, and a short fragment
+           that could not resolve it is silent, not contradictory. */
+        const indep = parts.some((r) => r.hostAxis.independent === true) ? true : parts.some((r) => r.hostAxis.independent === false) ? false : null;
         return {
           ok: anyOk,
           fragments: parts.length,
           quantizedShare: share,
           drawn,
+          independent: indep,
           // Mirrors parsePPG: a drawn axis with host anchors is host-timed; with none, it has no timing.
-          timingSource: drawn ? (anyOk ? 'host' : 'none') : 'device+host'
+          timingSource: drawn ? (anyOk ? 'host' : 'none') : indep === false ? 'device' : 'device+host'
         };
       })()
     };

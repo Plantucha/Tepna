@@ -36,7 +36,7 @@
     "ppiAgreementPct": 100,
     "ppiCorrFootPct": 4.8,
     "ppiCorrPeakPct": 0,
-    "timingSource": "device+host",
+    "timingSource": "device",
     "axisDrawn": false,
     "axisQuantizedShare": 0.5925
   },
