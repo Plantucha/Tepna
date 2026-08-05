@@ -31818,6 +31818,18 @@
       T.eq('§6.4a · capture-host _MAG is a magnetometer companion', I.ppgKind(magHost), 'magn');
       T.eq('§6.4a · Polar SL _MAGN still is too', I.ppgKind(magPsl), 'magn');
       T.eq('§6.4a · …and it is never mistaken for a PPG primary', I.ppgKind(magHost) === 'ppg', false);
+      /* DEEP-AUDIT-V §2.2 F10 — THE SIBLING §6.4a MISSED. `ppgKind`, `foreignKind` and
+         `signal-orchestrate.js streamKind` were all widened to `_MAGN?`; `ecgKind` was not, and
+         because `ecgKind` FAILS OPEN (a bare name defaults to the ECG primary) a magnetometer file
+         did not merely go unrecognised — it became an ECG RECORDING. Measured on the real capture
+         tree before the fix: 813 of 813 `*_MAG.txt` classified `ecg` here while `ppgKind` on the very
+         same name said `magn`. Two classifiers, one file, two answers — the §6.4c shape again. */
+      T.eq('§F10 · capture-host _MAG is SET ASIDE by ecgKind, not taken as an ECG primary', I.ecgKind(magHost), 'skip');
+      T.eq('§F10 · Polar SL _MAGN still is too (the spelling that already worked)', I.ecgKind(magPsl), 'skip');
+      T.eq('§F10 · the two classifiers now AGREE on the same bytes', I.ecgKind(magHost) === 'skip' && I.ppgKind(magHost) === 'magn', true);
+      // …and the optional N must not over-match a name that merely STARTS with those letters.
+      T.eq('§F10 · control · _MAGNITUDE is not a magnetometer stream', I.ecgKind('Polar_H10_02849638_20260716205750_MAGNITUDE.txt'), 'ecg');
+      T.eq('§F10 · control · a real H10 ECG still routes as the primary', I.ecgKind('Polar_H10_02849638_20260801224539_ECG.txt'), 'ecg');
       if (SO && typeof SO.streamKind === 'function') {
         T.eq('§6.4a · the orchestrator agrees on _MAG', SO.streamKind(magHost), 'magn');
       }

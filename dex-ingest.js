@@ -101,7 +101,17 @@
     if (/_RR\b|_RR\.|_PPI\b|_PPI\./.test(u)) return 'rr';
     if (/_HR\b|_HR\./.test(u)) return 'hr';
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
-    if (/_(MAGN|GYRO|PPG|TEMP|SKINTEMP|BARO|PRESSURE|ALTITUDE|SDKMODE|FEATURE)\b|_(MAGN|GYRO|PPG|TEMP|SKINTEMP|BARO|PRESSURE|ALTITUDE|SDKMODE|FEATURE)\.|^MARKER[_.]/.test(u)) return 'skip';
+    /* `MAGN?` — the N is OPTIONAL, exactly as in every sibling (DEEP-AUDIT-V §2.2 F10). DEEP-AUDIT-III
+       §6.4a widened `ppgKind` (:118), `foreignKind` (:132) and `signal-orchestrate.js streamKind`
+       (:395) to accept BOTH spellings — capture-host writes `_MAG.txt`, Polar Sensor Logger writes
+       `_MAGN.txt` — and this one classifier was missed. Because `ecgKind` FAILS OPEN (its last line
+       defaults a bare name to the ECG primary), a magnetometer file did not merely fail to be
+       recognised: it became an ECG RECORDING. Measured on the real capture tree: **813 of 813**
+       `*_MAG.txt` files classified `ecg` here while `ppgKind` on the same name said `magn`.
+       Downstream that is not cosmetic — a 0-byte MAG survives the app's byte sniff, puts
+       POLAR_VERITYSENSE into planIngest's ECG device-anchor set, and thereby admits Verity ARM-band
+       `_ACC.txt` as ACC companions for H10 CHEST ECG, which changes exported `meta.position`. */
+    if (/_(MAGN?|GYRO|PPG|TEMP|SKINTEMP|BARO|PRESSURE|ALTITUDE|SDKMODE|FEATURE)\b|_(MAGN?|GYRO|PPG|TEMP|SKINTEMP|BARO|PRESSURE|ALTITUDE|SDKMODE|FEATURE)\.|^MARKER[_.]/.test(u)) return 'skip';
     if (nonSignalName(name)) return 'skip'; // §6.4 — telemetry/sidecar/JSON is not a waveform
     return 'ecg'; // default — a bare waveform is the ECG
   }
