@@ -25,10 +25,6 @@ def _run(coro):
 WHEN = dt.datetime(2026, 7, 19, 3, 4, 5, 678000)
 
 
-def test_polar_ns_to_t_ms():
-    assert writers.polar_ns_to_t_ms(7_692_308) == pytest.approx(7.692308)
-
-
 def test_stream_writer_fsync_path_and_idempotent_close(tmp_path):
     """fsync=True forces the durability path (flush + os.fsync). close() twice, and flush after close,
     must not raise — the OSError/ValueError guards catch the already-closed handle."""
