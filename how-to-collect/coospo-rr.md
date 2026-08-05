@@ -15,9 +15,13 @@ or, more reliably, through a dedicated BLE HRV logger paired to the strap:
 3. The export is a delimited file with a timestamp column + an `RR(ms)` / `RRI` / `RR_Interval`
    column. Drop it into the **Data Unifier** or **OverDex** — `coospo-rr.js` routes it to the RR path.
 
-**Routing / `detect()`:** the adapter fires with high confidence (0.95) when the **filename or header
-carries an explicit `coospo` / `hw9` / `h808` mark**, and at 0.8 when an RR column *and* a vendor mark
-both appear in the header. A generically-named Coospo RR CSV with **no vendor mark** currently returns
+**Routing / `detect()`:** the adapter fires with high confidence (0.95) when the **filename carries an
+explicit `coospo` / `hw9` / `h808` mark**, and at 0.8 when an RR column *and* a vendor mark both appear
+— the mark on the file's **header line**. ⚠️ **A vendor mark in a DATA ROW does not count** and is
+worth 0 (DEEP-AUDIT-V §2.2): `detect` used to match the token anywhere in the first 2 KB of content,
+so the capture host's own BLE link log — which lists every paired peer by advertised name — routed as
+an RR recording at 0.95. A header names a file's columns; a data row names whatever the device saw.
+A generically-named Coospo RR CSV with **no vendor mark** currently returns
 0 → it is set aside as *unknown* (safe — never mis-routed), not run. If you have such a file, rename it
 to include `coospo` (or add the mark to the header) so it routes; and please contribute the real
 export so `detect` can be hardened against its actual header signature

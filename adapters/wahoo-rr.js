@@ -37,11 +37,24 @@
     vendor: VENDOR,
     device: DEVICE,
     // cheap, side-effect-free: filename signature first, header signature as fallback.
+    /* THE VENDOR TOKEN MUST NAME THE FILE, NOT MERELY APPEAR INSIDE IT (DEEP-AUDIT-V §2.2 F11/F24).
+       The identical twin of `coospo-rr.js`'s fix — see the full rationale there. A `tickr` token in a
+       BLE link log's data row is not a Wahoo recording; the three Polar adapters gate on a filename
+       SHAPE first and were never exposed to this. Fixed here at the same time BECAUSE it is the same
+       defect: leaving the sibling divergent is how the next audit re-finds half of one bug. */
     detect: function (file, headText) {
       var name = ((file && file.name) || '') + '';
       var head = (headText || '') + '';
-      if (/wahoo|tickr/i.test(name + ' ' + head)) return 0.95; // explicit vendor mark
-      if (/RR-?interval|RR\(ms\)|\bRRI?\b/i.test(head) && /wahoo|tickr/i.test(head)) return 0.8;
+      var hdrLine = '';
+      var lines = head.split(/\r?\n/);
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i].trim()) {
+          hdrLine = lines[i];
+          break;
+        }
+      }
+      if (/wahoo|tickr/i.test(name)) return 0.95; // explicit vendor mark IN THE NAME
+      if (/RR-?interval|RR\(ms\)|\bRRI?\b/i.test(head) && /wahoo|tickr/i.test(hdrLine)) return 0.8;
       return 0;
     },
     // REFERENCE the existing pure parser — never copy it.

@@ -31702,6 +31702,61 @@
       T.eq('§6.4c · the O2Ring finger PPG remains PpgDex primary', I.ppgKind('Wellue_O2Ring-S_S8AW2100_20260720_PPG.txt'), 'ppg');
     });
 
+    /* DEEP-AUDIT-V §2.2 (F11/F24) — THE SECOND HALF OF §6.4c's "two routing layers, one file, two
+       answers". §6.4c above fixed the DexIngest layer and recorded, in its own comment, that
+       `SignalAdapters.route()` still sent the same bytes to `coospo-rr`. That half was never fixed.
+
+       `coospo-rr`/`wahoo-rr` matched their vendor token against `name + ' ' + head` — anywhere in the
+       first 2 KB of CONTENT, with no requirement on the file's SHAPE. The capture host's own BLE link
+       log lists every paired peer by advertised name, so a data row reading `COOSPO 808S 0022265`
+       routed the host's telemetry to the RR lane at 0.95 with `ambiguous:false`. Measured on two real
+       capture nights before the fix: 9 of 326 files (every `_LINK.csv` + `QC-SUMMARY.json`); after: 0.
+
+       This is bug class 14. The three POLAR adapters gate on a filename SHAPE first (`_RR`/`_PPI`,
+       `_ECG`, `_PPG`) and use the vendor token only to corroborate — they were never exposed. Only the
+       two aftermarket-strap adapters let the bare token decide. Both are fixed; assert both, or the
+       surviving sibling is how the next audit re-finds half of one bug.
+
+       NOTE for anyone extending this: `DexIngest.nonSignalName()` is NOT on the DexIngest export
+       surface (dex-ingest.js:450), so the "just call nonSignalName from route()" fix is not available
+       as written — and route() living in CORE must not take an upward dependency on dex-ingest anyway.
+       The fix belongs in the adapters, which is where it is. */
+    group('An adapter routes on what NAMES the file, not on what is mentioned inside it — DA-V §2.2', 'signal-adapters · routing · regression', function (T) {
+      var SA = env.SignalAdapters;
+      if (!(SA && typeof SA.route === 'function')) {
+        T.skip('SignalAdapters available', 'signal-adapters not wired in this lane');
+        return;
+      }
+      // THE DEFECT, verbatim from the real corpus (Tepna_20260802000008_LINK.csv, 2026-08-02).
+      var linkHead = 'Phone timestamp;device;connected;rssi_dbm;battery_pct;frames_dropped;frames_duplicated;link_epoch;address\n' + '2026-08-02T00:00:08.137;Wellue O2Ring-S;1;-76;99;;;1;D1:98:62:7C:92:B3\n' + '2026-08-02T00:00:08.137;COOSPO 808S 0022265;0;;;;;;F7:33:8E:CF:E6:BE\n';
+      var linkRoute = SA.route({ name: 'Tepna_20260802000008_LINK.csv' }, linkHead);
+      T.ok('a BLE link log naming a Coospo peer in a DATA ROW is not an RR recording', !(linkRoute.best && /coospo|wahoo/.test(linkRoute.best.id)), linkRoute.best ? linkRoute.best.id + '@' + linkRoute.best.confidence : 'set aside');
+      T.ok('…it is set aside as unknown, never guessed', linkRoute.unknown === true);
+      var wahooLink = SA.route({ name: 'Tepna_20260802000008_LINK.csv' }, 'Phone timestamp;device;connected\n2026-08-02T00:00:08;WAHOO TICKR 991;0\n');
+      T.ok('the wahoo-rr sibling is fixed too (a lone survivor is half a fix)', wahooLink.unknown === true, wahooLink.best ? wahooLink.best.id : 'set aside');
+
+      // THE CONTROLS — the fix must not buy safety by making the adapters unreachable.
+      var co = SA.byId('coospo-rr'),
+        wa = SA.byId('wahoo-rr');
+      var RR = 'timestamp;RR(ms)\n12:00:01 06/05/2026;800\n12:00:02 06/05/2026;810\n';
+      if (co) {
+        T.ok('a NAME-marked Coospo export still routes at 0.95', co.detect({ name: 'Coospo_HW9_export.csv' }, RR) === 0.95);
+        T.ok('…and a generically-named one still routes at 0.8 on a HEADER-LINE mark + an RR column', co.detect({ name: 'export.csv' }, 'Coospo HW9 RR(ms)\n800\n810\n') === 0.8);
+        T.eq('…while the vendor token in a data row alone is worth nothing', co.detect({ name: 'export.csv' }, 'device;state\nCOOSPO 808S;0\n'), 0);
+      }
+      if (wa) {
+        T.ok('a NAME-marked Wahoo export still routes at 0.95', wa.detect({ name: 'WAHOO_TICKR_rr.csv' }, RR) === 0.95);
+        T.ok('…and a HEADER-LINE-marked one at 0.8', wa.detect({ name: 'export.csv' }, 'Wahoo TICKR RR-interval\n800\n810\n') === 0.8);
+        T.eq('…while a data-row mention is worth nothing', wa.detect({ name: 'export.csv' }, 'device;state\nWAHOO TICKR 991;0\n'), 0);
+      }
+      // The three POLAR siblings were never exposed — they gate on a filename shape FIRST. Pin that,
+      // so a future "simplification" that drops their name gate reds here instead of in production.
+      var pr = SA.byId('polar-rr'),
+        pe = SA.byId('polar-h10-ecg');
+      if (pr) T.eq('polar-rr ignores a vendor token with no _RR/_PPI name shape', pr.detect({ name: 'mystery.csv' }, 'device;state\nPolar H10;1\n'), 0);
+      if (pe) T.eq('polar-h10-ecg likewise needs the ECG shape, not just the word "polar"', pe.detect({ name: 'mystery.csv' }, 'device;state\nPolar H10;1\n'), 0);
+    });
+
     /* DEEP-AUDIT-III §3.3/§3.4/§3.5 — the Integrator published agreement it did not measure.
        §3.3 every confirmed_apnea_event hardcoded 'OxyDex' as the desat observer — correct while the
             pool was node-keyed, wrong ever since DEEP-AUDIT-2026-07-11 §15 made it IMPULSE-keyed, so
