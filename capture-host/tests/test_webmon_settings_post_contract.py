@@ -191,3 +191,55 @@ def test_a_failed_write_is_a_500_that_still_names_what_it_tried_to_change(tmp_pa
     assert status == 500 and body["ok"] is False
     assert "config write failed" in body["error"]
     assert body["changed"] == ["watchdog.interval_sec"]
+
+
+# ── The 2026-08-03 rate loss (DEVICE-RATE-TRUTH §6.4) ────────────────────────────────────────────────
+
+
+def test_a_save_must_not_delete_a_rate_it_did_not_mention(tmp_path):
+    """THE REGRESSION, reproduced. `dev["rates"] = clean` deleted every override the payload happened
+    not to name — and the UI only names rates the device is currently OFFERING.
+
+    Measured on the box: the Verity left SDK mode, its PPG menu shrank from [28,44,55,135,176] to [55]
+    and ACC/GYRO to [52], so those rows rendered no <select> and were not submitted. The next unrelated
+    save — someone toggling PPI on — wiped `ppg: 176, acc: 26, gyro: 26`, leaving only `mag: 10`.
+    `config.yaml.bak` still holds the old values. Nothing logged and nothing failed.
+
+    Preserving an override the device does not currently offer is the POINT: `chosen_rate` honours it
+    only if offered and otherwise falls back, so a kept 176 lies dormant and re-applies by itself when
+    SDK mode returns."""
+    dev = dict(H10, rates={"ppg": 176, "acc": 26, "gyro": 26, "mag": 10})
+    # The payload is PARTIAL, not absent — that distinction is the whole bug. The UI always sends a
+    # `rates` dict; it just only contains the streams that rendered a <select>, i.e. those with >1 option
+    # still on the menu. Here only `mag` still has a choice, so only `mag` is submitted. A payload with
+    # no `rates` key at all never enters the loop and cannot reproduce this — an earlier version of this
+    # test did exactly that and passed against the unfixed code.
+    status, body, cfg, _ = _post_settings(
+        tmp_path, {"rates": {ADDR: {"mag": 10}}},
+        devices=[dev], status={"H10": {"pmd_options": {"mag": [10, 20, 50, 100], "ppg": [55],
+                                                       "acc": [52], "gyro": [52]}}})
+    assert status == 200 and body["ok"] is True
+    assert cfg["devices"][0]["rates"] == {"ppg": 176, "acc": 26, "gyro": 26, "mag": 10}, \
+        "an unmentioned rate was deleted — this is the 2026-08-03 loss"
+
+
+def test_a_mentioned_rate_still_wins_over_the_stored_one(tmp_path):
+    """Merging must not make rates unchangeable: a submitted value replaces the stored one, and only the
+    keys the payload omits are carried forward."""
+    dev = dict(H10, rates={"acc": 25, "mag": 10})
+    _s, body, cfg, _ = _post_settings(
+        tmp_path, {"rates": {ADDR: {"acc": 50}}},
+        devices=[dev], status={"H10": {"pmd_options": {"acc": [25, 50, 100, 200]}}})
+    assert cfg["devices"][0]["rates"] == {"acc": 50, "mag": 10}
+    assert body["changed"] == ["H10.rates"] and body["restart_needed"] is True
+
+
+def test_resubmitting_the_same_rates_is_still_a_no_op(tmp_path):
+    """A merge that changes nothing must not report a change or rewrite config.yaml — writing it
+    destroys the operator's comments by construction."""
+    dev = dict(H10, rates={"acc": 50, "mag": 10})
+    _s, body, cfg, cfg_path = _post_settings(
+        tmp_path, {"rates": {ADDR: {"acc": 50}}},
+        devices=[dev], status={"H10": {"pmd_options": {"acc": [25, 50]}}})
+    assert body["changed"] == [] and body["restart_needed"] is False
+    assert not os.path.exists(cfg_path), "a no-op settings post must not write config.yaml"

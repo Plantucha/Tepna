@@ -708,8 +708,26 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         raise settings_schema.SettingsError(
                             f"{dev.get('name')} {stream}: {v} Hz not offered (choose {allowed})")
                     clean[stream] = v
-                if clean != (dev.get("rates") or {}):
-                    dev["rates"] = clean
+                # MERGE, NEVER REPLACE. A whole-dict assignment silently DELETES every override the
+                # submitted payload happens not to mention, and the UI does not mention all of them: it
+                # only renders a control for a rate the device is currently OFFERING. So a stream whose
+                # menu has shrunk — the Verity's PPG drops 28/44/135/176 the moment SDK mode is off, and
+                # ACC/GYRO drop everything but 52 — has no control, is not submitted, and was being
+                # erased by the next unrelated settings save.
+                #
+                # MEASURED: that is exactly how 176 Hz PPG was lost on 2026-08-03. `config.yaml.bak`
+                # still holds `ppg: 176, acc: 26, gyro: 26`; the live config kept only `mag: 10`, and
+                # the save that did it was someone toggling PPI on. Nothing logged, nothing failed.
+                #
+                # Keeping an override the device does not currently offer is SAFE and is the point:
+                # `polar_pmd.chosen_rate` honours a configured rate only if the device offers it and
+                # otherwise falls back, so a preserved 176 lies dormant and re-applies by itself when
+                # SDK mode returns. To change a rate you set it; there is deliberately no way to clear
+                # one by omission, because omission is indistinguishable from "the UI could not show it".
+                merged = dict(dev.get("rates") or {})
+                merged.update(clean)
+                if merged != (dev.get("rates") or {}):
+                    dev["rates"] = merged
                     changed.append(f"{dev.get('name')}.rates")
                     restart_needed = True     # rate is fixed at PMD START, i.e. at connect
         except settings_schema.SettingsError as e:
