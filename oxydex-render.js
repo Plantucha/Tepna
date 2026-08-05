@@ -2768,13 +2768,21 @@ function nightDetail(n, idx) {
       '</div>';
     html += '</div>'; // /.sec-section secondary
   }
-  if (n.cross && n.cross.crcIdx != null) {
+  /* GATE THE SECTION ON THE SECTION, THE TILE ON THE TILE (DEEP-AUDIT-V §2.3 F22).
+     This was `if (n.cross && n.cross.crcIdx != null)`, which was harmless only because the DSP could
+     never emit a null `crcIdx` — it emitted an un-computed 0 instead. Now that it correctly emits null
+     on a recording too short to compute the correlation, the old condition would have hidden the WHOLE
+     Cross-Signal section — taking AAI, PB Diverge and Diverge % with it, three measurements that are
+     perfectly valid on a short recording. Suppressing three good numbers to hide one absent one trades
+     a wrong number for three missing ones. The section shows whenever there is cross-signal data; the
+     CRC tile alone renders an em-dash when its own value was not computable. */
+  if (n.cross) {
     var cx = n.cross;
     html += '<div class="sec-label">Cross-Signal</div>';
     html +=
       '<div class="grid">' +
       metric('AAI', cx.autoArousalIdx, '/hr (spikes+ODI4)', cx.autoArousalIdx < 2 ? 'good' : cx.autoArousalIdx < 5 ? 'warn' : 'bad') +
-      metric('CRC Index', cx.crcIdx, 'SpO₂-HR coupling', Math.abs(cx.crcIdx) > 0.4 ? 'warn' : 'good') +
+      metric('CRC Index', cx.crcIdx != null ? cx.crcIdx : '—', 'SpO₂-HR coupling', cx.crcIdx != null ? (Math.abs(cx.crcIdx) > 0.4 ? 'warn' : 'good') : '') +
       metric('PB Diverge', cx.divergeCount, 'episodes no HR', cx.divergeCount === 0 ? 'good' : cx.divergeCount < 3 ? 'warn' : 'bad') +
       metric('Diverge %', cx.divergePct != null ? cx.divergePct + '%' : '—', 'blunted arousal', cx.divergePct != null ? (cx.divergePct < 30 ? 'good' : cx.divergePct < 75 ? 'warn' : 'bad') : '') +
       '</div>';

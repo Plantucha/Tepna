@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-2X8TK4T4nhs1oVWiGeE2TYoWZR4C4G7ZHm9Ob1PD3Qw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-OfFZUQinpOOC1MqdOhICN0O3fDN31UynUW8mIh1SXtA=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo=' 'sha256-xdAWQCAveKxywRCzH6XD/WhQWdFXCxiIZAG4pGx7C90=' 'sha256-zfcZj/POD8ANab+TNlp0MrGvruXgueLPhtrRdPgHMlU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-2X8TK4T4nhs1oVWiGeE2TYoWZR4C4G7ZHm9Ob1PD3Qw=' 'sha256-6Ihl8pw3pmpQ2ZKQoUJaefH7NJ7Rkm9qpB/TVT+dbcA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-O1mDegCG20ASrzZOd5DA8g5fECj7AiuuT90N2WDOMkU=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo=' 'sha256-xdAWQCAveKxywRCzH6XD/WhQWdFXCxiIZAG4pGx7C90=' 'sha256-zfcZj/POD8ANab+TNlp0MrGvruXgueLPhtrRdPgHMlU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -11231,11 +11231,28 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       var tStr = timeCol < p.length ? p[timeCol].trim() : '';
       var sStr = spo2Col < p.length ? p[spo2Col].trim() : '';
       var hStr = hrCol < p.length ? p[hrCol].trim() : '';
-      var mStr = motionCol >= 0 && motionCol < p.length ? p[motionCol].trim() : '0';
+      /* NO MOTION COLUMN IS ABSENCE, NOT STILLNESS (DEEP-AUDIT-V §2.3 F15 — bug class 3a).
+         This defaulted to the STRING '0' whenever the file carried no Motion column (a 3-column
+         oximeter CSV — a supported OxyDex input, `oxydex-spo2` detects it at 0.8) or the row was too
+         short to reach it. Every downstream consumer reads `motion > 0` as movement, so "this device
+         has no accelerometer" was published as "the body never moved". Measured on a real night with
+         the Motion column removed and SpO₂/HR/time byte-identical:
+             motionPct   1.8 → 0        motSleep.sleepEff  98.2 → 100
+             wasoPct       4 → 0        sleepArch.wasoMin   8.4 → 0
+             stab.components.motion 11 → 100 (a PERFECT motion sub-score) → stab.score 22 → 35
+         `null` is the honest value and it reads correctly at every one of the ~20 consumer sites for
+         free, because they all test `motion > 0` or `motion === 0` — and `null` satisfies NEITHER, so
+         an absent reading is neither moving nor still. (Note this is the OPPOSITE of the `null >= 0`
+         trap: `>=` would have admitted it. Do not "simplify" those comparisons to `>=`.)
+         The ABSENCE is then handled once, at the same seam `_motionColumnStuck` already uses — see
+         `_motionAbsent` in processNight. Deliberately unchanged: a PRESENT column with an empty or
+         unparseable cell still reads 0, exactly as before; only a value that was never written at all
+         becomes null. */
+      var mStr = motionCol >= 0 && motionCol < p.length ? p[motionCol].trim() : null;
       if (!sStr || sStr === '- -' || sStr === '--' || sStr === '') continue;
       var spo2 = parseInt(sStr, 10),
         hr = parseInt(hStr, 10),
-        motion = parseInt(mStr, 10) || 0;
+        motion = mStr == null ? null : parseInt(mStr, 10) || 0;
       if (isNaN(spo2) || isNaN(hr)) continue;
       if (spo2 < 50 || spo2 > 100 || hr < 20 || hr > 250) continue; // sanity check
       // Perfusion index (§4 Phase 1): present only on the OXYFRAME sidecar. `pi_pct` = 0 is the ring's
@@ -12953,9 +12970,19 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var odi4 = detectODI(spo2s, DexKernel.K.ODI_DROP, rows.length, blArr);
     var odi3 = detectODI(spo2s, 3, rows.length, blArr, pulseSeries);
     var hb = computeHypoxicBurden(rows);
-    var _motionStuck = _motionColumnStuck(rows);
-    var motion = _motionStuck ? null : computeMotionProfile(rows);
-    var stab = computeSleepStabilityScore(stats, hrv, osc, hb);
+    /* NO MOTION READING ANYWHERE ⇒ THE MOTION FAMILY IS ABSENT, NOT ZERO (DA-V §2.3 F15).
+       The parse boundary now yields `null` for a device that wrote no Motion column at all. That is
+       the SAME category as `_motionColumnStuck` — "this motion series cannot be trusted, so nothing
+       derived from it may be published" — and it takes the SAME suppression path, which is why this
+       fix needs no change at any of the ~20 downstream `motion > 0` / `motion === 0` sites. It is
+       distinguished in the export by its own flag, because "the device has no accelerometer" and "the
+       writer emitted a stuck column" are different facts a reader must be able to tell apart. */
+    var _motionAbsent = !rows.some(function (r) {
+      return r.motion != null && isFinite(r.motion);
+    });
+    var _motionStuck = _motionAbsent ? false : _motionColumnStuck(rows);
+    var _motionUnusable = _motionAbsent || _motionStuck === true;
+    var motion = _motionUnusable ? null : computeMotionProfile(rows);
     var durationHr = /** @type {number} */ (stats.durationMin) / 60;
     var desat = computeDesaturationProfile(rows, tIdx, odi4, blArr);
     // OXIMETER SELF-GATE (Part A): exclude self-gated artifact desaturations from
@@ -13004,15 +13031,37 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
        merged night carries no source provenance by the time it reaches here — and a motion series
        that is part fabrication cannot be partially trusted. See `_motionColumnStuck` for why the
        detector measures a contiguous run rather than the night's zero-fraction. */
-    if (_motionStuck) {
+    if (_motionUnusable) {
       motSleep = /** @type {any} */ (null);
       /* `motionPct` is the one motion number that survives — as an explicit null plus the reason,
          because a reader who sees the field absent must be able to tell "the sensor lied" from
          "this build predates the field". Conditional assignment (the EXPORT-INVARIANCE convention
          a few lines below) keeps every healthy night's export byte-identical. */
       stats.motionPct = /** @type {any} */ (null);
-      stats.motionColumnStuck = true;
+      // Name WHICH fault, or a reader cannot tell "this oximeter has no accelerometer" (nothing to
+      // fix, the metric simply does not exist for this device) from "the writer emitted a stuck
+      // column" (a capture-side fault worth chasing). Both suppress; only one is a bug.
+      if (_motionAbsent) stats.motionColumnAbsent = true;
+      else stats.motionColumnStuck = true;
+    } else if (_motionStuck === null) {
+      /* INDETERMINATE (DA-V §2.3 F23) — under a minute of samples, unbroken continuity carries no
+         information either way, so the detector reached NO verdict. Publish the motion numbers (there
+         is no evidence against them) but say that plainly, so a reader cannot read "not tested" as
+         "tested clean". Conditional assignment, like the branch above, so every night that DID get a
+         verdict keeps its export byte-identical. */
+      stats.motionColumnStuckUnknown = true;
     }
+    /* ORDERING IS LOAD-BEARING (DA-V §2.3, found while fixing F15 — it is a PRE-EXISTING leak in the
+       `_motionStuck` path too, not something F15 introduced). `computeSleepStabilityScore` already
+       does the right thing with an absent motion figure: its §3 branch nulls the motion subscore when
+       `stats.motionPct == null` and renormalizes the remaining weight. But it used to be CALLED ~30
+       lines ABOVE the block that nulls `stats.motionPct`, so it never saw the null and its own fix
+       could not fire. Measured on the real 592-row stuck file: `stab.components.motion` = 0 (the worst
+       possible score, from a column the code had just condemned as unreadable) where the comment three
+       lines into that function says it must be null; on a Motion-less file it was 100 — a PERFECT
+       stillness score from a device with no accelerometer. Computed here instead, after the verdict is
+       known. `stab` has no other consumer before `buildFlags` below, so nothing else moves. */
+    var stab = computeSleepStabilityScore(stats, hrv, osc, hb);
     var cross = computeCrossSignal(rows, osc, spikes, odi4, durationHr);
     var spo2Adv = computeSpO2Advanced(rows, blArr); // nadir events computed inline
     var hrAdv = computeHRAdvanced(rows, osc);
@@ -13029,6 +13078,13 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var slopes = computeDesatSlopes(rows, blArr);
     var pbMet = computePBmetrics(rows, osc);
     var sleepArch = computeSleepArch(rows);
+    /* `wasoMin` is a MOTION metric wearing a sleep-architecture name — it counts `r.motion > 0` after
+       sleep onset — so it inherits the same verdict (DA-V §2.3 F15). Without this it read a confident
+       `0` ("no wake after sleep onset") off a device with no accelerometer, and the reader has no way
+       to tell that from a genuinely unbroken night. Suppressed HERE rather than inside
+       `computeSleepArch`, which takes only `rows` and cannot know the verdict; `solMin` and the
+       ultradian figures are HR-derived and stay measured. */
+    if (_motionUnusable && sleepArch) sleepArch.wasoMin = /** @type {any} */ (null);
     var odi1 = computeODI1(rows, blArr);
     var odi4Rate = odi4 ? odi4.rate : 0;
     var odi3Rate = odi3 ? odi3.rate : 0;
@@ -13825,19 +13881,57 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
      Non-finite/absent motion values break no run and start none: a file with no motion column is
      missing data, a different condition that already reads as zero motion downstream. */
   var MOTION_STUCK_RUN_SAMPLES = 600; // 10 min at the O2Ring's 1 Hz cadence
+
+  /* THE ABSOLUTE RUN LENGTH MADE THE TEST STRUCTURALLY BLIND ON A SHORT RECORD (DEEP-AUDIT-V §2.3 F23).
+     A fixed 600-sample bar cannot be cleared by a recording that HAS fewer than 600 samples, so a file
+     whose motion column is stuck for its entire length was not condemned — and the not-condemned path
+     then published exactly the numbers this detector exists to suppress. Measured on two REAL files
+     from the same device on the same night, both 100 % unbroken non-zero motion:
+
+         642 rows · longest run 642  →  stuck TRUE   →  motionPct null      (correctly condemned)
+         592 rows · longest run 592  →  stuck false  →  motionPct 100       ← the same fault, published
+
+     Fifty samples decided it. So the bar is now RELATIVE as well as absolute: a run that covers
+     ~90 % of a short record is the same evidence as a 600-sample run in a long one — the signature is
+     "unbroken continuity across the record", and on a short record the whole record IS the run.
+
+     The 0.9 factor is read off the SAME measured gap the 600 came from, not chosen: every healthy
+     night in the 13-night capture series tops out at 3–13 s of unbroken movement, so on a 592-sample
+     record the relative bar sits at 533 — 41x above the worst healthy observation and still below the
+     592 the fault produces. Nothing lands in between.
+
+     `min()` is what keeps this EXPORT-INERT for real nights: for any record of ≥ 667 samples the
+     relative bar is ≥ 600 and the absolute one governs unchanged, so every full night keeps its
+     existing verdict byte-for-byte. Only records too short for the old test to work at all change.
+
+     Below MOTION_STUCK_MIN_SAMPLES the question is genuinely unanswerable — a 30-sample record of
+     continuous movement is a person moving, not a broken writer — so it returns `null` (indeterminate)
+     rather than a `false` that would read as a clean bill of health. That is the §3a rule applied to a
+     verdict instead of a series: not-measured is its own state, never the negative one.
+
+     Non-finite/absent motion values still break no run and start none, and they are excluded from the
+     record length the relative bar is computed against — a file with no motion column is missing data,
+     which is a different condition handled at the parse boundary (F15). */
+  var MOTION_STUCK_MIN_SAMPLES = 60; // 1 min — below this, continuity carries no information
+  var MOTION_STUCK_RUN_FRAC = 0.9; // a run covering ~the whole short record is the same evidence
   function _motionColumnStuck(rows) {
     if (!rows || !rows.length) return false;
-    var run = 0;
+    var run = 0,
+      nFinite = 0,
+      best = 0;
     for (var i = 0; i < rows.length; i++) {
       var m = rows[i].motion;
       if (m == null || !isFinite(m)) continue;
+      nFinite++;
       if (m === 0) {
         run = 0;
         continue;
       }
-      if (++run >= MOTION_STUCK_RUN_SAMPLES) return true;
+      if (++run > best) best = run;
     }
-    return false;
+    if (nFinite < MOTION_STUCK_MIN_SAMPLES) return null; // indeterminate — too short to ask
+    var bar = Math.min(MOTION_STUCK_RUN_SAMPLES, Math.ceil(MOTION_STUCK_RUN_FRAC * nFinite));
+    return best >= bar;
   }
 
   function computeMotionProfile(rows) {
@@ -14377,7 +14471,20 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         }, 0) / WIN5
       );
     }
-    var crcIdx = 0;
+    /* NOT COMPUTABLE IS `null`, NEVER 0 (DEEP-AUDIT-V §2.3 F22). `crcIdx` is a CORRELATION, so 0 is a
+       real, meaningful reading — "SpO₂ and HR are uncoupled" — and it is also the value this variable
+       held whenever the correlation was never computed at all: fewer than four 5-minute windows (any
+       recording under ~20 min), or a degenerate window set with zero variance in either series.
+       Its consumer reads `crcIdx < 0.2` as the Cheyne-Stokes "low cardiorespiratory coupling"
+       criterion (:1507), so an un-computed 0 satisfied it and pushed `csScore` to 1 →
+       **"Cheyne-Stokes: Possible"** into `summary.ranked` at warn severity, on every short recording.
+       Measured on a real O2Ring night truncated in place:
+           5 min / 15 min / 19 min → crcIdx 0      → csScore 1 → "Cheyne-Stokes · Possible"  ← fabricated
+           25 min                  → crcIdx −0.177 → a real measurement that legitimately qualifies
+       Note the consumer guard at :1507 was ALREADY `crcIdx != null && crcIdx < 0.2` — it was written
+       expecting an honest null that the producer never emitted. This makes the producer keep that
+       promise; :1507 needs no change. */
+    var crcIdx = null;
     if (spo2Means.length > 3) {
       var ms = avg(spo2Means),
         mh = avg(hrMeans);
@@ -14389,7 +14496,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         ds += (spo2Means[i] - ms) * (spo2Means[i] - ms);
         dh += (hrMeans[i] - mh) * (hrMeans[i] - mh);
       }
-      crcIdx = ds > 0 && dh > 0 ? +(num / Math.sqrt(ds * dh)).toFixed(3) : 0;
+      // Zero variance in either series ⇒ the correlation is UNDEFINED, not zero (same rule as above).
+      crcIdx = ds > 0 && dh > 0 ? +(num / Math.sqrt(ds * dh)).toFixed(3) : null;
     }
 
     // SpO2-HR Divergence: PB windows with mean SpO2 drop but no spike within ±120s
