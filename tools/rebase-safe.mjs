@@ -95,9 +95,16 @@ function generatedSet() {
    authored guide, tests/, uploads/ goldens and all *.js — is SOURCE. */
 export function classify(path, gen) {
   if (!gen) return 'source'; // fail CLOSED
-  if (gen.has(path)) return 'generated';
-  if (path.startsWith('docs/')) return 'generated'; // served copies, written by build-docs.mjs
-  if (path.startsWith('provenance/')) return 'generated'; // ledger fragments, written by build.mjs
+  /* A path that traverses is not a path we understand, so it is SOURCE. `provenance/../oxydex-dsp.js`
+     matched the `provenance/` prefix and classified GENERATED in the first version — found by an
+     adversarial pass. Git does not emit traversing paths from `--diff-filter=U`, so this was not
+     reachable in practice; it is fixed anyway, because the whole value of this classifier is that it
+     is wrong in the SAFE direction and a prefix test that can be walked out of is not. */
+  const p = String(path == null ? '' : path);
+  if (!p || p.startsWith('/') || p.split('/').includes('..') || p.split('/').includes('.')) return 'source';
+  if (gen.has(p)) return 'generated';
+  if (p.startsWith('docs/')) return 'generated'; // served copies, written by build-docs.mjs
+  if (p.startsWith('provenance/')) return 'generated'; // ledger fragments, written by build.mjs
   return 'source';
 }
 

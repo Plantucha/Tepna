@@ -203,6 +203,7 @@ scripts, and `tsc`/ESLint self-install via `npx -y` on demand. The **one** pinne
 | `npm run build` / `build:app -- <Name>` / `build:check` | `tools/build.mjs --all` / `--app` / `--check` | re-bundle owned bundles / drift guard |
 | `npm run verify:manifest` | `tests/verify-manifest.mjs` | provenance GATE A after a re-bundle |
 | `npm run release` / `release:dry` | `tools/release.mjs` | cut a release from a green tree |
+| `npm run rebase` | `tools/rebase-safe.mjs` — fetch → rebase onto `origin/main` → auto-resolve **generated** conflicts → rebuild every generated tree → report what to amend | **before every push.** `main` moves during review and the two orchestrator bundles are re-bundled by ANY inlined-module change, so PRs sharing no source still collide. It STOPS on a SOURCE conflict instead of picking a side — `git checkout <ref> -- <source>` reverts work silently and is hook-denied (CLAUDE.md §2c) |
 
 > The `npm run` names are a convenience layer, **not** a new gate. The canonical gates are still
 > `Dex-Test-Suite.html?full` (behavior) and `verify-provenance.html` (provenance); the browser reads

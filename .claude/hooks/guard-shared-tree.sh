@@ -36,6 +36,12 @@ cmd="$(jq -r '.tool_input.command // empty' 2>/dev/null)" || exit 0
 
 cmdn="${cmd//\\$'\n'/ }"; cmdn="${cmdn//$'\n'/ }"      # fold continuations + newlines
 cmd_noquotes="$(sed "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g" <<<"$cmdn")"
+# …AND STRIP HEREDOC BODIES TOO. The quote-stripping above exists because a commit MESSAGE may
+# legitimately contain `-a`. But the long messages written in this repo arrive by HEREDOC
+# (`git commit -F - <<'MSG' … MSG`), which is not quoted — so a message that merely mentions
+# `git commit -a`, as one documenting THIS FILE must, was denied. Same intent, one more delimiter.
+# Measured 2026-08-05: it blocked the commit shipping the rebase-guard rule.
+cmd_noquotes="$(printf '%s' "$cmd_noquotes" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\1([[:space:]]|$)/ /g")"
 GITX='(^|[^[:alnum:]_-])([^[:space:];&|]*/)?git([[:space:]]+(-[cC][[:space:]]*("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--git-dir=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--work-tree=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--exec-path=[^[:space:]]*|--no-pager))*[[:space:]]+'
 QT='["'"'"']?'
 
@@ -151,11 +157,22 @@ fi
 # group, a DSP fix and a provenance entry out of a single commit. Only
 # `git show HEAD:<file> | grep` caught it.
 #
+# ⚠ The ref separator must accept `=` as well as whitespace. `git restore --source=origin/main -- x.js`
+# is the SAME operation as the space form and BYPASSED the first version of this rule, which looked
+# for a ref only after whitespace. Found by an adversarial pass, not by review — the space form was
+# the one anybody would think to test.
+#
 # This rule fires only when the path list contains something OUTSIDE the generated set — a bundle,
 # docs/, provenance/ are all fine and pass through. It deliberately does NOT try to enumerate the
 # generated set in bash: `tools/rebase-safe.mjs` reads it from the builders that own it, and this
 # guard just refuses the hand-rolled form and points there.
-if grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?[^;&|]*\.(js|mjs|md|json|css|src\.html)([[:space:]]|$)' <<<"$cmdn"    && grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmdn"    && ! grep -qE '(^|[[:space:]])(provenance/|docs/)' <<<"$cmdn"; then
+# HEREDOC BODIES ARE TEXT, NOT COMMANDS. This rule matches a command SHAPE that people also need to
+# WRITE ABOUT — a changeset, a brief, this file. Dogfooding it blocked the very `git add` that was
+# committing the rule, because the staged changeset described the bypass it fixes. `$cmd_noquotes`
+# does not help: a heredoc body is not quoted. So this rule alone also tests a copy with `<<'W' … W`
+# bodies removed. Same tradeoff, and same reason, as the quote-stripping on `git commit -a` above.
+cmd_nohd="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
+if grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?[^;&|]*\.(js|mjs|md|json|css|src\.html)([[:space:]]|$)' <<<"$cmd_nohd"    && grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmd_nohd"    && ! grep -qE '(^|[[:space:]])(provenance/|docs/)' <<<"$cmd_nohd"; then
   deny "BLOCKED: 'git checkout <ref> -- <source path>' in a shared checkout.
 
 This is the mid-rebase conflict shortcut, and it is the one that fails SILENTLY. It is correct for a

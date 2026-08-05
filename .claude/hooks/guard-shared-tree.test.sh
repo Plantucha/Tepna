@@ -68,6 +68,10 @@ git checkout origin/main -- tests/dex-tests.js
 git checkout origin/main -- integrator-tch.js oxydex-dsp.js
 git checkout HEAD -- ppgdex-dsp.js
 git restore --source origin/main -- clock.js
+git restore --source=origin/main -- clock.js
+git -C . checkout origin/main -- tests/dex-tests.js
+git checkout HEAD~1 -- integrator-tch.js
+git checkout origin/main -- OverDex.html tests/dex-tests.js
 git update-ref --stdin
 git update-ref --no-deref refs/heads/main abc
 git branch -f main abc
