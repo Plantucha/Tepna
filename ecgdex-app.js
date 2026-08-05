@@ -38,29 +38,26 @@ import { ECGUI } from './ecgdex-render.js';
 self.onmessage = async (e) => {
   const files = e.data.files || (e.data.file ? [e.data.file] : []);
   let cap = 1<<20, arr = new Int16Array(cap), n = 0;
-  let t0Ms = null, fs = 130, prevMs = null, msStep = null, stepSum = 0, stepN = 0; const gaps = [];
+  let rawT0 = null, rawTEnd = null, fs = 130, prevMs = null, msStep = null, stepSum = 0, stepN = 0; const gaps = [];
   const push = v => { if(n>=cap){ cap*=2; const na=new Int16Array(cap); na.set(arr); arr=na; } arr[n++]=v; };
-  // CLOCK-UNIFY: floating wall-clock parse (inline — workers can't see page scope)
-  const _ckPF = (raw) => {
-    if(raw==null) return null;
-    const s = String(raw).trim().replace(/^["']|["']$/g,'');
-    if(!s) return null; let m;
-    if(/^\\d{10,13}$/.test(s)){ let x=parseInt(s,10); if(x<1e11)x*=1000; if(x<1e11||x>4e12) return null; return x - new Date(x).getTimezoneOffset()*60000; }
-    m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})[ T](\\d{1,2}):(\\d{2})(?::(\\d{2})(?:\\.(\\d{1,3})\\d*)?)?\\s*(Z|[+-]\\d{2}:?\\d{2})?$/);
-    if(m){ return Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0, m[7]?+((m[7]+'00').slice(0,3)):0); }
-    m = s.match(/^(\\d{1,2}):(\\d{2}):(\\d{2})\\s+(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})$/);
-    if(m){ let a=+m[4],b=+m[5],d,mo; if(a>12){d=a;mo=b;}else if(b>12){d=b;mo=a;}else{d=a;mo=b;} return Date.UTC(+m[6],mo-1,d,+m[1],+m[2],+m[3]); }
-    m = s.match(/^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})\\s+(\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);
-    if(m){ let a=+m[1],b=+m[2],d,mo; if(a>12){d=a;mo=b;}else if(b>12){d=b;mo=a;}else{d=a;mo=b;} return Date.UTC(+m[3],mo-1,d,+m[4],+m[5],m[6]?+m[6]:0); }
-    return null;
-  };
+  // CLOCK-UNIFY: THE WORKER DOES NOT PARSE TIMESTAMPS. It used to carry `_ckPF`, an inline copy of
+  // the Clock Contract parser, because "workers can't see page scope" — true, but the conclusion was
+  // wrong. A copy skips whatever the original later gains, and this one skipped the §2.7
+  // component-range guard: `2026-02-30T12:00` became 2026-03-02 instead of null, and that value
+  // becomes t0Ms, the anchor for the whole recording. Shipping clock.js INTO the worker was the
+  // other candidate, but DexClock.parseTimestamp closes over module-scope helpers (_ckMk, _dmy),
+  // so a Function.toString() of it alone does not travel — it would need a serializer in the shared
+  // spine, which re-stamps all 8 provenance fragments for a bug that lives in one app.
+  // So the worker ships the raw stamp STRINGS back and the main thread parses them once, with
+  // DexClock. Three parsers become one, and the one is the gated one.
   const handle = (line) => {
     line = line.trim(); if(!line) return;
     const p = line.split(/[;\\t,]/);
     const v = parseFloat(p[p.length-1]);
     if(!isFinite(v)) return;                       // header / junk row
     push(Math.max(-32768, Math.min(32767, Math.round(v))));
-    if(t0Ms===null){ const ms = _ckPF(p[0]); if(ms!=null) t0Ms = ms; }
+    if(rawT0===null && p[0]!=null && String(p[0]).trim()) rawT0 = p[0];
+    if(p[0]!=null && String(p[0]).trim()) rawTEnd = p[0];   // F21: the LAST stamp — endEpochMs was never emitted
     if(p.length>=3){
       const ms = parseFloat(p[2]);
       if(isFinite(ms)){
@@ -99,7 +96,7 @@ self.onmessage = async (e) => {
     // the derived fs/gaps were computed across a discontinuity that never existed in the recording.
     // It fails silently — the output is a plausible, longer ECG — which is why nothing caught it.
     // The fallback re-reads from byte zero, so it must start from zero state.
-    n = 0; t0Ms = null; prevMs = null; msStep = null; stepSum = 0; stepN = 0; gaps.length = 0;
+    n = 0; rawT0 = null; rawTEnd = null; prevMs = null; msStep = null; stepSum = 0; stepN = 0; gaps.length = 0;
     for(const file of files){
       const txt = await file.text();
       for(const line of txt.split(/\\r?\\n/)) handle(line);
@@ -110,66 +107,23 @@ self.onmessage = async (e) => {
   if(stepN>0) fs = Math.round((1000*stepN)/stepSum);
   else if(msStep && msStep>0) fs = Math.round(1000/msStep);
   const out = arr.buffer.slice(0, n*2);
-  self.postMessage({ type:'done', buffer:out, n, gaps, t0Ms, fs }, [out]);
+  self.postMessage({ type:'done', buffer:out, n, gaps, rawT0, rawTEnd, fs }, [out]);
 };`;
   let workerURL = null;
-  // CLOCK-UNIFY: main-thread floating wall-clock timestamp parser (mirror of the worker's _ckPF). A
-  // missing stamp stays null — the primary loader threads null, never a now() anchor (Clock Contract
-  // §2.6). DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-01 §1 removed the old wall-clock now()-fallback (dead).
+  // CLOCK-UNIFY: ONE parser. This used to be a hand-rolled mirror of the worker's `_ckPF`, and both
+  // built `tMs` with a bare `Date.UTC(...)`. Date.UTC SILENTLY ROLLS out-of-range components onto a
+  // plausible WRONG instant, which `clock.js:_ckMk` exists to refuse (Clock Contract §2.7): a stamp
+  // of `2026-02-30T12:00` became 2026-03-02 and `2026-13-45T25:99:99` became 2027-02-15, where
+  // DexClock returns null. Whatever this returns becomes `t0Ms`, the anchor for the WHOLE recording,
+  // so an unvalidated stamp does not corrupt one row — it fabricates the night.
+  //
+  // The fix is not to port the guard into the copies. Two mirrors of a parser drift, and this file
+  // was already proof: the mirrors had diverged from clock.js and from each other. The worker no
+  // longer parses at all (it ships the raw stamp strings back — see WORKER_SRC), so this is now the
+  // single parse site on both paths, and it delegates.
   function parseTSfloat(raw) {
-    if (raw == null) return null;
-    const s = String(raw)
-      .trim()
-      .replace(/^["']|["']$/g, '');
-    if (!s) return null;
-    let m;
-    if (/^\d{10,13}$/.test(s)) {
-      let x = parseInt(s, 10);
-      if (x < 1e11) x *= 1000;
-      if (x < 1e11 || x > 4e12) return null;
-      return x - new Date(x).getTimezoneOffset() * 60000;
-    }
-    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})?$/);
-    if (m) {
-      return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
-    }
-    m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (m) {
-      let a = +m[4],
-        b = +m[5],
-        d,
-        mo;
-      if (a > 12) {
-        d = a;
-        mo = b;
-      } else if (b > 12) {
-        d = b;
-        mo = a;
-      } else {
-        d = a;
-        mo = b;
-      }
-      return Date.UTC(+m[6], mo - 1, d, +m[1], +m[2], +m[3]);
-    }
-    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (m) {
-      let a = +m[1],
-        b = +m[2],
-        d,
-        mo;
-      if (a > 12) {
-        d = a;
-        mo = b;
-      } else if (b > 12) {
-        d = b;
-        mo = a;
-      } else {
-        d = a;
-        mo = b;
-      }
-      return Date.UTC(+m[3], mo - 1, d, +m[4], +m[5], m[6] ? +m[6] : 0);
-    }
-    return null;
+    const r = DexClock.parseTimestamp(raw);
+    return r ? r.tMs : null;
   }
   function getWorker() {
     if (!workerURL) workerURL = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'application/javascript' }));
@@ -195,7 +149,14 @@ self.onmessage = async (e) => {
           progress(Math.min(40, 4 + (d.n / 5e6) * 36), 'Parsed ' + (d.n / 1e6).toFixed(1) + 'M samples…');
         } else if (d.type === 'done') {
           w.terminate();
-          const rec = { int16: new Int16Array(d.buffer), fs: d.fs, gaps: d.gaps, t0Ms: d.t0Ms != null ? d.t0Ms : null, source: 'file', durSec: d.n / d.fs };
+          // The worker ships raw stamp STRINGS; this is the single parse site (see parseTSfloat).
+          // endEpochMs was never emitted on this path, and ECGDSP.analyze READS rec.endEpochMs — so
+          // every browser-produced export differed from the gated headless one on a field the
+          // headless run fills. A stampless recording keeps null; it is never synthesised from
+          // t0Ms + durSec, which would fabricate an end the file does not state (§2.6).
+          const _t0 = parseTSfloat(d.rawT0);
+          const _tEnd = parseTSfloat(d.rawTEnd);
+          const rec = { int16: new Int16Array(d.buffer), fs: d.fs, gaps: d.gaps, t0Ms: _t0 != null ? _t0 : null, endEpochMs: _tEnd != null ? _tEnd : null, source: 'file', durSec: d.n / d.fs };
           // R1 provenance: the streamed primary ECG bypasses the FileReader hook —
           // attest each part explicitly (name/bytes/mtime) so the export records its true inputs.
           if (window.GangliorProvenance) files.forEach((f) => GangliorProvenance.noteInput(f));
@@ -211,6 +172,7 @@ self.onmessage = async (e) => {
         const txt = e.target.result;
         const lines = txt.split(/\r?\n/);
         const arr = [];
+        let rawTEnd = null;
         let t0Ms = null,
           prevMs = null,
           msStep = null,
@@ -228,6 +190,7 @@ self.onmessage = async (e) => {
             const ms = parseTSfloat(p[0]);
             if (ms != null) t0Ms = ms;
           }
+          if (p[0] != null && String(p[0]).trim()) rawTEnd = p[0];   // F21: last stamp -> endEpochMs
           if (p.length >= 3) {
             const ms = parseFloat(p[2]);
             if (isFinite(ms)) {
@@ -249,7 +212,8 @@ self.onmessage = async (e) => {
         }
         // DEEP-AUDIT-II §4.3 (#5): mean non-gap interval, not a single delta (see WORKER_SRC / DSP).
         const fs = stepN > 0 ? Math.round((1000 * stepN) / stepSum) : msStep ? Math.round(1000 / msStep) : 130;
-        runPipeline({ int16: new Int16Array(arr), fs, gaps, t0Ms: t0Ms != null ? t0Ms : null, source: 'file', durSec: arr.length / fs }, file.name);
+        const _tEndF = parseTSfloat(rawTEnd);
+        runPipeline({ int16: new Int16Array(arr), fs, gaps, t0Ms: t0Ms != null ? t0Ms : null, endEpochMs: _tEndF != null ? _tEndF : null, source: 'file', durSec: arr.length / fs }, file.name);
       };
       fr.readAsText(file);
     }
