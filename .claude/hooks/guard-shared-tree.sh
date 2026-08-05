@@ -185,8 +185,34 @@ cmd_nohd="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[
 # So: pull out every token that LOOKS like a source path, drop the ones that are generated, and fire
 # only if something is left. Wrong in the safe direction — an unrecognised extension is simply not
 # matched, it never suppresses a match elsewhere.
-_srcpaths="$(grep -oE '[^[:space:];&|"'"'"']+\.(js|mjs|py|sh|md|json|css|toml|ya?ml|txt|cff|src\.html)' <<<"$cmd_nohd" | grep -vE '^(\./)?(docs|provenance)/' || true)"
-if [ -n "$_srcpaths" ]    && grep -qE "$GITX"'(checkout|restore)([[:space:]]|$)' <<<"$cmd_nohd"    && grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmd_nohd"; then
+#   4. THE PATHS WERE READ FROM THE WHOLE COMMAND, not from the checkout's own segment, so any
+#      unrelated `.txt`/`.sh` mentioned in a `&&`-joined step supplied the "source path" for a
+#      checkout that never touched one. This over-blocks (safe direction) but it fires on ordinary
+#      compound commands — it blocked three consecutive attempts to run this rule's OWN test harness.
+#      Paths now come from the checkout/restore segment only.
+_ckseg="$(grep -oE "$GITX"'(checkout|restore)[^;&|]*' <<<"$cmd_nohd" || true)"
+_srcpaths="$(grep -oE '[^[:space:];&|"'"'"']+\.(js|mjs|py|sh|md|json|css|toml|ya?ml|txt|cff|src\.html)' <<<"$_ckseg" | grep -vE '^(\./)?(docs|provenance)/' || true)"
+
+# UNKNOWABLE PATHS MUST FAIL CLOSED. The extraction above needs a path token to be VISIBLE — so the
+# canonical form, the one CLAUDE.md §2c prints and the one that did the damage,
+#     git checkout origin/main -- $(git diff --name-only --diff-filter=U)
+# names no path at all and this rule stayed silent on its own worked example. Measured against main
+# 2026-08-05: ALLOWED, along with the backtick and `| xargs` spellings. A command substitution means
+# the path list is not knowable statically, and `tools/rebase-safe.mjs` already settles that exact
+# ambiguity the only safe way — unknown classifies as SOURCE. This guard now agrees with the tool it
+# points at, instead of being strictest about the spellings nobody uses.
+_ckdyn=''
+grep -qE "$GITX"'(checkout|restore)[^;&|]*(\$\(|`)' <<<"$cmd_nohd" && _ckdyn=1
+grep -qE 'xargs([[:space:]]+-[^[:space:]]+)*[[:space:]]+(git[[:space:]]+)?(checkout|restore)([[:space:]]|$)' <<<"$cmd_nohd" && _ckdyn=1
+
+# `--ours` / `--theirs` NAME NO REF, so the ref clause never fired for them — yet taking one side
+# wholesale IS the destructive operation this rule exists to refuse, and for tests/dex-tests.js it is
+# exactly the wrong answer (restore main's copy, then RE-RUN your insertion). The ref clause was
+# written from the shape of the command that caused the incident rather than from the operation.
+_ckside=''
+grep -qE "$GITX"'(checkout|restore)[^;&|]*--(ours|theirs)([[:space:]]|$)' <<<"$cmd_nohd" && _ckside=1
+
+if [ -n "$_ckdyn" ] || { [ -n "$_srcpaths" ] && grep -qE "$GITX"'(checkout|restore)([[:space:]]|$)' <<<"$cmd_nohd" && { [ -n "$_ckside" ] || grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmd_nohd"; }; }; then
   deny "BLOCKED: 'git checkout <ref> -- <source path>' in a shared checkout.
 
 This is the mid-rebase conflict shortcut, and it is the one that fails SILENTLY. It is correct for a

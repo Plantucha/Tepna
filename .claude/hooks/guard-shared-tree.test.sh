@@ -102,6 +102,27 @@ git branch -f main abc
 git branch --force main abc
 git push . HEAD:main
 git symbolic-ref HEAD refs/heads/other
+
+# ── source-checkout rule, adversarial pass 2 (2026-08-05) ────────────────────────────────────────
+# The rule extracted a path TOKEN from the command, so it could only see spellings that print one.
+# It therefore stayed silent on its OWN worked example — the line CLAUDE.md §2c prints verbatim and
+# calls hook-denied, and the line that actually dropped a test group, a DSP fix and a provenance
+# entry. Measured against origin/main before this fix: ALLOWED. Documentation promised a guarantee
+# the guard did not implement, which is worse than no guard: it is a guard people rely on.
+#
+# 5 · The path list is COMPUTED, so no token exists. Unknowable ⇒ SOURCE, matching the rule
+#     tools/rebase-safe.mjs already uses (classify() fails closed on anything it cannot place).
+git checkout origin/main -- $(git diff --name-only --diff-filter=U)
+git restore --source=origin/main -- $(git diff --name-only --diff-filter=U)
+git checkout origin/main -- `git diff --name-only --diff-filter=U`
+git diff --name-only --diff-filter=U | xargs git checkout origin/main --
+# 6 · --ours/--theirs NAME NO REF, so the ref clause never fired — yet taking one side wholesale IS
+#     the destructive operation, and for tests/dex-tests.js it is the specifically wrong answer.
+#     The clause had been written from the shape of the command that caused the incident rather
+#     than from the operation the rule exists to refuse.
+git checkout --ours -- tests/dex-tests.js
+git checkout --theirs -- oxydex-dsp.js
+git checkout --theirs oxydex-dsp.js
 DENY
 
 echo
@@ -122,6 +143,25 @@ if true; then git add -A; fi
 for f in a b; do git add -A; done
 DENY2
 printf '  '; chk DENY "$(printf 'git add \\\n  -A')"
+
+echo
+echo
+echo "### INTENTIONALLY RELAXED — main DENIES these, and that was the bug        now   main"
+# The one-way ratchet above ("never allow what main denied") is the right default and caught three
+# shipped defects. But it cannot express a deliberate loosening, and an over-block is a real defect
+# too: people route around a guard that refuses ordinary work, and then it protects nothing. So a
+# relaxation is allowed HERE ONLY, one line at a time, each with the reason it is not a regression.
+# The bar is that the command must be provably outside the rule's stated purpose — not merely
+# inconvenient.
+relaxed(){ local got; got=$(v "$1" "$H"); local base; base=$(v "$1" "$BASE")
+  [ "$got" != allow ] && { fail=$((fail+1)); printf '  %-5s %-5s %s <-- EXPECTED allow\n' "$got" "$base" "$1"; return; }
+  [ "$base" != DENY ] && { fail=$((fail+1)); printf '  %-5s %-5s %s <-- NOT A RELAXATION (main allows it too; move to MUST ALLOW)\n' "$got" "$base" "$1"; return; }
+  printf '  %-5s %-5s %s\n' "$got" "$base" "$1"; }
+# Paths were read from the whole command instead of the checkout's own segment, so an unrelated
+# source-looking token in a `&&`-joined step supplied the "source path" for a checkout that touched
+# none. This shape — make a branch, then run a harness — was refused three times in a row while
+# writing the cases above. No file is restored from a ref here, so it is outside the rule entirely.
+relaxed 'git checkout -b claude/x origin/main && bash .claude/hooks/guard-shared-tree.test.sh'
 
 echo
 echo "### MUST ALLOW — ordinary work"
@@ -166,6 +206,16 @@ legit add -A
 git checkout origin/main -- docs/index.html
 git checkout origin/main -- provenance/OxyDex.json
 git checkout origin/main -- docs/OxyDex.html provenance/OxyDex.json
+# The paths were read from the WHOLE command, not from the checkout's own segment, so any unrelated
+# source-looking token in a `&&`-joined step supplied the "source path" for a checkout that touched
+# none. Over-blocking is the safe direction, but it fires on ordinary compound commands: this exact
+# shape — make a branch, then run a harness — was refused three times in a row while developing the
+# cases above. A guard that blocks routine work is a guard people learn to route around.
+git switch -c claude/x2 origin/main
+node tools/rebase-safe.mjs && npm run check
+# `--ours`/`--theirs` on a GENERATED path is still the correct move: neither side is authoritative
+# and the rebuild settles it. The new clause must not swallow that.
+git checkout --ours -- docs/OxyDex.html
 npm run rebase
 ALLOW
 
