@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-KodU9c8MopU2e3ruKMgyrVIbo0EIQhYWQOfME22pzF8=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WIkFbL2oleMNGRl8JnmJHJHr24/Q1W+/ZCGBpqSl2fM=' 'sha256-YHETwEeNwMJHxiBIamMI6lYERYPmj0VVFaGLdH1Lk38=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kicckJUugYMR/nL9FCUUAszKV2CCvcWFdz8e7Olm5v0=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0HBhMJiuRosV3WFtoxnOr6uXufKmQavN6RxdtfvAXA0=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-MnP9wt46pmURQuPdQy2UqyTKBewz1pHaLL5EkHLHJvg=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-WGAdE8HjXf7mJfKkBvWj9Prp0rLErBrsiaWH93qMB6U=' 'sha256-WIkFbL2oleMNGRl8JnmJHJHr24/Q1W+/ZCGBpqSl2fM=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PulseDex — Raw RR Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -6653,8 +6653,22 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     const frac = Math.min(1, pb / tot);
     return { frac: +frac.toFixed(3), strong: frac > 0.4 && pb > lf }; // PB dominates the low band
   }
+  /* AN UNCOMPUTABLE INDEX IS `null`, NEVER 0 (DEEP-AUDIT-V §2.6 F16 — bug class 3).
+     These three shared one shape: a divide-by-zero / absent-input guard whose fallback was `0`, and
+     for every one of them 0 is a MEANINGFUL point on the scale the renderer grades against. So
+     "cannot be computed" arrived at the user as a confident reading, at the wrong end:
+         siCalc  0  -> "Baevsky SI 0"  graded ok   (<150 is ok)
+         crsIdx  0  -> "Cardiac CRS 0" graded bad  (>0.05 is ok)
+         absIdx  0  -> "ABS 0.000"     graded ok   — the EXACT CENTRE of its -1..+1 scale,
+                                        i.e. "perfectly balanced", from no measurement at all
+     `absIdx` is the sharpest: `ansBalance` DELIBERATELY returns {sns:null, psns:null} when the
+     HF/LF estimate is unusable, and `null + null === 0` is falsy, so the honest null upstream was
+     converted straight back into a fabricated reading one line later.
+     Note `crsIdx`'s guard also fires on a REAL stress of 0 (maximum relaxation — `stressEst` clamps
+     to [0,100] and genuinely reaches it), which the old code mapped to the WORST grade. Null is
+     right there too: the ratio is undefined, not zero. */
   function siCalc(amo, mo, mx) {
-    return mo && mx ? amo / (2 * (mo / 1000) * (mx / 1000)) : 0;
+    return mo && mx ? amo / (2 * (mo / 1000) * (mx / 1000)) : null;
   } // Baevsky SI — Mo & MxDMn in SECONDS (Welltory units)
   // BP-from-HRV (bpEst) and HTN-pattern (htnScore) REMOVED 2026-06-22 — "blood pressure from HRV"
   // has no validity (DEX-SUITE-EXTERNAL-REVIEW-v2 §🔴; same standing rule that retired ANS Age and
@@ -6664,10 +6678,14 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
     return en * 0.4 + fo * 0.3 + co * 0.3;
   }
   function crsIdx(co, rm, pn, st) {
-    return st ? (co * rm * pn) / (st * 1000) : 0;
+    return st ? (co * rm * pn) / (st * 1000) : null; // see siCalc — undefined, not zero
   }
   function absIdx(ps, sn) {
-    return ps + sn ? (ps - sn) / (ps + sn) : 0;
+    // Present-gate on the INPUTS, not on their sum: `null + null === 0` is falsy, which is exactly
+    // how ansBalance's honest null became a fabricated "perfectly balanced" (DA-V §2.6 F16).
+    const ok = (v) => typeof v === 'number' && isFinite(v);
+    if (!ok(ps) || !ok(sn) || ps + sn === 0) return null;
+    return (ps - sn) / (ps + sn);
   }
 
   // ─── ADVANCED / RESEARCH METRICS ───────────────────────────────────────────────
@@ -8314,7 +8332,14 @@ function renderTable(r) {
     ['SD1/SD2', r.sd1sd2, 'ratio', '0.25–0.5', 'neutral', 'Short vs long-term balance'],
     ['Ellipse Area', r.ellArea, 'ms²', '—', 'neutral', 'π·SD1·SD2 complexity proxy'],
     ['ln(rMSSD)', r.lnrmssd, '—', '≥3.5', r.lnrmssd >= 3.5 ? 'ok' : r.lnrmssd >= 3.1 ? 'warn' : 'bad', 'Log-RMSSD readiness'],
-    ['Baevsky SI', r.si, 'a.u.', '<150', r.si < 150 ? 'ok' : r.si < 200 ? 'warn' : 'bad', 'Stress index AMo/(2·Mo·MxDMn) · Mo & MxDMn in seconds' + (r.longRec ? ' · rep. window' : '')],
+    [
+      'Baevsky SI',
+      r.si != null ? r.si : '—',
+      'a.u.',
+      '<150',
+      r.si == null ? '' : r.si < 150 ? 'ok' : r.si < 200 ? 'warn' : 'bad',
+      'Stress index AMo/(2·Mo·MxDMn) · Mo & MxDMn in seconds' + (r.longRec ? ' · rep. window' : '')
+    ],
     // SBP est / DBP est / HTN Pattern rows REMOVED 2026-06-22 (DEX-SUITE-EXTERNAL-REVIEW-v2 §🔴):
     // HRV→BP has no validity and these rendered unbadged after their registry entries were dropped.
     ['VO₂ base', r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HR ratio'],
@@ -8337,8 +8362,8 @@ function renderTable(r) {
     ['SNS bal', _ansTxt(r.snsBal), 'ratio', '<1.5', 'neutral', 'LF/HF-based sympathetic ratio'],
     ['PSNS bal', _ansTxt(r.psnsBal), 'ratio', '>0.7', 'neutral', 'HF/LF-based parasympathetic'],
     ['EFC Readiness', r.efc, '0–100', '>60', r.efc >= 60 ? 'ok' : r.efc >= 40 ? 'warn' : 'bad', 'Energy×0.4+Focus×0.3+Coh×0.3'],
-    ['Cardiac CRS', r.crs, 'a.u.', '>0.05', r.crs >= 0.05 ? 'ok' : r.crs >= 0.02 ? 'warn' : 'bad', '(Coh·rMSSD·pNN50)/Stress×1000'],
-    ['ABS', r.abs, '−1..+1', '~0', Math.abs(r.abs) <= 0.3 ? 'ok' : Math.abs(r.abs) <= 0.6 ? 'warn' : 'bad', 'Autonomic Balance Score'],
+    ['Cardiac CRS', r.crs != null ? r.crs : '—', 'a.u.', '>0.05', r.crs == null ? '' : r.crs >= 0.05 ? 'ok' : r.crs >= 0.02 ? 'warn' : 'bad', '(Coh·rMSSD·pNN50)/Stress×1000'],
+    ['ABS', r.abs != null ? r.abs : '—', '−1..+1', '~0', r.abs == null ? '' : Math.abs(r.abs) <= 0.3 ? 'ok' : Math.abs(r.abs) <= 0.6 ? 'warn' : 'bad', 'Autonomic Balance Score'],
     ['Stress-Focus', r.sfg, 'pts', '≈0', Math.abs(r.sfg) <= 10 ? 'ok' : Math.abs(r.sfg) <= 25 ? 'warn' : 'bad', 'Stress−Focus gap'],
     ['Focus Effic', r.fe, 'a.u.', '>0.3', r.fe >= 0.3 ? 'ok' : r.fe >= 0.15 ? 'warn' : 'bad', 'Focus/(SNS+1)'],
     ['PNS Effic', r.pnse === null ? '—' : r.pnse, 'a.u.', '<4', r.pnse === null ? 'neutral' : r.pnse < 4 ? 'ok' : r.pnse < 7 ? 'warn' : 'bad', 'rMSSD/(SDNN·pNN50)'],
@@ -12325,7 +12350,11 @@ function calculate() {
   const hfnu = +nu(sp.hf, sp.hf + sp.lf).toFixed(1),
     lfnu = +nu(sp.lf, sp.hf + sp.lf).toFixed(1);
   const ell = +(Math.PI * sd1v * sd2v).toFixed(1);
-  const si = +siCalc(cAmo, cMo, cMx).toFixed(1); // SI is a short-term index → representative window
+  /* `.toFixed()` on an uncomputable index would throw, so each of these three now null-guards at the
+     call site (DA-V §2.6 F16). Absence propagates as null all the way to the render row, which prints
+     an em-dash — the value never becomes a number anywhere along the way. */
+  const _r1 = (v, d) => (v == null || !isFinite(v) ? null : +v.toFixed(d));
+  const si = _r1(siCalc(cAmo, cMo, cMx), 1); // SI is a short-term index → representative window
   const _pp = typeof pxProfile === 'function' ? pxProfile() : {};
   const age = _pp.age || 40;
   const tanaka = Math.round(208 - 0.7 * age);
@@ -12351,10 +12380,13 @@ function calculate() {
   const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altFactor).toFixed(1);
   const vo2a = +vo2Adj(vo2b, lnrm).toFixed(1);
   const efc = +efcIdx(energy, focus, coh).toFixed(1);
-  const crs = +crsIdx(coh, cRm, cPn, stress).toFixed(4);
-  const absV = +absIdx(ans.psns, ans.sns).toFixed(3);
+  const crs = _r1(crsIdx(coh, cRm, cPn, stress), 4);
+  const absV = _r1(absIdx(ans.psns, ans.sns), 3);
+  /* `fe` divides by `ans.sns + 1`, and `null + 1 === 1` — so an absent sympathetic estimate silently
+     became a divisor of 1 and `fe` came out equal to `focus`, a real-looking number derived from a
+     measurement that does not exist (DA-V §2.6 F16, same family as absIdx above). */
   const sfg = stress - focus,
-    fe = +(focus / (ans.sns + 1)).toFixed(3);
+    fe = ans.sns == null || !isFinite(ans.sns) ? null : +(focus / (ans.sns + 1)).toFixed(3);
   // PNS Efficiency = rMSSD/(SDNN·pNN50-fraction) — divide by the pNN50 FRACTION (cPn/100),
   // matching HRVDex's reference formula (hrvdex-dsp.js d_pns_eff). Omitting the /100 rendered
   // values 100× too small (0.0140 vs HRVDex's 1.3955 on identical RR truth). Guard mirrors

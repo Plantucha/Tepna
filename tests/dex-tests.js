@@ -6509,6 +6509,48 @@
        is uncontaminated, and drawn only from in-range values it is in range by construction.
        A 6-beat burst does NOT flip the median (not yet a majority of the 10 neighbours); a 7-beat one
        does. Both are asserted, so the gate pins the actual boundary rather than one convenient case. */
+    /* DEEP-AUDIT-V §2.6 F16 — three PulseDex indices returned 0 when they could not be computed, and
+       for every one of them 0 is a MEANINGFUL point on the scale the renderer grades against. So
+       "no measurement" arrived at the user as a confident reading, at the wrong end of the scale:
+
+           siCalc(amo, 0, 0)        -> 0       "Baevsky SI 0"   graded ok   (<150 is ok)
+           crsIdx(co, rm, pn, 0)    -> 0       "Cardiac CRS 0"  graded bad  (>0.05 is ok)
+           absIdx(null, null)       -> 0       "ABS 0.000"      graded ok   -- the EXACT CENTRE of a
+                                               -1..+1 scale, i.e. "perfectly balanced", from nothing
+
+       `absIdx` is the sharpest instance in the repo of an honest null being converted back into a
+       fabrication ONE LINE LATER: `ansBalance` deliberately returns {sns:null, psns:null} when the
+       HF/LF estimate is unusable, and `null + null === 0` is falsy, so the guard fired and returned
+       the centre of the scale. `fe` shared it — `null + 1 === 1`, so an absent sympathetic estimate
+       became a divisor of 1 and `fe` came out equal to `focus`.
+
+       `crsIdx`'s guard ALSO fires on a real stress of 0 (maximum relaxation; `stressEst` clamps to
+       [0,100] and genuinely reaches it) — which the old code mapped to the WORST grade. Null is right
+       there too: the ratio is undefined, not zero. */
+    group('PulseDex indices that cannot be computed report null, not a graded 0 (DA-V §2.6)', 'pulsedex-dsp · fabricated-absence · regression', function (T) {
+      var D = env.PulseDex && (env.PulseDex._bare || env.PulseDex);
+      if (!(D && typeof D.absIdx === 'function' && typeof D.crsIdx === 'function' && typeof D.siCalc === 'function')) {
+        T.skip('PulseDex absIdx/crsIdx/siCalc exposed', 'pulsedex-dsp not wired in this lane');
+        return;
+      }
+      // THE UPSTREAM NULL IS REAL — assert it, or the rest tests a case that cannot arise.
+      var ans = D.ansBalance(0, 12);
+      T.ok('ansBalance still refuses an unusable HF/LF estimate', ans.sns === null && ans.psns === null, 'sns=' + ans.sns + ' psns=' + ans.psns);
+      T.eq('F16 · absIdx on those nulls is null, NOT the centre of its scale', D.absIdx(ans.psns, ans.sns), null);
+      T.eq('F16 · …and null+null===0 no longer sneaks through the sum-guard', D.absIdx(null, null), null);
+      T.eq('F16 · crsIdx with an undefined ratio is null, not the worst grade', D.crsIdx(50, 30, 10, 0), null);
+      T.eq('F16 · siCalc with no Mo/MxDMn is null, not a healthy-looking 0', D.siCalc(50, 0, 0), null);
+      // THE CONTROLS — the fix must not abolish the metrics, only make absence honest.
+      T.ok('control · absIdx still computes on real inputs', Math.abs(D.absIdx(0.7, 0.2) - 0.5556) < 0.001, D.absIdx(0.7, 0.2));
+      T.ok('control · crsIdx still computes', Math.abs(D.crsIdx(50, 30, 10, 20) - 0.75) < 1e-9, D.crsIdx(50, 30, 10, 20));
+      T.ok('control · siCalc still computes', Math.abs(D.siCalc(50, 900, 200) - 138.9) < 0.1, D.siCalc(50, 900, 200));
+      // A genuine ZERO is a measurement and must survive as one — the fix must not null it.
+      /* A genuine 0 is a MEASUREMENT and must survive as one — the whole point is to separate "balanced"
+         from "unmeasured", so nulling both would just be the same conflation pointing the other way. */
+      T.eq('control · a genuine balanced reading (ps === sn, both real) stays 0, NOT null', D.absIdx(0.5, 0.5), 0);
+      T.eq('control · …while an asymmetric pair keeps its sign', D.absIdx(0.2, 0.7) < 0, true);
+    });
+
     group('PulseDex §3.3 — artifactClean median must not come from the artifacts it corrects', 'pulsedex-dsp · artifact · regression', function (T) {
       var P = env.PulseDex;
       // artifactClean is a DSP helper on the _bare surface (destructured by the ESM UI), not the

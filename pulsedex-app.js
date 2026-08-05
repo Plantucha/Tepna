@@ -778,7 +778,11 @@ function calculate() {
   const hfnu = +nu(sp.hf, sp.hf + sp.lf).toFixed(1),
     lfnu = +nu(sp.lf, sp.hf + sp.lf).toFixed(1);
   const ell = +(Math.PI * sd1v * sd2v).toFixed(1);
-  const si = +siCalc(cAmo, cMo, cMx).toFixed(1); // SI is a short-term index → representative window
+  /* `.toFixed()` on an uncomputable index would throw, so each of these three now null-guards at the
+     call site (DA-V §2.6 F16). Absence propagates as null all the way to the render row, which prints
+     an em-dash — the value never becomes a number anywhere along the way. */
+  const _r1 = (v, d) => (v == null || !isFinite(v) ? null : +v.toFixed(d));
+  const si = _r1(siCalc(cAmo, cMo, cMx), 1); // SI is a short-term index → representative window
   const _pp = typeof pxProfile === 'function' ? pxProfile() : {};
   const age = _pp.age || 40;
   const tanaka = Math.round(208 - 0.7 * age);
@@ -804,10 +808,13 @@ function calculate() {
   const vo2b = +(vo2Base(rhrEff, hrmaxEff) * altFactor).toFixed(1);
   const vo2a = +vo2Adj(vo2b, lnrm).toFixed(1);
   const efc = +efcIdx(energy, focus, coh).toFixed(1);
-  const crs = +crsIdx(coh, cRm, cPn, stress).toFixed(4);
-  const absV = +absIdx(ans.psns, ans.sns).toFixed(3);
+  const crs = _r1(crsIdx(coh, cRm, cPn, stress), 4);
+  const absV = _r1(absIdx(ans.psns, ans.sns), 3);
+  /* `fe` divides by `ans.sns + 1`, and `null + 1 === 1` — so an absent sympathetic estimate silently
+     became a divisor of 1 and `fe` came out equal to `focus`, a real-looking number derived from a
+     measurement that does not exist (DA-V §2.6 F16, same family as absIdx above). */
   const sfg = stress - focus,
-    fe = +(focus / (ans.sns + 1)).toFixed(3);
+    fe = ans.sns == null || !isFinite(ans.sns) ? null : +(focus / (ans.sns + 1)).toFixed(3);
   // PNS Efficiency = rMSSD/(SDNN·pNN50-fraction) — divide by the pNN50 FRACTION (cPn/100),
   // matching HRVDex's reference formula (hrvdex-dsp.js d_pns_eff). Omitting the /100 rendered
   // values 100× too small (0.0140 vs HRVDex's 1.3955 on identical RR truth). Guard mirrors
