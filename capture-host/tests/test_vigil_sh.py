@@ -152,3 +152,29 @@ def test_status_on_a_cold_box_reports_not_running(box):
     r = _run(box, "status")
     assert r.returncode == 3
     assert "not running" in r.stdout.lower()
+
+
+# ── the sandbox these tests rely on ──────────────────────────────────────────────────────────────────
+
+def test_vigil_sh_has_no_privileged_command():
+    """These tests EXECUTE vigil.sh, so `test_no_test_executes_a_deploy_script_that_mutates_host_state
+    _unguarded` requires a confirmation that it cannot reach real host state. That confirmation is this
+    test, not the comment beside the allowlist — a prose claim is exactly what this repo keeps getting
+    burned by.
+
+    `ip` is deliberately absent from the list: lan_ip() calls `ip -4 route get`, which is a read. What
+    must never appear is an address- or link-mutating form, so the check is on the mutating subcommands."""
+    body = open(VIGIL, encoding="utf-8").read()
+    code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("#"))
+    for bad in ("sudo", "systemctl", "udevadm", "install -", "mount ", "chown", "chmod",
+                "ip link", "ip addr", "ip route add", "ip route del"):
+        assert bad not in code, f"{bad!r} appears in vigil.sh — the test sandbox is no longer sound"
+
+
+def test_every_path_vigil_sh_writes_is_redirectable():
+    """The sandbox holds only because `_run()` can point every write somewhere harmless. VIGIL_DIR is the
+    one that matters: its fallback is a hard-coded developer path, so a `stop` resolved against the
+    default would signal the author's own live daemon rather than the fake."""
+    code = open(VIGIL, encoding="utf-8").read()
+    for var in ("VIGIL_DIR", "VIGIL_CONFIG", "VIGIL_PY", "VIGIL_PIDFILE", "VIGIL_LOG"):
+        assert f"${{{var}:-" in code, f"{var} is no longer an override — tests could hit the real default"
