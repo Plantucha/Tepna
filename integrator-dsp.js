@@ -2619,7 +2619,35 @@ function _tchHat(like, ptsFn, metric) {
     }
   }
   var rho = _tchRhoFromMotion([best.A, best.B, best.C], best.al.keys); // §1
-  var opts = { labels: [best.A.node, best.B.node, best.C.node], minN: 12 };
+  /* CORNER IDENTITY != NODE LABEL (DEEP-AUDIT-V §2.1 F5). `labels` was `[A.node, B.node, C.node]`
+     straight off `schema.node`, and the capture tree writes a Verity `_PPG` and an O2Ring `_PPG` on
+     the same night — BOTH routed to PpgDex. Two corners then shared a key, `_bylabel` overwrote, and
+     a "three-cornered hat" published TWO sigmas: measured, the Verity's 2.961 replaced by the
+     O2Ring's 16.779, with the surviving PpgDex weight applied to BOTH rows of the reconciled mean.
+     `integrator-tch.js` now REFUSES a non-distinct triple, so without this the same night would go
+     from a wrong number to no number — the refusal is the safety net, not the fix. Disambiguate with
+     the recording's own file/device label when a node repeats. The renderer already splits on ' '
+     for its colour (`k.split(' ')[0]`), so a space-separated suffix renders correctly today. */
+  var _cornerIds = (function (srcs) {
+    var seen = {},
+      out = [];
+    srcs.forEach(function (s) {
+      var base = s.node || 'node';
+      seen[base] = (seen[base] || 0) + 1;
+      out.push(base);
+    });
+    var used = {};
+    return out.map(function (base, i) {
+      if (seen[base] < 2) return base;
+      used[base] = (used[base] || 0) + 1;
+      var sv = srcs[i];
+      // Prefer something that names the DEVICE/recording; fall back to an ordinal so the corners are
+      // at least distinguishable rather than silently merged.
+      var tag = sv.deviceKey || sv.file || sv.fname || (sv.recording && sv.recording.device) || used[base];
+      return base + ' ' + String(tag).replace(/\s+/g, '_');
+    });
+  })([best.A, best.B, best.C]);
+  var opts = { labels: _cornerIds, minN: 12 };
   if (rho && rho.value > 0) opts.rho = rho.value;
   var r = TCH.threeCorneredHat(best.al.A, best.al.B, best.al.C, opts);
   if (!r.ok) {
@@ -2628,12 +2656,13 @@ function _tchHat(like, ptsFn, metric) {
   }
   r.metric = metric;
   r.coMotion = {};
-  [best.A, best.B, best.C].forEach(function (s) {
-    r.coMotion[s.node] = _meanMotion(s, best.al.keys);
+  // Same corner ids as the solve — a map keyed differently from sigma2 cannot be joined to it.
+  [best.A, best.B, best.C].forEach(function (s, i) {
+    r.coMotion[_cornerIds[i]] = _meanMotion(s, best.al.keys);
   });
   r.rhoEstimate = rho || null; // §1 provenance: how ρ was derived (null → classic solve)
   r.levels = {};
-  [best.A, best.B, best.C].forEach(function (s) {
+  [best.A, best.B, best.C].forEach(function (s, _ci) {
     var mp = {};
     ptsFn(s).forEach(function (p) {
       mp[p.tMin] = p.v;
@@ -2645,7 +2674,7 @@ function _tchHat(like, ptsFn, metric) {
       .filter(function (v) {
         return v != null;
       });
-    r.levels[s.node] = vs.length
+    r.levels[_cornerIds[_ci]] = vs.length
       ? +(
           vs.reduce(function (a, b) {
             return a + b;
@@ -2654,7 +2683,7 @@ function _tchHat(like, ptsFn, metric) {
       : null;
   });
   if (typeof TCH.allanTriplet === 'function') {
-    var _al = TCH.allanTriplet(best.al.A, best.al.B, best.al.C, { labels: [best.A.node, best.B.node, best.C.node], taus: [1, 2, 4, 8] });
+    var _al = TCH.allanTriplet(best.al.A, best.al.B, best.al.C, { labels: _cornerIds, taus: [1, 2, 4, 8] });
     if (_al) {
       var _keys = best.al.keys,
         _gaps = [];

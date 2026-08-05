@@ -131,6 +131,8 @@
     var labels = opts.labels || ['A', 'B', 'C'];
     var taus = opts.taus || [1, 2, 4, 8];
     if (!seriesA || !seriesB || !seriesC) return null;
+    // Same rule as threeCorneredHat — the tau-curve is keyed by label too (DA-V §2.1 F5).
+    if (!_distinctLabels(labels)) return null;
     function diff(a, b) {
       var d = [],
         n = Math.min(a.length, b.length);
@@ -293,11 +295,35 @@
      first for {tMin,v} epoch objects). labels: node names in A/B/C order.
      Returns per-sensor σ²/σ, the method used, the assumed rho, inverse-variance
      weights, the culprit (largest σ²), n, and an honest reason string. */
+  /* CORNER LABELS MUST BE DISTINCT, AND THIS REFUSES WHEN THEY ARE NOT (DEEP-AUDIT-V §2.1 F5).
+     Every result this module publishes is keyed BY LABEL — `_bylabel` does `o[labels[0]]=s.a;
+     o[labels[1]]=s.b; o[labels[2]]=s.c` on a plain object — so two corners sharing a label silently
+     OVERWRITE, and a "three-cornered hat" comes back with two keys and `ok:true`. Measured on one
+     real geometry: `labels:['ECGDex','PpgDex','PpgDex']` returned
+     `{ECGDex:1.008, PpgDex:16.779}` where the distinct-label solve gives
+     `{ECGDex:1.008, PpgDex:2.961, HRVDex:16.779}` — the SECOND corner's error replacing the first's,
+     i.e. the quieter device silently taking the noisier one's sigma, and the surviving weight then
+     applied to BOTH rows in the reconciled mean.
+
+     Reachable on real data: the capture tree writes a Verity `_PPG` and an O2Ring `_PPG` on the same
+     night and BOTH route to PpgDex, so `schema.node` is not a device identity. The caller must supply
+     something that is; this makes the requirement enforced rather than assumed. Refusing is right
+     rather than de-duplicating here — a hat solved on two corners is not a three-cornered hat, and
+     silently returning one would be the same lie in a smaller font. */
+  function _distinctLabels(labels) {
+    if (!labels || labels.length !== 3) return false;
+    var a = String(labels[0]),
+      b = String(labels[1]),
+      c = String(labels[2]);
+    return a !== b && a !== c && b !== c;
+  }
+
   function threeCorneredHat(seriesA, seriesB, seriesC, opts) {
     opts = opts || {};
     var labels = opts.labels || ['A', 'B', 'C'];
     var minN = opts.minN != null ? opts.minN : 12;
     if (!seriesA || !seriesB || !seriesC) return { ok: false, reason: 'need three series' };
+    if (!_distinctLabels(labels)) return { ok: false, reason: 'corner labels are not distinct (' + labels.join(', ') + ') — a node label is not a device identity', labels: labels };
 
     var pAB = pairDiffVar(seriesA, seriesB);
     var pAC = pairDiffVar(seriesA, seriesC);

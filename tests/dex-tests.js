@@ -1863,6 +1863,45 @@
          rather than gated it. This is the same `cons` built at the top of the group. */
       T.ok('control · a correlated triplet still publishes a sigma card', !!(blk && blk.tch && blk.tch.ok), 'status=' + (blk && blk.tchStatus));
 
+      /* DEEP-AUDIT-V §2.1 F5 — A NODE LABEL IS NOT A DEVICE IDENTITY.
+         Every TCH result is keyed BY LABEL (`_bylabel` assigns o[labels[0..2]] on a plain object), so
+         two corners sharing a label silently OVERWRITE and a "three-cornered hat" returns TWO keys
+         with ok:true. Reachable on real data: the capture tree writes a Verity `_PPG` and an O2Ring
+         `_PPG` on the same night and BOTH route to PpgDex.
+         Measured before the fix, one real geometry:
+             labels ECGDex/PpgDex/HRVDex -> {ECGDex:1.008, PpgDex:2.961, HRVDex:16.779}
+             labels ECGDex/PpgDex/PpgDex -> {ECGDex:1.008, PpgDex:16.779}   <- 2 keys, ok:true
+         i.e. the QUIETER device silently took the noisier one's sigma, and the surviving weight was
+         then applied to both rows of the reconciled mean. */
+      (function () {
+        var N2 = 96,
+          rr = rng(4242),
+          tr = [],
+          acc2 = 42;
+        for (var i2 = 0; i2 < N2; i2++) {
+          acc2 += (rr() - 0.5) * 3;
+          tr.push(acc2);
+        }
+        var mkS = function (sd) {
+          return tr.map(function (v) {
+            return v + (rr() - 0.5) * sd;
+          });
+        };
+        var SA = mkS(2),
+          SB = mkS(6),
+          SC = mkS(14);
+        var okR = K.threeCorneredHat(SA, SB, SC, { labels: ['ECGDex', 'PpgDex', 'HRVDex'], minN: 12 });
+        T.ok('control · three DISTINCT corners still solve to three sigmas', okR.ok === true && Object.keys(okR.sigma2 || {}).length === 3, 'keys=' + Object.keys(okR.sigma2 || {}).length);
+        var dupR = K.threeCorneredHat(SA, SB, SC, { labels: ['ECGDex', 'PpgDex', 'PpgDex'], minN: 12 });
+        T.eq('F5 · a non-distinct corner triple is REFUSED, not silently collapsed', dupR.ok, false);
+        T.ok('F5 · …and it says a node label is not a device identity', /not distinct/.test(String(dupR.reason)), dupR.reason);
+        T.ok('F5 · …so no two-key "three-cornered hat" can be published', !dupR.sigma2 || Object.keys(dupR.sigma2).length !== 2, JSON.stringify(dupR.sigma2));
+        if (typeof K.allanTriplet === 'function') {
+          T.eq('F5 · the tau-curve is keyed by label too, so it refuses the same triple', K.allanTriplet(SA, SB, SC, { labels: ['E', 'P', 'P'] }), null);
+          T.ok('control · …and still computes for distinct corners', !!(K.allanTriplet(SA, SB, SC, { labels: ['E', 'P', 'H' ] }) || {}).adev);
+        }
+      })();
+
       // DEGRADE — only 2 series-bearing nodes → no TCH, pairwise consensus intact
       var cons2 = FC([mk('ECGDex', 2, 11), mk('PpgDex', 14, 33)], 1000);
       var blk2 = cons2 && cons2.blocks && cons2.blocks[0];
