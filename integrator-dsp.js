@@ -2587,6 +2587,36 @@ function _tchHat(like, ptsFn, metric) {
         })
       };
     }
+    /* THE SCREEN HAS THREE OUTCOMES; THIS IMPLEMENTED TWO (DEEP-AUDIT-V §2.1 F4).
+       `screenTriplet`'s own docstring: "Exactly-one → drop it and name the trustworthy pair; zero →
+       proceed with the full triplet; two-or-more mutual decorrelations → AMBIGUOUS (can't tell which
+       is truth) → don't drop, DON'T TRUST." Only the first two were handled — the branch above tests
+       `scr.drop`, and every refusal that sets `drop: null` fell straight through to the solve.
+
+       There are FOUR such refusals in `screenTriplet` (`need three series`, `insufficient overlap /
+       degenerate series`, the AMBIGUOUS `N nodes mutually decorrelate`, and `the surviving pair also
+       disagrees — not dropped`), and all four produced a confident per-sensor sigma card. Measured on
+       three 96-epoch exports built to mutually decorrelate: the screen returned
+       `{ok:false, drop:null, ambiguous:true}` and the block still published
+       `sigma {ECGDex:19.99, PpgDex:0.51, HRVDex:30.77}` with the ambiguity surfaced NOWHERE —
+       ranking pure noise as the QUIETEST sensor and handing it ~79 % of the inverse-variance fusion
+       weight in the reconciled mean.
+
+       Branch on the VERDICT, not on one of its fields. The block then degrades to the pairwise
+       consensus with a stated reason — the same shape the drop branch above already returns — and the
+       `ambiguous` / `corr` fields travel with it so a reader can see WHY rather than infer it. */
+    if (scr && scr.ok === false) {
+      return {
+        ok: false,
+        metric: metric,
+        reason: scr.reason || 'correlation screen refused the triplet',
+        ambiguous: !!scr.ambiguous,
+        corr: scr.corr || null,
+        nodesWithSeries: ws.map(function (s) {
+          return s.node;
+        })
+      };
+    }
   }
   var rho = _tchRhoFromMotion([best.A, best.B, best.C], best.al.keys); // §1
   var opts = { labels: [best.A.node, best.B.node, best.C.node], minN: 12 };

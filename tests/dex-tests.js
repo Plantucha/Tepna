@@ -1823,6 +1823,46 @@
           })()
         );
       }
+      /* DEEP-AUDIT-V §2.1 F4 — THE SCREEN HAS THREE OUTCOMES AND THE CONSUMER IMPLEMENTED TWO.
+         `screenTriplet`'s docstring: "Exactly-one → drop it and name the trustworthy pair; zero →
+         proceed; two-or-more mutual decorrelations → AMBIGUOUS (can't tell which is truth) → don't
+         drop, DON'T TRUST." `_tchHat` branched on `scr.drop` only, so all FOUR refusals that set
+         `drop: null` fell through and published a confident per-sensor sigma card. Measured before
+         the fix: the screen returned {ok:false, drop:null, ambiguous:true} and the block still
+         reported sigma for three nodes with the ambiguity surfaced NOWHERE, ranking pure noise as
+         the QUIETEST sensor and handing it the largest inverse-variance fusion weight.
+         Here each node gets its OWN independent random walk — no shared truth — so no pair
+         correlates and the screen must refuse. */
+      /* ORTHOGONAL HARMONICS, not independent random walks. The first draft used three seeded random
+         walks and measured 0 failures against the pre-fix code — two of them correlated by CHANCE
+         over 48 epochs, so the screen found exactly ONE decorrelating node and took the `drop` branch
+         that already worked. The gate passed while testing nothing, which is the precise failure this
+         audit keeps finding in others' gates. Distinct harmonics over a whole period are orthogonal
+         BY CONSTRUCTION (r ≈ 0 for every pair), so all three nodes decorrelate from both peers and
+         `screenTriplet` must return cand.length >= 2 ⇒ AMBIGUOUS — the branch under test. */
+      function mkIndep(node, harmonic) {
+        var eps = [];
+        for (var i = 0; i < NE; i++) {
+          var v = 42 + 14 * Math.sin((2 * Math.PI * harmonic * i) / NE);
+          eps.push({ tMin: i * 5, rmssd: +Math.max(8, v).toFixed(1), hr: 55, motionIndex: 0.1 });
+        }
+        var whole = +(eps.reduce(function (x, e) { return x + e.rmssd; }, 0) / NE).toFixed(1);
+        return A({ schema: { node: node }, recording: { startEpochMs: t0, durationMin: 240 }, quality: { analyzablePct: 95 }, hrv: { time: { rmssd: whole, sdnn: +(whole * 1.3).toFixed(1) } }, timeseries: { epochs: eps }, ganglior_events: [{ t: '23:00:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: 0.8 }] }, node, node + '.json')[0];
+      }
+      var consAmb = FC([mkIndep('ECGDex', 1), mkIndep('HRVDex', 2), mkIndep('PpgDex', 3)], 1000);
+      var blkA = consAmb && consAmb.blocks && consAmb.blocks[0];
+      T.ok('ambiguity fixture produced a block', !!blkA);
+      if (blkA) {
+        // THE FIXTURE MUST ACTUALLY BE AMBIGUOUS, or everything below proves nothing.
+        T.ok('F4 · the fixture really is AMBIGUOUS, not merely one-node-drops', /mutually decorrelate/.test(String(blkA.tchStatus)), 'tchStatus=' + blkA.tchStatus);
+        T.ok('F4 · a mutually-decorrelated triplet does NOT publish a confident sigma', !(blkA.tch && blkA.tch.ok), 'tchStatus=' + blkA.tchStatus);
+        T.ok('F4 · …and the block SAYS why instead of going quiet', typeof blkA.tchStatus === 'string' && blkA.tchStatus !== 'ok' && blkA.tchStatus.length > 3, 'tchStatus=' + blkA.tchStatus);
+        T.ok('F4 · …while the pairwise consensus still survives (degrade, not collapse)', !!blkA.rmssd, 'rmssd=' + JSON.stringify(blkA.rmssd && blkA.rmssd.weightedMean));
+      }
+      /* THE CONTROL — a correlated triplet must STILL solve, or the fix would have abolished TCH
+         rather than gated it. This is the same `cons` built at the top of the group. */
+      T.ok('control · a correlated triplet still publishes a sigma card', !!(blk && blk.tch && blk.tch.ok), 'status=' + (blk && blk.tchStatus));
+
       // DEGRADE — only 2 series-bearing nodes → no TCH, pairwise consensus intact
       var cons2 = FC([mk('ECGDex', 2, 11), mk('PpgDex', 14, 33)], 1000);
       var blk2 = cons2 && cons2.blocks && cons2.blocks[0];
