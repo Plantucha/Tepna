@@ -4251,3 +4251,50 @@ def test_run_oxyii_writes_no_two_wavelength_file_when_the_stream_is_off(tmp_path
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
     assert not list((tmp_path / "captures").rglob("*_PPG2W.txt"))
+
+
+def test_run_oxyii_survives_an_empty_two_wavelength_reply(tmp_path, monkeypatch):
+    """A 0x05 reply declaring zero records must write nothing and must not break the session.
+
+    The ring answers this way while the finger is off the sensor, so it is the ordinary case rather
+    than a corruption case — and the empty file is then pruned at teardown like any other.
+    """
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_RT_PPG:
+            c.notify(0, oxyii.encode(oxyii.OP_RT_PPG, (0).to_bytes(2, "little")))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg2w"]), str(tmp_path)))
+    assert capture.STATUS["devices"]["Ring"]["spo2"] == 96, "vitals keep flowing"
+    assert not list((tmp_path / "captures").rglob("*_PPG2W.txt")), "a row-less file is pruned, not kept"
+
+
+def test_run_oxyii_keeps_the_link_when_the_two_wavelength_poll_fails(tmp_path, monkeypatch):
+    """THE reason this poll has its own try/except. A failed VITALS poll deliberately drops the link to
+    re-establish it; doing that for an optional experimental stream would let `ppg2w` cost a night of
+    oximetry. The refusal must cost its own samples and nothing else.
+    """
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    real_write = c.write_gatt_char
+
+    async def write(ch, data, response=False):
+        if len(data) > 1 and data[1] == oxyii.OP_RT_PPG:
+            raise RuntimeError("characteristic write refused")
+        return await real_write(ch, data, response=response)
+
+    c.write_gatt_char = write
+    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "ppg2w"]), str(tmp_path)))
+    # The session ran on: vitals were parsed and the SpO2 sidecar was written despite every 0x05 refusal.
+    assert capture.STATUS["devices"]["Ring"]["spo2"] == 96
+    assert list((tmp_path / "captures").rglob("*_SPO2.csv")), "the vitals stream is unaffected"

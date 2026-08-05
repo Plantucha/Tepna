@@ -102,8 +102,17 @@ as a visible rate error a reader can find — where a fabricated per-sample rate
 | `capture-host/tests/` | 6 parser tests, 1 writer-join test, extended header-parity gate |
 
 **Monitor:** `BUS.register("o2ppg2w", "Raw 2-wavelength (O2Ring)", "raw", 0, chans=2, labels=("ch0","ch1"))`
-surfaces it like any other stream; no `monitor.html` change is needed, because the O2Ring card set is
-keyed off the registration rather than hardcoded.
+surfaces it like any other stream. No `monitor.html` change is needed, and that was **traced rather than
+assumed** — the two places a new key could go wrong both resolve correctly:
+
+- `isPpgKey` is anchored `/^ppg(_|$)/`, so `o2ppg2w` does not match and is not mistaken for a Verity
+  3-LED stream (the exact bug issue #410 fixed for the Verity, which rendered flat when it did match).
+- `streamKind` therefore falls through to `chans > 1` and classifies it **`'multi'`** — a 2-channel raw
+  card like acc/gyro, NOT an HR-derived waveform. Correct: deriving a pulse rate needs a sample rate,
+  and §3.2 says we do not have one.
+- `stream_health(fs=0, …)` takes the event-stream branch (`4.0 / (nominal_fs or 1)` — no division by
+  zero) and can only report `stall` on prolonged silence, never `weak`. Rate-judging a stream with no
+  known rate is exactly the arithmetic that must not run.
 
 **Opt-in, not on by default** (`"ppg2w" in dev["streams"]`), and a failed `0x05` poll must not drop the
 link the way a failed vitals poll does — an experimental stream may not cost a night of oximetry.
