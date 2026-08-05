@@ -238,8 +238,22 @@
     const frac = Math.min(1, pb / tot);
     return { frac: +frac.toFixed(3), strong: frac > 0.4 && pb > lf }; // PB dominates the low band
   }
+  /* AN UNCOMPUTABLE INDEX IS `null`, NEVER 0 (DEEP-AUDIT-V §2.6 F16 — bug class 3).
+     These three shared one shape: a divide-by-zero / absent-input guard whose fallback was `0`, and
+     for every one of them 0 is a MEANINGFUL point on the scale the renderer grades against. So
+     "cannot be computed" arrived at the user as a confident reading, at the wrong end:
+         siCalc  0  -> "Baevsky SI 0"  graded ok   (<150 is ok)
+         crsIdx  0  -> "Cardiac CRS 0" graded bad  (>0.05 is ok)
+         absIdx  0  -> "ABS 0.000"     graded ok   — the EXACT CENTRE of its -1..+1 scale,
+                                        i.e. "perfectly balanced", from no measurement at all
+     `absIdx` is the sharpest: `ansBalance` DELIBERATELY returns {sns:null, psns:null} when the
+     HF/LF estimate is unusable, and `null + null === 0` is falsy, so the honest null upstream was
+     converted straight back into a fabricated reading one line later.
+     Note `crsIdx`'s guard also fires on a REAL stress of 0 (maximum relaxation — `stressEst` clamps
+     to [0,100] and genuinely reaches it), which the old code mapped to the WORST grade. Null is
+     right there too: the ratio is undefined, not zero. */
   function siCalc(amo, mo, mx) {
-    return mo && mx ? amo / (2 * (mo / 1000) * (mx / 1000)) : 0;
+    return mo && mx ? amo / (2 * (mo / 1000) * (mx / 1000)) : null;
   } // Baevsky SI — Mo & MxDMn in SECONDS (Welltory units)
   // BP-from-HRV (bpEst) and HTN-pattern (htnScore) REMOVED 2026-06-22 — "blood pressure from HRV"
   // has no validity (DEX-SUITE-EXTERNAL-REVIEW-v2 §🔴; same standing rule that retired ANS Age and
@@ -249,10 +263,14 @@
     return en * 0.4 + fo * 0.3 + co * 0.3;
   }
   function crsIdx(co, rm, pn, st) {
-    return st ? (co * rm * pn) / (st * 1000) : 0;
+    return st ? (co * rm * pn) / (st * 1000) : null; // see siCalc — undefined, not zero
   }
   function absIdx(ps, sn) {
-    return ps + sn ? (ps - sn) / (ps + sn) : 0;
+    // Present-gate on the INPUTS, not on their sum: `null + null === 0` is falsy, which is exactly
+    // how ansBalance's honest null became a fabricated "perfectly balanced" (DA-V §2.6 F16).
+    const ok = (v) => typeof v === 'number' && isFinite(v);
+    if (!ok(ps) || !ok(sn) || ps + sn === 0) return null;
+    return (ps - sn) / (ps + sn);
   }
 
   // ─── ADVANCED / RESEARCH METRICS ───────────────────────────────────────────────

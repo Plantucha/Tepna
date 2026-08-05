@@ -252,7 +252,14 @@ function renderTable(r) {
     ['SD1/SD2', r.sd1sd2, 'ratio', '0.25–0.5', 'neutral', 'Short vs long-term balance'],
     ['Ellipse Area', r.ellArea, 'ms²', '—', 'neutral', 'π·SD1·SD2 complexity proxy'],
     ['ln(rMSSD)', r.lnrmssd, '—', '≥3.5', r.lnrmssd >= 3.5 ? 'ok' : r.lnrmssd >= 3.1 ? 'warn' : 'bad', 'Log-RMSSD readiness'],
-    ['Baevsky SI', r.si, 'a.u.', '<150', r.si < 150 ? 'ok' : r.si < 200 ? 'warn' : 'bad', 'Stress index AMo/(2·Mo·MxDMn) · Mo & MxDMn in seconds' + (r.longRec ? ' · rep. window' : '')],
+    [
+      'Baevsky SI',
+      r.si != null ? r.si : '—',
+      'a.u.',
+      '<150',
+      r.si == null ? '' : r.si < 150 ? 'ok' : r.si < 200 ? 'warn' : 'bad',
+      'Stress index AMo/(2·Mo·MxDMn) · Mo & MxDMn in seconds' + (r.longRec ? ' · rep. window' : '')
+    ],
     // SBP est / DBP est / HTN Pattern rows REMOVED 2026-06-22 (DEX-SUITE-EXTERNAL-REVIEW-v2 §🔴):
     // HRV→BP has no validity and these rendered unbadged after their registry entries were dropped.
     ['VO₂ base', r.vo2base, 'ml/kg/min', '—', 'neutral', 'Uth–Sørensen HR ratio'],
@@ -275,8 +282,8 @@ function renderTable(r) {
     ['SNS bal', _ansTxt(r.snsBal), 'ratio', '<1.5', 'neutral', 'LF/HF-based sympathetic ratio'],
     ['PSNS bal', _ansTxt(r.psnsBal), 'ratio', '>0.7', 'neutral', 'HF/LF-based parasympathetic'],
     ['EFC Readiness', r.efc, '0–100', '>60', r.efc >= 60 ? 'ok' : r.efc >= 40 ? 'warn' : 'bad', 'Energy×0.4+Focus×0.3+Coh×0.3'],
-    ['Cardiac CRS', r.crs, 'a.u.', '>0.05', r.crs >= 0.05 ? 'ok' : r.crs >= 0.02 ? 'warn' : 'bad', '(Coh·rMSSD·pNN50)/Stress×1000'],
-    ['ABS', r.abs, '−1..+1', '~0', Math.abs(r.abs) <= 0.3 ? 'ok' : Math.abs(r.abs) <= 0.6 ? 'warn' : 'bad', 'Autonomic Balance Score'],
+    ['Cardiac CRS', r.crs != null ? r.crs : '—', 'a.u.', '>0.05', r.crs == null ? '' : r.crs >= 0.05 ? 'ok' : r.crs >= 0.02 ? 'warn' : 'bad', '(Coh·rMSSD·pNN50)/Stress×1000'],
+    ['ABS', r.abs != null ? r.abs : '—', '−1..+1', '~0', r.abs == null ? '' : Math.abs(r.abs) <= 0.3 ? 'ok' : Math.abs(r.abs) <= 0.6 ? 'warn' : 'bad', 'Autonomic Balance Score'],
     ['Stress-Focus', r.sfg, 'pts', '≈0', Math.abs(r.sfg) <= 10 ? 'ok' : Math.abs(r.sfg) <= 25 ? 'warn' : 'bad', 'Stress−Focus gap'],
     ['Focus Effic', r.fe, 'a.u.', '>0.3', r.fe >= 0.3 ? 'ok' : r.fe >= 0.15 ? 'warn' : 'bad', 'Focus/(SNS+1)'],
     ['PNS Effic', r.pnse === null ? '—' : r.pnse, 'a.u.', '<4', r.pnse === null ? 'neutral' : r.pnse < 4 ? 'ok' : r.pnse < 7 ? 'warn' : 'bad', 'rMSSD/(SDNN·pNN50)'],
