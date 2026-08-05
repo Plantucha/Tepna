@@ -365,9 +365,17 @@ async function runFile(file) {
          16.3 s, `clock` **3 m 11 s** — because `clock` is loaded by everything and its tag selects 16
          heavy groups. Knowing that BEFORE spending twelve mutants on it is the difference between a
          sweep you can plan and one you watch. */
+  /* THE CALIBRATION RUN IS THE LAST SILENT PHASE, and it is the longest one. This is a full clean
+     suite run before any mutant is tested; under `--full` it is the WHOLE suite, measured at 480 s —
+     eight minutes in which the tool produced not one byte and could not be told from a hang. The
+     per-mutant loop and the pool build were both given progress; this was missed because it happens
+     before either. Announce it up front and time it, so the number that follows is explained rather
+     than merely late. */
+  process.stderr.write('  calibrating: one clean ' + (filter ? 'group "' + filter + '"' : 'FULL SUITE') + ' run to size the timeout — no mutant is tested yet\n');
   const t0 = Date.now();
   runSuite(filter, ROOT, 600000);
   const baseMs = Math.max(1, Date.now() - t0);
+  process.stderr.write('  calibrated: clean run took ' + (baseMs / 1000).toFixed(0) + 's\n');
   const timeoutMs = Math.max(30000, baseMs * 5);
   const estMs = (baseMs * Math.min(mutantsFor(readFileSync(abs, 'utf8')).length, LIMIT)) / Math.max(1, JOBS);
   if (BUDGET && estMs > BUDGET * 1000)
