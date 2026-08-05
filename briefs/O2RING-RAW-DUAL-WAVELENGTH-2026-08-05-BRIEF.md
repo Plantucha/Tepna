@@ -135,6 +135,26 @@ link the way a failed vitals poll does — an experimental stream may not cost a
 4. **OxyDex SpO₂ derivation** — the actual point of a dual-wavelength stream, and the one piece that is
    genuinely blocked on §3.1. Reference-free SpO₂ needs calibration constants the ring does not publish;
    expect this to be a *comparison* against the ring's own SpO₂ before it is ever a replacement for it.
-5. **Contribute upstream.** The `{0x07, 0x01}` argument and the record layout correct a published
-   consensus and are worth sending to the SDK / community projects — after §3.1 and §3.2, so we send
-   results rather than hypotheses.
+5. **Contribute upstream — but to the right protocol family.** Surveyed 2026-08-05, the two public
+   reverse-engineering projects ([`farolone/wellue-o2ring-protocol`](https://github.com/farolone/wellue-o2ring-protocol),
+   [`MackeyStingray/o2r`](https://github.com/MackeyStingray/o2r)) document a **different GATT service
+   from ours**, and the distinction matters more than the opcode numbers:
+
+   | | those projects | this ring (`oxyii.py`) |
+   |---|---|---|
+   | service UUID | `14839ac4-7d7e-415c-9a42-167340cf2339` | `e8fb0001-a14b-98f9-831b-4e2941d01248` |
+   | header byte | `0xAA` | `0xA5` |
+   | `0x03` / `0x04` / `0x05` | FILE_OPEN / FILE_READ / **FILE_CLOSE** | wave buffer / live poll / **RtPpg** |
+   | `0x16` | `CMD_CONFIG`, JSON (`{"SetTIME":"…"}`) | not known here |
+
+   A separate service, not a firmware variant of one — so our `0x05` cannot contradict their
+   `FILE_CLOSE`; the two never coexist on a characteristic. The `e8fb…` OxyII family therefore appears
+   **publicly undocumented**, which makes the contribution larger than a single opcode note: it is a
+   second family. Submit it as such, and only after §3.1 and §3.2, so we send results and not
+   hypotheses. `nighttimecf/o2ring-analyzer` is NOT a candidate — it analyses O2 Insight Pro CSV
+   exports and never touches the device.
+
+6. **Look for a JSON config opcode on OUR family.** `o2r`'s `CMD_CONFIG = 0x16` sets time, alert
+   thresholds and vibration strength with a JSON payload. If `e8fb…` has an analogue, it is a far
+   cleaner settings route than the byte-poking that found `0x83` buzzing the ring, and it would replace
+   guesswork with a documented surface. Cheap to test the moment the ring is reachable.
