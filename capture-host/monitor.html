@@ -1150,11 +1150,25 @@ async function loadSettings(){
       const cur  = (d.rates||{})[k];
       // The dropdown is built from the DEVICE'S OWN menu (read at connect), so an unsupported rate is
       // impossible to pick. Only shown when there is an actual choice — most streams offer one rate.
+      // A CONFIGURED RATE MUST ROUND-TRIP EVEN WHERE THERE IS NO CHOICE TO OFFER. `saveSettings`
+      // collects from `select.ratesel`, so for as long as a one-option (or no-option) stream rendered a
+      // bare <span>, its rate was never submitted — and the server's whole-dict assignment then deleted
+      // it. That is how the Verity lost `ppg: 176` on 2026-08-03: SDK mode had ended, the PPG menu had
+      // shrunk to [55], no <select> existed, and an unrelated save (toggling PPI on) wiped the override.
+      // The server now merges rather than replaces, which fixes it on its own; carrying the value here
+      // as well means the payload says what the UI is actually showing, instead of relying on the
+      // server to reconstruct what the client failed to mention.
+      const carry = cur != null
+        ? `<input type="hidden" class="ratecarry" data-addr="${esc(d.address)}" data-rate="${esc(k)}" value="${esc(String(cur))}">`
+        : '';
       const sel = opts.length > 1
         ? `<select data-addr="${esc(d.address)}" data-rate="${esc(k)}" class="ratesel">` +
           opts.map(r=>`<option value="${r}" ${(cur||defaultRate(d,k,opts))==r?'selected':''}>${r} Hz${PREF_RATE[k]===r?' ✓ recommended':''}</option>`).join('') +
           `</select>`
-        : (opts.length===1 ? `<span class="mb">${opts[0]} Hz</span>` : '');
+        // One option is not a choice, so it stays plain text — but the value still has to travel. No
+        // options at all means the device has never reported a menu; a configured rate is still real and
+        // must survive, and that is the case a bare <span> could not express even in principle.
+        : (opts.length===1 ? `<span class="mb">${opts[0]} Hz</span>${carry}` : carry);
       return `<label class="setrow"><input type="checkbox" data-addr="${esc(d.address)}" data-stream="${esc(k)}" ${on?'checked':''}>
         <span class="k">${esc(k)}</span>${sel}<span class="mb" data-mb="${esc(d.address)}|${esc(k)}"></span></label>`;
     }).join('');
@@ -1220,8 +1234,14 @@ async function saveSettings(btn){
     (streams[el.dataset.addr] = streams[el.dataset.addr] || []);
     if(el.checked) streams[el.dataset.addr].push(el.dataset.stream);
   });
-  document.querySelectorAll('#setStreams select.ratesel').forEach(el=>{
-    (rates[el.dataset.addr] = rates[el.dataset.addr] || {})[el.dataset.rate] = parseInt(el.value,10);
+  // Both control kinds, in ONE pass. A comma selector returns DOCUMENT order, not selector order, so
+  // this does not encode a precedence — and it does not need to: a stream renders a <select> (>1
+  // option) or a carrier (0 or 1), never both. If that ever changes, the later element in the markup
+  // would win, which is why the carrier is emitted after the visible control rather than before it.
+  document.querySelectorAll('#setStreams input.ratecarry, #setStreams select.ratesel').forEach(el=>{
+    const v = parseInt(el.value, 10);
+    if(!Number.isFinite(v)) return;      // never post an unparsable rate; the server would 400 on it
+    (rates[el.dataset.addr] = rates[el.dataset.addr] || {})[el.dataset.rate] = v;
   });
   document.querySelectorAll('#setFields input').forEach(el=>{
     if(el.type==='checkbox'){ settings[el.dataset.key] = el.checked; return; }
