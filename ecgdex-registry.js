@@ -316,6 +316,14 @@
     pip: 'pip',
     'rsa amplitude': 'rsaAmplitude',
     'crc plv': 'crcPLV',
+    /* DEEP-AUDIT-V §2.8 F14 — the advanced table renders this label for `r.crc.plvDuringSurges /
+       r.crc.plvBaseline`, i.e. the SAME phase-locking value `crcPLV` registers. Unresolved it took
+       badgeForLabel's fabricated-`experimental` path, silently (that branch bypasses
+       MetricRegistry.entry's console.warn) — while CPAPDex, the BORROWING node, renders the same
+       quantity at `emerging` citing ECG_REGISTRY as the authority. The owner node under-graded what
+       its own consumer graded correctly. Aliased to crcPLV (:173), NOT crCoupling — verified against
+       the value the render site actually passes. */
+    'plv surge vs base': 'crcPLV',
     'coupling strength': 'couplingStrength',
     'edr resp rate': 'edrResp',
     /* 'cvhr/h' is the hero subscore's short label. It resolves to `cvhrIndex` so that surface is
@@ -371,6 +379,7 @@
   }
 
   /* idForLabel(label) → registry id | null */
+  var _labelIdx = null; // lazy label→id index, built once (see idForLabel)
   function idForLabel(label) {
     /* AN EXACT REGISTRY ID RESOLVES TO ITSELF (DEEP-AUDIT-V Tier 3.5 — the camelCase blind spot).
        `_norm` LOWERCASES, so a render site passing a real registry id — `evBadge('usageHours')` —
@@ -385,7 +394,24 @@
     if (label != null && ECG_REGISTRY[label]) return String(label);
     var k = _norm(label);
     if (ECG_REGISTRY[k]) return k;
-    return ECG_LABEL_ALIAS[k] || null;
+    if (ECG_LABEL_ALIAS[k]) return ECG_LABEL_ALIAS[k];
+    /* A REGISTRY ENTRY'S OWN `label` IS AN AUTHORITY (DEEP-AUDIT-V §2.8). Resolution checked the
+       key and the alias map but never the entries' declared labels — so OXY_REGISTRY.meanPi,
+       whose label is literally 'Perfusion Idx' and whose grade is `measured`, did not resolve
+       from that exact string and rendered a fabricated `experimental` disc. Matching an entry
+       to its own label invents nothing; it uses the grade the registry already declared. Built
+       lazily and cached, and it runs LAST so an explicit alias always wins. */
+    if (!_labelIdx) {
+      _labelIdx = {};
+      for (var _lk in ECG_REGISTRY) {
+        var _le = ECG_REGISTRY[_lk];
+        if (_le && _le.label) {
+          var _ln = _norm(_le.label);
+          if (_ln && !(_ln in _labelIdx)) _labelIdx[_ln] = _lk;
+        }
+      }
+    }
+    return _labelIdx[k] || null;
   }
 
   /* Pure metadata labels (not metrics) — never badge these even with fallback. */

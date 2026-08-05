@@ -29719,6 +29719,64 @@
         return n.pre;
       });
       T.ok('every node UI has at least one evBadge call site', silent.length === 0, silent.length ? 'no badge mechanism at all in: ' + silent.join(', ') : NODES.length + ' nodes badge');
+
+      /* ── THE OTHER 94, AND WHY THIS IS A RATCHET RATHER THAN A PASS/FAIL ────────────────────────
+         The scan above covers labels passed as STRING LITERALS to `evBadge`. Most surfaced numbers
+         reach a badge one layer up, through the render helpers (`metric()`, `kpi()`, `ssKPI()`, …),
+         which badge their FIRST argument. Extending the same offender condition to those call sites
+         measured 97 fabricated-tier labels fleet-wide — the audit's F1/F2/F14 were three samples of
+         a 97-instance class, not three isolated defects.
+
+         Of those 97, exactly THREE had a correct tier derivable from an authority that already
+         existed (an alias the render never used, or a registry entry's own `label`), and they are
+         fixed in this change. The remaining 94 are metrics with NO registry row at all — mostly
+         OxyDex research/accordion descriptors. Writing 94 rows here would mean ASSIGNING 94 evidence
+         tiers, and an evidence tier is a claim about how well a number is established. Inventing them
+         to turn this gate green is precisely the fabricated-authority §🎫 exists to prevent, and it
+         is the owner's call, not an auto-fix. See DEEP-AUDIT-V-FOLLOWUPS.
+
+         So the debt is measured, published and RATCHETED: it may shrink, never grow. A 95th
+         unregistered label reds this immediately; each row the owner adjudicates lowers the cap. */
+      var HELPER_RE = /\b(metric|kpi|ssKPI|nrKpi|nrChip|row|chartTitle|mkpi|sub)\s*\(\s*(['"`])([^'"`\n]{1,60})\2/g;
+      var KNOWN_UNREGISTERED = 94; // measured 2026-08-05; LOWER this as rows are adjudicated, never raise it
+      var fabricated = [];
+      NODES.forEach(function (n) {
+        var seen = {};
+        for (var f in UI[n.pre]) {
+          var body = strip(UI[n.pre][f]),
+            m2;
+          HELPER_RE.lastIndex = 0;
+          while ((m2 = HELPER_RE.exec(body))) {
+            var lbl = m2[3];
+            if (seen[lbl]) continue;
+            seen[lbl] = 1;
+            var res2 = n.reg.idForLabel ? n.reg.idForLabel(lbl) : null;
+            var emit2 = typeof n.reg.badgeForLabel === 'function' ? n.reg.badgeForLabel(lbl, true) : '';
+            if (!res2 && emit2) fabricated.push(n.pre + ' → ' + lbl);
+          }
+        }
+      });
+      T.ok(
+        'the unregistered-label debt does not GROW (ratchet, currently ' + KNOWN_UNREGISTERED + ')',
+        fabricated.length <= KNOWN_UNREGISTERED,
+        fabricated.length + ' labels render a tier no registry assigned' + (fabricated.length > KNOWN_UNREGISTERED ? ' — NEW since the cap: ' + fabricated.slice(KNOWN_UNREGISTERED).join(' · ') : '')
+      );
+      T.ok('…and the ratchet is not slack (lower the cap when rows are added)', fabricated.length >= KNOWN_UNREGISTERED - 5, 'debt is now ' + fabricated.length + '; drop KNOWN_UNREGISTERED to match');
+      // The three this change fixed must STAY fixed — they are the derivable ones.
+      var fixedNow = [
+        [env.OxyRegistry, 'Mean SpO₂'],
+        [env.OxyRegistry, 'Min SpO₂'],
+        [env.OxyRegistry, 'Perfusion Idx'],
+        [env.EcgRegistry, 'PLV surge vs base']
+      ].filter(function (p) {
+        return p[0];
+      });
+      var unresolved = fixedNow.filter(function (p) {
+        return !p[0].idForLabel(p[1]);
+      }).map(function (p) {
+        return p[1];
+      });
+      T.ok('the labels with a DERIVABLE grade resolve to it, not to a fallback', unresolved.length === 0, unresolved.length ? 'regressed: ' + unresolved.join(' · ') : 'Mean/Min SpO₂ · Perfusion Idx · PLV surge vs base');
     });
 
     /* REFERENCE-GUIDE-AUDIT dimension 5 (offline half) — in-page navigation must actually navigate.
