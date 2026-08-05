@@ -39,6 +39,14 @@ class _Spy:
     def __init__(self):
         self.up, self.down, self.guards = 0, 0, []
         self.ifaces = []
+        # THE WHOLE CALL, not two fields of it. `guard_dev` and `iface` were recorded and are therefore
+        # gated — disabling the lifeline guard reds. Everything else was accepted and dropped, so
+        # `tools/find_blindspots.py` flagged this double, and mutation confirmed what it hid: swapping
+        # the SSID and PSK for "wrong-ssid"/"wrong-psk", and cutting the association timeout from 45 s
+        # to 1 ms, BOTH survive the whole cpap suite. A box that joins the wrong network, or gives up
+        # after a millisecond, is indistinguishable here from one that works.
+        self.up_calls = []      # [{profile, timeout, guard_dev, ssid, psk, iface, addr, root}]
+        self.down_calls = []
 
     def install(self, monkeypatch, up_ok=True, harvest=None, route="enp9s0"):
         monkeypatch.setattr(cpap_harvest, "default_route_dev", lambda: route)
@@ -51,6 +59,8 @@ class _Spy:
             self.up += 1
             self.guards.append(guard_dev)
             self.ifaces.append(iface)
+            self.up_calls.append({"profile": profile, "timeout": timeout, "guard_dev": guard_dev,
+                                  "ssid": ssid, "psk": psk, "iface": iface, "addr": addr, "root": root})
             return up_ok
 
         def _down(profile, timeout=30.0, iface=None, root=None):
@@ -134,6 +144,37 @@ def test_the_pre_association_default_route_is_passed_as_a_guard(tmp_path, monkey
     _stop_after(monkeypatch, 2)
     _run(capture.cpap_poller(CFG, str(tmp_path)))
     assert spy.guards == ["enp9s0"]
+
+
+def test_the_association_uses_the_ez_share_credentials_and_not_some_other_network(tmp_path, monkeypatch):
+    """WHICH network the box joins, and with what key.
+
+    Found by `tools/find_blindspots.py`: the poller spy accepted `ssid`/`psk` and dropped them, so the
+    call was made and never observed. Mutation confirmed it — replacing both with "wrong-ssid" /
+    "wrong-psk" in capture.py survives the entire cpap suite. A box that associates to the wrong
+    network still reports `state: ok`; it simply harvests nothing, for a reason no test could name."""
+    spy = _Spy(); spy.install(monkeypatch)
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    _stop_after(monkeypatch, 2)
+    _run(capture.cpap_poller(CFG, str(tmp_path)))
+    assert len(spy.up_calls) == 1
+    call = spy.up_calls[0]
+    assert call["ssid"] == "ez Share", f'joined {call["ssid"]!r}, not the card'
+    assert call["psk"] == "88888888", "the card's key is what makes the association succeed"
+    assert call["addr"] == cpap_harvest.WPA_ADDR, "the wpa backend needs the card's address"
+
+
+def test_the_association_is_given_the_full_45s_to_come_up(tmp_path, monkeypatch):
+    """The association TIMEOUT, likewise dropped by the spy and likewise unobserved.
+
+    Cutting it from 45.0 to 0.001 in capture.py survives the whole cpap suite. An ez Share card takes
+    seconds to associate, so a shortened timeout does not fail loudly — it makes the harvest flaky in a
+    way that reads as "the card was not reachable today", which is the same symptom as a dead card."""
+    spy = _Spy(); spy.install(monkeypatch)
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    _stop_after(monkeypatch, 2)
+    _run(capture.cpap_poller(CFG, str(tmp_path)))
+    assert spy.up_calls[0]["timeout"] == 45.0, "a card needs seconds, not milliseconds, to associate"
 
 
 def test_a_refused_association_skips_the_day_and_harvests_nothing(tmp_path, monkeypatch):
