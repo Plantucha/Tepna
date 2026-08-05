@@ -247,3 +247,81 @@ def test_flag_raw_is_the_whole_byte_beside_the_bit():
     off = oxyii.parse_live(_live_frame(flag=0xC6))
     assert off["flag"] == 0            # bit 0 clear
     assert off["flag_raw"] == 0xC6     # ...while the byte is still reported in full
+
+
+# ── every field on its OWN byte, and every validity band on its OWN edge ─────────────────────────────
+# Found by `tools/mutate.py oxyii` (2026-08-05): 11 of parse_live's 13 surviving mutants are an offset
+# or a bound, and NOTHING distinguished them. Two are byte indices — `batt_state` reading payload[13]
+# instead of [12], and `run_status` reading [5] instead of [4] — which is the "plausible but wrong
+# value" class this suite fears most: a battery state or run status silently taken from the neighbouring
+# field, with every existing test green.
+#
+# That is not hypothetical here. This function's own docstring records that [7] and [11] were once
+# SWAPPED, that it "was not cosmetic — it was a live data bug", and that perfusion index went into the
+# SpO2 CSV's Motion column for months, breaking OxyDex's `r.motion === 0` artifact filter. The layout
+# was corrected against the vendor SDK; what was missing is anything that holds it there.
+
+def _distinct_frame():
+    """A 14-byte live frame whose every byte is DIFFERENT, so an off-by-one index cannot read the same
+    number by luck. Values are chosen to stay inside each field's validity band where one exists, so a
+    surviving offset mutant changes the VALUE rather than merely nulling it."""
+    b = bytearray(14)
+    b[0:4] = (0x11223344).to_bytes(4, "little")   # duration
+    b[4] = 0x51                                    # run_status
+    b[5] = 0x52                                    # sensor contact
+    b[6] = 96                                      # spo2 (inside 50..100)
+    b[7] = 137                                     # pi/10 = 13.7 %
+    b[8:10] = (72).to_bytes(2, "little")           # pr (inside 20..250)
+    b[10] = 0xC7                                   # flag byte
+    b[11] = 0x5B                                   # motion
+    b[12] = 0x5C                                   # batt_state
+    b[13] = 0x5D                                   # batt percent
+    return bytes(b)
+
+
+def test_every_live_field_reads_its_own_documented_byte():
+    """The vendor-SDK layout, pinned field by field. Any single-index slip reads a different value."""
+    v = oxyii.parse_live(_distinct_frame())
+    assert v["duration"] == 0x11223344, "[0:4] u32 LE"
+    assert v["run_status"] == 0x51, "[4] — NOT [5]; the surviving mutant read the contact byte"
+    assert v["spo2"] == 96, "[6]"
+    assert v["pi"] == 13.7, "[7]/10 — the byte that was once swapped with motion"
+    assert v["pr"] == 72, "[8:10] u16 LE"
+    assert v["flag_raw"] == 0xC7 and v["flag"] == 1, "[10] whole byte, bit 0 beside it"
+    assert v["motion"] == 0x5B, "[11] — the other half of the swap"
+    assert v["batt_state"] == 0x5C, "[12] — NOT [13]; the surviving mutant read battery PERCENT"
+    assert v["batt"] == 0x5D, "[13]"
+
+
+def test_a_frame_one_byte_short_is_refused_and_exactly_14_is_accepted():
+    """The guard is `< 14`. Both `<= 14` and `< 15` survived, so nothing held the boundary — and 14 is
+    exactly the length that carries `batt` at [13]."""
+    assert oxyii.parse_live(_distinct_frame()[:13]) is None, "13 bytes cannot carry [13]"
+    assert oxyii.parse_live(_distinct_frame()) is not None, "14 bytes is a complete frame"
+
+
+def _with(idx, val, span=1):
+    b = bytearray(_distinct_frame())
+    if span == 1:
+        b[idx] = val
+    else:
+        b[idx:idx + span] = int(val).to_bytes(span, "little")
+    return bytes(b)
+
+
+def test_the_spo2_validity_band_is_closed_at_both_ends():
+    """`50 <= spo2 <= 100`. Each edge survived independently, so each is asserted on both sides: an
+    admitted reading is a number, a refused one is None — never a fabricated 0."""
+    assert oxyii.parse_live(_with(6, 49))["spo2"] is None, "49 is off-finger"
+    assert oxyii.parse_live(_with(6, 50))["spo2"] == 50, "50 is a real reading — the band is CLOSED"
+    assert oxyii.parse_live(_with(6, 100))["spo2"] == 100, "100 is a real reading"
+    assert oxyii.parse_live(_with(6, 101))["spo2"] is None, "101 is impossible"
+
+
+def test_the_pulse_rate_band_is_OPEN_at_both_ends():
+    """`20 < pr < 250` — strict, unlike SpO2's closed band, and the asymmetry is the point: all four
+    of its edge mutants survived, so nothing recorded which convention this field uses."""
+    assert oxyii.parse_live(_with(8, 20, 2))["pr"] is None, "20 is excluded (strict >)"
+    assert oxyii.parse_live(_with(8, 21, 2))["pr"] == 21, "21 is the first admitted rate"
+    assert oxyii.parse_live(_with(8, 249, 2))["pr"] == 249, "249 is the last admitted rate"
+    assert oxyii.parse_live(_with(8, 250, 2))["pr"] is None, "250 is excluded (strict <)"
