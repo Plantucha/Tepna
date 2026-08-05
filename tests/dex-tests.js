@@ -377,9 +377,45 @@
          itself a drawn-looking axis, nearly failing this test for the opposite of the real reason.
          Real oscillators land at 0.1-8.8 %. Deterministic (no Math.random — a flaky gate is worse
          than no gate). */
-      var meas = P.parsePPG(HDR + o2rows(function (i) { return i * 7953045 + Math.floor(Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 4001) * 97; }));
+      /* THE JITTER CASE MOVED TO A 3-LED (WRIST) LAYOUT — DELIBERATE, DA-V §2.7 F17. It used to be a
+         ONE-column file, i.e. the O2Ring layout, and asserted `drawn === false` on it. That assertion
+         encoded the very blindness this fix removes: an O2Ring's ns column is accumulated by
+         `capture.py` from HOST arrival times, so it is synthesised whatever its delta distribution
+         looks like, and a one-column file must now read drawn regardless. Isolating the STATISTICAL
+         detector therefore requires a layout whose axis could genuinely be a device clock. Three
+         DISTINCT channels (not replicated — `deriveSiteFromLayout` collapses byte-identical ones back
+         to 'finger'), so this is a wrist/Verity-shaped file. */
+      function wristRows(step) {
+        var out = '';
+        for (var i = 0; i < 2000; i++) {
+          var hostMs = Math.round((i / 125.9) * 1000);
+          var d = new Date(Date.UTC(2026, 6, 26, 22, 0, 0) + hostMs);
+          out += d.toISOString().slice(0, 23) + ';' + step(i) + ';' + (124 + (i % 7)) + ';' + (300 + (i % 11)) + ';' + (512 + (i % 13)) + ';0\n';
+        }
+        return out;
+      }
+      var WHDR = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient\n';
+      var jit = function (i) {
+        return i * 7953045 + Math.floor(Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 4001) * 97;
+      };
+      var meas = P.parsePPG(WHDR + wristRows(jit));
       T.ok('a constant-increment axis is flagged drawn', drawn.hostAxis && drawn.hostAxis.drawn === true, 'share=' + JSON.stringify(drawn.hostAxis && drawn.hostAxis.quantizedShare));
-      T.ok('a jittering axis is NOT flagged drawn', meas.hostAxis && meas.hostAxis.drawn === false, 'share=' + JSON.stringify(meas.hostAxis && meas.hostAxis.quantizedShare));
+      T.eq('the jitter control really is a wrist layout (else it proves nothing)', meas.site, 'wrist');
+      T.ok('a jittering axis on a DEVICE-CLOCKED layout is NOT flagged drawn', meas.hostAxis && meas.hostAxis.drawn === false, 'share=' + JSON.stringify(meas.hostAxis && meas.hostAxis.quantizedShare));
+
+      /* F17 · THE REGRESSION THAT ERASED THE SIGNATURE. capture-host's rate-SLEW estimator
+         (`_O2PPG_EST_SLEW`, 2026-07-27) makes `step_s` move as the measured rate drifts, so the
+         accumulated ns column stopped being a singleton delta set — `quantizedShare` fell to 0.00083
+         on a real night. The axis got MORE synthetic and the fingerprint-based detector went blind,
+         certifying `timingSource:'device+host'` (a real second clock) on every O2Ring night since.
+         A slewing step on a FINGER layout must still read drawn. */
+      var slew = P.parsePPG(HDR + o2rows(function (i) { return Math.round(i * 7953045 * (1 + 0.0004 * Math.sin(i / 250))); }));
+      T.eq('the slew fixture is the O2Ring layout', slew.site, 'finger');
+      T.ok('…and its delta distribution really is NOT quantized (the signature is gone)', slew.hostAxis.quantizedShare != null && slew.hostAxis.quantizedShare < 0.99, 'share=' + slew.hostAxis.quantizedShare);
+      T.ok('…yet the axis is STILL drawn — the layout is the provenance, not the fingerprint', slew.hostAxis.drawn === true);
+      T.ok('…so it never claims a second clock', slew.hostAxis.timingSource !== 'device+host', 'got ' + slew.hostAxis.timingSource);
+      // And the wrist control must NOT be swept up by the layout rule.
+      T.eq('control · a wrist layout with the SAME slewing step is not drawn', P.parsePPG(WHDR + wristRows(function (i) { return Math.round(i * 7953045 * (1 + 0.0004 * Math.sin(i / 250))); })).hostAxis.drawn, false);
       T.ok('the share is reported as a NUMBER, not just a verdict', typeof drawn.hostAxis.quantizedShare === 'number' && drawn.hostAxis.quantizedShare >= 0.99);
       /* BOTH files start at ns 0 — the test that was proposed and measured NOT to work. If someone
          re-implements `first ns == 0`, this assertion is what tells them it condemns the good sessions. */

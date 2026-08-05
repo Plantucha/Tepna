@@ -1403,7 +1403,17 @@ for (const p of work) {
           if (r.hostAxis.ok) anyOk = true;
         }
         const share = tot > 0 ? acc / tot : null;
-        const drawn = share != null && share >= 0.99;
+        /* MIRRORS parsePPG's `axisSynthetic` (DA-V §2.7 F17) — and it MUST, because this is the fold
+           path and the single-file path, and a provenance rule that holds in one and not the other is
+           how a folded night ends up making a claim the same bytes would not make unfolded.
+           The share-based signature alone went blind when capture-host's rate-SLEW estimator (2026-07-27)
+           stopped the synthesised column being a singleton delta set: `quantizedShare` fell to 0.00083
+           on a real night, so `drawn` read false and every folded O2Ring night claimed
+           `timingSource:'device+host'` — a real second clock — for an axis accumulated from host
+           arrival times. The O2Ring layout is the provenance fact; the fingerprint is only evidence
+           for it, and the writer can erase the evidence. */
+        const isFinger = parts.some((r) => r.site === 'finger');
+        const drawn = (share != null && share >= 0.99) || isFinger;
         return {
           ok: anyOk,
           fragments: parts.length,
