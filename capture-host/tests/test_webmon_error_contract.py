@@ -854,3 +854,54 @@ def test_a_mount_target_gets_a_unit_and_a_local_one_does_not(tmp_path, monkeypat
     assert "mount_unit" not in local, "a local mount is already mounted; a unit would be wrong"
     transfer = _get({"kind": "transfer", "protocol": "cifs"})
     assert "mount_unit" not in transfer, "a transfer target stages nowhere and mounts nothing"
+
+
+# ── the SAME family, the two call sites the pass above stopped short of ──────────────────────────────
+# The section above fixed `bonding.bond` and `bonding.forget`. `bonding.scan` and
+# `bonding.ensure_bonded` take the same `adapter_mac` and were left dropping it — a sibling divergence
+# inside the very file that closed the family. Found 2026-08-05 by `tools/find_blindspots.py`
+# (`adapter` is the 4th most-discarded argument name in the suite, 41 doubles) and confirmed by
+# mutation: `bonding.scan(None)` and `ensure_bonded(address, None)` both survive the whole webmon
+# suite, while the same mutation on bond/forget reds.
+#
+# The consequence is not symmetric with the covered pair. A bond on the wrong radio at least fails
+# loudly at the next connect; a SCAN on the wrong radio returns an empty list, which the operator reads
+# as "the sensor is not advertising" — and this box's own notes record one adapter that goes deaf while
+# the other works, which is precisely the state that makes an empty scan look like a dead sensor.
+
+def test_the_device_scan_runs_on_the_PINNED_radio_not_whichever_bluez_picks(tmp_path, monkeypatch):
+    """`bonding.scan(adapter_mac)` → `bonding.scan(None)` survived. A scan on the default controller
+    finds nothing on a two-radio box and reports it as an empty device list."""
+    seen = {}
+
+    async def fake_scan(adapter):
+        seen["adapter"] = adapter
+        return []
+    monkeypatch.setattr(webmon.bonding, "scan", fake_scan)
+    app, *_ = _mk(tmp_path)
+    status, _body = _post(app, "/api/scan", {})
+    assert status == 200
+    assert seen.get("adapter") == "AA:AA:AA:AA:AA:AA", (
+        f"scan went out on {seen.get('adapter')!r} — an unpinned scan finds nothing on a box whose "
+        "other radio is deaf, and an empty list reads as a dead sensor")
+
+
+def test_the_pre_pull_bond_check_uses_the_PINNED_radio(tmp_path, monkeypatch):
+    """`bonding.ensure_bonded(address, adapter_mac)` → `(address, None)` survived. This runs before every
+    PS-FTP pull, with the daemon's capture paused: bonding the wrong controller leaves the link
+    unauthenticated on the one that matters, and a Polar H10 refuses PMD on an unauthenticated link."""
+    seen = {}
+
+    async def fake_ensure(address, adapter):
+        seen["args"] = (address, adapter)
+        return True
+
+    async def fake_list(address, adapter=None):
+        return [{"session": "/U/0/1/", "size": 1}]
+    monkeypatch.setattr(webmon.bonding, "ensure_bonded", fake_ensure)
+    monkeypatch.setattr(webmon.polar_psftp, "list_recordings", fake_list)
+    app, *_ = _mk(tmp_path)
+    # GET /api/polar/recordings — it routes through `_polar_run`, which is where ensure_bonded lives.
+    _serve(app, lambda c: c.get("/api/polar/recordings", params={"address": H10["address"]}))
+    assert seen.get("args") == (H10["address"], "AA:AA:AA:AA:AA:AA"), (
+        f"ensure_bonded got {seen.get('args')!r} — the address AND the radio are both load-bearing")
