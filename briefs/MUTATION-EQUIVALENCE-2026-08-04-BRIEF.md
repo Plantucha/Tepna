@@ -3,6 +3,56 @@
 
 # 80 % of `clock.js`'s surviving mutants cannot be killed — the target is wrong, not the suite
 
+> ## ✅ RESOLVED 2026-08-05 — the ceiling is **81.9 % raw / 100 % distinguishable**, measured
+>
+> Six full sweeps (~10 h of wall time) took `clock.js` from **73.2 % → 81.9 %**, and **every one of the
+> 23 remaining survivors is now classified**. The projection made after wave 5 — *"one more probe over
+> the 13 unclassified at 21.2 % ⇒ ~3 killable ⇒ 104/127 = 81.9 % raw, then 100 % distinguishable"* —
+> landed on the exact number.
+>
+> | wave | killed | rate | survivors |
+> |---|---|---|---|
+> | w1 (scoped) | 93/127 | 73.2 % | 34 |
+> | w2 (full) | 94/127 | 74.0 % | 33 |
+> | w4 (full) | 97/127 | 76.4 % | 30 |
+> | w5 (full) | 101/127 | 79.5 % | 26 |
+> | **w6 (full)** | **104/127** | **81.9 %** | **23** |
+>
+> **The 23, all classified — nothing left unexamined:**
+>
+> | category | n | why it cannot be killed by a test |
+> |---|---|---|
+> | no distinguishing input | 15 | `hostAxis` clamps, `correctionAt` endpoints, `L78`/`L138`/`L198` guards — ties where the mutated operator cannot change the result |
+> | equivalent — the regex guarantees the input | 3 | `L45` ×2 and `L147`: `parseInt(s, 10) → parseInt(s, 0)`; radix 0 auto-detects base 10 for `/^\d+$/` |
+> | equivalent — over-determined validation | 2 | `L118`'s three redundant `!==` clauses: disabling any one leaves the others to catch Feb 30 |
+> | unreachable by construction | 1 | `L120` `ms > 999` — the ISO regex captures only 3 fraction digits, so no accepted input can violate it |
+> | environmental | 2 | `L414`, the IIFE root selection |
+>
+> **The killable-fraction per probe round proved stable at ~21 %** — 3/15 (wave 2), 4/18 (wave 5),
+> 3/13 (wave 6, of which one target turned out not to be a survivor at all). Three different functions,
+> three different batteries.
+>
+> ### The three lessons that cost the most time
+>
+> 1. **A battery that does not reach the code reports "equivalent".** Wave 5's battery fed `resolveDMY`
+>    bare dates like `'12/08/2026'`; it only matches FULL vendor stamps, so every mutant there read as
+>    equivalent *without the code executing*. Two real survivors (`L93`/`L94`) were missed for a whole
+>    wave. This is the failure mode that would make the entire method dishonest.
+> 2. **Probe the mutant that ACTUALLY survived, not one like it.** `L120` has seven `||`s and `L45` has
+>    three numbers; hand-editing the line tests a different occurrence than the recorded survivor. This
+>    produced one false "equivalent" (`L120`) and one wasted test (`L45 *60`, whose target was never
+>    surviving) — the sole reason wave 6 predicted 105 and delivered 104. **Use the survivor's recorded
+>    `after` text.**
+> 3. **Writing the test is not the verification.** Three tests looked correct and killed nothing until
+>    re-applied against their mutant: the `n=3` interpolation geometry (window covered the whole
+>    series), and the `L211` roll boundary (`prevTMs` a second off the exact `t + slack` point).
+>
+> ### What this means for the target
+> **90 % raw is unreachable and no number of waves changes that.** 104/127 is the ceiling with the
+> current operator set; the remaining 18 % would require editing production code — weakening redundant
+> validation, deleting defensive guards — purely to score better. §5's proposal stands, now measured:
+> report `killed / distinguishable`, which is **100 %**.
+
 `clock.js` sits at **74 %** mutation kill rate and the standing goal is 90 %. This brief reports what
 happened when the remaining 26 % was actually examined instead of estimated, and argues the goal should
 be restated before any more tests are written against it.

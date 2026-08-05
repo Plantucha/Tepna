@@ -615,6 +615,94 @@
 
        Each assertion below names the exact mutant it kills, so a future reader can tell a real
        regression from a lucky pass. */
+    /* ════ clock.js — the four remaining reachable guards (wave 5) ══════════════════════════════
+       Wave 4 left 30 survivors. 12 in `hostAxis`/`correctionAt` were shown to have no distinguishing
+       input; the other 18 had never been probed. Rebuilding the battery for the input space these
+       functions actually take — timestamp STRINGS and date COMPONENTS rather than anchor geometry —
+       found FOUR that can be distinguished. They are pinned here; see
+       `MUTATION-EQUIVALENCE-2026-08-04-BRIEF.md` for the other fourteen and why each resists. */
+    /* ════ clock.js — wave 6: the last four reachable guards ════════════════════════════════════
+       Wave 5 left 26 survivors, 13 of them never probed. A battery that actually REACHES them —
+       `resolveDMY` needs FULL vendor stamps (`HH:MM:SS D/M/YYYY`), not bare dates, because anything
+       else hits its `continue` — found four more. The earlier battery fed it bare dates and every
+       mutant there read "equivalent" without the code ever executing, which is the failure mode this
+       whole exercise exists to avoid. */
+    group('clock.js — wave 6: zone minutes, the DMY decision, and the midnight roll', 'clock · known-answer · mutation-pinned', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.resolveDMY !== 'function') {
+        T.skip('DexClock available', 'clock.js not loaded');
+        return;
+      }
+
+      /* KILLS `parseInt(hh) * 60` → `* 0` in `_ckZoneMin`.
+         The hours half of a zone offset. Mutated, every offset collapses to its minutes: +02:00
+         becomes 0 and -05:30 becomes -30, so a zoned stamp silently lands in the wrong hour while
+         still looking like a parsed offset. */
+      T.eq('_ckZoneMin converts HOURS to minutes (+02:00 = 120)', C._ckZoneMin('+02:00'), 120);
+      T.eq('…and carries the sign across both halves (-05:30 = -330)', C._ckZoneMin('-05:30'), -330);
+      T.eq('a whole-hour negative offset is not just its minutes (-03:00 = -180)', C._ckZoneMin('-03:00'), -180);
+
+      /* KILLS `if (a > 12) sawDMY` → `>=` and `if (b > 12) sawMDY` → `>=` (Contract §3).
+         12 is the AMBIGUOUS value — it is a valid month AND a valid day, so seeing it must prove
+         nothing. Mutated to `>=`, a stamp with a 12 in either field falsely LOCKS the file's date
+         order, and one 12 December row would pin a whole file to the wrong interpretation. */
+      var amb = C.resolveDMY(['10:00:00 12/08/2026'], {});
+      T.eq('a leading 12 does NOT lock the order — 12 is a valid month too', amb.locked, false);
+      var amb2 = C.resolveDMY(['10:00:00 12/12/2026'], {});
+      T.eq('12/12 proves nothing in either field', amb2.locked, false);
+      /* …while 13 DOES prove it, in both positions. This is the pair that makes the assertion above
+         a boundary test rather than a claim that nothing ever locks. */
+      T.eq('13 in the first field locks DMY', C.resolveDMY(['10:00:00 13/08/2026'], {}).locked, true);
+      T.eq('13 in the second field locks MDY', C.resolveDMY(['10:00:00 08/13/2026'], {}).dmy, false);
+
+      /* KILLS `while (t < prevTMs - CK_ROLL_SLACK_MS)` → `<=`.
+         The midnight-roll guard. The slack is 12 h — the largest backwards step that cannot be a
+         wrap. At EXACTLY the threshold `<=` rolls a day that `<` does not, adding 24 h to a stamp
+         that never wrapped: the 1560-minute-night failure DEEP-AUDIT-III §1.2 records. */
+      /* The boundary is `t === prevTMs − slack` EXACTLY, so prevTMs must be t + slack. A first
+         attempt used prevTMs = anchor + slack, which is a full second off the boundary and killed
+         nothing — the mutant and the original agree everywhere except on that one point. */
+      var A6 = Date.UTC(2026, 7, 3);
+      var t6 = A6 + 43199000; // 11:59:59 on the anchor day
+      var SLACK6 = 43200000; // CK_ROLL_SLACK_MS — 12 h
+      var atThreshold = C.parseTimestamp('11:59:59', { dateAnchorMs: A6, prevTMs: t6 + SLACK6 });
+      T.ok('a step back of EXACTLY the slack does not roll (the < / <= boundary)', atThreshold && atThreshold.tMs === t6, 'got ' + (atThreshold && atThreshold.tMs) + ' want ' + t6);
+      T.ok('…one ms past it DOES roll, so the boundary is real and not a dead branch', C.parseTimestamp('11:59:59', { dateAnchorMs: A6, prevTMs: t6 + SLACK6 + 1 }).tMs === t6 + 86400000);
+      var realWrap = C.parseTimestamp('00:00:01', { dateAnchorMs: A6, prevTMs: A6 + 82800000 });
+      T.ok('…but a real ~23 h wrap DOES roll', realWrap && realWrap.tMs > A6 + 82800000, 'got ' + (realWrap && realWrap.tMs));
+    });
+
+    group('clock.js — the four reachable guards left after wave 4', 'clock · known-answer · mutation-pinned', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.parseTimestamp !== 'function') {
+        T.skip('DexClock available', 'clock.js not loaded');
+        return;
+      }
+
+      /* KILLS `_ckP2`'s `n < 10` → `<=` and its `10` → `0`.
+         Two-digit zero-padding: 10 must NOT gain a third digit, and 0 MUST gain one. `<=` pads at 10
+         ("010"); `n < 0` never pads at all ("0"). Both corrupt every formatted clock string, which is
+         the one output a reader sees. */
+      T.eq('_ckP2 pads a single digit to two', C._ckP2(9), '09');
+      T.eq('_ckP2 pads zero, it does not pass it through bare', C._ckP2(0), '00');
+      T.eq('_ckP2 does NOT pad at the boundary — 10 stays two digits', C._ckP2(10), '10');
+
+      /* KILLS `_ckNumEpoch`'s `-off / 60000` → `/ 0`.
+         `offsetMin` is minutes east of UTC and must be a finite number; dividing by zero makes it
+         ±Infinity, which serialises into an export as `null` and silently destroys the zone. */
+      var ep = C._ckNumEpoch(1785561709925);
+      T.ok('a numeric epoch yields a FINITE offsetMin', ep && typeof ep.offsetMin === 'number' && isFinite(ep.offsetMin), 'offsetMin=' + (ep && ep.offsetMin));
+      T.eq('…and a finite tMs with it', !!(ep && isFinite(ep.tMs)), true);
+
+      /* KILLS the `10`/`13` in `/^\d{10,13}$/` → `0`.
+         The digit bound is what separates a plausible epoch from a number that merely looks like one.
+         Mutated to `\d{0,0}` the branch matches nothing; mutated wider it would swallow short ids.
+         A 9-digit string must stay null — the Clock Contract's "never fabricate" rule at §2.6. */
+      T.ok('a 10-digit epoch string parses', !!C.parseTimestamp('1785561709', {}));
+      T.eq('a 9-digit string is NOT an epoch — too short to be plausible', C.parseTimestamp('178556170', {}), null);
+      T.eq('a 14-digit string is NOT an epoch either (it is a YYYYMMDDHHMMSS stamp)', C.parseTimestamp('17855617099250', {}), null);
+    });
+
     group('hostAxis · correctionAt — the guards a mutant can actually reach', 'clock · host-axis · mutation-pinned', function (T) {
       var C = env.DexClock;
       if (!C || typeof C.hostAxis !== 'function') {
