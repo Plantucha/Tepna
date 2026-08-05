@@ -336,6 +336,17 @@ def ppg_stream_offset(payload: bytes) -> int | None:
 # one 922 bytes with 102 records. The argument neither unlocks nor changes the reply. Keep it for
 # fidelity to the vendor flow; do not describe it as the thing that revealed the stream, and do not
 # assume a future opcode's argument matters just because an SDK passes one.
+# ⚠️ THIS IS NOT A PLETHYSMOGRAM. Proven 2026-08-05 with a POSITIVE CONTROL: cmd 0x03 (LIVE_SAMPLES_A,
+# an 8-bit pleth, 6-byte header + up to 250 samples) run in the SAME session through the SAME peak
+# detector reproduces the ring's own pulse rate to 0.1 bpm (72.9 detected vs 73 reported). The identical
+# detector on this stream finds 146 peaks on chA and 131 on chB over one 21615-record lossless chain --
+# 58.5 and 52.5 bpm, disagreeing with the device AND WITH EACH OTHER. Two plethysmograms of one finger
+# must find the same beats. These do not, so what varies here is drift, not a pulse.
+# Rates differ too: 0x03 = 112.9 Hz (lossless), this = >=153.3 Hz. Different sources.
+# WHAT THIS STREAM IS remains unknown -- two distinct 32-bit optical channels, r=0.9991, slowly varying,
+# no cardiac content. AGC/ambient telemetry, a long-integration DC channel and a decimated envelope are
+# all untested candidates. The `ppg2w` name predates this and is kept as a compatibility surface.
+#
 # WHICH IS WHICH — NOT ESTABLISHED. DO NOT COMPUTE SpO2 FROM THESE COLUMNS.
 # A ratio-of-ratios over 3060 samples gave R = 0.4885 -> SpO2 ~97.8% against the ring's reported 97%
 # (the swap gives 59%), and that was briefly recorded as proof that chA is RED. It is NOT proof: R is

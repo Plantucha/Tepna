@@ -83,3 +83,13 @@ the strength of a seam step 1.07x the in-buffer step. That test is insensitive â
 contiguous at 0.5s, 1.0s AND 2.0s spacing, which cannot all be true â€” so the claim and its corollary
 (`fs = 102 / poll interval`, which merely restated 102/dt) are withdrawn. The wavelength result does not
 depend on it: AC/DC is an amplitude statistic and gaps add noise, not bias.
+
+A second hardware run settles it with a POSITIVE CONTROL. The upstream opcode table names 0x03 =
+LIVE_SAMPLES_A, a real-time PPG waveform; captured alongside 0x05 in the same 150 s session, 0x03 is
+visibly a pulse (8-bit, 6-byte header, cap 250) and its peak count reproduces the ring's own pulse rate
+to 0.1 bpm (72.9 detected vs 73 reported), at 112.9 Hz lossless. The IDENTICAL detector on 0x05 finds
+146 peaks on one channel and 131 on the other over the same lossless chain -- 58.5 and 52.5 bpm,
+disagreeing with the device and with each other, which two plethysmograms of one finger cannot do. So
+0x05 is NOT a plethysmogram; its rate (>=153.3 Hz) also differs from 0x03's, so it is not that ADC
+either. What it is remains unknown: two distinct 32-bit optical channels, r=0.9991, slowly varying, no
+cardiac content.

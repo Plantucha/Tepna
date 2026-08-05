@@ -171,6 +171,60 @@ Across all 30 the mean turning-point count is **9.9** (max 31) and direction spl
 is what real structure looks like. The ordering statistic was necessary, never sufficient; the population
 is the evidence.
 
+## 1.3 · SECOND HARDWARE RUN — `0x05` is NOT a plethysmogram, and `0x03` is
+
+Prompted by the upstream opcode table (`nglessner/o2ring-s-protocol`), which names **`0x03` =
+LIVE_SAMPLES_A, "real-time PPG waveform"** — a second, independent waveform from the same device. 150 s,
+373 replies of each opcode interleaved, ring worn, reported PR **73 bpm**. Probe used a hard opcode
+**allowlist**: that same table documents `0xE3` FACTORY_RESET and `0xE4`… `0xEE` FACTORY_RESET_ALL
+("powers ring off; do not issue"), so neither is reachable from the script.
+
+**`0x03` is the plethysmogram, and it validates itself.** 6-byte header (`u16` count at `[4:6]`, cap
+250) then 8-bit samples. Raw bytes are visibly a pulse downstroke — `150,149,148,147,…,60,54,…,28`.
+Two independent rate estimates agree, and the beat count reproduces the ring's own pulse rate:
+
+| method | result |
+|---|---|
+| total samples / elapsed (16 899 / 149.7 s, **0 saturated ⇒ lossless**) | **112.9 Hz** |
+| peak-detected beats × PR (94.2 samples/beat × 73 bpm) | **114.6 Hz** |
+| **beats / elapsed → implied HR** | **72.9 bpm vs the ring's 73** ✅ |
+
+That last row is the control: the detector and the time axis are both correct.
+
+**Turn the same validated detector on `0x05` and the beats are not there.**
+
+| stream | peaks over the run | implied HR | ring reported |
+|---|---|---|---|
+| `0x03` pleth | 182 | **72.9 bpm** | 73 ✅ |
+| `0x05` `channel 0` | 146 | 58.5 bpm | 73 ❌ |
+| `0x05` `channel 1` | 131 | 52.5 bpm | 73 ❌ |
+
+**The two `0x05` channels do not even agree with each other** (146 vs 131 peaks over the identical
+21 615-record lossless chain). Two plethysmograms of the same finger must find the same beats. These
+find different numbers, and neither matches the pulse rate the device itself is reporting from that same
+finger in that same second. The detector is picking up drift maxima, not a rhythm.
+
+**So `cmd 0x05` is not a plethysmogram.** §1.2④'s withdrawal is confirmed by an independent method, and
+this is the strongest statement in this brief: it rests on a positive control (`0x03`, correct to
+0.1 bpm) run through the identical code in the same session.
+
+**And the rates differ, so `0x05` is not the pleth's ADC either:**
+
+| | fs | note |
+|---|---|---|
+| `0x03` | **112.9 Hz** | lossless, no saturated reply |
+| `0x05` | **≥ 153.3 Hz** | 13/373 replies saturated, so a slight *under*-estimate |
+
+Two different rates ⇒ two different sources. Note `0x03`'s 112.9 Hz is also **not** the 125.000 Hz ADC
+rate of `DEVICE-RATE-TRUTH` §2, which is its own open question — the honest reading is that this
+delivery path is not a clean window onto that clock, not that the clock is wrong.
+
+**What `0x05` actually is remains unknown.** Established: two genuinely distinct optical channels (not
+one photodiode at two gains), 32-bit, ~153 Hz, strongly correlated (r = 0.9991), slowly varying, no
+cardiac content. Candidates worth testing: an AGC/ambient telemetry pair, a long-integration DC channel,
+or a decimated envelope. **The `ppg2w` capture stream name predates all of this** and is kept as a
+compatibility surface — it is a name, not a claim.
+
 ## 2 · Wire format (`cmd = 0x05`; the argument is optional — §1.2①)
 
 ```
