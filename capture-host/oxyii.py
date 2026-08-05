@@ -375,17 +375,18 @@ def parse_rt_ppg(payload: bytes) -> list[tuple[int, int, int]]:
     the device's own field and the slice is bounded by the buffer, so a trailer of any size is ignored
     rather than silently absorbed into a record.
 
-    ⚠️ THE RATE IS NOT KNOWN AND IS NOT ASSERTED — but it is now CHEAPLY derivable. Measured 2026-08-05,
-    consecutive polls return successive, non-overlapping segments of ONE continuous signal: the boundary
-    step between replies is 1.07x the median step *inside* a reply, so nothing is dropped between polls
-    at ~1 Hz. Therefore fs = 102 / poll_interval, and a probe that records its poll timestamps settles
-    it. This one did not.
+    ⚠️ THE RATE IS BOUNDED, NOT KNOWN, AND IS NOT ASSERTED HERE. 102 is a CAP: polled slowly the count
+    pins at 102, but polled every 0-0.3 s it falls right through 0, 4, 10 ... 70 (measured 2026-08-05),
+    which is what lets `count = fs*dt` be fitted at all. Over 35 unsaturated replies: 125.7 Hz by least
+    squares (intercept 7.9 records), 155.5 Hz forced through the origin, 150.7 Hz as the median per-point
+    ratio. Solid: it is NOT the 200 Hz the SDK claims. Suggestive only: the 125.7 coincides with the
+    pleth's own O2PPG_FS_DEFAULT = 125.738, which would make this the same ADC stream delivered raw --
+    but the estimators disagree by 25%, so do not quote it. fs stays 0 on the bus until a longer
+    starvation run settles it.
 
-    ⚠️ THE RATE IS NOT KNOWN AND IS NOT ASSERTED. The SDK's README says 200 Hz. Every reply measured
-    here carried EXACTLY 102 records regardless of poll spacing, which is the signature of a fixed
-    buffer cap (cmd 0x03 behaves the same way and caps at 250), not of a sample rate. A constant count
-    under a varying poll interval cannot distinguish "200 Hz, buffer full" from "102 Hz, buffer sized to
-    the poll". Deriving fs from it would be inventing a number; consumers must measure it.
+    ⚠️ AND DO NOT USE A VALUE-BASED SEAM TEST to argue the replies are contiguous. That was tried and
+    RETRACTED: it called consecutive replies contiguous at 0.5s, 1.0s AND 2.0s spacing, which cannot all
+    be true. On a smooth waveform a gap of hundreds of samples still lands close in value.
 
     `motion` is returned as the raw byte. The vendor doubles it for display (`* 2`); that is a
     presentation choice and is not applied to a recorded value."""

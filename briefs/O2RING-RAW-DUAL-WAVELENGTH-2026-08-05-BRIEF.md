@@ -76,24 +76,44 @@ no difference.
 
 **② The record count is a CAP, confirmed.** 102 records on all 30 replies regardless of spacing.
 
-**③ THE BUFFERS TILE A CONTINUOUS SIGNAL — new, and the most useful result.** The last sample of one
-reply and the first of the next are as close as two neighbouring samples *within* a buffer:
+**③ ~~THE BUFFERS TILE~~ — RETRACTED, and the rate measured instead (later the same day).** The first
+run claimed the buffers tile because the seam step between replies (760) was only 1.07x the median step
+inside one (712). **That test is worthless on this signal**, and a second run proved it: at poll spacings
+of 0.5 / 1.0 / 2.0 s it reported "contiguous" at *all three*, which is impossible — 102 records arriving
+every 2 s would mean a 47 Hz device. On a smooth waveform a gap of hundreds of samples still lands close
+in VALUE, so a value-based seam test cannot see it. It never had the sensitivity to support the claim.
+The dependent claim — "`fs = 102 / poll interval`" — was likewise an artifact: it returned 154.5, 87.7 and
+47.4 Hz at the three spacings, i.e. it merely restated `102/dt`.
 
-| median within-buffer \|step\| | median boundary \|jump\| | ratio |
-|---|---|---|
-| 712 | 760 | **1.07×** |
+**The test that does work is STARVATION.** Poll fast enough and the buffer cannot refill, so the count
+falls below the cap and `count = fs · dt` becomes measurable. At spacings of 0 – 0.3 s the counts spread
+right across `0, 4, 10, … 70, 102` instead of pinning at 102 — the cap is real, and the fill rate is
+observable. Over the 35 unsaturated, non-empty replies:
 
-Consecutive polls return **successive, non-overlapping, non-repeating** segments with no discernible
-gap. Two consequences: the stream can be reassembled across polls into one continuous waveform (done
-here — 3060 samples), and **the rate is derivable** as `102 / poll interval` once a probe records poll
-timestamps, which this one did not. That is the cheap fix for §3.2.
+| estimator | fs |
+|---|---|
+| least squares `count = fs·dt + c` (c = 7.9 records) | **125.7 Hz** |
+| forced through the origin | 155.5 Hz |
+| median of per-point `count/dt` | 150.7 Hz |
+
+**What is solid: it is NOT the 200 Hz the SDK README claims** — every estimator lands well below it. What
+is *suggestive but not established*: the linear fit's **125.7 Hz** sits on top of the independently-known
+`O2PPG_FS_DEFAULT = 125.738 Hz` of the ring's own pleth, which would mean `0x05` is the same ADC stream
+delivered raw instead of downsampled to 8 bits. Tempting, and possibly a coincidence: the three
+estimators disagree by 25 %, the residual RMS is 10.3 records against counts of 10–50, and n = 35. **Do
+not quote 125.7 Hz as the rate.** State the bound, and settle it with a longer starvation run at several
+spacings before anything depends on it.
 
 **④ IR vs RED — SETTLED: `channel 0` is RED, `channel 1` is IR.** The first attempt did NOT
 discriminate (`R = 1.003` vs `0.997`, both implying ~85 %) and I nearly filed that as "these may not be a
 wavelength pair at all". The estimator was the problem, not the data: peak-to-peak across a single
-102-sample buffer measures the local trend, because a buffer spans well under one cardiac cycle. Result ③
-is what fixes it — because the buffers tile, the 30 replies reconstruct into 3060 contiguous samples, and
-modulation depth can be measured against a slow baseline over many full cycles:
+102-sample buffer measures the local trend, because a buffer spans well under one cardiac cycle. The fix is to use the WHOLE run rather than one buffer: the 30 replies concatenate into 3060 samples, and
+modulation depth can be measured against a slow baseline over many pulses.
+
+(③ retracted the claim that those samples are strictly contiguous. **④ does not depend on it** — AC/DC is
+an amplitude statistic over a representative sample of the waveform, and gaps at the seams add noise
+rather than bias. A *timing* result read off this concatenation would be void; a modulation-depth ratio
+is not.)
 
 | | DC | AC(rms) | **AC/DC** |
 |---|---|---|---|
