@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-G6q9jVUxKlEI3qmcuxeKVPEubWjDukvVfBf/P40dmL8=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RVabp4APdRzXpWFBeVHnRsrrNjQe+nrxdBi84hbwnFU=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ixrpBVG0uOw56hZiQGsTHpGxTdk8xbOMJn+cKydqiu4=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60=' 'sha256-wdzX6wq5DOLMfpGrsNF0cDcpKMCsh0prdYE/R4K1q30='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6m3J1CEpWU599LBl+e87A2PK0c4kh0GaebcLMBQwYHY=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-G6q9jVUxKlEI3qmcuxeKVPEubWjDukvVfBf/P40dmL8=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ixrpBVG0uOw56hZiQGsTHpGxTdk8xbOMJn+cKydqiu4=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60=' 'sha256-wEv19PL/N0d7XY3Fz4nHeau1F49rfN/IlDHCDcoFFP4='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Integrator · Fusion Layer</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -4001,6 +4001,8 @@ body.light .cov-grid td.cg-node{ background:#fff; }
     var labels = opts.labels || ['A', 'B', 'C'];
     var taus = opts.taus || [1, 2, 4, 8];
     if (!seriesA || !seriesB || !seriesC) return null;
+    // Same rule as threeCorneredHat — the tau-curve is keyed by label too (DA-V §2.1 F5).
+    if (!_distinctLabels(labels)) return null;
     function diff(a, b) {
       var d = [],
         n = Math.min(a.length, b.length);
@@ -4163,11 +4165,35 @@ body.light .cov-grid td.cg-node{ background:#fff; }
      first for {tMin,v} epoch objects). labels: node names in A/B/C order.
      Returns per-sensor σ²/σ, the method used, the assumed rho, inverse-variance
      weights, the culprit (largest σ²), n, and an honest reason string. */
+  /* CORNER LABELS MUST BE DISTINCT, AND THIS REFUSES WHEN THEY ARE NOT (DEEP-AUDIT-V §2.1 F5).
+     Every result this module publishes is keyed BY LABEL — `_bylabel` does `o[labels[0]]=s.a;
+     o[labels[1]]=s.b; o[labels[2]]=s.c` on a plain object — so two corners sharing a label silently
+     OVERWRITE, and a "three-cornered hat" comes back with two keys and `ok:true`. Measured on one
+     real geometry: `labels:['ECGDex','PpgDex','PpgDex']` returned
+     `{ECGDex:1.008, PpgDex:16.779}` where the distinct-label solve gives
+     `{ECGDex:1.008, PpgDex:2.961, HRVDex:16.779}` — the SECOND corner's error replacing the first's,
+     i.e. the quieter device silently taking the noisier one's sigma, and the surviving weight then
+     applied to BOTH rows in the reconciled mean.
+
+     Reachable on real data: the capture tree writes a Verity `_PPG` and an O2Ring `_PPG` on the same
+     night and BOTH route to PpgDex, so `schema.node` is not a device identity. The caller must supply
+     something that is; this makes the requirement enforced rather than assumed. Refusing is right
+     rather than de-duplicating here — a hat solved on two corners is not a three-cornered hat, and
+     silently returning one would be the same lie in a smaller font. */
+  function _distinctLabels(labels) {
+    if (!labels || labels.length !== 3) return false;
+    var a = String(labels[0]),
+      b = String(labels[1]),
+      c = String(labels[2]);
+    return a !== b && a !== c && b !== c;
+  }
+
   function threeCorneredHat(seriesA, seriesB, seriesC, opts) {
     opts = opts || {};
     var labels = opts.labels || ['A', 'B', 'C'];
     var minN = opts.minN != null ? opts.minN : 12;
     if (!seriesA || !seriesB || !seriesC) return { ok: false, reason: 'need three series' };
+    if (!_distinctLabels(labels)) return { ok: false, reason: 'corner labels are not distinct (' + labels.join(', ') + ') — a node label is not a device identity', labels: labels };
 
     var pAB = pairDiffVar(seriesA, seriesB);
     var pAC = pairDiffVar(seriesA, seriesC);
@@ -8199,7 +8225,35 @@ function _tchHat(like, ptsFn, metric) {
     }
   }
   var rho = _tchRhoFromMotion([best.A, best.B, best.C], best.al.keys); // §1
-  var opts = { labels: [best.A.node, best.B.node, best.C.node], minN: 12 };
+  /* CORNER IDENTITY != NODE LABEL (DEEP-AUDIT-V §2.1 F5). `labels` was `[A.node, B.node, C.node]`
+     straight off `schema.node`, and the capture tree writes a Verity `_PPG` and an O2Ring `_PPG` on
+     the same night — BOTH routed to PpgDex. Two corners then shared a key, `_bylabel` overwrote, and
+     a "three-cornered hat" published TWO sigmas: measured, the Verity's 2.961 replaced by the
+     O2Ring's 16.779, with the surviving PpgDex weight applied to BOTH rows of the reconciled mean.
+     `integrator-tch.js` now REFUSES a non-distinct triple, so without this the same night would go
+     from a wrong number to no number — the refusal is the safety net, not the fix. Disambiguate with
+     the recording's own file/device label when a node repeats. The renderer already splits on ' '
+     for its colour (`k.split(' ')[0]`), so a space-separated suffix renders correctly today. */
+  var _cornerIds = (function (srcs) {
+    var seen = {},
+      out = [];
+    srcs.forEach(function (s) {
+      var base = s.node || 'node';
+      seen[base] = (seen[base] || 0) + 1;
+      out.push(base);
+    });
+    var used = {};
+    return out.map(function (base, i) {
+      if (seen[base] < 2) return base;
+      used[base] = (used[base] || 0) + 1;
+      var sv = srcs[i];
+      // Prefer something that names the DEVICE/recording; fall back to an ordinal so the corners are
+      // at least distinguishable rather than silently merged.
+      var tag = sv.deviceKey || sv.file || sv.fname || (sv.recording && sv.recording.device) || used[base];
+      return base + ' ' + String(tag).replace(/\s+/g, '_');
+    });
+  })([best.A, best.B, best.C]);
+  var opts = { labels: _cornerIds, minN: 12 };
   if (rho && rho.value > 0) opts.rho = rho.value;
   var r = TCH.threeCorneredHat(best.al.A, best.al.B, best.al.C, opts);
   if (!r.ok) {
@@ -8208,12 +8262,13 @@ function _tchHat(like, ptsFn, metric) {
   }
   r.metric = metric;
   r.coMotion = {};
-  [best.A, best.B, best.C].forEach(function (s) {
-    r.coMotion[s.node] = _meanMotion(s, best.al.keys);
+  // Same corner ids as the solve — a map keyed differently from sigma2 cannot be joined to it.
+  [best.A, best.B, best.C].forEach(function (s, i) {
+    r.coMotion[_cornerIds[i]] = _meanMotion(s, best.al.keys);
   });
   r.rhoEstimate = rho || null; // §1 provenance: how ρ was derived (null → classic solve)
   r.levels = {};
-  [best.A, best.B, best.C].forEach(function (s) {
+  [best.A, best.B, best.C].forEach(function (s, _ci) {
     var mp = {};
     ptsFn(s).forEach(function (p) {
       mp[p.tMin] = p.v;
@@ -8225,7 +8280,7 @@ function _tchHat(like, ptsFn, metric) {
       .filter(function (v) {
         return v != null;
       });
-    r.levels[s.node] = vs.length
+    r.levels[_cornerIds[_ci]] = vs.length
       ? +(
           vs.reduce(function (a, b) {
             return a + b;
@@ -8234,7 +8289,7 @@ function _tchHat(like, ptsFn, metric) {
       : null;
   });
   if (typeof TCH.allanTriplet === 'function') {
-    var _al = TCH.allanTriplet(best.al.A, best.al.B, best.al.C, { labels: [best.A.node, best.B.node, best.C.node], taus: [1, 2, 4, 8] });
+    var _al = TCH.allanTriplet(best.al.A, best.al.B, best.al.C, { labels: _cornerIds, taus: [1, 2, 4, 8] });
     if (_al) {
       var _keys = best.al.keys,
         _gaps = [];

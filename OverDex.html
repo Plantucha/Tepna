@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6Ihl8pw3pmpQ2ZKQoUJaefH7NJ7Rkm9qpB/TVT+dbcA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ffeOjKvgAxcr+h0dd0NBGkZyVoxVT4hsaQOzTz5BWc=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-WGAdE8HjXf7mJfKkBvWj9Prp0rLErBrsiaWH93qMB6U=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo=' 'sha256-wdzX6wq5DOLMfpGrsNF0cDcpKMCsh0prdYE/R4K1q30=' 'sha256-zfcZj/POD8ANab+TNlp0MrGvruXgueLPhtrRdPgHMlU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6Ihl8pw3pmpQ2ZKQoUJaefH7NJ7Rkm9qpB/TVT+dbcA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ffeOjKvgAxcr+h0dd0NBGkZyVoxVT4hsaQOzTz5BWc=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-WGAdE8HjXf7mJfKkBvWj9Prp0rLErBrsiaWH93qMB6U=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo=' 'sha256-wEv19PL/N0d7XY3Fz4nHeau1F49rfN/IlDHCDcoFFP4=' 'sha256-zfcZj/POD8ANab+TNlp0MrGvruXgueLPhtrRdPgHMlU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -4639,7 +4639,35 @@ function _tchHat(like, ptsFn, metric) {
     }
   }
   var rho = _tchRhoFromMotion([best.A, best.B, best.C], best.al.keys); // §1
-  var opts = { labels: [best.A.node, best.B.node, best.C.node], minN: 12 };
+  /* CORNER IDENTITY != NODE LABEL (DEEP-AUDIT-V §2.1 F5). `labels` was `[A.node, B.node, C.node]`
+     straight off `schema.node`, and the capture tree writes a Verity `_PPG` and an O2Ring `_PPG` on
+     the same night — BOTH routed to PpgDex. Two corners then shared a key, `_bylabel` overwrote, and
+     a "three-cornered hat" published TWO sigmas: measured, the Verity's 2.961 replaced by the
+     O2Ring's 16.779, with the surviving PpgDex weight applied to BOTH rows of the reconciled mean.
+     `integrator-tch.js` now REFUSES a non-distinct triple, so without this the same night would go
+     from a wrong number to no number — the refusal is the safety net, not the fix. Disambiguate with
+     the recording's own file/device label when a node repeats. The renderer already splits on ' '
+     for its colour (`k.split(' ')[0]`), so a space-separated suffix renders correctly today. */
+  var _cornerIds = (function (srcs) {
+    var seen = {},
+      out = [];
+    srcs.forEach(function (s) {
+      var base = s.node || 'node';
+      seen[base] = (seen[base] || 0) + 1;
+      out.push(base);
+    });
+    var used = {};
+    return out.map(function (base, i) {
+      if (seen[base] < 2) return base;
+      used[base] = (used[base] || 0) + 1;
+      var sv = srcs[i];
+      // Prefer something that names the DEVICE/recording; fall back to an ordinal so the corners are
+      // at least distinguishable rather than silently merged.
+      var tag = sv.deviceKey || sv.file || sv.fname || (sv.recording && sv.recording.device) || used[base];
+      return base + ' ' + String(tag).replace(/\s+/g, '_');
+    });
+  })([best.A, best.B, best.C]);
+  var opts = { labels: _cornerIds, minN: 12 };
   if (rho && rho.value > 0) opts.rho = rho.value;
   var r = TCH.threeCorneredHat(best.al.A, best.al.B, best.al.C, opts);
   if (!r.ok) {
@@ -4648,12 +4676,13 @@ function _tchHat(like, ptsFn, metric) {
   }
   r.metric = metric;
   r.coMotion = {};
-  [best.A, best.B, best.C].forEach(function (s) {
-    r.coMotion[s.node] = _meanMotion(s, best.al.keys);
+  // Same corner ids as the solve — a map keyed differently from sigma2 cannot be joined to it.
+  [best.A, best.B, best.C].forEach(function (s, i) {
+    r.coMotion[_cornerIds[i]] = _meanMotion(s, best.al.keys);
   });
   r.rhoEstimate = rho || null; // §1 provenance: how ρ was derived (null → classic solve)
   r.levels = {};
-  [best.A, best.B, best.C].forEach(function (s) {
+  [best.A, best.B, best.C].forEach(function (s, _ci) {
     var mp = {};
     ptsFn(s).forEach(function (p) {
       mp[p.tMin] = p.v;
@@ -4665,7 +4694,7 @@ function _tchHat(like, ptsFn, metric) {
       .filter(function (v) {
         return v != null;
       });
-    r.levels[s.node] = vs.length
+    r.levels[_cornerIds[_ci]] = vs.length
       ? +(
           vs.reduce(function (a, b) {
             return a + b;
@@ -4674,7 +4703,7 @@ function _tchHat(like, ptsFn, metric) {
       : null;
   });
   if (typeof TCH.allanTriplet === 'function') {
-    var _al = TCH.allanTriplet(best.al.A, best.al.B, best.al.C, { labels: [best.A.node, best.B.node, best.C.node], taus: [1, 2, 4, 8] });
+    var _al = TCH.allanTriplet(best.al.A, best.al.B, best.al.C, { labels: _cornerIds, taus: [1, 2, 4, 8] });
     if (_al) {
       var _keys = best.al.keys,
         _gaps = [];
