@@ -88,16 +88,37 @@ gap. Two consequences: the stream can be reassembled across polls into one conti
 here — 3060 samples), and **the rate is derivable** as `102 / poll interval` once a probe records poll
 timestamps, which this one did not. That is the cheap fix for §3.2.
 
-**④ IR vs RED is STILL NOT SETTLED, and the failure is informative.** The ratio-of-ratios came out
-`R = 1.003` one way and `0.997` the other — both implying ~85 % against a reported 97 %, i.e. the test
-did not discriminate and *both* assignments are wrong-ish. A genuine red/IR pair at 97 % should give
-`R ≈ 0.5`, and the two hypotheses should be ~25 points apart. Observed instead: the channels are
-**almost perfectly correlated (Pearson r = 0.9991)** with a near-constant ratio (`ch1/ch0` = 0.712–0.718
-within a buffer, 0.8 % spread), which is not how two wavelengths behave through a pulse — differential
-modulation is the entire basis of the measurement. So either the crude AC estimator (peak-to-peak over a
-sub-cycle window) is inadequate, or **the two columns are not a red/IR pair at all** — two gains of one
-photodiode would look exactly like this. Do not assume the SDK's naming; §3.1's caveat stands and is now
-better motivated than when it was written.
+**④ IR vs RED — SETTLED: `channel 0` is RED, `channel 1` is IR.** The first attempt did NOT
+discriminate (`R = 1.003` vs `0.997`, both implying ~85 %) and I nearly filed that as "these may not be a
+wavelength pair at all". The estimator was the problem, not the data: peak-to-peak across a single
+102-sample buffer measures the local trend, because a buffer spans well under one cardiac cycle. Result ③
+is what fixes it — because the buffers tile, the 30 replies reconstruct into 3060 contiguous samples, and
+modulation depth can be measured against a slow baseline over many full cycles:
+
+| | DC | AC(rms) | **AC/DC** |
+|---|---|---|---|
+| `channel 0` | 1 797 568 | 212 913 | **0.1184** |
+| `channel 1` | 945 562 | 229 265 | **0.2425** |
+
+`R = (AC/DC)_ch0 / (AC/DC)_ch1 = **0.4885**` → SpO₂ ≈ **97.8 %** against the ring's reported **97 %**.
+The swap gives **59 %**, off by 38 points. That is the decisive separation §3.1 predicted, and it lands
+the right way round: at high saturation RED carries the *smaller* modulation, and `channel 0` does.
+
+**⚠️ Note this contradicts the vendor SDK**, which names the first `u32` IR and the second RED. The
+measurement says the opposite. Trusting the header would have produced a confident wrong saturation —
+precisely the failure §3.1 refused to risk, and the reason the columns were recorded in device order.
+
+**The two-gains hypothesis is refuted.** Fitting `ch1 = k · ch0` per buffer: `k` drifts 0.7139 → 0.5320
+across buffers and the residual RMS ranges 0.049 % → 7.06 % of DC. One photodiode read at two gains gives
+a CONSTANT `k` with ~zero residual by construction. These are two genuinely different optical channels.
+
+**Caveats, because one session is not a validation.** `SpO₂ = 110 − 25R` is a generic textbook
+calibration, not this ring's, so the 0.8-point agreement is partly luck — what is robust is the
+**38-point discrimination between the two assignments**, which no plausible calibration error reverses.
+One subject, one session, one saturation near 97 %; the assignment should be re-confirmed at a different
+saturation before anything computes a clinical number from it. **The recorded file format stays device-order
+`channel 0;channel 1`** — a capture must record what the device sent, and the identification belongs in the
+analysis layer where it can be revised without rewriting history.
 
 ⚠️ **And a caveat on this brief's own headline evidence.** The shuffle test in §1 (`median|Δ|/range`
 0.0148 vs 0.3395) proves the samples are **ordered**. It does *not* prove they are a plethysmogram — a
@@ -125,7 +146,7 @@ measurement, and is not applied to a stored value.
 
 ## 3 · Two things this does NOT establish — and must not be written as if it did
 
-### 3.1 · Which channel is which wavelength (blocks SpO₂)
+### 3.1 · Which channel is which wavelength — ANSWERED 2026-08-05 (see §1.2④); kept for the reasoning
 
 The SDK names the first u32 IR and the second RED. **That is a vendor-header claim, not a
 measurement**, and here it would be load-bearing: SpO₂ comes from the ratio-of-ratios
@@ -208,16 +229,22 @@ link the way a failed vitals poll does — an experimental stream may not cost a
 
 ## 5 · Follow-ups (deliberately NOT in this changeset)
 
-1. **Settle IR vs RED** via §3.1. Everything below is gated on it.
-2. **Measure the rate** — poll at several spacings and check whether the record count ever falls below
-   102. A count that varies with spacing is a rate; a constant one is a cap.
+1. ~~Settle IR vs RED~~ **DONE 2026-08-05 (§1.2④): `channel 0` = RED, `channel 1` = IR, against the
+   SDK's naming.** Re-confirm at a different saturation before any clinical number rests on it.
+2. **Measure the rate — now a one-line change.** §1.2③ showed the buffers TILE, so `fs = 102 / poll
+   interval`; the probe simply has to record a timestamp per poll. (The count-varies-with-spacing test is
+   redundant: 102 was constant across every spacing tried, which is why tiling — not the count — is what
+   yields the rate.)
 3. **PPGDex two-channel ingest.** Wavelength identity does not matter for pulse/HRV — *either* channel
    is a valid plethysmogram — so this is unblocked by §3.1. It needs a `nCh === 2` branch and therefore
    a DSP change: three build systems re-bundled, GATE A/B, and `computeHash` re-verification against the
    real corpus per §🔏. Kept out of this changeset so a Python-only leg is not held behind the heavy gate.
-4. **OxyDex SpO₂ derivation** — the actual point of a dual-wavelength stream, and the one piece that is
-   genuinely blocked on §3.1. Reference-free SpO₂ needs calibration constants the ring does not publish;
-   expect this to be a *comparison* against the ring's own SpO₂ before it is ever a replacement for it.
+4. **OxyDex SpO₂ derivation — UNBLOCKED by §1.2④.** The ratio-of-ratios already reproduces the ring's own
+   reading to within ~1 point on one session with a textbook `110 − 25R`. What remains is calibration, not
+   identification: the ring does not publish its constants, so this must ship as a *comparison* against
+   the ring's SpO₂ (and a disagreement detector) long before it is ever a replacement. Note the honest
+   ceiling — agreement at one saturation near 97 % says little about the desaturations that matter
+   clinically, and those are exactly where a generic calibration drifts.
 5. **Contribute upstream — to the project that documents OUR family.**
    [`nglessner/o2ring-s-protocol`](https://github.com/nglessner/o2ring-s-protocol) — the reference
    `O2RING-PROTOCOL` §1 and `CAPTURE-HOST-FOLLOWUPS` already cite, and the one that documents THIS

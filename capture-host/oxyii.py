@@ -339,19 +339,24 @@ def ppg_stream_offset(payload: bytes) -> int | None:
 RT_PPG_ARG = bytes([0x07, 0x01])
 RT_PPG_REC = 9                       # u32 LE chA | u32 LE chB | u8 motion  (see WHICH-IS-WHICH below)
 
-# WHICH-IS-WHICH IS NOT SETTLED, SO THE COLUMNS ARE NOT NAMED `ir`/`red`.
-# The SDK calls the first u32 IR and the second RED. That is a claim from a vendor header, not a
-# measurement, and here it would be LOAD-BEARING: SpO2 comes from the ratio-of-ratios
-# R = (AC/DC)_red / (AC/DC)_ir, so a swapped pair does not fail loudly — it yields a confident WRONG
-# saturation. Recording device order under neutral names keeps the bytes honest and costs nothing; a
-# consumer that needs the assignment can compute it (below) instead of inheriting an assumption.
+# WHICH IS WHICH — MEASURED 2026-08-05: chA (`channel 0`) is RED, chB (`channel 1`) is IR.
+# ⚠️ THAT IS THE OPPOSITE OF THE VENDOR SDK, which names the first u32 IR and the second RED. Trusting
+# the header would have produced a confident WRONG saturation, because SpO2 is the ratio-of-ratios
+# R = (AC/DC)_red / (AC/DC)_ir and a swapped pair does not fail loudly. Over 3060 contiguous samples
+# (see parse_rt_ppg on why they reconstruct): AC/DC = 0.1184 on chA vs 0.2425 on chB, so R = 0.4885 ->
+# SpO2 ~ 97.8% against the ring's own reported 97%. The swap gives 59%, off by 38 points.
 #
-# THE TEST THAT SETTLES IT, and why it is decisive rather than suggestive: R is ~0.5-0.6 at 98% SpO2 and
-# ~1.0 at 82%, so the two assignments are not near-ties. Take one buffer, compute AC/DC per channel, form
-# R both ways, and compare against the SpO2 the ring itself reports in the same session (cmd 0x04). The
-# correct assignment lands near the ring's own number; the swap lands ~25-30 points below it. One
-# reading with a healthy finger separates them. Blocked 2026-08-05 only because the ring was not
-# reachable (BlueZ held the link while the capture service ran) — it needs no new protocol work.
+# THE COLUMNS ARE STILL RECORDED IN DEVICE ORDER, deliberately. A capture writes what the device sent;
+# the identification is an interpretation, it rests on ONE session at ONE saturation against a generic
+# `110 - 25R` calibration, and it belongs in the analysis layer where it can be revised without
+# rewriting recorded files. Re-confirm at a different saturation before any clinical number uses it.
+#
+# HOW IT WAS MEASURED, including the way that did NOT work: "take ONE buffer and compute AC/DC" fails —
+# it returns R ~ 1.00 both ways, because 102 samples span well under one cardiac cycle and peak-to-peak
+# over that window measures the local trend, not the pulse. The working method needs the whole
+# reconstruction: concatenate the tiled buffers, subtract a slow moving baseline, take AC as the rms of
+# the residual over many full cycles, then form R both ways and compare against the ring's own reported
+# SpO2 (cmd 0x04) in the same session. The right assignment lands within ~1 point; the swap is ~38 off.
 
 
 def rt_ppg_frame(seq: int = 0) -> bytes:

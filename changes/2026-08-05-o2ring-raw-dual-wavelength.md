@@ -41,6 +41,10 @@ three open questions. The `{0x07, 0x01}` argument is IRRELEVANT — an A/B again
 15 replies each, every one 922 bytes with 102 records. And the buffers TILE: the boundary step between
 consecutive replies is 1.07x the median step inside a reply, so successive polls return successive
 non-overlapping segments of one continuous signal, which makes the rate derivable as `102 / poll interval`
-once a probe records its poll timestamps. Wavelength identity is still NOT settled and the failure is
-informative: the channels are correlated at r=0.9991 with a near-constant ratio, which is not how a red/IR
-pair behaves through a pulse.
+once a probe records its poll timestamps. Wavelength identity is now SETTLED, and against the SDK: `channel 0`
+is RED and `channel 1` is IR (the SDK names them the other way round). Measured over the 3060 reconstructed
+samples — AC/DC 0.1184 vs 0.2425, so R = 0.4885 -> SpO2 ~97.8% against the ring's reported 97%, where the
+swap gives 59%. The two-gains alternative is refuted (fitting ch1 = k*ch0 gives k drifting 0.71->0.53 with
+residuals up to 7% of DC; a gain pair holds k constant at ~zero residual). The recorded file format stays
+device-order `channel 0;channel 1` — a capture writes what the device sent, and an interpretation resting
+on one session at one saturation belongs in the analysis layer.
