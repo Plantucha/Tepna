@@ -67,7 +67,22 @@ const BUILD_DATE = (() => {
   }
   return newest.date;
 })();
-const CHECK = process.argv.includes('--check');
+const LIST_OWNED = process.argv.includes('--list-owned');
+/* --list-owned prints, one per line, every docs/ path this builder OWNS — i.e. every path a full
+   run would (re)write. It implies --check so it can never write while answering.
+
+   WHY IT EXISTS (DEEP-AUDIT-V-FOLLOWUPS, adversarial pass 2026-08-05). `tools/rebase-safe.mjs`
+   treated the WHOLE `docs/` prefix as generated, and that is false: this builder writes a docs/ file
+   only where a ROOT TWIN exists, plus the six artifacts — and `.md` is filtered out of the asset list
+   entirely, so the 30 archival docs (`docs/COMPLIANCE/*`, `EVENT-LEXICON.md`, `LEXICON.md`,
+   `docs/papers/*`, …) are AUTHORED and owned by nobody. Measured: modify `docs/EVENT-LEXICON.md` and
+   `--check` still reports "current"; a full run does not restore it.
+   Consequence, before this: a rebase conflict in an authored spec was classified generated,
+   auto-resolved by discarding your side, and then NOT restored by the rebuild — a silent revert
+   reported as ✓, i.e. the tool doing the exact thing it exists to prevent. The doctrine says the
+   generated set is ASKED FOR, NEVER GUESSED; `docs/` was the one place it guessed. Now it can ask. */
+const OWNED = new Set();
+const CHECK = process.argv.includes('--check') || LIST_OWNED;
 const FORCE_DELINK = process.argv.includes('--force-delink');
 
 // ── walk a dir for files (relative paths) ───────────────────────────────────
@@ -215,6 +230,7 @@ function syncPage(rel) {
     log.missingRoot.push(rel);
     return;
   } // docs-only page (no source) — leave
+  OWNED.add(rel); // a root twin exists ⇒ this builder writes it
   const dir = rel.includes('/') ? rel.split('/').slice(0, -1).join('/') : '';
   const root = readFileSync(rootAbs, 'utf8');
   const base = rel.split('/').pop();
@@ -257,6 +273,7 @@ function syncAsset(rel) {
     log.assetNoTwin.push(rel);
     return;
   } // docs-only / generated — leave
+  OWNED.add(rel);
   const a = readFileSync(rootAbs);
   const b = existsSync(docsAbs) ? readFileSync(docsAbs) : null;
   if (b && a.equals(b)) return; // in-sync (byte-identical)
@@ -443,6 +460,7 @@ function releaseSurfaces() {
   return [...Object.keys(artifacts).map((n) => `${DEPLOY_REL}/${n}`), ...stampRules.map(([rel]) => rel)].sort().map(q);
 }
 for (const [name, content] of Object.entries(artifacts)) {
+  OWNED.add(name);
   const dest = join(DEPLOY, name);
   const cur = existsSync(dest) ? readFileSync(dest, 'utf8') : null;
   if (cur !== content) {
@@ -465,6 +483,7 @@ for (const [rel] of stampRules) {
     log.missingRoot.push(rel);
     continue;
   }
+  OWNED.add(rel);
   const orig = readFileSync(abs, 'utf8');
   const txt = applyStamp(rel, orig);
   if (txt !== orig) {
@@ -477,6 +496,10 @@ for (const [rel] of stampRules) {
 }
 
 // ── report ──────────────────────────────────────────────────────────────────
+if (LIST_OWNED) {
+  for (const rel of Array.from(OWNED).sort()) console.log(rel.startsWith('docs/') ? rel : DEPLOY_REL + '/' + rel);
+  process.exit(0);
+}
 if (CHECK) {
   if (log.stale.length) {
     console.error(`STALE (${log.stale.length}): ${log.stale.join(', ')}`);

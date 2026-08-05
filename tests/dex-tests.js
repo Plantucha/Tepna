@@ -13288,7 +13288,20 @@
       // The two anchors: a builder-owned path is generated, anything else is not.
       T.eq('a builder-owned bundle is GENERATED', cls('OverDex.html', GEN), 'generated');
       T.eq('an orchestrator whose NAME CONTAINS A SPACE is still GENERATED', cls('Data Unifier.html', GEN), 'generated');
-      T.eq('docs/ is GENERATED (served copies)', cls('docs/index.html', GEN), 'generated');
+      /* DELIBERATE UPDATE (adversarial pass 2026-08-05). This asserted `docs/index.html` is generated
+         against a hand-made GEN that does NOT contain it — so it passed only via a
+         `startsWith('docs/')` prefix rule, and THAT RULE WAS THE BUG. build-docs writes a docs/ file
+         only where a ROOT TWIN exists plus six artifacts, and filters `.md` out of its asset list, so
+         ~30 archival docs are AUTHORED and owned by nobody. Measured: `docs/EVENT-LEXICON.md`
+         classified GENERATED while `build-docs --check` called it "current" after modification and a
+         full run did not restore it — a conflict there would have been auto-resolved, unrestorable,
+         and reported ✓. The prefix rule is deleted; the owned set is ASKED for via
+         `build-docs.mjs --list-owned`. So a docs/ path is generated iff it is IN the set. */
+      T.eq('a docs/ page the BUILDER OWNS is generated', cls('docs/index.html', new Set(['docs/index.html'])), 'generated');
+      T.eq('a docs/ path NOT in the owned set is SOURCE — no prefix rule', cls('docs/index.html', GEN), 'source');
+      ['docs/EVENT-LEXICON.md', 'docs/LEXICON.md', 'docs/COMPLIANCE/SOUP-LIST.md', 'docs/CROSSNIGHT-ENVELOPE-SPEC.md'].forEach(function (p) {
+        T.eq('AUTHORED doc is SOURCE — build-docs does not own it: ' + p, cls(p, GEN), 'source');
+      });
       T.eq('provenance/ is GENERATED (ledger fragments)', cls('provenance/OxyDex.json', GEN), 'generated');
       T.eq('a DSP is SOURCE', cls('oxydex-dsp.js', GEN), 'source');
       T.eq('a .src.html is SOURCE even though its sibling .html is not', cls('OxyDex.src.html', GEN), 'source');
