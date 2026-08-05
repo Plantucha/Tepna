@@ -41,7 +41,9 @@ three open questions. The `{0x07, 0x01}` argument is IRRELEVANT — an A/B again
 15 replies each, every one 922 bytes with 102 records. The rate is BOUNDED but still not pinned: 102 is a
 cap (polled every 0-0.3s the count falls through 0, 4, 10 ... 70), and fitting `count = fs*dt` over 35
 unsaturated replies gives 125.7 Hz by least squares / 155.5 Hz through the origin / 150.7 Hz median ratio.
-Solid: it is NOT the SDK's claimed 200 Hz. Not solid: which of those it is, so `fs` stays 0 on the bus. Wavelength identity is now SETTLED, and against the SDK: `channel 0`
+Solid: it is NOT the SDK's claimed 200 Hz, and the stream carries no inserted beat marker (unlike the
+pleth), so the right comparison is the ADC's 125.000 Hz -- not the row-rate constant 125.738, which
+DEVICE-RATE-TRUTH refuted. Not solid: which estimator is right, so `fs` stays 0 on the bus. Wavelength identity is now SETTLED, and against the SDK: `channel 0`
 is RED and `channel 1` is IR (the SDK names them the other way round). Measured over the 3060 reconstructed
 samples — AC/DC 0.1184 vs 0.2425, so R = 0.4885 -> SpO2 ~97.8% against the ring's reported 97%, where the
 swap gives 59%. The two-gains alternative is refuted (fitting ch1 = k*ch0 gives k drifting 0.71->0.53 with

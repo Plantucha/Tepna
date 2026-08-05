@@ -96,13 +96,27 @@ observable. Over the 35 unsaturated, non-empty replies:
 | forced through the origin | 155.5 Hz |
 | median of per-point `count/dt` | 150.7 Hz |
 
-**What is solid: it is NOT the 200 Hz the SDK README claims** — every estimator lands well below it. What
-is *suggestive but not established*: the linear fit's **125.7 Hz** sits on top of the independently-known
-`O2PPG_FS_DEFAULT = 125.738 Hz` of the ring's own pleth, which would mean `0x05` is the same ADC stream
-delivered raw instead of downsampled to 8 bits. Tempting, and possibly a coincidence: the three
-estimators disagree by 25 %, the residual RMS is 10.3 records against counts of 10–50, and n = 35. **Do
-not quote 125.7 Hz as the rate.** State the bound, and settle it with a longer starvation run at several
-spacings before anything depends on it.
+**What is solid: it is NOT the 200 Hz the SDK README claims** — every estimator lands well below it.
+
+**The value to compare against is 125.000 Hz, not 125.738.** `DEVICE-RATE-TRUTH-2026-08-05` §2 settled
+this: the ring's ADC is **125.000 Hz exactly** (4 MHz ÷ 32000, a clean divider chain), and
+`O2PPG_FS_DEFAULT = 125.738` is a *row* rate — the pleth inserts one extra row (the `156` beat marker)
+per detected beat, so `125.738 ≈ 125 + 44 bpm` describes one night's heart rate, not a clock. That brief's
+own summary line: *"125.0 is right about the ADC and wrong about the row axis. 125.738 is the reverse."*
+An earlier revision of this section compared the fit against 125.738; that was citing a constant this
+project has already refuted.
+
+**And `0x05` carries NO beat markers, so its row rate should be the ADC rate flat.** Checked on the 3060
+samples: there is no fixed sentinel value (the most-repeated `u32` occurs 2–3 times, i.e. chance), and
+the apparent single-sample outliers are not insertions but **level shifts** — e.g. `1309930 → 994120 →
+993543`, which steps down and *stays* down, the signature of an AGC gain change between buffers rather
+than one spurious row. So unlike the pleth, this stream needs no marker→beat-event extraction and gets no
+`+ beats/s` inflation.
+
+So the prediction for "same ADC, delivered raw" is **125.000 Hz flat**, and the least-squares **125.7 Hz**
+is consistent with it. Still **do not quote a rate**: the three estimators disagree by 25 %, the residual
+RMS is 10.3 records against counts of 10–50, and n = 35. What is established is the *bound* (« 200 Hz)
+and the *absence of markers*; a longer starvation run at several spacings settles the value.
 
 **④ IR vs RED — SETTLED: `channel 0` is RED, `channel 1` is IR.** The first attempt did NOT
 discriminate (`R = 1.003` vs `0.997`, both implying ~85 %) and I nearly filed that as "these may not be a

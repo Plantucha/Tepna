@@ -379,10 +379,14 @@ def parse_rt_ppg(payload: bytes) -> list[tuple[int, int, int]]:
     pins at 102, but polled every 0-0.3 s it falls right through 0, 4, 10 ... 70 (measured 2026-08-05),
     which is what lets `count = fs*dt` be fitted at all. Over 35 unsaturated replies: 125.7 Hz by least
     squares (intercept 7.9 records), 155.5 Hz forced through the origin, 150.7 Hz as the median per-point
-    ratio. Solid: it is NOT the 200 Hz the SDK claims. Suggestive only: the 125.7 coincides with the
-    pleth's own O2PPG_FS_DEFAULT = 125.738, which would make this the same ADC stream delivered raw --
-    but the estimators disagree by 25%, so do not quote it. fs stays 0 on the bus until a longer
-    starvation run settles it.
+    ratio. Solid: it is NOT the 200 Hz the SDK claims.
+
+    Compare against 125.000 Hz, NOT 125.738. DEVICE-RATE-TRUTH §2: the ADC is 125.000 exactly
+    (4 MHz / 32000) and O2PPG_FS_DEFAULT = 125.738 is a ROW rate inflated by the pleth's inserted `156`
+    beat marker (125 + ~44 bpm). This stream carries NO such marker -- no fixed sentinel value in 3060
+    samples, and its apparent outliers are AGC LEVEL SHIFTS (a step down that stays down), not inserted
+    rows -- so its row rate should equal the ADC rate flat. 125.7 is consistent with 125.000; the
+    estimators still disagree by 25%, so fs stays 0 on the bus until a longer starvation run settles it.
 
     ⚠️ AND DO NOT USE A VALUE-BASED SEAM TEST to argue the replies are contiguous. That was tried and
     RETRACTED: it called consecutive replies contiguous at 0.5s, 1.0s AND 2.0s spacing, which cannot all
