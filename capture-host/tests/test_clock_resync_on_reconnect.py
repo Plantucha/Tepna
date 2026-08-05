@@ -275,3 +275,99 @@ def test_the_first_sync_still_happens_before_the_loop():
     loop = src.index("    while not _STOP.is_set():", fn)
     assert "await auto_sync_clock(name, addr)" in src[fn:loop], \
         "the pre-loop first sync must survive"
+
+
+# ── the GIVE-UP verdict is per-device, and is said ONCE ──────────────────────────────────────────────
+# `clock_watchdog` had no behavioural test at all — the cases above read its SOURCE (`assert
+# 'if st.get("charging"):' in body`), which cannot see a changed dict key. So `gave_up.add(addr)` ->
+# `gave_up.add("")` survived the whole clock suite (found 2026-08-05 by mutation, after
+# tools/find_blindspots.py ranked `addr` as the 2nd most-discarded argument name, 61 doubles).
+#
+# What that mutant costs is exactly what the code's own comment argues against: "Say it ONCE when we
+# stop trying. An offset we cannot shift is a real property of the night's data — the operator needs it
+# in status.json, not buried in a log that repeats every five minutes." With the wrong key, no real
+# address ever enters the set, so the uncorrectable warning fires on EVERY cycle for the rest of the
+# session — the 5-minute log spam this file was written to stop, re-introduced silently.
+
+def _drive_watchdog(monkeypatch, devices, skews, cycles):
+    """`skews` maps name -> a constant skew, or a LIST read one entry per cycle (shorter lists hold
+    their last value). A list is how a device is made to recover and then degrade again."""
+    """Run `clock_watchdog` for `cycles` polls with a fixed per-device skew that never moves, so the
+    adrift budget burns down and the give-up branch is reached. Returns the recorded _set() calls."""
+    sets = []
+    monkeypatch.setattr(capture, "_set", lambda name, **kw: sets.append((name, kw)))
+
+    async def _sync(addr):          # the write "succeeds" but the skew never moves — an uncorrectable
+        return None                 # offset, which is the case the give-up budget exists for
+    monkeypatch.setattr(capture, "sync_device_time", _sync)
+    # `connected` is load-bearing: the watchdog skips a device it is not linked to, and skips a
+    # CHARGING one outright (a docked Polar cannot take a clock write — VIGIL 2026-07-29).
+    def _skew(name, i):
+        v = skews[name]
+        return v[min(i, len(v) - 1)] if isinstance(v, list) else v
+
+    capture.STATUS["devices"] = {d["name"]: {"clock_skew_sec": _skew(d["name"], 0), "connected": True}
+                                 for d in devices}
+    capture._CLOCK_FRESHLY_SYNCED.clear()
+
+    n = {"i": 0}
+
+    async def fake_sleep(_s):
+        n["i"] += 1
+        for d in devices:                       # advance the schedule before this cycle's pass
+            capture.STATUS["devices"][d["name"]]["clock_skew_sec"] = _skew(d["name"], n["i"] - 1)
+        if n["i"] >= cycles:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    capture._STOP.clear()
+    try:
+        asyncio.run(capture.clock_watchdog({"devices": devices, "time": {"drift_check_sec": 0}}))
+    finally:
+        capture._STOP.set()
+    return sets
+
+
+def test_the_uncorrectable_verdict_is_published_once_not_every_cycle(monkeypatch):
+    """`gave_up` is what makes it once. Keyed wrongly, the warning and the status write repeat forever."""
+    dev = [{"name": "H10", "address": "AA:BB:CC:DD:EE:FF", "vendor": "Polar"}]
+    sets = _drive_watchdog(monkeypatch, dev, {"H10": 9.0}, cycles=capture.CLOCK_ADRIFT_GIVEUP + 4)
+    uncorrectable = [kw for _n, kw in sets if kw.get("clock_uncorrectable") is True]
+    assert len(uncorrectable) == 1, (
+        f"published {len(uncorrectable)} times — the give-up verdict must be said ONCE, not on every "
+        "5-minute cycle for the rest of the session")
+
+
+def test_giving_up_on_one_device_does_not_speak_for_the_other(monkeypatch):
+    """Per-ADDRESS bookkeeping. A shared or constant key would let the first device's verdict suppress
+    the second's — this box runs an H10 and a Verity together, and they fail independently."""
+    devs = [{"name": "H10", "address": "AA:BB:CC:DD:EE:FF", "vendor": "Polar"},
+            {"name": "Verity", "address": "11:22:33:44:55:66", "vendor": "Polar"}]
+    sets = _drive_watchdog(monkeypatch, devs, {"H10": 9.0, "Verity": 7.0},
+                           cycles=capture.CLOCK_ADRIFT_GIVEUP + 4)
+    named = {n for n, kw in sets if kw.get("clock_uncorrectable") is True}
+    assert named == {"H10", "Verity"}, (
+        f"only {named} were written off — each device owns its own give-up state")
+
+
+def test_a_device_that_recovers_can_be_written_off_AGAIN_later(monkeypatch):
+    """FORGIVENESS. `gave_up.discard(addr)` on any cycle that decides to re-sync is what stops the
+    verdict being permanent — and it is the fix for the failure this file's header records: "the
+    give-up was STICKY across the very event that fixes it: coming off the charger and syncing cleanly
+    did not clear it."
+
+    Deleting that discard survived every other test here, because the once-only assertions above are
+    satisfied by a verdict that is published once and then never again — which is exactly what a
+    permanently sticky give-up looks like. The distinguishing case needs a device that gives up,
+    RECOVERS, and then degrades a second time: the operator must be told twice, because it is two
+    separate faults.
+
+    Schedule: bad long enough to give up · one big JUMP (a real correction, which forgives the
+    history) · bad again long enough to give up a second time."""
+    G = capture.CLOCK_ADRIFT_GIVEUP
+    schedule = [9.0] * (G + 2) + [0.0] + [9.0] * (G + 3)
+    devs = [{"name": "H10", "address": "AA:BB:CC:DD:EE:FF", "vendor": "Polar"}]
+    sets = _drive_watchdog(monkeypatch, devs, {"H10": schedule}, cycles=len(schedule))
+    verdicts = [kw for _n, kw in sets if kw.get("clock_uncorrectable") is True]
+    assert len(verdicts) == 2, (
+        f"published {len(verdicts)} times — a device that recovered and then failed again is two "
+        "faults, and a give-up that is never discarded reports only the first for the whole session")
