@@ -86,13 +86,50 @@ def test_genuine_ntp_step_reanchors(monkeypatch):
     assert capture._now() == dt.datetime(2026, 11, 1, 22, 0, 56)
 
 
-def test_backward_ntp_step_reanchors(monkeypatch):
+def test_backward_ntp_step_is_ABSORBED_while_a_capture_file_is_open(monkeypatch):
+    """CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS §3, decided 2026-08-05. This test previously asserted that a
+    backward step RE-ANCHORS, which is what the code did — and what the audit measured as a defect it
+    filed but never decided: a -30 s step mid-session sent `_now()` from 22:00:10 to 21:59:50, so the
+    Phone column of a file being written REWOUND 20 s.
+
+    The rule was already in the file, one branch up: the DST arm absorbs a relabelling "ONLY to protect
+    an open recording … there is no file to rewind". A backward step has the identical consequence by a
+    different mechanism, so it takes the identical treatment. A rewind breaks the strictly-increasing
+    guarantee every parser depends on — that is a corrupt recording, not a mislabelled one."""
+    clk = _Clock(dt.datetime(2026, 11, 1, 22, 0, 0))
+    _install(monkeypatch, clk)                       # writers_open defaults to 1
+    capture._now()
+    clk.tick(10.0)
+    before = capture._now()
+    clk.step(-30.0)                    # a backward correction with no zone change
+    assert capture._now() >= before, "an absorbed step must never move the clock backwards"
+    clk.tick(1.0)                      # …and real time must still ADVANCE across it
+    after = capture._now()
+    assert after > before, f"the capture clock rewound {before - after} with a file open"
+    assert after == dt.datetime(2026, 11, 1, 22, 0, 11), "it keeps counting in the pre-step frame"
+
+
+def test_backward_ntp_step_is_FOLLOWED_when_nothing_is_being_written(monkeypatch):
+    """The other half of the same rule, and the reason absorbing is not simply "ignore the clock": with
+    no file open there is nothing to rewind, so the correction is free and the box should take it."""
+    clk = _Clock(dt.datetime(2026, 11, 1, 22, 0, 0))
+    _install(monkeypatch, clk, writers_open=0)
+    capture._now()
+    clk.tick(10.0)
+    clk.step(-30.0)
+    assert capture._now() == dt.datetime(2026, 11, 1, 21, 59, 40), \
+        "with no recording open the backward correction must be applied, not absorbed"
+
+
+def test_forward_ntp_step_is_still_applied_even_with_a_file_open(monkeypatch):
+    """A forward step cannot rewind anything, so it is applied as before — absorbing it would cost
+    absolute accuracy for no gain. The asymmetry is the whole point of the rule."""
     clk = _Clock(dt.datetime(2026, 11, 1, 22, 0, 0))
     _install(monkeypatch, clk)
     capture._now()
     clk.tick(10.0)
-    clk.step(-30.0)                    # a backward correction with no zone change IS a step
-    assert capture._now() == dt.datetime(2026, 11, 1, 21, 59, 40)
+    clk.step(+30.0)
+    assert capture._now() == dt.datetime(2026, 11, 1, 22, 0, 40)
 
 
 def test_dst_fall_back_does_not_rewind_the_night(monkeypatch):
@@ -160,12 +197,28 @@ def test_ntp_step_after_a_dst_transition_still_reanchors(monkeypatch):
 def test_a_step_that_merely_looks_like_an_hour_is_not_excused(monkeypatch):
     # The guard keys on the ZONE, not on the magnitude. A -3600 s correction with the offset UNCHANGED
     # is a broken clock, not a fall-back, and must re-anchor. (A magnitude heuristic would miss this.)
+    # Driven with NO writer open, so the zone-vs-magnitude question is asked in isolation: with a file
+    # open a backward step is now absorbed regardless (§3, 2026-08-05), which would mask what this is
+    # about. The claim under test is that a -3600 s correction with an UNCHANGED offset is not excused
+    # as a fall-back — and with nothing to rewind, not excusing it means following it.
     clk = _Clock(dt.datetime(2026, 7, 1, 22, 0, 0), offset_h=-4.0)
-    _install(monkeypatch, clk)
+    _install(monkeypatch, clk, writers_open=0)
     capture._now()
     clk.tick(10.0)
     clk.step(-3600.0)                  # no offset change
     assert capture._now() == dt.datetime(2026, 7, 1, 21, 0, 10)
+
+
+def test_an_hour_backward_with_an_open_file_is_absorbed_not_excused(monkeypatch):
+    """The same broken clock, with a recording open. It must still NOT be treated as a fall-back — but
+    the protection that applies is absorption, not re-anchoring, and the file must not rewind."""
+    clk = _Clock(dt.datetime(2026, 7, 1, 22, 0, 0), offset_h=-4.0)
+    _install(monkeypatch, clk)
+    capture._now()
+    clk.tick(10.0)
+    before = capture._now()
+    clk.step(-3600.0)
+    assert capture._now() >= before, "an hour-long backward step must not rewind an open recording"
 
 
 # ── §A1 · the absorbed shift has a LIFETIME ───────────────────────────────────────────────────────

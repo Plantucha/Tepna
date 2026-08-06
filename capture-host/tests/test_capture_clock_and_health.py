@@ -108,11 +108,29 @@ def test_a_forward_ntp_step_re_anchors(clock):
     assert capture._now() == clock.wall, "after re-anchoring it tracks the corrected clock"
 
 
-def test_a_backward_ntp_step_re_anchors(clock):
+def test_a_backward_ntp_step_re_anchors_when_nothing_is_being_written(clock):
+    """The SIBLING of test_capture_clock.py's pair, kept in step with it (DEEP-AUDIT-FOLLOWUPS §3,
+    2026-08-05). With no capture file open there is nothing to rewind, so a backward correction is
+    applied — the same reasoning the DST arm uses for a relabelling."""
+    clock.writers_open = 0
     capture._now()
     clock.advance(60)
     clock.step_wall(-30)
     assert capture._now() == clock.wall
+
+
+def test_a_backward_ntp_step_is_absorbed_while_a_capture_file_is_open(clock):
+    """And the half this file was missing. Measured before the change: a −30 s step with a writer open
+    sent `_now()` backwards, rewinding the Phone column of a file being written — which breaks the
+    strictly-increasing guarantee every parser depends on."""
+    clock.writers_open = 1
+    capture._now()
+    clock.advance(60)
+    before = capture._now()
+    clock.step_wall(-30)
+    assert capture._now() >= before, "an open recording must never have its stamps rewound"
+    clock.advance(1)
+    assert capture._now() > before, "…and real time must still advance across the absorbed step"
 
 
 # ── DST: the case this whole path exists for ────────────────────────────────────────────────────────

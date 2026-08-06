@@ -5,6 +5,16 @@
 -->
 **Status:** DONE — 2026-07-26 · **Created:** 2026-07-26 · **Followed-by:** `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS-2026-07-26-BRIEF.md` · **Method-parent:** `AUDIT-PROMPT.md` · **Relates:** `VIGIL-PPG-GRID-AUDIT-2026-07-25-BRIEF.md` (§A3 amends its §1.6 and §5.1), `VIGIL-DEEP-ANALYSIS-2026-07-22-BRIEF.md` (§D2/§D3 are its §2A items, partially executed), `CAPTURE-HOST-FOLLOWUPS-II-2026-07-16-BRIEF.md` (§A1 amends its §F2), `VIGIL-AUDIT-FIXES-FOLLOWUPS-2026-07-22-BRIEF.md` (§A2 amends its §1), `VIGIL-HARDENING-II-2026-07-25-BRIEF.md` (§C4 is the source-side half of its §1.3), `CPAP-AUTOHARVEST-2026-07-26-BRIEF.md` (§C5, §E3–§E5)
 
+> **§A3 warm-up residual — ACCEPTED, not corrected (decided 2026-08-05, FOLLOWUPS §1.1).** The first
+> `_O2PPG_EST_MIN_S` (30 s) of each O2Ring session is written at the configured rate, freezing a flat
+> **+0.227 s** into that session's accumulated ns column — a one-off, not a rate (unchanged from a 1 min
+> session to a 10 h one, i.e. ~6 ppm over a night), against a defect that accumulated +9.2 s per hour.
+> The cheap fix — persisting the last-measured rate per device address — is **declined**: it introduces
+> CROSS-SESSION STATE, which is the bug class §A1 exists to prevent, and a rate carried over from a
+> different battery/temperature state would start a session mis-calibrated with nothing signalling it.
+> A bounded, measured, non-accumulating offset that a test already pins is preferable to an unbounded
+> class of silent error. Revisit only if a downstream consumer is shown to resolve better than 0.227 s.
+
 # Capture-host deep audit — the writer's clock never expires, and four gates that grade a hole green
 
 > **Scope:** out-of-suite (`capture-host/`, Python + `deploy/` shell). **No Dex bundle, no `manifestHash`,
