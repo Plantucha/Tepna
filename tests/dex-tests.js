@@ -26386,6 +26386,41 @@
      generated (schema.synthetic) rows with real ones; the filter lets the view hide them and
      `clearSynthetic()` deletes ONLY synthetic rows. The pure helper `filterSynthetic` is Node-
      testable; ingest()/state()/seriesFor() run headless (in-memory mirror needs no IndexedDB). */
+    // ── DEEP-AUDIT-V F7 — a same-key collision must be REPORTED, and the count must be honest ──
+    // The store is keyed node|date where date comes from the recording's START, so a 00:01 bedtime
+    // keys to the NEXT date and silently overwrites that night. On 25 real nights per node this
+    // stored 49 of 50 rows and removed 2026-06-27 from OxyDex entirely, while the UI reported
+    // "absorbed 25 (persisted)" — because it counted rows SUPPLIED, not rows STORED. The date
+    // convention is a separate, scoped change; what is gated here is that the loss is visible.
+    group('Integrator longitudinal — same-key collisions are reported, not silent (DA-V F7)', 'integrator-longitudinal', function (T) {
+      var L = env.IntegratorLong;
+      if (!(L && typeof L.ingest === 'function' && typeof L.clear === 'function')) {
+        T.ok('IntegratorLong.ingest present', false, 'not loaded');
+        return;
+      }
+      function envl(t0, v) {
+        return {
+          schema: { name: 'ganglior.crossnight', node: 'OxyDex' },
+          metrics: { spo2Mean: { label: 'SpO2 mean', unit: '%' } },
+          series: [{ t0Ms: t0, date: '2026-06-27', values: { spo2Mean: v }, weight: 1 }]
+        };
+      }
+      L.clear();
+      // two DIFFERENT nights that collide on the same node|date key — the real shape of this bug is
+      // two FILES absorbed in sequence, which is how 2026-06-27 vanished from OxyDex.
+      var r1 = L.ingest(envl(Date.UTC(2026, 5, 27, 23, 30), 96), 'night-a.json');
+      T.eq('a clean ingest stores its row', r1.rows, 1);
+      T.eq('no collision on a clean ingest', (r1.collisions || []).length, 0);
+      var r2 = L.ingest(envl(Date.UTC(2026, 5, 27, 0, 1), 95), 'night-b.json');
+      T.eq('supplied counts every row handed in', r2.supplied, 1);
+      T.ok('the collision is reported, not swallowed', Array.isArray(r2.collisions) && r2.collisions.length === 1, 'a night was overwritten with no record of it');
+      if (r2.collisions && r2.collisions[0]) {
+        T.eq('the collision names the night that was LOST', r2.collisions[0].lostT0Ms, Date.UTC(2026, 5, 27, 23, 30));
+        T.eq('and names the file it came from', r2.collisions[0].lostSrc, 'night-a.json');
+      }
+      L.clear();
+    });
+
     group('Integrator longitudinal — synthetic filter', 'integrator-longitudinal', function (T) {
       var L = env.IntegratorLong;
       if (!(L && typeof L.filterSynthetic === 'function' && typeof L.clearSynthetic === 'function')) {
