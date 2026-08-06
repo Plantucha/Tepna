@@ -350,28 +350,93 @@ def test_omitting_a_defense_is_NOT_the_same_as_it_being_disarmed():
     assert capture.defense_warnings(*ARMED) == []
 
 
-def test_an_unset_usb_path_warns_that_the_last_rung_is_disabled():
+def test_an_unset_usb_path_warns_that_the_last_rung_is_disabled(monkeypatch):
     """§P1.4 item (b). A soft power-cycle does not clear an RTL8761B firmware hang, so with usb_path unset
     a wedge that survives the cycle has no remaining fix. On 2026-07-24 the bus-port was already known
     (`11-1.2`) and recovery still could not use it, because the key was never written."""
+    # Pinned, not inherited: since 2026-08-05 a SET usb_path is only silent when the rung can actually
+    # run, and whether it can is a property of the host this test happens to run on.
+    monkeypatch.setattr(capture, "usb_rebind_available", lambda: (True, ""))
     ws = capture.defense_warnings(*ARMED, usb_path=None)
     assert len(ws) == 1 and "usb_path is UNSET" in ws[0]
     assert capture.defense_warnings(*ARMED, usb_path="11-1.2") == []
 
 
-def test_an_unconfigured_archive_warns_that_nights_never_leave():
+def test_a_set_usb_path_whose_rung_cannot_run_is_worse_than_an_unset_one(monkeypatch):
+    """The converse, and the one that actually bit. The warning above fires only on ABSENCE, so setting
+    the key silenced the sole check on this path — while the rung stayed incapable of running, because
+    the daemon is unprivileged and `/sys/bus/usb/drivers/usb/{unbind,bind}` is `--w------- root root`.
+
+    Measured on the live box 2026-08-05: `usb_path: 1-2` set, `CapEff: 0000000000001000` (CAP_NET_ADMIN
+    alone — no CAP_DAC_OVERRIDE), and no helper installed. Every unbind write raised PermissionError, was
+    caught, and was logged at INFO as "skipped", so the ladder reported a wedge it could not clear. A
+    configured-but-inoperable rung reads as armed, which is strictly worse than a disabled one."""
+    monkeypatch.setattr(capture, "usb_rebind_available", lambda: (False, "no write access to /sys/…"))
+    ws = capture.defense_warnings(*ARMED, usb_path="1-2")
+    assert len(ws) == 1, ws
+    assert "CANNOT RUN" in ws[0] and "1-2" in ws[0]
+    # and it must not double-report: absence is the OTHER warning's job
+    assert "UNSET" not in ws[0]
+
+
+def test_the_rung_is_available_when_sysfs_is_writable(monkeypatch):
+    """A box that granted the unit the capability writes /sys directly and needs no helper at all — the
+    check must not insist on the sudo path it merely falls back to."""
+    monkeypatch.setattr(capture.os, "access", lambda p, m: "drivers/usb" in str(p))
+    ok, why = capture.usb_rebind_available()
+    assert ok and why == ""
+
+
+def test_the_rung_is_available_through_the_helper_when_sysfs_is_not(monkeypatch):
+    monkeypatch.setattr(capture.os, "access", lambda p, m: p.endswith("tepna-btreset.sh"))
+    monkeypatch.setattr(capture.helper_path, "resolve", lambda n: "/usr/local/lib/tepna/" + n)
+    ok, why = capture.usb_rebind_available()
+    assert ok and why == ""
+
+
+def test_the_availability_probe_survives_a_raising_helper_path(monkeypatch):
+    """This runs inside `startup_defense_check`. A probe that raises would abort the boot-time report of
+    EVERY other defence — so an unresolvable helper must read as 'unavailable', never as an exception."""
+    monkeypatch.setattr(capture.os, "access", lambda p, m: False)
+    def boom(_n): raise RuntimeError("no such deploy root")
+    monkeypatch.setattr(capture.helper_path, "resolve", boom)
+    ok, why = capture.usb_rebind_available()
+    assert not ok and "tepna-btreset.sh" in why
+
+
+def test_the_rung_reports_unavailable_with_a_reason_naming_the_fix(monkeypatch):
+    """An unavailability that does not say what to run is how this stayed invisible for a month."""
+    monkeypatch.setattr(capture.os, "access", lambda p, m: False)
+    ok, why = capture.usb_rebind_available()
+    assert not ok
+    assert "tepna-btreset.sh" in why and "enable-clock-control.sh" in why
+
+
+# A `defense_warnings` case is about ONE defence, so every OTHER defence must be pinned rather than
+# inherited from the machine. Since 2026-08-05 a SET `usb_path` consults `usb_rebind_available()`, which
+# reads the real filesystem — and the answer differs between a developer's checkout and CI, because the
+# in-repo helper's mode is whatever git recorded. That is a test asserting its environment: the two
+# ARCHIVE tests below passed locally at mode 0755 and failed in CI at 0644, for a reason having nothing
+# to do with archives.
+def _rung_armed(monkeypatch):
+    monkeypatch.setattr(capture, "usb_rebind_available", lambda: (True, ""))
+
+
+def test_an_unconfigured_archive_warns_that_nights_never_leave(monkeypatch):
     """§P1.4 item (c). Measured on the live box 2026-08-04: 0 `.archived` markers across 11 nights, so
     every night existed in exactly one copy — and capture was working perfectly the whole time, which is
     why nothing surfaced it."""
+    _rung_armed(monkeypatch)
     ws = capture.defense_warnings(*ARMED, usb_path="11-1.2", archive_enabled=False)
     assert len(ws) == 1 and "archive is NOT configured" in ws[0]
 
 
-def test_an_enabled_archive_on_an_UNMOUNTED_dest_is_worse_than_none():
+def test_an_enabled_archive_on_an_UNMOUNTED_dest_is_worse_than_none(monkeypatch):
     """`ismount`, not `isdir`: an unmounted mountpoint is a present, empty, writable directory on the BOOT
     disk, so the mirror reports success while ~350 MB/night lands on the wrong filesystem and the operator
     believes it is on the NAS. VIGIL-OFFLOAD-AND-RETENTION recorded exactly this — the dest was a removable
     disk, unmounted at the check."""
+    _rung_armed(monkeypatch)
     ws = capture.defense_warnings(*ARMED, usb_path="x", archive_enabled=True, archive_dest_ready=False)
     assert len(ws) == 1 and "NOT ready (not mounted)" in ws[0]
     # ready, and unknown-because-unprobed, are both silent — the second deliberately

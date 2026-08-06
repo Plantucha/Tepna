@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (**P1.1 — the brief's own "single most important software fix" — and P1.4 both DONE 2026-08-04**, hysteresis on recovery + the power-cycle budget, 5 mutants killed. ⚠️ **P1.2/P1.3 are BLOCKED ON A DEPLOY, not on code:** `tepna-usbreset.sh` exists in the repo but was never installed on the box and has no sudoers grant — measured 2026-08-04, now gate-backed in `deploy/check-system-files.sh`. P1.4·P1.5·P2.x remain) · **Created:** 2026-07-24
+**Status:** PROPOSED (**P1.1 — the brief's own "single most important software fix" — and P1.4 both DONE 2026-08-04**, hysteresis on recovery + the power-cycle budget, 5 mutants killed. ⚠️ **P1.2/P1.3's privilege half is DONE 2026-08-05 — and the 2026-08-04 "blocked on a deploy, not on code" diagnosis below was WRONG on both counts.** `tepna-usbreset.sh` is a Polar-dock re-enumerator that must never touch a radio; installing it moved this rung not at all. The real blocker was code: `_usb_rebind` wrote root-only sysfs from an unprivileged daemon, failed every time with `PermissionError`, and logged it at INFO as "skipped" — while `usb_path: 1-2` being SET silenced the only warning on the path. Fixed via a new root helper `tepna-btreset.sh` + a preflight that reports an inoperable rung. See §P1.2/P1.3. Field-gated remainder: no real wedge has occurred since, so neither rung is yet observed clearing one. P1.4·P1.5·P2.x remain) · **Created:** 2026-07-24
 
 # Vigil overnight findings — the night the dongle wedged (2026-07-23 → 24)
 
@@ -163,6 +163,34 @@ both a de-suspended dongle and the internal radio fail you.*
   specific USB unbind/bind paths. Without this the ladder is decorative.
 - **P1.3 Enable `watchdog.usb_path` (now known: `11-1.2`).** A USB unbind/bind is the only reliable clear
   for an RTL8761B firmware hang when a soft reset can't; needs P1.2's privilege.
+- ✅ **P1.2/P1.3 — the PRIVILEGE half is DONE 2026-08-05, and the 2026-08-04 diagnosis of it was wrong.**
+  That header block said these were *"BLOCKED ON A DEPLOY, not on code,"* naming `tepna-usbreset.sh` as
+  the thing that had never been installed. Two errors, both found by measuring the live box rather than
+  re-reading the brief:
+  - **`tepna-usbreset.sh` is not this rung and must never become it.** It toggles `authorized` on a
+    docked **Polar sensor** to re-open the PS-FTP window, and is hard-allowlisted to `0da4:0008`. Its own
+    header names *"the very BLE adapters the capture depends on"* as the thing it exists to never touch,
+    and a test (`test_the_bluetooth_adapter_cannot_be_deauthorized`) pins that. Installing it — which did
+    happen on 2026-08-04, root-owned with a working NOPASSWD grant, verified passwordless 2026-08-05 —
+    moved this rung not at all.
+  - **The blocker was CODE, and it was silent.** `capture._usb_rebind` wrote
+    `/sys/bus/usb/drivers/usb/{unbind,bind}` **itself**. Measured on the box 2026-08-05: those files are
+    `--w------- root root`; capture runs as `vigil` with `CapEff: 0000000000001000` — CAP_NET_ADMIN alone,
+    no CAP_DAC_OVERRIDE. So every write raised `PermissionError`, was caught, and was logged at **INFO**
+    as *"skipped"*. The rung had never once run and could not.
+  - **Worse, the config had `usb_path: 1-2` set** (and `1-2` is genuinely the UB500, `2357:0604`). The
+    only warning on this path fires on ABSENCE, so setting the key **silenced the sole check** while the
+    rung stayed inoperable. A configured-but-incapable rung reads as armed — strictly worse than a
+    disabled one.
+  - **Fixed:** new root-owned `tepna-btreset.sh` (allowlisted by USB device class `e0:01:01`, so it may
+    touch **only** radios — the exact mirror of usbreset's dock-only allowlist, and the two are asserted
+    disjoint), reached via `sudo -n` exactly as the clock/RSSI/radio-restart rungs already are. Direct
+    write still tried first for a box that has the capability. A failed rebind now logs at **WARNING**.
+    `usb_rebind_available()` + a new `defense_warnings` branch make a set-but-incapable `usb_path` say so
+    at boot. On the manifest in `deploy/check-system-files.sh` and granted by `enable-clock-control.sh`.
+  - **Still open:** P1.2's *other* half. `CapEff` is no longer 0 (CAP_NET_ADMIN is ambient, so
+    `hciconfig reset` can run), and the unbind/bind rung now has a privilege path — but neither has been
+    observed clearing a **real** wedge, because no wedge has occurred since. That is field-gated.
 - ✅ **P1.4 — COMPLETED 2026-08-04.** The self-test already existed (`defense_warnings` +
   `startup_defense_check`) and covered item (a), the recovery ladder's `CAP_NET_ADMIN`, plus the
   autosuspend prevention. **Items (b) and (c) were not checked**, so the two defences most likely to be

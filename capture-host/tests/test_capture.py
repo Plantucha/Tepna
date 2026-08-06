@@ -195,11 +195,76 @@ def test_usb_rebind_writes_unbind_then_bind(monkeypatch):
     assert writes == [("unbind", "3-1"), ("bind", "3-1")]
 
 
-def test_usb_rebind_is_graceful_when_sysfs_is_unwritable(monkeypatch):
+def _deny_sysfs(monkeypatch):
+    """Make the direct unbind/bind write fail exactly as it does on the real box: EACCES, because the
+    files are `--w------- root root` and the daemon is unprivileged."""
     import builtins
     real_open = builtins.open
     def deny(path, *a, **k):
         if "/sys/bus/usb" in str(path): raise PermissionError("EACCES")
         return real_open(path, *a, **k)
     monkeypatch.setattr(builtins, "open", deny)
+
+
+def test_usb_rebind_is_graceful_when_sysfs_is_unwritable(monkeypatch):
+    _deny_sysfs(monkeypatch)
+    monkeypatch.setattr(capture.helper_path, "resolve", lambda n: "/nonexistent/" + n)
     assert _aio.run(capture._usb_rebind("3-1")) is False   # no raise on a dev box without the caps
+
+
+def test_usb_rebind_falls_back_to_the_root_helper_when_sysfs_is_denied(monkeypatch):
+    """THE FIX (VIGIL-OVERNIGHT-FINDINGS §P1.3, 2026-08-05). The direct write can never succeed on the
+    real box, so before this fallback existed the last recovery rung was unreachable — and said so only
+    at INFO, as "skipped". It now goes through the root-owned helper under `sudo -n`, exactly as the
+    clock, RSSI and radio-restart rungs already do."""
+    _deny_sysfs(monkeypatch)
+    calls = []
+    monkeypatch.setattr(capture.helper_path, "resolve", lambda n: "/usr/local/lib/tepna/" + n)
+    monkeypatch.setattr(capture.os, "access", lambda p, m: True)
+    async def fake_helper(*args, timeout=45):
+        calls.append(args); return 0, "re-bound: 3-1 (2357:0604)"
+    monkeypatch.setattr(capture, "_run_helper", fake_helper)
+    assert _aio.run(capture._usb_rebind("3-1")) is True
+    assert calls == [("sudo", "-n", "/usr/local/lib/tepna/tepna-btreset.sh", "3-1")]
+
+
+def test_usb_rebind_reports_a_failing_helper_rather_than_claiming_success(monkeypatch):
+    """A recovery that cannot run must not look like one that ran — the false-'healthy' shape that let a
+    wedged adapter read as recovered 25+ times on 2026-07-23."""
+    _deny_sysfs(monkeypatch)
+    monkeypatch.setattr(capture.helper_path, "resolve", lambda n: "/usr/local/lib/tepna/" + n)
+    monkeypatch.setattr(capture.os, "access", lambda p, m: True)
+    async def fake_helper(*args, timeout=45): return 4, "cannot write (run as root)"
+    monkeypatch.setattr(capture, "_run_helper", fake_helper)
+    assert _aio.run(capture._usb_rebind("3-1")) is False
+
+
+def test_usb_rebind_survives_a_raising_helper_path(monkeypatch):
+    """`resolve()` cannot raise today, but the ladder must not turn an unresolvable helper into a
+    traceback out of the watchdog — the same guard, and the same reasoning, as `_restart_radio`'s
+    (test_radio_deafness.py). A recovery rung that raises takes the watchdog with it."""
+    _deny_sysfs(monkeypatch)
+    def boom(_n): raise RuntimeError("no such deploy root")
+    monkeypatch.setattr(capture.helper_path, "resolve", boom)
+    assert _aio.run(capture._usb_rebind("3-1")) is False
+
+
+def test_usb_rebind_does_not_call_the_helper_when_the_direct_write_worked(monkeypatch):
+    """A box that granted the capability must not pay a subprocess + sudo on every recovery."""
+    called = []
+    async def fake_helper(*args, timeout=45):
+        called.append(args); return 0, ""
+    monkeypatch.setattr(capture, "_run_helper", fake_helper)
+    import builtins
+    real_open = builtins.open
+    def ok(path, *a, **k):
+        if "/sys/bus/usb/drivers/usb" in str(path):
+            class _F:
+                def __enter__(s): return s
+                def __exit__(s, *e): return False
+                def write(s, v): pass
+            return _F()
+        return real_open(path, *a, **k)
+    monkeypatch.setattr(builtins, "open", ok)
+    assert _aio.run(capture._usb_rebind("3-1")) is True
+    assert called == []

@@ -668,6 +668,11 @@ _POLAR_PAUSED: set = set()
 # power-cycle doesn't fight an in-flight connect. Cleared when recovery finishes.
 _RECOVER = asyncio.Event()
 
+# The USB driver directory whose `unbind`/`bind` files are the last recovery rung. A module constant, and
+# overridable, ONLY so the tests can drive a fake tree — the real path is not configurable and must not
+# become so. Both files are `--w-------` root:root, which is why `_usb_rebind` needs a helper at all.
+_USB_DRIVER_DIR = os.environ.get("TEPNA_USB_DRIVER", "/sys/bus/usb/drivers/usb")
+
 # Addresses whose clock was just written successfully. `clock_watchdog` DRAINS this and forgives its
 # give-up bookkeeping for those devices. The two live in different tasks and the watchdog's state is
 # task-local, so a fresh sync had no way to reach it — leaving a device that was written off while on
@@ -839,6 +844,19 @@ def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None", 
             "power-cycle does NOT clear an RTL8761B firmware hang, so a wedge that survives it has no "
             "remaining fix. Set it to the dongle's bus-port from `ls /sys/bus/usb/devices/` "
             "(VIGIL-OVERNIGHT-FINDINGS §P1.3).")
+    # The CONVERSE, and the one that actually bit. Added 2026-08-05: the warning above fires only when the
+    # key is ABSENT, so SETTING it silenced the sole check on this path — while the rung remained incapable
+    # of running, because the daemon is unprivileged and the sysfs files are root-only. Measured on the live
+    # box that day: `usb_path: 1-2` set, `CapEff: 0000000000001000` (CAP_NET_ADMIN alone), unbind/bind
+    # `--w------- root root`, no `tepna-btreset.sh` installed, and no code path that had ever called one.
+    # A configured-but-inoperable rung is worse than a disabled one: it reads as armed.
+    elif usb_path is not _UNCHECKED and usb_path:
+        rebind_ok, why = usb_rebind_available()
+        if not rebind_ok:
+            out.append(
+                f"watchdog.usb_path is set to {usb_path} but the last recovery rung CANNOT RUN — {why}. "
+                "The unbind/bind write needs root and this process does not have it, so the ladder will "
+                "report a wedge it cannot clear (VIGIL-OVERNIGHT-FINDINGS §P1.3).")
     # §P1.4 item (c) — the archive destination. A box that never offloads holds the ONLY copy of every
     # night, and that failure is silent by construction: capture keeps working perfectly.
     if archive_enabled is _UNCHECKED:
@@ -2795,19 +2813,72 @@ async def _adapter_cmd(cmd: list) -> bool:
     return False
 
 
+def _usb_rebind_direct(dev_id: str) -> "tuple[bool, str]":
+    """The unbind+bind writes themselves. Separated from the ladder so the preflight can ask 'could this
+    work?' without performing a recovery — see `usb_rebind_available()`."""
+    for action in ("unbind", "bind"):
+        try:
+            with open(os.path.join(_USB_DRIVER_DIR, action), "w") as f:
+                f.write(dev_id)
+        except Exception as e:
+            return False, f"{action}: {e!r}"
+        if action == "unbind":
+            _time.sleep(1.5)
+    return True, ""
+
+
+def usb_rebind_available() -> "tuple[bool, str]":
+    """Can the LAST recovery rung actually run here? Returns (ok, why-not).
+
+    This exists because for its whole life it could not, and said nothing. `/sys/bus/usb/drivers/usb/
+    {unbind,bind}` is `--w-------` root:root; the daemon runs unprivileged. Measured on the live box
+    2026-08-05: `CapEff: 0000000000001000` — CAP_NET_ADMIN alone, no CAP_DAC_OVERRIDE — so every write
+    raised PermissionError, was caught, and was logged at INFO as "skipped". Meanwhile the config had
+    `watchdog.usb_path: 1-2` set, which suppressed the only warning on this path (the UNSET one below),
+    so the box reported an armed ladder it did not have. A capability check is cheap; believing you have
+    a recovery you do not is what cost ~110 minutes of a real night."""
+    if os.access(os.path.join(_USB_DRIVER_DIR, "unbind"), os.W_OK):
+        return True, ""
+    try:
+        helper = helper_path.resolve("tepna-btreset.sh")
+    except Exception:
+        helper = None
+    if helper and os.access(helper, os.X_OK):
+        return True, ""
+    return False, ("no write access to %s and tepna-btreset.sh is not installed — run "
+                   "deploy/enable-clock-control.sh once" % _USB_DRIVER_DIR)
+
+
 async def _usb_rebind(dev_id: str) -> bool:
     """Re-enumerate the USB dongle by unbind+bind (VIGIL-DEEP-ANALYSIS §2D) — the ONLY thing that clears an
     RTL8761B FIRMWARE hang a soft `power off/on` leaves "powered but deaf". `dev_id` is the USB bus-port id
-    (e.g. `3-1`, from `ls /sys/bus/usb/devices/`). Bounded, never raises. Needs write to /sys (the unit's
-    CAP). Off by default — only runs when `watchdog.usb_path` names the dongle."""
-    for action in ("unbind", "bind"):
-        try:
-            with open(os.path.join("/sys/bus/usb/drivers/usb", action), "w") as f:
-                f.write(dev_id)
-            await asyncio.sleep(1.5)
-        except Exception as e:
-            log.info("watchdog: recovery: USB %s %s skipped (%r)", action, dev_id, e); return False
-    log.warning("watchdog: recovery: USB re-bound %s — dongle re-enumerated", dev_id); return True
+    (e.g. `3-1`, from `ls /sys/bus/usb/devices/`). Bounded, never raises. Off by default — only runs when
+    `watchdog.usb_path` names the dongle.
+
+    Privileged two ways, direct first: a box that granted the unit the capability writes /sys itself; every
+    other box goes through the root-owned `tepna-btreset.sh` under `sudo -n`, exactly as the clock, RSSI and
+    radio-restart rungs already do. A failure here is logged at WARNING, never INFO — this is the last rung,
+    and "the recovery ran" and "the recovery was skipped" must not look the same in a journal."""
+    ok, err = await asyncio.to_thread(_usb_rebind_direct, dev_id)
+    if ok:
+        log.warning("watchdog: recovery: USB re-bound %s — dongle re-enumerated", dev_id)
+        return True
+    try:
+        helper = helper_path.resolve("tepna-btreset.sh")
+    except Exception:
+        helper = None
+    if not helper or not os.access(helper, os.X_OK):
+        log.warning("watchdog: recovery: USB rebind of %s CANNOT RUN (%s) and tepna-btreset.sh is not "
+                    "installed — the last recovery rung is unavailable; run "
+                    "deploy/enable-clock-control.sh once", dev_id, err)
+        return False
+    rc, out = await _run_helper("sudo", "-n", helper, dev_id, timeout=30)
+    if rc == 0:
+        log.warning("watchdog: recovery: USB re-bound %s — %s", dev_id, out.strip()[:120])
+        return True
+    log.warning("watchdog: recovery: USB rebind of %s FAILED rc=%s %s (direct write: %s)",
+                dev_id, rc, out.strip()[:160], err)
+    return False
 
 
 async def _adapter_is_up(hci: str) -> "bool | None":
