@@ -18,6 +18,48 @@
 > | w5 (full) | 101/127 | 79.5 % | 26 |
 > | **w6 (full)** | **104/127** | **81.9 %** | **23** |
 >
+> ### ⚠️ CORRECTED 2026-08-06 — every figure in the table above is inflated; do not quote them
+>
+> The table was measured with a `mutate.mjs` that had two defects, both fixed by **#982** the day after
+> this block was written, and both in the flattering direction:
+>
+> 1. **The numerator counted mutants that never ran.** Every non-zero exit scored KILLED, so an
+>    unparseable mutant was indistinguishable from one a test caught — *"5 of clock.js's 104 kills never
+>    ran"*. w6's **104** is therefore ~**99** real kills.
+> 2. **The denominator was four mutants too wide.** Generation itself was producing malformed text —
+>    `win >` became `win >=> 1` — and #982 records *"four such mutants were generated on `clock.js`"*.
+>    That, not any edit to `clock.js` (byte-identical since 2026-08-03), is why the surface reads
+>    **127** here and **123** in `CLOCK-MUTATION-AUDIT` §7.6 before it and in every run after it.
+>
+> **Re-measured 2026-08-06 on `HEAD f5f6e4d8`, two independent sweeps:**
+>
+> | run | killed | invalid | survivors | honest rate `killed/(tested−invalid)` |
+> |---|---|---|---|---|
+> | full (`--jobs 20`) | 98 | 5 | 19 | **98/117 = 83.8 %** |
+> | scoped (`--jobs 16`) | 97 | 5 | 20 | **97/117 = 82.9 %** |
+>
+> The *rate* survives (~82–84 %); the absolute counts do not. **`invalid` is deterministically 5**, not
+> the 1 assumed elsewhere — 2 unparseable (`L147`'s `/^\d{10,0}$/`, `L294`) and 2 non-terminating
+> (`L211`'s `t += 0`, `L390`'s `while (hi2 - lo2 >= 1)`), which time out with no assertion output and so
+> are INVALID under #982's rule. Both sweeps landed on exactly 5 despite different scope and job counts,
+> which is what rules out contention.
+>
+> ### Wave 9 — the scoped-vs-full gap is closed
+>
+> §1 recorded that the unfiltered run found **exactly one** kill the scoped run missed:
+> `clock.js:120 [cmp > → >=]`. That was the whole accuracy cost of the group filter on this module, and
+> it is now killed from *inside* the `clock` tag, so scoped and full agree for the first time.
+>
+> The mutant turns `ms > 999` into `ms >= 999`. The classification below is right that **`L120` is
+> unreachable by construction** — but that applies to the `bool || → &&` mutant, which survives both
+> sweeps. For `>=` the boundary is not unreachable at all: three fraction digits express exactly 0…999,
+> so **999 is the largest value the grammar can produce**, and under the mutant a real stamp
+> (`2026-08-05T23:15:42.999`, one millisecond before the second rolls) is refused as out of range.
+> Pinned by `clock.js — wave 9: the millisecond band is closed at both ends`, written as the contract
+> (a closed band contains both its endpoints) and verified RED-under-mutant then GREEN-restored.
+>
+> **Standing: 97/117 = 82.9 % raw, 100 % distinguishable — 1 survivor killed, 19 classified.**
+>
 > **The 23, all classified — nothing left unexamined:**
 >
 > | category | n | why it cannot be killed by a test |

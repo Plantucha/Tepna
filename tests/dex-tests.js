@@ -805,6 +805,39 @@
       T.ok('…while a real numeric anchor still works, so the guard is not simply always-null', good && good.tMs === Date.UTC(2026, 6, 4, 23, 45), 'got ' + JSON.stringify(good));
     });
 
+    /* ════ WAVE 9 — THE MILLISECOND BAND IS CLOSED AT BOTH ENDS ═══════════════════════════════════
+       `_ckMk` validates the time components with `… || ms < 0 || ms > 999`. A mutation of that last
+       comparison to `ms >= 999` has survived every sweep, and the standing classification recorded it
+       as *"unreachable by construction — the ISO regex captures only 3 fraction digits, so no accepted
+       input can violate it"*.
+
+       That reasoning is correct for `>` and FALSE for `>=`. Three digits express exactly 0…999, so 999
+       is not merely reachable — it is the LARGEST value the grammar can produce, which is the single
+       point a range check is most likely to get wrong. Under the mutant, `…T23:15:42.999` returns null:
+       a real stamp, one millisecond before the second rolls, refused as out-of-range. Clock Contract
+       §2.7 states the band as `. 0–999`, i.e. CLOSED at both ends, and that is what these pin.
+
+       Written as the contract (both endpoints of a closed band are inside it), not as the mutant. */
+    group('clock.js — wave 9: the millisecond band is closed at both ends', 'clock · known-answer · mutation-pinned', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.parseTimestamp !== 'function') {
+        T.skip('DexClock.parseTimestamp available', 'clock.js not loaded');
+        return;
+      }
+      var sec = Date.UTC(2026, 7, 5, 23, 15, 42);
+      var lo = C.parseTimestamp('2026-08-05T23:15:42.000');
+      T.ok('.000 — the smallest fraction three digits can express — is inside the band', lo && lo.tMs === sec, 'got ' + JSON.stringify(lo));
+      var hi = C.parseTimestamp('2026-08-05T23:15:42.999');
+      T.ok('.999 — the LARGEST fraction three digits can express — is inside the band, not out of range', hi && hi.tMs === sec + 999, 'got ' + JSON.stringify(hi));
+      T.eq('…and it carries the full 999 ms rather than being truncated or floored', hi ? hi.tMs - sec : null, 999);
+      /* The neighbour, so the pair pins a BAND and not a single lucky point. */
+      var near = C.parseTimestamp('2026-08-05T23:15:42.998');
+      T.ok('.998 (just inside the upper end) is inside the band', near && near.tMs === sec + 998, 'got ' + JSON.stringify(near));
+      /* The band is closed, NOT open-ended: the guard still has to reject something, or a mutant that
+         deletes it would pass these too. A 4th digit is a different grammar, so use the components. */
+      T.eq('a negative millisecond is still refused, so the guard is not simply always-true', C.parseTimestamp('2026-08-05T23:15:42.-01'), null);
+    });
+
     group('clock.js — the four reachable guards left after wave 4', 'clock · known-answer · mutation-pinned', function (T) {
       var C = env.DexClock;
       if (!C || typeof C.parseTimestamp !== 'function') {
