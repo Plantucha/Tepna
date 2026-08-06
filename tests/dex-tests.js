@@ -15113,61 +15113,25 @@
          worker source the equivalence gate below compares against, so getting it wrong would make
          that gate compare the wrong string — a passing gate that checked nothing. */
       var ws = app.slice(i, app.indexOf('`;', i)).replace(/\\([\\`])/g, '$1');
-      var s0 = ws.indexOf('const _ckPF');
-      T.ok('the worker declares its own inline clock parser (_ckPF)', s0 >= 0);
-      if (s0 < 0) return;
-      var d = 0,
-        started = false,
-        end = -1;
-      for (var k = s0; k < ws.length; k++) {
-        if (ws.charAt(k) === '{') {
-          d++;
-          started = true;
-        } else if (ws.charAt(k) === '}') {
-          d--;
-          if (started && d === 0) {
-            end = k + 1;
-            break;
-          }
-        }
-      }
-      var ckPF = null;
-      try {
-        ckPF = new Function(ws.slice(s0, end) + ';\nreturn _ckPF;')();
-      } catch (e) {
-        T.ok('_ckPF is evaluable in an empty (worker-like) realm', false, e.message);
-        return;
-      }
-      T.ok('_ckPF is evaluable in an empty (worker-like) realm', typeof ckPF === 'function');
-
-      // the vendor battery the Clock Contract §2 enumerates — every format an ECG file can carry
-      var BATTERY = [
-        '2026-06-17T01:06:17.723', // Polar Sensor Logger (the real ECG format)
-        '2026-06-17T01:06:17.723Z', // zoned UTC
-        '2026-06-17T01:06:17.723+02:00', // zoned +02:00
-        '2026-06-17 01:06:17', // no-zone, space-separated
-        '2026-06-17T01:06:17', // no ms
-        '01:06:17 17/06/2026', // O2Ring DMY
-        '01:06:17 06/17/2026', // O2Ring MDY (day>12 proves the order)
-        '17/06/2026 01:06', // Welltory DMY
-        '06/17/2026 01:06', // Welltory MDY
-        '1781658377723', // numeric epoch
-        'garbage', // must be null, never fabricated
-        '' // empty → null
-      ];
-      var diverged = [];
-      BATTERY.forEach(function (s) {
-        var a = P(s, {});
-        var av = a ? a.tMs : null;
-        var bv;
-        try {
-          bv = ckPF(s);
-        } catch (e) {
-          bv = 'THREW:' + e.message;
-        }
-        if (String(av) !== String(bv)) diverged.push(s + ' → clock.js ' + av + ' vs worker ' + bv);
-      });
-      T.eq('the worker parser agrees with clock.js on EVERY vendor format (a drift here would corrupt ONLY >5 MB recordings)', diverged, []);
+      // DA-V F20/F21 — THE CONTRACT IS NOW STRONGER THAN A MIRROR, so this group asserts the
+      // opposite of what it used to. It required the worker to declare its OWN parser (_ckPF) and
+      // then diffed that copy against clock.js case by case. That is the best a mirror can do, and
+      // it is not good enough: the copy passed every case the mirror knew about while missing the
+      // section 2.7 component-range guard clock.js had since gained, so 2026-02-30T12:00 became
+      // 2026-03-02 instead of null — and that value is t0Ms, the anchor for the whole recording.
+      // A test that pins a duplicate cannot see the duplicate going stale; that is the defect.
+      // The worker now parses NOTHING. It ships the raw stamp strings and the main thread parses
+      // once with DexClock, so the claim is no longer "the two agree" but "there is only one".
+      // DECLARATION, not mention: the comment above the worker names _ckPF to explain why it is gone,
+      // and a substring test flags that comment. Pin what actually matters — that nothing DECLARES one.
+      T.ok('the worker declares NO clock parser of its own', !/(?:const|let|var|function)\s+_ckPF/.test(ws), 'a second parser is back in WORKER_SRC — it will drift from clock.js exactly as the last one did');
+      T.ok('the worker builds NO instant itself (no Date.UTC in the worker source)', ws.indexOf('Date.UTC') < 0, 'the worker is constructing a timestamp; that belongs to clock.js, which validates the components first');
+      T.ok('the worker captures the RAW first stamp (rawT0)', /rawT0\s*=/.test(ws), 'the anchor stamp is no longer captured');
+      T.ok('the worker captures the RAW last stamp (rawTEnd)', /rawTEnd\s*=/.test(ws), 'endEpochMs has no source — it was never emitted on this path before F21');
+      T.ok('the worker posts both raw stamps to the main thread', /rawT0/.test(ws.slice(ws.indexOf('postMessage'))) && /rawTEnd/.test(ws.slice(ws.indexOf('postMessage'))), 'the stamps are captured but never sent, so the main thread has nothing to parse');
+      // ── and the ONE surviving parse site must delegate, not re-implement ──
+      T.ok('parseTSfloat delegates to DexClock.parseTimestamp', /function parseTSfloat[\s\S]{0,300}DexClock\.parseTimestamp\(/.test(app), 'the main-thread parser is hand-rolled again — that was the other half of F20');
+      T.ok('the main thread parses BOTH worker-shipped stamps', /parseTSfloat\(d\.rawT0\)/.test(app) && /parseTSfloat\(d\.rawTEnd\)/.test(app), 't0Ms or endEpochMs is not being derived from the shipped stamp');
     });
 
     /* ════ CONSENSUS POLARITY — a lone inverted channel must not silently leave the vote (E-5) ════
