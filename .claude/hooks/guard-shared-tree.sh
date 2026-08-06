@@ -171,7 +171,17 @@ fi
 # committing the rule, because the staged changeset described the bypass it fixes. `$cmd_noquotes`
 # does not help: a heredoc body is not quoted. So this rule alone also tests a copy with `<<'W' … W`
 # bodies removed. Same tradeoff, and same reason, as the quote-stripping on `git commit -a` above.
-cmd_nohd="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
+# THE STRIP MUST FAIL CLOSED. `.*` is greedy and newlines are folded, so a terminator word appearing
+# a SECOND time as a standalone token lets the strip swallow real commands after the heredoc —
+# measured: a body ending `A`, a real `git checkout origin/main -- oxydex-dsp.js`, then a stray `A`,
+# and the checkout was stripped and the rule passed. POSIX sed has no lazy quantifier, so instead:
+# strip only when the terminator appears EXACTLY ONCE standalone (the closer; the opener `<<'W'` is
+# quoted and does not count). Anything else keeps the full text and the rule runs on it.
+_hdw="$(printf '%s' "$cmdn" | grep -oE "<<-?'?[A-Za-z_][A-Za-z0-9_]*'?" | head -1 | sed -E "s/^<<-?'?//; s/'$//")"
+cmd_nohd="$cmdn"
+if [ -n "$_hdw" ] && [ "$(printf '%s' "$cmdn" | grep -oE "(^|[[:space:]])$_hdw([[:space:]]|$)" | wc -l)" -eq 1 ]; then
+  cmd_nohd="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
+fi
 # THE SOURCE PATHS ARE EXTRACTED, NOT INFERRED FROM THE WHOLE COMMAND. Three holes in the first
 # version, all found by an adversarial pass 2026-08-05, all of the accidental kind this guard exists
 # to stop:
@@ -191,7 +201,12 @@ cmd_nohd="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[
 #      compound commands — it blocked three consecutive attempts to run this rule's OWN test harness.
 #      Paths now come from the checkout/restore segment only.
 _ckseg="$(grep -oE "$GITX"'(checkout|restore)[^;&|]*' <<<"$cmd_nohd" || true)"
-_srcpaths="$(grep -oE '[^[:space:];&|"'"'"']+\.(js|mjs|py|sh|md|json|css|toml|ya?ml|txt|cff|src\.html)' <<<"$_ckseg" | grep -vE '^(\./)?(docs|provenance)/' || true)"
+# A TRAVERSING PATH MUST NOT INHERIT THE PREFIX EXEMPTION. `provenance/../oxydex-dsp.js` matches
+# `^provenance/` and was filtered OUT of the source list, so the rule stayed silent on a path that
+# resolves to a root source file. tools/rebase-safe.mjs fixed this in the CLASSIFIER (#990); the hook
+# kept the walkable prefix test. Anything containing `..` is kept as source regardless of its prefix —
+# git never emits such a path from --diff-filter=U, so this only ever over-flags a hand-written one.
+_srcpaths="$(grep -oE '[^[:space:];&|"'"'"']+\.(js|mjs|py|sh|md|json|css|toml|ya?ml|txt|cff|src\.html)' <<<"$_ckseg" | awk '/\.\./ { print; next } !/^(\.\/)?(docs|provenance)\// { print }' || true)"
 
 # UNKNOWABLE PATHS MUST FAIL CLOSED. The extraction above needs a path token to be VISIBLE — so the
 # canonical form, the one CLAUDE.md §2c prints and the one that did the damage,
@@ -212,7 +227,7 @@ grep -qE 'xargs([[:space:]]+-[^[:space:]]+)*[[:space:]]+(git[[:space:]]+)?(check
 _ckside=''
 grep -qE "$GITX"'(checkout|restore)[^;&|]*--(ours|theirs)([[:space:]]|$)' <<<"$cmd_nohd" && _ckside=1
 
-if [ -n "$_ckdyn" ] || { [ -n "$_srcpaths" ] && grep -qE "$GITX"'(checkout|restore)([[:space:]]|$)' <<<"$cmd_nohd" && { [ -n "$_ckside" ] || grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmd_nohd"; }; }; then
+if [ -n "$_ckdyn" ] || { [ -n "$_srcpaths" ] && grep -qE "$GITX"'(checkout|restore)([[:space:]]|$)' <<<"$cmd_nohd" && { [ -n "$_ckside" ] || { grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]=])?(origin/|HEAD|[0-9a-f]{7,40})' <<<"$cmd_nohd" || grep -qE "$GITX"'(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--source[= ][^[:space:]]+|[^-][^[:space:];&|]*[[:space:]]+--[[:space:]])' <<<"$cmd_nohd"; }; }; }; then
   deny "BLOCKED: 'git checkout <ref> -- <source path>' in a shared checkout.
 
 This is the mid-rebase conflict shortcut, and it is the one that fails SILENTLY. It is correct for a
