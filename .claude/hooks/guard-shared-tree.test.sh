@@ -57,6 +57,15 @@ git commit -am x
 # 1 · The extension list omitted .py and .sh — i.e. every line of capture-host/, the largest body of
 #     source here, plus its deploy scripts. A Python source revert was invisible to the guard.
 git checkout origin/main -- capture-host/writers.py
+# --- adversarial round 2 (2026-08-05). Each line ALLOWED on main @2e82c29c.
+# a traversing path inherited the generated-prefix exemption: #990 fixed the CLASSIFIER, not the hook
+git checkout origin/main -- provenance/../oxydex-dsp.js
+# the ref clause knew only origin/, HEAD and hex — a plain branch, a remote, @{u} and a tag walked past
+git checkout main -- oxydex-dsp.js
+git checkout upstream/main -- oxydex-dsp.js
+git checkout @{u} -- oxydex-dsp.js
+git checkout v2.4.0 -- oxydex-dsp.js
+git restore --source=main -- oxydex-dsp.js
 git checkout origin/main -- capture-host/vigil.sh
 git checkout origin/main -- capture-host/pyproject.toml
 git restore --source=origin/main -- capture-host/tests/test_writers.py
@@ -157,15 +166,20 @@ relaxed(){ local got; got=$(v "$1" "$H"); local base; base=$(v "$1" "$BASE")
   [ "$got" != allow ] && { fail=$((fail+1)); printf '  %-5s %-5s %s <-- EXPECTED allow\n' "$got" "$base" "$1"; return; }
   [ "$base" != DENY ] && { fail=$((fail+1)); printf '  %-5s %-5s %s <-- NOT A RELAXATION (main allows it too; move to MUST ALLOW)\n' "$got" "$base" "$1"; return; }
   printf '  %-5s %-5s %s\n' "$got" "$base" "$1"; }
-# Paths were read from the whole command instead of the checkout's own segment, so an unrelated
-# source-looking token in a `&&`-joined step supplied the "source path" for a checkout that touched
-# none. This shape — make a branch, then run a harness — was refused three times in a row while
-# writing the cases above. No file is restored from a ref here, so it is outside the rule entirely.
-relaxed 'git checkout -b claude/x origin/main && bash .claude/hooks/guard-shared-tree.test.sh'
+# NOTE (2026-08-05): the `relaxed` assertion for
+#     git checkout -b claude/x origin/main && bash .claude/hooks/guard-shared-tree.test.sh
+# was SELF-INVALIDATING and had been failing on main ever since #991. `relaxed` requires that the
+# BASE (origin/main) still DENIES the command — but #991 both added the assertion and shipped the fix,
+# so the moment it merged, main allowed it too and the assertion could no longer hold. It was true
+# only against pre-#991 main. The behaviour is now main's own, so the case belongs in MUST ALLOW,
+# which is exactly what the failure message said; moved there. `relaxed` itself is kept for the next
+# genuine, one-line loosening.
 
 echo
 echo "### MUST ALLOW — ordinary work"
 while IFS= read -r c; do [ -n "$c" ] && [[ "$c" != \#* ]] && chk allow "$c"; done <<'ALLOW'
+# creating a BRANCH is not a ref-checkout of a path; main allows it too, it was mis-filed as DENY
+git checkout -b claude/x origin/main && bash .claude/hooks/guard-shared-tree.test.sh
 git add path/to/file.js
 git add -- src/a.js src/b.js
 git commit -m "feat: thing"
