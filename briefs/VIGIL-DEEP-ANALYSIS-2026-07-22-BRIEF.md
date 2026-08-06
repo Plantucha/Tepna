@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (**§1's entire ranked top-5 and Phases 0–2 are EXECUTED** — verified in code 2026-08-04, each with an in-source citation back to this brief. Phase 3 is partial with two named residues, Phase 4 is a gated multi-day campaign, Phase 5 is low-priority, Phase 6 is out-of-code/owner) · **Created:** 2026-07-22
+**Status:** PROPOSED (**§1's entire ranked top-5 and Phases 0–2 are EXECUTED** — verified in code 2026-08-04, each with an in-source citation back to this brief. **Phase 3's staleness stamp — the residue this brief named as the one to do first — is DONE 2026-08-06**, executably tested under node and mutant-verified; the IIR-bandpass residue remains and genuinely is browser/signal-gated. Phase 4 is a gated multi-day campaign, Phase 5 is low-priority, Phase 6 is out-of-code/owner) · **Created:** 2026-07-22
 
 > ## Phase map, measured in code 2026-08-04 — this brief reads as fully open and is not
 >
@@ -29,10 +29,21 @@
 > - **Phase 3 — PARTIAL, two named residues.** The robust threshold landed; these did not:
 >   - **no IIR bandpass** in `detectRs` — it runs on the raw buffer. MAD makes the *threshold* robust; it
 >     does not remove baseline wander or HF noise before detection.
->   - **no staleness stamp** — searched for `rateAt`/`stale`/`lastRate`/`ageMs`: **zero hits**. A live HR
->     that has stopped updating renders identically to a current one, which is the "a number that looks
->     live but isn't" class this suite treats as a bug elsewhere. Of the two, this is the one worth doing
->     first: it is honesty, not accuracy.
+>   - ~~**no staleness stamp**~~ — **DONE 2026-08-06.** (The finding as written: searched for
+>     `rateAt`/`stale`/`lastRate`/`ageMs`, **zero hits**; a live HR that has stopped updating rendered
+>     identically to a current one. Re-verified still zero on 2026-08-06 before building.) `st.rateAt` is
+>     now stamped on the plausibility-gated accept branch, cleared with `st.rate` when a stream goes
+>     untrusted, and a rate whose evidence has aged out renders **muted + `(stale)`** — labelled, never
+>     hidden, because a number that vanishes mid-night reads as a dead sensor.
+>     - **The threshold is derived, not tuned:** `OV_WIN_S` (5 s). `ovRates` reads a rolling `OV_WIN_S`
+>       window once a second, so past that point every sample behind the displayed number has left the
+>       buffer — the reading is not "slightly old", it is computed from data the page no longer holds.
+>     - **Elapsed time is measured monotonically** (`performance.now()`, `Date.now()` only as fallback).
+>       This is not a Clock-Contract stamp — nothing here is recorded — but a stepping clock would mark a
+>       fresh rate stale or the reverse, and this box's capture clock re-anchored twice in one week.
+>     - **Why it was only ever a `!state.trust` problem before:** `st.rate` was reset for off-body /
+>       charging / stalled streams, so the gap was a TRUSTED stream whose detector simply loses the beat —
+>       a noisy but genuinely worn sensor — which kept rendering its last EMA forever.
 > - **Phase 4 — not started** (`MSPTD`: zero hits). Explicitly **L**/multi-day and gated on a real
 >   tri-device-corpus A/B, not MIT-BIH — a deliberate campaign, not residue.
 > - **Phase 5 — not started** (`xcorr`: zero hits); the brief itself marks it low priority.
@@ -49,6 +60,20 @@
 > `test_device_identity.py`, which extracts the shipped regex rather than re-typing it), and this session
 > cannot drive a browser. Adding live-detector logic here would grow exactly the unverified surface the
 > rest of this work is trying to shrink. Whoever has a browser should take them.
+>
+> > **⚠️ That reasoning was HALF WRONG, and the half that was wrong blocked the wrong item (2026-08-06).**
+> > "No executable test lane" was treated as a property of the *file*. It is a property of the *code being
+> > tested*: a detector needs signal, a canvas and an event loop, but the staleness decision is three PURE
+> > functions — no DOM, no canvas, no timers. Those run under `node -e` against source extracted from the
+> > shipped file, which is neither a text scan nor a browser. `tests/test_monitor_rate_staleness.py` does
+> > exactly that, and its assertions were confirmed by re-applying three mutants (`>`→`>=`,
+> > `Infinity`→`0`, and moving the stamp off the accept branch) — each killed, each by a different test.
+> > A text scan could not have caught any of the three.
+> >
+> > So the staleness stamp was never browser-gated; it was gated on nobody asking whether the pure part
+> > could be split out (the standing lesson from `browser-lane-runnable-headless`). **The IIR bandpass
+> > residue genuinely does need signal and a browser** — that half of the reasoning stands, and it is why
+> > this brief stays PROPOSED. Do not read this note as "the whole lane is open".
 
 _Deep analysis of the Vigil bedside capture appliance — the monitor/control server, the in-browser live
 detectors, the BLE capture supervisor, and the bonding/BlueZ layer — plus detector-algorithm, robust-BLE,
