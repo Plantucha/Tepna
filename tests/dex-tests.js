@@ -137,13 +137,38 @@
     var _match = env.groupFilter ? dexGroupMatcher(env.groupFilter) : null;
     var _inShard = dexShardSelector(env.shardIndices);
     var _listOnly = !!env.listOnly; // inventory mode: declare every group, execute none (~0 s)
+    /* Read from env, not from `env.bail`, so the BROWSER lane is structurally unable to enable it:
+       there is no `process` there, the expression short-circuits to false, and Dex-Test-Suite.html
+       keeps reporting every failure. Guarded in a try because a bare `process` reference throws. */
+    var _bail = (function () {
+      try {
+        return typeof process !== 'undefined' && !!process.env && process.env.DEX_BAIL === '1';
+      } catch (e) {
+        return false;
+      }
+    })();
     var _gi = -1;
 
+    /* BAIL (DEX_BAIL=1) — stop executing groups after the first one that FAILS. Opt-in, Node-only,
+       and off in CI: the merge gate must always report every failure, not the first.
+
+       It exists for MUTATION TESTING, where the suite is re-run once per mutant and the only question
+       asked of it is binary — did anything go red? A killed mutant's verdict is known the moment the
+       first assertion fails, and the remaining ~375 groups (≈461 s of the 461 s) are spent confirming
+       something already decided. Since ~84 % of mutants are killed, that is most of the sweep's cost.
+
+       SAFETY, and this is the whole reason it is safe to add to a shared suite: bailing can only ever
+       SHORTEN A RUN THAT IS ALREADY RED. It is triggered by a failure, so the exit code is non-zero
+       either way — there is no input on which bail turns a failing run green. What it does cost is
+       COMPLETENESS of the report, which is why the runner prints a loud banner and why the mutation
+       harness only sets it where breadth of attribution does not matter. */
+    var _bailed = false;
     function group(title, tag, fn) {
       var gi = ++_gi;
       // Unselected → RECORDED (so declaration indices stay stable + totalGroups is honest)
       // but NOT executed. This is the whole speedup: skipping the fn() call skips the DSP.
-      if (_listOnly || (_match && !_match(title, tag)) || (_inShard && !_inShard(gi))) {
+      // A bailed run reuses this same path, so indices and totalGroups stay honest there too.
+      if (_bailed || _listOnly || (_match && !_match(title, tag)) || (_inShard && !_inShard(gi))) {
         GROUPS.push({ title: title, tag: tag, tests: [], index: gi, selected: false });
         return;
       }
@@ -182,6 +207,14 @@
       }
       G.ms = Date.now() - _t0; // per-group wall time — sizes the CI shards (run-tests --timings)
       GROUPS.push(G);
+      if (_bail) {
+        for (var _bi = 0; _bi < G.tests.length; _bi++) {
+          if (!G.tests[_bi].pass && !G.tests[_bi].skip) {
+            _bailed = true; // a SKIP is not a failure — an absent corpus must not truncate the run
+            break;
+          }
+        }
+      }
     }
 
     /* ════ 1 · CLOCK CONTRACT — parseTimestamp ════ */
