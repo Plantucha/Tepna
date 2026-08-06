@@ -239,6 +239,16 @@ def test_usb_rebind_reports_a_failing_helper_rather_than_claiming_success(monkey
     assert _aio.run(capture._usb_rebind("3-1")) is False
 
 
+def test_usb_rebind_survives_a_raising_helper_path(monkeypatch):
+    """`resolve()` cannot raise today, but the ladder must not turn an unresolvable helper into a
+    traceback out of the watchdog — the same guard, and the same reasoning, as `_restart_radio`'s
+    (test_radio_deafness.py). A recovery rung that raises takes the watchdog with it."""
+    _deny_sysfs(monkeypatch)
+    def boom(_n): raise RuntimeError("no such deploy root")
+    monkeypatch.setattr(capture.helper_path, "resolve", boom)
+    assert _aio.run(capture._usb_rebind("3-1")) is False
+
+
 def test_usb_rebind_does_not_call_the_helper_when_the_direct_write_worked(monkeypatch):
     """A box that granted the capability must not pay a subprocess + sudo on every recovery."""
     called = []

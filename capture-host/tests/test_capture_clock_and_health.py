@@ -376,6 +376,16 @@ def test_the_rung_is_available_through_the_helper_when_sysfs_is_not(monkeypatch)
     assert ok and why == ""
 
 
+def test_the_availability_probe_survives_a_raising_helper_path(monkeypatch):
+    """This runs inside `startup_defense_check`. A probe that raises would abort the boot-time report of
+    EVERY other defence — so an unresolvable helper must read as 'unavailable', never as an exception."""
+    monkeypatch.setattr(capture.os, "access", lambda p, m: False)
+    def boom(_n): raise RuntimeError("no such deploy root")
+    monkeypatch.setattr(capture.helper_path, "resolve", boom)
+    ok, why = capture.usb_rebind_available()
+    assert not ok and "tepna-btreset.sh" in why
+
+
 def test_the_rung_reports_unavailable_with_a_reason_naming_the_fix(monkeypatch):
     """An unavailability that does not say what to run is how this stayed invisible for a month."""
     monkeypatch.setattr(capture.os, "access", lambda p, m: False)
