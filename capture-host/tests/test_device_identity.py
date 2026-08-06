@@ -135,3 +135,56 @@ def test_the_numeric_serial_that_already_worked_still_works():
 def test_a_name_with_no_serial_yields_no_match():
     """No serial must leave the MAC fallback in charge rather than inventing one."""
     assert not _name_regex().search("Polar Verity Sense")
+
+
+# ── monitor.html: stream-family predicates (issue #410's class, 4th–7th sites, fixed 2026-08-05) ──
+def _monitor_html() -> str:
+    return open(__file__.replace("tests/test_device_identity.py", "monitor.html"), encoding="utf-8").read()
+
+
+def test_monitor_has_no_bare_ppg_key_comparisons():
+    """`#410` renamed the Verity's stream key `ppg` -> `ppg_vs` and fixed three comparisons. It missed
+    four more, and the consequence was not cosmetic: the armband had NO derived heart rate in Overview
+    (`ovRates` looped over the literal list `['ecg','ppg','o2ppg']`, and `OV` is keyed by the raw stream
+    key), and selecting it in the scope ran no `analyzePulse` while displaying "Raw capture — no analysis
+    on the box" — telling the operator analysis does not exist when it merely could not be reached.
+
+    A bare equality against 'ppg' is therefore the defect signature, and this asserts none survive.
+    Family membership goes through `isPpgKey` / `isPulseKey` / `isBeatKey`.
+    """
+    # Scan CODE, not prose: the comment that explains #410 quotes `s.key==='ppg'` verbatim, and a
+    # naive scan flags the very documentation of the bug it is guarding. Strip line comments first
+    # (`//` not preceded by `:`, so `https://` survives) and block comments.
+    html = _monitor_html()
+    code = re.sub(r"/\*.*?\*/", "", html, flags=re.S)
+    code = "\n".join(re.sub(r"(?<!:)//.*$", "", ln) for ln in code.split("\n"))
+    bad = re.findall(r"[=!]==\s*'ppg'|'ppg'\s*[=!]==", code)
+    assert not bad, f"bare 'ppg' key comparison(s) survive in monitor.html: {bad}"
+    for helper in ("const isPpgKey", "const isPulseKey", "const isBeatKey"):
+        assert helper in html, f"{helper} missing — the family predicates are the fix"
+
+
+def test_monitor_family_predicates_classify_the_real_stream_keys():
+    """Exercised against the predicates EXTRACTED from the shipped monitor rather than re-typed, and
+    against the keys the box actually registers (confirmed live 2026-08-05: ecg, o2ppg, o2ppg2w, ppg_vs,
+    ppi_vs, acc_vs, gyro_vs, mag_vs, spo2, pr, motion_o2)."""
+    html = _monitor_html()
+    src = {}
+    for name in ("isPpgKey", "isPulseKey", "isBeatKey"):
+        m = re.search(r"const %s\s*=\s*(.+?);\s*$" % name, html, re.M)
+        assert m, f"could not extract {name} from monitor.html"
+        src[name] = m.group(1)
+
+    def js_ppg(k):      # /^ppg(_|$)/ — anchored so o2ppg does NOT match
+        return bool(re.match(r"^ppg(_|$)", k or ""))
+    assert "/^ppg(_|$)/" in src["isPpgKey"], "isPpgKey must stay anchored: o2ppg is not a Verity pleth"
+    assert "isPpgKey(k)" in src["isPulseKey"] and "'o2ppg'" in src["isPulseKey"]
+    assert "'ecg'" in src["isBeatKey"] and "isPulseKey(k)" in src["isBeatKey"]
+
+    pulse = {"ppg_vs", "o2ppg"}
+    for k in ("ppg_vs", "ppg", "ppg_h10"):
+        assert js_ppg(k), f"{k} must be a pleth key"
+    for k in ("o2ppg", "o2ppg2w", "ppi_vs", "acc_vs", "ecg", "spo2"):
+        assert not js_ppg(k), f"{k} must NOT match isPpgKey"
+    # the two that must be pulse-analysable, and the one that must NOT be despite looking optical
+    assert "o2ppg2w" not in pulse, "the raw 2-wavelength stream is not a plethysmogram (PR #995)"

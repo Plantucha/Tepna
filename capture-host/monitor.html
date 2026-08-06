@@ -1411,6 +1411,11 @@ const OV_EVENT_N = 80;                          // samples shown for event/slow 
 // ~-1e2 on one shared axis collapses a ~2000-unit pulse ripple). Match the family, not the bare key.
 // Anchored so `o2ppg` does NOT match: the finger pleth is single-channel and has its own handling.
 const isPpgKey = k => /^ppg(_|$)/.test(k || '');
+// The BEAT-ANALYSABLE family, by key. Anything here has a per-beat analysis worth running; the
+// scope and the overview must agree on the membership test or a stream gets a rate in one view
+// and 'no analysis on the box' in the other — which is what `ppg_vs` did until 2026-08-05.
+const isPulseKey = k => isPpgKey(k) || k === 'o2ppg';
+const isBeatKey  = k => k === 'ecg' || isPulseKey(k);
 const CH_COLORS = { ppg:['#39D98A','#FF6B7A','#58A6FF','#8C9DB3'], xyz:['#FF6B7A','#39D98A','#58A6FF'],
                     ppi:['#3DE0D0','#a78bfa'] };
 function chanColors(s){
@@ -1697,7 +1702,11 @@ function ovStop(){
 // Breathing belongs in the post-hoc pipeline off the FULL captured recording: ECGDex EDR (R-peak
 // amplitude / RSA modulation over the whole night) — a far better estimator than a live ACC autocorrelation.
 function ovRates(){                              // live ♥ rate for ecg (R-peaks) / ppg + o2ppg (pulse) — channel 0
-  for(const key of ['ecg','ppg','o2ppg']){
+  // Iterate the REAL stream keys. This used to be the literal list ['ecg','ppg','o2ppg'], which has not
+  // matched the Verity since #410 renamed its key to `ppg_vs` — so the armband silently had no derived
+  // rate at all. `OV` is keyed by the raw stream key, so a literal 'ppg' looks up a stream that cannot
+  // exist. Same root cause as the three comparisons #410 fixed; this was a fourth site it missed.
+  for(const key of STREAMS.map(s=>s.key).filter(isBeatKey)){
     const st=OV[key]; if(!st||!st.buf.length) continue;
     let sig = st.buf.map(x=>Array.isArray(x)?x[0]:x);
     let peaks;
@@ -1823,9 +1832,11 @@ function pick(key){
   const titles = { ecg:'Averaged beat — morphology &amp; intervals', ppg:'Averaged pulse — morphology &amp; indices',
                    o2ppg:'Averaged pulse — finger pleth (O2Ring)',
                    spo2:'SpO₂ &amp; pulse — session summary', pr:'SpO₂ &amp; pulse — session summary' };
-  $('#beatTitle').innerHTML = titles[key] || ((m.chans||1)>1 ? 'Raw multi-channel capture' : 'Raw capture');
+  // Title by FAMILY, not by exact key: `ppg_vs` is a pleth and must read as one.
+  $('#beatTitle').innerHTML = titles[key] || (isPpgKey(key) ? titles.ppg
+                            : ((m.chans||1)>1 ? 'Raw multi-channel capture' : 'Raw capture'));
   $('#beatN').textContent = '';
-  const empty = (key==='ecg'||key==='ppg'||key==='o2ppg') ? 'Collecting beats…'
+  const empty = isBeatKey(key) ? 'Collecting beats…'
               : (key==='spo2'||key==='pr') ? 'Collecting SpO₂ / pulse…'
               : 'Raw capture — no analysis on the box (weak CPU by design). All channels are shown in Overview; the full record is written to disk.';
   $('#beatTable').querySelector('tbody').innerHTML = `<tr><td colspan="4" class="norm">${empty}</td></tr>`;
@@ -2042,7 +2053,7 @@ function detectPulses(s,fs){
   return peaks;
 }
 function analyzePulse(){
-  if((current!=='ppg' && current!=='o2ppg') || !sig.length) return;
+  if(!isPulseKey(current) || !sig.length) return;
   const pre=Math.round(PPRE_MS/1000*fs), post=Math.round(PPOST_MS/1000*fs), L=pre+post;
   if(sig.length < L+fs) return;
   // Orient to PPGDex convention (systolic upstroke = the steep, positive-going edge) before detecting
@@ -2216,7 +2227,7 @@ function renderOxiTable(sp, pr, spArr){
 function analyze(){
   if(VIEW!=='scope') return;
   if(current==='ecg') analyzeBeats();
-  else if(current==='ppg' || current==='o2ppg') analyzePulse();
+  else if(isPulseKey(current)) analyzePulse();
   else if(current==='spo2' || current==='pr') analyzeOxi();
 }
 
