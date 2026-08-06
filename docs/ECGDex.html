@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-ConbHuru+mtdvTqSfx5Sq3iQFi52LQKbhoti0Hmr4ig=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HFDSXcBDW8u7XD7M1mWyyx1aMdalHFgIYSeJ6kXEWU8=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-Vw8wfJlGH+61swjS1t+l9ykdoHngwhYiYvd7zU+i/6M=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-zfcZj/POD8ANab+TNlp0MrGvruXgueLPhtrRdPgHMlU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HFDSXcBDW8u7XD7M1mWyyx1aMdalHFgIYSeJ6kXEWU8=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-Vw8wfJlGH+61swjS1t+l9ykdoHngwhYiYvd7zU+i/6M=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-xePRLtIPeFK8QIZhf3nAvdK61jBR8BRNz7Iz6VU1/jQ=' 'sha256-zfcZj/POD8ANab+TNlp0MrGvruXgueLPhtrRdPgHMlU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -14753,29 +14753,26 @@ const { ECGUI } = __require('ecgdex-render.js');
 self.onmessage = async (e) => {
   const files = e.data.files || (e.data.file ? [e.data.file] : []);
   let cap = 1<<20, arr = new Int16Array(cap), n = 0;
-  let t0Ms = null, fs = 130, prevMs = null, msStep = null, stepSum = 0, stepN = 0; const gaps = [];
+  let rawT0 = null, rawTEnd = null, fs = 130, prevMs = null, msStep = null, stepSum = 0, stepN = 0; const gaps = [];
   const push = v => { if(n>=cap){ cap*=2; const na=new Int16Array(cap); na.set(arr); arr=na; } arr[n++]=v; };
-  // CLOCK-UNIFY: floating wall-clock parse (inline — workers can't see page scope)
-  const _ckPF = (raw) => {
-    if(raw==null) return null;
-    const s = String(raw).trim().replace(/^["']|["']$/g,'');
-    if(!s) return null; let m;
-    if(/^\\d{10,13}$/.test(s)){ let x=parseInt(s,10); if(x<1e11)x*=1000; if(x<1e11||x>4e12) return null; return x - new Date(x).getTimezoneOffset()*60000; }
-    m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})[ T](\\d{1,2}):(\\d{2})(?::(\\d{2})(?:\\.(\\d{1,3})\\d*)?)?\\s*(Z|[+-]\\d{2}:?\\d{2})?$/);
-    if(m){ return Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],m[6]?+m[6]:0, m[7]?+((m[7]+'00').slice(0,3)):0); }
-    m = s.match(/^(\\d{1,2}):(\\d{2}):(\\d{2})\\s+(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})$/);
-    if(m){ let a=+m[4],b=+m[5],d,mo; if(a>12){d=a;mo=b;}else if(b>12){d=b;mo=a;}else{d=a;mo=b;} return Date.UTC(+m[6],mo-1,d,+m[1],+m[2],+m[3]); }
-    m = s.match(/^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})\\s+(\\d{1,2}):(\\d{2})(?::(\\d{2}))?$/);
-    if(m){ let a=+m[1],b=+m[2],d,mo; if(a>12){d=a;mo=b;}else if(b>12){d=b;mo=a;}else{d=a;mo=b;} return Date.UTC(+m[3],mo-1,d,+m[4],+m[5],m[6]?+m[6]:0); }
-    return null;
-  };
+  // CLOCK-UNIFY: THE WORKER DOES NOT PARSE TIMESTAMPS. It used to carry '_ckPF', an inline copy of
+  // the Clock Contract parser, because "workers can't see page scope" — true, but the conclusion was
+  // wrong. A copy skips whatever the original later gains, and this one skipped the §2.7
+  // component-range guard: '2026-02-30T12:00' became 2026-03-02 instead of null, and that value
+  // becomes t0Ms, the anchor for the whole recording. Shipping clock.js INTO the worker was the
+  // other candidate, but DexClock.parseTimestamp closes over module-scope helpers (_ckMk, _dmy),
+  // so a Function.toString() of it alone does not travel — it would need a serializer in the shared
+  // spine, which re-stamps all 8 provenance fragments for a bug that lives in one app.
+  // So the worker ships the raw stamp STRINGS back and the main thread parses them once, with
+  // DexClock. Three parsers become one, and the one is the gated one.
   const handle = (line) => {
     line = line.trim(); if(!line) return;
     const p = line.split(/[;\\t,]/);
     const v = parseFloat(p[p.length-1]);
     if(!isFinite(v)) return;                       // header / junk row
     push(Math.max(-32768, Math.min(32767, Math.round(v))));
-    if(t0Ms===null){ const ms = _ckPF(p[0]); if(ms!=null) t0Ms = ms; }
+    if(rawT0===null && p[0]!=null && String(p[0]).trim()) rawT0 = p[0];
+    if(p[0]!=null && String(p[0]).trim()) rawTEnd = p[0];   // F21: the LAST stamp — endEpochMs was never emitted
     if(p.length>=3){
       const ms = parseFloat(p[2]);
       if(isFinite(ms)){
@@ -14814,7 +14811,7 @@ self.onmessage = async (e) => {
     // the derived fs/gaps were computed across a discontinuity that never existed in the recording.
     // It fails silently — the output is a plausible, longer ECG — which is why nothing caught it.
     // The fallback re-reads from byte zero, so it must start from zero state.
-    n = 0; t0Ms = null; prevMs = null; msStep = null; stepSum = 0; stepN = 0; gaps.length = 0;
+    n = 0; rawT0 = null; rawTEnd = null; prevMs = null; msStep = null; stepSum = 0; stepN = 0; gaps.length = 0;
     for(const file of files){
       const txt = await file.text();
       for(const line of txt.split(/\\r?\\n/)) handle(line);
@@ -14825,66 +14822,23 @@ self.onmessage = async (e) => {
   if(stepN>0) fs = Math.round((1000*stepN)/stepSum);
   else if(msStep && msStep>0) fs = Math.round(1000/msStep);
   const out = arr.buffer.slice(0, n*2);
-  self.postMessage({ type:'done', buffer:out, n, gaps, t0Ms, fs }, [out]);
+  self.postMessage({ type:'done', buffer:out, n, gaps, rawT0, rawTEnd, fs }, [out]);
 };`;
   let workerURL = null;
-  // CLOCK-UNIFY: main-thread floating wall-clock timestamp parser (mirror of the worker's _ckPF). A
-  // missing stamp stays null — the primary loader threads null, never a now() anchor (Clock Contract
-  // §2.6). DEEP-AUDIT-FIXES-FOLLOWUPS-2026-07-01 §1 removed the old wall-clock now()-fallback (dead).
+  // CLOCK-UNIFY: ONE parser. This used to be a hand-rolled mirror of the worker's `_ckPF`, and both
+  // built `tMs` with a bare `Date.UTC(...)`. Date.UTC SILENTLY ROLLS out-of-range components onto a
+  // plausible WRONG instant, which `clock.js:_ckMk` exists to refuse (Clock Contract §2.7): a stamp
+  // of `2026-02-30T12:00` became 2026-03-02 and `2026-13-45T25:99:99` became 2027-02-15, where
+  // DexClock returns null. Whatever this returns becomes `t0Ms`, the anchor for the WHOLE recording,
+  // so an unvalidated stamp does not corrupt one row — it fabricates the night.
+  //
+  // The fix is not to port the guard into the copies. Two mirrors of a parser drift, and this file
+  // was already proof: the mirrors had diverged from clock.js and from each other. The worker no
+  // longer parses at all (it ships the raw stamp strings back — see WORKER_SRC), so this is now the
+  // single parse site on both paths, and it delegates.
   function parseTSfloat(raw) {
-    if (raw == null) return null;
-    const s = String(raw)
-      .trim()
-      .replace(/^["']|["']$/g, '');
-    if (!s) return null;
-    let m;
-    if (/^\d{10,13}$/.test(s)) {
-      let x = parseInt(s, 10);
-      if (x < 1e11) x *= 1000;
-      if (x < 1e11 || x > 4e12) return null;
-      return x - new Date(x).getTimezoneOffset() * 60000;
-    }
-    m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?\s*(Z|[+-]\d{2}:?\d{2})?$/);
-    if (m) {
-      return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], m[6] ? +m[6] : 0, m[7] ? +(m[7] + '00').slice(0, 3) : 0);
-    }
-    m = s.match(/^(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (m) {
-      let a = +m[4],
-        b = +m[5],
-        d,
-        mo;
-      if (a > 12) {
-        d = a;
-        mo = b;
-      } else if (b > 12) {
-        d = b;
-        mo = a;
-      } else {
-        d = a;
-        mo = b;
-      }
-      return Date.UTC(+m[6], mo - 1, d, +m[1], +m[2], +m[3]);
-    }
-    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (m) {
-      let a = +m[1],
-        b = +m[2],
-        d,
-        mo;
-      if (a > 12) {
-        d = a;
-        mo = b;
-      } else if (b > 12) {
-        d = b;
-        mo = a;
-      } else {
-        d = a;
-        mo = b;
-      }
-      return Date.UTC(+m[3], mo - 1, d, +m[4], +m[5], m[6] ? +m[6] : 0);
-    }
-    return null;
+    const r = DexClock.parseTimestamp(raw);
+    return r ? r.tMs : null;
   }
   function getWorker() {
     if (!workerURL) workerURL = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'application/javascript' }));
@@ -14910,7 +14864,14 @@ self.onmessage = async (e) => {
           progress(Math.min(40, 4 + (d.n / 5e6) * 36), 'Parsed ' + (d.n / 1e6).toFixed(1) + 'M samples…');
         } else if (d.type === 'done') {
           w.terminate();
-          const rec = { int16: new Int16Array(d.buffer), fs: d.fs, gaps: d.gaps, t0Ms: d.t0Ms != null ? d.t0Ms : null, source: 'file', durSec: d.n / d.fs };
+          // The worker ships raw stamp STRINGS; this is the single parse site (see parseTSfloat).
+          // endEpochMs was never emitted on this path, and ECGDSP.analyze READS rec.endEpochMs — so
+          // every browser-produced export differed from the gated headless one on a field the
+          // headless run fills. A stampless recording keeps null; it is never synthesised from
+          // t0Ms + durSec, which would fabricate an end the file does not state (§2.6).
+          const _t0 = parseTSfloat(d.rawT0);
+          const _tEnd = parseTSfloat(d.rawTEnd);
+          const rec = { int16: new Int16Array(d.buffer), fs: d.fs, gaps: d.gaps, t0Ms: _t0 != null ? _t0 : null, endEpochMs: _tEnd != null ? _tEnd : null, source: 'file', durSec: d.n / d.fs };
           // R1 provenance: the streamed primary ECG bypasses the FileReader hook —
           // attest each part explicitly (name/bytes/mtime) so the export records its true inputs.
           if (window.GangliorProvenance) files.forEach((f) => GangliorProvenance.noteInput(f));
@@ -14926,6 +14887,7 @@ self.onmessage = async (e) => {
         const txt = e.target.result;
         const lines = txt.split(/\r?\n/);
         const arr = [];
+        let rawTEnd = null;
         let t0Ms = null,
           prevMs = null,
           msStep = null,
@@ -14943,6 +14905,7 @@ self.onmessage = async (e) => {
             const ms = parseTSfloat(p[0]);
             if (ms != null) t0Ms = ms;
           }
+          if (p[0] != null && String(p[0]).trim()) rawTEnd = p[0]; // F21: last stamp -> endEpochMs
           if (p.length >= 3) {
             const ms = parseFloat(p[2]);
             if (isFinite(ms)) {
@@ -14964,7 +14927,8 @@ self.onmessage = async (e) => {
         }
         // DEEP-AUDIT-II §4.3 (#5): mean non-gap interval, not a single delta (see WORKER_SRC / DSP).
         const fs = stepN > 0 ? Math.round((1000 * stepN) / stepSum) : msStep ? Math.round(1000 / msStep) : 130;
-        runPipeline({ int16: new Int16Array(arr), fs, gaps, t0Ms: t0Ms != null ? t0Ms : null, source: 'file', durSec: arr.length / fs }, file.name);
+        const _tEndF = parseTSfloat(rawTEnd);
+        runPipeline({ int16: new Int16Array(arr), fs, gaps, t0Ms: t0Ms != null ? t0Ms : null, endEpochMs: _tEndF != null ? _tEndF : null, source: 'file', durSec: arr.length / fs }, file.name);
       };
       fr.readAsText(file);
     }
