@@ -5,8 +5,11 @@
 # Contract's "overnight 22:00→06:00 = ~8 h monotonic" check is what these lock down — specifically the
 # one night a year a DST fall-back could rewind a recording an hour, which no ordinary test night
 # would ever reach.
+import asyncio
 import datetime as dt
 import types
+
+import pytest
 
 import capture
 
@@ -386,3 +389,98 @@ def test_utcoffset_tracks_a_real_dst_transition(monkeypatch):
         else:
             os.environ["TZ"] = old
         real_time.tzset()
+
+
+# ── the absorbed offset is REPORTED, not silently traded ─────────────────────────────────────────────
+# CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS-II §3. Absorbing a backward step (or a DST relabelling) keeps an
+# open recording monotonic, which is the right call — a rewind breaks the strictly-increasing guarantee
+# every parser depends on. But the cost is that every stamp after it is off by the absorbed amount for
+# the rest of the session, and until this existed NOTHING said so. A night whose absolute time is
+# knowingly wrong is precisely the fact an operator needs before aligning it against another device.
+
+def test_the_steady_state_reports_no_absorbed_shift(monkeypatch):
+    clk = _Clock(dt.datetime(2026, 11, 1, 22, 0, 0))
+    _install(monkeypatch, clk)
+    capture._now()
+    clk.tick(10.0)
+    capture._now()
+    assert capture.absorbed_shift_sec() == 0.0, "nothing absorbed ⇒ absolute time is trustworthy"
+
+
+def test_an_absorbed_backward_step_is_reported_with_its_size(monkeypatch):
+    """The number matters, not just the flag: it is how far off the night's absolute time is."""
+    clk = _Clock(dt.datetime(2026, 11, 1, 22, 0, 0))
+    _install(monkeypatch, clk)                      # a writer is open
+    capture._now()
+    clk.tick(10.0)
+    clk.step(-30.0)
+    capture._now()
+    assert capture.absorbed_shift_sec() == pytest.approx(-30.0, abs=0.01), \
+        "the session is 30 s behind civil time and must say so"
+
+
+def test_an_absorbed_DST_relabelling_is_reported_too(monkeypatch):
+    """Same surface for the other absorber — the operator's question is "how wrong is this night?",
+    not "which mechanism made it wrong"."""
+    clk = _Clock(dt.datetime(2026, 11, 1, 1, 30, 0), offset_h=-4.0)
+    _install(monkeypatch, clk)
+    capture._now()
+    clk.tick(60.0)
+    clk.step(-3600.0, offset_h=-5.0)                # fall back: wall AND zone move together
+    capture._now()
+    assert capture.absorbed_shift_sec() == pytest.approx(-3600.0, abs=0.01)
+
+
+def test_re_anchoring_clears_the_reported_shift(monkeypatch):
+    """§A1 rule 2 — the absorbed shift expires with the artefact it protects. If the report outlived
+    the absorption it would be worse than absent: a stale non-zero says a fresh session is off when it
+    is not."""
+    clk = _Clock(dt.datetime(2026, 11, 1, 22, 0, 0))
+    _install(monkeypatch, clk)
+    capture._now()
+    clk.tick(10.0)
+    clk.step(-30.0)
+    capture._now()
+    assert capture.absorbed_shift_sec() != 0.0
+    capture.reset_clock_anchor("operator set the timezone")
+    assert capture.absorbed_shift_sec() == 0.0, "a re-anchor discards the shift, so the report must too"
+
+
+def test_the_absorbed_shift_REACHES_status_json(monkeypatch):
+    """The accessor being right is not the point — the operator reading it is.
+
+    Deleting the line that publishes `capture_absorbed_sec` survived every test above, which is the same
+    silent-trade shape this whole item is about: the value was computed correctly and went nowhere. This
+    drives `host_clock_poller` for one cycle and asserts the fact lands on the surface `/api/state`
+    serves (`webmon.py` passes `status.get("host_clock")` straight through)."""
+    clk = _Clock(dt.datetime(2026, 11, 1, 22, 0, 0))
+    _install(monkeypatch, clk)
+    capture._now()
+    clk.tick(10.0)
+    # A FRACTIONAL step on purpose: rounding the report to whole seconds would turn a sub-second
+    # absorbed shift into "no shift at all", which is the same silent trade in miniature.
+    clk.step(-30.25)
+    capture._now()                                  # absorbed: the session is now 30.25 s behind
+
+    async def _fake_read_state():
+        return {"trust": "ntp", "absolute_ok": True, "reason": "chrony"}
+    monkeypatch.setattr(capture.host_clock, "read_state", _fake_read_state)
+
+    n = {"i": 0}
+
+    async def _fake_sleep(_s):
+        n["i"] += 1
+        capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", _fake_sleep)
+    capture._STOP.clear()
+    try:
+        asyncio.run(capture.host_clock_poller({"time": {"provenance_poll_sec": 0}}, None))
+    finally:
+        capture._STOP.set()
+
+    hc = capture.STATUS.get("host_clock") or {}
+    assert "capture_absorbed_sec" in hc, "the absorbed offset never reached status.json"
+    assert hc["capture_absorbed_sec"] == pytest.approx(-30.25, abs=0.01), hc
+    assert hc["capture_absorbed_sec"] != round(hc["capture_absorbed_sec"]), \
+        "sub-second resolution is load-bearing — a rounded report hides a small absorbed shift entirely"
+    assert hc.get("trust") == "ntp", "and it must ride ALONGSIDE the host facts, not replace them"

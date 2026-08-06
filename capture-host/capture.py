@@ -155,7 +155,10 @@ _STEP_THRESH_S = 2.0
 _anchor_wall: _dt.datetime | None = None
 _anchor_mono: float = 0.0
 _anchor_utcoff: _dt.timedelta = _dt.timedelta(0)   # UTC offset in force when we anchored
-_civil_shift: float = 0.0                          # seconds of DST relabelling absorbed since the anchor
+_civil_shift: float = 0.0   # seconds ABSORBED since the anchor rather than applied: a DST relabelling,
+                            # or (since FOLLOWUPS §3) a BACKWARD wall-clock step that would have rewound an
+                            # open recording. Non-zero means this session's stamps are deliberately in an
+                            # older frame — monotonic, but absolute time is off by this much.
 
 
 def _utcoffset(when: _dt.datetime) -> _dt.timedelta:
@@ -194,6 +197,19 @@ def reset_clock_anchor(reason: str = "") -> None:
     else:
         log.info("capture clock re-anchored to civil time (%s)", reason or "requested")
     _reanchor(0.0)
+
+
+def absorbed_shift_sec() -> float:
+    """Seconds this session is deliberately behind civil time, and therefore how wrong its ABSOLUTE
+    stamps are. Zero in the steady state.
+
+    Surfaced because the alternative is a silent trade. `_now()` absorbs a DST relabelling, and now a
+    backward wall-clock step, to keep an open recording monotonic — the right call, since a rewind
+    breaks the strictly-increasing guarantee every parser depends on. But the cost is real: every stamp
+    written afterwards is off by this much until the session ends, and until this existed nothing said
+    so. A night whose absolute time is knowingly wrong is exactly the fact an operator needs BEFORE
+    they try to align it against another device."""
+    return _civil_shift
 
 
 def _now() -> _dt.datetime:
@@ -3230,6 +3246,10 @@ async def host_clock_poller(cfg: dict, root: str | None = None):
         while not _STOP.is_set():
             try:
                 st = await host_clock.read_state()
+                # The HOST's discipline and the CAPTURE clock's absorbed offset are different facts and
+                # both matter to the same question ("can I trust this night's absolute time?"), so they
+                # ride the same surface. Absent-as-zero is honest here: zero IS the steady state.
+                st["capture_absorbed_sec"] = round(absorbed_shift_sec(), 3)
                 STATUS["host_clock"] = st
                 if prev_trust is not None and st.get("trust") != prev_trust:
                     # A transition is the newsworthy event: losing discipline mid-night means every
