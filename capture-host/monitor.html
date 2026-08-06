@@ -745,7 +745,14 @@ function deviceForStream(key){
   // `pr`/`motion` are parsed out of the 1 Hz status header, and `o2ppg` is the ~125 Hz pleth — whose key
   // is a PREFIX form ('o2ppg'), not a '_o2' suffix, so the tag regex above never matches it. Without this
   // the o2ppg card resolved to no device at all and silently lost its RSSI + battery chips.
-  const O2_DERIVED = ['pr', 'motion', 'o2ppg'];
+  // `pr`/`motion` have no device tag at all; everything else the ring derives uses the `o2` PREFIX
+  // form. Matched STRUCTURALLY rather than by an exhaustive list, because the list form already failed
+  // once: `o2ppg2w` (the raw two-wavelength stream, 2026-08-05) resolved to NO device, so its card lost
+  // its RSSI/battery chips AND — far worse — skipped the `charging` / `not worn` checks in
+  // `streamState`, reading "live" while the ring sat on the charger. That is the exact false reading
+  // that function exists to prevent. A prefix test cannot go stale when a stream is added.
+  const O2_DERIVED = ['pr', 'motion'];
+  const isO2Derived = k => O2_DERIVED.includes(k) || /^o2[a-z0-9]/.test(k);
   // AMBIGUITY MUST NOT RESOLVE BY LIST ORDER (issue #410). `find` returns the FIRST device declaring
   // this stream, so when two devices declare the same name — as the Verity and the O2Ring both did for
   // `ppg` — the card silently inherited whichever sensor sorted first, and would have flipped if
@@ -755,7 +762,7 @@ function deviceForStream(key){
   const matches = DEVICES.filter(d=>(d.streams||[]).includes(base));
   if(matches.length === 1) return matches[0];
   if(matches.length > 1) return null;
-  return O2_DERIVED.includes(base) ? DEVICES.find(d=>(d.streams||[]).includes('spo2')) : null;
+  return isO2Derived(base) ? DEVICES.find(d=>(d.streams||[]).includes('spo2')) : null;
 }
 
 // ══ View routing ══

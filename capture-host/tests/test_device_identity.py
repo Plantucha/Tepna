@@ -188,3 +188,28 @@ def test_monitor_family_predicates_classify_the_real_stream_keys():
         assert not js_ppg(k), f"{k} must NOT match isPpgKey"
     # the two that must be pulse-analysable, and the one that must NOT be despite looking optical
     assert "o2ppg2w" not in pulse, "the raw 2-wavelength stream is not a plethysmogram (PR #995)"
+
+
+def test_monitor_resolves_every_o2ring_derived_stream_to_the_ring():
+    """`deviceForStream` must attribute the ring's derived cards to the ring, or `streamState` silently
+    skips its `charging` / `not worn` checks (both guarded by `dev &&`) and the card reads "live" while
+    the ring is on the charger — the exact false reading that function exists to prevent, plus the card
+    loses its RSSI/battery chips.
+
+    This failed for real: `o2ppg2w` shipped in #994 and was absent from the `['pr','motion','o2ppg']`
+    literal, so it resolved to NO device. The fix is a PREFIX test, and this asserts the structural form
+    survives — an exhaustive list goes stale the next time a stream is added, which is how it broke.
+    """
+    html = _monitor_html()
+    m = re.search(r"const isO2Derived\s*=\s*(.+?);\s*$", html, re.M)
+    assert m, "isO2Derived missing — the o2-prefix rule is the fix"
+    rule = m.group(1)
+    assert "/^o2" in rule, f"must match the o2 PREFIX structurally, not by list: {rule}"
+
+    def resolves(k):                      # mirrors isO2Derived
+        return k in ("pr", "motion") or bool(re.match(r"^o2[a-z0-9]", k))
+
+    for k in ("pr", "motion", "o2ppg", "o2ppg2w"):
+        assert resolves(k), f"{k} is an O2Ring-derived card and must resolve to the ring"
+    for k in ("ecg", "ppg_vs", "ppi_vs", "acc_vs", "spo2"):
+        assert not resolves(k), f"{k} must NOT be attributed to the ring by the derived rule"

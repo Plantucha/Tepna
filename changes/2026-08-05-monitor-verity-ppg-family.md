@@ -31,3 +31,11 @@ its own documentation. Verified to fail when the gate is reintroduced.
 Note `o2ppg2w` is deliberately NOT pulse-analysable: PR #995 established it is not a plethysmogram.
 
 Out-of-suite Python/HTML only — no shipped bundle, no `manifestHash` movement, no fixture re-recorded.
+
+Second instance of the same class, found by looking for it rather than by accident: `deviceForStream`
+resolved the O2Ring's derived cards through another literal list, `['pr','motion','o2ppg']`. The
+`o2ppg2w` stream shipped in #994 is absent from it, so that card resolved to NO device — losing its
+RSSI/battery chips and, far worse, skipping the `charging` and `not worn` checks in `streamState`
+(both guarded by `dev &&`). It would have read "live" while the ring sat on the charger, which is the
+exact false reading that function was written to prevent. Replaced with a structural `o2` PREFIX test
+that cannot go stale when a stream is added, and tested by reintroducing the list form.
