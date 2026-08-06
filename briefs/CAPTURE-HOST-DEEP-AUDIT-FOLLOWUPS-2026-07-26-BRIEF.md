@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-03 (**§1.2 CLOSED** — `tools/served-link-check.mjs` ships; 18 dead links on the served tree: Science.html's 15 confirmed, the feed/sitemap claim corrected (they exist under `docs/`, the ROOT copies are missing), and a THIRD residue found — a served paper loads an unserved `../clock.js`. §1.1/§1.3, §2, §3 open) · **Created:** 2026-07-26 · **Follows:** `CAPTURE-HOST-DEEP-AUDIT-2026-07-26-BRIEF.md`
+**Status:** DONE — 2026-08-05 · **Created:** 2026-07-26 · **Follows:** `CAPTURE-HOST-DEEP-AUDIT-2026-07-26-BRIEF.md` · **Spawned:** `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS-II-2026-08-05-BRIEF.md`
 
 # Capture-host deep audit — follow-ups
 
@@ -181,9 +181,22 @@ interpolated its ns column linearly, so every file it produced was uniform — i
 
 ## Done when
 
-- §1.1 decided (persist per-device rate, or accept the +0.227 s and say so in the parent).
-- §1.2 has a served-tree link checker, or the two pages are reconciled.
-- §3's backward-NTP-step question answered — it is the only item there that is a live correctness
-  question rather than unexamined scope.
-- The live box's `cpap.state: "error"` detail pulled and explained.
-- A follow-up spawned for whatever this one surfaces, or a note here that nothing did.
+- ~~§1.1 decided~~ — **DONE 2026-08-05: ACCEPTED, not corrected.** The +0.227 s is a bounded one-off
+  (~6 ppm over a 10 h night); persisting a per-device rate is declined because it introduces the
+  cross-session state §A1 exists to prevent. Recorded in the parent brief's header.
+- ~~§1.2 served-tree link checker~~ — **DONE 2026-08-03**, `tools/served-link-check.mjs`.
+- ~~§3's backward-NTP-step question answered~~ — **DONE 2026-08-05: ABSORB IT while a file is open.**
+  Reproduced first: a −30 s step with a writer open sent `_now()` 22:00:10 → 21:59:50, so the Phone
+  column of an open recording rewound 20 s. The rule was already in the file one branch up — the DST
+  arm absorbs "ONLY to protect an open recording … there is no file to rewind" — and a backward step
+  has the identical consequence by a different mechanism, so it now takes the identical treatment. A
+  FORWARD step is still applied (it cannot rewind), and with no writer open a backward step is still
+  followed (nothing to protect). Three tests pin the asymmetry.
+- ~~The live box's `cpap.state: "error"` detail pulled and explained~~ — **DONE 2026-08-05, and it was
+  NEITHER suspected cause.** §E5 and §C5 were both plausible and both already fixed; the journal shows
+  the actual fault was **`sudo` itself panicking** — sudo-rs, `rc=101`, `thread 'main' panicked at
+  src/system/audit.rs:80:14` on every privileged helper (`ip link`, `wpa_supplicant -B`, `wpa_cli -i`)
+  — compounded by a **read-only filesystem** at that moment (`rc=255 … error: Read-only file system`).
+  The fault was outside capture-host entirely, so neither fix could have covered it. Box now reports
+  `cpap.state: "idle"`.
+- ~~A follow-up spawned~~ — **DONE**: `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS-II-2026-08-05-BRIEF.md`.

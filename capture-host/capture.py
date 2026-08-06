@@ -228,7 +228,27 @@ def _now() -> _dt.datetime:
                     "counting monotonically in the session's original UTC offset", off_delta - _civil_shift)
         _civil_shift = off_delta
         return predicted
-    log.warning("wall-clock step %.3fs — re-anchoring capture stamps here (NTP correction?)", drift - _civil_shift)
+    step = drift - _civil_shift
+    # §A1 rule 1 AGAIN, for the case it was never applied to. The DST branch above absorbs a relabelling
+    # "ONLY to protect an open recording … there is no file to rewind" — and a BACKWARD wall-clock step
+    # has exactly that consequence, by a different mechanism. Measured before this existed: a -30 s NTP
+    # step with a writer open sent `_now()` from 22:00:10 to 21:59:50, i.e. the Phone column of a file
+    # being written REWOUND 20 s. That breaks the strictly-increasing guarantee every parser depends on
+    # (the same guarantee O2PpgGrid refuses to violate when it declines to rewrite emitted samples), and
+    # it corrupts a recording rather than merely mislabelling it.
+    #
+    # A FORWARD step is followed as before: it cannot rewind anything, so applying the correction is
+    # free and gives the file the better absolute time. The cost of absorbing a backward one is that the
+    # session keeps the pre-step offset until it ends — deliberately the same trade the DST branch makes,
+    # for the same reason: within a recording, monotonicity outranks absolute accuracy.
+    if step < 0 and open_sample_writers() > 0:
+        log.warning("backward wall-clock step %+.3fs with a capture file OPEN — ABSORBED, not applied; "
+                    "stamps keep counting monotonically in the session's pre-step frame (applying it "
+                    "would rewind the file). Absolute time is off by this much until the session ends.",
+                    step)
+        _civil_shift = drift
+        return predicted
+    log.warning("wall-clock step %.3fs — re-anchoring capture stamps here (NTP correction?)", step)
     _reanchor(_civil_shift)
     return actual - _dt.timedelta(seconds=_civil_shift)
 
