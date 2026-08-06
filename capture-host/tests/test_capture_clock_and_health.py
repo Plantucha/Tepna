@@ -394,19 +394,31 @@ def test_the_rung_reports_unavailable_with_a_reason_naming_the_fix(monkeypatch):
     assert "tepna-btreset.sh" in why and "enable-clock-control.sh" in why
 
 
-def test_an_unconfigured_archive_warns_that_nights_never_leave():
+# A `defense_warnings` case is about ONE defence, so every OTHER defence must be pinned rather than
+# inherited from the machine. Since 2026-08-05 a SET `usb_path` consults `usb_rebind_available()`, which
+# reads the real filesystem — and the answer differs between a developer's checkout and CI, because the
+# in-repo helper's mode is whatever git recorded. That is a test asserting its environment: the two
+# ARCHIVE tests below passed locally at mode 0755 and failed in CI at 0644, for a reason having nothing
+# to do with archives.
+def _rung_armed(monkeypatch):
+    monkeypatch.setattr(capture, "usb_rebind_available", lambda: (True, ""))
+
+
+def test_an_unconfigured_archive_warns_that_nights_never_leave(monkeypatch):
     """§P1.4 item (c). Measured on the live box 2026-08-04: 0 `.archived` markers across 11 nights, so
     every night existed in exactly one copy — and capture was working perfectly the whole time, which is
     why nothing surfaced it."""
+    _rung_armed(monkeypatch)
     ws = capture.defense_warnings(*ARMED, usb_path="11-1.2", archive_enabled=False)
     assert len(ws) == 1 and "archive is NOT configured" in ws[0]
 
 
-def test_an_enabled_archive_on_an_UNMOUNTED_dest_is_worse_than_none():
+def test_an_enabled_archive_on_an_UNMOUNTED_dest_is_worse_than_none(monkeypatch):
     """`ismount`, not `isdir`: an unmounted mountpoint is a present, empty, writable directory on the BOOT
     disk, so the mirror reports success while ~350 MB/night lands on the wrong filesystem and the operator
     believes it is on the NAS. VIGIL-OFFLOAD-AND-RETENTION recorded exactly this — the dest was a removable
     disk, unmounted at the check."""
+    _rung_armed(monkeypatch)
     ws = capture.defense_warnings(*ARMED, usb_path="x", archive_enabled=True, archive_dest_ready=False)
     assert len(ws) == 1 and "NOT ready (not mounted)" in ws[0]
     # ready, and unknown-because-unprobed, are both silent — the second deliberately
