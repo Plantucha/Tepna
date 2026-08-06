@@ -9238,7 +9238,10 @@
         T.ok('ecgdex-app retired the _floatNow() now()-fallback (Clock §2.6 — missing stamp → null)', !/function\s+_floatNow\b/.test(app));
         T.ok(
           'primary ECG loaders thread null for a missing t0Ms (not a fabricated now())',
-          /t0Ms:\s*\(?d\.t0Ms\s*!=\s*null\s*\?\s*d\.t0Ms\s*:\s*null\)?/.test(app) && /t0Ms:\s*\(?t0Ms\s*!=\s*null\s*\?\s*t0Ms\s*:\s*null\)?/.test(app)
+          // DA-V F20/F21: the streaming path's t0Ms now comes from parseTSfloat(d.rawT0) — the worker
+          // ships the raw stamp STRING and no longer parses. The contract is unchanged and is what
+          // this pins: a missing stamp threads null, it is never fabricated.
+          /t0Ms:\s*\(?(?:d\.t0Ms|_t0)\s*!=\s*null\s*\?\s*(?:d\.t0Ms|_t0)\s*:\s*null\)?/.test(app) && /t0Ms:\s*\(?t0Ms\s*!=\s*null\s*\?\s*t0Ms\s*:\s*null\)?/.test(app)
         );
         T.ok(
           'RR / Welltory-CSV exporters anchor an undated recording at 0, never now()',
@@ -9274,7 +9277,10 @@
     var reread = fallback.indexOf('for(const file of files)');
     T.ok('the fallback re-reads every part', reread > 0, 'no re-read loop in the fallback');
     // every accumulator handle() mutates must be cleared, and cleared BEFORE the re-read
-    ['n = 0', 't0Ms = null', 'prevMs = null', 'msStep = null', 'gaps.length = 0'].forEach(function (reset) {
+    // DA-V F20/F21: the worker no longer parses, so the stamp accumulator it must clear is the RAW
+    // pair (rawT0/rawTEnd), not the parsed t0Ms. The invariant is identical — every accumulator
+    // handle() mutates is cleared before the re-read — only the variable names moved.
+    ['n = 0', 'rawT0 = null', 'rawTEnd = null', 'prevMs = null', 'msStep = null', 'gaps.length = 0'].forEach(function (reset) {
       var at = fallback.indexOf(reset);
       T.ok('fallback resets `' + reset + '`', at > 0, 'not reset — the re-read will append to stale state');
       if (at > 0) T.ok('`' + reset + '` happens BEFORE the re-read', at < reread, 'reset is after the re-read loop, so it clears the wrong thing');

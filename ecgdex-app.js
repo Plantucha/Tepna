@@ -40,10 +40,10 @@ self.onmessage = async (e) => {
   let cap = 1<<20, arr = new Int16Array(cap), n = 0;
   let rawT0 = null, rawTEnd = null, fs = 130, prevMs = null, msStep = null, stepSum = 0, stepN = 0; const gaps = [];
   const push = v => { if(n>=cap){ cap*=2; const na=new Int16Array(cap); na.set(arr); arr=na; } arr[n++]=v; };
-  // CLOCK-UNIFY: THE WORKER DOES NOT PARSE TIMESTAMPS. It used to carry `_ckPF`, an inline copy of
+  // CLOCK-UNIFY: THE WORKER DOES NOT PARSE TIMESTAMPS. It used to carry '_ckPF', an inline copy of
   // the Clock Contract parser, because "workers can't see page scope" — true, but the conclusion was
   // wrong. A copy skips whatever the original later gains, and this one skipped the §2.7
-  // component-range guard: `2026-02-30T12:00` became 2026-03-02 instead of null, and that value
+  // component-range guard: '2026-02-30T12:00' became 2026-03-02 instead of null, and that value
   // becomes t0Ms, the anchor for the whole recording. Shipping clock.js INTO the worker was the
   // other candidate, but DexClock.parseTimestamp closes over module-scope helpers (_ckMk, _dmy),
   // so a Function.toString() of it alone does not travel — it would need a serializer in the shared
@@ -190,7 +190,7 @@ self.onmessage = async (e) => {
             const ms = parseTSfloat(p[0]);
             if (ms != null) t0Ms = ms;
           }
-          if (p[0] != null && String(p[0]).trim()) rawTEnd = p[0];   // F21: last stamp -> endEpochMs
+          if (p[0] != null && String(p[0]).trim()) rawTEnd = p[0]; // F21: last stamp -> endEpochMs
           if (p.length >= 3) {
             const ms = parseFloat(p[2]);
             if (isFinite(ms)) {
