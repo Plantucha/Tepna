@@ -154,11 +154,18 @@ def test_install_services_no_longer_writes_its_own_caddyfile():
 # fixes behind the repo and a hot-plugged adapter spent the evening with autosuspend live — while
 # `systemctl status` was green, because the file was present and only its CONTENT was stale.
 #
-# It is a CHECKER, not a fixer, and that distinction is load-bearing:
-#     repo  tepna-capture.service : User=tepna  ReadWritePaths=/srv/tepna
-#     box   /etc/systemd/system/  : User=vigil  ReadWritePaths=/srv/tepna /opt/tepna/capture-host
-# `id tepna` on the box: no such user. Syncing that file would leave capture unable to start and
-# revoke the write access webmon needs for config.yaml.
+# It is a CHECKER, not a fixer, and that distinction WAS load-bearing while two copies of the unit
+# existed:
+#     systemd/tepna-capture.service : User=tepna  ReadWritePaths=/srv/tepna          <- installed by nobody
+#     deploy/tepna-capture.service  : User=vigil  ReadWritePaths=/srv/tepna /opt/…   <- the installed one
+# `id tepna` on the box: no such user. Syncing the FIRST would have left capture unable to start and
+# revoked the write access webmon needs for config.yaml.
+#
+# RESOLVED 2026-08-05: `systemd/tepna-capture.service` is DELETED and its unique documentation merged
+# into the deploy/ copy. It had to be — `ambiguous()` correctly refuses to go green while two different
+# files share a name, so on the live box the gate exited 1 on EVERY run with every row reading ✓. A gate
+# that cannot be green is a gate that gets ignored, which is this suite's own recurring failure class.
+# The fixtures below still build two copies on purpose: they exercise `ambiguous()` itself.
 CHK = os.path.join(HERE, "deploy", "check-system-files.sh")
 
 
@@ -196,7 +203,8 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
         (src / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()
-    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh"):
+    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
+                                                                            "tepna-btreset.sh"):
         body = f"#!/usr/bin/env bash\n# {h}\n"
         (tmp_path / "capture-host" / h).write_text(body)
         (lib / h).write_text(body)
@@ -285,7 +293,8 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
         (src / "systemd" / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()
-    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh"):
+    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
+                                                                            "tepna-btreset.sh"):
         body = f"#!/usr/bin/env bash\n# {h}\n"
         (src / h).write_text(body)
         (lib / h).write_text(body)
@@ -347,12 +356,14 @@ def test_the_four_privileged_helpers_are_installed_EXECUTABLE(tmp_path):
     manifest data now; this test is the thing that would have caught it."""
     src, sd, ud = _tree(tmp_path)
     lib = tmp_path / "lib-tepna"
-    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh"):
+    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
+                                                                            "tepna-btreset.sh"):
         (lib / h).unlink()
     # --install still exits 1 after repairing (it reports the drift it found), so the MODE is the
     # assertion here, not the status.
     _chk(src, sd, ud, "--install")
-    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh"):
+    for h in ("tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh", "tepna-usbreset.sh",
+                                                                            "tepna-btreset.sh"):
         assert os.access(lib / h, os.X_OK), f"{h} installed non-executable — every sudoers grant on it is dead"
 
 
@@ -557,9 +568,24 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #     /proc/<pid>/cmdline contains capture.py AND its cwd is $VIGIL_DIR — i.e. inside tmp_path. A
     #     stranger that merely inherited the number is rejected (test_a_recycled_pid_… pins this);
     #   • the one mktemp is on the VIGIL_HOST branch, which no test sets.
+    # tepna-btreset.sh added 2026-08-05 — the fifth NOPASSWD helper, and the one with the largest blast
+    # radius on this list, because a driver unbind detaches whatever it names. The confirmation therefore
+    # covers BOTH seams, not just the device tree:
+    #   • it writes ONLY under $TEPNA_USB_DRIVER, and reads only under $TEPNA_USB_SYSFS. `_run()` sets
+    #     BOTH unconditionally, so neither real default (/sys/bus/usb/drivers/usb, /sys/bus/usb/devices)
+    #     is reachable. Two seams, both mandatory — a redirect that covered only the device tree would
+    #     still have let a test unbind a real adapter;
+    #   • it runs no external command that can mutate anything — cat / sleep only. No systemctl, no
+    #     udevadm, no mount, no ip, no install;
+    #   • the CLASS allowlist is enforced BEFORE any write, so even an unredirected run could only touch
+    #     a device that reports itself `e0:01:01` — never a disk (08), never a hub (09). Both refusals are
+    #     asserted directly (test_a_hub_is_refused, test_mass_storage_is_refused);
+    #   • the non-root test asserts the write FAILS, and skips when euid == 0 so it cannot touch a real
+    #     sysfs even in a root container.
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
                         "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
-                        "tepna-usbreset.sh", "check.sh", "tepna-update.sh", "vigil.sh"}, (
+                        "tepna-usbreset.sh", "tepna-btreset.sh", "check.sh", "tepna-update.sh",
+                        "vigil.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 

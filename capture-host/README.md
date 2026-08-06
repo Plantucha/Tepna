@@ -31,7 +31,7 @@ capture-host/
   config.example.yaml   # copy -> config.yaml, edit device MACs/streams
   requirements.txt
   Caddyfile             # tepna-web: serve /srv/tepna/app at http://tepna.local
-  systemd/tepna-capture.service
+  deploy/tepna-capture.service   # the ONLY copy — installed by deploy/install-services.sh
   systemd/tepna-web.service
 ```
 

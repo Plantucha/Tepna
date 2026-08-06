@@ -4,17 +4,22 @@ Description=Tepna capture daemon (BLE -> vendor-layout files)
 After=bluetooth.target network-online.target time-sync.target
 Wants=bluetooth.target network-online.target
 # Capture is unattended overnight — never rate-limit restarts (keep retrying across transient BLE drops).
-# StartLimitIntervalSec lives in [Unit], not [Service], since systemd v230.
+# StartLimitIntervalSec lives in [Unit], not [Service], since systemd v230 — it was silently IGNORED in
+# [Service] (a `systemctl status` warned "Unknown key … ignoring"), so the no-give-up intent never applied.
 StartLimitIntervalSec=0
 
 [Service]
 # notify (not simple): the daemon sends READY=1 once capture is actually up, and heartbeats WATCHDOG=1
 # from a live-event-loop task. WatchdogSec turns the box's signature HUNG-BUT-ALIVE failure (a wedged BLE
-# stack that captures nothing while the process keeps running) into an automatic kill+restart.
+# stack that captures nothing while the process keeps running) into an automatic kill+restart — Restart
+# alone never fires on a wedge because nothing crashes. sd_watchdog() pings at half this interval.
 Type=notify
 WatchdogSec=120
-# This box's operator account. The upstream unit says `tepna`; no such user exists here, and everything
-# under /opt/tepna and /srv/tepna is owned by vigil.
+# This box's operator account. An earlier duplicate of this unit under systemd/ said `tepna`; no such user
+# exists here, and everything under /opt/tepna and /srv/tepna is owned by vigil. That duplicate was DELETED
+# 2026-08-05 rather than corrected — two files with one name is what made check-system-files.sh's first
+# green a lie (it byte-compared the copy nobody installs), and its own `ambiguous()` check then held the
+# gate at exit 1 on the live box permanently. THIS is the only copy; install-services.sh installs it.
 User=vigil
 # ARM THE WATCHDOG'S RECOVERY LADDER. Without CAP_NET_ADMIN the daemon runs prevention-only: the
 # adapter watchdog's `hciconfig <hci> reset` and USB unbind/bind both fail silently, so a wedged radio
@@ -34,6 +39,7 @@ AmbientCapabilities=CAP_NET_ADMIN
 
 Group=vigil
 WorkingDirectory=/opt/tepna/capture-host
+# Use the venv's python (see README install).
 ExecStart=/opt/tepna/capture-host/.venv/bin/python capture.py --config /opt/tepna/capture-host/config.yaml
 Restart=always
 RestartSec=5
@@ -47,7 +53,23 @@ RestartSec=5
 #   and it is worth paying (the old truncating write needed only the file, but could destroy it).
 ReadWritePaths=/srv/tepna /opt/tepna/capture-host
 
+# ⚠️ KEEP THIS `no`. NoNewPrivileges=yes makes sudo structurally impossible, so every helper the daemon
+# reaches through `sudo -n` — tepna-clock.sh (Save&apply / Sync now / Set timezone), tepna-rssi.sh,
+# tepna-btreset.sh (the watchdog's last recovery rung), and the CPAP harvest's wpa_supplicant/ip — fails
+# with "the no new privileges flag is set".
 NoNewPrivileges=no
+# ⚠️ THE MONITOR'S CLOCK CONTROLS NEED THREE MORE PATHS OPENED, and they are NOT open here. If Save&apply
+# or Sync now must write, add a DROP-IN (never edit this file, or a redeploy reverts it) — which is exactly
+# what deploy/enable-clock-control.sh installs:
+#
+#   /etc/systemd/system/tepna-capture.service.d/clock-control.conf
+#     [Service]
+#     ReadWritePaths=-/etc/chrony -/etc/systemd/timesyncd.conf.d -/run/chrony
+#
+# All three were established by an actual failure on a real box (2026-07-25), not guessed: ProtectSystem=
+# strict mounts the WHOLE hierarchy read-only except /dev, /proc and /sys — inherited by sudo'd children —
+# so /etc/chrony blocks writing the servers and /run/chrony blocks chronyc from creating the reply socket
+# it needs to talk to chronyd at all.
 ProtectSystem=strict
 # ProtectHome stays TRUE, so /home/vigil is invisible to the daemon. Consequence for the offload: the
 # rsync SSH key must NOT live in ~/.ssh — put it under /srv/tepna/.ssh/ (mode 600) or the archive push

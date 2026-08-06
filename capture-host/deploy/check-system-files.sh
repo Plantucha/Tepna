@@ -20,6 +20,7 @@
 # exists on this box. That belief was WRONG, and the way it was wrong is the lesson:
 #
 #     capture-host/systemd/tepna-capture.service   User=tepna    <- what this script was comparing
+#                                                                   (DELETED 2026-08-05 — see below)
 #     capture-host/deploy/tepna-capture.service    User=vigil    <- what is actually installed
 #     /home/vigil/tepna-capture.service            (a day stale) <- what install-services.sh installed
 #
@@ -35,6 +36,17 @@
 # What replaces it is `ambiguous()`: a managed file with a second, DIFFERENT copy anywhere in the repo
 # is reported LOUD and exits non-zero, whether or not /etc currently matches. Two files with one name
 # is the condition that produced this bug, and it must never be silent again.
+#
+# ── AND THEN IT FIRED, ON THE REAL BOX, FOREVER (2026-08-05) ───────────────────────────────────────
+# `ambiguous()` was right and the repo was wrong: `systemd/tepna-capture.service` (User=tepna, installed
+# by nobody) and `deploy/tepna-capture.service` (User=vigil, installed by install-services.sh) were both
+# still present, so every run on vigil printed nine ✓ rows and then exited 1 on a permanent condition —
+# `9 managed, 1 drifted, 1 AMBIGUOUS` with nothing actually stale. The duplicate is now DELETED and its
+# unique documentation merged into the deploy/ copy.
+#
+# The lesson is about the REMEDY, not the detector: a gate whose red cannot be cleared by any action
+# stops being read, which is the same "machinery that exists without exercising anything" failure this
+# script was written to end. If `ambiguous()` fires, DELETE A FILE — do not add an exemption.
 set -uo pipefail
 
 SRC="${TEPNA_SRC:-$(cd "$(dirname "$0")/.." && pwd)}"          # …/capture-host
@@ -66,6 +78,7 @@ tepna-clock.sh|$LIB_TEPNA/tepna-clock.sh|MANAGED|0755
 tepna-restart.sh|$LIB_TEPNA/tepna-restart.sh|MANAGED|0755
 tepna-rssi.sh|$LIB_TEPNA/tepna-rssi.sh|MANAGED|0755
 tepna-usbreset.sh|$LIB_TEPNA/tepna-usbreset.sh|MANAGED|0755
+tepna-btreset.sh|$LIB_TEPNA/tepna-btreset.sh|MANAGED|0755
 "
 
 # A managed file with a second, DIFFERENT copy somewhere else in the repo means "which one is the

@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (**V1/V2 MATERIALLY ADVANCED and V3 CONFIRMED-DEAD against the 19 GB PSL corpus, 2026-08-04** — H10 ACC agrees with the vendor decode to 0.4 % on the 1 g invariant (V2 answered); GYRO/MAG units confirmed but the UNCOMPRESSED branch stays untested because the Verity streams delta; PPI is 107 files / 102 rows, header-only. Plus: **§2 re-measured on the live box 2026-08-04** — V4 partially observed, V5's sudoers rule found installed, and a 🔴 **live finding**: two of the four root-owned NOPASSWD helpers have drifted from the checkout and a third was never installed, with `helper_path` preferring the stale copies. Now gate-backed in `deploy/check-system-files.sh`. V1·V2·V3 remain hardware-gated) · **Created:** 2026-07-16 (**Field-verified 2026-07-22 on `rig-x870`:** the whole
+**Status:** PROPOSED (**V1/V2 MATERIALLY ADVANCED and V3 CONFIRMED-DEAD against the 19 GB PSL corpus, 2026-08-04** — H10 ACC agrees with the vendor decode to 0.4 % on the 1 g invariant (V2 answered); GYRO/MAG units confirmed but the UNCOMPRESSED branch stays untested because the Verity streams delta; PPI is 107 files / 102 rows, header-only. Plus: **§2 re-measured on the live box 2026-08-04** — V4 partially observed, V5's sudoers rule found installed, and a 🔴 **live finding**: two of the four root-owned NOPASSWD helpers have drifted from the checkout and a third was never installed, with `helper_path` preferring the stale copies. Now gate-backed in `deploy/check-system-files.sh`. **Re-measured again 2026-08-05: that drift is REPAIRED — all helpers byte-match and every grant works passwordless — but one inference drawn from it was wrong**, namely that installing `tepna-usbreset.sh` unblocked the wedged-adapter rung; it is a Polar-dock helper that must never touch a radio, and the real blocker was code (see V5). V1·V2·V3 remain hardware-gated) · **Created:** 2026-07-16 (**Field-verified 2026-07-22 on `rig-x870`:** the whole
 `capture-host/` test suite is green (~40 files incl. `test_capture_clock` F2, `test_pmd_delta`,
 `test_oxyii`, writers/fsync R1) and real captured files round-trip to node-exports (H10 ECG → ECGDex 21
 events, O2Ring SpO₂ → OxyDex meanSpo₂ 96.1 %). **§2 V1–V5 stay OPEN — all hardware-gated** exactly as
@@ -119,6 +119,17 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
     (repo-identical) checkout; `tepna-rssi.sh` matches; **`tepna-usbreset.sh` was never installed at all and
     has no sudoers grant** — which means the USB unbind/bind step `VIGIL-OVERNIGHT-FINDINGS` P1.3 calls
     *"the only reliable clear"* for a wedged adapter cannot run.
+    - ⚠️ **That last clause is WRONG, corrected 2026-08-05 — and it is the more interesting error.**
+      `tepna-usbreset.sh` is **not** the unbind/bind rung. It toggles `authorized` on a docked **Polar
+      sensor** to re-open the PS-FTP window and is hard-allowlisted to `0da4:0008`; its header names *"the
+      very BLE adapters the capture depends on"* as what it must never reach. Installing it (done
+      2026-08-04; grant verified passwordless 2026-08-05) did nothing for P1.3. The rung's actual blocker
+      was code — `capture._usb_rebind` wrote root-only sysfs from an unprivileged daemon and logged the
+      `PermissionError` at INFO as *"skipped"*. Fixed 2026-08-05 with a separate root helper
+      `tepna-btreset.sh`, allowlisted by USB device **class** `e0:01:01` so it may touch only radios; the
+      two allowlists are asserted disjoint. **The re-measurement that produced the finding was sound; the
+      inference that one helper's name matched another's job was not** — two privileged helpers whose
+      names differ by two letters do opposite things, and only reading both says so.
   - **Now gate-backed:** the four privileged helpers were absent from `deploy/check-system-files.sh`'s
     manifest, which is why this was invisible. They are on it as of 2026-08-04, with tests reproducing both
     halves (stale, and never-installed) and a non-vacuity check deriving the helper list from

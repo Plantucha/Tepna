@@ -16,7 +16,7 @@ say "1/4  deploy the helpers root-owned"
 # compromised browser tab, a bad pip package, the unauthenticated web API — overwrite the script and get
 # instant passwordless root. Root-owned 0755 under /usr/local/lib/tepna is the only safe target, and
 # helper_path.resolve() prefers it automatically.
-for h in tepna-clock.sh tepna-rssi.sh; do
+for h in tepna-clock.sh tepna-rssi.sh tepna-btreset.sh; do
   [ -f "$SRC/$h" ] || { echo "  skip $h (not in repo)"; continue; }
   install -D -o root -g root -m 0755 "$SRC/$h" "$DST/$h"
   echo "  ✓ $DST/$h  $(stat -c'%U:%G %a' "$DST/$h")"
@@ -25,9 +25,11 @@ done
 say "2/4  scoped sudoers grant (validated before install)"
 TMP=$(mktemp)
 cat > "$TMP" <<RULES
-# Tepna Vigil — the monitor's clock/NTP + RSSI helpers ONLY. Root-owned, non-writable by $USER_.
+# Tepna Vigil — the monitor's clock/NTP + RSSI helpers, and the watchdog's last recovery rung. ONLY
+# these. Root-owned, non-writable by $USER_.
 $USER_ ALL=(root) NOPASSWD: $DST/tepna-clock.sh
 $USER_ ALL=(root) NOPASSWD: $DST/tepna-rssi.sh
+$USER_ ALL=(root) NOPASSWD: $DST/tepna-btreset.sh
 RULES
 if visudo -cqf "$TMP"; then
   install -o root -g root -m 0440 "$TMP" /etc/sudoers.d/tepna
