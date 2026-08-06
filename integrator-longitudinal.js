@@ -185,6 +185,7 @@
     var envs = _findEnvelopes(json);
     if (!envs.length) return { count: 0 };
     var rowRecs = [],
+      collisions = [],
       defRecs = [],
       nodes = {};
     envs.forEach(function (env) {
@@ -227,6 +228,19 @@
           ingestedAt: Date.now(),
           src: filename || null
         };
+        // F7 (DEEP-AUDIT-V) — THE OVERWRITE WAS SILENT AND THE COUNT WAS A LIE. The key is
+        // node|date, and date comes from the recording's START, so a 00:01 bedtime is keyed to the
+        // NEXT date and lands on top of that night. Measured on 25 real nights per node: 50 rows
+        // supplied, 49 stored, OxyDex 24 series against ECGDex 25, 2026-06-27 gone from OxyDex
+        // entirely. One real night destroyed and the same-night cross-node pairing lost, while the
+        // UI read "absorbed 25 (persisted)" — because the count was of rows SUPPLIED, not STORED.
+        // The date convention needs a SCOPED post-midnight shift (a blanket noon anchor would
+        // re-date ambulatory sessions) plus an IndexedDB re-key; that is deferred to the brief.
+        // What lands here is what makes the loss visible instead of silent.
+        var _prev = _rows[id];
+        if (_prev && _prev.t0Ms != null && rec.t0Ms != null && _prev.t0Ms !== rec.t0Ms) {
+          collisions.push({ id: id, node: node, date: date, keptT0Ms: rec.t0Ms, lostT0Ms: _prev.t0Ms, lostSrc: _prev.src || null, src: rec.src || null });
+        }
         _rows[id] = rec;
         rowRecs.push(rec);
       });
@@ -236,7 +250,17 @@
       _put(STORE, rowRecs);
       _put(DEFS, defRecs);
     }
-    return { count: envs.length, nodes: Object.keys(nodes), rows: rowRecs.length };
+    // `rows` is what the store actually holds for this batch, not what was handed in — the two
+    // differ exactly when a key collided, which is the case worth surfacing. `supplied` keeps the
+    // old number so a caller can show both, and `collisions` names every night overwritten.
+    var _storedIds = {};
+    rowRecs.forEach(function (r) {
+      _storedIds[r.id] = 1;
+    });
+    if (collisions.length && typeof console !== 'undefined' && console.warn) {
+      console.warn('[longitudinal] ' + collisions.length + ' night(s) overwritten by a same-key collision — a post-midnight start keys to the following date (DEEP-AUDIT-V F7):', collisions);
+    }
+    return { count: envs.length, nodes: Object.keys(nodes), rows: Object.keys(_storedIds).length, supplied: rowRecs.length, collisions: collisions };
   }
 
   function clear() {
