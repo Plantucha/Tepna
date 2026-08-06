@@ -60,6 +60,22 @@
  *   node tools/mutate.mjs --json                    # NDJSON, one line per file, streamed
  *   node tools/mutate.mjs --file X --dry-run       # list the mutants; run nothing, write nothing
  *   node tools/mutate.mjs --selftest                # known-answer, no repo mutation
+ *   node tools/mutate.mjs --diff                    # GATE: only the lines changed vs origin/main
+ *   node tools/mutate.mjs --diff <ref> --dry-run    # what the gate would test, running nothing
+ *   node tools/mutate.mjs --file X --bail           # stop each suite run at its first failure
+ *
+ * --diff IS A GATE AND EXITS NON-ZERO: 1 if a mutant on a changed line survived (you changed it and
+ * no test can see it), 3 if the run could not prove anything (canary survived, or a mutant never
+ * ran). Survey mode always exits 0, because a survivor in code nobody touched is information, not a
+ * verdict. Bail is ON by default under --diff and OFF for surveys, whose `killers` breakdown is the
+ * point; `--no-bail` / `--bail` override.
+ *
+ * KNOWN SHARP EDGE: the gate does not yet know which mutants are EQUIVALENT. Touch a line carrying
+ * one — `if (rv < rMin) rMin = rv;` mutated to `<=` cannot change a minimum on a tie — and it will
+ * be reported as a survivor you must justify, because no test can kill it and none ever could. The
+ * classification exists (MUTATION-EQUIVALENCE-2026-08-04-BRIEF §3) but is prose, not data. Feeding it
+ * in as an allowlist is the obvious follow-up; until then, expect to argue with the gate occasionally
+ * and prefer that over a gate that silently excuses whatever it cannot kill.
  *
  * SAFETY — and this was got WRONG first, so it is spelled out. With `--jobs > 1` (the default) the
  * caller's tree is NEVER written to: each worker mutates its own `git worktree`. On the `--jobs 1`
@@ -83,7 +99,23 @@ const opt = (f, d) => {
   const i = argv.indexOf(f);
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
 };
-const LIMIT = +opt('--limit', 60);
+const DIFF = has('--diff');
+/* `--diff` alone means origin/main; `--diff <ref>` overrides it. The next argv slot is only a base if
+   it isn't another flag, so `--diff --json` doesn't silently become base "--json" and then diff
+   against nothing — which would produce an EMPTY touched-line set and a green gate that tested zero
+   mutants. A gate that passes by measuring nothing is the failure mode this whole tool exists for. */
+const DIFF_BASE = (() => {
+  const i = argv.indexOf('--diff');
+  const nxt = i >= 0 ? argv[i + 1] : null;
+  return nxt && !nxt.startsWith('--') ? nxt : 'origin/main';
+})();
+/* Diff mode must test EVERY mutant on a touched line. The default cap of 60 exists to keep a
+   whole-file survey affordable; applied to a gate it would silently drop mutants and still report
+   "all killed". A diff rarely reaches 60 anyway — but "rarely" is not a guarantee. */
+/* Default ON in diff mode (a gate only asks "did anything go red?"), off for whole-file surveys
+   (whose `killers` breakdown is the point). `--no-bail` forces it off, `--bail` forces it on. */
+const BAIL = has('--bail') || (DIFF && !has('--no-bail'));
+const LIMIT = +opt('--limit', DIFF ? Infinity : 60);
 const FULL = has('--full');
 /* Per-file wall-clock ceiling in seconds. A sweep across 71 modules is dominated by a handful of
    pathologically expensive tags, and skipping them LOUDLY beats discovering them at minute forty. */
@@ -274,12 +306,62 @@ export function invalidWarning(invalid, tested, killed) {
     ' is not.\n'
   );
 }
+/* ── DIFF-SCOPED MUTATION ───────────────────────────────────────────────────────────────────────
+   Sweeping a whole DSP is unaffordable: `oxydex-dsp.js` alone generates 2678 mutants, ~38 h at 20
+   workers, and the fleet is ~11,500. That cost is why mutation testing gets run once, admired, and
+   abandoned — and most of it is spent re-litigating code nobody touched.
+
+   The bounded form is to mutate only the lines a change TOUCHED and require them killed. It enforces
+   exactly "if you changed it, some test can see it", never judges pre-existing code, and costs a
+   handful of mutants. It would have caught this file's own four `clock.js` gaps at the moment they
+   were written rather than three sweeps later.
+
+   Parses `git diff <base>...HEAD -U0`. Three-dot on purpose: it diffs against the MERGE BASE, which
+   is what a PR shows — two-dot would also flag every line that moved on main since you branched, so
+   a long-lived branch would be asked to prove tests for other people's code. */
+export function changedLinesFromDiff(diffText) {
+  const out = new Map();
+  let path = null;
+  for (const line of String(diffText).split('\n')) {
+    if (line.startsWith('+++ ')) {
+      /* Take the whole rest of the line, not a whitespace-split token: this repo really does ship
+         `OxyDex Reference.html`, and splitting on space would silently truncate such a path to
+         "OxyDex" and then match nothing. Strip only a trailing tab-timestamp, which is the one thing
+         git appends after the name. */
+      let p = line.slice(4).replace(/\t.*$/, '');
+      path = p === '/dev/null' ? null : p.replace(/^b\//, '');
+      continue;
+    }
+    if (!path || !line.startsWith('@@')) continue;
+    const m = line.match(/^@@ -\S+ \+(\d+)(?:,(\d+))? @@/);
+    if (!m) continue;
+    const start = Number(m[1]);
+    const count = m[2] === undefined ? 1 : Number(m[2]);
+    if (!count) continue; // a pure DELETION adds no line to test — not a gap, just nothing there
+    let set = out.get(path);
+    if (!set) out.set(path, (set = new Set()));
+    for (let i = 0; i < count; i++) set.add(start + i);
+  }
+  return out;
+}
+
 export function verdictFromOutput(out) {
   return String(out).includes('✓') || String(out).includes('✕') ? 'KILLED' : 'INVALID';
 }
 function runSuiteAsync(filter, cwd, timeoutMs) {
   return new Promise((resolve) => {
-    const ch = spawn('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], { cwd, stdio: ['ignore', 'pipe', 'ignore'], timeout: timeoutMs || 900000 });
+    /* DEX_BAIL stops the suite at the first FAILING group. Measured on a real clock.js mutant:
+       289 s → 2 s, same exit code, same killers. It only ever shortens a run that is already red, so
+       it cannot turn a survivor into a kill — a survivor makes nothing fail, so nothing bails and it
+       still pays the full suite. What it costs is the BREADTH of killer attribution: a mutant caught
+       by several groups now reports only the first. That is why it is opt-in, and why the whole-file
+       surveys that exist to measure `killers` should run without it. */
+    const ch = spawn('node', filter ? ['tests/run-tests.mjs', '--group=' + filter] : ['tests/run-tests.mjs'], {
+      cwd,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: timeoutMs || 900000,
+      env: BAIL ? { ...process.env, DEX_BAIL: '1' } : process.env
+    });
     let out = '';
     ch.stdout.on('data', (d) => {
       out += d;
@@ -490,12 +572,18 @@ async function runFile(file) {
   if (!AS_JSON) process.stderr.write('  ' + file + '  baseline ' + (baseMs / 1000).toFixed(1) + ' s/run → est ' + (estMs / 1000).toFixed(0) + ' s\n');
 
   const original = readFileSync(abs, 'utf8');
-  const all = mutantsFor(original);
+  const allGenerated = mutantsFor(original);
+  /* Diff mode tests only what the change TOUCHED. The canary is looked up against the FULL population
+     (below), never this filtered one: it guards the HARNESS, not the diff, and a canary that happened
+     to fall outside the touched lines would read STALE on every gate run — leaving the fast per-PR
+     gate as the one place with no proof that kills are still being detected. */
+  const touched = DIFF ? DIFF_LINES.get(file) || new Set() : null;
+  const all = touched ? allGenerated.filter((m) => touched.has(m.line)) : allGenerated;
   const picked = thin(all, LIMIT);
   /* The canary rides along as an extra mutant. It is EXCLUDED from every counter (see classify), so
      it can never flatter or dent the reported rate — it only decides whether that rate is reportable. */
   const canaryWant = loadCanaries()[file];
-  const canaryMu = findCanary(all, canaryWant);
+  const canaryMu = findCanary(allGenerated, canaryWant);
   if (canaryMu) {
     canaryMu.__canary = true;
     if (!picked.includes(canaryMu)) picked.push(canaryMu);
@@ -630,6 +718,8 @@ async function runFile(file) {
           groupCount: g ? g.count : null,
           groupsSelected: g ? g.selected : null,
           generated: all.length,
+          generatedInFile: touched ? allGenerated.length : undefined,
+          touchedLines: touched ? touched.size : undefined,
           tested: picked.length,
           killed,
           invalid,
@@ -709,6 +799,10 @@ async function runFile(file) {
     groupCount: g ? g.count : null,
     groupsSelected: g ? g.selected : null,
     generated: all.length,
+    /* In diff mode: how many mutants the FILE has, and how many lines the change touched — so a
+       result of "3" reads as "3 on the 2 lines you changed", not "this file is nearly mutant-free". */
+    generatedInFile: touched ? allGenerated.length : undefined,
+    touchedLines: touched ? touched.size : undefined,
     // the canary is scaffolding, not a measurement — it must not enter the denominator it guards
     tested: picked.length - (canaryMu ? 1 : 0),
     killed: canaryState === 'FAILED' ? null : killed,
@@ -838,6 +932,23 @@ function selftest() {
   ck('green marks then a late crash → KILLED', verdictFromOutput('✓ clock\nsegfault\n'), 'KILLED');
   ck('unparseable file, no suite output → INVALID', verdictFromOutput('SyntaxError: Invalid regular expression'), 'INVALID');
   ck('empty output → INVALID', verdictFromOutput(''), 'INVALID');
+  /* The diff parser decides WHICH lines get gated. A bug here doesn't error — it gates the wrong
+     lines, or none, and reports a confident green. So every hunk shape it can meet is pinned. */
+  console.log('\nchangedLinesFromDiff — the parser that decides what the gate looks at');
+  const D = (t) => changedLinesFromDiff(t);
+  const L = (t, f) => [...(D(t).get(f) || [])].join(',');
+  ck('added hunk → its new lines', L('+++ b/a.js\n@@ -10,0 +11,3 @@\n', 'a.js'), '11,12,13');
+  ck('no-count hunk means exactly one line', L('+++ b/a.js\n@@ -1 +1 @@\n', 'a.js'), '1');
+  ck('pure DELETION contributes nothing', L('+++ b/a.js\n@@ -5,2 +5,0 @@\n', 'a.js'), '');
+  ck('a deleted FILE is skipped, not attributed', D('+++ /dev/null\n@@ -1,5 +0,0 @@\n').size, 0);
+  ck('two files stay separate', D('+++ b/a.js\n@@ -1 +1 @@\n+++ b/b.js\n@@ -9 +9 @@\n').get('b.js').has(9), true);
+  ck('…and do not bleed into each other', D('+++ b/a.js\n@@ -1 +1 @@\n+++ b/b.js\n@@ -9 +9 @@\n').get('a.js').has(9), false);
+  /* This repo really does ship `OxyDex Reference.html`. Splitting the +++ line on whitespace would
+     truncate it to "OxyDex", match no file, and gate nothing — silently. */
+  ck('a path containing a SPACE survives', D('+++ b/OxyDex Reference.html\n@@ -3 +3 @@\n').has('OxyDex Reference.html'), true);
+  ck('a trailing tab-timestamp is stripped', D('+++ b/a.js\t2026-08-05\n@@ -3 +3 @@\n').has('a.js'), true);
+  ck('hunks accumulate within one file', L('+++ b/a.js\n@@ -1 +1 @@\n@@ -8,0 +9,2 @@\n', 'a.js'), '1,9,10');
+  ck('empty diff → empty map', D('').size, 0);
   console.log('\ninvalidWarning — a run that did not measure what it claims must say so');
   ck('1 of 123 (the regex quantifier) → silent', invalidWarning(1, 123, 103), null);
   ck('2 of 123 → still silent', invalidWarning(2, 123, 102), null);
@@ -940,8 +1051,53 @@ recoverStale();
 
 if (has('--selftest')) process.exit(selftest());
 
+/* DIFF_LINES is read ONCE, here, and consulted per file inside runFile. Empty when --diff is off. */
+const DIFF_LINES = new Map();
+if (DIFF) {
+  /* NAMES FIRST, then a line-diff restricted to just those files. Asking for the whole patch blew the
+     64 MB buffer with ENOBUFS against a base a few weeks old — `uploads/` alone is enormous — and a
+     gate that dies on a long branch is a gate people switch off. Restricting the second call keeps it
+     small however far back the base is.
+
+     execFileSync with an ARGS ARRAY rather than a shell string: this repo ships paths with spaces
+     (`OxyDex Reference.html`), and interpolating one into `sh -c` mangles it. */
+  const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  let names = [];
+  try {
+    names = git(['diff', '--name-only', DIFF_BASE + '...HEAD'])
+      .split('\n')
+      .filter((f) => /\.(js|mjs)$/.test(f) && !f.startsWith('tests/') && !f.startsWith('tools/'));
+  } catch (e) {
+    // FAIL CLOSED. A gate that cannot see the diff must never report "nothing to test".
+    console.error('--diff: cannot diff against ' + DIFF_BASE + ' — ' + String(e.message || e).split('\n')[0]);
+    console.error('  Is the base fetched?   git fetch origin main');
+    process.exit(2);
+  }
+  if (names.length) {
+    try {
+      /* `-w` (ignore whitespace) because a REFORMAT is not a behavioural change. Measured: a `biome`
+         format commit touches every line of clock.js, and without this the gate would select the
+         entire 123-mutant population — a ~2 h "gate" on a PR that changed no behaviour at all. It
+         does not cover re-wrapping (which genuinely moves tokens between lines), which is why the
+         cost is also printed up front rather than discovered by waiting. */
+      for (const [f, lines] of changedLinesFromDiff(git(['diff', DIFF_BASE + '...HEAD', '-U0', '-w', '--', ...names]))) DIFF_LINES.set(f, lines);
+    } catch (e) {
+      console.error('--diff: cannot read the line-level diff — ' + String(e.message || e).split('\n')[0]);
+      process.exit(2);
+    }
+  }
+}
+
 let files = [];
 for (let i = 0; i < argv.length; i++) if (argv[i] === '--file' && argv[i + 1]) files.push(argv[i + 1]);
+if (DIFF && !files.length) {
+  files = [...DIFF_LINES.keys()].filter((f) => /\.(js|mjs)$/.test(f) && !f.startsWith('tests/') && !f.startsWith('tools/') && existsSync(join(ROOT, f)));
+  if (!files.length) {
+    // A real, honest pass: the change touched no mutable source. Say which, so it is not read as a skip.
+    console.error('--diff: no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' file(s) in the diff) — nothing to gate.');
+    process.exit(0);
+  }
+}
 if (!files.length) {
   try {
     files = execSync('git diff --name-only origin/main...HEAD', { cwd: ROOT, encoding: 'utf8' })
@@ -954,6 +1110,24 @@ if (!files.length) {
 if (!files.length) {
   console.error('nothing to mutate — pass --file <path>, or have changes vs origin/main. --selftest needs neither.');
   process.exit(2);
+}
+
+/* SAY WHAT IT WILL COST, BEFORE SPENDING IT. `-w` stops a pure re-indent from selecting the whole
+   file, but it cannot stop a re-WRAP — a biome format commit still selected 92 of clock.js's 123
+   mutants. Someone expecting a PR gate should learn that from a line printed in the first second,
+   not by watching a "quick check" run for two hours. Cheap because --dry-run runs no suite. */
+if (DIFF && !AS_JSON && !DRY) {
+  let planned = 0;
+  for (const f of files) {
+    try {
+      const t = DIFF_LINES.get(f);
+      planned += mutantsFor(readFileSync(join(ROOT, f), 'utf8')).filter((m) => !t || t.has(m.line)).length;
+    } catch {}
+  }
+  const each = FULL ? 461 : 180; // seconds/mutant, measured; bail makes KILLED ones far cheaper
+  const mins = Math.round((planned * each) / Math.max(1, JOBS) / 60);
+  console.log('  diff gate: ' + planned + ' mutant(s) on ' + [...DIFF_LINES.values()].reduce((a, s) => a + s.size, 0) + ' changed line(s) in ' + files.length + ' file(s)');
+  console.log('  worst case ~' + mins + ' min at ' + JOBS + ' job(s); killed mutants return in seconds with bail' + (BAIL ? '' : ' (currently OFF)') + '\n');
 }
 
 /* REPORT PER FILE, AS IT COMPLETES — never buffer a long run to the end.
@@ -996,7 +1170,11 @@ if (DRY) {
       else dryOut.push({ file: f, error: 'not found' });
       continue;
     }
-    const ms = mutantsFor(readFileSync(abs, 'utf8'));
+    /* Dry-run honours --diff too. Without this, `--diff --dry-run` would enumerate the WHOLE file and
+       give a wildly wrong picture of what the gate is about to test — the one command someone runs to
+       check the gate's scope before trusting it. */
+    const _touched = DIFF ? DIFF_LINES.get(f) || new Set() : null;
+    const ms = mutantsFor(readFileSync(abs, 'utf8')).filter((m) => !_touched || _touched.has(m.line));
     if (AS_JSON) {
       dryOut.push({ file: f, generated: ms.length, mutants: ms.map((mu, i) => ({ id: f + ':' + mu.line + ':' + i, line: mu.line, op: mu.op, before: mu.before, after: mu.after })) });
     } else {
@@ -1040,4 +1218,42 @@ if (!AS_JSON) {
       gen +
       ' mutants that exist)'
   );
+}
+
+/* ── DIFF MODE IS A GATE, so it decides an EXIT CODE ────────────────────────────────────────────
+   Survey mode reports and always exits 0: a survivor in code nobody touched is information, not a
+   verdict. Diff mode is the opposite — every mutant it tested sits on a line this change wrote, so a
+   survivor means "you changed this and no test can see it", which is exactly the thing to block on.
+
+   It refuses in three ways, and only one of them is "a survivor":
+     · a VOIDED run (canary survived) exits 3 — the harness could not be trusted to detect kills, so
+       "all killed" would be an unearned pass, and passing on an unverifiable measurement is worse
+       than failing on a real one;
+     · INVALID mutants exit 3 too — they never ran, so nothing about them was proven;
+     · survivors exit 1, listed with file:line and the exact edit that went unnoticed. */
+if (DIFF) {
+  const ok = results.filter((r) => !r.error);
+  const surv = ok.flatMap((r) => r.survivors.map((s) => ({ file: r.file, ...s })));
+  const voided = ok.filter((r) => r.voided);
+  const unrun = ok.reduce((a, r) => a + r.invalid, 0);
+  const tested = ok.reduce((a, r) => a + r.tested, 0);
+  const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
+  if (voided.length) {
+    console.error('\n✕ MUTATION GATE VOID — the canary survived on: ' + voided.map((r) => r.file).join(', '));
+    console.error('  Kills are not being detected, so "all killed" would prove nothing. Not a pass.');
+    process.exit(3);
+  }
+  if (unrun) {
+    console.error('\n✕ MUTATION GATE INCONCLUSIVE — ' + unrun + ' of ' + tested + ' mutants never ran.');
+    console.error('  They did not compile, or timed out under load. Nothing was proven about them.');
+    process.exit(3);
+  }
+  if (surv.length) {
+    console.error('\n✕ MUTATION GATE — ' + surv.length + ' of ' + tested + ' mutants on your ' + lines + ' changed line(s) SURVIVED.');
+    console.error('  Each is an edit you made that no test can see. Add an assertion, or explain why it is unobservable:\n');
+    for (const s of surv.slice(0, 20)) console.error('    ' + s.file + ':' + s.line + '  [' + s.op + ']\n      ' + String(s.before).trim().slice(0, 100));
+    if (surv.length > 20) console.error('    … and ' + (surv.length - 20) + ' more');
+    process.exit(1);
+  }
+  if (!AS_JSON) console.log('\n✓ mutation gate: all ' + tested + ' mutant(s) on ' + lines + ' changed line(s) were killed.');
 }
