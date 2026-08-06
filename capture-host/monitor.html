@@ -1727,10 +1727,30 @@ function ovRates(){                              // live ♥ rate for ecg (R-pea
     if(peaks.length>=3){
       const ibis=[]; for(let i=1;i<peaks.length;i++) ibis.push((peaks[i]-peaks[i-1])/st.fs*1000);
       ibis.sort((a,b)=>a-b); const med=ibis[ibis.length>>1];
-      if(med>300&&med<2000){ const b=60000/med; st.rate = st.rate? st.rate*0.6+b*0.4 : b; }
+      // STAMP EVERY ACCEPTED UPDATE. `st.rate` is a persistent EMA, so without a stamp there is no way to
+      // tell a rate computed this second from one computed five minutes ago — see rateAgeMs below.
+      if(med>300&&med<2000){ const b=60000/med; st.rate = st.rate? st.rate*0.6+b*0.4 : b; st.rateAt = nowMs(); }
     }
   }
 }
+// MONOTONIC, deliberately. This measures ELAPSED time ("how long since the rate last moved?"), which is
+// not a Clock-Contract stamp — nothing here is recorded or exported. `Date.now()` would be wrong for the
+// same reason capture.py anchors `_now()` to CLOCK_MONOTONIC: an NTP step or a timezone change would make
+// a fresh rate read as minutes stale, or a stale one as fresh. `performance.now()` cannot step.
+function nowMs(){ return (typeof performance!=='undefined' && performance.now) ? performance.now() : Date.now(); }
+// Ms since the last ACCEPTED update, or Infinity when there is no stamp at all — an unstampable rate
+// cannot be shown to be fresh, so this fails CLOSED.
+function rateAgeMs(st, now){ return (st && st.rateAt!=null) ? now - st.rateAt : Infinity; }
+// THE THRESHOLD IS A PROPERTY OF THE BUFFER, NOT A TUNED CONSTANT. `ovRates` reads a rolling OV_WIN_S
+// window once a second, so after OV_WIN_S with no accepted update every sample that produced the number
+// on screen has already rolled out of that window. The reading is then not "slightly old" — it is derived
+// from data the page no longer holds, which is exactly the claim `(stale)` makes.
+//
+// Why this is needed at all: `st.rate` is reset ONLY on an untrusted stream (off-body / charging /
+// stalled). A TRUSTED stream whose detector merely loses the beat — a noisy but genuinely worn sensor —
+// keeps rendering its last EMA forever, pixel-identical to a live one. A number that looks live and is
+// not is the failure class this suite treats as a bug everywhere else (VIGIL-DEEP-ANALYSIS Phase 3).
+function rateIsStale(st, now){ return rateAgeMs(st, now) > OV_WIN_S*1000; }
 function ovValues(){                             // text readouts (throttled; canvases draw every frame)
   for(const s of STREAMS){
     const st=OV[s.key], el=document.getElementById('ovval-'+s.key); if(!st||!el) continue;
@@ -1741,11 +1761,16 @@ function ovValues(){                             // text readouts (throttled; ca
     if(!state.trust){
       el.innerHTML = `<span class="big muted">—</span><span class="unit">${esc(state.txt)}</span>`;
       st.rate = null;                            // reset the smoothed HR so it does not resume mid-value
+      st.rateAt = null;                          // ...and its stamp, or the next rate inherits this one's age
       continue;
     }
     if(kind==='hr'){
       const raw = last==null?null:(Array.isArray(last)?last[0]:last);
-      el.innerHTML = `<span class="big">${st.rate?'♥ '+Math.round(st.rate):'—'}</span><span class="unit">bpm</span>`
+      // A rate whose evidence has left the buffer is rendered MUTED and labelled, never hidden: the
+      // operator is mid-night and a number vanishing reads as a dead sensor. Say it is old instead.
+      const stale = st.rate && rateIsStale(st, nowMs());
+      el.innerHTML = `<span class="big${stale?' muted':''}">${st.rate?'♥ '+Math.round(st.rate):'—'}</span>`
+        + `<span class="unit">bpm${stale?' (stale)':''}</span>`
         + (raw!=null?`<span class="aux">${Math.round(raw)} ${esc(s.unit||'')}</span>`:'');
     } else if(kind==='scalar'){
       const v = Array.isArray(last)?last[0]:last;
