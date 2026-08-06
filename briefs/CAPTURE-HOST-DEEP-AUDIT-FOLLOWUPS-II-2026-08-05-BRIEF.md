@@ -77,10 +77,18 @@ three tests:
 | backward step | **absorbed** (monotonic; absolute time off by the step until the session ends) | followed |
 | forward step | followed | followed |
 
-**Open, and the honest cost:** an absorbed backward step leaves that session's absolute time wrong by
-the step size. Nothing currently surfaces that. `status.json` has room for a `clock_absorbed_sec`, and
-a night whose stamps are knowingly offset is exactly the kind of fact the export boundary should carry
-rather than discard.
+**CLOSED 2026-08-05.** `capture.absorbed_shift_sec()` reports how far the session is deliberately
+behind civil time, and `host_clock_poller` publishes it as `host_clock.capture_absorbed_sec` — the
+surface `/api/state` already serves verbatim. Zero is the steady state, so absent-as-zero is honest.
+
+Two of its own mutants had to be closed, and both were the silent trade in miniature: **deleting the
+line that publishes the value survived** every test of the accessor (the number was right and went
+nowhere), and **rounding the report to whole seconds** survived until a fractional step was pinned — a
+sub-second absorbed shift would otherwise report as no shift at all.
+
+**Still open:** the EXPORT boundary. `status.json` tells an operator; it does not tell a downstream
+consumer aligning this night against another device, which is where the offset actually matters.
+`ganglior.node-export` carrying it is a contract question, not a plumbing one.
 
 ## 4 · Still carried forward, untouched
 
