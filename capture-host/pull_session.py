@@ -91,8 +91,18 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                 await be._acquire_mtu()
             except Exception:
                 pass                                  # best-effort: reporting only, never blocks the pull
+        # Upstream's hardest-won lesson (nglessner/o2ring-s-protocol): a too-small ATT MTU makes
+        # cmd=0xF2 READ_FILE_START fail SILENTLY — zero bytes, no GATT error, just a timeout that reads
+        # as "everything works except file transfer". BlueZ auto-negotiates 247 here (sufficient; the
+        # 517 in Bumble examples is because Bumble does NOT auto-negotiate), so this should never fire.
+        # It is a WARN not a block — if _acquire_mtu threw above we may still hold the placeholder 23,
+        # and refusing on that would break a pull BlueZ would otherwise complete. Loud, not fatal.
+        _mtu = getattr(client, "mtu_size", None)
+        if isinstance(_mtu, int) and _mtu < 200:
+            print(f"  ⚠ ATT MTU is {_mtu} (<200) — file transfer (cmd=0xF2) may fail silently; "
+                  f"if the pull times out with 0 bytes, this is why", flush=True)
         await client.start_notify(oxyii.OXYII_NOTIFY, on_notify)
-        print(f"connected · MTU={getattr(client, 'mtu_size', '?')} (post-acquire)", flush=True)
+        print(f"connected · MTU={_mtu if _mtu is not None else '?'} (post-acquire)", flush=True)
 
         async def send(frame):
             await client.write_gatt_char(oxyii.OXYII_WRITE, frame, response=False)
@@ -172,8 +182,15 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             hdr = bytes(data[:10]).hex()
             fmt_a = data[:2] == b"\x01\x03"
             n_samples = max(0, (len(data) - 10 - 48)) // 3 if len(data) > 58 else 0
+            # The ring's OWN session summary, parsed from the Format-A trailer (oxyii.parse_oxy_trailer):
+            # an independent cross-check on OxyDex's avg/min SpO2 + desat counts from the same bytes, and
+            # `finalized` — the reliable "complete" predicate, since the device can report full size via
+            # cmd=0xF2 before the trailer flushes (size-equality is not enough). None when unfinalised.
+            summary = oxyii.parse_oxy_trailer(data) if fmt_a else None
             meta_j = {"session": ts, "bytes": len(data), "declared_size": size,
                       "header": hdr, "format_a": fmt_a, "approx_samples": n_samples,
+                      "finalized": bool(summary),
+                      "device_summary": summary,
                       "trailer": bytes(data[-48:]).hex() if len(data) >= 48 else ""}
             with open(path + ".meta.json", "w") as f:
                 json.dump(meta_j, f, indent=2)

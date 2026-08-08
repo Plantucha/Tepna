@@ -451,3 +451,93 @@ def test_parse_rt_ppg_output_stays_inside_24_bit_signed_range():
     body = hi.to_bytes(4, "little", signed=True) + lo.to_bytes(4, "little", signed=True) + bytes([0])
     got = oxyii.parse_rt_ppg((1).to_bytes(2, "little") + body)
     assert got == [(hi, lo, 0)], "the 24-bit signed extremes must decode exactly"
+
+
+# ── Harvested read-only queries + Format-A trailer (nglessner/o2ring-s-protocol, byte-verified) ──────
+def test_crc_fixture_from_upstream_doc():
+    """The single anchor that proves upstream's protocol IS ours: their documented GET_INFO frame,
+    `A5 E1 1E 00 02 00 00` with CRC `BF`, must be exactly what encode() produces. If this breaks, either
+    crc8 changed or the frame envelope did, and every harvested parser below is suspect."""
+    assert oxyii.crc8(bytes.fromhex("A5E11E00020000")) == 0xBF
+    assert oxyii.encode(0xE1, b"", seq=2) == bytes.fromhex("a5e11e00020000bf")
+
+
+def test_get_info_parses_firmware_and_serial():
+    p = bytearray(60)
+    p[9:17] = b"2D010002"
+    p[37] = 10
+    p[38:48] = b"25B2303210"
+    got = oxyii.parse_get_info(bytes(p))
+    assert got["firmware"] == "2D010002"
+    assert got["serial"] == "25B2303210"
+    assert oxyii.parse_get_info(b"\x00" * 40) is None          # too short → None, never a partial dict
+
+
+def test_config_parses_the_settings_struct():
+    p = bytearray(40)
+    p[1] = 88            # spo2_low
+    p[7] = 2             # brightness
+    p[8] = 4             # storage_interval
+    p[17], p[18] = 0x10, 0x00
+    got = oxyii.parse_config(bytes(p))
+    assert got["spo2_low"] == 88 and got["brightness"] == 2 and got["storage_interval"] == 4
+    assert got["invalid_signal_time_thr"] == 16
+    assert oxyii.parse_config(b"\x00" * 10) is None
+
+
+def test_battery_parse():
+    assert oxyii.parse_battery(bytes([0x00, 0x5d])) == {"state": 0x00, "level": 0x5d}
+    assert oxyii.parse_battery(b"\x00") is None
+
+
+def _fmt_a_file(records, trailer_overrides=None, finalized=True):
+    """Build a synthetic Format-A file: 10-byte header + 3-byte records + 48-byte trailer."""
+    hdr = bytes([0x01, 0x03, 0, 0, 0, 0, 0, 0, 0x04, 0x00])
+    body = b"".join(bytes(r) for r in records)
+    t = bytearray(48)
+    if finalized:
+        t[4:8] = bytes([0x48, 0x12, 0x5A, 0xDA])
+    n = len(records)
+    t[12], t[13] = n & 0xFF, (n >> 8) & 0xFF
+    t[34], t[35], t[36], t[37] = 96, 81, 17, 12
+    t[39], t[40], t[41], t[42], t[47] = 48, 0, 3, 94, 49
+    for k, v in (trailer_overrides or {}).items():
+        t[k] = v
+    return hdr + body + bytes(t)
+
+
+def test_oxy_trailer_parses_session_stats():
+    f = _fmt_a_file([(96, 50, 0)] * 300)
+    tr = oxyii.parse_oxy_trailer(f)
+    assert tr["finalized"] and tr["total_seconds"] == 300
+    assert tr["avg_spo2"] == 96 and tr["min_spo2"] == 81
+    assert tr["desat_ge3"] == 17 and tr["desat_ge4"] == 12
+    assert tr["seconds_below_90"] == 48 and tr["episodes_below_90"] == 3
+    assert tr["o2_score_x10"] == 94 and tr["avg_hr"] == 49
+
+
+def test_oxy_trailer_score_na_is_none_not_255():
+    tr = oxyii.parse_oxy_trailer(_fmt_a_file([(96, 50, 0)] * 60, {42: 0xFF}))
+    assert tr["o2_score_x10"] is None, "0xFF is the N/A sentinel and must not surface as a real score"
+
+
+def test_oxy_trailer_finalization_predicate_gates_incomplete_files():
+    """The reason this exists: cmd=0xF2 can report a file's full size BEFORE the trailer flushes, so
+    size-equality is not 'complete'. A file without the sub-magic must parse to None (re-pull later),
+    not a half-written summary read as real."""
+    unfinal = _fmt_a_file([(96, 50, 0)] * 300, finalized=False)
+    assert oxyii.oxy_is_finalized(unfinal) is False
+    assert oxyii.parse_oxy_trailer(unfinal) is None
+    assert oxyii.oxy_is_finalized(_fmt_a_file([(96, 50, 0)] * 300)) is True
+    assert oxyii.parse_oxy_trailer(b"\x00" * 20) is None       # shorter than a trailer
+
+
+def test_readonly_frame_builders_emit_valid_empty_payload_reads():
+    """The three query frames are empty-payload reads; assert each is a well-formed frame for its opcode
+    (decode round-trips) rather than just that the function runs."""
+    for frame, op in ((oxyii.info_frame(2), oxyii.OP_GET_INFO),
+                      (oxyii.config_frame(), oxyii.OP_GET_CONFIG),
+                      (oxyii.battery_frame(), oxyii.OP_GET_BATTERY)):
+        got_op, payload = oxyii.decode(frame)
+        assert got_op == op and payload == b""
+    assert oxyii.info_frame(2) == bytes.fromhex("a5e11e00020000bf")   # the byte-verified fixture
