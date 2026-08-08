@@ -685,6 +685,13 @@ function adaptEnvelopeNode(json, node, filename) {
       endMs: endMs,
       offsetMin: offsetMin,
       dateUnknown: dateUnknown,
+      // WHERE THIS RECORDING'S TIMING CAME FROM — plumbed from the node export's top-level
+      // `timingSource` (ppgdex-dsp.js:3333; also accepted under hostAxis for a raw export). WITHOUT
+      // THIS the field never reaches the fusion recs, so every drawn-axis guard downstream — closure's
+      // §F3 filter AND _tchHat — reads `undefined` and keeps a leg that carries NO timing (proven: a
+      // `timingSource:'none'` PpgDex was spent as a full TCH corner). 'none' = drawn axis, no host
+      // anchors; 'host'/'device+host'/'device'/null = usable. WEARABLE-HOST-AXIS-FOLLOWUPS §F1/§F3.
+      timingSource: json.timingSource != null ? json.timingSource : (json.hostAxis && json.hostAxis.timingSource) || null,
       events: events,
       series: seriesOut,
       summary: summary,
@@ -2547,14 +2554,30 @@ function _tchRhoFromMotion(triplet, keys) {
 function _tchHat(like, ptsFn, metric) {
   var TCH = _tchEngine();
   if (!TCH) return null;
-  var ws = like.filter(function (s) {
+  /* A LEG WITH NO TIMING IS NOT A CLOCK — the same rule fitClockClosure applies (§F3), applied here
+     because THIS is the hat the app actually runs (fitClockClosure is tool-only; fuseHRVConsensus →
+     _tchHat is the shipped path). A drawn axis with no host anchors (`timingSource:'none'`) contributes
+     a constant, not a clock; both its pairs then faithfully measure a fiction and the hat returns a
+     confident number about nothing — CLOCK-CLOSURE-THREE-SOURCE's "all legs confident" failure. Proven
+     shipped: a `timingSource:'none'` PpgDex was spent as a full TCH corner (2026-08-08). null/omitted
+     stays usable, so every existing fixture is byte-unchanged. */
+  var tchExcluded = [];
+  var timed = like.filter(function (s) {
+    if (s.timingSource === 'none') {
+      tchExcluded.push(s.node);
+      return false;
+    }
+    return true;
+  });
+  var ws = timed.filter(function (s) {
     return ptsFn(s).length >= 12;
   });
   if (ws.length < 3)
     return {
       ok: false,
       metric: metric,
-      reason: 'need ≥3 nodes with a per-epoch ' + metric + ' series; have ' + ws.length,
+      reason: 'need ≥3 nodes with a per-epoch ' + metric + ' series; have ' + ws.length + (tchExcluded.length ? ' (excluded drawn-axis: ' + tchExcluded.join(', ') + ')' : ''),
+      excluded: tchExcluded,
       nodesWithSeries: ws.map(function (s) {
         return s.node;
       })
@@ -2715,6 +2738,7 @@ function _tchHat(like, ptsFn, metric) {
     return x.k;
   });
   r.quietOrderUncertain = _quiet.length >= 2 && _quiet[0].v > 0 && _quiet[_quiet.length - 1].v > 0 ? _quiet[0].v / _quiet[_quiet.length - 1].v < 2 : false;
+  if (tchExcluded.length) r.excluded = tchExcluded; // drawn-axis legs dropped before the hat (§F3)
   return r;
 }
 // Back-compat: the RMSSD hat IS the historical _tchConsensus return (block.tch).
