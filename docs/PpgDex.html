@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ffeOjKvgAxcr+h0dd0NBGkZyVoxVT4hsaQOzTz5BWc=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-Lt1pAs4hP4633JGMrNgrMNCFTXY6pqwg4nA3/YmY3Rk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kWo9w5o+WDzP6TgpczTrZLFeWVGuZ0bYe4362o6lqQw=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FoME8mCgVXK6PgNN7Z48Q72MB1SlGijmiL5wHubFRFk=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-H+pGIUk3v3eLdX1JOGo1p7kn9ZYUboeVWXAuS7DiVzk=' 'sha256-Lt1pAs4hP4633JGMrNgrMNCFTXY6pqwg4nA3/YmY3Rk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-UaOmmM1xTOvOOQaU2i8O8U6noSaqwtoN6q7gGE5/U2g=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kWo9w5o+WDzP6TgpczTrZLFeWVGuZ0bYe4362o6lqQw=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PpgDex — Raw Wrist-PPG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8774,11 +8774,41 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       if (r.tMs != null && t0Ms != null) return (r.tMs - t0Ms) / 1000;
       return null;
     }
+    /* NATIVE sample rate = MEDIAN inter-sample interval, never count ÷ span (DEEP-AUDIT-III §4.1,
+       re-found here as DEEP-AUDIT-V F19). `count / durSec` divides by the PPG duration, so it is the
+       AVERAGE over a span the stream may not cover: a dropout stretches the span without adding
+       samples, and packet loss on this hardware is routine. On one real file MotionDex read 52.00 Hz
+       and PpgDex read 19 Hz for THE SAME accelerometer; a corpus scan found 103 of 386 pairs below
+       0.9 of native, 68 below 0.7, worst ~12 Hz.
+       Two consequences, and the second is the one that moves numbers: the surfaced KPI is labelled
+       plainly "ACC Hz" and the node-export field is plain `accFs` — neither says "effective", so both
+       are read as the native rate. And the rate SIZES the ~1 s gravity window below, so an
+       under-stated rate makes that window too SHORT in real time and shifts the de-gravitated
+       magnitude every motion metric is built on. */
+    function _nativeHz(rows) {
+      if (!rows || rows.length < 3) return null;
+      const d = [];
+      let prev = null;
+      for (let i = 0; i < Math.min(rows.length, 4000); i++) {
+        const t = relSecOf(rows[i]);
+        if (t == null) continue;
+        if (prev != null && t > prev) d.push(t - prev);
+        prev = t;
+      }
+      if (!d.length) return null;
+      d.sort((a, b) => a - b);
+      const dm = d[d.length >> 1];
+      return isFinite(dm) && dm > 0 ? 1 / dm : null;
+    }
+    const _accHz = _nativeHz(accRows),
+      _gyroHz = _nativeHz(gyroRows),
+      _magHz = _nativeHz(magRows);
     let accMag = [];
     if (accRows && accRows.length > 5) {
       const mags = accRows.map((r) => Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z));
-      // gravity baseline via slow moving average
-      const w = Math.max(3, Math.round((accRows.length / durSec) * 1.0)); // ~1s
+      // gravity baseline via slow moving average — sized off the NATIVE rate (see _nativeHz above);
+      // count/durSec under-states it under packet loss, which shortens this window in real time.
+      const w = Math.max(3, Math.round(_accHz != null ? _accHz : accRows.length / durSec)); // ~1s
       const base = movavg(Float32Array.from(mags), w);
       accMag = accRows.map((r, i) => ({ s: relSecOf(r), v: Math.abs(mags[i] - base[i]) }));
     }
@@ -9024,13 +9054,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       postureDetailAtSec,
       meanMotionIndex: r2(meanMI),
       series,
-      accFs: accRows && accRows.length > 1 ? Math.round(accRows.length / durSec) : null,
-      gyroFs: gyroRows && gyroRows.length > 1 ? Math.round(gyroRows.length / durSec) : null,
+      accFs: _accHz != null ? Math.round(_accHz) : null,
+      gyroFs: _gyroHz != null ? Math.round(_gyroHz) : null,
       nAcc: accRows ? accRows.length : 0,
       nGyro: gyroRows ? gyroRows.length : 0,
       hasMag: magState.has,
       nMag: magRows ? magRows.length : 0,
-      magFs: magRows && magRows.length > 1 ? Math.round(magRows.length / durSec) : null,
+      magFs: _magHz != null ? Math.round(_magHz) : null,
       magBaseG: magState.has ? r2(magState.base) : null,
       refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(((magState.refHeading % 360) + 360) % 360) : null
     };

@@ -17813,6 +17813,39 @@
        real reading — the same shape as MotionDex `actigraphy()` scoring a zero-sample epoch as
        immobile. Measured before the fix: a 60-min session whose ACC stops at 30 min read a saturated
        1.0000 up to the cut and exactly 0.0000 after it, with the subject moving identically. */
+    /* DEEP-AUDIT-V F19 — accFs was count ÷ PPG-duration, i.e. the AVERAGE over a span the stream may
+       not cover. A dropout stretches the span without adding samples, so the rate reads low exactly
+       when the data is worst. On one real file MotionDex read 52.00 Hz and PpgDex read 19 Hz for the
+       SAME accelerometer; a corpus scan found 103 of 386 pairs below 0.9 of native, 68 below 0.7.
+       A near-identical claim was previously refuted because PpgDex Reference.html documents the
+       metric as an "effective" rate — so this was filed only after checking the two places a user
+       actually meets it: the KPI is labelled "ACC Hz" (ppgdex-app.js) and the node-export field is
+       plain `accFs`. Neither says "effective", so both are read as the native rate. */
+    group('PPGDex F19 — accFs is the NATIVE rate, not count ÷ span', 'ppgdex-dsp · regression', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.analyzeMotion === 'function')) {
+        T.ok('PPGDSP.analyzeMotion available', false);
+        return;
+      }
+      // 52 Hz ACC that stops halfway through a 3600 s session — count/durSec would read 26 Hz.
+      var FS = 52,
+        DUR = 3600,
+        acc = [];
+      for (var i = 0; i < FS * (DUR / 2); i++) {
+        var sec = i / FS;
+        acc.push({ x: 10, y: 10, z: 990, relNs: sec * 1e9 });
+      }
+      var m = P.analyzeMotion(acc, null, 1782000000000, DUR);
+      T.eq('accFs reports the native 52 Hz, not the 26 Hz span average', m.accFs, 52);
+      // and a CONTIGUOUS stream must be unchanged — the fix must not move the ordinary case
+      var acc2 = [];
+      for (var j = 0; j < FS * 600; j++) acc2.push({ x: 10, y: 10, z: 990, relNs: (j / FS) * 1e9 });
+      T.eq('a fully-covered stream still reports 52 Hz', P.analyzeMotion(acc2, null, 1782000000000, 600).accFs, 52);
+      // absent stream never carries a rate at all — the no-data path returns early without the
+      // field, which is why this asserts "no value" rather than a literal null.
+      T.ok('no ACC → no fabricated rate', P.analyzeMotion(null, null, 1782000000000, 600).accFs == null, 'a rate was reported for a stream that does not exist');
+    });
+
     group('PPGDex §3a — an inertial GAP is not stillness, and an absent driver is not a confidence', 'ppgdex-dsp · regression', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.analyzeMotion === 'function')) {

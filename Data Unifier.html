@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6Ihl8pw3pmpQ2ZKQoUJaefH7NJ7Rkm9qpB/TVT+dbcA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7ffeOjKvgAxcr+h0dd0NBGkZyVoxVT4hsaQOzTz5BWc=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-WGAdE8HjXf7mJfKkBvWj9Prp0rLErBrsiaWH93qMB6U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo=' 'sha256-zfcZj/POD8ANab+TNlp0MrGvruXgueLPhtrRdPgHMlU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6Ihl8pw3pmpQ2ZKQoUJaefH7NJ7Rkm9qpB/TVT+dbcA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-FoME8mCgVXK6PgNN7Z48Q72MB1SlGijmiL5wHubFRFk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-WGAdE8HjXf7mJfKkBvWj9Prp0rLErBrsiaWH93qMB6U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo=' 'sha256-zfcZj/POD8ANab+TNlp0MrGvruXgueLPhtrRdPgHMlU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -17486,11 +17486,41 @@ __exports.GlucoDex = window.GlucoDex;
       if (r.tMs != null && t0Ms != null) return (r.tMs - t0Ms) / 1000;
       return null;
     }
+    /* NATIVE sample rate = MEDIAN inter-sample interval, never count ÷ span (DEEP-AUDIT-III §4.1,
+       re-found here as DEEP-AUDIT-V F19). `count / durSec` divides by the PPG duration, so it is the
+       AVERAGE over a span the stream may not cover: a dropout stretches the span without adding
+       samples, and packet loss on this hardware is routine. On one real file MotionDex read 52.00 Hz
+       and PpgDex read 19 Hz for THE SAME accelerometer; a corpus scan found 103 of 386 pairs below
+       0.9 of native, 68 below 0.7, worst ~12 Hz.
+       Two consequences, and the second is the one that moves numbers: the surfaced KPI is labelled
+       plainly "ACC Hz" and the node-export field is plain `accFs` — neither says "effective", so both
+       are read as the native rate. And the rate SIZES the ~1 s gravity window below, so an
+       under-stated rate makes that window too SHORT in real time and shifts the de-gravitated
+       magnitude every motion metric is built on. */
+    function _nativeHz(rows) {
+      if (!rows || rows.length < 3) return null;
+      const d = [];
+      let prev = null;
+      for (let i = 0; i < Math.min(rows.length, 4000); i++) {
+        const t = relSecOf(rows[i]);
+        if (t == null) continue;
+        if (prev != null && t > prev) d.push(t - prev);
+        prev = t;
+      }
+      if (!d.length) return null;
+      d.sort((a, b) => a - b);
+      const dm = d[d.length >> 1];
+      return isFinite(dm) && dm > 0 ? 1 / dm : null;
+    }
+    const _accHz = _nativeHz(accRows),
+      _gyroHz = _nativeHz(gyroRows),
+      _magHz = _nativeHz(magRows);
     let accMag = [];
     if (accRows && accRows.length > 5) {
       const mags = accRows.map((r) => Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z));
-      // gravity baseline via slow moving average
-      const w = Math.max(3, Math.round((accRows.length / durSec) * 1.0)); // ~1s
+      // gravity baseline via slow moving average — sized off the NATIVE rate (see _nativeHz above);
+      // count/durSec under-states it under packet loss, which shortens this window in real time.
+      const w = Math.max(3, Math.round(_accHz != null ? _accHz : accRows.length / durSec)); // ~1s
       const base = movavg(Float32Array.from(mags), w);
       accMag = accRows.map((r, i) => ({ s: relSecOf(r), v: Math.abs(mags[i] - base[i]) }));
     }
@@ -17736,13 +17766,13 @@ __exports.GlucoDex = window.GlucoDex;
       postureDetailAtSec,
       meanMotionIndex: r2(meanMI),
       series,
-      accFs: accRows && accRows.length > 1 ? Math.round(accRows.length / durSec) : null,
-      gyroFs: gyroRows && gyroRows.length > 1 ? Math.round(gyroRows.length / durSec) : null,
+      accFs: _accHz != null ? Math.round(_accHz) : null,
+      gyroFs: _gyroHz != null ? Math.round(_gyroHz) : null,
       nAcc: accRows ? accRows.length : 0,
       nGyro: gyroRows ? gyroRows.length : 0,
       hasMag: magState.has,
       nMag: magRows ? magRows.length : 0,
-      magFs: magRows && magRows.length > 1 ? Math.round(magRows.length / durSec) : null,
+      magFs: _magHz != null ? Math.round(_magHz) : null,
       magBaseG: magState.has ? r2(magState.base) : null,
       refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(((magState.refHeading % 360) + 360) % 360) : null
     };
