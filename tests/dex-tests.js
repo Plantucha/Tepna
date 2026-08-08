@@ -17077,6 +17077,93 @@
       }
     });
 
+    /* ════ PpgDex `durSec` MEANS DATA — NODE-EXPORT-DURATION-SEMANTICS, the last open item ═══════
+     The brief carried PpgDex as the one node still owing the ruling: §1's table calls its `durSec`
+     "**near** wall span", and the Done-when item reads "still open for PpgDex — its `durSec` is a
+     gap-filled-grid span … the node where the rename genuinely changes a published number."
+
+     MEASURED OVER THE REAL CORPUS (2026-08-06, 322 capture-host PPG files, 90 of them carrying a
+     `recording.coverage` block), THAT PREMISE IS WRONG — and wrong in the node's favour:
+
+       |durSec − coverage.recordedSec| / spanSec   p50 0.052 %   p95 0.227 %      ← the DATA
+       |durSec − coverage.spanSec|     / spanSec   p50 0.425 %   p95 2.496 %      ← the ENVELOPE
+
+     An order of magnitude nearer the data than the envelope, and nearer `recordedSec` on 75 of the 90
+     (4 nearer span, all with 1–8 s of total loss where the two are indistinguishable anyway). §6.1
+     already measured the consequence — `t0 + durSec` landing 6.6 min short on the gappiest night — and
+     read it as "the gap-fill does not recover all lost time". True, and the step it did not take: a
+     duration short by exactly the dropout IS data-seconds. That is ECGDex's signature, not OxyDex's.
+
+     So PpgDex ALREADY satisfies option (c) — `durSec` is the data, `endEpochMs` (landed 2026-08-03) is
+     the clock end — and no rename is owed. What is owed is a gate, because the item that was open is
+     precisely the one that would have CHANGED this field's meaning. Mirror image of the OxyDex gate
+     above: there the invariant is "durationMin keeps meaning the envelope", here it is "durSec keeps
+     meaning the data". A silent numerator change is now impossible in either direction. ════ */
+    group('PpgDex durSec means DATA, endEpochMs means the ENVELOPE — NODE-EXPORT-DURATION-SEMANTICS §3', 'ppgdex-dsp · export · duration-semantics', function (T) {
+      var D = env.PPGDSP;
+      if (!(D && typeof D.compute === 'function')) {
+        T.skip('PPGDSP.compute available', 'ppgdex-dsp not wired in this lane');
+        return;
+      }
+      var p2 = function (x) {
+        return String(x).padStart(2, '0');
+      };
+      var BASE = U(2026, 5, 21, 6, 0, 0);
+      var stampOf = function (ms) {
+        var d = new Date(BASE + Math.round(ms));
+        return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + 'T' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + '.' + String(d.getUTCMilliseconds()).padStart(3, '0');
+      };
+      /* Single-channel finger layout with an explicit DROPOUT — the same shape as the sibling
+         endEpochMs gate, sized so the hole is large against the record (20 s in ~68 s) and the three
+         scalars are separated far beyond any rounding. */
+      var FS = 125.7,
+        N = 6000,
+        GAP_AT = 3000,
+        GAP_SEC = 20;
+      var mk = function (withGap) {
+        var out = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+        for (var i = 0; i < N; i++) {
+          var ms = (i / FS) * 1000 + (i >= GAP_AT && withGap ? GAP_SEC * 1000 : 0);
+          var v = 1000 + 200 * Math.exp(-Math.pow((((ms / 1000) % 1) - 0.18) / 0.07, 2));
+          out += stampOf(ms) + ';' + Math.round(ms * 1e6) + ';' + Math.round(v) + '\n';
+        }
+        return out;
+      };
+      var gEx = D.compute(mk(true), { name: 'gapped.txt' }),
+        cEx = D.compute(mk(false), { name: 'gapless.txt' });
+      var g = (gEx && gEx.recording) || {},
+        c = (cEx && cEx.recording) || {};
+      var cov = g.coverage;
+      T.ok(
+        'ANTI-VACUITY · the gapped twin produced all three scalars — durSec, endEpochMs and a coverage block',
+        typeof g.durSec === 'number' && g.endEpochMs != null && !!cov && cov.recordedSec != null && cov.spanSec != null,
+        JSON.stringify({ durSec: g.durSec, end: g.endEpochMs, cov: cov ? { kind: cov.kind, span: cov.spanSec, rec: cov.recordedSec, n: cov.n } : null })
+      );
+      if (!cov) return;
+      var envelopeSec = (g.endEpochMs - g.startEpochMs) / 1000;
+      T.ok('ANTI-VACUITY · the envelope and the data are separated by ~the dropout, so the two assertions below can fail', envelopeSec - cov.recordedSec > GAP_SEC * 0.75, 'envelope=' + envelopeSec.toFixed(1) + 's · recorded=' + cov.recordedSec + 's');
+
+      /* ── THE INVARIANT THE CLOSED ITEM COULD HAVE BROKEN ────────────────────────────────────────
+         `durSec` is the DATA. Renaming it to a span — the change the Done-when item proposed — moves it
+         by the whole dropout with nothing in the schema to notice, which is the ECGDex failure of §1
+         played forwards instead of backwards. */
+      T.ok('durSec tracks coverage.recordedSec (the DATA), to within a second', Math.abs(g.durSec - cov.recordedSec) < 1.5, 'durSec=' + g.durSec.toFixed(2) + 's · recordedSec=' + cov.recordedSec + 's');
+      T.ok(
+        '…and is materially SHORT of coverage.spanSec (the ENVELOPE) by ~the dropout',
+        cov.spanSec - g.durSec > GAP_SEC * 0.75,
+        'spanSec−durSec=' + (cov.spanSec - g.durSec).toFixed(1) + 's, want ~' + GAP_SEC
+      );
+      /* The other half of option (c): the clock end is answered by `endEpochMs`, and it is the ENVELOPE
+         — so the two published fields answer the two different questions, which is the whole ruling. */
+      T.ok('endEpochMs − startEpochMs tracks coverage.spanSec (the ENVELOPE), not recordedSec', Math.abs(envelopeSec - cov.spanSec) < 1.5 && Math.abs(envelopeSec - cov.recordedSec) > GAP_SEC * 0.75, 'envelope=' + envelopeSec.toFixed(2) + 's · spanSec=' + cov.spanSec + ' · recordedSec=' + cov.recordedSec);
+
+      /* CONTROL — on a contiguous recording data and envelope COINCIDE, so the split above is caused by
+         the hole and not by the fixture's shape. A contiguous file also makes no coverage claim at all
+         (never a manufactured 100 %), which is the sibling honesty rule. */
+      T.ok('CONTROL · the gapless twin has durSec ≡ its envelope — the gap is what separates them', typeof c.durSec === 'number' && c.endEpochMs != null && Math.abs((c.endEpochMs - c.startEpochMs) / 1000 - c.durSec) < 1, 'durSec=' + (c.durSec != null ? c.durSec.toFixed(2) : 'null') + 's · envelope=' + ((c.endEpochMs - c.startEpochMs) / 1000).toFixed(2) + 's');
+      T.ok('CONTROL · …and declares no coverage block, because a contiguous night has no hole to declare', (c.coverage || null) === null, c.coverage ? 'coverage.kind=' + c.coverage.kind : 'absent, as required');
+    });
+
     group('ECGDex recording bounds — durSec (data) + endEpochMs (clock), read not derived', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseECG === 'function')) {
@@ -31399,6 +31486,80 @@
           Math.abs(eG.amplitudeG - eF.amplitudeG) <= Math.max(eF.amplitudeG * 0.1, 1e-4),
           'full=' + eF.amplitudeG + ' gapped=' + eG.amplitudeG
         );
+      }
+    });
+
+    /* ════ MotionDex durSec is MEASURED, never the assumed-26 Hz fabrication — NODE-EXPORT-DURATION-SEMANTICS §7.3 ════
+     §7.3 named MotionDex "the one to prioritise" for `endEpochMs`, but conditionally: *"only if its
+     `rows.length / 26` fallback is shown to fire on real captures — that is the sole remaining path
+     where the published duration is fabricated rather than measured."*
+
+     MEASURED 2026-08-06, and the condition is FALSE. Over **616 real ACC files / 121,429,712 rows /
+     690 hours** across both corpus trees (`tepna-smoketest/captures` + `Ecg nightly`), driving the
+     shipped `parseSensorXYZ`: `durationOf`'s fallback fires **0 times**. Not one parsed row anywhere
+     lacks BOTH a Phone timestamp and a device counter, so the last row always resolves a `relSec` and
+     the assumed rate is never consulted. MotionDex therefore does NOT need `endEpochMs` — the honesty
+     gap §7.3 conditioned on does not exist in the field, and §7.2's economics (do not re-bundle a node
+     and re-verify every fixture for a path no input reaches) apply unopposed.
+
+     ⚠️ WHAT THE SAME MEASUREMENT ALSO SHOWS, and why this gate exists rather than nothing: **26 is the
+     wrong constant.** The delivered ACC rate across those files runs 20.9–202.7 Hz (H10 median 50.7,
+     Verity median 51.7), so were the fallback ever reached it would misstate duration by **0.8×–7.8×**.
+     Reachable today only by handing `compute()` pre-parsed rows that carry no timing — on which it
+     publishes a 462 s duration for a 60 s record (7.7×) beside a `startEpochMs` of **null**, i.e. every
+     other field honestly says "unknown" and this one alone invents a number. That is Clock Contract
+     §2.6 one layer up. Removing it is a compute-path change on an unreachable branch with real blast
+     radius (`durSec` feeds `bodyPosition`/`actigraphy`/`respiratoryEffort`), so it is ROUTED to the
+     follow-up brief with this measurement rather than patched in here.
+
+     The gate below pins the invariant that is true and must stay true — a stream that carries timing is
+     measured, never assumed — on a fixture whose real rate (200 Hz, the corpus p95) is 7.7× from 26, so
+     the two answers cannot be confused for rounding. Mutation: make `durationOf` return
+     `rows.length / 26` unconditionally and it reds by value. ════ */
+    group('MotionDex durSec is the MEASURED last-sample time, never the assumed-26 Hz fabrication — §7.3', 'motiondex-dsp · export · duration-semantics', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.compute === 'function')) {
+        T.skip('MOTIONDSP.compute available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var HZ = 200,
+        N = 12000; // 60.0 s of real recording at the corpus's p95 rate
+      var TRUE_SEC = (N - 1) / HZ, // durationOf reads the LAST row, so the span is (n−1) intervals
+        FABRICATED_SEC = N / 26; // what the fallback would publish: 461.5 s
+      var T0 = U(2026, 5, 21, 6, 0, 0);
+      /* Pre-parsed rows, which is a shape `compute` accepts (`asRows` passes an Array straight
+         through). Built directly rather than through `parseSensorXYZ` because the point is to control
+         the timing columns: `timed` carries both a device counter and a wall stamp, exactly as every
+         one of the 616 real files does. Values are a plausible worn-accelerometer trace (~1 g). */
+      var mkRows = function (timed) {
+        var a = [];
+        for (var i = 0; i < N; i++) {
+          var ms = (i / HZ) * 1000;
+          a.push({ relNs: timed ? Math.round(ms * 1e6) : NaN, tMs: timed ? T0 + Math.round(ms) : null, x: 20 * Math.sin(i / 40), y: 30, z: 980 });
+        }
+        a._unit = 'mg';
+        a._kind = 'acc';
+        return a;
+      };
+      T.ok('ANTI-VACUITY · the measured and fabricated durations are 7.7× apart, so the assertion below can fail', Math.abs(FABRICATED_SEC / TRUE_SEC - 7.7) < 0.2, 'true=' + TRUE_SEC.toFixed(1) + 's · fabricated=' + FABRICATED_SEC.toFixed(1) + 's · ratio=' + (FABRICATED_SEC / TRUE_SEC).toFixed(2));
+
+      var sum = MD.compute({ acc: mkRows(true) });
+      T.ok('ANTI-VACUITY · compute() produced a summary with a duration and a clock anchor', !!sum && typeof sum.durSec === 'number' && sum.t0Ms != null, JSON.stringify(sum && { durSec: sum.durSec, t0Ms: sum.t0Ms }));
+      if (!sum || typeof sum.durSec !== 'number') return;
+
+      /* THE INVARIANT. `durSec` is the last sample's measured time. The fabricated alternative is 7.7×
+         away, so this cannot pass by rounding — and it is the assertion that fails the moment anyone
+         "simplifies" durationOf to always divide by a nominal rate. */
+      T.ok('durSec is the MEASURED span of a timed stream, to the second', Math.abs(sum.durSec - TRUE_SEC) <= 1, 'durSec=' + sum.durSec + 's · measured=' + TRUE_SEC.toFixed(1) + 's');
+      T.ok('…and is NOT the assumed-26 Hz value — the fallback was not consulted on a stream that carries timing', Math.abs(sum.durSec - FABRICATED_SEC) > 100, 'durSec=' + sum.durSec + 's · fabricated-would-be=' + FABRICATED_SEC.toFixed(1) + 's');
+
+      /* …and it must reach the EXPORT. A duration that is right in the summary and wrong (or absent) in
+         `recording.durSec` is the field the ruling is actually about. */
+      if (typeof MD.buildNodeExport === 'function') {
+        var ex = MD.buildNodeExport(sum);
+        var rec = ex && ex.recording;
+        T.ok('recording.durSec carries the measured value into the node-export', rec && typeof rec.durSec === 'number' && Math.abs(rec.durSec - TRUE_SEC) <= 1, rec && 'recording.durSec=' + rec.durSec);
+        T.ok('recording.startEpochMs is the first sample, so t0 + durSec lands on the clock end', rec && rec.startEpochMs === T0, rec && String(rec.startEpochMs));
       }
     });
 
