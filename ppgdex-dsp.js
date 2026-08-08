@@ -2219,11 +2219,41 @@
       if (r.tMs != null && t0Ms != null) return (r.tMs - t0Ms) / 1000;
       return null;
     }
+    /* NATIVE sample rate = MEDIAN inter-sample interval, never count ÷ span (DEEP-AUDIT-III §4.1,
+       re-found here as DEEP-AUDIT-V F19). `count / durSec` divides by the PPG duration, so it is the
+       AVERAGE over a span the stream may not cover: a dropout stretches the span without adding
+       samples, and packet loss on this hardware is routine. On one real file MotionDex read 52.00 Hz
+       and PpgDex read 19 Hz for THE SAME accelerometer; a corpus scan found 103 of 386 pairs below
+       0.9 of native, 68 below 0.7, worst ~12 Hz.
+       Two consequences, and the second is the one that moves numbers: the surfaced KPI is labelled
+       plainly "ACC Hz" and the node-export field is plain `accFs` — neither says "effective", so both
+       are read as the native rate. And the rate SIZES the ~1 s gravity window below, so an
+       under-stated rate makes that window too SHORT in real time and shifts the de-gravitated
+       magnitude every motion metric is built on. */
+    function _nativeHz(rows) {
+      if (!rows || rows.length < 3) return null;
+      const d = [];
+      let prev = null;
+      for (let i = 0; i < Math.min(rows.length, 4000); i++) {
+        const t = relSecOf(rows[i]);
+        if (t == null) continue;
+        if (prev != null && t > prev) d.push(t - prev);
+        prev = t;
+      }
+      if (!d.length) return null;
+      d.sort((a, b) => a - b);
+      const dm = d[d.length >> 1];
+      return isFinite(dm) && dm > 0 ? 1 / dm : null;
+    }
+    const _accHz = _nativeHz(accRows),
+      _gyroHz = _nativeHz(gyroRows),
+      _magHz = _nativeHz(magRows);
     let accMag = [];
     if (accRows && accRows.length > 5) {
       const mags = accRows.map((r) => Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z));
-      // gravity baseline via slow moving average
-      const w = Math.max(3, Math.round((accRows.length / durSec) * 1.0)); // ~1s
+      // gravity baseline via slow moving average — sized off the NATIVE rate (see _nativeHz above);
+      // count/durSec under-states it under packet loss, which shortens this window in real time.
+      const w = Math.max(3, Math.round(_accHz != null ? _accHz : accRows.length / durSec)); // ~1s
       const base = movavg(Float32Array.from(mags), w);
       accMag = accRows.map((r, i) => ({ s: relSecOf(r), v: Math.abs(mags[i] - base[i]) }));
     }
@@ -2469,13 +2499,13 @@
       postureDetailAtSec,
       meanMotionIndex: r2(meanMI),
       series,
-      accFs: accRows && accRows.length > 1 ? Math.round(accRows.length / durSec) : null,
-      gyroFs: gyroRows && gyroRows.length > 1 ? Math.round(gyroRows.length / durSec) : null,
+      accFs: _accHz != null ? Math.round(_accHz) : null,
+      gyroFs: _gyroHz != null ? Math.round(_gyroHz) : null,
       nAcc: accRows ? accRows.length : 0,
       nGyro: gyroRows ? gyroRows.length : 0,
       hasMag: magState.has,
       nMag: magRows ? magRows.length : 0,
-      magFs: magRows && magRows.length > 1 ? Math.round(magRows.length / durSec) : null,
+      magFs: _magHz != null ? Math.round(_magHz) : null,
       magBaseG: magState.has ? r2(magState.base) : null,
       refHeadingDeg: magState.has && magState.refHeading != null ? Math.round(((magState.refHeading % 360) + 360) % 360) : null
     };
