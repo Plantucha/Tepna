@@ -367,8 +367,21 @@ function runSuiteAsync(filter, cwd, timeoutMs) {
       out += d;
     });
     ch.on('error', () => resolve({ verdict: 'INVALID', killers: [] }));
-    ch.on('close', (code) => {
+    ch.on('close', (code, signal) => {
       if (code === 0) return resolve({ verdict: 'SURVIVED', killers: [] });
+      /* WHY it produced nothing matters, and the two causes look identical in the count. A mutant that
+         HANGS was killed by the timeout (`code === null`, `signal` set); one that could not LOAD exited
+         with a status. Both yield no assertion output, and lumping them together produced a wrong
+         diagnosis on the record: clock.js's 5 invalids were blamed on a contended box, when 2 of them
+         are `t += 0` and `while (hi2 - lo2 >= 1)` — non-terminating mutants that time out on any
+         machine, idle or not.
+
+         They stay OUT of the denominator rather than counted as kills, which is more conservative than
+         Stryker/PIT/mutmut (all of which score a timeout as killed). The reason is local: this harness
+         also times out under CPU contention, so "hung" here does not reliably mean "the mutant hangs".
+         Recording the reason lets a reader tell a real infinite loop from a busy afternoon; guessing
+         between them is what produced the wrong diagnosis in the first place. */
+      const reason = code === null || signal ? 'timeout' : 'no-output';
       /* A NON-ZERO EXIT IS NOT AUTOMATICALLY A KILL. `/^\d{10,0}$/` is a syntactically invalid regex:
          the file cannot be parsed, node exits 2, and the old classifier scored that as KILLED —
          indistinguishable from a mutant a test actually caught. Every kill rate this tool has ever
@@ -380,7 +393,7 @@ function runSuiteAsync(filter, cwd, timeoutMs) {
          did not run ⇒ INVALID, which `tested − invalid` already excludes from the denominator.
          Deliberately conservative — it only reclassifies runs that produced ZERO assertions, so a
          mutant that merely makes a group throw still counts as killed. */
-      if (verdictFromOutput(out) === 'INVALID') return resolve({ verdict: 'INVALID', killers: [] });
+      if (verdictFromOutput(out) === 'INVALID') return resolve({ verdict: 'INVALID', killers: [], reason });
       const seen = new Set();
       let m;
       KILLER_RE.lastIndex = 0;
@@ -615,6 +628,14 @@ async function runFile(file) {
     _dirty.delete(abs);
   };
   const survivors = [];
+  /* INVALID mutants are LISTED, not just counted. They were a bare number, and a bare number cannot be
+     reconciled against anything — so a mutant that never ran was indistinguishable from one that ran
+     and died. That is not hypothetical: two consecutive full sweeps of clock.js, on byte-identical
+     source, reported 19 and 20 survivors. The extra one (L30, `tzOffset()`'s `* 60000`) had been
+     sitting in the earlier run's invalid bucket. A REAL COVERAGE GAP HID INSIDE THE COUNT, and the
+     run that missed it looked like the clean one — it matched the prediction exactly.
+     Two runs are now comparable mutant-by-mutant, in both buckets. */
+  const invalids = [];
   let killed = 0,
     invalid = 0,
     done = 0;
@@ -689,8 +710,10 @@ async function runFile(file) {
       killed++;
       if (!firstKill && ks.length) firstKill = { mu, killers: ks };
       for (const g of ks) killers.set(g, (killers.get(g) || 0) + 1);
-    } else if (verdict === 'INVALID') invalid++;
-    else survivors.push(mu);
+    } else if (verdict === 'INVALID') {
+      invalid++;
+      invalids.push({ ...mu, reason: (typeof v === 'string' ? null : v.reason) || 'no-output' });
+    } else survivors.push(mu);
     tick();
   };
 
@@ -723,6 +746,7 @@ async function runFile(file) {
           tested: picked.length,
           killed,
           invalid,
+          invalids,
           killers: Array.from(killers.entries())
             .sort((a, b) => b[1] - a[1])
             .map(([group, n]) => ({ group, n })),
@@ -807,6 +831,8 @@ async function runFile(file) {
     tested: picked.length - (canaryMu ? 1 : 0),
     killed: canaryState === 'FAILED' ? null : killed,
     invalid,
+    // the mutants that never RAN — listed, so a survivor can never hide as a bare count again
+    invalids,
     /* WHICH groups did the killing, and how many mutants each accounted for. The union over a whole
        file is the minimal sufficient selection for that file's tag — the measurement that says whether
        an expensive tag can be narrowed (CLOCK-MUTATION-COST). Sorted by contribution so the long tail
