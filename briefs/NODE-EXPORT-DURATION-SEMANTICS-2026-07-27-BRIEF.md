@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-04 · **Created:** 2026-07-27 · **Follows:** `NODE-EXPORT-RECORDING-DURATION-2026-07-24-BRIEF.md` (which asked whether a node declares a length at all; this one asks what it MEANS) · **Decision:** owner-ratified 2026-07-27 (option (c)) · **Builds-on:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` §6.2 (`recording.coverage`, landed `986d17e`) · **Relates:** `INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md` (§5 — the coverage model this ruling completes), `CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md` (added the `durSec` key whose meaning this pins down)
+**Status:** DONE — 2026-08-06 (§8 closed the last two items by MEASUREMENT, and both premises were wrong: PpgDex's `durSec` already means DATA so the proposed rename would have broken it, and MotionDex's fabricated-duration fallback fires 0× in 616 real files. Both gated, both gates verified RED. The 26 Hz constant is wrong by up to 7.8× if ever reached — routed, not patched.) · **Spawns:** `NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-2026-08-06-BRIEF.md` · **Created:** 2026-07-27 · **Follows:** `NODE-EXPORT-RECORDING-DURATION-2026-07-24-BRIEF.md` (which asked whether a node declares a length at all; this one asks what it MEANS) · **Decision:** owner-ratified 2026-07-27 (option (c)) · **Builds-on:** `DEEP-AUDIT-III-2026-07-26-BRIEF.md` §6.2 (`recording.coverage`, landed `986d17e`) · **Relates:** `INTEGRATOR-GAP-AWARE-OVERLAP-2026-07-27-BRIEF.md` (§5 — the coverage model this ruling completes), `CAPTURE-HOST-INTEGRATOR-FOLD-2026-07-24-BRIEF.md` (added the `durSec` key whose meaning this pins down)
 
 # `recording` publishes BOTH a data duration and a clock end — one scalar cannot answer two questions
 
@@ -122,8 +122,23 @@ work-unit to schedule, not a drive-by.
 
       Still open for **PpgDex** (its `durSec` is a gap-filled-grid span). Not touched here: it is the
       node where the rename genuinely changes a published number.
-- [ ] `bump: minor` — the export gains a field. The ECGDex-only step is already `minor` for that reason.
-- [ ] Per node: regen goldens, re-bundle, `build.mjs --check`, `verify-manifest.mjs` GATE A+B, and — since `computeHash` moves — `DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs`.
+
+      **→ CLOSED 2026-08-06 by measurement (§8.1). The premise was wrong: PpgDex's `durSec` already
+      means DATA, not span, so no rename is owed and none was made.** Gated instead
+      (`ppgdex-dsp · export · duration-semantics`, 7 assertions), mutation-verified against the exact
+      rename this item proposed.
+- [x] `bump: minor` — the export gains a field. Satisfied per work-unit as each node landed:
+      `changes/2026-08-03-ppgdex-endepochms.md`, `changes/2026-08-03-endepochms-audit.md`,
+      `changes/2026-08-04-oxydex-duration-semantics.md`. **This closing pass is `patch`** — it adds
+      gates and corrects the record; no export moved.
+- [x] Per node: regen goldens, re-bundle, `build.mjs --check`, `verify-manifest.mjs` GATE A+B, and — since `computeHash` moves — `DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs`.
+      Done for the two nodes whose export actually moved — ECGDex (2026-07-27) and PpgDex (2026-08-03;
+      §6.3 records the moved `computeHash` and the re-verification). **Not owed by the remaining six:**
+      §7 measured that none of them has the defect, and §8.2 measured that MotionDex — the one §7.3
+      singled out — does not either. This closing pass is test-only and moves no bundle.
+- [x] **§8 · The two conditionals §7 left open are resolved by MEASUREMENT (2026-08-06).** PpgDex's
+      `durSec` already means data (§8.1); MotionDex's fabricated-duration fallback never fires (§8.2).
+      Both gated, both gates verified RED against the change they refuse.
 
 
 ---
@@ -240,3 +255,106 @@ additive in the first place.
 **The one to prioritise is MotionDex**, and only if its `rows.length / 26` fallback is shown to fire on
 real captures: that is the sole remaining path where the published duration is fabricated rather than
 measured, and it is the same honest-null argument the Clock Contract makes everywhere else.
+
+> **§8.2 ran that measurement. The fallback fires 0 times in 616 real files, so the condition is FALSE
+> and MotionDex does not need the field.** The recommendation stands as written; what it did not
+> anticipate is that the *constant* is wrong — see §8.2.
+
+
+---
+
+## §8 · CLOSED 2026-08-06 — the two remaining items were both PREMISES, and both were wrong
+
+§7 left the brief resting on two conditionals rather than two measurements: PpgDex "needs the rename"
+and MotionDex "needs `endEpochMs`, if the fallback fires". Neither had been run against the corpus.
+Both were run. **Both premises are false, in opposite directions**, and the pattern is the one this
+brief has now hit four times — §6.1 (PpgDex was optimistically grouped with OxyDex), §7 (the remaining
+six were treated as uniform work), the OxyDex `[~]` (its `pending` was a year-stale label), and now
+these two. *The table entry describing a node is not the node.* Every correction here came from
+driving the shipped code over real files; none came from re-reading the source.
+
+### 8.1 · PpgDex's `durSec` already means DATA — the rename would have made it WRONG
+
+**Method.** The shipped `parsePPG` → `compute` over every ≥2 MB `*_PPG.txt` in the capture-host tree:
+**322 files**, of which **90 carry a `recording.coverage` block** (28 % — the rest are contiguous and
+correctly decline to claim coverage at all). For each, `durSec` was compared against the two scalars
+that are unambiguous by construction — `coverage.recordedSec` (the data) and `coverage.spanSec` (the
+envelope).
+
+| `durSec` is closer to… | p50 of \|Δ\|/span | p95 of \|Δ\|/span | files it is nearest |
+|---|---|---|---|
+| **`coverage.recordedSec` — the DATA** | **0.052 %** | **0.227 %** | **75 / 90** |
+| `coverage.spanSec` — the ENVELOPE | 0.425 % | 2.496 % | 4 / 90 (+11 tied) |
+
+An order of magnitude nearer the data. The four "nearer span" files all have 1–8 s of total loss, where
+the two scalars are not distinguishable anyway. On the gappiest night in the corpus
+(`…20260727221106`, 6297 gap intervals) the three numbers are `durSec 22343 · recordedSec 22297 ·
+spanSec 22737` — 46 s from the data, 394 s from the envelope, over 6.3 hours.
+
+**§6.1 had already measured the evidence and stopped one step short of the conclusion.** It found
+`t0 + durSec` landing 6.6 min short of the last stamp and read it as *"the gap-fill does not recover
+all lost time"* — true, and the step not taken: **a duration short by exactly the dropout IS
+data-seconds.** That is ECGDex's signature (§1), not OxyDex's. So §1's table (`durSec` = "**near**
+wall span") and this section's own Done-when item ("a gap-filled-grid span") describe a field the node
+does not publish.
+
+**Consequence: PpgDex already satisfies option (c)**, and satisfies it in the ruling's *own*
+vocabulary rather than OxyDex's — `durSec` is the data, `endEpochMs` (landed 2026-08-03) is the clock
+end. Performing the proposed rename would have taken the one node that had both fields right and given
+it two envelopes and no data.
+
+**Gated** — `ppgdex-dsp · export · duration-semantics`, 7 assertions. Mirror image of the OxyDex gate:
+there the invariant is *"`durationMin` keeps meaning the envelope"*, here it is *"`durSec` keeps
+meaning the data"*, so a silent numerator change is now impossible in either direction. A gapped/gapless
+synthetic twin pair separated by a 20 s dropout pins `durSec ≡ recordedSec` (47.72 vs 48),
+`endEpochMs − t0 ≡ spanSec` (67.72 vs 68), and — as the CONTROL — that the gapless twin collapses the
+two and declares no coverage block. **Mutation-verified against the literal change the item proposed:**
+redefining `durSec` as `(endEpochMs − t0Ms)/1000` reds 2 assertions by value (`durSec=67.72s ·
+recordedSec=48s`), while the CONTROL assertions correctly stay green — so the gate is pointed at the
+gap, not at the fixture's shape.
+
+### 8.2 · MotionDex's fabricated-duration fallback never fires — but 26 is the wrong constant
+
+**Method.** The shipped `parseSensorXYZ` over every ≥200 KB ACC stream in **both** corpus trees
+(`tepna-smoketest/captures` + `Ecg nightly`): **616 files · 121,429,712 rows · 690 hours**. For each,
+the exact branch condition in `durationOf` was evaluated — is the last row's `relSec` resolvable?
+
+**It fires 0 times.** Not one parsed row anywhere lacks *both* a Phone timestamp and a device counter
+(0 files with any null `tMs`, 0 with any non-finite `relNs`). So §7.3's condition is false and
+**MotionDex does not need `endEpochMs`** — the honesty gap it was conditioned on does not exist in the
+field, and §7.2's economics apply unopposed.
+
+**What the same run also shows, and §7.1 could not have known:** the delivered ACC rate across those
+files runs **20.9–202.7 Hz** (H10 median 50.7, Verity median 51.7), so the assumed 26 Hz is not merely
+a fallback — it is **wrong by 0.8×–7.8×** for the corpus it would be applied to. Reached today only by
+handing `compute()` pre-parsed rows carrying no timing, on which it publishes **462 s for a 60 s
+record (7.7×)** beside a `startEpochMs` of **`null`** — every other field honestly says *unknown* and
+this one alone invents a number. That is Clock Contract §2.6 one layer up.
+
+**Not fixed here, deliberately, and this is a judgement worth stating rather than burying.** Removing
+it is a compute-path change (`motiondex-dsp.js` is inside the closure, so `computeHash` moves and
+fixture re-verification is owed) on a branch **no input reaches**, and `durSec` feeds `bodyPosition` /
+`actigraphy` / `respiratoryEffort`, so the honest replacement is not a one-liner: returning `0` or
+`null` changes three windowing denominators. Patching that into a closing pass would be the exact trade
+§7.2 spends a section arguing against, made blind. **Routed** to
+`NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-2026-08-06-BRIEF.md` §1 with this measurement attached.
+
+**Gated** — `motiondex-dsp · export · duration-semantics`, 6 assertions, pinning the invariant that is
+true and must stay true: a stream that carries timing is **measured**, never assumed. The fixture runs
+at 200 Hz (the corpus p95) so the measured and fabricated answers are 7.7× apart and cannot be confused
+for rounding. **Mutation-verified:** making `durationOf` return `rows.length / 26` unconditionally reds
+3 assertions by value (`durSec=462s · measured=60.0s`), including the one that follows the value into
+`recording.durSec`.
+
+### 8.3 · What this brief is not claiming
+
+- **Not** that the remaining six nodes publish `endEpochMs`. They do not, on purpose (§7.3); the
+  Integrator's `normalizeFile` falls through to `durSec`/`durationMin`, so absence costs nothing today.
+- **Not** that PpgDex's `durSec` is *exactly* `recordedSec`. It is a gap-filled grid length that tracks
+  it to 0.05 % of span; where a consumer needs the exact figure, `coverage.recordedSec` is the field
+  that answers, and it is already published on every file that has a hole.
+- **Not** that MotionDex's fallback is safe. It is unreachable through the shipped parser on 616 files,
+  and wrong by up to 7.8× if reached. Those are different statements and §8.2 makes both.
+- **Not** a re-measurement of the 43 PpgDex files where `t0 + durSec` overruns the last stamp by up to
+  24.9 s (0.26 % of span — an `fs`-estimate residual on contiguous Verity records, not a semantics
+  question). Recorded in the follow-up §2; it is the reason `endEpochMs` is read rather than derived.
