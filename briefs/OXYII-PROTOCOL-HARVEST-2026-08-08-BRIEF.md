@@ -70,10 +70,27 @@ AFE44xx register-format inference. Upstream's issue tracker is the right venue; 
 entry — offset/count, **signed** fields, and "not a pleth" — is the natural next step, gated on the owner
 (publishing is outward-facing; see the standing rule).
 
-Note one tension to resolve before contributing: upstream says each `0x05` record "starts `03 00`", which
-does **not** match our little-endian decode (our ch0 low bytes are not `03 00`). Either a firmware-variant
-difference or a different record framing — worth checking our raw `0x05` bytes against that claim before
-asserting a correction.
+### 4.1 · The `03 00` tension — RESOLVED (2026-08-08): our decode is correct on their exact firmware
+
+Upstream's README describes `0x05` as "u8 count + 102 × 9-byte records, each starting `03 00`". That did
+not match our little-endian decode, so before proposing any correction the claim was checked against
+**941 real `0x05` replies** from our captures. Findings:
+
+- **Same firmware.** Our ring's GET_INFO reports firmware **`2D010002`** — the exact firmware the upstream
+  author verified against. So this is not a variant difference; both observations are of the same device.
+- **`03 00` does not describe our records.** Across ~96 000 record-starts it appears at a base-1 record
+  boundary **twice** and at base-2 **once** — chance, not structure.
+- **Our framing is byte-proven.** In every one of 2 040 checked records, each channel's 4th byte is
+  `0x00` or `0xFF` — 0 exceptions. That is the exact signature of a **24-bit signed value sign-extended
+  into 32 bits**, and it is what makes `base-2 · u16 count · {i32 chA, i32 chB, u8 motion} · 2-byte
+  trailer` the right layout (922 = 2 + 102×9 + 2, exact).
+
+**Conclusion:** upstream never decoded `0x05` (they marked it "purpose unknown"); "starts `03 00`" is a
+superficial glance at undecoded bytes and does not hold on the firmware they tested. This *strengthens*
+the reverse contribution rather than complicating it — we can tell them precisely what `0x05` carries on
+`2D010002`: two signed 24-bit optical channels at ~153 Hz plus a motion byte, not a plethysmogram, with
+the record base at offset 2 (u16 count), corrected from their "u8 count / 03 00" description. Still
+owner-gated (publishing is outward-facing).
 
 ## 5 · Deliberately NOT harvested — writes to persistent state
 
