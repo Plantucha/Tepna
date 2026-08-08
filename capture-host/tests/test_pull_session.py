@@ -188,6 +188,31 @@ def test_a_complete_download_writes_the_dat_and_its_sidecar(tmp_path, monkeypatc
     assert meta["format_a"] is True
     assert meta["approx_samples"] == (len(blob) - 10 - 48) // 3
     assert len(meta["trailer"]) == 96, "48 trailer bytes as hex"
+    # This synthetic blob has no finalisation sub-magic, so the device summary must be absent — not a
+    # half-parsed dict. A caller re-pulls in a later cycle rather than trusting an unfinalised file.
+    assert meta["finalized"] is False and meta["device_summary"] is None
+
+
+def test_a_finalized_recording_carries_the_devices_own_session_summary(tmp_path, monkeypatch):
+    """The trailer harvested from nglessner/o2ring-s-protocol: a finalised Format-A file ends with the
+    ring's OWN avg/min SpO2 + desat stats. The puller surfaces them so OxyDex can be cross-checked
+    against the device's summary, and so `finalized` gates re-pulls."""
+    hdr = bytes([0x01, 0x03, 0, 0, 0, 0, 0, 0, 0x04, 0x00])
+    body = bytes([96, 50, 0]) * 300
+    t = bytearray(48)
+    t[4:8] = bytes([0x48, 0x12, 0x5A, 0xDA])       # finalisation sub-magic
+    t[12], t[13] = 300 & 0xFF, 300 >> 8            # total seconds
+    t[34], t[35], t[47] = 96, 81, 49               # avg spo2, min spo2, avg hr
+    t[42] = 94                                     # O2 score x10
+    blob = hdr + body + bytes(t)
+    ring = FakeRing(["20260720020000"], blob)
+    _install(monkeypatch, ring)
+    got = _run(pull_session._pull_once("AA:BB:CC:DD:EE:FF", str(tmp_path), "latest", 0, None, "0000"))
+    meta = json.load(open(got[0] + ".meta.json"))
+    assert meta["finalized"] is True
+    ds = meta["device_summary"]
+    assert ds["total_seconds"] == 300 and ds["min_spo2"] == 81 and ds["avg_hr"] == 49
+    assert ds["o2_score_x10"] == 94
 
 
 def test_the_transfer_survives_frames_split_across_notifications(tmp_path, monkeypatch):
@@ -672,3 +697,30 @@ def test_ftype_reaches_the_file_start_frame(tmp_path, monkeypatch):
     assert payload[:14] == b"20260720010000", "stamp must lead the payload"
     assert int.from_bytes(payload[16:20], "little") == 7, \
         "the requested --ftype must reach the device; a dropped argument silently defaults it to 0"
+
+
+def test_a_too_small_mtu_warns_loudly_instead_of_failing_silently(tmp_path, monkeypatch, capsys):
+    """Upstream's silent-drop failure: at a too-small ATT MTU, cmd=0xF2 returns zero bytes with no
+    error. If _acquire_mtu can't raise the placeholder 23, we must SAY so — a mystery 0xF2 timeout is
+    the exact misdiagnosis this warning prevents. It warns, never blocks (BlueZ may still complete)."""
+    ring = FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90)
+
+    class Backend:
+        async def _acquire_mtu(self):
+            raise RuntimeError("cannot acquire")     # leaves the placeholder 23 in place
+
+    ring._backend = Backend()
+    ring.mtu_size = 23
+    _install(monkeypatch, ring)
+    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    out = capsys.readouterr().out
+    assert "MTU is 23" in out and "may fail silently" in out
+
+
+def test_a_healthy_mtu_does_not_warn(tmp_path, monkeypatch, capsys):
+    """The negative arm: a normal 517/247 link must NOT print the warning (it would cry wolf on every
+    good pull). FakeRing defaults to mtu_size=517."""
+    ring = FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90)
+    _install(monkeypatch, ring)
+    _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    assert "may fail silently" not in capsys.readouterr().out

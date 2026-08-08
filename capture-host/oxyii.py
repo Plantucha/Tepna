@@ -87,6 +87,14 @@ def set_time_frame(dt, seq: int = 0) -> bytes:
 # printing bleak's PLACEHOLDER mtu_size (23 on BlueZ until a characteristic is acquired) plus a 6 s
 # timeout against a ~4.1 s FILE_LIST reply. Do not re-introduce an MTU precondition.
 OP_FILE_LIST, OP_FILE_START, OP_FILE_DATA, OP_FILE_END = 0xF1, 0xF2, 0xF3, 0xF4
+OP_GET_CONFIG, OP_GET_INFO, OP_GET_BATTERY = 0x00, 0xE1, 0xE4   # read-only device queries
+# ⚠️ DELIBERATELY NOT IMPLEMENTED — these WRITE persistent device state, the class this project gates
+# (cf. the Verity trigger writes in POLAR-PMD-COMMAND-SURFACE §5). Named so the opcodes are not reused:
+#   0x01 SET_CONFIG        — writes one settings field (plaintext on 2D010001; AES path unused)
+#   0xE3 FACTORY_RESET     — wipes settings AND every recording; no settings-only path
+#   0xEE FACTORY_RESET_ALL — powers the ring off, needs USB to wake. DO NOT ISSUE.
+# Ref: nglessner/o2ring-s-protocol (this device's OxyII family; frame codec byte-verified against ours,
+# CRC fixture A5 E1 1E 00 02 00 00 -> BF matches encode(0xE1, seq=2)).
 OP_RT_PPG = 0x05          # raw TWO-CHANNEL optical buffer (see parse_rt_ppg + WHICH-IS-WHICH)
 
 
@@ -446,3 +454,102 @@ def parse_ppg(payload: bytes) -> list[int]:
     if n is None:
         return []
     return list(payload[26:26 + n])
+
+
+# ── READ-ONLY DEVICE QUERIES (harvested from nglessner/o2ring-s-protocol, byte-verified) ─────────────
+# All three are empty-payload reads. Frame builders are trivial; the value is in the parsers below.
+def info_frame(seq: int = 0) -> bytes:
+    return encode(OP_GET_INFO, b"", seq)
+
+def config_frame(seq: int = 0) -> bytes:
+    return encode(OP_GET_CONFIG, b"", seq)
+
+def battery_frame(seq: int = 0) -> bytes:
+    return encode(OP_GET_BATTERY, b"", seq)
+
+
+def parse_get_info(payload: bytes) -> dict | None:
+    """cmd=0xE1 reply (60-byte plaintext) → device identity, or None if too short.
+
+    Firmware version is the field that matters operationally: this device's behaviour is
+    firmware-dependent (the F2 MTU gate differs between 2D010001/2/3), so a capture should record which
+    firmware produced it. Only firmware + serial are surfaced; everything else stays in `raw` because
+    the layout is only partially verified — offsets 4–7 / 22–23 / 32–35 do not vary across the upstream
+    author's captures and must not be relied on."""
+    if len(payload) < 48:
+        return None
+    fw = payload[9:17].decode("ascii", "replace").rstrip("\x00")
+    sn_len = payload[37]
+    sn = payload[38:38 + sn_len].decode("ascii", "replace") if 0 < sn_len and 38 + sn_len <= len(payload) else ""
+    return {"firmware": fw, "serial": sn, "raw_len": len(payload)}
+
+
+# GET_CONFIG field layout (first 20 of the 40-byte reply). Bytes 20+ are firmware-variant; opaque.
+_CONFIG_FIELDS = (
+    "alarm_flags", "spo2_low", "hr_low", "hr_high", "motor", "buzzer", "display_mode",
+    "brightness", "storage_interval", "tz_byte", "auto_switch", "alg_avg_time",
+    "count_down_time", "lr_model", "motor_switch", "motor_threshold", "invalid_signal_switch",
+)  # [17..18] u16 LE invalid_signal_time_thr, then [19] func_switch — handled explicitly below
+
+def parse_config(payload: bytes) -> dict | None:
+    """cmd=0x00 reply (40-byte plaintext) → the ring's settings struct, first 20 bytes decoded.
+
+    Read-only: this project does not ship a SET_CONFIG writer (see the opcode note above). Useful for
+    reading `storage_interval` and the alarm thresholds, and for verifying the ring's config on the box
+    without the vendor app."""
+    if len(payload) < 20:
+        return None
+    out = {name: payload[i] for i, name in enumerate(_CONFIG_FIELDS)}
+    out["invalid_signal_time_thr"] = payload[17] | (payload[18] << 8)
+    out["func_switch"] = payload[19]
+    return out
+
+
+def parse_battery(payload: bytes) -> dict | None:
+    """cmd=0xE4 reply (4 bytes) → {level, state}, or None if too short. byte[1] matches the live
+    header's battery percent (parse_live)."""
+    if len(payload) < 2:
+        return None
+    return {"state": payload[0], "level": payload[1]}
+
+
+# ── STORED-FILE (Format A) SESSION-STATS TRAILER ────────────────────────────────────────────────────
+# Every finalised Format-A OXY recording ends with a 48-byte trailer the vendor app uses for its
+# session-summary PDF. Two reasons to parse it: (1) `is_finalized` — the ring can report a file's full
+# size via cmd=0xF2 BEFORE the trailer flushes, so size-equality is not a reliable "complete" check; the
+# `48 12 5a da` sub-magic at trailer[4:8] is. (2) The stats are an INDEPENDENT cross-check on OxyDex's
+# own computation of avg/min SpO2 and desat counts from the same bytes.
+# Offsets verified byte-exact upstream across 8+ recordings; avg-SpO2/avg-HR agree with body means ±1.
+_TRAILER_LEN = 48
+_TRAILER_SUBMAGIC = bytes([0x48, 0x12, 0x5A, 0xDA])
+
+def parse_oxy_trailer(data: bytes) -> dict | None:
+    """The 48-byte Format-A trailer from a full recording's bytes → session stats, or None.
+
+    `data` is the whole file; the trailer is its last 48 bytes. Returns None (not an exception) when the
+    file is too short OR not finalised — a caller re-pulls in a later sync cycle rather than trusting a
+    half-written summary. `o2_score_x10` is 0xFF on short sessions → surfaced as None."""
+    if len(data) < _TRAILER_LEN:
+        return None
+    t = data[-_TRAILER_LEN:]
+    if t[4:8] != _TRAILER_SUBMAGIC:
+        return None                                        # not finalised (or not Format A)
+    score = t[42]
+    return {
+        "finalized": True,
+        "total_seconds": t[12] | (t[13] << 8),
+        "avg_spo2": t[34],
+        "min_spo2": t[35],
+        "desat_ge3": t[36],
+        "desat_ge4": t[37],
+        "seconds_below_90": t[39] | (t[40] << 8),
+        "episodes_below_90": t[41],
+        "o2_score_x10": None if score == 0xFF else score,
+        "avg_hr": t[47],
+    }
+
+
+def oxy_is_finalized(data: bytes) -> bool:
+    """True iff a Format-A file carries the finalisation sub-magic — the reliable 'complete' predicate
+    (size-equality is not; the trailer can flush after the size is reported). Cheaper than parsing."""
+    return len(data) >= _TRAILER_LEN and data[-_TRAILER_LEN:][4:8] == _TRAILER_SUBMAGIC
