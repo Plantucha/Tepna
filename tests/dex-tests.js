@@ -805,6 +805,66 @@
       T.ok('…while a real numeric anchor still works, so the guard is not simply always-null', good && good.tMs === Date.UTC(2026, 6, 4, 23, 45), 'got ' + JSON.stringify(good));
     });
 
+    /* §2.1 — A NUMERIC EPOCH IS A REAL INSTANT AND MUST BECOME FLOATING LOCAL TIME.
+       Found by mutation, not by review: `tzOffset()`'s `* 60000` mutated to `* 0` — making the helper
+       always return zero — survived the entire suite. 699 assertions and none of them noticed that a
+       numeric epoch would be stored as the raw UTC instant instead of the recording's local civil
+       time. On this box that is a FOUR HOUR error in the one conversion §2.1 exists to specify.
+
+       It survived for a reason worth recording: on a machine running UTC the mutant is genuinely
+       EQUIVALENT — `tzOffset()` is zero either way — so any test written casually, on a UTC CI box,
+       cannot fail and would have been dropped as pointless. That is why this group FORCES a zone
+       instead of trusting the ambient one. Asia/Kolkata is deliberate: +05:30 is non-zero AND not a
+       whole hour, so it also catches an implementation that rounds to hours.
+
+       Node applies a `process.env.TZ` change to Dates created afterwards (verified, not assumed:
+       the same instant reads 18:00/-240 ambient and 03:30/+330 under Kolkata). Restored in a
+       `finally`, because leaking a timezone into the rest of the suite would be its own bug. */
+    group('Clock Contract §2.1 — a numeric epoch becomes FLOATING local time', 'clock · known-answer · mutation-pinned', function (T) {
+      var C = env.DexClock;
+      if (!C || typeof C.parseTimestamp !== 'function') {
+        T.skip('DexClock.parseTimestamp available', 'clock.js not loaded');
+        return;
+      }
+      if (typeof process === 'undefined' || !process || !process.env) {
+        // Browser lane: cannot force a zone, so this assertion is Node-only by construction.
+        T.skip('TZ can be forced', 'no process.env (browser lane)');
+        return;
+      }
+      var saved = process.env.TZ;
+      try {
+        process.env.TZ = 'Asia/Kolkata'; // +05:30
+        var inst = Date.UTC(2026, 5, 7, 22, 0, 0); // a real UTC instant
+        var d = new Date(inst);
+        if (d.getTimezoneOffset() === 0) {
+          // The zone did not take (an ICU-less build). Skipping is honest; asserting would be vacuous.
+          T.skip('forced zone took effect', 'TZ change had no effect on this runtime');
+          return;
+        }
+        var want = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds(), d.getMilliseconds());
+        var r = C.parseTimestamp(inst, {});
+        T.eq('epoch → the LOCAL CIVIL time, encoded as if UTC', r && r.tMs, want);
+        T.ok('…which is NOT the raw instant (the whole point of §2.1)', r && r.tMs !== inst, 'tMs ' + (r && r.tMs) + ' vs instant ' + inst);
+        T.eq('…and offsetMin is minutes EAST of UTC', r && r.offsetMin, -d.getTimezoneOffset());
+        // An all-digit STRING takes the same path and must land identically (§2.1 "number / all-digit string").
+        var rs = C.parseTimestamp(String(inst), {});
+        T.eq('an all-digit STRING epoch resolves identically', rs && rs.tMs, want);
+        /* The contract's own guarantee: a zoned ISO stamp for the SAME wall instant yields the SAME
+           floating tMs. This is what makes two devices in different zones line up, and it is the
+           reason the conversion above cannot simply be dropped. */
+        var pad = function (n) {
+          return (n < 10 ? '0' : '') + n;
+        };
+        var iso =
+          d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+        T.eq('…and a no-zone local stamp for the same wall time agrees', (C.parseTimestamp(iso, {}) || {}).tMs, want);
+      } finally {
+        if (saved === undefined) delete process.env.TZ;
+        else process.env.TZ = saved;
+      }
+    });
+
+
     /* ════ WAVE 9 — THE MILLISECOND BAND IS CLOSED AT BOTH ENDS ═══════════════════════════════════
        `_ckMk` validates the time components with `… || ms < 0 || ms > 999`. A mutation of that last
        comparison to `ms >= 999` has survived every sweep, and the standing classification recorded it
