@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-ByYC764ffICMWawf5RVCw9Pb5JBvsfZS83HI4p9fL6A=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HFDSXcBDW8u7XD7M1mWyyx1aMdalHFgIYSeJ6kXEWU8=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-Vw8wfJlGH+61swjS1t+l9ykdoHngwhYiYvd7zU+i/6M=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-xePRLtIPeFK8QIZhf3nAvdK61jBR8BRNz7Iz6VU1/jQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-ByYC764ffICMWawf5RVCw9Pb5JBvsfZS83HI4p9fL6A=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HFDSXcBDW8u7XD7M1mWyyx1aMdalHFgIYSeJ6kXEWU8=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-Vw8wfJlGH+61swjS1t+l9ykdoHngwhYiYvd7zU+i/6M=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h7eDzXk9Q/+enhnS4yodXMepA0sXv6KmnkfDwFY8x0c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECGDex — Raw ECG Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -2936,6 +2936,28 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         <option value="overnight" selected>overnight · ~3 h</option>
         <option value="full">full night · ~7 h</option>
         <option value="ambulatory">🚶 ambulatory walk · ~2.4 h</option>
+      </select>
+    </div>
+    <!-- GENERATOR-FOLLOWUPS-II §3 step 2 — the SHARED patient axis (synth-gen.js + dex-patient-gen.js),
+         the same profile+days control OxyDex/PpgDex/GlucoDex carry. Distinct from the scenario line
+         above, which stays as the single-recording dev path: this one renders N consecutive nights for
+         ONE patient off the shared master timeline, so a generated ECGDex night and a generated OxyDex
+         night for the same profile+seed share nightly t0Ms and fuse in the Integrator.
+         Capped at 3 nights deliberately — raw µV at 130 Hz is ~3.4 M samples per night, which is why
+         every other node offers 14 and this one does not. -->
+    <div class="synth-line">
+      <span>Or a whole patient?</span>
+      <button class="synth-link" type="button" id="genPatientBtn">Generate patient</button>
+      <select id="genProfile" title="synthetic patient profile">
+        <option value="baseline" selected>Untreated OSA</option>
+        <option value="severe">Severe OSA</option>
+        <option value="cpap">On CPAP</option>
+        <option value="healthy">Healthy</option>
+      </select>
+      <select id="genPatientDays" title="consecutive nights (capped — raw µV at 130 Hz is large)">
+        <option value="1" selected>1 night</option>
+        <option value="2">2 nights</option>
+        <option value="3">3 nights</option>
       </select>
     </div>
     <input type="file" id="ecgInput" accept=".txt,.csv" multiple style="display:none">
@@ -6911,6 +6933,1279 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexClock;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
+</script>
+<!-- GENERATOR-FOLLOWUPS-II §3 step 2 — the shared coherence engine + patient axis. `synth-gen.js`
+     now carries the RR→PQRST µV renderer (step 1), so ECGDex can generate raw waveform from the SAME
+     master timeline every other node renders from; before the lift that renderer lived in
+     `cohort-full.js`, a FULL-lane-worker file this app cannot load, and that is precisely why ECGDex
+     stayed single-recording. Order matters: dex-patient-gen.js reads window.SYNTH. -->
+<script data-inline-src="synth-gen.js">/* ════════════════════════════════════════════════════════════════════════════
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+   synth-gen.js — Synthetic Overnight Corpus generator for the Dex Suite
+   ----------------------------------------------------------------------------
+   ONE virtual subject ("Subject A", 45M, BMI 31, untreated moderate OSA),
+   FIVE consecutive nights, every device recording the SAME nights on the SAME
+   floating wall-clock (CLOCK CONTRACT — see CLAUDE.md). A single master event
+   timeline per night is rendered into each device's native file format, so every
+   app loads the corpus UNCHANGED and the Integrator can fuse across nodes.
+
+   Single source of truth: both synth-gen.html (the UI tool) and the project
+   build step eval this file and call SYNTH.*.  Pure JS, no deps, deterministic
+   (seeded mulberry32). Exposes window.SYNTH.
+   ════════════════════════════════════════════════════════════════════════════ */
+(function (global) {
+  'use strict';
+
+  // ─── deterministic RNG ─────────────────────────────────────────────────────
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0;
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  // gaussian from a uniform rng
+  function gaussFrom(rng) {
+    let u = 0,
+      v = 0;
+    while (u === 0) u = rng();
+    while (v === 0) v = rng();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  // ─── CLOCK CONTRACT helpers — floating wall-clock ms via Date.UTC ───────────
+  const P2 = (n) => (n < 10 ? '0' : '') + n;
+  const P3 = (n) => (n < 10 ? '00' : n < 100 ? '0' : '') + n;
+  function civilMs(y, mo, d, h, mi, s, ms) {
+    return Date.UTC(y, mo - 1, d, h, mi, s || 0, ms || 0);
+  }
+  // formatters (read back with getUTC* so output is viewer-timezone independent)
+  function fmtOxy(ms) {
+    const d = new Date(ms); // "HH:MM:SS DD/MM/YYYY"  (O2Ring, DMY)
+    return P2(d.getUTCHours()) + ':' + P2(d.getUTCMinutes()) + ':' + P2(d.getUTCSeconds()) + ' ' + P2(d.getUTCDate()) + '/' + P2(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear();
+  }
+  function fmtISO(ms, withMs) {
+    // "YYYY-MM-DDTHH:MM:SS(.mmm)"  (Polar/phone, no zone)
+    const d = new Date(ms);
+    let s = d.getUTCFullYear() + '-' + P2(d.getUTCMonth() + 1) + '-' + P2(d.getUTCDate()) + 'T' + P2(d.getUTCHours()) + ':' + P2(d.getUTCMinutes()) + ':' + P2(d.getUTCSeconds());
+    if (withMs) s += '.' + P3(d.getUTCMilliseconds());
+    return s;
+  }
+  function fmt14(ms) {
+    // "YYYYMMDDHHMMSS" for filenames
+    const d = new Date(ms);
+    return d.getUTCFullYear() + P2(d.getUTCMonth() + 1) + P2(d.getUTCDate()) + P2(d.getUTCHours()) + P2(d.getUTCMinutes()) + P2(d.getUTCSeconds());
+  }
+  function fmtFileClock(ms) {
+    // "YYYY-MM-DD HH-MM-SS" RR filename
+    const d = new Date(ms);
+    return d.getUTCFullYear() + '-' + P2(d.getUTCMonth() + 1) + '-' + P2(d.getUTCDate()) + ' ' + P2(d.getUTCHours()) + '-' + P2(d.getUTCMinutes()) + '-' + P2(d.getUTCSeconds());
+  }
+  function fmtGluco(ms, zone) {
+    // "YYYY-MM-DDTHH:MM-04:00"  (Lingo, zoned)
+    const d = new Date(ms);
+    return d.getUTCFullYear() + '-' + P2(d.getUTCMonth() + 1) + '-' + P2(d.getUTCDate()) + 'T' + P2(d.getUTCHours()) + ':' + P2(d.getUTCMinutes()) + zone;
+  }
+  const MGDL = 18.018; // mg/dL per mmol/L
+  const mmol2mg = (v) => Math.round(v * MGDL);
+
+  // ─── the 5-night clinical arc (LOCKED — see SYNTHETIC-CORPUS-BRIEF §1) ──────
+  // bedtime as civil [Y,M,D,h,m]; AHI target; glucose & HRV story per night.
+  const NIGHTS = [
+    { n: 1, date: '2026-05-11', bed: [2026, 5, 11, 23, 10], durSec: 27600, ahi: 22, cpap: false, gluc: 'flat', rmssd: 24, rsaGain: 1.199, story: 'Baseline untreated OSA' },
+    {
+      n: 2,
+      date: '2026-05-12',
+      bed: [2026, 5, 12, 23, 55],
+      durSec: 26400,
+      ahi: 38,
+      cpap: false,
+      gluc: 'hypo',
+      rmssd: 18,
+      rsaGain: 0.866,
+      story: 'Worse — alcohol, supine, fragmented; nocturnal hypo + CSR run'
+    },
+    { n: 3, date: '2026-05-13', bed: [2026, 5, 13, 22, 50], durSec: 28200, ahi: 7, cpap: true, gluc: 'flat', rmssd: 30, rsaGain: 1.523, story: 'CPAP started (intervention) — residual events only' },
+    { n: 4, date: '2026-05-14', bed: [2026, 5, 14, 23, 5], durSec: 27600, ahi: 4, cpap: true, gluc: 'dawn', rmssd: 38, rsaGain: 1.95, story: 'CPAP adherent + dawn phenomenon' },
+    { n: 5, date: '2026-05-15', bed: [2026, 5, 15, 23, 20], durSec: 27000, ahi: 3, cpap: true, gluc: 'dawn', rmssd: 44, rsaGain: 2.268, story: 'CPAP stable, best night' }
+  ];
+  const SUBJECT = { id: 'SubjectA', age: 45, sex: 'M', bmi: 31, polarId: 'BBBBBBBB', glucoZone: '-04:00' };
+  // texture/calibration version — read by cohort-runner's provenance pin.
+  const VERSION = 'synth-gen/2.1'; // 2.1: HRV-level-scaled fast-variability floor (texF) in buildRR + dropped the τ=2 relaxor + white-noise 3→1.0 → the low-HRV RR tail renders below the old ~17.6 ms floor and SPREADS instead of stacking a flat line (paired with cohort-gen/1.9 rsaGainFor re-fit); DFA-α1 preserved ≈0.76. NIGHTS rsaGain re-fit to the new gain→rMSSD transfer. 2.0: broadband 1/f RR texture (octave-OU relaxor bank τ≈2..256 beats + RSA freq wander; DFA-α1 0.53→0.85) + re-fit NIGHTS rsaGain. Pre-2.0 = single-relaxor texture, no VERSION string.
+
+  function nightT0(cfg) {
+    return civilMs(cfg.bed[0], cfg.bed[1], cfg.bed[2], cfg.bed[3], cfg.bed[4], 0, 0);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  MASTER TIMELINE — define ONCE per night, render per device.
+  //  Returns { t0Ms, durSec, events:[{relSec,t0Ms,durSec,type,severity,meta}],
+  //            pb:[...], gluc:{...} }.  All times floating wall-clock.
+  // ════════════════════════════════════════════════════════════════════════
+  function masterTimeline(cfg, seed) {
+    const rng = mulberry32(seed);
+    const t0Ms = nightT0(cfg);
+    const durSec = cfg.durSec;
+    const cycleLen = 95 * 60; // ~90-min sleep cycle
+    // sleep stage at rel sec → REM fraction high near end of each cycle
+    function remWeight(t) {
+      const ph = (t % cycleLen) / cycleLen;
+      // descending into deep early, REM-rich in last third; first cycle mostly light
+      const cyc = Math.floor(t / cycleLen);
+      const remBoost = ph > 0.78 ? 1.0 : ph > 0.6 ? 0.5 : 0.12;
+      return remBoost * Math.min(1, 0.4 + cyc * 0.18); // REM lengthens through the night
+    }
+
+    // —— apnea / hypopnea events, clustered in REM-ish bouts to hit target AHI ——
+    const durHours = durSec / 3600;
+    const targetCount = Math.round(cfg.ahi * durHours);
+    const events = [];
+    const SOL = 6 * 60; // sleep onset latency ~6 min
+    const usable = durSec - SOL - 120;
+    // base spacing slightly under target so we reliably reach the count, then truncate
+    const base = usable / (targetCount * 1.06);
+    const severe = cfg.ahi >= 25;
+    let tt = SOL,
+      placed = 0,
+      guard = 0;
+    while (placed < targetCount && guard++ < targetCount * 4 + 50) {
+      const w = remWeight(tt);
+      const dur = Math.round((severe ? 18 : 12) + rng() * (severe ? 22 : 16)); // 10–40 s
+      const isApnea = rng() < (severe ? 0.62 : 0.4);
+      const depthBase = (dur / 38) * (isApnea ? 13 : 9.5) * (cfg.cpap ? 0.5 : 1);
+      const depth = Math.max(3.5, Math.min(15, depthBase + gaussFrom(rng) * 1.2));
+      events.push({
+        relSec: tt,
+        t0Ms: t0Ms + tt * 1000,
+        durSec: dur,
+        type: isApnea ? 'apnea' : 'hypopnea',
+        severity: +depth.toFixed(1),
+        meta: { rem: +w.toFixed(2), supine: cfg.n === 2 || rng() < 0.5 }
+      });
+      placed++;
+      // clustered spacing: mostly short intra-bout gaps, occasional long inter-bout gap;
+      // stretch gaps where REM weight is low so events bunch into REM-ish bouts.
+      const intra = rng() < 0.62;
+      let gap = (intra ? base * 0.3 + dur : base * 1.9) * (1.45 - 0.6 * w);
+      tt += Math.max(dur + 8, gap);
+      if (tt > durSec - 120) tt = SOL + rng() * usable * 0.05; // wrap to fill remaining count
+    }
+    events.sort((a, b) => a.relSec - b.relSec);
+
+    // —— periodic-breathing / CSR-like runs (smooth crescendo–decrescendo) ——
+    const pb = [];
+    function addPB(relStart, cycleSec, nCyc, ampPct) {
+      pb.push({ relSec: relStart, t0Ms: t0Ms + relStart * 1000, cycleSec, nCyc, durSec: cycleSec * nCyc, ampPct });
+    }
+    if (cfg.n === 2) {
+      // a clear CSR run on the severe night
+      addPB(3 * 3600 + 12 * 60, 58, 8, 3.5); // ~03:0x range relative depends on bedtime
+      addPB(5 * 3600 + 5 * 60, 64, 5, 2.6);
+    } else if (!cfg.cpap) {
+      addPB(2 * 3600 + 40 * 60, 70, 4, 2.2);
+    } else if (cfg.n === 3) {
+      addPB(1 * 3600 + 30 * 60, 80, 3, 1.6); // residual on the night CPAP starts
+    }
+
+    // —— glucose event spec (rendered by renderGluco against absolute civil time) ——
+    let gluc = { kind: cfg.gluc };
+    return { cfg, t0Ms, durSec, events, pb, gluc, remWeight, seed };
+  }
+
+  // helper: is rel time inside any apnea event window (+arousal tail)? returns {inApnea, arousal, depth}
+  function apneaStateAt(tl, relSec) {
+    let inApnea = false,
+      arousal = 0,
+      depth = 0;
+    // linear scan is fine (events sorted, few hundred)
+    for (const e of tl.events) {
+      if (relSec < e.relSec - 1) break;
+      const end = e.relSec + e.durSec;
+      if (relSec >= e.relSec && relSec < end) {
+        inApnea = true;
+        depth = Math.max(depth, e.severity);
+      }
+      // arousal rebound window 0..9 s after event end
+      if (relSec >= end && relSec < end + 9) {
+        arousal = Math.max(arousal, 1 - (relSec - end) / 9);
+      }
+    }
+    return { inApnea, arousal, depth };
+  }
+  function pbStateAt(tl, relSec) {
+    // periodic-breathing phase amplitude (−1..1)*ampPct
+    for (const r of tl.pb) {
+      if (relSec >= r.relSec && relSec < r.relSec + r.durSec) {
+        const ph = (relSec - r.relSec) / r.cycleSec;
+        // crescendo–decrescendo envelope across the run
+        const env = Math.sin((Math.PI * (relSec - r.relSec)) / r.durSec);
+        return { amp: Math.sin(2 * Math.PI * ph) * r.ampPct * (0.5 + 0.5 * env), active: true };
+      }
+    }
+    return { amp: 0, active: false };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  OxyDex — O2Ring CSV  (1 Hz · "Time,Oxygen Level,Pulse Rate,Motion")
+  // ════════════════════════════════════════════════════════════════════════
+  function renderOxy(tl) {
+    const cfg = tl.cfg;
+    const r = mulberry32(tl.seed + 101);
+    const lines = ['Time,Oxygen Level,Pulse Rate,Motion'];
+    const N = tl.durSec;
+    const baseSpo2 = 96;
+    /* Physiological rate limits, %/s. See the glide below for the measurement these come from.
+       Deliberately NOT imported from oxydex-dsp's SELFGATE: the generator must not track the gate
+       it is judged by, or the fixture passes by construction (SYNTH-GEN-DESAT-KINETICS §5). */
+    const SPO2_FALL_MAX_PCT_S = 1.0;
+    const SPO2_RISE_MAX_PCT_S = 1.5;
+    let spo2f = baseSpo2,
+      prf = 58;
+    // circulatory delay: desat begins ~8 s after event onset → use a delayed apnea probe
+    for (let s = 0; s < N; s++) {
+      const ms = tl.t0Ms + s * 1000;
+      const probe = apneaStateAt(tl, s - 8); // SpO2 lags onset
+      const pb = pbStateAt(tl, s);
+      // SpO2 target
+      let target = baseSpo2 + gaussFrom(r) * 0.25;
+      if (probe.inApnea) target = baseSpo2 - probe.depth * (0.4 + 0.6 * Math.min(1, 1));
+      const arouse = apneaStateAt(tl, s - 8).arousal;
+      if (arouse > 0) target += 1.2 * arouse; // mild recovery overshoot
+      target += pb.amp * 0.7; // periodic-breathing ripple
+      /* Glide toward the target, then RATE-LIMIT the step (SYNTH-GEN-DESAT-KINETICS).
+         The glide alone is a first-order lag, so its INITIAL rate is k × depth: at k = 0.28 a 10 %
+         event fell 2.8 %/s and a 15 % one 4.2 %/s. `SELFGATE.FALL_RATE_MAX` is 1.5 %/s because a
+         real systemic desaturation is limited by circulation and lung oxygen stores, so OxyDex
+         correctly classified those edges as probe artifact and threw them away — 232 of 242 events
+         on night 2, giving ODI-4 1.4/h against a planted AHI of 38. The rejection scaled with
+         severity purely because severe nights plant deeper events, which on its own reproduced the
+         "severity-dependent ODI-4 deficit" that papers/odi4-ahi-bias.html reports.
+
+         A lag is the wrong model: saturation is rate-limited, not exponentially-relaxing, so the
+         limit is imposed directly rather than by shrinking k (which would also flatten shallow
+         events that were never the problem).
+
+         The caps are MEASURED, not inherited from the brief that asked for them — 36 real nights of
+         `timeseries.spo2` plus 342 events carrying `onsetTMs`:
+             1 s falls exceeding 1.5 %/s : 0.20 % of 21 609   (synthetic nights 1-2: 16.3 %, 32.0 %)
+             onset → nadir               : p50 7 s · p90 25 s · p99 71 s
+             nadir → end                 : p50 14 s · p90 38 s
+             event depth                 : p50 5 % · p90 8 %
+             implied mean fall rate      : 0.714 %/s
+         1.0 %/s sits above that median and still leaves 0.5 %/s of headroom under the gate; the
+         rise cap is looser because resaturation is the slower limb (14 s vs 7 s) and clamping it
+         hard would merge events that should separate. Depth is untouched: a 7 % desaturation is
+         still 7 % deep, it just takes 7 s to get there. */
+      const k = target < spo2f ? 0.28 : 0.16;
+      const step = (target - spo2f) * k;
+      spo2f += Math.max(-SPO2_FALL_MAX_PCT_S, Math.min(SPO2_RISE_MAX_PCT_S, step));
+      let spo2 = Math.round(Math.max(60, Math.min(100, spo2f)));
+      // pulse rate: nocturnal floor + arousal/apnea surges + drift
+      const cyc = tl.remWeight(s);
+      let prT = 56 + cyc * 8 - Math.min(6, (s / N) * 6) + gaussFrom(r) * 0.6;
+      const st = apneaStateAt(tl, s);
+      if (st.inApnea) prT -= 3; // bradycardia during apnea
+      if (st.arousal > 0) prT += 12 * st.arousal; // tachy surge on arousal
+      prf += (prT - prf) * 0.25;
+      let pr = Math.round(Math.max(35, Math.min(140, prf)));
+      // motion: spikes at arousals + position changes; mostly 0
+      let motion = 0;
+      if (st.arousal > 0.35 && r() < 0.5) motion = 1 + Math.floor(r() * 3);
+      // injected finger-off dropout spans (sensor realism) — leave a clean span intact
+      const inDrop = dropoutAt(cfg, s, 'oxy');
+      if (inDrop) {
+        lines.push(fmtOxy(ms) + ',--,--,0');
+        continue;
+      }
+      lines.push(fmtOxy(ms) + ',' + spo2 + ',' + pr + ',' + motion);
+    }
+    return lines.join('\n') + '\n';
+  }
+
+  // shared dropout schedule (deterministic per night) — keeps ≥1 clean span/night
+  function dropoutAt(cfg, relSec, dev) {
+    // one finger-off / contact-loss span per night, away from key events
+    const spans =
+      {
+        oxy: [[Math.round(cfg.durSec * 0.46), 70]], // ~70 s blanks mid-night
+        ppg: [[Math.round(cfg.durSec * 0.0), 0]]
+      }[dev] || [];
+    for (const [st, len] of spans) {
+      if (relSec >= st && relSec < st + len) return true;
+    }
+    return false;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  RR engine — beat-by-beat NN series (shared by ECGDex deviceRR + PulseDex)
+  //  Output: delimited "ISOnozone;RRms" so PulseDex captures the wall-clock t0Ms.
+  // ════════════════════════════════════════════════════════════════════════
+  function buildRR(tl) {
+    const cfg = tl.cfg;
+    const r = mulberry32(tl.seed + 202);
+    // Non-RSA fast-variability scale, tied to the night's HRV level (rsaGain). Bulk/high-HRV
+    // nights (gain ≥ 0.9, target ≳ 22 ms) keep FULL broadband texture — DFA-α1 is measured
+    // there and must not move. Low-HRV nights (severe-apnea/elderly tail) get proportionally
+    // less fast variability, so their rendered rMSSD floor drops and the low tail SPREADS
+    // instead of stacking on a hard line — physiological (low vagal tone ⇒ less complex RR).
+    const texF = Math.min(1, Math.max(0.3, 0.3 + (0.7 * (cfg.rsaGain || 1)) / 0.9));
+    const beats = []; // {tMs, rr, type}
+    let tRel = 0.4; // sec
+    let lf = 0,
+      lfT = 0,
+      bw = 0,
+      sinus = 1000,
+      pendComp = 0,
+      cvhrS = 0;
+    // RSA phase is integrated in real time with a slowly-WANDERING respiratory
+    // frequency (not a fixed 0.235 Hz metronome). A locked frequency rings in the
+    // autocorrelation for 15+ beats on clean (low-apnea) nights; letting it wander
+    // broadens the HF band so the autocorrelation damps within ~2 cycles, as real RSA does.
+    let respPh = r() * 2 * Math.PI,
+      zRespF = gaussFrom(r),
+      lastTRel = 0;
+    // Broadband 1/f background (octave-spaced OU relaxors, τ ≈ 3..256 beats) in place of
+    // the old single slow relaxor. Real RR is pink at short scales (DFA-α1 ≈ 1.02–1.30,
+    // measured across 13 real H10 nights); a single slow OU left the 4–16-beat band white
+    // (α1 ≈ 0.5). Spreading 1/f power across that band lifts α1 to ≈0.85 and also pulls
+    // SampEn and SDNN/RMSSD toward the real distribution.
+    // PARTIAL: α1 reaches ≈0.85, not the real ≈1.16 — the narrowband RSA (its amplitude
+    // pinned by the per-night rMSSD targets) caps short-scale α1; closing the last ~0.3
+    // needs a multifractal RSA model, not a parameter (a multiplicative 1/f coupling was
+    // tested against the real corpus and made α1 worse, so it was rejected).
+    const bwTau = [3, 4, 6, 8, 12, 16, 24, 32, 64, 128, 256];
+    const bwA = bwTau.map((t) => Math.exp(-1 / t)),
+      bwS = bwA.map((a) => Math.sqrt(1 - a * a));
+    const bwNorm = Math.sqrt(bwTau.length);
+    const bwBank = bwTau.map(() => gaussFrom(r));
+    // hypo window (N2): compensatory tachycardia + rMSSD collapse + a few ectopics
+    const hypo = cfg.gluc === 'hypo';
+    const hypoStart = 3 * 3600 + 6 * 60 - (cfg.bed[3] * 3600 + cfg.bed[4] * 60 - 23 * 3600 - 55 * 60); // align ~03:06 civil
+    // simpler: compute hypo nadir civil 03:00..03:40 → rel via t0Ms
+    const hypoNadirRel = (civilMs(2026, 5, cfg.bed[2] + 1, 3, 6, 0) - tl.t0Ms) / 1000;
+    // base HR curve: deep-sleep dip, REM rise, slow circadian fall
+    function baseRR(relSec) {
+      const cyc = (relSec % (95 * 60)) / (95 * 60);
+      let base;
+      if (cyc < 0.12)
+        base = 980; // light onset
+      else if (cyc < 0.5)
+        base = 1135; // deep (N3) — slow HR, high RR
+      else if (cyc < 0.78)
+        base = 1050; // N2
+      else base = 915; // REM — faster HR
+      base += Math.min(55, (relSec / tl.durSec) * 50); // circadian downward HR drift → RR up
+      return base;
+    }
+    while (tRel < tl.durSec) {
+      const vagal = (() => {
+        const cyc = (tRel % (95 * 60)) / (95 * 60);
+        return cyc < 0.5 ? 0.85 : cyc < 0.78 ? 0.65 : 0.42;
+      })();
+      // respiratory sinus arrhythmia — per-night rsaGain sets the beat-to-beat (rMSSD) scale.
+      // Frequency wanders around 0.235 Hz (breathing is not metronomic; REM loosens it),
+      // integrated as phase over real elapsed time so the HF band broadens and won't ring;
+      // the wander also de-narrows RSA enough that it no longer fully caps short-scale α1.
+      const remIrr = vagal < 0.5 ? 1.6 : 1; // looser, more variable breathing in REM
+      zRespF = 0.95 * zRespF + gaussFrom(r) * Math.sqrt(1 - 0.95 * 0.95);
+      respPh += 2 * Math.PI * (0.235 * Math.exp(0.35 * remIrr * zRespF)) * (tRel - lastTRel);
+      lastTRel = tRel;
+      const resp = Math.sin(respPh) * 22 * (1.1 - vagal * 0.4) * (cfg.rsaGain || 1);
+      lfT = (r() - 0.5) * 2;
+      lf = 0.9 * lf + 0.1 * lfT;
+      const lfMs = lf * 22 * (1.1 - vagal * 0.5);
+      bw = 0;
+      for (let j = 0; j < bwA.length; j++) {
+        bwBank[j] = bwA[j] * bwBank[j] + gaussFrom(r) * bwS[j];
+        bw += bwBank[j];
+      }
+      bw = (bw / bwNorm) * 30 * texF; // broadband 1/f background (see buildRR head), HRV-level-scaled
+      // CVHR: bradycardia in apnea, tachy rebound at arousal — SMOOTHED over ~6 beats so
+      // it loads SDNN/VLF (a slow cyclic oscillation) without spuriously inflating rMSSD.
+      const st = apneaStateAt(tl, tRel);
+      let cvhrTgt = 0;
+      if (st.inApnea) cvhrTgt += 70 + st.depth * 4; // RR rises (HR slows)
+      if (st.arousal > 0) cvhrTgt -= (110 + st.depth * 3) * st.arousal; // rebound tachy
+      cvhrS = 0.8 * cvhrS + 0.2 * cvhrTgt;
+      const cvhr = cvhrS;
+      // periodic breathing sinusoid on RR
+      const pb = pbStateAt(tl, tRel);
+      const pbMs = pb.active ? pb.amp * 30 : 0;
+      // hypo coupling (N2): tachycardia + suppressed beat-to-beat variability near nadir
+      let hypoMs = 0,
+        hypoSupp = 1;
+      if (hypo) {
+        const d = Math.abs(tRel - hypoNadirRel);
+        if (d < 25 * 60) {
+          const w = Math.max(0, 1 - d / (25 * 60));
+          hypoMs = -120 * w;
+          hypoSupp = 1 - 0.5 * w;
+        }
+      }
+      let rr = baseRR(tRel) + (resp + lfMs) * hypoSupp + bw + cvhr + pbMs + hypoMs + gaussFrom(r) * 1.0 * texF;
+      let type = 'N';
+      if (pendComp > 0) {
+        rr += pendComp;
+        pendComp = 0;
+      } else if (hypo && Math.abs(tRel - hypoNadirRel) < 12 * 60 && r() < 0.0016) {
+        type = 'V';
+        const c = rr * (0.5 + 0.12 * r());
+        pendComp = 2 * rr - c - rr;
+        rr = c; // PVC
+      } else if (r() < 0.0006) {
+        type = 'S';
+        const c = rr * (0.58 + 0.12 * r());
+        pendComp = rr * 0.35;
+        rr = c; // PAC
+      }
+      rr = Math.max(360, Math.min(1700, rr));
+      beats.push({ tMs: tl.t0Ms + Math.round(tRel * 1000), rr: Math.round(rr), type });
+      tRel += rr / 1000;
+    }
+    return beats;
+  }
+  function renderRR(tl) {
+    // "ISO;RR" per line (no header)
+    const beats = buildRR(tl);
+    const out = [];
+    for (const b of beats) out.push(fmtISO(b.tMs, true) + ';' + b.rr);
+    return out.join('\n') + '\n';
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  GlucoDex — CGM CSV (Lingo), ONE continuous file across all 5 nights/days.
+  //  5-min sampling, mg/dL, zoned ISO timestamps.
+  // ════════════════════════════════════════════════════════════════════════
+  function renderGlucoAll(timelines) {
+    const r = mulberry32(9090);
+    const header = 'Time of Glucose Reading [T=(local time) +/- (time zone offset)], Measurement(mg/dL)';
+    const rows = [header];
+    // continuous worn sensor: span from first bedtime −2 h to last morning +3 h, 5-min cadence
+    const startMs = timelines[0].t0Ms - 2 * 3600 * 1000;
+    const endMs = timelines[timelines.length - 1].t0Ms + (timelines[timelines.length - 1].durSec + 3 * 3600) * 1000;
+    // baseline fasting glucose (mmol/L) — a patient-level knob. Optional
+    // cfg.glucBaseMmol lets a caller raise the whole series (e.g. pre-diabetes
+    // ~6.6) WITHOUT touching the frozen corpus, whose cfgs omit the field →
+    // +undefined||5.4 → 5.4 → byte-identical legacy output.
+    let baseMmol = +(timelines[0] && timelines[0].cfg && timelines[0].cfg.glucBaseMmol) || 5.4,
+      drift = 0;
+    for (let ms = startMs; ms <= endMs; ms += 5 * 60 * 1000) {
+      const d = new Date(ms);
+      const hod = d.getUTCHours() + d.getUTCMinutes() / 60;
+      // slow ultradian drift + improving TIR across the arc
+      drift = 0.985 * drift + gaussFrom(r) * 0.06;
+      let mmol = baseMmol + drift;
+      // daytime postprandial bumps (coarse) — gentle, not the focus
+      if (hod > 7 && hod < 22) mmol += 0.8 * Math.max(0, Math.sin(((hod - 7) / 15) * Math.PI)) + (r() < 0.04 ? 1.5 + r() * 2 : 0);
+      // which night are we inside?
+      for (const tl of timelines) {
+        const rel = (ms - tl.t0Ms) / 1000;
+        if (rel < -3600 || rel > tl.durSec + 3600) continue;
+        // apnea-coupled slow sympathetic elevation over heavy bouts
+        if (rel > 0 && rel < tl.durSec) {
+          const burden = tl.cfg.ahi / 40;
+          mmol += burden * 0.5 * Math.max(0, Math.sin((rel / tl.durSec) * Math.PI));
+        }
+        // night-2 nocturnal hypo (~03:00) + Somogyi rebound to ~7.5 by 05:00
+        if (tl.cfg.gluc === 'hypo') {
+          const nadir = civilMs(2026, 5, tl.cfg.bed[2] + 1, 3, 6, 0) - 0; // civil ms
+          const t = ms;
+          if (t > nadir - 60 * 60000 && t < nadir + 120 * 60000) {
+            const dm = (t - nadir) / 60000; // minutes from nadir
+            if (dm < 0) mmol = 5.4 + (3.2 - 5.4) * Math.min(1, (dm + 40) / 40 < 0 ? 0 : (40 + dm) / 40);
+            if (dm >= -40 && dm < 0) mmol = 5.4 + (3.2 - 5.4) * ((40 + dm) / 40);
+            else if (dm >= 0 && dm < 20)
+              mmol = 3.2; // plateau
+            else if (dm >= 20 && dm < 114) mmol = 3.2 + (7.5 - 3.2) * ((dm - 20) / 94); // rebound
+          }
+        }
+        // night-4/5 dawn phenomenon (~05:00→07:00 rise +1.5–2.5 mmol)
+        if (tl.cfg.gluc === 'dawn') {
+          const dawn0 = civilMs(2026, 5, tl.cfg.bed[2] + 1, 5, 0, 0);
+          if (ms > dawn0) {
+            const amp = tl.cfg.n === 5 ? 2.4 : 1.8;
+            mmol += amp * Math.min(1, (ms - dawn0) / (150 * 60000)); // rise over 2.5 h, then plateau
+          }
+        }
+      }
+      mmol = Math.max(2.5, mmol);
+      let mg = mmol2mg(mmol) + Math.round(gaussFrom(r) * 2); // sensor noise ±0.1–0.3 mmol
+      rows.push(fmtGluco(ms, SUBJECT.glucoZone) + ',' + Math.max(40, mg));
+    }
+    return rows.join('\n') + '\n';
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  HRVDex — Welltory summary CSV (one row per night, derived from that
+  //  night's RR series so HRVDex agrees with PulseDex/ECGDex).
+  // ════════════════════════════════════════════════════════════════════════
+  function hrvMetrics(beats) {
+    // artifact-clean first (mirror PulseDex/ECGDex: clip 300-2200, >20% off local median)
+    const raw = beats.map((b) => b.rr);
+    const rr = raw.slice();
+    for (let i = 0; i < raw.length; i++) {
+      const lo = Math.max(0, i - 5),
+        hi = Math.min(raw.length, i + 6),
+        seg = [];
+      for (let j = lo; j < hi; j++) if (j !== i) seg.push(raw[j]);
+      seg.sort((a, b) => a - b);
+      const med = seg[seg.length >> 1] || raw[i];
+      if (raw[i] < 300 || raw[i] > 2200 || (med && Math.abs(raw[i] - med) / med > 0.2)) rr[i] = med;
+    }
+    const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+    const meanRR = mean(rr);
+    const sdnn = Math.sqrt(mean(rr.map((v) => (v - meanRR) ** 2)));
+    let sd = 0;
+    for (let i = 1; i < rr.length; i++) sd += (rr[i] - rr[i - 1]) ** 2;
+    const rmssd = Math.sqrt(sd / (rr.length - 1));
+    let nn50 = 0;
+    for (let i = 1; i < rr.length; i++) if (Math.abs(rr[i] - rr[i - 1]) > 50) nn50++;
+    const pnn50 = (nn50 / (rr.length - 1)) * 100;
+    const hr = 60000 / meanRR;
+    const sorted = rr.slice().sort((a, b) => a - b);
+    const mxdmn = (sorted[sorted.length - 1] - sorted[0]) / 1000; // seconds (Welltory units)
+    // mode (most common RR bucket) in seconds
+    const f = {};
+    rr.forEach((v) => {
+      const k = Math.round(v / 25) * 25;
+      f[k] = (f[k] || 0) + 1;
+    });
+    const mode = +Object.entries(f).sort((a, b) => b[1] - a[1])[0][0] / 1000;
+    const amo50 = (rr.filter((v) => Math.abs(v - mode * 1000) <= 25).length / rr.length) * 100;
+    const cv = (sdnn / meanRR) * 100;
+    const sd1 = rmssd / Math.sqrt(2);
+    const sd2 = Math.sqrt(Math.max(0, 2 * sdnn * sdnn - sd1 * sd1));
+    return { meanRR, sdnn, rmssd, pnn50, hr, mxdmn, mode, amo50, cv, sd1, sd2 };
+  }
+  function renderHRVAll(timelines) {
+    const cols = [
+      'Date',
+      'Time',
+      'Stress(HRV)',
+      'Energy(HRV)',
+      'Focus',
+      'ANS balance(SNS)',
+      'ANS balance(PSNS)',
+      'Coherence index',
+      'HRV Score',
+      'CV',
+      'Measurement HR',
+      'Mean RR',
+      'SDNN',
+      'rMSSD',
+      'MxDMn',
+      'pNN50',
+      'AMo50',
+      'Mode',
+      'Total power',
+      'HF',
+      'LF',
+      'VLF',
+      'Health'
+    ];
+    const rows = [cols.join(',')];
+    for (const tl of timelines) {
+      const beats = buildRR(tl);
+      const m = hrvMetrics(beats);
+      // stress/energy/balance follow the arc (worse early, recovering post-CPAP)
+      const stress = Math.round(Math.max(10, 70 - (m.rmssd - 18) * 2.0));
+      const energy = Math.round(Math.min(90, 30 + (m.rmssd - 18) * 1.8));
+      const sns = Math.round(Math.max(15, 75 - (m.rmssd - 18) * 1.6));
+      const psns = Math.round(Math.min(85, 100 - sns + (m.rmssd - 30) * 0.4));
+      const hf = Math.round(120 + m.rmssd * 9);
+      const lf = Math.round(hf * (1.2 + (70 - stress) / 100));
+      const vlf = Math.round((hf + lf) * (1.3 + tl.cfg.ahi / 60));
+      const tp = hf + lf + vlf;
+      // the row's wall-clock = a morning read just after wake
+      const wake = tl.t0Ms + tl.durSec * 1000;
+      const iso = fmtISO(wake, false);
+      const r2 = (v, d) => (+v).toFixed(d == null ? 1 : d);
+      rows.push(
+        [
+          iso,
+          iso,
+          stress,
+          energy,
+          Math.round(60 - stress * 0.2),
+          sns,
+          psns,
+          Math.round(40 + (m.rmssd - 18) * 1.2),
+          Math.round(25 + (m.rmssd - 18) * 1.4),
+          r2(m.cv),
+          r2(m.hr),
+          r2(m.meanRR),
+          r2(m.sdnn),
+          r2(m.rmssd),
+          r2(m.mxdmn, 3),
+          r2(m.pnn50),
+          r2(m.amo50),
+          r2(m.mode, 3),
+          tp,
+          hf,
+          lf,
+          vlf,
+          100
+        ].join(',')
+      );
+    }
+    return rows.join('\n') + '\n';
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  PpgDex — Polar Sense raw set (windowed ~WIN_MIN min covering an apnea
+  //  cluster + a clean span). PPG ~176 Hz, ACC/GYRO ~52 Hz, PPI clean-span, MARKER.
+  // ════════════════════════════════════════════════════════════════════════
+  const WIN_MIN = 9; // window length (minutes) per night
+
+  function pickWindow(tl) {
+    // start at the first apnea cluster well into the night, clamp to bounds
+    let start = Math.round(tl.durSec * 0.3);
+    if (tl.events.length) {
+      const mid = tl.events[Math.floor(tl.events.length / 2)];
+      start = Math.max(120, Math.min(tl.durSec - WIN_MIN * 60 - 60, mid.relSec - 120));
+    }
+    return { startRel: Math.round(start), lenSec: WIN_MIN * 60 };
+  }
+
+  function renderPPG(tl, win) {
+    const r = mulberry32(tl.seed + 303);
+    const fs = 176,
+      dtNs = Math.round(1e9 / fs);
+    const t0Ms = tl.t0Ms + win.startRel * 1000;
+    const beats = buildRR(tl).filter((b) => b.tMs >= t0Ms - 2000 && b.tMs <= t0Ms + win.lenSec * 1000 + 2000);
+    function pulse(ph) {
+      // ph 0..1 within a beat
+      // Realistic Polar-Sense wrist-PPG morphology: ONE dominant systolic lobe, a broad
+      // diastolic decay, and only a SUBTLE dicrotic shoulder. The previous form rendered
+      // the dicrotic as a prominent separate Gaussian (~35% of systolic at ph 0.42), which
+      // drove the real optical beat detector into a 2:1 beat-halving lock on the clean
+      // synthetic train (the identical detector tracks REAL Polar PPG fine). See the
+      // PpgDex-yield entry in papers/papers.html (root-caused to this morphology).
+      const sys = -Math.exp(-((ph - 0.14) ** 2) / (2 * 0.052 ** 2)); // dominant systolic lobe
+      const dia = -0.4 * Math.exp(-((ph - 0.3) ** 2) / (2 * 0.16 ** 2)); // broad diastolic reservoir (slow decay, valley stays elevated)
+      // Dicrotic: pulled EARLIER (0.46→0.42) onto the diastolic tail, HALVED (0.12→0.06) and a
+      // touch WIDER (0.07→0.09) so it reads as a faint inflection on the decay rather than a
+      // distinct secondary lobe. The previous form (a separate 0.12 hump at 0.46) re-deflected the
+      // band-passed signal enough that the optical detector's positive-slope-energy pass caught it
+      // as an extra beat once the heart rate quickened (T shrank toward the refractory window) —
+      // a residual ~6% OVER-detection that inflated PPG rMSSD on the FULL lane. Blending it into
+      // the diastolic shoulder removes that without flattening real perfusion morphology (the
+      // identical detector still tracks REAL Polar PPG, which carries a true dicrotic notch).
+      // See the PpgDex-yield entry in papers/papers.html + papers/qrs-yield.html.
+      const dic = -0.04 * Math.exp(-((ph - 0.42) ** 2) / (2 * 0.09 ** 2)); // faint dicrotic shoulder, blended into the decay
+      return 0.8 * (sys + dia + dic); // ≈ unit systolic peak (preserves amp scaling)
+    }
+    const base0 = -490000,
+      base1 = -481000,
+      base2 = -491000,
+      amb0 = -650000;
+    const header = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient';
+    const lines = [header];
+    let ns = 834363814065321088n,
+      dtNsB = BigInt(dtNs); // exact 18-digit monotonic ns (BigInt)
+    const N = Math.round(win.lenSec * fs);
+    let bi = 0;
+    for (let i = 0; i < N; i++) {
+      const ms = t0Ms + Math.round((i / fs) * 1000);
+      const rel = win.startRel + i / fs;
+      // advance to current beat
+      while (bi < beats.length - 1 && beats[bi + 1].tMs <= ms) bi++;
+      const bcur = beats[bi],
+        bnext = beats[Math.min(bi + 1, beats.length - 1)];
+      const span = Math.max(300, bnext.tMs - bcur.tMs) || 900;
+      const ph = Math.max(0, Math.min(1, (ms - bcur.tMs) / span));
+      // amplitude attenuation during apnea (perfusion/pulse-amplitude dip). Deepened 0.55→0.35:
+      // a severe perfusion drop pushes the in-event pulse close to the detector's RELATIVE
+      // amplitude floor, so apnea pulses adjacent to full-perfusion beats fall below the local
+      // upslope-energy threshold and are MISSED — a genuine perfusion-yield gap. The per-beat SQI
+      // is template-correlation × motion (no amplitude term), so the apnea beats that ARE detected
+      // still read high quality: SQI stays green while yield falls (the QRS-yield-paper finding,
+      // now driven by perfusion physics rather than by the old oversized motion artifact).
+      const st = apneaStateAt(tl, rel);
+      const amp = 2300 * (st.inApnea ? 0.3 : 1) * (1 + 0.04 * gaussFrom(r));
+      const w = pulse(ph);
+      const slow = 1800 * Math.sin((2 * Math.PI * rel) / 12); // baseline wander
+      // motion-artifact span + a contact-loss dropout to exercise the QC gate
+      const motion = motionBurstAt(tl, rel) ? 950 * gaussFrom(r) : 0;
+      const drop = rel > win.startRel + win.lenSec * 0.62 && rel < win.startRel + win.lenSec * 0.66;
+      let c0, c1, c2;
+      if (drop) {
+        // contact loss → the pulsatile AC vanishes (flatline), but the channel HOLDS its
+        // huge DC baseline rather than teleporting to ~0. The old form jumped to ≈-10 — a
+        // ~490k step (≈200× the pulse) that, after the detector's 0.5–8 Hz band-pass, rings
+        // as a low-frequency transient large enough to hijack the beat-detector's
+        // autocorrelation period estimate and lock it into 2:1 beat-halving across the whole
+        // window. A baseline-level flatline still trips the SQI/flatline QC gate (zero AC
+        // variance) without the pathological step. (See PpgDex-yield entry in papers/papers.html.)
+        c0 = Math.round(base0 + gaussFrom(r) * 40);
+        c1 = Math.round(base1 + gaussFrom(r) * 40);
+        c2 = Math.round(base2 + gaussFrom(r) * 40);
+      } else {
+        // Per-sample optical noise reduced (60/70/65 → 30/34/32). At the apnea perfusion floor
+        // the pulse AC is ×0.55, so the old noise sat at ~4–5% of pulse amplitude and seeded
+        // spurious in-band slope-energy that the optical detector occasionally caught as extra
+        // beats (the residual low-perfusion OVER-detection; ~6% on the FULL lane → PPG rMSSD
+        // inflation). Halving it lifts the in-event pulse:noise ratio without making the signal
+        // unrealistically clean (real Polar Sense PPG SNR is comfortably above this). The genuine
+        // perfusion YIELD gap (smaller apnea pulses missed below the detection floor) is preserved.
+        c0 = Math.round(base0 + w * amp + slow + motion + gaussFrom(r) * 30);
+        c1 = Math.round(base1 + w * amp * 0.92 + slow * 0.9 + motion * 0.8 + gaussFrom(r) * 34);
+        c2 = Math.round(base2 + w * amp * 1.05 + slow * 1.1 + motion * 1.1 + gaussFrom(r) * 32);
+      }
+      const amb = Math.round(amb0 + 400 * Math.sin((2 * Math.PI * rel) / 40) + gaussFrom(r) * 90);
+      lines.push(fmtISO(ms, true) + ';' + ns + ';' + c0 + ';' + c1 + ';' + c2 + ';' + amb + ';');
+      ns += dtNsB;
+    }
+    return lines.join('\n') + '\n';
+  }
+
+  // motion bursts at arousals + position changes within the night
+  function motionBurstAt(tl, relSec) {
+    const st = apneaStateAt(tl, relSec);
+    if (st.arousal > 0.5) return true;
+    // a couple of position changes
+    const posChanges = [tl.durSec * 0.22, tl.durSec * 0.55, tl.durSec * 0.78];
+    for (const p of posChanges) {
+      if (Math.abs(relSec - p) < 2.5) return true;
+    }
+    return false;
+  }
+
+  function renderXYZ(tl, win, kind) {
+    // kind 'ACC' | 'GYRO'
+    const r = mulberry32(tl.seed + (kind === 'ACC' ? 404 : 505));
+    const fs = 52,
+      dtNs = Math.round(1e9 / fs);
+    const t0Ms = tl.t0Ms + win.startRel * 1000;
+    const header = kind === 'ACC' ? 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]' : 'Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]';
+    const lines = [header];
+    let ns = 834363823499951360n,
+      dtNsB = BigInt(dtNs);
+    const N = Math.round(win.lenSec * fs);
+    // resting posture: gravity mostly on Y (~ -960 mg) like the real sample
+    for (let i = 0; i < N; i++) {
+      const ms = t0Ms + Math.round((i / fs) * 1000);
+      const rel = win.startRel + i / fs;
+      const burst = motionBurstAt(tl, rel);
+      if (kind === 'ACC') {
+        const g = burst ? 60 : 4;
+        const x = Math.round(6 + gaussFrom(r) * g);
+        const y = Math.round(-958 + gaussFrom(r) * g);
+        const z = Math.round(108 + gaussFrom(r) * g);
+        lines.push(fmtISO(ms, true) + ';' + ns + ';' + x + ';' + y + ';' + z);
+      } else {
+        const g = burst ? 30 : 1.2;
+        const x = (gaussFrom(r) * g).toFixed(5);
+        const y = (gaussFrom(r) * g).toFixed(5);
+        const z = (gaussFrom(r) * g).toFixed(5);
+        lines.push(fmtISO(ms, true) + ';' + ns + ';' + x + ';' + y + ';' + z);
+      }
+      ns += dtNsB;
+    }
+    return lines.join('\n') + '\n';
+  }
+
+  function renderPPI(tl, win, empty) {
+    // device PPI on clean spans
+    const header = 'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]';
+    if (empty) return header + '\n'; // one night emits header-only (fallback test)
+    const r = mulberry32(tl.seed + 606);
+    const t0Ms = tl.t0Ms + win.startRel * 1000;
+    const beats = buildRR(tl).filter((b) => b.tMs >= t0Ms && b.tMs <= t0Ms + win.lenSec * 1000);
+    const lines = [header];
+    for (const b of beats) {
+      const rel = (b.tMs - tl.t0Ms) / 1000;
+      const st = apneaStateAt(tl, rel);
+      const motion = motionBurstAt(tl, rel);
+      const blocker = motion ? 1 : 0; // device flags motion-blocked beats
+      const contact = 1; // skin contact good
+      const err = +(2 + r() * 6 + (st.inApnea ? 4 : 0)).toFixed(3);
+      const hr = Math.round(60000 / b.rr);
+      lines.push(fmtISO(b.tMs, true) + ';' + b.rr + ';' + err + ';' + blocker + ';' + contact + ';' + contact + ';' + hr);
+    }
+    return lines.join('\n') + '\n';
+  }
+
+  function renderMarker(tl, win) {
+    const header = 'Phone timestamp;Marker start/stop';
+    const lines = [header];
+    const startMs = tl.t0Ms + win.startRel * 1000;
+    lines.push(fmtISO(startMs, true) + ';MARKER_START ');
+    // position-change markers inside the window
+    [0.22, 0.55, 0.78].forEach((f) => {
+      const p = tl.durSec * f;
+      if (p >= win.startRel && p < win.startRel + win.lenSec) {
+        lines.push(fmtISO(tl.t0Ms + Math.round(p * 1000), true) + ';MARKER_STOP ');
+        lines.push(fmtISO(tl.t0Ms + Math.round(p * 1000) + 1200, true) + ';MARKER_START ');
+      }
+    });
+    lines.push(fmtISO(startMs + win.lenSec * 1000, true) + ';MARKER_STOP ');
+    return lines.join('\n') + '\n';
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  GROUND TRUTH — machine-readable event list for detector scoring.
+  // ════════════════════════════════════════════════════════════════════════
+  function groundTruth(tl) {
+    return JSON.stringify(
+      {
+        schema: 'ganglior.ground-truth/1.0',
+        subject: SUBJECT.id,
+        night: tl.cfg.n,
+        date: tl.cfg.date,
+        story: tl.cfg.story,
+        t0Ms: tl.t0Ms,
+        durSec: tl.durSec,
+        ahiTarget: tl.cfg.ahi,
+        cpap: tl.cfg.cpap,
+        glucEvent: tl.cfg.gluc,
+        events: tl.events.map((e) => ({ t0Ms: e.t0Ms, relSec: +e.relSec.toFixed(1), type: e.type, durSec: e.durSec, desatPct: e.severity, meta: e.meta })),
+        periodicBreathing: tl.pb.map((p) => ({ t0Ms: p.t0Ms, cycleSec: p.cycleSec, nCyc: p.nCyc, ampPct: p.ampPct }))
+      },
+      null,
+      1
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  TOP-LEVEL — build a manifest of {path, content} for the whole corpus.
+  // ════════════════════════════════════════════════════════════════════════
+  function buildTimelines(seedBase) {
+    seedBase = seedBase || 424242;
+    return NIGHTS.map((cfg, i) => masterTimeline(cfg, seedBase + i * 1000));
+  }
+
+  // device files for ONE night (lighter set). PPG handled separately (heavy).
+  function nightFilesLight(tl) {
+    const t0 = tl.t0Ms;
+    const oxyName = 'O2Ring S 2100_' + fmt14(t0) + '.csv';
+    const rrName = fmtFileClock(t0) + '.txt';
+    return [
+      { path: oxyName, content: renderOxy(tl) },
+      { path: rrName, content: renderRR(tl) },
+      { path: 'ground_truth_night' + tl.cfg.n + '.json', content: groundTruth(tl) }
+    ];
+  }
+  function nightFilesPPG(tl, emptyPPI) {
+    const win = pickWindow(tl);
+    const stamp = fmt14(tl.t0Ms + win.startRel * 1000);
+    const pre = 'Polar_Sense_' + SUBJECT.polarId + '_' + stamp;
+    return [
+      { path: pre + '_PPG.txt', content: renderPPG(tl, win) },
+      { path: pre + '_ACC.txt', content: renderXYZ(tl, win, 'ACC') },
+      { path: pre + '_GYRO.txt', content: renderXYZ(tl, win, 'GYRO') },
+      { path: pre + '_PPI.txt', content: renderPPI(tl, win, emptyPPI) },
+      { path: 'MARKER_' + stamp + '.txt', content: renderMarker(tl, win) }
+    ];
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  DAYTIME AMBULATORY WALK  (AMBULATORY-MODE-BRIEF — the corpus gap)
+  //  The corpus is overnight-biased, which is why four misfires shipped at once.
+  //  This adds ONE daytime ambulatory recording (a ~2.4 h afternoon walk) coherent
+  //  with the arc's wall-clock: exercise HR, sustained gait cadence, NO sleep/apnea.
+  //  Loaded into ECGDex (RR primary + ACC companion) it must classify as `ambulatory`
+  //  — NOT overnight — and suppress sleep staging + the CVHR/AHI screen with a reason.
+  //  Guards the 2026-06-13 afternoon-walk misfire (walk scored as an overnight study).
+  // ════════════════════════════════════════════════════════════════════════
+  function buildWalkRR(t0Ms, durSec, seed) {
+    const r = mulberry32(seed);
+    const beats = [];
+    let tRel = 0.4,
+      lf = 0,
+      lfT = 0,
+      bw = 0,
+      pendComp = 0;
+    while (tRel < durSec) {
+      const frac = tRel / durSec;
+      const macro = (tRel % 600) / 600; // 10-min macro-cycle
+      const paused = macro < 0.12; // standing pause → HR eases
+      // exercise HR: sustained ~92 → ~105 bpm climb (RR 652→571); pauses ease toward ~87 bpm
+      const base = paused ? 690 : 652 - 80 * Math.min(1, frac * 1.1);
+      const resp = Math.sin(2 * Math.PI * 0.28 * tRel) * 10; // reduced RSA under exercise
+      lfT = (r() - 0.5) * 2;
+      lf = 0.9 * lf + 0.1 * lfT;
+      const lfMs = lf * 12;
+      bw = 0.992 * bw + gaussFrom(r) * 0.7; // 1/f drift
+      let rr = base + resp + lfMs + bw * 2 + gaussFrom(r) * 6;
+      let type = 'N';
+      if (pendComp > 0) {
+        rr += pendComp;
+        pendComp = 0;
+      } else if (r() < 0.0004) {
+        type = 'S';
+        const c = rr * (0.6 + 0.1 * r());
+        pendComp = rr * 0.3;
+        rr = c;
+      } // rare PAC
+      rr = Math.max(380, Math.min(1200, rr));
+      beats.push({ tMs: t0Ms + Math.round(tRel * 1000), rr: Math.round(rr), type });
+      tRel += rr / 1000;
+    }
+    return beats;
+  }
+  function renderWalkRR(t0Ms, durSec, seed) {
+    // "ISO;RR" per line (ECGDex primary input)
+    return (
+      buildWalkRR(t0Ms, durSec, seed)
+        .map((b) => fmtISO(b.tMs, true) + ';' + b.rr)
+        .join('\n') + '\n'
+    );
+  }
+  function renderWalkACC(t0Ms, durSec, seed) {
+    // Polar ACC @ 26 Hz with real walking steps
+    const r = mulberry32(seed);
+    const fs = 26,
+      dtNs = Math.round(1e9 / fs);
+    const header = 'Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]';
+    const lines = [header];
+    let ns = 834363823499951360n;
+    const dtNsB = BigInt(dtNs);
+    const N = Math.round(durSec * fs);
+    for (let i = 0; i < N; i++) {
+      const ms = t0Ms + Math.round((i / fs) * 1000),
+        rel = i / fs;
+      const macro = (rel % 600) / 600;
+      let stepHz,
+        moving = true;
+      if (macro < 0.12) {
+        moving = false;
+        stepHz = 0;
+      } // standing pause (~12% → sedentary)
+      else if (macro < 0.39) {
+        stepHz = 1.83;
+      } // brisk walk ~110 spm (~27%)
+      else {
+        stepHz = 1.5;
+      } // light walk ~90 spm
+      // step oscillation ON the gravity (z) axis so the vector-magnitude swings at step rate
+      const step = moving ? 190 * Math.sin(2 * Math.PI * stepHz * rel) : 0;
+      const sway = moving ? 80 * Math.sin(2 * Math.PI * stepHz * rel * 0.5) : 0;
+      const nz = moving ? 26 : 6;
+      const x = Math.round(40 + sway + gaussFrom(r) * nz);
+      const y = Math.round(120 + sway * 0.6 + gaussFrom(r) * nz);
+      const z = Math.round(980 + step + gaussFrom(r) * nz);
+      lines.push(fmtISO(ms, true) + ';' + ns + ';' + x + ';' + y + ';' + z);
+      ns += dtNsB;
+    }
+    return lines.join('\n') + '\n';
+  }
+  function walkGroundTruth(t0Ms, durSec) {
+    return (
+      JSON.stringify(
+        {
+          kind: 'ambulatory-daytime-walk',
+          subject: SUBJECT.id,
+          startEpochMs: t0Ms,
+          durationSec: durSec,
+          startClock: fmtISO(t0Ms, false),
+          activity: { stepsApprox: '~6000–12000', briskWalkPct: '~27', cadenceSpm: '~90–110', exerciseHRbpm: '~90–105' },
+          expected: {
+            mode: 'ambulatory',
+            overnightVeto: true,
+            sleepStaging: 'suppressed (suppressed:true, stages:null)',
+            cvhrApnea: 'suppressed (reportable:false, estimatedAHI:null, cvhrIndex:null)',
+            stillValid: ['hr', 'hrv-under-activity (caveated)', 'gait']
+          },
+          note: 'Daytime ambulatory recording — guards the 2026-06-13 afternoon-walk misfire (a 2.4 h walk scored as an overnight sleep study). See AMBULATORY-MODE-BRIEF.md.'
+        },
+        null,
+        2
+      ) + '\n'
+    );
+  }
+  // ECGDex file set: RR primary (no _RR suffix → ingested as the signal) + ACC companion + truth.
+  function ambulatoryFiles(seedBase) {
+    const s = seedBase || 424242;
+    const t0 = civilMs(2026, 5, 13, 12, 14, 28); // daytime walk, same civil day as arc night 3
+    const durSec = Math.round(2.4 * 3600);
+    const id = 'AAAAAAAA';
+    return [
+      { path: fmtFileClock(t0) + '.txt', content: renderWalkRR(t0, durSec, s + 777) },
+      { path: 'Polar_H10_' + id + '_' + fmt14(t0) + '_ACC.txt', content: renderWalkACC(t0, durSec, s + 778) },
+      { path: 'ground_truth_ambulatory.json', content: walkGroundTruth(t0, durSec) }
+    ];
+  }
+
+  /* ═══ RAW µV ECG — the RR→PQRST renderer, lifted here from cohort-full.js ═════════════════════
+     GENERATOR-FOLLOWUPS-II §3 step 1. This engine emits RR intervals, and every other node's
+     waveform renderer already lives here — ECG's did not. It sat in `cohort-full.js`, a
+     FULL-lane-worker file ECGDex itself cannot load, which is the whole reason ECGDex stayed
+     single-recording while every other node moved onto the shared `DexPatientGen` axis.
+
+     ⚠ BYTE-IDENTICAL LIFT, and it has to be: `cohort-full.js`'s output is snapshotted by the
+     waveform-fidelity gate and consumed by `qrs-yield` and `qrs-equiv`. So this is a MOVE, not a
+     rewrite — same template constants, same beat-nearest phase anchoring, same wander/noise terms,
+     and the same `mulberry32`/`gaussFrom` (character-identical to the pair it replaces, `var` vs
+     `let` aside — checked before lifting, because a different RNG here would silently move three
+     published analyses). `cohort-full.js` now DELEGATES, keeping its 3-arg signature for its callers.
+
+     Clock Contract: `t0Ms` is floating wall-clock ms off the timeline; sample times derive from it,
+     never from a local `Date`. */
+
+  // PQRST morphology: sum of skew-tuned Gaussians (µV), phase 0..1 within a beat. Amplitudes/widths
+  // fit the Lead-II look ECGDSP.genSynthetic targets: R ~1.1 mV, sharp QRS, broad T, small P. Width
+  // scales mildly with RR (rate-dependent QT).
+  function pqrst(ph, rrSec) {
+    function g(c, amp, w) {
+      const d = ph - c;
+      return amp * Math.exp(-(d * d) / (2 * w * w));
+    }
+    const qtScale = Math.min(1.25, Math.max(0.8, Math.sqrt(rrSec / 0.8))); // Bazett-ish T stretch
+    return (
+      g(0.18, 90, 0.025) + // P
+      g(0.385, -180, 0.012) + // Q
+      g(0.41, 1180, 0.0085) + // R
+      g(0.435, -300, 0.013) + // S
+      g(0.62, 235, 0.04 * qtScale) // T
+    );
+  }
+
+  /* Render a window of the night's RR beats into an Int16 µV ECG @130 Hz + ground-truth deviceRR.
+     tl = masterTimeline(...) ; win = { startRel, lenSec } (pickWindow, or a whole-night span).
+     Beats come from the SAME buildRR(tl) series every other node consumes, so the ECG stays
+     event-coherent with Oxy/PPG/Pulse (shared apnea clusters) and ECGDSP's own Pan–Tompkins must
+     re-derive them from morphology — a round-trip test of the detector, not a replay of truth RR. */
+  function renderECGInt16(tl, win) {
+    const fs = 130;
+    const t0Ms = tl.t0Ms + win.startRel * 1000;
+    const N = Math.round(win.lenSec * fs);
+    const rng = mulberry32((tl.seed ^ 0x5eed1ce) >>> 0);
+
+    // beats overlapping the window (+2 s guard each side), from the SAME RR series
+    const all = buildRR(tl);
+    const beats = all.filter(function (b) {
+      return b.tMs >= t0Ms - 2000 && b.tMs <= t0Ms + win.lenSec * 1000 + 2000;
+    });
+    if (beats.length < 3) return null;
+
+    const ecg = new Float32Array(N);
+    let bi = 0;
+    // baseline wander + mains-ish low noise; QRS amplitude dips during apnea (perfusion)
+    for (let i = 0; i < N; i++) {
+      const ms = t0Ms + Math.round((i / fs) * 1000);
+      const rel = win.startRel + i / fs;
+      while (bi < beats.length - 1 && beats[bi + 1].tMs <= ms) bi++;
+      const bcur = beats[bi],
+        bnext = beats[Math.min(bi + 1, beats.length - 1)];
+      /* R-CENTER each beat on its TRUE time. The old form measured phase from the beat's ONSET
+         (ph = (ms − bcur.tMs)/span) with the R lobe at template phase 0.41, so each R landed at
+         bcur.tMs + 0.41·RR and the rendered R-to-R interval became RR + 0.41·ΔRR — a low-pass of the
+         true tachogram that attenuated reconstructed beat-to-beat rMSSD ≈26% (a renderer artifact,
+         NOT a detector property; surfaced by qrs-yield-analysis.html). Picking the NEAREST beat and
+         offsetting phase so template 0.41 sits exactly on nb.tMs places every R at its true instant
+         → detected R-to-R == true RR (modulo 130 Hz quantization). */
+      const nb = Math.abs(ms - bcur.tMs) <= Math.abs(bnext.tMs - ms) ? bcur : bnext;
+      const nbi = nb === bcur ? bi : Math.min(bi + 1, beats.length - 1);
+      const prevB = beats[Math.max(0, nbi - 1)];
+      const span = Math.max(300, nb.tMs - prevB.tMs) || 900; // local RR (QT/width scaling)
+      const ph = Math.max(0, Math.min(1, 0.41 + (ms - nb.tMs) / span)); // template R (0.41) at nb.tMs
+      const amp = 1.0;
+      const wander = 70 * Math.sin((2 * Math.PI * rel) / 11) + 35 * Math.sin((2 * Math.PI * rel) / 3.7); // resp + drift
+      ecg[i] = pqrst(ph, span / 1000) * amp + wander + gaussFrom(rng) * 14;
+    }
+    const int16 = new Int16Array(N);
+    for (let k = 0; k < N; k++) {
+      let v = Math.round(ecg[k]);
+      if (v > 32767) v = 32767;
+      if (v < -32768) v = -32768;
+      int16[k] = v;
+    }
+
+    // ground-truth device RR rows for the validation card (windowed)
+    const devRR = [];
+    for (let j = 1; j < beats.length; j++) devRR.push({ tsMs: beats[j].tMs, rr: Math.round(beats[j].tMs - beats[j - 1].tMs) });
+
+    return { int16: int16, fs: fs, t0Ms: t0Ms, durSec: win.lenSec, source: 'cohort-synth', deviceRR: devRR, gaps: [] };
+  }
+
+  global.SYNTH = {
+    VERSION,
+    NIGHTS,
+    SUBJECT,
+    WIN_MIN,
+    mulberry32,
+    pqrst,
+    renderECGInt16,
+    masterTimeline,
+    buildTimelines,
+    renderOxy,
+    buildRR,
+    renderRR,
+    renderGlucoAll,
+    renderHRVAll,
+    hrvMetrics,
+    pickWindow,
+    renderPPG,
+    renderXYZ,
+    renderPPI,
+    renderMarker,
+    groundTruth,
+    nightFilesLight,
+    nightFilesPPG,
+    fmt14,
+    fmtFileClock,
+    buildWalkRR,
+    renderWalkRR,
+    renderWalkACC,
+    walkGroundTruth,
+    ambulatoryFiles
+  };
+})(typeof window !== 'undefined' ? window : this);
+</script>
+<script data-inline-src="dex-patient-gen.js">/*
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ *   dex-patient-gen.js — shared "Generate synthetic" helper.
+ *   ----------------------------------------------------------------------------
+ *   ONE coherence contract for every node's in-app generator. The button in each
+ *   app renders ITS OWN modality from the SAME seeded patient, so the multi-day
+ *   record is consistent across OxyDex / PulseDex / PpgDex / HRVDex (same nightly
+ *   t0Ms, same physiology) and fuses in the Integrator. Pure delegation to
+ *   window.SYNTH (synth-gen.js); no DOM, no per-node synthesizer. Clock-Contract
+ *   clean by construction (SYNTH stores floating wall-clock tMs).
+ *
+ *   The generator axis is DAYS, not patients: one fixed patient, N consecutive
+ *   nights. Profile sets the nightly physiology; each night is a deterministic
+ *   seeded draw around that profile (so day 1..N vary realistically but the
+ *   patient is the same person). Nights use gluc:'flat' and n>=100 to steer clear
+ *   of the corpus's date-locked CSR / hypo / dawn scripting (those belong to the
+ *   frozen 5-night arc, not a generic multi-day record).
+ */
+(function (global) {
+  'use strict';
+
+  // profile id → nightly physiology targets (jittered per night)
+  var PROFILES = {
+    baseline: { ahi: 22, cpap: false, rmssd: 24, rsaGain: 1.21, label: 'untreated OSA' },
+    severe: { ahi: 38, cpap: false, rmssd: 18, rsaGain: 0.81, label: 'severe OSA' },
+    cpap: { ahi: 6, cpap: true, rmssd: 34, rsaGain: 1.59, label: 'on CPAP' },
+    healthy: { ahi: 3, cpap: false, rmssd: 46, rsaGain: 2.3, label: 'healthy' }
+  };
+
+  // one canonical patient (deterministic; day i uses seed BASE + i*1000)
+  var BASE_SEED = 424242;
+  // multi-day record starts here and walks forward one civil day per night
+  var START = { y: 2026, mo: 5, d: 11 };
+
+  var P2 = function (n) {
+    return (n < 10 ? '0' : '') + n;
+  };
+
+  // Build N consecutive nights for ONE patient under `profile`.
+  // A slow shared severity drift (random walk) ties the night's signals together:
+  // a worse night has MORE apnea (higher AHI/ODI) AND lower HRV — so multi-day
+  // records show realistic cross-signal coupling, not independent noise.
+  // opts (optional, LAST arg — back-compat): { gluc, glucBaseMmol } let a node
+  // override the glucose story. Default gluc:'flat' (dodges date-locked windows);
+  // GlucoDex passes glucBaseMmol to express pre-diabetes off the SAME patient.
+  function buildNights(profile, nDays, opts) {
+    var S = global.SYNTH;
+    if (!S || typeof S.masterTimeline !== 'function') return null;
+    opts = opts || {};
+    var glucKind = opts.gluc || 'flat';
+    var P = PROFILES[profile] || PROFILES.baseline;
+    var N = Math.max(1, nDays | 0);
+    var walk = S.mulberry32((BASE_SEED ^ 0x5bd1e995) >>> 0); // persistent drift RNG
+    var sev = 1; // shared severity factor ~1
+    var tls = [];
+    for (var i = 0; i < N; i++) {
+      var seed = BASE_SEED + i * 1000;
+      var rng = S.mulberry32((seed ^ 0x9e3779b9) >>> 0);
+      var jit = function (base, spread) {
+        return base + (rng() * 2 - 1) * spread;
+      };
+      sev = Math.max(0.65, Math.min(1.5, sev + (walk() * 2 - 1) * 0.14)); // random walk
+      var dms = Date.UTC(START.y, START.mo - 1, START.d + i);
+      var dt = new Date(dms);
+      var y = dt.getUTCFullYear(),
+        mo = dt.getUTCMonth() + 1,
+        day = dt.getUTCDate();
+      var bedM = Math.round(rng() * 40); // 23:00–23:40 lights-out
+      var cfg = {
+        n: 100 + i, // >=100 → skips arc CSR/residual specials
+        date: y + '-' + P2(mo) + '-' + P2(day),
+        bed: [y, mo, day, 23, bedM],
+        durSec: Math.round(jit(7.5 * 3600, 1200)), // ~7–8 h
+        ahi: Math.max(0.5, jit(P.ahi * sev, P.ahi * 0.1)), // worse night → higher AHI
+        cpap: P.cpap,
+        gluc: glucKind, // 'flat' avoids date-locked hypo/dawn windows
+        glucBaseMmol: opts.glucBaseMmol, // optional fasting-baseline override (pre-DM)
+        rmssd: Math.max(8, jit(P.rmssd / sev, 3)), // …and lower HRV (inverse)
+        rsaGain: Math.max(0.4, jit(P.rsaGain / sev, 0.15)),
+        story: P.label + ' · day ' + (i + 1) + '/' + N
+      };
+      tls.push(S.masterTimeline(cfg, seed));
+    }
+    return tls;
+  }
+
+  // Resolve a request → { tls, profile, days, label }.
+  function resolve(profile, nDays, opts) {
+    var prof = PROFILES.hasOwnProperty(profile) ? profile : 'baseline';
+    var days = Math.max(1, nDays | 0 || 1);
+    var tls = buildNights(prof, days, opts);
+    if (!tls) return null;
+    return { tls: tls, profile: prof, days: days, label: PROFILES[prof].label };
+  }
+
+  // Read profile + days from two DOM controls (by id), then resolve.
+  function fromControls(profileId, daysId) {
+    var pf = document.getElementById(profileId);
+    var dy = document.getElementById(daysId);
+    return resolve(pf ? pf.value : 'baseline', dy ? +dy.value : 1);
+  }
+
+  // Short chip caption, e.g. "synthetic · 7-day · untreated OSA".
+  function chip(r) {
+    return 'synthetic · ' + r.days + '-day · ' + r.label;
+  }
+
+  // ── injected stylesheet (single source — mirrors the metric-registry pattern) ──
+  var CSS =
+    '.synth-line{display:flex;gap:9px;align-items:center;justify-content:center;flex-wrap:wrap;' +
+    'margin:12px 0 2px;font-size:11.5px;color:var(--text3)}' +
+    '.synth-line select{font-size:11px;padding:3px 7px;border-radius:6px;background:var(--surface);' +
+    'border:1px solid var(--border);color:var(--text2)}' +
+    '.synth-line .synth-days{display:inline-flex;align-items:center;gap:4px}' +
+    '.synth-link{background:none;border:none;color:var(--blue);font:inherit;font-size:11.5px;' +
+    'font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px;padding:0}' +
+    '.synth-link:hover{color:var(--teal)}';
+  function injectCSS() {
+    try {
+      if (document.getElementById('dex-synth-css')) return;
+      var s = document.createElement('style');
+      s.id = 'dex-synth-css';
+      s.textContent = CSS;
+      (document.head || document.documentElement).appendChild(s);
+    } catch (e) {
+      /* no-DOM (worker) — ignore */
+    }
+  }
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', injectCSS);
+    } else {
+      injectCSS();
+    }
+  }
+
+  global.DexPatientGen = {
+    PROFILES: PROFILES,
+    BASE_SEED: BASE_SEED,
+    buildNights: buildNights,
+    resolve: resolve,
+    fromControls: fromControls,
+    chip: chip,
+    injectCSS: injectCSS,
+    BADGE_CSS: CSS
+  };
+})(window);
 </script>
 <script data-inline-src="ecgdex-dsp.js">(function(){var __M=(globalThis.__dexEsm=globalThis.__dexEsm||(function(){var reg={},cache={};function require(n){if(Object.prototype.hasOwnProperty.call(cache,n))return cache[n];var f=reg[n];if(!f)throw new Error('ESM bundle: module not found: '+n);var ex={};cache[n]=ex;f(require,ex);return ex;}return{define:function(n,f){reg[n]=f;},require:require};})());__M.define("ecgdex-dsp.js",function(__require,__exports){
 /* ════════════════════════════════════════════════════════════════════════
@@ -14977,6 +16272,73 @@ self.onmessage = async (e) => {
     }, 30);
   }
 
+  /* ── SHARED-AXIS PATIENT GENERATOR (GENERATOR-FOLLOWUPS-II §3 step 2) ──────────────────────────
+     `genSynthetic()` above is ECGDex's OWN scenario generator: one recording, its own RR model, no
+     relationship to any other node's synthetic patient. It stays, as the single-recording dev path.
+
+     This is the other thing — the SHARED coherence axis every other node already rides. Nights come
+     from `DexPatientGen.buildNights(profile, days)`, i.e. the same `SYNTH.masterTimeline` series that
+     renders OxyDex's CSV and PpgDex's PPG, so a generated ECGDex night and a generated OxyDex night
+     for the same profile+days share nightly `t0Ms` and the SAME apnea clusters — which is what lets
+     them fuse in the Integrator instead of merely coexisting.
+
+     WHY THIS COULD NOT BE WRITTEN BEFORE: the engine emits RR, and the RR→PQRST µV renderer lived in
+     `cohort-full.js`, a FULL-lane-worker file this app cannot load. §3 step 1 lifted it into
+     `synth-gen.js` (byte-identically), so `SYNTH.renderECGInt16` is now reachable here.
+
+     Each night goes through `runPipeline`, the REAL analysis path — the same one a dropped file
+     takes — so Pan–Tompkins must re-derive the beats from morphology. `allRecordings` is keyed by
+     floating `t0Ms`, and consecutive nights differ by a day, so they accumulate into the existing
+     multi-recording switcher + cross-night card with no new plumbing.
+
+     DAYS ARE CAPPED AT 3, and that is a size decision, not an oversight: raw µV at 130 Hz is
+     ~3.4 M Int16 samples per night against the ~1 k rows an O2Ring CSV night costs. Every other node
+     offers 14. Do not raise this without measuring the browser cost. */
+  function genSyntheticPatient() {
+    if (!window.DexPatientGen || !window.SYNTH || typeof SYNTH.renderECGInt16 !== 'function') {
+      showErr('Synthetic patient generator unavailable (synth-gen.js / dex-patient-gen.js not loaded).');
+      return;
+    }
+    const r = DexPatientGen.fromControls('genProfile', 'genPatientDays');
+    if (!r || !r.tls || !r.tls.length) {
+      showErr('Synthetic patient generator unavailable.');
+      return;
+    }
+    const tls = r.tls.slice(0, 3); // hard cap, mirroring the control — never trust the DOM for a size bound
+    showChip('synthetic patient · ' + r.profile + ' · ' + tls.length + (tls.length === 1 ? ' night' : ' nights'));
+    let i = 0;
+    (function next() {
+      if (i >= tls.length) return;
+      const tl = tls[i],
+        n = i + 1;
+      i++;
+      progress(3, 'Synthesizing night ' + n + '/' + tls.length + ' — ' + (tl.durSec / 3600).toFixed(1) + ' h of 130 Hz ECG…');
+      setTimeout(() => {
+        try {
+          const rec = SYNTH.renderECGInt16(tl, { startRel: 0, lenSec: tl.durSec });
+          if (!rec) {
+            showErr('Night ' + n + ' produced no beats — generator timeline too short.');
+            return;
+          }
+          /* Ground-truth RR rides along for the validation card, exactly as the scenario path does.
+             HR/ACC have no shared-axis renderer, so they stay null rather than being carried over
+             from a previous night — a stale companion grafted onto the wrong night is the DEEP-AUDIT-II
+             §10.4 bug, and `planCompanionGraft` is the thing that must decide, not this loop. */
+          DEVICE_RR = rec.deviceRR;
+          DEVICE_HR = null;
+          DEVICE_ACC = null;
+          ACC_FS = null;
+          setLoad('rr', '✅ ground-truth RR (' + rec.deviceRR.length + ' beats)');
+          runPipeline(rec, 'synthetic_' + r.profile + '_night' + n);
+        } catch (e) {
+          showErr('Night ' + n + ': ' + ((e && e.message) || e));
+          return;
+        }
+        next(); // sequential: each night's pipeline settles before the next is rendered
+      }, 30);
+    })();
+  }
+
   // device cross-check loaders ─────────────────────────────────────────────────
   function setLoad(which, msg) {
     const st = $(which + 'Status'),
@@ -17548,6 +18910,9 @@ self.onmessage = async (e) => {
       if (fs && fs.length) loadFiles(fs);
     });
     $('genBtn').addEventListener('click', genSynthetic);
+    // §3 step 2 — the shared patient axis. Guarded: the control only exists on the bundled page.
+    var _gp = $('genPatientBtn');
+    if (_gp) _gp.addEventListener('click', genSyntheticPatient);
     $('replaceBtn').addEventListener('click', () => {
       _replaceMode = true;
       input.click();
