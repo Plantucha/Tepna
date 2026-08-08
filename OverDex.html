@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-6Ihl8pw3pmpQ2ZKQoUJaefH7NJ7Rkm9qpB/TVT+dbcA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-FoME8mCgVXK6PgNN7Z48Q72MB1SlGijmiL5wHubFRFk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-WGAdE8HjXf7mJfKkBvWj9Prp0rLErBrsiaWH93qMB6U=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo=' 'sha256-wEv19PL/N0d7XY3Fz4nHeau1F49rfN/IlDHCDcoFFP4=' 'sha256-zfcZj/POD8ANab+TNlp0MrGvruXgueLPhtrRdPgHMlU='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-ByYC764ffICMWawf5RVCw9Pb5JBvsfZS83HI4p9fL6A=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-PZQ/TOOwSVoQt5CK7JwpJDtpn3t65RCRbaueSVAI0iE=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-WGAdE8HjXf7mJfKkBvWj9Prp0rLErBrsiaWH93qMB6U=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo=' 'sha256-wEv19PL/N0d7XY3Fz4nHeau1F49rfN/IlDHCDcoFFP4=' 'sha256-xQefwN9zKXRRY0Z6bVK7Kpd8EkJoyBV1nTKC55xKbfw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -13311,7 +13311,16 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     night_obj.tchEpochs = oxyBuildEpochSeries(rows, t0Ms);
     // The oximeter's primary signal at its recorded rate — see oxyBuildSpo2Series. Additive; null
     // when rows/t0Ms are absent, so a consumer can distinguish "no field" from "no usable SpO2".
-    night_obj.spo2Series = oxyBuildSpo2Series(rows, t0Ms);
+    night_obj.spo2Series = oxyBuildSpo2Series(rows, t0Ms, 'spo2');
+    /* THE THIRD CORNER'S HR, AT THE RATE IT WAS RECORDED (TRIO-ARTIFACT-GATE — the `ms;hr;c` corpus).
+       The node exported pulse rate ONLY as 5-min `tchEpochs[].hr` medians — ~300 samples folded into
+       one number. Measured on the committed trio corpus: 0 of 40 OxyDex exports carried any HR
+       timeseries, so the per-second three-cornered hat the σ-papers publish could not be re-fit from
+       committed data AT ALL, at any N — the O2Ring corner simply was not in the file. That is a
+       harder blocker than a missing confidence channel, and it was invisible because the epoch hat
+       runs fine and produces plausible numbers from the same exports.
+       Same 1 Hz uniform grid + explicit holes as spo2Series, from the same rows. */
+    night_obj.hrSeries = oxyBuildSpo2Series(rows, t0Ms, 'hr');
     night_obj.summary = computeSmartSummary(night_obj);
     // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: deterministic, identity-free recording handle.
     // processNight is the ONE site BOTH the app (exportJSON→allNights→oxyBuildNightElement) AND
@@ -17351,6 +17360,13 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
      from an n=1 bandwidth measurement is the same generalisation error this suite keeps finding.
      Downsampling later is always available to a consumer; recovering what an export dropped is not.
 
+     `field` (trailing, optional, default 'spo2') selects WHICH per-second column is gridded, so the
+     pulse-rate series rides the identical contract rather than a second near-copy of it. Both columns
+     come off the SAME row list, and parseCSV drops a row unless BOTH parse and clear their sanity
+     bands (spo2 50–100, hr 20–250) — so the two grids share a hole pattern by construction, and a
+     consumer may align them index-for-index without re-checking. There is no sentinel to strain out
+     here: a −1 / 0 "no reading" never becomes a row in the first place.
+
      The cost is real and was underestimated once already: the export grows ~80 KB -> ~390 KB, because
      the writers pretty-print (the array alone is 78 KB compact, 156 KB indented). These are local
      files with no network in the path, so the trade is storage against information, and information
@@ -17361,7 +17377,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
      is `null`, never carried forward and never zero. A fabricated 0 % saturation would be read as the
      most severe desaturation possible; a fabricated hold reads as stable oxygen. Absence is not zero,
      and here it is not stability either. */
-  function oxyBuildSpo2Series(rows, t0Ms) {
+  function oxyBuildSpo2Series(rows, t0Ms, field) {
+    field = field || 'spo2';
     if (!rows || !rows.length || t0Ms == null) return null;
     var last = null;
     for (var i = rows.length - 1; i >= 0; i--)
@@ -17380,7 +17397,7 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       var k = Math.round((r.tMs - t0Ms) / 1000);
       if (k < 0 || k >= n) continue;
       // The LAST sample wins a shared second — deterministic, and matches how the row list is ordered.
-      if (typeof r.spo2 === 'number' && isFinite(r.spo2)) out[k] = r.spo2;
+      if (typeof r[field] === 'number' && isFinite(r[field])) out[k] = r[field];
     }
     return out;
   }
@@ -17404,6 +17421,19 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         hz: 1,
         n: n.spo2Series.length,
         values: n.spo2Series
+      };
+    }
+    /* ADDITIVE sibling, same grid, same absence rule. This is the O2Ring corner of the per-second
+       three-cornered hat: `analysis-stats.js tchSigmasFused(hh, vv, oo, cH, cV, cO)` wants three
+       ALIGNED per-second HR series, and the worker assigns this corner `cO = 1` outright ("native
+       pulse — a smoothed device integer, cannot over-detect ⇒ trust 1"), so the O2Ring needs no
+       confidence channel — only this. Absent rather than empty when unbuildable. */
+    if (Array.isArray(n.hrSeries) && n.hrSeries.length) {
+      block.hr = {
+        doc: 'Pulse rate at the recorded 1 Hz, on the SAME uniform grid as spo2 (from startEpochMs). values[i] is the rate (bpm) at startEpochMs + i*1000 ms; null = the device reported no usable sample for that second — NOT zero and NOT the previous value. Index-aligned with spo2.values by construction (a row is kept only if BOTH columns parse and clear their sanity bands). This is the per-second series the three-cornered hat consumes; the 5-min epochs[].hr median is a summary of it, not a substitute — and `median(1 Hz rate)` is NOT the statistic ECGDex publishes (`60000/mean(RR)`), a confound worth ~0.3 bpm (R5-HR-TRIPLET-FOLLOWUPS §3), so do not difference the two nodes’ epoch HR and call it a device bias.',
+        hz: 1,
+        n: n.hrSeries.length,
+        values: n.hrSeries
       };
     }
     return block;
@@ -25746,6 +25776,29 @@ __exports.GlucoDex = window.GlucoDex;
     const { rr, tt } = footSpineOK ? _ppiFoot : _ppiPeak;
     const corr = footSpineOK ? _corrFoot : _corrPeak;
     const nn = corr.nn;
+    /* PER-BEAT FUSED-HAT CONFIDENCE for the emitted spine (TRIO-ARTIFACT-GATE — the `ms;hr;c` corpus).
+       `beatConfidence` keys by ABSOLUTE second via `peaks[k]/fs`, so beat TIMES are handed back as
+       pseudo-sample indices (`round(sec*fs)`) — the same conversion `sensor-trio-worker.js` does, and
+       necessary because `rec.relSec` is not a uniform i/fs grid once a stream has gaps.
+       ⚠ ONE DELIBERATE DIVERGENCE FROM THE WORKER, stated because it moves published numbers slightly:
+       the worker re-derived its own SQI at FEET with no motion gate (`beatSQI(bp, cons.feet, fs, null,
+       agree)`) because the export gave it nothing to read. This uses the node's OWN authoritative
+       per-beat `sqi` — motion-gated, cadence-corroborated on single-channel — which is the number this
+       node stands behind. `beatConfidence` normalises against the record's own median SQI, so a
+       constant offset between the two largely cancels; the residual difference is real and is why the
+       re-fitted σ is not expected to reproduce the old figure to the last decimal. */
+    const _confSpine = footSpineOK ? footSec : peakSec;
+    const _pConfMap = beatConfidence(
+      _confSpine.map((s) => Math.round(s * rec.fs)),
+      sqi,
+      rec.fs,
+      rec.t0Ms || 0
+    );
+    const _t0 = rec.t0Ms || 0;
+    const ppiConf = corr.tt.map((s) => {
+      const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));
+      return Number.isFinite(c) ? +c.toFixed(3) : 1;
+    });
     // OXYDEX-PULSE-RESOURCING §Phase 4: whole-record CVHR from the corrected NN series (autonomic
     // apnea correlate). Emitted for every PPG record; the Integrator only corroborates the FINGER one
     // (the O2Ring's own pleth) against ECGDex cardiac CVHR. index = events/hour (0 = none detected).
@@ -26128,6 +26181,8 @@ __exports.GlucoDex = window.GlucoDex;
       tt: corr.tt,
       // Aligned with nn/tt: correctRR returns flags for exactly the series it emitted.
       ppiFlags: corr.flags,
+      // Aligned with nn/tt the same way — the fused-hat per-beat weight (see the block above).
+      ppiConf,
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,
@@ -26811,7 +26866,16 @@ __exports.GlucoDex = window.GlucoDex;
               ? Array.prototype.map.call(r.ppiFlags, function (f) {
                   return f ? 1 : 0;
                 })
-              : null
+              : null,
+          /* HOW MUCH TO TRUST EACH BEAT — the fused-weight hat's `c` (TCH-FUSED-ROBUST-HAT).
+             density × SQI vs the record's own medians, AF-safe; low only where beat-density is an
+             upper outlier AND SQI is depressed — i.e. residual optical over-detection (the dicrotic
+             notch counted as a second beat), which on this corpus is the dominant Verity failure.
+             Distinct from `corrected` (an interpolation FLAG) and from epochs[].sqi (a 5-min mean):
+             this is the per-beat weight `analysis-stats.js tchSigmasFused` multiplies in. Unlike
+             ECGDex's twin, NO beat is dropped on this value here — the full spine ships and the
+             consumer weights it, so a low-c stretch stays visible rather than becoming a silent gap. */
+          conf: r.ppiConf && r.ppiConf.length === r.nn.length ? r.ppiConf.slice() : null
         };
       }
     }
@@ -29259,7 +29323,15 @@ __exports.PpgDex = window.PpgDex;
          the node computed this and threw it away, so a consumer reading a 118 bpm epoch could not tell
          an artifact burst from a real tachycardia. Pushed in this pass rather than re-derived later —
          `peaks[i]`, `nnRes.nn[i]` and `sqi[i]` share an index only BEFORE the confidence filter below. */
-      nnSqi = [];
+      nnSqi = [],
+      /* Per-beat FUSED-HAT CONFIDENCE, aligned with nn/tt the same way and for the same reason.
+         `beatConfidence` is already computed here and already drives the c<0.5 drop below — the node
+         then discarded the surviving beats' c, which is the one number `analysis-stats.js
+         tchSigmasFused(hh, vv, oo, cH, cV, cO)` needs to weight this corner. Without it a consumer
+         reading a committed export can only run the UNWEIGHTED hat, so the σ the papers publish
+         (fused-weight) was not reproducible from the corpus. Surviving beats span [0.5, 1] by
+         construction; a beat below that is not down-weighted, it is gone (and counted in artifactSec). */
+      nnConf = [];
     let artifactSec = 0,
       _pSec = null;
     for (let i = 0; i < nnRes.nn.length; i++) {
@@ -29270,6 +29342,7 @@ __exports.PpgDex = window.PpgDex;
         tt.push(nnRes.tt[i]);
         nnCorr.push(nnRes.corrected[i] ? 1 : 0);
         nnSqi.push(Number.isFinite(sqi[i]) ? sqi[i] : null);
+        nnConf.push(Number.isFinite(c) ? +c.toFixed(3) : 1);
       } else if (secAbs !== _pSec) {
         artifactSec++;
         _pSec = secAbs;
@@ -29555,6 +29628,8 @@ __exports.PpgDex = window.PpgDex;
       corrected: Array.from(nnRes.corrected),
       // Filter-aligned twin of `corrected`, safe to publish beside nn/tt (see the loop above).
       nnCorrected: nnCorr,
+      // Filter-aligned per-beat fused-hat confidence — same alignment contract as nnCorrected.
+      nnConf,
       // quality
       analyzablePct: nnRes.analyzablePct,
       correctionRate: nnRes.correctionRate,
@@ -31528,7 +31603,14 @@ __exports.PpgDex = window.PpgDex;
              over interpolated beats is not a measurement of anything. It also exposes an honest quirk
              this export made visible: `rr[0] = rr[1] || 1000` (computeSQI), because beat 0 has no
              predecessor, so the FIRST interval is a copy and is flagged as such. */
-          corrected: r.nnCorrected && r.nnCorrected.length === r.nn.length ? r.nnCorrected.slice() : null
+          corrected: r.nnCorrected && r.nnCorrected.length === r.nn.length ? r.nnCorrected.slice() : null,
+          /* HOW MUCH TO TRUST EACH BEAT — the fused-weight hat's `c` (TCH-FUSED-ROBUST-HAT).
+             density × SQI vs the record's own medians, AF-safe (a real fast rhythm keeps clean QRS ⇒
+             c≈1); low only where beat-density is an upper outlier AND SQI is depressed, i.e. a
+             spurious-detection burst. Distinct from `corrected` (an interpolation FLAG) and from
+             epochs[].sqi (a 5-min mean): this is the per-beat weight `tchSigmasFused` multiplies in.
+             Surviving beats are ≥0.5 — below that the beat was dropped, not down-weighted. */
+          conf: r.nnConf && r.nnConf.length === r.nn.length ? r.nnConf.slice() : null
         };
         if (out.timeseries.rr.corrected) out.timeseries.rr.corrected[0] = 1;
       }

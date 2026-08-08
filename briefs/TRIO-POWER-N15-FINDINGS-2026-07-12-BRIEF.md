@@ -1,7 +1,34 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 **Status:** PROPOSED (**NOT data-blocked, and never was — `uploads/trio/` already commits 25 post-host-axis nights against this brief's target of 15.** The 2026-08-04 fold turned out to REPRODUCE that committed set, not extend it. The 15 further nights on disk are CONFOUNDED — code version and date are the same variable — so they must be regenerated, not subset. What remains is a judgement: which estimator seeds the sim) · **Created:** 2026-07-12
 
-> ## ⚠️ CORRECTION, same day — the fold below was a REPRODUCTION, not new data
+> ## ⚠️⚠️ CORRECTION, 2026-08-08 — BOTH claims below are wrong, in opposite directions
+>
+> The header says **"NOT data-blocked, and never was."** True of `tools/tch-multinight.mjs`; **false of
+> the estimator the papers publish.** The fused-weight hat needs per-second HR from all three corners
+> plus per-corner `c`. Measured on the committed corpus: **0 of 40 OxyDex exports carried ANY HR
+> timeseries** (5-min epoch medians + 1 Hz SpO₂ only), and neither beat series carried `c` (only a 0/1
+> Malik `corrected` flag). The O2Ring corner was **not in the file**, so the fused hat was un-runnable
+> **at any N** — a structural blocker, strictly worse than the sample-size one this brief tracked, and
+> invisible precisely because the *other* estimator runs fine on the same exports. Fixed 2026-08-08 by
+> the additive `ms;hr;c` contract; consumer `tools/tch-fused-corpus.mjs`.
+>
+> And the correction below says the `Ecg nightly` fold **"REPRODUCED the committed corpus."** It
+> reproduced the dates and the σ magnitudes — **not the timing provenance.** Committed `uploads/trio`
+> carries `timingSource: device+host` ×25 (box: a real second clock); re-deriving the same dates from
+> `Ecg nightly` gives `device` ×25, because that tree's host column is the device stamp *rounded* —
+> `DexClock.hostAxis(…).spreadMs = 1.000`, `independent = false`, the exact top of `CLAUDE.md` §7's
+> phone band (0.13–1.00 ms) against the box's 101.89–5124 ms. Commit order rules out a code
+> explanation (#773 at 19:26 vs the `independent` check in #746 at 10:01, same day). **They are
+> different capture trees**, and folding one as if it were the other silently downgrades the tier —
+> which matters here because §7 is explicit that only the box actually puts the two devices on one
+> timebase.
+>
+> **The re-fit has now been RUN**, on the box tree, at N=17 — past this brief's target of 15:
+> O2Ring **2.99** / H10 **1.78** / Verity **3.51** bpm (fused, median [IQR] over nights). It does
+> **not** reproduce the paper's 2.41 / 1.28 / 1.42, and it inverts the ordering. See
+> `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`'s 2026-08-08 banner for the full table and what it owes.
+
+> ## ⚠️ CORRECTION, 2026-08-04 — the fold below was a REPRODUCTION, not new data
 >
 > The note below closed by saying the overlap with the existing corpus was "not established". It is now,
 > and the answer is the unflattering one: **`uploads/trio/` is TRACKED and holds those exact 25 nights**

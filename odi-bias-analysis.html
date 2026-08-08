@@ -4473,7 +4473,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     night_obj.tchEpochs = oxyBuildEpochSeries(rows, t0Ms);
     // The oximeter's primary signal at its recorded rate — see oxyBuildSpo2Series. Additive; null
     // when rows/t0Ms are absent, so a consumer can distinguish "no field" from "no usable SpO2".
-    night_obj.spo2Series = oxyBuildSpo2Series(rows, t0Ms);
+    night_obj.spo2Series = oxyBuildSpo2Series(rows, t0Ms, 'spo2');
+    /* THE THIRD CORNER'S HR, AT THE RATE IT WAS RECORDED (TRIO-ARTIFACT-GATE — the `ms;hr;c` corpus).
+       The node exported pulse rate ONLY as 5-min `tchEpochs[].hr` medians — ~300 samples folded into
+       one number. Measured on the committed trio corpus: 0 of 40 OxyDex exports carried any HR
+       timeseries, so the per-second three-cornered hat the σ-papers publish could not be re-fit from
+       committed data AT ALL, at any N — the O2Ring corner simply was not in the file. That is a
+       harder blocker than a missing confidence channel, and it was invisible because the epoch hat
+       runs fine and produces plausible numbers from the same exports.
+       Same 1 Hz uniform grid + explicit holes as spo2Series, from the same rows. */
+    night_obj.hrSeries = oxyBuildSpo2Series(rows, t0Ms, 'hr');
     night_obj.summary = computeSmartSummary(night_obj);
     // EXPORT-IDENTITY §2.1 / -FOLLOWUPS-II §1: deterministic, identity-free recording handle.
     // processNight is the ONE site BOTH the app (exportJSON→allNights→oxyBuildNightElement) AND
@@ -8513,6 +8522,13 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
      from an n=1 bandwidth measurement is the same generalisation error this suite keeps finding.
      Downsampling later is always available to a consumer; recovering what an export dropped is not.
 
+     `field` (trailing, optional, default 'spo2') selects WHICH per-second column is gridded, so the
+     pulse-rate series rides the identical contract rather than a second near-copy of it. Both columns
+     come off the SAME row list, and parseCSV drops a row unless BOTH parse and clear their sanity
+     bands (spo2 50–100, hr 20–250) — so the two grids share a hole pattern by construction, and a
+     consumer may align them index-for-index without re-checking. There is no sentinel to strain out
+     here: a −1 / 0 "no reading" never becomes a row in the first place.
+
      The cost is real and was underestimated once already: the export grows ~80 KB -> ~390 KB, because
      the writers pretty-print (the array alone is 78 KB compact, 156 KB indented). These are local
      files with no network in the path, so the trade is storage against information, and information
@@ -8523,7 +8539,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
      is `null`, never carried forward and never zero. A fabricated 0 % saturation would be read as the
      most severe desaturation possible; a fabricated hold reads as stable oxygen. Absence is not zero,
      and here it is not stability either. */
-  function oxyBuildSpo2Series(rows, t0Ms) {
+  function oxyBuildSpo2Series(rows, t0Ms, field) {
+    field = field || 'spo2';
     if (!rows || !rows.length || t0Ms == null) return null;
     var last = null;
     for (var i = rows.length - 1; i >= 0; i--)
@@ -8542,7 +8559,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       var k = Math.round((r.tMs - t0Ms) / 1000);
       if (k < 0 || k >= n) continue;
       // The LAST sample wins a shared second — deterministic, and matches how the row list is ordered.
-      if (typeof r.spo2 === 'number' && isFinite(r.spo2)) out[k] = r.spo2;
+      if (typeof r[field] === 'number' && isFinite(r[field])) out[k] = r[field];
     }
     return out;
   }
@@ -8566,6 +8583,19 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         hz: 1,
         n: n.spo2Series.length,
         values: n.spo2Series
+      };
+    }
+    /* ADDITIVE sibling, same grid, same absence rule. This is the O2Ring corner of the per-second
+       three-cornered hat: `analysis-stats.js tchSigmasFused(hh, vv, oo, cH, cV, cO)` wants three
+       ALIGNED per-second HR series, and the worker assigns this corner `cO = 1` outright ("native
+       pulse — a smoothed device integer, cannot over-detect ⇒ trust 1"), so the O2Ring needs no
+       confidence channel — only this. Absent rather than empty when unbuildable. */
+    if (Array.isArray(n.hrSeries) && n.hrSeries.length) {
+      block.hr = {
+        doc: 'Pulse rate at the recorded 1 Hz, on the SAME uniform grid as spo2 (from startEpochMs). values[i] is the rate (bpm) at startEpochMs + i*1000 ms; null = the device reported no usable sample for that second — NOT zero and NOT the previous value. Index-aligned with spo2.values by construction (a row is kept only if BOTH columns parse and clear their sanity bands). This is the per-second series the three-cornered hat consumes; the 5-min epochs[].hr median is a summary of it, not a substitute — and `median(1 Hz rate)` is NOT the statistic ECGDex publishes (`60000/mean(RR)`), a confound worth ~0.3 bpm (R5-HR-TRIPLET-FOLLOWUPS §3), so do not difference the two nodes’ epoch HR and call it a device bias.',
+        hz: 1,
+        n: n.hrSeries.length,
+        values: n.hrSeries
       };
     }
     return block;

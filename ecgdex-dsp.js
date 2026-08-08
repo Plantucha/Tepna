@@ -2302,7 +2302,15 @@
          the node computed this and threw it away, so a consumer reading a 118 bpm epoch could not tell
          an artifact burst from a real tachycardia. Pushed in this pass rather than re-derived later —
          `peaks[i]`, `nnRes.nn[i]` and `sqi[i]` share an index only BEFORE the confidence filter below. */
-      nnSqi = [];
+      nnSqi = [],
+      /* Per-beat FUSED-HAT CONFIDENCE, aligned with nn/tt the same way and for the same reason.
+         `beatConfidence` is already computed here and already drives the c<0.5 drop below — the node
+         then discarded the surviving beats' c, which is the one number `analysis-stats.js
+         tchSigmasFused(hh, vv, oo, cH, cV, cO)` needs to weight this corner. Without it a consumer
+         reading a committed export can only run the UNWEIGHTED hat, so the σ the papers publish
+         (fused-weight) was not reproducible from the corpus. Surviving beats span [0.5, 1] by
+         construction; a beat below that is not down-weighted, it is gone (and counted in artifactSec). */
+      nnConf = [];
     let artifactSec = 0,
       _pSec = null;
     for (let i = 0; i < nnRes.nn.length; i++) {
@@ -2313,6 +2321,7 @@
         tt.push(nnRes.tt[i]);
         nnCorr.push(nnRes.corrected[i] ? 1 : 0);
         nnSqi.push(Number.isFinite(sqi[i]) ? sqi[i] : null);
+        nnConf.push(Number.isFinite(c) ? +c.toFixed(3) : 1);
       } else if (secAbs !== _pSec) {
         artifactSec++;
         _pSec = secAbs;
@@ -2598,6 +2607,8 @@
       corrected: Array.from(nnRes.corrected),
       // Filter-aligned twin of `corrected`, safe to publish beside nn/tt (see the loop above).
       nnCorrected: nnCorr,
+      // Filter-aligned per-beat fused-hat confidence — same alignment contract as nnCorrected.
+      nnConf,
       // quality
       analyzablePct: nnRes.analyzablePct,
       correctionRate: nnRes.correctionRate,
@@ -4571,7 +4582,14 @@
              over interpolated beats is not a measurement of anything. It also exposes an honest quirk
              this export made visible: `rr[0] = rr[1] || 1000` (computeSQI), because beat 0 has no
              predecessor, so the FIRST interval is a copy and is flagged as such. */
-          corrected: r.nnCorrected && r.nnCorrected.length === r.nn.length ? r.nnCorrected.slice() : null
+          corrected: r.nnCorrected && r.nnCorrected.length === r.nn.length ? r.nnCorrected.slice() : null,
+          /* HOW MUCH TO TRUST EACH BEAT — the fused-weight hat's `c` (TCH-FUSED-ROBUST-HAT).
+             density × SQI vs the record's own medians, AF-safe (a real fast rhythm keeps clean QRS ⇒
+             c≈1); low only where beat-density is an upper outlier AND SQI is depressed, i.e. a
+             spurious-detection burst. Distinct from `corrected` (an interpolation FLAG) and from
+             epochs[].sqi (a 5-min mean): this is the per-beat weight `tchSigmasFused` multiplies in.
+             Surviving beats are ≥0.5 — below that the beat was dropped, not down-weighted. */
+          conf: r.nnConf && r.nnConf.length === r.nn.length ? r.nnConf.slice() : null
         };
         if (out.timeseries.rr.corrected) out.timeseries.rr.corrected[0] = 1;
       }
