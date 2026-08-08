@@ -604,6 +604,45 @@ def associated(iface: str, sysfs: str = "/sys/class/net") -> bool | None:
         return None
 
 
+def supplicants_for(iface: str, cmdlines: dict[int, str]) -> list[int]:
+    """PIDs from `cmdlines` that are OUR supplicant for `iface`. Pure, so the claim below is testable.
+
+    `-i <iface>` is the discriminator, and it has to be, for two reasons measured on the live box:
+      * the SYSTEM supplicant is always running there (`-u -s -O DIR=/run/wpa_supplicant`, D-Bus mode,
+        no `-i`), so "is any wpa_supplicant alive?" answers yes forever and would warn on every cycle;
+      * ours is started `wpa_supplicant -B -i <iface> -c <conf>`, so the interface is what separates
+        the process we are responsible for from the one the OS owns.
+
+    Matching is on the ARGUMENT, never on a substring of the whole line: an iface name is short enough
+    ("wlan0") to appear inside an unrelated path, and this decides whether we shout about a leak."""
+    out = []
+    for pid, cmd in (cmdlines or {}).items():
+        args = [a for a in str(cmd).split("\0") if a]
+        if not args or os.path.basename(args[0]) != "wpa_supplicant":
+            continue
+        if any(a == "-i" and i + 1 < len(args) and args[i + 1] == iface for i, a in enumerate(args)):
+            out.append(pid)
+    return sorted(out)
+
+
+def _live_supplicants(iface: str) -> list[int]:
+    """`supplicants_for` against /proc. Read directly rather than via `pgrep -f`, which would match its
+    OWN command line (CLAUDE.md §4) — the pattern would contain "wpa_supplicant" and the interface."""
+    cmdlines = {}
+    try:
+        for name in os.listdir("/proc"):
+            if not name.isdigit():
+                continue
+            try:
+                with open(f"/proc/{name}/cmdline", "rb") as fh:
+                    cmdlines[int(name)] = fh.read().decode("utf-8", "replace")
+            except OSError:
+                continue                       # the process exited between listdir and open
+    except OSError:
+        return []                              # no /proc (not Linux) — cannot verify, so claim nothing
+    return supplicants_for(iface, cmdlines)
+
+
 def _wpa_cli(wdir: str, iface: str, *args: str) -> list[str]:
     """A `wpa_cli` argv that can actually connect from inside the unit's sandbox.
 
@@ -699,8 +738,25 @@ def _wpa_down(iface: str, root: str | None = None) -> bool:
     # unaffected — the next run's `-B` fails and /sys still reports the association — but a green verdict
     # over a failed step is the shape this codebase keeps finding bugs behind.
     if rc:
-        log.warning("cpap: wpa_cli terminate failed on %s (rc=%s, %s) — a supplicant may be left running",
-                    iface, rc, (out or "").strip().splitlines()[-1] if (out or "").strip() else "no output")
+        # VERIFY THE CLAIM BEFORE MAKING IT. The warning below exists because of a real leak (see the
+        # note above), and it must keep firing for that. But measured on the live box 2026-08-05 it also
+        # fires when there is nothing to leak: `terminate` returns rc=255 "Failed to connect to
+        # non-global ctrl_ifname: <iface> — No such file or directory" whenever no control socket
+        # exists, which is the normal state when our supplicant already exited. That warned twice per
+        # cycle, forever, about a supplicant that was not running — and a warning that cries wolf twice
+        # an hour is one nobody reads, which is how the 2026-07-29 leak went unnoticed in the first place.
+        #
+        # So ASK. `_live_supplicants` observes the thing the sentence asserts instead of inferring it
+        # from a return code, and it cannot re-introduce the old blindness: a real leak still has a
+        # process bound to `-i <iface>`, and still warns.
+        leaked = _live_supplicants(iface)
+        detail = (out or "").strip().splitlines()[-1] if (out or "").strip() else "no output"
+        if leaked:
+            log.warning("cpap: wpa_cli terminate failed on %s (rc=%s, %s) — supplicant STILL RUNNING "
+                        "as pid(s) %s", iface, rc, detail, ", ".join(str(p) for p in leaked))
+        else:
+            log.info("cpap: wpa_cli terminate returned rc=%s on %s (%s) — no supplicant is bound to it, "
+                     "so there was nothing to terminate", rc, iface, detail)
     return rc == 0
 
 
