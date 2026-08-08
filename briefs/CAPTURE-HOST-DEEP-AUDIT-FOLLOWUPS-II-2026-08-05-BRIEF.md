@@ -56,10 +56,24 @@ interface per-socket. The teardown is a no-op that reports failure twice per cyc
 That also settles a question the parent listed as unexamined scope — *"which interface is actually
 `wlp1s0`"*: it is a real, present wireless interface on the box.
 
-**Open:** the message says *"a supplicant may be left running"* when in this configuration one
-demonstrably is not. Either detect "no control socket ⇒ nothing to terminate" and stay silent, or
-verify the claim before making it — a warning that cries wolf twice an hour is one nobody reads, which
-is the same failure mode as a gate nobody runs.
+**CLOSED 2026-08-05 — by verifying, not by matching the message.** Message-matching was the tempting
+option and the unsafe one: the 2026-07-29 leak ALSO returned `rc=255`, and there is no way to know from
+the text alone whether a supplicant survived. `_wpa_down` now reads `/proc` and asks whether one is
+actually bound to `-i <iface>`:
+
+* one is ⇒ `WARNING … supplicant STILL RUNNING as pid(s) N` (louder than before — it names the pid)
+* none is ⇒ `INFO … nothing to terminate`
+* either way the rc still reaches the caller, so the failure is never swallowed
+
+Two things the implementation had to get right. The **system** supplicant is always running on this box
+(`-u -s -O DIR=…`, D-Bus, no `-i`), so "is any wpa_supplicant alive?" answers yes forever — the `-i`
+ARGUMENT is the discriminator, matched as an argument and never as a substring. And the scan reads
+`/proc` directly rather than via `pgrep -f`, whose pattern would contain both "wpa_supplicant" and the
+interface name and could match its own command line (CLAUDE.md §4).
+
+When `/proc` cannot be read the check claims NOTHING and takes the quiet arm: a false "no leak" costs a
+journal line, a false "LEAK, pid N" sends someone hunting a process that never existed and teaches them
+to distrust the warning — the exact outcome this item exists to undo.
 
 ## 3 · A backward wall-clock step no longer rewinds an open recording (BEHAVIOUR CHANGE)
 

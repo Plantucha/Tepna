@@ -656,11 +656,33 @@ def test_wpa_down_reports_a_terminate_that_failed(monkeypatch, caplog):
     over a failed step is the shape this codebase keeps finding bugs behind, so say it."""
     import logging
     _sh_spy(monkeypatch, {"wpa_cli": (255, "Failed to connect to non-global ctrl_ifname: wlp1s0")})
+    # Drive the INCIDENT this test documents: a supplicant that really did survive. The warning is no
+    # longer unconditional (FOLLOWUPS-II §2 — it fired twice per cycle on a box with nothing to leak,
+    # and a warning that cries wolf is one nobody reads), so the leak has to be present for the leak
+    # message to be asserted. The other arm is `..._does_not_cry_wolf` below.
+    monkeypatch.setattr(ch, "_live_supplicants", lambda iface: [4242])
     with caplog.at_level(logging.WARNING):
         assert ch._wpa_down("wlp1s0") is False
     msg = " ".join(r.getMessage() for r in caplog.records)
     assert "terminate failed" in msg and "wlp1s0" in msg
-    assert "left running" in msg, "the operator needs to know a supplicant may have survived"
+    assert "STILL RUNNING" in msg and "4242" in msg, \
+        "the operator needs to know a supplicant survived, and which pid it is"
+
+
+def test_wpa_down_does_not_cry_wolf_when_no_supplicant_survived(monkeypatch, caplog):
+    """The other arm, and the reason the warning above is now conditional. On the live box a terminate
+    with no control socket returns rc=255 — the NORMAL state once our supplicant has exited — and the
+    old unconditional warning claimed a leak twice per cycle, forever. The failure is still REPORTED
+    (rc reaches the caller); it is simply no longer described as something it is not."""
+    import logging
+    _sh_spy(monkeypatch, {"wpa_cli": (255, "Failed to connect to non-global ctrl_ifname: wlp1s0")})
+    monkeypatch.setattr(ch, "_live_supplicants", lambda iface: [])
+    with caplog.at_level(logging.INFO):
+        assert ch._wpa_down("wlp1s0") is False, "a failed teardown must still report failure"
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "nothing to terminate" in msg, msg
+    assert not [r for r in caplog.records if r.levelname == "WARNING"], \
+        "nothing was bound to the interface — a leak warning here would be false"
 
 
 def test_wpa_down_still_flushes_and_downs_even_when_terminate_fails(monkeypatch):

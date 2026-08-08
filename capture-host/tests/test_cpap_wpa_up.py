@@ -185,3 +185,106 @@ def test_the_wait_is_bounded_below_by_five_seconds(wpa, monkeypatch):
     # inclusive (`<=`) also gives 6. Counting is what separates them from the correct behaviour.
     assert polls == [0.0, 1.0, 2.0, 3.0, 4.0], \
         "a 5.0s floor and an EXCLUSIVE deadline — either change adds a sixth poll"
+
+
+# ── the teardown warning must be TRUE, not merely loud ───────────────────────────────────────────────
+# FOLLOWUPS-II §2. `_wpa_down` warns "a supplicant may be left running" whenever `terminate` returns
+# non-zero, and that warning exists for a real leak (2026-07-29: `wpa_supplicant -B -i wlp1s0` still
+# running after a failed terminate, while the code returned True unconditionally). It must keep firing
+# for that.
+#
+# But measured on the live box 2026-08-05 it also fires when there is nothing to leak: with no control
+# socket, `terminate` returns rc=255 "Failed to connect to non-global ctrl_ifname" — the NORMAL state
+# once our supplicant has exited — so it warned twice per cycle, forever, about a process that was not
+# running. A warning that cries wolf twice an hour is one nobody reads, which is how the original leak
+# went unnoticed. So the claim is now verified against /proc before it is made.
+
+_SYSTEM = "/usr/sbin/wpa_supplicant\0-u\0-s\0-O\0DIR=/run/wpa_supplicant\0"
+_OURS = "/usr/sbin/wpa_supplicant\0-B\0-i\0wlp1s0\0-c\0/run/x/wpa.conf\0"
+
+
+def test_the_system_supplicant_is_not_mistaken_for_ours():
+    """THE case that would make this warn forever. The vigil box always runs the D-Bus supplicant
+    (`-u -s -O DIR=...`, no `-i`), so "is any wpa_supplicant alive?" answers yes on every cycle."""
+    assert ch.supplicants_for("wlp1s0", {1870: _SYSTEM}) == []
+
+
+def test_our_supplicant_for_this_interface_is_found():
+    assert ch.supplicants_for("wlp1s0", {1870: _SYSTEM, 4242: _OURS}) == [4242]
+
+
+def test_a_supplicant_on_a_DIFFERENT_interface_is_not_ours():
+    assert ch.supplicants_for("wlan9", {4242: _OURS}) == []
+
+
+def test_the_interface_must_match_the_ARGUMENT_not_a_substring():
+    """An iface name is short enough to appear inside an unrelated path, and this decides whether the
+    box shouts about a leak. `-c /run/wlan0/wpa.conf` must not make a wlan0 supplicant out of nothing."""
+    decoy = "/usr/sbin/wpa_supplicant\0-B\0-i\0eth9\0-c\0/run/wlan0/wpa.conf\0"
+    assert ch.supplicants_for("wlan0", {77: decoy}) == []
+
+
+def test_a_process_that_merely_mentions_wpa_supplicant_is_not_one():
+    """argv[0] is the discriminator; a log tail or an editor holding the name is not a supplicant."""
+    tail = "/usr/bin/tail\0-f\0/var/log/wpa_supplicant.log\0-i\0wlp1s0\0"
+    assert ch.supplicants_for("wlp1s0", {88: tail}) == []
+
+
+def test_a_failed_terminate_with_a_LIVE_supplicant_still_warns(monkeypatch, caplog):
+    """The 2026-07-29 leak. This must not go quiet — it is the reason the warning exists."""
+    monkeypatch.setattr(ch, "_sh", lambda argv, t, sudo=False: (255, "boom"))
+    monkeypatch.setattr(ch, "_live_supplicants", lambda iface: [4242])
+    with caplog.at_level("INFO"):
+        ch._wpa_down("wlp1s0", "/tmp/root")
+    text = caplog.text
+    assert "STILL RUNNING" in text and "4242" in text, text
+    assert any(r.levelname == "WARNING" for r in caplog.records), "a real leak is a WARNING"
+
+
+def test_a_failed_terminate_with_NO_supplicant_does_not_cry_wolf(monkeypatch, caplog):
+    """The live-box case: no control socket, nothing bound to the interface, nothing to terminate."""
+    monkeypatch.setattr(ch, "_sh", lambda argv, t, sudo=False:
+                        (255, "Failed to connect to non-global ctrl_ifname: wlp1s0"))
+    monkeypatch.setattr(ch, "_live_supplicants", lambda iface: [])
+    with caplog.at_level("INFO"):
+        ch._wpa_down("wlp1s0", "/tmp/root")
+    assert "nothing to terminate" in caplog.text, caplog.text
+    assert not [r for r in caplog.records if r.levelname == "WARNING"], \
+        "no supplicant is bound to the interface — warning about a leak would be false"
+
+
+def test_the_return_value_still_reports_the_failure(monkeypatch):
+    """Quieter is not the same as swallowed. `_wpa_down` used to `return True` unconditionally, which is
+    the defect the loud warning replaced; the rc must still reach the caller either way."""
+    monkeypatch.setattr(ch, "_sh", lambda argv, t, sudo=False: (255, "x"))
+    monkeypatch.setattr(ch, "_live_supplicants", lambda iface: [])
+    assert ch._wpa_down("wlp1s0", "/tmp/root") is False
+
+
+def test_a_process_that_exits_mid_scan_is_skipped_not_fatal(monkeypatch, tmp_path):
+    """Reading /proc is inherently racy: a pid listed a microsecond ago may be gone by the open. On a
+    box that spawns a helper per cycle this is ordinary, and it must not take down the check that
+    decides whether to warn about a leak."""
+    real_open = open
+
+    def flaky_open(path, *a, **k):
+        if str(path) == "/proc/999/cmdline":
+            raise ProcessLookupError("vanished")          # an OSError subclass, as the kernel raises
+        if str(path) == "/proc/4242/cmdline":
+            return real_open(tmp_path / "ours", "rb")
+        raise OSError("not interesting")
+    (tmp_path / "ours").write_bytes(b"/usr/sbin/wpa_supplicant\0-B\0-i\0wlp1s0\0")
+    monkeypatch.setattr(ch.os, "listdir", lambda p: ["999", "4242", "self", "cpuinfo"])
+    monkeypatch.setattr("builtins.open", flaky_open)
+    assert ch._live_supplicants("wlp1s0") == [4242], "the survivor is still found"
+
+
+def test_an_unreadable_proc_claims_NOTHING_rather_than_guessing(monkeypatch):
+    """If the check cannot run, it must not manufacture either answer. Returning [] means the caller
+    logs "nothing to terminate" — the quiet arm — which is the safe direction: a false "no leak" costs
+    a missed line in a journal, a false "LEAK, pid N" sends someone hunting a process that never
+    existed and teaches them to distrust the warning."""
+    def boom(_p):
+        raise PermissionError("no /proc")
+    monkeypatch.setattr(ch.os, "listdir", boom)
+    assert ch._live_supplicants("wlp1s0") == []
