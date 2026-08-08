@@ -1,6 +1,49 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED (§1 OBSOLETE · **§2 SHIPPED** · §3 only — re-verified 2026-08-03 · ⚠️ **§2's earlier "not built" stamp was WRONG, see below**) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** DONE — 2026-08-08 (§1 OBSOLETE · §2 SHIPPED · **§3 BUILT 2026-08-08**) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
+> ## ✅ 2026-08-08 — §3 is BUILT, and the "maybe-not-worth-it" framing had the cause backwards
+>
+> §3 was parked as an owner decision about whether raw-µV multi-night coherence is *a real product
+> need*. Executing it surfaced that the blocker was never product value — it was **file placement**.
+> The brief's own §3 says the engine "emits RR intervals, not µV ECG" and that the renderer "lives
+> *inside* ECGDSP.genSynthetic (not factored out)". Neither is quite it: `renderECGInt16` was already
+> factored out, into **`cohort-full.js` — a FULL-lane-*worker* file `ECGDex.src.html` cannot load.**
+> So the node could not reach a renderer that already existed, and "ECGDex stays single-recording"
+> read as a decision when it was a consequence.
+>
+> **Built, all three steps:**
+> 1. `pqrst` + `renderECGInt16` lifted into `synth-gen.js` as `SYNTH.renderECGInt16(tl, win)`, beside
+>    every other node's renderer. `cohort-full.js` **delegates**, keeping its 3-arg signature, so
+>    `qrs-yield-worker`, `qrs-equiv-worker` and the FULL-lane harness are untouched.
+> 2. `synth-gen.js` + `dex-patient-gen.js` wired into `ECGDex.src.html`; a second `.synth-line` carries
+>    the shared **profile + 1–3 nights** control. Each night runs the REAL `runPipeline` — Pan–Tompkins
+>    re-derives the beats from morphology — and `allRecordings` keys on floating `t0Ms`, so nights
+>    accumulate into the existing multi-recording switcher and cross-night card with **no new plumbing**.
+>    The old scenario generator stays as the single-recording dev path, as §3 permitted.
+> 3. Coherence gated: `t0Ms` of an ECG night == `t0Ms` of the shared timeline, exactly — so an ECGDex
+>    night and an OxyDex night for the same profile+days are the SAME night and fuse in the Integrator.
+>
+> **Days capped at 3** (not 14): ~3.4 M Int16 samples per night at 130 Hz against an O2Ring night's
+> ~1 k rows. That is §3's own size argument, kept.
+>
+> ### ⚠️ The parity test this brief implies is a TAUTOLOGY — worth carrying forward
+>
+> §3's pitfall says *"Don't change cohort-full.js's observable output when factoring out pqrst — the
+> waveform-fidelity gate snapshots it."* The natural check is to assert
+> `CohortFull.renderECGInt16 ≡ SYNTH.renderECGInt16` sample-for-sample. **That test cannot fail**, because
+> after the lift `cohort-full.js` delegates: both sides are one implementation. It was written that way
+> first and **mutation-checked: perturbing the R amplitude by 1 µV left it green.** The FULL-lane fidelity
+> gate would not have caught it either — it compares recovery *ratios* with tolerances.
+>
+> The gate is therefore a **known-answer digest** of the rendered waveform + ground-truth RR, recorded
+> from the **pre-lift** renderer, so it certifies the move against the code that existed before it. Both
+> mutants (1 µV amplitude, 0.0001 noise-scale) now fail it. The delegation comparison is kept, relabelled
+> as what it actually proves: that no second copy of the renderer survived.
+>
+> **Also corrected:** §0's "P2 ECGDex — DECIDED: deliberately single-recording (comment on
+> `ecgdex-app.js genSynthetic`)". The 2026-08-04 sweep was right that the comment never existed — and it
+> is now moot, since the decision it recorded has been reversed. Nothing to land.
 
 > **§1 — OBSOLETE.** Making `buildHash` fingerprint the build was made unnecessary by Phase 7's
 > content-addressing and is deliberately not taken; `CLAUDE.md` §🔏 records `buildHash` as RETIRED inert
@@ -220,11 +263,12 @@ keys you didn't write).
 
 ---
 
-## 3. (BIG, maybe-not-worth-it) ECGDex raw multi-night coherence
+## 3. ECGDex raw multi-night coherence — ✅ **BUILT 2026-08-08**
 
-**Status: intentionally NOT done** (see the decision comment on `ecgdex-app.js genSynthetic`). Only
-pick this up if raw-µV multi-night coherence becomes a real product need. Documented here so the
-decision is reversible with eyes open.
+**Status: DONE.** The framing below ("BIG, maybe-not-worth-it", "intentionally NOT done", "see the
+decision comment on `ecgdex-app.js genSynthetic`") is kept as the historical record and is superseded
+by the header banner. Two of its premises did not survive execution: the decision comment never
+existed, and the µV renderer was already factored out — it was merely unreachable from this app.
 
 **Why it's hard.** The shared engine `SYNTH` (synth-gen.js) emits **RR intervals**, not µV ECG. The
 RR→PQRST µV renderer is `cohort-full.js renderECGInt16(tl, win, SYNTH)` (which calls a local

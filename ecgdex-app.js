@@ -244,6 +244,73 @@ self.onmessage = async (e) => {
     }, 30);
   }
 
+  /* ── SHARED-AXIS PATIENT GENERATOR (GENERATOR-FOLLOWUPS-II §3 step 2) ──────────────────────────
+     `genSynthetic()` above is ECGDex's OWN scenario generator: one recording, its own RR model, no
+     relationship to any other node's synthetic patient. It stays, as the single-recording dev path.
+
+     This is the other thing — the SHARED coherence axis every other node already rides. Nights come
+     from `DexPatientGen.buildNights(profile, days)`, i.e. the same `SYNTH.masterTimeline` series that
+     renders OxyDex's CSV and PpgDex's PPG, so a generated ECGDex night and a generated OxyDex night
+     for the same profile+days share nightly `t0Ms` and the SAME apnea clusters — which is what lets
+     them fuse in the Integrator instead of merely coexisting.
+
+     WHY THIS COULD NOT BE WRITTEN BEFORE: the engine emits RR, and the RR→PQRST µV renderer lived in
+     `cohort-full.js`, a FULL-lane-worker file this app cannot load. §3 step 1 lifted it into
+     `synth-gen.js` (byte-identically), so `SYNTH.renderECGInt16` is now reachable here.
+
+     Each night goes through `runPipeline`, the REAL analysis path — the same one a dropped file
+     takes — so Pan–Tompkins must re-derive the beats from morphology. `allRecordings` is keyed by
+     floating `t0Ms`, and consecutive nights differ by a day, so they accumulate into the existing
+     multi-recording switcher + cross-night card with no new plumbing.
+
+     DAYS ARE CAPPED AT 3, and that is a size decision, not an oversight: raw µV at 130 Hz is
+     ~3.4 M Int16 samples per night against the ~1 k rows an O2Ring CSV night costs. Every other node
+     offers 14. Do not raise this without measuring the browser cost. */
+  function genSyntheticPatient() {
+    if (!window.DexPatientGen || !window.SYNTH || typeof SYNTH.renderECGInt16 !== 'function') {
+      showErr('Synthetic patient generator unavailable (synth-gen.js / dex-patient-gen.js not loaded).');
+      return;
+    }
+    const r = DexPatientGen.fromControls('genProfile', 'genPatientDays');
+    if (!r || !r.tls || !r.tls.length) {
+      showErr('Synthetic patient generator unavailable.');
+      return;
+    }
+    const tls = r.tls.slice(0, 3); // hard cap, mirroring the control — never trust the DOM for a size bound
+    showChip('synthetic patient · ' + r.profile + ' · ' + tls.length + (tls.length === 1 ? ' night' : ' nights'));
+    let i = 0;
+    (function next() {
+      if (i >= tls.length) return;
+      const tl = tls[i],
+        n = i + 1;
+      i++;
+      progress(3, 'Synthesizing night ' + n + '/' + tls.length + ' — ' + (tl.durSec / 3600).toFixed(1) + ' h of 130 Hz ECG…');
+      setTimeout(() => {
+        try {
+          const rec = SYNTH.renderECGInt16(tl, { startRel: 0, lenSec: tl.durSec });
+          if (!rec) {
+            showErr('Night ' + n + ' produced no beats — generator timeline too short.');
+            return;
+          }
+          /* Ground-truth RR rides along for the validation card, exactly as the scenario path does.
+             HR/ACC have no shared-axis renderer, so they stay null rather than being carried over
+             from a previous night — a stale companion grafted onto the wrong night is the DEEP-AUDIT-II
+             §10.4 bug, and `planCompanionGraft` is the thing that must decide, not this loop. */
+          DEVICE_RR = rec.deviceRR;
+          DEVICE_HR = null;
+          DEVICE_ACC = null;
+          ACC_FS = null;
+          setLoad('rr', '✅ ground-truth RR (' + rec.deviceRR.length + ' beats)');
+          runPipeline(rec, 'synthetic_' + r.profile + '_night' + n);
+        } catch (e) {
+          showErr('Night ' + n + ': ' + ((e && e.message) || e));
+          return;
+        }
+        next(); // sequential: each night's pipeline settles before the next is rendered
+      }, 30);
+    })();
+  }
+
   // device cross-check loaders ─────────────────────────────────────────────────
   function setLoad(which, msg) {
     const st = $(which + 'Status'),
@@ -2815,6 +2882,9 @@ self.onmessage = async (e) => {
       if (fs && fs.length) loadFiles(fs);
     });
     $('genBtn').addEventListener('click', genSynthetic);
+    // §3 step 2 — the shared patient axis. Guarded: the control only exists on the bundled page.
+    var _gp = $('genPatientBtn');
+    if (_gp) _gp.addEventListener('click', genSyntheticPatient);
     $('replaceBtn').addEventListener('click', () => {
       _replaceMode = true;
       input.click();

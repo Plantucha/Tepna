@@ -1,6 +1,33 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 **Status:** PROPOSED (**the two do-now write-ups are DONE 2026-08-04** — §5 items 4 + 5 landed in both papers; what remains is **hardware-gated**, not unstarted: items 1 + 2 need the ResMed oximeter physically connected for ≥5 quad-modal nights, which is zero code and entirely the owner's to do) · **Created:** 2026-07-12 · **Executes:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md` §7 **R5** · **Companion to:** `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` · **Feeds:** `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md` · `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`
 
+> ## 2026-08-08 — the estimator confound is now FIXABLE from the export, and the cable is still the cable
+>
+> §5's superseding entry ends: *"no per-device HR bias may be read off cross-node epoch HR until the
+> nodes agree on one statistic"*, and `R5-HR-TRIPLET-FOLLOWUPS` §3 records what is owed — **one epoch
+> statistic fleet-wide, NAMED in the export so a consumer can refuse a mismatched pair.** Half of that
+> is now unblocked, by a change made for a different reason.
+>
+> **`OxyDex timeseries.hr` now carries the 1 Hz pulse series** (the `ms;hr;c` contract, landed for the
+> fused-hat re-fit — see `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`). Until now the node published pulse rate
+> ONLY as 5-min `epochs[].hr`, already reduced by `median(1 Hz rate)` — so a consumer wanting ECGDex's
+> statistic (`60000/mean(RR)`) could not compute it: the samples were gone at the export boundary. That
+> is precisely why the −0.299 bpm confound was un-diagnosable downstream and had to be chased with a
+> bespoke tool. **With the per-second series committed, either statistic is derivable from the same
+> bytes**, so a cross-node comparison can put both nodes on ONE statistic instead of differencing two.
+>
+> Two things this does **not** do, stated so the next reader does not over-read it:
+> - It does **not** name the statistic in the export. `epochs[].hrStat` already says `median-rate`
+>   (OxyDex) vs `rate-of-mean` (ECGDex) — the *labelling* half of FOLLOWUPS §3 is done — but nothing
+>   **refuses** a mismatched pair; a consumer must still check. That gate is still owed.
+> - It does **not** touch §4. The independence test still needs a fourth, mechanistically-independent
+>   corner, and `_SA2.edf`'s `Pulse.1s` is still the "no oximeter connected" sentinel (spot-checked
+>   2026-08-08: all −1 across the sampled committed SA2 files). **The fix is still one cable**, and it
+>   is still entirely the owner's to do.
+>
+> ⚠️ §4's citation `cpapdex-dsp.js:332` has drifted — that line is now leak-dynamics code. Locate the
+> sentinel by identifier, not line number.
+
 > **2026-08-04 backlog sweep.** This brief's headline finding — that the papers report a reference-free σ
 > without ever saying it is variance-only and never validated against truth — was **verifiably still true**
 > when picked up: zero matches for `bias-blind` / `variance-only` / `no bias term` / `never been validated`

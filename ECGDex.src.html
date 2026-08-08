@@ -417,6 +417,28 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         <option value="ambulatory">🚶 ambulatory walk · ~2.4 h</option>
       </select>
     </div>
+    <!-- GENERATOR-FOLLOWUPS-II §3 step 2 — the SHARED patient axis (synth-gen.js + dex-patient-gen.js),
+         the same profile+days control OxyDex/PpgDex/GlucoDex carry. Distinct from the scenario line
+         above, which stays as the single-recording dev path: this one renders N consecutive nights for
+         ONE patient off the shared master timeline, so a generated ECGDex night and a generated OxyDex
+         night for the same profile+seed share nightly t0Ms and fuse in the Integrator.
+         Capped at 3 nights deliberately — raw µV at 130 Hz is ~3.4 M samples per night, which is why
+         every other node offers 14 and this one does not. -->
+    <div class="synth-line">
+      <span>Or a whole patient?</span>
+      <button class="synth-link" type="button" id="genPatientBtn">Generate patient</button>
+      <select id="genProfile" title="synthetic patient profile">
+        <option value="baseline" selected>Untreated OSA</option>
+        <option value="severe">Severe OSA</option>
+        <option value="cpap">On CPAP</option>
+        <option value="healthy">Healthy</option>
+      </select>
+      <select id="genPatientDays" title="consecutive nights (capped — raw µV at 130 Hz is large)">
+        <option value="1" selected>1 night</option>
+        <option value="2">2 nights</option>
+        <option value="3">3 nights</option>
+      </select>
+    </div>
     <input type="file" id="ecgInput" accept=".txt,.csv" multiple style="display:none">
     <div class="chip" id="ecgChip">🫀 <span id="ecgChipName"></span></div>
 
@@ -628,6 +650,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
 <script src="dex-profile.js"></script>
 <script src="ecgdex-registry.js"></script>
 <script src="clock.js"></script>
+<!-- GENERATOR-FOLLOWUPS-II §3 step 2 — the shared coherence engine + patient axis. `synth-gen.js`
+     now carries the RR→PQRST µV renderer (step 1), so ECGDex can generate raw waveform from the SAME
+     master timeline every other node renders from; before the lift that renderer lived in
+     `cohort-full.js`, a FULL-lane-worker file this app cannot load, and that is precisely why ECGDex
+     stayed single-recording. Order matters: dex-patient-gen.js reads window.SYNTH. -->
+<script src="synth-gen.js"></script>
+<script src="dex-patient-gen.js"></script>
 <script type="module" src="ecgdex-dsp.js"></script>
 <script type="module" src="ecgdex-render.js"></script>
 <script src="ecgdex-morph.js"></script>

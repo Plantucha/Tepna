@@ -19223,6 +19223,107 @@
      beats — i.e. the synthetic waveform is faithful enough that detected/true is ≈1.
      Closes the hole that let a renderPPG dropout-step bug drive PPGDSP into 2:1
      beat-halving (recovery ~0.6) while every existing group stayed green. */
+    /* ════ GENERATOR-FOLLOWUPS-II §3 — the µV renderer moved, and ECGDex went multi-night ════════
+     §3 step 1 lifted `pqrst` + `renderECGInt16` out of `cohort-full.js` (a FULL-lane-worker file
+     ECGDex cannot load — the whole reason this node stayed single-recording) into `synth-gen.js`,
+     where every other node's waveform renderer already lives.
+
+     The brief's own pitfall: *"Don't change cohort-full.js's observable output when factoring out
+     pqrst — the waveform-fidelity gate snapshots it."* That gate compares recovery RATIOS with
+     tolerances, so it would survive a small drift in the waveform. This leg is the one that would
+     not: it asserts the two renderers agree SAMPLE-FOR-SAMPLE. A move that is "close enough" is a
+     silent re-baseline of `qrs-yield` and `qrs-equiv`, both of which are published. */
+    group('§3 · the lifted µV renderer is byte-identical, and ECGDex now rides the shared patient axis', 'synth-gen · cohort-full · ecgdex · generator-followups-ii', function (T) {
+      var SY = env.SYNTH,
+        CF = env.CohortFull,
+        PG = env.DexPatientGen;
+      if (!(SY && CF && typeof SY.renderECGInt16 === 'function' && typeof CF.renderECGInt16 === 'function')) {
+        T.skip('SYNTH + CohortFull renderers present', 'pass SYNTH/CohortFull into env in BOTH runners');
+        return;
+      }
+      T.ok('SYNTH.renderECGInt16 is exported — ECGDex can reach the µV renderer at last', typeof SY.renderECGInt16 === 'function');
+      T.ok('SYNTH.pqrst is exported alongside it', typeof SY.pqrst === 'function');
+
+      var tl = SY.masterTimeline(SY.NIGHTS[0], 4242),
+        win = SY.pickWindow(tl);
+      var viaCF = CF.renderECGInt16(tl, win, SY),
+        viaSY = SY.renderECGInt16(tl, win);
+      T.ok('both renderers produced a record', !!viaCF && !!viaSY);
+      if (!viaCF || !viaSY) return;
+
+      /* ⚠ THE OBVIOUS TEST HERE IS A TAUTOLOGY, and it was written that way first. Comparing
+         `CohortFull.renderECGInt16` against `SYNTH.renderECGInt16` sample-for-sample looks like the
+         strongest possible parity check — but `cohort-full.js` now DELEGATES, so both sides are one
+         implementation and the comparison cannot fail. Mutation-checked: perturbing the lifted
+         template's R amplitude by 1 µV left that "parity" leg green, because it moved both sides
+         together. It is kept below only as a DELEGATION check — it proves no second copy of the
+         renderer was left behind — and the real guard is the KNOWN-ANSWER digest that follows.
+
+         The digest is what pins the lift. `qrs-yield` and `qrs-equiv` are published analyses whose
+         numbers come out of this waveform, and the FULL-lane fidelity gate compares recovery RATIOS
+         with tolerances, so it would absorb a small drift silently. This will not: any change to the
+         template constants, the phase anchoring, the wander/noise terms or the RNG moves it. If you
+         are re-recording this value, you are re-baselining two papers — say so in the commit. */
+      T.eq('same sample count', viaSY.int16.length, viaCF.int16.length);
+      var firstDiff = -1;
+      for (var i = 0; i < viaCF.int16.length; i++)
+        if (viaCF.int16[i] !== viaSY.int16[i]) {
+          firstDiff = i;
+          break;
+        }
+      T.eq('cohort-full DELEGATES (no second copy of the renderer survives the lift)', firstDiff, -1, firstDiff < 0 ? '' : 'first divergence at sample ' + firstDiff);
+      T.eq('…and the ground-truth deviceRR is unmoved too', JSON.stringify(viaSY.deviceRR), JSON.stringify(viaCF.deviceRR));
+
+      /* KNOWN-ANSWER — recorded from the pre-lift `cohort-full.js` renderer, so it certifies the move
+         against the code that existed BEFORE it, not against the code that replaced it. Int32 rolling
+         hash so both lanes compute it identically without a crypto dependency. */
+      T.eq('the rendered window is the FIXED length this answer was recorded at', viaSY.int16.length, 70200);
+      var wsum = 0;
+      for (var w = 0; w < viaSY.int16.length; w++) wsum = (Math.imul(wsum, 31) + viaSY.int16[w]) | 0;
+      T.eq('µV waveform known-answer (masterTimeline(NIGHTS[0], 4242) · pickWindow)', wsum, -1014690785);
+      var rsum = 0;
+      for (var rr = 0; rr < viaSY.deviceRR.length; rr++) rsum = (Math.imul(rsum, 31) + viaSY.deviceRR[rr].rr) | 0;
+      T.eq('ground-truth deviceRR known-answer', rsum, 709896183);
+      T.eq('…over the recorded beat count', viaSY.deviceRR.length, 481);
+      // Anti-vacuity: a renderer returning an all-zero buffer would satisfy every equality above.
+      var nz = 0;
+      for (var k = 0; k < viaSY.int16.length; k++) if (viaSY.int16[k] !== 0) nz++;
+      T.ok('control: the waveform is not empty', nz > viaSY.int16.length * 0.5, nz + ' non-zero of ' + viaSY.int16.length);
+      T.ok('control: R peaks reach ECG amplitude (~1.1 mV)', Math.max.apply(null, Array.prototype.slice.call(viaSY.int16)) > 700, 'max µV');
+      if (typeof CF.pqrst === 'function') {
+        var same = true;
+        for (var q = 0; q <= 200; q++) if (CF.pqrst(q / 200, 0.9) !== SY.pqrst(q / 200, 0.9)) same = false;
+        T.ok('pqrst agrees over the whole beat phase', same);
+      }
+
+      /* §3 step 3 — COHERENCE. The point of the lift: an ECGDex night and an OxyDex night generated
+         for the same profile+days must be the SAME night, or they cannot fuse in the Integrator.
+         Both render off one `masterTimeline`, so the check is that the ECG record inherits the
+         timeline's floating `t0Ms` exactly — not "close", exactly, since fusion keys on it. */
+      if (!(PG && typeof PG.buildNights === 'function')) {
+        T.skip('DexPatientGen reachable for the coherence leg', 'pass DexPatientGen into env in BOTH runners');
+        return;
+      }
+      var built = PG.buildNights('baseline', 3);
+      var tls = (built && built.tls) || built;
+      T.ok('the shared axis yields 3 consecutive nights', !!(tls && tls.length === 3), tls ? 'n=' + tls.length : 'none');
+      if (!(tls && tls.length === 3)) return;
+      var recs = tls.map(function (t) {
+        return SY.renderECGInt16(t, { startRel: 0, lenSec: Math.min(t.durSec, 600) });
+      });
+      T.ok('every night rendered', recs.every(Boolean));
+      T.eq('each ECG night inherits its timeline t0Ms EXACTLY (the Integrator fusion key)', recs.map(function (r) { return r.t0Ms; }).join(','), tls.map(function (t) { return t.t0Ms; }).join(','));
+      /* Distinct keys, ~1 day apart — ECGDex keys `allRecordings` by floating t0Ms, so two nights
+         colliding on one key would silently overwrite rather than accumulate. */
+      var keys = {};
+      recs.forEach(function (r) { keys[r.t0Ms] = 1; });
+      T.eq('three DISTINCT recording keys — nights accumulate, not overwrite', Object.keys(keys).length, 3);
+      var gaps = [];
+      for (var g = 1; g < tls.length; g++) gaps.push((tls[g].t0Ms - tls[g - 1].t0Ms) / 86400000);
+      T.ok('consecutive nights sit ~1 day apart', gaps.every(function (d) { return d > 0.8 && d < 1.2; }), JSON.stringify(gaps));
+      T.ok('…and the Clock Contract holds — t0Ms is floating ms, read back via getUTC*', tls.every(function (t) { return Number.isFinite(t.t0Ms) && new Date(t.t0Ms).getUTCFullYear() > 2000; }));
+    });
+
     group('FULL-lane waveform fidelity — synthetic → real DSP beat recovery', 'cohort-full · ppgdex-dsp · ecgdex-dsp · cohort-gen', function (T) {
       var SY = env.SYNTH,
         CG = env.CohortGen,
