@@ -10841,6 +10841,114 @@
       T.ok('the series is a sibling of epochs, not a replacement for it', blk === true);
     });
 
+    /* ════ THE `ms;hr;c` EXPORT CONTRACT — the per-second hat's three inputs ═══════════════════════
+     `analysis-stats.js tchSigmasFused(hh, vv, oo, cH, cV, cO)` — the fused-weight artifact-robust hat
+     behind the σ the papers publish — needs three ALIGNED per-second HR series plus a per-corner
+     confidence. Measured on the committed trio corpus before this contract landed:
+
+         0 of 40 committed OxyDex exports carried ANY HR timeseries   (5-min epoch medians + 1 Hz SpO₂)
+         neither beat series carried `conf`                            (only a 0/1 Malik `corrected`)
+
+     So the O2Ring corner was not in the file at all and the hat was un-runnable on committed data at
+     ANY N — not imprecise, absent. It stayed invisible because `tools/tch-multinight.mjs` runs happily
+     on the same exports at 5-min epoch resolution and produces plausible numbers, which is the failure
+     mode this suite keeps finding: machinery that passes without exercising anything.
+
+     These assertions are the contract, and they are deliberately VALUE assertions, not shape ones — a
+     `conf` array of the right length full of 1s would satisfy "the field exists" while carrying no
+     information, and that is precisely the regression worth catching. */
+    group('OxyDex exports the third corner’s HR at 1 Hz (the `ms;hr;c` contract)', 'oxydex-dsp · trio · export-contract', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      var build = OB && OB.oxyBuildSpo2Series;
+      if (typeof build !== 'function') {
+        T.skip('oxyBuildSpo2Series exposed', 'not on the bare surface');
+        return;
+      }
+      var t0 = U(2026, 5, 12, 22, 0, 0);
+      var rows = [];
+      for (var i = 0; i < 10; i++) rows.push({ tMs: t0 + i * 1000, spo2: 90 + i, hr: 60 + i });
+      for (var j = 15; j < 20; j++) rows.push({ tMs: t0 + j * 1000, spo2: 88, hr: 55 });
+
+      var hr = build(rows, t0, 'hr');
+      var sp = build(rows, t0, 'spo2');
+      T.eq('the HR grid spans first to last second inclusive', hr.length, 20);
+      T.eq('HR values land at their own second', hr[0] + '|' + hr[9], '60|69');
+      T.eq('the recording resumes at the right index', hr[15], 55);
+      /* The field selector must actually SELECT. Reading `r.spo2` while labelled `hr` would publish
+         saturation as a heart rate — in band for neither, and silently wrong in the hat. */
+      T.ok('the two grids carry DIFFERENT columns', hr[0] !== sp[0] && hr[9] !== sp[9], hr[0] + ' vs ' + sp[0]);
+      T.eq('a 2-arg call still means spo2 — existing callers are byte-unchanged', JSON.stringify(build(rows, t0)), JSON.stringify(sp));
+
+      // Same absence rule as spo2: a second the device never reported is a HOLE.
+      T.ok('an unreported second is null', hr[10] === null && hr[13] === null, JSON.stringify(hr.slice(10, 15)));
+      T.ok('…NOT zero — a 0 bpm pulse would read as asystole', hr.slice(10, 15).every(function (x) { return x !== 0; }), JSON.stringify(hr.slice(10, 15)));
+      T.ok('…and NOT carried forward — a held rate reads as a steady pulse through a dropout', hr[10] !== 69 && hr[11] !== 69, hr[10] + ',' + hr[11]);
+
+      /* THE ALIGNMENT CLAIM THE DOC MAKES, asserted rather than asserted-in-prose: a consumer is told
+         it may index the two grids together without re-checking. That holds only because parseCSV
+         drops a row unless BOTH columns clear their sanity bands — so it is a property of the parser,
+         and this is where it gets pinned. */
+      T.eq('hr and spo2 grids are the same length', hr.length, sp.length);
+      var holesMatch = true;
+      for (var k = 0; k < hr.length; k++) if ((hr[k] == null) !== (sp[k] == null)) holesMatch = false;
+      T.ok('…and share a hole pattern index-for-index', holesMatch, JSON.stringify({ hr: hr, spo2: sp }));
+
+      // The export block surfaces it as a sibling of spo2, absent (not empty) when unbuildable.
+      var blk = env.OxyDex && typeof env.OxyDex.buildTimeseriesBlock === 'function'
+        ? env.OxyDex.buildTimeseriesBlock([{ tchEpochs: [{ tMin: 0, hr: 60 }], spo2Series: sp, hrSeries: hr }])
+        : null;
+      if (blk) {
+        T.ok('timeseries.hr is emitted beside timeseries.spo2', !!blk.hr && !!blk.spo2, Object.keys(blk).join(','));
+        T.eq('…at 1 Hz', blk.hr && blk.hr.hz, 1);
+        T.eq('…carrying the grid, not a summary of it', blk.hr && blk.hr.n, hr.length);
+        var none = env.OxyDex.buildTimeseriesBlock([{ tchEpochs: [{ tMin: 0, hr: 60 }], spo2Series: sp, hrSeries: null }]);
+        T.ok('an export that cannot build it carries NO hr field, not an empty one', none && none.hr == null, JSON.stringify(none && none.hr));
+      } else {
+        T.skip('timeseries.hr rides the export block', 'OxyDex.buildTimeseriesBlock not on the surface');
+      }
+    });
+
+    group('The beat series carry per-beat fused-hat confidence (the `c` of `ms;hr;c`)', 'ecgdex-dsp · ppgdex-dsp · trio · export-contract', function (T) {
+      /* Driven off the COMMITTED rich goldens — the same artifacts `verify-provenance` GATE B pins and
+         CI re-runs from committed bytes every push, so this cannot go stale unseen. */
+      var pairs = [
+        ['ECGDex', env.equiv && env.equiv.ecgdex_rich && env.equiv.ecgdex_rich.fixture, 'rr', 0.5],
+        ['PpgDex', env.equiv && env.equiv.ppgdex_rich && env.equiv.ppgdex_rich.fixture, 'ppi', 0]
+      ];
+      var ran = 0;
+      for (var i = 0; i < pairs.length; i++) {
+        var node = pairs[i][0], fx = pairs[i][1], key = pairs[i][2], floor = pairs[i][3];
+        if (!fx || !fx.timeseries || !fx.timeseries[key]) {
+          T.skip(node + ' rich golden carries timeseries.' + key, 'fixture not wired into env.fixtures');
+          continue;
+        }
+        ran++;
+        var b = fx.timeseries[key];
+        T.ok(node + ' · timeseries.' + key + '.conf is present', Array.isArray(b.conf), JSON.stringify(b.conf && b.conf.slice(0, 3)));
+        if (!Array.isArray(b.conf)) continue;
+        /* ALIGNMENT IS THE WHOLE CONTRACT. A conf array one element off silently mis-weights every
+           beat after the offset — the exact class of bug the `nnCorrected` twin exists to prevent. */
+        T.eq(node + ' · conf is aligned with ms beat-for-beat', b.conf.length, b.ms.length);
+        T.eq(node + ' · …and with tSec', b.conf.length, b.tSec.length);
+        var inBand = b.conf.every(function (c) { return typeof c === 'number' && c >= floor && c <= 1; });
+        T.ok(node + ' · every value is a number in [' + floor + ', 1]', inBand, JSON.stringify(b.conf.filter(function (c) { return !(typeof c === 'number' && c >= floor && c <= 1); }).slice(0, 5)));
+      }
+      /* ECGDex's floor is 0.5 BY CONSTRUCTION and that is a real distinction from PpgDex, not a
+         tolerance: the node DROPS a beat below 0.5 rather than down-weighting it, so a surviving beat
+         cannot be under it. PpgDex ships its full spine and lets the consumer weight — hence floor 0. */
+      var e = env.equiv && env.equiv.ecgdex_rich && env.equiv.ecgdex_rich.fixture;
+      if (e && e.timeseries && e.timeseries.rr && Array.isArray(e.timeseries.rr.conf)) {
+        var lo = Math.min.apply(null, e.timeseries.rr.conf);
+        T.ok('ECGDex · no surviving beat sits below the 0.5 drop threshold', lo >= 0.5, 'min=' + lo);
+        /* …and the series is not a constant. A `conf` of all-1s would pass every assertion above while
+           carrying no information at all — which is what shipping the field without computing it
+           would look like. This golden's record dips to ~0.95 mid-record, so the variation is real. */
+        var hi = Math.max.apply(null, e.timeseries.rr.conf);
+        T.ok('ECGDex · conf VARIES across the record — it is measured, not stamped', hi > lo, 'min=' + lo + ' max=' + hi);
+      }
+      if (!ran) T.skip('per-beat confidence contract', 'neither rich golden reachable');
+    });
+
     /* ════ THE PHYSIOLOGICAL SANITY FILTER, FOUND UNTESTED BY `tools/mutate.mjs` ════════════════
      `oxydex-dsp.js` drops any parsed row outside a plausible range:
 

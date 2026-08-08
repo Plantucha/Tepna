@@ -4,7 +4,14 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living — the forward papers agenda; candidates flip to DONE in the tables as they ship) · **last-verified:** 2026-08-04 · **Created:** 2026-06-24
+**Status:** REFERENCE (living — the forward papers agenda; candidates flip to DONE in the tables as they ship) · **last-verified:** 2026-08-08 · **Created:** 2026-06-24
+
+> **2026-08-08 — a fourth wall for §2.2, and a caution on §2.8.** The `ms;hr;c` export contract made the
+> papers' own fused-weight three-cornered hat runnable from a committed artifact for the first time
+> (`tools/tch-fused-corpus.mjs`). Two things fell out, both belonging on this agenda: the
+> **"artifact-robust" qualifier is doing almost no work** (§2.2 wall 4 below), and **`sigma-no-reference`'s
+> published Verity/H10 σ do not reproduce** — which is a caution on §2.8, since that candidate builds on
+> the same estimator. Details in `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`'s 2026-08-08 banner.
 
 > **Agenda updated 2026-08-04** — three measured negatives added to §2.2's wall list (PAT/PTT,
 > the self-referential coupling statistic, the REM stability detector); **new candidate §2.8** (the
@@ -129,6 +136,22 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
     selects the most physiologically *stable* epochs — **zero** desaturations fell in selected epochs
     across 41 nights — and REM is the *least* stable stage (`REM-STAGING-FOLLOWUPS` §3). A future REM
     feature must be arousal- or irregularity-linked; stability proxies are a priori wrong.
+  - **The fused-weight hat is barely more robust than the plain one — measured, not argued.** The
+    σ-papers attribute their headline numbers to a *"fused-weight artifact-robust hat"* (per-second,
+    per-corner confidence `c` driving a weighted-variance TCH). Run against the unweighted hat on the
+    same 17 box-captured nights, through the same code path, the two differ by **≤0.12 bpm on every
+    corner** (O2Ring 2.99 vs 3.03 · H10 1.78 vs 1.67 · Verity 3.51 vs 3.59). The weighting is not
+    wrong; it is *redundant here*, because the artifact rejection already happened upstream — ECGDex
+    **drops** beats below c=0.5 rather than down-weighting them, so the surviving series spans only
+    [0.5, 1] and is mostly ~1. A qualifier that names the estimator's chief virtue while contributing
+    less than the rounding of its own CI is exactly this section's subject matter.
+  - **…and the σ it is a qualifier on does not reproduce.** Two independent re-derivations put **Verity
+    noisiest** (3.51 / 3.17 bpm) where `sigma-no-reference` publishes it nearly quietest (**1.42**), and
+    H10 at 1.78 / 1.74 against a published **1.28**. The doubling discriminator is clean on every night,
+    so this is real beat-to-beat spread, not mis-detection. **⚠ This bears directly on §2.8**, whose
+    ρ_crit ≈ 0.422 boundary is computed from these same corner σ: a boundary is only as identifiable as
+    the variances feeding it, so §2.8 must not be written until the discrepancy is explained.
+
 - **⚠️ Honesty constraint this candidate must carry.** The PAT wall's harness does **not** reproduce the
   parent brief's `matchRate` (24–42 % vs 90–96 % on the same six nights) and that is unreconciled. The
   *mechanism* (PTT variability) is solid; the *coupling number* is not publishable yet. **Write the wall,

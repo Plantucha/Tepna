@@ -2857,6 +2857,29 @@
     const { rr, tt } = footSpineOK ? _ppiFoot : _ppiPeak;
     const corr = footSpineOK ? _corrFoot : _corrPeak;
     const nn = corr.nn;
+    /* PER-BEAT FUSED-HAT CONFIDENCE for the emitted spine (TRIO-ARTIFACT-GATE — the `ms;hr;c` corpus).
+       `beatConfidence` keys by ABSOLUTE second via `peaks[k]/fs`, so beat TIMES are handed back as
+       pseudo-sample indices (`round(sec*fs)`) — the same conversion `sensor-trio-worker.js` does, and
+       necessary because `rec.relSec` is not a uniform i/fs grid once a stream has gaps.
+       ⚠ ONE DELIBERATE DIVERGENCE FROM THE WORKER, stated because it moves published numbers slightly:
+       the worker re-derived its own SQI at FEET with no motion gate (`beatSQI(bp, cons.feet, fs, null,
+       agree)`) because the export gave it nothing to read. This uses the node's OWN authoritative
+       per-beat `sqi` — motion-gated, cadence-corroborated on single-channel — which is the number this
+       node stands behind. `beatConfidence` normalises against the record's own median SQI, so a
+       constant offset between the two largely cancels; the residual difference is real and is why the
+       re-fitted σ is not expected to reproduce the old figure to the last decimal. */
+    const _confSpine = footSpineOK ? footSec : peakSec;
+    const _pConfMap = beatConfidence(
+      _confSpine.map((s) => Math.round(s * rec.fs)),
+      sqi,
+      rec.fs,
+      rec.t0Ms || 0
+    );
+    const _t0 = rec.t0Ms || 0;
+    const ppiConf = corr.tt.map((s) => {
+      const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));
+      return Number.isFinite(c) ? +c.toFixed(3) : 1;
+    });
     // OXYDEX-PULSE-RESOURCING §Phase 4: whole-record CVHR from the corrected NN series (autonomic
     // apnea correlate). Emitted for every PPG record; the Integrator only corroborates the FINGER one
     // (the O2Ring's own pleth) against ECGDex cardiac CVHR. index = events/hour (0 = none detected).
@@ -3239,6 +3262,8 @@
       tt: corr.tt,
       // Aligned with nn/tt: correctRR returns flags for exactly the series it emitted.
       ppiFlags: corr.flags,
+      // Aligned with nn/tt the same way — the fused-hat per-beat weight (see the block above).
+      ppiConf,
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,
@@ -3922,7 +3947,16 @@
               ? Array.prototype.map.call(r.ppiFlags, function (f) {
                   return f ? 1 : 0;
                 })
-              : null
+              : null,
+          /* HOW MUCH TO TRUST EACH BEAT — the fused-weight hat's `c` (TCH-FUSED-ROBUST-HAT).
+             density × SQI vs the record's own medians, AF-safe; low only where beat-density is an
+             upper outlier AND SQI is depressed — i.e. residual optical over-detection (the dicrotic
+             notch counted as a second beat), which on this corpus is the dominant Verity failure.
+             Distinct from `corrected` (an interpolation FLAG) and from epochs[].sqi (a 5-min mean):
+             this is the per-beat weight `analysis-stats.js tchSigmasFused` multiplies in. Unlike
+             ECGDex's twin, NO beat is dropped on this value here — the full spine ships and the
+             consumer weights it, so a low-c stretch stays visible rather than becoming a silent gap. */
+          conf: r.ppiConf && r.ppiConf.length === r.nn.length ? r.ppiConf.slice() : null
         };
       }
     }

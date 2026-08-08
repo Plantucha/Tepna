@@ -1,4 +1,87 @@
-**Status:** PROPOSED (blocked — but **not in the way the previous header implied**; re-verified 2026-08-04) · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** PROPOSED (**the re-fit is now RUNNABLE and has been RUN — and it does not reproduce the paper's Verity/H10 σ**; the blocker below was misdiagnosed, see the 2026-08-08 banner) · **Created:** (undated — pre-2026-07-03, grandfathered)
+
+> ## ⚠️ 2026-08-08 — the blocker was STRUCTURAL, not a sample-size problem, and it is now fixed
+>
+> Both this brief and `TRIO-ARTIFACT-GATE` framed the re-fit as blocked on **N** (10 → 15), with
+> `TRIO-ARTIFACT-GATE`'s 2026-08-04 header going further: *"NOT data-blocked, and never was — 25
+> committed nights against a target of 15."* **That is true of `tools/tch-multinight.mjs` and false of
+> the estimator this paper actually publishes**, and the difference is not one of degree:
+>
+> | | needs | committed corpus carried |
+> |---|---|---|
+> | `tch-multinight` classic/ρ-on | 5-min `epochs[].hr` × 3 | ✅ — runs fine, always did |
+> | **the paper's fused-weight hat** | per-second HR × 3 **+ per-corner `c`** | ❌ **0 of 40 OxyDex exports carried ANY HR timeseries** |
+>
+> The O2Ring corner was **not in the file** — `timeseries` held 5-min epoch medians and 1 Hz SpO₂ and
+> nothing else — and neither beat series carried `c` (only a 0/1 Malik `corrected` flag). So the fused
+> hat was un-runnable on committed data **at any N**; no number of extra nights would have unblocked
+> it. It stayed invisible for the reason this repo keeps finding: the *other* estimator runs happily on
+> the same exports and returns plausible numbers, so every gate was green.
+>
+> **Fixed** by the additive `ms;hr;c` export contract (`OxyDex timeseries.hr` 1 Hz · `ECGDex
+> timeseries.rr.conf` · `PpgDex timeseries.ppi.conf` — both nodes already *computed* the confidence and
+> discarded it). New consumer: **`node tools/tch-fused-corpus.mjs --dir <corpus>`**, which solves each
+> night twice (fused vs unweighted) and **refuses by name** when a corner is absent rather than
+> silently falling back to c=1.
+>
+> ### The re-fit, run — N = 17, box-captured, host-axis corrected
+>
+> ```
+> corpus σ (median [IQR] over nights, bpm)          fused             unweighted
+>   O2Ring    (OxyDex)                          2.99 [2.73–3.37]   3.03 [2.85–3.53]
+>   Polar H10 (ECGDex)                          1.78 [1.61–2.04]   1.67 [1.58–1.98]
+>   Verity    (PpgDex)                          3.51 [2.72–4.97]   3.59 [2.93–4.95]
+> ```
+>
+> **Three results, and only the first is comfortable:**
+>
+> 1. **The O2Ring corner lands near the published 2.41** — 2.99 here, and 2.45 on an independent
+>    25-night derivation from the other capture tree.
+> 2. **Verity and H10 are NOT reproduced.** The paper publishes Verity **1.42** [0.96–1.88] and H10
+>    **1.28**; two independent derivations give Verity **3.51 / 3.17** and H10 **1.78 / 1.74**. The
+>    paper's ordering (O2Ring noisiest, Verity nearly quietest) **inverts** — both derivations put
+>    **Verity noisiest**. The doubling discriminator is clean on every night (Verity∶H10 median-HR
+>    ratio 0.94–1.04), so this is not mis-detection inflating σ; it is the real beat-to-beat spread.
+>    The likeliest cause is the one `TRIO-ARTIFACT-GATE` §2 already named — *"Verity's CI was optimistic
+>    because a quality gate had been censoring the hard nights"* — and this is that finding reproduced
+>    on the full corpus with a committed-artifact tool. **Do not swap these numbers into the paper
+>    yet**: a σ that moves 2.5× on re-derivation needs its discrepancy explained, not published.
+> 3. **The fused weighting barely matters on this corpus** — fused vs unweighted differ by ≤0.12 bpm on
+>    every corner. Most artifact rejection already happened upstream, where ECGDex *drops* beats below
+>    c=0.5 rather than down-weighting them. The "artifact-robust" qualifier is doing far less work than
+>    its name implies — a measured negative worth carrying into `PAPERS-ROADMAP` §2.2's wall list.
+>
+> ### ⚠️ A provenance trap that cost this pass an hour — `Ecg nightly` is PHONE-captured
+>
+> `TRIO-ARTIFACT-GATE`'s 2026-08-04 note says the `Ecg nightly` fold **"REPRODUCED the committed
+> corpus."** It reproduced the *dates and the σ magnitudes*; it did **not** reproduce the timing
+> provenance, and nothing surfaced that:
+>
+> ```
+> committed uploads/trio  PpgDex quality.timingSource:  device+host ×25   (box — a real second clock)
+> re-derived from "Ecg nightly":                        device      ×25   (phone — no second clock)
+> raw check: DexClock.hostAxis(…).spreadMs = 1.000, independent = false
+> ```
+>
+> 1.000 ms is the exact top of `CLAUDE.md` §7's phone band (0.13–1.00 ms) against the box's
+> 101.89–5124 ms — the host column is the device stamp *rounded*, which §7 calls "the absence of a
+> measurement wearing the shape of one." Commit order rules out a code explanation (the corpus landed
+> in #773 at 19:26, the `independent` check in #746 at 10:01 the same day). **So `Ecg nightly` and the
+> committed corpus are different capture trees, and re-deriving one from the other silently downgrades
+> the provenance tier.** The N=17 figures above are therefore taken from the **box** tree
+> (`/home/michal/tepna-smoketest/captures`, `device+host` ×17, 3-source closure consistent).
+>
+> ### What is owed next (and what is deliberately NOT done here)
+>
+> - **The corpus is NOT committed.** `uploads/*` is gitignored with per-file `!` opt-ins under a header
+>   framing it as real biosignal data "chosen for publication"; this corpus is **57 MB of one person's
+>   per-second overnight HR**, so adding it under a negation rule is an owner decision about repo weight
+>   and publication, not a mechanical step. Regenerate in two commands:
+>   `node tools/trio-batch.mjs --src /home/michal/tepna-smoketest/captures --out <dir>` then
+>   `node tools/tch-fused-corpus.mjs --dir <dir>`.
+> - **Explain the Verity gap before re-seeding the sim.** The planted σ stays at 2.7 / 1.9 / 1.9.
+> - The June → July-13 committed nights **cannot** be upgraded to `ms;hr;c` — their box raw is not on
+>   this machine.
 
 > **⚠️ "Do not start the paper" was misleading — the paper ALREADY SHIPS, and has since June 2026.**
 > The previous header read as though nothing existed yet; a reader following it would have set out to
