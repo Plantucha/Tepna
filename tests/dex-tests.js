@@ -5935,6 +5935,168 @@
       });
     });
 
+    /* loadOwnExport — the SELF-INGEST reload path: it decides whether a dropped file is one of ours,
+       whose it is if not, and how many recordings it carries. 22 surviving mutants, and probing them
+       (original vs mutant in separate realms, 27-input battery) found **17 distinguishable** — 77 %,
+       against 29 % for `lombScargle` and 26 % for `parsePPG`.
+
+       That difference is the useful part: this is a VALIDATION/DISPATCH routine, almost entirely
+       branches on input shape, so nearly every boolean mutation is observable. The equivalent-mutant
+       share is a property of what a function DOES, not a constant of the file — which corrects the
+       "~27 % across ppgdex" reading of the earlier probe.
+
+       ⚠ THE FIRST RUN OF THAT PROBE REPORTED 0 OF 22. It was reading `PPGDSP.loadOwnExport`, which is
+       undefined — the function hangs off `PpgDex`, not `PPGDSP` — so every case threw the identical
+       "not a function" and original matched mutant BY CONSTRUCTION. A probe that never runs the
+       subject is indistinguishable from one that finds everything equivalent. That is why the group
+       below asserts distinct outcomes per case rather than only "did it change". */
+    group('PpgDex loadOwnExport — whose export is this, and how many nights', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var P = env.PpgDex || env.PPGDSP;
+      if (!P || typeof P.loadOwnExport !== 'function') {
+        T.skip('PpgDex.loadOwnExport available', 'PpgDex not co-loaded in this runner');
+        return;
+      }
+      var ne = function (o) {
+        var j = { schema: { name: 'ganglior.node-export', node: 'PpgDex' } };
+        for (var k in o) j[k] = o[k];
+        return j;
+      };
+      var L = function (j) { return P.loadOwnExport(j); };
+
+      // ── NOT OURS AT ALL ───────────────────────────────────────────────────────────────────────
+      T.eq('null is refused as not-node-export', (L(null) || {}).reason, 'not-node-export');
+      T.eq('…so is a foreign schema name', (L({ schema: { name: 'other', node: 'PpgDex' } }) || {}).reason, 'not-node-export');
+      T.eq('…and a bare object with no schema', (L({}) || {}).reason, 'not-node-export');
+      T.eq('…and a number', (L(42) || {}).reason, 'not-node-export');
+
+      // ── OURS, BUT SOMEONE ELSE'S NODE ─────────────────────────────────────────────────────────
+      /* The distinction that matters to a user: "this is not a Dex export" vs "this is a Dex export
+         for a DIFFERENT node, open it there". Collapsing the two loses the actionable half. */
+      var foreign = L({ schema: { name: 'ganglior.node-export', node: 'OxyDex' } });
+      T.eq('an OxyDex export is foreign-node, NOT not-node-export', foreign && foreign.reason, 'foreign-node');
+      T.eq('…and it names the node so the message can point somewhere', foreign && foreign.node, 'OxyDex');
+      T.eq('an EMPTY node string is also foreign, not silently accepted', (L({ schema: { name: 'ganglior.node-export', node: '' } }) || {}).reason, 'foreign-node');
+
+      // ── OURS ──────────────────────────────────────────────────────────────────────────────────
+      var one = L(ne({ summary: { n: 1 } }));
+      T.ok('a PpgDex export loads', one && one.ok === true, JSON.stringify(one && one.reason));
+      T.eq('…in review mode', one && one.reviewMode, true);
+      T.eq('…as a single element when there is no sessions carrier', one && one.elements.length, 1);
+      T.eq('…and is not multi-night', one && one.multiNight, false);
+      /* A padded node name must be trimmed, not rejected — real exports have carried whitespace. */
+      T.ok('a node name with surrounding whitespace is trimmed, not rejected', (L({ schema: { name: 'ganglior.node-export', node: '  PpgDex  ' } }) || {}).ok === true, 'rejected a padded node');
+
+      // ── THE SESSIONS CARRIER ──────────────────────────────────────────────────────────────────
+      var three = L(ne({ sessions: [{ a: 1 }, { a: 2 }, { a: 3 }] }));
+      T.eq('three sessions load as three elements', three && three.elements.length, 3);
+      T.eq('…and THAT is what makes it multi-night', three && three.multiNight, true);
+      T.eq('an empty sessions array loads zero elements', (L(ne({ sessions: [] })) || {}).elements.length, 0);
+      T.eq('…and zero is not multi-night', (L(ne({ sessions: [] })) || {}).multiNight, false);
+      /* A non-array `sessions` must fall back to treating the whole object as one recording, rather
+         than iterating a non-array and producing nothing. */
+      T.eq('a non-array sessions falls back to a single element', (L(ne({ sessions: { a: 1 } })) || {}).elements.length, 1);
+
+      // ── PASS-THROUGHS ─────────────────────────────────────────────────────────────────────────
+      T.eq('crossNight is carried through', JSON.stringify((L(ne({ crossNight: { nights: 2 }, sessions: [{ a: 1 }] })) || {}).crossNight), '{"nights":2}');
+      T.eq('…and is null when absent, not undefined', (L(ne({ sessions: [{ a: 1 }] })) || {}).crossNight, null);
+      T.eq('scrubbed is read off the schema', (L({ schema: { name: 'ganglior.node-export', node: 'PpgDex', scrubbed: true }, sessions: [{ a: 1 }] }) || {}).scrubbed, true);
+      T.eq('…and defaults to false', (L(ne({ sessions: [{ a: 1 }] })) || {}).scrubbed, false);
+      /* Elements are DEEP-COPIED and stamped, so a reload cannot alias the caller's object. */
+      var src = { a: 1 }, loaded = L(ne({ sessions: [src] }));
+      T.eq('elements are stamped _fromExport', loaded && loaded.elements[0]._fromExport, true);
+      T.ok('…and are a COPY, so the caller\'s object is not mutated', src._fromExport === undefined, 'caller object was stamped in place');
+
+      /* ── THE USER-FACING MESSAGE, which is the actionable half of a refusal ────────────────────
+         `(node || 'non-PpgDex')` mutated to `&&` still refuses the file — `ok` and `reason` are
+         unchanged — but the message stops naming the node and tells the user to open it in
+         "its own node". The refusal survives; its usefulness does not. Nothing above could see that,
+         because none of it read the string a person actually gets. */
+      T.eq('a foreign export NAMES the node in its message', foreign && foreign.message, 'This is a OxyDex export \u2014 open it in OxyDex, or drop it into the Integrator to fuse.');
+      T.eq('…and an unnameable node degrades to a generic message, not a broken one', (L({ schema: { name: 'ganglior.node-export', node: '' } }) || {}).message, 'This is a non-PpgDex export \u2014 open it in its own node, or drop it into the Integrator to fuse.');
+      T.ok('a not-node-export message says what to drop instead', /Polar Verity \*_PPG\.txt/.test((L(null) || {}).message || ''), JSON.stringify((L(null) || {}).message));
+
+      /* ── THE FIELD FALLBACK CHAIN: session first, then top level, then null ────────────────────
+         Every one of `recording`/`hrv`/`quality`/`personalization` is read as
+         `(carrier[0] && carrier[0].X) || json.X || null`. Three distinct outcomes, and only an export
+         carrying the field in BOTH places can tell the precedence from its mutants. */
+      var sess = L(ne({ sessions: [{ hrv: { from: 'session' }, recording: { from: 's' } }], hrv: { from: 'top' }, recording: { from: 't' } }));
+      T.eq('hrv prefers the SESSION value over the top-level one', JSON.stringify(sess && sess.hrv), '{"from":"session"}');
+      T.eq('…and so does recording', JSON.stringify(sess && sess.recording), '{"from":"s"}');
+      var topOnly = L(ne({ sessions: [{ a: 1 }], hrv: { from: 'top' }, quality: { q: 9 }, personalization: { p: 1 } }));
+      T.eq('…falling back to the TOP-LEVEL value when the session lacks it', JSON.stringify(topOnly && topOnly.hrv), '{"from":"top"}');
+      T.eq('…quality falls back the same way', JSON.stringify(topOnly && topOnly.quality), '{"q":9}');
+      T.eq('…and personalization too', JSON.stringify(topOnly && topOnly.personalization), '{"p":1}');
+      var neither = L(ne({ sessions: [{ a: 1 }] }));
+      T.eq('…and null when neither carries it', neither && neither.hrv, null);
+      T.eq('…null, not undefined, for quality', neither && neither.quality, null);
+      T.eq('…and for personalization', neither && neither.personalization, null);
+      T.eq('kernel is read off the top level', JSON.stringify((L(ne({ kernel: { VERSION: 3 }, sessions: [{ a: 1 }] })) || {}).kernel), '{"VERSION":3}');
+      T.eq('derivedFrom is read off the SCHEMA, not the body', (L({ schema: { name: 'ganglior.node-export', node: 'PpgDex', derivedFrom: 'raw-ppg' }, sessions: [{ a: 1 }] }) || {}).derivedFrom, 'raw-ppg');
+      T.eq('…and is null when the schema omits it', neither && neither.derivedFrom, null);
+    });
+
+    /* parsePPG — 38 surviving mutants across its 348 lines. Probing them (original vs mutant in
+       separate realms, 68-input battery) found 10 with a distinguishing input; these assertions are
+       aimed at those, by the input the probe actually reported rather than by guessing.
+
+       ONE PROBE RESULT WAS DISCARDED AS AN ARTEFACT: `L439`'s mutant differed only by throwing
+       "DexClock is not defined", because the probe realm has no co-loaded clock while the suite does.
+       That is my harness leaking into the classification, not a behaviour of the code, so it is not
+       asserted here. Recorded because a probe realm is not the suite realm, and a difference caused
+       by the probe is not evidence about the subject. */
+    group('PpgDex parsePPG — the boundaries a real file crosses', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var P = env.PPGDSP || env.PpgDex;
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PpgDex.parsePPG available', 'PPGDSP not co-loaded in this runner');
+        return;
+      }
+      var HDR6 = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient';
+      var HDR3 = 'Phone timestamp;sensor timestamp [ns];channel 0';
+      var iso = function (ms) { return new Date(ms).toISOString().replace('Z', ''); };
+      var mk = function (n, cols, hdr) {
+        var L = [], start = Date.UTC(2026, 5, 21, 6, 5, 23), fs = 135;
+        if (hdr) L.push(cols === 6 ? HDR6 : HDR3);
+        for (var i = 0; i < n; i++) {
+          var ms = start + Math.round((i * 1000) / fs);
+          var ns = String(i * Math.round(1e9 / fs));
+          var v = 200000 + Math.round(3000 * Math.sin((2 * Math.PI * 1.1 * i) / fs));
+          L.push(cols === 6 ? iso(ms) + ';' + ns + ';' + v + ';' + (v + 11) + ';' + (v + 22) + ';' + (v + 33) : iso(ms) + ';' + ns + ';' + v);
+        }
+        return L.join('\n');
+      };
+      var tryParse = function (txt) {
+        try { return { ok: true, r: P.parsePPG(txt) }; } catch (e) { return { ok: false, msg: e.message }; }
+      };
+
+      /* A HEADERLESS file must still parse — the layout is resolved per-row from the tail. This is a
+         real Polar Sensor Logger case (a file whose header line was trimmed), and the mutant that
+         breaks it turns the whole file into "No PPG samples parsed". */
+      var noHdr = tryParse(mk(10, 6, false));
+      T.ok('a headerless 6-column file parses via per-row tail resolution', noHdr.ok, noHdr.msg);
+      T.eq('…and yields all three optical channels', noHdr.ok && noHdr.r.ch.length, 3);
+
+      /* The row-count floor, from BOTH sides. n=10 is the documented minimum; n=9 must be refused.
+         Only a test at exactly 10 can tell `n < 10` from `n <= 10`. */
+      var at10 = tryParse(mk(10, 3, true));
+      T.ok('exactly 10 samples parses — the floor is inclusive', at10.ok, at10.msg);
+      var at9 = tryParse(mk(9, 3, true));
+      T.ok('…and 9 samples is refused, so the floor is real', !at9.ok, 'parsed ' + (at9.ok && at9.r.n) + ' rows');
+
+      /* An EMPTY file must refuse, not fabricate. The mutant returns a record with n=0 and a NEGATIVE
+         duration — a shape no consumer checks for, which is exactly why it must not be produced. */
+      var empty = tryParse(HDR3 + '\n');
+      T.ok('a header-only file is REFUSED, not returned as an empty recording', !empty.ok, 'got n=' + (empty.ok && empty.r.n) + ' durSec=' + (empty.ok && empty.r.durSec));
+
+      /* fs is DERIVED from the host timestamps and must be a positive rate; the mutant zeroes the
+         divisor and produces fs=0 with every relSec null — a recording that exists but has no time. */
+      T.ok('fs is derived as a positive sample rate', at10.ok && at10.r.fs > 0 && isFinite(at10.r.fs), 'fs ' + (at10.ok && at10.r.fs));
+      T.ok('…and every relSec is finite, not null', at10.ok && at10.r.relSec.every(function (x) { return typeof x === 'number' && isFinite(x); }), JSON.stringify(at10.ok && at10.r.relSec.slice(0, 3)));
+      T.ok('…and relSec is strictly increasing', at10.ok && at10.r.relSec.every(function (x, i, a) { return i === 0 || x > a[i - 1]; }), JSON.stringify(at10.ok && at10.r.relSec.slice(0, 4)));
+      /* relSec spacing must reflect the DERIVED fs, not a rounded nominal one. Two mutants change
+         only this precision (0.0074443… vs 0.0074074…), which no coarse assertion can see. */
+      T.approx('…and the sample spacing equals 1/fs', at10.ok && at10.r.relSec[1] - at10.r.relSec[0], at10.ok && 1 / at10.r.fs, 1e-9);
+    });
+
     /* PpgDex's lombScargle is 129 lines producing every frequency-domain metric the node ships —
        and a full mutation sweep left 21 survivors in it. The suite calls it exactly ONCE, and the only
        numeric lombScargle test in this file is ECGDSP's; PpgDex's own is checked by SOURCE REGEX
@@ -6041,6 +6203,34 @@
       T.ok('a 0.01 Hz drift puts real power in VLF', slow && slow.vlf > 0, 'vlf ' + (slow && slow.vlf));
       T.ok('…and VLF is excluded from the LF/HF normalisation (lfnu+hfnu still 100)', slow && Math.abs(slow.lfnu + slow.hfnu - 100) <= 1, 'lfnu ' + (slow && slow.lfnu) + ' hfnu ' + (slow && slow.hfnu));
       T.approx('…and totalPower still accounts for it', slow && slow.totalPower, slow && slow.vlf + slow.lf + slow.hf, 1e-9);
+
+      /* ── THE DEGENERATE MINIMUM, which is where the rest of the killable mutants live ──────────
+         Aimed, not guessed: each survivor was probed for a distinguishing input by loading original
+         and mutant in separate realms and diffing a 960-input battery, and all three below were
+         separated by the SAME shape — eight samples with no oscillation at all. A flat signal is the
+         one input that makes "there is no peak" and "there is no power" observable, and every
+         physiologically plausible series hides both. */
+      var f8b = flat(8);
+      var z = P.lombScargle(f8b.tt, f8b.nn);
+      T.eq('a FLAT 8-beat series reports zero power, not null', z && z.totalPower, 0);
+      T.eq('…vlf/lf/hf are each exactly 0', JSON.stringify(z && [z.vlf, z.lf, z.hf]), '[0,0,0]');
+      T.eq('…respRate is null: no oscillation means no HF peak to report', z && z.respRate, null);
+      T.eq('…and no method is claimed for a rate that does not exist', z && z.respRateMethod, null);
+      T.eq('…lfhf/lfnu/hfnu are null, not 0 — a ratio of nothing is undefined, not zero', JSON.stringify(z && [z.lfhf, z.lfnu, z.hfnu]), '[null,null,null]');
+
+      /* THE VLF LOWER BOUND IS INCLUSIVE, and only a component sitting exactly ON it can show that.
+         `f >= bands.vlf[0]` mutated to `f >` drops the bin at exactly 0.003 Hz. A first attempt
+         asserted `vlf > 1000` on a 0.0401 Hz series, where the same mutant costs one unit out of
+         3910 — true, and far too loose to notice. At 0.003 Hz it costs 245 → 179, a 27 % gap.
+         Recorded because the difference between the two assertions is the whole lesson: a mutant is
+         killed by an input that MAGNIFIES it, not merely by one that reaches it. */
+      var vlow = (function () {
+        var tt = [], nn = [], t = 0;
+        for (var i = 0; i < 300; i++) { var rr = 1000 + 40 * Math.sin(2 * Math.PI * 0.003 * t); nn.push(rr); tt.push(t); t += rr / 1000; }
+        return P.lombScargle(tt, nn);
+      })();
+      T.ok('a component exactly ON the VLF lower bound (0.003 Hz) is counted in VLF', vlow && vlow.vlf >= 230, 'vlf ' + (vlow && vlow.vlf) + ' — an exclusive bound gives ~179');
+      T.approx('…and that VLF power reaches totalPower', vlow && vlow.totalPower, vlow && vlow.vlf + vlow.lf + vlow.hf, 1e-9);
     });
 
     group('ECGDSP frequency-domain HRV — LF/HF band split known-answer (deep-scout §EP)', 'ecgdex-dsp · spectral · known-answer', function (T) {
