@@ -5935,6 +5935,106 @@
       });
     });
 
+    /* loadOwnExport — the SELF-INGEST reload path: it decides whether a dropped file is one of ours,
+       whose it is if not, and how many recordings it carries. 22 surviving mutants, and probing them
+       (original vs mutant in separate realms, 27-input battery) found **17 distinguishable** — 77 %,
+       against 29 % for `lombScargle` and 26 % for `parsePPG`.
+
+       That difference is the useful part: this is a VALIDATION/DISPATCH routine, almost entirely
+       branches on input shape, so nearly every boolean mutation is observable. The equivalent-mutant
+       share is a property of what a function DOES, not a constant of the file — which corrects the
+       "~27 % across ppgdex" reading of the earlier probe.
+
+       ⚠ THE FIRST RUN OF THAT PROBE REPORTED 0 OF 22. It was reading `PPGDSP.loadOwnExport`, which is
+       undefined — the function hangs off `PpgDex`, not `PPGDSP` — so every case threw the identical
+       "not a function" and original matched mutant BY CONSTRUCTION. A probe that never runs the
+       subject is indistinguishable from one that finds everything equivalent. That is why the group
+       below asserts distinct outcomes per case rather than only "did it change". */
+    group('PpgDex loadOwnExport — whose export is this, and how many nights', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var P = env.PpgDex || env.PPGDSP;
+      if (!P || typeof P.loadOwnExport !== 'function') {
+        T.skip('PpgDex.loadOwnExport available', 'PpgDex not co-loaded in this runner');
+        return;
+      }
+      var ne = function (o) {
+        var j = { schema: { name: 'ganglior.node-export', node: 'PpgDex' } };
+        for (var k in o) j[k] = o[k];
+        return j;
+      };
+      var L = function (j) { return P.loadOwnExport(j); };
+
+      // ── NOT OURS AT ALL ───────────────────────────────────────────────────────────────────────
+      T.eq('null is refused as not-node-export', (L(null) || {}).reason, 'not-node-export');
+      T.eq('…so is a foreign schema name', (L({ schema: { name: 'other', node: 'PpgDex' } }) || {}).reason, 'not-node-export');
+      T.eq('…and a bare object with no schema', (L({}) || {}).reason, 'not-node-export');
+      T.eq('…and a number', (L(42) || {}).reason, 'not-node-export');
+
+      // ── OURS, BUT SOMEONE ELSE'S NODE ─────────────────────────────────────────────────────────
+      /* The distinction that matters to a user: "this is not a Dex export" vs "this is a Dex export
+         for a DIFFERENT node, open it there". Collapsing the two loses the actionable half. */
+      var foreign = L({ schema: { name: 'ganglior.node-export', node: 'OxyDex' } });
+      T.eq('an OxyDex export is foreign-node, NOT not-node-export', foreign && foreign.reason, 'foreign-node');
+      T.eq('…and it names the node so the message can point somewhere', foreign && foreign.node, 'OxyDex');
+      T.eq('an EMPTY node string is also foreign, not silently accepted', (L({ schema: { name: 'ganglior.node-export', node: '' } }) || {}).reason, 'foreign-node');
+
+      // ── OURS ──────────────────────────────────────────────────────────────────────────────────
+      var one = L(ne({ summary: { n: 1 } }));
+      T.ok('a PpgDex export loads', one && one.ok === true, JSON.stringify(one && one.reason));
+      T.eq('…in review mode', one && one.reviewMode, true);
+      T.eq('…as a single element when there is no sessions carrier', one && one.elements.length, 1);
+      T.eq('…and is not multi-night', one && one.multiNight, false);
+      /* A padded node name must be trimmed, not rejected — real exports have carried whitespace. */
+      T.ok('a node name with surrounding whitespace is trimmed, not rejected', (L({ schema: { name: 'ganglior.node-export', node: '  PpgDex  ' } }) || {}).ok === true, 'rejected a padded node');
+
+      // ── THE SESSIONS CARRIER ──────────────────────────────────────────────────────────────────
+      var three = L(ne({ sessions: [{ a: 1 }, { a: 2 }, { a: 3 }] }));
+      T.eq('three sessions load as three elements', three && three.elements.length, 3);
+      T.eq('…and THAT is what makes it multi-night', three && three.multiNight, true);
+      T.eq('an empty sessions array loads zero elements', (L(ne({ sessions: [] })) || {}).elements.length, 0);
+      T.eq('…and zero is not multi-night', (L(ne({ sessions: [] })) || {}).multiNight, false);
+      /* A non-array `sessions` must fall back to treating the whole object as one recording, rather
+         than iterating a non-array and producing nothing. */
+      T.eq('a non-array sessions falls back to a single element', (L(ne({ sessions: { a: 1 } })) || {}).elements.length, 1);
+
+      // ── PASS-THROUGHS ─────────────────────────────────────────────────────────────────────────
+      T.eq('crossNight is carried through', JSON.stringify((L(ne({ crossNight: { nights: 2 }, sessions: [{ a: 1 }] })) || {}).crossNight), '{"nights":2}');
+      T.eq('…and is null when absent, not undefined', (L(ne({ sessions: [{ a: 1 }] })) || {}).crossNight, null);
+      T.eq('scrubbed is read off the schema', (L({ schema: { name: 'ganglior.node-export', node: 'PpgDex', scrubbed: true }, sessions: [{ a: 1 }] }) || {}).scrubbed, true);
+      T.eq('…and defaults to false', (L(ne({ sessions: [{ a: 1 }] })) || {}).scrubbed, false);
+      /* Elements are DEEP-COPIED and stamped, so a reload cannot alias the caller's object. */
+      var src = { a: 1 }, loaded = L(ne({ sessions: [src] }));
+      T.eq('elements are stamped _fromExport', loaded && loaded.elements[0]._fromExport, true);
+      T.ok('…and are a COPY, so the caller\'s object is not mutated', src._fromExport === undefined, 'caller object was stamped in place');
+
+      /* ── THE USER-FACING MESSAGE, which is the actionable half of a refusal ────────────────────
+         `(node || 'non-PpgDex')` mutated to `&&` still refuses the file — `ok` and `reason` are
+         unchanged — but the message stops naming the node and tells the user to open it in
+         "its own node". The refusal survives; its usefulness does not. Nothing above could see that,
+         because none of it read the string a person actually gets. */
+      T.eq('a foreign export NAMES the node in its message', foreign && foreign.message, 'This is a OxyDex export \u2014 open it in OxyDex, or drop it into the Integrator to fuse.');
+      T.eq('…and an unnameable node degrades to a generic message, not a broken one', (L({ schema: { name: 'ganglior.node-export', node: '' } }) || {}).message, 'This is a non-PpgDex export \u2014 open it in its own node, or drop it into the Integrator to fuse.');
+      T.ok('a not-node-export message says what to drop instead', /Polar Verity \*_PPG\.txt/.test((L(null) || {}).message || ''), JSON.stringify((L(null) || {}).message));
+
+      /* ── THE FIELD FALLBACK CHAIN: session first, then top level, then null ────────────────────
+         Every one of `recording`/`hrv`/`quality`/`personalization` is read as
+         `(carrier[0] && carrier[0].X) || json.X || null`. Three distinct outcomes, and only an export
+         carrying the field in BOTH places can tell the precedence from its mutants. */
+      var sess = L(ne({ sessions: [{ hrv: { from: 'session' }, recording: { from: 's' } }], hrv: { from: 'top' }, recording: { from: 't' } }));
+      T.eq('hrv prefers the SESSION value over the top-level one', JSON.stringify(sess && sess.hrv), '{"from":"session"}');
+      T.eq('…and so does recording', JSON.stringify(sess && sess.recording), '{"from":"s"}');
+      var topOnly = L(ne({ sessions: [{ a: 1 }], hrv: { from: 'top' }, quality: { q: 9 }, personalization: { p: 1 } }));
+      T.eq('…falling back to the TOP-LEVEL value when the session lacks it', JSON.stringify(topOnly && topOnly.hrv), '{"from":"top"}');
+      T.eq('…quality falls back the same way', JSON.stringify(topOnly && topOnly.quality), '{"q":9}');
+      T.eq('…and personalization too', JSON.stringify(topOnly && topOnly.personalization), '{"p":1}');
+      var neither = L(ne({ sessions: [{ a: 1 }] }));
+      T.eq('…and null when neither carries it', neither && neither.hrv, null);
+      T.eq('…null, not undefined, for quality', neither && neither.quality, null);
+      T.eq('…and for personalization', neither && neither.personalization, null);
+      T.eq('kernel is read off the top level', JSON.stringify((L(ne({ kernel: { VERSION: 3 }, sessions: [{ a: 1 }] })) || {}).kernel), '{"VERSION":3}');
+      T.eq('derivedFrom is read off the SCHEMA, not the body', (L({ schema: { name: 'ganglior.node-export', node: 'PpgDex', derivedFrom: 'raw-ppg' }, sessions: [{ a: 1 }] }) || {}).derivedFrom, 'raw-ppg');
+      T.eq('…and is null when the schema omits it', neither && neither.derivedFrom, null);
+    });
+
     /* parsePPG — 38 surviving mutants across its 348 lines. Probing them (original vs mutant in
        separate realms, 68-input battery) found 10 with a distinguishing input; these assertions are
        aimed at those, by the input the probe actually reported rather than by guessing.
