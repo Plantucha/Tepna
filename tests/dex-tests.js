@@ -6041,6 +6041,34 @@
       T.ok('a 0.01 Hz drift puts real power in VLF', slow && slow.vlf > 0, 'vlf ' + (slow && slow.vlf));
       T.ok('…and VLF is excluded from the LF/HF normalisation (lfnu+hfnu still 100)', slow && Math.abs(slow.lfnu + slow.hfnu - 100) <= 1, 'lfnu ' + (slow && slow.lfnu) + ' hfnu ' + (slow && slow.hfnu));
       T.approx('…and totalPower still accounts for it', slow && slow.totalPower, slow && slow.vlf + slow.lf + slow.hf, 1e-9);
+
+      /* ── THE DEGENERATE MINIMUM, which is where the rest of the killable mutants live ──────────
+         Aimed, not guessed: each survivor was probed for a distinguishing input by loading original
+         and mutant in separate realms and diffing a 960-input battery, and all three below were
+         separated by the SAME shape — eight samples with no oscillation at all. A flat signal is the
+         one input that makes "there is no peak" and "there is no power" observable, and every
+         physiologically plausible series hides both. */
+      var f8b = flat(8);
+      var z = P.lombScargle(f8b.tt, f8b.nn);
+      T.eq('a FLAT 8-beat series reports zero power, not null', z && z.totalPower, 0);
+      T.eq('…vlf/lf/hf are each exactly 0', JSON.stringify(z && [z.vlf, z.lf, z.hf]), '[0,0,0]');
+      T.eq('…respRate is null: no oscillation means no HF peak to report', z && z.respRate, null);
+      T.eq('…and no method is claimed for a rate that does not exist', z && z.respRateMethod, null);
+      T.eq('…lfhf/lfnu/hfnu are null, not 0 — a ratio of nothing is undefined, not zero', JSON.stringify(z && [z.lfhf, z.lfnu, z.hfnu]), '[null,null,null]');
+
+      /* THE VLF LOWER BOUND IS INCLUSIVE, and only a component sitting exactly ON it can show that.
+         `f >= bands.vlf[0]` mutated to `f >` drops the bin at exactly 0.003 Hz. A first attempt
+         asserted `vlf > 1000` on a 0.0401 Hz series, where the same mutant costs one unit out of
+         3910 — true, and far too loose to notice. At 0.003 Hz it costs 245 → 179, a 27 % gap.
+         Recorded because the difference between the two assertions is the whole lesson: a mutant is
+         killed by an input that MAGNIFIES it, not merely by one that reaches it. */
+      var vlow = (function () {
+        var tt = [], nn = [], t = 0;
+        for (var i = 0; i < 300; i++) { var rr = 1000 + 40 * Math.sin(2 * Math.PI * 0.003 * t); nn.push(rr); tt.push(t); t += rr / 1000; }
+        return P.lombScargle(tt, nn);
+      })();
+      T.ok('a component exactly ON the VLF lower bound (0.003 Hz) is counted in VLF', vlow && vlow.vlf >= 230, 'vlf ' + (vlow && vlow.vlf) + ' — an exclusive bound gives ~179');
+      T.approx('…and that VLF power reaches totalPower', vlow && vlow.totalPower, vlow && vlow.vlf + vlow.lf + vlow.hf, 1e-9);
     });
 
     group('ECGDSP frequency-domain HRV — LF/HF band split known-answer (deep-scout §EP)', 'ecgdex-dsp · spectral · known-answer', function (T) {
