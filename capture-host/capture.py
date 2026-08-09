@@ -1349,7 +1349,10 @@ async def auto_sync_clock(name, addr) -> bool:
     On success this CLEARS `clock_uncorrectable` and records the address in `_CLOCK_FRESHLY_SYNCED`, so
     `clock_watchdog` forgives a device it had previously written off. Without that the give-up is sticky
     across the very event that fixes it — a device that failed while docked stayed marked uncorrectable
-    for the whole session even after it came off the dock and re-synced cleanly."""
+    for the whole session even after it came off the dock and re-synced cleanly.
+
+    BOUNDED BY WALL CLOCK, not just by attempt count — see `_CLOCK_SYNC_LADDER_BUDGET_S`."""
+    started = _time.monotonic()
     for attempt in range(12):
         try:
             await sync_device_time(addr)
@@ -1387,6 +1390,15 @@ async def auto_sync_clock(name, addr) -> bool:
                 # line runs up to 12 times per ladder.
                 log.info("%s clock auto-sync busy (%s) — retry %d/12: %s",
                          name, type(e).__name__, attempt + 1, repr(e)[:160])
+                # THE BUDGET — the bound that does not depend on classifying the error correctly.
+                # Every attempt above runs through `polar_offline_op`, which holds the GLOBAL
+                # `_CONNECT_LOCK`, so the ladder's real cost is measured in lock-seconds, not in tries.
+                spent = _time.monotonic() - started
+                if spent >= _CLOCK_SYNC_LADDER_BUDGET_S:
+                    log.info("%s clock auto-sync gave up after %.0fs of a %.0fs budget (attempt %d/12) — "
+                             "the reconnect loop will re-trigger it", name, spent,
+                             _CLOCK_SYNC_LADDER_BUDGET_S, attempt + 1)
+                    return False
                 await asyncio.sleep(min(5 * (attempt + 1), 30))
                 continue
             log.warning("%s clock auto-sync failed: %r", name, e)
@@ -2789,6 +2801,26 @@ _OFFLINE_OP_TIMEOUT_S = 300.0
 # _CONNECT_LOCK, so capture was paused for ~300 s out of every ~310 s and still wrote nothing. Bounding
 # the op was necessary but not sufficient; the bound has to be proportionate.
 _CLOCK_SYNC_TIMEOUT_S = 45.0
+
+# THE LADDER'S TOTAL SPEND, which is the bound the previous two fixes did not draw.
+#
+# Both earlier attempts bounded ONE op and left the LOOP. 2026-07-19: an out-of-range device wedged
+# capture for 58 minutes → `_OFFLINE_OP_TIMEOUT_S`. Same day: 12 retries × 300 s = a 97 % duty-cycle
+# wedge → `_CLOCK_SYNC_TIMEOUT_S = 45`, with the note "the bound has to be proportionate". It was made
+# proportionate, and the shape came back a third time — measured 2026-08-09 with an H10 on a desk:
+# **51 ops in 59.1 min, mean hold 41.1 s, 2097 s of 3544 s = a 59 % duty cycle.**
+#
+# Proportionality lowers the constant; it cannot remove the loop, because 12 × 45 s is still ~9 minutes
+# of GLOBAL `_CONNECT_LOCK` per reconnect cycle and the ladder re-arms on the next reconnect. A budget
+# on the ladder's TOTAL elapsed time is the bound that holds no matter which error is being retried —
+# it does not require `device_absent_error` to classify anything correctly, and it would have capped all
+# three incidents. Classification reduces the common case; this bounds the worst one.
+#
+# 120 s ≈ two attempts at the 45 s ceiling. Sized for what the ladder is FOR: `org.bluez.Error.InProgress`
+# after a restart clears in seconds, not minutes (2026-07-18 — the failure that motivated retrying at
+# all), so two attempts spend the contention case without funding the hopeless one. Monotonic, not `_now()`:
+# this measures elapsed time, and `_now()` is civil-time-anchored and re-anchors on an NTP step.
+_CLOCK_SYNC_LADDER_BUDGET_S = 120.0
 
 
 async def polar_offline_op(address: str, op, timeout: float | None = None):

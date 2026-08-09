@@ -4325,3 +4325,58 @@ def test_run_oxyii_keeps_the_link_when_the_two_wavelength_poll_fails(tmp_path, m
     # The session ran on: vitals were parsed and the SpO2 sidecar was written despite every 0x05 refusal.
     assert capture.STATUS["devices"]["Ring"]["spo2"] == 96
     assert list((tmp_path / "captures").rglob("*_SPO2.csv")), "the vitals stream is unaffected"
+
+
+def test_auto_sync_ladder_stops_at_its_wall_clock_budget(tmp_path, monkeypatch):
+    """THE BOUND THAT DOES NOT DEPEND ON CLASSIFYING THE ERROR (2026-08-09).
+
+    Every ladder attempt runs through `polar_offline_op`, which holds the GLOBAL `_CONNECT_LOCK`, so the
+    ladder's real cost is lock-seconds — and 12 x 45 s is ~9 min of it per reconnect cycle. The two
+    previous fixes for this shape both bounded ONE op (300 s, then 45 s) and left the LOOP; measured
+    2026-08-09 the loop still ran at a 59 % duty cycle.
+
+    Uses a CONTENTION error on purpose: `device_absent_error` must not be what saves us here. If the
+    budget is what stops the ladder, it stops even for the error the ladder is legitimately for."""
+    _auto_sync_common(monkeypatch)
+    calls = {"n": 0}
+    clock = {"t": 0.0}
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    async def busy_and_slow(addr):
+        calls["n"] += 1
+        clock["t"] += 45.0                      # each attempt burns the op ceiling
+        raise RuntimeError("org.bluez.Error.InProgress")   # CONTENTION, not absence
+    monkeypatch.setattr(capture, "sync_device_time", busy_and_slow)
+    _skip_while_loop()
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    # 120 s budget / 45 s per attempt -> the 3rd attempt's check sees 135 s and stops.
+    assert calls["n"] == 3, f"budget must cap the ladder well short of 12 (got {calls['n']})"
+    assert capture.STATUS.get("devices", {}).get("H10", {}).get("clock_synced") is None
+
+
+def test_the_budget_does_not_cut_a_fast_contention_recovery_short(tmp_path, monkeypatch):
+    """The regression the budget must NOT cause. `InProgress` after a daemon restart clears in seconds —
+    that is the 2026-07-18 failure the ladder exists for (both Polars unsynced for an evening). A budget
+    that fired before contention could clear would re-break it."""
+    _auto_sync_common(monkeypatch)
+    calls = {"n": 0}
+    clock = {"t": 0.0}
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    async def busy_then_ok(addr):
+        calls["n"] += 1
+        clock["t"] += 2.0                       # a fast, realistic contention clear
+        if calls["n"] < 4:
+            raise RuntimeError("org.bluez.Error.InProgress")
+    monkeypatch.setattr(capture, "sync_device_time", busy_then_ok)
+    _skip_while_loop()
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert calls["n"] == 4, "a fast contention clear must still be waited out"
+    assert capture.STATUS["devices"]["H10"].get("clock_synced")
+
+
+def test_the_budget_is_measured_monotonically():
+    """`_now()` is civil-time-anchored and re-anchors on an NTP step — which this daemon does, twice in
+    one week on the live box. An elapsed-time bound read off it could go negative or jump."""
+    import inspect
+    src = inspect.getsource(capture.auto_sync_clock)
+    assert "_time.monotonic()" in src, "elapsed time must come from a monotonic source"
+    assert "_now()" not in src.split("started =")[1].split("for attempt")[0]
