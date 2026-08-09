@@ -387,6 +387,71 @@ def test_read_state_carries_chrony_skew_and_leaves_timesyncd_skew_none(monkeypat
     assert _run(hc.read_state())["chrony_skew_ppm"] is None
 
 
+# ── timebase_decision (O2RING-ADAPTIVE-TIMEBASE Stage 3) ──────────────────────────────────────────────
+def _disc(stratum, skew=None):
+    """A disciplined state at a given source stratum (+ optional chrony skew ppm)."""
+    s = {"available": True, "ntp_enabled": True, "synchronized": True, "ignored": False,
+         "stratum": stratum, "chrony_skew_ppm": skew}
+    return s
+
+
+def test_timebase_defaults_to_the_crystal_when_the_host_is_not_disciplined():
+    """The safe floor: a holdover/free-running/unreadable host never governs the rate."""
+    for state in ({"available": False},
+                  {"available": True, "ntp_enabled": False},
+                  {"available": True, "ntp_enabled": True, "synchronized": False}):
+        d = hc.timebase_decision(state)
+        assert d["timebase"] == "device-crystal", d
+        assert "device crystal" in d["reason"]
+
+
+def test_timebase_is_crystal_for_a_stratum_2_client_even_though_absolute_ok():
+    """The bar is STRICTER than absolute-time trust: a stratum-2 NTP client is absolute_ok, but its rate
+    may be worse than the ±40 ppm crystal, so it stays on the crystal."""
+    st = _disc(2)
+    assert hc.classify(st)["absolute_ok"] is True, "control: stratum 2 IS absolute_ok"
+    assert hc.timebase_decision(st)["timebase"] == "device-crystal"
+
+
+def test_timebase_is_crystal_when_the_stratum_is_not_yet_reported():
+    """absolute_ok but stratum None ⇒ cannot confirm a reference source ⇒ crystal (conservative)."""
+    assert hc.timebase_decision(_disc(None))["timebase"] == "device-crystal"
+
+
+def test_a_stratum_1_reference_earns_host_discipline():
+    """The owner's case: 'if somebody has stratum-1 then that will be chosen path.'"""
+    d = hc.timebase_decision(_disc(1))
+    assert d["timebase"] == "host-disciplined" and "host rate trusted" in d["reason"]
+
+
+def test_a_stratum_1_with_a_tight_skew_still_earns_host_discipline():
+    assert hc.timebase_decision(_disc(1, skew=0.5))["timebase"] == "host-disciplined"
+
+
+def test_a_stratum_1_with_a_loose_skew_falls_back_to_the_crystal():
+    """Even a stratum-1 source falls back if its frequency skew is wider than the bar — a misconfigured
+    or unsettled reference is not worth more than the crystal."""
+    d = hc.timebase_decision(_disc(1, skew=5.0))
+    assert d["timebase"] == "device-crystal" and "skew 5.0 ppm exceeds" in d["reason"]
+
+
+def test_the_skew_bar_is_inclusive_at_exactly_the_threshold():
+    assert hc.timebase_decision(_disc(1, skew=hc.TIMEBASE_MAX_SKEW_PPM))["timebase"] == "host-disciplined"
+
+
+def test_read_state_stamps_the_timebase_decision(monkeypatch):
+    """The decision rides read_state, so host_clock_poller stamps it in the CLOCK sidecar per capture.
+    CHRONY_TRACKING is a stratum-1 SOURCE (client of a stratum-2 server) with a 0.123 ppm skew ⇒ host."""
+    async def via_chrony(*args, timeout=4.0):
+        if "show-timesync" in args:
+            return 0, ""
+        if args[0] == "chronyc":
+            return 0, CHRONY_TRACKING
+        return 0, "NTP=yes\nNTPSynchronized=yes\n"
+    monkeypatch.setattr(hc, "_run", via_chrony)
+    assert _run(hc.read_state())["timebase"] == "host-disciplined"
+
+
 def test_a_reference_clock_is_not_reported_as_a_server():
     ch = hc.parse_chrony_tracking("Reference ID    : 50505300 (PPS)\nStratum         : 1\n")
     assert ch["reference"] == "PPS"
