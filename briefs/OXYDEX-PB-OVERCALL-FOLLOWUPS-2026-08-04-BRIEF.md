@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-04 · **Follows:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` (DONE — 2026-08-04; all five Done-when items met) · **Relates:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 (same family) · **Affects:** `oxydex-dsp.js`, `integrator-dsp.js`, the OxyDex reference guide, `tests/dex-tests.js`
+**Status:** DONE — 2026-08-09 (§2 executed — the likelihood ladder is withdrawn across all four surfaces, gated and mutation-verified; §1 **decided by the owner: option 3**, over this brief's own recommendation of option 2, and spawned as its own brief with its own validation as this brief required. Both decisions are recorded with their reasons rather than inferred from code.) · **Spawns:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` · **Created:** 2026-08-04 · **Follows:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` (DONE — 2026-08-04; all five Done-when items met) · **Relates:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 (same family) · **Affects:** `oxydex-dsp.js`, `integrator-dsp.js`, the OxyDex reference guide, `tests/dex-tests.js`
 
 # Two owner decisions the parent measured but deliberately did not make
 
@@ -26,6 +26,26 @@ CPAP, and one observer never surfaces.
 **Recommendation, stated so the decision has a default:** option 2. It is the only one that neither
 destroys a surfaced finding nor ships an unvalidated detector, and it is reversible once option 3 exists.
 
+> ### ▶ OWNER DECISION 2026-08-09 — **option 3**, over the recommendation
+>
+> *Fix the detector so the leg earns its place.* The recommendation above was option 2 on the grounds
+> that it ships nothing unvalidated; the owner took the harder option instead, which is the only one
+> that makes the leg actually informative rather than tolerable.
+>
+> **Spawned as its own brief, as this item required** — `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md`. Not
+> patched in here: a detector is a measurement and needs its own validation.
+>
+> **The validation problem that brief has to solve, flagged here because it is the reason option 3 is
+> hard:** there is no ground truth. The CPAP is n = 1, a black box, and disagrees at κ = −0.039, so
+> "agree with the CPAP" cannot be the acceptance test without violating §2's guardrail. That brief's
+> answer is **construct validity** — an adversarial twin pair with identical desaturation burden
+> differing only in periodicity (which the current detector cannot separate, by construction), plus a
+> falsifiable corpus criterion that the r = 0.893 correlation with hypoxemia burden must break.
+>
+> **Note that option 2 is NOT the fallback if option 3 stalls** — §2 of this brief already landed the
+> honest vocabulary on 2026-08-09, so the surface is no longer overclaiming while the detector work
+> proceeds. If the detector cannot pass §4's bar, the evidence-based outcome is option 1, not option 2.
+
 ## 2 · The `csLabels` likelihood vocabulary — the same overclaim, one layer down
 
 `oxydex-dsp.js:1526` returns `csLabel: csLabels[cs]` over the ladder **`Unlikely · Possible · Probable ·
@@ -48,10 +68,69 @@ agreement was **κ = −0.039** — worse than chance.
 
 ## 3 · Done when
 
-- [ ] The §1 fusion remedy is **chosen by the owner** and executed, with the choice and its reason
-      recorded here — not inferred from a code change.
-- [ ] The `csLabels` vocabulary either states an observation (as the parent's string now does) or is
-      withdrawn; all three surfaces move together and `cohesion-badges` stays green.
-- [ ] Whatever lands is **mutation-verified against its own revert**, as the parent's string was (the
-      exact revert reds 7 assertions including a rewording-proof source scan).
-- [ ] If option 3 is chosen, it is spawned as its OWN brief with its own validation — not patched in here.
+- [x] **CHOSEN 2026-08-09 — option 3** (*fix the detector*), over this brief's own recommendation of
+      option 2. Recorded above with the reason, and **spawned as
+      `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md`** per the constraint below. Execution belongs to that
+      brief; this item is the decision, and the decision is made.
+- [x] **DONE 2026-08-09 — the vocabulary is WITHDRAWN.** Four surfaces moved together (§2-RESULT):
+      both label ladders → `N/3 indicators`, both lead strings → a bare count, the findings-card
+      displayVal follows the ladder, and the guide's *"Cheyne-Stokes Probability (0–3)"* is restated as
+      an indicator count that is explicitly not a probability. `cohesion-badges` green (267/267).
+      ⚠️ Worth recording: `csScore` is **not in `oxydex-registry.js` at all**, so `cohesion-badges`
+      never mapped that guide row — the parity this item worried about could not have fired. The same
+      blind spot as the stale-citation class: a guide row for an unregistered metric is checked by
+      nothing.
+- [x] **DONE — mutation-verified.** The exact revert (ladder + lead) reds **5** assertions across both
+      legs. The source scan is rewording-proof by construction now: its first version keyed on the
+      literal `"CS pattern"` and went blind the moment the strings changed, caught only because the
+      anti-vacuity count is an assertion rather than a comment. It now keys on the lead's SHAPE.
+- [x] **Option 3 WAS chosen, and it is spawned as its own brief with its own validation** —
+      `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md`, carrying the spec (§2), the no-ground-truth validation
+      design (§3), the "earns its place" bar (§4) and the inherited guardrails (§5). Nothing of it is
+      patched in here.
+
+
+---
+
+## §2-RESULT · EXECUTED 2026-08-09
+
+**What was wrong.** `csLabels`/`uarsLabels` were `['Unlikely','Possible','Probable','Likely']` indexed
+by a 0-3 indicator count, and `leads.cs` wrapped the result in `'CS pattern probable (…)'` — so a night
+read **"CS pattern probable (Likely)"**, a likelihood asserted twice from a score that cannot support
+it once.
+
+**What moved** — four surfaces, together:
+
+| surface | before | after |
+|---|---|---|
+| `csLabels` / `uarsLabels` | `Unlikely · Possible · Probable · Likely` | `0/3 … 3/3 indicators` |
+| `leads.cs` / `leads.uars` | `CS pattern probable (Likely)` | `CS indicators 3/3` |
+| findings-card `displayVal` | `Likely` | `3/3 indicators` |
+| guide row | *Cheyne-Stokes **Probability** (0–3)* | *indicator count (0–3) — a screening tally, not a probability; no periodicity test* |
+
+**The guardrail held.** `csScore`, its ladder and every gate on it are untouched. This is a wording
+fix; §5.2 found no defensible threshold on this corpus, so retuning would be guessing.
+
+**Two things only the real corpus and the gate could catch.**
+
+1. **The first wording made the impression say the same sentence twice.** Lead and context qualifier
+   became verbatim identical — *"… CS pattern indicators 3/3 — screening signal, no periodicity test;
+   CS pattern indicators 3/3 — screening signal, no periodicity test."* Invisible until
+   `regen-oxydex-goldens` ran the real night, because before the fix the two strings differed. The lead
+   is now a bare value in its siblings' shape (`AHI est. 14`); the caveat lives once.
+2. **My own source scan went blind.** It keyed on the literal `"CS pattern"`; rewording the strings
+   dropped it to `0 found`. Only the ANTI-VACUITY count caught it — the argument for making
+   anti-vacuity an assertion rather than a comment. Now structural (`return n.patScore ?` + a score
+   reference), so it survives any future rewording.
+
+**The parity worry in this item was unfounded, and the reason is worth knowing.** §2 warned that a
+partial edit would red `cohesion-badges`. It could not have: **`csScore` is not in `oxydex-registry.js`
+at all**, so the resolver never mapped that guide row and no gate was watching it. That is the same
+blind spot as the stale-citation class found the same day in `REFERENCE-GUIDE-AUDIT` — a guide row for
+an unregistered metric is checked by nothing.
+
+**Re-bundle reach, recorded because `--app OxyDex` is not enough.** `oxydex-dsp.js` is inlined into the
+OxyDex app, **five analysis tools**, **both orchestrators** (`Data Unifier`, `OverDex` — which
+`--app OxyDex` does not touch and which drift-checked RED), and the served `docs/` copies. Only
+`build.mjs --all` covers the orchestrators. Each miss presented as `EXIT=1` with every assertion
+passing.

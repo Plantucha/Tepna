@@ -1064,9 +1064,9 @@
     },
     "patScore": {
       "csScore": 0,
-      "csLabel": "Unlikely",
+      "csLabel": "0/3 indicators",
       "uarsScore": 0,
-      "uarsLabel": "Unlikely"
+      "uarsLabel": "0/3 indicators"
     },
     "dfa": {
       "alpha1": 1.958,
