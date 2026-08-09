@@ -414,8 +414,29 @@ The defence is redundancy in the measurement, not more surrogates.
       not measured one.
 - [ ] PAT re-tested under drift-aware alignment, against `pat-gate.js`'s full bar (IQR **and** coupling
       **and** a physiological median), on the nights where closure holds.
-- [ ] A decision recorded on §3.3: capture-time offset measurement vs an exported envelope. Both are
-      costed; neither is chosen.
+- [x] **DECIDED 2026-08-09 by the owner — BOTH: capture-time PRIMARY, exported envelope as a marked
+      FALLBACK.** The item asked for a choice between them; the answer is that they answer different
+      questions and only one of them can ever be a measurement.
+
+      **Capture-time is primary because it is the only place the measurement exists.** The host holds
+      both clocks while it holds both devices; after the fact, that information is gone. This is no
+      longer an argument from principle — measured 2026-08-09, every H10 night in the corpus shows a
+      host↔device residual spread of **0.98 ms**, one stamp quantum, so `independent === false` and the
+      host column is the device stamp rounded. On such a file there is no second clock left to recover,
+      and no downstream reconciliation can manufacture one. The box (chrony local-stratum-1, 0.008 ppm,
+      re-syncs both Polar clocks per connect) is where a real offset can be recorded.
+
+      **The envelope is the fallback because ~40 nights already exist and cannot be re-recorded.** It
+      must carry `independent` and `spreadMs` through to every consumer and be **marked**, never
+      silently substituted: on a phone capture the envelope restates a derived column, so a consumer
+      that spends it as a second clock fabricates a timebase. That is the failure this brief's own
+      §2.3/§2.6 were voided for.
+
+      **The rule that follows:** a consumer needing a genuine second clock reads `independent` and
+      **refuses** when it is false — shipped for the coupling gate as `NO SHARED CLOCK` (PR #1069) and
+      owed for the ECGDex `fs` correction (branch `fix/ecgdex-fs-independent`, which currently applies
+      a rate derived from a non-clock on every phone-captured night). A consumer that only needs an
+      approximate alignment may use the envelope, but must not upgrade its provenance by doing so.
 - [x] **ACCEPTED STATEMENT RECORDED 2026-08-08 — the optical spine is not validated against hardware,
       and will not be on this equipment.** The choice this item offered was "a device that emits real
       PPI, or an accepted statement". No such device exists in the corpus, so the statement is taken.
