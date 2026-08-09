@@ -580,6 +580,59 @@
       }
     });
 
+    /* ════ BAD-HOST ACCEPTANCE — the crystal axis is INVARIANT to a corrupted host (O2RING-ADAPTIVE-TIMEBASE §6) ════
+       The brief owed a bad-host demonstration. Rather than wait for a travel/stratum-3 capture night, this
+       PROVES the protective property directly: perturb the finger file's host (Phone-timestamp) column with a
+       holdover-grade frequency error, and the device-crystal axis is UNCHANGED to the last sample — because
+       its rate is the 125.000 crystal, not the host — while the host-disciplined axis walks off with the bad
+       clock. Invariance is magnitude-independent: a crystal identical under a 2000 ppm error is identical
+       under any error, which is exactly why it is the safe default when the host cannot be trusted.
+       Corroborated on the real trio corpus (2026-08-01, a drawn-axis night): a +2000 ppm host gave BYTE-
+       identical crystal HR/rMSSD/duration while the host-disciplined HR error vs the paired H10 ECG grew
+       from −0.2 to −1.2 bpm. This is the committed, CI-run form of that. */
+    group('O2Ring device-crystal is invariant to a corrupted host clock — bad-host acceptance', 'ppgdex-dsp · device-crystal-timebase · bad-host', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.parsePPG !== 'function') { T.skip('PPGDSP.parsePPG available', 'not loaded'); return; }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+      // Enough rows that hostAxis has a dense anchor set (1 per 500 rows) and genuinely tracks the host —
+      // exactly the regime the real corpus is in. At small N the host path falls back to the device grid
+      // and the good/bad distinction collapses, which is not the case being tested.
+      var N = 50000;
+      // A finger file whose HOST (Phone) column advances at a true ~125.9 Hz and whose device ns is the
+      // drawn 7.953 ms grid — the real O2Ring shape, where all timing rides the host.
+      function fingerRows(hostPpm) {
+        var out = '', ns = 0, t0 = Date.UTC(2026, 6, 26, 22, 0, 0);
+        for (var i = 0; i < N; i++) {
+          var trueMs = (i / 125.9) * 1000;
+          var hostMs = trueMs * (1 + hostPpm / 1e6); // a holdover host free-runs off true time by hostPpm
+          out += new Date(t0 + Math.round(hostMs)).toISOString().slice(0, 23) + ';' + ns + ';' + (i % 25 === 12 && i < N - 4 ? 156 : 124 + (i % 7)) + '\n';
+          ns += 7953045;
+        }
+        return out;
+      }
+      var good = HDR + fingerRows(0);
+      var bad = HDR + fingerRows(2000); // +2000 ppm holdover-grade host error
+      var crysG = P.parsePPG(good, { timebase: 'device-crystal' });
+      var crysB = P.parsePPG(bad, { timebase: 'device-crystal' });
+      var hostG = P.parsePPG(good, { timebase: 'host-disciplined' });
+      var hostB = P.parsePPG(bad, { timebase: 'host-disciplined' });
+      // THE PROOF: the crystal axis's SPAN (elapsed time) is immune to the host error — its rate is the
+      // 125.000 crystal, not the host. Only its absolute t0 anchor rides the host, by design (§1: absolute
+      // time is host-anchored, the RATE is the crystal), so assert the SPAN, not the absolute relSec.
+      var cSpanG = crysG.relSec[N - 1] - crysG.relSec[0];
+      var cSpanB = crysB.relSec[N - 1] - crysB.relSec[0];
+      T.eq('device-crystal SPAN is IDENTICAL under a good vs a +2000 ppm host (rate is the crystal, not the host)', cSpanB, cSpanG);
+      T.eq('…and its fs is the 125.000 ADC rate either way', Math.round(crysB.fs * 1000), 125000);
+      // THE CONTRAST: the host-disciplined axis TRACKS the bad host — its span stretches with the error.
+      var hSpanG = hostG.relSec[N - 1] - hostG.relSec[0];
+      var hSpanB = hostB.relSec[N - 1] - hostB.relSec[0];
+      T.ok('host-disciplined SPAN MOVES with the corrupted host (it inherits the error)', hSpanB > hSpanG, 'span good ' + hSpanG.toFixed(3) + ' → bad ' + hSpanB.toFixed(3));
+      var hostPpm = (hSpanB / hSpanG - 1) * 1e6;
+      T.ok('…tracking a large fraction of the injected 2000 ppm (converges with anchor density)', hostPpm > 1000, 'measured ' + hostPpm.toFixed(0) + ' ppm');
+      // Stated as the contrast it is: the same corruption moves the host axis and not the crystal.
+      T.ok('so under a bad host the crystal holds while the host walks off', Math.abs(cSpanB - cSpanG) < 1e-9 && hSpanB - hSpanG > 0.1, 'crystalΔ ' + (cSpanB - cSpanG) + ' hostΔ ' + (hSpanB - hSpanG).toFixed(3) + 's');
+    });
+
     /* ════ 1a-bis · HOST-DISCIPLINED AXIS — DexClock.hostAxis (WEARABLE-HOST-AXIS-2026-08-02) ════
        Every capture row carries BOTH clocks (host "Phone timestamp", device "sensor timestamp [ns]"),
        and PpgDex/ECGDex used to anchor on the host once and then ride the DEVICE crystal for the whole
