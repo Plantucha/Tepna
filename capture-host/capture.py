@@ -2802,6 +2802,15 @@ _OFFLINE_OP_TIMEOUT_S = 300.0
 # the op was necessary but not sufficient; the bound has to be proportionate.
 _CLOCK_SYNC_TIMEOUT_S = 45.0
 
+# How long the AUTO-SYNC may spend asking "is it even there?" — outside every lock.
+#
+# 6 s is a scan budget, not a connect budget, and that is the whole point: absence costs a scan nobody
+# is excluded by, instead of 45 s of `_CONNECT_LOCK` that every other sensor queues behind. Sized above
+# the ~1 s advertising interval of these straps with margin for a missed window; the failure mode of
+# being too SHORT is a false "absent", which merely defers one sync to the next reconnect — cheap, and
+# self-correcting, because a device that is really there will be found on the following cycle.
+_CLOCK_SYNC_PRESENCE_S = 6.0
+
 # THE LADDER'S TOTAL SPEND, which is the bound the previous two fixes did not draw.
 #
 # Both earlier attempts bounded ONE op and left the LOOP. 2026-07-19: an out-of-range device wedged
@@ -2823,7 +2832,35 @@ _CLOCK_SYNC_TIMEOUT_S = 45.0
 _CLOCK_SYNC_LADDER_BUDGET_S = 120.0
 
 
-async def polar_offline_op(address: str, op, timeout: float | None = None):
+class DeviceNotAdvertising(Exception):
+    """The presence pre-check found nothing on the air for this address.
+
+    The message deliberately contains "not advertising" so it flows through `device_absent_error` and
+    `transient_ble_error` exactly like bleak's own absence signal — the ladder defers, the reconnect loop
+    keeps looking. A bespoke class that no predicate recognised would be a third way to be wrong about a
+    string, which is the mistake this whole line of work has been correcting."""
+
+
+async def _device_on_air(address: str, budget_s: float) -> bool | None:
+    """Is this address advertising? True / False / None when the question could not be asked.
+
+    None is NOT False, and the distinction is the safety property: a scan that errors, or a bleak that
+    cannot be imported, must leave the caller doing exactly what it did before. Only a definitive
+    "nothing on the air" is allowed to skip work."""
+    try:
+        import bleak
+        dev = await asyncio.wait_for(
+            bleak.BleakScanner.find_device_by_address(address, timeout=budget_s,
+                                                      adapter=await adapter_hci()),
+            timeout=budget_s + 3.0)
+        return dev is not None
+    except Exception as e:                     # scan failed, adapter busy, bleak absent — cannot tell
+        log.debug("presence check for %s could not be answered (%r)", address, e)
+        return None
+
+
+async def polar_offline_op(address: str, op, timeout: float | None = None,
+                           presence_check_s: float | None = None):
     """Run a PS-FTP offline op (list/pull) while the daemon's run_polar for `address` is paused, so the
     pull owns the device's single BLE link instead of colliding with the live-capture reconnect loop
     (org.bluez.Error.InProgress). `op` is a zero-arg coroutine factory; its result is returned. Resumes
@@ -2832,6 +2869,35 @@ async def polar_offline_op(address: str, op, timeout: float | None = None):
     # which silently freezes the module constant and makes it impossible to tune at runtime or in a test.
     timeout = _OFFLINE_OP_TIMEOUT_S if timeout is None else timeout
     name = next((n for n, s in STATUS.get("devices", {}).items() if s.get("address") == address), None)
+    # ── ASK WHETHER THE DEVICE IS THERE *BEFORE* TAKING ANYTHING ──────────────────────────────────────
+    # Everything below this point is exclusive: the offline slot, `_POLAR_PAUSED`, and the GLOBAL
+    # `_CONNECT_LOCK` — held for the whole op, which for an absent device means holding it through a
+    # doomed 45 s connect while no other sensor can reconnect.
+    #
+    # Measured 2026-08-09, and this is the residue the previous two fixes could not reach. #1062 stopped
+    # the ladder spending 12 attempts on an absent device, and it works — the journal shows
+    # `deferred — device not found (attempt 1)`. But the deferral happens AFTER the expensive part:
+    #
+    #     07:09:45  live capture paused     <- lock taken
+    #     07:10:27  offline op finished     <- 42 s of doomed connect
+    #     07:10:27  auto-sync deferred      <- absence detected, too late to matter
+    #
+    # One such connect per reconnect cycle (~70-110 s) is a 53 % duty cycle on its own, which is what the
+    # box still measured after #1062 and #1081. Absence is CHEAP to detect — it is a scan — and was being
+    # paid for at connect-timeout prices under a lock that excludes every other device.
+    #
+    # OPT-IN, and that is deliberate. Only the automatic clock sync passes `presence_check_s`; a
+    # user-clicked pull keeps the old behaviour exactly, because a person who pressed a button has
+    # information the scanner does not and must not be second-guessed by a 6 s sample.
+    #
+    # FAILS SAFE TWICE OVER: `_device_on_air` returns None (not False) when the question cannot be
+    # answered, and a device STATUS already reports as connected is never scanned for — a connected
+    # device does not advertise, so scanning for one would "prove" absence about the one case that is
+    # certainly present.
+    if presence_check_s and not (name and STATUS["devices"].get(name, {}).get("connected")):
+        if await _device_on_air(address, presence_check_s) is False:
+            raise DeviceNotAdvertising(
+                f"{address} is not advertising — skipped the offline op without taking the connect lock")
     # ONE download at a time across ALL devices (see offline_lock) — raises OfflineBusy if another device
     # is mid-download, instead of letting two pulls fight over the single radio.
     async with offline_lock.slot(name or address):
@@ -2943,8 +3009,12 @@ async def sync_device_time(address: str) -> dict:
                 except Exception:              # is clock error and not BLE round-trip latency
                     pass
             return before, after, host_at_read
+    # `presence_check_s` ONLY here — the automatic sync is the caller that runs unattended on a loop and
+    # therefore the one that must not spend the global lock proving a device is absent. The monitor's
+    # user-clicked pull deliberately does not pass it (see polar_offline_op).
     before, after, host_at_read = await polar_offline_op(address, _op,
-                                                                 timeout=_CLOCK_SYNC_TIMEOUT_S)
+                                                                 timeout=_CLOCK_SYNC_TIMEOUT_S,
+                                                                 presence_check_s=_CLOCK_SYNC_PRESENCE_S)
     host = host_at_read or _utcnow()
     skew = (after - host).total_seconds() if after else None
     log.info("%s: device clock %s -> %s (host %s, skew %s)", address,
