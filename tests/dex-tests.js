@@ -31887,6 +31887,85 @@
       T.ok('no correction history in a reader-facing registry string', metaHits.length === 0, metaHits.length ? metaHits.slice(0, 6).join(' · ') : nStr + ' strings clean');
     });
 
+    /* THE SIBLING GATE ABOVE READS ONLY REGISTRY STRINGS — AND THAT WAS ITS BLIND SPOT.
+     The group above scans `cite`/`label`/`unit` across the eight registries and reports "no correction
+     history in a reader-facing registry string". True, and it never looked at the surface where the
+     correction history actually was: the reference guides' own prose. `HRVDex Reference.html` rendered
+
+         "Population projection; not a measurement. ANS-age + HRV→BP removed 2026-06-23."
+
+     in the Validation Status Matrix — a date-stamped removal note addressed to a maintainer, sitting in
+     a table a reader consults to decide whether to trust a number. It matched the sibling's own META
+     regex (`REMOVED 20\d\d`) exactly, and the sibling was structurally incapable of seeing it. This gate
+     closes that: the SAME regex, over the guides' RENDERED text.
+
+     THE COMMENT DISTINCTION IS THE WHOLE POINT, not an exemption of convenience. Five guides carry
+     tombstones like `<!-- ANS Age card REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴 …) -->`. Those
+     are correction history addressed to a maintainer IN A MAINTAINER-VISIBLE CHANNEL — invisible to a
+     reader, and the only thing stopping someone re-adding a metric that was deliberately withdrawn.
+     They must be KEPT. So the strip order is load-bearing: comments and script/style go first, and the
+     anti-vacuity legs below prove that stripping happened rather than assuming it. */
+    group('Reference guides: no correction history in RENDERED text (the registry gate could not see this)', 'docs · citations · guide-prose', function (T) {
+      var docs = env.docs || {};
+      var GUIDES = Object.keys(docs).filter(function (k) {
+        return /Reference\.html$/.test(k);
+      });
+      T.ok('ANTI-VACUITY · the reference guides are wired into env.docs', GUIDES.length >= 6, GUIDES.length + ' guide(s): ' + GUIDES.join(', '));
+      if (GUIDES.length < 6) return;
+
+      /* Rendered text = what a reader sees. Comments, <script> and <style> are NOT rendered, so they
+         are removed before the scan — deliberately, per the header. */
+      var render = function (html) {
+        return String(html)
+          .replace(/<!--[\s\S]*?-->/g, ' ')
+          .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
+          .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/\s+/g, ' ');
+      };
+      /* Byte-identical to the sibling group's regex, on purpose: one definition of "correction
+         history", two surfaces. If one is widened the other must be, and a diff shows it. */
+      var META = /\b(previously reported|used to (?:be|say|read|report)|was wrong|now corrected|no longer reported|formerly|REMOVED 20\d\d|retired 20\d\d|see PR #\d+|this was a bug)\b/i;
+
+      /* THREE ANTI-VACUITY LEGS. This gate's whole reason for existing is that its sibling reported
+         clean about something it never examined; a gate that could do the same is worthless. */
+      T.ok(
+        'ANTI-VACUITY · the regex fires on a known-bad string',
+        META.test('Population projection. ANS-age + HRV→BP removed 2026-06-23.') && META.test('see PR #1234') && !META.test('Malik-corrected RR intervals'),
+        'known-bad matched, known-good (Malik-corrected) did not'
+      );
+      T.ok(
+        'ANTI-VACUITY · render() strips a comment but keeps the prose around it',
+        render('<p>kept text</p><!-- ANS Age card REMOVED 2026-06-23 -->').indexOf('kept text') >= 0 && !META.test(render('<!-- ANS Age card REMOVED 2026-06-23 -->')),
+        'comment removed, sibling prose survived'
+      );
+      var totalChars = GUIDES.reduce(function (a, g) {
+        return a + render(docs[g]).length;
+      }, 0);
+      T.ok('ANTI-VACUITY · the scan read a realistic amount of rendered prose', totalChars > 100000, totalChars + ' rendered chars across ' + GUIDES.length + ' guides');
+
+      /* Report the offending SENTENCE, not the guide name — the useful output is the string to fix. */
+      var hits = [];
+      GUIDES.forEach(function (g) {
+        render(docs[g])
+          /* No lookbehind — the browser lane must run this too, and a `(?<=…)` split would throw
+             a SyntaxError at PARSE time on an older engine, taking the whole suite file with it. */
+          .split(/[.!?]\s+/)
+          .forEach(function (sent) {
+            if (META.test(sent)) hits.push(g + ' → ' + sent.trim().slice(0, 110));
+          });
+      });
+      T.ok('no correction history in any reference guide’s rendered text', hits.length === 0, hits.length ? hits.slice(0, 6).join(' · ') : GUIDES.length + ' guides clean');
+
+      /* AND the tombstones must SURVIVE — the fix for a hit is to delete the sentence or move it into
+         a comment, never to delete the removal record. Without this leg, "make the gate green" could be
+         satisfied by stripping the very notes that stop a withdrawn metric coming back. */
+      var tombstoned = GUIDES.filter(function (g) {
+        return /<!--[\s\S]*?REMOVED 20\d\d[\s\S]*?-->/i.test(docs[g]);
+      });
+      T.ok('…and the maintainer-facing removal tombstones are still present in comments', tombstoned.length >= 4, tombstoned.length + ' guide(s) carry a removal tombstone: ' + tombstoned.join(', '));
+    });
+
     /* REFERENCE-GUIDE-AUDIT dimension 2 / DEX-CITATION-FORMULA-AUDIT — `sampEn`'s `r` means TWO
        DIFFERENT THINGS across the fleet, and the guides state only one of them.
        Every reference guide writes the tolerance the literature way: "SampEn(m=2, r=0.2)", meaning

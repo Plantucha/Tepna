@@ -308,7 +308,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
   <h1 class="ph-title">Daily HRV Summaries<br><span>&amp; Readiness</span></h1>
   <p class="ph-desc">Reference for every metric HRVDex surfaces from a pre-computed daily HRV reading (Welltory-style morning check) &#x2014; definitions, formulas, expected ranges, and the evidence base behind each. The core HRV measures are the established, literature-validated ones; on them HRVDex layers trend signals, readiness composites and population projections. Companion to the reading; not a substitute for clinical evaluation.</p>
   <div style="margin:16px 0 18px;display:flex;flex-direction:column;gap:10px">
-    <div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Important:</strong> HRVDex consumes daily summaries from a short (typically one-minute) reading, so it inherits that protocol&#x2019;s sensitivity to posture, breathing and timing &#x2014; compare readings taken the same way each morning. Composite &#x201C;readiness&#x201D; scores are internal blends; projections (ANS age, VO&#x2082;max, BP) are population proxies, not measurements.</div></div>
+    <div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Important:</strong> HRVDex consumes daily summaries from a short (typically one-minute) reading, so it inherits that protocol&#x2019;s sensitivity to posture, breathing and timing &#x2014; compare readings taken the same way each morning. Composite &#x201C;readiness&#x201D; scores are internal blends; the VO&#x2082;max projection is a population proxy, not a measurement.</div></div>
     <div class="ev-legend-strip">
       <span class="lg-title">Evidence</span>
       <span class="lg-item"><span class="ev-measured"></span><b>Measured</b></span><span class="sep"></span>
@@ -339,7 +339,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
         <div class="qj-metrics"><a href="#core" class="qm">rMSSD</a><a href="#core" class="qm">SDNN</a><a href="#core" class="qm">LF/HF</a><a href="#core" class="qm">HF n.u.</a><a href="#core" class="qm">SD1/SD2</a><a href="#core" class="qm">Baevsky SI</a><a href="#core" class="qm">Toichi CVI/CSI</a><a href="#nonlinear" class="qm">DFA &#x3B1;1</a><a href="#nonlinear" class="qm">Spectral Ent</a><a href="#nonlinear" class="qm">SDNN Z</a><a href="#nonlinear" class="qm">Momentum</a><a href="#nonlinear" class="qm">VEI</a><a href="#nonlinear" class="qm">CAI</a></div></div>
       <div class="qj-group" data-group="der"><div class="qj-group-header"><span class="qj-dot" style="background:var(--orange)"></span>Derived</div>
         <div class="qj-links"><a href="#composites" class="qj-sec">Composites</a><a href="#projections" class="qj-sec">Projections</a></div>
-        <div class="qj-metrics"><a href="#composites" class="qm">HRV Score</a><a href="#composites" class="qm">Stress</a><a href="#composites" class="qm">Energy</a><a href="#composites" class="qm">ANS Load</a><a href="#composites" class="qm">Recov Index/Debt</a><a href="#composites" class="qm">EFC/ABS/PTI</a><a href="#projections" class="qm">ANS Age</a><a href="#projections" class="qm">VO&#x2082;max</a><a href="#projections" class="qm">BP Est/Risk</a></div></div>
+        <div class="qj-metrics"><a href="#composites" class="qm">HRV Score</a><a href="#composites" class="qm">Stress</a><a href="#composites" class="qm">Energy</a><a href="#composites" class="qm">ANS Load</a><a href="#composites" class="qm">Recov Index/Debt</a><a href="#composites" class="qm">EFC/ABS/PTI</a><a href="#projections" class="qm">VO&#x2082;max</a></div></div>
       <div class="qj-group" data-group="prov"><div class="qj-group-header"><span class="qj-dot" style="background:var(--blue)"></span>Provenance</div>
         <div class="qj-links"><a href="#validation-matrix" class="qj-sec">Validation Matrix</a><a href="#refs-map" class="qj-sec">Citation Map</a><a href="#formula-provenance" class="qj-sec">Formula Provenance</a><a href="#limitations" class="qj-sec">Limitations</a></div>
         <div class="qj-metrics"><a href="#validation-matrix" class="qm">Lit. vs experimental</a><a href="#formula-provenance" class="qm">Formula sources</a><a href="#limitations" class="qm">Caveats</a></div></div>
@@ -507,7 +507,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
     <tr><td class="fmt-m">Baevsky stress index</td><td><span style="color:var(--teal)">&#x25CF; Literature-based</span></td><td>Baevsky &amp; Chernikova</td></tr>
     <tr><td class="fmt-m">DFA &#x3B1;1, spectral entropy, SDNN-Z, momentum, VEI</td><td><span style="color:var(--amber,#F5A623)">&#x25D0; Emerging</span></td><td>Published / personal-baseline trend signals</td></tr>
     <tr><td class="fmt-m">HRV/Stress/Energy/readiness composites</td><td><span style="color:var(--orange,#E8714A)">&#x25CB; Experimental composite</span></td><td>HRVDex internal blends; no independent validation</td></tr>
-    <tr><td class="fmt-m">VO&#x2082;max (HRV-adjusted)</td><td><span style="color:var(--orange,#E8714A)">&#x25CB; Population-derived</span></td><td>Population projection; not a measurement. ANS-age + HRV→BP removed 2026-06-23.</td></tr>
+    <tr><td class="fmt-m">VO&#x2082;max (HRV-adjusted)</td><td><span style="color:var(--orange,#E8714A)">&#x25CB; Population-derived</span></td><td>Population projection; not a measurement.</td></tr>
   </tbody>
 </table></div>
 <div style="margin-top:16px">
@@ -535,7 +535,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
     <tr><td class="fmt-m">Baevsky stress index</td><td class="nr">Baevsky &amp; Chernikova 2017</td><td>HRV</td></tr>
     <tr><td class="fmt-m">DFA &#x3B1;1</td><td class="nr">Peng 1995</td><td>Nonlinear</td></tr>
     <tr><td class="fmt-m">VO&#x2082;max (HR-ratio)</td><td class="nr">Uth&#x2013;S&#xF8;rensen 2004</td><td>Projection</td></tr>
-    <tr><td class="fmt-m">HRV/Stress/readiness; ANS-age &amp; BP proxies</td><td class="nr">HRVDex internal &#x2014; no external source</td><td>Internal</td></tr>
+    <tr><td class="fmt-m">HRV/Stress/readiness composites</td><td class="nr">HRVDex internal &#x2014; no external source</td><td>Internal</td></tr>
   </tbody>
 </table></div>
 <a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
@@ -563,7 +563,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
   <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F4F1; Source &amp; Protocol</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Consumes pre-summarised daily HRV &#x2014; raw beats are not seen here</li><li>Short (~1-min) readings are sensitive to posture and breathing</li><li>Take readings the same way each morning for comparability</li><li>Source-app summarisation choices affect the numbers</li></ul></div>
   <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F9E0; Interpretation</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Absolute HRV varies with age/fitness &#x2014; track your own trend</li><li>LF/HF as &#x201C;balance&#x201D; is contested; read directionally</li><li>Frequency metrics need adequate reading length</li><li>No EEG / no raw morphology &#x2014; no staging or beat-shape claims</li></ul></div>
-  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F4CA; Algorithmic</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Readiness/stress/energy/recovery are internal composites</li><li>ANS age, VO&#x2082;max, BP are population proxies, not measurements</li><li>Baselines need ~7&#x2013;14 days of readings to stabilise</li><li>Normative bands are general, not personally calibrated</li></ul></div>
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x1F4CA; Algorithmic</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Readiness/stress/energy/recovery are internal composites</li><li>VO&#x2082;max is a population proxy, not a measurement</li><li>Baselines need ~7&#x2013;14 days of readings to stabilise</li><li>Normative bands are general, not personally calibrated</li></ul></div>
   <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-weight:700;color:var(--text2);margin-bottom:6px;font-size:13px">&#x2696;&#xFE0F; Regulatory</div><ul style="margin:0;padding-left:18px;color:var(--text3);font-size:12.5px;line-height:1.7"><li>Not FDA cleared or CE marked as a medical device</li><li>Not for clinical diagnosis or treatment decisions</li><li>Personal, research, and wellness use only</li><li>Discuss medical concerns with a qualified clinician</li></ul></div>
 </div>
 <a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
@@ -571,7 +571,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
 
 <div class="rs" id="acad-refs">
 <div class="sh"><div class="si clin">&#x1F4DA;</div><div><div class="st">Academic References</div><div class="sd">Primary sources for the HRV measures HRVDex surfaces</div></div></div>
-<div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Provenance note.</strong> Composite readiness scores and BP/ANS-age projections are internal blends or population proxies with no external source, labelled as such. The core and nonlinear HRV measures use the verified canon below.</div></div>
+<div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Provenance note.</strong> Composite readiness scores are internal blends and the VO&#x2082;max projection is a population proxy, both with no external source and labelled as such. The core and nonlinear HRV measures use the verified canon below.</div></div>
 <div class="nt-wrap"><table class="nt">
   <thead><tr><th>Method / Metric</th><th>Primary Citation</th><th>Category</th></tr></thead>
   <tbody>
@@ -581,7 +581,7 @@ body.light .mob-drawer-panel{background:#FFFFFF}
     <tr><td class="fmt-m">Baevsky stress index</td><td class="nr">Baevsky RM, Chernikova AG. <em>Heart rate variability analysis: physiological foundations and main methods.</em> Cardiometry. 2017;10:66&#x2013;76. doi: <a href="https://doi.org/10.12710/cardiometry.2017.10.6676" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.12710/cardiometry.2017.10.6676</a></td><td>HRV</td></tr>
     <tr><td class="fmt-m">DFA &#x3B1;1</td><td class="nr">Peng C-K, Havlin S, Stanley HE, Goldberger AL. <em>Quantification of scaling exponents&#x2026; in nonstationary heartbeat time series.</em> Chaos. 1995;5(1):82&#x2013;87. doi: <a href="https://doi.org/10.1063/1.166141" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1063/1.166141</a></td><td>Nonlinear</td></tr>
     <tr><td class="fmt-m">VO&#x2082;max (HR-ratio method)</td><td class="nr">Uth N, S&#xF8;rensen H, Overgaard K, Pedersen PK. <em>Estimation of VO&#x2082;max from the ratio between HRmax and HRrest.</em> Eur J Appl Physiol. 2004;91(1):111&#x2013;115. doi: <a href="https://doi.org/10.1007/s00421-003-0988-y" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1007/s00421-003-0988-y</a></td><td>Projection</td></tr>
-    <tr><td class="fmt-m">HRV / Stress / Energy / readiness scores; BP &amp; ANS-age proxies</td><td class="nr">HRVDex internal composites and population projections &#x2014; no external source. Directional only.</td><td>Internal</td></tr>
+    <tr><td class="fmt-m">HRV / Stress / Energy / readiness scores</td><td class="nr">HRVDex internal composites &#x2014; no external source. Directional only.</td><td>Internal</td></tr>
   </tbody>
 </table></div>
 <a href="#quick-jump" class="sec-back">&#x2191; back to index</a>
