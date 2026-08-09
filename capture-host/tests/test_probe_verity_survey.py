@@ -634,17 +634,27 @@ def test_decode_skips_a_missing_pull_dir():
 
 
 def _ours_dir(tmp_path, when):
-    d = tmp_path / f"U_0_20260803_R_{when.strftime('%H%M%S')}"
+    d = tmp_path / f"U_0_{when.strftime('%Y%m%d')}_R_{when.strftime('%H%M%S')}"
     d.mkdir()
     return d
 
 
 def test_only_the_session_this_run_created_gets_the_host_clock_comparison(tmp_path):
+    """The unrelated session is placed at THIS RUN'S TIME-OF-DAY, on an earlier date.
+
+    It used to be a fixed `U_0_20260701_R_030000`, so it only collided with `now` for about six
+    minutes a day — and on 2026-08-09 CI ran at 02:59:35 UTC, landed inside the 180 s window, and went
+    red. That red was correct: `_session_matches` was reading the trailing HHMMSS and pasting the RUN'S
+    date onto it, so any past session at the same clock-minute was judged "ours". Pinning the collision
+    makes the test exercise that every run instead of by luck of the clock.
+    """
     now = _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None, microsecond=0)
     stamp = now.strftime("%Y-%m-%d %H:%M:%S")
     ours = _ours_dir(tmp_path, now)
     _rec_file(ours, stamp=stamp, name="PPG.REC")
-    old = tmp_path / "U_0_20260701_R_030000"
+    # same H:M:S as this run, 39 days earlier — the adversarial case, deterministically
+    then = now - _dt.timedelta(days=39)
+    old = tmp_path / f"U_0_{then.strftime('%Y%m%d')}_R_{then.strftime('%H%M%S')}"
     old.mkdir()
     _rec_file(old, name="ACC.REC")
     (old / "notes.txt").write_text("ignored")
@@ -681,6 +691,15 @@ def test_a_directory_that_is_not_a_session_is_not_ours():
     assert psv._session_matches("/pull/U_0_R_995959", e) is False, "6 digits that are not a time"
     assert psv._session_matches("/pull/U_0_R_030000", e) is False, "the right shape, the wrong time"
     assert psv._session_matches("/pull/U_0_R_120059/", e) is True
+    # WITH a date, the date is part of the comparison — same clock-minute, wrong day, not ours.
+    assert psv._session_matches("/pull/U_0_20260803_R_120059", e) is True
+    assert psv._session_matches("/pull/U_0_20260701_R_120059", e) is False, "right time, earlier day"
+    assert psv._session_matches("/pull/U_0_20260804_R_120059", e) is False, "right time, next day"
+    assert psv._session_matches("/pull/U_0_99999999_R_120059", e) is False, "8 digits that are not a date"
+    # …and the midnight case the old same-day paste got backwards: 23:59:50 on 08-02 for a run that
+    # started 00:00:05 on 08-03 is 15 s apart, and ours.
+    midnight = _dt.datetime(2026, 8, 3, 0, 0, 5)
+    assert psv._session_matches("/pull/U_0_20260802_R_235950", midnight) is True
 
 
 def test_the_local_clock_helper_is_a_real_epoch():
