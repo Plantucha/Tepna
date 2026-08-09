@@ -8049,10 +8049,39 @@ window.IntegratorDSP = {
     if (Array.isArray(v)) return v;
     return null;
   }
+  /* THE DURATION IS MEASURED OR IT IS UNKNOWN — it is never divided out of an assumed rate.
+     This used to end `: rows.length / 26`, fabricating a duration from a nominal 26 Hz whenever the
+     last row resolved no time. Measured over the whole real corpus (616 ACC files · 121,429,712 rows ·
+     690 h, both trees, NODE-EXPORT-DURATION-SEMANTICS §8.2) that branch fires **0 times** — but the
+     delivered ACC rate across those same files runs **20.9–202.7 Hz** (H10 median 50.7, Verity 51.7),
+     so where it DID fire it would misstate the recording by **0.8×–7.8×**: 462 s published for a 60 s
+     record, beside a `startEpochMs` of `null`. Every other field on that path honestly says "unknown"
+     and this one alone invented a number — Clock Contract §2.6, one layer up.
+
+     ⚠ DO NOT REPLACE 26 WITH A BETTER CONSTANT. A measured median of ~51 Hz would be just as wrong for
+     the 202.7 Hz files and the 20.9 Hz ones; "any assumed rate is wrong for some file" is already this
+     repo's recorded finding (MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §2). The fix is to stop assuming.
+
+     Two changes. (1) Scan BACKWARD for the last row that resolves a time, instead of reading only the
+     final row — a single stampless trailing row no longer discards the whole stream's duration, which
+     is the same "read the last row that parses" rule `parsePPG` uses for `endEpochMs`. (2) When NO row
+     resolves, return `null` — the honest absence — rather than a number nobody measured. */
   function durationOf(rows, t0Ms) {
-    if (!rows || rows.length < 2) return 0;
-    var last = relSecOf(rows[rows.length - 1], t0Ms, streamBaseMs(rows));
-    return last != null && last > 0 ? last : rows.length / 26;
+    if (!rows || rows.length < 2) return null;
+    var base = streamBaseMs(rows);
+    for (var i = rows.length - 1; i >= 0; i--) {
+      var t = relSecOf(rows[i], t0Ms, base);
+      if (t != null && t > 0) return t;
+    }
+    return null;
+  }
+  /* Largest of the per-stream durations, or null when not one of them could be measured. `Math.max`
+     cannot do this job: it coerces null to 0, so a single unmeasurable stream would read as a real
+     zero-length one and win nothing while hiding the absence. */
+  function maxDuration(list) {
+    var best = null;
+    for (var i = 0; i < list.length; i++) if (list[i] != null && (best == null || list[i] > best)) best = list[i];
+    return best;
   }
   function firstTMs(rowsList) {
     for (var i = 0; i < rowsList.length; i++) {
@@ -8079,7 +8108,14 @@ window.IntegratorDSP = {
     var posUnit = posSrc === chest ? chestUnit : accUnit;
     var actiSrc = acc && acc.length > 10 ? acc : posSrc;
     var actiUnit = actiSrc === acc ? accUnit : posUnit;
-    var durSec = Math.max(durationOf(acc, t0Ms), durationOf(chest, t0Ms), durationOf(gyro, t0Ms));
+    /* `durMeasured` is null when no stream could be timed. The windowing below is handed 0 in that
+       case — every consumer already floors it (`Math.max(1, Math.ceil(durSec / epoch))` in
+       bodyPosition/actigraphy/respiratoryEffort, `Math.max(1, durSec)` in the rate fallback), so 0 is
+       an established in-band value here and not a new branch. What must NOT be 0 is the PUBLISHED
+       duration: a zero-length recording is a claim, and `NODE-EXPORT-RECORDING-DURATION` shows a node
+       declaring one collapses to a point in the fold. That is published as null below. */
+    var durMeasured = maxDuration([durationOf(acc, t0Ms), durationOf(chest, t0Ms), durationOf(gyro, t0Ms)]);
+    var durSec = durMeasured == null ? 0 : durMeasured;
 
     var position = bodyPosition(posSrc, t0Ms, durSec, posUnit);
     var activity = actigraphy(actiSrc, t0Ms, durSec, actiUnit);
@@ -8096,7 +8132,7 @@ window.IntegratorDSP = {
     var summary = {
       node: 'MotionDex',
       t0Ms: t0Ms,
-      durSec: Math.round(durSec),
+      durSec: durMeasured == null ? null : Math.round(durMeasured),
       streams: {
         acc: acc ? acc.length : 0,
         gyro: gyro ? gyro.length : 0,
