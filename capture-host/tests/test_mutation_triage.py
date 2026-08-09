@@ -275,3 +275,45 @@ def test_an_alias_call_through_an_unresolvable_callee_still_does_not_crash():
     got = mutation_triage.message_call_lines(src)
     assert 4 in got, "the aliased logger call is still found"
     assert 3 not in got, "the unresolvable one is not"
+
+
+def test_alias_collection_does_not_STOP_at_the_first_unrelated_assignment():
+    """The alias scan walks every Assign in the module and SKIPS the ones that are not loggers. Skipping
+    must be `continue`, not `break`.
+
+    This is not a style point. In `capture.py` the `_lvl = log.warning if … else log.info` assignment
+    sits ~1,800 lines in, after hundreds of ordinary ones — so a `break` finds no aliases AT ALL and the
+    19 mutants that alias exists to reclassify go straight back onto the work-list. The diff-scoped
+    mutation gate caught this on the PR that introduced it; the tests here did not, because every one of
+    them put the logger assignment first."""
+    src = ("def f(d, n):\n"
+           "    a = d['x']\n"          # unrelated, and FIRST
+           "    b = n + 1\n"
+           "    c = [q for q in d]\n"
+           "    _lvl = log.warning\n"  # the logger, only after several others
+           "    _lvl('m %s', a)\n"
+           "    return b, c\n")
+    got = mutation_triage.message_call_lines(src)
+    assert 6 in got, (
+        f"the aliased call must be found even though three unrelated assignments precede it; got "
+        f"{sorted(got)} — a `break` in the alias scan yields an empty set here")
+
+
+def test_sys_stderr_write_is_recognised_as_a_message_call():
+    """`sys.stderr.write` is in this module's message vocabulary, and it is the one callee whose
+    ATTRIBUTE names matter: the check is `base == "sys" and "write" in names`, so the walk must collect
+    every attribute on the way down, not just the root."""
+    src = ("import sys\n"
+           "def f(x):\n"
+           "    sys.stderr.write('boom %s\\n' % x)\n"
+           "    return x\n")
+    assert 3 in mutation_triage.message_call_lines(src), (
+        "sys.stderr.write must be recognised — the attribute chain, not only its root, decides it")
+
+
+def test_a_non_sys_write_is_still_not_a_message_call():
+    """The counterpart: `fh.write(buf)` shares the method name and is ordinary I/O."""
+    src = ("def f(fh, buf):\n"
+           "    fh.write(buf)\n"
+           "    return 1\n")
+    assert mutation_triage.message_call_lines(src) == frozenset()
