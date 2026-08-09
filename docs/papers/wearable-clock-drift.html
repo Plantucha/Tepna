@@ -102,7 +102,18 @@
     account remains wrong. It says the <b>rate bound is a property of the capture path, not of the
     devices</b> — v2's own §Methods scopes it to one phone and one logger, and the conclusion should
     carry that scope explicitly. On a host that stamps and re-syncs differently, a linear 90–216 ppm
-    ramp is present and is not beat slip. Anything downstream that assumes a single constant offset per
+    ramp is present and is not beat slip. <strong>Scope note corrected 2026-08-08:</strong> that
+    90–216 ppm is a <em>beat-derived</em> figure, and it is retracted as a statement about the devices.
+    Measured directly off the two clocks carried in every capture file — <code>Phone timestamp</code>
+    against <code>sensor timestamp [ns]</code> — the H10 runs <strong>−20.3 ppm</strong> and the Verity
+    <strong>−27.0 ppm</strong> versus the capture host, each stable to ±2–3 across fragments and
+    nights, so the <em>inter-device</em> rate is <strong>≈7 ppm, not 90–216</strong> (over 7 h: 202 ms,
+    not 2.5 s). The paper's conclusion is unaffected — 7 ppm still exceeds the ~2.4–3 ppm a
+    beat-resolution consumer can absorb, which is precisely why the inflated figure survived: the
+    ordering holds at both rates, so nothing downstream went red while the stated reason was wrong by
+    an order of magnitude. See <code>briefs/WEARABLE-DRIFT-DIRECT-2026-08-02-BRIEF.md</code>.
+    <em>Caveat:</em> these ppm are measured against the capture host's clock, so a change to how that
+    host stamps or disciplines time re-opens them. Anything downstream that assumes a single constant offset per
     night inherits the difference. See
     <code>briefs/CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md</code>.</p>
     <p style="margin:.6em 0 0"><b>Unresolved:</b> which capture path is at fault, and why. The two
