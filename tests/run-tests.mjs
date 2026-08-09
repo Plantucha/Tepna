@@ -862,6 +862,36 @@ function readToolSources() {
   return out;
 }
 
+/* CITATION-ATTRIBUTION-FOLLOWUPS §3 — hand the gate the ledger and the reader-facing SOURCE, and let
+   the gate own the predicate (a precomputed boolean here would move the check out of the gate).
+   SCOPE is editable source: the authored `* Reference.html` guides plus the root `*.js` that carry
+   citations. Generated bundles are excluded deliberately — their text is a copy of the DSP's, so
+   including them reports every finding twice and names a file you must not edit. Node-lane only. */
+function readCitations() {
+  const lp = join(ROOT, 'audits', 'CITATION-VERIFICATION-2026-08-05.json');
+  if (!existsSync(lp)) return null;
+  let ledger;
+  try {
+    ledger = JSON.parse(readFileSync(lp, 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!ledger || !ledger.dois) return null;
+  const surfaces = [];
+  for (const f of readdirSync(ROOT).sort()) {
+    if (!/ Reference\.html$/.test(f) && !/^[^/]+\.js$/.test(f)) continue;
+    let text;
+    try {
+      text = readFileSync(join(ROOT, f), 'utf8');
+    } catch {
+      continue;
+    }
+    if (!/10\.\d{4,9}\//.test(text)) continue;
+    surfaces.push({ file: f, text });
+  }
+  return { ledger, surfaces };
+}
+
 function readDocsLedger() {
   const bdir = join(ROOT, 'briefs');
   if (!existsSync(bdir)) return null;
@@ -1342,6 +1372,7 @@ async function main() {
     TchCorpus: ctx.TchCorpus,
     docs: readDocs(),
     docsLedger: readDocsLedger(),
+    citations: readCitations(),
     /* The rebase classifier decides GENERATED-vs-SOURCE for every conflicted path, and being wrong
        toward GENERATED reverts someone's work silently. It shipped with a `--classify` entry point
        documented as "used by the self-test" and no self-test — no group, nothing in `npm run check`,

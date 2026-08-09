@@ -4243,7 +4243,7 @@ function _shuffledAnchors(A, rnd) {
    sparse event channel happened to clear its null.
 
    WINDOWED, NOT GLOBAL — published practice, not preference. SOURCES:
-     · Straczkiewicz M, Huang EJ, Onnela J-P (2021) "Temporal Alignment of Dual
+     · Brønd JC, Pedersen NH, Larsen KT, Grøntved A (2021) "Temporal Alignment of Dual
        Monitor Accelerometry Recordings." Sensors 21(14):4777.
        doi:10.3390/s21144777 — windowed cross-correlation of accelerometer NORMS;
        offset AND drift modelled as linear in time.
@@ -4251,7 +4251,7 @@ function _shuffledAnchors(A, rnd) {
        Signal Synchronization across Devices." arXiv:2501.16015 (2025) — coarse
        pre-align, then refine by correlating ACC in patches; explicitly motivated
        by robustness to short-term misalignment.
-     · Bent B et al. (2022) "Time Synchronization of Multimodal Physiological
+     · Xiao R, Ding C, Hu X (2022) "Time Synchronization of Multimodal Physiological
        Signals through Alignment of Common Signal Types." J. Imaging 8(5):120.
        doi:10.3390/jimaging8050120 — align on a COMMON signal type shared by both
        devices, agnostic to which signal it is.
