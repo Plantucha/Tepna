@@ -22,3 +22,10 @@ cap 1.00 MiB`.
 
 The reformat is behaviour-neutral, verified against a baseline taken first: 6209 assertions / 416
 groups before, 6215 / 417 after — exactly the +6/+1 the new gate adds.
+
+Making biome read the file also made CodeQL re-attribute 9 pre-existing `js/bad-tag-filter` /
+`js/incomplete-multi-character-sanitization` alerts as "new in this PR", because the reformat moved
+their lines. All 9 are already open on main. One of them is real and mine: the `render()` added in
+#1088 stripped `<\/script>` without `\s*`, so `</script >` left the script BODY in what that gate
+calls rendered text — a false positive out of the honesty gate. Matched to the sibling stripper in the
+same file, which already uses that form and documents the rule as accepted for trusted local markup.

@@ -8906,10 +8906,18 @@
         return rows.join('\n');
       }
       // DERIVED: the host column IS the device stamp restamped — zero divergence, no jitter.
-      var derived = D.parseECG(build(function (rel) { return BASE + rel; }));
+      var derived = D.parseECG(
+        build(function (rel) {
+          return BASE + rel;
+        })
+      );
       // INDEPENDENT: a host clock running 500 ppm fast, with ±4 ms of delivery jitter so the residual
       // spread exceeds the 2 ms discriminator. Deterministic jitter — no Math.random in a gate.
-      var indep = D.parseECG(build(function (rel, i) { return BASE + Math.round(rel * (1 + 500e-6)) + (i % 3) * 4; }));
+      var indep = D.parseECG(
+        build(function (rel, i) {
+          return BASE + Math.round(rel * (1 + 500e-6)) + (i % 3) * 4;
+        })
+      );
 
       var dAx = derived.hostAxis || {},
         iAx = indep.hostAxis || {};
@@ -8924,7 +8932,11 @@
          this fixture deliberately carries few anchors (6) to stay small. Measured here: ~250 ppm
          recovered from a planted 500. Asserting the planted value would be asserting the bias away. */
       var movedPpm = (1 / (indep.fs / derived.fs) - 1) * 1e6;
-      T.ok('fs is corrected on the independent one, in the right direction and the right order', movedPpm > 100 && movedPpm < 600, 'derived=' + derived.fs + ' indep=' + indep.fs + ' recovered=' + Math.round(movedPpm) + ' ppm from a planted 500');
+      T.ok(
+        'fs is corrected on the independent one, in the right direction and the right order',
+        movedPpm > 100 && movedPpm < 600,
+        'derived=' + derived.fs + ' indep=' + indep.fs + ' recovered=' + Math.round(movedPpm) + ' ppm from a planted 500'
+      );
       T.ok('the refusal is auditable — spreadMs is forwarded, not just a boolean', dAx.spreadMs != null && iAx.spreadMs != null, JSON.stringify([dAx.spreadMs, iAx.spreadMs]));
     });
 
@@ -34157,12 +34169,23 @@
       /* Rendered text = what a reader sees. Comments, <script> and <style> are NOT rendered, so they
          are removed before the scan — deliberately, per the header. */
       var render = function (html) {
-        return String(html)
-          .replace(/<!--[\s\S]*?-->/g, ' ')
-          .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
-          .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/\s+/g, ' ');
+        return (
+          String(html)
+            .replace(/<!--[\s\S]*?-->/g, ' ')
+            /* `<\/script\s*>`, not `<\/script>` — CodeQL js/bad-tag-filter, and it is right. A guide
+             containing `</script >` would not match, so the script BODY would survive into the text
+             this gate calls "rendered" and get scanned as reader-facing prose: a false positive from
+             the honesty gate, which is the one place a false positive is expensive. The sibling
+             stripper ~15k lines up documents the same rule as accepted for trusted local markup.
+             `[^>]*` rather than `\s*`: CodeQL names TWO bypasses and they are different sizes —
+             "`</script >`" (whitespace) and "`</script\t\n bar>`" (whitespace AND junk before the
+             `>`). The sibling uses `\s*`, which closes the first and not the second, and is still an
+             open alert for exactly that reason. `[^>]*` closes both. */
+            .replace(/<script\b[\s\S]*?<\/script[^>]*>/gi, ' ')
+            .replace(/<style\b[\s\S]*?<\/style[^>]*>/gi, ' ')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/\s+/g, ' ')
+        );
       };
       /* Byte-identical to the sibling group's regex, on purpose: one definition of "correction
          history", two surfaces. If one is widened the other must be, and a diff shows it. */
@@ -34179,6 +34202,17 @@
         'ANTI-VACUITY · render() strips a comment but keeps the prose around it',
         render('<p>kept text</p><!-- ANS Age card REMOVED 2026-06-23 -->').indexOf('kept text') >= 0 && !META.test(render('<!-- ANS Age card REMOVED 2026-06-23 -->')),
         'comment removed, sibling prose survived'
+      );
+      /* …AND THE CLOSING TAG MAY CARRY WHITESPACE. `</script >` is valid HTML and the pre-fix regex
+         (`<\/script>`, no `\s*`) did not match it, so the script BODY survived into what this gate
+         calls rendered text — a maintainer's JS comment scanned as reader-facing prose. Fails against
+         the old form; CodeQL js/bad-tag-filter flagged exactly this. */
+      T.ok(
+        'ANTI-VACUITY · a closing tag with whitespace (`</script >`) is still stripped',
+        render('<p>ok</p><script>var x = "REMOVED 2026-06-23";</script >').indexOf('REMOVED') < 0 &&
+          render('<p>ok</p><script>var y = "REMOVED 2026-06-23";</script\t\n bar>').indexOf('REMOVED') < 0 &&
+          render('<div>ok</div><style>a{}</style >').indexOf('a{}') < 0,
+        'script and style bodies removed for `</script >` AND `</script\\t\\n bar>` — both bypasses CodeQL names'
       );
       var totalChars = GUIDES.reduce(function (a, g) {
         return a + render(docs[g]).length;
