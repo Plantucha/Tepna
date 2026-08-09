@@ -293,6 +293,45 @@ if (IS_MAIN && has('--selftest')) {
   process.exit(fail ? 1 : 0);
 }
 
+/* ── child mode ───────────────────────────────────────────────────────────────────────────────
+   One mutant, one realm, one fingerprint, then exit. The parent bounds it with a timeout, so this
+   half deliberately has no error handling for non-termination: it is allowed to hang, and being
+   killed IS the verdict it reports. Communicates by FILE, never a pipe — a fingerprint is one entry
+   per battery input and runs to hundreds of KB. */
+async function probeOne(base) {
+  const req = JSON.parse(readFileSync(base + '.in.json', 'utf8'));
+  const write = (o) => writeFileSync(base + '.out.json', JSON.stringify(o));
+  const bPath = join(ROOT, 'tools/probe-batteries', req.file.replace(/\.js$/, '') + '.mjs');
+  const battery = await import(bPath);
+  const src = readFileSync(join(ROOT, req.file), 'utf8');
+  const deps = (battery.deps || []).map((f) => readFileSync(join(ROOT, f), 'utf8'));
+  const ctx = battery.realmGlobals ? battery.realmGlobals() : {};
+  ctx.globalThis = ctx;
+  if (!ctx.console) ctx.console = { log() {}, warn() {}, error() {} };
+  try {
+    for (const d of deps) vm.runInNewContext(d.replace(/^export\s.*$/gm, ''), ctx, { timeout: 15000 });
+    vm.runInNewContext(applyMutant(src.split('\n'), req.mutant).replace(/^export\s.*$/gm, ''), ctx, { timeout: 15000 });
+  } catch (e) {
+    return write({ err: String(e && e.message).slice(0, 70) });
+  }
+  let subj;
+  try {
+    subj = battery.subject(ctx);
+  } catch (e) {
+    return write({ err: 'subject: ' + String(e && e.message).slice(0, 60) });
+  }
+  if (!subj) return write({ err: 'battery.subject() returned nothing' });
+  try {
+    write({ fp: battery.families[req.family].probe(subj) });
+  } catch (e) {
+    write({ fp: ['THREW:' + String(e && e.message).slice(0, 60)] });
+  }
+}
+if (IS_MAIN && has('--probe-one')) {
+  await probeOne(argv[argv.indexOf('--probe-one') + 1]);
+  process.exit(0);
+}
+
 // ── run ─────────────────────────────────────────────────────────────────────────────────────
 async function main() {
   const FILE = opt('--file', '');
@@ -314,7 +353,6 @@ async function main() {
   const battery = await import(batteryPath);
 
   const SRC = readFileSync(join(ROOT, FILE), 'utf8');
-  const LINES = SRC.split('\n');
 
   /* Enumerate fresh rather than trusting the sweep's list — a stale enumeration would silently probe
      mutants that no longer exist on this file.
@@ -342,6 +380,15 @@ async function main() {
   }
   const sweep = JSON.parse(sweepLine);
   const survKeys = new Set((sweep.survivors || []).map(mutantKey));
+  /* ⚠ INVALID IS A THIRD STATE, AND TREATING IT AS "KILLED" HANGS THE RUN.
+     A sweep partitions mutants into killed / survived / INVALID (non-terminating, or producing no
+     output). Selecting controls as "everything that is not a survivor" therefore sweeps the invalids
+     into the control pool — and an invalid mutant is, by definition, one that does not terminate.
+     Measured 2026-08-09: `ppgdex-dsp.js:1889 [num → 0] df = 0` is inside `lombScargle`, is one of the
+     sweep's 15 invalids, and was picked as a control on the first real run. The probe span 43 minutes
+     of CPU at 99.9 % with its log untouched, which is indistinguishable from a slow battery.
+     The sweep already knows which ones these are. Use that. */
+  const invalidKeys = new Set((sweep.invalids || []).map(mutantKey));
 
   /* `deps` are the files the SUITE co-loads before this one (dex-coload.js `shared:`). Loading them is
      not a convenience — omitting one manufactures differences that belong to the probe rather than to
@@ -349,6 +396,39 @@ async function main() {
      defined", because that realm had no clock while the suite does. Loaded UNMUTATED, always: a dep is
      context, never a subject. */
   const DEPS = (battery.deps || []).map((f) => readFileSync(join(ROOT, f), 'utf8'));
+
+  /* EVERY MUTANT RUNS IN A CHILD, UNDER A TIMEOUT — a hang is its own verdict, never a kill and never
+     an equivalence. `vm`'s own `timeout` bounds only the module LOAD; the battery call afterwards is
+     ordinary synchronous JS and cannot be interrupted in-process, so a non-terminating mutant spins
+     the whole run forever. Excluding the sweep's `invalids` (above) removes the KNOWN offenders, but
+     a mutant that terminates under the test suite can still hang under a battery the suite never ran,
+     so the exclusion is necessary and not sufficient. The extra cost is one process spawn per mutant;
+     the realm load was being paid either way. */
+  const PROBE_MS = +opt('--probe-timeout', 60000);
+  function probeInChild(m, famIdx) {
+    const base = join(tmpdir(), `probe-one-${process.pid}-${famIdx}-${m.line}`);
+    writeFileSync(base + '.in.json', JSON.stringify({ file: FILE, mutant: m, family: famIdx }));
+    try {
+      execFileSync(process.execPath, [fileURLToPath(import.meta.url), '--probe-one', base], { cwd: ROOT, stdio: ['ignore', 'ignore', 'ignore'], timeout: PROBE_MS });
+    } catch (e) {
+      try {
+        unlinkSync(base + '.in.json');
+      } catch (_) {}
+      if (e && (e.killed || e.signal === 'SIGTERM')) return { hang: true };
+      return { err: 'child exit ' + (e && e.status) };
+    }
+    let out = null;
+    try {
+      out = JSON.parse(readFileSync(base + '.out.json', 'utf8'));
+    } catch (_) {
+      out = { err: 'child wrote nothing' };
+    }
+    try {
+      unlinkSync(base + '.in.json');
+      unlinkSync(base + '.out.json');
+    } catch (_) {}
+    return out;
+  }
 
   function makeRealm(src) {
     const ctx = battery.realmGlobals ? battery.realmGlobals() : {};
@@ -383,17 +463,19 @@ async function main() {
   console.log(`  ${dry.length} mutants enumerated · ${battery.families.length} famil${battery.families.length === 1 ? 'y' : 'ies'} declared\n`);
 
   const emit = [];
-  let anyBlind = false;
+  const blindFamilies = [];
 
-  for (const fam of battery.families) {
+  for (const [famIdx, fam] of battery.families.entries()) {
     const range = functionRange(SRC, fam.fn);
     if (!range) {
       console.log(`▸ ${fam.name}\n  ✗ SKIPPED — function \`${fam.fn}\` not found in ${FILE}\n`);
       continue;
     }
     const inRange = (m) => m.line >= range.start && m.line <= range.end;
-    const survivors = dry.filter((m) => inRange(m) && survKeys.has(mutantKey(m)));
-    const controlsAll = dry.filter((m) => inRange(m) && !survKeys.has(mutantKey(m)));
+    const survivors = dry.filter((m) => inRange(m) && survKeys.has(mutantKey(m)) && !invalidKeys.has(mutantKey(m)));
+    /* KILLED = not a survivor AND not invalid. See the invalidKeys note: "everything that is not a
+       survivor" silently includes the non-terminating ones. */
+    const controlsAll = dry.filter((m) => inRange(m) && !survKeys.has(mutantKey(m)) && !invalidKeys.has(mutantKey(m)));
 
     let baseFp;
     try {
@@ -411,7 +493,7 @@ async function main() {
 
     /* RULE 2 — variety in the BASELINE is the evidence the subject ran at all. */
     if (batteryIsDegenerate(baseFp, minDistinct)) {
-      anyBlind = true;
+      blindFamilies.push(fam.name);
       console.log(`  ⚠ DEGENERATE BATTERY — ${new Set(baseFp).size} distinct answer(s) over ${baseFp.length} inputs.`);
       console.log('    The subject almost certainly never ran (cf. #1052: PPGDSP.loadOwnExport is undefined).');
       console.log('    Every verdict in this family is void and nothing is emitted.\n');
@@ -422,7 +504,7 @@ async function main() {
        same as a clean bill and must not read like one. */
     const controls = sampleEvenly(controlsAll, NCTL);
     if (!controls.length) {
-      anyBlind = true;
+      blindFamilies.push(fam.name);
       console.log(`  ⚠ NO CONTROLS — the sweep killed nothing in ${fam.fn}, so the battery's reach is UNPROVEN.`);
       console.log('    Verdicts withheld: an unreached mutant is indistinguishable from an unkillable one.\n');
       continue;
@@ -431,29 +513,31 @@ async function main() {
     const B = joined(baseFp);
     let blind = 0,
       ctlRan = 0;
+    let ctlHang = 0;
     for (const m of controls) {
-      const r = makeRealm(applyMutant(LINES, m));
+      const r = probeInChild(m, famIdx);
+      if (r.hang) {
+        /* Not a control failure and not evidence about the battery — it is a mutant that does not
+           terminate, which the sweep should have recorded as invalid. Skipped, and SAID. */
+        ctlHang++;
+        console.log(`  ⊘ control HUNG (>${PROBE_MS} ms, skipped)  L${m.line} [${m.op}]`);
+        continue;
+      }
       if (r.err) continue;
       ctlRan++;
-      let f;
-      try {
-        f = joined(fam.probe(r.s));
-      } catch (_) {
-        f = 'THREW';
-      }
-      if (f === B) {
+      if (joined(r.fp) === B) {
         blind++;
         console.log(`  ⚠ BLIND control  L${m.line} [${m.op}]  ${(m.after || '').trim().slice(0, 52)}`);
       }
     }
     if (!ctlRan) {
-      anyBlind = true;
+      blindFamilies.push(fam.name);
       console.log(`  ⚠ NO CONTROL RAN — every sampled control failed to load. Reach UNPROVEN; verdicts withheld.\n`);
       continue;
     }
-    console.log(`  controls: ${ctlRan - blind}/${ctlRan} killed mutants separated${blind ? '  ← BATTERY IS PARTIALLY BLIND' : ''}`);
+    console.log(`  controls: ${ctlRan - blind}/${ctlRan} killed mutants separated${ctlHang ? ` (${ctlHang} hung, skipped)` : ''}${blind ? '  ← BATTERY IS PARTIALLY BLIND' : ''}`);
     if (blind) {
-      anyBlind = true;
+      blindFamilies.push(fam.name);
       console.log(`  ⚠ ${blind} control(s) read as equivalent. Every verdict in ${fam.name} is VOID and nothing is emitted.`);
       console.log('    Widen the battery until all controls separate, then re-run.\n');
       continue;
@@ -462,19 +546,23 @@ async function main() {
     let dist = 0,
       same = 0,
       dead = 0;
+    let hung = 0;
     for (const m of survivors) {
-      const r = makeRealm(applyMutant(LINES, m));
+      const r = probeInChild(m, famIdx);
+      if (r.hang) {
+        /* A HANG IS ITS OWN VERDICT. Never a kill, and above all never an equivalence — a mutant that
+           does not terminate produced no output to compare, so "byte-identical" would be vacuously
+           true and would emit a classification excusing a mutant nobody measured. */
+        hung++;
+        console.log(`  ⊘ HUNG            L${String(m.line).padEnd(5)} [${m.op.padEnd(14)}] non-terminating under this battery (>${PROBE_MS} ms)`);
+        continue;
+      }
       if (r.err) {
         dead++;
         console.log(`  REALM-FAIL        L${String(m.line).padEnd(5)} ${r.err}`);
         continue;
       }
-      let f;
-      try {
-        f = joined(fam.probe(r.s));
-      } catch (_) {
-        f = 'THREW';
-      }
+      const f = joined(r.fp);
       if (f !== B) {
         dist++;
         console.log(`  DISTINGUISHABLE   L${String(m.line).padEnd(5)} [${m.op.padEnd(14)}] ${(m.after || '').trim().slice(0, 48)}`);
@@ -492,13 +580,22 @@ async function main() {
         });
       }
     }
-    console.log(`  → ${dist} distinguishable (real gaps), ${same} no-distinguishing-input${dead ? `, ${dead} realm-fail` : ''} of ${survivors.length} survivor(s)\n`);
+    console.log(`  → ${dist} distinguishable (real gaps), ${same} no-distinguishing-input${dead ? `, ${dead} realm-fail` : ''}${hung ? `, ${hung} HUNG` : ''} of ${survivors.length} survivor(s)\n`);
   }
 
   if (EMIT) {
-    if (anyBlind) {
-      console.error('✗ --emit REFUSED: at least one family was blind, degenerate or uncontrolled.');
-      console.error('  A classification written from a battery that cannot see is the thing this mechanism replaces.');
+    /* REFUSAL IS PER-FAMILY, NOT PER-RUN, and that is not a weakening. A blind, degenerate or
+       uncontrolled family `continue`s before its survivor loop, so its verdicts never enter `emit` in
+       the first place — the guard is structural. Refusing the WHOLE run on top of that would only
+       withhold verdicts from families whose controls all separated, which is not a safety property,
+       just a slower one. What must never happen is silence: the skipped families are named here, and
+       their survivors stay UNCLASSIFIED, which is exactly how the sweep will keep reporting them. */
+    if (blindFamilies.length) {
+      console.log(`⚠ ${blindFamilies.length} famil${blindFamilies.length === 1 ? 'y' : 'ies'} contributed NOTHING (blind / degenerate / uncontrolled): ${blindFamilies.join(', ')}`);
+      console.log('  Their survivors remain UNCLASSIFIED by design. Widen the battery and re-run; do not lower the bar.');
+    }
+    if (!emit.length) {
+      console.error('✗ nothing to emit — no family produced a sound no-distinguishing verdict.');
       process.exit(1);
     }
     const path = join(ROOT, 'tools/mutate-equivalence.json');

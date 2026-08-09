@@ -62,5 +62,97 @@
       "probe": "correctionAt queried mid-interval",
       "brief": "MUTATION-EQUIVALENCE §3"
     }
+  ],
+  "ppgdex-dsp.js": [
+    {
+      "line": 1885,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < N; i++) y[i] -= slope * t[i] + icpt;",
+      "after": "for (let i = 0; i <= N; i++) y[i] -= slope * t[i] + icpt;",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1886,
+      "op": "num → 0",
+      "before": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
+      "after": "const bands = { vlf: [0, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1886,
+      "op": "num → 0",
+      "before": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
+      "after": "const bands = { vlf: [0.003, 0.04], lf: [0, 0.15], hf: [0.15, 0.4] };",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1886,
+      "op": "num → 0",
+      "before": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
+      "after": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0, 0.4] };",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1912,
+      "op": "cmp <= → <",
+      "before": "for (let f = fmin; f <= fCal; f += df) {",
+      "after": "for (let f = fmin; f < fCal; f += df) {",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1938,
+      "op": "cmp < → <=",
+      "before": "if (f >= bands.vlf[0] && f < bands.vlf[1]) vlf += pw;",
+      "after": "if (f >= bands.vlf[0] && f <= bands.vlf[1]) vlf += pw;",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1939,
+      "op": "cmp >= → >",
+      "before": "else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;",
+      "after": "else if (f > bands.lf[0] && f < bands.lf[1]) lf += pw;",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1939,
+      "op": "cmp < → <=",
+      "before": "else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;",
+      "after": "else if (f >= bands.lf[0] && f <= bands.lf[1]) lf += pw;",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1940,
+      "op": "cmp >= → >",
+      "before": "else if (f >= bands.hf[0] && f < bands.hf[1]) {",
+      "after": "else if (f > bands.hf[0] && f < bands.hf[1]) {",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1940,
+      "op": "cmp < → <=",
+      "before": "else if (f >= bands.hf[0] && f < bands.hf[1]) {",
+      "after": "else if (f >= bands.hf[0] && f <= bands.hf[1]) {",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    }
   ]
 }

@@ -16,5 +16,14 @@
     "killers": [
       "HRVDex — an absent column yields NaN, never a fabricated number (§1.1–1.9)"
     ]
+  },
+  "ppgdex-dsp.js": {
+    "line": 31,
+    "op": "bool || → &&",
+    "before": "se = se || 0;",
+    "after": "se = se && 0;",
+    "killers": [
+      "O2Ring device-crystal is invariant to a corrupted host clock — bad-host acceptance"
+    ]
   }
 }
