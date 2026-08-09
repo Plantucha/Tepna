@@ -19,6 +19,7 @@
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { classify as rebaseClassify } from '../tools/rebase-safe.mjs';
+import { decide as landDecide } from '../tools/land-pr.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -1407,6 +1408,11 @@ async function main() {
        nothing calling it. Node-lane only (an ESM import of a tool), so the browser lane SKIPs, exactly
        like docsLedger. */
     rebaseClassify: rebaseClassify,
+    /* land-pr's PURE decision core. Same shape and same reason as rebaseClassify above: the tool's
+       value is a state machine that must not be re-derived by hand in every session, and a state
+       machine is only trustworthy if something drives it. Node-lane only (an ESM import of a tool),
+       so the browser lane SKIPs. No `gh`, no network, no clock — decide() is a pure function. */
+    landDecide: landDecide,
     /* REGEN-CORPUS-PATH-FOLLOWUPS-II §1 — A2's OWN scope. The SPDX lint used to read `env.sources`,
        a list curated to serve OTHER source-scan gates, so a file was licence-checked iff some unrelated
        scan happened to want its text. `CLAUDE.md` §📜 states the invariant as universal. This walks the
