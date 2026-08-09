@@ -4026,7 +4026,18 @@
        provenance fragments to carry it. */
     var ecgAxisSpanMs = ecgAxisAnchors.length >= 2 ? ecgAxisAnchors[ecgAxisAnchors.length - 1].devMs - ecgAxisAnchors[0].devMs : 0;
     var ecgAxisApplied = false;
-    if (ecgHostAx.ok && isFinite(ecgHostAx.ppm) && ecgAxisSpanMs >= ECG_AXIS_MIN_SPAN_MS) {
+    /* INDEPENDENCE GATE — Clock Contract §7 states it outright: "FIRST ASK WHETHER THERE IS A SECOND
+       CLOCK AT ALL — read `independent`, never a ~0 ppm." This consumer did not, and it is the one
+       consumer that reads `.ppm` and divides `fs` by it.
+       `independent === false` means the capture app DERIVED the host column from the device stamp, so
+       the two columns are one clock and `ppm` measures the ROUNDING, not a crystal. Correcting by it
+       fabricates a rate — the absence of a measurement wearing the shape of one, which is precisely
+       what §7 says the spread discriminates. Measured 2026-08-09: the H10 ECG captures in this corpus
+       show a host↔device residual spread of 0.98 ms on every night checked (one stamp quantum, against
+       101.89–5124 ms where a real second clock exists), so EVERY one of them is a phone capture and
+       every `fs` correction applied to them was derived from a column that is not a clock.
+       `ok` is not enough and neither is the span gate: both are satisfied by a derived column. */
+    if (ecgHostAx.ok && ecgHostAx.independent !== false && isFinite(ecgHostAx.ppm) && ecgAxisSpanMs >= ECG_AXIS_MIN_SPAN_MS) {
       fs = fs / (1 + ecgHostAx.ppm / 1e6);
       ecgAxisApplied = true;
     }
@@ -4056,6 +4067,11 @@
             ok: true,
             applied: ecgAxisApplied,
             anchors: ecgHostAx.n,
+            /* Forwarded so a consumer can tell "corrected" from "declined, and why". Without these,
+               `applied:false` is indistinguishable between a short fragment and a recording that
+               never had a second clock — different problems with different remedies. */
+            independent: ecgHostAx.independent != null ? ecgHostAx.independent : null,
+            spreadMs: ecgHostAx.spreadMs != null ? ecgHostAx.spreadMs : null,
             totalMs: ecgHostAx.totalMs,
             ppm: ecgHostAx.ppm,
             maxStepMs: ecgHostAx.maxStepMs,
