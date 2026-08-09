@@ -73,8 +73,33 @@ PAGES=("Data Unifier.html" "OverDex.html" "index.html" "Architecture.html" "How 
 ASSETS=("dex-badges.css" "manifest.json" "licensing/dex-license.css")
 ASSET_DIRS=("assets" "how-to-collect" "papers")
 
+# ANALYSIS TOOLS — the third generated tree, and the one with no provenance fragment.
+#
+# `apps` is DERIVED from provenance/*.json and PAGES is hand-typed, so a generated artifact that has
+# neither is invisible to this script: never copied, and never reported, because `extra` counts files
+# present in DEST that should not be there and says nothing about files that were never considered.
+# Measured on the box 2026-08-09: ten `*-analysis.html` were serving code four days stale — pre-#1011
+# `accFs`, pre-#996 ECGDex clock — while every app bundle was current and the summary read clean.
+#
+# So ASK THE BUILDER, the same rule `tools/rebase-safe.mjs` uses: the list comes from
+# `tools/build-analysis.mjs`'s own TOOLS array, never from a glob and never from a second hand-typed
+# copy here (a copy is what goes stale — it is this section's own bug, one level up).
+# Parsed in shell on purpose: this runs on the capture host, which is not guaranteed to have node.
+ANALYSIS_SRC="$SRC/tools/build-analysis.mjs"
+analysis=()
+if [ -f "$ANALYSIS_SRC" ]; then
+  while IFS= read -r t; do [ -n "$t" ] && analysis+=("$t"); done < <(
+    sed -n '/^const TOOLS = \[/,/^\];/p' "$ANALYSIS_SRC" | grep -oE "'[^']+\.html'" | tr -d "'"
+  )
+  # FAIL LOUDLY, NOT SILENTLY. An empty parse means the builder changed shape, and the failure mode of
+  # carrying on is exactly what this block fixes: a deploy that looks complete and ships stale code.
+  [ ${#analysis[@]} -gt 0 ] || { echo "  ✗ could not read TOOLS from $ANALYSIS_SRC — refusing a partial deploy"; exit 1; }
+else
+  echo "  ✗ $ANALYSIS_SRC not found — refusing a partial deploy"; exit 1
+fi
+
 bundles=()
-for b in "${apps[@]}" "${PAGES[@]}"; do
+for b in "${apps[@]}" "${PAGES[@]}" "${analysis[@]}"; do
   if [ -e "$SRC/$b" ]; then
     bundles+=("$SRC/$b")
   else
@@ -84,6 +109,12 @@ done
 [ ${#bundles[@]} -gt 0 ] || { echo "  ✗ nothing to serve from $SRC — wrong source directory?"; exit 1; }
 
 changed=0 added=0 same=0 failed=0
+# ASSET COUNTERS ARE SEPARATE FROM BUNDLE COUNTERS. They were shared, while the summary printed
+# ${#bundles[@]} — bundles only — as the total, so refreshed assets pushed the parts past the whole:
+# an observed run read "23 bundle(s): 16 already current, 13 refreshed", i.e. 29 of 23. The sync was
+# correct; the line describing it was not, which is worse than a wrong sync because it is the line
+# people read to decide whether the deploy worked.
+aChanged=0 aAdded=0 aSame=0 aFailed=0
 for f in "${bundles[@]}"; do
   b="$(basename "$f")"
   if [ -e "$DEST/$b" ]; then
@@ -108,29 +139,29 @@ for a in "${ASSETS[@]}"; do
   d="$DEST/$a"
   mkdir -p "$(dirname "$d")" 2>/dev/null
   if [ -e "$d" ] && cmp -s "$SRC/$a" "$d"; then
-    same=$((same + 1))
+    aSame=$((aSame + 1))
     continue
   fi
   if [ "$CHECK" = "1" ]; then
-    if [ -e "$d" ]; then echo "  ✗ STALE  $a"; changed=$((changed + 1))
-    else echo "  ✗ MISSING $a"; added=$((added + 1)); fi
+    if [ -e "$d" ]; then echo "  ✗ STALE  $a"; aChanged=$((aChanged + 1))
+    else echo "  ✗ MISSING $a"; aAdded=$((aAdded + 1)); fi
     continue
   fi
-  if cp -p "$SRC/$a" "$d"; then changed=$((changed + 1))
-  else echo "  ✗ failed to copy $a"; failed=$((failed + 1)); fi
+  if cp -p "$SRC/$a" "$d"; then aChanged=$((aChanged + 1))
+  else echo "  ✗ failed to copy $a"; aFailed=$((aFailed + 1)); fi
 done
 for a in "${ASSET_DIRS[@]}"; do
   [ -d "$SRC/$a" ] || continue
   if [ "$CHECK" = "1" ]; then
     if diff -rq "$SRC/$a" "$DEST/$a" >/dev/null 2>&1; then
-      same=$((same + 1))
+      aSame=$((aSame + 1))
     else
-      echo "  ✗ STALE/MISSING $a/"; changed=$((changed + 1))
+      echo "  ✗ STALE/MISSING $a/"; aChanged=$((aChanged + 1))
     fi
     continue
   fi
-  if mkdir -p "$DEST/$a" && cp -pr "$SRC/$a/." "$DEST/$a/"; then changed=$((changed + 1))
-  else echo "  ✗ failed to copy $a/"; failed=$((failed + 1)); fi
+  if mkdir -p "$DEST/$a" && cp -pr "$SRC/$a/." "$DEST/$a/"; then aChanged=$((aChanged + 1))
+  else echo "  ✗ failed to copy $a/"; aFailed=$((aFailed + 1)); fi
 done
 
 # Present in the served set, absent from the repo — reported, never removed (see the header).
@@ -141,10 +172,10 @@ for f in "$DEST"/*.html; do
 done
 
 if [ "$CHECK" = "1" ]; then
-  echo "  ${#bundles[@]} bundle(s): $same current, $changed stale, $added missing, $extra extra"
+  echo "  ${#bundles[@]} bundle(s): $same current, $changed stale, $added missing, $extra extra · assets: $aSame current, $aChanged stale, $aAdded missing"
   [ $((changed + added)) -eq 0 ] || exit 1
   exit 0
 fi
-echo "  ${#bundles[@]} bundle(s): $same already current, $changed refreshed, $added added, $extra extra, $failed failed"
+echo "  ${#bundles[@]} bundle(s): $same already current, $changed refreshed, $added added, $extra extra, $failed failed · assets: $aSame current, $aChanged refreshed, $aAdded added, $aFailed failed"
 [ "$failed" -eq 0 ] || exit 1
 exit 0
