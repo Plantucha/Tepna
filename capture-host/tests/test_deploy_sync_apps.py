@@ -188,11 +188,13 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
     systemd = tmp_path / "etc-systemd"; systemd.mkdir()
     udev = tmp_path / "etc-udev"; udev.mkdir()
     (src / "99-tepna-btdongle.rules").write_text('ACTION=="add", ATTR{idVendor}=="2357"\n')
+    (src / "99-tepna-hidraw.rules").write_text('SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1915"\n')
     (src / "tepna-usb-autosuspend.service").write_text("[Service]\nType=oneshot\n")
     unit = "[Service]\nUser={u}\nGroup={u}\nReadWritePaths=/srv/tepna\nExecStart=/x\n"
     # deploy/ is the installed source (see the script header); systemd/ no longer participates.
     (tmp_path / "capture-host" / "deploy" / "tepna-capture.service").write_text(unit.format(u=capture_user_repo))
     (udev / "99-tepna-btdongle.rules").write_text('ACTION=="add", ATTR{idVendor}=="2357"\n')
+    (udev / "99-tepna-hidraw.rules").write_text('SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1915"\n')
     (systemd / "tepna-usb-autosuspend.service").write_text("[Service]\nType=oneshot\n")
     (systemd / "tepna-capture.service").write_text(unit.format(u=capture_user_etc))
     # The four privileged NOPASSWD helpers (helper_path.SYSTEM_DIRS[0]). Added to the manifest 2026-08-04
@@ -282,6 +284,8 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
     udev = tmp_path / "etc-udev"; udev.mkdir()
     (src / "systemd" / "99-tepna-btdongle.rules").write_text("rule\n")
     (udev / "99-tepna-btdongle.rules").write_text("rule\n")
+    (src / "systemd" / "99-tepna-hidraw.rules").write_text("hidraw rule\n")
+    (udev / "99-tepna-hidraw.rules").write_text("hidraw rule\n")
     (src / "systemd" / "tepna-usb-autosuspend.service").write_text("unit\n")
     (systemd / "tepna-usb-autosuspend.service").write_text("unit\n")
     (src / "deploy" / "tepna-capture.service").write_text(deploy_body)
@@ -629,3 +633,108 @@ def test_a_referenced_asset_directory_is_mirrored(tmp_path):
     (src / "assets" / "icons" / "apple-touch-icon-180.png").write_bytes(b"\x89PNG")
     assert _run(src, dest).returncode == 0
     assert (dest / "assets" / "icons" / "apple-touch-icon-180.png").read_bytes() == b"\x89PNG"
+
+
+# ══ SUPERSEDED /etc FILES (2026-08-08) ════════════════════════════════════════════════════════
+# `99-tepna-hidraw.rules` ADOPTED a rule that had been hand-installed as `99-polar-hidraw.rules` —
+# in no repo, on no manifest, invisible to this gate, and one rebuild away from vanishing silently.
+# Adopting it under a new name leaves the old file behind, still active: the same udev rule loaded
+# twice, harmless until the two copies disagree and filename sort order picks the winner. That is
+# `ambiguous()`'s problem pointed at /etc instead of the repo, so it gets the same treatment —
+# reported loudly, counted as drift, and never deleted automatically.
+
+def _tree_with_superseded(tmp_path, install_replacement=True, leave_old=True):
+    src, systemd, udev = _tree(tmp_path)
+    if not install_replacement:
+        (udev / "99-tepna-hidraw.rules").unlink()
+    if leave_old:
+        (udev / "99-polar-hidraw.rules").write_text('SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0da4"\n')
+    return src, systemd, udev
+
+
+def test_a_superseded_etc_file_is_reported_and_reds_the_gate(tmp_path):
+    src, systemd, udev = _tree_with_superseded(tmp_path)
+    r = _chk(src, systemd, udev)
+    assert "SUPERSEDED" in r.stdout, r.stdout
+    assert "99-polar-hidraw.rules" in r.stdout
+    assert r.returncode == 1, "a leftover duplicate rule must not read as green"
+
+
+def test_the_superseded_report_names_the_exact_command(tmp_path):
+    """An operator reading this at 2 a.m. should not have to reconstruct the path. It also states that
+    the script will not do it for them, because `--install` is re-runnable and an `rm` is not."""
+    src, systemd, udev = _tree_with_superseded(tmp_path)
+    r = _chk(src, systemd, udev)
+    assert "sudo rm" in r.stdout and str(udev / "99-polar-hidraw.rules") in r.stdout
+    assert "never deletes" in r.stdout
+
+
+def test_install_does_NOT_delete_the_superseded_file(tmp_path):
+    """The line this script draws around itself. Everything --install writes is recoverable from the
+    repo; a deletion is not, and it cannot know why an operator put a file there."""
+    src, systemd, udev = _tree_with_superseded(tmp_path)
+    _chk(src, systemd, udev, "--install")
+    assert (udev / "99-polar-hidraw.rules").exists(), "--install must never remove an /etc file"
+
+
+def test_no_superseded_report_when_the_old_file_is_gone(tmp_path):
+    src, systemd, udev = _tree_with_superseded(tmp_path, leave_old=False)
+    r = _chk(src, systemd, udev)
+    assert "SUPERSEDED" not in r.stdout, r.stdout
+    assert r.returncode == 0, r.stdout
+
+
+def test_the_old_file_is_NOT_flagged_until_its_replacement_is_installed(tmp_path):
+    """Order matters, and getting it wrong is dangerous: advising `rm` while the replacement is absent
+    would talk an operator into deleting the only working copy of the rule and installing nothing."""
+    src, systemd, udev = _tree_with_superseded(tmp_path, install_replacement=False)
+    r = _chk(src, systemd, udev)
+    assert "SUPERSEDED" not in r.stdout, r.stdout
+    assert "NOT INSTALLED" in r.stdout, "it should be telling you to install the replacement instead"
+
+
+# ── the rules file itself ─────────────────────────────────────────────────────────────────────
+HIDRAW = os.path.join(HERE, "systemd", "99-tepna-hidraw.rules")
+
+
+def test_both_sensors_are_covered_by_vid_pid():
+    """Polar dock (adopted) and the Wellue O2Ring-S. Matching VID:PID rather than a node name is the
+    only form that survives a replug — `/dev/hidraw0` is whatever enumerated first, not an identity."""
+    body = open(HIDRAW, encoding="utf-8").read()
+    rules = [l for l in body.splitlines() if l.startswith("SUBSYSTEM==")]
+    assert len(rules) == 2, rules
+    assert any('"0da4"' in l and '"0008"' in l for l in rules), "Polar dock rule missing"
+    assert any('"1915"' in l and '"f33c"' in l for l in rules), "O2Ring-S rule missing"
+    for l in rules:
+        assert 'SUBSYSTEM=="hidraw"' in l and "MODE=" in l and "GROUP=" in l, l
+        assert "hidraw0" not in l, "must not match a node NAME — it is not stable across a replug"
+
+
+def test_the_o2ring_is_matched_under_nordics_vendor_id_not_viatoms():
+    """The trap this file exists to document. The ring ADVERTISES as Viatom (0x036F) / OxyII (0xF34E)
+    over BLE but ENUMERATES on USB under Nordic's 0x1915 — so a USB scan filtered on the vendor ids you
+    know from the radio walks straight past it. Measured on the box 2026-08-08: `1915:f33c`."""
+    body = open(HIDRAW, encoding="utf-8").read()
+    o2 = next(l for l in body.splitlines() if l.startswith("SUBSYSTEM==") and '"1915"' in l)
+    assert "036f" not in o2.lower() and "f34e" not in o2.lower()
+    assert "1915" in body and "nordic" in body.lower(), "the surprise must stay documented next to the rule"
+
+
+def test_the_vid_pid_are_lowercase_hex():
+    """sysfs stores them lowercase and udev's == is literal, so an uppercase PID silently never matches
+    — a rule that loads clean and does nothing, which is the worst failure shape available here."""
+    body = open(HIDRAW, encoding="utf-8").read()
+    for l in body.splitlines():
+        if not l.startswith("SUBSYSTEM=="):
+            continue
+        for attr in re.findall(r'ATTRS\{id(?:Vendor|Product)\}=="([^"]+)"', l):
+            assert attr == attr.lower(), f"{attr} must be lowercase"
+
+
+def test_the_adopted_polar_rule_is_byte_identical_to_what_the_box_was_running():
+    """This file ADOPTS a working hand-installed rule. Adoption must not change semantics — the same
+    discipline `deploy/tepna-capture.service` followed when it absorbed its duplicate. The line below
+    is what `/etc/udev/rules.d/99-polar-hidraw.rules` contained on the box, verbatim."""
+    body = open(HIDRAW, encoding="utf-8").read()
+    assert ('SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0da4", ATTRS{idProduct}=="0008", '
+            'MODE="0660", GROUP="vigil"') in body

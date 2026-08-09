@@ -70,6 +70,7 @@ INSTALL=0
 # were made MANAGED. A file that is installed must be installed with the mode it needs to work.
 MANIFEST="
 systemd/99-tepna-btdongle.rules|$ETC_UDEV/99-tepna-btdongle.rules|MANAGED|0644
+systemd/99-tepna-hidraw.rules|$ETC_UDEV/99-tepna-hidraw.rules|MANAGED|0644
 systemd/tepna-usb-autosuspend.service|$ETC_SYSTEMD/tepna-usb-autosuspend.service|MANAGED|0644
 deploy/tepna-capture.service|$ETC_SYSTEMD/tepna-capture.service|MANAGED|0644
 systemd/tepna-update.service|$ETC_SYSTEMD/tepna-update.service|MANAGED|0644
@@ -98,7 +99,23 @@ ambiguous() {
   return 0
 }
 
-drift=0 managed=0 missing=0 installed=0 ambig=0
+# /etc files that a MANAGED file above has replaced. Reported, NEVER deleted.
+#
+# Adopting a hand-installed file under a new name leaves the old one behind, still active — for udev
+# that means the same rule loaded twice, which is harmless right up until the two copies disagree and
+# the winner is decided by filename sort order. That is `ambiguous()`'s problem pointed at /etc instead
+# of the repo, and it arrived the moment `99-tepna-hidraw.rules` absorbed `99-polar-hidraw.rules`
+# (2026-08-08): identical content on day one, and nothing that would ever say otherwise.
+#
+# Reported rather than removed, deliberately. `--install` is safe to re-run because everything it writes
+# is recoverable from the repo; an `rm` is not, and this script does not know whether an operator put
+# that file there for a reason this repo has not been told about. Print the exact command and let a
+# human own it — the same line the header draws around being a checker.
+SUPERSEDED="
+$ETC_UDEV/99-polar-hidraw.rules|systemd/99-tepna-hidraw.rules
+"
+
+drift=0 managed=0 missing=0 installed=0 ambig=0 stale_etc=0
 printf '  %-38s %-10s %s\n' "file" "class" "state"
 while IFS='|' read -r rel dest cls mode; do
   [ -n "$rel" ] || continue
@@ -140,6 +157,18 @@ while IFS='|' read -r rel dest cls mode; do
   fi
 done <<< "$MANIFEST"
 
+# Superseded /etc files — only worth reporting once their replacement is actually in place, or the
+# advice would be "delete the working file and install nothing", which is how a box loses a rule.
+while IFS='|' read -r old_dest by_rel; do
+  [ -n "$old_dest" ] || continue
+  [ -e "$old_dest" ] || continue
+  if [ -f "$SRC/$by_rel" ] && [ -f "$ETC_UDEV/$(basename "$by_rel")" ]; then
+    printf '  %-38s %-10s %s\n' "$(basename "$old_dest")" "SUPERSEDED" "✗ still in /etc — replaced by $(basename "$by_rel")"
+    printf '      remove it by hand (this script never deletes):  sudo rm %s\n' "$old_dest"
+    stale_etc=$((stale_etc + 1)); drift=$((drift + 1))
+  fi
+done <<< "$SUPERSEDED"
+
 echo
 if [ "$INSTALL" = "1" ] && [ "$installed" -gt 0 ]; then
   # Reload only what was actually replaced. Both are safe while capture runs: udev rules apply to
@@ -177,6 +206,6 @@ if [ "$INSTALL" = "1" ] && [ "$installed" -gt 0 ]; then
   fi
   echo "  $installed file(s) installed — nothing restarted, so a running capture is untouched"
 fi
-echo "  $managed managed, $drift drifted$([ "$ambig" -gt 0 ] && echo ", $ambig AMBIGUOUS")"
+echo "  $managed managed, $drift drifted$([ "$ambig" -gt 0 ] && echo ", $ambig AMBIGUOUS")$([ "$stale_etc" -gt 0 ] && echo ", $stale_etc SUPERSEDED")"
 [ "$drift" -eq 0 ] || exit 1
 exit 0
