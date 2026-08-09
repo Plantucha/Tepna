@@ -42,3 +42,22 @@ not touch and which drift-checked red), and the served docs copies. `verify-fixt
 fixtures — the two OxyDex summaries plus seven belonging to other nodes that were already unverified
 from earlier merges; those stamps come from a green real-corpus re-run and unblock `release.mjs`, which
 refuses to cut a release while any corpus-backed fixture is unverified.
+
+§1's owner call is answered the same day: option 3 — fix the detector so the leg earns its place —
+taken over this brief's own recommendation of option 2, and spawned as
+`OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` as the item required rather than patched in. That brief
+carries the spec (baseline-relative crossings, a cycle window that gates the decision, ≥3 consecutive
+cycles), the validation design, the "earns its place" bar, and the inherited guardrails.
+
+The validation design is the substantive part, because there is no ground truth: the CPAP is n=1, a
+black box, and disagrees at κ = −0.039, so agreeing with it cannot be the acceptance test without
+breaking the guardrail that forbids tuning toward it. The bar is construct validity instead — an
+adversarial twin pair with identical desaturation burden differing only in periodicity, which the
+current detector cannot separate by construction, plus a falsifiable corpus criterion that the r =
+0.893 correlation with hypoxemia burden must break. κ is reported beside −0.039 as an observation and
+never optimised. And "earns its place" is made measurable: removing the OxyDex leg must change the
+fused outcome on some nights, where today 0 of 3 corroborated nights survive its removal — if it still
+changes nothing, option 1 becomes correct on evidence rather than argument.
+
+Option 2 is explicitly NOT the fallback if the detector work stalls, because §2 already landed the
+honest vocabulary; the surface is no longer overclaiming while the detector is built.

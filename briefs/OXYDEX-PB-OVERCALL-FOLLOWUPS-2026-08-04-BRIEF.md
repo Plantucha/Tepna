@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-04 · **Follows:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` (DONE — 2026-08-04; all five Done-when items met) · **Relates:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 (same family) · **Affects:** `oxydex-dsp.js`, `integrator-dsp.js`, the OxyDex reference guide, `tests/dex-tests.js`
+**Status:** DONE — 2026-08-09 (§2 executed — the likelihood ladder is withdrawn across all four surfaces, gated and mutation-verified; §1 **decided by the owner: option 3**, over this brief's own recommendation of option 2, and spawned as its own brief with its own validation as this brief required. Both decisions are recorded with their reasons rather than inferred from code.) · **Spawns:** `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md` · **Created:** 2026-08-04 · **Follows:** `OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md` (DONE — 2026-08-04; all five Done-when items met) · **Relates:** `ECGDEX-CARDIOPULMONARY-COUPLING-2026-07-30-BRIEF.md` §10 (same family) · **Affects:** `oxydex-dsp.js`, `integrator-dsp.js`, the OxyDex reference guide, `tests/dex-tests.js`
 
 # Two owner decisions the parent measured but deliberately did not make
 
@@ -26,6 +26,26 @@ CPAP, and one observer never surfaces.
 **Recommendation, stated so the decision has a default:** option 2. It is the only one that neither
 destroys a surfaced finding nor ships an unvalidated detector, and it is reversible once option 3 exists.
 
+> ### ▶ OWNER DECISION 2026-08-09 — **option 3**, over the recommendation
+>
+> *Fix the detector so the leg earns its place.* The recommendation above was option 2 on the grounds
+> that it ships nothing unvalidated; the owner took the harder option instead, which is the only one
+> that makes the leg actually informative rather than tolerable.
+>
+> **Spawned as its own brief, as this item required** — `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md`. Not
+> patched in here: a detector is a measurement and needs its own validation.
+>
+> **The validation problem that brief has to solve, flagged here because it is the reason option 3 is
+> hard:** there is no ground truth. The CPAP is n = 1, a black box, and disagrees at κ = −0.039, so
+> "agree with the CPAP" cannot be the acceptance test without violating §2's guardrail. That brief's
+> answer is **construct validity** — an adversarial twin pair with identical desaturation burden
+> differing only in periodicity (which the current detector cannot separate, by construction), plus a
+> falsifiable corpus criterion that the r = 0.893 correlation with hypoxemia burden must break.
+>
+> **Note that option 2 is NOT the fallback if option 3 stalls** — §2 of this brief already landed the
+> honest vocabulary on 2026-08-09, so the surface is no longer overclaiming while the detector work
+> proceeds. If the detector cannot pass §4's bar, the evidence-based outcome is option 1, not option 2.
+
 ## 2 · The `csLabels` likelihood vocabulary — the same overclaim, one layer down
 
 `oxydex-dsp.js:1526` returns `csLabel: csLabels[cs]` over the ladder **`Unlikely · Possible · Probable ·
@@ -48,8 +68,10 @@ agreement was **κ = −0.039** — worse than chance.
 
 ## 3 · Done when
 
-- [ ] The §1 fusion remedy is **chosen by the owner** and executed, with the choice and its reason
-      recorded here — not inferred from a code change.
+- [x] **CHOSEN 2026-08-09 — option 3** (*fix the detector*), over this brief's own recommendation of
+      option 2. Recorded above with the reason, and **spawned as
+      `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md`** per the constraint below. Execution belongs to that
+      brief; this item is the decision, and the decision is made.
 - [x] **DONE 2026-08-09 — the vocabulary is WITHDRAWN.** Four surfaces moved together (§2-RESULT):
       both label ladders → `N/3 indicators`, both lead strings → a bare count, the findings-card
       displayVal follows the ladder, and the guide's *"Cheyne-Stokes Probability (0–3)"* is restated as
@@ -62,7 +84,10 @@ agreement was **κ = −0.039** — worse than chance.
       legs. The source scan is rewording-proof by construction now: its first version keyed on the
       literal `"CS pattern"` and went blind the moment the strings changed, caught only because the
       anti-vacuity count is an assertion rather than a comment. It now keys on the lead's SHAPE.
-- [ ] If option 3 is chosen, it is spawned as its OWN brief with its own validation — not patched in here.
+- [x] **Option 3 WAS chosen, and it is spawned as its own brief with its own validation** —
+      `OXYDEX-PB-DETECTOR-2026-08-09-BRIEF.md`, carrying the spec (§2), the no-ground-truth validation
+      design (§3), the "earns its place" bar (§4) and the inherited guardrails (§5). Nothing of it is
+      patched in here.
 
 
 ---

@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-PZQ/TOOwSVoQt5CK7JwpJDtpn3t65RCRbaueSVAI0iE=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-WGAdE8HjXf7mJfKkBvWj9Prp0rLErBrsiaWH93qMB6U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fN3QO4MnIZMHWlBcldQsyYg2au076v7Aqa4pR+nqOMc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i8ICa5l1D9K+AGr9S553oUO2gjamrcaS40KJj81fWCs=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-1MKjITCoS3PL3GlJiE9X+u/jhTPJ+4iqY/YD93ogxxw=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-WGAdE8HjXf7mJfKkBvWj9Prp0rLErBrsiaWH93qMB6U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fN3QO4MnIZMHWlBcldQsyYg2au076v7Aqa4pR+nqOMc=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i8ICa5l1D9K+AGr9S553oUO2gjamrcaS40KJj81fWCs=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -4582,8 +4582,21 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     if (comp && comp.sfi >= 2) uars++;
     uars = Math.min(3, uars);
 
-    var csLabels = ['Unlikely', 'Possible', 'Probable', 'Likely'];
-    var uarsLabels = ['Unlikely', 'Possible', 'Probable', 'Likely'];
+    /* THE LIKELIHOOD LADDER IS WITHDRAWN (OXYDEX-PB-OVERCALL-FOLLOWUPS §2).
+       Both of these read `['Unlikely', 'Possible', 'Probable', 'Likely']` and were indexed by a 0-3
+       INDICATOR COUNT. That is a likelihood word attached to a number that cannot carry one, and for
+       CS the parent brief measured exactly why: `detectOscillations` has NO periodicity test — no
+       cycle-length criterion, no crescendo-decrescendo — and counts crossings of an ABSOLUTE 95 %
+       level, so on a corpus whose overnight mean is 94.6-96.6 % it tracks mild hypoxemia burden
+       (r = 0.893 with time below 95 %) rather than the respiratory rhythm "Cheyne-Stokes" names.
+       Night-level agreement with the CPAP's own PB scoring was kappa = -0.039, worse than chance.
+
+       The score, its 0-3 ladder and every gate on it are UNCHANGED — this is a wording fix, not a
+       retune, and §5.2 found no defensible threshold on this corpus so retuning would be guessing.
+       What changes is that the surface now states the count it actually has. Same shape as the
+       context line at the one-line impression, which the parent already tempered. */
+    var csLabels = ['0/3 indicators', '1/3 indicators', '2/3 indicators', '3/3 indicators'];
+    var uarsLabels = ['0/3 indicators', '1/3 indicators', '2/3 indicators', '3/3 indicators'];
 
     return { csScore: cs, csLabel: csLabels[cs], uarsScore: uars, uarsLabel: uarsLabels[uars] };
   }
@@ -5301,10 +5314,17 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         return n.ahiEst ? 'AHI est. ' + n.ahiEst.ahiODI4 : 'AHI unavailable';
       },
       cs: function () {
-        return n.patScore ? 'CS pattern probable (' + n.patScore.csLabel + ')' : 'CS unavailable';
+        /* Read "CS pattern probable (Likely)" before the fix — a likelihood asserted twice, from a
+           score that cannot support it once. Now a bare VALUE, in the same shape as the sibling leads
+           ("HB rate 12 %-min/hr", "AHI est. 14"). Deliberately terser than the context qualifier: the
+           first regeneration against the real corpus emitted the caveat here too and the impression
+           read the identical sentence twice ("… CS pattern indicators 3/3 — screening signal, no
+           periodicity test; CS pattern indicators 3/3 — screening signal, no periodicity test."). The
+           lead carries the count; the context line carries the caveat, once. */
+        return n.patScore ? 'CS indicators ' + n.patScore.csScore + '/3' : 'CS unavailable';
       },
       uars: function () {
-        return n.patScore ? 'UARS pattern (' + n.patScore.uarsLabel + ')' : 'UARS unavailable';
+        return n.patScore ? 'UARS indicators ' + n.patScore.uarsScore + '/3' : 'UARS unavailable';
       },
       hypLoad: function () {
         return n.hypLoad ? 'hypoxic load ' + n.hypLoad.hypoxicLoad : 'hypLoad unavailable';
