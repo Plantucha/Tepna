@@ -1138,7 +1138,11 @@ function selftest() {
   ck('classify · …and it is the one nobody wrote down', cls.unclassified[0].line, 4);
   /* The anti-laundering property, stated as a test: only the excusing classes leave the denominator,
      so a `real-gap` entry cannot be used to improve a rate. */
-  ck('classify · real-gap does not leave the denominator', cls.excused.some((e) => e.class === 'real-gap'), false);
+  ck(
+    'classify · real-gap does not leave the denominator',
+    cls.excused.some((e) => e.class === 'real-gap'),
+    false
+  );
   /* An empty classification must change nothing -- the mechanism is opt-in per file. */
   const none = classifySurvivors(undefined, survived, genAll);
   ck('classify · no entries ⇒ every survivor unclassified, nothing excused', none.unclassified.length + ':' + none.excused.length, '3:0');
@@ -1332,14 +1336,21 @@ function reportOne(r) {
   if (eq && (eq.excused || eq.realGap || eq.unclassified || eq.refuted.length || eq.orphaned.length)) {
     const dScore = eq.distinguishable > 0 ? ((r.killed / eq.distinguishable) * 100).toFixed(0) : '\u2014';
     console.log(
-      '    equivalence: ' + eq.excused + ' excused, ' + eq.realGap + ' real-gap, ' + eq.unclassified + ' UNCLASSIFIED' +
-        '   [' + dScore + ' % of ' + eq.distinguishable + ' distinguishable]'
+      '    equivalence: ' + eq.excused + ' excused, ' + eq.realGap + ' real-gap, ' + eq.unclassified + ' UNCLASSIFIED' + '   [' + dScore + ' % of ' + eq.distinguishable + ' distinguishable]'
     );
     /* A refuted entry is the one failure this mechanism could hide a real gap behind, so it shouts.
        The fix is always to correct the entry -- never to weaken the test that killed it. */
     for (const e of eq.refuted)
       console.log(
-        '      \u26a0 REFUTED  ' + r.file + ':' + e.line + '  [' + e.op + '] is classified "' + e.class + '" but was KILLED.\n' +
+        '      \u26a0 REFUTED  ' +
+          r.file +
+          ':' +
+          e.line +
+          '  [' +
+          e.op +
+          '] is classified "' +
+          e.class +
+          '" but was KILLED.\n' +
           '        A distinguishing input exists after all. Correct the entry in tools/mutate-equivalence.json.'
       );
     for (const e of eq.orphaned)
