@@ -980,7 +980,14 @@ function renderCpap(c){
     idle:    ['idle', `idle · next run ${String(c.at_hour??13).padStart(2,'0')}:00`],
   };
   const [cls, label] = map[c.state] || map.idle;
-  $('#cpapStatus').innerHTML = `<span class="data-pill ${cls}"></span> ${label}`;
+  // `label` REACHES innerHTML, and two of the states above build it from `c.detail`, which the daemon
+  // fills with CONFIG-DERIVED text: `waiting` carries "streaming: " + device names, `error` carries the
+  // Wi-Fi profile name. Device names are settable through this monitor's own settings API, so an
+  // unescaped label is a stored-XSS path into the operator's browser — name a device
+  // `<img src=x onerror=…>`, let it stream, and the card executes it. Every other interpolating
+  // innerHTML site in this file already goes through `esc`; these were the exception, not the rule.
+  // (`cls` is one of a fixed set of literals, but escaping it costs nothing and removes the question.)
+  $('#cpapStatus').innerHTML = `<span class="data-pill ${esc(cls)}"></span> ${esc(label)}`;
   const bits = [];
   if(c.last_ok) bits.push('last good: '+c.last_ok.replace('T',' '));
   else if(c.last_run) bits.push('last attempt: '+c.last_run.replace('T',' '));
