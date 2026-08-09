@@ -231,3 +231,33 @@ def test_the_deferred_line_names_the_reason_too():
     src = inspect.getsource(capture.auto_sync_clock)
     line = next(l for l in src.splitlines() if "auto-sync deferred" in l)
     assert "device not found" in line
+
+
+# ── _device_on_air: the three answers, and why None is one of them ───────────────────────────────────
+def _run_coro(c):
+    import asyncio as _a
+    return _a.new_event_loop().run_until_complete(c)
+
+
+def test_device_on_air_reports_found_and_not_found(monkeypatch):
+    import types
+    async def hci(): return "hci0"
+    monkeypatch.setattr(capture, "adapter_hci", hci)
+    for found, want in ((object(), True), (None, False)):
+        async def finder(addr, timeout=None, adapter=None, _f=found): return _f
+        fake = types.SimpleNamespace(BleakScanner=types.SimpleNamespace(find_device_by_address=finder))
+        monkeypatch.setitem(__import__("sys").modules, "bleak", fake)
+        assert _run_coro(capture._device_on_air("AA:BB", 0.05)) is want
+
+
+def test_device_on_air_returns_None_when_it_CANNOT_ASK(monkeypatch):
+    """None is not False, and that distinction is the safety property: a scan that errors, an adapter
+    that is busy, or a bleak that will not import must leave the caller doing what it did before. If
+    this ever collapsed to False, one scan outage would silently stop every clock sync on the box."""
+    import types
+    async def hci(): return "hci0"
+    monkeypatch.setattr(capture, "adapter_hci", hci)
+    async def boom(addr, timeout=None, adapter=None): raise RuntimeError("adapter busy")
+    fake = types.SimpleNamespace(BleakScanner=types.SimpleNamespace(find_device_by_address=boom))
+    monkeypatch.setitem(__import__("sys").modules, "bleak", fake)
+    assert _run_coro(capture._device_on_air("AA:BB", 0.05)) is None
