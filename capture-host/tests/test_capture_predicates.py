@@ -202,3 +202,32 @@ def test_absence_is_a_STRICT_SUBSET_of_transient():
 
 def test_a_protocol_refusal_is_not_absence():
     assert capture.device_absent_error(Exception("error 201 NOT_IMPLEMENTED")) is False
+
+
+# ── the retry log must name WHICH error it is retrying on (2026-08-09) ────────────────────────────────
+def test_the_auto_sync_retry_line_logs_the_message_not_just_the_class():
+    """A diagnostic gap that cost a wrong fix, so it is pinned rather than trusted.
+
+    `BleakError` is bleak's catch-all for a dozen unrelated conditions — `device '<path>' not found`,
+    `failed to connect: <cause>`, `br-connection-canceled`, adapter-missing — which need different
+    responses. The line used to print only `type(e).__name__`, so the journal said `busy (BleakError)`
+    for an hour and could not say which. #1062's absence predicate was aimed at a guessed string on the
+    strength of that, and fires zero times on the live box.
+
+    Asserted on the SOURCE because the alternative is asserting on a log record, and what matters is
+    that the format string carries the payload at all."""
+    import inspect
+    src = inspect.getsource(capture.auto_sync_clock)
+    line = next(l for l in src.splitlines() if "clock auto-sync busy" in l)
+    assert "%s" in line.split("busy")[1], "the retry line must interpolate the error text"
+    body = src[src.index("clock auto-sync busy"):]
+    assert "repr(e)" in body[:400], "repr(e), not str(e) — str() on a bare BleakError can be empty"
+    assert "[:160]" in body[:400] or "[:" in body[:400], "truncate: this runs up to 12x per ladder"
+
+
+def test_the_deferred_line_names_the_reason_too():
+    """Its sibling. An absence deferral that just said 'deferred' would rebuild the same blind spot."""
+    import inspect
+    src = inspect.getsource(capture.auto_sync_clock)
+    line = next(l for l in src.splitlines() if "auto-sync deferred" in l)
+    assert "device not found" in line
