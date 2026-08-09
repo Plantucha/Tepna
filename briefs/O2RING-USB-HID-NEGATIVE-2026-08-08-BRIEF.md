@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-08-08 · **Created:** 2026-08-08
+**Status:** DONE — 2026-08-09 · **Created:** 2026-08-08 (mechanism found 2026-08-09: the vendor USB path is HID **Feature** reports, which this ring STALLs — see §"The mechanism")
 
 # The O2Ring-S's USB-HID pipe is not an OxyII responder — measured, not assumed
 
@@ -89,6 +89,60 @@ descriptor boilerplate and the declared-then-stalled Feature report both point t
 established — it is the reading that fits, and it is not needed for the conclusion above, which rests
 only on the measurements.
 
+### 🔎 THE MECHANISM, FOUND 2026-08-09 — and it is better than that inference
+
+Two further tests, and then the vendor's own PC installer, closed this.
+
+**Test 1 — the mode hypothesis, run properly.** The first sweep ran while the daemon held a BLE link, so
+"the firmware binds its handler to one transport at a time" was live. `tepna-restart.sh stop 3` (the
+deadman-timed verb that exists precisely so a tool can take a sensor's link off the daemon) gave a clean
+window with the daemon `inactive`: **every read-only opcode, with and without the `0xFF`→`0x10` handshake,
+silent; 30 s of patient listening, 0 bytes.** The ring also **did not advertise** in 18 s of scanning with
+nothing holding it — but "asleep" was already excluded by the first sweep, where it was BLE-connected and
+actively streaming `OXYFRAME` while USB was equally silent. Both states are covered.
+
+**Test 2 — read the vendor's Windows app.** `O2InsightProSetup v1.8.14` (Inno Setup; extracted read-only
+with `innoextract` into a temp dir, nothing executed) ships **`Holtek_HIDApi.dll`**, genuinely imported by
+`O2 Insight Pro.exe` — it carries the error string `"holtek write time out."` and the DLL exports
+`CloseHIDDevice`. Its Windows HID surface is:
+
+```
+HidD_GetFeature / HidD_SetFeature      ← the transport
+HidD_GetAttributes · HidD_GetHidGuid · HidD_GetPreparsedData · HidP_GetCaps
+SetupDiGetClassDevsW · SetupDiEnumDeviceInterfaces · CreateFileW
+```
+
+**The vendor's USB protocol is HID FEATURE reports — the exact transfer type this ring STALLs.**
+`HIDIOCGFEATURE` returned `errno 32 EPIPE` in the very first pass, and at the time that only looked like
+"declared but unimplemented". It is the whole story: the ring cannot speak the vendor app's USB protocol
+even in principle, because it refuses the transfer type that protocol is built on.
+
+**Corroborating, and consistent:** the app's model-code→name table lists `22010100 Checkme O2 Ultra`,
+`SA-10AW`/`PF-10BW`/`2B01 Checkme O2 Max`, `Checkme_O2`, `SleepU`, `SleepO2`, `0004 OxyRing/O2Ring/WearO2/
+KidsO2`, `0003 BabyO2 S2`, `0005`/`0006 Baby Sleep Monitor S1/S2`, `BabyO2`, `0001 Oxylink/Oxyfit` — **the
+O2Ring S is not in it.** (A literal `O2Ring S` string does appear in the binary, but ~100 strings away,
+surrounded by settings keys — `birthday`, `height`, `isAutoSyncData`, `CurOxiThr`, `HRLowThr` — and `/DATA`.
+That is a config or folder label, not a device-table entry. Stated because it is the one string that
+looks like counter-evidence and is not.)
+
+⚠️ **A check that proved nothing, recorded so it is not repeated:** counting raw little-endian `04d9`
+(Holtek) and `1519` (Nordic) byte pairs in the binaries returned 34 vs 33 — noise in a 2.4 MB file, since
+any 2-byte sequence recurs by chance. `strings` cannot see numeric VID/PID constants, so the device ids
+were never located; the conclusion rests on the Feature-report transport and the device table, not on this.
+
+**So the revised reading:** the vendor USB data path is a **Holtek-family Feature-report protocol** for the
+legacy, Holtek-MCU rings. The O2Ring S is **Nordic**-based (`1915:f33c`), stalls Feature reports, and is
+absent from that table — while the vendor's own current SDK for it
+([`viatom-develop/LepuDemo`](https://github.com/viatom-develop/LepuDemo), `lepu-blepro-1.0.7.aar : add
+PF-10AW-1, O2Ring S`) is **BLE-only**, depending on `no.nordicsemi.android:ble` with no USB path anywhere.
+
+This also resolves the apparent tension with the protocol reference's line about *"byte equivalence between
+BLE-pulled files and the vendor app's USB export"*. That compares **files**, not transports, and says
+nothing about the T8520 speaking USB — most plausibly the export came from a legacy Holtek device or by
+another route. Nothing in that document ever claimed OxyII rides USB; it is titled *BLE Protocol*
+throughout, and its only other USB mention is `FACTORY_RESET_ALL` needing USB to **wake** the ring, i.e.
+power.
+
 ## What this does NOT claim
 
 - **Not** "no protocol works over this pipe." What is established is that the OxyII envelope as
@@ -96,9 +150,11 @@ only on the measurements.
   handshake), gets no reply. A different framing could exist. Nobody has found one.
 - **Not** that the vendor's USB export is impossible. The vendor tool may drive a different interface, a
   different protocol, or a mode this ring does not enter while a BLE client holds it.
-- The two remaining cheap leads, if anyone wants them: watch `usbmon` to see whether the SET_REPORT is
-  ACKed or dropped on the wire (needs root), and re-probe with **no** BLE client connected, in case the
-  firmware binds the OxyII handler to one transport at a time.
+- ~~The two remaining cheap leads~~ — **both spent 2026-08-09, see the mechanism section above.** The
+  no-BLE-client re-probe was run under `tepna-restart.sh stop 3` and was silent; the `usbmon` question is
+  now moot, because the vendor app's transport turns out to be HID **Feature** reports, which this ring
+  STALLs outright. What would still settle the last 1 %: a USB capture of `O2 Insight Pro` against a
+  *legacy* Holtek ring, to confirm the Feature-report framing positively rather than by elimination.
 
 ## What was confirmed on the way
 
