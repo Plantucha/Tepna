@@ -123,6 +123,63 @@ closure), so it requires a re-bundle and owes fixture re-verification per CLAUDE
 inspection, but §🔏 is explicit that export-inertness is **computed, not claimed**: record the
 `computeHash` pair, do not write the word.
 
+## 4a · MEASURED: ~27 % of the survivors are killable, and the export plan does not pay
+
+The proposal in §4 was made before measuring. It has now been measured, twice, and **it is withdrawn.**
+
+**Step 1 — test what is already public.** `lombScargle` is already exported, purely functional, 129
+lines, and was completely unasserted (the only numeric `lombScargle` test in the suite is ECGDSP's;
+PpgDex's is checked by *source regex*). It is the most favourable target in the file. 19 assertions
+that validate against physics — a 0.25 Hz sinusoid must read 15 breaths/min, amplitudes 30:8 must
+land in the (30/8)² ≈ 14 power ratio — killed **2 of 21**. Adding a boundary battery aimed by reading
+the actual survivors (the `< 8` guard at exactly 7 and 8, components on the 0.04/0.15 Hz edges, a
+0.01 Hz drift so VLF is non-zero) took it to **3 of 21 = 14 %**, against HRVDex's 24 % for a far
+cheaper test.
+
+**Step 2 — probe the survivors for a distinguishing input**, the `MUTATION-EQUIVALENCE` §3 method:
+load original and mutant in separate realms, run a wide battery, diff every output.
+
+| function | character | survivors | distinguishable | ratio |
+|---|---|---:|---:|---:|
+| `lombScargle` | numeric / spectral | 21 | **6** | 29 % |
+| `parsePPG` | string / parsing | 38 | **10** | 26 % |
+
+`lombScargle`'s battery was **960 inputs** — every band edge plus just-inside and just-outside each
+(0.0399/0.04/0.0401, 0.1499/0.15/0.1501, 0.399/0.4/0.401), eight lengths spanning the `n < 8` guard,
+five amplitudes including zero, two-component signals across every edge pair, degenerate cases.
+`parsePPG`'s was 68 — row counts spanning every floor, 3- and 6-column layouts, headerless files,
+four sample rates, four jitter regimes, interleaved junk and blank lines, CRLF, and thirteen raw
+malformed strings.
+
+**Two functions of completely different character agree at ~27 %.** That is the useful result: the
+ratio is a property of the *code*, not of the kind of function or of one battery's imagination.
+
+**Both are LOWER bounds.** A wider battery can only find more distinguishable mutants, never fewer —
+`parsePPG`'s 68 inputs used only ISO timestamps, so vendor-format variety would likely raise it. The
+honest claim is "≥ 26 %", not "exactly 26 %".
+
+### What that implies for the fleet map
+
+If ~27 % holds across the file, PpgDex's 767 survivors contain roughly **207 killable and ~560 that no
+test can kill**. The reachable ceiling is then
+
+```
+395 killed + ~207  =  ~602 of 1162 valid  ≈  52 %
+```
+
+So **34 % is not neglect and 100 % was never available.** There is real room — 34 % → ~52 % — but it
+is finite, and roughly half of `ppgdex-dsp.js` is unobservable by construction. The fleet map's row
+should carry that annotation rather than reading as a module nobody bothered to test.
+
+### Why the exports are not worth it
+
+The export plan (§4) would spend a DSP source change, a re-bundle, a moved `computeHash` and owed
+corpus fixture re-verification — to buy access to survivors that convert at ~14 % in the best case
+already measured. The cheap work is not done: **91 survivors sit in functions that are already
+exported** (`ppgLoadOwnExport` 25, `lombScargle` 21, `compute` 17, `parsePPG` 15, `analyze` 13). Those
+should be exhausted first, at zero provenance cost, and the export question re-opened only if that
+conversion turns out better than 14 %.
+
 ## 5 · What NOT to do
 
 - **Do not write more end-to-end `compute()` tests to chase this number.** 49 groups already do that
@@ -145,7 +202,9 @@ the fleet and is itself a signal about how loop-dense this DSP is.
 
 - [x] Full 1176-mutant sweep run; rate and survivor distribution recorded (§1, §2).
 - [x] Cause identified and evidenced against the alternative explanation (§3).
-- [ ] `cvhrFromNN` / `perfWindow` / `evt` / `magInterfAtSec` exposed on `_bare`, additively.
+- [x] ~~`cvhrFromNN` / … exposed on `_bare`~~ — **WITHDRAWN, §4a.** Measured conversion does not
+      justify the re-bundle + fixture re-verification. Revisit only if the already-exported functions
+      convert better than the 14 % measured on `lombScargle`.
 - [ ] Known-answer groups written for each, **each verified by re-applying its own mutant** — a test
       written from reading the code has twice today passed under the mutant it was meant to kill.
 - [ ] Re-sweep and report the **measured** delta, as #1030 did (29.4 % → 39.1 %). No claimed figure.
