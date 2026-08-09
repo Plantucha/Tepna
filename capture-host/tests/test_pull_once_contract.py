@@ -18,6 +18,7 @@ import os
 
 import pytest
 
+import oxyii
 import pull_session
 
 from test_pull_session import FakeRing, _dat, _install, _run
@@ -226,3 +227,80 @@ def test_the_download_reports_its_offset_against_the_declared_size(tmp_path, mon
     assert got, "the multi-chunk download must still complete"
     assert str(len(blob)) in out, "the declared size must appear in the progress line"
     assert "/" in out and "%" in out, "progress is offset/size and a percentage"
+
+
+# ── an incomplete download must not occupy the final path ────────────────────────────────────────────
+# CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS §3 carried this as "noticed, not reproduced — and it is the same
+# defect §C5 fixed one module over, so it is likely real". Reproduced 2026-08-05: a mid-transfer
+# timeout at offset 512 of 3002 wrote a 512-byte `<session>.dat` at the FINAL path and returned it in
+# `saved_paths`. The sidecar did record `bytes` vs `declared_size`, so the truth was written down — just
+# not where anything globbing `*.dat` would look.
+
+class _Truncating(FakeRing):
+    """Stops answering FILE_DATA part-way, which is what a ring carried out of range does."""
+
+    def __init__(self, *a, stop_after=1, **k):
+        super().__init__(*a, **k)
+        self.data_replies = 0
+        self.stop_after = stop_after
+
+    async def write_gatt_char(self, char, frame, response=None):
+        if frame[1] == oxyii.OP_FILE_DATA:
+            self.data_replies += 1
+            if self.data_replies > self.stop_after:
+                self.writes.append(frame)
+                return                      # silence — `_wait` raises asyncio.TimeoutError
+        return await super().write_gatt_char(char, frame, response=response)
+
+
+def _fast_wait(monkeypatch):
+    """20 s per chunk is the production timeout; the test wants the same path in milliseconds."""
+    orig = pull_session._wait
+
+    async def quick(q, op, timeout=20.0):
+        return await orig(q, op, timeout=0.05)
+    monkeypatch.setattr(pull_session, "_wait", quick)
+
+
+def test_a_truncated_pull_leaves_no_dat_at_the_final_path(tmp_path, monkeypatch):
+    blob = b"\x01\x03" + bytes(3000)
+    ring = _Truncating(["20260720010000"], blob, chunk=512, stop_after=1)
+    _install(monkeypatch, ring)
+    _fast_wait(monkeypatch)
+    saved = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+
+    dats = list(tmp_path.rglob("*.dat"))
+    parts = list(tmp_path.rglob("*.dat.part"))
+    assert dats == [], f"a short download must not look like a session: {dats}"
+    assert len(parts) == 1, "the bytes are kept, under a name nothing mistakes for a recording"
+    assert parts[0].stat().st_size == 512 < len(blob)
+    # Reported, but as what it is. The prior design surfaced partials in `saved_paths` on the grounds
+    # that the data is real, and that is kept — the caller feeds these to the API's `new_files`.
+    assert len(saved) == 1 and saved[0].endswith(".dat.part"), \
+        f"the partial is still reported, under a name that says so: {saved}"
+
+
+def test_the_partial_still_carries_its_sidecar(tmp_path, monkeypatch):
+    """Keeping the bytes without the explanation would just move the problem."""
+    import json as _json
+    blob = b"\x01\x03" + bytes(3000)
+    _install(monkeypatch, _Truncating(["20260720010000"], blob, chunk=512, stop_after=1))
+    _fast_wait(monkeypatch)
+    _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    meta = list(tmp_path.rglob("*.dat.part.meta.json"))
+    assert len(meta) == 1, "the sidecar rides whichever file actually exists"
+    j = _json.loads(meta[0].read_text())
+    assert j["bytes"] == 512 and j["declared_size"] == len(blob)
+    assert j["finalized"] is False
+
+
+def test_a_COMPLETE_pull_still_lands_at_the_final_path(tmp_path, monkeypatch):
+    """The control. Renaming on completion must not break the ordinary case — and no `.part` may
+    survive a good pull, or the next run would find litter it cannot explain."""
+    blob = b"\x01\x03" + bytes(3000)
+    _install(monkeypatch, FakeRing(["20260720010000"], blob, chunk=512))
+    saved = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    dats = list(tmp_path.rglob("*.dat"))
+    assert len(dats) == 1 and dats[0].stat().st_size == len(blob)
+    assert list(tmp_path.rglob("*.part")) == [], "a completed pull leaves no .part behind"
+    assert saved and saved[0].endswith(".dat")
