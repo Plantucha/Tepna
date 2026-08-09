@@ -534,17 +534,41 @@ def _now_epoch():
 def _session_matches(dirname: str, expect: _dt.datetime) -> bool:
     """Is this pulled directory the session the recording phase just created?
 
-    The device names the directory from its own clock (…_R_HHMMSS). If that is within a couple of
-    minutes of the host UTC time we started at, it is ours — and that correspondence is itself the
-    timebase evidence, so it is required to be close rather than assumed."""
-    tail = os.path.basename(dirname.rstrip("/")).split("_")[-1]
+    The device names the directory from its own clock (…/U/0/YYYYMMDD/R/HHMMSS -> U_0_YYYYMMDD_R_HHMMSS).
+    If that is within a couple of minutes of the host UTC time we started at, it is ours — and that
+    correspondence is itself the timebase evidence, so it is required to be close rather than assumed.
+
+    THE DATE COMPONENT IS PART OF THE COMPARISON. It did not used to be: the name was split on "_",
+    only the trailing HHMMSS was read, and the run's OWN date was pasted onto it
+    (`datetime.combine(expect.date(), hhmmss)`). That compares TIME-OF-DAY, so a session recorded on
+    any previous day at the same clock-minute was judged "the session this run just created" — measured
+    at 39 days old and still matching. Its stamps then got compared against this run's host clock,
+    fabricating exactly the timebase verdict `test_the_timebase_verdict_needs_this_runs_own_host_clock`
+    exists to prevent ("the first version called a 13.6 h-old ACC file 'local civil' on exactly that
+    error"). The mtime<1h guard in `phase_decode` does NOT cover this: a freshly PULLED old session has
+    a fresh mtime, because mtime records when we wrote the file, not when the device recorded it.
+
+    Using the directory's own date also fixes the mirror-image bug at midnight: a device saying
+    23:59:50 for a run the host started at 00:00:05 the next day is 15 s apart and ours, where pasting
+    the run's date made it read as ~86390 s and rejected it.
+
+    A name with no date (…_R_HHMMSS) keeps the old same-day assumption — it carries no date to check,
+    so this is the weaker case by construction, not by choice."""
+    parts = os.path.basename(dirname.rstrip("/")).split("_")
+    tail = parts[-1]
     if not (len(tail) == 6 and tail.isdigit()):
         return False
     try:
         hhmmss = _dt.datetime.strptime(tail, "%H%M%S").time()
     except ValueError:
         return False
-    same = _dt.datetime.combine(expect.date(), hhmmss)
+    day = expect.date()
+    if len(parts) >= 3 and len(parts[-3]) == 8 and parts[-3].isdigit():
+        try:
+            day = _dt.datetime.strptime(parts[-3], "%Y%m%d").date()
+        except ValueError:
+            return False                      # an 8-digit non-date is a name we do not understand
+    same = _dt.datetime.combine(day, hhmmss)
     return abs((same - expect).total_seconds()) < 180
 
 
