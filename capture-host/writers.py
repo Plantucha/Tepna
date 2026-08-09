@@ -555,11 +555,13 @@ class HostClockLogWriter:
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
-        # chrony_skew_ppm is APPENDED LAST so a positional reader of the earlier columns is unaffected —
-        # the same "never shift an existing column" discipline LinkLogWriter keeps. It is the clock-frequency
-        # precision (ppm error bound), chrony-only, blank on the timesyncd path (O2RING-ADAPTIVE-TIMEBASE).
+        # chrony_skew_ppm then timebase are APPENDED LAST so a positional reader of the earlier columns is
+        # unaffected — the same "never shift an existing column" discipline LinkLogWriter keeps.
+        # chrony_skew_ppm = clock-frequency precision (ppm error bound), chrony-only, blank on timesyncd.
+        # timebase = the RATE reference this capture is analysed on, 'device-crystal' | 'host-disciplined'
+        # (host_clock.timebase_decision); the Stage-3 decision, recorded per capture (O2RING-ADAPTIVE-TIMEBASE).
         self._fh.write("Phone timestamp;trust;absolute_ok;synchronized;server;stratum;reference;"
-                       "root_dispersion_ms;jitter_us;packet_count;reason;chrony_skew_ppm\n")
+                       "root_dispersion_ms;jitter_us;packet_count;reason;chrony_skew_ppm;timebase\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
@@ -579,7 +581,8 @@ class HostClockLogWriter:
             stamp, _f(st.get("trust")), _f(st.get("absolute_ok")), _f(st.get("synchronized")),
             _f(st.get("server")), _f(st.get("stratum")), _f(st.get("reference")),
             _f(st.get("root_dispersion_ms")), _f(st.get("jitter_us")), _f(st.get("packet_count")),
-            str(st.get("reason") or "").replace(";", ","), _f(st.get("chrony_skew_ppm")))) + "\n")
+            str(st.get("reason") or "").replace(";", ","), _f(st.get("chrony_skew_ppm")),
+            _f(st.get("timebase")))) + "\n")
         self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:

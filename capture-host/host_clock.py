@@ -24,6 +24,18 @@ import proc_util
 # Stratum 1 is a reference clock (GPS/PPS/atomic); each hop adds a stratum. Beyond this the chain is
 # too long to call a session's absolute time well-sourced — 15 is "unsynchronised" by RFC 5905.
 MAX_TRUSTED_STRATUM = 4
+# THE TIMEBASE-DECISION BAR (O2RING-ADAPTIVE-TIMEBASE Stage 3) — STRICTER than absolute-time trust.
+# `classify()` grants absolute_ok up to stratum 4; but trusting the host's RATE (to discipline the O2Ring
+# PPG axis rather than ride its ±40 ppm crystal) is a higher bar: a stratum-2+ NTP client is absolute_ok
+# yet its frequency stability may be worse than the crystal. So host-discipline is EARNED — the source
+# must be a genuine reference clock (stratum ≤ 1, PPS/GPS-backed) AND, where chrony reports it, a
+# frequency skew within the bar. Everything else defaults to the device crystal (the safe floor).
+TIMEBASE_MAX_STRATUM = 1
+# chrony's `Skew` is the estimated frequency-error bound (ppm). 1 ppm is ~40× tighter than the crystal's
+# ±40 ppm, so below it the host rate is unambiguously the better reference; above it, fall back. Absent
+# (timesyncd, or chrony not yet settled) ⇒ decided on stratum alone — a stratum-1 source is rate-accurate
+# by construction, so its absence is not held against it.
+TIMEBASE_MAX_SKEW_PPM = 1.0
 # systemd reports `Ignored=yes` when it received a reply but REFUSED it (root distance too large, etc).
 # A refused packet is not a sync, no matter how healthy the rest of the line looks.
 
@@ -176,6 +188,38 @@ def classify(state: dict) -> dict:
             "reason": f"synchronised to stratum {st} via {state.get('server') or 'NTP'} (ref {ref})"}
 
 
+def timebase_decision(state: dict) -> dict:
+    """Which RATE reference this capture should be analysed on. PURE — the part worth gating.
+
+    O2RING-ADAPTIVE-TIMEBASE §2. Two outcomes:
+      device-crystal   — DEFAULT. The O2Ring's 125.000 Hz crystal (±40 ppm), trustworthy anywhere; the
+                         safe floor. Anything short of an EARNED host is analysed on it.
+      host-disciplined — the host clock governs the rate. EARNED, not merely absolute_ok: the source must
+                         be a reference clock (stratum ≤ TIMEBASE_MAX_STRATUM) AND, where chrony reports
+                         it, a frequency skew within TIMEBASE_MAX_SKEW_PPM. A stratum-2+ NTP client is
+                         absolute_ok but its rate may be worse than the crystal, so it stays on the crystal.
+
+    Returns { timebase, reason } — the fact stamped per capture so a reader sees which clock governed the
+    night and why. This does NOT stop syncing or change absolute-time handling; it only picks the RATE."""
+    c = classify(state)
+    if not c.get("absolute_ok"):
+        return {"timebase": "device-crystal",
+                "reason": f"host clock not disciplined ({c.get('reason')}) — device crystal"}
+    st = state.get("stratum")
+    if st is None or st > TIMEBASE_MAX_STRATUM:
+        return {"timebase": "device-crystal",
+                "reason": (f"source-stratum {st} above the rate-trust bar "
+                           f"(≤{TIMEBASE_MAX_STRATUM}) — device crystal")}
+    skew = state.get("chrony_skew_ppm")
+    if skew is not None and skew > TIMEBASE_MAX_SKEW_PPM:
+        return {"timebase": "device-crystal",
+                "reason": (f"chrony skew {skew} ppm exceeds the {TIMEBASE_MAX_SKEW_PPM} ppm bar "
+                           f"— device crystal")}
+    return {"timebase": "host-disciplined",
+            "reason": (f"stratum-{st} reference, skew {'n/a' if skew is None else str(skew) + ' ppm'} "
+                       f"— host rate trusted")}
+
+
 async def _run(*args: str, timeout: float = 4.0) -> tuple[int, str]:
     try:
         p = await asyncio.create_subprocess_exec(
@@ -257,4 +301,8 @@ async def read_state() -> dict:
         "host_stratum": ch.get("host_stratum"),
     }
     state.update(classify(state))
+    # The RATE reference this capture should be analysed on (O2RING-ADAPTIVE-TIMEBASE Stage 3). Stamped
+    # per capture (CLOCK sidecar) so a reader — and PpgDex, once it consumes the stamp — sees which clock
+    # governed the night. `timebase_decision` reads chrony_skew_ppm + stratum from the state built above.
+    state["timebase"] = timebase_decision(state)["timebase"]
     return state
