@@ -1300,7 +1300,11 @@ async function pullStored(btn){
     const r = await api('/api/pull',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({which:'latest'})});
     if(r.ok && r.new_files && r.new_files.length){
       const s = (r.sessions&&r.sessions[0])||{};
-      btn.textContent = `✓ ${r.new_files[0]}${s.bytes?(' · '+s.bytes+' B'):''}${s.approx_samples?(' · ~'+s.approx_samples+' samp'):''}`;
+      // `unreadable` is NOT the same as "no metadata": the sidecar is where bytes-vs-declared_size
+      // lives, so a sidecar we cannot read is exactly when a silent ✓ is most misleading.
+      btn.textContent = s.unreadable
+        ? `⚠ ${r.new_files[0]} — saved, but its sidecar is unreadable (${s.reason||'?'})`
+        : `✓ ${r.new_files[0]}${s.bytes?(' · '+s.bytes+' B'):''}${s.approx_samples?(' · ~'+s.approx_samples+' samp'):''}`;
     } else if(r.ok){
       btn.textContent = 'no new session — ring worn/charging + phone app closed?';
     } else if(r.busy){

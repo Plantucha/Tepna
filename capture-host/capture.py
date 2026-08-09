@@ -2619,6 +2619,28 @@ async def run_oxyii(dev: dict, root: str):
                 backoff = min(backoff * 2, 60)
 
 
+def session_meta(f: str, name: str = "") -> dict:
+    """A pulled session's sidecar, or an explicit `unreadable` marker — never a bare {}.
+
+    `{}` is indistinguishable from "a session with no metadata", and monitor.html renders exactly that:
+    a clean `✓ <filename>` with the size simply absent. It matters because the sidecar is where the
+    SHORTFALL lives — `bytes` vs `declared_size` is how a truncated pull is told from a whole one — so a
+    sidecar we cannot read is precisely the case where saying nothing is worst. `pull_session` writes it
+    immediately after the data, so a failure here is genuinely odd and worth a log line.
+
+    MODULE-LEVEL ON PURPOSE. This was a closure inside `pull_oxyii_session`, which is why the first test
+    written for it re-implemented its body instead of calling it — the anti-pattern this repo's own
+    audit records as "a test that re-implements its subject tests nothing". Hoisting it is the fix.
+    """
+    try:
+        with open(f + ".meta.json") as fh:
+            return json.load(fh)
+    except Exception as e:                             # noqa: BLE001 — the reason is reported, not acted on
+        log.warning("%s: sidecar unreadable for %s (%s) — reported as unreadable rather than as a "
+                    "session with no metadata", name or "pull", os.path.basename(f), type(e).__name__)
+        return {"unreadable": True, "reason": type(e).__name__}
+
+
 async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype: int = 0) -> dict:
     """Pull the O2Ring's ONBOARD-recorded session(s) off flash to <root>/captures/stored/*.dat, driven from
     the monitor. Pauses live capture first (the ring has one BLE link), runs the same pull_session flow the
@@ -2669,14 +2691,8 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
             _set(name, pull_progress=None)            # clear the UI bar even on failure/abort
             log.info("%s: stored-session pull finished — resuming live capture", name)
 
-    def _meta(f):
-        try:
-            with open(f + ".meta.json") as fh:
-                return json.load(fh)
-        except Exception:
-            return {}
     return {"ok": True, "new_files": [os.path.basename(f) for f in saved],
-            "sessions": [_meta(f) for f in saved], "out_dir": out_dir}
+            "sessions": [session_meta(f, name) for f in saved], "out_dir": out_dir}
 
 
 # Hard ceiling on a single offline op. Generous — a full stored-session pull over PS-FTP is minutes of
