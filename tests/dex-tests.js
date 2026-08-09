@@ -6690,11 +6690,27 @@
          is no longer an ordering. Only events supplied OUT of order can show it: a list already
          ascending comes back ascending under both. */
       var ev = L(ne({ sessions: [{ a: 1 }], ganglior_events: [{ tMs: 9 }, { tMs: 1 }, { tMs: 5 }] }));
-      T.eq('ganglior_events are sorted ASCENDING by tMs, from an out-of-order list', JSON.stringify((ev && ev.events || []).map(function (e) { return e.tMs; })), '[1,5,9]');
-      T.eq('…and none is dropped by the sort', (ev && ev.events || []).length, 3);
+      T.eq(
+        'ganglior_events are sorted ASCENDING by tMs, from an out-of-order list',
+        JSON.stringify(
+          ((ev && ev.events) || []).map(function (e) {
+            return e.tMs;
+          })
+        ),
+        '[1,5,9]'
+      );
+      T.eq('…and none is dropped by the sort', ((ev && ev.events) || []).length, 3);
       /* A null element must not throw: `(a && a.tMs) || 0` treats it as 0 and it sorts first. */
       var evNull = L(ne({ sessions: [{ a: 1 }], ganglior_events: [{ tMs: 4 }, null, { tMs: 2 }] }));
-      T.eq('…a null event sorts as 0 rather than throwing', JSON.stringify((evNull && evNull.events || []).map(function (e) { return e && e.tMs; })), '[null,2,4]');
+      T.eq(
+        '…a null event sorts as 0 rather than throwing',
+        JSON.stringify(
+          ((evNull && evNull.events) || []).map(function (e) {
+            return e && e.tMs;
+          })
+        ),
+        '[null,2,4]'
+      );
     });
 
     /* parsePPG — 38 surviving mutants across its 348 lines. Probing them (original vs mutant in
@@ -6778,6 +6794,55 @@
       );
       /* relSec spacing must reflect the DERIVED fs, not a rounded nominal one. Two mutants change
          only this precision (0.0074443… vs 0.0074074…), which no coarse assertion can see. */
+      /* ── THE HOST-AXIS VERDICT FIELDS (L677–L679) ──────────────────────────────────────────────
+         `hostAxis` publishes `independent`/`spreadMs`/`inertReason` precisely so a consumer can SEE
+         the verdict instead of inferring it from a ~0 ppm (CLAUDE.md §7). Three mutants survived on
+         them, and reaching the code at all takes a file bigger than any other case in this group:
+         an anchor is sampled on 1 row in PPG_AXIS_EVERY = 500 and `hostAxis` refuses below THREE
+         anchors, so ≥1001 rows are needed before these lines execute at all.
+
+         Two files, deliberately on opposite sides of §7's 2 ms independence bound:
+           host = device + ~40 ms jitter  → spread ≫ 2 ms → independent TRUE,  inertReason null
+           host = the device stamp rounded → spread ≤ 1 ms → independent FALSE, inertReason set
+         which is exactly the phone-vs-box discriminator (0.13–1.00 ms vs 101.89–5124 ms). */
+      var twoClock = function (n, devJitterUs, hostNoiseMs) {
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'],
+          devMs = 0,
+          step = 1000 / 135;
+        for (var i = 0; i < n; i++) {
+          devMs += step + (((i * 7919) % 1000) / 1000 - 0.5) * (devJitterUs / 500);
+          var noise = hostNoiseMs ? (((i * 6271) % 1000) / 1000 - 0.5) * 2 * hostNoiseMs : 0;
+          rows.push(
+            new Date(Date.UTC(2026, 6, 1) + Math.round(devMs + noise)).toISOString().replace('T', ' ').replace('Z', '') +
+              ';' +
+              Math.round(devMs * 1e6) +
+              ';' +
+              (1000 + i) +
+              ';' +
+              (2000 + i) +
+              ';' +
+              (3000 + i) +
+              ';' +
+              (400 + i)
+          );
+        }
+        return rows.join('\n');
+      };
+      var indep = (P.parsePPG(twoClock(1600, 900, 40)) || {}).hostAxis || {};
+      var inert = (P.parsePPG(twoClock(1600, 900, 0)) || {}).hostAxis || {};
+      T.ok('a 1600-row file yields ≥3 host anchors, so the axis resolves at all', indep.ok === true && inert.ok === true, 'indep.ok ' + indep.ok + ' inert.ok ' + inert.ok);
+      /* `=== undefined ? null : value` mutated to `!== undefined` returns null whenever the value
+         EXISTS — so asserting the value is strictly the boolean, not null, is what separates them. */
+      T.eq('…a host with ~40 ms of jitter is an INDEPENDENT clock (strictly true, not null)', indep.independent, true);
+      T.eq('…a host column that is the device stamp rounded is NOT independent (strictly false)', inert.independent, false);
+      T.ok('…spreadMs is the measured number, not null (L678)', typeof indep.spreadMs === 'number' && indep.spreadMs > 2, 'spreadMs ' + indep.spreadMs);
+      T.ok('…and on the inert side it is a number at or below the 2 ms bound', typeof inert.spreadMs === 'number' && inert.spreadMs <= 2, 'spreadMs ' + inert.spreadMs);
+      /* `inertReason || null` mutated to `&& null` is null ALWAYS, so only the case that HAS a reason
+         can see it — the independent file's reason is legitimately null and proves nothing here. */
+      T.ok('…the inert host states WHY it is inert (L679), rather than going quietly null', typeof inert.inertReason === 'string' && inert.inertReason.length > 0, JSON.stringify(inert.inertReason));
+      T.eq('…and an independent host has no inert reason to give', indep.inertReason, null);
+      T.eq('…timingSource follows the verdict: two real clocks', indep.timingSource, 'device+host');
+      T.eq('…and a derived host column contributes no second clock', inert.timingSource, 'device');
       T.approx('…and the sample spacing equals 1/fs', at10.ok && at10.r.relSec[1] - at10.r.relSec[0], at10.ok && 1 / at10.r.fs, 1e-9);
     });
 
