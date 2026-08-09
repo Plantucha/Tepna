@@ -80,7 +80,11 @@
       return {
         tier: 'no',
         label: 'NO SHARED CLOCK',
-        why: { independent: false, spreadMs: ax.spreadMs != null ? ax.spreadMs : null, reason: 'host column is derived from the device stamp — the two devices are not on one timebase, so beat-lag scatter cannot be separated from per-device clock wander' }
+        why: {
+          independent: false,
+          spreadMs: ax.spreadMs != null ? ax.spreadMs : null,
+          reason: 'host column is derived from the device stamp — the two devices are not on one timebase, so beat-lag scatter cannot be separated from per-device clock wander'
+        }
       };
     if (!cp || !cp.ok) return { tier: 'no', label: 'NOT COUPLED', why: null };
     if (!sc || !sc.ok) return { tier: 'no', label: 'NOT SIMULTANEOUS', why: null };
