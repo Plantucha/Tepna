@@ -222,8 +222,19 @@ function mutantsFor(src) {
         out.push({
           line: i + 1,
           op: op.name,
+          /* `before`/`after` are DISPLAY fields and always have been — 100 chars is a terminal width,
+             not a record. The executable mutation is `apply()` below, which serialisation drops.
+             `mutated` is that same line UNTRUNCATED, because a consumer that must re-apply a mutant
+             from JSON had nothing else to read: `probe-equivalence` rebuilt the line from `after`
+             and, on every source line past 100 chars, wrote back a line cut mid-expression.
+             Measured 2026-08-09 on hrvdex-dsp.js — 42 of 217 probed mutants came back "the mutant
+             does not parse", which was a property of the READER, not of the mutant.
+             `before`/`after` keep their truncated shape deliberately: they are the
+             `(line, op, before)` key `findCanary` and `tools/mutate-equivalence.json` match on, and
+             widening them would orphan every entry already recorded. */
           before: L.trim().slice(0, 100),
           after: mutatedLine.trim().slice(0, 100),
+          mutated: mutatedLine,
           apply: () =>
             lines
               .slice(0, i)
@@ -1382,7 +1393,13 @@ if (DRY) {
     const _touched = DIFF ? DIFF_LINES.get(f) || new Set() : null;
     const ms = mutantsFor(readFileSync(abs, 'utf8')).filter((m) => !_touched || _touched.has(m.line));
     if (AS_JSON) {
-      dryOut.push({ file: f, generated: ms.length, mutants: ms.map((mu, i) => ({ id: f + ':' + mu.line + ':' + i, line: mu.line, op: mu.op, before: mu.before, after: mu.after })) });
+      /* `mutated` rides along here and ONLY here: --dry-run is the enumeration a re-applier reads
+         (probe-equivalence), whereas a sweep record is a result set nobody re-applies from. */
+      dryOut.push({
+        file: f,
+        generated: ms.length,
+        mutants: ms.map((mu, i) => ({ id: f + ':' + mu.line + ':' + i, line: mu.line, op: mu.op, before: mu.before, after: mu.after, mutated: mu.mutated }))
+      });
     } else {
       console.log('  ' + f + '  ' + ms.length + ' mutant(s)');
       for (const mu of thin(ms, LIMIT)) console.log('    L' + mu.line + '  [' + mu.op + ']  ' + mu.before.slice(0, 88));
