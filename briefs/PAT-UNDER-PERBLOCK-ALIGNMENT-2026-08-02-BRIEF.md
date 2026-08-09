@@ -220,6 +220,48 @@ finding about the vasculature.
       **What would overturn it:** an offset-free `residIQR` at or under 60 ms on whole nights. That is
       the single number; everything else is commentary on it.
 
+      ### ⚠ STATUS DOWNGRADED 2026-08-09 — the decision above is UNVERIFIED, and there is now a
+      ### specific reason to expect it is measuring the capture path, not the physiology
+
+      **(a) I did not reproduce it.** Every number in the decision came from §3i/§3j tables. Attempted
+      independently: the committed `uploads/trio/` and `acc-corpus/` night dirs hold **node-exports
+      only** — 5-min epochs, no beat train — so `residIQR`, a beat-level statistic, is not computable
+      from them at all. Rebuilt night dirs from the raw `_ECG`/`_PPG`/`_ACC` captures instead;
+      `pat-matchrate-strict.mjs` then refuses with *"no overlapping ACC on one or both devices"* on a
+      night where **both ACC files are present**, so its alignment precondition — not the data — is
+      the blocker. Reproduction incomplete. Treat the verdict as provisional.
+
+      **(b) The corpus it was measured on has NO SECOND CLOCK.** Measured directly, host column against
+      device column, on the H10 ECG captures: spread is **0.98 ms on every night** (06-06, 06-07,
+      06-10, 06-11 ×2, 06-12). Clock Contract §7 fixes the discriminator — phone captures span
+      **0.13–1.00 ms**, box captures **101.89–5124 ms** — and 0.98 ms is one stamp quantum, i.e. the
+      host column IS the device stamp rounded. `independent = false`. These are phone captures, so the
+      two devices were never placed on a common timebase; §7 records the consequence directly, an
+      H10↔Verity offset of **~3.3 s on phone nights against ~0.2 s on box nights**.
+
+      That matters because `residIQR` is **beat-level scatter between two devices**. With no shared
+      clock, per-device timebase wander lands in the lag distribution and is **indistinguishable from
+      PTT variability** in that statistic. The decision above attributes 84–99 ms to physiology. On
+      this corpus that attribution is not identifiable — the confound and the claim have the same
+      signature.
+
+      ### The proposed route, and it is cheap
+
+      1. **Capture on the box, not the phone.** The vigil host is chrony/local-stratum-1 at 0.008 ppm
+         and re-syncs both Polar clocks on every connect, so its host column is a genuine second clock
+         (`independent = true`, spread ≫ 2 ms) and both devices ride ONE timebase.
+      2. **Refuse the verdict where the clock does not exist.** `DexClock.hostAxis` already publishes
+         `independent` and `spreadMs`. A PAT/coupling gate should decline to report on a night with
+         `independent === false` rather than quote a number built on a single clock. That is a
+         shippable guard and it does not need new data.
+      3. **Re-run offset-free `residIQR` on box nights only**, against the same 60 ms bar.
+      4. **The discriminator is sharp.** If `residIQR` falls materially below 84–99 ms on box nights,
+         the scatter was the timebase and PAT is reachable. If it does not move, the physiology verdict
+         stands — and is then actually earned, on a corpus where it could have failed.
+
+      Until (3) is run, the decision above should not be cited as settled, and nothing about PAT should
+      be shipped either way.
+
 ---
 
 ## 3c · RECONCILED 2026-08-04 — the gap is pair selection, and §3a's rule picks the WORST pair
