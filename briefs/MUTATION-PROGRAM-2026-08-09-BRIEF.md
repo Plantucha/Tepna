@@ -96,6 +96,42 @@ file, the battery and the callable surface). The batteries that produced the 960
 result and the 68-input `parsePPG` result were **never committed**, so those verdicts cannot be
 re-checked, widened, or re-run against moved code. §7.1 is therefore a *prober*, not a transcription.
 
+**Executed 2026-08-09:** `tools/probe-equivalence.mjs` + `tools/probe-batteries/` (#1107). Three
+defects surfaced by *running* it, each a §8-family failure: `functionRange` brace-counted without
+stripping comments and regex literals, measuring `lombScargle` at L1865–**2582** — 588 lines past its
+end, so 9 of 11 "same-function controls" were unrelated code and the family reported BLIND; the
+mutant enumeration was read from a child **through a pipe** and truncated at ~146 KB (ppgdex's is
+~1.5 MB); and the first battery read `json.node` where the code reads `json.schema.node`, so all 41
+inputs took one refusal arm — **2 distinct answers over 41**, caught by the degenerate check.
+
+## 2a · AND IT IS NOT ONLY PROSE — two machine-readable result sets sit UN-TRIAGED on disk
+
+Found 2026-08-09 by searching the disk rather than the repo. Both are **gitignored by design** — a
+sweep is a measurement of a moment and goes stale the instant a test changes — which is correct, and
+is also why neither is visible to anyone reading the repo:
+
+| where | what | state |
+|---|---|---|
+| `<checkout>/.mutation-crawl/` (`.gitignore:200`) | `hrvdex-dsp.js` + `motiondex-dsp.js` **full sweeps**, each with its complete survivor list in exactly the shape `probe-equivalence` reads | `probed: 0`, `killable: 0`, `findings: []` |
+| `/home/michal/tepna-mutation-audit-2026-08-02/` | **19 capture-host modules** — `<module>.stats.json` + `<module>.survivors.txt`, mutmut 3.7.0, baseline 1818 passed at 100 % statement+branch | superseded as a ranking by §3, still the only per-mutant ID list |
+
+The crawl pair is the immediately useful one, and both figures are **measured, not arithmetic**
+(`killed + survivors + invalid == tested` checks out on both):
+
+| file | tested | killed | invalid | survivors | honest rate | canary |
+|---|---:|---:|---:|---:|---:|---|
+| `hrvdex-dsp.js` | 489 | 191 | 0 | 298 | **39.1 %** | **PASSED** |
+| `motiondex-dsp.js` | 466 | 171 | 8 | 287 | **37.3 %** | **NONE** |
+
+Both **confirm** rather than correct: 39.1 % is exactly what #1030 reported, and 37.3 % is what the
+fleet map sampled at 37 %. (The map's 28 % for hrvdex is *pre*-#1030 and not in conflict.) So this is
+the fleet's **first canary-guarded full DSP sweep**, and §7.2/§7.3 are already discharged for hrvdex.
+
+**`probed: 0` is the point.** `mutation-crawl` was built to *"run the MEASUREMENT unattended and leave
+the judgement to a person"* (#1075), and it did its half. Nobody did the other half — so 585 survivors
+across two files have been sitting classified-as-nothing since 05:04 this morning, which is §2's
+finding in a second, entirely mechanical form.
+
 ## 3 · What predicts COST — concentration, and tag price
 
 Two independent measurements, one per fleet, and they agree on the shape.
@@ -241,19 +277,26 @@ the verdicts can be re-checked rather than believed. Generalise
 > (`_ckDMY` called with one argument; `L94`'s `b > 12` needing `b` exactly 12) and the sweep before it
 > had reported those survivors as equivalent on a battery whose only control sat in another function.
 
-Order: `ppgdex-dsp.js` (48 — the batteries are described in #1052 and can be rebuilt) → `clock.js`
-(20, both prose sets) → `capture.run_polar` (15, Python side).
+Order — **revised by §2a**, because the cheapest survivor set is the one already measured:
+**`hrvdex-dsp.js` first** (298 survivors, canary PASSED, sweep on disk, tag cost 1 s — nothing to wait
+for) → `ppgdex-dsp.js` (the batteries are described in #1052 and can be rebuilt) → `motiondex-dsp.js`
+(287, but its sweep is uncontrolled — re-run for a canary first) → `clock.js` (20, both prose sets) →
+`capture.run_polar` (15, Python side).
 
-### 7.2 · Re-measure what is quoted from arithmetic
+### 7.2 · Re-measure what is quoted from arithmetic — **hrvdex DONE, ppgdex open**
 
-ppgdex's ≈36.5 % is three commit messages added together. `hrvdex`'s 39.1 % (#1030) predates two
-sweeps' worth of tooling fixes. **Neither is a measurement.** One scoped sweep each, canary-guarded.
+ppgdex's ≈36.5 % is three commit messages added together and is still not a measurement.
 
-### 7.3 · Canary-guard the seven unguarded DSPs
+`hrvdex-dsp.js` **is now measured: 191/489 = 39.1 %, canary PASSED** (§2a). It confirms #1030's figure
+rather than correcting it — worth stating plainly, because the reason for re-measuring was that two
+sweeps' worth of tooling fixes had landed since, and the honest outcome of that check is "the number
+held". `motiondex-dsp.js` is measured at 37.3 % but **uncontrolled**, so it is not yet quotable.
 
-`clock.js` and `hrvdex-dsp.js` have canaries; the other seven do not, and §3's table was produced
-without one. Each sweep *learns* a canary for the next, so this is a by-product of 7.2 rather than
-separate work.
+### 7.3 · Canary-guard the seven unguarded DSPs — **six now**
+
+`clock.js` and `hrvdex-dsp.js` have canaries. `motiondex-dsp.js` has a full sweep with `canary: NONE`,
+which is precisely the "unguarded" state §3's table warns about — its 37.3 % is a hypothesis, not a
+result. Each sweep *learns* a canary for the next, so this remains a by-product of 7.2.
 
 ### 7.4 · One measurement, before anything is written for it
 
@@ -282,8 +325,33 @@ saying which sample is part of the result.
 
 `--rank` runs silent fleet-wide (a `mutmut show` per survivor) · the ETA window should be
 `max(2 × jobs, 12)`, not 12 · `tools/mutate_pure.py`'s witness search is still unwired into triage ·
-real frames from the PSL corpus would legitimately inform `oxyii.parse_live` + `polar_pmd.decode_frame`
-without breaking the hermetic suite — resolve the path before *those two* passes only.
+neither prober's `--selftest` is wired into `npm run check` (`mutate.mjs`'s is not either, so this is
+consistent rather than an oversight — but an unrun selftest is this repo's signature failure).
+
+**✅ THE CORPUS QUESTION IS ANSWERED — it was a PATH, and the path has a space in it.**
+`CAPTURE-HOST-MUTATION-FLEET` §7 recorded *"`/EcgNightly` is not present locally (an unmounted `data`
+volume, `sdb1`, is the likely home) and does not exist on vigil"*, and made resolving it a
+precondition for the `oxyii.parse_live` and `polar_pmd.decode_frame` passes. It is present, and has
+been all along:
+
+```
+/run/media/michal/647A504F7A50205A/Ecg nightly     19 GB · 777 entries
+   71 × *.dat                         O2Ring raw            → oxyii.parse_live
+   50 × Polar_H10_*_ECG.txt           chest ECG
+   54 × Polar_VeritySense_*_PPG.txt   3-LED arm PPG         → polar_pmd.decode_frame
+   58 × O2Ring S 2100_*.csv           1 Hz SpO2/HR/PI summaries
+```
+
+**`Ecg nightly`, with a space** — not `EcgNightly`. That is almost certainly the whole of the earlier
+negative: a path check for the concatenated name misses it, and an unmounted-volume theory is a very
+plausible thing to write next. It is the §8 family again — *the check ran and reported about something
+it never examined* — and the cheapest guard is to `ls` the parent before theorising about the child.
+(Also present: `/home/michal/tepna-smoketest/captures`, 18 GB, the **box**-captured tree. The two are
+NOT interchangeable — the `Ecg nightly` tree is phone-captured and has no independent second clock,
+CLAUDE.md §7 — which matters for anything timing-related, though not for frame decoding.)
+
+So the blocker on those two passes is lifted. The hermetic-suite constraint (`SUBPROCESS-SURFACE` §6)
+still stands: real frames inform **which decode paths actually occur**, they do not enter the suite.
 
 ## 8 · The instrument rules — deduped across both fleets
 
@@ -309,6 +377,10 @@ fleets found that independently; it is the single most transferable result here.
 | a progress line on anything looping > ~50 items | a 1 h 42 m run indistinguishable from a hang without reading `/proc` | three instances in one day |
 | profile a new test file with `--durations` | a 5.18 s test spending three unrelated mutants' timeout budget, flipping them KILLED → TIMEOUT | `wifi_up` |
 | **never append tests blind** | a new file shadowed an existing `_night` helper and broke 30 passing tests elsewhere | `CAPTURE-HOST-MUTATION-FLEET` §6 |
+| read a child's output through a **file, not a pipe** | the mutant enumeration truncated at ~146 KB mid-token; ppgdex's is ~1.5 MB. It threw here — luck. A silent truncation probes a PREFIX and reports the rest as nothing to do | #1107 |
+| a family range must **strip comments and regex literals** before counting braces | `lombScargle` measured 588 lines past its end; an over-wide family manufactures blindness, an over-narrow one manufactures a clean bill | #1107 |
+| **`ls` the parent before theorising about the child** | a path check for `EcgNightly` missed `Ecg nightly`, and an unmounted-volume theory got written down instead | §7.7 |
+| **search the DISK, not just the repo** | two full DSP sweeps and 19 modules' survivor lists were sitting gitignored and un-triaged | §2a |
 
 The family has one shape, and it is CLAUDE.md §👥.4b's: **the check ran, and reported success about
 something it never examined.**
@@ -318,11 +390,16 @@ something it never examined.**
 - [x] The four briefs are folded here and marked DONE, with `Folded-into:` headers and synced
       `DOCS-INDEX.md` rows.
 - [x] §1's denominator is ratified and both gates carry the mechanism.
-- [ ] **§7.1 — `tools/mutate-equivalence.json` carries every classification this programme has
-      measured**, produced by a committed prober, with its battery recorded per entry. Until then the
-      ratified target is unmeasurable outside `clock.js` and no `killed / distinguishable` figure is
-      quotable.
-- [ ] §7.2 — ppgdex and hrvdex re-measured rather than added up; §7.3's canaries land with them.
+- [x] §7.1's **instrument** — `tools/probe-equivalence.mjs` + `tools/probe-batteries/` (#1107), with
+      same-function controls, a degenerate-baseline refusal, and 20 known-answer selftests.
+- [ ] **§7.1's PAYLOAD — `tools/mutate-equivalence.json` carries every classification this programme
+      has measured**, with its battery recorded per entry. Until then the ratified target is
+      unmeasurable outside `clock.js` and no `killed / distinguishable` figure is quotable.
+      **Start with `hrvdex-dsp.js`: 298 survivors, canary PASSED, sweep already on disk (§2a).**
+- [x] §7.2/§7.3 for **hrvdex** — 191/489 = 39.1 %, canary PASSED, measured not added up (§2a).
+- [ ] §7.2/§7.3 for **ppgdex** (still arithmetic) and **motiondex** (measured but uncontrolled).
+- [ ] §7.7 — the two corpus-informed passes (`oxyii.parse_live`, `polar_pmd.decode_frame`) are
+      unblocked now the corpus is located; the hermetic-suite constraint still stands.
 - [ ] §7.4 — the 13 loop-condition timeouts recorded as real or artefact. **Nothing is written for
       them first.**
 - [ ] §7.5 — both decisions taken in writing.
