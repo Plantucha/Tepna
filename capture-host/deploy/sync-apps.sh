@@ -93,9 +93,15 @@ if [ -f "$ANALYSIS_SRC" ]; then
   )
   # FAIL LOUDLY, NOT SILENTLY. An empty parse means the builder changed shape, and the failure mode of
   # carrying on is exactly what this block fixes: a deploy that looks complete and ships stale code.
+  # PRESENT BUT UNPARSEABLE ⇒ REFUSE. The builder changed shape and this list is now silently wrong,
+  # which is the exact failure being fixed one level up.
   [ ${#analysis[@]} -gt 0 ] || { echo "  ✗ could not read TOOLS from $ANALYSIS_SRC — refusing a partial deploy"; exit 1; }
 else
-  echo "  ✗ $ANALYSIS_SRC not found — refusing a partial deploy"; exit 1
+  # ABSENT ⇒ SAY SO AND CARRY ON. A checkout without tools/ is legitimate — a trimmed deploy tree, or
+  # a fixture — and refusing there would make this script unusable in exactly the setups that only
+  # ever serve the apps. The distinction that matters is silence: the omission is now NAMED, so a
+  # deploy that skipped the analysis tools cannot be mistaken for one that covered them.
+  echo "  · $ANALYSIS_SRC not found — analysis tools NOT considered in this run"
 fi
 
 bundles=()
