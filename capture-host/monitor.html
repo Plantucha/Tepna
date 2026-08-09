@@ -1781,9 +1781,21 @@ function ovValues(){                             // text readouts (throttled; ca
         `<span class="ov-axis" style="color:${cols?cols[i]:'var(--text2)'}">${esc(L)}<b>${a[i]!=null?Math.round(a[i]):'—'}</b></span>`).join('')
         + `</div><span class="unit">${esc(s.unit||'')}</span>`;
     } else { // ppi: [PP-int ms, HR]
-      const a=Array.isArray(last)?last:[];
-      el.innerHTML = `<span class="big">${a[0]!=null?Math.round(a[0]):'—'}</span><span class="unit">ms</span>`
-        + (a[1]!=null?`<span class="aux">♥ ${Math.round(a[1])}</span>`:'');
+      // NAME BOTH CHANNELS. PPI is the only multi-channel stream that drew two coloured lines and
+      // labelled neither — `multi` (ACC/GYRO/MAG) builds an `.ov-axes` legend from `s.labels`, while
+      // this branch rendered a[0] and a[1] positionally. The labels were never missing: capture.py
+      // declares `"ppi": ("PPI","ms",2,("PP-int","HR"))`, telemetry.py serialises them, and the browser
+      // already had them in `s.labels` — nothing read them. Two unlabelled lines is a readout you have
+      // to guess at from scale, which is how "shouldn't it show HR?" gets asked about a card that IS
+      // showing HR.
+      //
+      // Colour-matched to the mini-chart traces, and TEXT-LABELLED as well — never hue alone (the
+      // badge doctrine's rule, and the same reasoning applies to a legend).
+      const a=Array.isArray(last)?last:[], labs=s.labels||[];
+      const c0=cols?cols[0]:'var(--text)', c1=cols?cols[1]:'var(--text2)';
+      el.innerHTML = `<span class="big" style="color:${c0}">${a[0]!=null?Math.round(a[0]):'—'}</span>`
+        + `<span class="unit">${esc(labs[0]||'PP-int')} ms</span>`
+        + (a[1]!=null?`<span class="aux" style="color:${c1}">♥ ${Math.round(a[1])} ${esc(labs[1]||'HR')}</span>`:'');
     }
   }
 }

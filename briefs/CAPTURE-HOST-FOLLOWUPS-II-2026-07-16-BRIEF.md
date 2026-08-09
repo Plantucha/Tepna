@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED (**V1/V2 MATERIALLY ADVANCED and V3 CONFIRMED-DEAD against the 19 GB PSL corpus, 2026-08-04** — H10 ACC agrees with the vendor decode to 0.4 % on the 1 g invariant (V2 answered); GYRO/MAG units confirmed but the UNCOMPRESSED branch stays untested because the Verity streams delta; PPI is 107 files / 102 rows, header-only. Plus: **§2 re-measured on the live box 2026-08-04** — V4 partially observed, V5's sudoers rule found installed, and a 🔴 **live finding**: two of the four root-owned NOPASSWD helpers have drifted from the checkout and a third was never installed, with `helper_path` preferring the stale copies. Now gate-backed in `deploy/check-system-files.sh`. **Re-measured again 2026-08-05: that drift is REPAIRED — all helpers byte-match and every grant works passwordless — but one inference drawn from it was wrong**, namely that installing `tepna-usbreset.sh` unblocked the wedged-adapter rung; it is a Polar-dock helper that must never touch a radio, and the real blocker was code (see V5). V1·V2·V3 remain hardware-gated) · **Created:** 2026-07-16 (**Field-verified 2026-07-22 on `rig-x870`:** the whole
+**Status:** PROPOSED (**V1/V2 MATERIALLY ADVANCED and V3 CONFIRMED-DEAD against the 19 GB PSL corpus, 2026-08-04** — H10 ACC agrees with the vendor decode to 0.4 % on the 1 g invariant (V2 answered); GYRO/MAG units confirmed but the UNCOMPRESSED branch stays untested because the Verity streams delta; PPI is 107 files / 102 rows header-only IN THE PSL CORPUS — but that was mis-attributed to the device: the BOX gets 30 151 PPI rows a night from the same unit, so V3 is OVERTURNED (2026-08-08), not confirmed. Plus: **§2 re-measured on the live box 2026-08-04** — V4 partially observed, V5's sudoers rule found installed, and a 🔴 **live finding**: two of the four root-owned NOPASSWD helpers have drifted from the checkout and a third was never installed, with `helper_path` preferring the stale copies. Now gate-backed in `deploy/check-system-files.sh`. **Re-measured again 2026-08-05: that drift is REPAIRED — all helpers byte-match and every grant works passwordless — but one inference drawn from it was wrong**, namely that installing `tepna-usbreset.sh` unblocked the wedged-adapter rung; it is a Polar-dock helper that must never touch a radio, and the real blocker was code (see V5). V1·V2 remain hardware-gated; V3 is resolved except for a byte-diff no vendor export exists to supply) · **Created:** 2026-07-16 (**Field-verified 2026-07-22 on `rig-x870`:** the whole
 `capture-host/` test suite is green (~40 files incl. `test_capture_clock` F2, `test_pmd_delta`,
 `test_oxyii`, writers/fsync R1) and real captured files round-trip to node-exports (H10 ECG → ECGDex 21
 events, O2Ring SpO₂ → OxyDex meanSpo₂ 96.1 %). **§2 V1–V5 stay OPEN — all hardware-gated** exactly as
@@ -82,6 +82,27 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
 > only, zero with >100 rows. That is not "no data available", it is positive evidence for V3's claim that
 > the unit accepts PMD START and streams 0 frames. ⚠️ Counting *files* would have read as "107 PPI
 > recordings, V3 unblocked"; reading *values* says the opposite.
+>
+> > **🔴 OVERTURNED 2026-08-08 — the numbers were right and the CONCLUSION was wrong.** Those 102 rows
+> > measure **Polar Sensor Logger**, not the Verity. The box's own capture path gets real PPI from the
+> > *same physical unit* (`0C301E3F`): **30 151 rows** on 2026-08-07, 1.2 MB, and 965 KB the night before.
+> > So the unit does **not** "accept START and stream 0 frames" — it streams fine, and what was dead is
+> > PSL's PPI capture. Three claims in V3 below fall with it: the device attribution, "`ppi` was dropped
+> > from `config.yaml`" (it is ENABLED on the box), and above all *"the decoder has never run on real
+> > bytes"* — it runs every night, on tens of thousands of frames.
+> >
+> > **The trap is worth keeping, because a sibling of it nearly landed the same conclusion twice.**
+> > `writers.py` records that the box's earlier `_PPI.txt` layout put `hr` THIRD where PSL puts it LAST,
+> > so a PSL-shaped reader took column 1 — our device clock — as the interval, failed the sanity band,
+> > and read **21 871 real rows as zero usable beats**: *"the exact shape of 'the Verity's PPI is dead',
+> > which is the conclusion this layout would have manufactured."* Same verdict, two independent causes,
+> > neither of them the sensor.
+> >
+> > **The generalisable lesson:** the original note congratulates itself for reading *values* rather than
+> > counting *files* — and that was the right instinct applied to the wrong denominator. It still never
+> > asked **whose** files those were. A measurement of one producer cannot license a claim about the
+> > device unless every other producer of the same stream agrees, and here a second producer was sitting
+> > on the same disk disagreeing by four orders of magnitude.
 
 - **V1 · GYRO / MAG decoders are new + only the DELTA path is exercised.** The Verity streams compressed
   (delta) frames, so `polar_pmd.decode_frame`'s uncompressed GYRO/MAG branches (`base==0`, int16 x/y/z) are
@@ -92,10 +113,17 @@ what the second bring-up session surfaced and is **not yet done**. Parent `CAPTU
   while GYRO/MAG use `base==0`. No real uncompressed ACC frame has been seen (Verity is delta; H10 ACC was
   captured but not diffed). Confirm the H10 ACC bytes/units against a PSL `_ACC` export. (Pre-existing flag
   from FOLLOWUPS-I, still open.)
-- **V3 · PPI decoder is completely unexercised.** PPI is DEAD on this Verity unit (accepts START, streams 0
-  frames — confirmed PPI-only + on-skin + clean START; the reference PSL app never got it either), so `ppi`
-  was dropped from `config.yaml`. The `PPI and base==0` decoder in `polar_pmd` therefore has **never run on
-  real bytes**; kept for a possible OH1 / other device. Validate there before trusting it.
+- ~~**V3 · PPI decoder is completely unexercised.**~~ **RESOLVED 2026-08-08 — see the overturn note above.**
+  (As written: *"PPI is DEAD on this Verity unit (accepts START, streams 0 frames …), so `ppi` was dropped
+  from `config.yaml`. The `PPI and base==0` decoder in `polar_pmd` therefore has never run on real bytes;
+  kept for a possible OH1 / other device."*) Every clause of that is now false **for the box path**: `ppi`
+  is enabled in the box's `config.yaml`, the decoder runs nightly, and the unit produced **30 151 PPI rows**
+  on 2026-08-07 alone. The decoder is exercised on real bytes at scale; it is the **PSL** capture of PPI
+  that yields nothing, and that is an app finding, not a device or decoder finding.
+  - **Still genuinely open:** the decoder's *correctness* is not established by volume. The rows are
+    plausible and the layout now matches PSL's column-for-column (`writers.py`), but no byte-diff against
+    a vendor PPI export exists — because PSL never produced one to diff against. That is the same shape as
+    V1/V2 and should be tracked as such, not as "unexercised".
 - **V4 · Monotonic `_now()` re-anchor — OBSERVED ON HARDWARE 2026-08-04, though not by the trigger this
   item names.** The journal on the live box carries the re-anchor firing **twice**:
   `Jul 27 22:12:07 … INFO capture clock re-anchored to civil time (timezone set to America/New_York)` and
