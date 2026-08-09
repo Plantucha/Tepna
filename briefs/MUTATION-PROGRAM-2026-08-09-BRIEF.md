@@ -112,7 +112,7 @@ is also why neither is visible to anyone reading the repo:
 
 | where | what | state |
 |---|---|---|
-| `<checkout>/.mutation-crawl/` (`.gitignore:200`) | `hrvdex-dsp.js` + `motiondex-dsp.js` **full sweeps**, each with its complete survivor list in exactly the shape `probe-equivalence` reads | `probed: 0`, `killable: 0`, `findings: []` |
+| `<checkout>/.mutation-crawl/` (`.gitignore:200`) | `hrvdex-dsp.js` + `motiondex-dsp.js` **full sweeps**, each with its complete survivor list — in the same *record*, but ~~in exactly the shape `probe-equivalence` reads~~ **not in a shape it could parse; see §2b** | `probed: 0`, `killable: 0`, `findings: []` |
 | `/home/michal/tepna-mutation-audit-2026-08-02/` | **19 capture-host modules** — `<module>.stats.json` + `<module>.survivors.txt`, mutmut 3.7.0, baseline 1818 passed at 100 % statement+branch | superseded as a ranking by §3, still the only per-mutant ID list |
 
 The crawl pair is the immediately useful one, and both figures are **measured, not arithmetic**
@@ -131,6 +131,114 @@ the fleet's **first canary-guarded full DSP sweep**, and §7.2/§7.3 are already
 the judgement to a person"* (#1075), and it did its half. Nobody did the other half — so 585 survivors
 across two files have been sitting classified-as-nothing since 05:04 this morning, which is §2's
 finding in a second, entirely mechanical form.
+
+## 2b · 🔴 THE TWO TOOLS BUILT TO FEED EACH OTHER COULD NOT — and §2a said they could
+
+**Executed 2026-08-09 (this pass).** §2a above asserted the crawl sweeps sat on disk *"each with its
+complete survivor list in exactly the shape `probe-equivalence` reads"*. That sentence was written
+from the record's **field names**. Nobody ran it. Pointing the prober at the file it was supposedly
+already compatible with produced, immediately:
+
+```
+SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)
+```
+
+`mutate.mjs --json` emits **NDJSON**, one dense line per file, so the reader took the first line
+starting with `{` and parsed that. `mutation-crawl.mjs:365` writes the same record
+`JSON.stringify(rec, null, 2)` — **pretty-printed**, whose first `{`-line is the bare character `{`.
+298 survivors were unreachable behind a newline, under an error message that told the reader the file
+*"has no JSON object"* when the whole file is one. Fixed: `parseSweep` tries whole-file JSON first,
+falls back to the NDJSON line scan, and **refuses** an empty or truncated record rather than reading
+it as a sweep with no survivors (6 known-answer selftests).
+
+**And behind it, a second and worse one — a DISPLAY field re-applied as source.** With the sweep
+finally readable, 42 of 217 probed survivors came back `REALM-FAIL … Unexpected token 'const'`. That
+reads as a fact about the mutant. It was a fact about the reader: `mutate.mjs:225-226` records
+`before`/`after` **truncated at 100 characters** — a terminal width — while the executable mutation
+lives in a closure `apply()` that JSON drops. `probe-equivalence.applyMutant` rebuilt the line as
+`indent + after.trim()`, so **every source line longer than 100 characters was written back cut
+mid-expression**. It failed *closed* (an unparseable realm is never emitted as an equivalence) but
+silently, and at 19 % of the file, while the run printed a confident count of the rest.
+
+Fixed at both ends: `--dry-run --json` now also emits `mutated`, the same line untruncated, and
+`applyMutant` prefers it and **throws** rather than reconstruct from a field it can see is truncated.
+`before`/`after` keep their truncated shape deliberately — they are the `(line, op, before)` key
+`findCanary` and `mutate-equivalence.json` match on, and widening them would orphan every entry
+already recorded.
+
+Both are CLAUDE.md §👥.4b — *the check ran, and reported success about something it never examined* —
+and both were invisible until the tool was pointed at real data. That is now three consecutive passes
+(#1107, #1111, this one) where **running the instrument found defects in the instrument**, which is
+§8's headline restated as a schedule rather than a lesson.
+
+## 2c · hrvdex-dsp.js — EXECUTED, and the sweep reproduced exactly
+
+**2026-08-09.** §2a's figure was re-measured from scratch rather than quoted: a fresh
+`--jobs 10 --bail` sweep on `bac6e3a2`, 11 m 35 s, against a `tests/dex-tests.js` that has moved
+substantially since the 05:04 crawl.
+
+| | crawl 05:04 | fresh re-run | |
+|---|---:|---:|---|
+| tested / killed / invalid / survivors | 489 / 191 / 0 / 298 | 489 / 191 / 0 / 298 | identical |
+| canary | PASSED | PASSED | |
+| survivor **set** (by `line\|op\|after`) | — | — | **0 differences, both directions** |
+
+Not just the counts — the 298 survivors are the *same* 298. So 39.1 % is now measured twice on two
+test-suite states, and §7.2/§7.3 are discharged for hrvdex on evidence rather than on one run.
+
+**Six families probed, 217 of the 298 survivors, every control separated:**
+
+| family | character | survivors | distinguishable | no-distinguishing | controls |
+|---|---|---:|---:|---:|---:|
+| `computeDerived` | numeric / derivation | 149 | 98 | 51 | 40/40 |
+| `hrvLoadOwnExport` | validation / dispatch | 11 | **11** | **0** | 10/10 |
+| `hrvBuildNodeExport` | assembly / ordering | 19 | 10 | 9 | 11/11 |
+| `hrvEventsFromRows` | thresholding / emission | 16 | 15 | 1 | 4/4 |
+| `_hrvParseSummaryRows` | string / parsing | 12 | 5 | 7 | 12/12 |
+| `computeCAMQ` | scoring / clamping | 10 | 9 | 1 | 7/7 |
+| | | **217** | **148** | **69** | **84/84** |
+
+Zero blind, zero degenerate, zero realm-fail, zero hang. **69 entries emitted** to
+`tools/mutate-equivalence.json` (the file went from 44 entries to 113); the 148 distinguishable are
+**not** emitted — they are debt and stay in the denominator. The remaining **81 survivors sit in
+functions with no family and remain UNCLASSIFIED**, which the sweep reports by name.
+
+**§5 CONFIRMED on a second file, and the spread is wider here than in ppgdex.**
+`hrvLoadOwnExport` — validation/dispatch, the same character as ppgdex's `loadOwnExport` — came back
+**11 of 11 distinguishable, 100 %**, against **34 %** for the numeric `computeDerived`. That is not a
+file-level property in any useful sense; it is the function's character, exactly as §5 argues, and it
+is the second independent measurement of it.
+
+**The gate's own verdict, from a third full sweep run with the ledger in place:**
+
+```
+equivalence: 69 excused, 0 real-gap, 220 UNCLASSIFIED   [45 % of 420 distinguishable]
+── 1 file(s) measured, 0 skipped ── 191/489 killed = 39 %  (of 490 mutants that exist)
+```
+
+**0 REFUTED, 0 ORPHANED.** So `killed / distinguishable` is quotable for `hrvdex-dsp.js` for the
+first time: **191/420 = 45.5 %**, against a raw 39.1 %. It is a long way from 90 %, and 220
+unclassified survivors is why — that gap is *debt made visible*, which is the whole point of §1's
+denominator.
+
+⚠️ **220, not 229 — and the 9 are a property of the KEY.** 298 − 69 = 229, but `classifySurvivors`
+keys on `(line, op, before)`, and a line carrying two mutations of the *same operator* produces two
+mutants with an identical key (`L735` has three such pairs). Those collapse: the extra survivor is
+neither counted excused nor reported unclassified. It cannot flatter the rate — the denominator is
+`tested − excused`, and `excused` counts entries — but **it is a blind spot in the reporting**, and it
+is the JS twin of the anchor-uniqueness rule §8 already carries for the Python side. Worth a column
+offset in the key; not fixed here, and recorded rather than left to be rediscovered.
+
+⚠️ **What this does NOT license.** 69 `no-distinguishing-input` verdicts are strong evidence over a
+163-input battery, not proof over the input domain. Every entry records its battery so a later pass
+can widen it, and `mutate.mjs` reports **REFUTED** the moment any of them turns out killable.
+
+⚠️ **Nor does "84/84 controls separated" mean the battery is complete.** It means it separates the 40
+sampled controls in the largest family. At 8, 16 and 24 controls this same battery reported *different*
+blind mutants each time; each round was a real widening (a profile arm, a varying `_sdnn`, per-column
+subjective absences, the clock-hour bands). Only at 40 did it stop finding new ones. **Raising
+`--controls` is a measurement, not a formality** — a family proven against 8 has not been proven
+against 40.
 
 ## 3 · What predicts COST — concentration, and tag price
 
@@ -278,19 +386,25 @@ the verdicts can be re-checked rather than believed. Generalise
 > had reported those survivors as equivalent on a battery whose only control sat in another function.
 
 Order — **revised by §2a**, because the cheapest survivor set is the one already measured:
-**`hrvdex-dsp.js` first** (298 survivors, canary PASSED, sweep on disk, tag cost 1 s — nothing to wait
-for) → `ppgdex-dsp.js` (the batteries are described in #1052 and can be rebuilt) → `motiondex-dsp.js`
-(287, but its sweep is uncontrolled — re-run for a canary first) → `clock.js` (20, both prose sets) →
-`capture.run_polar` (15, Python side).
+~~**`hrvdex-dsp.js` first**~~ **DONE 2026-08-09 (§2c)** — 6 families, 217 of 298 survivors probed,
+84/84 controls separated, **69 entries emitted**; `tools/probe-batteries/hrvdex-dsp.mjs` →
+`ppgdex-dsp.js` (**41 entries landed #1111**; `lombScargle` + `parsePPG` + `ppgLoadOwnExport` — the
+remaining functions are open) → `motiondex-dsp.js` (287, but its sweep is uncontrolled — re-run for a
+canary first) → `clock.js` (20, both prose sets) → `capture.run_polar` (15, Python side).
+
+**The ~83 of §2 now stands at 110 recorded** (`clock.js` 3 + `ppgdex-dsp.js` 41 + `hrvdex-dsp.js` 69),
+every one of them **re-derived by running a committed battery**, none transcribed from prose.
 
 ### 7.2 · Re-measure what is quoted from arithmetic — **hrvdex DONE, ppgdex open**
 
 ppgdex's ≈36.5 % is three commit messages added together and is still not a measurement.
 
-`hrvdex-dsp.js` **is now measured: 191/489 = 39.1 %, canary PASSED** (§2a). It confirms #1030's figure
-rather than correcting it — worth stating plainly, because the reason for re-measuring was that two
-sweeps' worth of tooling fixes had landed since, and the honest outcome of that check is "the number
-held". `motiondex-dsp.js` is measured at 37.3 % but **uncontrolled**, so it is not yet quotable.
+`hrvdex-dsp.js` **is now measured TWICE: 191/489 = 39.1 %, canary PASSED** (§2a, and re-run from
+scratch in §2c against a materially changed `tests/dex-tests.js` — same counts, and the same 298
+survivors by key). It confirms #1030's figure rather than correcting it — worth stating plainly,
+because the reason for re-measuring was that two sweeps' worth of tooling fixes had landed since, and
+the honest outcome of that check is "the number held". `motiondex-dsp.js` is measured at 37.3 % but
+**uncontrolled**, so it is not yet quotable.
 
 ### 7.3 · Canary-guard the seven unguarded DSPs — **six now**
 
@@ -381,6 +495,12 @@ fleets found that independently; it is the single most transferable result here.
 | a family range must **strip comments and regex literals** before counting braces | `lombScargle` measured 588 lines past its end; an over-wide family manufactures blindness, an over-narrow one manufactures a clean bill | #1107 |
 | **`ls` the parent before theorising about the child** | a path check for `EcgNightly` missed `Ecg nightly`, and an unmounted-volume theory got written down instead | §7.7 |
 | **search the DISK, not just the repo** | two full DSP sweeps and 19 modules' survivor lists were sitting gitignored and un-triaged | §2a |
+| **never re-apply a mutant from a DISPLAY field** — record the executable line, or refuse | `before`/`after` are 100-char terminal strings; rebuilding the line from them cut every source line past 100 chars mid-expression, and 42 of 217 survivors reported "the mutant does not parse" about the reader | §2b |
+| two tools that are meant to feed each other are **compatible only once one has read the other's real output** | the same record, `JSON.stringify(rec, null, 2)` on one side and NDJSON on the other; 298 survivors unreachable behind a newline, and the brief had already asserted they were compatible | §2b |
+| a column that is **constant across the battery** hides every guard that reads its SPREAD | `_sdnn` held at 62 made `stdSDNN7` 0 or NaN everywhere, so `x > 0 && std > 0` and its `||` mutant both produced NaN — a killed control reading as equivalent | §2c |
+| **all-or-none in the DATA is not all-or-none in the GATE** — move each input on its own | the six Welltory subjective scores always move together, so varying them as a group never separates `r._sns > 0 && r._stress > 0 && …` from its `>=` mutant. `null >= 0` is true; one absent column is the whole test | §2c |
+| derive a fixture's dependent fields **after** the overrides, not before | `_date` was built from the default `_tMs` and an override moved `_tMs` underneath it, so every clock-hour band in `circAdj` was unreachable | §2c |
+| raising the control count is a **measurement**, not a formality | at 8/16/24 controls this battery reported different blind mutants each time; only at 40/40 did it stop finding new ones. A family that separates 8 controls has not been shown to separate 40 | §2c |
 
 The family has one shape, and it is CLAUDE.md §👥.4b's: **the check ran, and reported success about
 something it never examined.**
@@ -393,10 +513,15 @@ something it never examined.**
 - [x] §7.1's **instrument** — `tools/probe-equivalence.mjs` + `tools/probe-batteries/` (#1107), with
       same-function controls, a degenerate-baseline refusal, and 20 known-answer selftests.
 - [ ] **§7.1's PAYLOAD — `tools/mutate-equivalence.json` carries every classification this programme
-      has measured**, with its battery recorded per entry. Until then the ratified target is
-      unmeasurable outside `clock.js` and no `killed / distinguishable` figure is quotable.
-      **Start with `hrvdex-dsp.js`: 298 survivors, canary PASSED, sweep already on disk (§2a).**
-- [x] §7.2/§7.3 for **hrvdex** — 191/489 = 39.1 %, canary PASSED, measured not added up (§2a).
+      has measured**, with its battery recorded per entry. **110 of ~83+ recorded so far**
+      (`clock.js` 3 · `ppgdex-dsp.js` 41 · `hrvdex-dsp.js` 69), all re-derived by running a committed
+      battery. Open: `motiondex-dsp.js` · `capture.run_polar` · the un-familied functions in
+      hrvdex (81 survivors) and ppgdex.
+- [x] **`hrvdex-dsp.js` — DONE 2026-08-09 (§2c).** 6 families, 217/298 survivors probed, 84/84
+      controls separated, 69 emitted, 148 left in the denominator as debt. `killed / distinguishable`
+      is quotable for this file for the first time.
+- [x] §7.2/§7.3 for **hrvdex** — 191/489 = 39.1 %, canary PASSED, measured not added up (§2a), then
+      **re-measured from scratch to the same 298 survivors by key** (§2c).
 - [ ] §7.2/§7.3 for **ppgdex** (still arithmetic) and **motiondex** (measured but uncontrolled).
 - [ ] §7.7 — the two corpus-informed passes (`oxyii.parse_live`, `polar_pmd.decode_frame`) are
       unblocked now the corpus is located; the hermetic-suite constraint still stands.
