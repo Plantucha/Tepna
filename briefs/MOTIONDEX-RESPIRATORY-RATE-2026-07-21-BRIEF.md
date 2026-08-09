@@ -460,40 +460,89 @@ bands. A reviewer will ask; better that the figure shows it.
   browser memory in one pass, not availability.
 - **`papers/PAPERS-AUDIT.md` rows, the honest data-label tag, and the generator version** remain open.
 
-### 11.7 · ⚠ OPEN AND UNEXPLAINED — the estimator cannot report ~40 % of the rate axis
+### 11.7 · SOLVED 2026-08-09 — two-stage quantization, and the §11.7 that stood here was WRONG
 
-Spotted by the owner in the Bland–Altman figure: the point cloud is striped, and the **empty** diagonals
-are the signal. In this plot a line of constant `pred` has slope −2, so a blank diagonal is a rate the
-estimator never emits. Counted by eye: ~10 of them.
+> **This section previously concluded: "a grid test rejects every candidate step … so it is NOT a
+> resolution limit but a structured bias in which rates the ridge settles on. Mechanism unknown."**
+> Every clause of that is wrong. It is quantization, it is a resolution artefact, and the mechanism was
+> written in two source comments the whole time. The withdrawal of the original "quantized bins"
+> instinct was the error, not the instinct. Corrected in full below rather than amended, because a
+> confident negative is worse than an open question.
 
-**Measured over the 3,738 pooled pairs (138 unique predicted values, 10.99–21.27 br/min):**
+**Why the earlier test said "no grid".** It swept candidate steps 1.0, 0.5, 0.4, 0.3, 0.25, 0.2, 0.1,
+0.05, 1/3 and 1/60 Hz — and included **neither 0.24 nor 0.1**, the two values that appear literally in
+`motiondex-dsp.js`. Testing 0.25 and concluding "no lattice" when the answer is 0.24 is a near-miss that
+turns a real structure into a confident negative. **The candidate set was chosen by guessing instead of
+by reading the source.**
+
+#### The mechanism, measured
+
+1. `respGrid()` constrains the Viterbi ridge to **`RR_F_STEP = 0.004 Hz`** — a **0.24 br/min** lattice
+   (`motiondex-dsp.js:509`, whose comment already says *"spectral grid (~0.24 brpm)"*).
+2. `motiondex-dsp.js:935` then rounds the output: **`brpm = Math.round(v.rr[i] * 10) / 10`** → **0.1
+   br/min**.
+3. A 0.24 lattice rounded to 0.1 gives gaps of **0.2 / 0.3** where consecutive lattice points are both
+   visited, and **0.48 → 0.5 / 0.72 → 0.7** where one is skipped. **0.48 + 0.72 = 1.20** — the observed
+   period, and the ~10 visible bands.
+4. **`looBias` hides it when pooled.** The leave-one-night-out bias correction adds a *different
+   non-round constant per night*, so seven copies of one lattice interleave at arbitrary offsets.
+
+**Per night, 100 % of gaps are exact 0.1 multiples** — 22/22, 23/23, 27/27, 24/24, 31/31, 37/37, 32/32,
+modal gap 0.2 in every night. **Pooled, 0 % of values land on a 0.1 multiple.** That contrast is the
+whole reason the global test failed: differences are invariant under `looBias`'s constant shift, absolute
+positions are not.
+
+#### The resolution floor, computed — and 0.1 br/min is not it
+
+| quantity | Hz | br/min | what it is |
+|---|---|---|---|
+| output rounding | 0.001667 | **0.10** | `Math.round(v.rr*10)/10` |
+| FFT bin (zero-padded, `RR_NFFT` 2048) | 0.002441 | 0.15 | **not** resolution — zero-padding interpolates |
+| search grid `RR_F_STEP` | 0.004 | 0.24 | the ridge lattice |
+| **Rayleigh limit `1/T`, `RR_WIN_SEC` = 60 s** | **0.016667** | **1.00** | **the real spectral resolution** |
+
+**All three sampling steps are FINER than the physical resolution.** A 60 s window resolves ~1.0 br/min;
+the grid samples that peak at 0.24 and the output reports it to 0.1. So the published 0.1 br/min is
+**spurious precision, 10× finer than the measurement supports** — not a floor.
+
+#### Why the estimator is nevertheless left alone
+
+Peak *location* can beat the Rayleigh limit given SNR — the Cramér–Rao bound at N = 300 samples is
+**0.022 br/min at 0 dB**, 0.007 at 10 dB — so the 0.24 grid *is* the binding constraint on location in
+principle. In practice it is worth nothing:
 
 ```
-gap anchors, ascending:  … 0.7, 0.5, 0.7, 0.5, 0.7, 0.5, 0.7, 0.5, 0.7, 0.5 …   (unbroken 11.9 → 17.9)
-adjacent-pair sums:      1.200 on 13 of 15 pairs
+quantization RMS (0.24 lattice ⊕ 0.1 rounding) = 0.075 br/min
+share of the observed error VARIANCE           = 0.10 %
+RMSE with quantization removed entirely        = 2.3788   (observed 2.3800)
 ```
 
-**The exclusion is periodic at exactly 1.2 br/min**, alternating forbidden bands of 0.5 and 0.7 br/min.
-Across the observed range that is ~10 bands — the owner's count.
+Refining `RR_F_STEP` or interpolating the ridge peak is a correct change that buys **0.075 br/min against
+an MAE of 0.95**. Not worth a DSP change, a re-bundle across four build surfaces and a fixture
+regeneration.
 
-**A first explanation was offered and is WITHDRAWN.** This was called "quantized FFT bins". It is not:
-a grid test over the unique predicted values (mean distance to the nearest grid line; 0.25 = no
-structure) rejects every candidate step —
+#### What this does to the headline
 
-| step | 1.0 | 0.5 | 0.4 | 0.3 | 0.25 | 0.2 | 0.1 | 0.05 | 1/3 | 1/60 Hz |
-|---|---|---|---|---|---|---|---|---|---|---|
-| score | **0.2500** | 0.2494 | 0.2890 | 0.2394 | 0.2648 | 0.2178 | 0.1713 | 0.2460 | 0.2459 | 0.2486 |
+The three numbers now sit together and say one thing:
 
-— with step 1.0 scoring exactly 0.2500, i.e. perfectly uniform. **There is no quantization lattice.**
-So this is not a resolution limit; it is a *structured bias* in which rates the ridge tracker settles
-on, which is a stranger finding than quantization and a worse one to leave undocumented.
+| | br/min |
+|---|---|
+| measured MAE | **0.95** |
+| reference self-noise floor (the CPAP's two flow estimators against each other) | **0.72** |
+| analysis-window Rayleigh resolution (`RR_WIN_SEC` = 60 s) | **1.00** |
 
-**Mechanism unknown, and deliberately not guessed at a second time.** Two candidates worth testing, in
-order: (1) whether the 1.2 br/min period survives WITHIN a single night, or only appears when seven
-nights whose ACC rates differ (25.3–202.7 Hz across this corpus) are pooled and their grids interleave;
-(2) whether it tracks the Viterbi transition-cost lattice rather than the spectrogram's frequency axis.
+**The estimator is performing at the limit of what a 60 s window and this reference can support** — which
+is a far stronger statement for the papers than the bare 0.95, and it answers the reviewer's first
+question about the stripes in one line.
 
-**This outranks the MAE for the papers.** A reviewer sees the stripes in the first second and will ask
-what sets them; "the estimator cannot report ~40 % of the rate axis in a repeating pattern" has to be
-answered before an agreement number carries meaning. It belongs above the headline, not in a
-limitations paragraph.
+⚠️ **The MAE sitting essentially ON the Rayleigh limit is suggestive, not established.** It may be
+coincidence. The falsifiable version is a window sweep, routed to
+`MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS` §5 — **do not simply double `RR_WIN_SEC`**: a longer window trades
+directly against non-stationarity, since breathing rate genuinely changes within two minutes and the
+reference is epoched at 30 s.
+
+#### Residual
+
+The 0.1 output rounding adds no information over a 0.24 upstream lattice and creates the uneven 0.2/0.3
+pattern. Dropping it is right but not urgent — it moves the export, so it should ride the next
+behavioural MotionDex re-bundle rather than causing one.
