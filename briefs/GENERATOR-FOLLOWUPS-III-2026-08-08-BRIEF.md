@@ -26,6 +26,41 @@ whether any OTHER renderer is still only reachable from a worker file, and wheth
 single-recording for the same accidental reason ECGDex was. `MotionDex` and `CPAPDex` are the
 candidates — neither carries a shared-axis `.synth-line` today.
 
+> ### ✅ ANSWERED 2026-08-08 — the two candidates are NOT the same case
+>
+> **No renderer is worker-only any more.** All eleven `render*` functions live in `synth-gen.js` and
+> every one is on the `global.SYNTH` export, `renderECGInt16` included (`synth-gen.js:1092`).
+> `cohort-full.js`'s same-named function is now a **thin delegate** — it forwards to `SYNTH` and keeps
+> a `SYNTHREF()` fallback — not a second copy. The reverse of the §3 problem does not exist.
+>
+> **MotionDex — ACCIDENTAL, and proven by execution rather than by comparing headers.**
+> `MotionDex.src.html` loads twelve scripts and **neither `synth-gen.js` nor `dex-patient-gen.js` is
+> among them**; `motiondex-app.js` contains **zero** `SYNTH`/`DexPatientGen` references (every other
+> node's app carries 3–6); and there is no `.synth-line`. Yet the capability is already there and
+> already fits: `renderXYZ(tl, win, 'ACC'|'GYRO')` emits
+> `Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]`, which is the exact header
+> `motiondex-dsp.js:81` documents as its ACC input. Driven end-to-end in a co-loaded realm, the
+> generator's bytes parse in the node's OWN parser: **`MOTIONDSP.parseSensorXYZ` returns 31 200 rows**
+> from a 600 s ACC render (31 202 lines, 1.69 MB). So this is the ECGDex shape exactly — *the
+> capability exists; the app cannot reach it* — and nothing was ever decided.
+>
+> **CPAPDex — DELIBERATE, and a different mechanism, not a missing one.** The text-line generator has
+> **no EDF renderer at all** (the `cpap:` fields in `synth-gen.js` are night-scenario metadata, not a
+> file writer), because EDF is binary. CPAPDex instead ships its own **committed synthetic EDF set**
+> from `tools/make-synthetic-edf.mjs` — closed-form waveforms calibrated to a real corpus's
+> distributions, carrying no person and no device identifier, committed as `uploads/*_BRP|CSL|EVE|PLD.edf`.
+> That path was built deliberately, and hardened: the demo used to fetch ten **real gitignored**
+> AirSense files, so on any fresh clone all ten 404'd and *the shipped demo had never worked for anyone
+> but the maintainer*. Absence of a `.synth-line` here is a consequence of that design, not an accident.
+>
+> **Recorded, not fixed.** Giving MotionDex the generator is a `MotionDex.src.html` + re-bundle +
+> provenance change, which is outside this item's "answer it" scope — carried to §4 below rather than
+> smuggled into a docs answer.
+>
+> **Reproduce:** load `clock.js` + `synth-gen.js` + `kernel-constants.js` + `signal-frame.js` +
+> `motiondex-dsp.js` into one realm, then
+> `MOTIONDSP.parseSensorXYZ(SYNTH.renderXYZ(tl, {startRel:0,lenSec:600}, 'ACC'))`.
+
 ## 3. The 3-night cap is a guess, not a measurement
 
 Capped at 3 because raw µV at 130 Hz is ~3.4 M Int16 samples/night against an O2Ring night's ~1 k
@@ -37,5 +72,20 @@ nights is large" is the only evidence behind it.
 ## Done when
 
 - [ ] §1 sweep run: parked briefs whose justification is a capability claim, claim re-checked.
-- [ ] §2 answered for MotionDex + CPAPDex — accidental or deliberate, recorded either way.
+- [x] **§2 answered 2026-08-08** for MotionDex (**accidental** — capability present and proven to parse
+      in the node's own DSP, app cannot reach it) and CPAPDex (**deliberate** — its own committed
+      synthetic EDF path, because EDF is binary and the generator writes text). See §2's result block.
 - [ ] §3 cap either measured or labelled as a guess in the UI.
+
+## 4. Spawned by §2 — give MotionDex the generator it already fits
+
+§2 proved `SYNTH.renderXYZ`'s ACC/GYRO output parses in `MOTIONDSP.parseSensorXYZ` (31 200 rows), and
+that `MotionDex.src.html` simply never loads `synth-gen.js`. Closing that is a source + re-bundle +
+provenance change, so it is its own work-unit rather than part of an answer:
+
+- Add `synth-gen.js` + `dex-patient-gen.js` to `MotionDex.src.html`, wire a `.synth-line` matching the
+  seven nodes that have one, re-bundle MotionDex, re-stamp its provenance fragment.
+- **Check the reverse before building:** whether MotionDex's app has any state that assumes exactly one
+  recording, the way ECGDex's did. §2 established reachability, not multi-recording readiness.
+- Do **not** extend this to CPAPDex — §2 settled that its separate EDF path is deliberate, and a second
+  synthetic source for one node is a way to have two answers that disagree.
