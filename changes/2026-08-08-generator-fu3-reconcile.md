@@ -1,0 +1,8 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+---
+bump: patch
+type: fixed
+nodes: [suite]
+brief: GENERATOR-FOLLOWUPS-III-2026-08-08-BRIEF.md
+---
+§2 was answered twice independently, within ninety minutes, by two sessions — and the two verdicts for MotionDex disagreed while every measured fact agreed. One called it **ACCIDENTAL** (the ECGDex shape: capability present, app cannot reach it); the other called it **not yet built** (a 6 KB app with no `allRecordings`, no queue, no switcher). The second is right, and the first is withdrawn here rather than left for a reader to arbitrate. What the withdrawn analysis actually established is **reachability** — the generator emits ACC bytes MotionDex's own parser accepts, 31 200 rows — which is real and stands; it simply does not imply the ECGDex diagnosis. ECGDex was a *mature, multi-recording* node whose renderer existed and sat where the app could not load it, so removing the obstacle made the feature work; MotionDex has no multi-recording spine for a shared axis to feed. The distinction is not academic: the two verdicts imply **opposite remedies**, and §4 had been written to the wrong one — it led with "add the script tags", which would wire a `.synth-line` to a node with nothing to accumulate into, producing a control that appears to work and accumulates nothing. §4 is rewritten to put the multi-recording spine first and to say explicitly that step 2 must not be done alone. Noted in place because it is the sharper lesson: §4 had *already flagged* that "§2 established reachability, not multi-recording readiness", and the verdict was written anyway — flagging a limitation and then reasoning past it is exactly the failure §1 of this same brief exists to catch.
