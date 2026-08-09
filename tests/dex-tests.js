@@ -5865,6 +5865,114 @@
       });
     });
 
+    /* PpgDex's lombScargle is 129 lines producing every frequency-domain metric the node ships —
+       and a full mutation sweep left 21 survivors in it. The suite calls it exactly ONCE, and the only
+       numeric lombScargle test in this file is ECGDSP's; PpgDex's own is checked by SOURCE REGEX
+       (structural), which cannot see an arithmetic change. So the function is public, exercised, and
+       effectively unasserted — the reason "just export more" is not on its own a plan.
+
+       These assertions VALIDATE rather than pin. A synthetic NN series carries a known respiratory
+       sinusoid, and the spectrum must recover it: 0.25 Hz IS 15 breaths/min, and two components of
+       known amplitude must land in the published power ratio. A golden would have caught the same
+       mutants while proving nothing about correctness. */
+    group('PpgDex lombScargle — recovers a known spectrum, not just a pinned one', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var P = env.PPGDSP || env.PpgDex;
+      if (!P || typeof P.lombScargle !== 'function') {
+        T.skip('PpgDex.lombScargle available', 'PPGDSP not co-loaded in this runner');
+        return;
+      }
+      /* Beats are laid out on their OWN cumulative time base (t += rr/1000), which is what the real
+         caller does and is the whole reason a Lomb–Scargle periodogram is used rather than an FFT:
+         the samples are unevenly spaced by construction. */
+      var mk = function (fResp, ampResp, fLf, ampLf, n) {
+        var tt = [], nn = [], t = 0;
+        for (var i = 0; i < n; i++) {
+          var rr = 1000 + ampResp * Math.sin(2 * Math.PI * fResp * t) + ampLf * Math.sin(2 * Math.PI * fLf * t);
+          nn.push(rr);
+          tt.push(t);
+          t += rr / 1000;
+        }
+        return { tt: tt, nn: nn };
+      };
+
+      // ── 15 breaths/min, HF-dominant ────────────────────────────────────────────────────────────
+      var a = mk(0.25, 30, 0.1, 8, 300);
+      var r = P.lombScargle(a.tt, a.nn);
+      T.ok('returns a spectrum for a 300-beat series', r != null, 'got ' + r);
+      T.approx('respRate recovers the injected 0.25 Hz as 15 breaths/min', r && r.respRate, 15, 0.6);
+      T.eq('…and names the method it used', r && r.respRateMethod, 'RSA (HF-peak of RR spectrum)');
+      /* Power scales with amplitude SQUARED, so 30 ms against 8 ms is ~14:1. Checked as a ratio
+         because absolute power depends on window and normalisation; the ratio does not. */
+      T.ok('HF:LF power follows the injected amplitude ratio (30/8)² ≈ 14', r && r.lf > 0 && Math.abs(r.hf / r.lf - 14) < 6, 'hf ' + (r && r.hf) + ' lf ' + (r && r.lf));
+      T.ok('…so this signal reads HF-dominant', r && r.hfnu > r.lfnu, 'hfnu ' + (r && r.hfnu) + ' lfnu ' + (r && r.lfnu));
+
+      // ── internal consistency: these cannot disagree with each other ────────────────────────────
+      T.approx('totalPower = vlf + lf + hf', r && r.totalPower, r && r.vlf + r.lf + r.hf, 1e-9);
+      T.ok('lfnu + hfnu = 100 (normalised units are a partition)', r && Math.abs(r.lfnu + r.hfnu - 100) <= 1, 'lfnu ' + (r && r.lfnu) + ' hfnu ' + (r && r.hfnu));
+      T.approx('lfhf = lf / hf', r && r.lfhf, r && Math.round((r.lf / r.hf) * 100) / 100, 0.02);
+
+      // ── it TRACKS the input rather than returning a constant ───────────────────────────────────
+      /* Without this, every assertion above could be satisfied by a function that ignores its input
+         and returns one fixed spectrum — which is exactly the shape a mutant can degrade into. */
+      var b = mk(0.15, 30, 0.05, 8, 300);
+      var r2v = P.lombScargle(b.tt, b.nn);
+      T.approx('a 0.15 Hz respiration reads as 9 breaths/min', r2v && r2v.respRate, 9, 0.6);
+      T.ok('…and that is a DIFFERENT answer from the 0.25 Hz case', r2v && r && r2v.respRate !== r.respRate, 'both ' + (r && r.respRate));
+
+      // ── the refusal ────────────────────────────────────────────────────────────────────────────
+      /* ── THE BOUNDARIES, which is where the mutants actually live ────────────────────────────
+         The assertions above validate the physics and kill almost nothing: measured, they killed 2 of
+         this function's 21 surviving mutants. The survivors are band-EDGE comparisons (`f >= lo`,
+         `f < hi`) and the guard's exact threshold — and a signal placed at 0.25 Hz with no VLF
+         content never visits any of them. One plausible input is not a battery; it was the same
+         mistake as probing an n=21 running median with n=3. */
+
+      // The `< 8` guard, from both sides. 3 beats could never see it — it returns null either way.
+      var flat = function (n) {
+        var tt = [], nn = [];
+        for (var i = 0; i < n; i++) { tt.push(i); nn.push(1000); }
+        return { tt: tt, nn: nn };
+      };
+      var f7 = flat(7), f8 = flat(8);
+      T.eq('7 beats → null (below the documented minimum)', P.lombScargle(f7.tt, f7.nn), null);
+      T.ok('8 beats → NOT null, so the threshold is exactly 8 and not merely "small"', P.lombScargle(f8.tt, f8.nn) !== null, 'got null at n=8');
+
+      /* Energy placed EXACTLY on the band edges (0.04 LF-lower, 0.15 LF/HF, 0.4 HF-upper). Which side
+         of each edge a bin lands on is decided by `>=` / `<`, and only an on-edge component can tell
+         those comparisons apart from their mutants. */
+      var edge = function (f) {
+        var tt = [], nn = [], t = 0;
+        for (var i = 0; i < 400; i++) { var rr = 1000 + 40 * Math.sin(2 * Math.PI * f * t); nn.push(rr); tt.push(t); t += rr / 1000; }
+        return P.lombScargle(tt, nn);
+      };
+      /* First attempt asserted an on-edge component lands wholly in the UPPER band. It does not, and
+         the code is right: a periodogram peak has finite width, so a sinusoid exactly on a boundary
+         SPLITS between the two adjacent bands (measured: lf 401 / hf 398 at 0.15 Hz; vlf 412 / lf 386
+         at 0.04 Hz). Asserting the split is the true statement, and it still exercises both sides of
+         each edge comparison. Kept as the assertion because "which band wins" was my expectation, not
+         the code's contract. */
+      var e015 = edge(0.15);
+      T.ok('a component ON the LF/HF edge splits across both bands (leakage, not a bug)', e015 && e015.lf > 0 && e015.hf > 0 && Math.max(e015.lf, e015.hf) < 3 * Math.min(e015.lf, e015.hf), 'lf ' + (e015 && e015.lf) + ' hf ' + (e015 && e015.hf));
+      var e004 = edge(0.04);
+      T.ok('…same on the VLF/LF edge, so neither band swallows a boundary component', e004 && e004.vlf > 0 && e004.lf > 0 && Math.max(e004.vlf, e004.lf) < 3 * Math.min(e004.vlf, e004.lf), 'vlf ' + (e004 && e004.vlf) + ' lf ' + (e004 && e004.lf));
+      /* Unambiguously INSIDE each band — a component a full band-width away must land cleanly, which
+         is the property a caller actually relies on. */
+      var eLo = edge(0.08), eHi = edge(0.3);
+      T.ok('0.08 Hz is unambiguously LF', eLo && eLo.lf > eLo.hf && eLo.lf > eLo.vlf, JSON.stringify(eLo && { vlf: eLo.vlf, lf: eLo.lf, hf: eLo.hf }));
+      T.ok('0.30 Hz is unambiguously HF', eHi && eHi.hf > eHi.lf, JSON.stringify(eHi && { lf: eHi.lf, hf: eHi.hf }));
+
+      /* A signal WITH VLF content, so the VLF band is non-zero and its bounds are observable at all.
+         With vlf === 0 (every case above), mutating the VLF constants changes nothing. */
+      var slow = (function () {
+        var tt = [], nn = [], t = 0;
+        for (var i = 0; i < 600; i++) { var rr = 1000 + 45 * Math.sin(2 * Math.PI * 0.01 * t) + 20 * Math.sin(2 * Math.PI * 0.25 * t); nn.push(rr); tt.push(t); t += rr / 1000; }
+        return P.lombScargle(tt, nn);
+      })();
+      T.ok('a 0.01 Hz drift puts real power in VLF', slow && slow.vlf > 0, 'vlf ' + (slow && slow.vlf));
+      T.ok('…and VLF is excluded from the LF/HF normalisation (lfnu+hfnu still 100)', slow && Math.abs(slow.lfnu + slow.hfnu - 100) <= 1, 'lfnu ' + (slow && slow.lfnu) + ' hfnu ' + (slow && slow.hfnu));
+      T.approx('…and totalPower still accounts for it', slow && slow.totalPower, slow && slow.vlf + slow.lf + slow.hf, 1e-9);
+    });
+
     group('ECGDSP frequency-domain HRV — LF/HF band split known-answer (deep-scout §EP)', 'ecgdex-dsp · spectral · known-answer', function (T) {
       var D = env.ECGDSP;
       if (!D || typeof D.lombScargle !== 'function') {
