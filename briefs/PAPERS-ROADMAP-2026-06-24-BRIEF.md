@@ -153,6 +153,13 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
     two honest analysts with the same devices and nights can publish σ differing by half again, and
     neither is wrong. This is `CLAUDE.md` §7's ppm discipline (*"never quote ppm without the span"*)
     arriving one layer up, and it is a **correction owed to published methods**, not merely a wall.
+  - **⚠️ §2.8 is HARDWARE-BLOCKED indefinitely, not pending.** Its ρ_crit ≈ 0.422 boundary against a
+    measured ρ = 0.42 is exactly the case that needs a fourth, mechanistically-independent corner to
+    check — and the owner confirms (2026-08-08) there is **no ResMed oximeter module**, so
+    `R5-HR-TRIPLET-REFERENCE`'s "the fix is one cable" is a purchase, not a cable. Write §2.8 as an
+    **identifiability-boundary methods paper** (the boundary is analytic and general, and stands on its
+    own) — but it may **not** claim the suite's own triplet has been validated against an external
+    reference, because that experiment has no route to running.
   - **…and the σ it is a qualifier on does not reproduce.** Two independent re-derivations put **Verity
     noisiest** (3.51 / 3.17 bpm) where `sigma-no-reference` publishes it nearly quietest (**1.42**), and
     H10 at 1.78 / 1.74 against a published **1.28**. The doubling discriminator is clean on every night,

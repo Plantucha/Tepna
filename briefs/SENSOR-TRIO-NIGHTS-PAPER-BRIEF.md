@@ -111,10 +111,14 @@
 >
 > ### What is owed next (and what is deliberately NOT done here)
 >
-> - **The corpus is NOT committed.** `uploads/*` is gitignored with per-file `!` opt-ins under a header
->   framing it as real biosignal data "chosen for publication"; this corpus is **57 MB of one person's
->   per-second overnight HR**, so adding it under a negation rule is an owner decision about repo weight
->   and publication, not a mechanical step. Regenerate in two commands:
+> - **The corpus is NOT committed, and that is now a SETTLED DECISION, not an open question.**
+>   Asked and answered by the owner **2026-08-08: the data is not to be published.** `uploads/*` is
+>   gitignored with per-file `!` opt-ins under a header framing it as real biosignal data "chosen for
+>   publication", and this corpus is 57 MB of one person's per-second overnight HR. **Do not re-propose
+>   committing it**, and do not treat the papers' irreproducibility-from-a-fresh-clone as a gap to close
+>   that way — it is a deliberate privacy posture, and it is the same one that makes the suite 100 %
+>   local. The reproducibility route that IS open is the one already taken: commit the *tools*, keep the
+>   data local, and state the corpus's provenance in the paper. Regenerate locally in two commands:
 >   `node tools/trio-batch.mjs --src /home/michal/tepna-smoketest/captures --out <dir>` then
 >   `node tools/tch-fused-corpus.mjs --dir <dir>`.
 > - **Re-seeding the sim is still blocked, but the blocker is now NAMED:** state a window length,
