@@ -11,6 +11,11 @@ on:
     branches: [main, master]
   pull_request:
   workflow_dispatch:
+  # MERGE QUEUE. The queue tests a PR against the tip it will actually land on, so the required
+  # checks MUST fire on `merge_group` — a queue whose checks never run waits forever and jams
+  # every merge in the repo. This trigger is wired BEFORE the queue is enabled, deliberately:
+  # the reverse order is an outage (BRIEF-COLLISION-RESIDUAL-GAP-2026-08-09-BRIEF §4).
+  merge_group:
 
 jobs:
   no-network:
