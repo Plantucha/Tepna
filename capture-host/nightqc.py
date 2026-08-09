@@ -95,6 +95,9 @@ def _midnight_of(night_dir: str):
 _NOMINAL_HZ = {
     "H10":    {"ecg": 130, "acc": 200, "hr": 1},
     "Verity": {"ppg": 55, "acc": 52, "gyro": 52, "mag": 50, "ppi": 1},
+    # O2Ring ppg is the observed ROW rate (~125.7), NOT the 125.000 ADC clock: the file counts one row per
+    # sample PLUS one per inserted `156` beat marker, and a coverage figure divides ROW count by span — so
+    # the honest denominator here is the row rate. DEVICE-RATE-TRUTH §2; distinct from capture.O2PPG_FS_DEFAULT.
     "O2Ring": {"spo2": 1, "ppg": 125.738},
 }
 

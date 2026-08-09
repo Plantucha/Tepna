@@ -351,18 +351,26 @@ _ppg_probe_n = [0]
 # below, and writers.write_ppg's 1-column branch — PPGDEX-O2RING-FINGER-SITE §3/§7). Samples
 # are back-timed from the frame's host arrival across the ~125 Hz grid (the ring clock is unsynced, so
 # never stamp with it); the synthesized sensor_ns gives the PSL relative-ms column an 8 ms step.
-# MEASURED rate. The old 125.0 was a round guess and it was 0.59% LOW, which matters: the phone-timestamp
-# column re-anchors to each frame's arrival (so wall-clock never drifts), but the synthesized relative-ms
-# column is a pure fs grid — so a consumer that infers fs from it (ECGDex does exactly that) got 125.00 for
-# a stream really running at 125.74, i.e. a 0.59% wrong sample rate and ~212 s of divergence between the two
-# time columns over a 10 h night.
-# Calibrated 2026-07-18 over 12 capture sessions: 5.8 h, 2 616 483 samples, weighted mean 125.738 Hz with a
-# per-session spread of only 125.59-125.88 Hz (±0.12%) — the short-window swings (~84-147 Hz) are BLE delivery
-# jitter, not the ADC clock, which is stable. Validated on ONE unit (S8-AW 2100); `o2ring.ppg_fs` in config
-# overrides it if another ring measures differently.
-O2PPG_FS_DEFAULT = 125.738
+# The DECLARED ADC SAMPLE RATE — the crystal number the manufacturer states and the AFE4403 produces:
+# 32 MHz crystal ÷8 ÷32000 = 125.000 Hz exactly, with no internal RC (the same figure the O2PpgGrid
+# docstring below already calls "crystal-accurate 125.000000 Hz exactly", and DEVICE-RATE-TRUTH §2).
+#
+# ⚠️ ROW RATE ≠ ADC RATE — do not "calibrate" this back up. The constant was 125.738 from 2026-07-18 to
+# this change, which was the observed ROW rate, NOT the sample clock: the O2Ring's finger pleth inserts one
+# `156` beat MARKER per detected beat, so the file carries 125.000 samples + ~HR/60 marker rows per second
+# ≈ 125.7 rows/s at ~44 bpm (the 12-session weighted mean landed at 125.738). Labelling the SAMPLE rate with
+# the ROW rate contradicted the manufacturer's 125 and the crystal note below, and was the maintenance
+# landmine a future coder could not reconcile — code (125.738) against documentation (125). It is fixed to
+# the honest ADC number here. The observed row rate still lives, correctly, in the row-count validators
+# (nightqc `_NOMINAL_HZ`, webmon `_BPS_BY_MODEL`) where a rows/second figure is what is actually meant.
+#
+# This is a LABEL/STARTING-GUESS change, not a computation change (see the STARTING GUESS note below):
+# O2PpgGrid._re_estimate slews the working step toward the observed rows, and PpgDex derives its working fs
+# from the ns column — neither reads this constant as the answer — so moving it changes no captured output.
+# `o2ring.ppg_fs` in config overrides it if a unit's ADC ever measures differently.
+O2PPG_FS_DEFAULT = 125.000
 O2PPG_FS = O2PPG_FS_DEFAULT           # re-read from config in main(); see cfg['o2ring']['ppg_fs']
-O2PPG_NS_STEP = int(1e9 / O2PPG_FS)   # 7_953_041 ns → relative-ms steps of ~7.953 ms (reads as 125.74 Hz)
+O2PPG_NS_STEP = int(1e9 / O2PPG_FS)   # 8_000_000 ns → relative-ms steps of 8.000 ms (reads as 125.00 Hz)
 
 # Honest-gap threshold (O2RING-PPG-GAP §1): the smallest hole between two consecutive frames that we
 # treat as REAL LOST TIME rather than BLE delivery jitter. Chosen from measurement, not taste — on a
@@ -381,17 +389,18 @@ O2PPG_GAP_MIN_S = 0.040
 _RT_PPG_SPAN_S = 1.0
 
 
-# The configured rate is a STARTING GUESS, not the sample clock (CAPTURE-HOST-DEEP-AUDIT §A3).
-# `O2PPG_FS_DEFAULT` was calibrated once, and it was calibrated LOW: `rows/wall` is bounded ABOVE by the
-# true ADC rate (link loss can only lower it), so each day's MAXIMUM `rows/wall` is a lower bound on the
-# ring's real rate — and it exceeds 125.738 on EVERY day of the corpus (07-18 125.826 … 07-26 126.045).
-# That direction is the one the old grid could not survive: the session-anchored correction only ever
-# ADVANCED (`if target - idx > …`), which is safe while the ring runs SLOWER than configured but means a
-# FASTER ring banks error without bound — +0.2519 % inflation, ~+9.1 s/h of elapsed time that never
-# happened, on the finger-PPG leg PpgDex derives HRV from.
+# The configured rate is a STARTING GUESS, not the sample clock (CAPTURE-HOST-DEEP-AUDIT §A3), and the
+# reason the label change above is inert: `rows/wall` (a ROW rate — samples plus the inserted `156` beat
+# markers) is measured to exceed even the old 125.738 on EVERY day of the corpus (07-18 125.826 … 07-26
+# 126.045), so it clears the honest 125.000 ADC guess by a wider margin still. That direction is the one the
+# old grid could not survive: the session-anchored correction only ever ADVANCED (`if target - idx > …`),
+# which is safe while the observed rows run SLOWER than configured but means a FASTER stream banks error
+# without bound — +0.2519 % inflation, ~+9.1 s/h of elapsed time that never happened, on the finger-PPG leg
+# PpgDex derives HRV from.
 #
-# So the step is MEASURED instead of assumed. Re-calibrating the constant would just repeat the 2026-07-18
-# fix with a new number and leave the asymmetry in place.
+# So the step is MEASURED instead of assumed, and the constant is only the seed the slew starts from.
+# "Re-calibrating" it to the observed row rate would repeat the 2026-07-18 mistake (labelling the sample
+# clock with the row rate), leave the asymmetry in place, and re-open the manufacturer/documentation gap.
 _O2PPG_EST_MIN_S = 30.0     # don't trust the estimate before this much has elapsed: the estimator is a
                             # CUMULATIVE mean, so its noise falls as 1/elapsed — at the documented ±16.4 ms
                             # arrival jitter that is ±0.055 % here, an order below the defect it replaces.

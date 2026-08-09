@@ -4,7 +4,8 @@
 """O2Ring PPG honest-gap insertion (O2RING-PPG-GAP §1).
 
 The O2Ring streams samples with NO device clock, so the host lays them on a synthesized
-125.738 Hz grid indexed by a running counter. Before this fix that counter was purely
+~125 Hz grid indexed by a running counter (seeded from O2PPG_FS_DEFAULT, then slewed to the
+observed rows). Before this fix that counter was purely
 contiguous: when BLE dropped a frame, the survivors were written back-to-back ACROSS the
 missing real time. The record was silently COMPRESSED — an interval spanning the loss is
 short by exactly the lost duration, so beat-to-beat variability is fabricated at every gap,
@@ -29,6 +30,10 @@ import datetime as _dt
 
 import capture
 
+# An explicit configured SEED for the grid (the pre-2026-08-08 constant). These tests pass it as
+# `fs=FS` and prove the grid SLEWS off whatever seed it is given toward the observed rows, which is
+# exactly why moving O2PPG_FS_DEFAULT to the honest 125.000 ADC rate is inert — the seed is not the
+# answer. Kept at 125.738 so the slew is exercised across a realistic seed→true gap.
 FS = 125.738
 NS_STEP = int(1e9 / FS)
 GAP_MIN_S = 0.040
@@ -188,10 +193,10 @@ def test_fast_clock_drift_corrects_toward_the_host_clock():
     When it runs FASTER the difference is monotonically NEGATIVE, the branch can never fire, and the
     grid runs ahead of real time without bound.
 
-    And faster is the real case, not the hypothetical one: `rows/wall` is bounded ABOVE by the true ADC
-    rate (link loss can only lower it), so each day's MAXIMUM `rows/wall` is a LOWER BOUND on the ring's
-    rate — and it exceeds the configured 125.738 on every day of the corpus (07-18 125.826 … 07-26
-    126.045). The constant was mis-calibrated low from the start.
+    And faster is the real case, not the hypothetical one: `rows/wall` (a ROW rate — samples plus the
+    inserted `156` beat markers) exceeds even the pre-2026-08-08 seed of 125.738 on every day of the corpus
+    (07-18 125.826 … 07-26 126.045), and clears the honest 125.000 ADC seed by more still. The old constant
+    labelled the sample clock with that row rate; the grid slewing up from any seed is what makes it moot.
 
     Measured against the pre-fix grid (the step held at the configured constant): +0.2561 %, i.e. +9.2 s
     of fabricated elapsed time per hour, on the finger-PPG leg PpgDex derives HRV from."""

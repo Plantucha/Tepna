@@ -358,6 +358,33 @@ def test_chrony_units_are_converted_to_the_shared_shape():
     assert ch["root_dispersion_ms"] == 1.052, "chrony prints seconds; the state carries ms"
     assert ch["jitter_us"] == 2.3, "RMS offset seconds -> us"
     assert ch["reference"] == "192.168.0.123"
+    assert ch["skew_ppm"] == 0.123, "chrony Skew is already ppm; carried through as the precision bound"
+
+
+def test_chrony_skew_is_absent_not_zero_when_the_line_is_missing():
+    """Absence of the precision bound must read as unknown, never a fabricated 0 (this module's rule)."""
+    ch = hc.parse_chrony_tracking("Reference ID    : C0A8007B (192.168.0.123)\nStratum : 2\n")
+    assert "skew_ppm" not in ch
+
+
+def test_read_state_carries_chrony_skew_and_leaves_timesyncd_skew_none(monkeypatch):
+    """The clock-precision fact rides read_state on the chrony path; the timesyncd path has no analogue,
+    so it is None there rather than borrowed from another field (O2RING-ADAPTIVE-TIMEBASE Stage 1)."""
+    async def via_chrony(*args, timeout=4.0):
+        if "show-timesync" in args:
+            return 0, ""
+        if args[0] == "chronyc":
+            return 0, CHRONY_TRACKING
+        return 0, "NTP=yes\nNTPSynchronized=yes\n"
+    monkeypatch.setattr(hc, "_run", via_chrony)
+    assert _run(hc.read_state())["chrony_skew_ppm"] == 0.123
+
+    async def via_timesyncd(*args, timeout=4.0):
+        if "show-timesync" in args:
+            return 0, "NTPMessage={ Leap=0, Stratum=2, Jitter=170us }\n"
+        return 0, "NTP=yes\nNTPSynchronized=yes\n"
+    monkeypatch.setattr(hc, "_run", via_timesyncd)
+    assert _run(hc.read_state())["chrony_skew_ppm"] is None
 
 
 def test_a_reference_clock_is_not_reported_as_a_server():

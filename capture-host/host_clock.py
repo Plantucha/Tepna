@@ -109,6 +109,13 @@ def parse_chrony_tracking(blob: str) -> dict:
     rms = _num(out.get("RMS offset"))
     if rms is not None:
         res["jitter_us"] = round(rms * 1e6, 1)                 # closest analogue to timesyncd's Jitter
+    # chrony's `Skew` is the estimated ERROR BOUND on the clock's frequency, in ppm — the single best
+    # measure of how precisely the box's rate is disciplined, and the field the adaptive-timebase decision
+    # (O2RING-ADAPTIVE-TIMEBASE Stage 3) will gate host-discipline on. Already in ppm, so no unit convert.
+    # timesyncd exposes no equivalent, so this is chrony-only and stays absent (None) on the timesyncd path.
+    skew = _num(out.get("Skew"))
+    if skew is not None:
+        res["skew_ppm"] = skew
     leap = (out.get("Leap status") or "").lower()
     if leap:
         # "Not synchronised" is chrony's own verdict and outranks timedatectl's cached NTPSynchronized.
@@ -234,6 +241,10 @@ async def read_state() -> dict:
                       else (msg.get("Reference") or None)),
         "root_dispersion_ms": (ch.get("root_dispersion_ms") if time_source == "chrony"
                                else _num(msg.get("RootDispersion"))),
+        # Clock-frequency precision (ppm error bound). chrony-only — timesyncd's NTPMessage has no analogue,
+        # so it is None on that path rather than a fabricated 0. Recorded per capture (CLOCK sidecar) as the
+        # "what clock precision governed this night" fact; the Stage-3 timebase decision reads it.
+        "chrony_skew_ppm": (ch.get("skew_ppm") if time_source == "chrony" else None),
         "jitter_us": (ch.get("jitter_us") if time_source == "chrony"
                       else _num(msg.get("Jitter"))),
         # chrony has no "we received it and refused it" counter; absent means absent, not false-clean.

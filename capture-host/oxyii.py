@@ -448,9 +448,10 @@ def parse_rt_ppg(payload: bytes) -> list[tuple[int, int, int]]:
     squares (intercept 7.9 records), 155.5 Hz forced through the origin, 150.7 Hz as the median per-point
     ratio. Solid: it is NOT the 200 Hz the SDK claims.
 
-    Compare against 125.000 Hz, NOT 125.738. DEVICE-RATE-TRUTH §2: the ADC is 125.000 exactly
-    (4 MHz / 32000) and O2PPG_FS_DEFAULT = 125.738 is a ROW rate inflated by the pleth's inserted `156`
-    beat marker (125 + ~44 bpm). This stream carries NO such marker -- no fixed sentinel value in 3060
+    Compare against 125.000 Hz — the ADC crystal rate, which is now what O2PPG_FS_DEFAULT holds too.
+    DEVICE-RATE-TRUTH §2: the ADC is 125.000 exactly (4 MHz / 32000); the finger pleth's OBSERVED row rate
+    ~125.7 is that plus the inserted `156` beat marker (125 + ~44 bpm). This stream carries NO such marker
+    -- no fixed sentinel value in 3060
     samples, and its apparent outliers are AGC LEVEL SHIFTS (a step down that stays down), not inserted
     rows -- so its row rate should equal the ADC rate flat. 125.7 is consistent with 125.000; the
     estimators still disagree by 25%, so fs stays 0 on the bus until a longer starvation run settles it.
