@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-08 · **Follows:** `GENERATOR-FOLLOWUPS-II-BRIEF.md` (§3 executed 2026-08-08)
+**Status:** IN-PROGRESS (§1 method proven + first hit fixed · **§2 ANSWERED — no, and for two different reasons** · §3 open) · **Created:** 2026-08-08 · **Follows:** `GENERATOR-FOLLOWUPS-II-BRIEF.md` (§3 executed 2026-08-08)
 
 # Generator follow-ups, Round III — what §3's execution surfaced
 
@@ -66,12 +66,30 @@ check the claim before re-affirming the park. `AUDIT-PROMPT.md`'s bug-classes co
 > returns `…20260718180614_PPG.txt`, whose "0614" is the time field 18:06:14; the `n0614a` companions
 > are genuinely absent (the capture corpus starts 2026-07-16, zero June directories).
 
-## 2. The other nodes' renderers may have the same reachability problem in reverse
+## 2. ✅ ANSWERED 2026-08-08 — **no**, and the two candidates fail differently
 
-The lift put `SYNTH.renderECGInt16` beside `renderPPG` / `renderOxy` / `renderXYZ`. Worth checking
-whether any OTHER renderer is still only reachable from a worker file, and whether any node is
-single-recording for the same accidental reason ECGDex was. `MotionDex` and `CPAPDex` are the
-candidates — neither carries a shared-axis `.synth-line` today.
+Measured: MotionDex and CPAPDex are indeed the only two of the eight without a shared-axis
+`.synth-line` (the other six all include `synth-gen.js` + `dex-patient-gen.js`). Neither is the ECGDex
+accident, and the distinction matters because the remedies are opposite.
+
+| | app size | multi-recording? | a SYNTH renderer to reach? | verdict |
+|---|---|---|---|---|
+| ECGDex (the accident) | 168 KB | **yes** | **yes** — but in an unloadable worker file | capability existed, unreachable |
+| **MotionDex** | **6 KB** | **no** — no `allRecordings`, no queue, no switcher | yes (`renderXYZ`, `renderWalkACC`) | **not yet built**, not accidental |
+| **CPAPDex** | 36 KB | yes | **no CPAP/EDF renderer exists in SYNTH** | **genuine gap in the shared engine** |
+
+- **MotionDex is simply immature.** `motiondex-app.js` is 6 KB against `ecgdex-app.js`'s 168 KB, its
+  `.src.html` is 8 KB, and it carries **no multi-recording machinery at all**. Its `genSyntheticACC`
+  lives in the DSP but is **not on the public surface** — only `tools/regen-motiondex-goldens.mjs` and
+  `tests/dex-tests.js` reach it. Wiring a shared axis here would have nothing to accumulate into; the
+  multi-recording spine has to come first. **Do not treat this as the same bug.**
+- **CPAPDex is the opposite shape.** It is a mature node *with* multi-recording, but the shared engine
+  has **no CPAP renderer to reach** — its `_synthEdfSet` / `_synthRaw` are node-local and already
+  wired into `cohort-gen.js` and `adapters/resmed-edf.js`. Closing this means *writing* a renderer
+  into `synth-gen.js`, not relocating one. Bigger than §3 was, and it should be its own brief.
+
+**So ECGDex was unique:** the only mature, multi-recording node whose renderer already existed and sat
+where the app could not load it. That is why §3 was cheap and why these two are not.
 
 > ### ✅ ANSWERED 2026-08-08 — the two candidates are NOT the same case
 >
