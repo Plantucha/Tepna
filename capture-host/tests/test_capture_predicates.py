@@ -156,3 +156,49 @@ def test_a_phantom_link_reason_names_the_device(recwarn):
     assert h["wedged"] is True
     assert h["reasons"] == ["H10: phantom BlueZ link"], "the whole reason, prefix included"
     assert h["phantom"] == ["AA:BB:CC:DD:EE:FF"]
+
+
+# ── device_absent_error: ABSENT is not BUSY (2026-08-09) ─────────────────────────────────────────────
+# `auto_sync_clock`'s 12-attempt ladder holds the GLOBAL _CONNECT_LOCK on every attempt, so spending it
+# on a device the scan cannot see blocks every OTHER device's reconnect for nothing. Measured on the box
+# with an H10 on a desk: 51 ops in 59.1 min, mean hold 41.1 s — a 59 % duty cycle. This predicate is what
+# lets the ladder tell "waiting will help" from "waiting cannot help".
+
+def test_device_not_found_is_absence():
+    for msg in ("BleakDeviceNotFoundError: device not found",
+                "bleak.exc.BleakDeviceNotFoundError",
+                "Device not advertising"):
+        assert capture.device_absent_error(Exception(msg)) is True, msg
+
+
+def test_contention_is_NOT_absence():
+    """The case the retry ladder exists for. If InProgress ever reads as absence, the 2026-07-18 bug
+    returns: both Polars spent an evening unsynced because a restart's InProgress was treated as fatal."""
+    for msg in ("org.bluez.Error.InProgress", "in progress", "resource temporarily unavailable",
+                "not ready", "device busy"):
+        assert capture.device_absent_error(Exception(msg)) is False, msg
+
+
+def test_a_bare_timeout_is_NOT_absence():
+    """Deliberate and worth pinning: a connect can time out against a device that is present but
+    contended. Calling that 'absent' would surrender a sync the ladder should have waited out — the
+    predicate is narrower than transient_ble_error on purpose, not by omission."""
+    assert capture.device_absent_error(TimeoutError("connect timed out after 30s")) is False
+    assert capture.transient_ble_error(TimeoutError("connect timed out after 30s")) is True
+
+
+def test_absence_is_a_STRICT_SUBSET_of_transient():
+    """Every absence signal must still be transient — the RECONNECT loop is right to keep looking for an
+    out-of-range sensor. This fix changes who retries, not whether anyone does. If these ever diverge,
+    the reconnect loop would stop chasing a device that merely walked out of range."""
+    # STRUCTURAL, not example-based: check the token lists themselves, so a future edit that widens
+    # absence beyond transient fails here rather than in the field.
+    for tok in capture._ABSENT_BLE:
+        assert tok in capture._TRANSIENT_BLE, f"{tok!r} is absent-but-not-transient"
+    for msg in ("BleakDeviceNotFoundError", "not advertising"):
+        assert capture.device_absent_error(Exception(msg)) is True, msg
+        assert capture.transient_ble_error(Exception(msg)) is True, msg
+
+
+def test_a_protocol_refusal_is_not_absence():
+    assert capture.device_absent_error(Exception("error 201 NOT_IMPLEMENTED")) is False
