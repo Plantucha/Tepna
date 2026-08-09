@@ -385,6 +385,22 @@ a method/formula that **changes code** → its own executable brief (gated like 
 policy + a living anchor index live in the brief (still PROPOSED — the status flip to `REFERENCE` is the owner's
 ratification).
 
+**Attribution is GATE-BACKED, and an alias must declare where it came from.** `audits/CITATION-VERIFICATION-2026-08-05.json`
+records `firstAuthor`/`year`/`container` for every DOI, and the `citation-ledger` group asserts that each DOI on a
+reader-facing source surface — the reference guides, `papers/**`, `docs/**.md`, and the root `*.js` — is surrounded by
+a citation naming that author and a year within ±1. (`briefs/` is deliberately OUT: a brief quotes a wrong attribution
+*in order to say it is wrong*, so gating it is 35 % false positives. DOI *resolution* is also out — it needs network,
+which no bundle or CI lane may have.) Wrong authors are the failure mode a reader cannot detect, because the link still
+resolves and still lands on the paper being described; three shipped citations had them.
+
+When a correct citation would red — a **corporate** author (Crossref stores the ESC/NASPE Task Force's full society
+name), a **spacing** variant (`Du BOIS` vs `DuBois`), or a record for which **Crossref carries no author at all** — add
+`authorAliases`, and you MUST also add **`aliasSource`**: `crossref-variant` when the alias is a spelling of what
+Crossref recorded, or `from-paper` when Crossref has no author and the name was read off the paper itself. The second
+is mildly circular — the citation being checked supplies its own answer — which is exactly why it is marked rather
+than hidden, and why `from-paper` on a record that *does* have a Crossref author is a red. **Never silence a finding
+by editing the ledger's `firstAuthor`**: that is the one edit which makes a real defect disappear.
+
 ## 🎙️ Capture provenance — how the raw signals are recorded
 Raw **ECG** (Polar H10 chest strap) and **PPG** (Polar Verity Sense armband) are captured with the
 **Polar Sensor Logger** Android app (`com.j_ware.polarsensorlogger`, by j-ware). It streams the
