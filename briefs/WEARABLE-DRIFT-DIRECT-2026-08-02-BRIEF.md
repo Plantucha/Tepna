@@ -90,8 +90,20 @@ device ms, prints ppm per fragment. Reads the Clock Contract way (explicit regex
 - [x] The O2Ring's unusable timebase identified, with the mechanism for its weak legs.
 - [x] The instrument shipped as a tool rather than left in a scratch script.
 - [x] **The instrument now refuses when there is no second clock (2026-08-03).** See §7.
-- [ ] *(owner)* Correct `papers/wearable-clock-drift.html`'s scope note; it is another session's paper
-      and the correction is flagged there rather than applied.
+- [x] **APPLIED 2026-08-08.** The paper's §Corrections already retracted "the scope note added on top
+      of it" in the abstract, but the scope note ITSELF still read *"a linear 90–216 ppm ramp is
+      present and is not beat slip"* with no pointer to the direct measurement — so a reader meeting
+      the number met the retracted figure, not the correction. Corrected **in place, additively**: the
+      passage now carries the directly-measured H10 −20.3 / Verity −27.0 ppm vs the capture host,
+      ≈7 ppm inter-device (202 ms over 7 h, not 2.5 s), and states that the paper's conclusion is
+      unaffected because 7 ppm still exceeds the ~2.4–3 ppm bar — which is exactly why the inflated
+      figure survived, the ordering holding at both rates. Another session's argument is not rewritten;
+      a correction is added where the number appears.
+
+      ⚠ **Recorded caveat:** every ppm here is measured against the CAPTURE HOST's clock. A
+      125/stratum capture change was in flight on 2026-08-08; if it alters how the host stamps or
+      disciplines time, these baselines and the `maxTolerableDriftPpm` verdicts citing them must be
+      re-measured. Noted in the paper too.
 - [~] **⛔ CORRECTED 2026-08-04 (same day). The claim below — "it CANNOT be run on this corpus" — is
       RETRACTED. It IS runnable; I checked the wrong artifact.** The table below is about the committed
       *exports*, and leg C never needed them: it comes from the **raw captures**, which carry both
