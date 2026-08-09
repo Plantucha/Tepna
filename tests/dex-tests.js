@@ -6651,8 +6651,13 @@
       var sess = L(ne({ sessions: [{ hrv: { from: 'session' }, recording: { from: 's' } }], hrv: { from: 'top' }, recording: { from: 't' } }));
       T.eq('hrv prefers the SESSION value over the top-level one', JSON.stringify(sess && sess.hrv), '{"from":"session"}');
       T.eq('…and so does recording', JSON.stringify(sess && sess.recording), '{"from":"s"}');
-      var topOnly = L(ne({ sessions: [{ a: 1 }], hrv: { from: 'top' }, quality: { q: 9 }, personalization: { p: 1 } }));
+      /* `recording` is in this object for a reason: the first version of this case carried hrv,
+         quality and personalization but NOT recording, so `recording: (carrier[0] && …) || json.recording || null`
+         never had its SECOND arm exercised, and `json.recording && null` survived the sweep (L4151).
+         Three of the four fields being covered reads as coverage; the fourth was the gap. */
+      var topOnly = L(ne({ sessions: [{ a: 1 }], hrv: { from: 'top' }, recording: { from: 'top-rec' }, quality: { q: 9 }, personalization: { p: 1 } }));
       T.eq('…falling back to the TOP-LEVEL value when the session lacks it', JSON.stringify(topOnly && topOnly.hrv), '{"from":"top"}');
+      T.eq('…recording falls back to the top level too (L4151)', JSON.stringify(topOnly && topOnly.recording), '{"from":"top-rec"}');
       T.eq('…quality falls back the same way', JSON.stringify(topOnly && topOnly.quality), '{"q":9}');
       T.eq('…and personalization too', JSON.stringify(topOnly && topOnly.personalization), '{"p":1}');
       var neither = L(ne({ sessions: [{ a: 1 }] }));
@@ -6666,6 +6671,30 @@
         'raw-ppg'
       );
       T.eq('…and is null when the schema omits it', neither && neither.derivedFrom, null);
+
+      /* ── `generated` — TWO mutants on one line, and they fail in opposite directions ────────────
+         `generated: (json.schema && json.schema.generated) || null`
+           `&&` → `||`  ⇒  `(json.schema || json.schema.generated)` returns the WHOLE SCHEMA OBJECT
+                           whenever a schema exists, which is every accepted export.
+           `||` → `&&`  ⇒  `… && null` is null ALWAYS, so a real stamp is dropped.
+         Asserting only the absent case catches the first and misses the second; asserting only the
+         present case does the reverse. Both are needed, which is why both are here. */
+      var gen = L({ schema: { name: 'ganglior.node-export', node: 'PpgDex', generated: '2026-08-09T00:00:00Z' }, sessions: [{ a: 1 }] });
+      T.eq('generated is the schema FIELD, carried through verbatim', gen && gen.generated, '2026-08-09T00:00:00Z');
+      T.ok('…and is a string, not the schema object it lives on', gen && typeof gen.generated === 'string', 'typeof ' + (gen && typeof gen.generated));
+      T.eq('…and null when the schema omits it — not the schema object', neither && neither.generated, null);
+
+      /* ── the event SORT comparator (L4139) ───────────────────────────────────────────────────
+         `((a && a.tMs) || 0) - ((b && b.tMs) || 0)` mutated to `(a && a.tMs) && 0` makes the first
+         term 0 regardless of `a`, so the comparator stops depending on its left operand and the sort
+         is no longer an ordering. Only events supplied OUT of order can show it: a list already
+         ascending comes back ascending under both. */
+      var ev = L(ne({ sessions: [{ a: 1 }], ganglior_events: [{ tMs: 9 }, { tMs: 1 }, { tMs: 5 }] }));
+      T.eq('ganglior_events are sorted ASCENDING by tMs, from an out-of-order list', JSON.stringify((ev && ev.events || []).map(function (e) { return e.tMs; })), '[1,5,9]');
+      T.eq('…and none is dropped by the sort', (ev && ev.events || []).length, 3);
+      /* A null element must not throw: `(a && a.tMs) || 0` treats it as 0 and it sorts first. */
+      var evNull = L(ne({ sessions: [{ a: 1 }], ganglior_events: [{ tMs: 4 }, null, { tMs: 2 }] }));
+      T.eq('…a null event sorts as 0 rather than throwing', JSON.stringify((evNull && evNull.events || []).map(function (e) { return e && e.tMs; })), '[null,2,4]');
     });
 
     /* parsePPG — 38 surviving mutants across its 348 lines. Probing them (original vs mutant in
