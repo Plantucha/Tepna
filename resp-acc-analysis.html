@@ -80,6 +80,23 @@
     <table id="tblNights"><thead><tr><th>Night</th><th>hours</th><th>epochs</th><th>MAE</th><th>bias</th><th>≤2 brpm</th><th>r</th></tr></thead><tbody></tbody></table>
   </div>
 
+  <!-- ── 6 · FIGURES ────────────────────────────────────────────────────────────────────────────────
+       This page rendered TABLES ONLY until 2026-08-06 — no <canvas> anywhere and no export path — so no
+       run of it, headless or manual, could emit a PNG, and three preprints sat blocked on a capability
+       that had never been built (MOTIONDEX-RESPIRATORY-RATE §4a's re-scoping says exactly this). These
+       three are the figures the papers cite: agreement, the abstention trade-off, and the per-night
+       spread. Dark surface and export path match the figures already in `papers/figures/`. -->
+  <div class="card"><h2>6 · Figures <span class="pill idle" id="figPill">no run yet</span></h2>
+    <div class="note">Bland&ndash;Altman plots <code>pred &minus; ref</code>, so a positive bias means the estimator over-reads. Each figure downloads on its own; <b>&#10515; all three</b> stacks them into the single PNG the papers embed.</div>
+    <div style="margin:10px 0"><button id="dlFigAll" disabled>&#10515; all three (PNG)</button></div>
+    <figure style="margin:0 0 14px"><canvas id="figBA" width="820" height="360"></canvas>
+      <figcaption class="note">Agreement against the CPAP-flow reference. <a href="#" id="dlBA">&#10515; acc-resp-bland-altman.png</a></figcaption></figure>
+    <figure style="margin:0 0 14px"><canvas id="figCov" width="820" height="330"></canvas>
+      <figcaption class="note">What abstention buys. <a href="#" id="dlCov">&#10515; acc-resp-coverage.png</a></figcaption></figure>
+    <figure style="margin:0"><canvas id="figNights" width="820" height="330"></canvas>
+      <figcaption class="note">Per-night MAE, sorted. <a href="#" id="dlNights">&#10515; acc-resp-per-night.png</a></figcaption></figure>
+  </div>
+
   <div class="card warn"><h2>Provenance</h2>
     <div class="note" id="prov">Run the analysis to stamp the estimator identity used for these numbers.</div>
   </div>
@@ -2539,7 +2556,66 @@ const MotionDex = window.MotionDex;
     return rows;
   }
 
+  /* THE SESSION STAMP, IN BOTH LAYOUTS THE FLEET ACTUALLY WRITES.
+     Polar Sensor Logger (phone) writes `_YYYYMMDD_HHMMSS_ACC.txt`; the capture host writes the SAME
+     BYTES under `_YYYYMMDDHHMMSS_ACC.txt` — one 14-digit run, no separator (CAPTURE-HOST-INTEGRATOR-
+     FOLD §1; `tools/trio-batch.mjs` has carried both as RE_POLAR / RE_POLAR_CH all along).
+
+     Only the phone form was matched, so **every box-captured night was invisible to this apparatus** —
+     and invisible is the precise word. The file passed the `Polar_H10 … _ACC.txt` filter, then fell out
+     of the grouping loop on a bare `continue`: not skipped-with-a-reason, not counted, not logged. A
+     drop of nothing but box nights reported "no ACC+BRP night pairs found" and said nothing about why.
+     MOTIONDEX-RESPIRATORY-RATE §4a recorded the symptom; this is the fix.
+
+     It lives HERE, in the pure module, rather than beside its caller in `resp-acc-analysis-app.js`
+     where the defect was, for one reason: this file is loaded by BOTH test runners and the app layer is
+     loaded by neither. A parser that decides which nights a paper is allowed to see must be gateable.
+
+     Returns `{ day: 'YYYYMMDD', hhmmss: 'HHMMSS' }`, or null when neither layout matches. */
+  function sessionStamp(name) {
+    var s = String(name || '');
+    var m = /_(\d{8})_(\d{6})_ACC\.txt$/i.exec(s);
+    if (m) return { day: m[1], hhmmss: m[2] };
+    m = /_(\d{8})(\d{6})_ACC\.txt$/i.exec(s); // capture-host: one 14-digit run, no separator
+    return m ? { day: m[1], hhmmss: m[2] } : null;
+  }
+
+  /* BLAND–ALTMAN — the agreement figure the three papers need, as NUMBERS.
+     `agreement()` already publishes bias / loa / rmse; this returns the per-epoch geometry a plot is
+     drawn from, so the figure and the table cannot disagree about what they show. Kept pure and here
+     (not in the drawing layer) for the same reason as `sessionStamp`: a published figure's arithmetic
+     must be gateable, and no test runner loads the app layer.
+
+     Convention, stated because both appear in the literature: `diff = pred − ref` (so a POSITIVE bias
+     means the estimator over-reads), `mean = (pred + ref) / 2` on the x-axis, and the limits of
+     agreement are bias ± 1.96·SD of the differences, using the SAMPLE SD (n−1). Non-finite pairs are
+     dropped, not zero-filled. Fewer than two usable pairs ⇒ null: one pair has no SD, and a limit of
+     agreement computed from it would be a fabricated interval. */
+  function blandAltman(pred, ref) {
+    if (!pred || !ref) return null;
+    var n = Math.min(pred.length, ref.length),
+      pts = [],
+      d = [];
+    for (var i = 0; i < n; i++) {
+      var p = +pred[i],
+        r = +ref[i];
+      if (!isFinite(p) || !isFinite(r)) continue;
+      pts.push({ mean: (p + r) / 2, diff: p - r });
+      d.push(p - r);
+    }
+    if (d.length < 2) return null;
+    var sum = 0;
+    for (i = 0; i < d.length; i++) sum += d[i];
+    var bias = sum / d.length,
+      ss = 0;
+    for (i = 0; i < d.length; i++) ss += (d[i] - bias) * (d[i] - bias);
+    var sd = Math.sqrt(ss / (d.length - 1)); // sample SD — these are a sample of nights, not the population
+    return { points: pts, n: d.length, bias: bias, sd: sd, upper: bias + 1.96 * sd, lower: bias - 1.96 * sd };
+  }
+
   global.RespAccAnalysis = {
+    sessionStamp: sessionStamp,
+    blandAltman: blandAltman,
     readEDF: readEDF,
     readAnnotations: readAnnotations,
     detectBreaths: detectBreaths,
@@ -2605,7 +2681,14 @@ const MotionDex = window.MotionDex;
     tb.appendChild(tr);
   }
 
+  /* Delegates to the PURE module, which both test runners load and this app layer does not — so the
+     parser that decides which nights a paper may see is gateable. See `RespAccAnalysis.sessionStamp`
+     for why the capture-host layout was invisible here. */
+  var sessionStamp = A.sessionStamp;
+
   // ── group dropped files into nights ────────────────────────────────────
+  // `nAcc` / `unstamped` / `noFlow` ride on the returned array so the caller can say WHY a drop produced
+  // nothing, rather than reporting a bare zero — the failure mode the comment above describes.
   function groupFiles(files) {
     var acc = [],
       brp = {};
@@ -2619,9 +2702,16 @@ const MotionDex = window.MotionDex;
       }
     }
     var out = [];
+    out.nAcc = acc.length;
+    out.unstamped = [];
+    out.noFlow = [];
     for (var k = 0; k < acc.length; k++) {
-      var m = acc[k].name.match(/_(\d{8})_(\d{6})_ACC\.txt$/);
-      if (!m) continue;
+      var st = sessionStamp(acc[k].name);
+      if (!st) {
+        out.unstamped.push(acc[k].name);
+        continue;
+      }
+      var m = [null, st.day, st.hhmmss];
       var y = +m[1].slice(0, 4),
         mo = +m[1].slice(4, 6),
         da = +m[1].slice(6, 8),
@@ -2633,6 +2723,7 @@ const MotionDex = window.MotionDex;
         key = '' + prev.getUTCFullYear() + String(prev.getUTCMonth() + 1).padStart(2, '0') + String(prev.getUTCDate()).padStart(2, '0');
       }
       if (brp[key] && brp[key].length) out.push({ name: acc[k].name, acc: acc[k], brp: brp[key], dayNum: Date.UTC(y, mo - 1, da) / 86400000 });
+      else out.noFlow.push(acc[k].name + ' (wanted CPAP night ' + key + ')');
     }
     out.sort(function (a, b) {
       return a.dayNum - b.dayNum;
@@ -2733,14 +2824,332 @@ const MotionDex = window.MotionDex;
     return { name: n.name, pred: pred, ref: rf, conf: cf };
   }
 
+  /* ════════ 6 · FIGURES ═══════════════════════════════════════════════════════════════════════════
+     Three canvases, one series each, drawn to match the eleven figures already in `papers/figures/`
+     (dark surface, 11px ui-monospace, hairline axes). Single-series throughout, so no legend boxes —
+     the title names what is plotted and the reference lines are direct-labelled with their own values.
+
+     Mark specs held to deliberately: 2px lines, markers r ≥ 4 with a 2px surface ring so overlapping
+     dots stay countable, hairline SOLID gridlines (never dashed), and text in ink tokens rather than
+     the series colour. Labels are selective — the extremes and the endpoint, never a number per point.
+     ════════════════════════════════════════════════════════════════════════════════════════════════ */
+  var FIG = {
+    surface: '#0f141b',
+    grid: 'rgba(255,255,255,.10)',
+    axis: 'rgba(255,255,255,.22)',
+    ink: '#e6edf6', // primary text
+    ink2: '#9fb0c4', // secondary text
+    ink3: '#6f8096', // muted text / tick labels
+    series: '#3987e5', // one categorical slot; dark-mode step
+    warn: '#f0b429',
+    mono: '11px ui-monospace,SFMono-Regular,monospace'
+  };
+  function figBase(cv, title, sub) {
+    var ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = FIG.surface;
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = FIG.ink;
+    ctx.font = 'bold 13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(title, 14, 22);
+    if (sub) {
+      ctx.fillStyle = FIG.ink3;
+      ctx.font = FIG.mono;
+      ctx.fillText(sub, 14, 38);
+    }
+    return ctx;
+  }
+  // A plot box with hairline axes + ticks. Returns the scale helpers so a caller never rescales by hand.
+  function figAxes(ctx, box, xmin, xmax, ymin, ymax, xlab, ylab, xfmt, yfmt) {
+    var X = function (v) {
+        return box.l + ((v - xmin) / (xmax - xmin || 1)) * (box.r - box.l);
+      },
+      Y = function (v) {
+        return box.b - ((v - ymin) / (ymax - ymin || 1)) * (box.b - box.t);
+      };
+    ctx.font = FIG.mono;
+    ctx.lineWidth = 1;
+    var i, v, px;
+    for (i = 0; i <= 4; i++) {
+      v = ymin + ((ymax - ymin) * i) / 4;
+      px = Math.round(Y(v)) + 0.5;
+      ctx.strokeStyle = FIG.grid;
+      ctx.beginPath();
+      ctx.moveTo(box.l, px);
+      ctx.lineTo(box.r, px);
+      ctx.stroke();
+      ctx.fillStyle = FIG.ink3;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(
+        (
+          yfmt ||
+          function (x) {
+            return x.toFixed(1);
+          }
+        )(v),
+        box.l - 8,
+        px
+      );
+    }
+    // Explicit ticks when the caller has clean numbers to show; even fractions otherwise. Dividing a
+    // range into fifths gives 45 % · 56 % · 68 % — arithmetically correct and unreadable.
+    var xticks = box.xticks;
+    if (!xticks) {
+      xticks = [];
+      for (i = 0; i <= 5; i++) xticks.push(xmin + ((xmax - xmin) * i) / 5);
+    }
+    for (i = 0; i < xticks.length; i++) {
+      v = xticks[i];
+      if (v < xmin || v > xmax) continue;
+      px = Math.round(X(v)) + 0.5;
+      ctx.fillStyle = FIG.ink3;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(
+        (
+          xfmt ||
+          function (x) {
+            return x.toFixed(0);
+          }
+        )(v),
+        px,
+        box.b + 7
+      );
+    }
+    ctx.strokeStyle = FIG.axis;
+    ctx.beginPath();
+    ctx.moveTo(box.l + 0.5, box.t);
+    ctx.lineTo(box.l + 0.5, box.b + 0.5);
+    ctx.lineTo(box.r, box.b + 0.5);
+    ctx.stroke();
+    ctx.fillStyle = FIG.ink2;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(xlab, (box.l + box.r) / 2, box.b + 24);
+    ctx.save();
+    ctx.translate(14, (box.t + box.b) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textBaseline = 'top';
+    ctx.fillText(ylab, 0, 0);
+    ctx.restore();
+    return { X: X, Y: Y };
+  }
+  // A dot with a 2px surface ring — the ring is what keeps a dense scatter countable where marks overlap.
+  function figDot(ctx, x, y, r, fill) {
+    ctx.beginPath();
+    ctx.arc(x, y, r + 2, 0, 6.2832);
+    ctx.fillStyle = FIG.surface;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, 6.2832);
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  function drawBlandAltman(allP, allR) {
+    var cv = $('figBA'),
+      ba = A.blandAltman(allP, allR);
+    var ctx = figBase(cv, 'Agreement with the CPAP-flow reference', ba ? 'Bland–Altman · ' + ba.n.toLocaleString() + ' epochs · diff = estimate − reference' : 'no usable epochs');
+    if (!ba) return;
+    /* MEASURE THE LABELS, THEN RESERVE THE GUTTER. A fixed 96 px right margin clipped
+       "−1.96 SD −3.32" to "−1.96 SD -3.3" the first time this was rendered and looked at — the skill's
+       rule that a label which will not fit must not be clipped, caught by screenshotting rather than by
+       reasoning. The gutter is now whatever the widest of the three actually needs. */
+    var neg = function (x) {
+      return (x < 0 ? '\u2212' : '') + Math.abs(x).toFixed(2); // one minus glyph, never a hyphen
+    };
+    var labels = ['bias ' + neg(ba.bias), '+1.96 SD ' + neg(ba.upper), '\u22121.96 SD ' + neg(ba.lower)];
+    ctx.font = FIG.mono;
+    var gutter = 0;
+    for (var li = 0; li < labels.length; li++) gutter = Math.max(gutter, ctx.measureText(labels[li]).width);
+    var box = { l: 54, r: cv.width - Math.ceil(gutter) - 20, t: 52, b: cv.height - 44 };
+    var xs = ba.points.map(function (p) {
+        return p.mean;
+      }),
+      lo = Math.min.apply(null, xs),
+      hi = Math.max.apply(null, xs);
+    var span = Math.max(Math.abs(ba.upper), Math.abs(ba.lower)) * 1.35 || 1;
+    var sc = figAxes(ctx, box, Math.floor(lo) - 1, Math.ceil(hi) + 1, -span, span, 'mean of estimate and reference (br/min)', 'difference (br/min)');
+    // The cloud. Low alpha because n is in the thousands and overplot IS the density signal.
+    ctx.fillStyle = FIG.series;
+    ctx.globalAlpha = ba.points.length > 400 ? 0.18 : 0.5;
+    for (var i = 0; i < ba.points.length; i++) {
+      var p = ba.points[i];
+      if (p.mean < lo - 1 || p.mean > hi + 1) continue;
+      ctx.beginPath();
+      ctx.arc(sc.X(p.mean), Math.max(box.t, Math.min(box.b, sc.Y(p.diff))), 2.2, 0, 6.2832);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // Bias + limits of agreement, each DIRECT-LABELLED with its value — this is the whole reason the
+    // figure exists, and a reader should never have to go back to the table to read the three numbers.
+    var lines = [
+      { v: ba.bias, c: FIG.ink, w: 2, t: labels[0] },
+      { v: ba.upper, c: FIG.warn, w: 1.5, t: labels[1] },
+      { v: ba.lower, c: FIG.warn, w: 1.5, t: labels[2] }
+    ];
+    for (i = 0; i < lines.length; i++) {
+      var L = lines[i],
+        y = Math.round(sc.Y(L.v)) + 0.5;
+      if (y < box.t || y > box.b) continue;
+      ctx.strokeStyle = L.c;
+      ctx.lineWidth = L.w;
+      ctx.beginPath();
+      ctx.moveTo(box.l, y);
+      ctx.lineTo(box.r, y);
+      ctx.stroke();
+      ctx.fillStyle = FIG.ink2; // text wears ink, never the mark colour
+      ctx.font = FIG.mono;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(L.t, box.r + 8, y);
+    }
+    ctx.lineWidth = 1;
+  }
+
+  function drawCoverage(cov) {
+    var cv = $('figCov');
+    var ctx = figBase(cv, 'What abstention buys', 'MAE against the fraction of epochs the estimator is allowed to decline');
+    if (!cov || cov.length < 2) return;
+    var box = { l: 54, r: cv.width - 90, t: 52, b: cv.height - 44 };
+    var maes = cov
+      .map(function (c) {
+        return c.mae;
+      })
+      .filter(isFinite);
+    var ymax = Math.max.apply(null, maes) * 1.15,
+      ymin = Math.min(0, Math.min.apply(null, maes) * 0.85);
+    box.xticks = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]; // clean deciles — fifths of the range read 45/56/68 %
+    var sc = figAxes(ctx, box, 0.45, 1.02, ymin, ymax, 'coverage (fraction of epochs answered)', 'MAE (br/min)', function (v) {
+      return (v * 100).toFixed(0) + '%';
+    });
+    var pts = cov
+      .filter(function (c) {
+        return isFinite(c.mae);
+      })
+      .slice()
+      .sort(function (a, b) {
+        return a.coverage - b.coverage;
+      });
+    ctx.strokeStyle = FIG.series;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (var i = 0; i < pts.length; i++) {
+      var x = sc.X(pts[i].coverage),
+        y = sc.Y(pts[i].mae);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    for (i = 0; i < pts.length; i++) figDot(ctx, sc.X(pts[i].coverage), sc.Y(pts[i].mae), 4, FIG.series);
+    // Selective labels only: the two ends are the trade-off, everything between is the axis's job.
+    var ends = [pts[0], pts[pts.length - 1]];
+    ctx.font = FIG.mono;
+    ctx.fillStyle = FIG.ink;
+    for (i = 0; i < ends.length; i++) {
+      ctx.textAlign = i === 0 ? 'left' : 'right';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(ends[i].mae.toFixed(2) + ' @ ' + (ends[i].coverage * 100).toFixed(0) + '%', sc.X(ends[i].coverage) + (i === 0 ? 8 : -8), sc.Y(ends[i].mae) - 9);
+    }
+  }
+
+  function drawPerNight(rows) {
+    var cv = $('figNights');
+    var ctx = figBase(cv, 'Per-night MAE', rows.length + ' night(s), sorted — the spread is the n-of-1 caveat made visible');
+    if (!rows.length) return;
+    var box = { l: 54, r: cv.width - 34, t: 52, b: cv.height - 52 };
+    var d = rows.slice().sort(function (a, b) {
+      return a.mae - b.mae;
+    });
+    var ymax =
+      Math.max.apply(
+        null,
+        d.map(function (r) {
+          return r.mae;
+        })
+      ) * 1.2;
+    var sc = figAxes(ctx, box, -0.5, d.length - 0.5, 0, ymax, 'night (sorted by MAE)', 'MAE (br/min)', function () {
+      return '';
+    });
+    // Median rule, direct-labelled — the one summary a reader wants off this figure.
+    var med = A.median(
+      d.map(function (r) {
+        return r.mae;
+      })
+    );
+    var my = Math.round(sc.Y(med)) + 0.5;
+    ctx.strokeStyle = FIG.axis;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(box.l, my);
+    ctx.lineTo(box.r, my);
+    ctx.stroke();
+    ctx.fillStyle = FIG.ink2;
+    ctx.font = FIG.mono;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('median ' + med.toFixed(2), box.r, my - 4);
+    for (var i = 0; i < d.length; i++) figDot(ctx, sc.X(i), sc.Y(d[i].mae), 4.5, FIG.series);
+    // Label the extremes only — they are the ones a reader will ask about.
+    ctx.fillStyle = FIG.ink;
+    ctx.textBaseline = 'bottom';
+    ctx.textAlign = 'left';
+    ctx.fillText(d[0].mae.toFixed(2), sc.X(0) + 8, sc.Y(d[0].mae) - 6);
+    ctx.textAlign = 'right';
+    ctx.fillText(d[d.length - 1].mae.toFixed(2), sc.X(d.length - 1) - 8, sc.Y(d[d.length - 1].mae) - 6);
+  }
+
+  function pngFrom(cv, name) {
+    cv.toBlob(function (bl) {
+      var u = URL.createObjectURL(bl),
+        a = document.createElement('a');
+      a.href = u;
+      a.download = name;
+      a.click();
+      setTimeout(function () {
+        URL.revokeObjectURL(u);
+      }, 4000);
+    }, 'image/png');
+  }
+  function drawFigures(allP, allR, cov, perNightMae) {
+    drawBlandAltman(allP, allR);
+    drawCoverage(cov);
+    drawPerNight(perNightMae);
+    $('figPill').textContent = 'rendered';
+    $('figPill').className = 'pill ok';
+    $('dlFigAll').disabled = false;
+  }
+  /* A handle for rendering the figures without a corpus — the same shape `nights-icc-analysis.js`
+     publishes as `window.NIGHTS_ICC`. It exists so the LAYOUT can be inspected (label collisions,
+     clipping, axis geometry) in a headless browser, which the validator cannot check and prose cannot
+     substitute for. It draws only; it computes nothing a run does not. */
+  window.RESP_ACC_FIGURES = { draw: drawFigures };
+
   async function run(files) {
     logEl.textContent = '';
     var nights = groupFiles(files);
     if (!nights.length) {
       status('no ACC+BRP night pairs found', 'bad');
+      // SAY WHY. A bare "found nothing" is what let every box-captured night vanish without a trace —
+      // the drop looked identical whether the files were absent, misnamed, or simply unpaired.
       log('Found no Polar_H10_*_ACC.txt with a matching CPAP/<date>/*_BRP.edf.');
+      log('  · ' + nights.nAcc + ' Polar_H10 *_ACC.txt file(s) in the drop');
+      if (nights.unstamped.length) {
+        log('  · ' + nights.unstamped.length + ' carried NO recognisable session stamp — expected ' + '_YYYYMMDD_HHMMSS_ACC.txt (phone) or _YYYYMMDDHHMMSS_ACC.txt (capture host):');
+        for (var u = 0; u < Math.min(5, nights.unstamped.length); u++) log('      ' + nights.unstamped[u]);
+      }
+      if (nights.noFlow.length) {
+        log('  · ' + nights.noFlow.length + ' were stamped but had no CPAP flow for their night:');
+        for (var v = 0; v < Math.min(5, nights.noFlow.length); v++) log('      ' + nights.noFlow[v]);
+      }
       return;
     }
+    if (nights.unstamped.length) log('⚠ ' + nights.unstamped.length + ' ACC file(s) ignored — unrecognised session stamp (e.g. ' + nights.unstamped[0] + ')');
     status('processing ' + nights.length + ' night(s)…', 'busy');
     log('grouped ' + nights.length + ' night(s) with both ACC and CPAP flow');
 
@@ -2884,6 +3293,7 @@ const MotionDex = window.MotionDex;
     // ── 5 · per night ──
     var tn = $('tblNights').querySelector('tbody');
     tn.innerHTML = '';
+    var perNightMae = [];
     for (i = 0; i < corrected.length; i++) {
       var cn = corrected[i],
         a2 = A.agreement(cn.pred, cn.ref);
@@ -2899,7 +3309,11 @@ const MotionDex = window.MotionDex;
         fmt(a2.within2 * 100, 1) + '%',
         fmt(A.pearson(cn.pred, cn.ref), 3)
       ]);
+      perNightMae.push({ name: cn.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''), mae: a2.mae, n: a2.n });
     }
+
+    // ── 6 · figures ──
+    drawFigures(allP, allR, cov, perNightMae);
 
     $('prov').innerHTML =
       'Estimator: <code>MOTIONDSP.respiratoryRate</code> — the shipped DSP, method <code>' +
@@ -2919,6 +3333,41 @@ const MotionDex = window.MotionDex;
   }
 
   // ── wiring ─────────────────────────────────────────────────────────────
+  // Figure export. Individually by the name each paper embeds, or stacked into the one PNG — the same
+  // shape `nights-icc-analysis.js` already uses, so `papers/figures/` stays one convention.
+  [
+    ['dlBA', 'figBA', 'acc-resp-bland-altman.png'],
+    ['dlCov', 'figCov', 'acc-resp-coverage.png'],
+    ['dlNights', 'figNights', 'acc-resp-per-night.png']
+  ].forEach(function (t) {
+    var el = $(t[0]);
+    if (el)
+      el.addEventListener('click', function (e) {
+        e.preventDefault();
+        pngFrom($(t[1]), t[2]);
+      });
+  });
+  if ($('dlFigAll'))
+    $('dlFigAll').addEventListener('click', function () {
+      var cs = [$('figBA'), $('figCov'), $('figNights')],
+        gap = 16;
+      var W = cs[0].width + gap * 2,
+        H = gap;
+      for (var i = 0; i < cs.length; i++) H += cs[i].height + gap;
+      var out = document.createElement('canvas');
+      out.width = W;
+      out.height = H;
+      var c = out.getContext('2d');
+      c.fillStyle = '#0c0f14';
+      c.fillRect(0, 0, W, H);
+      var y = gap;
+      for (i = 0; i < cs.length; i++) {
+        c.drawImage(cs[i], gap, y);
+        y += cs[i].height + gap;
+      }
+      pngFrom(out, 'acc-resp-figures.png');
+    });
+
   var drop = $('drop');
   drop.addEventListener('click', function () {
     $('folderInput').click();

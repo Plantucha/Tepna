@@ -32004,6 +32004,83 @@
       T.ok('KNOWN LIMITATION — a 30 s pause (shorter than the window) does NOT trigger abstention', anyAbstain === false, 'a short pause now abstains — behaviour changed, update this assertion deliberately');
     });
 
+    /* ════ A BOX-CAPTURED NIGHT WAS INVISIBLE TO THE PAPER APPARATUS ═══════════════════════════════
+     MOTIONDEX-RESPIRATORY-RATE §4a: *"A box-captured night contributes NOTHING, silently. `groupFiles()`
+     needs `_YYYYMMDD_HHMMSS_ACC.txt`; the capture host writes `_YYYYMMDDHHMMSS_ACC.txt` with no
+     separator, so it never matches and the night is not skipped-with-a-reason, it is simply invisible.
+     Only Polar-Sensor-Logger (phone) nights are analysable by this page today."*
+
+     The two layouts are the SAME BYTES under different names (CAPTURE-HOST-INTEGRATOR-FOLD §1), and
+     `tools/trio-batch.mjs` has carried both as RE_POLAR / RE_POLAR_CH all along — so the fleet already
+     knew. Three papers rest on which nights this apparatus can see, which makes a name-shaped blind spot
+     a scientific problem rather than a cosmetic one: an entire capture route is excluded from the
+     corpus, and the exclusion appears in no count, no log line, and no reported n.
+
+     Gated HERE rather than beside its caller because `resp-acc-analysis-app.js` is loaded by neither
+     runner; the parser was moved into the pure module for exactly that reason. */
+    group('resp-acc sees BOTH capture layouts — a box night is not invisible', 'resp-acc-analysis · corpus · absence', function (T) {
+      var R = env.RespAccAnalysis;
+      if (!(R && typeof R.sessionStamp === 'function')) {
+        T.ok('RespAccAnalysis.sessionStamp available', false, 'resp-acc-analysis.js not wired into this lane — add it to BOTH runners');
+        return;
+      }
+      // Real names, both routes, one wearer and one instant — the capture host writes a 14-digit run.
+      var PHONE = 'Polar_H10_02849638_20260718_213706_ACC.txt';
+      var BOX = 'Polar_H10_02849638_20260718213706_ACC.txt';
+      var phone = R.sessionStamp(PHONE),
+        box = R.sessionStamp(BOX);
+      T.ok('ANTI-VACUITY · the two fixtures differ ONLY by the separator', PHONE.replace('_213706', '213706') === BOX, PHONE + ' vs ' + BOX);
+      T.ok('the phone layout still parses (no regression)', !!phone && phone.day === '20260718' && phone.hhmmss === '213706', JSON.stringify(phone));
+      /* THE ASSERTION THAT FAILS WITHOUT THE FIX. Before it, this returned null and the night vanished. */
+      T.ok('the CAPTURE-HOST layout parses — a box night is no longer invisible', !!box && box.day === '20260718' && box.hhmmss === '213706', JSON.stringify(box));
+      T.ok('…and both routes resolve to the SAME instant, because they are the same recording', JSON.stringify(phone) === JSON.stringify(box), JSON.stringify(phone) + ' vs ' + JSON.stringify(box));
+      /* REFUSAL STILL MEANS REFUSAL. The fix widens what is recognised; it must not make the parser
+         accept anything. An unstamped name stays null so the caller can COUNT it and say so out loud —
+         which is the other half of the defect: the old code could not distinguish "no such file" from
+         "a file I refused to read". */
+      T.eq('a name with no session stamp is still null', R.sessionStamp('Polar_H10_02849638_ACC.txt'), null);
+      T.eq('…a 13-digit run is not silently read as 14', R.sessionStamp('Polar_H10_02849638_2026071821370_ACC.txt'), null);
+      T.eq('…and a non-ACC stream is not claimed', R.sessionStamp('Polar_H10_02849638_20260718213706_ECG.txt'), null);
+      T.eq('…nor does an absent name throw', R.sessionStamp(null), null);
+    });
+
+    /* ════ THE FIGURE LAYER'S ARITHMETIC — Bland–Altman, gated because it is PUBLISHED ═════════════
+     Until 2026-08-06 `resp-acc-analysis.html` rendered tables only: no `<canvas>` anywhere and no
+     export path, so no run of it could emit a PNG and three preprints were blocked on a capability
+     that had never been built (MOTIONDEX-RESPIRATORY-RATE §4a). The figures now exist; this pins the
+     numbers under them, so the plot and the agreement table cannot drift apart.
+
+     A KNOWN ANSWER, hand-checkable rather than recorded from the implementation: diffs of
+     {+2, 0, −2, +4, −4} have mean 0 and sample SD (n−1) √(40/4) = √10 = 3.16228, so the limits are
+     ±1.96·√10 = ±6.19805. Sample SD is the right one — these are a sample of nights, not a population
+     — and the two differ by 12 % at n = 5, which is far too large to leave to a comment. */
+    group('resp-acc Bland–Altman is the arithmetic the papers print', 'resp-acc-analysis · figures · known-answer', function (T) {
+      var R = env.RespAccAnalysis;
+      if (!(R && typeof R.blandAltman === 'function')) {
+        T.ok('RespAccAnalysis.blandAltman available', false, 'resp-acc-analysis.js not wired into this lane — add it to BOTH runners');
+        return;
+      }
+      var ref = [10, 12, 14, 16, 18],
+        pred = [12, 12, 12, 20, 14]; // diffs +2, 0, −2, +4, −4
+      var ba = R.blandAltman(pred, ref);
+      T.ok('ANTI-VACUITY · the fixture produced the five pairs the arithmetic below assumes', !!ba && ba.n === 5, ba && 'n=' + ba.n);
+      if (!ba) return;
+      T.approx('bias is the mean difference — zero here by construction', ba.bias, 0, 1e-9);
+      T.approx('SD is the SAMPLE SD (n−1) = √10, not the population √8', ba.sd, Math.sqrt(10), 1e-9);
+      T.approx('…so the upper limit is bias + 1.96·SD', ba.upper, 1.96 * Math.sqrt(10), 1e-9);
+      T.approx('…and the lower limit is bias − 1.96·SD', ba.lower, -1.96 * Math.sqrt(10), 1e-9);
+      /* SIGN CONVENTION. Both appear in the literature and they invert the story: with `pred − ref` a
+         positive bias means the estimator OVER-reads, which is what the figure's subtitle claims. */
+      var over = R.blandAltman([11, 13], [10, 12]);
+      T.ok('diff = pred − ref, so an over-reading estimator has a POSITIVE bias', over.bias > 0, 'bias=' + over.bias);
+      T.approx('…and the x-axis is the MEAN of the pair', over.points[0].mean, 10.5, 1e-9);
+      /* REFUSAL. One pair has no sample SD; returning 0 would draw limits of agreement of ±0 — a
+         fabricated interval that reads as perfect agreement. §2.6's rule, applied to a figure. */
+      T.eq('a single pair cannot state limits of agreement — null, not ±0', R.blandAltman([5], [5]), null);
+      T.eq('…nor can no pairs at all', R.blandAltman([], []), null);
+      T.ok('non-finite pairs are DROPPED, not zero-filled', R.blandAltman([1, NaN, 3], [1, 2, 1]).n === 2, JSON.stringify(R.blandAltman([1, NaN, 3], [1, 2, 1])));
+    });
+
     /* ════ resp-acc-analysis.js — THREE SILENT SAMPLE-RATE FAILURES, EACH FIXED AND NONE GATED ══════
      MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §2 opens: *"Sample-rate precision is this codebase's recurring
      failure mode — it bit three times in one work-unit, in three different places, each time silently."*
