@@ -145,6 +145,14 @@ Ordered by value × readiness. Each: **claim · data class · needs · bounding 
     **drops** beats below c=0.5 rather than down-weighting them, so the surviving series spans only
     [0.5, 1] and is mostly ~1. A qualifier that names the estimator's chief virtue while contributing
     less than the rounding of its own CI is exactly this section's subject matter.
+  - **A reference-free σ is not a number — it is a number PER WINDOW LENGTH.** Measured on 17 nights,
+    same estimator, same code, varying only how many simultaneous seconds reach the hat: σ rises
+    **monotonically** for every corner — Verity 2.36 → 3.51 (**+49 %**), O2Ring 2.34 → 2.99 (+28 %),
+    H10 1.41 → 1.78 (+26 %) from a one-hour window to a whole night
+    (`tools/tch-window-sensitivity.mjs`). **Neither σ-paper states window length as a parameter**, so
+    two honest analysts with the same devices and nights can publish σ differing by half again, and
+    neither is wrong. This is `CLAUDE.md` §7's ppm discipline (*"never quote ppm without the span"*)
+    arriving one layer up, and it is a **correction owed to published methods**, not merely a wall.
   - **…and the σ it is a qualifier on does not reproduce.** Two independent re-derivations put **Verity
     noisiest** (3.51 / 3.17 bpm) where `sigma-no-reference` publishes it nearly quietest (**1.42**), and
     H10 at 1.78 / 1.74 against a published **1.28**. The doubling discriminator is clean on every night,
