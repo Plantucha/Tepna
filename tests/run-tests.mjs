@@ -864,9 +864,21 @@ function readToolSources() {
 
 /* CITATION-ATTRIBUTION-FOLLOWUPS §3 — hand the gate the ledger and the reader-facing SOURCE, and let
    the gate own the predicate (a precomputed boolean here would move the check out of the gate).
-   SCOPE is editable source: the authored `* Reference.html` guides plus the root `*.js` that carry
-   citations. Generated bundles are excluded deliberately — their text is a copy of the DSP's, so
-   including them reports every finding twice and names a file you must not edit. Node-lane only. */
+   SCOPE is editable, reader-facing source. FOLLOWUPS-II §2 settled the three surfaces the first cut
+   left undecided, by measuring each rather than reasoning about it:
+     · `papers/**` (html+md)   — IN. 32 DOI occurrences, ZERO problems. These are the published
+       artifacts, so a wrong author list matters most here — the link still resolves and still lands on
+       the paper being described, which is the defect a reader cannot detect. Gating a clean surface
+       costs nothing today and is the whole point: it pins it against drift.
+     · `docs/**.md`            — IN. 4 occurrences, zero problems. Authored specs no builder writes.
+       `docs/*.html` stays OUT: those are served COPIES of root pages already gated at their source,
+       so including them would double-report every finding.
+     · `briefs/`               — OUT, and this is measured, not assumed. 49 occurrences, **17
+       problems, all of them false** — a brief quotes a wrong attribution *in order to say it is
+       wrong*. `CITATION-ATTRIBUTION-FOLLOWUPS` itself trips four times on the very defects it fixed.
+       Gating briefs would make the gate loudest exactly where the repo is doing its job.
+   Generated bundles remain excluded: their text is a copy of the DSP's, so including them reports every
+   finding twice and names a file you must not edit. Node-lane only. */
 function readCitations() {
   const lp = join(ROOT, 'audits', 'CITATION-VERIFICATION-2026-08-05.json');
   if (!existsSync(lp)) return null;
@@ -878,17 +890,33 @@ function readCitations() {
   }
   if (!ledger || !ledger.dois) return null;
   const surfaces = [];
-  for (const f of readdirSync(ROOT).sort()) {
-    if (!/ Reference\.html$/.test(f) && !/^[^/]+\.js$/.test(f)) continue;
+  const add = (rel) => {
     let text;
     try {
-      text = readFileSync(join(ROOT, f), 'utf8');
+      text = readFileSync(join(ROOT, rel), 'utf8');
     } catch {
-      continue;
+      return;
     }
-    if (!/10\.\d{4,9}\//.test(text)) continue;
-    surfaces.push({ file: f, text });
+    if (!/10\.\d{4,9}\//.test(text)) return;
+    surfaces.push({ file: rel, text });
+  };
+  for (const f of readdirSync(ROOT).sort()) {
+    if (!/ Reference\.html$/.test(f) && !/^[^/]+\.js$/.test(f)) continue;
+    add(f);
   }
+  /* papers/** (html+md) and docs/**.md — see the scope note above. Walked, not globbed, so a paper in
+     a subdirectory cannot silently fall outside the gate. */
+  const walk = (rel, keep) => {
+    const abs = join(ROOT, rel);
+    if (!existsSync(abs)) return;
+    for (const e of readdirSync(abs, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const r = rel + '/' + e.name;
+      if (e.isDirectory()) walk(r, keep);
+      else if (keep.test(e.name)) add(r);
+    }
+  };
+  walk('papers', /\.(html|md)$/);
+  walk('docs', /\.md$/);
   return { ledger, surfaces };
 }
 

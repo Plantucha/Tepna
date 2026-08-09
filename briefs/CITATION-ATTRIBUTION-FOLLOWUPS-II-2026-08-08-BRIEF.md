@@ -56,6 +56,40 @@ consciously exempted. The two cases differ and should not be decided together:
 **Done when:** each of the two is either brought into scope or **explicitly exempted with the reason
 recorded in the gate's own comment** — not left unmentioned, which currently reads as coverage.
 
+> ### ✅ SETTLED 2026-08-08 — and this section asked about the wrong two surfaces
+>
+> §2 named `docs/` and `briefs/`. It **missed `papers/`** — and that is the one that mattered: three
+> published papers carry **32 DOIs**, authored (`rebase-safe --classify` → `source`), reader-facing,
+> and entirely ungated. If a wrong author list is worst where the link still resolves and still lands
+> on the paper being described, a *paper* is the worst place for it.
+>
+> Each surface was **measured before deciding**, not reasoned about:
+>
+> | surface | occurrences | problems | verdict |
+> |---|---|---|---|
+> | `papers/**` | 32 | **0** | **IN** |
+> | `docs/**.md` | 4 | **0** | **IN** |
+> | `briefs/` | 49 | **17** | **OUT** |
+> | `docs/*.html` | — | — | OUT — served copies, already gated at their source |
+>
+> **`briefs/` is exempt on evidence, not on a hunch.** All 17 are false: a brief quotes a wrong
+> attribution *in order to say it is wrong*, and the top offender is `CITATION-ATTRIBUTION-FOLLOWUPS`
+> itself, tripping four times on the very defects it fixed. Gating briefs would make the gate loudest
+> exactly where the repo documents its own corrections. The reason now lives in the gate's comment.
+>
+> **Gating a clean surface is the point, not a waste.** `papers/` and `docs/**.md` added zero findings
+> — they are correct today, and now they cannot drift.
+>
+> **Scope is pinned structurally, not by a count.** A count floor cannot distinguish "`papers/` was
+> dropped" from "a paper lost a citation", and dropping a surface is the failure that passes quietly
+> because a narrower gate is always greener. Three assertions name the surfaces directly.
+>
+> **Verified by making it fail on a NEWLY covered file** — corrupting `Schipper` in
+> `papers/acc-respiratory-rate.html` reds 4 DOIs. The first attempt replaced only the *first* of six
+> occurrences, left every citation window intact, and passed: a falsifier that does not reach the code
+> reports the gate as fine, which is the same trap §3's battery lessons describe. Total 167 → **203**
+> occurrences, 10 → **14** surfaces.
+
 ## 3 · `authorAliases` is a new mechanism documented only inside the file it lives in
 
 The gate needs aliases to avoid false reds, and four entries now carry them: a corporate author
