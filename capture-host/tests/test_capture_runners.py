@@ -3904,7 +3904,8 @@ def test_the_live_bus_push_carries_the_sample_values_not_the_sample_objects(tmp_
     it concludes the sensor is dead when it is recording perfectly."""
     _polar_common(monkeypatch)
     pushed = []
-    monkeypatch.setattr(capture.BUS, "push", lambda k, v, hz=None: pushed.append((k, v, hz)))
+    monkeypatch.setattr(capture.BUS, "push",
+                        lambda k, v, hz=None, dev_ns=None: pushed.append((k, v, hz, dev_ns)))
     c = FakePolarClient(start_status=0x00)
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
@@ -3912,9 +3913,13 @@ def test_the_live_bus_push_carries_the_sample_values_not_the_sample_objects(tmp_
 
     ecg = [p for p in pushed if p[0].endswith("ecg") or "ecg" in p[0]]
     assert ecg, f"an ecg frame must reach the live bus, got keys {[p[0] for p in pushed]}"
-    _key, vals, hz = ecg[0]
+    _key, vals, hz, dev_ns = ecg[0]
     assert vals == [7, 7, 7], "the VALUES, one per sample, in order"
     assert hz, "and a sample rate — a trace with no rate cannot be drawn to a time axis"
+    # …and the frame's DEVICE stamp (DEVICE-RATE-TRUTH §6.3). Without it `effFs` falls back to arrival
+    # times, which measure how the radio BATCHED the frames rather than how fast the sensor sampled — so
+    # a missing `dev_ns` here is not a cosmetic omission, it silently restores the old statistic.
+    assert dev_ns is not None and dev_ns > 0, "the frame's device stamp must reach the bus"
 
 
 # ── the bond guards: four conditions, each earning its place ─────────────────────────────────────────

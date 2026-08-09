@@ -259,9 +259,35 @@ def parse_live(payload: bytes) -> dict | None:
 #   [25]    flag / reserved (seen 0x00)
 #   [26:26+N]  N one-byte UNSIGNED optical samples, ~125 Hz (steady-state ~126 samples per ~1.0 s poll),
 #              single channel (even/odd samples are near-identical, so NOT interleaved LEDs).
-# The stream is RAW (per HEALTH-BOX-VISION: no on-box DSP): occasional isolated spike samples (e.g. 0x9c,
-# ~0.66/frame, scattered — not a fixed marker) are left in place for a downstream consumer to reject.
-PPG_INVALID = 156          # 0x9C — the device's INVALID-SAMPLE sentinel, NOT a signal excursion
+# The stream is RAW (per HEALTH-BOX-VISION: no on-box DSP): the `156` rows are left in place for a
+# downstream consumer to interpret — see below for what they actually are.
+#
+# ── 156 IS A BEAT MARKER, NOT A MISSING-SAMPLE SENTINEL (DEVICE-RATE-TRUTH §2 · corrected 2026-08-06) ──
+# This was documented as "the device's INVALID-SAMPLE sentinel" and as "occasional isolated spike
+# samples … not a fixed marker". It is neither invalid nor occasional: the ring INSERTS an extra row,
+# value 156 (0x9C), once per beat it detects. The evidence was already inside the note that called it a
+# sentinel — "~0.66/frame" at a ~1 s poll is 0.66/s, i.e. 40 bpm, which is a pulse, not a defect rate.
+# Measured three independent ways:
+#
+#   · subtracting them across 13 nights gives fs − markers = 125.0069 mean / 124.9966 median (sd 270 ppm)
+#     against 4 MHz / 32000 = 125.000000 exactly — the AFE4403's own crystal divider, and FCC internal
+#     photos of the S8-AW confirm nRF52840 + TI AFE4403 + a 32.000 MHz crystal with no internal RC;
+#   · the marker rate tracks pulse rate: fs = 125.138 + 0.799 × (PR/60), r = +0.870 over 13 nights;
+#   · INSERTION, not replacement — regressed over 17 whole nights spanning 46.5–70.6 bpm, the ROW rate
+#     climbs +0.01517 Hz/bpm (91 % of the +1/60 insertion prediction, R² 0.957) while row−markers is flat
+#     at −0.00151 (9 % of the replacement prediction, R² 0.180).
+#
+# So BOTH standing instructions are wrong, in opposite directions: the vendor SDK interpolates it away
+# (fabricating an amplitude nobody measured) and this file said to treat it as a gap (discarding a real
+# per-beat event). The correct third behaviour is to STRIP it into a beat-event column, after which the
+# row rate genuinely is 125.000 and one constant serves both the axis and the signal processing.
+#
+# ⚠️ It is NOT a usable beat reference, and the distinction matters. Against the H10's own `_RR.txt` over
+# the same 9.30 h window: 29 647 beats vs 27 744 markers — ratio 0.936, degrading through the night
+# (0.981 over the first 3.3 h). It is an EXACT accounting of inserted rows and an APPROXIMATE count of
+# heartbeats; 6 % dropout merges intervals, which is disqualifying for HRV.
+PPG_BEAT_MARKER = 156      # 0x9C — an INSERTED row, one per ring-detected beat
+PPG_INVALID = PPG_BEAT_MARKER   # legacy spelling, kept so existing readers keep working
 
 # Samples the ring produces per SESSION-SECOND — the unit that makes PPG loss ARITHMETIC instead of
 # inferred (O2RING-FRAME-SAMPLE-LOCK). Note carefully what this is NOT: it is not a per-FRAME constant.
@@ -276,6 +302,23 @@ PPG_INVALID = 156          # 0x9C — the device's INVALID-SAMPLE sentinel, NOT 
 # and it is the right axis for COUNTING what the ring produced; it is the wrong axis for TIMING, which is
 # why the samples are still host-arrival stamped (O2RING-SYNTHESISED-AXIS §6). Do not reconcile this
 # number with `O2PPG_FS_DEFAULT`; they are counts on two different clocks and both are correct.
+#
+# ── TWO CORRECTIONS TO THE PARAGRAPHS ABOVE (DEVICE-RATE-TRUTH §3 · 2026-08-06) ──────────────────────
+# Both are kept in place rather than rewritten, because the measurements they cite are real and only
+# their INTERPRETATION was wrong:
+#
+# 1 · WHERE 126 COMES FROM. It is not a hardware lock, it is `125 + markers`: the ADC runs at exactly
+#     125.000 Hz and the ring inserts one extra row per detected beat (see PPG_BEAT_MARKER). So "126.04
+#     per device-second" is 125 + 1.04 beats/s = 62 bpm, and the 124–128 per-FRAME spread above is
+#     beat-to-beat heart-rate variation rather than poll jitter alone. The number is still the right one
+#     to count with; it is simply not a constant of the silicon, and it moves with the wearer's pulse.
+#
+# 2 · WHAT −3446 ppm DESCRIBES. It is the ring's `duration` COUNTER, not its sample clock, and it is ONE
+#     night. Across 44 sessions the counter's error is median +540 ppm, range −314 … +4282 — so −3446 is
+#     not even representative of the counter, let alone of the ADC. The sample clock is crystal-accurate
+#     (32 MHz ÷ 8 ÷ 32000 = 125.000000, an AFE4403 with no internal RC); the duration counter is a
+#     separate RC-class timebase. What separates them on the reference night is the marker-free product
+#     `fs × ring_second = 125.419` (+3353 ppm). Do not calibrate anything against −3446.
 PPG_FRAME_SAMPLES = 126
 
 

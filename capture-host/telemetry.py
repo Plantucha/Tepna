@@ -28,13 +28,18 @@ def stream_health(nominal_fs, eff_fs, age_s, warmup: bool = False,
     its last sample. PURE (no bus state) so it is unit-testable. Returns 'good'|'weak'|'stall'|'idle'.
       • idle  — declared but never produced a sample (age_s is None)
       • waveform stream (nominal > 5 Hz): stall on silence > stall_s, else weak when eff < weak_frac·nominal
-      • slow/event stream (spo2/pr/ppi/rr): rate-judging is meaningless → only stall on prolonged silence."""
+      • slow/event stream (spo2/pr/ppi/rr): rate-judging is meaningless → only stall on prolonged silence.
+
+    `eff_fs` may be None — "not enough history to state a rate" (see TelemetryBus._stream_rate). That is
+    NOT the same as 0.0, and it must never paint WEAK: silence is already caught by `age_s` above, so an
+    unmeasurable rate carries no bad news. Reporting 0.0 there is the fabrication this distinction
+    exists to prevent — a measurement of silence for a stream nobody measured."""
     if age_s is None:
         return "idle"
     if (nominal_fs or 0) > 5:                       # continuous waveform
         if age_s > stall_s:
             return "stall"
-        if warmup:
+        if warmup or eff_fs is None:
             return "good"                           # not enough history to call it weak yet
         return "weak" if eff_fs < weak_frac * nominal_fs else "good"
     quiet = max(stall_s, 4.0 / (nominal_fs or 1))   # event stream: expect a sample every ~1/fs s
@@ -78,22 +83,51 @@ class TelemetryBus:
         self._last_mono: dict[str, float] = {}         # stream -> monotonic time of last push (stall calc)
         self._shape_err: dict[str, str] = {}           # stream -> "declared N, got M" (channel-count breach)
 
-    def _stream_rate(self, stream: str, now: float) -> tuple[float, float | None, bool]:
-        """(effective_fs, age_of_last_sample_s | None, warmup) for one stream, off the trailing window."""
+    def _stream_rate(self, stream: str, now: float) -> tuple[float | None, float | None, bool]:
+        """(effective_fs | None, age_of_last_sample_s | None, warmup) for one stream.
+
+        MEASURED ON THE DEVICE CLOCK where the frames carry one (DEVICE-RATE-TRUTH §6.3). Two defects
+        were fixed together here, because they have the same cure:
+
+        · OFF-BY-ONE. This used to run `span` from the OLDEST frame's ARRIVAL while `total` counted that
+          frame's samples as well — but those samples arrived AT the start of the interval, they were not
+          produced during it. For k frames of n samples at spacing T that is `k·n / ((k−1)·T)`: a k/(k−1)
+          overstatement that is always positive and never averages out. The 5 s window holds ~9 ECG
+          frames, so 130 Hz read 130 × 9/8 = 146.25 predicted, 146.6 observed on the box. Counting
+          exactly the frames that closed inside the interval (`frames[1:]`) makes it an identity.
+
+        · HOST CLOCK. BLE hands over several frames in one connection event, so their arrival times
+          collapse together and an arrival-time denominator measures the RADIO's batching rather than
+          the sensor. The device's own `sensor_ns` is immune by construction.
+
+        Falls back to arrival times — with the off-by-one still fixed — for streams that push no device
+        stamp (the O2Ring paths), and for a device clock that did not advance: the H10 resets to a 2019
+        epoch whenever it leaves the strap (DEVICE-RATE-TRUTH §3), so a non-monotonic pair is a real
+        event, not a theoretical one, and 'refuse this reading' beats a negative rate.
+
+        Returns None — never 0.0 — when there is no interval to measure over. `0.0` is a *measurement*
+        of silence and reads downstream as a dead stream; "one frame so far" is not that.
+        """
         last = self._last_mono.get(stream)
         age = (now - last) if last is not None else None
         w = self._win.get(stream)
         if not w:
-            return 0.0, age, True
+            return None, age, True
         cutoff = now - _RATE_WIN_S
         while w and w[0][0] < cutoff:
             w.popleft()
-        if not w:
-            return 0.0, age, False        # everything aged out → genuinely quiet
-        span = now - w[0][0]
-        total = sum(n for _, n in w)
-        eff = total / span if span > 0.05 else float(total)
-        return eff, age, span < _WARMUP_S
+        # < 2 frames spans no interval. Note this also covers the everything-aged-out case, which used
+        # to return 0.0 and is the same fabrication: an empty window has not measured a rate of zero.
+        if len(w) < 2:
+            return None, age, True
+        dev0, devN = w[0][2], w[-1][2]
+        span = (devN - dev0) / 1e9 if (dev0 is not None and devN is not None and devN > dev0) else (w[-1][0] - w[0][0])
+        if span <= 0:
+            return None, age, True        # simultaneous arrivals and no usable device stamp
+        # frames[1:] — exactly the samples that closed inside (first, last]. The oldest frame's samples
+        # mark the interval's START; counting them is the k/(k−1) bias.
+        total = sum(n for _, n, _ in list(w)[1:])
+        return total / span, age, span < _WARMUP_S
 
     def meta(self) -> list[dict]:
         now = time.monotonic()
@@ -103,7 +137,9 @@ class TelemetryBus:
             row = {"key": m.key, "label": m.label, "unit": m.unit, "fs": m.fs,
                    "chans": m.chans, "labels": list(m.labels),
                    "active": m.key in self._active,
-                   "effFs": round(eff, 1),
+                   # null, not 0, when the window holds no interval — the JSON contract mirrors
+                   # `_stream_rate`'s refusal rather than flattening it into a measured zero.
+                   "effFs": None if eff is None else round(eff, 3),
                    "health": stream_health(m.fs, eff, age, warmup)}
             # Present ONLY when breached, so a reader can treat the key's existence as the alarm and no
             # existing consumer sees a new field on a healthy stream.
@@ -135,10 +171,14 @@ class TelemetryBus:
         # the night, and an unregister/re-register cycle (which every reconnect performs) must not be
         # able to launder it away.
 
-    def push(self, stream: str, values, fs: float | None = None):
+    def push(self, stream: str, values, fs: float | None = None, dev_ns: int | None = None):
         """Append a frame's worth of samples and broadcast to subscribers. `values` is either a flat
         iterable of numbers (scalar stream) OR an iterable of per-sample channel sequences (multi-channel,
-        e.g. PPG [c0,c1,c2,amb] or ACC [x,y,z]). The `v` field mirrors that shape so the UI knows."""
+        e.g. PPG [c0,c1,c2,amb] or ACC [x,y,z]). The `v` field mirrors that shape so the UI knows.
+
+        `dev_ns` is this frame's LAST sample on the DEVICE's own counter (PMD `sensor_ns`). Optional and
+        additive: streams that have no device clock (the O2Ring paths) simply omit it and keep the
+        arrival-time rate. Passing it is what makes `effFs` immune to BLE batching — see `_stream_rate`."""
         values = list(values)
         if not values:
             return
@@ -184,7 +224,7 @@ class TelemetryBus:
         w = self._win.get(stream)
         if w is None:
             w = self._win[stream] = collections.deque()
-        w.append((now, len(rows)))
+        w.append((now, len(rows), dev_ns))
         cutoff = now - _RATE_WIN_S
         while w and w[0][0] < cutoff:
             w.popleft()

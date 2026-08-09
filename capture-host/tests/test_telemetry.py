@@ -154,7 +154,10 @@ def test_capture_registers_pmd_streams_with_an_UNKNOWN_rate_until_negotiated():
 def test_meta_carries_efffs_and_health():
     bus = telemetry.TelemetryBus()
     m0 = next(x for x in bus.meta() if x["key"] == "ecg")
-    assert m0["health"] == "idle" and m0["effFs"] == 0.0     # declared, never pushed
+    # `None`, not 0.0 (DEVICE-RATE-TRUTH §6.3). This assertion used to read `== 0.0`, and that is the
+    # defect in miniature: a stream that has never been pushed has not been measured at 0 Hz — it has
+    # not been measured. The two read alike until something downstream paints a colour from the number.
+    assert m0["health"] == "idle" and m0["effFs"] is None     # declared, never pushed
     bus.push("ecg", list(range(130)), fs=130)
     m1 = next(x for x in bus.meta() if x["key"] == "ecg")
     assert "effFs" in m1 and m1["health"] == "good"          # a just-pushed stream is warmup→good, never idle
@@ -274,3 +277,147 @@ def test_the_two_ppg_streams_get_distinct_keys():
     import importlib
     cap = importlib.import_module("capture")
     assert cap._live_key("ppg", "vs") != "o2ppg"
+
+
+# ── effFs IS MEASURED ON THE DEVICE CLOCK (DEVICE-RATE-TRUTH §6.3) ─────────────────────────────
+# Two defects in one statistic, and they compound:
+#
+#   1. OFF-BY-ONE. `span` ran from the OLDEST frame's arrival while `total` counted that frame's
+#      samples too — so k frames of n samples at spacing T gave `k·n / ((k−1)·T)`, a k/(k−1) bias
+#      that is ALWAYS positive and never averages out. With the 5 s window holding ~9 ECG frames
+#      that is 130 × 9/8 = 146.25 Hz predicted, against 146.6 observed on the box.
+#   2. HOST CLOCK. BLE delivers frames in bursts; several frames arriving in one connection event
+#      share an arrival time, so an arrival-time denominator measures the RADIO's batching, not the
+#      sensor's rate. The device's own `sensor_ns` is immune by construction.
+#
+# The fix measures between the first and last frame's device stamps and counts exactly the samples
+# produced in that interval (frames[1:]) — an identity, not an estimate. The known-answer test is
+# the brief's: frames at exact device spacing, delivered in ARBITRARY bursts, must give
+# eff == nominal to ~1 ppm regardless of burst pattern.
+
+_NOMINAL, _PER_FRAME = 130.0, 73          # H10 ECG: 73 samples per PMD frame
+_FRAME_NS = int(round(_PER_FRAME / _NOMINAL * 1e9))
+
+
+def _feed(bus, key, bursts, *, t0_ns=1_000_000_000_000):
+    """Push frames at EXACT device spacing, grouped into `bursts` (frames per host wake-up).
+
+    Every frame carries a truthful `dev_ns`; the host clock is left to whatever the wall gives us,
+    which is the point — a burst collapses arrival times while device stamps stay evenly spaced.
+    """
+    ns, i = t0_ns, 0
+    for burst in bursts:
+        for _ in range(burst):
+            i += 1
+            bus.push(key, [float(i)] * _PER_FRAME, _NOMINAL, dev_ns=ns)
+            ns += _FRAME_NS
+    return i
+
+
+def test_efffs_is_the_device_rate_regardless_of_how_the_radio_batches_it():
+    """THE KNOWN ANSWER. Same frames, same device spacing, four different burst patterns."""
+    for bursts in ([1] * 12, [4, 4, 4], [1, 1, 10], [12]):
+        bus = telemetry.TelemetryBus()
+        bus.register("ecg_h10", "ECG", "uV", _NOMINAL, chans=1)
+        n = _feed(bus, "ecg_h10", bursts)
+        assert n == 12, "the fixture must deliver the same 12 frames every time"
+        eff = next(m for m in bus.meta() if m["key"] == "ecg_h10")["effFs"]
+        assert abs(eff - _NOMINAL) < 1e-3, (
+            f"burst pattern {bursts} gave {eff} Hz, not the device's {_NOMINAL} — effFs is measuring "
+            "the radio's batching or carrying the k/(k-1) bias, not the sensor's rate")
+
+
+def test_the_off_by_one_bias_is_gone_at_its_measured_magnitude():
+    """The specific arithmetic the box exhibited: 130 Hz reading 146.25.
+
+    Pinned as a VALUE, not a direction — a fix that merely reduced the bias would still pass a
+    `< previous` assertion, and this is the number the brief predicted from first principles and
+    then observed at 146.6.
+    """
+    bus = telemetry.TelemetryBus()
+    bus.register("ecg_h10", "ECG", "uV", _NOMINAL, chans=1)
+    _feed(bus, "ecg_h10", [1] * 9)                       # 9 frames = the box's 5 s ECG window
+    eff = next(m for m in bus.meta() if m["key"] == "ecg_h10")["effFs"]
+    assert abs(eff - 146.25) > 10.0, "still reporting the k/(k-1) inflated rate (~146.25 Hz)"
+    assert abs(eff - _NOMINAL) < 1e-3, f"expected the device rate {_NOMINAL}, got {eff}"
+
+
+def test_a_single_frame_cannot_state_a_rate_and_says_None_not_zero():
+    """One frame spans no interval. `0.0` is a MEASUREMENT of silence and would read as a stall;
+    the honest answer is that there is nothing to measure yet (Clock Contract §2.6, one layer up)."""
+    bus = telemetry.TelemetryBus()
+    bus.register("ecg_h10", "ECG", "uV", _NOMINAL, chans=1)
+    bus.push("ecg_h10", [1.0] * _PER_FRAME, _NOMINAL, dev_ns=1_000_000_000_000)
+    row = next(m for m in bus.meta() if m["key"] == "ecg_h10")
+    assert row["effFs"] is None, "a single frame must not manufacture a rate"
+    assert row["health"] == "good", "…and an unmeasurable rate must never be painted WEAK"
+
+
+def test_a_stream_with_no_device_stamps_still_gets_a_host_rate_without_the_bias():
+    """The O2Ring/SpO2 path pushes no `dev_ns`. It must keep working — and must not keep the bias."""
+    bus = telemetry.TelemetryBus()
+    bus.register("o2ppg", "O2Ring pleth", "raw", 125.0, chans=1)
+    for _ in range(6):
+        bus.push("o2ppg", [1.0] * 10, 125.0)             # no dev_ns
+    row = next(m for m in bus.meta() if m["key"] == "o2ppg")
+    assert row["effFs"] is not None, "a stampless stream must still report something"
+    assert row["effFs"] > 0.0
+
+
+def test_device_clock_wins_over_the_host_clock_when_both_are_available():
+    """Non-vacuity for the whole group: if the host clock were still in charge, a burst would show it.
+
+    All 12 frames are pushed back-to-back, so the host span is ~microseconds and an arrival-time
+    denominator would report an absurd rate. The device stamps say 130 Hz.
+    """
+    bus = telemetry.TelemetryBus()
+    bus.register("ecg_h10", "ECG", "uV", _NOMINAL, chans=1)
+    _feed(bus, "ecg_h10", [12])
+    eff = next(m for m in bus.meta() if m["key"] == "ecg_h10")["effFs"]
+    assert eff < 1000.0, "a host-clock denominator on a single burst reports thousands of Hz"
+    assert abs(eff - _NOMINAL) < 1e-3
+
+
+def test_a_device_clock_that_went_BACKWARD_falls_back_instead_of_reporting_a_negative_rate():
+    """Not theoretical: the H10 resets to a 2019 epoch whenever it leaves the strap.
+
+    DEVICE-RATE-TRUTH §3 measured 24 of our own H10 captures carrying `599616000000000000` ns. A reset
+    mid-window makes `devN < dev0`, and dividing by that span would report a NEGATIVE rate — which
+    `stream_health` would then read as WEAK, i.e. a strap-removal painted as a failing radio.
+    """
+    bus = telemetry.TelemetryBus()
+    bus.register("ecg_h10", "ECG", "uV", _NOMINAL, chans=1)
+    bus.push("ecg_h10", [1.0] * _PER_FRAME, _NOMINAL, dev_ns=900_000_000_000_000)
+    bus.push("ecg_h10", [1.0] * _PER_FRAME, _NOMINAL, dev_ns=599_616_000_000_000_000 % 1_000_000)  # reset
+    row = next(m for m in bus.meta() if m["key"] == "ecg_h10")
+    eff = row["effFs"]
+    assert eff is None or eff > 0, f"a backward device clock produced {eff} Hz"
+    assert row["health"] in ("good", "weak"), "…and must not crash the health rollup"
+
+
+def test_the_window_ages_out_to_None_rather_than_to_a_measured_zero():
+    """Everything older than the window is pruned. The old code returned 0.0 here — a stream that has
+    gone quiet is caught by `age_s` (→ stall), so 0.0 added nothing and claimed a measurement."""
+    bus = telemetry.TelemetryBus()
+    bus.register("ecg_h10", "ECG", "uV", _NOMINAL, chans=1)
+    bus.push("ecg_h10", [1.0] * _PER_FRAME, _NOMINAL, dev_ns=1_000_000_000_000)
+    # Reach in and age the single frame past the window, which is what wall-clock time would do.
+    bus._win["ecg_h10"][0] = (bus._win["ecg_h10"][0][0] - 600.0, _PER_FRAME, 1_000_000_000_000)
+    eff, age, warmup = bus._stream_rate("ecg_h10", __import__("time").monotonic())
+    assert eff is None, "an aged-out window has not measured 0 Hz; it has measured nothing"
+
+
+def test_two_frames_in_the_same_instant_with_no_device_stamp_refuse_rather_than_divide_by_zero():
+    """The last branch: a stampless stream whose two frames share an arrival time.
+
+    Real on a burst-delivered O2Ring push (the paths that pass no `dev_ns`) when the monotonic clock
+    does not tick between two callbacks. Driven through `_win` directly so it is deterministic rather
+    than a race — the property under test is the guard, not the scheduler.
+    """
+    bus = telemetry.TelemetryBus()
+    bus.register("o2ppg", "O2Ring pleth", "raw", 125.0, chans=1)
+    bus.push("o2ppg", [1.0] * 10, 125.0)
+    t = bus._win["o2ppg"][0][0]
+    bus._win["o2ppg"].append((t, 10, None))            # same instant, no device stamp
+    eff, _age, _warm = bus._stream_rate("o2ppg", t)
+    assert eff is None, "a zero-length interval must refuse, never divide"

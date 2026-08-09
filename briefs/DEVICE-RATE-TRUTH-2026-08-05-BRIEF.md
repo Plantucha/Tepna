@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-05 · **Extends:** `H10-ECG-RATE-CORPUS-CHECK-2026-08-04-BRIEF.md`
+**Status:** IN-PROGRESS — 2026-08-06 (**§6.3 DONE** — `effFs` measures the device clock, the k/(k−1) bias that made 130 Hz read 146.6 is gone, and an unmeasurable rate is `None` not `0.0`; known-answer test written first and observed failing. **§6.2 AUDITED** — four of five were already landed unstamped, and the fifth **cannot be done as written**: PPI back-timing contradicts a test-backed PulseDex contract, and PPI has no device-clock column to fix instead (§9.2). **§6.4's clobber bug** was already fixed. **§3's corrections landed in the source.** Still open: §5's configuration and the `RtPpg` night are **FIELD** actions; §6.5 Phase 4 is unblocked but wants a quiet window — see §9.4.) · **Created:** 2026-08-05 · **Extends:** `H10-ECG-RATE-CORPUS-CHECK-2026-08-04-BRIEF.md`
 
 # Every sample rate in this fleet is a label, and we measured all of them
 
@@ -410,15 +410,127 @@ our measurements and the AFE4410 / AFE4403 identifications.
 
 ## 7 · Done when
 
-- [ ] §6.1 columns land and one night is captured with the ring connected.
-- [ ] `Σ size` vs `Δ offset` reported; insert-vs-replace settled from the device counter.
-- [ ] §6.2's five fixes land with capture-host at 100 % statement+branch.
-- [ ] §6.3's known-answer test exists and fails before the fix.
-- [ ] §6.4's clobber bug fixed **before** any rate is set; §5's configuration applied and verified in the
-      daemon log, not the config file.
+- [x] ~~§6.1 columns land and one night is captured with the ring connected.~~ **VOID — §6.4a killed
+      Phase 0 on hardware:** `RtWave.offset` is empty on this firmware, so that night can never land.
+- [x] ~~`Σ size` vs `Δ offset` reported; insert-vs-replace settled from the device counter.~~ **Settled
+      by a better route** (§6.4a): 17 nights of row-rate regression, not one device register.
+- [x] **§6.2 — audited 2026-08-06. FOUR of the five were already landed and unstamped; the fifth cannot
+      be done as written.** See §9.2. capture-host stays at 100 % statement+branch.
+- [x] **§6.3 — DONE 2026-08-06.** Known-answer test written first and observed failing; see §9.1.
+- [~] §6.4's clobber bug fixed **before** any rate is set; §5's configuration applied and verified in the
+      daemon log, not the config file. — **the clobber bug is FIXED** (`webmon.py:730` now merges rather
+      than replacing); **applying §5's configuration is a FIELD action** no session can take from here.
 - [ ] O2Ring `RtPpg` enabled behind a flag; first night's battery cost measured and recorded here.
-- [ ] §6.5 blocked until §6.1 reports.
-- [ ] §3's corrections landed.
+      **Field-blocked** — it needs the box and a night.
+- [x] ~~§6.5 blocked until §6.1 reports.~~ **Unblocked by §6.4a, and deliberately NOT taken in this pass
+      — see §9.4 for the reason, which is a scheduling fact rather than a technical one.**
+- [x] **§3's corrections landed 2026-08-06** — in the source files, where a reader meets them. See §9.3.
+
+---
+
+## 9 · EXECUTED 2026-08-06 — what a session can do from here, and what it cannot
+
+This pass took the four items that are code, audited the ones already done, and stopped short of the two
+that need the box. The most useful finding is §9.2's: **one of the five §6.2 fixes contradicts a
+deliberate, test-backed decision, and this brief did not know that when it listed it.**
+
+### 9.1 · §6.3 — `effFs` now measures the sensor, not the radio
+
+The defect was two defects sharing one cure, and the brief predicted the arithmetic of the first exactly.
+
+- **OFF-BY-ONE.** `span` ran from the OLDEST frame's *arrival* while `total` counted that frame's samples
+  too — but those samples arrived AT the start of the interval; they were not produced during it. For
+  k frames of n samples at spacing T that is `k·n / ((k−1)·T)`, a k/(k−1) overstatement that is always
+  positive and never averages out. The 5 s window holds ~9 ECG frames, so 130 Hz read **130 × 9/8 =
+  146.25** predicted against **146.6** observed on the box.
+- **HOST CLOCK.** BLE hands several frames over in one connection event, so their arrival times collapse
+  and an arrival-time denominator measures the radio's batching. `push()` now takes the frame's last
+  sample on the device's own counter (`dev_ns`, additive and optional) and `_stream_rate` measures
+  between the first and last device stamps, counting exactly the frames that closed inside the interval.
+  That is an identity, not an estimate.
+- **`None`, never `0.0`.** Below two frames there is no interval. `0.0` is a *measurement of silence* and
+  reads downstream as a dead stream; silence is already caught by `age_s`. `stream_health` treats `None`
+  as "cannot judge" — it can never paint WEAK — and `meta()` publishes JSON `null`. The monitor already
+  null-guarded (`sigTitle`), so the UI needed no change.
+- **Fallbacks, both real rather than defensive.** A stream with no device stamp (the O2Ring paths) keeps
+  the arrival-time rate *with the off-by-one still fixed*; a device clock that did not advance falls back
+  the same way — the H10 resets to a 2019 epoch whenever it leaves the strap (§3), so a non-monotonic
+  pair is an event this corpus contains, and refusing beats reporting a negative rate that
+  `stream_health` would paint as a failing radio.
+
+**The known-answer test was written first and observed failing**, as the acceptance item asks: the same
+12 frames at exact device spacing, delivered as `[1]×12`, `[4,4,4]`, `[1,1,10]` and `[12]`, must all give
+130 Hz to ~1 ppm. Seven tests in total, including the 146.25 figure pinned as a VALUE (a fix that merely
+*reduced* the bias would pass a `< previous` assertion) and the backward-clock and zero-interval branches.
+
+### 9.2 · §6.2 — four were already done; the fifth contradicts a decision this brief did not see
+
+| item | state |
+|---|---|
+| `_ctrl` filters on `0xF0` **and** the echoed opcode; `0x01` routed | **already landed** — `polar_pmd.is_control_response` / `stopped_measurements`, wired at `capture.py:1685` |
+| `polar_pmd` comment 64 → **128 ns** | **already landed** (`:563`) |
+| mask `data[0] & 0x3F` | **already landed** (`:469`) |
+| GYRO T1 = 3 × f32, MAG T1 = 4 × 16 — decode or raise | **already landed** (`:495–514`, raises rather than mis-decoding) |
+| **PPI per-beat back-timing by `Σ ppInMs`** | **CANNOT BE DONE AS WRITTEN — see below** |
+
+The fifth was implemented, and it reddened **two existing tests that pin the current behaviour on
+purpose**. `test_ppi_is_arrival_stamped_not_back_timed` states the reason in its own docstring:
+
+> *"PPI/HR carry per-beat events, so they are NOT back-timed (back=0) — which is exactly why their Phone
+> column measures monotonic on real files while ECG/ACC/PPG's does not. PulseDex reads the Phone column
+> and has a one-way two-pointer matcher, so it depends on this."*
+
+That is a documented consumer contract, not an oversight, and this brief's one-line item does not
+acknowledge it. Two further facts close the question:
+
+- **PPI has no device-clock column to fix instead.** `writers.write_ppi` deliberately does not emit
+  `sensor_ns` — *"PPI frames carry no usable device clock (every row the box has written has
+  `sensor_ns == 0`)"*, which `nightqc.file_span_sec` already assumes. So back-timing `sensor_ns` (the
+  change that would preserve PulseDex's contract) writes to a column that does not exist, and off a
+  `last_ns` of 0 it would produce **negative** timestamps.
+- Therefore the only column the item can mean is **Phone**, which is precisely the one the test forbids.
+
+**So the item is real but mis-scoped.** Beats in a frame genuinely do collapse onto one instant, and for
+the one stream whose entire content is an interval that is a real loss — but fixing it is a cross-system
+change (capture-host **and** PulseDex's matcher), not a decoder edit. **Reverted here and routed**, with
+the PulseDex dependency named, rather than landed against a test that explains why not.
+
+### 9.3 · §3 — corrections landed in the source, not only in the briefs
+
+Put where a reader meets them — the constant, not the write-up:
+
+- **`oxyii.py`** — `PPG_INVALID` is renamed `PPG_BEAT_MARKER` (the old name kept as an alias so no reader
+  breaks) and its block now says 156 is an **inserted row, one per detected beat**, with all three
+  measurements. The prior note's own evidence is quoted back at it: *"~0.66/frame"* at a ~1 s poll is
+  40 bpm — a pulse, not a defect rate. Both standing instructions were wrong in opposite directions (the
+  vendor interpolates it away; we said treat it as a gap), and the ⚠️ that it is **not** a usable beat
+  reference (ratio 0.936 vs the H10's own `_RR.txt`) rides with it so the correction cannot be
+  over-read.
+- **`oxyii.py PPG_FRAME_SAMPLES`** — 126 is `125 + markers`, so *"126.04 per device-second"* is
+  125 + 1.04 beats/s = 62 bpm and the 124–128 per-frame spread is heart-rate variation. And −3446 ppm
+  describes the **duration counter**, one night, against a 44-session median of **+540 ppm** (range
+  −314 … +4282) — not the sample clock, which is crystal-exact.
+- **`capture.py`** (the step-imbalance derivation) and **`tools/o2ring-step-imbalance.mjs`** — the −3446
+  ppm constant is correctly *scoped* in both (they really are discussing the duration counter), so the
+  correction is that it is **one night and atypical**: the reference night sits outside the 44-session
+  range with the opposite sign to the median. Marked as a sanity check, never a calibration.
+- **`PMD-DECODE-SCALE-AND-RATE` §3 deliberately NOT re-filed** — §3's own first row says
+  `H10-ECG-RATE-CORPUS-CHECK` §4 owns it and *"do not file it twice"*.
+
+### 9.4 · What this pass did NOT do, and why
+
+- **§5's capture configuration and the `RtPpg` battery night are FIELD actions.** They need the box and a
+  night; the repo cannot green them. Note §5 itself says to verify in the **daemon log, not the config
+  file** — and the box's `config.yaml` is gitignored and already diverges from the checkout, so this must
+  be done there and reported back.
+- **§6.5 Phase 4 was left alone for a scheduling reason, not a technical one.** It edits `ppgdex-dsp.js`,
+  and at the time of this pass a **20-worker mutation sweep was running against exactly that file**
+  (`.mutate-w0..19`, over cpapdex/glucodex/hrvdex/motiondex/ppgdex/pulsedex). A DSP change also re-stamps
+  every bundle's `manifestHash` (`CLAUDE.md` §👥.3), so it serialises against every other session
+  touching a bundle. It is unblocked and ready; it wants a quiet window, and it should be its own
+  work-unit with the fixture regeneration budgeted.
+- **§8's open questions are untouched** — the value `199`, one-unit/one-night, and whether the ring
+  exposes an accelerometer.
 
 ---
 

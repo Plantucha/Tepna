@@ -501,6 +501,15 @@ class O2PpgFrameLedger:
     samples. Both read one second's worth, so **no frame is missing**. The ring's second is 1.00346 host-
     seconds (the -3446 ppm above) against a 1.0028 s poll interval — two nearly-equal periods, so which
     side of a ring-tick a poll lands on wanders and the counter occasionally ticks twice or not at all.
+
+    ⚠️ -3446 ppm IS ONE NIGHT, AND IT IS NOT TYPICAL (DEVICE-RATE-TRUTH §3, 2026-08-06). The quantity is
+    scoped correctly here — this paragraph is about the DURATION COUNTER, which is the thing -3446 ppm
+    actually describes — but across 44 sessions that counter's error is median **+540 ppm**, range
+    **-314 ... +4282**: the reference night is an outlier, and the sign is usually the other way. The
+    beat above is therefore real but its PERIOD varies session to session, which is a further reason no
+    single step is a measurement. Do not calibrate against -3446, and do not carry it to the SAMPLE
+    clock: that one is crystal-accurate (125.000000 Hz exactly, AFE4403 with no internal RC), and the
+    two are separate timebases inside one device.
     The 159 and the 180 nearly cancel, and that cancellation is exactly why `device_seconds` survives as
     a span while no single step is a measurement.
 
@@ -1594,10 +1603,17 @@ async def run_polar(dev: dict, root: str):
                         elif meas == pmd.PPI:  wr.write_ppi(smp.phone, smp.sensor_ns, v[0], v[1], v[2], v[3])
                     # Live push — RAW, per-stream shape (no on-box DSP):
                     key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas) or pmd.SAMPLE_HZ.get(meas)
+                    # The frame's LAST sample on the DEVICE's own counter. `effFs` is measured off this
+                    # rather than off arrival times (DEVICE-RATE-TRUTH §6.3): BLE hands several frames
+                    # over in one connection event, so their arrival times collapse together and an
+                    # arrival-time denominator reports the radio's batching, not the sensor's rate.
+                    # Waveform streams only — PPI is per-beat by construction (`SAMPLE_HZ[PPI] = 0`),
+                    # so it has no rate to measure and is judged on silence alone.
+                    dev_ns = samples[-1].sensor_ns
                     if meas == pmd.ECG:
-                        BUS.push(key, [s.values[0] for s in samples], hz)
+                        BUS.push(key, [s.values[0] for s in samples], hz, dev_ns=dev_ns)
                     elif meas in (pmd.PPG, pmd.ACC, pmd.GYRO, pmd.MAG):
-                        BUS.push(key, [list(s.values) for s in samples], hz)      # multi-channel
+                        BUS.push(key, [list(s.values) for s in samples], hz, dev_ns=dev_ns)  # multi-channel
                     # No `else`: this chain is EXHAUSTIVE over pmd.MEAS_NAME (ecg · ppg · acc · gyro ·
                     # mag · ppi), and a meas outside it cannot reach here — `writers` is keyed by those
                     # six, so an unknown one already returned at the `not wr` guard above, and the
