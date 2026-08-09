@@ -108,7 +108,12 @@ And to CHECK a tree is in sync, use 'git status --porcelain' (the tree), not 'gi
 fi
 
 # `git add -A` / `--all` / `.` / `:/`  — blanket staging
-_RE="$GITX"'add[[:space:]]+([^;&|]*[[:space:]])?(-A\b|--all\b|-u\b|--update\b|\.([[:space:]]|$)|:/)'
+# `git add *` was allowed (adversarial pass 2026-08-05). Both spellings are blanket staging:
+#   git add *     the SHELL expands it to every top-level entry
+#   git add '*'   git's OWN pathspec glob, which matches every file RECURSIVELY — strictly worse
+# Same damage as `-A`: it sweeps a concurrent session's in-flight files into your commit under your
+# message. `git add ./*` is the same thing with a prefix.
+_RE="$GITX"'add[[:space:]]+([^;&|]*[[:space:]])?(-A\b|--all\b|-u\b|--update\b|\.([[:space:]]|$)|:/|'"$QT"'(\./)?\*'"$QT"'([[:space:]]|$))'
 if grep -qE "$_RE" <<<"$cmdn"; then
   deny "BLOCKED: blanket staging in a SHARED checkout (CONTRIBUTING §6).
 
@@ -206,7 +211,30 @@ _ckseg="$(grep -oE "$GITX"'(checkout|restore)[^;&|]*' <<<"$cmd_nohd" || true)"
 # resolves to a root source file. tools/rebase-safe.mjs fixed this in the CLASSIFIER (#990); the hook
 # kept the walkable prefix test. Anything containing `..` is kept as source regardless of its prefix —
 # git never emits such a path from --diff-filter=U, so this only ever over-flags a hand-written one.
-_srcpaths="$(grep -oE '[^[:space:];&|"'"'"']+\.(js|mjs|py|sh|md|json|css|toml|ya?ml|txt|cff|src\.html)' <<<"$_ckseg" | awk '/\.\./ { print; next } !/^(\.\/)?(docs|provenance)\// { print }' || true)"
+#   5. `docs/` IS NOT WHOLESALE GENERATED, and the hook and the classifier disagreed about it.
+#      `build-docs.mjs` owns the SERVED copies under docs/ — a root page synced down, an asset
+#      byte-copied, the six site artifacts it names — but docs/ ALSO holds 28 AUTHORED specs no builder
+#      writes: docs/LEXICON.md, docs/EVENT-LEXICON.md, docs/EXPORT-SHAPES.md, all of docs/COMPLIANCE/.
+#      #990 fixed exactly this in the CLASSIFIER, so `rebase-safe.mjs --classify docs/LEXICON.md` says
+#      SOURCE — while this hook still waved through the hand-rolled checkout that reverts it. A guard
+#      and the tool it points at must not disagree about the same path. `docs/**.md` is therefore kept
+#      as source; every other docs/ path stays exempt, because those really are rebuildable.
+#   6. AUTHORED `*.html` WAS INVISIBLE. The list carried `src.html` but not `html`, so `Science.html`,
+#      `index.html` and every `* Reference.html` — all hand-written — could be reverted silently. This
+#      is the mirror of the glob rebase-safe.mjs's own docstring refuses to use, for the same reason.
+#      The bundles ARE rebuildable, so they stay exempt by name. That list is a deliberate exception to
+#      "never enumerate the generated set in bash", and it is safe BECAUSE it is an allow-list: if a
+#      bundle is added to the fleet and not added here, the guard merely over-denies and points at
+#      `npm run rebase`, which is the correct answer for a bundle conflict anyway.
+_srcpaths="$(grep -oE '[^[:space:];&|"'"'"']+\.(js|mjs|py|sh|md|json|css|toml|ya?ml|txt|cff|html)' <<<"$_ckseg" \
+  | awk '
+      /\.\./                                   { print; next }   # traversal never inherits an exemption
+      /^(\.\/)?docs\/.*\.md$/                  { print; next }   # AUTHORED spec under docs/ (see 5)
+      /^(\.\/)?(docs|provenance)\//            { next }          # served copy / ledger fragment
+      /^(\.\/)?(ECGDex|OxyDex|PulseDex|GlucoDex|PpgDex|HRVDex|CPAPDex|Integrator|MotionDex|OverDex)\.html$/ { next }
+      /^(\.\/)?Unifier\.html$/                 { next }          # tail of the quoted "Data Unifier.html"
+                                               { print }
+    ' || true)"
 
 # UNKNOWABLE PATHS MUST FAIL CLOSED. The extraction above needs a path token to be VISIBLE — so the
 # canonical form, the one CLAUDE.md §2c prints and the one that did the damage,

@@ -183,6 +183,37 @@ relaxed(){ local got; got=$(v "$1" "$H"); local base; base=$(v "$1" "$BASE")
 # genuine, one-line loosening.
 
 echo
+echo "### MUST DENY — the three classes still open after the 2026-08-05 pass (measured against main)"
+# Re-probed 2026-08-08 against the merged guard: of eight bypasses found on 08-05, five were closed
+# (command substitution, local-branch/tag/short-hash refs, the -s form). These three were not. Each is
+# listed with several paths, so a green line is a CLASS and not one lucky filename.
+#
+# CLASS 2 is the sharpest, because the guard and the tool it points at disagreed about the same path:
+# `rebase-safe.mjs --classify docs/LEXICON.md` says SOURCE (fixed by #990), while the hook exempted all
+# of docs/ and so permitted the hand-rolled checkout that reverts it — the very file that was silently
+# reverted on 2026-08-05.
+while IFS= read -r c; do [ -n "$c" ] && [[ "$c" != \#* ]] && chk DENY "$c"; done <<'DENY3'
+# 1 · authored *.html at the repo root — the list carried src.html but not html
+git checkout origin/main -- Science.html
+git checkout origin/main -- index.html
+git checkout origin/main -- "OxyDex Reference.html"
+git checkout origin/main -- "CPAPDex Reference.html"
+git checkout origin/main -- Science.html OverDex.html
+# 2 · AUTHORED specs under docs/ — everything else under docs/ stays exempt
+git checkout origin/main -- docs/LEXICON.md
+git checkout origin/main -- docs/EVENT-LEXICON.md
+git checkout origin/main -- docs/EXPORT-SHAPES.md
+git checkout origin/main -- docs/COMPLIANCE/SOUP-LIST.md
+git checkout origin/main -- docs/OxyDex.html docs/LEXICON.md
+DENY3
+# 3 · blanket staging by glob. These go through chk directly rather than a heredoc: the add rule
+# matches $cmdn RAW (deliberately — so `bash -c "git add -A"` cannot hide), which means a heredoc
+# listing the glob denies the very command that writes this matrix. Noted rather than worked around.
+chk DENY 'git add *'
+chk DENY "git add '*'"
+chk DENY 'git add ./*'
+
+echo
 echo "### MUST ALLOW — ordinary work"
 while IFS= read -r c; do [ -n "$c" ] && [[ "$c" != \#* ]] && chk allow "$c"; done <<'ALLOW'
 # creating a BRANCH is not a ref-checkout of a path; main allows it too, it was mis-filed as DENY
@@ -212,6 +243,10 @@ git checkout origin/main -- OverDex.html
 git checkout origin/main -- "Data Unifier.html"
 git checkout origin/main -- provenance/Integrator.json
 git checkout origin/main -- docs/OxyDex.html
+git checkout origin/main -- docs/dex-badges.css
+git checkout origin/main -- docs/sitemap.xml
+git checkout origin/main -- OxyDex.html
+git checkout origin/main -- Integrator.html MotionDex.html
 node tools/rebase-safe.mjs
 git fetch origin main:main
 git merge --ff-only origin/main
