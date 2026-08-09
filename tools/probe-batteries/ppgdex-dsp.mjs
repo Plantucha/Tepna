@@ -192,8 +192,55 @@ function rows(n, { header = HDR6, cols = 6, fs = 135, jitterMs = 0, crlf = false
   }
   return out.join(crlf ? '\r\n' : '\n');
 }
+/* TWO CLOCKS, ON PURPOSE — without this the whole `timingSource` arm is unreachable and the family
+   reports BLIND. `rows()` above emits a device column of `i * 1e6` ns, i.e. perfectly uniform, so
+   `quantizedShare` saturates, the axis is judged DRAWN (`axisSynthetic`), and L680's
+   `axisSynthetic ? 'host' : hostAx.independent === false ? 'device' : 'device+host'` short-circuits
+   on the FIRST branch. The `=== false` comparison is then never evaluated by any input, so its mutant
+   `!== false` cannot be separated — the battery was blind to it, not the code equivalent to it.
+
+   Separating it needs BOTH halves of CLAUDE.md §7's discriminator:
+     · a device column with real per-sample jitter, so the axis is NOT drawn;
+     · a host column whose residual SPREAD is above/below the 2 ms independence bound —
+       >2 ms is a genuine second clock (box capture, 101.89–5124 ms observed), while a host column
+       derived from the device stamp and rounded lands at ≤1 ms (phone capture, 0.13–1.00 ms).
+   `hostNoiseMs` picks which side of that bound the case lands on. Deterministic pseudo-noise: a
+   probe must be byte-reproducible, so no Math.random. */
+function rowsTwoClock(n, { fs = 135, devJitterUs = 900, hostNoiseMs = 6, startMs = 0 } = {}) {
+  const out = [HDR6];
+  const step = 1000 / fs;
+  let devMs = 0;
+  for (let i = 0; i < n; i++) {
+    // device axis: real crystal jitter, so inter-sample deltas do NOT concentrate on one value
+    devMs += step + (((i * 7919) % 1000) / 1000 - 0.5) * (devJitterUs / 500);
+    // host axis: the device instant plus delivery noise (or a rounded copy of it when noise is 0)
+    const noise = hostNoiseMs ? (((i * 6271) % 1000) / 1000 - 0.5) * 2 * hostNoiseMs : 0;
+    const hostMs = startMs + devMs + noise;
+    const t = new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + Math.round(hostMs)).toISOString().replace('T', ' ').replace('Z', '');
+    out.push(`${t};${Math.round(devMs * 1e6)};${1000 + i};${2000 + i};${3000 + i};${400 + i}`);
+  }
+  return out.join('\n');
+}
+
 const PP_CASES = [];
 {
+  /* ── the timingSource arm (L680) ──
+     ⚠ THE ROW COUNT IS LOAD-BEARING AND IT IS NOT SMALL. An anchor is taken on 1 row in every
+     `PPG_AXIS_EVERY = 500`, and `hostAxis` refuses below THREE anchors (clock.js §7: two points define
+     a line through any jitter and cannot be checked). So a 400-row case yields exactly ONE anchor,
+     `hostAx.ok` is false, and the whole thing takes the L682 branch — L680 never executes and its
+     mutant is unkillable BY THE BATTERY, not by the code. Measured, after the first widening still
+     read BLIND: 1600 rows ⇒ 4 anchors, 2600 ⇒ 6.
+     With ok:true both arms are then reachable and either one separates `=== false` from `!== false`:
+       hostNoiseMs 0  ⇒ spread ~0.65 ms ⇒ independent FALSE ⇒ 'device'
+       hostNoiseMs 40 ⇒ spread ~58 ms   ⇒ independent TRUE  ⇒ 'device+host'   */
+  PP_CASES.push([rowsTwoClock(1600, { hostNoiseMs: 0 }), undefined]);
+  PP_CASES.push([rowsTwoClock(1600, { hostNoiseMs: 40 }), undefined]);
+  PP_CASES.push([rowsTwoClock(1600, { devJitterUs: 0, hostNoiseMs: 40 }), undefined]);
+  PP_CASES.push([rowsTwoClock(1600, { devJitterUs: 0, hostNoiseMs: 0 }), undefined]);
+  PP_CASES.push([rowsTwoClock(2600, { hostNoiseMs: 40 }), undefined]);
+  PP_CASES.push([rowsTwoClock(1600, { hostNoiseMs: 1.2 }), undefined]); // near the 2 ms bound
+  PP_CASES.push([rowsTwoClock(400, { hostNoiseMs: 6 }), undefined]); // ONE anchor ⇒ the ok:false arm (L682)
   // the row-count floor FROM BOTH SIDES — only a case at exactly the floor separates `<` from `<=`
   for (const n of [0, 1, 2, 5, 8, 9, 10, 11, 12, 50, 200]) PP_CASES.push([rows(n), undefined]);
   for (const n of [9, 10, 11]) PP_CASES.push([rows(n, { header: '' }), undefined]); // HEADERLESS — a real PSL case

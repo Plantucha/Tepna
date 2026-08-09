@@ -45,3 +45,28 @@ the denominator.
 
 Also measured: `ppgdex-dsp.js` is 451/1187 = 38.0 % (full 1202-mutant sweep, canary NONE), which
 replaces the ≈36.5 % the brief carried from adding three commit messages together.
+
+FOLLOW-UP IN THE SAME WORK-UNIT — parsePPG was BLIND and is not any more, so the payload trebled.
+
+The blind control was `L680 [eq === → !==]` on
+`timingSource: axisSynthetic ? 'host' : hostAx.independent === false ? 'device' : 'device+host'`.
+Two widenings were needed, and the FIRST one did not work — recorded because guessing twice is the
+lesson:
+
+  · Widening 1: rows with a jittered device column and a noisy host column, so the axis is not DRAWN
+    and the host has real spread. Battery went 54 -> 66 inputs and 20 -> 32 distinct answers, so the
+    cases genuinely reached new behaviour — and the control was STILL blind.
+  · Measuring instead of guessing again: `hostAxis` came back `ok:false, "need >=3 host anchors, got
+    1"`. An anchor is taken on 1 row in every PPG_AXIS_EVERY = 500, and clock.js section 7 refuses
+    below three. So every case under ~1001 rows takes the L682 branch and L680 NEVER EXECUTES. The
+    row count was load-bearing and none of the 54 original cases came close.
+  · Widening 2: 1600 rows (4 anchors) and 2600 (6). Both arms then reachable — hostNoiseMs 0 gives
+    spread ~0.65 ms => independent FALSE => 'device'; hostNoiseMs 40 gives ~58 ms => TRUE =>
+    'device+host' — and either separates the mutant.
+
+parsePPG now separates 11/11 controls: 39 survivors -> 6 distinguishable, 31 no-distinguishing,
+2 realm-fail. `tools/mutate-equivalence.json` carries 41 ppgdex entries, all matching a sweep
+survivor on (line, op, before), none overlapping an invalid.
+
+⚠️ The 6-of-37 is a LOWER bound and is NOT comparable to #1052's 10-of-38: different battery, and the
+code has moved since (#1072, #1089). A wider battery can only ever find MORE distinguishable mutants.
