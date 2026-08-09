@@ -127,3 +127,51 @@ The other lesson is procedural and cost real time: `npm run check | tail -25` re
 exit code. A gate that had FAILED at `verify:analysis` read as green — `CLAUDE.md` §4b, walked into by
 the same session that had just written that section into an audit brief. Capture `$?` of the command
 itself; never read a verdict off a truncation.
+
+---
+
+## F12 — REFUTED by measurement (2026-08-08). Do not ship the unit conversion.
+
+F12 carried its own instruction — *"the headline magnitudes come from one hunter with one confirming
+reader — **reproduce before this drives a DSP edit**"* (§4.7). Reproduced, on every IMU file in the
+corpus rather than on one night. **The load-bearing half does not survive.**
+
+| stream | files | declared unit | measured magnitude | verdict |
+|---|---|---|---|---|
+| ACC | 113 | `X [mg]` | median-of-medians **994.95 mg** (958–1062) | correct — 1 g at rest |
+| GYRO | **61** | `X [dps]` | p50 **4–37**, p99 25–174, max **231–350** | correct — **dps**, not LSB |
+| MAG | 57 | `X [G]` | median **0.93** | Gauss (≈93 µT); plausible indoors |
+
+Every one of the 61 GYRO files declares `[dps]` in its header, and **not one file anywhere in the
+corpus has `max|gyro| > 2000`** — the tell that would be unmissable if the column were raw LSB at
+16.384 LSB/dps. Under the LSB hypothesis the real motion of a sleeping arm would be p50 ≈ 0.3 dps and
+max ≈ 21 dps, which is not arm movement. The claim of "543 real corpus files in raw LSB" does not
+reproduce; there are 61 GYRO files in total.
+
+### The repro was real, and it measured something else
+
+`analyzablePct 20 → 66` is not in dispute. What it shows is: dividing an already-dps column by 16.384
+drives the gyro term to ≈ 0, and **a term that is ≈ 0 is a term that has been removed.** The brief
+recorded the discriminator itself and read past it — the no-gyro control gives **68 % / 100.4 ms**
+against the "fixed" **66 % / 99.2 ms**. Those are the same number. The conversion did not correct the
+gyro; it deleted it.
+
+Read forward instead: with p99 reaching 174 dps against a `v/40` dps normaliser, ordinary arm movement
+saturates the gate, so the gyro rejects epochs that carry usable PPG. **The defect is the THRESHOLD,
+not the unit** — which is why removing the gyro entirely (68 %) beats keeping it (20 %). That is a
+real finding and it is now the open item; it needs a threshold justified against the measured
+distribution, not a scale factor.
+
+### What was NOT shipped, and why
+
+No DSP edit. Applying the conversion would take a correctly-scaled column and make it wrong by 16×,
+in the confident-looking way that is hardest to find later — and it would have shipped with a green
+suite, because nothing gates the *unit* of an input. Fix `(a)` (porting `streamKindFromHeader` +
+`xyzPlausible`) is still worth having as a guard against a future file that genuinely differs, but the
+brief already labels it *"a no-op for the headline"*, and with `(b)` refuted it should be filed on its
+own merits rather than as a fix for this.
+
+**This is the second claim in this audit killed by measuring the corpus instead of one night** (§3
+killed the near-identical `accFs` claim on the "effective" wording; F19 survived only because the
+surfaced KPI and the export field were checked and say plain `ACC Hz` / `accFs`). The pattern worth
+keeping: a repro that improves a headline is not evidence of the mechanism you assigned to it.
