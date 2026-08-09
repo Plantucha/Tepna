@@ -15,10 +15,11 @@ an oversight to be "finished" later.
 """
 from __future__ import annotations
 
+import ast
 import re
 
-__all__ = ["classify", "ceiling", "concentration", "REACHABLE", "PROSE", "UNOBSERVABLE",
-           "EQUIVALENT"]
+__all__ = ["classify", "ceiling", "concentration", "message_call_lines", "REACHABLE", "PROSE",
+           "UNOBSERVABLE", "EQUIVALENT"]
 
 REACHABLE = "REACHABLE"
 PROSE = "PROSE"
@@ -36,11 +37,99 @@ def _strip_strings(s: str) -> str:
     return _STR.sub("STR", s)
 
 
-def classify(minus: str, plus: str) -> tuple[str, str]:
+# `log.warning("%s %s → %s", name,` spans several lines, and `classify` is handed ONE of them. A
+# continuation line — `pmd.CTRL_STATUS.get(st, hex(st)))` — carries no `log.` to match, so `_MSG` says
+# no and the mutant reads as a code change. Measured on run_polar 2026-08-08: of 560 REACHABLE
+# survivors, ~150 were message arguments and most of them sat on continuation lines, inflating the
+# work-list by a quarter. A line cannot answer this about itself; the enclosing CALL can.
+_MSG_FUNCS = frozenset({"print", "log", "logger", "_log", "warn", "warning", "info", "debug",
+                        "error", "exception", "critical", "write"})
+
+
+def _callee_names(fn: ast.expr) -> list[str]:
+    out = []
+    while isinstance(fn, ast.Attribute):
+        out.append(fn.attr)
+        fn = fn.value
+    if isinstance(fn, ast.Name):
+        out.append(fn.id)
+    return out
+
+
+def message_call_lines(source: str) -> frozenset[int]:
+    """1-indexed line numbers that lie inside a log/print CALL, continuation lines included.
+
+    Parsed, never grepped. A regex over lines cannot tell `log.info("...", x,` from a dict literal that
+    merely mentions `info`, and it cannot see that line 1832 belongs to a call opened on 1830.
+
+    Fails CLOSED: unparseable source yields the empty set, so every line is judged on its own merits
+    and nothing is silently downgraded to PROSE. The opposite default would let a syntax error mark a
+    whole module unkillable — which is the shape of failure this tool exists to prevent."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return frozenset()
+
+    # A LOGGER METHOD BOUND TO A LOCAL is still a logger. capture.py picks the level first and calls it
+    # second, so the call site reads `_lvl(...)` and matches nothing:
+    #     _lvl = (log.warning if not (pmd.is_started(st) or transient)
+    #             else log.debug if transient and name in _CHARGING else log.info)
+    #     _lvl("%s START %s (%s) → %s", name, pmd.MEAS_NAME.get(meas, meas), how, ...)
+    # Nineteen run_polar mutants sat on those two statements. The alias is taken ONLY from an assignment
+    # whose value really is an attribute of a logger — inferred from the code, never from the name, so
+    # a local that merely happens to be called `_lvl` is not swept in.
+    aliases: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(sub, ast.Attribute) and _callee_names(sub)[-1:] in (["log"], ["logger"], ["_log"])
+                   for sub in ast.walk(node.value)):
+            continue
+        aliases.update(t.id for t in node.targets if isinstance(t, ast.Name))
+
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        names = _callee_names(node.func)
+        # `log.warning(...)` -> ['warning', 'log']; `print(...)` -> ['print']. Require the LOGGER, not
+        # just the level name, so `d.get("info")` and `self.write(buf)` are not swept in.
+        if not names:
+            continue
+        base = names[-1]
+        if (base in ("log", "logger", "_log", "print") or base in aliases
+                or (base == "sys" and "write" in names)):
+            lines.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+    return frozenset(lines)
+
+
+def classify(minus: str, plus: str, *, in_message_call: bool = False) -> tuple[str, str]:
     """One mutant's `-` and `+` lines -> (bucket, why).
 
     ORDER MATTERS: the unobservable forms are tested before the general ones, because each is a
     SPECIAL CASE of a change that would otherwise look reachable.
+
+    `in_message_call` is trailing, optional and keyword-only (CLAUDE.md's back-compat rule): callers
+    that have the source pass `lineno in message_call_lines(src)` so a CONTINUATION line of a
+    multi-line `log.info(...)` is judged as what it is. Callers that don't keep the old behaviour.
+
+    ⚠️ A MESSAGE CALL'S ARGUMENTS ARE PROSE (decided 2026-08-08, owner). This used to return REACHABLE
+    with the rationale "assert the message names its value (`ts in out`), which survives any rewording
+    and dies on the drop". That reasoning is sound in the small and wrong at scale. It was measured on
+    `run_polar`: ~150 of 560 REACHABLE survivors were message arguments — a quarter of a work-list that
+    is supposed to say what is worth a human's time. Killing them means asserting that specific values
+    appear in specific log lines, which pins operator-facing wording across the daemon and reds the
+    build on every message edit — the same cost §5 of CAPTURE-HOST-MUTATION-FLEET already refuses to
+    pay for `flush=`/`XX`-wrapping, and the same failure mode as a gate nobody dares change.
+
+    This is a deliberate LOWERING of the stated ceiling, not a hidden one. PROSE is reported in its own
+    column and `ceiling()` still subtracts only UNOBSERVABLE, so a reader sees exactly how much was set
+    aside and can disagree. The rule it encodes: a mutation that can only be caught by asserting on
+    words a human reads is not a defect the suite should own.
+
+    NOT covered by this, and still REACHABLE on purpose: a message call whose mutation escapes the
+    message — a lost `%` operand that raises, an argument that changes control flow, anything the
+    `same_code` and message tests below do not both accept.
     """
     a, b = minus.strip(), plus.strip()
     if a == b:
@@ -60,18 +149,16 @@ def classify(minus: str, plus: str) -> tuple[str, str]:
         return UNOBSERVABLE, "case flip only — needs exact-text assertion"
 
     same_code = _strip_strings(a) == _strip_strings(b)
-    is_msg = _MSG.match(a) is not None
+    is_msg = in_message_call or _MSG.match(a) is not None
 
     if same_code:
         return PROSE, ("log/print wording only, interpolated values intact" if is_msg
                        else "string literal only, surrounding code unchanged")
 
-    # A message call that LOST an argument is reachable without pinning wording: assert the message
-    # names its value (`ts in out`), which survives any rewording and dies on the drop.
     if is_msg and _LOST_ARG.search(b):
-        return REACHABLE, "message call lost an argument — assert the message names its value"
+        return PROSE, "message call lost an argument — killable only by asserting the wording"
     if is_msg:
-        return REACHABLE, "message call changed structurally"
+        return PROSE, "message call changed structurally — killable only by asserting the wording"
     return REACHABLE, "code change"
 
 
