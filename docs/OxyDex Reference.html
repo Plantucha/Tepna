@@ -2235,7 +2235,7 @@ body.light .ev-measured { border-color:var(--surface); }
         <p class="md"><strong>Nieto FJ, Young TB, Lind BK, et al.</strong> Association of sleep-disordered breathing, sleep apnea, and hypertension in a large community-based study (Sleep Heart Health Study). <em>JAMA.</em> 2000;283(14):1829&#x2013;1836. doi: <a href="https://doi.org/10.1001/jama.283.14.1829" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1001/jama.283.14.1829</a></p>
         <div class="fb">
           <div class="fl">Metrics covered</div>
-          <div class="ft">Establishes the SDB&#x2192;hypertension association underpinning BP Projection. <strong>Note:</strong> the specific linear coefficients (ODI-4 &#x2192; +0.37 mmHg SBP / +0.17 mmHg DBP per event&#xB7;hr) are this app&#x2019;s internal calibration, <em>not</em> a published table from this paper &#x2014; treat as directional.</div>
+          <div class="ft">Establishes the SDB&#x2192;hypertension association &#x2014; the clinical reason an oximetry-derived ODI matters at all. <strong>No metric in this app is derived from it.</strong> It formerly underpinned <em>BP Projection</em>, which was <strong>removed 2026-06-23</strong> (cuffless BP from oximetry/HRV is indefensible; cuff SBP/DBP is a user input only), and the internal linear coefficients that projection used went with it.</div>
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
@@ -2529,8 +2529,6 @@ body.light .ev-measured { border-color:var(--surface); }
         <tr><td class="fmt-m">SampEn (SpO&#x2082;)</td><td class="nr">Richman 2000</td><td class="fmt-m">Signal Processing</td></tr>
         <tr><td class="fmt-m">SDNN proxy, RMSSD proxy</td><td class="nr">Task Force 1996</td><td>HRV</td></tr>
         <tr><td class="fmt-m">SD1 / SD2 Poincaré</td><td class="nr">Brennan 2001</td><td>HRV</td></tr>
-        <tr><td class="fmt-m">BP Projection (ODI contribution)</td><td class="nr">Nieto 2000</td><td>CV Outcomes</td></tr>
-        <tr><td class="fmt-m">BP Projection (HD94 contribution)</td><td class="nr">Kim/Azarbarzin 2020 (MESA)</td><td>CV Outcomes</td></tr>
         <tr><td class="fmt-m">VO&#x2082;max (Uth-S&#xF8;rensen)</td><td class="nr">Uth-S&#xF8;rensen 2004</td><td class="fmt-m">Projection</td></tr>
         <tr><td>HRmax (Tanaka)</td><td class="nr">Tanaka 2001</td><td class="fmt-m">Projection</td></tr>
         <tr><td class="fmt-m">Karvonen Training Zones Z1&#x2013;Z5</td><td class="nr">Karvonen 1957</td><td class="fmt-m">Projection</td></tr>
@@ -2578,7 +2576,6 @@ body.light .ev-measured { border-color:var(--surface); }
         <tr><td class="fmt-m">VO₂max — Wasserman equation</td><td class="nr">Wasserman K, Hansen JE, Sue DY, et al. <em>Principles of Exercise Testing and Interpretation.</em> 5th ed. Philadelphia: Lippincott Williams &amp; Wilkins; 2012. ISBN 978-1-60913-899-8. <a href="https://www.wolterskluwer.com/en/solutions/ovid/wasserman--whipps-principles-of-exercise-testing-and-interpretation-5305" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">wolterskluwer.com</a></td><td>VO₂max</td></tr>
         <tr><td class="fmt-m">Karvonen HR zones (HRR method)</td><td class="nr">Karvonen MJ, Kentala E, Mustala O. <em>The effects of training on heart rate; a longitudinal study.</em> Ann Med Exp Biol Fenn. 1957;35(3):307–15. PMID: <a href="https://pubmed.ncbi.nlm.nih.gov/13470504/" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">13470504</a></td><td>Karvonen</td></tr>
         <tr><td class="fmt-m">HRmax = 208 &#x2212; 0.7 &#xD7; age</td><td class="nr">Tanaka H, Monahan KD, Seals DR. <em>Age-predicted maximal heart rate revisited.</em> J Am Coll Cardiol. 2001;37(1):153–6. doi: <a href="https://doi.org/10.1016/S0735-1097(00)01054-8" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1016/S0735-1097(00)01054-8</a> <em>(Tanaka 2001; supersedes the obsolete Haskell &amp; Fox 220−age.)</em></td><td>Karvonen / HRmax</td></tr>
-        <tr><td class="fmt-m">BP projection from nocturnal HR</td><td class="nr">Palatini P, Julius S. <em>The role of cardiac autonomic function in hypertension and cardiovascular disease.</em> Curr Hypertens Rep. 2009;11(3):199&#x2013;205. doi: <a href="https://doi.org/10.1007/s11906-009-0035-4" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1007/s11906-009-0035-4</a></td><td>BP Projection</td></tr>
       </tbody>
     </table></div>
   </div><!-- refs-formulas -->
@@ -2688,7 +2685,6 @@ body.light .ev-measured { border-color:var(--surface); }
         <li>Not equivalent to polysomnography (PSG)</li>
         <li>No EEG — sleep stage estimates are HR/SpO&#x2082; proxies</li>
         <li>HRV metrics cannot be compared to ECG RR-interval clinical norms</li>
-        <li>BP projection is epidemiological, not a cuff measurement</li>
         <li>VO&#x2082;max is an estimation model, not a CPET result</li>
       </ul>
     </div>
