@@ -109,30 +109,17 @@ whether any OTHER renderer is still only reachable from a worker file, and wheth
 single-recording for the same accidental reason ECGDex was. `MotionDex` and `CPAPDex` are the
 candidates — neither carries a shared-axis `.synth-line` today.
 
-> ### 🔁 RECONCILED 2026-08-08 — two answers landed, and MINE was the one that overreached
+> ### ↩️ WITHDRAWN 2026-08-08 — this block reconciled the two §2 answers, and it was wrong
 >
-> §2 was answered twice, independently, within ninety minutes: the table above, and the block below.
-> They agree on every measured fact and **disagreed on the verdict for MotionDex** — below called it
-> **ACCIDENTAL**, the table calls it **not yet built**. The table is right, and this note retracts the
-> other rather than leaving a reader to pick.
+> It argued the "accidental" verdict should be retracted in favour of "not yet built". The
+> ADDENDUM further down answers that directly and is correct: **the two are not competing
+> verdicts.** "Accidental" describes WHY the wiring is absent — nobody decided, it never got
+> wired — while the missing multi-recording spine bounds WHAT wiring it buys. Retracting the
+> first to state the second was a category error, and it briefly left this brief contradicting
+> itself. The standing §2 verdict is the header's: **MotionDex accidental, CPAPDex deliberate.**
 >
-> **What the block below actually established is REACHABILITY**: the generator already emits bytes
-> MotionDex's own parser accepts (31 200 rows). That is a real and useful fact, and it is *not* the
-> ECGDex shape. ECGDex was a **mature, multi-recording** node whose renderer existed and sat where the
-> app could not load it — remove the obstacle and the feature works. MotionDex has no multi-recording
-> machinery to switch on: no `allRecordings`, no queue, no switcher, a 6 KB app. Reachability is not
-> readiness, and calling it "accidental" implies a remedy (add the script tag) that would wire a shared
-> axis to something with nothing to accumulate into.
->
-> The irony is exact: **§4 below already named this gap** — *"§2 established reachability, not
-> multi-recording readiness"* — and the verdict was written anyway. Flagging a limitation and then
-> reasoning past it is the same failure §1 of this brief exists to catch, committed inside §1's own
-> brief.
->
-> **Standing verdict: the table above.** MotionDex — *not yet built*; CPAPDex — *a genuine gap in the
-> shared engine*. The evidence below stands; only its MotionDex verdict is withdrawn.
->
-> ---
+> §4's remedy ORDER survives this withdrawal on the ADDENDUM's own reasoning — the payoff is
+> bounded, so the spine is the prerequisite if multi-night is the goal — and is kept.
 >
 > **No renderer is worker-only any more.** All eleven `render*` functions live in `synth-gen.js` and
 > every one is on the `global.SYNTH` export, `renderECGInt16` included (`synth-gen.js:1092`).
@@ -140,8 +127,6 @@ candidates — neither carries a shared-axis `.synth-line` today.
 > a `SYNTHREF()` fallback — not a second copy. The reverse of the §3 problem does not exist.
 >
 > **MotionDex — reachability PROVEN by execution rather than by comparing headers.**
-> *(This paragraph's "ACCIDENTAL" verdict is WITHDRAWN — see the reconciliation note above. The
-> measurement stands; the conclusion drawn from it did not.)*
 > `MotionDex.src.html` loads twelve scripts and **neither `synth-gen.js` nor `dex-patient-gen.js` is
 > among them**; `motiondex-app.js` contains **zero** `SYNTH`/`DexPatientGen` references (every other
 > node's app carries 3–6); and there is no `.synth-line`. Yet the capability is already there and
@@ -150,9 +135,7 @@ candidates — neither carries a shared-axis `.synth-line` today.
 > `motiondex-dsp.js:81` documents as its ACC input. Driven end-to-end in a co-loaded realm, the
 > generator's bytes parse in the node's OWN parser: **`MOTIONDSP.parseSensorXYZ` returns 31 200 rows**
 > from a 600 s ACC render (31 202 lines, 1.69 MB). So this is the ECGDex shape exactly — *the
-> capability exists; the app cannot reach it* — and nothing was ever decided. ⚠️ **That conclusion is
-> the withdrawn part.** The generator is reachable in principle; MotionDex is still not the ECGDex
-> shape, because it has no multi-recording spine for a shared axis to feed.
+> capability exists; the app cannot reach it* — and nothing was ever decided.
 >
 > **CPAPDex — DELIBERATE, and a different mechanism, not a missing one.** The text-line generator has
 > **no EDF renderer at all** (the `cpap:` fields in `synth-gen.js` are night-scenario metadata, not a
@@ -214,19 +197,23 @@ nights is large" is the only evidence behind it.
 - [x] **§1 sweep run 2026-08-08** — 6 checkable park claims re-checked; **2 stale**
       (`INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS`, `INTEGRATOR-PAT-VASCULAR`), 2 upheld, 1 left alone,
       1 owner-confirmed. Reported, not fixed — see §1's result block.
-- [x] **§2 answered 2026-08-08, then RECONCILED the same day** — it was answered twice independently.
-      Standing verdict: MotionDex **not yet built** (reachability proven — 31 200 rows through the
-      node's own parser — but no multi-recording spine, so not the ECGDex accident); CPAPDex **a
-      genuine gap in the shared engine** (no CPAP/EDF renderer exists to reach). The earlier
-      "accidental" verdict is withdrawn and §4's remedy order inverted with it.
+- [x] **§2 answered 2026-08-08** — three times, by two sessions, with one overwrite and one bad
+      reconciliation on the way. Standing verdict: **MotionDex accidental** (the renderer is reachable,
+      proven by execution — 31 200 rows through the node's own parser — and the app simply never loads
+      it; nothing was decided) and **CPAPDex deliberate** (its committed synthetic EDF set from
+      `tools/make-synthetic-edf.mjs` is a built path, not a gap). What the multi-recording evidence
+      adds is not a competing verdict but a **bound on the payoff**, which is why §4 orders the spine
+      first. See §2's ADDENDUM, and the withdrawal note above it.
 - [ ] §3 cap either measured or labelled as a guess in the UI.
 
 ## 4. Spawned by §2 — MotionDex needs a multi-recording spine BEFORE a generator
 
 > **⚠️ REWRITTEN 2026-08-08.** This section previously read *"give MotionDex the generator it already
-> fits"* and led with adding the script tags. That order came from the withdrawn "accidental" verdict
-> and is **wrong**: it would wire a shared axis to a node with nothing to accumulate into. The
-> reconciliation in §2 inverts it.
+> fits"* and led with adding the script tags. The ordering is wrong, but **not because "accidental"
+> was wrong** — that verdict stands, and the note that tried to retract it is itself withdrawn in §2.
+> The reason is the one §2's ADDENDUM gives: wiring the axis to a node with no multi-recording spine
+> yields a synthetic **single** recording, not the multi-night coherence the §3 precedent implies. The
+> payoff is bounded, so the spine is the prerequisite if multi-night is the goal.
 
 §2 established two things that must not be conflated. **Reachability:** `SYNTH.renderXYZ`'s ACC/GYRO
 output parses in `MOTIONDSP.parseSensorXYZ` (31 200 rows), so the engine already emits bytes this node
@@ -243,7 +230,9 @@ So the work is a node feature, not a wiring fix, and in this order:
 3. **Do not do step 2 alone.** A `.synth-line` on a single-recording app is a control that appears to
    work and accumulates nothing — worse than its absence, because it looks answered.
 
-**CPAPDex is a different brief.** §2's table calls it a genuine gap in the shared engine: a mature
-multi-recording node with **no CPAP/EDF renderer to reach**, whose `_synthEdfSet`/`_synthRaw` are
-node-local and already wired into `cohort-gen.js` and `adapters/resmed-edf.js`. Closing it means
-*writing* an EDF renderer into `synth-gen.js`, not relocating one — bigger than §3 was.
+**Do not extend any of this to CPAPDex.** §2's table called it "a genuine gap in the shared engine",
+and the ADDENDUM **retracted that**: `tools/make-synthetic-edf.mjs` ships a committed synthetic EDF
+set (`uploads/20260613_231433_{BRP,CSL,EVE,PLD}.edf`, four tracked files), so CPAPDex's synthetic path
+is deliberate and **built** — it simply does not live in `synth-gen.js`, because EDF is binary and that
+generator writes text. There is nothing to spawn here. Adding a second synthetic source for a node that
+already has a working one is how you end up with two answers that disagree.
