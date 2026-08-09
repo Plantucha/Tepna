@@ -175,3 +175,43 @@ own merits rather than as a fix for this.
 killed the near-identical `accFs` claim on the "effective" wording; F19 survived only because the
 surfaced KPI and the export field were checked and say plain `ACC Hz` / `accFs`). The pattern worth
 keeping: a repro that improves a headline is not evidence of the mechanism you assigned to it.
+
+### …and the THRESHOLD reframing does not survive either (same day, measured)
+
+The F12 entry above proposed a successor finding — *"the defect is the THRESHOLD, not the unit"* — on
+the reasoning that p99 gyro of 174 dps against a `v/40` normaliser must saturate the gate. **That was
+reasoning from a whole-file percentile to a per-cell one, and it is wrong.** The grid takes a
+per-cell PEAK over `dt`, so the quantity that matters is the distribution of per-cell peaks, not of
+raw samples.
+
+Measured on the 10 nights that have paired ACC+GYRO, at the per-1 s-cell 95th percentile, expressed as
+the gyro full-scale that would make the gyro leg agree with the ACC leg's own `v/120` mg:
+
+| night | acc p95 | gyro p95 | equivalent gyro full-scale |
+|---|---|---|---|
+| 06-13 | 47.6 mg | 4.8 dps | 12.1 dps |
+| 06-15 | 39.1 | 6.7 | 20.6 |
+| 06-19 | 42.5 | 4.7 | 13.2 |
+| 06-20 | 12.3 | 13.3 | 129.8 |
+| 06-20b | 42.7 | 10.0 | 28.0 |
+| 06-21 | 84.6 | 33.1 | 47.0 |
+| 06-28 | 37.6 | 4.7 | 15.0 |
+
+Median **21 dps**, i.e. **BELOW the 40 dps in use**. At 40 the gyro leg is *less* sensitive than the
+ACC leg, so on a typical night it does not saturate and does not dominate `max(accNorm, gyNorm)` — the
+ACC does. The threshold is not obviously wrong, and if anything it is conservative. **No change made.**
+
+### The repro night does not exist in this corpus
+
+F12's headline is *"a real 2026-07-18 Verity night"*. The Verity GYRO nights available here run
+**2026-06-09 → 2026-07-13** — 32 dates in the PSL tree plus 2 in `uploads/`. There is no 07-18 Verity
+recording; the only 2026-07-18 data is CPAP. So neither the original claim nor my successor to it can
+be checked against the night that produced `analyzablePct 20 → 66`.
+
+**What would settle it** is either that night's files, or a corpus-wide `analyzablePct` computed with
+and without the gyro leg across the 10 paired nights — a measurement, not another reading of the same
+summary. Until one of those exists, `v/40` stays.
+
+I am recording my own wrong turn here rather than quietly dropping it, because it is the same error as
+the finding it was replacing: a plausible mechanism attached to a real number, asserted without
+measuring the quantity the code actually uses.
