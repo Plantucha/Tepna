@@ -43,8 +43,8 @@
  *
  * Resume is automatic: a file whose result carries `complete: true` is skipped.
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, realpathSync } from 'node:fs';
-import { execFileSync, execSync } from 'node:child_process';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, renameSync, realpathSync, rmSync } from 'node:fs';
+import { execFileSync, execSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { cpus } from 'node:os';
@@ -60,6 +60,15 @@ const opt = (f, d) => {
 const OUT = opt('--out', join(ROOT, '.mutation-crawl'));
 const JOBS = +opt('--jobs', Math.max(2, Math.round((cpus().length * 2) / 3)));
 const MAX_MS = +opt('--max-hours', 48) * 3600 * 1000;
+/* The probe parallelises across processes; the sweep already parallelises internally, so they never
+   run at once and can each claim the box. */
+const PROBE_JOBS = +opt('--probe-jobs', Math.max(1, Math.min(12, cpus().length - 2)));
+const SHARD = (() => {
+  const v = opt('--probe-shard', null);
+  if (!v) return null;
+  const [k, n] = String(v).split('/').map(Number);
+  return Number.isFinite(k) && Number.isFinite(n) && n > 0 ? { k, n } : null;
+})();
 const T0 = Date.now();
 
 const DEFAULT_FLEET = ['hrvdex-dsp.js', 'motiondex-dsp.js', 'pulsedex-dsp.js', 'cpapdex-dsp.js', 'glucodex-dsp.js', 'ppgdex-dsp.js', 'oxydex-dsp.js', 'ecgdex-dsp.js', 'integrator-dsp.js'];
@@ -422,7 +431,44 @@ function readCorpus() {
   return out;
 }
 
-function probeFile(file, rec) {
+/* Merge shard results: each shard probed a DISJOINT subset of every function's mutants, so the
+   per-function records must be RECOMBINED rather than concatenated — otherwise one function appears
+   N times with partial counts and the totals silently multiply. */
+export function mergeShards(shards) {
+  const byFn = new Map();
+  for (const sh of shards) {
+    for (const f of sh.findings || []) {
+      const prev = byFn.get(f.fn);
+      if (!prev) {
+        byFn.set(f.fn, { ...f, mutants: (f.mutants || []).slice() });
+        continue;
+      }
+      if (f.status !== 'PROBED') continue; // UNREACHABLE &c. are identical in every shard — keep one
+      prev.mutants.push(...(f.mutants || []));
+    }
+  }
+  const out = [];
+  for (const f of byFn.values()) {
+    if (f.status === 'PROBED') {
+      f.killable = f.mutants.filter((m) => m.status === 'KILLABLE').length;
+      f.realmArtefacts = f.mutants.filter((m) => m.status === 'REALM-ARTEFACT').length;
+    }
+    out.push(f);
+  }
+  return out;
+}
+
+/* ── THE PROBE IS THE SLOW HALF, AND IT WAS SINGLE-THREADED ────────────────────────────────────
+   Measured on ppgdex-dsp.js: 35 minutes to SWEEP 1202 mutants across 18 workers, then ~2 HOURS to
+   probe 736 survivors on one core — load average 1.2 on a 24-core box while the longest phase ran.
+   Each survivor re-loads a 4000-line DSP plus six spine modules into a fresh realm, and the realms
+   are completely independent, so this is embarrassingly parallel and was simply not parallelised.
+
+   Sharding is by GLOBAL MUTANT INDEX rather than by function, because the work is wildly uneven —
+   one function held 197 of hrvdex's 346 survivors, so a per-function split would leave one worker
+   doing most of the run. */
+function probeFile(file, rec, SHARD) {
+  let globalIdx = 0;
   const abs = join(ROOT, file);
   // exclude the file under test: it DEFINES the function, which is not a reference to it
   const corpus = readCorpus().filter(([p]) => p !== file);
@@ -472,6 +518,7 @@ function probeFile(file, rec) {
     }
     const per = [];
     for (const m of list) {
+      if (SHARD && globalIdx++ % SHARD.n !== SHARD.k) continue;
       const L = lines.slice();
       const i = m.line - 1;
       if (!L[i] || !L[i].includes(String(m.before).trim())) {
@@ -556,11 +603,46 @@ function probeFile(file, rec) {
          while `pressureEnvelope` (production, a shipped metric) shows 2 — the fixture looks MORE
          load-bearing than the real code. So this is a pointer to the call sites worth opening, not a
          ranking. Anyone using it to sort automatically will mis-rank `pressureEnvelope`. */
-      referencedBy: callSiteContext(fn, corpus),
+      referencedBy: SHARD ? undefined : callSiteContext(fn, corpus),
       mutants: per
     });
   }
   return { probed, findings };
+}
+
+/* Spawn PROBE_JOBS children, each probing every Nth mutant. The sweep record reaches a child on
+   DISK, not on a pipe: a large JSON truncates at ~146 KB through a pipe, and it drops the LARGEST
+   entries first while the summary still reads plausibly. */
+function probeParallel(file, rec, sweepPath) {
+  if (PROBE_JOBS <= 1) return Promise.resolve(probeFile(file, rec, null));
+  const jobs = [];
+  for (let k = 0; k < PROBE_JOBS; k++) {
+    const outPath = join(OUT, basename(file) + '.shard' + k + '.json');
+    jobs.push(
+      new Promise((resolve) => {
+        const ch = spawn(process.execPath, [fileURLToPath(import.meta.url), '--probe-worker', '--probe-file', file, '--probe-sweep', sweepPath, '--probe-shard', k + '/' + PROBE_JOBS, '--probe-out', outPath, '--out', OUT], { cwd: ROOT, stdio: ['ignore', 'ignore', 'pipe'] });
+        let err = '';
+        ch.stderr.on('data', (d) => { err += d; });
+        ch.on('error', (e) => resolve({ findings: [], probed: 0, error: 'shard ' + k + ' could not start: ' + e.message }));
+        ch.on('close', (code) => {
+          if (code !== 0 || !existsSync(outPath)) return resolve({ findings: [], probed: 0, error: 'shard ' + k + ' failed (' + code + '): ' + String(err).slice(0, 200) });
+          try { resolve(JSON.parse(readFileSync(outPath, 'utf8'))); }
+          catch (e) { resolve({ findings: [], probed: 0, error: 'shard ' + k + ' unreadable: ' + e.message }); }
+        });
+      })
+    );
+  }
+  return Promise.all(jobs).then((shards) => {
+    const bad = shards.filter((x) => x.error);
+    /* A FAILED SHARD IS NOT A SMALLER RESULT. Its mutants were never probed, so merging the rest and
+       reporting a count would understate `killable` with nothing to show for it — the same
+       failed-probe-reads-as-zero trap this tool exists to prevent, one level up. */
+    if (bad.length) return { probed: 0, findings: [], error: bad.map((b) => b.error).join(' · ') };
+    for (let k = 0; k < PROBE_JOBS; k++) { try { rmSync(join(OUT, basename(file) + '.shard' + k + '.json'), { force: true }); } catch {} }
+    const corpus = readCorpus().filter(([pth]) => pth !== file);
+    const findings = mergeShards(shards).map((f) => (f.status === 'PROBED' ? { ...f, referencedBy: callSiteContext(f.fn, corpus) } : f));
+    return { probed: shards.reduce((a, x) => a + (x.probed || 0), 0), findings };
+  });
 }
 
 function statusReport() {
@@ -629,6 +711,20 @@ function selftest() {
   /* Count is not value. CPAPDex's two largest killable clusters were synthetic FIXTURE generators —
      49 of its 67 "work items" were not production code. This reports where a name is referenced so a
      reader can sort in seconds; it must never decide, and it must never over-count. */
+  /* Shards probe DISJOINT subsets of each function's mutants. Concatenating them would list a
+     function N times with partial counts and multiply the totals; the merge must recombine. */
+  console.log('\nmergeShards — parallel shards must recombine, never concatenate');
+  const A = { findings: [{ fn: 'f', status: 'PROBED', survivors: 4, mutants: [{ status: 'KILLABLE' }, { status: 'no-distinguishing-input' }] }] };
+  const B = { findings: [{ fn: 'f', status: 'PROBED', survivors: 4, mutants: [{ status: 'KILLABLE' }, { status: 'REALM-ARTEFACT' }] }] };
+  const m = mergeShards([A, B]);
+  ck('one record per function, not one per shard', m.length, 1);
+  ck('…mutants from every shard are present', m[0].mutants.length, 4);
+  ck('…killable is recounted across the merge', m[0].killable, 2);
+  ck('…and so are realm artefacts', m[0].realmArtefacts, 1);
+  const U = { findings: [{ fn: 'g', status: 'UNREACHABLE', survivors: 3 }] };
+  ck('an UNREACHABLE function is not duplicated by every shard reporting it', mergeShards([U, U, U]).length, 1);
+  ck('…and keeps its survivor count intact', mergeShards([U, U, U])[0].survivors, 3);
+
   console.log('\ncallSiteContext — reports where a name is used, and never decides what that means');
   const corpus = [
     ['tests/dex-tests.js', 'CpapDsp._synthEdfSet(opts)'],
@@ -762,8 +858,10 @@ async function main() {
       log('   ⚠ CANARY FAILED — recorded as VOID, not as a low score');
       continue;
     }
-    log('   probing ' + rec.survivors.length + ' survivors for distinguishing inputs…');
-    const p = probeFile(file, rec);
+    log('   probing ' + rec.survivors.length + ' survivors across ' + PROBE_JOBS + ' worker(s)…');
+    const pT = Date.now();
+    const p = await probeParallel(file, rec, join(OUT, basename(file) + '.sweep.json'));
+    log('   probed in ' + Math.round((Date.now() - pT) / 60000) + ' min');
     const killable = (p.findings || []).reduce((a, x) => a + (x.killable || 0), 0);
     const unreachable = (p.findings || []).filter((x) => x.status === 'UNREACHABLE').reduce((a, x) => a + x.survivors, 0);
     /* A PROBE THAT COULD NOT RUN IS NOT A RESULT OF ZERO. If the realm failed to load, or nothing was
