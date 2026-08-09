@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS (§1 method proven + first hit fixed · **§2 ANSWERED — no, and for two different reasons** · §3 open) · **Created:** 2026-08-08 · **Follows:** `GENERATOR-FOLLOWUPS-II-BRIEF.md` (§3 executed 2026-08-08)
+**Status:** IN-PROGRESS (§1 swept — 2 stale parks + a 2nd pass · **§2 ANSWERED** — MotionDex accidental, CPAPDex deliberate · §3 open · §4 spawned) · **Created:** 2026-08-08 · **Follows:** `GENERATOR-FOLLOWUPS-II-BRIEF.md` (§3 executed 2026-08-08)
 
 # Generator follow-ups, Round III — what §3's execution surfaced
 
@@ -66,30 +66,48 @@ check the claim before re-affirming the park. `AUDIT-PROMPT.md`'s bug-classes co
 > returns `…20260718180614_PPG.txt`, whose "0614" is the time field 18:06:14; the `n0614a` companions
 > are genuinely absent (the capture corpus starts 2026-07-16, zero June directories).
 
-## 2. ✅ ANSWERED 2026-08-08 — **no**, and the two candidates fail differently
+> ### SECOND PASS 2026-08-08 — the streak breaks, and how it breaks refines the method
+>
+> `MUTATION-EQUIVALENCE-2026-08-04` checked, since it carries the densest capability language in the
+> `PROPOSED` set. **Its claims hold** — two verified structurally *and* by execution:
+>
+> - **"`L120` `ms > 999` — unreachable by construction."** ✅ `_ckMk` is **not exported** (`DexClock`
+>   publishes `tzOffset · _ckP2 · _ckNumEpoch · _ckZoneMin · _ckDMY · resolveDMY · parseTimestamp ·
+>   hostAxis · _ckMedian`), so it is reachable only via `parseTimestamp`; the two sites that pass `ms`
+>   capture `(\d{1,3})\d*` then `+(m[7]+'00').slice(0,3)`, which cannot exceed three characters, and
+>   every other caller passes no `ms`. Probed with `.9999999` / `.123456789` / `.99999`: **max
+>   reachable ms component = exactly 999.**
+> - **"`L45` ×2 / `L147`: `parseInt(s,10) → parseInt(s,0)` is equivalent for `/^\d+$/`."** ✅ No
+>   digit-only string differs across the two radices (`0`, `00`, `007`, `08`, `09`, `0123`, 13-digit
+>   epochs); `0x10` does differ, and the regex excludes it.
+>
+> **Tally across both passes: 8 claims, 4 stale, 4 upheld** — and the split is not random.
+>
+> | claim shape | examples | outcome |
+> |---|---|---|
+> | *"X exists / does not exist"* — about an **artifact** (a comment, a factored-out function, a hardware module, an upstream export) | GENERATOR-FOLLOWUPS-II ×2 · AUDIT-FOLLOWUPS · INTEGRATOR-TCH-FOLLOWUPS · INTEGRATOR-PAT-VASCULAR | **stale** |
+> | *"X cannot happen **because** ‹stated mechanism›"* — about **semantics**, reasoning shown | MUTATION-EQUIVALENCE ×2 · EEGDEX-BUILD · PPGDEX-PI-AND-PARSE-FOLLOWUPS | **upheld** |
+>
+> **Refinement:** an artifact claim is *memory* — true when written, decaying silently as the tree
+> moves, with nothing re-checking it. A mechanism claim is *derivation* — it carries its own falsifier,
+> so the author had to be right at the time and a reader can re-run the argument in one step.
+> **Prioritise claims that name an artifact; deprioritise claims that state a mechanism.** That
+> inverts the intuition that a bare factual claim is the safer kind — and this pass proved the rule on
+> itself: #1055's "no CPAP/EDF renderer exists" was an artifact claim, made from one export list, and
+> it was wrong (§2 addendum).
+>
+> **Still unchecked:** `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02` ·
+> `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS-II-2026-08-05` (mostly about the remote box — needs `ssh vigil`) ·
+> `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS-2026-08-03` (which **already self-corrected** one such claim at
+> §2.1 — *"before writing that something cannot be measured, look for the oblique measurement"* — this
+> thesis, reached independently).
 
-Measured: MotionDex and CPAPDex are indeed the only two of the eight without a shared-axis
-`.synth-line` (the other six all include `synth-gen.js` + `dex-patient-gen.js`). Neither is the ECGDex
-accident, and the distinction matters because the remedies are opposite.
+## 2. The other nodes' renderers may have the same reachability problem in reverse
 
-| | app size | multi-recording? | a SYNTH renderer to reach? | verdict |
-|---|---|---|---|---|
-| ECGDex (the accident) | 168 KB | **yes** | **yes** — but in an unloadable worker file | capability existed, unreachable |
-| **MotionDex** | **6 KB** | **no** — no `allRecordings`, no queue, no switcher | yes (`renderXYZ`, `renderWalkACC`) | **not yet built**, not accidental |
-| **CPAPDex** | 36 KB | yes | **no CPAP/EDF renderer exists in SYNTH** | **genuine gap in the shared engine** |
-
-- **MotionDex is simply immature.** `motiondex-app.js` is 6 KB against `ecgdex-app.js`'s 168 KB, its
-  `.src.html` is 8 KB, and it carries **no multi-recording machinery at all**. Its `genSyntheticACC`
-  lives in the DSP but is **not on the public surface** — only `tools/regen-motiondex-goldens.mjs` and
-  `tests/dex-tests.js` reach it. Wiring a shared axis here would have nothing to accumulate into; the
-  multi-recording spine has to come first. **Do not treat this as the same bug.**
-- **CPAPDex is the opposite shape.** It is a mature node *with* multi-recording, but the shared engine
-  has **no CPAP renderer to reach** — its `_synthEdfSet` / `_synthRaw` are node-local and already
-  wired into `cohort-gen.js` and `adapters/resmed-edf.js`. Closing this means *writing* a renderer
-  into `synth-gen.js`, not relocating one. Bigger than §3 was, and it should be its own brief.
-
-**So ECGDex was unique:** the only mature, multi-recording node whose renderer already existed and sat
-where the app could not load it. That is why §3 was cheap and why these two are not.
+The lift put `SYNTH.renderECGInt16` beside `renderPPG` / `renderOxy` / `renderXYZ`. Worth checking
+whether any OTHER renderer is still only reachable from a worker file, and whether any node is
+single-recording for the same accidental reason ECGDex was. `MotionDex` and `CPAPDex` are the
+candidates — neither carries a shared-axis `.synth-line` today.
 
 > ### ✅ ANSWERED 2026-08-08 — the two candidates are NOT the same case
 >
@@ -125,6 +143,36 @@ where the app could not load it. That is why §3 was cheap and why these two are
 > **Reproduce:** load `clock.js` + `synth-gen.js` + `kernel-constants.js` + `signal-frame.js` +
 > `motiondex-dsp.js` into one realm, then
 > `MOTIONDSP.parseSensorXYZ(SYNTH.renderXYZ(tl, {startRel:0,lenSec:600}, 'ACC'))`.
+
+> ### ⚠️ ADDENDUM 2026-08-08 — this section was OVERWRITTEN by a concurrent session and is restored
+>
+> Everything above is the original #1034 answer. A parallel session (#1055) replaced it wholesale with
+> its own §2 whose base predated #1034, so the merge kept the newer text and silently dropped this one.
+> Nothing was conflicted, nothing was flagged, and the brief was left contradicting its own §4 for two
+> commits. Restored here because the execution proof above — `MOTIONDSP.parseSensorXYZ` returning
+> **31 200 rows** from a `renderXYZ` render — is stronger evidence than the header-comparison that
+> displaced it, and because **#1055 got CPAPDex wrong.**
+>
+> **RETRACTED from #1055: "no CPAP/EDF renderer exists in SYNTH — a genuine gap in the shared engine."**
+> False. `tools/make-synthetic-edf.mjs` (9.6 KB) ships a committed synthetic EDF set —
+> `uploads/20260613_231433_{BRP,CSL,EVE,PLD}.edf`, four tracked files. CPAPDex's synthetic path is
+> **deliberate and built**, exactly as this section said; it simply is not in `synth-gen.js`, because
+> EDF is binary. A "missing renderer" reading came from looking only at `synth-gen.js`'s export list —
+> the same one-place-to-look error the sweep in §1 exists to catch, committed while executing §1.
+>
+> **KEPT from #1055, because it answers a question this section deferred and §4 explicitly asks.**
+> §4 says *"check the reverse before building: whether MotionDex's app has any state that assumes
+> exactly one recording, the way ECGDex's did."* Measured: **it has no such state, because it has no
+> multi-recording state at all.** `motiondex-app.js` is **6 KB** against `ecgdex-app.js`'s 168 KB, its
+> `.src.html` is 8 KB, and it carries no `allRecordings`, no load queue and no recording switcher;
+> `genSyntheticACC` exists in the DSP but is **not on the public surface** (only
+> `tools/regen-motiondex-goldens.mjs` and `tests/dex-tests.js` reach it).
+>
+> That does not overturn "accidental" — the renderer *is* reachable and the app *does* simply fail to
+> load it, both proven above. It bounds the **payoff**: wiring the axis gives MotionDex a synthetic
+> **single** recording, not the multi-night coherence §3 bought ECGDex, because there is no spine to
+> accumulate into. §4 is still worth doing; it is a smaller win than the §3 precedent implies, and the
+> multi-recording spine is the prerequisite if multi-night is the goal.
 
 ## 3. The 3-night cap is a guess, not a measurement
 
