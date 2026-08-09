@@ -5935,6 +5935,68 @@
       });
     });
 
+    /* parsePPG — 38 surviving mutants across its 348 lines. Probing them (original vs mutant in
+       separate realms, 68-input battery) found 10 with a distinguishing input; these assertions are
+       aimed at those, by the input the probe actually reported rather than by guessing.
+
+       ONE PROBE RESULT WAS DISCARDED AS AN ARTEFACT: `L439`'s mutant differed only by throwing
+       "DexClock is not defined", because the probe realm has no co-loaded clock while the suite does.
+       That is my harness leaking into the classification, not a behaviour of the code, so it is not
+       asserted here. Recorded because a probe realm is not the suite realm, and a difference caused
+       by the probe is not evidence about the subject. */
+    group('PpgDex parsePPG — the boundaries a real file crosses', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var P = env.PPGDSP || env.PpgDex;
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PpgDex.parsePPG available', 'PPGDSP not co-loaded in this runner');
+        return;
+      }
+      var HDR6 = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient';
+      var HDR3 = 'Phone timestamp;sensor timestamp [ns];channel 0';
+      var iso = function (ms) { return new Date(ms).toISOString().replace('Z', ''); };
+      var mk = function (n, cols, hdr) {
+        var L = [], start = Date.UTC(2026, 5, 21, 6, 5, 23), fs = 135;
+        if (hdr) L.push(cols === 6 ? HDR6 : HDR3);
+        for (var i = 0; i < n; i++) {
+          var ms = start + Math.round((i * 1000) / fs);
+          var ns = String(i * Math.round(1e9 / fs));
+          var v = 200000 + Math.round(3000 * Math.sin((2 * Math.PI * 1.1 * i) / fs));
+          L.push(cols === 6 ? iso(ms) + ';' + ns + ';' + v + ';' + (v + 11) + ';' + (v + 22) + ';' + (v + 33) : iso(ms) + ';' + ns + ';' + v);
+        }
+        return L.join('\n');
+      };
+      var tryParse = function (txt) {
+        try { return { ok: true, r: P.parsePPG(txt) }; } catch (e) { return { ok: false, msg: e.message }; }
+      };
+
+      /* A HEADERLESS file must still parse — the layout is resolved per-row from the tail. This is a
+         real Polar Sensor Logger case (a file whose header line was trimmed), and the mutant that
+         breaks it turns the whole file into "No PPG samples parsed". */
+      var noHdr = tryParse(mk(10, 6, false));
+      T.ok('a headerless 6-column file parses via per-row tail resolution', noHdr.ok, noHdr.msg);
+      T.eq('…and yields all three optical channels', noHdr.ok && noHdr.r.ch.length, 3);
+
+      /* The row-count floor, from BOTH sides. n=10 is the documented minimum; n=9 must be refused.
+         Only a test at exactly 10 can tell `n < 10` from `n <= 10`. */
+      var at10 = tryParse(mk(10, 3, true));
+      T.ok('exactly 10 samples parses — the floor is inclusive', at10.ok, at10.msg);
+      var at9 = tryParse(mk(9, 3, true));
+      T.ok('…and 9 samples is refused, so the floor is real', !at9.ok, 'parsed ' + (at9.ok && at9.r.n) + ' rows');
+
+      /* An EMPTY file must refuse, not fabricate. The mutant returns a record with n=0 and a NEGATIVE
+         duration — a shape no consumer checks for, which is exactly why it must not be produced. */
+      var empty = tryParse(HDR3 + '\n');
+      T.ok('a header-only file is REFUSED, not returned as an empty recording', !empty.ok, 'got n=' + (empty.ok && empty.r.n) + ' durSec=' + (empty.ok && empty.r.durSec));
+
+      /* fs is DERIVED from the host timestamps and must be a positive rate; the mutant zeroes the
+         divisor and produces fs=0 with every relSec null — a recording that exists but has no time. */
+      T.ok('fs is derived as a positive sample rate', at10.ok && at10.r.fs > 0 && isFinite(at10.r.fs), 'fs ' + (at10.ok && at10.r.fs));
+      T.ok('…and every relSec is finite, not null', at10.ok && at10.r.relSec.every(function (x) { return typeof x === 'number' && isFinite(x); }), JSON.stringify(at10.ok && at10.r.relSec.slice(0, 3)));
+      T.ok('…and relSec is strictly increasing', at10.ok && at10.r.relSec.every(function (x, i, a) { return i === 0 || x > a[i - 1]; }), JSON.stringify(at10.ok && at10.r.relSec.slice(0, 4)));
+      /* relSec spacing must reflect the DERIVED fs, not a rounded nominal one. Two mutants change
+         only this precision (0.0074443… vs 0.0074074…), which no coarse assertion can see. */
+      T.approx('…and the sample spacing equals 1/fs', at10.ok && at10.r.relSec[1] - at10.r.relSec[0], at10.ok && 1 / at10.r.fs, 1e-9);
+    });
+
     /* PpgDex's lombScargle is 129 lines producing every frequency-domain metric the node ships —
        and a full mutation sweep left 21 survivors in it. The suite calls it exactly ONCE, and the only
        numeric lombScargle test in this file is ECGDSP's; PpgDex's own is checked by SOURCE REGEX
