@@ -1,0 +1,8 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+---
+bump: patch
+type: added
+nodes: [suite]
+brief: CLOCK-PARSE-EQUIVALENCE-2026-08-09-BRIEF.md
+---
+`MUTATION-EQUIVALENCE` §6 left one box open — `clock.js`'s parse-family survivors — and nothing owned it: that brief scopes itself to the 15 in `hostAxis`, while `JS-DSP-MUTATION-FLEET` covers the DSP fleet and `clock.js` is the spine. Closed: **8 survivors, not the 14 the parent claims** (three waves plus wave 9 landed and nobody re-counted, on a byte-identical `clock.js`), and **0 killable** — radix-0 `parseInt` under a digits-only regex, an extra loop iteration that reads `undefined` and `continue`s, and over-determined `_ckMk` validation where disabling one redundant `!==` leaves the others to catch Feb 30. The verdicts match the earlier pass; what changed is that they are now **backed**. That pass ran a battery whose only positive control sat in `hostAxis`, which proves reach there and nothing about `parseTimestamp`/`_ckMk`/`resolveDMY`/`_ckDMY` — so "no distinguishing input" was a claim about the battery, not the code. Re-probed with in-family controls it came back **3 of 14 BLIND**, both causes being the battery's own: `_ckDMY(a, b, preferDMY, locked)` was called with one argument so the locked branch never executed, and `L94`'s `b > 12` needs `b` exactly 12. Fixed to 14/14 before any verdict was read. Earns a standing rule — **a positive control must live in the same function as the mutant it clears**, because an unreached mutant and an unkillable one produce identical output — and ships `tools/probe-clock-equivalence.mjs`, which enumerates mutants fresh, prints the control tally first, and marks the run BLIND if any control comes back equivalent.
