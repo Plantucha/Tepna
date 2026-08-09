@@ -4,7 +4,14 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-04
+**Status:** DONE — 2026-08-09 (the map, the concentration finding and §5's ceiling rule all stand and are carried forward. §4.1's prize — `capture.run_polar` — got its own brief and a pass: `RUN-POLAR-MUTATION-PASS-2026-08-08-BRIEF.md` closed four families, 130 of 145 killed, and `RUN-POLAR-MUTATION-STOP-HERE-2026-08-09-BRIEF.md` **declines the remaining 183 in writing**. §7's open items carry to the successor's §7.7.) · **Folded-into:** `MUTATION-PROGRAM-2026-08-09-BRIEF.md` · **Created:** 2026-08-04
+
+> ⚠️ **Read `MUTATION-PROGRAM-2026-08-09-BRIEF.md` for the live programme.** This brief remains the
+> authoritative record of the 19-module ranking and of §2's correction (the ~13/pass flattening was
+> WITHIN a module, not across the fleet). Two things it does not say: concentration predicts what a
+> pass **costs** and not what it is **worth** (successor §4 — the most valuable `run_polar` family was
+> the smallest, 9 mutants, protecting a 4 h 25 m silent freeze), and the declined families are now
+> named so `run_polar` is not re-opened as untouched (successor §6).
 
 # The whole capture-host mutation surface, ranked — and what actually predicts a cheap pass
 
