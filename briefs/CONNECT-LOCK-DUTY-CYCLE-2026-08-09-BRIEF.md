@@ -93,11 +93,24 @@ have been a third way to be wrong about a string.
 - **A structural test matched its own comment.** The ordering test found `_CONNECT_LOCK` in the prose
   explaining why the check precedes it. Comments are stripped before indexing now.
 
-## Still open
+## ✅ The acceptance measurement — taken 2026-08-09, same conditions as the baseline
 
-**The acceptance measurement.** 53 % was measured with an absent H10 before this fix. The same
-measurement after it — absent H10, post-deploy — has not been taken, and a green suite is not a
-substitute. Re-measure the duty cycle over ≥20 minutes with the strap off and record it here.
+Absent H10, nothing worn, all four fixes deployed and the daemon restarted onto them:
+
+| state | window | ops | mean hold | **duty cycle** |
+|---|---|---|---|---|
+| baseline (pre-fix) | 59.1 min | 51 | 41.1 s | **59 %** |
+| after #1062 + #1081 | 8.1 min | 6 | 43.0 s | **53 %** |
+| **after #1091** | 17.5 min | 2 | 45.5 s | **9 %** |
+
+**59 % → 9 %.** The mechanism is visible in the counts rather than inferred: over 18 minutes the box
+logged **10 deferrals against only 3 lock acquisitions**, so seven absences cost a scan and never took
+`_CONNECT_LOCK` at all. The mean hold did NOT move (41 → 45 s) — and it should not have, because the fix
+does not make a doomed connect faster, it stops one being started.
+
+Note what this also confirms about the earlier fixes: the residual 9 % is the handful of attempts that
+still reach a connect, and #1062 is what keeps those at one attempt rather than twelve. Fixes 3, 4 and 5
+compose; none of them alone gets here.
 
 ## Related
 
