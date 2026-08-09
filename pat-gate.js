@@ -61,8 +61,27 @@
    * `why` is new, and a null/undefined `ov`/`cp`/`sc` now returns a label instead of throwing
    * (the old code dereferenced them unguarded). No input that previously returned a tier
    * returns a different one. */
-  function verdict(ov, cp, sc) {
+  /* `ax` (OPTIONAL, LAST — back-compat per CLAUDE.md) is the DexClock.hostAxis result for the night.
+     NO SECOND CLOCK ⇒ NO VERDICT. Every number this gate weighs is a comparison BETWEEN TWO DEVICES,
+     so it presupposes the two sit on one timebase. `hostAxis.independent === false` says they do not:
+     the capture host's column was DERIVED from the device stamp (measured discriminator — residual
+     spread ≤ ~1 ms, one stamp quantum, against 101.89–5124 ms where a real second clock exists), so
+     each device rides its own crystal and per-device wander lands directly in the beat-lag scatter.
+     It is then indistinguishable from the physiology the gate is trying to measure: on 2026-08-09
+     every H10 night in the corpus measured 0.98 ms — all phone captures — while the PAT verdict built
+     on them attributed 84–99 ms of scatter to PTT variability. That attribution is not identifiable
+     without a shared clock, so the honest output is a refusal, not a tier.
+     Absent `ax` the behaviour is UNCHANGED — only an explicit `false` refuses. That is deliberate
+     back-compat, and it is why the refusal names itself in `label`: a caller that never passes an
+     axis is visible as 'no axis' in `why`, not silently treated as if it had one. */
+  function verdict(ov, cp, sc, ax) {
     if (!ov || ov.min <= 0) return { tier: 'no', label: 'NO OVERLAP', why: null };
+    if (ax && ax.independent === false)
+      return {
+        tier: 'no',
+        label: 'NO SHARED CLOCK',
+        why: { independent: false, spreadMs: ax.spreadMs != null ? ax.spreadMs : null, reason: 'host column is derived from the device stamp — the two devices are not on one timebase, so beat-lag scatter cannot be separated from per-device clock wander' }
+      };
     if (!cp || !cp.ok) return { tier: 'no', label: 'NOT COUPLED', why: null };
     if (!sc || !sc.ok) return { tier: 'no', label: 'NOT SIMULTANEOUS', why: null };
 

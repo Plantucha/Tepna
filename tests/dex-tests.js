@@ -4748,6 +4748,30 @@
          the pre-fix denominator drops `goodMatch` (0.50 against COUPLING_MIN 0.55) and downgrades the
          tier from go/FEASIBLE to maybe/PROMISING. Every other leg — tightBeat, physical, driftOK —
          is identical, so the ONLY thing separating the two verdicts is how long the ECG ran. */
+      /* DEEP-AUDIT / PAT-UNDER-PERBLOCK-ALIGNMENT 2026-08-09 — NO SECOND CLOCK ⇒ NO VERDICT.
+         Every quantity this gate weighs compares TWO DEVICES, so it presupposes one timebase.
+         Measured: all six H10 nights checked in the corpus show a host↔device residual spread of
+         0.98 ms — one stamp quantum — against 101.89–5124 ms where a real second clock exists, i.e.
+         the host column is the device stamp rounded and each device rides its own crystal. The PAT
+         verdict built on those nights attributed 84–99 ms of beat-lag scatter to PTT variability,
+         which is not identifiable from per-device clock wander without a shared clock. So the gate
+         must refuse rather than emit a tier. Absent an axis the behaviour is unchanged — only an
+         explicit `independent === false` refuses — which is what the last case pins. */
+      if (env.PATGate && env.PATGate.verdict) {
+        var ovOK = { min: 200 },
+          scOK = { ok: true },
+          cpGO = { ok: true, matchRate: 0.99, residIQR: 10, med: 420, driftRange: 20 };
+        var vNoClock = env.PATGate.verdict(ovOK, cpGO, scOK, { independent: false, spreadMs: 0.98 });
+        T.eq('a pair that would otherwise be FEASIBLE is refused when there is no second clock', vNoClock.tier, 'no');
+        T.eq('and the refusal names itself', vNoClock.label, 'NO SHARED CLOCK');
+        T.eq('the refusal carries the measured spread, so it can be audited', vNoClock.why.spreadMs, 0.98);
+        // a REAL second clock must not be refused
+        T.eq('an independent axis still reaches the go tier', env.PATGate.verdict(ovOK, cpGO, scOK, { independent: true, spreadMs: 420 }).tier, 'go');
+        // and back-compat: no axis argument at all behaves exactly as before
+        T.eq('no axis passed → unchanged behaviour (back-compat)', env.PATGate.verdict(ovOK, cpGO, scOK).tier, 'go');
+        T.eq('an axis object without the flag does not refuse', env.PATGate.verdict(ovOK, cpGO, scOK, { spreadMs: 3 }).tier, 'go');
+      }
+
       if (env.PATGate && env.PATGate.verdict) {
         var ovStub = { min: 200 },
           scStub = { ok: true },
