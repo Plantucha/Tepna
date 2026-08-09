@@ -33,7 +33,14 @@ if (!DIRS.length) {
   process.exit(2);
 }
 
-/* The ring's own second, from §7.2. Named so the prediction below is not a magic literal. */
+/* The ring's own second, from §7.2. Named so the prediction below is not a magic literal.
+   ⚠️ ONE NIGHT, AND NOT TYPICAL (DEVICE-RATE-TRUTH §3, corrected 2026-08-06). This describes the ring's
+   DURATION COUNTER — a separate RC-class timebase — and NOT its sample clock, which is crystal-exact at
+   125.000000 Hz (32 MHz ÷ 8 ÷ 32000, an AFE4403 with no internal RC). Across 44 sessions the counter's
+   error is median +540 ppm, range −314 … +4282; −3446 ppm (1.00346 s) is the reference night and sits
+   outside that range, with the opposite sign to the median. So the prediction below is a SANITY CHECK
+   against one session's geometry, not a calibration: read a large |imbalance| as "this session's counter
+   differs from the reference night", never as sample loss, and never re-fit this constant. */
 const RING_SECOND_S = 1.00346;
 
 const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;

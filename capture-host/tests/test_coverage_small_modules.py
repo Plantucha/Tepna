@@ -150,7 +150,13 @@ def test_stream_health_reports_quiet_when_every_sample_aged_out():
     bus.push("ecg", [1, 2, 3])
     import time
     eff, age, warm = bus._stream_rate("ecg", now=time.monotonic() + 3600)   # an hour later
-    assert eff == 0.0 and warm is False, "an aged-out window must read genuinely quiet, not warming"
+    # `None`, not 0.0 (DEVICE-RATE-TRUTH §6.3). This assertion used to read `eff == 0.0 and warm is
+    # False` — "genuinely quiet". But an aged-out window has not measured 0 Hz, it has measured NOTHING,
+    # and the two part company the moment something paints a colour from the number. Silence is already caught, and
+    # caught better, by `age_s`: `stream_health` returns 'stall' from it without consulting the rate at
+    # all. So the honest pair is (None, cannot-judge), which can never manufacture WEAK.
+    assert eff is None, "an aged-out window has not measured 0 Hz; it has measured nothing"
+    assert age is not None and age > 3000, "…and the SILENCE is what carries the bad news, via age"
 
 
 def test_push_trims_samples_older_than_the_rate_window(monkeypatch):
@@ -163,7 +169,12 @@ def test_push_trims_samples_older_than_the_rate_window(monkeypatch):
     clock[0] += 3600                       # an hour later — the first sample is far past the window
     bus.push("ecg", [2])
     eff, _age, _warm = bus._stream_rate("ecg", now=clock[0])
-    assert eff <= 2, "only the recent push should count toward the rate"
+    # The eviction is the property under test, and it still happens — assert it directly rather than
+    # through the rate. With the stale frame gone only ONE remains, and one frame spans no interval, so
+    # the rate is `None` (DEVICE-RATE-TRUTH §6.3) rather than the old inflated-but-small number. The
+    # previous `eff <= 2` passed for the right reason and would now raise on `None <= 2`.
+    assert len(bus._win["ecg"]) == 1, "the hour-old frame must be evicted from the rate window"
+    assert eff is None, "one surviving frame spans no interval — nothing to measure, so no number"
 
 
 class _LyingQueue:
