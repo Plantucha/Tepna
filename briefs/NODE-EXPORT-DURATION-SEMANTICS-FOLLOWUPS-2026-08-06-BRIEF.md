@@ -3,7 +3,16 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-06 · **Follows:** `NODE-EXPORT-DURATION-SEMANTICS-2026-07-27-BRIEF.md` (DONE — 2026-08-06) · **Affects:** `motiondex-dsp.js`, `ppgdex-dsp.js`, the six nodes that do not publish `endEpochMs`
+**Status:** DONE — 2026-08-09 (§1 executed 2026-08-06; §2 PARKED on its own stated default; §3 executed
+2026-08-09 — the four ungated nodes gain a 17-assertion envelope-tracking gate, mutation-verified in both
+directions. ⚠️ **Executing §3 falsified the parent's §7 table for two of the four nodes:** PulseDex's
+*untimed* path publishes DATA seconds as `durMin` **and asserts `coverage: 100`** on a stream it cannot
+place in time, and GlucoDex's `recordedSec` is **the same expression as** `spanSec`, so a 6 h CGM dropout
+reports full coverage — under a comment claiming the two "agree BY MEASUREMENT". Both are pinned as
+characterization and routed to the follow-up; neither is fixed here, because both are compute-path DSP
+edits owing a re-bundle + golden regeneration.) · **Created:** 2026-08-06 · **Follows:**
+`NODE-EXPORT-DURATION-SEMANTICS-2026-07-27-BRIEF.md` (DONE — 2026-08-06) · **Spawns:**
+`NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II-2026-08-09-BRIEF.md` · **Affects:** `motiondex-dsp.js`, `ppgdex-dsp.js`, the six nodes that do not publish `endEpochMs`
 
 # What closing the duration ruling surfaced — one live fabrication, one residual, and a habit
 
@@ -100,10 +109,16 @@ corrections each cost one probe. **Before carrying a per-node claim forward a th
 ## 5 · Done when
 
 - [x] **§1 — DONE 2026-08-06.** The assumed-26 Hz divide is gone; see §1-RESULT.
-- [ ] §2 — parked (default), or folded into a future PpgDex `fs`-estimator pass.
-- [ ] §3 — either the four ungated nodes gain an envelope-tracking assertion, or this is consciously
-      dropped and this brief says so.
-- [ ] §4 — nothing to execute; it is a note. Delete it if it ever stops being true.
+- [x] **§2 — PARKED (the stated default), 2026-08-09.** No PpgDex `fs`-estimator pass is scheduled, and
+      the item's own reasoning holds: 0.26 % over 9726 s is inside the rounding of any duration field,
+      and `endEpochMs` is read rather than derived so it is unaffected by construction. Re-open only if
+      the `fs` estimator is revisited for another reason.
+- [x] **§3 — DONE 2026-08-09, and NOT the way this item assumed.** The four ungated nodes gain the
+      envelope-tracking assertion (17 assertions, `duration-semantics` tag, both lanes) — and running it
+      found that **two of the four do not satisfy the contract**. See §3-RESULT.
+- [x] **§4 — kept, and it just earned its keep again.** §3-RESULT is the fifth instance: the parent's §7
+      table asserted a span for all four of these nodes, and two of those rows are wrong. Both were
+      caught by executing the shipped builder, neither by reading. Do not delete this note.
 
 
 ---
@@ -148,3 +163,73 @@ confirms the export did not move.
 
 **The guardrail held:** 26 was not replaced with a better constant. A measured median of ~51 Hz would be
 just as wrong for the 202.7 Hz files and the 20.9 Hz ones.
+
+---
+
+## §3-RESULT · EXECUTED 2026-08-09 — the assertion landed, and two of the four nodes fail the contract
+
+§3 was written as bookkeeping: *"either the four ungated nodes gain an envelope-tracking assertion, or
+this is consciously dropped."* It assumed the assertion would pass, because the parent's §7 table says
+all six remaining nodes "already compute a span". **Two of those four rows are wrong.**
+
+Every row below was produced by driving the **shipped export builder** over a synthetic twin with a hole
+in it. None came from reading the source — which is §4's rule, and §4 is why the measurement was run at
+all rather than the assertion being written from the table.
+
+| node | published field | on a gapped twin | verdict |
+|---|---|---|---|
+| **CPAPDex** | `recording.durSec` | 8400 s against 1200 s of data (2 h off-mask hole) | **ENVELOPE ✓** |
+| **HRVDex** | `coverage.recordedSec` | `null`, `nWithDuration 0/3`, span 345 600 s | **HONEST ✓** |
+| **PulseDex** *(timestamped)* | `durMin` | 2700 s = span; `coverage` 66.7 % | **ENVELOPE ✓** |
+| **PulseDex** *(no timestamps)* | `durMin` | 1800 s = **data**; `coverage` **100** | ✗ **DEFECT** |
+| **GlucoDex** | `coverage.recordedSec` | **== `spanSec`** across a 6 h dropout | ✗ **DEFECT** |
+
+### The two defects
+
+**PulseDex — `beatTimes` has two branches and only one of them is a span.** With timestamps it returns
+`(tsMs[i] − t0)/1000`, a true wall span. Without them it cumulates RR, so `durMin` silently changes
+meaning from ENVELOPE to DATA — **the exact defect §1 of the parent fixed in ECGDex, surviving one
+branch away in a different node.** Worse: `coverage` is initialised to `100` and only overwritten on the
+timestamped path, so an untimed stream **asserts a completeness it has no way to know**. That is the
+same fabricated-claim shape as §1's assumed-26 Hz, and it is live on every RR file that reaches PulseDex
+without stamps.
+
+**GlucoDex — `recordedSec` and `spanSec` are the same expression.** The block's own comment reads:
+
+> *"here `spanSec` and `recordedSec` agree BY MEASUREMENT, which is precisely what the sparse case could
+> not claim."*
+
+They do not agree by measurement. They are **assigned the same value**, so they *cannot* disagree, and a
+CGM wear with a 6 h sensor dropout reports **100 % coverage**. The same comment names HRVDex's sparse
+block as its sibling — and HRVDex is the node that explicitly refuses this fabrication (*"the obvious fix
+— stamp `durSec = lastTMs − firstTMs` — would FABRICATE COVERAGE"*). GlucoDex cites the right precedent
+and then does the thing the precedent forbids.
+
+### What landed here, and what did not
+
+**Landed:** the gate (`tests/dex-tests.js`, group *"The four ungated nodes"*, 17 assertions). The two ✓
+pairs are a genuine ratchet. The two ✗ are pinned as **characterization** — the wrong values are
+recorded so that a fix must update this group deliberately instead of silently. Pinning a defect is not
+endorsing it; leaving it unpinned is how it survives another six audits.
+
+**Mutation-verified in BOTH directions**, because a gate that cannot fail is this repo's recurring
+failure mode:
+
+| mutant | assertion killed |
+|---|---|
+| HRVDex `recordedSec := spanSec` | *recordedSec is NULL, never 0* |
+| CPAPDex `durSec := Σ session durations` | *durSec is the ENVELOPE* |
+| PulseDex `coverage := null` (**the fix**) | the §1 pin — proving it catches a silent repair |
+| GlucoDex `recordedSec` measured (**the fix**) | both §2 pins — same |
+
+**Not landed:** the fixes. Both are compute-path edits to a bundled DSP, so each owes a re-bundle, a
+`computeHash` move, golden regeneration (`tools/regen-glucodex-goldens.mjs` exists; PulseDex's too) and
+a `verify-fixtures` re-stamp. That is a separate work-unit with a separate blast radius, and it is
+routed to **`NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II-2026-08-09-BRIEF.md`** rather than bolted onto
+a tests-only PR.
+
+### The method note, again
+
+The parent was wrong about its own nodes four times, always by reading. This makes **five and six** — and
+both were in a table that had already been audited once and used to justify *not* doing work. A row that
+says "yes" with no measurement beside it is not a finding; it is a hypothesis with good posture.
