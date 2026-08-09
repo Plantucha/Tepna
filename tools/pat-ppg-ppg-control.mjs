@@ -71,6 +71,17 @@ const RATE_LO = 30,
    agreement is an artifact of regularity; coupling on BOTH with more scatter on host means the per-frame
    re-anchor jitter is the term, and that is a capture-path finding rather than an analysis one. */
 const AXIS = arg('--axis', 'host');
+/* THE TWO SITES, MATCHED BY DEVICE NAME — and `RE_ANKLE` must never relax to a bare `_PPG.txt`.
+   Both sites write `*_PPG.txt`, so a bare suffix match returns the RING for both legs and the tool
+   silently correlates the finger with ITSELF: guaranteed coupling, zero information, and a positive
+   control that can only ever pass. That is the same failure the sibling records at `RE_RING`
+   ("the sibling's fallback to any `_PPG.txt` is exactly how the wrist got measured while the finger
+   question was being asked"), and in a CONTROL it is worse — a control that cannot fail is not one.
+   `RE_ANKLE` is named for the SITE, not the limb: the Verity is on the LEFT ANKLE on this corpus
+   (#936, wearer-confirmed 2026-08-04). The identifier it replaces, `RE_WRIST`, encoded the wrong
+   anatomy AND was never defined in any revision — see the §NEVER-RAN note in the header. */
+const RE_RING = /o2ring.*_PPG\.txt$/i; // FINGER — Wellue_O2Ring-S_<sn>_<stamp>_PPG.txt
+const RE_ANKLE = /veritysense.*_PPG\.txt$/i; // ANKLE — Polar_VeritySense_<id>_<stamp>_PPG.txt
 /* SCATTER mode — the only statistic comparable with the PAT family's 84-99 ms.
    PAT-VERDICT-CONSOLIDATED §5: strictMatchRate.residIQR is an IQR over ONLY the residuals its own
    ±40 ms window accepted, so it reads 31-44 ms regardless of signal and must never be compared to the
@@ -275,8 +286,8 @@ function main() {
   const OUT = arg('--json-out', '/tmp/ppg-ppg-control.json');
   for (const n of nights) {
     const dir = join(DIR, n);
-    const fs_ = biggest(dir, /o2ring.*_PPG\.txt$/i, 3);
-    const ws = biggest(dir, RE_WRIST, 3);
+    const fs_ = biggest(dir, RE_RING, 3);
+    const ws = biggest(dir, RE_ANKLE, 3);
     if (!fs_.length || !ws.length) continue;
     const F = fs_
       .map((c) => {
