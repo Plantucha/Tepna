@@ -280,8 +280,16 @@ Contract (floating `tMs` via `Date.UTC`, read back with `getUTC*`/`{timeZone:'UT
       **not in a CPAP or CGM glossary**; searching `"ap"` → 13 hits (AHI, APAP, ASV) and `"gl"` → 12 (AGP,
       CGM, CONGA) shows the filter working. **A UI probe that reports "broken" is far more likely to be a
       wrong selector than a broken page — verify the mechanism in the source before filing the defect.**
-- [ ] *(nav-highlight — scroll-spy — not covered by the run above; it needs a scroll simulation, so it is
-      the one part of this box still unproven.)*
+- [x] **nav-highlight — scroll-spy — PROVEN 2026-08-09.** 111/111 testable sections across all 7 guides
+      follow the scroll; no multi-highlight (so `setActive` clears), 0 page errors. **The probe was
+      shown to FAIL first** — neutering `window.scrollTo` puts every guide at `followed=0`, so the pass
+      measures scroll-dependent state rather than passing by construction. Two details that only came
+      from reading the mechanism first, as this brief insists: the observer's
+      `rootMargin:'-20% 0px -70% 0px'` makes a section active only inside a **20–30 % viewport band**
+      (so `scrollIntoView` lands it at 0 % and highlights nothing — the probe places each top at 25 %),
+      and `html{scroll-behavior:smooth}` makes every read a race unless forced to `auto`. The
+      sections↔nav gap (ECGDex 20/16, OxyDex 33/20) is expected: only `.rs[id]` WITH a nav entry can
+      highlight, and those are excluded rather than counted as misses.
 - [ ] No correction-history meta-commentary; internal composites/projections honestly labelled and
       consistent with the Validation Matrix.
 - [ ] `Dex-Test-Suite.html` all green after each guide; `node tests/run-tests.mjs` green.
@@ -298,3 +306,47 @@ node source, registries, or bundles except to flag a genuine registry/code error
 - Do not hand-edit the `.ev-*` disc CSS (it is gate-checked byte-for-byte against the engine).
 - Do not introduce `@font-face`/CDNs (system-font stacks only) or print a DOI you have not confirmed resolves.
 - Do not leave correction-history notes in reader-facing text.
+
+---
+
+## Findings — 2026-08-09
+
+### F1 · `OxyDex Reference.html` sourced a metric that does not exist — FIXED
+
+`BP Projection` was removed on 2026-06-23 (`oxydex-registry.js:195`, external-review WP-A: *"cuffless BP
+from oximetry/HRV is indefensible"*). The removal reached **one** table and not the other five places,
+so the guide simultaneously said the metric was gone and cited three published papers for it:
+
+| line | what it claimed | verdict |
+|---|---|---|
+| 2238 | Nieto 2000 *"underpinning BP Projection"*, and published the projection's **internal coefficients** (ODI-4 → +0.37 mmHg SBP / +0.17 mmHg DBP per event·hr) | **worst of the six** — advertised app-internal calibration for a metric the app does not compute |
+| 2532 | citation row · BP Projection (ODI contribution) — Nieto 2000 | removed |
+| 2533 | citation row · BP Projection (HD94 contribution) — Kim/Azarbarzin 2020 | removed |
+| 2581 | citation row · BP projection from nocturnal HR — Palatini 2009 | removed |
+| 2691 | Clinical-Equivalence caveat *"BP projection is epidemiological, not a cuff measurement"* | removed — a caveat for a dead metric |
+| 2609 | validation matrix · **REMOVED 2026-06-23** | **kept** — this is the honest record |
+
+Azarbarzin and Palatini are legitimately cited elsewhere (hypoxic burden; Mean/Resting HR), so only
+their BP rows went. **Nieto 2000's only stated purpose in this guide was BP Projection**, so its card
+was restated rather than deleted: the SDB→hypertension association is the clinical reason an ODI matters
+at all, and the card now says plainly that **no metric is derived from it** and that the projection it
+formerly underpinned was withdrawn. 7 mentions → 2, both honest.
+
+**Why a gate would not have caught this.** `cohesion-badges` checks grades for cards the node's own
+resolver maps; a citation row for a **deleted** metric is mapped by nothing, so it is invisible to every
+existing check. The class is "documentation outliving the code it documents", and it is silent by
+construction.
+
+### F2 · ⚠ THE SAME DEFECT, 5× WIDER — `ANS Age`, NOT fixed here
+
+`ANS Age` was removed on the same review sweep (2026-06-21, WP-A) and is **absent from every registry** —
+`ppgdex-registry.js:382`, `hrvdex-registry.js:122`, `pulsedex-registry.js`, `oxydex-registry.js` all
+carry removal comments, not metrics. It is still named **18 times across 5 guides**: HRVDex ×8 (including
+a metrics list at :342), PpgDex ×4, PulseDex ×3, OxyDex ×2 (a metrics list at :810), GlucoDex ×1.
+
+**Deliberately not swept in this pass**, for a reason this brief already teaches: several of those
+mentions sit in *"internal composite — no external source, directional only"* provenance rows, which is
+**honest labelling** and not the same defect as a citation row. Telling them apart needs the same
+per-mention reading that F1 got, and a blanket find-and-replace across five reader-facing guides is
+precisely the move that manufactures false defects. Sized here so the next pass starts from a count
+rather than a suspicion.
