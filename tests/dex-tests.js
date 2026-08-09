@@ -4357,7 +4357,7 @@
        inside 1 s) and ~0.2 s apart on all 6 box-captured nights — a systematic bias that survived
        months precisely because no code compared them.
 
-       Method per Straczkiewicz 2021 (Sensors 21:4777) and BMAR (arXiv:2501.16015): windowed
+       Method per Brønd 2021 (Sensors 21:4777) and BMAR (arXiv:2501.16015): windowed
        normalized cross-correlation of accelerometer NORMS, with lag regressed against time so that
        offset and clock DRIFT come out of one fit. */
     group('Two accelerometers on one body: offset, drift, and the chance that isn’t either', 'integrator-dsp · acc-align', function (T) {
@@ -14380,6 +14380,109 @@
       var files = MG.gateBFiles({ 'out.json': { bundle: 'A.html', inputHashes: { 'raw-input.csv': IN } }, _meta: { note: 'metadata — must be skipped' } });
       T.eq('gateBFiles · enumerates OUTPUT + every INPUT file, drops _metadata keys, sorted', files, ['out.json', 'raw-input.csv']);
       T.ok('gateBFiles · the code-gated INPUT file IS present (without it, input-drift is undetectable)', files.indexOf('raw-input.csv') !== -1, files.join(', '));
+    });
+
+    /* ── CITATION LEDGER — make it load-bearing instead of decorative ─────────────────────────────
+       CITATION-ATTRIBUTION-FOLLOWUPS §3. `audits/CITATION-VERIFICATION-2026-08-05.json` recorded the
+       truth for 86 DOIs and enforced NOTHING. The 2026-08-05 pass found six defects by hand; three
+       were DOIs pointing at the wrong paper, and three were citations naming the WRONG AUTHORS — the
+       failure a reader is least able to detect, because the link works and lands on the paper being
+       described. This asserts that for every DOI on a reader-facing source surface, the surrounding
+       citation names the ledger's first author and a year within ±1.
+
+       WHAT IT DELIBERATELY DOES NOT DO: check that a DOI resolves. That needs network, which CI must
+       not have, and it is the weak half anyway — all three wrong-paper DOIs resolved perfectly.
+
+       Three noise sources, each of which would have buried a real finding, and each paid for once:
+        · CORPORATE AUTHORS. Crossref stores 10.1161/…'s author as the full society name, whose last
+          word is "Electrophysiology"; the guides use the conventional "Task Force of the ESC and
+          NASPE". A naive match reds three correct guides. Hence the ledger's `authorAliases`.
+        · ±1 YEAR IS AGREEMENT. Crossref's `issued` is the online-first year; a citation quotes the
+          issue year. Four DOIs differ that way and all four are correct.
+        · WORD-BOUNDARY, NO LENGTH FLOOR. An earlier cut filtered name parts shorter than four
+          characters and so silently dropped every three-letter surname — Pan, Uth, Hui — scoring
+          "Pan & Tompkins 1985" as a mismatch. Whole-word matching keeps Pan without admitting a
+          substring hit inside a longer word. */
+    group('Citation ledger — every DOI is attributed to the right author (CITATION-ATTRIBUTION §3)', 'docs · citation-ledger', function (T) {
+      var C = env.citations;
+      if (!C || !C.ledger || !C.surfaces) {
+        T.skip('env.citations provided to the runner', 'Node-lane only (run-tests.mjs readCitations, fs truth) — the browser lane can’t readdir so it SKIPs; CI runs the Node lane');
+        return;
+      }
+      var DOIS = C.ledger.dois;
+      function decode(s) {
+        return String(s)
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/&#x([0-9a-fA-F]+);/g, function (_, h) {
+            return String.fromCodePoint(parseInt(h, 16));
+          })
+          .replace(/&#(\d+);/g, function (_, d) {
+            return String.fromCodePoint(+d);
+          })
+          .replace(/&amp;/g, '&')
+          .replace(/&[a-z]+;/g, ' ')
+          .replace(/\s+/g, ' ');
+      }
+      /* Fold diacritics and the Danish ø so Brønd/Grøntved match however the surface spells them. */
+      function fold(s) {
+        return String(s)
+          .normalize('NFD')
+          .replace(/[̀-ͯ]/g, '')
+          .replace(/ø/gi, 'o')
+          .replace(/[^A-Za-z ]/g, ' ')
+          .toLowerCase();
+      }
+      var DOI_RE = /10\.\d{4,9}\/[A-Za-z0-9._;:()/-]+/g;
+      var problems = [],
+        checked = 0,
+        unknown = [];
+      C.surfaces.forEach(function (s) {
+        var m;
+        DOI_RE.lastIndex = 0;
+        while ((m = DOI_RE.exec(s.text))) {
+          var doi = m[0].replace(/[.,;:]+$/, '');
+          /* A DOI may contain balanced parens (10.1016/S1388-2457(03)00355-5); a TRAILING unbalanced
+             ')' belongs to the sentence, not the DOI. Strip only the excess. */
+          while ((doi.match(/\)/g) || []).length > (doi.match(/\(/g) || []).length) doi = doi.replace(/\)[^)]*$/, '');
+          var rec = DOIS[doi];
+          if (!rec) {
+            unknown.push(s.file + '  ' + doi);
+            continue;
+          }
+          checked++;
+          var win = decode(s.text.slice(Math.max(0, m.index - 700), m.index));
+          var words = {};
+          fold(win)
+            .split(' ')
+            .forEach(function (w) {
+              if (w) words[w] = 1;
+            });
+          var names = [rec.firstAuthor].concat(rec.authorAliases || []).filter(Boolean);
+          var authorOk =
+            names.length > 0 &&
+            names.some(function (n) {
+              return fold(n)
+                .split(' ')
+                .filter(function (w) {
+                  return w.length >= 3;
+                })
+                .some(function (w) {
+                  return words[w] === 1;
+                });
+            });
+          var yearOk = (win.match(/\b(?:19|20)\d{2}\b/g) || []).some(function (y) {
+            return Math.abs(+y - +rec.year) <= 1;
+          });
+          if (!names.length) problems.push(s.file + '  ' + doi + ' — ledger carries no author and no authorAliases; add one so the check is enforceable rather than silently skipped');
+          else if (!authorOk) problems.push(s.file + '  ' + doi + ' — citation does not name "' + rec.firstAuthor + '"');
+          else if (!yearOk) problems.push(s.file + '  ' + doi + ' — no year within ±1 of ' + rec.year);
+        }
+      });
+      T.ok('the gate actually reached the citations (a scope that matches nothing would pass vacuously)', checked >= 100, 'checked ' + checked + ' DOI occurrences across ' + C.surfaces.length + ' surfaces');
+      T.eq('every DOI on a source surface names the ledger’s first author and a year within ±1', problems, []);
+      /* A DOI on a surface but absent from the ledger is a ledger gap, not a citation defect — it is
+         reported separately so the two never get conflated. */
+      T.eq('every DOI on a source surface is present in the ledger', unknown, []);
     });
 
     group('Release-ledger — controlled releases machine-checked (CONTROLLED-RELEASES)', 'docs · release-ledger', function (T) {

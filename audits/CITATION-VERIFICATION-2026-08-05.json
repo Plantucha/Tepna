@@ -7,7 +7,11 @@
     "10.1001/archinte.1916.00080130010002": {
       "firstAuthor": "Du BOIS",
       "year": "1916",
-      "container": "Archives of Internal Medicine"
+      "container": "Archives of Internal Medicine",
+      "authorAliases": [
+        "DuBois"
+      ],
+      "aliasNote": "Crossref spells the surname \"Du BOIS\"; the paper and the guides spell it \"DuBois\". Same author, no space."
     },
     "10.1001/jama.283.14.1829": {
       "firstAuthor": "Nieto",
@@ -122,7 +126,11 @@
     "10.1056/NEJM198710223171717": {
       "firstAuthor": "",
       "year": "1987",
-      "container": "New England Journal of Medicine"
+      "container": "New England Journal of Medicine",
+      "authorAliases": [
+        "Mosteller"
+      ],
+      "aliasNote": "Crossref carries NO author for this record. Supplied from the paper itself (Mosteller RD)."
     },
     "10.1063/1.166141": {
       "firstAuthor": "Peng",
@@ -277,7 +285,12 @@
     "10.1161/01.CIR.93.5.1043": {
       "firstAuthor": "Electrophysiology",
       "year": "1996",
-      "container": "Circulation"
+      "container": "Circulation",
+      "authorAliases": [
+        "Task Force of the European Society of Cardiology and the North American Society of Pacing and Electrophysiology",
+        "Task Force of the ESC and NASPE"
+      ],
+      "aliasNote": "CORPORATE AUTHOR. Crossref stores the full society name; the parse kept only its last word (Electrophysiology), and the guides use the conventional short form. Both are correct — the aliases exist so a correct citation cannot red."
     },
     "10.1161/01.HYP.32.2.365": {
       "firstAuthor": "Takazawa",
@@ -312,7 +325,11 @@
     "10.12710/cardiometry.2017.10.6676": {
       "firstAuthor": "",
       "year": "2017",
-      "container": "Cardiometry"
+      "container": "Cardiometry",
+      "authorAliases": [
+        "Baevsky"
+      ],
+      "aliasNote": "Crossref carries NO author for this record. Supplied from the paper itself (Baevsky RM, Chernikova AG) so the check is enforceable rather than skipped."
     },
     "10.1378/chest.124.5.1694": {
       "firstAuthor": "Magalang",
@@ -434,5 +451,6 @@
       "year": "2020",
       "container": "Journal of Clinical Sleep Medicine"
     }
-  }
+  },
+  "_aliasPolicy": "authorAliases: additional spellings that are CORRECT for this DOI. Needed because a Crossref surname can be a corporate name, a differently-spaced surname, or absent entirely; without them a correct citation reds and the noise buries a real finding (CITATION-ATTRIBUTION-FOLLOWUPS §3, constraint 1)."
 }

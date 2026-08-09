@@ -4490,8 +4490,10 @@
          trio-batch, not any analysis. The cross-node feed was 5-minute epoch aggregates, so every
          question about beat timing had to re-run the DSP.
 
-         That matters beyond convenience. The published joint clock-skew framework
-         (doi:10.1088/1361-6501/ae6a09) synchronises independently-clocked sensors to 0.2-0.4 ms from
+         That matters beyond convenience. The published joint clock-skew framework — Abdessalem K.
+         (2026), "A software-only framework for synchronization of independently clocked cardiac-linked
+         biomedical signals", Meas Sci Technol
+         (doi:10.1088/1361-6501/ae6a09) — synchronises independently-clocked sensors to 0.2-0.4 ms from
          IBI SEQUENCES ALONE — and this suite has three interval sources (chest RR, arm PPI, finger
          PPI) and exported none of them, which is why its alignment work has been fighting +/-45 s
          plateaus. */
