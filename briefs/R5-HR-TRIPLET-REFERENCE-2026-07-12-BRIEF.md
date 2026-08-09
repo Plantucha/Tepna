@@ -1,7 +1,32 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (**the two do-now write-ups are DONE 2026-08-04** — §5 items 4 + 5 landed in both papers; what remains is **hardware-gated**, not unstarted: items 1 + 2 need the ResMed oximeter physically connected for ≥5 quad-modal nights, which is zero code and entirely the owner's to do) · **Created:** 2026-07-12 · **Executes:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md` §7 **R5** · **Companion to:** `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` · **Feeds:** `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md` · `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`
+**Status:** PROPOSED (deferred 2026-08-08 — **HARDWARE-BLOCKED, and the hardware does not exist**: the owner confirms there is no ResMed oximeter module, so items 1 + 2 need a PURCHASE, not a cable. Not parked for lack of will or code; see the 2026-08-08 banner) · **Created:** 2026-07-12 · **Executes:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md` §7 **R5** · **Companion to:** `TRIO-ARTIFACT-GATE-AND-N15-POWER-2026-07-12-BRIEF.md` · **Feeds:** `SIGMA-PAPER-REWRITE-2026-07-06-BRIEF.md` · `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`
 
-> ## 2026-08-08 — the estimator confound is now FIXABLE from the export, and the cable is still the cable
+> ## ⚠️ 2026-08-08 — "the fix is one cable" IS WRONG. There is no oximeter to connect.
+>
+> This brief says it five times — *"The fix is one cable"*, *"Zero code cost"*, *"entirely the owner's
+> to do"* — and each reads as a task waiting on ten minutes of someone's attention. **Confirmed with
+> the owner 2026-08-08: the ResMed oximeter module is not owned.** So item 1 is a **purchase**, and the
+> independence test behind the entire reference-free σ programme is not one cable away; it is one
+> piece of hardware plus ≥5 quad-modal nights away.
+>
+> The original phrasing was not careless — `_SA2.edf` really does write `Pulse.1s`, and the channel
+> really is the "no oximeter connected" sentinel, so the *software* is genuinely ready. But "ready
+> once the hardware exists" and "one cable" are different claims, and only the first is true. Left in
+> §4 below as written, with this banner as the correction, per the house rule against rewriting a
+> record in place.
+>
+> **Consequence, and it is not small:** `TCH-REFERENCE-VALIDATION` measured ρ(err_ECG, err_PPG) = 0.42
+> against a ρ_crit ≈ 0.422 identifiability boundary (`PAPERS-ROADMAP` §2.8). The fourth corner is how
+> that assumption gets checked. Until the hardware exists, **the assumption stays unchecked** — which
+> is a limitation the σ-papers should carry as a standing one, not as a pending experiment. Do not
+> re-raise this as actionable work; it is not, and re-deriving that fact costs a session each time.
+>
+> **No substitute exists in the current kit.** A 4th corner must be mechanistically independent of the
+> other three. The O2Ring's own finger pleth through PPGDSP (`PpgDexFinger`, which `trio-batch` already
+> emits) is a *second estimator on the same sensor*, not a second sensor — and it is optically twinned
+> with OxyDex besides, which is exactly the mechanism-collision §4's own caveat warns against.
+>
+> ## 2026-08-08 — the estimator confound is now FIXABLE from the export
 >
 > §5's superseding entry ends: *"no per-device HR bias may be read off cross-node epoch HR until the
 > nodes agree on one statistic"*, and `R5-HR-TRIPLET-FOLLOWUPS` §3 records what is owed — **one epoch
@@ -162,7 +187,9 @@ mechanistically twinned with a corner. Do not simply add it as a fourth and hope
 
 ## 5 · Done when
 
-- [ ] **Connect the ResMed oximeter** for ≥ 5 quad-modal nights (CPAP + H10 + Verity + O2Ring). Zero code cost.
+- [ ] **Acquire** a ResMed oximeter module, then record ≥ 5 quad-modal nights (CPAP + H10 + Verity +
+      O2Ring). ⚠️ **Not "zero code cost" — a PURCHASE.** The owner does not have the module
+      (confirmed 2026-08-08); the software side is ready, the hardware is absent. See the banner.
 - [ ] Re-run the R5 experiment with **ResMed pulse as the external reference** — then, and only then, the HR
       triplet's **independence** and **σ accuracy** become measurable.
 - [x] **RESOLVED 2026-08-04 (second pass) — the −0.36 bpm is NOT the O2Ring. It is a CONFOUND between
