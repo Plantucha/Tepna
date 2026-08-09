@@ -6905,7 +6905,20 @@
       T.eq('…vlf/lf/hf are each exactly 0', JSON.stringify(z && [z.vlf, z.lf, z.hf]), '[0,0,0]');
       T.eq('…respRate is null: no oscillation means no HF peak to report', z && z.respRate, null);
       T.eq('…and no method is claimed for a rate that does not exist', z && z.respRateMethod, null);
-      T.eq('…lfhf/lfnu/hfnu are null, not 0 — a ratio of nothing is undefined, not zero', JSON.stringify(z && [z.lfhf, z.lfnu, z.hfnu]), '[null,null,null]');
+      /* ⚠️ DO NOT COMPARE THESE THROUGH `JSON.stringify` — that is how this assertion was written, and
+         it could never have failed. `JSON.stringify` serialises **NaN as `null`**, so
+         `JSON.stringify([NaN, NaN, NaN])` is the string `'[null,null,null]'`, byte-identical to the
+         expected value. The mutants this test was written to kill (`hf > 0` → `>=`, and the two
+         `lf + hf > 0` → `>=` beside it) make the guard admit zero and compute `0 / 0` — so all three
+         metrics come back NaN and the assertion passed anyway. Measured 2026-08-09 by re-applying the
+         L1969 mutant: 26/26 green, and the mutant survived the full sweep for exactly this reason.
+         Assert each value is STRICTLY null, which NaN cannot satisfy. */
+      T.ok(
+        '…lfhf/lfnu/hfnu are STRICTLY null, not 0 and not NaN — a ratio of nothing is undefined',
+        z && z.lfhf === null && z.lfnu === null && z.hfnu === null,
+        'lfhf=' + (z && String(z.lfhf)) + ' lfnu=' + (z && String(z.lfnu)) + ' hfnu=' + (z && String(z.hfnu))
+      );
+      T.ok('…and none of them is NaN (the shape JSON.stringify would have hidden)', z && !Number.isNaN(z.lfhf) && !Number.isNaN(z.lfnu) && !Number.isNaN(z.hfnu), 'lfhf=' + (z && String(z.lfhf)));
 
       /* THE VLF LOWER BOUND IS INCLUSIVE, and only a component sitting exactly ON it can show that.
          `f >= bands.vlf[0]` mutated to `f >` drops the bin at exactly 0.003 Hz. A first attempt
