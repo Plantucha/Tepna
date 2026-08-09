@@ -80,6 +80,67 @@ def test_parse_directory_ignores_a_non_entry_field():
     assert ps._parse_directory(ps._pb_uint(7, 42) + _entry("A.DAT", 5)) == [("A.DAT", 5)]
 
 
+# ── TRUNCATION — a cut reply must never decode into a plausible short listing ───────────────────────
+#
+# THE BYTES BELOW CAME OFF THE REAL VERITY `0C301E3F`, 2026-08-09, over the USB HID pipe: one 64-byte
+# report, `flags == 1` (END), ending mid-record. This is a KNOWN-ANSWER vector, not a constructed one —
+# the point of pinning the real payload is that the parser is not being tested against a fixture whose
+# shape the parser's author chose.
+_REAL_TRUNCATED_USB_LISTING = bytes.fromhex(
+    "0a0c0a08444244432e44415410010a0e0a0a5553455249442e42504210460a060a02532f10000a0d0a09"
+    "32303236303632312f10000a0d0a093230"
+)
+# What the BLE mirror of the SAME device reported for `/U/0/` in the same week — the ground truth.
+_BLE_TRUTH = ["DBDC.DAT", "USERID.BPB", "S/", "20260621/", "20260802/", "20260803/"]
+
+
+def test_a_truncated_listing_is_reported_as_truncated_not_as_a_short_directory():
+    entries, truncated = ps._parse_directory_ex(_REAL_TRUNCATED_USB_LISTING)
+    assert truncated is True, "the payload ends mid-record; saying otherwise is the whole bug"
+    assert [n for n, _ in entries] == _BLE_TRUTH[:4]
+
+
+def test_a_truncated_record_never_becomes_a_filename():
+    """THE DEFECT, stated directly. The final record declares a 9-byte name and carries 2, so the old
+    reader — `buf[i:i + ln]`, which silently returns the short remainder — produced a file called
+    "20". A caller walking that GETs `/U/0/20/`, a path the device has never heard of, while the two
+    real session directories it stands for (one holding 22 `.REC` recordings) are simply absent."""
+    names = [n for n, _ in ps._parse_directory(_REAL_TRUNCATED_USB_LISTING)]
+    assert "20" not in names
+    assert not any(n.startswith("20") and n not in _BLE_TRUTH for n in names)
+
+
+def test_a_complete_listing_is_not_flagged_truncated():
+    """The positive control. A truncation detector that fires on everything is not a detector — and
+    this repo has shipped one of those (CLAUDE.md §👥.4b)."""
+    entries, truncated = ps._parse_directory_ex(_entry("A.DAT", 5) + _entry("B/", 0))
+    assert truncated is False and entries == [("A.DAT", 5), ("B/", 0)]
+
+
+def test_truncation_is_detected_at_the_OUTER_record_too():
+    """Cut in the entry's own length prefix rather than inside its name — the outer message is where
+    `_iter_fields` runs off the end, and it must raise there as well."""
+    buf = _entry("A.DAT", 5) + ps._pb_msg(1, ps._pb_msg(1, b"LONGNAME.DAT"))[:-6]
+    entries, truncated = ps._parse_directory_ex(buf)
+    assert truncated is True and entries == [("A.DAT", 5)]
+
+
+def test_a_varint_running_off_the_end_is_truncation_not_an_IndexError():
+    """`_read_varint` indexes the buffer directly. A continuation bit set on the last byte walked past
+    it and raised a bare IndexError, which callers catch as "garbage payload" and report as a parse
+    failure — a different diagnosis from "the reply was cut short", leading somewhere different."""
+    with pytest.raises(ps.TruncatedProtobuf):
+        list(ps._iter_fields(bytes([(1 << 3) | 0, 0x80]), strict=True))
+
+
+def test_iter_fields_stays_lenient_by_default():
+    """`strict=False` keeps the historical shape for the small fixed replies (PbDate / PbTime /
+    GET_LOCAL_TIME) that read a partial field as "absent". Changing that default is a behaviour change
+    on paths this repo has only verified against hardware."""
+    out = list(ps._iter_fields(ps._pb_msg(1, b"ABCDEFGH")[:-4]))
+    assert out == [(1, b"ABCD")]
+
+
 # ── operation encoding ──────────────────────────────────────────────────────────────────────────────
 def test_encode_operation_carries_command_and_path():
     buf = ps._encode_operation(ps.GET, "/U/0/SESSION1.DAT")

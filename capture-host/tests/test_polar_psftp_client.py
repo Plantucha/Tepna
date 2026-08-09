@@ -218,6 +218,38 @@ def test_list_dir_parses_a_directory(monkeypatch):
     assert _run(go()) == [("BPM.GZ", 12), ("PLETH.GZ", 34)]
 
 
+def test_walk_records_a_truncated_listing_and_still_walks_what_arrived(monkeypatch):
+    """A cut listing must leave a trace on the SESSION, because `walk` yields tuples and a tuple has
+    nowhere to say "and there was more". Without `truncated_dirs` a caller sees a short directory and
+    a clean run — measured on the real device, where `/U/0/` came back 4 of 6 entries and the tool
+    reported success (psftp.TruncatedProtobuf)."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            async def _cut(path):
+                return [("BPM.GZ", 12)], True
+            fs.list_dir_ex = _cut
+            rows = [row async for row in fs.walk("/U/0/")]
+            return rows, list(fs.truncated_dirs)
+    rows, cut = _run(go())
+    assert cut == ["/U/0/"], "the cut path is named, not merely counted"
+    assert ("/U/0/BPM.GZ", 12, False) in rows, "the entries that DID arrive are still yielded"
+
+
+def test_walk_leaves_truncated_dirs_empty_on_a_clean_tree(monkeypatch):
+    """Positive control — an always-populated list would be no signal at all."""
+    c = _fs_with_one_session()
+    _install(monkeypatch, c)
+
+    async def go():
+        async with ps.PolarPsFtp("AA:BB") as fs:
+            [row async for row in fs.walk("/U/0/")]
+            return list(fs.truncated_dirs)
+    assert _run(go()) == []
+
+
 def test_get_downloads_file_bytes(monkeypatch):
     c = _fs_with_one_session()
     _install(monkeypatch, c)
@@ -360,7 +392,7 @@ def test_walk_yields_a_marker_when_a_dir_cannot_be_listed(monkeypatch):
     _install(monkeypatch, c)
     async def go():
         async with ps.PolarPsFtp("AA:BB") as fs:
-            fs.list_dir = c._fail                       # force list_dir to raise
+            fs.list_dir_ex = c._fail                    # force the listing to raise
             return [row async for row in fs.walk("/U/0/")]
     rows = _run(go())
     assert rows == [("/U/0/", -1, False)], "an unreadable dir yields one (path, -1, False) marker"

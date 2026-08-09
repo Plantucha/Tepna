@@ -41,6 +41,12 @@ class _FakeFs:
             raise RuntimeError(f"no such dir {path}")
         return self.tree[path]
 
+    async def list_dir_ex(self, path):
+        """`(entries, truncated)` — what `walk` actually calls. `truncated` is driven by `self.cut` so
+        a test can hand the mirror a listing that was cut short, which is the case a fake that only
+        knows `list_dir` cannot express at all."""
+        return await self.list_dir(path), path in getattr(self, "cut", ())
+
     async def get(self, path, timeout=0):
         self.fetched.append(path)
         if path in self.hangs:
@@ -137,6 +143,28 @@ def test_an_unlistable_directory_is_recorded_not_fatal(monkeypatch, tmp_path):
     res = _run(pm.mirror("AA:BB", str(tmp_path), redact=False))
     assert "/GONE/" in res["errors"]
     assert res["files"]["/DEVICE.BPB"]["status"] == "pulled"
+
+
+def test_a_truncated_listing_is_recorded_as_an_error_and_the_rest_still_mirrors(monkeypatch, tmp_path):
+    """A CUT LISTING IS THE ONE FAILURE A MIRROR CANNOT SHRUG OFF, because the manifest is what later
+    analysis reads to say what was on the device. Measured on the real Verity: the USB pipe's `/U/0/`
+    lost 2 of 6 entries — one of them a session directory holding 22 `.REC` recordings — and the tool
+    reported success. So the pull of what DID arrive must proceed (a partial mirror beats none), and
+    the omission must be stated (`psftp.TruncatedProtobuf`)."""
+    fs = _FakeFs(TREE, BLOBS)
+    fs.cut = {"/"}
+    _patch(monkeypatch, fs)
+    res = _run(pm.mirror("AA:BB", str(tmp_path), redact=False))
+    assert "/" in res["errors"] and "TRUNCATED" in res["errors"]["/"]
+    assert res["files"]["/DEVICE.BPB"]["status"] == "pulled", "the entries that DID arrive still pull"
+
+
+def test_a_complete_listing_leaves_the_manifest_errors_empty(monkeypatch, tmp_path):
+    """Positive control for the test above — a truncation flag that is always set says nothing."""
+    fs = _FakeFs(TREE, BLOBS)
+    _patch(monkeypatch, fs)
+    res = _run(pm.mirror("AA:BB", str(tmp_path), redact=False))
+    assert res["errors"] == {}
 
 
 def test_the_walk_has_a_depth_limit(monkeypatch, tmp_path):

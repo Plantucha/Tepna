@@ -139,6 +139,45 @@ def test_a_single_end_packet_is_parsed_into_directory_entries(monkeypatch):
     assert ("20260621/", 0) in r["entries"], "a date-named session directory"
 
 
+# ── TRUNCATION ───────────────────────────────────────────────────────────────────────────────────────
+# The SAME reply, re-measured 2026-08-09 — and the device had more to say. `_LISTING` above is the
+# 2026-08-02 capture, which happened to end on a record boundary and so looked whole. It was not: the
+# USB pipe caps a reply at one 64-byte report and sets the END flag regardless, and on 08-09 the extra
+# bytes that fit landed MID-RECORD. The BLE mirror of the same unit lists SIX entries in `/U/0/`
+# (`20260802/` and `20260803/`, the latter holding 22 `.REC` recordings); both USB captures show FOUR.
+_LISTING_TRUNCATED = _LISTING + bytes.fromhex("0a0d0a093230")     # entry: name len 9, 2 bytes delivered
+
+
+def test_a_truncated_payload_is_reported_as_truncated_not_as_a_short_listing(monkeypatch):
+    dev = _FakeDev([_reply(len(_LISTING_TRUNCATED), 1, _LISTING_TRUNCATED)])
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["truncated"] is True and r["complete"] is False
+    assert [e[0] for e in r["entries"]] == ["DBDC.DAT", "USERID.BPB", "S/", "20260621/"]
+    assert "20" not in [e[0] for e in r["entries"]], "a 2-byte fragment of a 9-byte name is not a file"
+
+
+def test_a_whole_payload_is_marked_complete(monkeypatch):
+    """Positive control: `complete` must be capable of being true, or it reports nothing."""
+    dev = _FakeDev([_reply(len(_LISTING), 1, _LISTING)])
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["truncated"] is False and r["complete"] is True
+
+
+def test_main_leads_the_verdict_with_the_truncation(monkeypatch, capsys):
+    """`ok` stays TRUE on a truncated listing — the transport really did work — so the verdict is the
+    only line that can stop a reader citing four entries as the device's filesystem. One did, for a
+    week: POLAR-VERITY-DEVICE-SURFACE quotes the short list as the device's `/U/0/`."""
+    monkeypatch.setattr(probe, "find_device", lambda: ("/dev/hidraw0", "0C301E3F"))
+    monkeypatch.setattr(probe, "fetch", lambda *a, **k: {
+        "ok": True, "truncated": True, "complete": False, "entries": [("20260621/", 0)]})
+    assert probe.main([]) == 0
+    out = capsys.readouterr().out
+    assert "TRUNCATED" in out and "polar_mirror" in out
+    assert "reusable" not in out, "the success verdict must not also be printed"
+
+
 def test_a_multi_packet_reply_is_acked_and_reassembled(monkeypatch):
     a, b = _LISTING[:20], _LISTING[20:]
     dev = _FakeDev([_reply(len(a), 0, a, initial=True), _reply(len(b), 1, b, initial=False)])
@@ -217,6 +256,19 @@ def test_unparseable_payload_is_surfaced_as_hex_rather_than_claimed_as_success(m
     _install(monkeypatch, dev)
     r = probe.fetch("/dev/hidraw0", "/U/0/")
     assert r["ok"] is False and r["head"] == "ffffffff"
+
+
+def test_a_payload_the_protobuf_reader_REJECTS_is_also_surfaced_as_hex(monkeypatch):
+    """`\\xff\\xff\\xff\\xff` above is now diagnosed as TRUNCATION (a varint whose continuation bit
+    never clears really has run off the end), which `_parse_directory_ex` handles internally. So the
+    `except` arm needs the OTHER garbage shape to stay reachable: wire type 3 — a deprecated protobuf
+    group — which `_iter_fields` raises on outright rather than desyncing the parser. Either way the
+    bytes must reach the operator, because on this transport they are the only evidence of what the
+    device actually said."""
+    dev = _FakeDev([_reply(1, 1, b"\x0b")])           # tag: field 1, wire type 3
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["ok"] is False and r["truncated"] is False and r["head"] == "0b"
 
 
 def test_permission_denied_names_the_udev_rule(monkeypatch):
