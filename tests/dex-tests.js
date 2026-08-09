@@ -6651,8 +6651,13 @@
       var sess = L(ne({ sessions: [{ hrv: { from: 'session' }, recording: { from: 's' } }], hrv: { from: 'top' }, recording: { from: 't' } }));
       T.eq('hrv prefers the SESSION value over the top-level one', JSON.stringify(sess && sess.hrv), '{"from":"session"}');
       T.eq('…and so does recording', JSON.stringify(sess && sess.recording), '{"from":"s"}');
-      var topOnly = L(ne({ sessions: [{ a: 1 }], hrv: { from: 'top' }, quality: { q: 9 }, personalization: { p: 1 } }));
+      /* `recording` is in this object for a reason: the first version of this case carried hrv,
+         quality and personalization but NOT recording, so `recording: (carrier[0] && …) || json.recording || null`
+         never had its SECOND arm exercised, and `json.recording && null` survived the sweep (L4151).
+         Three of the four fields being covered reads as coverage; the fourth was the gap. */
+      var topOnly = L(ne({ sessions: [{ a: 1 }], hrv: { from: 'top' }, recording: { from: 'top-rec' }, quality: { q: 9 }, personalization: { p: 1 } }));
       T.eq('…falling back to the TOP-LEVEL value when the session lacks it', JSON.stringify(topOnly && topOnly.hrv), '{"from":"top"}');
+      T.eq('…recording falls back to the top level too (L4151)', JSON.stringify(topOnly && topOnly.recording), '{"from":"top-rec"}');
       T.eq('…quality falls back the same way', JSON.stringify(topOnly && topOnly.quality), '{"q":9}');
       T.eq('…and personalization too', JSON.stringify(topOnly && topOnly.personalization), '{"p":1}');
       var neither = L(ne({ sessions: [{ a: 1 }] }));
@@ -6666,6 +6671,46 @@
         'raw-ppg'
       );
       T.eq('…and is null when the schema omits it', neither && neither.derivedFrom, null);
+
+      /* ── `generated` — TWO mutants on one line, and they fail in opposite directions ────────────
+         `generated: (json.schema && json.schema.generated) || null`
+           `&&` → `||`  ⇒  `(json.schema || json.schema.generated)` returns the WHOLE SCHEMA OBJECT
+                           whenever a schema exists, which is every accepted export.
+           `||` → `&&`  ⇒  `… && null` is null ALWAYS, so a real stamp is dropped.
+         Asserting only the absent case catches the first and misses the second; asserting only the
+         present case does the reverse. Both are needed, which is why both are here. */
+      var gen = L({ schema: { name: 'ganglior.node-export', node: 'PpgDex', generated: '2026-08-09T00:00:00Z' }, sessions: [{ a: 1 }] });
+      T.eq('generated is the schema FIELD, carried through verbatim', gen && gen.generated, '2026-08-09T00:00:00Z');
+      T.ok('…and is a string, not the schema object it lives on', gen && typeof gen.generated === 'string', 'typeof ' + (gen && typeof gen.generated));
+      T.eq('…and null when the schema omits it — not the schema object', neither && neither.generated, null);
+
+      /* ── the event SORT comparator (L4139) ───────────────────────────────────────────────────
+         `((a && a.tMs) || 0) - ((b && b.tMs) || 0)` mutated to `(a && a.tMs) && 0` makes the first
+         term 0 regardless of `a`, so the comparator stops depending on its left operand and the sort
+         is no longer an ordering. Only events supplied OUT of order can show it: a list already
+         ascending comes back ascending under both. */
+      var ev = L(ne({ sessions: [{ a: 1 }], ganglior_events: [{ tMs: 9 }, { tMs: 1 }, { tMs: 5 }] }));
+      T.eq(
+        'ganglior_events are sorted ASCENDING by tMs, from an out-of-order list',
+        JSON.stringify(
+          ((ev && ev.events) || []).map(function (e) {
+            return e.tMs;
+          })
+        ),
+        '[1,5,9]'
+      );
+      T.eq('…and none is dropped by the sort', ((ev && ev.events) || []).length, 3);
+      /* A null element must not throw: `(a && a.tMs) || 0` treats it as 0 and it sorts first. */
+      var evNull = L(ne({ sessions: [{ a: 1 }], ganglior_events: [{ tMs: 4 }, null, { tMs: 2 }] }));
+      T.eq(
+        '…a null event sorts as 0 rather than throwing',
+        JSON.stringify(
+          ((evNull && evNull.events) || []).map(function (e) {
+            return e && e.tMs;
+          })
+        ),
+        '[null,2,4]'
+      );
     });
 
     /* parsePPG — 38 surviving mutants across its 348 lines. Probing them (original vs mutant in
@@ -6749,6 +6794,55 @@
       );
       /* relSec spacing must reflect the DERIVED fs, not a rounded nominal one. Two mutants change
          only this precision (0.0074443… vs 0.0074074…), which no coarse assertion can see. */
+      /* ── THE HOST-AXIS VERDICT FIELDS (L677–L679) ──────────────────────────────────────────────
+         `hostAxis` publishes `independent`/`spreadMs`/`inertReason` precisely so a consumer can SEE
+         the verdict instead of inferring it from a ~0 ppm (CLAUDE.md §7). Three mutants survived on
+         them, and reaching the code at all takes a file bigger than any other case in this group:
+         an anchor is sampled on 1 row in PPG_AXIS_EVERY = 500 and `hostAxis` refuses below THREE
+         anchors, so ≥1001 rows are needed before these lines execute at all.
+
+         Two files, deliberately on opposite sides of §7's 2 ms independence bound:
+           host = device + ~40 ms jitter  → spread ≫ 2 ms → independent TRUE,  inertReason null
+           host = the device stamp rounded → spread ≤ 1 ms → independent FALSE, inertReason set
+         which is exactly the phone-vs-box discriminator (0.13–1.00 ms vs 101.89–5124 ms). */
+      var twoClock = function (n, devJitterUs, hostNoiseMs) {
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'],
+          devMs = 0,
+          step = 1000 / 135;
+        for (var i = 0; i < n; i++) {
+          devMs += step + (((i * 7919) % 1000) / 1000 - 0.5) * (devJitterUs / 500);
+          var noise = hostNoiseMs ? (((i * 6271) % 1000) / 1000 - 0.5) * 2 * hostNoiseMs : 0;
+          rows.push(
+            new Date(Date.UTC(2026, 6, 1) + Math.round(devMs + noise)).toISOString().replace('T', ' ').replace('Z', '') +
+              ';' +
+              Math.round(devMs * 1e6) +
+              ';' +
+              (1000 + i) +
+              ';' +
+              (2000 + i) +
+              ';' +
+              (3000 + i) +
+              ';' +
+              (400 + i)
+          );
+        }
+        return rows.join('\n');
+      };
+      var indep = (P.parsePPG(twoClock(1600, 900, 40)) || {}).hostAxis || {};
+      var inert = (P.parsePPG(twoClock(1600, 900, 0)) || {}).hostAxis || {};
+      T.ok('a 1600-row file yields ≥3 host anchors, so the axis resolves at all', indep.ok === true && inert.ok === true, 'indep.ok ' + indep.ok + ' inert.ok ' + inert.ok);
+      /* `=== undefined ? null : value` mutated to `!== undefined` returns null whenever the value
+         EXISTS — so asserting the value is strictly the boolean, not null, is what separates them. */
+      T.eq('…a host with ~40 ms of jitter is an INDEPENDENT clock (strictly true, not null)', indep.independent, true);
+      T.eq('…a host column that is the device stamp rounded is NOT independent (strictly false)', inert.independent, false);
+      T.ok('…spreadMs is the measured number, not null (L678)', typeof indep.spreadMs === 'number' && indep.spreadMs > 2, 'spreadMs ' + indep.spreadMs);
+      T.ok('…and on the inert side it is a number at or below the 2 ms bound', typeof inert.spreadMs === 'number' && inert.spreadMs <= 2, 'spreadMs ' + inert.spreadMs);
+      /* `inertReason || null` mutated to `&& null` is null ALWAYS, so only the case that HAS a reason
+         can see it — the independent file's reason is legitimately null and proves nothing here. */
+      T.ok('…the inert host states WHY it is inert (L679), rather than going quietly null', typeof inert.inertReason === 'string' && inert.inertReason.length > 0, JSON.stringify(inert.inertReason));
+      T.eq('…and an independent host has no inert reason to give', indep.inertReason, null);
+      T.eq('…timingSource follows the verdict: two real clocks', indep.timingSource, 'device+host');
+      T.eq('…and a derived host column contributes no second clock', inert.timingSource, 'device');
       T.approx('…and the sample spacing equals 1/fs', at10.ok && at10.r.relSec[1] - at10.r.relSec[0], at10.ok && 1 / at10.r.fs, 1e-9);
     });
 
@@ -6905,7 +6999,20 @@
       T.eq('…vlf/lf/hf are each exactly 0', JSON.stringify(z && [z.vlf, z.lf, z.hf]), '[0,0,0]');
       T.eq('…respRate is null: no oscillation means no HF peak to report', z && z.respRate, null);
       T.eq('…and no method is claimed for a rate that does not exist', z && z.respRateMethod, null);
-      T.eq('…lfhf/lfnu/hfnu are null, not 0 — a ratio of nothing is undefined, not zero', JSON.stringify(z && [z.lfhf, z.lfnu, z.hfnu]), '[null,null,null]');
+      /* ⚠️ DO NOT COMPARE THESE THROUGH `JSON.stringify` — that is how this assertion was written, and
+         it could never have failed. `JSON.stringify` serialises **NaN as `null`**, so
+         `JSON.stringify([NaN, NaN, NaN])` is the string `'[null,null,null]'`, byte-identical to the
+         expected value. The mutants this test was written to kill (`hf > 0` → `>=`, and the two
+         `lf + hf > 0` → `>=` beside it) make the guard admit zero and compute `0 / 0` — so all three
+         metrics come back NaN and the assertion passed anyway. Measured 2026-08-09 by re-applying the
+         L1969 mutant: 26/26 green, and the mutant survived the full sweep for exactly this reason.
+         Assert each value is STRICTLY null, which NaN cannot satisfy. */
+      T.ok(
+        '…lfhf/lfnu/hfnu are STRICTLY null, not 0 and not NaN — a ratio of nothing is undefined',
+        z && z.lfhf === null && z.lfnu === null && z.hfnu === null,
+        'lfhf=' + (z && String(z.lfhf)) + ' lfnu=' + (z && String(z.lfnu)) + ' hfnu=' + (z && String(z.hfnu))
+      );
+      T.ok('…and none of them is NaN (the shape JSON.stringify would have hidden)', z && !Number.isNaN(z.lfhf) && !Number.isNaN(z.lfnu) && !Number.isNaN(z.hfnu), 'lfhf=' + (z && String(z.lfhf)));
 
       /* THE VLF LOWER BOUND IS INCLUSIVE, and only a component sitting exactly ON it can show that.
          `f >= bands.vlf[0]` mutated to `f >` drops the bin at exactly 0.003 Hz. A first attempt
