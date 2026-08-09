@@ -33149,6 +33149,114 @@
       T.eq('a single pair cannot state limits of agreement — null, not ±0', R.blandAltman([5], [5]), null);
       T.eq('…nor can no pairs at all', R.blandAltman([], []), null);
       T.ok('non-finite pairs are DROPPED, not zero-filled', R.blandAltman([1, NaN, 3], [1, 2, 1]).n === 2, JSON.stringify(R.blandAltman([1, NaN, 3], [1, 2, 1])));
+      /* `+null === 0` AND `isFinite(0) === true`. The guard above passed for NaN and undefined and
+         therefore read as working, while `null`, `''` and `[]` went through as a measured 0 br/min —
+         an apnoeic epoch invented out of a missing one. On the real corpus that is 73 epochs, and as
+         zeros they move the bias from −0.419 to −0.772 and the limits from +4.17/−5.00 to +6.10/−7.64.
+         Each of these three assertions fails against the pre-fix `+pred[i]`. */
+      T.eq('null is missing data, not a measured zero', R.blandAltman([1, null, 3], [1, 2, 1]).n, 2);
+      T.eq('…nor is an empty string', R.blandAltman([1, '', 3], [1, 2, 1]).n, 2);
+      T.eq('…nor is an empty array', R.blandAltman([1, [], 3], [1, 2, 1]).n, 2);
+      T.ok('…but a NUMERIC STRING is still a number — the guard must not over-reject', R.blandAltman(['1', '3'], [1, 1]).n === 2, JSON.stringify(R.blandAltman(['1', '3'], [1, 1])));
+    });
+
+    /* ════ THE FLAT BIAS LINE WAS DRAWN ACROSS A CLOUD THAT IS NOT FLAT ═══════════════════════════
+     The published figure drew bias −0.42 with ±1.96·SD at +4.17 / −5.00 as three HORIZONTAL lines.
+     On the 7-night corpus the difference depends on the magnitude with slope −0.891 (t = −49.4), so
+     the fitted bias runs +5.41 br/min at a mean of 10 to −7.07 at 24 — a swing wider than the whole
+     interval those flat lines claimed to bound. Bland & Altman 1999 §3.2 says the flat form is valid
+     only while that slope is absent, so the figure was reporting a different dataset's summary.
+
+     Gated here because the number is what the three papers print. The assertions are known answers
+     computed from small exact fixtures, not tolerances read off the corpus. */
+    group('resp-acc proportional bias — the tilt the flat limits hid', 'resp-acc-analysis · figures · known-answer', function (T) {
+      var R = env.RespAccAnalysis;
+      if (!(R && typeof R.proportionalBias === 'function' && typeof R.refInBand === 'function' && typeof R.trivialBaseline === 'function')) {
+        T.ok('RespAccAnalysis (proportionalBias · refInBand · trivialBaseline) available', false, 'resp-acc-analysis.js not wired into this lane — add it to BOTH runners');
+        return;
+      }
+      /* An EXACT tilt: ref 10..18, pred chosen so diff = 4 − 0.5·mean, i.e. slope −0.5 with zero
+         residual. Constructed rather than sampled, so the recovered slope is checkable to 1e−9. */
+      var ref = [],
+        pred = [],
+        k;
+      for (k = 10; k <= 18; k++) {
+        /* Construct an EXACT tilt. Want diff = 4 − 0.5·mean, i.e. (p − r) = 4 − 0.5·(p + r)/2.
+           Solving:  p − r = 4 − 0.25p − 0.25r  ⇒  1.25p = 4 + 0.75r  ⇒  p = (4 + 0.75r) / 1.25.
+           Zero residual by construction, so the recovered slope is checkable as a known answer
+           rather than a tolerance. */
+        var r0 = k,
+          p0 = (4 + 0.75 * r0) / 1.25;
+        ref.push(r0);
+        pred.push(p0);
+      }
+      var ba = R.blandAltman(pred, ref);
+      T.ok('ANTI-VACUITY · the tilted fixture produced pairs at more than one magnitude', !!ba && ba.prop && ba.points[0].mean !== ba.points[ba.points.length - 1].mean, ba && ba.n + ' pairs');
+      if (!ba || !ba.prop) return;
+      /* Whatever the algebra above yields, the recovered slope must equal the least-squares slope of
+         the fixture's OWN (mean, diff) pairs — computed here independently of the module. */
+      var n = ba.points.length,
+        sm = 0,
+        sd2 = 0,
+        i;
+      for (i = 0; i < n; i++) {
+        sm += ba.points[i].mean;
+        sd2 += ba.points[i].diff;
+      }
+      var mm = sm / n,
+        md = sd2 / n,
+        sxx = 0,
+        sxy = 0;
+      for (i = 0; i < n; i++) {
+        sxx += (ba.points[i].mean - mm) * (ba.points[i].mean - mm);
+        sxy += (ba.points[i].mean - mm) * (ba.points[i].diff - md);
+      }
+      T.approx('the KNOWN slope of the constructed fixture is recovered exactly', ba.prop.slope, -0.5, 1e-9);
+      T.approx('…and it equals the least-squares slope of (mean, diff) computed here independently', ba.prop.slope, sxy / sxx, 1e-9);
+      T.approx('…and the fit passes through the centroid, so bandAt(mean) is the flat bias', ba.prop.bandAt(mm).fit, ba.bias, 1e-9);
+      T.ok('a perfectly linear fixture has essentially no residual scatter', ba.prop.residSd < 1e-9, 'residSd=' + ba.prop.residSd);
+
+      /* REFUSAL 1 — two points fit a line exactly; its slope is not a measurement. */
+      T.eq('two pairs cannot state a slope', R.blandAltman([1, 2], [2, 1]).prop, null);
+      /* REFUSAL 2 — every epoch at one magnitude leaves the slope unidentifiable, and `0/0` would
+         otherwise surface as a NaN slope drawn as a missing line rather than as a refusal. */
+      var flat = R.blandAltman([5, 6, 4], [5, 4, 6]);
+      T.eq('all pairs at one magnitude ⇒ no identifiable slope, null not NaN', flat.prop, null);
+
+      /* REFUSAL 3 — the §5.3 varying band is only usable while its own fitted line stays positive.
+         A significant heteroscedasticity t is NOT sufficient: on the real corpus t = 45.8 while the
+         fitted |residual| line crosses zero near 11 br/min, so the band it implies is ZERO WIDTH at a
+         mean of 10 and ±12.2 at 24 — limits claiming perfect agreement at low rates. */
+      T.ok('the band publishes which form it used, always', typeof ba.prop.bandForm === 'string' && ba.prop.bandForm.length > 0, ba.prop.bandForm);
+      T.ok('a homoscedastic fixture uses the constant form', /constant/.test(ba.prop.bandForm), ba.prop.bandForm);
+
+      /* ── refInBand: ±Infinity is a MEANING, and isFinite() rejects it ───────────────────────────
+         An earlier draft wrote `isFinite(hiBrpm) ? hiBrpm : 36`, so asking for "no cap" silently
+         applied the 6..36 default and reported an uncapped figure computed on a capped set. */
+      var b = R.refInBand([1, 2, 3], [5, 50, 15], -Infinity, Infinity);
+      T.eq('an explicit ±Infinity bound means NO bound, not the default 6..36', b.n, 3);
+      T.eq('…and nothing is reported as dropped', b.dropped, 0);
+      var b2 = R.refInBand([1, 2, 3], [5, 50, 15]);
+      T.eq('an OMITTED bound falls back to the estimator search band 6..36', b2.n, 1);
+      T.eq('…and the two rejects are COUNTED, never silently gone', b2.dropped, 2);
+      T.ok('…the band it used is returned so a caller can state it', b2.lo === 6 && b2.hi === 36, b2.lo + '..' + b2.hi);
+      T.ok('the filter reads the REFERENCE, never the estimate under test', R.refInBand([99, 2], [10, 10], 6, 36).n === 2, 'an out-of-band ESTIMATE must survive — filtering it is how a method is flattered');
+
+      /* ── trivialBaseline: the number a headline has to beat ────────────────────────────────────
+         `MAE 0.95 br/min` reads like precision; on the real corpus a CONSTANT 16.3 scores 1.39. */
+      var tb = R.trivialBaseline([2, 2, 2, 2], [1, 2, 3, 2]);
+      T.approx('the constant is the reference MEDIAN', tb.constant, 2, 1e-9);
+      T.approx('…the estimator MAE is measured against the reference', tb.mae, 0.5, 1e-9);
+      T.approx('…the constant scores the same here, so skill is exactly zero', tb.skillMae, 0, 1e-9);
+      var tb2 = R.trivialBaseline([1, 2, 3], [1, 2, 3]);
+      T.approx('a perfect estimator has skill 1', tb2.skillMae, 1, 1e-9);
+
+      /* ── sensitivity: one cap is a choice, the curve is a measurement ──────────────────────────── */
+      var sens = R.agreementSensitivity([10, 11, 12, 13], [10, 11, 12, 99], [Infinity, 20]);
+      T.eq('the sweep returns one row per cap', sens.length, 2);
+      T.eq('the uncapped row keeps every pair', sens[0].n, 4);
+      T.eq('…and the capped row drops the out-of-range REFERENCE only', sens[1].n, 3);
+      T.ok('…reporting how many it dropped, so the omission is visible', sens[1].dropped === 1, JSON.stringify(sens[1]));
     });
 
     /* ════ resp-acc-analysis.js — THREE SILENT SAMPLE-RATE FAILURES, EACH FIXED AND NONE GATED ══════

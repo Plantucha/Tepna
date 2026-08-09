@@ -664,14 +664,29 @@
      agreement are bias ± 1.96·SD of the differences, using the SAMPLE SD (n−1). Non-finite pairs are
      dropped, not zero-filled. Fewer than two usable pairs ⇒ null: one pair has no SD, and a limit of
      agreement computed from it would be a fabricated interval. */
+  /* `+null === 0` AND `isFinite(0) === true`. The original guard here was `var p = +pred[i]; if
+     (!isFinite(p)) continue;`, which therefore admitted `null`, `''` and `[]` as a measured
+     **0 br/min** — an apnoeic epoch invented out of a missing one, in the exact place the code was
+     trying to reject missing data. `undefined` and `NaN` were caught, so it read as a working filter.
+     It has not bitten the shipped figure only because the pool it is handed upstream is already
+     cleaned; that is luck, not a guard. Verified on this corpus: 73 null epochs, which as zeros move
+     the bias from -0.419 to -0.772 and the limits of agreement from +4.17/-5.00 to +6.10/-7.64.
+     `num()` maps anything that is not a real number (or a numeric string) to NaN, so the finiteness
+     test means what it says. */
+  function num(v) {
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string' && v.trim() !== '') return +v;
+    return NaN;
+  }
+
   function blandAltman(pred, ref) {
     if (!pred || !ref) return null;
     var n = Math.min(pred.length, ref.length),
       pts = [],
       d = [];
     for (var i = 0; i < n; i++) {
-      var p = +pred[i],
-        r = +ref[i];
+      var p = num(pred[i]),
+        r = num(ref[i]);
       if (!isFinite(p) || !isFinite(r)) continue;
       pts.push({ mean: (p + r) / 2, diff: p - r });
       d.push(p - r);
@@ -683,12 +698,280 @@
       ss = 0;
     for (i = 0; i < d.length; i++) ss += (d[i] - bias) * (d[i] - bias);
     var sd = Math.sqrt(ss / (d.length - 1)); // sample SD — these are a sample of nights, not the population
-    return { points: pts, n: d.length, bias: bias, sd: sd, upper: bias + 1.96 * sd, lower: bias - 1.96 * sd };
+    return {
+      points: pts,
+      n: d.length,
+      bias: bias,
+      sd: sd,
+      upper: bias + 1.96 * sd,
+      lower: bias - 1.96 * sd,
+      prop: proportionalBias(pts)
+    };
+  }
+
+  /* PROPORTIONAL BIAS — the flat bias ± 1.96·SD above is only valid while the difference does NOT
+     depend on the magnitude, and on this corpus it does, hard.
+
+     Measured on the 7-night ACC↔CPAP set (3665 epochs): the regression of difference on mean has
+     slope −0.891 (t = −49.4), so the fitted bias runs from +5.41 br/min at a mean of 10 to −7.07 at
+     24 — a swing wider than the entire ±4.6 br/min limits of agreement it was being reported inside.
+     Drawing two horizontal lines across that is not a summary of the data, it is a different dataset.
+     Bland & Altman say so themselves (Stat Methods Med Res 1999;8:135-160, §3.2 and §5.3): when the
+     difference varies with the magnitude, regress the difference on the mean and take the limits about
+     the REGRESSION LINE, not about a single mean.
+
+     Two regressions, both published, because the second decides which form of the first is honest:
+       · difference on mean          → the tilt itself (slope, intercept, t)
+       · |residual| on mean          → whether the SCATTER also grows with magnitude (§5.3)
+     If the scatter is flat, the limits are `fit ± 1.96·residSd`. If it grows, §5.3's form is
+     `fit ± 2.46·(fitted mean absolute residual)`, where 2.46 = 1.96·sqrt(π/2) converts a mean absolute
+     deviation into an SD under normality. `bandAt()` picks between them on the heteroscedasticity t,
+     and PUBLISHES which it used — a limit whose construction the reader cannot see is not a limit.
+
+     Note what this does NOT do: it does not say the estimator is at fault. A negative slope arises
+     both from an estimator that compresses the range and from a reference noisier than the estimate,
+     and the two are not separable from this plot alone. It reports the geometry; the attribution needs
+     the reference's own noise floor beside it. */
+  function proportionalBias(pts) {
+    var n = pts.length;
+    if (n < 3) return null; // 2 points fit a line exactly; its slope is not a measurement
+    var i,
+      sm = 0,
+      sd_ = 0;
+    for (i = 0; i < n; i++) {
+      sm += pts[i].mean;
+      sd_ += pts[i].diff;
+    }
+    var mm = sm / n,
+      md = sd_ / n,
+      sxx = 0,
+      sxy = 0,
+      syy = 0;
+    for (i = 0; i < n; i++) {
+      var dx = pts[i].mean - mm,
+        dy = pts[i].diff - md;
+      sxx += dx * dx;
+      sxy += dx * dy;
+      syy += dy * dy;
+    }
+    if (!(sxx > 0)) return null; // every epoch at one magnitude — no slope is identifiable
+    var slope = sxy / sxx,
+      intercept = md - slope * mm,
+      r = syy > 0 ? sxy / Math.sqrt(sxx * syy) : 0;
+    var rss = 0,
+      absr = [],
+      j;
+    for (i = 0; i < n; i++) {
+      var res = pts[i].diff - (slope * pts[i].mean + intercept);
+      rss += res * res;
+      absr.push(Math.abs(res));
+    }
+    var residSd = Math.sqrt(rss / (n - 2)),
+      se = residSd / Math.sqrt(sxx),
+      t = se > 0 ? slope / se : 0;
+    // §5.3 — does the SCATTER grow with magnitude? Regress |residual| on mean.
+    var sa = 0;
+    for (j = 0; j < n; j++) sa += absr[j];
+    var ma = sa / n,
+      hxy = 0,
+      hss = 0;
+    for (j = 0; j < n; j++) hxy += (pts[j].mean - mm) * (absr[j] - ma);
+    var hSlope = hxy / sxx,
+      hIntercept = ma - hSlope * mm;
+    for (j = 0; j < n; j++) {
+      var hres = absr[j] - (hSlope * pts[j].mean + hIntercept);
+      hss += hres * hres;
+    }
+    var hSe = Math.sqrt(hss / (n - 2)) / Math.sqrt(sxx),
+      hT = hSe > 0 ? hSlope / hSe : 0;
+    /* THE §5.3 VARYING BAND IS ONLY USABLE WHILE ITS OWN FITTED LINE STAYS POSITIVE, AND HERE IT DOES
+       NOT. A significant heteroscedasticity t is not sufficient: `c + e·m` is a straight line fitted to
+       |residual|, and nothing constrains it to be positive over the observed range. On this corpus
+       t = 45.8 — overwhelmingly "significant" — yet the fitted mean-absolute-residual crosses zero
+       around 11 br/min, so the band computed from it is ZERO WIDTH at a mean of 10 and ±12.2 at 24.
+       Reported as limits of agreement, that would claim perfect agreement at low rates: a fabricated
+       interval, and a worse lie than the flat band it replaces.
+       So the varying form is used only when its fitted line is strictly positive across the observed
+       means, and the REASON is published either way. Refusing to draw a band we cannot justify is the
+       same rule as returning null rather than a `new Date()`. */
+    var lowM = pts[0].mean,
+      highM = pts[0].mean;
+    for (j = 1; j < n; j++) {
+      if (pts[j].mean < lowM) lowM = pts[j].mean;
+      if (pts[j].mean > highM) highM = pts[j].mean;
+    }
+    var edgeLo = hSlope * lowM + hIntercept,
+      edgeHi = hSlope * highM + hIntercept,
+      positive = edgeLo > 0 && edgeHi > 0,
+      varying = Math.abs(hT) > 2 && positive,
+      bandForm =
+        Math.abs(hT) <= 2
+          ? 'constant · scatter does not vary with magnitude'
+          : positive
+            ? 'varying · Bland–Altman 1999 §5.3'
+            : 'constant · §5.3 refused, its fitted |residual| line is not positive over the observed range';
+    return {
+      slope: slope,
+      intercept: intercept,
+      r: r,
+      t: t,
+      residSd: residSd,
+      het: { slope: hSlope, intercept: hIntercept, t: hT },
+      varying: varying,
+      bandForm: bandForm,
+      hetEdges: { lo: edgeLo, hi: edgeHi },
+      // 1.96·sqrt(pi/2) — mean absolute deviation to SD under normality (Bland & Altman 1999 §5.3)
+      K: 2.46,
+      bandAt: function (m) {
+        var fit = slope * m + intercept,
+          half = varying ? 2.46 * (hSlope * m + hIntercept) : 1.96 * residSd;
+        return { fit: fit, upper: fit + half, lower: fit - half, varying: varying, form: bandForm };
+      }
+    };
+  }
+
+  /* STRUCTURAL EXCLUSION — an epoch the estimator CANNOT represent is not a disagreement.
+     `motiondex-dsp.js` searches RR_F_LO..RR_F_HI = 0.1..0.6 Hz, i.e. 6..36 br/min. A reference epoch
+     outside that band cannot be matched at any accuracy, so scoring it measures the search band and
+     not the estimator. This corpus has 16 such epochs, the reference reaching 45.5 br/min against an
+     estimate that never exceeds 21.3 — sustained 45 br/min over a 30 s epoch is a CPAP flow artefact
+     (leak, cough, arousal), not respiration.
+
+     The exclusion is STRUCTURAL and needs no clinical threshold: it is the estimator's own declared
+     band, read from its own constants. It is counted and returned, never silently dropped — and the
+     caller is expected to publish both figures, because "we removed the inconvenient points" and "we
+     removed the points our method does not claim to cover" look identical in a result table and are
+     not the same act. */
+  function refInBand(pred, ref, loBrpm, hiBrpm) {
+    /* `isFinite(Infinity) === false`, so an earlier draft's `isFinite(hiBrpm) ? hiBrpm : 36` turned an
+       explicit "no upper bound" into the 6..36 default and reported an uncapped figure computed on a
+       capped set — the sensitivity row for cap=Infinity came back n=3651 instead of 3665. A bound of
+       ±Infinity is a MEANINGFUL argument here (it is how the caller asks for no filtering at all), so
+       the test must be "did you give me a number", not "is that number finite". */
+    var lo = typeof loBrpm === 'number' && !isNaN(loBrpm) ? loBrpm : 6,
+      hi = typeof hiBrpm === 'number' && !isNaN(hiBrpm) ? hiBrpm : 36,
+      kp = [],
+      kr = [],
+      dropped = 0,
+      nonFinite = 0,
+      n = Math.min((pred || []).length, (ref || []).length);
+    for (var i = 0; i < n; i++) {
+      var p = num(pred[i]),
+        r = num(ref[i]);
+      if (!isFinite(p) || !isFinite(r)) {
+        nonFinite++;
+        continue;
+      }
+      if (r < lo || r > hi) {
+        dropped++;
+        continue;
+      }
+      kp.push(p);
+      kr.push(r);
+    }
+    return { pred: kp, ref: kr, dropped: dropped, nonFinite: nonFinite, lo: lo, hi: hi, n: kp.length };
+  }
+
+  /* SENSITIVITY, NOT A CHOSEN CUTOFF. On this corpus 40 epochs (1.1 %) with a reference above
+     25 br/min move r from +0.420 to +0.709 and the proportional slope from −0.891 to −0.332. A single
+     headline computed at one cap hides that entirely — and picking the cap that flatters the result is
+     exactly the tuning the guardrails forbid. So report the curve and let the reader see the
+     dependence. Caps are applied to the REFERENCE only; the estimate is never filtered, since
+     filtering the thing under test is how a method is made to look good. */
+  function agreementSensitivity(pred, ref, caps) {
+    var out = [],
+      list = caps && caps.length ? caps : [Infinity, 36, 30, 25];
+    for (var c = 0; c < list.length; c++) {
+      var cap = list[c],
+        b = refInBand(pred, ref, -Infinity, cap),
+        ba = blandAltman(b.pred, b.ref);
+      if (!ba) continue;
+      var n = b.n,
+        i,
+        sp = 0,
+        sr = 0;
+      for (i = 0; i < n; i++) {
+        sp += b.pred[i];
+        sr += b.ref[i];
+      }
+      var mp = sp / n,
+        mr = sr / n,
+        vp = 0,
+        vr = 0,
+        cv = 0,
+        ae = 0;
+      for (i = 0; i < n; i++) {
+        var dp = b.pred[i] - mp,
+          dr = b.ref[i] - mr;
+        vp += dp * dp;
+        vr += dr * dr;
+        cv += dp * dr;
+        ae += Math.abs(b.pred[i] - b.ref[i]);
+      }
+      out.push({
+        cap: cap,
+        n: n,
+        dropped: b.dropped,
+        r: vp > 0 && vr > 0 ? cv / Math.sqrt(vp * vr) : 0,
+        sdPred: Math.sqrt(vp / (n - 1)),
+        sdRef: Math.sqrt(vr / (n - 1)),
+        mae: ae / n,
+        slope: ba.prop ? ba.prop.slope : 0
+      });
+    }
+    return out;
+  }
+
+  /* THE BASELINE A HEADLINE MUST BEAT. `MAE 0.95 br/min` reads like precision; on this corpus a
+     CONSTANT 16.3 br/min scores 1.39, so the estimator's whole skill over guessing is 31 % of MAE and
+     9 % of RMSE (2.377 vs 2.605). Publishing the MAE without this beside it lets a reader credit the
+     spectral machinery for the fact that people mostly breathe at about 16. The constant is the
+     reference's own median, which is the strongest trivial predictor available and therefore the
+     honest one to lose to. */
+  function trivialBaseline(pred, ref) {
+    var b = refInBand(pred, ref, -Infinity, Infinity),
+      n = b.n;
+    if (!n) return null;
+    var srt = b.ref.slice().sort(function (x, y) {
+        return x - y;
+      }),
+      med = n % 2 ? srt[(n - 1) / 2] : (srt[n / 2 - 1] + srt[n / 2]) / 2;
+    var ae = 0,
+      se = 0,
+      bae = 0,
+      bse = 0;
+    for (var i = 0; i < n; i++) {
+      var e = b.pred[i] - b.ref[i],
+        g = med - b.ref[i];
+      ae += Math.abs(e);
+      se += e * e;
+      bae += Math.abs(g);
+      bse += g * g;
+    }
+    var mae = ae / n,
+      rmse = Math.sqrt(se / n),
+      cMae = bae / n,
+      cRmse = Math.sqrt(bse / n);
+    return {
+      n: n,
+      constant: med,
+      mae: mae,
+      rmse: rmse,
+      constMae: cMae,
+      constRmse: cRmse,
+      skillMae: cMae > 0 ? (cMae - mae) / cMae : 0,
+      skillRmse: cRmse > 0 ? (cRmse - rmse) / cRmse : 0
+    };
   }
 
   global.RespAccAnalysis = {
     sessionStamp: sessionStamp,
+    num: num,
     blandAltman: blandAltman,
+    proportionalBias: proportionalBias,
+    refInBand: refInBand,
+    agreementSensitivity: agreementSensitivity,
+    trivialBaseline: trivialBaseline,
     readEDF: readEDF,
     readAnnotations: readAnnotations,
     detectBreaths: detectBreaths,
