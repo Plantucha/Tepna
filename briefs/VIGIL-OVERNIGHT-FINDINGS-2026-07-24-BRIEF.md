@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (**P1.1 — the brief's own "single most important software fix" — and P1.4 both DONE 2026-08-04**, hysteresis on recovery + the power-cycle budget, 5 mutants killed. ⚠️ **P1.2/P1.3's privilege half is DONE 2026-08-05 — and the 2026-08-04 "blocked on a deploy, not on code" diagnosis below was WRONG on both counts.** `tepna-usbreset.sh` is a Polar-dock re-enumerator that must never touch a radio; installing it moved this rung not at all. The real blocker was code: `_usb_rebind` wrote root-only sysfs from an unprivileged daemon, failed every time with `PermissionError`, and logged it at INFO as "skipped" — while `usb_path: 1-2` being SET silenced the only warning on the path. Fixed via a new root helper `tepna-btreset.sh` + a preflight that reports an inoperable rung. See §P1.2/P1.3. Field-gated remainder: no real wedge has occurred since, so neither rung is yet observed clearing one. P1.4·P1.5·P2.x remain) · **Created:** 2026-07-24
+**Status:** PROPOSED (**P1.1 — the brief's own "single most important software fix" — and P1.4 both DONE 2026-08-04**, hysteresis on recovery + the power-cycle budget, 5 mutants killed. ⚠️ **P1.2/P1.3's privilege half is DONE 2026-08-05 — and the 2026-08-04 "blocked on a deploy, not on code" diagnosis below was WRONG on both counts.** `tepna-usbreset.sh` is a Polar-dock re-enumerator that must never touch a radio; installing it moved this rung not at all. The real blocker was code: `_usb_rebind` wrote root-only sysfs from an unprivileged daemon, failed every time with `PermissionError`, and logged it at INFO as "skipped" — while `usb_path: 1-2` being SET silenced the only warning on the path. Fixed via a new root helper `tepna-btreset.sh` + a preflight that reports an inoperable rung. See §P1.2/P1.3. ⚠️ Field-gated remainder: the rung is now OBSERVED WORKING on hardware (2026-08-08, RC=0, adapter returned, sensors self-recovered) — but no real wedge has occurred since, so it is not yet observed CLEARING one. P1.4·P1.5·P2.x remain) · **Created:** 2026-07-24
 
 # Vigil overnight findings — the night the dongle wedged (2026-07-23 → 24)
 
@@ -188,9 +188,33 @@ both a de-suspended dongle and the internal radio fail you.*
     write still tried first for a box that has the capability. A failed rebind now logs at **WARNING**.
     `usb_rebind_available()` + a new `defense_warnings` branch make a set-but-incapable `usb_path` say so
     at boot. On the manifest in `deploy/check-system-files.sh` and granted by `enable-clock-control.sh`.
+  - ✅ **THE RUNG IS OBSERVED WORKING ON REAL HARDWARE — 2026-08-08 ~21:00, on the box.** Deployed
+    (`check-system-files.sh`: `10 managed, 0 drifted`; helper root-owned `0755`). The boot-time defence
+    report is the first confirmation, and it confirms by SILENCE in the right place: it emitted its
+    archive warning while saying nothing about `usb_path`, i.e. `usb_rebind_available()` returned True —
+    where before this work there was no check on that path at all. Then the rung was fired deliberately
+    against the live UB500, with two sensors connected and nothing on-body:
+
+    ```
+    BEFORE  hci0 UP RUNNING · AC:A7:F1:29:9D:1D · devnum 2 · driver usb
+    RUN     sudo -n /usr/local/lib/tepna/tepna-btreset.sh 1-2
+            RC=0 · "re-bound: 1-2 (2357:0604)"
+    AFTER   hci0 UP RUNNING · AC:A7:F1:29:9D:1D · devnum 2 · driver usb
+    ```
+
+    The daemon stayed `active` throughout; the **Verity never dropped**; the **O2Ring dropped and
+    self-reconnected within ~90 s** with no intervention. `devnum` is unchanged **by design** — this is a
+    driver re-bind, not a USB re-enumeration, so the device number is expected to persist. (The helper
+    says `re-bound`, not `re-enumerated`; `tepna-usbreset.sh` is the one that moves `devnum`, and that
+    difference is exactly why the two are separate helpers.)
+  - ⚠️ **What this does NOT prove, stated plainly.** It proves the MECHANISM — the privileged unbind/bind
+    executes, the adapter returns, the capture loops recover on their own. It does **not** prove the rung
+    clears a real **RTL8761B firmware hang**; that needs a real wedge, and none has occurred since
+    2026-07-23. The honest claim is *"the last rung can now run, and has run"* — not *"the 2026-07-23
+    outage is fixed"*.
   - **Still open:** P1.2's *other* half. `CapEff` is no longer 0 (CAP_NET_ADMIN is ambient, so
-    `hciconfig reset` can run), and the unbind/bind rung now has a privilege path — but neither has been
-    observed clearing a **real** wedge, because no wedge has occurred since. That is field-gated.
+    `hciconfig reset` can run), but that rung has still never been exercised against a wedged adapter.
+    Field-gated on the same missing wedge.
 - ✅ **P1.4 — COMPLETED 2026-08-04.** The self-test already existed (`defense_warnings` +
   `startup_defense_check`) and covered item (a), the recovery ladder's `CAP_NET_ADMIN`, plus the
   autosuspend prevention. **Items (b) and (c) were not checked**, so the two defences most likely to be
