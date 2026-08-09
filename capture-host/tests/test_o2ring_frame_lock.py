@@ -80,7 +80,12 @@ def test_frame_samples_nominal_is_per_device_second_and_is_not_the_sample_rate()
     O2RING-SYNTHESISED-AXIS forbid."""
     assert oxyii.PPG_FRAME_SAMPLES == 126
     assert oxyii.PPG_FRAME_SAMPLES != capture.O2PPG_FS_DEFAULT
-    assert capture.O2PPG_FS_DEFAULT == 125.738, "the rate constant must NOT be re-calibrated here"
+    # The constant is the DECLARED ADC SAMPLE RATE — the crystal number the manufacturer states and the
+    # AFE4403 produces (32 MHz ÷8 ÷32000 = 125.000 exactly). It must NOT be "re-calibrated" back up to the
+    # observed ROW rate (~125.7 = 125.000 + inserted `156` beat markers): labelling the sample clock with
+    # the row rate is what contradicted the manufacturer for weeks (O2RING-ADAPTIVE-TIMEBASE Stage 1,
+    # DEVICE-RATE-TRUTH §2). The row rate lives in the row-count validators, not here.
+    assert capture.O2PPG_FS_DEFAULT == 125.000, "the constant is the ADC crystal rate, not the observed row rate"
 
 
 # ── The ledger ──────────────────────────────────────────────────────────────────────────────────────

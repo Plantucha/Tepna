@@ -140,13 +140,15 @@ def test_host_clock_header_and_bool_rendering(tmp_path):
     w = HostClockLogWriter(str(p), fsync=False)
     w.write(WHEN, {"trust": "ntp", "absolute_ok": True, "synchronized": False, "server": "1.2.3.4",
                    "stratum": 2, "reference": "GPS", "root_dispersion_ms": 3.5, "jitter_us": 120,
-                   "packet_count": 9, "reason": "ok"})
+                   "packet_count": 9, "reason": "ok", "chrony_skew_ppm": 0.123})
     w.close()
     assert _lines(str(p))[0].startswith("Phone timestamp;trust;absolute_ok;synchronized;server;")
+    assert _lines(str(p))[0].rstrip().endswith(";chrony_skew_ppm"), "the precision bound is the last column"
     cells = _rows(str(p))[0].split(";")
     assert cells[1] == "ntp"
     assert cells[2] == "1", "True must render as 1"
     assert cells[3] == "0", "False must render as 0 — it is a real negative claim, not an absence"
+    assert cells[-1] == "0.123", "chrony_skew_ppm rides the last column"
 
 
 def test_host_clock_absent_fields_are_blank_not_false(tmp_path):
@@ -169,8 +171,8 @@ def test_host_clock_reason_cannot_break_the_delimiter(tmp_path):
     w.write(WHEN, {"reason": "step; then slew; done"})
     w.close()
     row = _rows(str(p))[0]
-    assert row.count(";") == 10, "one row must keep exactly the header's delimiter count"
-    assert row.endswith("step, then slew, done")
+    assert row.count(";") == 11, "one row must keep exactly the header's delimiter count"
+    assert "step, then slew, done" in row and "step; then slew" not in row, "the ';' must be escaped"
 
 
 def test_host_clock_none_reason_is_blank_not_the_string_none(tmp_path):
@@ -178,7 +180,9 @@ def test_host_clock_none_reason_is_blank_not_the_string_none(tmp_path):
     w = HostClockLogWriter(str(p), fsync=False)
     w.write(WHEN, {"reason": None})
     w.close()
-    assert _rows(str(p))[0].split(";")[-1] == ""
+    cells = _rows(str(p))[0].split(";")
+    assert cells[-2] == "", "a None reason renders blank, never the string 'None'"
+    assert cells[-1] == "", "an absent chrony_skew_ppm renders blank, never a fabricated 0"
 
 
 # ── LinkLogWriter ───────────────────────────────────────────────────────────────────────────────────
@@ -435,14 +439,14 @@ def test_the_host_clock_row_carries_every_column_it_promises(tmp_path):
     w.write(WHEN, {"trust": "ntp", "absolute_ok": True, "synchronized": False,
                    "server": "192.168.0.61", "stratum": 2, "reference": "PPS",
                    "root_dispersion_ms": 3.5, "jitter_us": 120, "packet_count": 9,
-                   "reason": "normal"})
+                   "reason": "normal", "chrony_skew_ppm": 0.123})
     w.close()
     header, row = _lines(str(p))[0], _rows(str(p))[0]
     assert header.split(";") == ["Phone timestamp", "trust", "absolute_ok", "synchronized", "server",
                                 "stratum", "reference", "root_dispersion_ms", "jitter_us",
-                                "packet_count", "reason"]
+                                "packet_count", "reason", "chrony_skew_ppm"]
     assert row.split(";") == ["2026-07-19T03:04:05.678", "ntp", "1", "0", "192.168.0.61", "2", "PPS",
-                             "3.5", "120", "9", "normal"], \
+                             "3.5", "120", "9", "normal", "0.123"], \
         "every column, in the header's order — a reader keys on position"
 
 

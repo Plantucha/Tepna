@@ -39,9 +39,11 @@ import sys
 # catching every night the old code touched (worst measured: 1.79 %).
 DEFAULT_THRESHOLD_PCT = 0.2
 
-# Nominal O2Ring PPG rate (capture.py O2PPG_FS_DEFAULT). Only used as the yardstick for "did the samples
-# actually arrive?" — see _verdict.
-NOMINAL_FS = 125.738
+# Nominal O2Ring PPG ADC rate (capture.py O2PPG_FS_DEFAULT = 125.000, the crystal sample clock). Only used
+# as the yardstick for "did the samples actually arrive?" — see _verdict. The FILE's row rate runs a touch
+# higher (~125.7: 125.000 samples + the inserted `156` beat markers), so a healthy night clears this
+# comfortably; the near-nominal test only fires when real samples were LOST. DEVICE-RATE-TRUTH §2.
+NOMINAL_FS = 125.000
 
 # Below this span the endpoint-only measurement is too noisy to judge: the phone column is quantized to
 # 1 ms, and a session of a few seconds is dominated by its own start/stop edges. Report, never flag.

@@ -583,6 +583,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         "H10":    {"ecg": (7800, 130), "acc": (11400, 200), "hr": (35, 1)},
         "Verity": {"ppg": (3750, 55), "acc": (2950, 52), "gyro": (2800, 52),
                    "mag": (2950, 50), "ppi": (30, 1)},
+        # O2Ring ppg: 6200 B/s measured while the stream ran at its observed ROW rate (~125.7 = 125.000 ADC
+        # samples + inserted `156` beat markers), NOT the 125.000 ADC clock — a throughput calibration is
+        # bytes over the rate the wire actually carried. DEVICE-RATE-TRUTH §2; cf. capture.O2PPG_FS_DEFAULT.
         "O2Ring": {"spo2": (60, 1), "ppg": (6200, 125.738)},
     }
 
