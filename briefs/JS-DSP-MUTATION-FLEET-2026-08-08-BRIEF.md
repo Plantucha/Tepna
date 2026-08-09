@@ -141,6 +141,10 @@ kills; see #1017 for why that is deliberately more conservative than Stryker/PIT
 - [ ] A second pass on each file, **canary-guarded**, confirming or correcting the table (§4b).
 - [ ] `hrvdex-dsp.js` swept exhaustively and its survivors triaged into real-gap / no-distinguishing-
       input / untestable, per the `MUTATION-EQUIVALENCE` §5 vocabulary.
-- [ ] **Owner call:** is a fleet-wide target adopted at all? `MUTATION-EQUIVALENCE` argued 90 % raw is
+- [ ] **Owner call:** is a fleet-wide target adopted at all? *(Partly settled 2026-08-08: the
+      DENOMINATOR question is answered — `MUTATION-EQUIVALENCE` §5 is ratified, so any target here
+      is read against DISTINGUISHABLE mutants, and `mutate.mjs` reports that rate. Whether a
+      fleet-wide target is adopted AT ALL remains open and is this brief's to ask.)*
+      `MUTATION-EQUIVALENCE` argued 90 % raw is
       unreachable even for `clock.js`. Setting one for 31,000 lines of DSP without first measuring the
       equivalent-mutant share would repeat that error at nine times the scale.
