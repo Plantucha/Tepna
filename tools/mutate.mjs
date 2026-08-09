@@ -70,12 +70,23 @@
  * verdict. Bail is ON by default under --diff and OFF for surveys, whose `killers` breakdown is the
  * point; `--no-bail` / `--bail` override.
  *
- * KNOWN SHARP EDGE: the gate does not yet know which mutants are EQUIVALENT. Touch a line carrying
- * one — `if (rv < rMin) rMin = rv;` mutated to `<=` cannot change a minimum on a tie — and it will
- * be reported as a survivor you must justify, because no test can kill it and none ever could. The
- * classification exists (MUTATION-EQUIVALENCE-2026-08-04-BRIEF §3) but is prose, not data. Feeding it
- * in as an allowlist is the obvious follow-up; until then, expect to argue with the gate occasionally
- * and prefer that over a gate that silently excuses whatever it cannot kill.
+ * EQUIVALENT MUTANTS ARE NOW DATA (2026-08-08). Some survivors cannot be killed by any input —
+ * `if (rv < rMin) rMin = rv;` mutated to `<=` cannot change a minimum on a tie. That classification
+ * used to be PROSE in MUTATION-EQUIVALENCE-2026-08-04-BRIEF §3; it now lives in
+ * `tools/mutate-equivalence.json` and is read by `classifySurvivors`, so a run reports
+ * `killed / distinguishable` beside `killed / tested`. The owner restated the 90 % target on the
+ * distinguishable denominator on 2026-08-08.
+ *
+ * THIS IS NOT AN ALLOWLIST, and the earlier text here set the condition it has to meet: "prefer
+ * arguing with the gate occasionally over a gate that silently excuses whatever it cannot kill." So
+ * an entry can only ever REMOVE a mutant from the denominator while it is BOTH still generated AND
+ * still surviving. Three states are reported loudly instead of absorbed:
+ *   REFUTED  — the entry claims equivalence and the mutant was KILLED. The entry is wrong; fix the
+ *              entry, never the test that killed it. This is the only way a stale file could hide a
+ *              real gap, so it is an error, not a note.
+ *   ORPHANED — the entry matches no generated mutant (the line moved). Excluded from every count.
+ *   UNCLASSIFIED — a survivor nobody has probed. Counted and named; silence is never equivalence.
+ * `real-gap` entries stay IN the denominator: a classification file is not a place to launder debt.
  *
  * SAFETY — and this was got WRONG first, so it is spelled out. With `--jobs > 1` (the default) the
  * caller's tree is NEVER written to: each worker mutates its own `git worktree`. On the `--jobs 1`
@@ -511,6 +522,69 @@ function runSuite(filter, cwd, timeoutMs) {
 
    Deliberately weak-but-real: it proves kills are still detected AND still attributed. It does not
    prove the count is right. That is the honest limit of a canary. */
+/* THE EQUIVALENCE CLASSIFICATION (MUTATION-EQUIVALENCE §5/§6.1).
+   A surviving mutant is not automatically a test gap. `if (lo < 0) lo = 0` mutated to `<=` still
+   assigns 0 when lo IS 0 -- no input distinguishes them, and none ever will. Counting those against a
+   `killed / tested` denominator makes the target unreachable by arithmetic and buries the real gaps
+   among the noise: on clock.js the brief measured 12 of 15 survivors in one cluster as equivalent.
+
+   Until now that classification was PROSE in a brief. This reads it as DATA
+   (`tools/mutate-equivalence.json`) so a run can report `killed / distinguishable` -- and, critically,
+   so the next sweep does not re-litigate survivors someone has already probed.
+
+   THE HEADER OF THIS FILE SET THE CONSTRAINT, AND IT IS HONOURED HERE: "prefer arguing with the gate
+   occasionally over a gate that silently excuses whatever it cannot kill." So this is NOT an allowlist
+   that quietly shrinks a denominator. Three things are reported loudly:
+
+     - REFUTED: an entry claims equivalence and that mutant was KILLED. The classification is WRONG; a
+       distinguishing input exists after all. This is the failure mode that would let a stale file hide
+       a real gap, so it is surfaced as an error rather than absorbed.
+     - ORPHANED: an entry matches no generated mutant (line moved, code changed). Excluded from every
+       count until re-verified, so a stale entry can never shrink anything.
+     - UNCLASSIFIED: survivors with no entry, counted and named. Silence is never equivalence.
+
+   Only `no-distinguishing-input` and `untestable-by-design` leave the denominator. `real-gap` stays in
+   it: those are debt, and a classification file is not a place to launder debt into a better number. */
+const EQUIV_FILE = join(ROOT, 'tools', 'mutate-equivalence.json');
+export function loadEquivalence() {
+  try {
+    const raw = JSON.parse(readFileSync(EQUIV_FILE, 'utf8'));
+    delete raw._README;
+    return raw;
+  } catch {
+    return {};
+  }
+}
+// The classes that genuinely cannot be killed, and therefore leave the distinguishable denominator.
+const EXCUSING = new Set(['no-distinguishing-input', 'untestable-by-design']);
+/* PURE, so the selftest can pin it without a sweep. Matched on (line, op, before) -- the same key
+   `findCanary` uses; `after` is documentation, so changing an operator's output text cannot silently
+   orphan an entry. */
+export function classifySurvivors(entries, survivors, generated) {
+  const key = (m) => m.line + ' ' + m.op + ' ' + m.before;
+  const surv = new Set((survivors || []).map(key));
+  const gen = new Set((generated || []).map(key));
+  const out = { excused: [], realGap: [], refuted: [], orphaned: [], unclassified: [] };
+  const seen = new Set();
+  for (const e of entries || []) {
+    const k = key(e);
+    seen.add(k);
+    if (!gen.has(k)) {
+      out.orphaned.push(e);
+      continue;
+    }
+    if (!surv.has(k)) {
+      // generated and did NOT survive => something killed it
+      if (EXCUSING.has(e.class)) out.refuted.push(e);
+      continue; // a `real-gap` entry that is now killed is debt paid, not an error
+    }
+    if (EXCUSING.has(e.class)) out.excused.push(e);
+    else out.realGap.push(e);
+  }
+  for (const s of survivors || []) if (!seen.has(key(s))) out.unclassified.push(s);
+  return out;
+}
+
 const CANARY_FILE = join(ROOT, 'tools', 'mutate-canaries.json');
 function loadCanaries() {
   try {
@@ -859,7 +933,23 @@ async function runFile(file) {
     killers: Array.from(killers.entries())
       .sort((a, b) => b[1] - a[1])
       .map(([group, n]) => ({ group, n })),
-    survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after }))
+    survivors: survivors.map((s) => ({ line: s.line, op: s.op, before: s.before, after: s.after })),
+    /* The equivalence split (MUTATION-EQUIVALENCE §5). Reported ALONGSIDE the raw numbers above, never
+       instead of them: `killed / tested` stays visible so the two denominators can be compared, which
+       is the whole argument the brief makes. `distinguishable` is what the 90 % target should be read
+       against once that call is made. */
+    equivalence: (function () {
+      const c = classifySurvivors(loadEquivalence()[file], survivors, all);
+      return {
+        excused: c.excused.length,
+        realGap: c.realGap.length,
+        unclassified: c.unclassified.length,
+        refuted: c.refuted,
+        orphaned: c.orphaned,
+        // the honest denominator: what a test COULD have killed
+        distinguishable: picked.length - (canaryMu ? 1 : 0) - invalid - c.excused.length
+      };
+    })()
   };
 }
 
@@ -1026,6 +1116,32 @@ function selftest() {
   ck('line moved → null (STALE, not a wrong guess)', findCanary(pool, { line: 21, op: 'num → 0', before: 'return 5;' }), null);
   ck('same line, different op → null', findCanary(pool, { line: 10, op: 'num → 0', before: 'if (a > b) {' }), null);
   ck('no canary recorded → null', findCanary(pool, undefined), null);
+
+  /* classifySurvivors -- the equivalence split. PURE, so it is pinned here by known answer rather
+     than by a sweep. Every branch is exercised, including the three that exist to stop this mechanism
+     becoming the "gate that silently excuses whatever it cannot kill" the header warns against. */
+  const M = (line, op, before) => ({ line, op, before });
+  const genAll = [M(1, 'cmp < → <=', 'a'), M(2, 'cmp > → >=', 'b'), M(3, 'bool && → ||', 'c'), M(4, 'num → 0', 'd')];
+  const survived = [M(1, 'cmp < → <=', 'a'), M(3, 'bool && → ||', 'c'), M(4, 'num → 0', 'd')];
+  const entries = [
+    { line: 1, op: 'cmp < → <=', before: 'a', class: 'no-distinguishing-input' }, // survived + excusing => excused
+    { line: 2, op: 'cmp > → >=', before: 'b', class: 'no-distinguishing-input' }, // KILLED but claimed equivalent => refuted
+    { line: 3, op: 'bool && → ||', before: 'c', class: 'real-gap' }, // survived but debt, stays countable
+    { line: 9, op: 'cmp < → <=', before: 'z', class: 'untestable-by-design' } // matches nothing => orphaned
+  ];
+  const cls = classifySurvivors(entries, survived, genAll);
+  ck('classify · an excusing class that SURVIVED is excused', cls.excused.length, 1);
+  ck('classify · an excusing class that was KILLED is REFUTED, never absorbed', cls.refuted.length, 1);
+  ck('classify · a real-gap survivor is NOT excused', cls.realGap.length, 1);
+  ck('classify · an entry matching no generated mutant is ORPHANED', cls.orphaned.length, 1);
+  ck('classify · a survivor with no entry is UNCLASSIFIED, never assumed equivalent', cls.unclassified.length, 1);
+  ck('classify · …and it is the one nobody wrote down', cls.unclassified[0].line, 4);
+  /* The anti-laundering property, stated as a test: only the excusing classes leave the denominator,
+     so a `real-gap` entry cannot be used to improve a rate. */
+  ck('classify · real-gap does not leave the denominator', cls.excused.some((e) => e.class === 'real-gap'), false);
+  /* An empty classification must change nothing -- the mechanism is opt-in per file. */
+  const none = classifySurvivors(undefined, survived, genAll);
+  ck('classify · no entries ⇒ every survivor unclassified, nothing excused', none.unclassified.length + ':' + none.excused.length, '3:0');
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -1210,6 +1326,25 @@ function reportOne(r) {
     '  ' + r.file + '   groups: ' + r.groupsRun + ' (' + r.groupCount + ' tagged' + (r.groupsSelected != null && r.groupsSelected !== r.groupCount ? ', ' + r.groupsSelected + ' RUN' : '') + ')'
   );
   console.log('    generated ' + r.generated + ', tested ' + r.tested + ' → killed ' + r.killed + ', survived ' + r.survivors.length + ', invalid ' + r.invalid + '   [' + score + ' % killed]');
+  /* THE DISTINGUISHABLE RATE, printed beside the raw one rather than replacing it. A reader must be
+     able to see both denominators and the gap between them -- that gap IS the finding. */
+  const eq = r.equivalence;
+  if (eq && (eq.excused || eq.realGap || eq.unclassified || eq.refuted.length || eq.orphaned.length)) {
+    const dScore = eq.distinguishable > 0 ? ((r.killed / eq.distinguishable) * 100).toFixed(0) : '\u2014';
+    console.log(
+      '    equivalence: ' + eq.excused + ' excused, ' + eq.realGap + ' real-gap, ' + eq.unclassified + ' UNCLASSIFIED' +
+        '   [' + dScore + ' % of ' + eq.distinguishable + ' distinguishable]'
+    );
+    /* A refuted entry is the one failure this mechanism could hide a real gap behind, so it shouts.
+       The fix is always to correct the entry -- never to weaken the test that killed it. */
+    for (const e of eq.refuted)
+      console.log(
+        '      \u26a0 REFUTED  ' + r.file + ':' + e.line + '  [' + e.op + '] is classified "' + e.class + '" but was KILLED.\n' +
+          '        A distinguishing input exists after all. Correct the entry in tools/mutate-equivalence.json.'
+      );
+    for (const e of eq.orphaned)
+      console.log('      \u26a0 ORPHANED ' + r.file + ':' + e.line + '  [' + e.op + '] matches no generated mutant - the line moved or the code changed. Excluded from every count until re-verified.');
+  }
   for (const s of r.survivors.slice(0, 25)) console.log('      SURVIVED ' + r.file + ':' + s.line + '  [' + s.op + ']\n        ' + s.before + '\n        ' + s.after);
   if (r.survivors.length > 25) console.log('      … and ' + (r.survivors.length - 25) + ' more');
   console.log('');

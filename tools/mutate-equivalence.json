@@ -1,0 +1,66 @@
+{
+  "_README": [
+    "THE EQUIVALENCE CLASSIFICATION — MUTATION-EQUIVALENCE-2026-08-04 §5/§6.1.",
+    "",
+    "A surviving mutant is not automatically a test gap. Some cannot be killed by ANY input: `if (lo < 0)",
+    "lo = 0` mutated to `<=` still assigns 0 when lo IS 0. Reporting those against a `killed / tested`",
+    "denominator makes the target unreachable by arithmetic and buries the real gaps among them.",
+    "",
+    "Until now this classification lived in BRIEF PROSE, which means every sweep re-litigated the same",
+    "survivors and no tool could report it. This file is that prose made machine-readable, and it is",
+    "consumed by `tools/mutate.mjs` (see `classifySurvivors`) so a run reports `killed / distinguishable`",
+    "beside the raw rate rather than instead of it.",
+    "",
+    "MATCHED ON (line, op, before) — the same key `findCanary` uses. `after` is recorded for a reader,",
+    "not for matching, so a change to the mutation operator's output text does not silently orphan an",
+    "entry.",
+    "",
+    "THE CLASSES, and they are not interchangeable:",
+    "  · no-distinguishing-input  — a battery of inputs was run against original and mutant and every",
+    "                               one produced byte-identical output. STRONG EVIDENCE, NOT PROOF: a",
+    "                               proof needs an argument over the whole input domain. `probe` records",
+    "                               what was actually run, so the claim can be re-checked or widened.",
+    "  · untestable-by-design     — a log string, or a branch unreachable by construction. The argument",
+    "                               goes in `why` and must be about the CODE, not about the test suite.",
+    "  · real-gap                 — killable, no test yet. These stay in the distinguishable denominator;",
+    "                               they are debt, not equivalence. An entry here is a TODO, not an excuse.",
+    "",
+    "THIS FILE CANNOT FLATTER A RATE, BY CONSTRUCTION. `mutate.mjs` reports three failure modes loudly:",
+    "  · REFUTED  — an entry claims equivalence and the mutant was KILLED. The classification is WRONG;",
+    "               a distinguishing input exists after all. Fix the entry, never the test.",
+    "  · ORPHANED — an entry matches no generated mutant (the line moved, or the code changed). It is",
+    "               excluded from every count until re-verified, so a stale entry shrinks nothing.",
+    "  · unclassified survivors are counted and named, so silence is never mistaken for equivalence.",
+    "",
+    "Only `no-distinguishing-input` and `untestable-by-design` leave the denominator. `real-gap` does not."
+  ],
+  "clock.js": [
+    {
+      "line": 284,
+      "op": "cmp > → >=",
+      "before": "var win = opts && opts.window > 0 ? opts.window : CK_AXIS_WIN;",
+      "class": "real-gap",
+      "why": "KILLABLE and now killed — `{window: 0}` is accepted as a window, so `win >> 1` is 0, the running median collapses to a single point and stops smoothing silently. Listed here so the classification is complete, NOT to excuse it: it stays in the distinguishable denominator.",
+      "probe": "anchor geometries n=2/3/4/11/41/60 × window 0/1/2/3/99",
+      "brief": "MUTATION-EQUIVALENCE §3"
+    },
+    {
+      "line": 325,
+      "op": "cmp > → >=",
+      "before": "if (span > 0) {",
+      "class": "real-gap",
+      "why": "KILLABLE — all anchors at one `devMs` gives a zero span, so the mutant divides by zero: `ppm` goes NaN AND `ok` flips false, turning a degenerate input into a refusal for the wrong reason.",
+      "probe": "all anchors sharing one devMs",
+      "brief": "MUTATION-EQUIVALENCE §3"
+    },
+    {
+      "line": 396,
+      "op": "drop !",
+      "before": "if (!(dx > 0)) return sm[i];",
+      "class": "real-gap",
+      "why": "KILLABLE — the guard fires on the NORMAL case, so interpolation is skipped and every mid-interval query snaps to the left anchor.",
+      "probe": "correctionAt queried mid-interval",
+      "brief": "MUTATION-EQUIVALENCE §3"
+    }
+  ]
+}
