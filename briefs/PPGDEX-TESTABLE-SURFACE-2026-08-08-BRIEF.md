@@ -9,7 +9,8 @@ and kills barely a third of its mutants. `ecgdex` runs 48 and kills 62 %. That i
 the fleet map the usual explanation cannot cover, and this brief reports what it actually is.
 
 It is **not** a neglected function, and it is not a matter of writing more tests in the current style.
-It is that the file has **no unit-testable surface**.
+It is that the file's largest survivor clusters have **no unit-testable surface** — though not, as §3a
+corrects, the file as a whole.
 
 ---
 
@@ -67,6 +68,39 @@ property of the surface, not of the diligence of whoever wrote the tests.
 **The contrast is the proof, not the theory.** `hrvdex-dsp.js` exposes nine functions on `_bare`,
 including `computeDerived` — and one targeted golden over it moved that file **29.4 % → 39.1 %,
 47 mutants, in a single group** (#1030). The technique is not in question; the handle is.
+
+## 3a · CORRECTION — half the survivors ARE in top-level functions
+
+The section above is right about the six largest clusters and **wrong if read as a claim about the
+whole file**, which the first draft invited. Checking every survivor-holding function rather than the
+top six: **396 of 767 survivors (52 %) sit in TOP-LEVEL functions with ordinary signatures.** The six
+biggest clusters being closures was a property of the sample, not of the file.
+
+Recorded rather than quietly edited, because the error is instructive: six data points agreed, the
+conclusion was plausible, and it was still an over-generalisation. The same shape as every other
+mistake in this sequence — see §4 of the fleet brief.
+
+The genuinely exportable, argument-taking candidates:
+
+| survivors | function | signature | note |
+|---:|---|---|---|
+| 21 | `lombScargle` | `(tt, nn)` | **already exported** — and still 21 survivors, so exporting alone is not sufficient; the suite calls it once |
+| 20 | `_ckMk` | `(y, mo0, d, h, mi, se, ms)` | PpgDex's node-local clock builder |
+| 19 | `cadenceSamples` | `(bp, fs)` | |
+| 18 | `cvhrFromNN` | `(nn, tt)` | apnea-band detector |
+| 16 | `detectBeats` | `(bp, fs)` | core beat detection |
+| 14 | `parseTimestamp` | `(raw, opts)` | PpgDex's deliberate node-local variant (CLAUDE.md §✅) |
+| 13 | `harmonicOutlierRefIdx` | `(refIdx, rates, snr)` | |
+| 12 | `validatePPI` | `(selfNN, devicePPI)` | self-vs-device agreement |
+| 11 | `timeDomain` | `(nn, cleanMask, omit)` | shipped HRV metrics |
+
+`lombScargle` is the instructive one: it is **already public and still holds 21 survivors**, because
+the suite calls it exactly once. Exporting creates the *opportunity* to test; it does not create the
+test. Any plan resting on exports alone would repeat that.
+
+`parseTimestamp` + `_ckMk` together hold **34** — that is PpgDex's node-local Clock Contract
+implementation, and it is unexercised locally even though `clock.js`'s equivalent is the most
+heavily-tested code in the repo.
 
 ## 4 · Proposed: give the pure helpers a surface
 
