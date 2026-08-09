@@ -92,6 +92,29 @@ Every threshold is the **record's own median** (self-calibrating) or a **univers
 ## Done when
 - [x] `beatConfidence` in ECGDSP + PPGDSP, unit-tested (burst → c≈0 in-window, clean/AF → c≈1) — **done 2026-07-14**; ECG confirmed on the REAL 06-12 night (density z 13–22 **and** SQI-depression z 8–10 both fire → c 0.00–0.51; benign sleep-onset high-density windows keep SQI high → c=1). **Permanent suite coverage added 2026-07-15** (was scratchpad-only): `ECGDSP.beatConfidence` known-answer group in `tests/dex-tests.js` — short<20→trust-all, clean→c≈1, 2× density **+ depressed SQI**→c≈0, and the AF contrast (2× density, **clean QRS ⇒ SQI ≥ baseline**→c≈1).
 - [~] worker carries `cH`/`cV`; `tchSigmasFused` wired into both sigma tools + the power real-overlay. — **worker + `sigma-no-reference` DONE** (merged PR #114). **`tchSigmasFused` single-sourced into `analysis-stats.js` 2026-07-15** (the brief's "add it in the shared kernel"): the sigma page now DELEGATES (like `tchSigmas`), the worker keeps its Worker-local mirror, and a delegation-parity leg guards against a divergent copy. **STILL OPEN:** the **power tool's REAL overlay** (`sensor-trio-power-analysis.js` `loadReal`) still uses classic `tchSigmas` — its `derivedMap` reads 2-col `ms;hr` with no per-second confidence, so routing it through the fused hat needs a confidence-carrying (`ms;hr;c`) corpus re-derivation. Entangled with the N15-power work → **routed to `TRIO-ARTIFACT-GATE-AND-N15-POWER` / `TRIO-POWER-N15-FINDINGS`**.
+  > **⊕ 2026-08-09 — the CORPUS half of this box is discharged; what remains is smaller and named.**
+  > The `ms;hr;c` re-derivation this was routed away for now **exists** (#1014): `OxyDex timeseries.hr`
+  > ships the 1 Hz pulse the O2Ring corner needs — measured before the change, **0 of 40 committed
+  > OxyDex exports carried ANY HR timeseries**, so this leg was blocked on a missing corner, not on
+  > effort — and `ECGDex timeseries.rr.conf` / `PpgDex timeseries.ppi.conf` carry the per-beat `c`
+  > both nodes already computed and discarded. `tools/trio-batch.mjs` produces the corpus in one
+  > command; `tools/tch-fused-corpus.mjs` runs the fused hat over it in Node and has (N = 17,
+  > box-captured: O2Ring 2.99 / H10 1.78 / Verity 3.51 — see `SENSOR-TRIO-NIGHTS-PAPER-BRIEF`).
+  >
+  > **What is still owed here is only `loadReal` itself**, and it is small: `derivedMap`
+  > (`sensor-trio-power-analysis.js:449`, 12 lines) reads `cc[0]=ms, cc[1]=hr` and would need an
+  > optional `cc[2]=c` defaulting to 1, then `loadReal` routed through `tchSigmasFused` instead of
+  > `tchSigmas`. Back-compatible by construction: a 2-column file yields c=1, which *is* the classic
+  > hat.
+  >
+  > **DELIBERATELY NOT BUILT (2026-08-09), and the reason is the point.** That very back-compatibility
+  > makes it **inert**: the committed derived files are 2-column, and the `ms;hr;c` corpus is
+  > **not committed** — a settled owner decision (real biosignal data; see `SENSOR-TRIO-NIGHTS-PAPER`).
+  > Landing the code plus a gate for a path no committed input can exercise would be machinery that
+  > passes without checking anything — this repo's signature failure, and the one §1 of
+  > `GENERATOR-FOLLOWUPS-III` exists to catch. **Build it together with an input that exercises it**:
+  > either a committed 3-column fixture, or `loadReal` taught to read node-exports directly (which the
+  > committed corpus already is). Until then this box is blocked on a DECISION, not on work.
 
   > **⚠️ RE-ROUTED 2026-08-04 — the routing above was a dead end, and the item sat orphaned for 16 days.**
   > This item was handed to `TRIO-ARTIFACT-GATE-AND-N15-POWER` / `TRIO-POWER-N15-FINDINGS`. Checked today:
