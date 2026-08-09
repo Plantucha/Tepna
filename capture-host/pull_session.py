@@ -177,8 +177,27 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                             pass
             await send(oxyii.file_end_frame()); await asyncio.sleep(0.3)
 
-            with open(path, "wb") as f:                    # `path` computed above (skip-existing check)
+            # AN INCOMPLETE DOWNLOAD MUST NOT OCCUPY THE FINAL PATH. The loop above `break`s on a
+            # mid-transfer timeout, and this used to write the short buffer straight to `<session>.dat`
+            # and report it in `saved_paths` — reproduced 2026-08-05: a timeout at offset 512 of 3002
+            # left a 512-byte .dat that is indistinguishable, to anything globbing *.dat, from a
+            # complete session. The sidecar did record `bytes` vs `declared_size`, so the truth was
+            # written down; it just was not where a consumer looks. Same shape as §C5 one module over.
+            #
+            # So: land it under `.part` and RENAME only when the byte count matches what the device
+            # declared. os.replace is atomic within a filesystem, so a reader sees either no file or a
+            # complete one — never a growing prefix. A short pull keeps its `.part` (the bytes are not
+            # thrown away, and the next run re-downloads because the skip-existing check compares sizes)
+            # and is NOT reported as saved.
+            complete = len(data) >= size
+            part = path + ".part"
+            with open(part, "wb") as f:
                 f.write(data)
+            if complete:
+                os.replace(part, path)                     # atomic: no reader ever sees a prefix
+            else:
+                print(f"  ⚠ INCOMPLETE: {len(data)}/{size} bytes — kept as {os.path.basename(part)}, "
+                      f"NOT written as a session. The next pull re-downloads it.", flush=True)
             hdr = bytes(data[:10]).hex()
             fmt_a = data[:2] == b"\x01\x03"
             n_samples = max(0, (len(data) - 10 - 48)) // 3 if len(data) > 58 else 0
@@ -192,10 +211,19 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                       "finalized": bool(summary),
                       "device_summary": summary,
                       "trailer": bytes(data[-48:]).hex() if len(data) >= 48 else ""}
-            with open(path + ".meta.json", "w") as f:
+            # The sidecar rides whichever file actually exists, so a `.part` is still explained.
+            final = path if complete else part
+            with open(final + ".meta.json", "w") as f:
                 json.dump(meta_j, f, indent=2)
-            saved_paths.append(path)
-            print(f"  saved {len(data)} bytes → {path}\n  header={hdr} format_a={fmt_a} ~{n_samples} samples", flush=True)
+            # REPORT IT EITHER WAY — under the name that says which it is. Returning nothing for a
+            # short pull would hide real bytes from the operator: `saved_paths` feeds the API's
+            # `new_files`/`sessions`, and the prior design deliberately surfaced partials there ("the
+            # data is real"). That intent is kept; what changes is that the caller now sees
+            # `<session>.dat.part`, so truncation is legible from the FILENAME instead of only from a
+            # sidecar field every consumer has to remember to read.
+            saved_paths.append(final)
+            print(f"  {'saved' if complete else 'partial'} {len(data)} bytes → {final}\n"
+                  f"  header={hdr} format_a={fmt_a} ~{n_samples} samples", flush=True)
         return saved_paths
 
 
