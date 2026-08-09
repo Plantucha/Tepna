@@ -1,0 +1,39 @@
+# tepna-capture — systemd/99-tepna-hidraw.rules
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# Make the two docked sensors' raw-HID pipes readable by the capture daemon.
+#
+# `/dev/hidraw*` is created root:root 0600, and capture.py runs unprivileged, so without a rule every
+# open() is EACCES — measured on the box 2026-08-08:
+#
+#     vigil$ open("/dev/hidraw0","rb+")  ->  PermissionError [Errno 13] Permission denied
+#
+# ── WHY THIS FILE EXISTS AT ALL (it is an ADOPTION, not a new idea) ─────────────────────────────────
+# The Polar line below was ALREADY on the box, hand-installed as `/etc/udev/rules.d/99-polar-hidraw.rules`,
+# byte-for-byte as written here. It was in no repo and on no manifest, so `check-system-files.sh` — the
+# gate whose entire purpose is "is what /etc is running the same as what the repo says" — could not see
+# it. A rebuild would have dropped it silently and the Polar USB pull would have started failing with a
+# permission error nobody would connect to a missing file. That is the same rot the udev rule in this
+# directory already suffered once (two fixes behind, 2026-07-26); the fix is the same: own it here.
+#
+# ── GROUP="vigil" is DELIBERATE, and is site-specific ───────────────────────────────────────────────
+# It preserves exactly what the hand-installed Polar rule already did. Adopting a working file must not
+# quietly change its semantics — the same discipline applied when `deploy/tepna-capture.service` absorbed
+# its duplicate. `plugdev` would be the portable choice (the operator is already in it) and a second site
+# should probably switch; do that as a deliberate edit, not as a side effect of this adoption.
+#
+# ── THE MATCH IS ON VID:PID, NOT ON A NODE NAME ─────────────────────────────────────────────────────
+# `/dev/hidraw0` is whatever enumerated first — it is not stable across a replug, a reboot, or the order
+# two sensors are docked in. Matching the device is the only form that survives that.
+
+# Polar dock (Verity Sense / H10 charging cradle) — PS-FTP rides this HID pipe.
+# Same VID:PID `tepna-usbreset.sh` allowlists; see that helper for why the pull needs a re-enumeration.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0da4", ATTRS{idProduct}=="0008", MODE="0660", GROUP="vigil"
+
+# Wellue O2Ring-S (T8520). ⚠️ It enumerates under NORDIC's vendor id (`1915`), not Viatom's (`036f`) —
+# the ring's BLE advertising uses Viatom/`0x036F` and its OxyII mode `0xF34E`, so a USB scan filtered on
+# the vendor ids you know from the radio walks straight past it. Product string is "O2Ring S", and the
+# USB serial is the constant `000000000001` on this unit — not an identifier, do not match on it.
+# The interface is class 03 (HID) with a 33-byte report descriptor and a single 64-byte interrupt-IN
+# endpoint: a vendor pipe wearing HID clothing, so writes go out as SET_REPORT control transfers.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1915", ATTRS{idProduct}=="f33c", MODE="0660", GROUP="vigil"
