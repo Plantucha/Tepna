@@ -432,6 +432,45 @@ def default_route_dev() -> str | None:
         return None
 
 
+# Exit codes this daemon's privileged helpers actually produce. `sudo` reserves 1 for its own refusal
+# and passes the child's code through otherwise, so a bare number is ambiguous — the OUTPUT is what
+# disambiguates, and every rule below requires it.
+# NOTE THE `.*` BETWEEN THE THREAD NAME AND "panicked": the real line carries the pid —
+# `thread 'main' (9270) panicked at src/system/audit.rs:80:14` — so a pattern that expects
+# `'main' panicked` misses every actual occurrence. Written from the journal, not from memory of the
+# format; the first version was tested against an invented string and matched nothing real.
+_RUST_PANIC = re.compile(r"thread '[^']*'.*panicked at|note: run with `RUST_BACKTRACE")
+_SUDO_REFUSED = re.compile(r"a (?:password|terminal) is required|not allowed to execute|"
+                           r"may not run|no tty present|incorrect password", re.I)
+_NOT_FOUND = re.compile(r"command not found|no such file or directory: |not installed|"
+                        r"executable file not found", re.I)
+
+
+def helper_failure_kind(rc: int, out: str = "") -> str:
+    """Why a privileged helper failed, from its exit code AND its output. Pure.
+
+    THE CASE THIS EXISTS FOR. On 2026-07-26 every helper on the live box failed with `rc=101` and
+    `thread 'main' panicked at src/system/audit.rs:80:14` — sudo-rs CRASHING, not refusing. The daemon
+    logged the number and nothing read it, so `cpap.state: "error"` sat unexplained for ten days and two
+    correct-but-irrelevant code fixes were credited with covering it (FOLLOWUPS-II §1). A crash in the
+    privilege layer is an operational fault of a different KIND from a missing sudoers rule: one means
+    the box's sudo is broken and no amount of retrying helps, the other is a one-line config fix.
+
+    Classification is by EVIDENCE, never by the number alone. `sudo` passes the child's exit code
+    through, so 101 is only a crash when the output carries a panic; otherwise it is just a program's
+    exit status and this says so rather than inventing a diagnosis."""
+    text = str(out or "")
+    if _RUST_PANIC.search(text):
+        return "crashed"                    # the privilege layer itself died — retrying cannot help
+    if rc == 124:
+        return "timeout"                    # _sh's own marker, below
+    if rc == 127 or _NOT_FOUND.search(text):
+        return "missing"                    # the target binary is not installed
+    if _SUDO_REFUSED.search(text):
+        return "refused"                    # sudoers says no — a config fix, not a fault
+    return "failed"                         # a genuine non-zero from the tool, cause unclassified
+
+
 def _sh(argv: list[str], timeout: float, sudo: bool = False) -> tuple[int, str]:
     """Run one command, bounded, never raising. `sudo -n` (non-interactive) because this runs from a
     daemon with nobody to answer a password prompt — a missing sudoers rule must fail fast and loudly,
@@ -441,7 +480,11 @@ def _sh(argv: list[str], timeout: float, sudo: bool = False) -> tuple[int, str]:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         out = ((p.stdout or "") + (p.stderr or "")).strip()
         if p.returncode:
-            log.warning("cpap: %s -> rc=%d %s", " ".join(cmd[:4]), p.returncode, out[:160])
+            kind = helper_failure_kind(p.returncode, out)
+            # CRASHED is the one worth raising the voice for: it means the privilege layer is broken, so
+            # every other helper this cycle will fail too and the cause is not in this codebase.
+            (log.error if kind == "crashed" else log.warning)(
+                "cpap: %s -> rc=%d [%s] %s", " ".join(cmd[:4]), p.returncode, kind, out[:160])
         return p.returncode, out
     except FileNotFoundError:
         return 127, f"{cmd[0]}: not installed"

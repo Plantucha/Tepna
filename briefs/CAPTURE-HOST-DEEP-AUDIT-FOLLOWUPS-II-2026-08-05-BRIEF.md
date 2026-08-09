@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-05 · **Follows:** `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS-2026-07-26-BRIEF.md`
+**Status:** DONE — 2026-08-05 · **Created:** 2026-08-05 · **Follows:** `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS-2026-07-26-BRIEF.md`
 
 # What closing the follow-ups surfaced — a live sudo fault, a noisy teardown, and one behaviour change
 
@@ -34,9 +34,23 @@ two most recently changed code paths because those were salient. The journal ans
 two plausible hypotheses could not. `rc=101` is also *distinguishable* from a permissions problem
 (`rc=1`) and from a missing binary (`rc=127`) — the daemon logs the code, and nothing reads it.
 
-**Open:** should `cpap` classify helper failures by return code — `101` (helper crashed) is an
-operational fault of a different kind from `1` (refused) or `255` (target missing), and only the first
-means "the box's sudo is broken, stop trying"?
+**CLOSED 2026-08-05 — classified and REPORTED; no behaviour change.** `helper_failure_kind(rc, out)`
+tags every helper failure `crashed` · `refused` · `missing` · `timeout` · `failed`, and `_sh` logs a
+crash at ERROR so it stops reading as one more warning.
+
+Deliberately NOT acted on: nothing backs off or stops retrying on a `crashed` verdict. "The box's sudo
+is broken, stop trying" is a behavioural decision about an unattended daemon and belongs to the owner,
+not to the classifier. It is cheap to add on top.
+
+**Classification is by EVIDENCE, never the code alone.** `sudo` passes the child's exit status through,
+so `101` is only a crash when the output carries a panic; without one it stays `failed` rather than
+inventing a diagnosis. The wpa teardown's ordinary `rc=255` is deliberately left `failed` too — over-
+diagnosing is how a real crash stops standing out.
+
+⚠️ **The first pattern matched no real output.** It was written as `thread '.*' panicked at`, but the
+journal records `thread 'main' (9270) panicked at` — the parenthesised **pid** breaks it. Tested against
+an invented panic string it would have passed and shipped inert. The committed test uses the verbatim
+journal line, and a negative control re-introduces the gap.
 
 ## 2 · The wpa teardown fails on EVERY cycle, right now, and says so quietly
 
@@ -114,7 +128,19 @@ not passing.
 
 ## Done when
 
-* §1's return-code classification decided (or declined with a reason).
-* §2's teardown either stays silent when there is no socket, or verifies before claiming a leak.
-* §3's absorbed offset is surfaced somewhere an operator or a consumer can see it, or it is stated why
-  it need not be.
+- ~~§1's return-code classification decided~~ — **DONE: classified and reported, no behaviour change.**
+  Acting on the verdict (back-off) is left to the owner and is cheap to add.
+- ~~§2's teardown either stays silent when there is no socket, or verifies before claiming a leak~~ —
+  **DONE: it verifies**, because the 2026-07-29 leak returned the same `rc=255` and the message alone
+  cannot separate the two.
+- ~~§3's absorbed offset surfaced~~ — **DONE**: `host_clock.capture_absorbed_sec`. The EXPORT boundary
+  remains open and is carried forward below.
+
+## Carried forward
+
+* **The export boundary for the absorbed offset.** `status.json` tells an operator; it does not tell a
+  consumer aligning this night against another device, which is where the offset bites. Putting it in
+  `ganglior.node-export` is a contract question, not plumbing.
+* **§4's untouched scope**, verbatim: the ~15 swallowed `except` sites in `capture.py`; the frame-decoder
+  differential; `pull_session.py`'s partial-download path; `monitor.html`'s client-side escaping;
+  `PPG_INVALID` downstream; the browser lane.

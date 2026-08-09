@@ -288,3 +288,75 @@ def test_an_unreadable_proc_claims_NOTHING_rather_than_guessing(monkeypatch):
         raise PermissionError("no /proc")
     monkeypatch.setattr(ch.os, "listdir", boom)
     assert ch._live_supplicants("wlp1s0") == []
+
+
+# ── a crashed privilege layer is not a refused one ───────────────────────────────────────────────────
+# FOLLOWUPS-II §1. On 2026-07-26 every helper on the live box failed with rc=101 and a Rust panic —
+# sudo-rs CRASHING, not refusing. The daemon logged the number and nothing read it, so
+# `cpap.state: "error"` sat unexplained for ten days while two correct-but-irrelevant code fixes were
+# credited with covering it. The kinds differ in what you DO about them: a crash means the box's sudo
+# is broken and retrying cannot help; a refusal is a one-line sudoers fix.
+
+# The line as the journal actually recorded it. Note the PID in parentheses between the thread name and
+# "panicked" — the first version of the pattern expected `'main' panicked` and matched no real output.
+_PANIC_REAL = "thread 'main' (9270) panicked at src/system/audit.rs:80:14:"
+
+
+def test_the_live_sudo_crash_is_classified_as_crashed():
+    assert ch.helper_failure_kind(101, _PANIC_REAL) == "crashed"
+
+
+def test_a_panic_without_a_pid_is_still_a_crash():
+    """Older rustc omits the parenthesised pid. Both shapes are real."""
+    assert ch.helper_failure_kind(101, "thread 'main' panicked at src/lib.rs:1:1") == "crashed"
+
+
+def test_rc_101_WITHOUT_a_panic_is_not_called_a_crash():
+    """`sudo` passes the child's exit code through, so 101 is just a number unless the output says
+    otherwise. Claiming a crash from the code alone would be a fabricated diagnosis."""
+    assert ch.helper_failure_kind(101, "some tool exited 101 normally") == "failed"
+
+
+def test_a_sudoers_refusal_is_distinguishable_from_a_crash():
+    for out in ("sudo: a password is required", "user vigil is not allowed to execute /usr/sbin/ip"):
+        assert ch.helper_failure_kind(1, out) == "refused", out
+
+
+def test_a_missing_binary_and_a_timeout_have_their_own_kinds():
+    assert ch.helper_failure_kind(127, "wpa_cli: command not found") == "missing"
+    assert ch.helper_failure_kind(124, "timed out after 10s") == "timeout"
+
+
+def test_an_ordinary_tool_failure_is_not_over_diagnosed():
+    """The wpa teardown's own rc=255 must stay `failed` — inventing a cause for it is how a real crash
+    stops standing out."""
+    assert ch.helper_failure_kind(255, "Failed to connect to non-global ctrl_ifname: wlp1s0") == "failed"
+
+
+def test_a_crash_is_logged_at_ERROR_and_names_the_kind(monkeypatch, caplog):
+    """The whole point is that it reaches a human differently from the warnings around it."""
+    import logging
+    import subprocess as _sp
+
+    class _P:
+        returncode, stdout, stderr = 101, "", _PANIC_REAL
+    monkeypatch.setattr(_sp, "run", lambda *a, **k: _P())
+    with caplog.at_level(logging.WARNING):
+        rc, _out = ch._sh(["ip", "link"], 5, sudo=True)
+    assert rc == 101
+    assert any(r.levelname == "ERROR" for r in caplog.records), \
+        "a crashed privilege layer must not read as one more warning"
+    assert "[crashed]" in caplog.text, caplog.text
+
+
+def test_an_ordinary_failure_stays_a_WARNING(monkeypatch, caplog):
+    import logging
+    import subprocess as _sp
+
+    class _P:
+        returncode, stdout, stderr = 255, "", "some failure"
+    monkeypatch.setattr(_sp, "run", lambda *a, **k: _P())
+    with caplog.at_level(logging.WARNING):
+        ch._sh(["ip", "link"], 5, sudo=True)
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]
+    assert "[failed]" in caplog.text, caplog.text
