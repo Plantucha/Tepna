@@ -1,0 +1,74 @@
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# PUBLISH THE CI TIMING BREAKDOWN — which check is actually the merge race.
+#
+# CLAUDE.md §👥.5 measured the problem: main moves a median 7.2 min between merges, CI is ~10–12 min,
+# and `protect-main` is `strict`, so a PR needs every check green AND main standing still at the same
+# instant. What nobody had measured is WHICH check owns that 10–12 min — and "CI takes 12 minutes" is
+# a sum, which tells you nothing about where an optimisation would land.
+#
+# NOT ON EVERY PUSH, deliberately. This reads the Actions API over the last N runs; running it per
+# push would add a job to the very critical path it is measuring, and the number does not move
+# push-to-push. Weekly plus on-demand is enough to notice a regression, and `workflow_dispatch` makes
+# it available the moment someone asks "did that change help?".
+#
+# Output goes to the JOB SUMMARY, so it is readable without downloading an artifact.
+name: ci-timing
+
+on:
+  schedule:
+    - cron: '17 6 * * 1' # Mondays 06:17 UTC — off-peak, and an odd minute to dodge the scheduler's rush
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'How many recent runs to sample'
+        required: false
+        default: '40'
+      branch:
+        description: 'Branch to measure'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: read
+  actions: read # the whole point: reading other workflows' run + job timings
+
+jobs:
+  report:
+    name: CI timing breakdown
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Selftest the statistics before trusting them
+        # The percentile / critical-path arithmetic is pure and known-answer tested, so a broken
+        # calculator is caught here rather than surfacing as a plausible-looking table nobody checks.
+        run: node tools/ci-timing.mjs --selftest
+      - name: Measure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          node tools/ci-timing.mjs \
+            --limit "${{ github.event.inputs.limit || '40' }}" \
+            --branch "${{ github.event.inputs.branch || 'main' }}"
+      - name: Machine-readable copy
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          node tools/ci-timing.mjs \
+            --limit "${{ github.event.inputs.limit || '40' }}" \
+            --branch "${{ github.event.inputs.branch || 'main' }}" \
+            --json > ci-timing.json || true
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-timing
+          path: ci-timing.json
+          if-no-files-found: ignore
