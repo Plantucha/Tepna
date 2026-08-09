@@ -292,3 +292,113 @@ them but names only `L386`/`L387` individually — and `L386` has since become t
 twelve entries from a prose summary would be inventing data of exactly the kind this mechanism exists to
 replace. The tool reports every unprobed survivor as `UNCLASSIFIED` by name, so the remaining work is a
 list the tool prints rather than a claim in a brief.
+
+## 9 · EXECUTED 2026-08-09 — the Python gate had the same problem and none of the mechanism
+
+§8 solved this for `tools/mutate.mjs`. **`capture-host/tools/mutate_diff.py` — a second, independent
+mutation gate, on CI, blocking — had no equivalence concept at all**, so its only two outcomes were
+"killed" and "fails forever". Its own header already names the cost of the second one: *"A gate that
+runs when it has nothing to say trains people to ignore it."*
+
+**How it surfaced.** The diff-scoped gate on PR #1090 reported **6 survivors** in
+`probe_verity_survey._session_matches` — the date-comparison arm that PR added. The PR merged anyway
+(the job is advisory), which is the failure mode in miniature: a red nobody can clear becomes a red
+nobody reads.
+
+### 9.1 · Five were real gaps, and the tests that "covered" the change did not cover its edges
+
+The #1090 tests pinned the *behaviour* (wrong day rejected, midnight accepted) and left the arm's own
+boundaries unexamined, so a weakened predicate still passed. Each kill below was verified by
+**re-applying that exact mutant** and watching the suite go red — a kill claimed from reading the code
+is the thing this repo keeps rediscovering it cannot rely on.
+
+| mutant | mutation | why the existing tests could not see it | the killing input |
+|---|---|---|---|
+| 27 | `len(parts) >= 3` → `> 3` | every fixture had FIVE parts | `20260701_R_120059` — a three-part name, wrong day |
+| 28 | `len(parts) >= 3` → `>= 4` | same | same |
+| 32 | `parts[-3]` → `parts[-4]` | every fixture had a DIGIT at `[-4]` (`U_0_…`), so both indices agreed | `U_x_20260701_R_120059` |
+| 51 | `< 180` → `<= 180` | no fixture sat on the boundary | exactly 180 s ⇒ False |
+| 52 | `< 180` → `< 181` | same | same |
+
+The shape is worth naming: **all five are edges of a predicate the same PR introduced.** Writing tests
+from the behaviour you intended, rather than from the branches you wrote, leaves exactly this residue.
+
+### 9.2 · The sixth is equivalent, and that is now a record rather than an argument
+
+`if not (len(tail) == 6 and tail.isdigit())` → `or`. The weakened guard admits exactly two extra
+shapes — `len==6` but not all digits, and all digits but `len!=6` — and **both then fail
+`strptime(tail, "%H%M%S")` and return `False` down the `except ValueError` path**, which is the value
+the guard would have returned. The guard is a fast path, not a semantic gate.
+
+Probed over **133,495 directory names** (26,699 tails of length 0–8 over digits + letters + `" -:."`,
+plus hand-picked adversarial ones, crossed with five prefix shapes): **zero behavioural differences.**
+That is strong evidence, not proof, and the entry says so — `probe` records what was actually run, so
+the claim can be re-checked or widened rather than re-litigated.
+
+### 9.3 · Keyed on the DIFF, and the run proved why
+
+`capture-host/tools/mutate-equivalence.json` mirrors the root file's rules, with one deliberate
+difference: mutmut names mutants `module.x_func__mutmut_N`, and **N renumbers whenever anything earlier
+in the function changes.** An entry keyed on it would keep matching while silently pointing at a
+different mutation.
+
+**This was not hypothetical.** The same tail-guard mutation is `__mutmut_12` in the CI run on #1090 and
+`__mutmut_6` in the local re-run — same source, same tool, different index. The diff key
+(`- <old line> | + <new line>`, whitespace-normalised) matched across the renumbering.
+
+### 9.4 · The three loud states, and they were made to fire
+
+Ported verbatim from §8.2's constraint — an entry excuses a mutant only while it is BOTH still
+generated AND still surviving:
+
+- **REFUTED** — the entry claims equivalence and the mutant was KILLED. **Fails the gate.** It is the
+  only route by which a stale file could hide a real gap. Detecting it costs one `mutmut show` per
+  killed mutant, so that cost is paid *only* for modules the equivalence file actually claims; a PR
+  with no claims runs exactly as fast as before.
+- **ORPHANED** — matches no generated mutant (the line moved). Excluded from every count, so a stale
+  entry shrinks nothing.
+- **unclassified** — survivors nobody probed. Fail the gate exactly as before.
+
+`--selftest` pins the classifier's five outcomes and `diff_key`'s normalisation without running a
+sweep, and all three states were exercised end-to-end against the real #1090 diff:
+
+```
+A · key pointing at nothing             → ORPHANED + 1 unclassified   → exit 1
+B · key claiming a mutant the tests kill → REFUTED                     → exit 1
+C · restored                            → "every mutant on the changed functions was killed
+                                           (1 recorded as equivalent)" → exit 0
+```
+
+**The negative cases were run, not reasoned about.** A gate that decides what may be ignored is the
+last place to accept a green nobody has seen fail — and both of the following were found by running
+them rather than by reading the code.
+
+### 9.6 · Two failures inside the verification itself, recorded because they are the house pattern
+
+**(a) `mutmut results` does not list killed mutants at all.** The first REFUTED implementation scanned
+its output for `": killed"`. That token never appears: the command reports only `survived` and
+`not checked`, and a killed mutant is simply absent. So the check ran on every PR, matched nothing, and
+would have reported "no refuted entries" forever — a check that reports success about something it
+never examined, which is the same sentence as §9's opening problem.
+
+The generated set now comes from mutmut's own mutants file, where every mutant is a
+`def x_<func>__mutmut_N(`; `mutmut show` renders killed ones normally. Confirmed by counting: **52
+generated defs** for `_session_matches`, against the 2 lines `results` prints.
+
+**(b) The negative-test harness reported `EXIT=0` for a gate that had correctly failed.** It read
+`${PIPESTATUS[0]}` after calling a shell *function* — which is the function's own status, i.e. the
+trailing `grep`'s, not the python inside it. Test A printed a correct ORPHANED diagnosis and a green
+exit in the same breath. Fixed by capturing `$?` of the command itself before any pipe, exactly as
+CLAUDE.md §4/§4b prescribes; A then reported exit 1 as it should.
+
+Neither bug was in the gate. Both were in the thing checking the gate, which is the harder place to
+notice one and the reason the three cases are written down here as commands rather than as a claim
+that they passed.
+
+### 9.5 · A drive-by that the workflow itself caused
+
+`.gitignore` had `.venv/` — **with a trailing slash, which matches directories only.** Running the
+capture-host tests from a git worktree means symlinking the venv in (`ln -s …/capture-host/.venv`), the
+exact workflow CLAUDE.md §1 prescribes — and a *symlink* named `.venv` was therefore **not ignored**,
+showing as untracked in a shared checkout where §2 spends a page on what a blanket stage does to those.
+Both files now carry the slashless form as well.

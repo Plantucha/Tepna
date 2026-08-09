@@ -253,6 +253,48 @@ must know the discarded part cannot change the verdict.** For a gate summary it 
 The family (`grep -q` exit codes, `npx` no-op greens, a child's JSON truncated through a pipe) all share
 one shape: **the check ran, and reported success about something it never examined.**
 
+### 5 · LANDING: `main` moves faster than CI, so every extra PR is another lost race
+
+**Measured 2026-08-09.** `main` moves a **median 7.2 min** between merges (min 1.2, max 120; only **8 of
+19** recent gaps were ≥ 12 min). CI is **~10–12 min** across 7 required checks. The `protect-main` ruleset
+sets `required_status_checks.strict = true`, so the branch must be **up to date at merge time** — and
+GitHub's auto-merge does **not** update it for you. A PR therefore has to hold *all checks green* and
+*main stood still* in the same instant, a window open well under half the time.
+
+**The cadence lever is bigger than the polling lever, and it is the one you control.** One capture-host
+fix shipped as **five** PRs (#1062 → #1071 → #1081 → #1091 → #1095) because each increment was pushed as
+it was discovered; that is five races and roughly 45 min of re-running an 11-min suite on a file that had
+not changed. In order of payoff:
+
+1. **One PR per work-unit, not one per increment.** Discovery is sequential; delivery need not be.
+   Diagnose fully, *then* ship. Four of those five PRs touched the same function.
+2. **Run the full gate ONCE, on the final state.** Use `-k` / `--group=` while iterating. ⚠️ A filter that
+   matches nothing reads exactly like a pass — `-k absent` does **not** match `absence`, and a mutant
+   survived unnoticed because the killing test was never collected (§4b's family).
+3. **Push BEFORE writing the changeset and PR body.** Gate → write → push serialises ~11 min + ~12 min;
+   pushing first runs CI underneath the writing.
+4. **`gh pr update-branch` when nothing generated is in the diff** — instant, versus minutes for
+   `rebase-safe` + rebuild, which restarts the clock. When bundles / `docs/` / `provenance/` **are** in
+   the diff, §👥.2c still applies and `rebase-safe` is mandatory, not optional.
+
+**Do not hand-write the polling loop.** It has been written wrong in all four of §👥.4/4b's ways. Use:
+
+```sh
+node tools/land-pr.mjs <PR#>            # keeps the branch current, merges the moment it can
+node tools/land-pr.mjs <PR#> --dry-run  # print each decision, act on nothing
+```
+
+Its decision core is a pure function, gate-backed by the `land-pr` group. It distinguishes the four
+states that need **opposite** responses — `BEHIND` (update, this is the race, not an error) · `BLOCKED`
+with runs in flight (wait) · `UNKNOWN` mergeability (wait; GitHub is still computing it) · a **required
+context that was never reported at all** (stop — a skipped matrix job reports an unexpanded literal name,
+so waiting cannot fix it). A failing check outranks all of them, or a red PR gets "updated" forever
+behind a fresh pending.
+
+⚠️ **A merge queue would paper over all of this, and is the wrong first reach.** It was proposed here and
+correctly rejected: the numbers say the self-inflicted serialisation is the bigger term. Fix the cadence
+first; the ruleset is the constraint, not the defect.
+
 ---
 
 ## 📌 Brief lifecycle — date NEW filenames at creation; mark DONE in the HEADER, never rename (non-negotiable)
