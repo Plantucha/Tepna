@@ -175,7 +175,17 @@ observable. That is refactoring production code to satisfy a metric, and it is t
 see a change there"*, not proof of a bug, and *"some survivors are legitimately untestable."* The 90 %
 figure was adopted without reconciling it against that sentence.
 
-## 5 · Proposed: change the denominator, not the tests
+## 5 · RATIFIED 2026-08-08 (owner) — change the denominator, not the tests
+
+> **THE TARGET IS NOW: 90 % of DISTINGUISHABLE mutants killed, and every non-distinguishable one
+> classified.** Owner call, made 2026-08-08, on the terms this section proposed. The raw
+> `killed / tested` rate is still printed beside it and is still the number a reader should sanity-check
+> against — it is no longer the bar.
+>
+> **What makes the restatement safe rather than a lowered bar** is that it stopped being a claim and
+> became data on the same day (§8): nothing leaves the denominator without a named entry, a recorded
+> probe, and a tool that shouts REFUTED the moment a mutant it excused is killed. A target measured
+> against a classification nobody can audit would be worse than an unreachable one.
 
 Replace **"90 % of mutants killed"** with **"90 % of DISTINGUISHABLE mutants killed, and every
 non-distinguishable one classified"**. Concretely:
@@ -196,12 +206,14 @@ named survivors rather than an open-ended chase.
 - [x] Every survivor in those clusters probed for a distinguishing input (§3).
 - [x] The three killable ones pinned by assertions that each fail on their own mutant —
       verified by re-applying each mutant (1, 4 and 4 assertions red respectively).
-- [ ] The equivalence classification committed in a form the tooling reads, so a sweep can report
-      `killed / distinguishable` instead of `killed / tested`.
+- [x] **The equivalence classification committed in a form the tooling reads** — DONE 2026-08-08,
+      see §8. `tools/mutate-equivalence.json` + `classifySurvivors`; a run now reports
+      `killed / distinguishable` **beside** `killed / tested`, never instead of it.
 - [ ] `parseTimestamp` · `_ckMk` · `resolveDMY` · `_ckP2` (14 survivors) probed the same way — this
       brief covers only the 15 in `hostAxis`/`correctionAt`.
-- [ ] **Owner call:** is the 90 % target restated per §5, or kept as-is on the raw denominator? Every
-      further wave depends on the answer, and on the raw denominator the answer is "unreachable".
+- [x] **Owner call — ANSWERED 2026-08-08: restated per §5.** The target is *90 % of DISTINGUISHABLE
+      mutants killed, and every non-distinguishable one classified*. On the raw denominator the answer
+      was "unreachable"; on this one it is a finite, named list of survivors to probe.
 
 ## 7 · Notes on the tooling, recorded because they cost time
 
@@ -214,3 +226,69 @@ named survivors rather than an open-ended chase.
 - **A partial run is not a trend.** At 60/127 the unfiltered sweep showed 10 survivors where the
   scoped rate predicted ~16, and that was read as "unfiltered is finding meaningfully more". The full
   population came back 33 vs 34. Do not extrapolate a sweep before it finishes.
+
+
+---
+
+## 8 · EXECUTED 2026-08-08 — the classification is data, and it cannot flatter a rate
+
+### 8.1 · What landed
+
+`tools/mutate-equivalence.json`, in the shape `tools/mutate-canaries.json` already established, matched
+on **`(line, op, before)`** — the same key `findCanary` uses. `after` is recorded for a reader and
+deliberately NOT part of the key, so changing an operator's output text cannot silently orphan an entry.
+
+`mutate.mjs` gains `loadEquivalence()` + `classifySurvivors()` (both exported, both pure) and every
+per-file result now carries an `equivalence` block: `{ excused, realGap, unclassified, refuted,
+orphaned, distinguishable }`. The console line prints the distinguishable rate **beside** the raw one:
+
+```
+generated 123, tested 118 → killed 98, survived 19, invalid 5   [83 % killed]
+equivalence: 12 excused, 3 real-gap, 4 UNCLASSIFIED   [93 % of 106 distinguishable]
+```
+
+Both denominators stay visible on purpose. **The gap between them is this brief's entire argument** —
+hiding the raw number would make §4's case unauditable.
+
+### 8.2 · The constraint came from the tool's own header, and it is honoured
+
+`mutate.mjs` had already scoped this work and set its acceptance condition:
+
+> *"Feeding it in as an allowlist is the obvious follow-up; until then, expect to argue with the gate
+> occasionally and **prefer that over a gate that silently excuses whatever it cannot kill**."*
+
+So this is not an allowlist. Three states are reported loudly, and they exist specifically to stop the
+mechanism becoming the thing that header warns about:
+
+| state | meaning | why it must shout |
+|---|---|---|
+| **REFUTED** | an entry claims equivalence, and that mutant was **KILLED** | the classification is WRONG — a distinguishing input exists after all. This is the ONLY way a stale file could hide a real gap. The fix is the entry, **never** the test that killed it. |
+| **ORPHANED** | an entry matches no generated mutant (line moved, code changed) | excluded from every count until re-verified, so a stale entry can never shrink a denominator |
+| **UNCLASSIFIED** | a survivor with no entry | counted and named. **Silence is never equivalence.** |
+
+And `real-gap` entries **stay in** the distinguishable denominator. They are debt; a classification file
+is not a place to launder debt into a better number. That property is pinned by its own selftest.
+
+### 8.3 · Gated by known answer, because the classifier is pure
+
+Eight selftests in `mutate.mjs --selftest`, exercising every branch: an excusing class that survived
+(excused), an excusing class that was killed (**REFUTED**), a `real-gap` survivor (not excused), an
+entry matching nothing (**ORPHANED**), a survivor with no entry (**UNCLASSIFIED**, and it names which),
+the anti-laundering property, and the opt-in property — an empty classification changes nothing.
+
+They are known-answer rather than sweep-derived on purpose: the classifier is a pure function, and
+pinning it to a 90-minute mutation run would make it untestable in practice.
+
+### 8.4 · What is seeded, and what is deliberately NOT
+
+The file currently carries **only the three `real-gap` entries** from §3 — the ones this brief documents
+with a specific distinguishing input (`L284` `{window: 0}`, `L325` all-anchors-at-one-devMs, `L396`
+mid-interval `correctionAt`). All three are now killed, so they contribute nothing to any count today;
+they are kept as the record that a distinguishing input EXISTS, which matters the moment a refactor
+makes one survive again.
+
+**The twelve equivalent ones are NOT seeded, and that is a decision rather than an omission.** §3 counts
+them but names only `L386`/`L387` individually — and `L386` has since become the killed canary. Writing
+twelve entries from a prose summary would be inventing data of exactly the kind this mechanism exists to
+replace. The tool reports every unprobed survivor as `UNCLASSIFIED` by name, so the remaining work is a
+list the tool prints rather than a claim in a brief.

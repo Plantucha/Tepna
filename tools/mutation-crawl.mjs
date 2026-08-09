@@ -372,8 +372,60 @@ function enclosingFn(lines, lineNo) {
   }
   return '(top level)';
 }
+/* ── CALL-SITE CONTEXT ──────────────────────────────────────────────────────────────────────────
+   Where else in the repo does this identifier appear? Grouped by area, because the area is what a
+   reader actually sorts on: a function referenced only from `tests/` and `tools/regen-*` is fixture
+   scaffolding; one referenced from `adapters/` or another DSP is load-bearing. Counted over a corpus
+   read ONCE per file rather than grepping per function — there are hundreds of functions and the
+   corpus is a few megabytes.
+
+   Word-boundary matched. A substring match would count `computeDerivedX` as a reference to
+   `computeDerived`, and inflating a signal that exists to be read by eye is worse than omitting it. */
+export function callSiteContext(fnName, corpus) {
+  const re = new RegExp('\\b' + String(fnName).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+  const areas = {};
+  const files = [];
+  for (const [path, text] of corpus) {
+    if (!re.test(text)) continue;
+    const area = path.startsWith('tests/')
+      ? 'tests'
+      : path.startsWith('tools/')
+        ? 'tools'
+        : path.startsWith('adapters/')
+          ? 'adapters'
+          : path.includes('/')
+            ? 'other'
+            : /-dsp\.js$/.test(path)
+              ? 'dsp'
+              : 'root';
+    areas[area] = (areas[area] || 0) + 1;
+    files.push(path);
+  }
+  return { areas, files: files.slice(0, 6), total: files.length };
+}
+/** Read the JS corpus once: every tracked .js/.mjs outside node_modules, keyed by repo-relative path. */
+function readCorpus() {
+  const out = [];
+  let list = [];
+  try {
+    list = execSync('git ls-files "*.js" "*.mjs"', { cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+      .split('\n')
+      .filter(Boolean);
+  } catch {
+    return out;
+  }
+  for (const f of list) {
+    try {
+      out.push([f, readFileSync(join(ROOT, f), 'utf8')]);
+    } catch {}
+  }
+  return out;
+}
+
 function probeFile(file, rec) {
   const abs = join(ROOT, file);
+  // exclude the file under test: it DEFINES the function, which is not a reference to it
+  const corpus = readCorpus().filter(([p]) => p !== file);
   const SRC = readFileSync(abs, 'utf8');
   const lines = SRC.split('\n');
   let base;
@@ -487,6 +539,24 @@ function probeFile(file, rec) {
       callPath: path,
       killable: per.filter((p) => p.status === 'KILLABLE').length,
       realmArtefacts: per.filter((p) => p.status === 'REALM-ARTEFACT').length,
+      /* WHO ELSE REFERENCES THIS FUNCTION — reported, never acted on. The crawl ranks by COUNT, and
+         count is not value: CPAPDex's two biggest clusters were `_synthEdfSet` (38 killable) and
+         `_synthRaw` (11), which are SYNTHETIC FIXTURE GENERATORS — `cohort-gen.js` calls the first
+         "test-shaped" in a comment. Their mutants are cheap to kill and worth little, while
+         `pressureEnvelope`'s two are worth more than all 38. 49 of that file's 67 "work items" were
+         not production code at all.
+
+         Deliberately NOT a `_synth*` heuristic. A rule that decides what is production code fails
+         silently the day a real DSP function is called `_synthesizeEnvelope`, and it would vanish
+         from the work list with nothing to show it had been dropped.
+
+         AND THIS IS NOT A CLASSIFIER EITHER — measured on the file that motivated it. It separates
+         the EXTREMES well (`compute` 70 refs across root/dsp/adapters; `_synthRaw` 1 ref, tools-only)
+         and NOT the middle: `_synthEdfSet` (a fixture generator) shows 7 refs across four areas,
+         while `pressureEnvelope` (production, a shipped metric) shows 2 — the fixture looks MORE
+         load-bearing than the real code. So this is a pointer to the call sites worth opening, not a
+         ranking. Anyone using it to sort automatically will mis-rank `pressureEnvelope`. */
+      referencedBy: callSiteContext(fn, corpus),
       mutants: per
     });
   }
@@ -555,6 +625,27 @@ function selftest() {
   ck('all-identical "not a function" is UNUSABLE', batteryIsUsable(['"THREW:P.foo is not a function"', '"THREW:P.foo is not a function"']), false);
   ck('all-undefined is UNUSABLE', batteryIsUsable([undefined, undefined]), false);
   ck('all-identical but REAL output is usable (a constant function is legitimate)', batteryIsUsable(['null', 'null']), true);
+
+  /* Count is not value. CPAPDex's two largest killable clusters were synthetic FIXTURE generators —
+     49 of its 67 "work items" were not production code. This reports where a name is referenced so a
+     reader can sort in seconds; it must never decide, and it must never over-count. */
+  console.log('\ncallSiteContext — reports where a name is used, and never decides what that means');
+  const corpus = [
+    ['tests/dex-tests.js', 'CpapDsp._synthEdfSet(opts)'],
+    ['tools/regen-cpap-goldens.mjs', '_synthEdfSet → buildSession'],
+    ['adapters/resmed-edf.js', 'compute/buildNightFromSets/_synthEdfSet'],
+    ['oxydex-dsp.js', 'nothing relevant here'],
+    ['cohort-gen.js', 'CpapDsp._synthEdfSet is test-shaped']
+  ];
+  const ctx1 = callSiteContext('_synthEdfSet', corpus);
+  ck('counts every referencing file', ctx1.total, 4);
+  ck('…grouped by area, which is what a reader sorts on', JSON.stringify(ctx1.areas), '{"tests":1,"tools":1,"adapters":1,"root":1}');
+  ck('a name nobody references reports zero', callSiteContext('neverUsedAnywhere', corpus).total, 0);
+  /* Word-boundary: a substring match would count `computeDerivedX` as a use of `computeDerived`, and
+     inflating a signal that exists to be read by eye is worse than omitting it. */
+  ck('does NOT match a longer identifier containing the name', callSiteContext('computeDerived', [['a.js', 'computeDerivedX(1)']]).total, 0);
+  ck('…but does match the exact identifier', callSiteContext('computeDerived', [['a.js', 'x = computeDerived(rows)']]).total, 1);
+  ck('a regex-special name does not blow up', callSiteContext('a.b', [['a.js', 'zzz']]).total, 0);
 
   console.log('\nisRealmArtefact — a difference the PROBE caused is not evidence about the code');
   const noIdent = () => false,

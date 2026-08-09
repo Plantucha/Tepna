@@ -1715,6 +1715,8 @@ def test_sync_device_time_non_h10_readback_failures(monkeypatch):
     monkeypatch.setattr(polar_psftp, "PolarPsFtp", lambda *_a, **_k: _FS())
     async def hci(): return "hci0"
     monkeypatch.setattr(capture, "adapter_hci", hci)
+    async def _on_air(_a, _b): return True   # presence check is not what this test is about
+    monkeypatch.setattr(capture, "_device_on_air", _on_air)
     r = _run(capture.sync_device_time("AA:BB"))
     assert r["ok"] is True and r["readback"] is False   # neither read-back succeeded, but the set did
 
@@ -4325,3 +4327,181 @@ def test_run_oxyii_keeps_the_link_when_the_two_wavelength_poll_fails(tmp_path, m
     # The session ran on: vitals were parsed and the SpO2 sidecar was written despite every 0x05 refusal.
     assert capture.STATUS["devices"]["Ring"]["spo2"] == 96
     assert list((tmp_path / "captures").rglob("*_SPO2.csv")), "the vitals stream is unaffected"
+
+
+def test_auto_sync_ladder_stops_at_its_wall_clock_budget(tmp_path, monkeypatch):
+    """THE BOUND THAT DOES NOT DEPEND ON CLASSIFYING THE ERROR (2026-08-09).
+
+    Every ladder attempt runs through `polar_offline_op`, which holds the GLOBAL `_CONNECT_LOCK`, so the
+    ladder's real cost is lock-seconds — and 12 x 45 s is ~9 min of it per reconnect cycle. The two
+    previous fixes for this shape both bounded ONE op (300 s, then 45 s) and left the LOOP; measured
+    2026-08-09 the loop still ran at a 59 % duty cycle.
+
+    Uses a CONTENTION error on purpose: `device_absent_error` must not be what saves us here. If the
+    budget is what stops the ladder, it stops even for the error the ladder is legitimately for."""
+    _auto_sync_common(monkeypatch)
+    calls = {"n": 0}
+    clock = {"t": 0.0}
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    async def busy_and_slow(addr):
+        calls["n"] += 1
+        clock["t"] += 45.0                      # each attempt burns the op ceiling
+        raise RuntimeError("org.bluez.Error.InProgress")   # CONTENTION, not absence
+    monkeypatch.setattr(capture, "sync_device_time", busy_and_slow)
+    _skip_while_loop()
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    # 120 s budget / 45 s per attempt -> the 3rd attempt's check sees 135 s and stops.
+    assert calls["n"] == 3, f"budget must cap the ladder well short of 12 (got {calls['n']})"
+    assert capture.STATUS.get("devices", {}).get("H10", {}).get("clock_synced") is None
+
+
+def test_the_budget_does_not_cut_a_fast_contention_recovery_short(tmp_path, monkeypatch):
+    """The regression the budget must NOT cause. `InProgress` after a daemon restart clears in seconds —
+    that is the 2026-07-18 failure the ladder exists for (both Polars unsynced for an evening). A budget
+    that fired before contention could clear would re-break it."""
+    _auto_sync_common(monkeypatch)
+    calls = {"n": 0}
+    clock = {"t": 0.0}
+    monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    async def busy_then_ok(addr):
+        calls["n"] += 1
+        clock["t"] += 2.0                       # a fast, realistic contention clear
+        if calls["n"] < 4:
+            raise RuntimeError("org.bluez.Error.InProgress")
+    monkeypatch.setattr(capture, "sync_device_time", busy_then_ok)
+    _skip_while_loop()
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert calls["n"] == 4, "a fast contention clear must still be waited out"
+    assert capture.STATUS["devices"]["H10"].get("clock_synced")
+
+
+def test_the_budget_is_measured_monotonically():
+    """`_now()` is civil-time-anchored and re-anchors on an NTP step — which this daemon does, twice in
+    one week on the live box. An elapsed-time bound read off it could go negative or jump."""
+    import inspect
+    src = inspect.getsource(capture.auto_sync_clock)
+    assert "_time.monotonic()" in src, "elapsed time must come from a monotonic source"
+    assert "_now()" not in src.split("started =")[1].split("for attempt")[0]
+
+
+# ══ PRESENCE PRE-CHECK — absence must not cost the global lock (2026-08-09) ═══════════════════════════
+# #1062 stopped the ladder at attempt 1 for an absent device and works — but the deferral lands AFTER a
+# 45 s doomed connect that held _CONNECT_LOCK the whole time. Measured on the box: 53 % duty cycle even
+# with the ladder fixed. Absence is a scan; it was being paid for at connect-timeout prices.
+
+def _offline_env(monkeypatch, on_air, connected=False):
+    """polar_offline_op with the adapter/slot machinery stubbed and the scanner answering `on_air`."""
+    capture.STATUS.setdefault("devices", {})["H10"] = {"address": "AA:BB", "connected": connected}
+    monkeypatch.setattr(capture, "_device_on_air", lambda a, b: _aio_val(on_air))
+    monkeypatch.setattr(capture, "adapter_hci", lambda: _aio_val("hci0"))
+    return {"took_lock": False}
+
+
+def _aio_val(v):
+    async def _c(): return v
+    return _c()
+
+
+def test_an_absent_device_never_takes_the_connect_lock(monkeypatch):
+    """THE FIX. The op must not run and the global lock must not be touched — the whole cost is a scan."""
+    _offline_env(monkeypatch, on_air=False)
+    ran = {"op": False}
+    async def op(): ran["op"] = True
+    async def go():
+        return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+    with pytest.raises(capture.DeviceNotAdvertising):
+        _run(go())
+    assert ran["op"] is False, "the op must not run for an absent device"
+    assert not capture._CONNECT_LOCK.locked()
+    assert "AA:BB" not in capture._POLAR_PAUSED, "capture must never have been paused"
+
+
+def test_the_absence_error_flows_through_the_existing_predicates(monkeypatch):
+    """Deliberate: a bespoke class no predicate recognised would be a THIRD way to be wrong about a
+    string. `auto_sync_clock` must defer on it and the reconnect loop must keep looking.
+
+    ⚠️ Asserts on the exception the CODE ACTUALLY RAISES, not one this test writes. The first version
+    constructed its own message and passed happily while a mutant rewrote the real raise site to a
+    message no predicate matches — the exact 'assertion encodes shape, not contract' failure, caught by
+    re-applying that mutant."""
+    _offline_env(monkeypatch, on_air=False)
+    async def op(): pass
+    async def go():
+        return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+    with pytest.raises(capture.DeviceNotAdvertising) as ei:
+        _run(go())
+    e = ei.value
+    assert capture.device_absent_error(e) is True, f"the RAISED message must read as absence: {e!r}"
+    assert capture.transient_ble_error(e) is True, f"and as transient: {e!r}"
+
+
+def test_the_presence_check_runs_BEFORE_anything_exclusive_is_taken():
+    """Structural, because ordering is the entire value. Moving the check below `offline_lock.slot()`
+    would keep every test above green while restoring the 45 s-under-lock cost it exists to remove."""
+    import inspect
+    # CODE, not prose. The comment above the check names all three of these while explaining why they
+    # must come after it — so a whole-source scan finds them FIRST and fails on correct code. (It did.)
+    src = "\n".join(l for l in inspect.getsource(capture.polar_offline_op).splitlines()
+                    if l.strip() and not l.lstrip().startswith("#"))
+    i_check = src.index("presence_check_s and not")
+    for taken in ("offline_lock.slot(", "_POLAR_PAUSED.add(", "_CONNECT_LOCK"):
+        assert i_check < src.index(taken), f"presence check must precede {taken}"
+
+
+def test_a_present_device_proceeds_normally(monkeypatch):
+    _offline_env(monkeypatch, on_air=True)
+    ran = {"op": False}
+    async def op():
+        ran["op"] = True
+        return "result"
+    async def go():
+        return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+    assert _run(go()) == "result"
+    assert ran["op"] is True
+
+
+def test_an_UNANSWERABLE_scan_proceeds_rather_than_skipping(monkeypatch):
+    """FAILS SAFE. `_device_on_air` returns None when it cannot ask — a broken scanner, a missing bleak,
+    a busy adapter. None is not False: the caller must do exactly what it did before, or a scan outage
+    silently stops every clock sync on the box."""
+    _offline_env(monkeypatch, on_air=None)
+    ran = {"op": False}
+    async def op(): ran["op"] = True
+    async def go():
+        return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+    _run(go())
+    assert ran["op"] is True, "an unanswerable presence question must not skip the op"
+
+
+def test_a_CONNECTED_device_is_never_scanned_for(monkeypatch):
+    """A connected device does not advertise, so scanning for one would 'prove' absence about the single
+    case that is certainly present — and would skip the op for the device most obviously reachable."""
+    _offline_env(monkeypatch, on_air=False, connected=True)
+    ran = {"op": False}
+    async def op(): ran["op"] = True
+    async def go():
+        return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+    _run(go())
+    assert ran["op"] is True, "a connected device must skip the presence check, not the op"
+
+
+def test_the_check_is_OPT_IN_so_user_pulls_are_unchanged(monkeypatch):
+    """A person who pressed a button has information a 6 s sample does not, and must not be
+    second-guessed by it. Only the unattended clock sync opts in."""
+    _offline_env(monkeypatch, on_air=False)
+    ran = {"op": False}
+    async def op(): ran["op"] = True
+    async def go():
+        return await capture.polar_offline_op("AA:BB", op)      # no presence_check_s
+    _run(go())
+    assert ran["op"] is True, "without presence_check_s the behaviour must be exactly as before"
+
+
+def test_only_the_clock_sync_call_site_opts_in():
+    """Pins the wiring: if a future edit passes presence_check_s from the pull path, a user-clicked pull
+    starts silently skipping on a bad scan."""
+    import inspect
+    src = inspect.getsource(capture)
+    sites = [l for l in src.splitlines() if "presence_check_s=" in l and "def " not in l]
+    assert len(sites) == 1, f"exactly one caller may opt in, found: {sites}"
+    assert "_CLOCK_SYNC_PRESENCE_S" in sites[0]

@@ -328,6 +328,58 @@
     }
     return ctx;
   }
+  /* TICK LABELS MUST BE ROUND NUMBERS, AND A MINUS IS NOT A HYPHEN.
+     Two defects the first published render carried, both visible in the PNG and neither in the data:
+
+     · The Y axis divided the range into fifths and printed each to 1 dp, so evenly spaced gridlines
+       carried unevenly spaced NUMBERS — `0.0 0.3 0.5 0.8 1.1` (true steps 0.275) and `0.0 0.6 1.3 1.9
+       2.5` (true steps 0.625). A reader measuring off those gridlines reads the wrong value. The X
+       axis already had `box.xticks` to escape this, with a comment saying exactly why; the Y axis was
+       never given the same escape, so it kept doing the thing the comment warned about.
+     · The default formatter was `x.toFixed(1)`, which emits ASCII HYPHEN-MINUS for negatives, while
+       the limit-of-agreement labels two inches away use U+2212 via `neg()` — and that file's own
+       comment says "one minus glyph, never a hyphen". Same figure, same quantity, two glyphs. On the
+       −3.4 tick the hyphen also collided with the rotated axis title.
+
+     `figNiceTicks` walks 1/2/2.5/5 × 10^k and takes the step giving closest to `want` intervals, so
+     the labels are round and the gridlines land on them. */
+  function figNiceTicks(min, max, want) {
+    var span = max - min;
+    if (!(span > 0)) return [min];
+    var raw = span / (want || 5),
+      mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)),
+      norm = raw / mag,
+      step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+    var out = [],
+      v = Math.ceil(min / step) * step;
+    // step is exact in the 1/2/2.5/5 family, but repeated addition still drifts; snap each tick.
+    for (; v <= max + step * 1e-9; v += step) out.push(Math.round(v / step) * step);
+    return out;
+  }
+  /* THE DECIMALS MUST COME FROM THE STEP, NOT FROM A CONSTANT. Fixing the tick POSITIONS was not
+     enough: nice ticks of 0.25 printed through a hardcoded `toFixed(1)` came out `0.0 0.3 0.5 0.8 1.0`
+     — round gridlines relabelled back into the unevenly-spaced numbers the whole change was undoing.
+     Take the smallest dp at which every tick round-trips exactly. */
+  function figTickDp(ticks) {
+    for (var dp = 0; dp <= 6; dp++) {
+      var ok = true;
+      for (var i = 0; i < ticks.length; i++) {
+        var sc2 = Math.pow(10, dp);
+        if (Math.abs(ticks[i] * sc2 - Math.round(ticks[i] * sc2)) > 1e-9) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) return dp;
+    }
+    return 2;
+  }
+  function figNum(dp) {
+    return function (x) {
+      var v = Math.abs(x) < 1e-12 ? 0 : x; // -0 must print as 0, not −0
+      return (v < 0 ? '\u2212' : '') + Math.abs(v).toFixed(dp);
+    };
+  }
   // A plot box with hairline axes + ticks. Returns the scale helpers so a caller never rescales by hand.
   function figAxes(ctx, box, xmin, xmax, ymin, ymax, xlab, ylab, xfmt, yfmt) {
     var X = function (v) {
@@ -339,8 +391,10 @@
     ctx.font = FIG.mono;
     ctx.lineWidth = 1;
     var i, v, px;
-    for (i = 0; i <= 4; i++) {
-      v = ymin + ((ymax - ymin) * i) / 4;
+    var yticks = box.yticks || figNiceTicks(ymin, ymax, 5);
+    for (i = 0; i < yticks.length; i++) {
+      v = yticks[i];
+      if (v < ymin || v > ymax) continue;
       px = Math.round(Y(v)) + 0.5;
       ctx.strokeStyle = FIG.grid;
       ctx.beginPath();
@@ -350,24 +404,11 @@
       ctx.fillStyle = FIG.ink3;
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
-      ctx.fillText(
-        (
-          yfmt ||
-          function (x) {
-            return x.toFixed(1);
-          }
-        )(v),
-        box.l - 8,
-        px
-      );
+      ctx.fillText((yfmt || figNum(figTickDp(yticks)))(v), box.l - 8, px);
     }
     // Explicit ticks when the caller has clean numbers to show; even fractions otherwise. Dividing a
     // range into fifths gives 45 % · 56 % · 68 % — arithmetically correct and unreadable.
-    var xticks = box.xticks;
-    if (!xticks) {
-      xticks = [];
-      for (i = 0; i <= 5; i++) xticks.push(xmin + ((xmax - xmin) * i) / 5);
-    }
+    var xticks = box.xticks || figNiceTicks(xmin, xmax, 5);
     for (i = 0; i < xticks.length; i++) {
       v = xticks[i];
       if (v < xmin || v > xmax) continue;
@@ -375,16 +416,7 @@
       ctx.fillStyle = FIG.ink3;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(
-        (
-          xfmt ||
-          function (x) {
-            return x.toFixed(0);
-          }
-        )(v),
-        px,
-        box.b + 7
-      );
+      ctx.fillText((xfmt || figNum(figTickDp(xticks)))(v), px, box.b + 7);
     }
     ctx.strokeStyle = FIG.axis;
     ctx.beginPath();
@@ -404,6 +436,19 @@
     ctx.restore();
     return { X: X, Y: Y };
   }
+  /* A label over a mark needs the same 2 px of surface a dot gets, for the same reason: the three
+     band names are drawn where their lines exit the box, which is exactly where the lines are. Without
+     a plate "fit" was struck through by the white line that it names. */
+  function figPlate(ctx, text, x, y, align) {
+    var w = ctx.measureText(text).width,
+      x0 = align === 'right' ? x - w : x;
+    ctx.fillStyle = FIG.surface;
+    ctx.fillRect(x0 - 3, y - 7, w + 6, 14);
+    ctx.fillStyle = FIG.ink2;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y);
+  }
   // A dot with a 2px surface ring — the ring is what keeps a dense scatter countable where marks overlap.
   function figDot(ctx, x, y, r, fill) {
     ctx.beginPath();
@@ -416,7 +461,7 @@
     ctx.fill();
   }
 
-  function drawBlandAltman(allP, allR) {
+  function drawBlandAltman(allP, allR, extra) {
     var cv = $('figBA'),
       ba = A.blandAltman(allP, allR);
     var ctx = figBase(cv, 'Agreement with the CPAP-flow reference', ba ? 'Bland–Altman · ' + ba.n.toLocaleString() + ' epochs · diff = estimate − reference' : 'no usable epochs');
@@ -432,7 +477,11 @@
     ctx.font = FIG.mono;
     var gutter = 0;
     for (var li = 0; li < labels.length; li++) gutter = Math.max(gutter, ctx.measureText(labels[li]).width);
-    var box = { l: 54, r: cv.width - Math.ceil(gutter) - 20, t: 52, b: cv.height - 44 };
+    /* The caption below the box is five lines; `cv.height - 44` left 4 px for it and clipped the lot.
+       Reserve the lines explicitly rather than trusting a margin. l:62 keeps the rotated axis title
+       clear of the U+2212 on the widest tick. */
+    var CAPN = 5,
+      box = { l: 62, r: cv.width - Math.ceil(gutter) - 20, t: 52, b: cv.height - 44 - CAPN * 15 };
     var xs = ba.points.map(function (p) {
         return p.mean;
       }),
@@ -469,27 +518,127 @@
       ctx.fillText(clipped + ' point(s) beyond \u00b1' + span.toFixed(1) + ' br/min not shown', box.r, box.t - 8);
     }
     // Bias + limits of agreement, each DIRECT-LABELLED with its value — this is the whole reason the
-    // figure exists, and a reader should never have to go back to the table to read the three numbers.
-    var lines = [
-      { v: ba.bias, c: FIG.ink, w: 2, t: labels[0] },
-      { v: ba.upper, c: FIG.warn, w: 1.5, t: labels[1] },
-      { v: ba.lower, c: FIG.warn, w: 1.5, t: labels[2] }
-    ];
-    for (i = 0; i < lines.length; i++) {
-      var L = lines[i],
-        y = Math.round(sc.Y(L.v)) + 0.5;
-      if (y < box.t || y > box.b) continue;
-      ctx.strokeStyle = L.c;
-      ctx.lineWidth = L.w;
-      ctx.beginPath();
-      ctx.moveTo(box.l, y);
-      ctx.lineTo(box.r, y);
-      ctx.stroke();
+    /* THE LINES FOLLOW THE REGRESSION, NOT A FLAT BIAS — AND THAT IS A CORRECTION, NOT A PREFERENCE.
+       This figure previously drew three horizontal lines: bias −0.42 and ±1.96·SD at +4.17 / −5.00.
+       On this corpus the difference depends on the magnitude with slope −0.891 (t = −49.4), so the
+       fitted bias runs +5.41 br/min at a mean of 10 to −7.07 at 24 — a swing WIDER than the whole
+       interval those flat lines claimed to bound. Bland & Altman 1999 §3.2 is explicit that the flat
+       form is only valid while that slope is absent. Three horizontal lines across a tilted cloud are
+       not a summary of it.
+       So the fit and its limits are drawn, and the flat numbers move into the caption rather than
+       being deleted: a reader comparing against the earlier figure must be able to see what changed
+       and why, and a number that is wrong is still evidence about how wrong. */
+    var pb = ba.prop,
+      i2;
+    if (pb) {
+      /* CLIP THE FIT TO THE OBSERVED MEANS. Drawn to the axis limits it ran out to 33 br/min, five
+         br/min past the last epoch, asserting a bias where nothing was measured — the same rule as
+         `hostAxis` being flat outside its anchors: past the data there is no measurement, and
+         extending a slope there fabricates one. */
+      var xs2 = [lo, hi];
+      var band = [
+        { k: 'fit', c: FIG.ink, w: 2 },
+        { k: 'upper', c: FIG.warn, w: 1.5 },
+        { k: 'lower', c: FIG.warn, w: 1.5 }
+      ];
+      for (i2 = 0; i2 < band.length; i2++) {
+        ctx.strokeStyle = band[i2].c;
+        ctx.lineWidth = band[i2].w;
+        ctx.beginPath();
+        var started = false;
+        for (var xv = xs2[0]; xv <= xs2[1] + 1e-9; xv += (xs2[1] - xs2[0]) / 120) {
+          var yv = pb.bandAt(xv)[band[i2].k];
+          if (yv < -span || yv > span) {
+            started = false; // leave the box rather than draw along its edge — same rule as the points
+            continue;
+          }
+          var Xp = sc.X(xv),
+            Yp = sc.Y(yv);
+          if (started) ctx.lineTo(Xp, Yp);
+          else {
+            ctx.moveTo(Xp, Yp);
+            started = true;
+          }
+        }
+        ctx.stroke();
+      }
+      /* NAME the lines, do not NUMBER them. The old figure could put "bias −0.42" in the gutter
+         because the line was flat and one number described it. These are functions of the magnitude —
+         any single value printed beside them would be true at exactly one x and read as true
+         everywhere, which is the error this whole change is undoing. The coefficients go in the
+         caption, where they can be written as a slope and an intercept. */
       ctx.fillStyle = FIG.ink2; // text wears ink, never the mark colour
       ctx.font = FIG.mono;
-      ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillText(L.t, box.r + 8, y);
+      var names = [
+        { k: 'fit', t: 'fit' },
+        { k: 'upper', t: '+1.96 SD' },
+        { k: 'lower', t: '\u22121.96 SD' }
+      ];
+      for (i2 = 0; i2 < names.length; i2++) {
+        var yEnd = pb.bandAt(xs2[1])[names[i2].k];
+        if (yEnd >= -span && yEnd <= span) {
+          ctx.textAlign = 'left';
+          figPlate(ctx, names[i2].t, sc.X(xs2[1]) + 6, Math.round(sc.Y(yEnd)) + 0.5, 'left');
+        } else {
+          // the line leaves through the FLOOR, not the right edge — label it where it actually exits
+          var xExit = xs2[1];
+          for (var xw = xs2[0]; xw <= xs2[1]; xw += (xs2[1] - xs2[0]) / 200) {
+            if (pb.bandAt(xw)[names[i2].k] < -span) {
+              xExit = xw;
+              break;
+            }
+          }
+          ctx.textAlign = 'right';
+          figPlate(ctx, names[i2].t, sc.X(xExit) - 6, sc.Y(-span) - 10, 'right');
+        }
+      }
+      /* THE CAPTION CARRIES WHAT THE PICTURE CANNOT. Three facts a reader would otherwise credit the
+         estimator for: the tilt, how much of it is 40 artefact epochs, and what a CONSTANT scores. */
+      var cap = [
+        'proportional bias: slope ' + neg(pb.slope) + ' br/min per br/min (t ' + neg(pb.t) + ', r ' + neg(pb.r) + ') \u2014 limits follow the fit',
+        'limits form: ' + pb.bandForm,
+        'a flat bias ' + neg(ba.bias) + ' with \u00b11.96 SD ' + neg(ba.upper) + ' / ' + neg(ba.lower) + ' is what this plot showed before; it is not valid under that slope'
+      ];
+      if (extra && extra.sens && extra.sens.length) {
+        var s0 = extra.sens[0],
+          sN = extra.sens[extra.sens.length - 1];
+        cap.push(
+          'reference cap ' +
+            sN.cap +
+            ' br/min drops ' +
+            sN.dropped +
+            ' epoch(s) (' +
+            ((100 * sN.dropped) / (s0.n || 1)).toFixed(1) +
+            '%) and moves r ' +
+            s0.r.toFixed(3) +
+            ' \u2192 ' +
+            sN.r.toFixed(3) +
+            ', slope ' +
+            neg(s0.slope) +
+            ' \u2192 ' +
+            neg(sN.slope)
+        );
+      }
+      if (extra && extra.base) {
+        cap.push(
+          'a CONSTANT ' +
+            extra.base.constant.toFixed(1) +
+            ' br/min scores MAE ' +
+            extra.base.constMae.toFixed(2) +
+            ' vs the estimator\u2019s ' +
+            extra.base.mae.toFixed(2) +
+            ' \u2014 skill over guessing ' +
+            (100 * extra.base.skillMae).toFixed(0) +
+            '% MAE, ' +
+            (100 * extra.base.skillRmse).toFixed(0) +
+            '% RMSE'
+        );
+      }
+      ctx.fillStyle = FIG.ink3;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      for (i2 = 0; i2 < cap.length; i2++) ctx.fillText(cap[i2], 14, box.b + 40 + i2 * 15);
     }
     ctx.lineWidth = 1;
   }
@@ -544,7 +693,14 @@
 
   function drawPerNight(rows) {
     var cv = $('figNights');
-    var ctx = figBase(cv, 'Per-night MAE', rows.length + ' night(s), sorted — the spread is the n-of-1 caveat made visible');
+    /* THE SUBTITLE USED TO READ "the spread is the n-of-1 caveat made visible". It is not — the spread
+       tracks the REFERENCE'S artefact burden, not the estimator's night-to-night behaviour. Measured
+       across the 7 nights: the worst (MAE 2.10) is also the shortest, has the noisiest reference
+       (sd 4.77) and carries 10 of its 201 epochs above 25 br/min; the best (0.79) has sd 1.71 and
+       zero. Attributing that to n-of-1 variability credits the estimator with a problem in the
+       reference, so the panel now shows the reference's own spread beside each night and says what it
+       is measuring. */
+    var ctx = figBase(cv, 'Per-night MAE', rows.length + ' night(s), sorted — spread tracks the reference’s own noise, not only the estimator');
     if (!rows.length) return;
     var box = { l: 54, r: cv.width - 34, t: 52, b: cv.height - 52 };
     var d = rows.slice().sort(function (a, b) {
@@ -557,8 +713,15 @@
           return r.mae;
         })
       ) * 1.2;
-    var sc = figAxes(ctx, box, -0.5, d.length - 0.5, 0, ymax, 'night (sorted by MAE)', 'MAE (br/min)', function () {
-      return '';
+    /* NAME THE NIGHTS. The axis carried no tick labels at all, so the 2.10 outlier could not be
+       identified from the figure — the one thing a reader wants from a 7-point dot plot. */
+    box.xticks = [];
+    for (var xi = 0; xi < d.length; xi++) box.xticks.push(xi);
+    var sc = figAxes(ctx, box, -0.5, d.length - 0.5, 0, ymax, 'night (sorted by MAE)', 'MAE (br/min)', function (v) {
+      var rec = d[Math.round(v)];
+      if (!rec) return '';
+      var m = /(\d{4})(\d{2})(\d{2})/.exec(String(rec.name || ''));
+      return m ? m[2] + '-' + m[3] : String(Math.round(v) + 1);
     });
     // Median rule, direct-labelled — the one summary a reader wants off this figure.
     var med = A.median(
@@ -601,7 +764,10 @@
     }, 'image/png');
   }
   function drawFigures(allP, allR, cov, perNightMae) {
-    drawBlandAltman(allP, allR);
+    drawBlandAltman(allP, allR, {
+      sens: A.agreementSensitivity(allP, allR, [Infinity, 25]),
+      base: A.trivialBaseline(allP, allR)
+    });
     drawCoverage(cov);
     drawPerNight(perNightMae);
     $('figPill').textContent = 'rendered';

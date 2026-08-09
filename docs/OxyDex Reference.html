@@ -807,7 +807,7 @@ body.light .ev-measured { border-color:var(--surface); }
           <a href="#cross" class="qj-sec">Cross-Signal</a>
         </div>
         <div class="qj-metrics">
-          <a href="#composite" class="qm">NSI</a><a href="#composite" class="qm">CS Score</a><a href="#composite" class="qm">UARS Score</a><a href="#composite" class="qm">SFI</a><a href="#composite" class="qm">ANS Age</a>
+          <a href="#composite" class="qm">NSI</a><a href="#composite" class="qm">CS Score</a><a href="#composite" class="qm">UARS Score</a><a href="#composite" class="qm">SFI</a>
           <a href="#cross" class="qm">CRC Index</a><a href="#cross" class="qm">Coupling Score</a><a href="#cross" class="qm">SpO&#x2082;-HR Lag</a><a href="#cross" class="qm">PB Diverge%</a><a href="#cross" class="qm">BLUNTED AROUSAL</a>
         </div>
       </div>
@@ -2235,7 +2235,7 @@ body.light .ev-measured { border-color:var(--surface); }
         <p class="md"><strong>Nieto FJ, Young TB, Lind BK, et al.</strong> Association of sleep-disordered breathing, sleep apnea, and hypertension in a large community-based study (Sleep Heart Health Study). <em>JAMA.</em> 2000;283(14):1829&#x2013;1836. doi: <a href="https://doi.org/10.1001/jama.283.14.1829" target="_blank" rel="noopener" style="color:var(--teal);text-decoration:none">10.1001/jama.283.14.1829</a></p>
         <div class="fb">
           <div class="fl">Metrics covered</div>
-          <div class="ft">Establishes the SDB&#x2192;hypertension association &#x2014; the clinical reason an oximetry-derived ODI matters at all. <strong>No metric in this app is derived from it.</strong> It formerly underpinned <em>BP Projection</em>, which was <strong>removed 2026-06-23</strong> (cuffless BP from oximetry/HRV is indefensible; cuff SBP/DBP is a user input only), and the internal linear coefficients that projection used went with it.</div>
+          <div class="ft">Establishes the SDB&#x2192;hypertension association &#x2014; the clinical reason an oximetry-derived ODI matters at all. <strong>No metric in this app is derived from it</strong> — it is cited for the clinical context that makes an oximetry-derived ODI worth reporting, not as the basis of any number shown here.</div>
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
@@ -2606,7 +2606,9 @@ body.light .ev-measured { border-color:var(--surface); }
       <tr><td class="fmt-m">HRV Proxies (SDNN, RMSSD, pNN3)</td><td><span style="color:var(--amber,#F5A623)">&#x25D0; Experimental</span></td><td>1&#x202F;Hz pulse-derived; not equivalent to ECG RR-interval HRV</td></tr>
       <tr><td class="fmt-m">Sleep Architecture Proxies (SOL, WASO, SE)</td><td><span style="color:var(--amber,#F5A623)">&#x25D0; Experimental</span></td><td>HR/SpO&#x2082; heuristics; no EEG confirmation</td></tr>
       <tr><td class="fmt-m">VO&#x2082;max Estimate</td><td><span style="color:var(--amber,#F5A623)">&#x25D0; Population-derived</span></td><td>HR-ratio method; Uth&#x2013;S&#xF8;rensen 2004; not cardiopulmonary exercise test</td></tr>
-      <tr><td class="fmt-m">BP Projection — REMOVED 2026-06-23 (HRV/oximetry→BP, indefensible)</td><td><span style="color:var(--text3)">— removed</span></td><td>Cuffless BP from signals removed; cuff SBP/DBP is a user input only</td></tr>
+      <!-- BP Projection row REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴 — cuffless BP from HRV/oximetry;
+           cuff SBP/DBP is a user input only). The metric is gone, so a Validation Status row for it was
+           narrating the removal to a reader instead of stating a validation. Record kept here, not rendered. -->
       <tr><td class="fmt-m">Autonomic Balance / Readiness Score</td><td><span style="color:var(--orange,#E8714A)">&#x25CB; Proprietary Composite</span></td><td>OxyDex internal algorithm; no independent external validation</td></tr>
     </tbody>
   </table></div>

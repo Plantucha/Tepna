@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-08
+**Status:** DONE — 2026-08-09 · **Created:** 2026-08-08 · **Follow-ups:** O2RING-ADAPTIVE-TIMEBASE-FOLLOWUPS-2026-08-09-BRIEF.md
 
 # O2Ring adaptive timebase — device crystal by default, host discipline when the host earns it
 
@@ -108,3 +108,37 @@ work. Do not conflate the two: the constant/label is a docs fix; the timebase is
 - Crystal axis reproduces H10 ECG HR/rMSSD within the §3 margins on ≥1 good-host and ≥1 bad-host night.
 - `O2PPG_FS_DEFAULT = 125.000`, and no remaining code or comment claims the ADC runs at 125.738.
 - Full node suite + capture-host 100 % floor + GATE A/B green.
+
+## 7 · Execution — DONE 2026-08-09
+
+Shipped in stages, each its own PR + gates, exactly as §5 planned (the stage numbering held; Stage 3 split
+into 3a decision / 3b default-flip + wiring):
+
+- **Stage 1 — #1037** (capture-host): `O2PPG_FS_DEFAULT → 125.000` (the honest ADC label, row-vs-ADC duality
+  documented; pin test `test_o2ring_frame_lock.py` flipped in value AND reasoning; `nightqc`/`webmon`
+  row-rate validators relabelled, not renumbered), plus `chrony_skew_ppm` parsed and stamped.
+- **Stage 2 — #1048** (ppgdex): the crystal marker-aware 125.000 axis, opt-in, ECG-validated (crystal ≈
+  host ≈ H10 ECG on good-host nights 08-01/07-28/08-03). No committed golden moved (all Verity are
+  finger-untouched; verified `regen --check` + GATE A/B).
+- **Stage 3a — #1057** (capture-host): `host_clock.timebase_decision` — device-crystal by default,
+  host-disciplined only when EARNED (`TIMEBASE_MAX_STRATUM=1` AND `TIMEBASE_MAX_SKEW_PPM=1`), stamped as a
+  new `timebase` column on the CLOCK sidecar. (The `clock{}` block became this per-capture stamp.)
+- **Stage 3b — #1072** (ppgdex + capture-host): the DEFAULT-flip — a finger recording now defaults to the
+  crystal; the capture host embeds its decision in the `ppg1` file as a `# timebase=…` header comment
+  (precedence opts > embed > crystal default) so it travels to PpgDex with no sidecar; committed golden
+  `synthetic_ppgdex_o2ring_finger_golden.node-export.json` pins the shipped crystal default.
+- **Bad-host acceptance — #1089** (test): the §6 bad-host leg, synthesised (the local corpus is
+  home/stratum-1). A committed group perturbs a finger file's host column by +2000 ppm (holdover-grade):
+  the device-crystal SPAN is byte-identical (magnitude-independent invariance), the host-disciplined span
+  stretches ~1798 ppm. Corroborated on the real 2026-08-01 drawn-axis night vs the paired H10 ECG (crystal
+  BYTE-identical HR/rMSSD/duration under the bad host; host HR error vs ECG grew −0.2 → −1.2 bpm).
+
+**Acceptance — met:** provenance `timebase` stamped per capture; crystal reproduces the H10 ECG within the
+§3 margins on a good-host night AND is provably invariant on a (synthetic + real-corroborated) bad-host
+night; `O2PPG_FS_DEFAULT = 125.000` with no code/comment claiming 125.738 as the ADC rate; full node suite
++ capture-host 100 % floor + GATE A/B green throughout.
+
+**Carried to the FOLLOWUPS brief** (not code, so not blocking DONE): deploy to vigil (capture-host code is
+on main but the box runs old code — `git pull` + `sync-apps.sh`); a REAL travel/stratum-3 ECG night as a
+nice-to-have confirmation (the box needs GPS-PPS to genuinely earn host-discipline); and the process
+gotchas that cost time this pass.

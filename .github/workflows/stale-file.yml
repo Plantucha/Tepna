@@ -1,0 +1,91 @@
+name: stale-file
+
+# Does this PR edit a shared doc that ALREADY MOVED on main since the PR branched?
+#
+# THE FAILURE THIS CATCHES, and why no other lane can. Two sessions edit the same brief in
+# non-overlapping places. Git sees no conflicting hunk, so nothing rebases and no merge is blocked —
+# the second squash simply lands a version written against text that no longer exists, and the first
+# answer is gone. That happened twice on one file in one day (2026-08-08,
+# GENERATOR-FOLLOWUPS-III): #1055 dropped #1034's answer, and hours later #1059/#1061 wrote
+# competing reconciliations, leaving main asserting both a retraction and its rebuttal.
+#
+# `.claude/hooks/guard-stale-brief.sh` runs the same query LOCALLY, at Edit/Write time. It is the
+# right check in the wrong place for two reasons: it reads your local `origin/main` so it is only as
+# fresh as your last fetch, and its matcher is a TOOL name, so any write arriving through Bash
+# (`python3 - <<PY`, `cat >`, `sed -i`) bypasses it entirely. This lane has neither problem — it runs
+# on GitHub against the real ref, and it does not care how the bytes got there.
+#
+# WHAT IT DELIBERATELY DOES NOT DO. It does not gate source. On a repo merging ~15 PRs an hour,
+# `tests/dex-tests.js` moves constantly and a generic staleness check would be red on nearly every
+# PR — noise that buries the finding, which is the failure mode this repo keeps writing down. Source
+# is also the case git ALREADY handles: a real overlap conflicts and a rebase is forced. The guarded
+# set is therefore the same one the hook uses — prose, where a clean auto-merge is exactly the danger.
+#
+# Merge queue would have covered this more completely by testing each PR against the tip it lands on.
+# It is NOT available here: `Tepna` is user-owned, and GitHub merge queue is an organization-repository
+# feature (verified 2026-08-09 — the API rejects a `merge_queue` rule outright, even with no
+# parameters). See BRIEF-COLLISION-RESIDUAL-GAP-2026-08-09-BRIEF §4.
+
+on:
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: stale-file-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stale-file:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need real history: a shallow clone has no merge-base to compute against
+
+      - name: Has a guarded file moved on main since this branch left it?
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+        run: |
+          set -uo pipefail
+          git fetch -q origin "$BASE_REF"
+
+          base="$(git merge-base HEAD "origin/$BASE_REF")" || {
+            echo "::notice::no merge-base against origin/$BASE_REF — nothing to compare"; exit 0; }
+
+          # Files THIS PR touches, and files that landed on the base branch since we forked.
+          git diff --name-only "$base"...HEAD                  | sort -u > /tmp/mine.txt
+          git diff --name-only "$base" "origin/$BASE_REF"      | sort -u > /tmp/theirs.txt
+
+          # GUARDED SET — prose where a clean auto-merge is the danger. Kept identical to
+          # .claude/hooks/guard-stale-brief.sh; if one changes, change both.
+          guard() { grep -E '^(briefs/.*\.md|DOCS-INDEX\.md)$' || true; }
+          guard < /tmp/mine.txt   > /tmp/mine-g.txt
+          guard < /tmp/theirs.txt > /tmp/theirs-g.txt
+
+          overlap="$(comm -12 /tmp/mine-g.txt /tmp/theirs-g.txt)"
+
+          if [ -z "$overlap" ]; then
+            echo "✓ no guarded file in this PR has moved on $BASE_REF since the branch point"
+            echo "  (PR touches $(wc -l < /tmp/mine-g.txt) guarded file(s); $(wc -l < /tmp/theirs-g.txt) moved on $BASE_REF)"
+            exit 0
+          fi
+
+          echo "::error::This PR edits a shared doc that already moved on $BASE_REF. Your edit was"
+          echo "::error::written against text that is no longer there, and the merge will NOT conflict."
+          echo ""
+          echo "Stale in this PR:"
+          for f in $overlap; do
+            echo ""
+            echo "  ▸ $f"
+            git log --no-merges --format='      %h %s' "$base".."origin/$BASE_REF" -- "$f" | head -10
+          done
+          echo ""
+          echo "Fix: read those commits — they may already answer what you are about to say —"
+          echo "then rebase so your edit lands ON TOP of them rather than instead of them:"
+          echo ""
+          echo "    git log -p $base..origin/$BASE_REF -- <file>"
+          echo "    npm run rebase"
+          echo ""
+          echo "Then re-apply your change to the rebased text. Never resolve one side wholesale."
+          exit 1

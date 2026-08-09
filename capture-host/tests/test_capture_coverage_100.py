@@ -714,7 +714,7 @@ def test_every_onboard_recording_is_pulled_into_its_own_stamped_directory(tmp_pa
         return "hci0"
     monkeypatch.setattr(capture, "adapter_hci", fake_hci)
 
-    async def run_op(address, op, timeout=None):
+    async def run_op(address, op, timeout=None, **_kw):   # **_kw: the fake must tolerate the real signature growing
         return await op()
     monkeypatch.setattr(capture, "polar_offline_op", run_op)
     res = _run(capture.pull_polar_offline_all(_dev(device_id="0C301E3F"), str(tmp_path)))
@@ -1234,7 +1234,7 @@ def test_the_h10_clock_set_skips_the_reads_its_firmware_does_not_implement(monke
         return "hci0"
     monkeypatch.setattr(capture, "adapter_hci", fake_hci)
 
-    async def run_op(address, op, timeout=None):
+    async def run_op(address, op, timeout=None, **_kw):   # **_kw: a fake must tolerate the real signature growing
         return await op()
     monkeypatch.setattr(capture, "polar_offline_op", run_op)
     capture.STATUS["devices"]["H10"] = {"address": "24:AC:AC:02:84:96", "model": "H10"}
@@ -1365,7 +1365,7 @@ def test_a_short_offline_file_is_reported_and_warned_not_counted_as_pulled(tmp_p
         return "hci0"
     monkeypatch.setattr(capture, "adapter_hci", fake_hci)
 
-    async def run_op(address, op, timeout=None):
+    async def run_op(address, op, timeout=None, **_kw):   # **_kw: a fake must tolerate the real signature growing
         return await op()
     monkeypatch.setattr(capture, "polar_offline_op", run_op)
 

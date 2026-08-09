@@ -580,6 +580,59 @@
       }
     });
 
+    /* ════ BAD-HOST ACCEPTANCE — the crystal axis is INVARIANT to a corrupted host (O2RING-ADAPTIVE-TIMEBASE §6) ════
+       The brief owed a bad-host demonstration. Rather than wait for a travel/stratum-3 capture night, this
+       PROVES the protective property directly: perturb the finger file's host (Phone-timestamp) column with a
+       holdover-grade frequency error, and the device-crystal axis is UNCHANGED to the last sample — because
+       its rate is the 125.000 crystal, not the host — while the host-disciplined axis walks off with the bad
+       clock. Invariance is magnitude-independent: a crystal identical under a 2000 ppm error is identical
+       under any error, which is exactly why it is the safe default when the host cannot be trusted.
+       Corroborated on the real trio corpus (2026-08-01, a drawn-axis night): a +2000 ppm host gave BYTE-
+       identical crystal HR/rMSSD/duration while the host-disciplined HR error vs the paired H10 ECG grew
+       from −0.2 to −1.2 bpm. This is the committed, CI-run form of that. */
+    group('O2Ring device-crystal is invariant to a corrupted host clock — bad-host acceptance', 'ppgdex-dsp · device-crystal-timebase · bad-host', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.parsePPG !== 'function') { T.skip('PPGDSP.parsePPG available', 'not loaded'); return; }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+      // Enough rows that hostAxis has a dense anchor set (1 per 500 rows) and genuinely tracks the host —
+      // exactly the regime the real corpus is in. At small N the host path falls back to the device grid
+      // and the good/bad distinction collapses, which is not the case being tested.
+      var N = 50000;
+      // A finger file whose HOST (Phone) column advances at a true ~125.9 Hz and whose device ns is the
+      // drawn 7.953 ms grid — the real O2Ring shape, where all timing rides the host.
+      function fingerRows(hostPpm) {
+        var out = '', ns = 0, t0 = Date.UTC(2026, 6, 26, 22, 0, 0);
+        for (var i = 0; i < N; i++) {
+          var trueMs = (i / 125.9) * 1000;
+          var hostMs = trueMs * (1 + hostPpm / 1e6); // a holdover host free-runs off true time by hostPpm
+          out += new Date(t0 + Math.round(hostMs)).toISOString().slice(0, 23) + ';' + ns + ';' + (i % 25 === 12 && i < N - 4 ? 156 : 124 + (i % 7)) + '\n';
+          ns += 7953045;
+        }
+        return out;
+      }
+      var good = HDR + fingerRows(0);
+      var bad = HDR + fingerRows(2000); // +2000 ppm holdover-grade host error
+      var crysG = P.parsePPG(good, { timebase: 'device-crystal' });
+      var crysB = P.parsePPG(bad, { timebase: 'device-crystal' });
+      var hostG = P.parsePPG(good, { timebase: 'host-disciplined' });
+      var hostB = P.parsePPG(bad, { timebase: 'host-disciplined' });
+      // THE PROOF: the crystal axis's SPAN (elapsed time) is immune to the host error — its rate is the
+      // 125.000 crystal, not the host. Only its absolute t0 anchor rides the host, by design (§1: absolute
+      // time is host-anchored, the RATE is the crystal), so assert the SPAN, not the absolute relSec.
+      var cSpanG = crysG.relSec[N - 1] - crysG.relSec[0];
+      var cSpanB = crysB.relSec[N - 1] - crysB.relSec[0];
+      T.eq('device-crystal SPAN is IDENTICAL under a good vs a +2000 ppm host (rate is the crystal, not the host)', cSpanB, cSpanG);
+      T.eq('…and its fs is the 125.000 ADC rate either way', Math.round(crysB.fs * 1000), 125000);
+      // THE CONTRAST: the host-disciplined axis TRACKS the bad host — its span stretches with the error.
+      var hSpanG = hostG.relSec[N - 1] - hostG.relSec[0];
+      var hSpanB = hostB.relSec[N - 1] - hostB.relSec[0];
+      T.ok('host-disciplined SPAN MOVES with the corrupted host (it inherits the error)', hSpanB > hSpanG, 'span good ' + hSpanG.toFixed(3) + ' → bad ' + hSpanB.toFixed(3));
+      var hostPpm = (hSpanB / hSpanG - 1) * 1e6;
+      T.ok('…tracking a large fraction of the injected 2000 ppm (converges with anchor density)', hostPpm > 1000, 'measured ' + hostPpm.toFixed(0) + ' ppm');
+      // Stated as the contrast it is: the same corruption moves the host axis and not the crystal.
+      T.ok('so under a bad host the crystal holds while the host walks off', Math.abs(cSpanB - cSpanG) < 1e-9 && hSpanB - hSpanG > 0.1, 'crystalΔ ' + (cSpanB - cSpanG) + ' hostΔ ' + (hSpanB - hSpanG).toFixed(3) + 's');
+    });
+
     /* ════ 1a-bis · HOST-DISCIPLINED AXIS — DexClock.hostAxis (WEARABLE-HOST-AXIS-2026-08-02) ════
        Every capture row carries BOTH clocks (host "Phone timestamp", device "sensor timestamp [ns]"),
        and PpgDex/ECGDex used to anchor on the host once and then ride the DEVICE crystal for the whole
@@ -2229,6 +2282,33 @@
           JSON.stringify({ ppg: blk.tch.allan && blk.tch.allan.adev.PpgDex, ecg: blk.tch.allan && blk.tch.allan.adev.ECGDex })
         );
       }
+
+      /* WEARABLE-HOST-AXIS §F3 in the SHIPPED path — a leg whose time axis was DRAWN (timingSource
+         'none': a constant increment standing in for an assumed rate, no host anchors) carries NO
+         timing and must never be a TCH corner. fitClockClosure guards this but is tool-only; the app
+         runs fuseHRVConsensus → _tchHat, which did NOT — and the field was never even plumbed onto the
+         rec, so the guard read undefined and kept the leg. Proven 2026-08-08: a timingSource:'none'
+         PpgDex was spent as a full corner. Build the SAME 3 nodes but mark PpgDex drawn; it must drop. */
+      function mkDrawn(node, noiseStd, seed) {
+        var nz = normals(seed, NE), eps = [];
+        for (var i = 0; i < NE; i++) eps.push({ tMin: i * 5, rmssd: +(truth[i] + noiseStd * nz[i]).toFixed(1), hr: 55, motionIndex: 0.1 });
+        var whole = +(eps.reduce(function (a, e) { return a + e.rmssd; }, 0) / NE).toFixed(1);
+        return A({ schema: { node: node }, recording: { startEpochMs: t0, durationMin: 240 },
+          quality: { analyzablePct: 95 }, hrv: { time: { rmssd: whole, sdnn: +(whole * 1.3).toFixed(1) } },
+          timeseries: { epochs: eps }, timingSource: 'none',
+          ganglior_events: [{ t: '23:00:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: 0.8 }] }, node, node + '.json')[0];
+      }
+      var drawnRec = mkDrawn('PpgDex', 14, 33);
+      T.eq('timingSource is PLUMBED onto the fusion rec (was undefined → guard was dead)', drawnRec.timingSource, 'none');
+      var consD = FC([mk('ECGDex', 2, 11), mk('HRVDex', 5, 22), drawnRec], 1000);
+      var blkD = consD && consD.blocks && consD.blocks[0];
+      T.ok('drawn-axis leg is EXCLUDED — TCH degrades to <3 timed corners rather than spending a fiction',
+        !!blkD && !(blkD.tch && blkD.tch.ok) && / PpgDex/.test(blkD.tchStatus || ''), 'status=' + (blkD && blkD.tchStatus));
+      // control: the identical triple WITHOUT the drawn flag still forms a hat (the guard is specific)
+      var consOk = FC([mk('ECGDex', 2, 11), mk('HRVDex', 5, 22), mk('PpgDex', 14, 33)], 1000);
+      var blkOk = consOk && consOk.blocks && consOk.blocks[0];
+      T.ok('control · a fully-timed triple still forms the hat (guard is specific to drawn)', !!(blkOk && blkOk.tch && blkOk.tch.ok));
+
       /* DEEP-AUDIT-V §2.1 F4 — THE SCREEN HAS THREE OUTCOMES AND THE CONSUMER IMPLEMENTED TWO.
          `screenTriplet`'s docstring: "Exactly-one → drop it and name the trustworthy pair; zero →
          proceed; two-or-more mutual decorrelations → AMBIGUOUS (can't tell which is truth) → don't
@@ -31860,6 +31940,85 @@
       T.ok('no correction history in a reader-facing registry string', metaHits.length === 0, metaHits.length ? metaHits.slice(0, 6).join(' · ') : nStr + ' strings clean');
     });
 
+    /* THE SIBLING GATE ABOVE READS ONLY REGISTRY STRINGS — AND THAT WAS ITS BLIND SPOT.
+     The group above scans `cite`/`label`/`unit` across the eight registries and reports "no correction
+     history in a reader-facing registry string". True, and it never looked at the surface where the
+     correction history actually was: the reference guides' own prose. `HRVDex Reference.html` rendered
+
+         "Population projection; not a measurement. ANS-age + HRV→BP removed 2026-06-23."
+
+     in the Validation Status Matrix — a date-stamped removal note addressed to a maintainer, sitting in
+     a table a reader consults to decide whether to trust a number. It matched the sibling's own META
+     regex (`REMOVED 20\d\d`) exactly, and the sibling was structurally incapable of seeing it. This gate
+     closes that: the SAME regex, over the guides' RENDERED text.
+
+     THE COMMENT DISTINCTION IS THE WHOLE POINT, not an exemption of convenience. Five guides carry
+     tombstones like `<!-- ANS Age card REMOVED 2026-06-23 (DEX-METRIC-REMOVAL-AUDIT 🔴 …) -->`. Those
+     are correction history addressed to a maintainer IN A MAINTAINER-VISIBLE CHANNEL — invisible to a
+     reader, and the only thing stopping someone re-adding a metric that was deliberately withdrawn.
+     They must be KEPT. So the strip order is load-bearing: comments and script/style go first, and the
+     anti-vacuity legs below prove that stripping happened rather than assuming it. */
+    group('Reference guides: no correction history in RENDERED text (the registry gate could not see this)', 'docs · citations · guide-prose', function (T) {
+      var docs = env.docs || {};
+      var GUIDES = Object.keys(docs).filter(function (k) {
+        return /Reference\.html$/.test(k);
+      });
+      T.ok('ANTI-VACUITY · the reference guides are wired into env.docs', GUIDES.length >= 6, GUIDES.length + ' guide(s): ' + GUIDES.join(', '));
+      if (GUIDES.length < 6) return;
+
+      /* Rendered text = what a reader sees. Comments, <script> and <style> are NOT rendered, so they
+         are removed before the scan — deliberately, per the header. */
+      var render = function (html) {
+        return String(html)
+          .replace(/<!--[\s\S]*?-->/g, ' ')
+          .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
+          .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/\s+/g, ' ');
+      };
+      /* Byte-identical to the sibling group's regex, on purpose: one definition of "correction
+         history", two surfaces. If one is widened the other must be, and a diff shows it. */
+      var META = /\b(previously reported|used to (?:be|say|read|report)|was wrong|now corrected|no longer reported|formerly|REMOVED 20\d\d|retired 20\d\d|see PR #\d+|this was a bug)\b/i;
+
+      /* THREE ANTI-VACUITY LEGS. This gate's whole reason for existing is that its sibling reported
+         clean about something it never examined; a gate that could do the same is worthless. */
+      T.ok(
+        'ANTI-VACUITY · the regex fires on a known-bad string',
+        META.test('Population projection. ANS-age + HRV→BP removed 2026-06-23.') && META.test('see PR #1234') && !META.test('Malik-corrected RR intervals'),
+        'known-bad matched, known-good (Malik-corrected) did not'
+      );
+      T.ok(
+        'ANTI-VACUITY · render() strips a comment but keeps the prose around it',
+        render('<p>kept text</p><!-- ANS Age card REMOVED 2026-06-23 -->').indexOf('kept text') >= 0 && !META.test(render('<!-- ANS Age card REMOVED 2026-06-23 -->')),
+        'comment removed, sibling prose survived'
+      );
+      var totalChars = GUIDES.reduce(function (a, g) {
+        return a + render(docs[g]).length;
+      }, 0);
+      T.ok('ANTI-VACUITY · the scan read a realistic amount of rendered prose', totalChars > 100000, totalChars + ' rendered chars across ' + GUIDES.length + ' guides');
+
+      /* Report the offending SENTENCE, not the guide name — the useful output is the string to fix. */
+      var hits = [];
+      GUIDES.forEach(function (g) {
+        render(docs[g])
+          /* No lookbehind — the browser lane must run this too, and a `(?<=…)` split would throw
+             a SyntaxError at PARSE time on an older engine, taking the whole suite file with it. */
+          .split(/[.!?]\s+/)
+          .forEach(function (sent) {
+            if (META.test(sent)) hits.push(g + ' → ' + sent.trim().slice(0, 110));
+          });
+      });
+      T.ok('no correction history in any reference guide’s rendered text', hits.length === 0, hits.length ? hits.slice(0, 6).join(' · ') : GUIDES.length + ' guides clean');
+
+      /* AND the tombstones must SURVIVE — the fix for a hit is to delete the sentence or move it into
+         a comment, never to delete the removal record. Without this leg, "make the gate green" could be
+         satisfied by stripping the very notes that stop a withdrawn metric coming back. */
+      var tombstoned = GUIDES.filter(function (g) {
+        return /<!--[\s\S]*?REMOVED 20\d\d[\s\S]*?-->/i.test(docs[g]);
+      });
+      T.ok('…and the maintainer-facing removal tombstones are still present in comments', tombstoned.length >= 4, tombstoned.length + ' guide(s) carry a removal tombstone: ' + tombstoned.join(', '));
+    });
+
     /* REFERENCE-GUIDE-AUDIT dimension 2 / DEX-CITATION-FORMULA-AUDIT — `sampEn`'s `r` means TWO
        DIFFERENT THINGS across the fleet, and the guides state only one of them.
        Every reference guide writes the tolerance the literature way: "SampEn(m=2, r=0.2)", meaning
@@ -32609,6 +32768,66 @@
      measured, never assumed — on a fixture whose real rate (200 Hz, the corpus p95) is 7.7× from 26, so
      the two answers cannot be confused for rounding. Mutation: make `durationOf` return
      `rows.length / 26` unconditionally and it reds by value. ════ */
+    /* ════ THE ASSUMED-RATE FABRICATION IS GONE — NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS §1 ══════
+     The sibling group below pins the TIMED path: a stream that carries time is measured, never
+     assumed. This one pins the other half — what happens when it does NOT.
+
+     `durationOf` used to end `: rows.length / 26`. Over the whole real corpus that branch fires 0
+     times (616 files · 121,429,712 rows · 690 h), but the delivered ACC rate there runs 20.9–202.7 Hz,
+     so where it fired it misstated the recording by 0.8×–7.8× — 462 s for a 60 s record, beside a
+     `startEpochMs` of null. Unreachable-today and wrong-if-reached are different properties, and the
+     census that established the first is exactly why the second was worth removing rather than
+     documenting.
+
+     Two behaviours are gated. A trailing stampless row must no longer discard the stream's duration
+     (scan backward, like `parsePPG` does for `endEpochMs`); and a stream with NO resolvable time must
+     publish `null`, not a number and not a zero — a zero-length recording is a CLAIM, and
+     NODE-EXPORT-RECORDING-DURATION shows a node making it collapses to a point in the fold. */
+    group('MotionDex refuses to invent a duration from an assumed rate — FOLLOWUPS §1', 'motiondex-dsp · export · absence', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.compute === 'function' && typeof MD.buildNodeExport === 'function')) {
+        T.skip('MOTIONDSP.compute + buildNodeExport available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var HZ = 200,
+        N = 4000,
+        T0 = U(2026, 5, 21, 6, 0, 0);
+      var mk = function (timed, blankTail) {
+        var a = [];
+        for (var i = 0; i < N; i++) {
+          var ms = (i / HZ) * 1000;
+          var dead = !timed || (blankTail && i >= N - blankTail);
+          a.push({ relNs: dead ? NaN : Math.round(ms * 1e6), tMs: dead ? null : T0 + Math.round(ms), x: 15 * Math.sin(i / 30), y: 25, z: 985 });
+        }
+        a._unit = 'mg';
+        a._kind = 'acc';
+        return a;
+      };
+      var TRUE_SEC = Math.round((N - 1) / HZ); // 20 s
+      var FABRICATED = Math.round(N / 26); // 154 s — what the old fallback published
+
+      T.ok('ANTI-VACUITY · the measured and fabricated answers are ~7.7× apart', Math.abs(FABRICATED / TRUE_SEC - 7.7) < 0.3, 'true=' + TRUE_SEC + 's fabricated=' + FABRICATED + 's');
+
+      /* (1) A STAMPLESS TAIL NO LONGER DISCARDS THE STREAM. Before the backward scan, one untimed
+         trailing row sent the whole stream down the fallback — the duration of 4000 measured samples
+         decided by the last one. */
+      var tail = MD.compute({ acc: mk(true, 3) });
+      T.ok('a stampless TAIL still yields the measured duration — the scan walks back to the last timed row', tail && Math.abs(tail.durSec - TRUE_SEC) <= 1, 'durSec=' + (tail && tail.durSec) + 's · measured=' + TRUE_SEC + 's');
+      T.ok('…and it is NOT the assumed-26 Hz value', tail && Math.abs(tail.durSec - FABRICATED) > 50, 'durSec=' + (tail && tail.durSec) + 's · fabricated-would-be=' + FABRICATED + 's');
+
+      /* (2) NO TIME AT ALL ⇒ null, not a number and not a zero. */
+      var blind = MD.compute({ acc: mk(false, 0) });
+      T.eq('a stream with no resolvable time publishes durSec null — never the 26 Hz number', blind && blind.durSec, null);
+      T.ok('…and specifically not 0, which would claim a zero-length recording', blind && blind.durSec !== 0, 'durSec=' + JSON.stringify(blind && blind.durSec));
+      var ex = MD.buildNodeExport(blind);
+      T.eq('the node-export carries the null through, so the Integrator sees absence not a length', ex && ex.recording && ex.recording.durSec, null);
+      T.eq('…beside the honest null start it already published', ex && ex.recording && ex.recording.startEpochMs, null);
+
+      /* CONTROL — the fully timed stream is unaffected by either change. */
+      var ok = MD.compute({ acc: mk(true, 0) });
+      T.ok('CONTROL · a fully timed stream still measures exactly as before', ok && Math.abs(ok.durSec - TRUE_SEC) <= 1, 'durSec=' + (ok && ok.durSec));
+    });
+
     group('MotionDex durSec is the MEASURED last-sample time, never the assumed-26 Hz fabrication — §7.3', 'motiondex-dsp · export · duration-semantics', function (T) {
       var MD = env.MOTIONDSP;
       if (!(MD && typeof MD.compute === 'function')) {
@@ -32930,6 +33149,114 @@
       T.eq('a single pair cannot state limits of agreement — null, not ±0', R.blandAltman([5], [5]), null);
       T.eq('…nor can no pairs at all', R.blandAltman([], []), null);
       T.ok('non-finite pairs are DROPPED, not zero-filled', R.blandAltman([1, NaN, 3], [1, 2, 1]).n === 2, JSON.stringify(R.blandAltman([1, NaN, 3], [1, 2, 1])));
+      /* `+null === 0` AND `isFinite(0) === true`. The guard above passed for NaN and undefined and
+         therefore read as working, while `null`, `''` and `[]` went through as a measured 0 br/min —
+         an apnoeic epoch invented out of a missing one. On the real corpus that is 73 epochs, and as
+         zeros they move the bias from −0.419 to −0.772 and the limits from +4.17/−5.00 to +6.10/−7.64.
+         Each of these three assertions fails against the pre-fix `+pred[i]`. */
+      T.eq('null is missing data, not a measured zero', R.blandAltman([1, null, 3], [1, 2, 1]).n, 2);
+      T.eq('…nor is an empty string', R.blandAltman([1, '', 3], [1, 2, 1]).n, 2);
+      T.eq('…nor is an empty array', R.blandAltman([1, [], 3], [1, 2, 1]).n, 2);
+      T.ok('…but a NUMERIC STRING is still a number — the guard must not over-reject', R.blandAltman(['1', '3'], [1, 1]).n === 2, JSON.stringify(R.blandAltman(['1', '3'], [1, 1])));
+    });
+
+    /* ════ THE FLAT BIAS LINE WAS DRAWN ACROSS A CLOUD THAT IS NOT FLAT ═══════════════════════════
+     The published figure drew bias −0.42 with ±1.96·SD at +4.17 / −5.00 as three HORIZONTAL lines.
+     On the 7-night corpus the difference depends on the magnitude with slope −0.891 (t = −49.4), so
+     the fitted bias runs +5.41 br/min at a mean of 10 to −7.07 at 24 — a swing wider than the whole
+     interval those flat lines claimed to bound. Bland & Altman 1999 §3.2 says the flat form is valid
+     only while that slope is absent, so the figure was reporting a different dataset's summary.
+
+     Gated here because the number is what the three papers print. The assertions are known answers
+     computed from small exact fixtures, not tolerances read off the corpus. */
+    group('resp-acc proportional bias — the tilt the flat limits hid', 'resp-acc-analysis · figures · known-answer', function (T) {
+      var R = env.RespAccAnalysis;
+      if (!(R && typeof R.proportionalBias === 'function' && typeof R.refInBand === 'function' && typeof R.trivialBaseline === 'function')) {
+        T.ok('RespAccAnalysis (proportionalBias · refInBand · trivialBaseline) available', false, 'resp-acc-analysis.js not wired into this lane — add it to BOTH runners');
+        return;
+      }
+      /* An EXACT tilt: ref 10..18, pred chosen so diff = 4 − 0.5·mean, i.e. slope −0.5 with zero
+         residual. Constructed rather than sampled, so the recovered slope is checkable to 1e−9. */
+      var ref = [],
+        pred = [],
+        k;
+      for (k = 10; k <= 18; k++) {
+        /* Construct an EXACT tilt. Want diff = 4 − 0.5·mean, i.e. (p − r) = 4 − 0.5·(p + r)/2.
+           Solving:  p − r = 4 − 0.25p − 0.25r  ⇒  1.25p = 4 + 0.75r  ⇒  p = (4 + 0.75r) / 1.25.
+           Zero residual by construction, so the recovered slope is checkable as a known answer
+           rather than a tolerance. */
+        var r0 = k,
+          p0 = (4 + 0.75 * r0) / 1.25;
+        ref.push(r0);
+        pred.push(p0);
+      }
+      var ba = R.blandAltman(pred, ref);
+      T.ok('ANTI-VACUITY · the tilted fixture produced pairs at more than one magnitude', !!ba && ba.prop && ba.points[0].mean !== ba.points[ba.points.length - 1].mean, ba && ba.n + ' pairs');
+      if (!ba || !ba.prop) return;
+      /* Whatever the algebra above yields, the recovered slope must equal the least-squares slope of
+         the fixture's OWN (mean, diff) pairs — computed here independently of the module. */
+      var n = ba.points.length,
+        sm = 0,
+        sd2 = 0,
+        i;
+      for (i = 0; i < n; i++) {
+        sm += ba.points[i].mean;
+        sd2 += ba.points[i].diff;
+      }
+      var mm = sm / n,
+        md = sd2 / n,
+        sxx = 0,
+        sxy = 0;
+      for (i = 0; i < n; i++) {
+        sxx += (ba.points[i].mean - mm) * (ba.points[i].mean - mm);
+        sxy += (ba.points[i].mean - mm) * (ba.points[i].diff - md);
+      }
+      T.approx('the KNOWN slope of the constructed fixture is recovered exactly', ba.prop.slope, -0.5, 1e-9);
+      T.approx('…and it equals the least-squares slope of (mean, diff) computed here independently', ba.prop.slope, sxy / sxx, 1e-9);
+      T.approx('…and the fit passes through the centroid, so bandAt(mean) is the flat bias', ba.prop.bandAt(mm).fit, ba.bias, 1e-9);
+      T.ok('a perfectly linear fixture has essentially no residual scatter', ba.prop.residSd < 1e-9, 'residSd=' + ba.prop.residSd);
+
+      /* REFUSAL 1 — two points fit a line exactly; its slope is not a measurement. */
+      T.eq('two pairs cannot state a slope', R.blandAltman([1, 2], [2, 1]).prop, null);
+      /* REFUSAL 2 — every epoch at one magnitude leaves the slope unidentifiable, and `0/0` would
+         otherwise surface as a NaN slope drawn as a missing line rather than as a refusal. */
+      var flat = R.blandAltman([5, 6, 4], [5, 4, 6]);
+      T.eq('all pairs at one magnitude ⇒ no identifiable slope, null not NaN', flat.prop, null);
+
+      /* REFUSAL 3 — the §5.3 varying band is only usable while its own fitted line stays positive.
+         A significant heteroscedasticity t is NOT sufficient: on the real corpus t = 45.8 while the
+         fitted |residual| line crosses zero near 11 br/min, so the band it implies is ZERO WIDTH at a
+         mean of 10 and ±12.2 at 24 — limits claiming perfect agreement at low rates. */
+      T.ok('the band publishes which form it used, always', typeof ba.prop.bandForm === 'string' && ba.prop.bandForm.length > 0, ba.prop.bandForm);
+      T.ok('a homoscedastic fixture uses the constant form', /constant/.test(ba.prop.bandForm), ba.prop.bandForm);
+
+      /* ── refInBand: ±Infinity is a MEANING, and isFinite() rejects it ───────────────────────────
+         An earlier draft wrote `isFinite(hiBrpm) ? hiBrpm : 36`, so asking for "no cap" silently
+         applied the 6..36 default and reported an uncapped figure computed on a capped set. */
+      var b = R.refInBand([1, 2, 3], [5, 50, 15], -Infinity, Infinity);
+      T.eq('an explicit ±Infinity bound means NO bound, not the default 6..36', b.n, 3);
+      T.eq('…and nothing is reported as dropped', b.dropped, 0);
+      var b2 = R.refInBand([1, 2, 3], [5, 50, 15]);
+      T.eq('an OMITTED bound falls back to the estimator search band 6..36', b2.n, 1);
+      T.eq('…and the two rejects are COUNTED, never silently gone', b2.dropped, 2);
+      T.ok('…the band it used is returned so a caller can state it', b2.lo === 6 && b2.hi === 36, b2.lo + '..' + b2.hi);
+      T.ok('the filter reads the REFERENCE, never the estimate under test', R.refInBand([99, 2], [10, 10], 6, 36).n === 2, 'an out-of-band ESTIMATE must survive — filtering it is how a method is flattered');
+
+      /* ── trivialBaseline: the number a headline has to beat ────────────────────────────────────
+         `MAE 0.95 br/min` reads like precision; on the real corpus a CONSTANT 16.3 scores 1.39. */
+      var tb = R.trivialBaseline([2, 2, 2, 2], [1, 2, 3, 2]);
+      T.approx('the constant is the reference MEDIAN', tb.constant, 2, 1e-9);
+      T.approx('…the estimator MAE is measured against the reference', tb.mae, 0.5, 1e-9);
+      T.approx('…the constant scores the same here, so skill is exactly zero', tb.skillMae, 0, 1e-9);
+      var tb2 = R.trivialBaseline([1, 2, 3], [1, 2, 3]);
+      T.approx('a perfect estimator has skill 1', tb2.skillMae, 1, 1e-9);
+
+      /* ── sensitivity: one cap is a choice, the curve is a measurement ──────────────────────────── */
+      var sens = R.agreementSensitivity([10, 11, 12, 13], [10, 11, 12, 99], [Infinity, 20]);
+      T.eq('the sweep returns one row per cap', sens.length, 2);
+      T.eq('the uncapped row keeps every pair', sens[0].n, 4);
+      T.eq('…and the capped row drops the out-of-range REFERENCE only', sens[1].n, 3);
+      T.ok('…reporting how many it dropped, so the omission is visible', sens[1].dropped === 1, JSON.stringify(sens[1]));
     });
 
     /* ════ resp-acc-analysis.js — THREE SILENT SAMPLE-RATE FAILURES, EACH FIXED AND NONE GATED ══════
