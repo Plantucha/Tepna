@@ -179,9 +179,13 @@ done
 
 if [ "$CHECK" = "1" ]; then
   echo "  ${#bundles[@]} bundle(s): $same current, $changed stale, $added missing, $extra extra · assets: $aSame current, $aChanged stale, $aAdded missing"
-  [ $((changed + added)) -eq 0 ] || exit 1
+  # ASSET COUNTERS ARE IN THE VERDICT. Splitting them out of the bundle totals for the SUMMARY
+  # silently dropped them from the EXIT CODE, so a missing asset stopped failing --check: a page
+  # without its assets is a blank screen that looks deployed, which is the case this gate exists for.
+  # Caught by capture-host's own pytest — the split was a display change and it moved a verdict.
+  [ $((changed + added + aChanged + aAdded)) -eq 0 ] || exit 1
   exit 0
 fi
 echo "  ${#bundles[@]} bundle(s): $same already current, $changed refreshed, $added added, $extra extra, $failed failed · assets: $aSame current, $aChanged refreshed, $aAdded added, $aFailed failed"
-[ "$failed" -eq 0 ] || exit 1
+[ $((failed + aFailed)) -eq 0 ] || exit 1
 exit 0
