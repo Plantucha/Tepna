@@ -48,7 +48,8 @@
   // nothing, rather than reporting a bare zero — the failure mode the comment above describes.
   function groupFiles(files) {
     var acc = [],
-      brp = {};
+      brp = {},
+      eve = {};
     for (var i = 0; i < files.length; i++) {
       var f = files[i],
         n = f.name;
@@ -56,6 +57,11 @@
       else if (/_BRP\.edf$/i.test(n)) {
         var d = (f.webkitRelativePath || n).match(/(\d{8})/);
         if (d) (brp[d[1]] = brp[d[1]] || []).push(f);
+      } else if (/_EVE\.edf$/i.test(n)) {
+        // The device's OWN apnea scoring — the anchor the pooled clock fit needs. Optional: a night
+        // without one simply has no pooled fit and says so, rather than being dropped.
+        var e = (f.webkitRelativePath || n).match(/(\d{8})/);
+        if (e) (eve[e[1]] = eve[e[1]] || []).push(f);
       }
     }
     var out = [];
@@ -79,7 +85,7 @@
         var prev = new Date(Date.UTC(y, mo - 1, da - 1));
         key = '' + prev.getUTCFullYear() + String(prev.getUTCMonth() + 1).padStart(2, '0') + String(prev.getUTCDate()).padStart(2, '0');
       }
-      if (brp[key] && brp[key].length) out.push({ name: acc[k].name, acc: acc[k], brp: brp[key], dayNum: Date.UTC(y, mo - 1, da) / 86400000 });
+      if (brp[key] && brp[key].length) out.push({ name: acc[k].name, acc: acc[k], brp: brp[key], eve: eve[key] || [], dayNum: Date.UTC(y, mo - 1, da) / 86400000 });
       else out.noFlow.push(acc[k].name + ' (wanted CPAP night ' + key + ')');
     }
     out.sort(function (a, b) {
@@ -107,6 +113,82 @@
       r.onerror = rej;
       r.readAsArrayBuffer(f);
     });
+  }
+
+  /* Apnea onsets from the device's OWN `_EVE.edf` scoring, in absolute ms on the CPAP's clock.
+     Labels are matched loosely because ResMed spells them several ways across firmware
+     ("Obstructive Apnea", "CentralApnea", "Hypopnea"); anything that is not an apnea/hypopnea
+     annotation (leak, pressure, recording marks) is not an anchor. */
+  async function cpapApneaTimes(eveFiles) {
+    var out = [];
+    for (var i = 0; i < eveFiles.length; i++) {
+      var ann = A.readAnnotations(await readBytes(eveFiles[i]));
+      if (!ann || !ann.events) continue;
+      for (var j = 0; j < ann.events.length; j++) {
+        var e = ann.events[j];
+        if (!/apnea|apnoea|hypopnea|hypopnoea/i.test(e.label)) continue;
+        out.push(ann.startMs + e.onsetSec * 1000);
+      }
+    }
+    return out;
+  }
+
+  /* Wearable event channels from the ONE device this page has. The pooled fit wants event TIMES,
+     not a waveform — that is the whole reason it is sharper than a correlation. Both channels are
+     things an apnea terminates in, so they are responders to the anchor rather than restatements
+     of it. Times are absolute ms on the host (NTP-disciplined) clock. */
+  function accEventChannels(rows, t0) {
+    var chans = [],
+      unit = (rows && rows._unit) || 'mg';
+    var durSec = 0;
+    for (var i = rows.length - 1; i >= 0 && !durSec; i--) if (rows[i].tMs != null) durSec = (rows[i].tMs - t0) / 1000;
+    // arousal → movement: the false→true edges of the actigraphy track
+    try {
+      var act = M.actigraphy(rows, t0, durSec, unit);
+      var eps = (act && act.epochs) || [],
+        mv = [],
+        wasMoving = false;
+      for (i = 0; i < eps.length; i++) {
+        var m = eps[i].moving;
+        if (m === true && wasMoving === false) mv.push(eps[i].tStartMs);
+        if (m != null) wasMoving = m;
+      }
+      chans.push({ node: 'MotionDex', channel: 'movement_onset', times: mv });
+    } catch (e) {
+      /* a channel that cannot be built is simply absent — the fit reports each channel's reason */
+    }
+    // the posture shift that often follows an arousal
+    try {
+      var sum = M.compute({ acc: rows }),
+        ex = M.buildNodeExport(sum),
+        byImp = {};
+      var evs = (ex && ex.ganglior_events) || [];
+      for (i = 0; i < evs.length; i++) {
+        var tMs = evs[i].tMs;
+        if (tMs == null || !isFinite(tMs)) continue;
+        var k = evs[i].impulse || 'event';
+        (byImp[k] = byImp[k] || []).push(tMs);
+      }
+      Object.keys(byImp)
+        .sort()
+        .forEach(function (k) {
+          chans.push({ node: 'MotionDex', channel: k, times: byImp[k] });
+        });
+    } catch (e2) {
+      /* same — absence is reported by the fit, never silently filled */
+    }
+    return chans;
+  }
+
+  async function fitCpapClock(nt, rows, t0) {
+    var I = window.IntegratorDSP;
+    if (!I || typeof I.fitClockOffsetPooled !== 'function') throw new Error('integrator-dsp not loaded');
+    if (!nt.eve || !nt.eve.length) throw new Error('no _EVE.edf for this night');
+    var anchor = await cpapApneaTimes(nt.eve);
+    if (anchor.length < 5) throw new Error('only ' + anchor.length + ' scored apnea(s) — the fit needs 5');
+    var chans = accEventChannels(rows, t0);
+    if (!chans.length) throw new Error('no wearable event channel could be built');
+    return I.fitClockOffsetPooled(anchor, chans, {});
   }
 
   // ── one night ──────────────────────────────────────────────────────────
@@ -141,9 +223,37 @@
     var accT0 = (t0 - best.startMs) / 1000;
     var lock = A.recoverOffset(rc.channel, accT0, flowG, 90, 25);
 
+    /* ── THE CPAP CLOCK, MEASURED BY THE VALIDATED POOLED FIT ───────────────────────────────────
+       `recoverOffset` above is a single band-passed channel cross-correlated over ±90 min. On the
+       real corpus that fails on most nights: 9 of 16 returned offsets spanning −5163 … +4804 s at
+       peak |r| 0.16–0.20 — the argmax of a noise field — while the seven that DID lock agreed to a
+       9-second spread. `integrator-dsp.js` already marks this shape DEPRECATED and superseded by
+       `fitClockOffsetPooled` (POOLED-CLOCK-FIT-2026-07-31), which is a different instrument:
+
+         · it anchors on the CPAP's OWN `_EVE.edf` apnea scoring, so no DSP of ours is in the path
+           and the fit cannot be an artifact of our own event detection;
+         · it pools EVERY wearable event channel at one candidate lag, because channels are
+           individually weak and jointly decisive — exactly the failure above;
+         · it carries an in-run permutation null, so a SINGLE-node night can still be confident
+           (which is this page's case — one H10) and an underpowered one says so instead of
+           returning a number.
+
+       Two channels are offered from the one device, both physiologically responders to an apnea
+       (arousal → movement, and the posture shift that often follows). A night with no `_EVE.edf`,
+       or too few events, gets `null` and the correlation lock stands as the only estimate. */
+    var pooled = null,
+      pooledWhy = null;
+    try {
+      pooled = await fitCpapClock(nt, rows, t0);
+    } catch (e) {
+      pooledWhy = e.message;
+    }
+
     // the shipped estimator
     var est = M.respiratoryRate(rows, t0, 'mg');
     return {
+      pooled: pooled,
+      pooledWhy: pooledWhy,
       name: nt.name,
       dayNum: nt.dayNum,
       rows: rows.length,
@@ -333,14 +443,31 @@
     // The cloud. Low alpha because n is in the thousands and overplot IS the density signal.
     ctx.fillStyle = FIG.series;
     ctx.globalAlpha = ba.points.length > 400 ? 0.18 : 0.5;
+    /* OUT-OF-RANGE POINTS ARE DROPPED AND COUNTED, NEVER CLAMPED TO THE AXIS. The first real-corpus
+       render clamped them (`Math.min(box.b, …)`) and produced a solid row of dots along the bottom
+       edge — a visual feature the data does not contain, which a reader would take for a cluster of
+       extreme disagreements at one value. Same rule as everywhere else here: a value we cannot show
+       is declared, not invented. The count rides in the subtitle so the omission is visible. */
+    var clipped = 0;
     for (var i = 0; i < ba.points.length; i++) {
       var p = ba.points[i];
       if (p.mean < lo - 1 || p.mean > hi + 1) continue;
+      if (p.diff < -span || p.diff > span) {
+        clipped++;
+        continue;
+      }
       ctx.beginPath();
-      ctx.arc(sc.X(p.mean), Math.max(box.t, Math.min(box.b, sc.Y(p.diff))), 2.2, 0, 6.2832);
+      ctx.arc(sc.X(p.mean), sc.Y(p.diff), 2.2, 0, 6.2832);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+    if (clipped) {
+      ctx.fillStyle = FIG.ink3;
+      ctx.font = FIG.mono;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(clipped + ' point(s) beyond \u00b1' + span.toFixed(1) + ' br/min not shown', box.r, box.t - 8);
+    }
     // Bias + limits of agreement, each DIRECT-LABELLED with its value — this is the whole reason the
     // figure exists, and a reader should never have to go back to the table to read the three numbers.
     var lines = [
@@ -564,7 +691,40 @@
       var delta = isFinite(predOff) ? d.lock.off - predOff : NaN;
       var good = isFinite(delta) ? Math.abs(delta) < 5 : d.lock.r >= 0.4;
       if (good) okLocks++;
-      d.offsetUsed = good && isFinite(predOff) ? (Math.abs(delta) < 5 ? d.lock.off : predOff) : d.lock.off;
+      /* AN OFF-MODEL NIGHT DOES NOT SCORE. It used to fall through to `d.lock.off` — the raw
+         cross-correlation argmax — and then contribute its epochs to the pooled agreement anyway.
+         On the real corpus (16 nights, 2026-08-06) that is not a small effect: the nights that DO
+         lock agree with the drift model to a **9-second** spread (−2337 … −2333 s, i.e. the CPAP
+         clock is a steady ~38.9 min behind, drifting 0.773 s/day, residual SD 4.63 s), while the
+         nine off-model nights returned offsets from **−5163 s to +4804 s** — a 166-minute spread —
+         at peak |r| of 0.16–0.20. Those are not weak locks, they are the argmax of a noise field
+         over a ±90-minute search, and pairing epochs on one aligns the estimator against unrelated
+         breaths. Nine of sixteen nights entered the published MAE that way.
+         So: no credible alignment ⇒ `offsetUsed = null` ⇒ §3 skips the night and says so. Refusing
+         to score is the honest outcome; scoring against a fabricated alignment is not. */
+      /* WHICH INSTRUMENT DECIDES — measured on this corpus, not assumed from pedigree.
+         `fitClockOffsetPooled` IS the better instrument in the Integrator's setting, and
+         `integrator-dsp.js` rightly marks the single-channel fit deprecated. Here it is
+         UNDERPOWERED, and the run says so rather than the pedigree deciding:
+
+           · 14 of 16 nights reach no confident fit at all (6 ambiguous, 8 not confident) —
+             this page has ONE device and two thin event channels, not a fleet;
+           · the 2 that do sit exactly at **p = 0.032 = 1/(nullIters+1)**, the p-FLOOR. That is
+             the best p the run could have returned, which `pFloor` exists to make visible;
+           · and on 20260727221616 the two instruments disagree by **81 s** — pooled −2255 s
+             against correlation −2336 s, where the drift model fitted on six OTHER nights
+             predicts −2332.4 s. The correlation agrees with that model to 3.6 s; the pooled fit
+             misses it by 77 s, far outside its own ~15 s support at matchSec 30.
+
+         Seven nights whose correlation locks agree to a 9-second spread and fit a 0.773 s/day
+         drift model with 4.63 s residual are the strongest evidence available. So the pooled fit
+         does NOT override a drift-consistent lock; it is reported beside it, and it is USED only
+         where the correlation has no credible lock at all — a night that would otherwise score
+         nothing. Both numbers are printed either way, so the disagreement stays visible. */
+      var pooledUsable =
+        d.pooled && d.pooled.confident && isFinite(d.pooled.offsetSec) && !d.pooled.underpowered && !(d.pooled.pValue != null && d.pooled.pFloor != null && d.pooled.pValue <= d.pooled.pFloor + 1e-9);
+      d.offsetUsed = good ? d.lock.off : pooledUsable ? -d.pooled.offsetSec : null;
+      d.offsetFrom = good ? 'correlation' : pooledUsable ? 'pooled' : null;
       row(tc, [
         d.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''),
         d.lock.off,
@@ -572,7 +732,14 @@
         fmt(delta, 1),
         fmt(d.lock.r, 2),
         fmt(d.lock.sharp, 1),
-        good ? '<span style="color:var(--teal)">drift-consistent</span>' : '<span style="color:var(--amber)">off-model</span>'
+        (function () {
+          var v = good ? '<span style="color:var(--teal)">drift-consistent</span>' : '<span style="color:var(--amber)">off-model</span>';
+          if (d.pooled && d.pooled.confident)
+            v += ' · <span style="color:var(--teal)">pooled ' + fmt(-d.pooled.offsetSec, 1) + 's (z=' + fmt(d.pooled.z, 1) + ', p=' + fmt(d.pooled.pValue, 3) + ')</span>';
+          else if (d.pooled) v += ' · <span style="color:var(--dim)">pooled: ' + (d.pooled.underpowered ? 'underpowered' : d.pooled.ambiguous ? 'ambiguous' : 'not confident') + '</span>';
+          else if (d.pooledWhy) v += ' · <span style="color:var(--dim)">pooled: ' + d.pooledWhy + '</span>';
+          return v;
+        })()
       ]);
     }
     $('driftSummary').innerHTML = drift
@@ -671,6 +838,14 @@
 
     // ── 6 · figures ──
     drawFigures(allP, allR, cov, perNightMae);
+    // scratch inspection handle (same shape as `window.NIGHTS_ICC`) — lets a headless run measure the
+    // point cloud's structure instead of eyeballing the figure.
+    /* Inspection handle (same shape as `window.NIGHTS_ICC`), and it earned its place immediately: it
+       is what turned "the cloud looks striped" into a measurement. The EMPTY diagonals are rates the
+       estimator never emits — periodic at exactly 1.2 br/min, alternating 0.5/0.7 forbidden bands —
+       and a grid test over the unique predictions rejects quantization as the cause. Unexplained; see
+       MOTIONDEX-RESPIRATORY-RATE §11.7 before drawing conclusions from any agreement number here. */
+    window.__RESP_PAIRS = { pred: allP, ref: allR };
 
     $('prov').innerHTML =
       'Estimator: <code>MOTIONDSP.respiratoryRate</code> — the shipped DSP, method <code>' +

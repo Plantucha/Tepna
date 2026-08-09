@@ -350,3 +350,150 @@ green, so the gate is pointed at the widening and not at the parser generally. T
   regeneration step to go stale, and none was added.
 - **`papers/PAPERS-AUDIT.md` rows, the honest data-label tag, and the generator version** are untouched;
   they are paper-editorial items, not tool items.
+
+---
+
+## §11 · §1 IS RUN — 2026-08-06. The corpus was here all along, and the tool could not see any of it
+
+§1 has been the stated blocker for three preprints since 2026-07-21, recorded as "run the 26-night
+corpus end-to-end". It has now been run. What it took was not a run: it was §10's two fixes, plus three
+more defects that only appeared once real bytes went through, plus a negative result about the
+alignment instrument.
+
+**Correcting this brief's own framing first:** §1 was repeatedly described as blocked on files. The
+files were on the capture machine the whole time — **419 `Polar_H10_*_ACC.txt` and 254 `_BRP.edf`
+across 204 CPAP nights** under `/home/michal/tepna-smoketest/captures`, and under this tool's own
+pairing rule **every one of the 419 ACC files pairs with a CPAP night**. Nothing was missing. Nobody
+had looked.
+
+### 11.1 · The scale of §10.2's invisible-nights defect: it was the entire corpus
+
+**All 419 ACC files are capture-host layout. Zero are phone layout.** So before the `sessionStamp`
+fix, this apparatus could see **none** of the corpus it exists to analyse — 2.4 GB of paired data
+reporting "no ACC+BRP night pairs found" with no explanation. §4a described this as a limitation
+("only Polar-Sensor-Logger nights are analysable today"); measured, it was total.
+
+### 11.2 · The run
+
+21 real overnight ACC files (>30 MB) across 14 CPAP nights, 1.4 GB, driven through the shipped page
+headlessly. 16 night-groups formed, ~54 s wall-clock.
+
+| | value |
+|---|---|
+| nights scored | **7 of 16** — nine excluded, see §11.3 |
+| epochs | 3,665 |
+| **MAE** | **0.95 br/min** (95 % CI 0.79–1.18) |
+| null baseline (constant = corpus median) | 1.42 |
+| **reference self-noise floor** | **0.72** |
+| within 2 br/min | 92.0 % · bias −0.42 · LoA ±4.59 |
+| at 80 % coverage | MAE 0.73 · 95.3 % within 2 |
+
+**State it as 0.95 against a 0.72 floor on 7 nights, never as 0.95.** The brief's Part (A) opened with
+the estimator at MAE 3.59 — *worse than predicting a constant* — so the rebuild is clearly better than
+the null, and it is also close to the noise of the reference it is measured against. n = 7 nights, one
+wearer.
+
+### 11.3 · Nine nights were being scored against noise, and the tool published the result
+
+The CPAP clock is stable: on the seven nights that lock, the recovered offsets span **−2337 … −2333 s**
+— a **9-second** spread — fitting a 0.773 s/day drift model with 4.63 s residual. The device runs a
+steady ~38.9 min behind, exactly as `CPAP-CLOCK-42MIN` found.
+
+What is not stable is `recoverOffset`. On the other nine nights it returned offsets from **−5163 s to
++4804 s** at peak |r| **0.16–0.20** — the argmax of a noise field over its ±90-minute search. And
+`offsetUsed` fell through to that value, so those nine nights entered the pooled MAE **aligned against
+unrelated breaths**. The tool's own drift check had already flagged every one of them "off-model"; the
+code then ignored its own verdict. Removing them moves the headline 1.05 → 0.95, i.e. the contamination
+was *hiding* the result, not creating it.
+
+Fixed: no credible alignment ⇒ the night does not score, and says so.
+
+### 11.4 · `fitClockOffsetPooled` — wired, reported, and deliberately NOT in charge
+
+`integrator-dsp.js` marks the single-channel fit **DEPRECATED, superseded by `fitClockOffsetPooled`**
+(POOLED-CLOCK-FIT-2026-07-31), and this page was still using the deprecated shape. It is now wired:
+`_EVE.edf` ingest, anchors from the device's **own** apnea scoring, two responder channels off the
+H10 (movement onsets, posture change), `integrator-dsp.js` + `kernel-constants.js` inlined (485 KB —
+this was the *smallest* of the ten tools at 157 KB; peers run 620 KB–1.5 MB).
+
+**And on this corpus it is underpowered, which is a result worth recording rather than a reason to
+hide the wiring:**
+
+- **2 of 16 nights** reach confidence (6 ambiguous, 8 not confident). The fit's premise is
+  "individually weak, jointly decisive" — this page has ONE device and two thin channels, so there is
+  nothing to pool.
+- Both confident fits report **p = 0.032 = 1/(nullIters+1)** — exactly `pFloor`, the best p the run
+  could return. `integrator-dsp.js` publishes `pFloor` precisely so this is not read as strength.
+- On the one head-to-head night (`20260727221616`) the two disagree by **81 s**: pooled −2255 s against
+  correlation −2336 s, where the drift model fitted on six *other* nights predicts −2332.4 s. The
+  correlation is 3.6 s from that model; the pooled fit is 77 s away — outside its own ~15 s support at
+  `matchSec 30`.
+- Letting it decide moved the headline the wrong way: **0.95 → 1.01**.
+
+**Policy landed:** the pooled fit never overrides a drift-consistent correlation lock. It is used only
+where the correlation has no credible lock at all, and then only if not underpowered and not
+floor-pinned. Both numbers print on every night, so a disagreement is visible rather than resolved
+silently. The wiring stays: the better instrument is now present, exercised on real data, and its
+limits here are measured instead of assumed.
+
+### 11.5 · Three defects only real data could surface, all in the figures
+
+§10 shipped the figure layer against synthetic data. Real bytes broke it three ways, each caught by
+rendering and *looking*, none reachable by reading the code:
+
+1. **Out-of-range points were CLAMPED onto the axis**, drawing a solid row of dots along the bottom
+   edge — a cluster of extreme disagreements that does not exist. Now dropped and **counted**
+   ("59 point(s) beyond ±6.8 br/min not shown"): a value we cannot show is declared, not invented.
+2. **That count then collided with the y-axis tick** ("59 po**6.8**int(s)"). Moved clear.
+3. (§10 already records the clipped annotations and the 45 %/56 %/68 % axis.)
+
+**One feature in the figure is real and should stay:** the diagonal striping in the point cloud is the
+spectral ridge emitting quantized br/min, so `pred − ref` against the pair mean falls on diagonal
+bands. A reviewer will ask; better that the figure shows it.
+
+### 11.6 · Still open
+
+- **`papers/figures/*.png` are not committed by this pass.** The tool now emits them and they have been
+  rendered from the real corpus, but which figures each preprint embeds — and the DRAFT-banner clearing
+  §4a asks for — is paper-editorial work, not tool work.
+- **The corpus can be much larger.** This run used 21 files >30 MB; **419 pair in total.** The limit was
+  browser memory in one pass, not availability.
+- **`papers/PAPERS-AUDIT.md` rows, the honest data-label tag, and the generator version** remain open.
+
+### 11.7 · ⚠ OPEN AND UNEXPLAINED — the estimator cannot report ~40 % of the rate axis
+
+Spotted by the owner in the Bland–Altman figure: the point cloud is striped, and the **empty** diagonals
+are the signal. In this plot a line of constant `pred` has slope −2, so a blank diagonal is a rate the
+estimator never emits. Counted by eye: ~10 of them.
+
+**Measured over the 3,738 pooled pairs (138 unique predicted values, 10.99–21.27 br/min):**
+
+```
+gap anchors, ascending:  … 0.7, 0.5, 0.7, 0.5, 0.7, 0.5, 0.7, 0.5, 0.7, 0.5 …   (unbroken 11.9 → 17.9)
+adjacent-pair sums:      1.200 on 13 of 15 pairs
+```
+
+**The exclusion is periodic at exactly 1.2 br/min**, alternating forbidden bands of 0.5 and 0.7 br/min.
+Across the observed range that is ~10 bands — the owner's count.
+
+**A first explanation was offered and is WITHDRAWN.** This was called "quantized FFT bins". It is not:
+a grid test over the unique predicted values (mean distance to the nearest grid line; 0.25 = no
+structure) rejects every candidate step —
+
+| step | 1.0 | 0.5 | 0.4 | 0.3 | 0.25 | 0.2 | 0.1 | 0.05 | 1/3 | 1/60 Hz |
+|---|---|---|---|---|---|---|---|---|---|---|
+| score | **0.2500** | 0.2494 | 0.2890 | 0.2394 | 0.2648 | 0.2178 | 0.1713 | 0.2460 | 0.2459 | 0.2486 |
+
+— with step 1.0 scoring exactly 0.2500, i.e. perfectly uniform. **There is no quantization lattice.**
+So this is not a resolution limit; it is a *structured bias* in which rates the ridge tracker settles
+on, which is a stranger finding than quantization and a worse one to leave undocumented.
+
+**Mechanism unknown, and deliberately not guessed at a second time.** Two candidates worth testing, in
+order: (1) whether the 1.2 br/min period survives WITHIN a single night, or only appears when seven
+nights whose ACC rates differ (25.3–202.7 Hz across this corpus) are pooled and their grids interleave;
+(2) whether it tracks the Viterbi transition-cost lattice rather than the spectrogram's frequency axis.
+
+**This outranks the MAE for the papers.** A reviewer sees the stripes in the first second and will ask
+what sets them; "the estimator cannot report ~40 % of the rate axis in a repeating pattern" has to be
+answered before an agreement number carries meaning. It belongs above the headline, not in a
+limitations paragraph.
