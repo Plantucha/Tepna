@@ -181,10 +181,44 @@ finding about the vasculature.
       range, reproduced. So §3a's negative measures **alignment error, not absence of coupling** —
       which was §3a's own first listed possibility. No coupling verdict is quotable from §2, §3a or
       §3c until the per-pair offset is measured directly (§3d.4).
-- [ ] *(open)* Whether PAT is worth pursuing at all on single-site optical, given that the obstacle is
-      PTT variability rather than instrumentation. That is a scientific call, not an engineering one.
-      §3a *weakens* the case further — under a definition that can fail, the coupling leg does fail —
-      but the item above must close before that is used as an argument.
+- [x] **DECIDED 2026-08-08 — NO, not as a shipped whole-night metric. The evidence is sufficient and
+      it is not close.** The prerequisite above is closed (§3d), and the §3d caveat does not reach the
+      evidence this rests on: §3d voids verdicts drawn from *offset-dependent* measurements, while
+      `couplingStable` cancels the offset **by construction** (fraction of beats within ±100 ms of the
+      night's own modal lag). So a verdict is quotable from §3i, and it is the same verdict from two
+      independent harnesses:
+
+      | | coupling level | bar | verdict |
+      |---|---|---|---|
+      | `INTEGRATOR-PAT-VASCULAR`, offset-free | 18.8 / 19.2 / 19.0 % | ≥ 55 % | **0 / 54** |
+      | here, best-scan | median 15–16 % | ≥ 55 % | 0 / 54 whole nights |
+
+      And on the binding number, `residIQR` against a 60 ms bar: theirs **95.6–98.7 ms, 0/54**; here
+      **84 ms median (36–99)**. The gap is not marginal — it is a third to a half of the quantity,
+      in the same direction, on both harnesses, at the more generous acceptance band.
+
+      **Dual-site does not rescue it (§3j).** Arm→finger scatter is **≤ 92 ms** against the same 60 ms
+      bar, and the scatter is demonstrably **not** the pre-ejection period — so the obvious hardware
+      answer removes a confound that is not present. The differenced form is still worth running for
+      completeness since both legs exist, but it must take 92 → ≤ 60 ms to matter, and removing an
+      absent confound cannot do that. It is a completeness run, not a live hypothesis.
+
+      **What is decided:** no PAT metric ships from single-site optical on this corpus, at any evidence
+      tier. The harnesses (`pat-gate.js`, `pat-matchrate-strict.mjs`) stay as **diagnostics** — they are
+      how this was measured and how it would be re-measured — and nothing surfaces a PAT number to a
+      user. The obstacle is PTT variability, which is physiology, not instrumentation; no better
+      alignment, longer block, or second optical site addresses it.
+
+      **What is NOT decided, and must not be read into this.** The negative is about **whole-night**
+      PAT. At 60-min granularity **10 of 52 windows DO clear the 60 ms bar** (§3i.2) — windowing helps,
+      just not enough to gate a night. So a *per-window* PAT, gated per window and honest about
+      covering a minority of the night, is **not refuted by this evidence**; it was never measured
+      against its own bar. That is a different question and would need its own brief. Recording it
+      because the tempting misreading of this decision is "PAT is dead", and what the data says is
+      "whole-night PAT is dead, and the windowed form is untested".
+
+      **What would overturn it:** an offset-free `residIQR` at or under 60 ms on whole nights. That is
+      the single number; everything else is commentary on it.
 
 ---
 
