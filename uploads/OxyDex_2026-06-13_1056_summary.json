@@ -60,7 +60,7 @@
           "key": "cs",
           "label": "Cheyne-Stokes",
           "value": 3,
-          "displayVal": "Likely",
+          "displayVal": "3/3 indicators",
           "score": 9,
           "sev": "r",
           "cat": null
@@ -141,7 +141,7 @@
           "key": "uars",
           "label": "UARS Pattern",
           "value": 1,
-          "displayVal": "Possible",
+          "displayVal": "1/3 indicators",
           "score": 3,
           "sev": "w",
           "cat": null
@@ -314,7 +314,7 @@
           "key": "cs",
           "label": "Cheyne-Stokes",
           "value": 3,
-          "displayVal": "Likely",
+          "displayVal": "3/3 indicators",
           "score": 9,
           "sev": "r",
           "cat": null
@@ -1496,9 +1496,9 @@
       },
       "patScore": {
         "csScore": 3,
-        "csLabel": "Likely",
+        "csLabel": "3/3 indicators",
         "uarsScore": 1,
-        "uarsLabel": "Possible"
+        "uarsLabel": "1/3 indicators"
       },
       "dfa": {
         "alpha1": 1.682,

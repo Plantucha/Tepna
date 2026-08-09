@@ -12140,6 +12140,134 @@
      Two assertions with different lifetimes. The known-answers pin TODAY's wording; the source scan pins
      the CONTRACT — no imperative therapy instruction may reappear in this qualifier, whatever the wording
      becomes. The scan is what survives a future rewording, so it carries the anti-vacuity leg. */
+    /* THE LIKELIHOOD LADDER, ONE LAYER UNDER THE STRING THE PARENT TEMPERED (PB-OVERCALL-FOLLOWUPS §2).
+     The sibling group below pins the CONTEXT qualifier. This pins the two surfaces §2 names, which the
+     parent deliberately left because their blast radius is wider:
+
+       · `csLabels` / `uarsLabels` were `['Unlikely','Possible','Probable','Likely']`, INDEXED BY A 0-3
+         INDICATOR COUNT. A likelihood word attached to a tally that cannot carry one.
+       · the lead string read `'CS pattern probable (' + csLabel + ')'` — so a night rendered
+         "CS pattern probable (Likely)", asserting a likelihood TWICE from a score that cannot support
+         it once.
+
+     Why the score cannot: `detectOscillations` has no periodicity test at all — no cycle-length
+     criterion, no crescendo-decrescendo — and counts crossings of an ABSOLUTE 95 % level, so on a
+     corpus whose overnight mean is 94.6-96.6 % it tracks mild hypoxemia burden (r = 0.893 with time
+     below 95 %). Night-level agreement with the CPAP's own PB scoring was kappa = -0.039, worse than
+     chance.
+
+     THE SCORE AND EVERY GATE ON IT ARE UNCHANGED. §5.2 found no defensible threshold on this corpus,
+     so retuning would be guessing — and the brief's guardrail is explicit that `csScore`'s constants
+     must NOT be tuned toward the CPAP's scoring. This is a wording fix, and the assertions below are
+     written so that a RETUNE would red them just as a re-wording would. */
+    group('OxyDex CS/UARS state an indicator count, never a likelihood — PB-OVERCALL-FOLLOWUPS §2', 'oxydex-dsp · pb-overcall · honesty', function (T) {
+      var OI = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
+      var cps = OI && OI.computePatternScores;
+      if (typeof cps !== 'function') {
+        T.ok('OxyDex.computePatternScores exposed', false, 'not on the export surface in this lane');
+        return;
+      }
+      /* Drive the real function across its whole 0-3 range rather than asserting on the array: a
+         future edit could keep the array and reindex it, and this must still catch that. */
+      var seen = {},
+        seenU = {};
+      /* Drive the REAL criteria, read from the function rather than guessed — the first version of
+         this driver invented an input shape, every score came back 0, and the ANTI-VACUITY assertion
+         below is what caught it. CS climbs on: a PB cycle in the 40-130 s CSR window, a
+         BLUNTED_AROUSAL flag, crcIdx < 0.2, and low ODI-4 (< 3) despite >= 5 oscillation episodes. */
+      var mk = function (n) {
+        return cps(
+          { pbCycleLen: n >= 1 ? 60 : null },
+          { episodeCount: n >= 4 ? 10 : 0 },
+          { crcIdx: n >= 3 ? 0.1 : 0.9, autoArousalIdx: 0 },
+          n >= 2 ? [{ code: 'BLUNTED_AROUSAL' }] : [],
+          { rate: n >= 4 ? 1 : 20 },
+          { sfi: 0 }
+        );
+      };
+      /* The UARS ladder is a different set of criteria (short PB cycle, high AAI, low ODI with >= 3
+         episodes, sfi >= 2) and must be exercised on its own or it passes by never moving. */
+      var mkU = function (n) {
+        return cps(
+          { pbCycleLen: n >= 1 ? 20 : null },
+          { episodeCount: n >= 3 ? 10 : 0 },
+          { crcIdx: 0.9, autoArousalIdx: n >= 2 ? 5 : 0 },
+          [],
+          { rate: n >= 3 ? 1 : 20 },
+          { sfi: n >= 4 ? 5 : 0 }
+        );
+      };
+      for (var i = 0; i <= 4; i++) {
+        var r = mk(i);
+        if (r && r.csLabel != null) seen[r.csScore] = r.csLabel;
+        var ru = mkU(i);
+        if (ru && ru.uarsLabel != null) seenU[ru.uarsScore] = ru.uarsLabel;
+      }
+      var labels = Object.keys(seen)
+        .map(function (k) {
+          return seen[k];
+        })
+        .concat(
+          Object.keys(seenU).map(function (k) {
+            return seenU[k];
+          })
+        );
+      T.ok('ANTI-VACUITY · the driver moved csScore across at least three values', Object.keys(seen).length >= 3, JSON.stringify(seen));
+      T.ok('ANTI-VACUITY · …and uarsScore too, on its own criteria', Object.keys(seenU).length >= 3, JSON.stringify(seenU));
+
+      var LIKELIHOOD = /\b(unlikely|possible|probable|likely|certain|definite)\b/i;
+      /* THE ASSERTION THAT FAILS ON THE REVERT. Every label the function can emit must be free of a
+         likelihood word — the whole ladder was one before. */
+      var bad = labels.filter(function (l) {
+        return LIKELIHOOD.test(String(l));
+      });
+      T.ok('no csLabel asserts a likelihood — the 0-3 tally cannot carry one', bad.length === 0, 'offending: ' + JSON.stringify(bad) + ' of ' + JSON.stringify(seen));
+      T.ok('…each label states the count it came from', labels.every(function (l) { return /\d\/3/.test(String(l)); }), JSON.stringify(seen));
+      /* The label must AGREE with the score it indexes — a reindexed ladder would show up here even
+         though every label individually looked honest. */
+      var mismatched = Object.keys(seen)
+        .filter(function (k) {
+          return String(seen[k]).indexOf(k + '/3') !== 0;
+        })
+        .concat(
+          Object.keys(seenU).filter(function (k) {
+            return String(seenU[k]).indexOf(k + '/3') !== 0;
+          })
+        );
+      T.ok('…and the count in the label IS the score, not an offset into a ladder', mismatched.length === 0, 'mismatched scores: ' + JSON.stringify(mismatched));
+
+      /* THE SOURCE SCAN — rewording-proof, the same shape the parent's gate uses. The lead strings
+         live inside `buildImpression`'s closure and no fixture makes `cs` the top metric reliably, so
+         the behavioural leg above cannot reach them. This one can, and it is the leg that would not
+         move if someone re-worded around the known answers. */
+      var _src = (env.sources || {})['oxydex-dsp.js'];
+      T.ok('ANTI-VACUITY · oxydex-dsp.js source is visible to this scan (both lanes)', typeof _src === 'string' && _src.length > 0, 'missing from env.sources');
+      if (typeof _src === 'string' && _src.length) {
+        var leadLines = _src.split('\n').filter(function (l) {
+          /* STRUCTURAL, not word-matched. The first version keyed on the literal "CS pattern" and went
+             blind the moment the strings were reworded — caught only because the ANTI-VACUITY count
+             below is an assertion rather than a comment. Keying on the lead's SHAPE survives any
+             rewording, which is the whole point of having a source leg. */
+          return /return n\.patScore \?/.test(l) && /(csScore|uarsScore|csLabel|uarsLabel)/.test(l);
+        });
+        T.ok('ANTI-VACUITY · both lead strings found by the scan', leadLines.length === 2, leadLines.length + ' found');
+        T.ok(
+          'neither lead string asserts a likelihood (it read "CS pattern probable (Likely)")',
+          leadLines.every(function (l) {
+            return !LIKELIHOOD.test(l);
+          }),
+          leadLines.join(' || ')
+        );
+        T.ok(
+          '…and each names the score out of 3, so a reader sees it is a heuristic tally',
+          leadLines.every(function (l) {
+            return /csScore \+ '\/3|uarsScore \+ '\/3/.test(l);
+          }),
+          leadLines.join(' || ')
+        );
+      }
+    });
+
     group('OxyDex impression states an observation, never a therapy instruction (PB-OVERCALL §4.3)', 'oxydex-dsp · pb-overcall · known-answer', function (T) {
       var OI = env.OxyDex && (env.OxyDex._bare || env.OxyDex);
       var bi = OI && OI.buildImpression;

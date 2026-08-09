@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HHahZGihCYOXUxf6rnGrPG0EYRQbphHWi/XQHKu2SY4=' 'sha256-JJ95dTC9bNXn+Hi5NFi5xmaOVRt/9I1WcIYvTDYgKmg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PZQ/TOOwSVoQt5CK7JwpJDtpn3t65RCRbaueSVAI0iE=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ehtOJVhvZerljrUlVQZ5RqIxLKhKMD8DwTxrPw3fIzw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-uLiTrECKwN4EWIWKeUjiXs2ss9I7Xl1hOMY+2/nEd9c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1MKjITCoS3PL3GlJiE9X+u/jhTPJ+4iqY/YD93ogxxw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HHahZGihCYOXUxf6rnGrPG0EYRQbphHWi/XQHKu2SY4=' 'sha256-JJ95dTC9bNXn+Hi5NFi5xmaOVRt/9I1WcIYvTDYgKmg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ehtOJVhvZerljrUlVQZ5RqIxLKhKMD8DwTxrPw3fIzw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-uLiTrECKwN4EWIWKeUjiXs2ss9I7Xl1hOMY+2/nEd9c='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OxyDex — Nocturnal Oximetry Analyzer · v1.0.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -13244,8 +13244,21 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     if (comp && comp.sfi >= 2) uars++;
     uars = Math.min(3, uars);
 
-    var csLabels = ['Unlikely', 'Possible', 'Probable', 'Likely'];
-    var uarsLabels = ['Unlikely', 'Possible', 'Probable', 'Likely'];
+    /* THE LIKELIHOOD LADDER IS WITHDRAWN (OXYDEX-PB-OVERCALL-FOLLOWUPS §2).
+       Both of these read `['Unlikely', 'Possible', 'Probable', 'Likely']` and were indexed by a 0-3
+       INDICATOR COUNT. That is a likelihood word attached to a number that cannot carry one, and for
+       CS the parent brief measured exactly why: `detectOscillations` has NO periodicity test — no
+       cycle-length criterion, no crescendo-decrescendo — and counts crossings of an ABSOLUTE 95 %
+       level, so on a corpus whose overnight mean is 94.6-96.6 % it tracks mild hypoxemia burden
+       (r = 0.893 with time below 95 %) rather than the respiratory rhythm "Cheyne-Stokes" names.
+       Night-level agreement with the CPAP's own PB scoring was kappa = -0.039, worse than chance.
+
+       The score, its 0-3 ladder and every gate on it are UNCHANGED — this is a wording fix, not a
+       retune, and §5.2 found no defensible threshold on this corpus so retuning would be guessing.
+       What changes is that the surface now states the count it actually has. Same shape as the
+       context line at the one-line impression, which the parent already tempered. */
+    var csLabels = ['0/3 indicators', '1/3 indicators', '2/3 indicators', '3/3 indicators'];
+    var uarsLabels = ['0/3 indicators', '1/3 indicators', '2/3 indicators', '3/3 indicators'];
 
     return { csScore: cs, csLabel: csLabels[cs], uarsScore: uars, uarsLabel: uarsLabels[uars] };
   }
@@ -13963,10 +13976,17 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         return n.ahiEst ? 'AHI est. ' + n.ahiEst.ahiODI4 : 'AHI unavailable';
       },
       cs: function () {
-        return n.patScore ? 'CS pattern probable (' + n.patScore.csLabel + ')' : 'CS unavailable';
+        /* Read "CS pattern probable (Likely)" before the fix — a likelihood asserted twice, from a
+           score that cannot support it once. Now a bare VALUE, in the same shape as the sibling leads
+           ("HB rate 12 %-min/hr", "AHI est. 14"). Deliberately terser than the context qualifier: the
+           first regeneration against the real corpus emitted the caveat here too and the impression
+           read the identical sentence twice ("… CS pattern indicators 3/3 — screening signal, no
+           periodicity test; CS pattern indicators 3/3 — screening signal, no periodicity test."). The
+           lead carries the count; the context line carries the caveat, once. */
+        return n.patScore ? 'CS indicators ' + n.patScore.csScore + '/3' : 'CS unavailable';
       },
       uars: function () {
-        return n.patScore ? 'UARS pattern (' + n.patScore.uarsLabel + ')' : 'UARS unavailable';
+        return n.patScore ? 'UARS indicators ' + n.patScore.uarsScore + '/3' : 'UARS unavailable';
       },
       hypLoad: function () {
         return n.hypLoad ? 'hypoxic load ' + n.hypLoad.hypoxicLoad : 'hypLoad unavailable';

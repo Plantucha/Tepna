@@ -1537,8 +1537,21 @@
     if (comp && comp.sfi >= 2) uars++;
     uars = Math.min(3, uars);
 
-    var csLabels = ['Unlikely', 'Possible', 'Probable', 'Likely'];
-    var uarsLabels = ['Unlikely', 'Possible', 'Probable', 'Likely'];
+    /* THE LIKELIHOOD LADDER IS WITHDRAWN (OXYDEX-PB-OVERCALL-FOLLOWUPS §2).
+       Both of these read `['Unlikely', 'Possible', 'Probable', 'Likely']` and were indexed by a 0-3
+       INDICATOR COUNT. That is a likelihood word attached to a number that cannot carry one, and for
+       CS the parent brief measured exactly why: `detectOscillations` has NO periodicity test — no
+       cycle-length criterion, no crescendo-decrescendo — and counts crossings of an ABSOLUTE 95 %
+       level, so on a corpus whose overnight mean is 94.6-96.6 % it tracks mild hypoxemia burden
+       (r = 0.893 with time below 95 %) rather than the respiratory rhythm "Cheyne-Stokes" names.
+       Night-level agreement with the CPAP's own PB scoring was kappa = -0.039, worse than chance.
+
+       The score, its 0-3 ladder and every gate on it are UNCHANGED — this is a wording fix, not a
+       retune, and §5.2 found no defensible threshold on this corpus so retuning would be guessing.
+       What changes is that the surface now states the count it actually has. Same shape as the
+       context line at the one-line impression, which the parent already tempered. */
+    var csLabels = ['0/3 indicators', '1/3 indicators', '2/3 indicators', '3/3 indicators'];
+    var uarsLabels = ['0/3 indicators', '1/3 indicators', '2/3 indicators', '3/3 indicators'];
 
     return { csScore: cs, csLabel: csLabels[cs], uarsScore: uars, uarsLabel: uarsLabels[uars] };
   }
@@ -2256,10 +2269,17 @@
         return n.ahiEst ? 'AHI est. ' + n.ahiEst.ahiODI4 : 'AHI unavailable';
       },
       cs: function () {
-        return n.patScore ? 'CS pattern probable (' + n.patScore.csLabel + ')' : 'CS unavailable';
+        /* Read "CS pattern probable (Likely)" before the fix — a likelihood asserted twice, from a
+           score that cannot support it once. Now a bare VALUE, in the same shape as the sibling leads
+           ("HB rate 12 %-min/hr", "AHI est. 14"). Deliberately terser than the context qualifier: the
+           first regeneration against the real corpus emitted the caveat here too and the impression
+           read the identical sentence twice ("… CS pattern indicators 3/3 — screening signal, no
+           periodicity test; CS pattern indicators 3/3 — screening signal, no periodicity test."). The
+           lead carries the count; the context line carries the caveat, once. */
+        return n.patScore ? 'CS indicators ' + n.patScore.csScore + '/3' : 'CS unavailable';
       },
       uars: function () {
-        return n.patScore ? 'UARS pattern (' + n.patScore.uarsLabel + ')' : 'UARS unavailable';
+        return n.patScore ? 'UARS indicators ' + n.patScore.uarsScore + '/3' : 'UARS unavailable';
       },
       hypLoad: function () {
         return n.hypLoad ? 'hypoxic load ' + n.hypLoad.hypoxicLoad : 'hypLoad unavailable';
