@@ -188,3 +188,4 @@ __pycache__/
 .coverage
 .coverage.*
 htmlcov/
+.mutation-crawl/
