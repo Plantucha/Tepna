@@ -9199,6 +9199,130 @@
     });
   });
 
+    /* computeDerived — 62 derived HRV columns, and a full mutation sweep found 197 SURVIVORS inside
+       this one function: 57 % of every surviving mutant in the 490-mutant file. Nothing asserted what
+       it computes, so almost any arithmetic in it could be changed without a test noticing.
+
+       This is a CHARACTERISATION (golden) test and the distinction matters. It pins what the code
+       currently produces from one fixed row, so any change becomes visible. It does NOT validate the
+       formulas — with two exceptions checked by hand, noted below. Anything here that is WRONG is
+       pinned wrong and needs a separate correctness pass; what this buys is that a silent change can
+       no longer happen.
+
+       Compared with a relative tolerance rather than ===, because these are floating-point chains: an
+       exact match would red on a harmless last-bit difference while still catching every mutation
+       that moves a result meaningfully. */
+    group('HRVDex computeDerived — the 52 derived columns, pinned', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex._bare not loaded');
+        return;
+      }
+      /* Every seed field is populated on purpose: a null seed short-circuits whole branches, and a
+         branch that never runs cannot be pinned — which is how 197 mutants survived in the first place. */
+      var row = {
+        _hr: 62, _meanRR: 968, _sdnn: 54, _rmssd: 41, _mxdmn: 320, _pnn50: 18.5, _amo50: 31,
+        _mode: 950, _totalPow: 3200, _hf: 900, _lf: 1400, _vlf: 900, _stress: 3.2, _energy: 5.1,
+        _focus: 4.4, _sns: 1.2, _psns: 2.1, _coherence: 3.3, _hrv: 60, _cv: 5.6, _spanMin: 6
+      };
+      var rows = [row];
+      D.computeDerived(rows);
+      var got = rows[0];
+
+      /* Every value below was PRODUCED BY THIS CODE and is pinned as a characterisation, not
+         validated as correct. Two were checked against their published formulas by hand —
+         d_cv_calc = (SDNN/meanRR)·100 = (54/968)·100 = 5.5785, and d_hfnu = HF/(HF+LF)·100 =
+         900/2300·100 = 39.13 — and both agree. The other 50 are pinned so that ANY change to
+         them becomes visible; that is the whole point, and it is not a claim that they are right. */
+      var EXPECT = [
+        ['d_abs', 0.27272727272727276],
+        ['d_ans_load', 0.32792485055508114],
+        ['d_bap', 0.6833000000000005],
+        ['d_cai', 45.257670717872266],
+        ['d_coh_energy', 0.16829999999999998],
+        ['d_crs', 0.7822028805615997],
+        ['d_csi', 0.3305785123966942],
+        ['d_cv_calc', 5.578512396694215],
+        ['d_cvi', 4.598659214028129],
+        ['d_dfa_proxy', 0.7948255275160421],
+        ['d_efc', 0.043500000000000004],
+        ['d_focus_eff', 2],
+        ['d_hfnu', 39.130434782608695],
+        ['d_hile', 0],
+        ['d_incoherent_stress', 96.96969696969698],
+        ['d_lfhf', 1.5555555555555556],
+        ['d_lfhf_totpow', 0.71875],
+        ['d_lfnu', 60.86956521739131],
+        ['d_lnrmssd', 3.713572066704308],
+        ['d_mxdmn_meanrr', 0.3305785123966942],
+        ['d_nn50', 57.33471074380166],
+        ['d_ortho', 1.1481481481481481],
+        ['d_otr', 3.085665003236091],
+        ['d_plaw', 0.022090804557616937],
+        ['d_pns_eff', 4.104104104104104],
+        ['d_pti', 0.8610000000000001],
+        ['d_rmssd_circ', 37.96296296296296],
+        ['d_rmssd_sdnn', 0.7592592592592593],
+        ['d_rsa', 960.4876716071307],
+        ['d_sai', 0.21739130434782608],
+        ['d_sd1', 28.991378028648448],
+        ['d_sd1_sd2', 0.41034894496791585],
+        ['d_sd2', 70.65054847628573],
+        ['d_sdi', 1.5331161780673181],
+        ['d_se_div', 1.8999999999999995],
+        ['d_sfd', -1.2000000000000002],
+        ['d_si', 50.98684210526316],
+        ['d_spectral_ent', 0.9786978604116523],
+        ['d_svi', 0.44183275227903884],
+        ['d_vei', 0.6612903225806451],
+        ['d_vlf_hf', 1],
+        ['d_vlf_pct', 28.125],
+        ['d_vo2_base', 44.07387096774193],
+        ['d_vo2_hrv', 44.121724849077225],
+        ['d_welfare', 4.007142857142856],
+      ];
+      var EXPECT_EXACT = [
+        ['d_all_night', false],
+        ['d_otr_sat', false],
+        ['d_si_flagged', false],
+        ['d_si_ms', true],
+        ['d_vo2_cat', 'Superior'],
+        ['d_vo2_delta', NaN], // NaN, not null — the probe's JSON dump collapsed it
+        ['d_vo2_roll7', NaN], // ditto: JSON.stringify(NaN) === 'null', which is how it was mis-pinned
+      ];
+
+      /* Two spot-checks against PUBLISHED formulas, so the golden is not purely self-referential:
+           d_cv_calc = (SDNN / meanRR) · 100 = (54 / 968) · 100 = 5.5785…
+           d_hfnu    = HF / (HF + LF) · 100  = 900 / 2300 · 100  = 39.1304…
+         Both agree with what the code produced. The other 50 are pinned, not validated. */
+      T.approx('spot-check: d_cv_calc equals (SDNN/meanRR)·100', got.d_cv_calc, (54 / 968) * 100, 1e-9);
+      T.approx('spot-check: d_hfnu equals HF/(HF+LF)·100', got.d_hfnu, (900 / 2300) * 100, 1e-9);
+
+      var bad = [];
+      EXPECT.forEach(function (pr) {
+        var want = pr[1], g = got[pr[0]];
+        var ok = typeof g === 'number' && isFinite(g) && Math.abs(g - want) <= Math.max(1e-9, Math.abs(want) * 1e-9);
+        if (!ok) bad.push(pr[0] + ': got ' + g + ' want ' + want);
+      });
+      T.ok('all 45 numeric derived columns match their pinned values', bad.length === 0, bad.slice(0, 6).join(' · '));
+      var bad2 = [];
+      EXPECT_EXACT.forEach(function (pr) {
+        /* NaN !== NaN, and JSON.stringify renders BOTH NaN and null as "null" — which is exactly how
+           two NaN fields were first mis-pinned as null and then reported as "got null want null".
+           Compare NaN by predicate and describe it by name, so the message can never lie again. */
+        var g = got[pr[0]], w = pr[1];
+        var same = typeof w === 'number' && isNaN(w) ? typeof g === 'number' && isNaN(g) : g === w;
+        var show = function (v) { return typeof v === 'number' && isNaN(v) ? 'NaN' : JSON.stringify(v); };
+        if (!same) bad2.push(pr[0] + ': got ' + show(g) + ' want ' + show(w));
+      });
+      T.ok('…and the 7 non-numeric ones (flags, category, nulls) match exactly', bad2.length === 0, bad2.join(' · '));
+      /* Guard against passing VACUOUSLY. If computeDerived ever stopped populating the row, every
+         comparison above would run against `undefined`, and a future edit could make that look like
+         agreement. Assert the shape independently of the values. */
+      var produced = Object.keys(got).filter(function (k) { return k.indexOf('d_') === 0; });
+      T.eq('computeDerived still produces 52 derived columns', produced.length, 52);
+    });
+
   group('HRVDex storage failure survives the success line (DEEP-AUDIT-II §1.11)', 'hrvdex-dsp', function (T) {
     // the bare-helper surface (HRVDex._bare) is the deliberate test-access namespace, per hrvdex-dsp.js
     var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;

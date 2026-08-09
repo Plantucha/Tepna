@@ -7,5 +7,14 @@
     "killers": [
       "clock.js — wave 8: duplicate anchors, and an anchor that is not a number"
     ]
+  },
+  "hrvdex-dsp.js": {
+    "line": 101,
+    "op": "cmp < → <=",
+    "before": "for (var i = 0; i < arguments.length; i++) {",
+    "after": "for (var i = 0; i <= arguments.length; i++) {",
+    "killers": [
+      "HRVDex — an absent column yields NaN, never a fabricated number (§1.1–1.9)"
+    ]
   }
 }
