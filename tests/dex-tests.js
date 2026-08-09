@@ -527,12 +527,23 @@
       }
       var N = 2000;
       var txt = HDR + fingerRows(N);
-      var host = P.parsePPG(txt); // default — unchanged behaviour
+      var def = P.parsePPG(txt); // Stage 3b: an O2Ring finger recording now DEFAULTS to device-crystal
+      var host = P.parsePPG(txt, { timebase: 'host-disciplined' }); // the opt-OUT back to the host axis
       var crys = P.parsePPG(txt, { timebase: 'device-crystal' });
-      T.eq('default finger recording is labelled host-disciplined', host.timebase, 'host-disciplined');
-      T.eq('the opt-in path is labelled device-crystal', crys.timebase, 'device-crystal');
+      T.eq('a finger recording now DEFAULTS to device-crystal (the "default 125" flip)', def.timebase, 'device-crystal');
+      T.eq('host-disciplined is still reachable as an explicit opt-out', host.timebase, 'host-disciplined');
+      T.eq('the explicit crystal path is labelled device-crystal', crys.timebase, 'device-crystal');
       T.ok('device-crystal fs is the 125.000 ADC rate', Math.abs(crys.fs - 125) < 1e-9, 'got ' + crys.fs);
-      T.ok('the opt-in actually changes the axis (default is NOT the crystal path)', crys.relSec[N - 1] !== host.relSec[N - 1]);
+      T.ok('the default (crystal) and the host axis are genuinely different', crys.relSec[N - 1] !== host.relSec[N - 1]);
+      T.ok('the default IS the crystal axis (same as explicit crystal)', def.relSec[N - 1] === crys.relSec[N - 1]);
+      // THE EMBED (Stage 3a→3b): a `# timebase=…` header the capture host stamped is honoured, and an
+      // explicit opts.timebase still overrides it (precedence: opts > embed > default).
+      var embHost = P.parsePPG('# timebase=host-disciplined\n' + txt);
+      T.eq('an embedded host-disciplined stamp selects the host axis (a stratum-1 capture)', embHost.timebase, 'host-disciplined');
+      var embCrys = P.parsePPG('# timebase=device-crystal\n' + txt);
+      T.eq('an embedded device-crystal stamp selects the crystal', embCrys.timebase, 'device-crystal');
+      T.eq('an explicit opts.timebase OVERRIDES the embed', P.parsePPG('# timebase=host-disciplined\n' + txt, { timebase: 'device-crystal' }).timebase, 'device-crystal');
+      T.ok('the embedded-host axis matches the explicit-host axis (the comment is invisible to parsing)', embHost.relSec[N - 1] === host.relSec[N - 1] && embHost.n === host.n);
       // Two consecutive REAL samples (indices 0,1) are one crystal tick apart, EXACTLY.
       T.ok('consecutive real samples are spaced 1/125.000 s', Math.abs(crys.relSec[1] - crys.relSec[0] - 1 / 125) < 1e-12, 'got ' + (crys.relSec[1] - crys.relSec[0]));
       // THE marker-deflation identity: over a gapless record the crystal span is exactly
@@ -8499,6 +8510,33 @@
       T.ok('CONTROL · …while still carrying recording + ganglior_events', !!light.recording && Array.isArray(light.ganglior_events));
     });
 
+    group('PpgDex O2Ring finger export ≡ its committed golden — the device-crystal DEFAULT (Stage 3b)', 'ppgdex-dsp · equiv · device-crystal', function (T) {
+      /* The dynamic (GATE-C) leg for the crystal DEFAULT-flip: compute({text}) on the committed finger
+         twin — WITHOUT any timebase opt — must reproduce the golden, which was recorded on the crystal.
+         GATE B already content-addresses it statically; this reds if a code change MOVES the finger output.
+         Every other PpgDex golden is a Verity, so before this the shipped crystal default had no committed
+         leg (O2RING-ADAPTIVE-TIMEBASE Stage 3b). */
+      var eq = env.equiv && env.equiv.ppgdex_finger;
+      var P = env.PpgDex;
+      if (!(eq && eq.input && eq.fixture && P && typeof P.compute === 'function')) {
+        T.skip('committed finger golden pair present', 'synthetic_ppgdex_o2ring_finger.txt / _golden absent — both are COMMITTED, so this must run everywhere including CI');
+        return;
+      }
+      function strip(o) {
+        var c = JSON.parse(JSON.stringify(o));
+        delete c.kernel;
+        if (c.schema) { delete c.schema.generated; delete c.schema.provenance; }
+        delete c.provenance;
+        if (c.recording) delete c.recording.contentId;
+        return c;
+      }
+      var out = P.compute({ text: eq.input }, { rich: true }); // rich, but NO timebase opt ⇒ the DEFAULT path
+      T.eq('compute({rich:true}) on the finger twin reproduces the committed golden (volatile keys aside)', JSON.stringify(strip(out)), JSON.stringify(strip(eq.fixture)));
+      // ANTI-VACUITY: the golden must actually record the crystal default, not an empty export.
+      T.eq('the golden was recorded on the device-crystal DEFAULT', eq.fixture.quality && eq.fixture.quality.timebase, 'device-crystal');
+      T.eq('…and the recompute agrees it is a finger recording', out.recording && out.recording.site, 'finger');
+    });
+
     group('ECGDex stampless events — stamped control gets a real clock (Clock §2.6)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.analyze === 'function' && typeof D.genSynthetic === 'function')) {
@@ -9265,7 +9303,11 @@
     // ── layout ─────────────────────────────────────────────────────────────────────────────────
     T.eq('a ONE-optical-column file parses (Verity path needs 6 columns)', rec.ch.length, 1);
     T.eq('site is tagged from the LAYOUT, not guessed', rec.site, 'finger');
-    T.ok('fs recovered from the sensor stamps ≈ the ring’s calibrated 125.7 Hz', rec.fs > 124 && rec.fs < 127, 'fs=' + rec.fs);
+    // Stage 3b: a finger recording now DEFAULTS to the device-crystal timebase, so its fs is the 125.000
+    // ADC rate (not the ~125.7 host ROW rate the old default rode). The host axis is still reachable.
+    T.eq('a finger recording DEFAULTS to the device-crystal timebase', rec.timebase, 'device-crystal');
+    T.ok('…so its default fs is the 125.000 ADC rate', Math.abs(rec.fs - 125) < 1e-9, 'fs=' + rec.fs);
+    T.ok('the host-disciplined row rate (~125.7) is still reachable as an opt-out', D.parsePPG(eq.input, { timebase: 'host-disciplined' }).fs > 125.2, 'host fs=' + D.parsePPG(eq.input, { timebase: 'host-disciplined' }).fs);
     // BOTH directions: the wrist twin must NOT acquire a finger tag or a gap mask.
     if (env.equiv && env.equiv.ppgdex_synth && env.equiv.ppgdex_synth.input) {
       var wrist = D.parsePPG(env.equiv.ppgdex_synth.input);

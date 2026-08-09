@@ -247,10 +247,18 @@ class StreamWriter:
     }
 
     def __init__(self, path: str, stream: str, flush_interval: float = FLUSH_INTERVAL_S,
-                 fsync: bool = True):
+                 fsync: bool = True, timebase: str | None = None):
         self.path = path
         self.stream = stream
         self._fh = open(path, "w", buffering=1 << 20, newline="\n")
+        # O2RING-ADAPTIVE-TIMEBASE Stage 3b: stamp the per-capture RATE decision into the O2Ring FINGER
+        # file (`ppg1`) as a `# timebase=…` comment BEFORE the header — the same header-comment shape
+        # LinkLogWriter uses for `# adapter=`. It travels WITH the data, so PpgDex reads it (parsePPG
+        # pre-scan) without a sidecar; a `#` line fails every consumer's row filter, so it is inert to
+        # parsing. Only `ppg1` carries it — the decision is about the O2Ring's crystal-vs-host rate, which
+        # is meaningless for a Verity `ppg` or an ECG stream. Absent ⇒ PpgDex defaults to device-crystal.
+        if stream == "ppg1" and timebase:
+            self._fh.write(f"# timebase={timebase}\n")
         self._fh.write(self.HEADERS[stream] + "\n")
         # The HR writer owns a sibling _RR.txt (PSL layout — see the "hr"/"rr" header note). rsplit replaces
         # only the LAST "_HR." so a device name never triggers it. `rr` never opens its own StreamWriter —

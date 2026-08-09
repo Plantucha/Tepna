@@ -2366,7 +2366,12 @@ async def run_oxyii(dev: dict, root: str):
                 # layout, not the Verity's 3-LED one (PPGDEX-O2RING-FINGER-SITE §3/§7). Writing it
                 # as (v,v,v) is what let PpgDex's consensus vote score a fabricated 100 % LED
                 # agreement at `measured` tier against one sensor reported three times.
-                ppgwr = (StreamWriter(ppg_path, "ppg1")
+                # O2RING-ADAPTIVE-TIMEBASE Stage 3b: stamp the host-clock's per-capture RATE decision into
+                # the finger file so PpgDex analyses it on the right axis (device-crystal by default,
+                # host-disciplined when the host earned it). Read from the poller's latest verdict; absent
+                # (poller hasn't run yet, or no clock) ⇒ no comment ⇒ PpgDex defaults to the crystal floor.
+                _tb = STATUS.get("host_clock", {}).get("timebase")
+                ppgwr = (StreamWriter(ppg_path, "ppg1", timebase=_tb)
                          if "ppg" in (dev.get("streams") or ["spo2", "ppg"]) else None)
                 # RAW DUAL-WAVELENGTH (cmd 0x05). OPT-IN — absent from the default stream list, so a box
                 # that has not asked for it is untouched. It is a SECOND poll on the ring's single BLE

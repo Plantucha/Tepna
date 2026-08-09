@@ -181,6 +181,29 @@ def test_every_emitted_header_matches_a_real_polar_sensor_logger_export():
         "a new stream needs its header checked against a real export, or this gate stops covering it"
 
 
+def test_ppg1_stamps_the_timebase_decision_as_a_header_comment(tmp_path):
+    """O2RING-ADAPTIVE-TIMEBASE Stage 3b: the O2Ring finger file (`ppg1`) carries the per-capture RATE
+    decision as a `# timebase=…` comment BEFORE the header, so PpgDex reads it without a sidecar. The
+    comment is inert to parsing (a `#` line fails every row filter), and it rides ONLY `ppg1` — a Verity
+    `ppg` or an ECG stream never carries it."""
+    p = str(tmp_path / "Wellue_O2Ring-S_S8AW_20260808_PPG.txt")
+    w = writers.StreamWriter(p, "ppg1", fsync=False, timebase="host-disciplined")
+    w.close()
+    lines = open(p).read().splitlines()
+    assert lines[0] == "# timebase=host-disciplined", "the decision precedes the header"
+    assert lines[1] == "Phone timestamp;sensor timestamp [ns];channel 0", "the header is unchanged"
+
+    # No timebase ⇒ no comment (PpgDex then defaults to the crystal floor).
+    p2 = str(tmp_path / "bare_PPG.txt")
+    writers.StreamWriter(p2, "ppg1", fsync=False).close()
+    assert open(p2).read().splitlines()[0].startswith("Phone timestamp"), "no decision ⇒ no comment line"
+
+    # A non-finger stream never carries it, even if a timebase is passed — the decision is O2Ring-only.
+    p3 = str(tmp_path / "verity_PPG.txt")
+    writers.StreamWriter(p3, "ppg", fsync=False, timebase="device-crystal").close()
+    assert open(p3).read().splitlines()[0].startswith("Phone timestamp"), "a Verity ppg stream carries no timebase"
+
+
 def test_write_hr_splits_into_psl_hr_and_rr_files(tmp_path):
     """PSL layout (verified against the real corpus): _HR.txt = ONE HR row per notification (HR only,
     HRV/Breathing columns empty); RR intervals go to a sibling _RR.txt, one row per interval, no blank
