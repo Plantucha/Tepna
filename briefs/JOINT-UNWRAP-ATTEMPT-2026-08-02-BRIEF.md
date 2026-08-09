@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-02 · **Executes:** `CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md` §5 (joint unwrap) + §3.1 (precondition) · **Affects:** `integrator-dsp.js`, `tests/dex-tests.js`
+**Status:** DONE — 2026-08-08 · **Created:** 2026-08-02 · **Executes:** `CROSS-DEVICE-DRIFT-AND-CLOSURE-2026-08-01-BRIEF.md` §5 (joint unwrap) + §3.1 (precondition) · **Affects:** `integrator-dsp.js`, `tests/dex-tests.js`
 
 # The unwrap is not the blocker — per-block offset precision is, and `concentration` measures it.
 
