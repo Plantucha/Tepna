@@ -260,3 +260,50 @@ ignore them and attributing new breakage required a baseline diff every time. Ke
 **Repro:** serve the repo over HTTP, open `Dex-Test-Suite.html?full`, wait for `__rcState==='done'`
 (~53 s), then read `#summary` and `sameOriginStatus()`. A `file://` open will not do — the rigs need
 same-origin.
+
+---
+
+## 5 · The window sweep — the one change that could actually move MAE (added 2026-08-09)
+
+Routed from `MOTIONDEX-RESPIRATORY-RATE` §11.7, which solved the figure's banding and, in doing so,
+turned up a sharper question than the banding itself.
+
+**The observation.** `RR_WIN_SEC = 60` gives a Rayleigh resolution of `1/T` = **1.00 br/min**. The
+measured MAE over the 7-night corpus is **0.95**. The estimator is performing essentially *at* the
+spectral resolution of its own analysis window.
+
+**Why that is suggestive rather than established.** Peak *location* is not bounded by the Rayleigh
+limit — the Cramér–Rao bound at N = 300 is 0.022 br/min at 0 dB — so an MAE just under 1/T is not
+required by anything, and could be coincidence. But if it is not, the window is the binding constraint
+and every other avenue is wasted effort:
+
+| candidate lever | measured worth |
+|---|---|
+| refine `RR_F_STEP` (0.24 br/min lattice) | 0.075 br/min RMS = **0.10 % of the error variance** |
+| drop the 0.1 output rounding | included in the above |
+| **lengthen `RR_WIN_SEC`** | **unknown — this is the experiment** |
+
+**The experiment.** Sweep `RR_WIN_SEC` (e.g. 45 / 60 / 90 / 120 s) over the same 7 nights and plot MAE
+against `1/T`. Two outcomes, both informative:
+
+- **MAE tracks 1/T** ⇒ the estimator is window-limited, and resolution is bought by lengthening the
+  window (at the cost below). This would also mean the current 0.95 is not an algorithm quality at all.
+- **MAE flattens** ⇒ the error is dominated by physiology, motion or the reference, the window is
+  already right, and **no amount of spectral work will improve it** — which is worth knowing before
+  anyone tries.
+
+**⚠ DO NOT SIMPLY DOUBLE THE CONSTANT.** A longer window trades directly against non-stationarity:
+breathing rate genuinely changes within two minutes, so a 120 s window averages across real variation,
+and the CPAP reference is epoched at **30 s** — a window several times the reference epoch is measuring
+something the reference is not. Expect MAE to turn back up past some length; finding that turning point
+IS the result, and it is more useful than any single window choice.
+
+**Cheap to run, because the apparatus now exists.** `resp-acc-analysis.html` drives the shipped DSP over
+the corpus headlessly in ~54 s per pass (§11 of the parent), so the whole sweep is minutes of compute.
+The only code change is making `RR_WIN_SEC` injectable for the sweep rather than a module constant —
+and it must go back to a constant before anything ships, so the sweep does not leave a tunable in the
+DSP.
+
+**Done when:** MAE-vs-window is measured over the 7 nights and plotted, the turning point (if any) is
+stated, and the outcome is recorded either way — including "the window is already right", which is a
+result and not a non-result.
