@@ -433,5 +433,628 @@
       "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
       "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
     }
+  ],
+  "hrvdex-dsp.js": [
+    {
+      "line": 569,
+      "op": "bool && → ||",
+      "before": "var _baev = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.guardBaevsky ? DexUnits.guardBae",
+      "after": "var _baev = typeof DexUnits !== 'undefined' || DexUnits && DexUnits.guardBaevsky ? DexUnits.guardBae",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 569,
+      "op": "bool && → ||",
+      "before": "var _baev = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.guardBaevsky ? DexUnits.guardBae",
+      "after": "var _baev = typeof DexUnits !== 'undefined' && DexUnits || DexUnits.guardBaevsky ? DexUnits.guardBae",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 577,
+      "op": "bool && → ||",
+      "before": "r.d_si = r._amo50 && r._mode && r._mxdmn ? r._amo50 / (2 * r._mode * r._mxdmn) : NaN;",
+      "after": "r.d_si = r._amo50 || r._mode && r._mxdmn ? r._amo50 / (2 * r._mode * r._mxdmn) : NaN;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 577,
+      "op": "bool && → ||",
+      "before": "r.d_si = r._amo50 && r._mode && r._mxdmn ? r._amo50 / (2 * r._mode * r._mxdmn) : NaN;",
+      "after": "r.d_si = r._amo50 && r._mode || r._mxdmn ? r._amo50 / (2 * r._mode * r._mxdmn) : NaN;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 586,
+      "op": "bool && → ||",
+      "before": "var _mxdmnS0 = r._baevskyS && r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;",
+      "after": "var _mxdmnS0 = r._baevskyS || r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 592,
+      "op": "bool && → ||",
+      "before": "var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
+      "after": "var _meanRRs0 = typeof DexUnits !== 'undefined' || DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 592,
+      "op": "bool && → ||",
+      "before": "var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
+      "after": "var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits || DexUnits.asSecondsRR ? DexUnits.asSec",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 592,
+      "op": "num → 0",
+      "before": "var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
+      "after": "var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 603,
+      "op": "cmp > → >=",
+      "before": "const _hasNu = r._totalPow > 0 && r._vlf != null && r._totalPow > r._vlf;",
+      "after": "const _hasNu = r._totalPow >= 0 && r._vlf != null && r._totalPow > r._vlf;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 603,
+      "op": "cmp > → >=",
+      "before": "const _hasNu = r._totalPow > 0 && r._vlf != null && r._totalPow > r._vlf;",
+      "after": "const _hasNu = r._totalPow > 0 && r._vlf != null && r._totalPow >= r._vlf;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 604,
+      "op": "cmp > → >=",
+      "before": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;",
+      "after": "const _hasBands = r._hf >= 0 && r._lf > 0 && r._vlf > 0;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 604,
+      "op": "cmp > → >=",
+      "before": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;",
+      "after": "const _hasBands = r._hf > 0 && r._lf >= 0 && r._vlf > 0;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 604,
+      "op": "cmp > → >=",
+      "before": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;",
+      "after": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf >= 0;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 604,
+      "op": "bool && → ||",
+      "before": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;",
+      "after": "const _hasBands = r._hf > 0 || r._lf > 0 && r._vlf > 0;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 604,
+      "op": "bool && → ||",
+      "before": "const _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0;",
+      "after": "const _hasBands = r._hf > 0 && r._lf > 0 || r._vlf > 0;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 640,
+      "op": "bool && → ||",
+      "before": "const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSe",
+      "after": "const meanRR_s = typeof DexUnits !== 'undefined' || DexUnits && DexUnits.asSecondsRR ? DexUnits.asSe",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 640,
+      "op": "bool && → ||",
+      "before": "const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSe",
+      "after": "const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits || DexUnits.asSecondsRR ? DexUnits.asSe",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 640,
+      "op": "num → 0",
+      "before": "const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSe",
+      "after": "const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSe",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 650,
+      "op": "bool && → ||",
+      "before": "const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
+      "after": "const rmssd_s = typeof DexUnits !== 'undefined' || DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 650,
+      "op": "bool && → ||",
+      "before": "const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
+      "after": "const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits || DexUnits.asSecondsRR ? DexUnits.asSec",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 650,
+      "op": "num → 0",
+      "before": "const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
+      "after": "const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSec",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 655,
+      "op": "bool && → ||",
+      "before": "var _mxdmnS = r._baevskyS && r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;",
+      "after": "var _mxdmnS = r._baevskyS || r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 684,
+      "op": "cmp > → >=",
+      "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
+      "after": "if (r._vlf >= 0 && r._lf > 0 && r._hf > 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 684,
+      "op": "cmp > → >=",
+      "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
+      "after": "if (r._vlf > 0 && r._lf >= 0 && r._hf > 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 684,
+      "op": "cmp > → >=",
+      "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
+      "after": "if (r._vlf > 0 && r._lf > 0 && r._hf >= 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 684,
+      "op": "bool && → ||",
+      "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
+      "after": "if (r._vlf > 0 || r._lf > 0 && r._hf > 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 684,
+      "op": "bool && → ||",
+      "before": "if (r._vlf > 0 && r._lf > 0 && r._hf > 0) {",
+      "after": "if (r._vlf > 0 && r._lf > 0 || r._hf > 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 693,
+      "op": "cmp > → >=",
+      "before": "r.d_plaw = den_s > 0 ? num_s / den_s : NaN;",
+      "after": "r.d_plaw = den_s >= 0 ? num_s / den_s : NaN;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 706,
+      "op": "cmp >= → >",
+      "before": "r.d_pns_eff = _all(r._rmssd, r._sdnn, r._pnn50) && r._pnn50 >= 1 && r._sdnn > 0 ? r._rmssd / (r._sdn",
+      "after": "r.d_pns_eff = _all(r._rmssd, r._sdnn, r._pnn50) && r._pnn50 > 1 && r._sdnn > 0 ? r._rmssd / (r._sdnn",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 710,
+      "op": "cmp >= → >",
+      "before": "r.d_otr_sat = !isNaN(r.d_otr) && r.d_otr >= 499 ? true : false; // saturated flag",
+      "after": "r.d_otr_sat = !isNaN(r.d_otr) && r.d_otr > 499 ? true : false; // saturated flag",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 734,
+      "op": "cmp > → >=",
+      "before": "const _hrRestR = p_prof.hrrest_manual > 0 ? p_prof.hrrest_manual : r._hr;",
+      "after": "const _hrRestR = p_prof.hrrest_manual >= 0 ? p_prof.hrrest_manual : r._hr;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 735,
+      "op": "cmp > → >=",
+      "before": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > ",
+      "after": "const hrmax_tanaka = p_prof.hrmax_manual >= 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual >",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 735,
+      "op": "cmp > → >=",
+      "before": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > ",
+      "after": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual >=",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 735,
+      "op": "bool && → ||",
+      "before": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > ",
+      "after": "const hrmax_tanaka = p_prof.hrmax_manual > 0 || p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > ",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 735,
+      "op": "bool && → ||",
+      "before": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > ",
+      "after": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 || p_prof.hrmax_manual > ",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 735,
+      "op": "num → 0",
+      "before": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > ",
+      "after": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 0 && p_prof.hrmax_manual > _h",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 735,
+      "op": "num → 0",
+      "before": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > ",
+      "after": "const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > ",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 736,
+      "op": "cmp <= → <",
+      "before": "const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);",
+      "after": "const _altFR = p_prof.elev < 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 736,
+      "op": "num → 0",
+      "before": "const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);",
+      "after": "const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0, 1 - ((p_prof.elev - 1500) / 300) * 0.01);",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 750,
+      "op": "bool && → ||",
+      "before": "if (_dk && !_seenvo2.has(_dk)) {",
+      "after": "if (_dk || !_seenvo2.has(_dk)) {",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 756,
+      "op": "cmp > → >=",
+      "before": "const vo2_win = _vo2win7.map((x) => x.d_vo2_hrv).filter((v) => !isNaN(v) && v > 0);",
+      "after": "const vo2_win = _vo2win7.map((x) => x.d_vo2_hrv).filter((v) => !isNaN(v) && v >= 0);",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 756,
+      "op": "bool && → ||",
+      "before": "const vo2_win = _vo2win7.map((x) => x.d_vo2_hrv).filter((v) => !isNaN(v) && v > 0);",
+      "after": "const vo2_win = _vo2win7.map((x) => x.d_vo2_hrv).filter((v) => !isNaN(v) || v > 0);",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 775,
+      "op": "cmp > → >=",
+      "before": "r.d_hile = _hasSubj ? (r._stress > 60 && r._energy < 40 ? 1 : 0) : NaN;",
+      "after": "r.d_hile = _hasSubj ? (r._stress >= 60 && r._energy < 40 ? 1 : 0) : NaN;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 775,
+      "op": "cmp < → <=",
+      "before": "r.d_hile = _hasSubj ? (r._stress > 60 && r._energy < 40 ? 1 : 0) : NaN;",
+      "after": "r.d_hile = _hasSubj ? (r._stress > 60 && r._energy <= 40 ? 1 : 0) : NaN;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 805,
+      "op": "bool && → ||",
+      "before": "const dayGap = isFinite(r._tMs) && isFinite(prev._tMs) ? Math.round((r._tMs - prev._tMs) / 86400000)",
+      "after": "const dayGap = isFinite(r._tMs) || isFinite(prev._tMs) ? Math.round((r._tMs - prev._tMs) / 86400000)",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 836,
+      "op": "cmp > → >=",
+      "before": "const stdSDNN7 = sdnn7.length > 1 ? std(sdnn7) : NaN;",
+      "after": "const stdSDNN7 = sdnn7.length >= 1 ? std(sdnn7) : NaN;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 844,
+      "op": "cmp < → <=",
+      "before": "for (let j = i; j >= 0 && _win14ac.length < 14; j--) {",
+      "after": "for (let j = i; j >= 0 && _win14ac.length <= 14; j--) {",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 846,
+      "op": "bool && → ||",
+      "before": "if (_dk && !_seen14ac.has(_dk)) {",
+      "after": "if (_dk || !_seen14ac.has(_dk)) {",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 854,
+      "op": "cmp < → <=",
+      "before": "for (let j = 0; j < ac_raw.length - 1; j++) {",
+      "after": "for (let j = 0; j <= ac_raw.length - 1; j++) {",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 855,
+      "op": "bool && → ||",
+      "before": "if (!isNaN(ac_raw[j]) && !isNaN(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);",
+      "after": "if (!isNaN(ac_raw[j]) || !isNaN(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 892,
+      "op": "cmp < → <=",
+      "before": "r.d_recovery_debt = ari14.filter((v) => v < 0.9).length;",
+      "after": "r.d_recovery_debt = ari14.filter((v) => v <= 0.9).length;",
+      "class": "no-distinguishing-input",
+      "why": "In computeDerived. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeDerived · numeric/derivation: 163 inputs, 132 distinct baseline answers; 40/40 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 1099,
+      "op": "bool && → ||",
+      "before": "var kfmt = opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : typeof DexKernel",
+      "after": "var kfmt = opts.kernel ? { version: opts.kernel.VERSION, hash: opts.kernel.HASH } : typeof DexKernel",
+      "class": "no-distinguishing-input",
+      "why": "In hrvBuildNodeExport. Original and mutant produced byte-identical output on every input.",
+      "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 1134,
+      "op": "bool && → ||",
+      "before": "spanDays: t0 != null && last ? Math.round((last._tMs - t0) / 864e5) + 1 : null,",
+      "after": "spanDays: t0 != null || last ? Math.round((last._tMs - t0) / 864e5) + 1 : null,",
+      "class": "no-distinguishing-input",
+      "why": "In hrvBuildNodeExport. Original and mutant produced byte-identical output on every input.",
+      "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 1146,
+      "op": "bool && → ||",
+      "before": "spanSec: t0 != null && last && last._tMs != null ? Math.round((last._tMs - t0) / 1000) : null,",
+      "after": "spanSec: t0 != null || last && last._tMs != null ? Math.round((last._tMs - t0) / 1000) : null,",
+      "class": "no-distinguishing-input",
+      "why": "In hrvBuildNodeExport. Original and mutant produced byte-identical output on every input.",
+      "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 1148,
+      "op": "bool && → ||",
+      "before": "var d = r._spanMin != null && isFinite(r._spanMin) ? Math.round(r._spanMin * 60) : null;",
+      "after": "var d = r._spanMin != null || isFinite(r._spanMin) ? Math.round(r._spanMin * 60) : null;",
+      "class": "no-distinguishing-input",
+      "why": "In hrvBuildNodeExport. Original and mutant produced byte-identical output on every input.",
+      "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 1148,
+      "op": "num → 0",
+      "before": "var d = r._spanMin != null && isFinite(r._spanMin) ? Math.round(r._spanMin * 60) : null;",
+      "after": "var d = r._spanMin != null && isFinite(r._spanMin) ? Math.round(r._spanMin * 0) : null;",
+      "class": "no-distinguishing-input",
+      "why": "In hrvBuildNodeExport. Original and mutant produced byte-identical output on every input.",
+      "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 1157,
+      "op": "bool && → ||",
+      "before": "return r._spanMin != null && isFinite(r._spanMin);",
+      "after": "return r._spanMin != null || isFinite(r._spanMin);",
+      "class": "no-distinguishing-input",
+      "why": "In hrvBuildNodeExport. Original and mutant produced byte-identical output on every input.",
+      "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 1162,
+      "op": "num → 0",
+      "before": "return a + r._spanMin * 60;",
+      "after": "return a + r._spanMin * 0;",
+      "class": "no-distinguishing-input",
+      "why": "In hrvBuildNodeExport. Original and mutant produced byte-identical output on every input.",
+      "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 1168,
+      "op": "bool && → ||",
+      "before": "return r._spanMin != null && isFinite(r._spanMin);",
+      "after": "return r._spanMin != null || isFinite(r._spanMin);",
+      "class": "no-distinguishing-input",
+      "why": "In hrvBuildNodeExport. Original and mutant produced byte-identical output on every input.",
+      "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 1179,
+      "op": "cmp > → >=",
+      "before": "var sd2 = sd1 != null && r._sdnn > 0 ? Math.sqrt(Math.max(0, 2 * r._sdnn * r._sdnn - sd1 * sd1)) : n",
+      "after": "var sd2 = sd1 != null && r._sdnn >= 0 ? Math.sqrt(Math.max(0, 2 * r._sdnn * r._sdnn - sd1 * sd1)) : ",
+      "class": "no-distinguishing-input",
+      "why": "In hrvBuildNodeExport. Original and mutant produced byte-identical output on every input.",
+      "probe": "hrvBuildNodeExport · assembly/ordering: 36 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 1067,
+      "op": "num → 0",
+      "before": "conf: +Math.max(0.4, Math.min(0.9, (r._stress - 50) / 50)).toFixed(2),",
+      "after": "conf: +Math.max(0, Math.min(0.9, (r._stress - 50) / 50)).toFixed(2),",
+      "class": "no-distinguishing-input",
+      "why": "In hrvEventsFromRows. Original and mutant produced byte-identical output on every input.",
+      "probe": "hrvEventsFromRows · thresholding/emission: 28 inputs, 17 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 140,
+      "op": "cmp < → <=",
+      "before": "if (_sc.length < 5) continue;",
+      "after": "if (_sc.length <= 5) continue;",
+      "class": "no-distinguishing-input",
+      "why": "In _hrvParseSummaryRows. Original and mutant produced byte-identical output on every input.",
+      "probe": "_hrvParseSummaryRows · string/parsing: 31 inputs, 20 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 141,
+      "op": "bool && → ||",
+      "before": "const _sd = _dIdx >= 0 && _sc[_dIdx] ? _sc[_dIdx].trim().replace(/\\r/g, '') : '';",
+      "after": "const _sd = _dIdx >= 0 || _sc[_dIdx] ? _sc[_dIdx].trim().replace(/\\r/g, '') : '';",
+      "class": "no-distinguishing-input",
+      "why": "In _hrvParseSummaryRows. Original and mutant produced byte-identical output on every input.",
+      "probe": "_hrvParseSummaryRows · string/parsing: 31 inputs, 20 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 142,
+      "op": "cmp >= → >",
+      "before": "const _st = _tIdx >= 0 && _sc[_tIdx] ? _sc[_tIdx].trim().replace(/\\r/g, '') : '';",
+      "after": "const _st = _tIdx > 0 && _sc[_tIdx] ? _sc[_tIdx].trim().replace(/\\r/g, '') : '';",
+      "class": "no-distinguishing-input",
+      "why": "In _hrvParseSummaryRows. Original and mutant produced byte-identical output on every input.",
+      "probe": "_hrvParseSummaryRows · string/parsing: 31 inputs, 20 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 142,
+      "op": "bool && → ||",
+      "before": "const _st = _tIdx >= 0 && _sc[_tIdx] ? _sc[_tIdx].trim().replace(/\\r/g, '') : '';",
+      "after": "const _st = _tIdx >= 0 || _sc[_tIdx] ? _sc[_tIdx].trim().replace(/\\r/g, '') : '';",
+      "class": "no-distinguishing-input",
+      "why": "In _hrvParseSummaryRows. Original and mutant produced byte-identical output on every input.",
+      "probe": "_hrvParseSummaryRows · string/parsing: 31 inputs, 20 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 143,
+      "op": "bool && → ||",
+      "before": "_stamps.push(_st && !/\\d{1,2}:\\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim() : _sd || _st);",
+      "after": "_stamps.push(_st || !/\\d{1,2}:\\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim() : _sd || _st);",
+      "class": "no-distinguishing-input",
+      "why": "In _hrvParseSummaryRows. Original and mutant produced byte-identical output on every input.",
+      "probe": "_hrvParseSummaryRows · string/parsing: 31 inputs, 20 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 143,
+      "op": "bool || → &&",
+      "before": "_stamps.push(_st && !/\\d{1,2}:\\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim() : _sd || _st);",
+      "after": "_stamps.push(_st && !/\\d{1,2}:\\d{2}/.test(_sd) ? (_sd + ' ' + _st).trim() : _sd && _st);",
+      "class": "no-distinguishing-input",
+      "why": "In _hrvParseSummaryRows. Original and mutant produced byte-identical output on every input.",
+      "probe": "_hrvParseSummaryRows · string/parsing: 31 inputs, 20 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 145,
+      "op": "bool && → ||",
+      "before": "const _order = typeof DexClock !== 'undefined' && DexClock.resolveDMY ? DexClock.resolveDMY(_stamps,",
+      "after": "const _order = typeof DexClock !== 'undefined' || DexClock.resolveDMY ? DexClock.resolveDMY(_stamps,",
+      "class": "no-distinguishing-input",
+      "why": "In _hrvParseSummaryRows. Original and mutant produced byte-identical output on every input.",
+      "probe": "_hrvParseSummaryRows · string/parsing: 31 inputs, 20 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    },
+    {
+      "line": 1012,
+      "op": "cmp > → >=",
+      "before": "if (r._hf > 0 && r._lf > 0) {",
+      "after": "if (r._hf > 0 && r._lf >= 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In computeCAMQ. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeCAMQ · scoring/clamping: 26 inputs, 12 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
+    }
   ]
 }
