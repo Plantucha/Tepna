@@ -19,6 +19,53 @@ branches). **Worth a sweep:** grep the briefs for parked items justified by capa
 check the claim before re-affirming the park. `AUDIT-PROMPT.md`'s bug-classes could carry this one —
 *a limitation asserted in prose that no code enforces and no measurement supports.*
 
+> ### ✅ SWEPT 2026-08-08 — 2 of 6 checkable park claims are STALE, and neither park was re-checked
+>
+> Method: extract the *park reason* from each PROPOSED brief's status header — not any capability
+> phrase in the file, which over-matches (`BIOME-FORMATTER` hits on "not runnable" and is `DONE`) —
+> then verify each claim against the tree. **Reported, not fixed:** re-affirming or refuting a park is
+> cheap; executing what a refuted park was hiding is a separate work-unit each.
+>
+> | brief | the claim | verdict |
+> |---|---|---|
+> | `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS` | §1/§2 *"blocked on upstream OxyDex per-epoch-HR export"* | **STALE** |
+> | `INTEGRATOR-PAT-VASCULAR` | drift criterion *"unmeasurable with this instrument"* | **STALE** |
+> | `PPGDEX-PI-AND-PARSE-FOLLOWUPS` | §1 blocked on the gitignored `n0614a` companions | upheld |
+> | `EEGDEX-BUILD` | *"No EEG corpus exists to build against"* | upheld |
+> | `VIGIL-COEXISTENCE-AND-RANGE` | *"NO CODE WORK REMAINS"* | re-measured 2026-08-04, left alone |
+> | `R5-HR-TRIPLET-REFERENCE` | *"the hardware does not exist"* | owner-confirmed, not checkable here |
+>
+> **`INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS` — the blocker cleared the same day it was written.**
+> `OXYDEX-PER-EPOCH-HR-EXPORT-2026-07-04-BRIEF.md` is **DONE — 2026-07-04**, and `oxydex-dsp.js:6618`
+> ships the per-epoch cross-node series under a comment naming *this brief's §2* as its reason. The
+> header is also **self-contradictory**: it says "§1/§2 remain PROPOSED — blocked on upstream OxyDex
+> per-epoch-HR export" and, further along, "§1/§2 CODE LANDED — 2026-07-04". A reader working the
+> header top-to-bottom hits the block first.
+>
+> **`INTEGRATOR-PAT-VASCULAR` — the park was true when written and is false now.** Parked 2026-07-29
+> on two capability claims: the drift criterion is *"unmeasurable with this instrument"*, and
+> *"single-host and phone-stamped capture are indistinguishable"*. Both instruments now exist and
+> **postdate the park**:
+> - `tools/dual-clock-rate.mjs` (landed **2026-08-03**, five days later) regresses host stamps against
+>   device stamps inside each raw fragment — device rate in ppm, directly, no beat matching. It is what
+>   `WEARABLE-DRIFT-DIRECT` used to put inter-device drift at ~7 ppm.
+> - `clock.js:356` publishes `independent = spreadMs > CK_AXIS_INERT_MS` (2 ms) — *precisely* the
+>   single-host-vs-phone-stamped discriminator the park calls impossible, and `CLAUDE.md` §7 records the
+>   bimodal evidence behind it (box captures 101.89–5124 ms, phone captures 0.13–1.00 ms, nothing
+>   between).
+>
+> ⚠️ **The park still stands, on its other leg.** §2's kill criterion was NO-GO on **coupling**, and
+> that was measured twice (0 of 54 pairings clear the gate; re-measured offset-free, unchanged) —
+> `PAT-UNDER-PERBLOCK-ALIGNMENT` independently concluded the obstacle is pulse-transit-time variability,
+> not alignment. So this is a **stale justification inside a park that survives for a different reason**,
+> which is exactly the shape that makes these expensive: the wrong sentence is the one a future reader
+> would cite when deciding whether to re-open.
+>
+> **Two method notes, both paid for during the sweep.** A capability phrase anywhere in a header is not
+> a park reason (`BIOME-FORMATTER`). And a date matched inside a filename is not a date — `*0614*`
+> returns `…20260718180614_PPG.txt`, whose "0614" is the time field 18:06:14; the `n0614a` companions
+> are genuinely absent (the capture corpus starts 2026-07-16, zero June directories).
+
 ## 2. The other nodes' renderers may have the same reachability problem in reverse
 
 The lift put `SYNTH.renderECGInt16` beside `renderPPG` / `renderOxy` / `renderXYZ`. Worth checking
@@ -71,7 +118,9 @@ nights is large" is the only evidence behind it.
 
 ## Done when
 
-- [ ] §1 sweep run: parked briefs whose justification is a capability claim, claim re-checked.
+- [x] **§1 sweep run 2026-08-08** — 6 checkable park claims re-checked; **2 stale**
+      (`INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS`, `INTEGRATOR-PAT-VASCULAR`), 2 upheld, 1 left alone,
+      1 owner-confirmed. Reported, not fixed — see §1's result block.
 - [x] **§2 answered 2026-08-08** for MotionDex (**accidental** — capability present and proven to parse
       in the node's own DSP, app cannot reach it) and CPAPDex (**deliberate** — its own committed
       synthetic EDF path, because EDF is binary and the generator writes text). See §2's result block.
