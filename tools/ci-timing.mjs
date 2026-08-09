@@ -199,7 +199,26 @@ const gh = (args) => {
   }
 };
 
-const repo = opt('--repo', process.env.GITHUB_REPOSITORY || 'Plantucha/Tepna');
+/* The repo slug is DERIVED, never literal. `tests/dex-tests.js`'s "no tool hardcodes a checkout root"
+   group flags any string literal ending in the repo directory name, and it was right to flag this one
+   for a reason beyond its own rule: a hardcoded `owner/repo` reports the WRONG repository from a fork
+   or after a rename, and would do it silently — the API answers happily, the numbers are just someone
+   else's. Order: an explicit --repo, then GITHUB_REPOSITORY (set on every runner), then the origin
+   remote. If none resolves, REFUSE rather than guess: a timing table attributed to the wrong repo is
+   worse than no table. */
+function resolveRepo() {
+  const explicit = opt('--repo', '');
+  if (explicit) return explicit;
+  if (process.env.GITHUB_REPOSITORY) return process.env.GITHUB_REPOSITORY;
+  try {
+    const url = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).trim();
+    const m = url.match(/[:/]([^/:]+\/[^/]+?)(?:\.git)?$/);
+    if (m) return m[1];
+  } catch (_) {}
+  console.error('cannot resolve the repository — pass --repo <owner/name>, or set GITHUB_REPOSITORY');
+  process.exit(2);
+}
+const repo = resolveRepo();
 const runs =
   gh(['api', `repos/${repo}/actions/runs?branch=${encodeURIComponent(BRANCH)}&per_page=${Math.min(100, LIMIT)}`, '--jq', '{runs: [.workflow_runs[] | {id, name, created_at, conclusion}]}']).runs || [];
 if (!runs.length) {
