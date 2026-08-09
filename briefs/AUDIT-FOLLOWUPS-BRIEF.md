@@ -376,8 +376,15 @@ re-bundled exactly once.
   column + `BUILD-MANIFEST.json` (GATE A) + `FIXTURE-PROVENANCE.json` (GATE B) already give
   executed-code teeth at the verification layer, which is why this stays deferred.
 - **GENERATOR-FOLLOWUPS-II #3 / GENERATOR-FOLLOWUPS #2** — ECGDex raw-µV multi-night coherence.
-  Intentionally NOT done (decision comment on `ecgdex-app.js genSynthetic`); ECGDex stays
-  single-recording. Reopen only if raw-µV multi-night coherence becomes a real product need.
+  ✅ **BUILT 2026-08-08 (#1016); GENERATOR-FOLLOWUPS-II is DONE.** ⚠️ The entry that stood here was
+  wrong in all three of its parts and is corrected rather than deleted, because a reader following it
+  would have declined to do work that was already worth doing: (1) it cited a *"decision comment on
+  `ecgdex-app.js genSynthetic`"* that **never existed** (`git log -S` empty over all branches);
+  (2) ECGDex no longer "stays single-recording" — it rides the shared profile+days axis, 1–3 nights;
+  and (3) the reopen condition ("only if raw-µV multi-night coherence becomes a real product need")
+  rested on a false premise. It was never a product-value question: `renderECGInt16` was already
+  factored out, into `cohort-full.js` — a FULL-lane-**worker** file `ECGDex.src.html` cannot load. The
+  capability existed and the app could not reach it.
 
 ---
 
