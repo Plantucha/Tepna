@@ -48,13 +48,16 @@ module, and the full 3 000-assertion suite runs at PR time regardless.
 
 Triage of the 700 non-killed (`mutation_triage.classify`):
 
-| bucket | count |
-|---|---:|
-| REACHABLE | **560** |
-| UNOBSERVABLE | 128 |
-| PROSE | 12 |
+| bucket | as first measured | after the message-argument decision (§5.1) |
+|---|---:|---:|
+| REACHABLE | 560 | **399** |
+| PROSE | 12 | **172** |
+| UNOBSERVABLE | 128 | 128 |
+| EQUIVALENT? | 0 | 1 |
 
-**Ceiling 90.0 %.** Quote it beside any kill-rate for this function or the number is unattainable.
+**Ceiling 90.0 %,** unchanged — `ceiling()` subtracts only UNOBSERVABLE, deliberately, so setting work
+aside cannot flatter the number. Quote it beside any kill-rate for this function or the number is
+unattainable.
 
 ⚠️ **The 45 timeouts are not survivors and must not be reported as gaps.** A timeout under CPU
 contention is a mutant that would otherwise have been killed — `CAPTURE-HOST-MUTATION-FLEET` §6 records
@@ -148,30 +151,141 @@ Also pinned while there: RR arrives in the SIG's 1/1024 s units. Pushing the raw
 converting to ms is a silent **+2.4 %** on every interval — a plausible number in a plausible unit,
 which is the class of error nothing downstream can catch.
 
-## 5 · Open — the rest of the 560
+## 5 · The work-list, after one decision
 
-The BUS family is closed. Remaining REACHABLE survivors, by family, with the same measurement:
+### 5.1 · A message call's ARGUMENTS are prose (decided 2026-08-08, owner)
+
+`classify` used to return REACHABLE for a `log.*`/`print` call that lost an argument, on the reasoning
+that it is killable *without* pinning wording: assert `ts in out`, which survives a reword and dies on
+the drop. Sound in the small. At scale it was **161 of 560** — a quarter of a list whose entire job is
+to say what deserves a human's time. Collecting them means asserting that particular values appear in
+particular log lines across the daemon, which freezes operator-facing text and reds the build on every
+message edit. That is the cost `CAPTURE-HOST-MUTATION-FLEET` §5 already declines to pay for `flush=`
+and `XX`-wrapping; there is no principled reason to pay it here.
+
+Two things make the decision honest rather than a way of shrinking a number:
+
+* **The ceiling did not move.** `ceiling()` subtracts UNOBSERVABLE only. PROSE is reported in its own
+  column, so a reader sees exactly what was set aside and can disagree with it.
+* **A mutation that ESCAPES the message stays REACHABLE** — a lost `%` operand that raises, an
+  `and`→`or` on a guard that happens to mention `log`. Test-locked.
+
+Implementing it exposed that the old rule had also been silently *under*-counting, in the direction
+that costs work rather than hides it. `classify` sees one line, and most message arguments live on
+CONTINUATION lines of a multi-line call — `pmd.CTRL_STATUS.get(st, hex(st)))` carries no `log.` to
+match. `message_call_lines()` now parses the source and returns every line inside a log/print call,
+which the caller passes as `in_message_call=`. It also follows a **logger method bound to a local**:
+
+```python
+_lvl = (log.warning if not (pmd.is_started(st) or transient) else log.debug if … else log.info)
+_lvl("%s START %s (%s) → %s", name, pmd.MEAS_NAME.get(meas, meas), how, …)
+```
+
+Nineteen mutants sat on that pair of statements. The alias is inferred from the **code** (an assignment
+whose value is an attribute of a logger), never from the identifier, so a local that merely happens to
+be called `_lvl` is not swept in. The helper **fails closed** on unparseable source — an empty set, so
+every line is judged on its own merits; failing open would let one syntax error mark a module PROSE.
+
+### 5.2 · What is left
 
 | family | count | note |
 |---|---:|---|
-| `log.*` call arguments (incl. multi-line continuations) | ~150 | killable only by asserting wording; weigh against pinning phrasing |
-| `_set()` — the status-card fields | 66 | same shape as the BUS family, same fixture should reach it |
-| branch conditions | 46 | the multi-iteration surface `_stop_after(…, 1)` never enters |
-| `pmd.decode_frame` keyword args (`fs=`, `prev_last_ns=`, `scale=`) | ~12 | `prev_last_ns` is the seam anchor — dropping it silently reverts to nominal back-timing |
-| `device_time` / `clock_skew_sec` | ~15 | the only honest confirmation a clock sync took effect |
+| ~~`_set()` — the status-card fields~~ | **45** | **CLOSED** — 43 killed, 2 equivalent; see §5.3. NOT 66: the first grouping over-counted by 21 because `_STOP.is_set()` contains the substring `_set(` |
+| branch conditions | 63 | the multi-iteration surface `_stop_after(…, 1)` never enters |
 | backoff / sleep cadences | 23 | the four-way reconnect-sleep choice |
-| writer dispatch | 18 | |
-| counters (`stale_bond_hits`, `rebond_attempts`, `secs`) | ~10 | the two-strike stale-bond logic that cost 4.5 h of ECG on 2026-07-29 |
+| writer dispatch | 21 | |
+| PMD control-point I/O | 16 | |
+| BUS | 69 | **closed by this brief's pass** |
+| other | ~141 | incl. `decode_frame`'s `fs=`/`prev_last_ns=`/`scale=` (the seam anchor — dropping it silently reverts to nominal back-timing), `device_time`/`clock_skew_sec`, and the `stale_bond_hits`/`rebond_attempts` counters behind the two-strike logic that cost 4.5 h of ECG on 2026-07-29 |
 
-**`_set()` (66) is the obvious next unit** — identical defect shape to the one just closed, and the
-same spy fixture reaches it.
+**`_set()` was the next unit — §5.3.**
+
+### 5.3 · `_set()` — the status card (45 mutants)
+
+The same defect shape as the bus family, on the surface an operator and every alert actually read.
+`_set` writes `STATUS["devices"][name]`, which is what `status.json` carries, what `monitor.html`
+paints, and what `alerts.py` keys on. None of it reaches a capture file, so the file-based assertions
+were blind to all of it.
+
+**Asserted on the RECORDED CALLS, not only on the final dict.** The card is cumulative, so a later
+`_set` hides a field an earlier one dropped — `connected=False, address=addr, last_error=None` is
+overwritten by `connected=True` within milliseconds, and the point is that it ran. The recorder WRAPS
+`_set` rather than standing in for it, because a replacement breaks `link_epoch`'s counter and the
+charging inference downstream.
+
+| stage | killed | left |
+|---|---:|---:|
+| session-open reset · `link_epoch` · `pmd_options` merge · `pmd_supported` · `device_time`+`clock_skew_sec` · rejected vs UNACKNOWLEDGED | 24 | 21 |
+| + rising/falling battery · decode-error reason · optional backup · stall watchdog | 33 | 12 |
+| + the blanket device-NAME check, the charging ORDER, `charging is False` | 36 | 9 |
+| + the pause branch · the failed re-pair · the twice-refused discovery · the optional un-quiet | **43** | 2 |
+
+**Closed: 43 killed, 2 proven equivalent.** The last four fixtures each drive a path that exists only
+because something went wrong, and each pins a distinction that matters operationally rather than a
+value that happens to be there:
+
+* **paused vs adapter-recovering** — one branch, two reasons. A pull owning the link resolves in
+  seconds; the watchdog resetting the adapter means the radio is being power-cycled. `connected` must
+  read `False`, not `None`: None is this daemon's "unknown" everywhere else, and a card that cannot say
+  whether the link is up is a different claim from one saying it is down.
+* **a re-pair that itself fails** — there is no further move the daemon can make, so the card has to
+  hand the job to a human. The absence of this whole recovery cost 4.5 h of ECG on 2026-07-29 while the
+  task reconnected every ~70 s reporting success.
+* **TWO consecutive service-discovery refusals, not one** — a single refusal is also what an ordinary
+  mid-negotiation drop looks like, and re-pairing costs ~20 s of scripted `bluetoothctl`, so firing on
+  one would re-pair on every flap.
+* **an optional device that turns up stops being quiet** — leaving its address in `_OPT_QUIET` means a
+  LATER genuine absence is never reported.
+
+All four passed on their first run, which is the shape a fixture takes when it is not reaching the
+code. The negative control is what settled it: 7 of 7 previously-surviving mutants died.
+
+**Three fixtures were measuring nothing until the mutants said so**, and each failure is the same
+species — a test that reaches green without reaching the code:
+
+* the stall watchdog reads `_time.monotonic()`, which a patched `asyncio.sleep` does **not** advance.
+  The test passed `_STREAM_STALL_S` in and still never entered the branch.
+* `decode_frame` is **tolerant** of truncation — it returns `(None, [])` and the callback moves on. The
+  real parse error is a frame whose declared type and encoding disagree (ACC needs `base == 1`).
+* the battery refresh rides `secs % 120 == 0`; 40 ticks never reach it.
+
+**The mutants also found a gap in my own assertions.** Several `_set(None, …)` mutants survived every
+per-field test, because all of them read the KWARGS and ignored the device NAME.
+`STATUS["devices"][None]` is a real dict that accepts every field silently — the operator's card simply
+never changes, and on a multi-sensor box one strap's error lands on another's card. The fix is a
+blanket check that every status write names the configured device, plus its mirror image (a call that
+names the right card and carries no fields at all). Blanket rather than per-call deliberately: the
+failure is generic, so it should also cover paths a later fixture adds.
+
+**Two more proven equivalents.** Mutants 805/807 mutate the default of
+`STATUS["devices"].get(name, {})` on the `pmd_options` line. `_set` opens with
+`STATUS["devices"].setdefault(name, {})`, and the session-opening `_set(name, connected=False, …)` runs
+first, so the key always exists and the default is unreachable — the same shape as the three in §3.2.
+
+### 5.4 · A harness defect that made earlier numbers wrong
+
+The kill-checker applied a mutant by matching its source line as a **text anchor**, and refused when
+the anchor was not unique — correct, per `CAPTURE-HOST-MUTATION-FLEET` §6, since a non-unique anchor
+once mutated the wrong function and hid two real gaps. But **17 of the 45 `_set` mutants have
+non-unique lines**, so the first run reported `13/45` when it had only *measured* 28. A skipped mutant
+reads exactly like a surviving one in a summary.
+
+Worse, the triage table truncated `minus`/`plus` to 100 characters, so a long line could not be applied
+faithfully at all. That one surfaced only because the re-verification assertion fired.
+
+Both are fixed by dropping text anchors entirely: each mutant is now located by its **body offset** in
+the generated mutants module, mapped to an absolute `capture.py` line, and that line is **verified to
+equal the original** before anything is written. All 700 map with zero drift. Any earlier pass that
+printed `SKIP anchor` under-measured by however many it skipped.
 
 ## 6 · Done when
 
 * The 45 timeouts are re-run un-contended and reclassified; any that resolve to KILLED are removed from
   the survivor count rather than carried as gaps.
-* `_set()`'s 66 are attempted with the fixture from §3.
-* A decision is recorded on the ~150 `log.*` argument survivors: kill them (and accept that the suite
-  then reds on every message edit) or classify them PROSE and raise the stated ceiling accordingly.
-  **They must not simply sit in REACHABLE**, where they overstate the remaining work by a quarter.
-* `--list`-before-`--only` is added to `MUTATION-AUDIT-RUNBOOK` alongside the name-form rule in §2.
+* ~~`_set()`'s survivors are attempted with the fixture from §3.~~ **DONE 2026-08-09** — 45 (not 66;
+  see §5.2). **Closed: 43 killed, 2 proven equivalent.**
+* ~~A decision is recorded on the `log.*` argument survivors.~~ **DONE 2026-08-08** — reclassified
+  PROSE (§5.1). 161 moved; the ceiling was deliberately left where it was.
+* `--list`-before-`--only` is added to `MUTATION-AUDIT-RUNBOOK` alongside the name-form rule in §2,
+  **and the text-anchor kill-checker is retired repo-wide in favour of §5.4's verified line map** —
+  any earlier pass that printed `SKIP anchor` under-measured by however many it skipped.

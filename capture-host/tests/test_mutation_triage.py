@@ -8,6 +8,7 @@
 
 import pytest
 
+import mutation_triage
 from mutation_triage import (
     EQUIVALENT,
     PROSE,
@@ -54,17 +55,26 @@ def test_a_bare_literal_change_outside_a_message_is_still_prose():
     assert b == PROSE and "surrounding code unchanged" in w
 
 
-# ── REACHABLE: the work-list ────────────────────────────────────────────────────────────────────────
-def test_a_message_that_lost_its_interpolated_value_is_reachable():
-    """The distinction that makes 15 real kills possible on _pull_once. Both forms below leave the
-    message unable to NAME its value, and both are killed by asserting `ts in out` — which survives any
-    rewording. The two arrive at REACHABLE by different arms (the argument dropped entirely vs replaced
-    with None) and the `why` differs; the BUCKET is what a triage decision is made on."""
+# ── PROSE: set aside, and the reversal that put it here ─────────────────────────────────────────────
+def test_a_message_that_lost_its_interpolated_value_is_PROSE_not_the_work_list():
+    """REVERSED 2026-08-08 (owner). This asserted REACHABLE, on the reasoning that both forms leave the
+    message unable to NAME its value and both die to `assert ts in out`, which survives any rewording.
+
+    Sound in the small, wrong at scale. Measured on `run_polar`: ~150 of 560 REACHABLE survivors were
+    message arguments — a quarter of a list whose whole job is to say what deserves a human's time.
+    Collecting them means asserting that particular values appear in particular log lines across the
+    daemon, which freezes operator-facing wording and reds the build on every message edit. That is the
+    cost §5 of CAPTURE-HOST-MUTATION-FLEET already declines to pay for `flush=` and `XX`-wrapping.
+
+    The two arms still differ in `why` — argument dropped vs replaced with None — because the reason is
+    what a human reads; the BUCKET is what the triage decision is made on."""
     dropped = classify('print(f"── session {ts} ──", flush=True)', 'print(flush=True)')
     noned = classify('print(f"session {ts}", flush=True)', 'print(None, flush=True)')
-    assert dropped[0] == REACHABLE and noned[0] == REACHABLE
-    assert "names its value" in noned[1], "the None form is recognised as a lost argument"
+    assert dropped[0] == PROSE and noned[0] == PROSE
+    assert "lost an argument" in noned[1], "the None form is still recognised as a lost argument"
     assert "structurally" in dropped[1], "a wholly dropped argument lands on the general message arm"
+    for _b, why in (dropped, noned):
+        assert "wording" in why, "the reason must say WHY it was set aside, not merely that it was"
 
 
 def test_ordinary_code_changes_are_reachable():
@@ -72,9 +82,68 @@ def test_ordinary_code_changes_are_reachable():
     assert classify("return not (lo < have <= hi)", "return not (lo <= have <= hi)")[0] == REACHABLE
 
 
-def test_a_structurally_changed_message_is_reachable_even_without_a_none():
+def test_a_structurally_changed_message_is_PROSE_even_without_a_none():
     b, w = classify('log.warning("cpap: %s rc=%d", cmd, rc)', 'log.warning("cpap: %s rc=%d", cmd)')
-    assert b == REACHABLE and "structurally" in w
+    assert b == PROSE and "structurally" in w
+
+
+# ── the continuation-line problem: a line cannot answer this about itself ───────────────────────────
+def test_a_CONTINUATION_line_of_a_multiline_log_call_is_prose_when_the_caller_says_so():
+    """`log.warning("%s START %s → %s", name,` spans lines; `classify` is handed one of them. The
+    continuation carries no `log.` to match, so on its own it reads as an ordinary code change — which
+    is how most of run_polar's ~150 message survivors ended up on the work-list. The caller has the
+    source and passes the answer in."""
+    minus = "pmd.CTRL_STATUS.get(st, hex(st)))"
+    plus = "pmd.CTRL_STATUS.get(None, hex(st)))"
+    assert classify(minus, plus)[0] == REACHABLE, "on its own the line is indistinguishable from code"
+    assert classify(minus, plus, in_message_call=True)[0] == PROSE
+
+
+def test_in_message_call_defaults_off_so_existing_callers_are_unchanged():
+    """Trailing, optional, keyword-only — CLAUDE.md's back-compat rule. A caller with no source cannot
+    compute it, and must not silently get the more permissive answer."""
+    import inspect
+    sig = inspect.signature(classify)
+    p = sig.parameters["in_message_call"]
+    assert p.default is False and p.kind is inspect.Parameter.KEYWORD_ONLY
+    assert list(sig.parameters)[:2] == ["minus", "plus"], "the new parameter must come LAST"
+
+
+def test_message_call_lines_finds_the_whole_call_including_continuations():
+    src = (
+        "def f(name, st):\n"
+        "    x = compute(st)\n"
+        "    log.warning('%s START %s',\n"
+        "                name,\n"
+        "                st)\n"
+        "    return x\n")
+    got = mutation_triage.message_call_lines(src)
+    assert got == {3, 4, 5}, f"the call spans lines 3-5, got {sorted(got)}"
+    assert 2 not in got and 6 not in got, "ordinary statements must not be swept in"
+
+
+def test_message_call_lines_does_not_sweep_in_lookalikes():
+    """`d.get("info")` and `self.write(buf)` are not logging. Matching on the LEVEL name alone would
+    take both, and quietly mark real code unkillable — the direction that loses defects."""
+    src = ("def f(d, fh, buf):\n"
+           "    a = d.get('info')\n"
+           "    fh.write(buf)\n"
+           "    b = d.info\n"
+           "    return a, b\n")
+    assert mutation_triage.message_call_lines(src) == frozenset()
+
+
+def test_message_call_lines_fails_CLOSED_on_unparseable_source():
+    """Empty set, so every line is judged on its own merits. Failing OPEN would let one syntax error
+    mark a whole module PROSE — a triage that reports nothing to do because it could not read."""
+    assert mutation_triage.message_call_lines("def broken(:\n  pass\n") == frozenset()
+
+
+def test_a_message_call_that_escapes_the_message_is_still_reachable():
+    """The reclassification is about wording, not about anything a log line touches. A mutation on the
+    same line that changes CONTROL FLOW is not prose and must stay on the work-list."""
+    b, _w = classify("if rc and log.isEnabledFor(10):", "if rc or log.isEnabledFor(10):")
+    assert b == REACHABLE, "an `and`->`or` on a guard is a behaviour change, not a rewording"
 
 
 def test_identical_lines_are_flagged_not_silently_dropped():
@@ -154,3 +223,55 @@ def test_a_single_function_reports_full_concentration_which_is_the_known_defect(
     sprawling = concentration(["huge_fn"] * 502)
     assert dense["top_share"] == sprawling["top_share"] == 1.0, \
         "the metric cannot tell these apart — do not rank on top_share alone"
+
+
+def test_message_call_lines_follows_a_LOGGER_METHOD_BOUND_TO_A_LOCAL():
+    """capture.py chooses the level first and calls it second, so the call site reads `_lvl(...)` and
+    matches no logger name at all. Nineteen run_polar mutants sat on exactly that pair of statements."""
+    src = ("def f(st, name, how, transient):\n"
+           "    _lvl = (log.warning if not transient else log.info)\n"
+           "    _lvl('%s START %s (%s)',\n"
+           "         name, st, how)\n"
+           "    return 1\n")
+    got = mutation_triage.message_call_lines(src)
+    assert 3 in got and 4 in got, f"the aliased call and its continuation must be found, got {sorted(got)}"
+    assert 5 not in got, "the return statement is not part of the call"
+
+
+def test_an_alias_is_inferred_from_the_CODE_not_from_the_NAME():
+    """A local called `_lvl` that holds something else is ordinary code. Matching on the identifier
+    would mark real logic unkillable — the direction that loses defects."""
+    src = ("def f(d):\n"
+           "    _lvl = d.get('threshold')\n"
+           "    _lvl(1, 2)\n"
+           "    return _lvl\n")
+    assert mutation_triage.message_call_lines(src) == frozenset()
+
+
+def test_a_call_through_a_SUBSCRIPT_or_a_RETURNED_CALLABLE_is_handled_not_crashed():
+    """Not every callee is a dotted name. `handlers[0](...)`, `get_logger()(...)` and a lambda call all
+    have a `func` that is neither Attribute nor Name, so name extraction yields nothing.
+
+    Two things must hold, and they pull in opposite directions: the walk must not raise (this runs over
+    a 4,400-line module and one exotic call site would blind the whole file), and an unresolvable callee
+    must NOT be treated as a logger — a call we cannot identify is not one we may quietly mark PROSE."""
+    src = ("def f(handlers, get_logger, d):\n"
+           "    handlers[0]('a %s', d)\n"
+           "    get_logger()('b %s', d)\n"
+           "    (lambda m: m)('c')\n"
+           "    d['k']['j'](1)\n"
+           "    return 1\n")
+    assert mutation_triage.message_call_lines(src) == frozenset(), (
+        "a callee that cannot be resolved to a logger must not be swept in")
+
+
+def test_an_alias_call_through_an_unresolvable_callee_still_does_not_crash():
+    """The alias pass and the call pass walk the same tree; an exotic callee must survive both."""
+    src = ("def f(reg):\n"
+           "    _lvl = log.warning\n"
+           "    reg['fn']('x')\n"
+           "    _lvl('y %s', 1)\n"
+           "    return 0\n")
+    got = mutation_triage.message_call_lines(src)
+    assert 4 in got, "the aliased logger call is still found"
+    assert 3 not in got, "the unresolvable one is not"
