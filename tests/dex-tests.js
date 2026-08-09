@@ -32768,6 +32768,66 @@
      measured, never assumed — on a fixture whose real rate (200 Hz, the corpus p95) is 7.7× from 26, so
      the two answers cannot be confused for rounding. Mutation: make `durationOf` return
      `rows.length / 26` unconditionally and it reds by value. ════ */
+    /* ════ THE ASSUMED-RATE FABRICATION IS GONE — NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS §1 ══════
+     The sibling group below pins the TIMED path: a stream that carries time is measured, never
+     assumed. This one pins the other half — what happens when it does NOT.
+
+     `durationOf` used to end `: rows.length / 26`. Over the whole real corpus that branch fires 0
+     times (616 files · 121,429,712 rows · 690 h), but the delivered ACC rate there runs 20.9–202.7 Hz,
+     so where it fired it misstated the recording by 0.8×–7.8× — 462 s for a 60 s record, beside a
+     `startEpochMs` of null. Unreachable-today and wrong-if-reached are different properties, and the
+     census that established the first is exactly why the second was worth removing rather than
+     documenting.
+
+     Two behaviours are gated. A trailing stampless row must no longer discard the stream's duration
+     (scan backward, like `parsePPG` does for `endEpochMs`); and a stream with NO resolvable time must
+     publish `null`, not a number and not a zero — a zero-length recording is a CLAIM, and
+     NODE-EXPORT-RECORDING-DURATION shows a node making it collapses to a point in the fold. */
+    group('MotionDex refuses to invent a duration from an assumed rate — FOLLOWUPS §1', 'motiondex-dsp · export · absence', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.compute === 'function' && typeof MD.buildNodeExport === 'function')) {
+        T.skip('MOTIONDSP.compute + buildNodeExport available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var HZ = 200,
+        N = 4000,
+        T0 = U(2026, 5, 21, 6, 0, 0);
+      var mk = function (timed, blankTail) {
+        var a = [];
+        for (var i = 0; i < N; i++) {
+          var ms = (i / HZ) * 1000;
+          var dead = !timed || (blankTail && i >= N - blankTail);
+          a.push({ relNs: dead ? NaN : Math.round(ms * 1e6), tMs: dead ? null : T0 + Math.round(ms), x: 15 * Math.sin(i / 30), y: 25, z: 985 });
+        }
+        a._unit = 'mg';
+        a._kind = 'acc';
+        return a;
+      };
+      var TRUE_SEC = Math.round((N - 1) / HZ); // 20 s
+      var FABRICATED = Math.round(N / 26); // 154 s — what the old fallback published
+
+      T.ok('ANTI-VACUITY · the measured and fabricated answers are ~7.7× apart', Math.abs(FABRICATED / TRUE_SEC - 7.7) < 0.3, 'true=' + TRUE_SEC + 's fabricated=' + FABRICATED + 's');
+
+      /* (1) A STAMPLESS TAIL NO LONGER DISCARDS THE STREAM. Before the backward scan, one untimed
+         trailing row sent the whole stream down the fallback — the duration of 4000 measured samples
+         decided by the last one. */
+      var tail = MD.compute({ acc: mk(true, 3) });
+      T.ok('a stampless TAIL still yields the measured duration — the scan walks back to the last timed row', tail && Math.abs(tail.durSec - TRUE_SEC) <= 1, 'durSec=' + (tail && tail.durSec) + 's · measured=' + TRUE_SEC + 's');
+      T.ok('…and it is NOT the assumed-26 Hz value', tail && Math.abs(tail.durSec - FABRICATED) > 50, 'durSec=' + (tail && tail.durSec) + 's · fabricated-would-be=' + FABRICATED + 's');
+
+      /* (2) NO TIME AT ALL ⇒ null, not a number and not a zero. */
+      var blind = MD.compute({ acc: mk(false, 0) });
+      T.eq('a stream with no resolvable time publishes durSec null — never the 26 Hz number', blind && blind.durSec, null);
+      T.ok('…and specifically not 0, which would claim a zero-length recording', blind && blind.durSec !== 0, 'durSec=' + JSON.stringify(blind && blind.durSec));
+      var ex = MD.buildNodeExport(blind);
+      T.eq('the node-export carries the null through, so the Integrator sees absence not a length', ex && ex.recording && ex.recording.durSec, null);
+      T.eq('…beside the honest null start it already published', ex && ex.recording && ex.recording.startEpochMs, null);
+
+      /* CONTROL — the fully timed stream is unaffected by either change. */
+      var ok = MD.compute({ acc: mk(true, 0) });
+      T.ok('CONTROL · a fully timed stream still measures exactly as before', ok && Math.abs(ok.durSec - TRUE_SEC) <= 1, 'durSec=' + (ok && ok.durSec));
+    });
+
     group('MotionDex durSec is the MEASURED last-sample time, never the assumed-26 Hz fabrication — §7.3', 'motiondex-dsp · export · duration-semantics', function (T) {
       var MD = env.MOTIONDSP;
       if (!(MD && typeof MD.compute === 'function')) {

@@ -99,9 +99,52 @@ corrections each cost one probe. **Before carrying a per-node claim forward a th
 
 ## 5 · Done when
 
-- [ ] §1 — the assumed-26 Hz divide is removed, its three consumers are shown safe on a no-timing stream,
-      and the re-bundle + `verify-fixtures` cycle is run.
+- [x] **§1 — DONE 2026-08-06.** The assumed-26 Hz divide is gone; see §1-RESULT.
 - [ ] §2 — parked (default), or folded into a future PpgDex `fs`-estimator pass.
 - [ ] §3 — either the four ungated nodes gain an envelope-tracking assertion, or this is consciously
       dropped and this brief says so.
 - [ ] §4 — nothing to execute; it is a note. Delete it if it ever stops being true.
+
+
+---
+
+## §1-RESULT · EXECUTED 2026-08-06 — and the blast radius was smaller than this brief feared
+
+**What landed.** Two changes to `motiondex-dsp.js durationOf`:
+
+1. **Scan BACKWARD** for the last row that resolves a time, instead of reading only the final row. A
+   single stampless trailing row used to send the whole stream down the fallback — the duration of
+   4,000 measured samples decided by the last one. This is the same "read the last row that parses"
+   rule `parsePPG` already uses for `endEpochMs`.
+2. **No resolvable time ⇒ `null`**, never `rows.length / 26`.
+
+**The consumer risk this brief flagged turned out to be already handled, and that is worth recording
+rather than quietly benefiting from.** §1 said returning `0`/`null` "changes three windowing
+denominators" and was the part with blast radius. Reading them: all four sites already floor the value
+— `Math.max(1, Math.ceil(durSec / epoch))` in `bodyPosition` (:370), `actigraphy` (:431) and
+`respiratoryEffort` (:1026), and `Math.max(1, durSec)` in the rate fallback (:419) — and `durationOf`
+*already* returned `0` for the <2-row case, so `0` was an established in-band value, not a new branch.
+The windowing is therefore handed `0`; only the PUBLISHED duration becomes `null`.
+
+**That split is deliberate.** A published `durSec: 0` is a *claim* — `NODE-EXPORT-RECORDING-DURATION`
+shows a node declaring a zero length collapses to a point in the fold and drops out of it. Absence and
+zero are different, and only one of them is true here.
+
+**One trap found while doing it:** `Math.max(a, b, c)` coerces `null` to `0`, so an unmeasurable stream
+would have read as a real zero-length one — winning nothing while hiding the absence. Replaced with
+`maxDuration`, which ignores nulls and returns null only when every stream is unmeasurable.
+
+**Gated** — `motiondex-dsp · export · absence`, 8 assertions, covering both halves: a stampless TAIL
+still yields the measured duration, and a stream with no time at all publishes `null` (explicitly *not*
+`0`) through to `recording.durSec`, beside the honest null `startEpochMs` it already published. A
+CONTROL pins that a fully timed stream is unaffected. **Mutation-verified against the exact pre-fix
+fallback:** 4 assertions red, reporting **154 s for a 20 s record** — the 7.7× the corpus census
+predicted, reproduced at the seam.
+
+**Re-bundle:** `manifestHash e9909afa69db → 87fc4db5a6cf`, 1 fixture re-stamped. That fixture's input is
+a **committed synthetic twin**, so CI re-runs it from committed bytes on every push and no
+`verify-fixtures` stamp is owed (CLAUDE.md §🔒 exemption); the equiv leg in `npm run check` is what
+confirms the export did not move.
+
+**The guardrail held:** 26 was not replaced with a better constant. A measured median of ~51 Hz would be
+just as wrong for the 202.7 Hz files and the 20.9 Hz ones.
