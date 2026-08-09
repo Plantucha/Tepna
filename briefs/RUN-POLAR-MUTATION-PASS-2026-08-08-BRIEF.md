@@ -50,8 +50,8 @@ Triage of the 700 non-killed (`mutation_triage.classify`):
 
 | bucket | as first measured | after the message-argument decision (§5.1) |
 |---|---:|---:|
-| REACHABLE | 560 | **399** |
-| PROSE | 12 | **172** |
+| REACHABLE | 560 | **459** |
+| PROSE | 12 | **113** |
 | UNOBSERVABLE | 128 | 128 |
 | EQUIVALENT? | 0 | 1 |
 
@@ -157,13 +157,21 @@ which is the class of error nothing downstream can catch.
 
 `classify` used to return REACHABLE for a `log.*`/`print` call that lost an argument, on the reasoning
 that it is killable *without* pinning wording: assert `ts in out`, which survives a reword and dies on
-the drop. Sound in the small. At scale it was **161 of 560** — a quarter of a list whose entire job is
+the drop. Sound in the small. At scale it was **101 of 560** — a fifth of a list whose entire job is
 to say what deserves a human's time. Collecting them means asserting that particular values appear in
 particular log lines across the daemon, which freezes operator-facing text and reds the build on every
 message edit. That is the cost `CAPTURE-HOST-MUTATION-FLEET` §5 already declines to pay for `flush=`
 and `XX`-wrapping; there is no principled reason to pay it here.
 
 Two things make the decision honest rather than a way of shrinking a number:
+
+> **Numbers corrected 2026-08-09.** An earlier draft of this section said 161 moved, 560 → 399, PROSE
+> 172. Those came from a triage table whose `minus`/`plus` were **truncated at 100 characters** (§5.4),
+> and truncation changes what `_LOST_ARG` and `_strip_strings` see — a clipped line loses its closing
+> paren. Recomputed on the full-fidelity line map (zero drift), under both the old and the new rule:
+> **101 moved, 560 → 459 REACHABLE, 12 → 113 PROSE.** The `before` of 560 is identical either way,
+> which is what made the error survive a sanity check. The argument is unchanged — a fifth of the
+> work-list rather than a quarter — but the figure was wrong and is not a rounding difference.
 
 * **The ceiling did not move.** `ceiling()` subtracts UNOBSERVABLE only. PROSE is reported in its own
   column, so a reader sees exactly what was set aside and can disagree with it.
@@ -285,7 +293,7 @@ printed `SKIP anchor` under-measured by however many it skipped.
 * ~~`_set()`'s survivors are attempted with the fixture from §3.~~ **DONE 2026-08-09** — 45 (not 66;
   see §5.2). **Closed: 43 killed, 2 proven equivalent.**
 * ~~A decision is recorded on the `log.*` argument survivors.~~ **DONE 2026-08-08** — reclassified
-  PROSE (§5.1). 161 moved; the ceiling was deliberately left where it was.
+  PROSE (§5.1). 101 moved; the ceiling was deliberately left where it was.
 * `--list`-before-`--only` is added to `MUTATION-AUDIT-RUNBOOK` alongside the name-form rule in §2,
   **and the text-anchor kill-checker is retired repo-wide in favour of §5.4's verified line map** —
   any earlier pass that printed `SKIP anchor` under-measured by however many it skipped.
