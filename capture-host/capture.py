@@ -1370,8 +1370,23 @@ async def auto_sync_clock(name, addr) -> bool:
             # BUSY: a transient BlueZ state is a signal from a different layer, not a failure.
             # Surrendering here left the device stamping samples from an unsynced clock all night.
             if transient_ble_error(e):
-                log.info("%s clock auto-sync busy (%s) — retry %d/12",
-                         name, type(e).__name__, attempt + 1)
+                # LOG THE MESSAGE, NOT JUST THE CLASS — this line is where a whole class of failure hid.
+                # `BleakError` is the catch-all bleak raises for a dozen unrelated conditions
+                # (`device '<path>' not found`, `failed to connect: <cause>`, `br-connection-canceled`,
+                # adapter-missing …) which need completely different responses, and `busy (BleakError)`
+                # names none of them.
+                #
+                # Measured 2026-08-09: the box logged `busy (BleakError) — retry 1/12` for an hour while
+                # `device_absent_error` scored ZERO hits, and the journal could not say WHICH BleakError
+                # it was. The absence fix (#1062) was aimed at bleak's `device '<path>' not found` string
+                # on the strength of that gap and does not fire. So this is not a nicety — it is the
+                # reason the previous change could not be aimed, and the precondition for aiming it.
+                #
+                # repr(), not str(): the class name is the part worth keeping and str() on a bare
+                # BleakError can be empty. Truncated — a D-Bus error can carry a long payload and this
+                # line runs up to 12 times per ladder.
+                log.info("%s clock auto-sync busy (%s) — retry %d/12: %s",
+                         name, type(e).__name__, attempt + 1, repr(e)[:160])
                 await asyncio.sleep(min(5 * (attempt + 1), 30))
                 continue
             log.warning("%s clock auto-sync failed: %r", name, e)
