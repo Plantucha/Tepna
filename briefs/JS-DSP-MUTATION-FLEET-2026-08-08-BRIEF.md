@@ -1,6 +1,13 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-08 · **Follows:** `MUTATION-EQUIVALENCE-2026-08-04-BRIEF.md` · **Sibling of:** `CAPTURE-HOST-MUTATION-FLEET-2026-08-04-BRIEF.md` · **Affects:** every `*-dsp.js`
+**Status:** DONE — 2026-08-09 (the map was delivered — §1's nine rows are the deliverable and they stand as a **hypothesis**, per §4's two caveats. Every remaining box carries to the successor: §7's unfiltered-penalty measurement → §7.6, the canary-guarded second pass → §7.3, the hrvdex sweep → §7.2, the fleet-target owner call → §7.5.) · **Folded-into:** `MUTATION-PROGRAM-2026-08-09-BRIEF.md` · **Created:** 2026-08-08 · **Follows:** `MUTATION-EQUIVALENCE-2026-08-04-BRIEF.md` · **Sibling of:** `CAPTURE-HOST-MUTATION-FLEET-2026-08-04-BRIEF.md` · **Affects:** every `*-dsp.js`
+
+> ⚠️ **Read `MUTATION-PROGRAM-2026-08-09-BRIEF.md` for the live programme.** One conclusion here is
+> **corrected** there: §2 reads the ranking as a property of files ("the fleet's coverage is mostly
+> explained by how much test surface each node was given"). Measured since, a file's rate is a
+> weighted average over functions of different CHARACTER — validation/dispatch code converts at 77 %,
+> numeric and parsing code at ~27 % — so the file is the wrong unit to rank, and §6's proposed order
+> of work follows the wrong axis. Successor §5.
 
 # The JS fleet has never been measured — first coverage map, and it is not 84 %
 

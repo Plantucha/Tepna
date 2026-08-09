@@ -1,5 +1,13 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-04 · **Follows:** `TEST-COVERAGE-FOLLOWUPS-II-2026-07-17-BRIEF.md` · **Affects:** `tools/mutate.mjs`, `tools/mutate-triage.mjs`, `tests/dex-tests.js`, the 90 % target
+**Status:** DONE — 2026-08-09 (the denominator question is ANSWERED and owner-ratified — §5, §8, §9. Its one open box, the parse-family probe, was closed by `CLOCK-PARSE-EQUIVALENCE-2026-08-09-BRIEF.md`: **8 survivors, not the 14 §6 claims, and 0 killable.**) · **Folded-into:** `MUTATION-PROGRAM-2026-08-09-BRIEF.md` · **Created:** 2026-08-04 · **Follows:** `TEST-COVERAGE-FOLLOWUPS-II-2026-07-17-BRIEF.md` · **Affects:** `tools/mutate.mjs`, `tools/mutate-triage.mjs`, `tests/dex-tests.js`, the 90 % target
+
+> ⚠️ **Read `MUTATION-PROGRAM-2026-08-09-BRIEF.md` for the live programme.** This brief remains the
+> authoritative *record* of how the denominator was measured and ratified, and of the JS (§8) and
+> Python (§9) classification mechanisms. What it does **not** record is that the mechanism was fed
+> once and never again: `tools/mutate-equivalence.json` still carries only this brief's three
+> `real-gap` entries, while ~83 measured classifications sit in prose — see the successor's §2.
+> `Folded-into:` is deliberately not `Superseded-by:`; that field is strictly 1:1 and this is a 4→1
+> fold (successor §0).
 
 # 80 % of `clock.js`'s surviving mutants cannot be killed — the target is wrong, not the suite
 

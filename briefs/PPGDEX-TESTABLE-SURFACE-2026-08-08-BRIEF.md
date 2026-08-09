@@ -1,6 +1,19 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-08 · **Follows:** `JS-DSP-MUTATION-FLEET-2026-08-08-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `tests/dex-tests.js`
+**Status:** DONE — 2026-08-09 (the diagnosis stands, the `_bare` export plan stays **withdrawn** per §4a, and #1052 executed the cheap half — `lombScargle` exhausted 6/6, `parsePPG` +5, `loadOwnExport` +18. ⚠️ **§4a's headline ceiling is WITHDRAWN** — see the note below. Its two open boxes carry to the successor's §7.1 and §7.2.) · **Folded-into:** `MUTATION-PROGRAM-2026-08-09-BRIEF.md` · **Created:** 2026-08-08 · **Follows:** `JS-DSP-MUTATION-FLEET-2026-08-08-BRIEF.md` · **Affects:** `ppgdex-dsp.js`, `tests/dex-tests.js`
+
+> ⚠️ **§4a's "~27 % across the file ⇒ ceiling ≈ 52 %" is WITHDRAWN, by this brief's own follow-up
+> work.** §4a generalised from two functions that agreed (`lombScargle` 29 %, `parsePPG` 26 %) and
+> concluded the ratio is *"a property of the code, not of the kind of function"*. #1052 then probed a
+> third — `loadOwnExport`, validation and dispatch — at **77 % distinguishable, 82 % converted.** The
+> equivalent share is a property of what a function DOES: branching code is observable, numeric and
+> parsing code absorbs. So ppgdex's ceiling is unknown, not 52 %, and the file was never the right
+> unit. Successor `MUTATION-PROGRAM-2026-08-09-BRIEF.md` §5 — which is also where the live programme
+> lives.
+>
+> Recorded here rather than edited into §4a, following that section's own precedent (§3a): this brief
+> now contains three successive over-generalisations from agreeing data points, each plausible, each
+> refuted by measuring one more case. That pattern is the most useful thing in it.
 
 # PpgDex has 49 test groups and 34 % coverage — because there is nothing to test but `compute()`
 
