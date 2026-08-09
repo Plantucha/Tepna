@@ -16,7 +16,7 @@
    browser modules are loaded into a `vm` sandbox with minimal window/
    document/localStorage shims.
    ════════════════════════════════════════════════════════════════════════ */
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { classify as rebaseClassify } from '../tools/rebase-safe.mjs';
 import { decide as landDecide } from '../tools/land-pr.mjs';
@@ -921,6 +921,45 @@ function readCitations() {
   return { ledger, surfaces };
 }
 
+/* WHAT BIOME ACTUALLY LOOKED AT — because for months it silently looked at everything except the
+   biggest file in the repo.
+
+   `biome ci` skips any file over `files.maxSize` and reports the skip as a WARNING, which does not
+   fail the job. `tests/dex-tests.js` passed 1 MiB long ago, so the lint+format gate had been green on
+   34,653 lines it never opened — a green that meant "checked 0 files" while reading like "checked".
+   Two PRs in one day stated "biome clean" about edits to that file on the strength of it.
+
+   Raising the cap fixes it once. This makes it stay fixed: the runner reports every includable file's
+   size next to the configured cap, so the day the file grows past the new limit the suite says so
+   instead of going quiet again. Node-lane only (it stats the tree), like docsLedger. */
+function readBiomeCoverage() {
+  const cfgP = join(ROOT, 'biome.json');
+  if (!existsSync(cfgP)) return null;
+  let cfg;
+  try {
+    cfg = JSON.parse(readFileSync(cfgP, 'utf8'));
+  } catch {
+    return { parseError: true };
+  }
+  const inc = (cfg.files && cfg.files.includes) || [];
+  // Mirror biome's own selection closely enough to be honest: the positive globs are extensions, the
+  // negative ones are prefixes/segments. Anything uncertain is INCLUDED, so this over-reports rather
+  // than under-reports — the same fail-loud direction rebase-safe uses.
+  const exts = inc.filter((g) => !g.startsWith('!')).map((g) => g.replace(/^\*\*\//, '').replace(/^\*/, ''));
+  const negs = inc.filter((g) => g.startsWith('!')).map((g) => g.slice(1).replace(/\*\*/g, '').replace(/\/+$/, ''));
+  const files = [];
+  for (const rel of walkRepoPaths(ROOT)) {
+    if (!exts.some((e) => rel.endsWith(e))) continue;
+    if (negs.some((n) => n && (rel.startsWith(n.replace(/^\//, '')) || rel.includes(n.replace(/^\//, ''))))) continue;
+    try {
+      files.push({ path: rel, bytes: statSync(join(ROOT, rel)).size });
+    } catch {
+      /* vanished between walk and stat — not our business */
+    }
+  }
+  return { maxSize: (cfg.files && cfg.files.maxSize) || null, defaultMaxSize: 1048576, files };
+}
+
 function readDocsLedger() {
   const bdir = join(ROOT, 'briefs');
   if (!existsSync(bdir)) return null;
@@ -1401,6 +1440,7 @@ async function main() {
     TchCorpus: ctx.TchCorpus,
     docs: readDocs(),
     docsLedger: readDocsLedger(),
+    biomeCoverage: readBiomeCoverage(),
     citations: readCitations(),
     /* The rebase classifier decides GENERATED-vs-SOURCE for every conflicted path, and being wrong
        toward GENERATED reverts someone's work silently. It shipped with a `--classify` entry point
