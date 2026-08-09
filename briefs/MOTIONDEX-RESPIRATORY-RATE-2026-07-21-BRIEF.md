@@ -521,25 +521,55 @@ Refining `RR_F_STEP` or interpolating the ridge peak is a correct change that bu
 an MAE of 0.95**. Not worth a DSP change, a re-bundle across four build surfaces and a fixture
 regeneration.
 
-#### What this does to the headline
+#### What this does to the headline — RETRACTED 2026-08-09, same day it was written
 
-The three numbers now sit together and say one thing:
+> **This section argued:** *"measured MAE 0.95 · reference self-noise floor 0.72 · Rayleigh resolution
+> 1.00 — the estimator is performing at the limit of what a 60 s window and this reference can support,
+> a far stronger statement for the papers than the bare 0.95."* It shipped in #1084 and was refuted the
+> same afternoon, by looking at the figure it was written to explain.
+>
+> **The reasoning does not hold, for a reason that has nothing to do with resolution: a CONSTANT
+> 16.3 br/min scores MAE 1.39 on this corpus.** So 0.95 is not 0.95-away-from-a-hard-floor; it is
+> 0.44 br/min of skill over guessing the median, 31 % of MAE and 9 % of RMSE. The estimate explains
+> r² = 0.18 of the reference's variance (0.50 once 40 artefact epochs are removed). MAE is small
+> chiefly because both distributions pile up near 16 br/min, and any statistic that a constant nearly
+> matches cannot be evidence that a spectral method is resolution-limited. That 0.95 lands near 1.00
+> is a coincidence I read as a mechanism.
 
-| | br/min |
+**How it was caught, because the failure is the reusable part.** Three numbers were assembled that
+each looked right, and the arrangement was checked for coherence instead of against a null. The
+missing question is one line of arithmetic — *what does the dumbest possible predictor score?* — and it
+was never asked, in a section whose entire subject was distinguishing a real limit from an artefact.
+This is the same shape as the grid test two sections up, which swept candidate steps and omitted the
+two written in the source: **a check that examined everything except the thing that would have
+falsified it.**
+
+**What the corpus actually supports** (measured, `resp-acc-analysis.js`, 7 nights / 3665 epochs):
+
+| | |
 |---|---|
-| measured MAE | **0.95** |
-| reference self-noise floor (the CPAP's two flow estimators against each other) | **0.72** |
-| analysis-window Rayleigh resolution (`RR_WIN_SEC` = 60 s) | **1.00** |
+| MAE | 0.95 br/min |
+| MAE of a constant 16.3 br/min | **1.39 br/min** |
+| skill over that constant | **31 % MAE · 9 % RMSE** |
+| r (estimate vs reference) | **+0.420** — and **+0.709** with 40 artefact epochs removed |
+| sd(estimate) vs sd(reference) | **1.29 vs 2.57** — the estimate has half the spread |
+| Bland–Altman proportional slope | **−0.891** (t = −49.4) |
 
-**The estimator is performing at the limit of what a 60 s window and this reference can support** — which
-is a far stronger statement for the papers than the bare 0.95, and it answers the reviewer's first
-question about the stripes in one line.
+The last two are one finding: **the estimator compresses the range**, which is what tilts the
+Bland–Altman plot, and the flat bias ±1.96·SD drawn across it was therefore invalid (Bland & Altman
+1999 §3.2). The figure now fits the regression and publishes the constant baseline beside it.
 
-⚠️ **The MAE sitting essentially ON the Rayleigh limit is suggestive, not established.** It may be
-coincidence. The falsifiable version is a window sweep, routed to
-`MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS` §5 — **do not simply double `RR_WIN_SEC`**: a longer window trades
-directly against non-stationarity, since breathing rate genuinely changes within two minutes and the
-reference is epoched at 30 s.
+⚠️ **A negative Bland–Altman slope is not by itself proof the estimator is at fault** — it also arises
+when the reference is noisier than the estimate, and the two are not separable from that plot alone.
+Here the reference's own self-noise (0.72) is *smaller* than the estimator's MAE, which points at the
+estimator rather than the reference; that is an argument, not a measurement, and it is the honest
+strength to claim.
+
+**The window sweep routed to `MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS` §5 is still worth running**, but
+not as "confirm we are at the Rayleigh limit" — that framing is what just failed. Run it as: *does a
+longer window buy correlation?* r = 0.42 has room to move in a way MAE does not. **Do not simply double
+`RR_WIN_SEC`**: a longer window trades directly against non-stationarity, since breathing rate
+genuinely changes within two minutes and the reference is epoched at 30 s.
 
 #### Residual
 
