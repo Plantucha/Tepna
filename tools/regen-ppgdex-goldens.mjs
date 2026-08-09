@@ -160,6 +160,21 @@ const FIXTURES = [
      them were exercised only by in-test recompute. A drift in the rich block reproduced byte-identically
      on all three existing goldens, because none of them contains it. Same committed input as the clean
      twin — only the `rich` flag differs, which makes this fixture a pure test of that flag's output. */
+  /* The O2Ring FINGER golden (O2RING-ADAPTIVE-TIMEBASE Stage 3b) — pins PpgDex's device-crystal DEFAULT.
+     Every other committed PpgDex golden is a Verity (wrist, site !== 'finger'), so the crystal marker-aware
+     axis — which now SHIPS as the default for a finger recording — had no committed golden. This reuses the
+     COMMITTED finger twin that already backs the O2RING-FINGER-SITE test group: compute({text}) with no
+     timebase opt ⇒ the crystal default, so the golden records quality.timebase 'device-crystal', fs 125.000
+     and the marker-deflated axis. */
+  {
+    name: 'synthetic_ppgdex_o2ring_finger_golden.node-export.json',
+    build: () => fromPPGRich('synthetic_ppgdex_o2ring_finger.txt'),
+    newRecord: {
+      added: '2026-08-08',
+      inputs: ['synthetic_ppgdex_o2ring_finger.txt'],
+      note: "O2RING-ADAPTIVE-TIMEBASE Stage 3b — the O2Ring FINGER golden, pinning PpgDex's device-crystal DEFAULT (parsePPG defaults a finger recording to the 125.000 marker-aware axis). Reuses the committed finger twin from the O2RING-FINGER-SITE group. The RICH export (compute(input,{rich:true})) so the golden records quality.timebase 'device-crystal' explicitly, with NO timebase opt ⇒ the DEFAULT. Every other PpgDex golden is a Verity, so the crystal path had no committed leg."
+    }
+  },
   {
     name: 'synthetic_ppgdex_rich_golden.node-export.json',
     build: () => fromPPGRich('synthetic_ppgdex_verity.txt'),

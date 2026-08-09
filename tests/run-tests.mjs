@@ -572,7 +572,7 @@ function readEquiv() {
   // in-band 156 sentinel must split into rejected-vs-kept by ISOLATION rather than by value; and a
   // beat whose span touches a gap must be dropped, not filled. pairCommitted so a DEX_UPLOADS
   // real-corpus override cannot hide it.
-  pairCommitted('ppgdex_finger', 'synthetic_ppgdex_o2ring_finger.txt', null);
+  pairCommitted('ppgdex_finger', 'synthetic_ppgdex_o2ring_finger.txt', 'synthetic_ppgdex_o2ring_finger_golden.node-export.json');
   // The FRAGMENTED Verity twin (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2). Every other committed
   // PpgDex input is contiguous, so `coverage()` returns null on all of them and NOTHING committed
   // exercised the emitter — the gap derivation was gated only by inputs hand-built inside the test,

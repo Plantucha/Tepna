@@ -102,6 +102,9 @@ uploads/*
 # two-hole Verity twin, so recording.coverage has a committed equiv/GATE-C leg like ECGDex's.
 !uploads/synthetic_ppgdex_gapped_golden.node-export.json
 !uploads/synthetic_ppgdex_rich_golden.node-export.json
+# …and the O2Ring FINGER golden (O2RING-ADAPTIVE-TIMEBASE Stage 3b) — pins PpgDex's device-crystal
+# DEFAULT (the crystal path had no committed leg; every other PpgDex golden is a Verity).
+!uploads/synthetic_ppgdex_o2ring_finger_golden.node-export.json
 !uploads/synthetic_ecgdex_golden.node-export.json
 !uploads/synthetic_ecgdex_gapped_golden.node-export.json
 !uploads/synthetic_ecgdex_rich_golden.node-export.json

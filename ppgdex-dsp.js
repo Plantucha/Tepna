@@ -280,6 +280,22 @@
   function parsePPG(text, opts) {
     opts = opts || {};
     const lines = text.split(/\r?\n/);
+    /* EMBEDDED TIMEBASE (O2RING-ADAPTIVE-TIMEBASE Stage 3b). The capture host stamps its per-capture
+       timebase decision into the O2Ring PPG file as a `# timebase=…` header comment (host_clock
+       .timebase_decision → device-crystal | host-disciplined), so the choice travels WITH the data and
+       PpgDex needs no sidecar. A `#` line fails the row filter below, so it is invisible to parsing; this
+       pre-scan is the only reader. Comments precede the `timestamp` header, so stop once that is seen. */
+    let embeddedTimebase = null;
+    for (let li = 0; li < lines.length && li < 12; li++) {
+      const s = lines[li].trim();
+      if (!s) continue;
+      const m = /^#\s*timebase\s*=\s*(device-crystal|host-disciplined)\b/i.exec(s);
+      if (m) {
+        embeddedTimebase = m[1].toLowerCase();
+        break;
+      }
+      if (/timestamp/i.test(s)) break;
+    }
     const ch0 = [],
       ch1 = [],
       ch2 = [],
@@ -544,8 +560,15 @@
            clock — which is the whole point (safe when the host is good, protective when it is not).
        host t0 is unchanged (t0Ms already the host anchor); only the intra-segment RATE and the marker
        deflation change. fs becomes 125.000 so 1/fs matches the real-sample spacing it indexes. */
-    let timebase = site === 'finger' ? 'host-disciplined' : null;
-    if (opts.timebase === 'device-crystal' && site === 'finger' && n > 0) {
+    /* THE EFFECTIVE TIMEBASE for an O2Ring FINGER recording, by precedence (Stage 3b):
+         1. opts.timebase — an explicit caller override (tests, signal-orchestrate)
+         2. embeddedTimebase — the `# timebase=…` the capture host stamped into the file (Stage 3a decision)
+         3. DEFAULT 'device-crystal' — the safe 125.000 floor. THIS is the default-FLIP: an O2Ring finger
+            recording is analysed on its crystal unless the host EARNED discipline (stratum ≤ 1, tight skew)
+            and said so via the embed. A Verity ignores all of this (not a finger either/or) → null. */
+    const wantTimebase = opts.timebase === 'device-crystal' || opts.timebase === 'host-disciplined' ? opts.timebase : embeddedTimebase || 'device-crystal';
+    let timebase = site === 'finger' ? wantTimebase : null;
+    if (timebase === 'device-crystal' && site === 'finger' && n > 0) {
       const gapMask = sent ? sent.gap : null;
       const maxStep = TIME_GAP_STEPS / (fs > 0 ? fs : O2_ADC_HZ); // gap detector, on the host axis just built
       const rc = new Float64Array(n);

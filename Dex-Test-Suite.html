@@ -355,7 +355,7 @@ async function main(){
     // ADVERSARIAL PpgDex FINGER twin (PPGDEX-O2RING-FINGER-SITE §6) — input only, no golden.
     // Asserts what the 3-LED wrist twin structurally cannot: a 1-column file parses, LED agreement
     // is null (never a fabricated 100), and the in-band 156 sentinel splits by isolation not value.
-    ['ppgdex_finger', 'synthetic_ppgdex_o2ring_finger.txt', null],
+    ['ppgdex_finger', 'synthetic_ppgdex_o2ring_finger.txt', 'synthetic_ppgdex_o2ring_finger_golden.node-export.json'],  // Stage 3b: pins the device-crystal DEFAULT
     ['ppgdex_gapped', 'synthetic_ppgdex_verity_gapped.txt', 'synthetic_ppgdex_gapped_golden.node-export.json'],  // §2.2 fragmented Verity twin
     ['ppgdex_rich', 'synthetic_ppgdex_verity.txt', 'synthetic_ppgdex_rich_golden.node-export.json'],  // §1 INTEGRATOR-facing rich export
     ['ecgdex_rich', 'synthetic_ecgdex_h10.txt', 'synthetic_ecgdex_rich_golden.node-export.json'],  // §7.4 ECGDex rich export
