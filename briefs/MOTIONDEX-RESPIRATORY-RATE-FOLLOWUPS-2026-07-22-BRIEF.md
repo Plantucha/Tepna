@@ -31,6 +31,36 @@ to abolish.
 replaced by its output (or confirmed identical); figures land in `papers/figures/`; the DRAFT banners
 are cleared **only then**.
 
+> ### ▶ RUN 2026-08-06 — the first leg is done; the paper-editorial leg is not
+>
+> **Recorded in full as `MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md` §11.** Headline, stated the
+> only honest way: **MAE 0.95 br/min (95 % CI 0.79–1.18) against a 0.72 reference self-noise floor and
+> a 1.42 null baseline — 7 of 16 nights, 3,665 epochs.**
+>
+> **This item's own framing was wrong, and that is the useful part.** It reads as though the tool were
+> ready and only a run were missing. Four things had to be fixed first, three of which were invisible
+> until real bytes went through:
+>
+> 1. **The tool could not see the corpus at all.** All **419** paired `Polar_H10_*_ACC.txt` on the
+>    capture machine are capture-host layout; the grouper matched only the phone layout, so 2.4 GB of
+>    paired data reported "no night pairs found" with no reason given.
+> 2. **The page had no figure layer** — no `<canvas>`, no export path — so "figures land in
+>    `papers/figures/`" asked for a capability that had never been built.
+> 3. **Nine of sixteen nights were being SCORED against noise.** `recoverOffset` returned offsets from
+>    −5163 s to +4804 s at peak |r| 0.16–0.20, and `offsetUsed` used the argmax anyway. Excluding them
+>    moved the result **1.05 → 0.95**: the contamination was hiding the answer.
+> 4. **The Bland–Altman clamped out-of-range points onto the axis**, drawing a cluster the data does
+>    not contain.
+>
+> **Still open here, and it is genuinely this item's remainder:** the numbers in the three papers are
+> NOT yet replaced, no PNG is committed to `papers/figures/`, and the DRAFT banners stay up. That is
+> paper-editorial work — choosing which figure each preprint carries and rewriting its results
+> section — not tool work, and it should not be done by the session that built the tool.
+>
+> **Also worth knowing before that is attempted:** this run used 21 ACC files >30 MB across 14 nights
+> because one browser pass will not hold more. **419 pair in total.** The corpus is far larger than the
+> "26 nights" this item names.
+
 ## 2 · Sample-rate precision is this codebase's recurring failure mode — consider a shared helper
 
 It bit **three times in one work-unit**, in three different places, each time silently:
