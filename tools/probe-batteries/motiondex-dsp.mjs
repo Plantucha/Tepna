@@ -33,10 +33,37 @@ export const deps = ['kernel-constants.js', 'clock.js'];
 
 export function realmGlobals() {
   const ctx = {
-    Date, Math, JSON, Number, String, Array, Object, Boolean, Symbol, Map, Set, RegExp, Error, TypeError, RangeError,
-    isFinite, isNaN, parseInt, parseFloat, encodeURIComponent, decodeURIComponent,
-    Float64Array, Float32Array, Int32Array, Uint8Array, Uint32Array, ArrayBuffer, DataView,
-    setTimeout, clearTimeout, Promise,
+    Date,
+    Math,
+    JSON,
+    Number,
+    String,
+    Array,
+    Object,
+    Boolean,
+    Symbol,
+    Map,
+    Set,
+    RegExp,
+    Error,
+    TypeError,
+    RangeError,
+    isFinite,
+    isNaN,
+    parseInt,
+    parseFloat,
+    encodeURIComponent,
+    decodeURIComponent,
+    Float64Array,
+    Float32Array,
+    Int32Array,
+    Uint8Array,
+    Uint32Array,
+    ArrayBuffer,
+    DataView,
+    setTimeout,
+    clearTimeout,
+    Promise,
     console: { log() {}, warn() {}, error() {}, info() {}, debug() {} }
   };
   ctx.window = ctx;
@@ -129,6 +156,50 @@ export const families = [
       ])
         for (const n of [1, 9, 10, 11, 60]) out.push(call(M.parseSensorXYZ, [rows(rep(v, n))]));
       for (const raw of ['', ' ', '\n', HDR, HDR + '\n', 'junk', '1;2;3;4;5', HDR + '\njunk;junk;junk;junk;junk', null, undefined, 42]) out.push(call(M.parseSensorXYZ, [raw]));
+
+      /* ── STREAM KIND AND UNIT ARE READ FROM THE HEADER, AND ONE HEADER CANNOT EXERCISE THEM ──────
+         `streamKindFromHeader` branches on the unit token — `dps`/`deg/s` ⇒ gyro, `µT`/`uT`/a MAGN
+         name/`[G]` ⇒ mag — and the whole Gauss→µT conversion at L237–L239 is gated on
+         `_kind === 'mag' && _unit === 'G'`. A battery of ACC files with one `X [mg]` header can
+         never reach any of it, which is why 6 of 12 controls here read as equivalent: the arms were
+         unexecuted, not unkillable. ⚠️ `[G]` is GAUSS, a MAGNETIC unit — deliberately NOT gravity-g
+         (DEEP-AUDIT-II §7.9), so a mag file in `[G]` must come out as µT (×100) and an ACC file in
+         `[g]` must not be touched by that loop. Both are supplied, which is the pair that separates
+         the `===` from the `!==`. */
+      const hdr = (ux, uy, uz, name) => `Phone timestamp;sensor timestamp [ns];${name || 'X'} [${ux}];Y [${uy}];Z [${uz}]`;
+      const HEADERS = [
+        hdr('mg', 'mg', 'mg'), // ACC, milli-g
+        hdr('g', 'g', 'g'), // ACC, g
+        hdr('G', 'G', 'G'), // GAUSS — magnetic, must convert ×100
+        hdr('uT', 'uT', 'uT'), // magnetometer already in µT
+        hdr('µT', 'µT', 'µT'), // the non-ASCII spelling
+        hdr('dps', 'dps', 'dps'), // gyro
+        hdr('deg/s', 'deg/s', 'deg/s'), // gyro, the other spelling
+        'Phone timestamp;sensor timestamp [ns];MAGN X [G];MAGN Y [G];MAGN Z [G]',
+        'Phone timestamp;sensor timestamp [ns];X;Y;Z', // no unit token at all
+        'Phone timestamp;sensor timestamp [ns];Z [mg];Y [mg];X [mg]', // columns REORDERED
+        'phone timestamp;sensor timestamp [ns];x [mg];y [mg];z [mg]', // lower case
+        'A;B;C;D;E' // five columns, no timestamp token ⇒ never treated as a header
+      ];
+      const body = (vals, n) => Array.from({ length: n }, (_, i) => `2026-06-10 22:00:0${i % 10}.000;${599628000000000000 + i * 38461538};${vals[0]};${vals[1]};${vals[2]}`);
+      for (const h of HEADERS)
+        for (const v of [
+          [0, 0, 1000],
+          [0, 0, 1],
+          [12, -34, 56],
+          [0, 0, 0]
+        ])
+          out.push(call(M.parseSensorXYZ, [[h].concat(body(v, 30)).join('\n')]));
+      // headerless — the header branch never fires, so column defaults must carry the file
+      for (const v of [
+        [0, 0, 1000],
+        [0, 0, 1]
+      ])
+        out.push(call(M.parseSensorXYZ, [body(v, 30).join('\n')]));
+      // a SECOND header mid-file: `headerKind === null` means only the FIRST is taken
+      out.push(call(M.parseSensorXYZ, [[HEADERS[0]].concat(body([0, 0, 1000], 15), [HEADERS[2]], body([0, 0, 1], 15)).join('\n')]));
+      // fewer than five columns — dropped before any parsing
+      out.push(call(M.parseSensorXYZ, ['Phone timestamp;sensor timestamp [ns];X [mg]\n2026-06-10 22:00:00.000;1;5'].join('\n')));
       return out;
     }
   },
@@ -154,7 +225,23 @@ export const families = [
       for (const t of corpus(M)) {
         const p = M.parseSensorXYZ(t);
         const rows = (p && (p.rows || p)) || [];
-        for (const u of ['mg', 'g']) for (const opts of [undefined, {}, { minBrpm: 6 }, { maxBrpm: 30 }, { minBrpm: 6, maxBrpm: 30 }]) out.push(call(M.respiratoryRate, [rows, T0, u, opts]));
+        for (const u of ['mg', 'g'])
+          for (const opts of [
+            undefined,
+            {},
+            { minBrpm: 6 },
+            { maxBrpm: 30 },
+            { minBrpm: 6, maxBrpm: 30 },
+            { biasBrpm: 2 },
+            { biasBrpm: -2 },
+            { biasBrpm: 0 },
+            { biasBrpm: '2' },
+            { biasBrpm: null },
+            { biasBrpm: NaN },
+            { biasBrpm: Infinity },
+            { biasBrpm: {} }
+          ])
+            out.push(call(M.respiratoryRate, [rows, T0, u, opts]));
       }
       for (const bad of [[], null, [{}]]) out.push(call(M.respiratoryRate, [bad, T0, 'mg', undefined]));
       return out;
@@ -193,7 +280,31 @@ export const families = [
     fn: 'genSyntheticACC',
     probe: (M) => {
       const out = [];
-      for (const o of [undefined, {}, { hz: 26 }, { sec: 120 }, { brpm: 15 }, { seed: 1 }, { seed: 2 }, { hz: 1, sec: 1, brpm: 1, seed: 1 }, { hz: 0, sec: 0, brpm: 0, seed: 0 }, { hz: 26, sec: 120, brpm: 15, seed: 1 }, { hz: 52, sec: 5, brpm: 60, seed: 99 }, { hz: -1, sec: -1, brpm: -1, seed: -1 }])
+      for (const o of [
+        undefined,
+        {},
+        { hz: 26 },
+        { sec: 120 },
+        { brpm: 15 },
+        { seed: 1 },
+        { seed: 2 },
+        { hz: 1, sec: 1, brpm: 1, seed: 1 },
+        { hz: 0, sec: 0, brpm: 0, seed: 0 },
+        { hz: 26, sec: 120, brpm: 15, seed: 1 },
+        { hz: 52, sec: 5, brpm: 60, seed: 99 },
+        { hz: -1, sec: -1, brpm: -1, seed: -1 },
+        /* `pauseAt` gates an apnoea-like pause window and is absent from every ordinary call, so
+           its two bounds cannot be reached without supplying it — including a pause at 0, one on
+           the last second, and one past the end. */
+        { sec: 60, pauseAt: 0 },
+        { sec: 60, pauseAt: 10 },
+        { sec: 60, pauseAt: 30, pauseSec: 15 },
+        { sec: 60, pauseAt: 59 },
+        { sec: 60, pauseAt: 60 },
+        { sec: 60, pauseAt: 100 },
+        { sec: 60, pauseAt: -1 },
+        { sec: 60, pauseAt: null }
+      ])
         out.push(call(M.genSyntheticACC, [o]));
       return out;
     }

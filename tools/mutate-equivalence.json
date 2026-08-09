@@ -1345,6 +1345,96 @@
       "class": "no-distinguishing-input",
       "why": "In motionSQI. Original and mutant produced byte-identical output on every input.",
       "probe": "motionSQI · signal quality: 59 inputs, 15 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 882,
+      "op": "bool && → ||",
+      "before": "if (typeof opts.confMin === 'number' && isFinite(opts.confMin)) confMin = opts.confMin;",
+      "after": "if (typeof opts.confMin === 'number' || isFinite(opts.confMin)) confMin = opts.confMin;",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 883,
+      "op": "cmp < → <=",
+      "before": "if (!chestRows || chestRows.length < 400) return { hasData: false };",
+      "after": "if (!chestRows || chestRows.length <= 400) return { hasData: false };",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 883,
+      "op": "num → 0",
+      "before": "if (!chestRows || chestRows.length < 400) return { hasData: false };",
+      "after": "if (!chestRows || chestRows.length < 0) return { hasData: false };",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 892,
+      "op": "cmp < → <=",
+      "before": "if (N < nWin) return { hasData: false };",
+      "after": "if (N <= nWin) return { hasData: false };",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 894,
+      "op": "cmp < → <=",
+      "before": "for (var i = 0; i < nWin; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (nWin - 1));",
+      "after": "for (var i = 0; i <= nWin; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (nWin - 1));",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 907,
+      "op": "cmp < → <=",
+      "before": "if (cov < RR_MIN_WIN_COVERAGE) {",
+      "after": "if (cov <= RR_MIN_WIN_COVERAGE) {",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 915,
+      "op": "cmp < → <=",
+      "before": "for (var q2 = 0; q2 < grid.length; q2++) flat[q2] = fv;",
+      "after": "for (var q2 = 0; q2 <= grid.length; q2++) flat[q2] = fv;",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 932,
+      "op": "cmp >= → >",
+      "before": "var covOk = winCov[i] >= RR_MIN_WIN_COVERAGE;",
+      "after": "var covOk = winCov[i] > RR_MIN_WIN_COVERAGE;",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 934,
+      "op": "cmp >= → >",
+      "before": "if (covOk && v.conf[i] >= confMin) {",
+      "after": "if (covOk && v.conf[i] > confMin) {",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 949,
+      "op": "cmp > → >=",
+      "before": "coverage: series.length - nUncovered > 0 ? kept.length / (series.length - nUncovered) : 0,",
+      "after": "coverage: series.length - nUncovered >= 0 ? kept.length / (series.length - nUncovered) : 0,",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
     }
   ]
 }
