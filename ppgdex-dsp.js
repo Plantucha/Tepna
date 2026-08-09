@@ -238,6 +238,11 @@
   //  vendor interpolates, we do not). Real impulsive noise here is 0.04 %, so there is no despiker.
   const O2_PPG_INVALID = 156;
   const O2_SENTINEL_ISOLATION = 25; // LSB from the local trend; measured separation, §2.4
+  // The O2Ring's crystal ADC sample rate — 32 MHz ÷8 ÷32000 = 125.000 Hz exactly (TI AFE4403, no
+  // internal RC). This is the DEVICE-CRYSTAL timebase (O2RING-ADAPTIVE-TIMEBASE §2, DEVICE-RATE-TRUTH
+  // §2): the honest sample clock, distinct from the ~125.7 ROW rate the ns column carries (which is
+  // 125.000 + one inserted `156` beat marker per beat). Used only on the opt-in device-crystal path.
+  const O2_ADC_HZ = 125.0;
   function markO2Sentinels(x) {
     const gap = new Uint8Array(x.length);
     let rejected = 0,
@@ -264,7 +269,16 @@
   // Host-anchor spacing, in accepted rows. 500 ≈ 2.8 s at 176 Hz, giving ~2400 anchors on a 190 min
   // file — the geometry the running-median window was tuned against (clock.js CK_AXIS_WIN).
   const PPG_AXIS_EVERY = 500;
-  function parsePPG(text) {
+  /* opts.timebase (O2RING-ADAPTIVE-TIMEBASE Stage 2):
+       undefined / 'host-disciplined'  the device ns axis disciplined to the capture host (today's path,
+                                        and the default — behaviour is byte-identical when unset).
+       'device-crystal'                 O2Ring finger ONLY: real ADC samples on the 125.000 crystal grid,
+                                        the inserted `156` beat markers NOT counted as samples, contiguous
+                                        SEGMENTS re-anchored to the host so genuine losses are preserved.
+     The choice is Stage 3's to make per stamped clock provenance; Stage 2 only builds + tests the path,
+     so no production caller passes it yet and the default is unchanged. */
+  function parsePPG(text, opts) {
+    opts = opts || {};
     const lines = text.split(/\r?\n/);
     const ch0 = [],
       ch1 = [],
@@ -450,7 +464,7 @@
     // per second, so RR/PPI intervals are untouched) while its RATE error is removed. If too few
     // anchors resolved, `ok:false` and the raw device axis is kept — an uncorrected axis is honest,
     // a fabricated correction is not.
-    const relSec = new Float64Array(n);
+    let relSec = new Float64Array(n);
     if (deltas.length > 20) {
       for (let i = 0; i < n; i++) {
         if (!isFinite(nsArr[i])) {
@@ -517,11 +531,44 @@
        the two stay distinguishable: `quantizedShare` is still published raw, and a reader can still
        see that the fingerprint is absent while the verdict is drawn. */
     const axisSynthetic = axisDrawn || site === 'finger';
+    /* ── DEVICE-CRYSTAL TIMEBASE (O2RING-ADAPTIVE-TIMEBASE Stage 2) ─────────────────────────────────
+       O2Ring finger only, opt-in. Rebuild relSec on the 125.000 crystal grid instead of the
+       host-disciplined ROW-rate axis: real ADC samples advance by 1/125.000, the inserted `156` beat
+       markers (the sentinel `gap` rows) advance NOTHING, and each contiguous SEGMENT is re-anchored to
+       the host-disciplined axis at every genuine loss (a `relSec` jump beyond TIME_GAP_STEPS/fs). So:
+         · on a clean night this is exactly "cumulative-real-samples / 125.000 from the host t0" — the
+           construction validated against H10 chest ECG (crystal +0.17 bpm / −0.4 ms rMSSD vs ECG);
+         · genuine losses are PRESERVED (the segment anchors keep the host's honest gap timing), so
+           intervalsSpanningTimeGap / coverage still see every discontinuity;
+         · the RATE that accumulates error across a night is the crystal, never a possibly-untrusted host
+           clock — which is the whole point (safe when the host is good, protective when it is not).
+       host t0 is unchanged (t0Ms already the host anchor); only the intra-segment RATE and the marker
+       deflation change. fs becomes 125.000 so 1/fs matches the real-sample spacing it indexes. */
+    let timebase = site === 'finger' ? 'host-disciplined' : null;
+    if (opts.timebase === 'device-crystal' && site === 'finger' && n > 0) {
+      const gapMask = sent ? sent.gap : null;
+      const maxStep = TIME_GAP_STEPS / (fs > 0 ? fs : O2_ADC_HZ); // gap detector, on the host axis just built
+      const rc = new Float64Array(n);
+      let realCount = 0;
+      let segAnchorSec = relSec.length ? relSec[0] : 0; // host t0 for segment 0
+      for (let i = 0; i < n; i++) {
+        if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {
+          segAnchorSec = relSec[i]; // genuine loss → re-anchor to the host, restart the crystal count
+          realCount = 0;
+        }
+        rc[i] = segAnchorSec + realCount / O2_ADC_HZ;
+        if (!gapMask || gapMask[i] === 0) realCount++; // a `156` marker row consumes no ADC time
+      }
+      relSec = rc;
+      fs = O2_ADC_HZ;
+      timebase = 'device-crystal';
+    }
     return {
       ch: chArr,
       amb: Float32Array.from(amb),
       relSec,
       fs,
+      timebase,
       n,
       t0Ms: t0Ms != null ? t0Ms : null,
       offsetMin: firstTs ? firstTs.offsetMin : null,
@@ -3331,6 +3378,10 @@
          0.001-0.088 measured), reported as a number so a reader can judge the borderline rather than
          inherit a verdict. */
       timingSource: (rec.hostAxis && rec.hostAxis.timingSource) || null,
+      // Which RATE reference governed this recording (O2RING-ADAPTIVE-TIMEBASE): 'device-crystal' (the
+      // 125.000 ADC clock, markers deflated) or 'host-disciplined' (the host-referenced row axis) for an
+      // O2Ring finger recording; null for a Verity (a real multi-oscillator device, not an either/or).
+      timebase: rec.timebase || null,
       axisDrawn: rec.hostAxis ? rec.hostAxis.drawn === true : null,
       axisQuantizedShare: rec.hostAxis && rec.hostAxis.quantizedShare != null ? +rec.hostAxis.quantizedShare.toFixed(4) : null,
       // Sentinel bookkeeping — BOTH classes surfaced, because rejecting every 156 would punch ~7 %
@@ -3815,7 +3866,12 @@
            reported as a NUMBER so a reader judges the borderline instead of inheriting a verdict. */
         timingSource: r.timingSource || null,
         axisDrawn: r.axisDrawn == null ? null : r.axisDrawn,
-        axisQuantizedShare: nz(r.axisQuantizedShare)
+        axisQuantizedShare: nz(r.axisQuantizedShare),
+        // Which RATE reference governed an O2Ring finger recording ('device-crystal' = the 125.000 ADC
+        // clock with the `156` beat markers deflated; 'host-disciplined' = the host-referenced row axis).
+        // O2RING-ADAPTIVE-TIMEBASE. Additive + CONDITIONAL: a Verity (r.timebase == null) omits the key,
+        // so every committed Verity export stays byte-identical; only a finger export carries it.
+        ...(r.timebase ? { timebase: r.timebase } : {})
       };
       out.hrv = {
         time: {
@@ -4015,7 +4071,7 @@
       var text =
         typeof input === 'string' ? input : input && typeof input.text === 'string' ? input.text : input && input.samples && typeof input.samples.text === 'string' ? input.samples.text : null;
       if (text == null) throw new Error('PpgDex.compute: need a Polar Sense *_PPG.txt string, {text}, a parsed rec {ch:[…]}, or a ppg SignalFrame {samples:{ch:[…]}}.');
-      rec = parsePPG(text);
+      rec = parsePPG(text, { timebase: opts.timebase });
     }
     if (opts.source) rec.source = opts.source;
     if (opts.fname && !rec.fname) rec.fname = opts.fname;

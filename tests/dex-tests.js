@@ -499,6 +499,76 @@
       T.ok('a drawn axis with host anchors declares its timing came from the HOST', drawn.hostAxis.ok !== true || drawn.hostAxis.timingSource === 'host', 'got ' + drawn.hostAxis.timingSource);
     });
 
+    /* ════ DEVICE-CRYSTAL TIMEBASE — O2Ring 125.000 marker-aware axis (O2RING-ADAPTIVE-TIMEBASE Stage 2) ════
+       The O2Ring finger pleth inserts one `156` beat MARKER per beat, so the file's ROW rate is
+       125.000 (the crystal ADC) + ~HR/60. The opt-in device-crystal timebase rebuilds relSec on the
+       125.000 grid with those markers NOT counted, contiguous segments re-anchored to the host so real
+       losses survive. ECG-arbitrated on the trio corpus (HR/rMSSD ≈ host ≈ H10 chest ECG; total span
+       equal-or-closer to ECG). These pin the axis MATH — the property, not one night's numbers. */
+    group('O2Ring device-crystal timebase deflates the 156 markers onto the 125.000 grid', 'ppgdex-dsp · device-crystal-timebase', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.parsePPG !== 'function') { T.skip('PPGDSP.parsePPG available', 'not loaded'); return; }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+      // A finger file: real pleth-ish rows 124-130, with an ISOLATED 156 beat marker every 25th row
+      // (neighbours ~127, so |156-127|=29 > the 25 isolation band ⇒ markO2Sentinels rejects it as a
+      // marker). Last rows kept real so the span assertion below lands on a real sample. Drawn ns grid;
+      // host stamps at a true ~125.9 Hz so hostAxis anchors resolve.
+      function fingerRows(n, gapAt) {
+        var out = '', ns = 0;
+        for (var i = 0; i < n; i++) {
+          var isMarker = i % 25 === 12 && i < n - 4;
+          if (i === gapAt) ns += 3 * 1e9; // a 3 s hole in the device axis ⇒ a genuine loss to preserve
+          var hostMs = Math.round((i / 125.9) * 1000) + (i >= (gapAt || 1e9) ? 3000 : 0);
+          var d = new Date(Date.UTC(2026, 6, 26, 22, 0, 0) + hostMs);
+          out += d.toISOString().slice(0, 23) + ';' + ns + ';' + (isMarker ? 156 : 124 + (i % 7)) + '\n';
+          ns += 7953045;
+        }
+        return out;
+      }
+      var N = 2000;
+      var txt = HDR + fingerRows(N);
+      var host = P.parsePPG(txt); // default — unchanged behaviour
+      var crys = P.parsePPG(txt, { timebase: 'device-crystal' });
+      T.eq('default finger recording is labelled host-disciplined', host.timebase, 'host-disciplined');
+      T.eq('the opt-in path is labelled device-crystal', crys.timebase, 'device-crystal');
+      T.ok('device-crystal fs is the 125.000 ADC rate', Math.abs(crys.fs - 125) < 1e-9, 'got ' + crys.fs);
+      T.ok('the opt-in actually changes the axis (default is NOT the crystal path)', crys.relSec[N - 1] !== host.relSec[N - 1]);
+      // Two consecutive REAL samples (indices 0,1) are one crystal tick apart, EXACTLY.
+      T.ok('consecutive real samples are spaced 1/125.000 s', Math.abs(crys.relSec[1] - crys.relSec[0] - 1 / 125) < 1e-12, 'got ' + (crys.relSec[1] - crys.relSec[0]));
+      // THE marker-deflation identity: over a gapless record the crystal span is exactly
+      // (real samples − 1)/125.000 — i.e. the `sentinelRejected` markers consumed NO ADC time.
+      var nMarkers = crys.sentinelRejected;
+      T.ok('markers were actually present to deflate', nMarkers > 20, 'got ' + nMarkers);
+      T.ok('the 156 markers consume no ADC time (span = (nReal−1)/125.000)', Math.abs(crys.relSec[N - 1] - crys.relSec[0] - (N - 1 - nMarkers) / 125) < 1e-6, 'span ' + (crys.relSec[N - 1] - crys.relSec[0]) + ' vs ' + (N - 1 - nMarkers) / 125);
+      // A marker row consumes no time: the real sample AFTER it is co-located with it (zero step).
+      var mIdx = 12; // first marker (i%25===12)
+      T.ok('the sample after a marker is co-located with it (marker took no time)', Math.abs(crys.relSec[mIdx + 1] - crys.relSec[mIdx]) < 1e-12, 'step ' + (crys.relSec[mIdx + 1] - crys.relSec[mIdx]));
+      // GENUINE LOSSES ARE PRESERVED — a 3 s host gap re-anchors the crystal segment, so the jump survives.
+      var gapTxt = HDR + fingerRows(N, 1000);
+      var crysGap = P.parsePPG(gapTxt, { timebase: 'device-crystal' });
+      var jump = crysGap.relSec[1000] - crysGap.relSec[999];
+      T.ok('a genuine 3 s loss is preserved, not compressed away', jump > 2.5, 'jump ' + jump + ' s');
+      T.ok('and normal spacing resumes after the re-anchor', Math.abs(crysGap.relSec[1002] - crysGap.relSec[1001] - 1 / 125) < 1e-9);
+      // FINGER-ONLY: a Verity (3 distinct LEDs) IGNORES the flag — timebase is not an either/or there.
+      var WHDR = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient\n';
+      var wrist = '';
+      for (var i = 0; i < 800; i++) {
+        var d = new Date(Date.UTC(2026, 6, 26, 22, 0, 0) + Math.round((i / 55) * 1000));
+        wrist += d.toISOString().slice(0, 23) + ';' + i * 18181818 + ';' + (300 + (i % 11)) + ';' + (512 + (i % 13)) + ';' + (128 + (i % 5)) + ';0\n';
+      }
+      var wCrys = P.parsePPG(WHDR + wrist, { timebase: 'device-crystal' });
+      T.eq('a Verity recording carries no timebase (not a finger either/or)', wCrys.timebase, null);
+      T.ok('device-crystal is a no-op on a Verity (fs is not forced to 125)', Math.abs(wCrys.fs - 125) > 1, 'got ' + wCrys.fs);
+      // The compute → rich-export wiring: quality.timebase is emitted for a finger crystal export and
+      // OMITTED for a Verity (conditional spread), so every committed Verity golden stays byte-identical.
+      if (typeof P.compute === 'function') {
+        var fq = P.compute({ text: txt }, { rich: true, timebase: 'device-crystal' });
+        T.eq('the rich export surfaces quality.timebase for a finger crystal recording', fq.quality && fq.quality.timebase, 'device-crystal');
+        var wq = P.compute({ text: WHDR + wrist }, { rich: true, timebase: 'device-crystal' });
+        T.ok('a Verity rich export OMITS the timebase key (byte-identical goldens)', !(wq.quality && 'timebase' in wq.quality));
+      }
+    });
+
     /* ════ 1a-bis · HOST-DISCIPLINED AXIS — DexClock.hostAxis (WEARABLE-HOST-AXIS-2026-08-02) ════
        Every capture row carries BOTH clocks (host "Phone timestamp", device "sensor timestamp [ns]"),
        and PpgDex/ECGDex used to anchor on the host once and then ride the DEVICE crystal for the whole
