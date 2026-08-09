@@ -71,6 +71,44 @@
 > the provenance tier.** The N=17 figures above are therefore taken from the **box** tree
 > (`/home/michal/tepna-smoketest/captures`, `device+host` ×17, 3-source closure consistent).
 >
+> ### 2026-08-08, second pass — the gap is mostly NOT about the Verity corner
+>
+> `tools/tch-window-sensitivity.mjs` decomposes it. **σ is a monotonic function of how much of the
+> night you hand the hat — for every corner.** Same 17 nights, same estimator, same code; only the
+> number of simultaneous seconds changes:
+>
+> | window | σ_O2Ring | σ_H10 | σ_Verity |
+> |---|---|---|---|
+> | 3 600 s | 2.34 | 1.41 | **2.36** |
+> | 11 214 s ← the papers' 291,561 s ÷ 26 nights | 2.54 | 1.57 | **2.78** |
+> | full night (median 15 630 s) | 2.99 | 1.78 | **3.51** |
+>
+> Verity **+49 %**, O2Ring **+28 %**, H10 **+26 %** from a one-hour window to a whole night. So roughly
+> **a fifth of the Verity gap closes on window length alone**, and it does so *without anyone making an
+> error*: **neither paper states window length as a parameter.** Two honest analysts with the same
+> devices, the same nights and the same estimator can publish σ differing by half again.
+>
+> That is this repo's own §7 discipline arriving one layer up. `CLAUDE.md` §7 already says
+> `hostAxis.ppm` must never be quoted without its span, *"the same H10 reads −20.3 ppm over 373 min and
+> −65.8 over 10.9."* The same is now measured for σ: **a reference-free σ is not a number, it is a
+> number per window length.** Both σ-papers should state theirs and report the sensitivity.
+>
+> **Second axis — night selection.** Nights where the Verity corner tracks the chest ECG (r ≥ 0.70)
+> give σ_Ver **2.72**; decorrelated nights (r < 0.70) give **3.91**. A quality gate that drops
+> decorrelated nights therefore lowers the published σ *by selection, not by measurement* — the
+> mechanism `TRIO-ARTIFACT-GATE` §2 named. (The shipped worker gate — σ>12 **and** decorrelated from
+> both peers — excludes **0 of 17** here, so it is not what did it; a looser gate would have.)
+>
+> **Third, ruled out:** pooling all 267,846 s into one solve gives σ_Ver **4.15**, *higher* than the
+> median-over-nights 3.51. The published figure is not a pooling artifact.
+>
+> ⚠️ **The residual is NOT attributable, and this is the honest stopping point.** The papers' corpus
+> (2026-06-10 … 07-05) is **not re-derivable here** — its box raw is gone from this machine and the
+> `Ecg nightly` tree is phone-captured, a different provenance tier. **Corpus and method are
+> confounded**, exactly as `TRIO-ARTIFACT-GATE` warned in its own case, so no cause can be assigned to
+> what remains. What *can* be said: a stated-nowhere methods parameter moves every corner by 26–49 %,
+> which is on its own enough to require the papers to state it.
+>
 > ### What is owed next (and what is deliberately NOT done here)
 >
 > - **The corpus is NOT committed.** `uploads/*` is gitignored with per-file `!` opt-ins under a header
@@ -79,7 +117,11 @@
 >   and publication, not a mechanical step. Regenerate in two commands:
 >   `node tools/trio-batch.mjs --src /home/michal/tepna-smoketest/captures --out <dir>` then
 >   `node tools/tch-fused-corpus.mjs --dir <dir>`.
-> - **Explain the Verity gap before re-seeding the sim.** The planted σ stays at 2.7 / 1.9 / 1.9.
+> - **Re-seeding the sim is still blocked, but the blocker is now NAMED:** state a window length,
+>   re-fit at it, and report the sensitivity band beside the point estimate. The planted σ stays at
+>   2.7 / 1.9 / 1.9 until then.
+> - **Both σ-papers owe a window-length statement** — this is a correction to published methods, not a
+>   new result, and it applies to `sigma-no-reference` as much as to this paper.
 > - The June → July-13 committed nights **cannot** be upgraded to `ms;hr;c` — their box raw is not on
 >   this machine.
 
