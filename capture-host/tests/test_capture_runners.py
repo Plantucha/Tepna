@@ -1312,6 +1312,28 @@ def test_run_polar_auto_sync_retries_a_transient_ble_error_then_gives_up(tmp_pat
     assert capture.STATUS.get("devices", {}).get("H10", {}).get("clock_synced") is None
 
 
+def test_run_polar_auto_sync_does_NOT_spend_the_ladder_on_an_absent_device(tmp_path, monkeypatch):
+    """THE FIX (2026-08-09). Each ladder attempt holds the GLOBAL _CONNECT_LOCK via polar_offline_op, so
+    spending 12 of them on a device the scan cannot see blocks every OTHER sensor's reconnect for nothing.
+
+    Measured on the box with an H10 on a desk: 51 ops in 59.1 min, mean hold 41.1 s — a 59 % duty cycle.
+    This is the third time this shape has been fixed here; the first two lowered the TIMEOUT (300 s, then
+    45 s) and left the loop. Counting the attempts is what pins the loop itself.
+
+    Nothing is lost by giving up: `clock_sync_due` re-syncs on every reconnect, and a reconnect only
+    happens when the device IS reachable — the reconnect loop is already the retry mechanism for absence."""
+    _auto_sync_common(monkeypatch)
+    calls = {"n": 0}
+    async def absent(addr):
+        calls["n"] += 1
+        raise RuntimeError("BleakDeviceNotFoundError: not advertising")
+    monkeypatch.setattr(capture, "sync_device_time", absent)
+    _skip_while_loop()
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert calls["n"] == 1, f"an absent device must cost ONE attempt, not 12 (got {calls['n']})"
+    assert capture.STATUS.get("devices", {}).get("H10", {}).get("clock_synced") is None
+
+
 def test_run_polar_auto_sync_gives_up_on_a_hard_failure(tmp_path, monkeypatch):
     """A non-transient error (a genuine protocol refusal) is fatal to the sync — break, no retry (444-445)."""
     _auto_sync_common(monkeypatch)

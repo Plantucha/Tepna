@@ -1144,6 +1144,48 @@ def transient_ble_error(exc: BaseException) -> bool:
     return any(m in text for m in _TRANSIENT_BLE)
 
 
+# ABSENT is not BUSY, and the difference decides who should do the retrying.
+#
+# `_TRANSIENT_BLE` above answers "is this worth retrying AT ALL", and for the reconnect loop the answer
+# for a not-found device is YES — that loop exists precisely to keep looking for a sensor that is out of
+# range. But it is the WRONG answer for `auto_sync_clock`, whose 12-attempt ladder holds the GLOBAL
+# `_CONNECT_LOCK` on every attempt (see polar_offline_op). Those two signals need telling apart:
+#
+#   contention  — InProgress / not-ready / busy: the device IS there, something else holds its one link.
+#                 Waiting is exactly right; this is the case the ladder was built for (2026-07-18, both
+#                 Polars lost their clock for an evening because a restart's InProgress was read as fatal).
+#   absence     — DeviceNotFound / not advertising: the scan did not see it. No amount of waiting helps,
+#                 and the wait is not free — it is up to _CLOCK_SYNC_TIMEOUT_S of a lock that blocks
+#                 EVERY other device's reconnect.
+#
+# Retrying absence is also REDUNDANT, which is what makes dropping it safe: `clock_sync_due` re-syncs on
+# every reconnect, and a reconnect only happens when the device is reachable. The reconnect loop is
+# already the retry mechanism for absence; the ladder was duplicating it and paying a global lock to do it.
+#
+# MEASURED, and this is the third time this exact shape has been fixed here. 2026-07-19: an out-of-range
+# device wedged capture for 58 min → `_OFFLINE_OP_TIMEOUT_S`. Then the same day, 12 retries × 300 s = a
+# 97 % duty-cycle wedge → `_CLOCK_SYNC_TIMEOUT_S = 45`. Both attacked the TIMEOUT. On 2026-08-09, with an
+# H10 sitting on a desk, the loop was still running at a **59 % duty cycle** — 51 ops in 59.1 min, mean
+# hold 41.1 s, 2097 s of 3544 s. Lowering the constant twice never removed the loop, because the loop is
+# not a timeout problem: it is a retry-decision problem.
+# ⚠️ EVERY TOKEN HERE MUST ALSO APPEAR IN `_TRANSIENT_BLE`, and a test asserts it structurally rather
+# than by example. Absence must be a strict SUBSET of transient: this change moves WHO retries, never
+# WHETHER anyone does. A token that were absent-but-not-transient would make the reconnect loop
+# surrender a sensor that had merely walked out of range — strictly worse than the loop being fixed.
+# (Caught in review: the first draft added spaced variants like "device not found" that `_TRANSIENT_BLE`
+# does not carry, which would have done exactly that.)
+_ABSENT_BLE = ("devicenotfound", "not advertising")
+
+
+def device_absent_error(exc: BaseException) -> bool:
+    """True when the failure says the device WAS NOT FOUND, as distinct from found-but-busy.
+
+    Deliberately narrower than `transient_ble_error` and NOT a replacement for it: a bare `TimeoutError`
+    stays 'busy', because a connect can time out against a device that is present but contended, and
+    guessing 'absent' there would surrender a sync the ladder should have waited out."""
+    return any(m in repr(exc).lower() for m in _ABSENT_BLE)
+
+
 # An adapter that has run out of link-layer connection slots reports a distinct error that reads like
 # "sensor off" unless named (VIGIL-DEEP-ANALYSIS §2D): an over-provisioned dongle looks like flapping
 # sensors. Classify it so the log says "adapter connection ceiling", not a generic link error.
@@ -1317,7 +1359,15 @@ async def auto_sync_clock(name, addr) -> bool:
         except offline_lock.OfflineBusy:
             await asyncio.sleep(5)
         except Exception as e:
-            # A transient BlueZ state is a BUSY signal from a different layer, not a failure.
+            # ABSENT: the scan did not find it. Do NOT spend the ladder — every attempt costs up to
+            # _CLOCK_SYNC_TIMEOUT_S of the global _CONNECT_LOCK, blocking every other device's reconnect,
+            # and cannot succeed. `clock_sync_due` fires again on the next reconnect, which only happens
+            # when the device IS reachable, so this defers the sync by one cycle rather than losing it.
+            if device_absent_error(e):
+                log.info("%s clock auto-sync deferred — device not found (attempt %d); the reconnect "
+                         "loop will re-trigger it when the device is back", name, attempt + 1)
+                return False
+            # BUSY: a transient BlueZ state is a signal from a different layer, not a failure.
             # Surrendering here left the device stamping samples from an unsynced clock all night.
             if transient_ble_error(e):
                 log.info("%s clock auto-sync busy (%s) — retry %d/12",
