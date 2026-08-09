@@ -111,7 +111,7 @@ Every interval used here is **waveform-derived**, never a device file: ECGDex `t
 *"SELF-COMPUTED, sub-sample-refined Pan-Tompkins R-peaks, Malik-corrected"*, and both PPI series are
 *"SELF-COMPUTED optical spine (3-LED consensus → buildPPI → Malik correctRR)"*, `spine: foot`. That is
 required, not preferred — CLAUDE.md records that the Verity's `_HR.txt` is all-zero and its `_PPI.txt`
-header-only (measured tonight: **107 of 107** files), and the H10's `_HR.txt` is firmware-smoothed.
+header-only (**113 of 113 real files**; the 4 `_PPI.txt` with rows are `uploads/synthetic/` twins — recounted 2026-08-08), and the H10's `_HR.txt` is firmware-smoothed.
 
 But the H10 *does* write a real `_RR.txt`, which makes a control available for the one device that has
 one. Run through the **built-in comparator** (`ECGDSP.validateRR`) rather than a fresh one:
@@ -416,11 +416,30 @@ The defence is redundancy in the measurement, not more surrogates.
       **and** a physiological median), on the nights where closure holds.
 - [ ] A decision recorded on §3.3: capture-time offset measurement vs an exported envelope. Both are
       costed; neither is chosen.
-- [ ] The **PPI** side gets the same control the RR side has. `PPGDSP.validatePPI` exists and is
-      wired, but there is nothing to compare against: the Verity's `_PPI.txt` is header-only on 107 of
-      107 files and the O2Ring writes no PPI at all, so the optical spine is currently **unvalidatable
-      against hardware**. Either a device that emits real PPI, or an accepted statement that the
-      optical intervals are checked only against each other and the ECG.
+- [x] **ACCEPTED STATEMENT RECORDED 2026-08-08 — the optical spine is not validated against hardware,
+      and will not be on this equipment.** The choice this item offered was "a device that emits real
+      PPI, or an accepted statement". No such device exists in the corpus, so the statement is taken.
+
+      **Re-measured before accepting, and the count needed correcting.** Not 107 of 107: there are
+      **117 `_PPI.txt` files, 113 header-only and 4 carrying rows** (465–583 each). The four are
+      `uploads/synthetic/` fixtures with 14-digit-stamp filenames — *generated twins, not hardware*.
+      So the honest split is **113 real files, 113 header-only, zero hardware intervals**, and the
+      original figure undercounted the corpus while reaching the right conclusion about it.
+
+      That distinction is the load-bearing part. `PPGDSP.validatePPI` **is** exercised — by the
+      synthetic twins — so the comparator has coverage and cannot rot. But a comparator exercised only
+      against a file this repo generated is a **contract test, not a control**: it proves the function
+      agrees with our own generator, which is exactly the shape of gate this suite has repeatedly found
+      passing while checking nothing. It is legitimate here only because it is now stated.
+
+      **The accepted statement.** Optical intervals are validated against (a) **each other** — 3-LED
+      consensus before `buildPPI` — and (b) the **ECG spine**, which itself has a real hardware control
+      (`ECGDSP.validateRR` against the H10's `_RR.txt`, §2.4). They are **never** validated against
+      device-reported PPI, because no device here reports any. No claim of hardware-validated optical
+      intervals may be made anywhere in the suite on this corpus.
+
+      **What reopens it:** any device that emits real PPI. The comparator is already wired, so the leg
+      is one corpus away, not one implementation away.
 - [x] Per-device timing jitter via three-cornered hat — **attempted 2026-08-01 through the repo's own
       `integrator-tch.js`, and the answer is bounded** (§2.6). It decomposes cleanly on exactly one
       night (classic, ρ = 0); elsewhere the solver needs ρ = 0.45–0.79. And the σ it returns is **not
