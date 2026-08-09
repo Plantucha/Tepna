@@ -519,11 +519,30 @@ function loadCanaries() {
     return {};
   }
 }
+/* Serialise with keys sorted — PURE, so --selftest can prove it round-trips.
+   The first version was `JSON.stringify(all, Object.keys(all).sort(), 2)`, intending "sort the keys".
+   JSON.stringify's second parameter is the REPLACER, and an array there is an ALLOWLIST OF PROPERTY
+   NAMES — so every property NOT named after a file (`line`, `op`, `before`, `after`, `killers`) was
+   stripped and each entry serialised as `{}`.
+
+   Two consequences, both silent. Every canary a sweep "learned" was empty, so the self-maintaining
+   half of the mechanism had never once worked. And since the whole file is rewritten on each save,
+   the first file to learn a canary DESTROYED the entry for every other file — including clock.js's,
+   which had been seeded and verified by hand. A guard that quietly deletes other guards is worse
+   than no guard, and nothing could have reported it: what is written is never read back. */
+export function serializeCanaries(all) {
+  const sorted = {};
+  for (const k of Object.keys(all).sort()) sorted[k] = all[k];
+  return JSON.stringify(sorted, null, 2) + '\n';
+}
 function saveCanary(file, mu, killerList) {
   try {
+    /* FAIL CLOSED on an incomplete canary. findCanary matches on (line, op, before); an entry missing
+       any of them can never match, so it would read STALE forever while looking like a live guard. */
+    if (mu == null || mu.line == null || !mu.op || mu.before == null) return;
     const all = loadCanaries();
-    all[file] = { line: mu.line, op: mu.op, before: mu.before, after: mu.after, killers: killerList.slice(0, 3) };
-    writeFileSync(CANARY_FILE, JSON.stringify(all, Object.keys(all).sort(), 2) + '\n');
+    all[file] = { line: mu.line, op: mu.op, before: mu.before, after: mu.after, killers: (killerList || []).slice(0, 3) };
+    writeFileSync(CANARY_FILE, serializeCanaries(all));
   } catch {}
 }
 /* Match a stored canary back onto a freshly enumerated mutant. Matched on (line, op, before) rather
@@ -983,6 +1002,21 @@ function selftest() {
   ck('3 of 200 (1.5%) → silent, count alone is not enough', invalidWarning(3, 200, 150), null);
   ck('3 of 10 (30%) → warns', typeof invalidWarning(3, 10, 5) === 'string', true);
   ck('0 tested → no divide-by-zero', invalidWarning(0, 0, 0), null);
+  /* The canary file is WRITTEN and never read back by the writer, so a serialisation bug is invisible
+     — and this one deleted other files' guards while looking like it was adding one. Round-trip it. */
+  console.log('\nserializeCanaries — a guard that silently deletes other guards is worse than none');
+  const CE = { line: 386, op: 'cmp <= → <', before: 'if (x <= a) return b;', after: 'if (x < a) return b;', killers: ['g'] };
+  const rt = JSON.parse(serializeCanaries({ 'clock.js': CE }));
+  ck('an entry survives the round-trip at all', JSON.stringify(rt['clock.js']), JSON.stringify(CE));
+  ck('…line survives', rt['clock.js'].line, 386);
+  ck('…op survives', rt['clock.js'].op, 'cmp <= → <');
+  ck('…before survives (findCanary matches on it)', rt['clock.js'].before, 'if (x <= a) return b;');
+  ck('…killers survive', JSON.stringify(rt['clock.js'].killers), '["g"]');
+  const two = JSON.parse(serializeCanaries({ 'z.js': CE, 'a.js': CE }));
+  ck('adding a second file does NOT empty the first', JSON.stringify(two['z.js']), JSON.stringify(CE));
+  ck('…and the new one is populated too', JSON.stringify(two['a.js']), JSON.stringify(CE));
+  ck('keys are sorted', Object.keys(two).join(','), 'a.js,z.js');
+  ck('a round-tripped entry still MATCHES its mutant', findCanary([{ line: 386, op: 'cmp <= → <', before: 'if (x <= a) return b;' }], rt['clock.js']) !== null, true);
   console.log('\nfindCanary — matched on (line, op, before), never on a positional index');
   const pool = [
     { line: 10, op: 'cmp > → >=', before: 'if (a > b) {' },
