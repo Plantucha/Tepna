@@ -2229,6 +2229,33 @@
           JSON.stringify({ ppg: blk.tch.allan && blk.tch.allan.adev.PpgDex, ecg: blk.tch.allan && blk.tch.allan.adev.ECGDex })
         );
       }
+
+      /* WEARABLE-HOST-AXIS §F3 in the SHIPPED path — a leg whose time axis was DRAWN (timingSource
+         'none': a constant increment standing in for an assumed rate, no host anchors) carries NO
+         timing and must never be a TCH corner. fitClockClosure guards this but is tool-only; the app
+         runs fuseHRVConsensus → _tchHat, which did NOT — and the field was never even plumbed onto the
+         rec, so the guard read undefined and kept the leg. Proven 2026-08-08: a timingSource:'none'
+         PpgDex was spent as a full corner. Build the SAME 3 nodes but mark PpgDex drawn; it must drop. */
+      function mkDrawn(node, noiseStd, seed) {
+        var nz = normals(seed, NE), eps = [];
+        for (var i = 0; i < NE; i++) eps.push({ tMin: i * 5, rmssd: +(truth[i] + noiseStd * nz[i]).toFixed(1), hr: 55, motionIndex: 0.1 });
+        var whole = +(eps.reduce(function (a, e) { return a + e.rmssd; }, 0) / NE).toFixed(1);
+        return A({ schema: { node: node }, recording: { startEpochMs: t0, durationMin: 240 },
+          quality: { analyzablePct: 95 }, hrv: { time: { rmssd: whole, sdnn: +(whole * 1.3).toFixed(1) } },
+          timeseries: { epochs: eps }, timingSource: 'none',
+          ganglior_events: [{ t: '23:00:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: 0.8 }] }, node, node + '.json')[0];
+      }
+      var drawnRec = mkDrawn('PpgDex', 14, 33);
+      T.eq('timingSource is PLUMBED onto the fusion rec (was undefined → guard was dead)', drawnRec.timingSource, 'none');
+      var consD = FC([mk('ECGDex', 2, 11), mk('HRVDex', 5, 22), drawnRec], 1000);
+      var blkD = consD && consD.blocks && consD.blocks[0];
+      T.ok('drawn-axis leg is EXCLUDED — TCH degrades to <3 timed corners rather than spending a fiction',
+        !!blkD && !(blkD.tch && blkD.tch.ok) && / PpgDex/.test(blkD.tchStatus || ''), 'status=' + (blkD && blkD.tchStatus));
+      // control: the identical triple WITHOUT the drawn flag still forms a hat (the guard is specific)
+      var consOk = FC([mk('ECGDex', 2, 11), mk('HRVDex', 5, 22), mk('PpgDex', 14, 33)], 1000);
+      var blkOk = consOk && consOk.blocks && consOk.blocks[0];
+      T.ok('control · a fully-timed triple still forms the hat (guard is specific to drawn)', !!(blkOk && blkOk.tch && blkOk.tch.ok));
+
       /* DEEP-AUDIT-V §2.1 F4 — THE SCREEN HAS THREE OUTCOMES AND THE CONSUMER IMPLEMENTED TWO.
          `screenTriplet`'s docstring: "Exactly-one → drop it and name the trustworthy pair; zero →
          proceed; two-or-more mutual decorrelations → AMBIGUOUS (can't tell which is truth) → don't
