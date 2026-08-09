@@ -168,11 +168,20 @@ _texworker.js
 # LOCAL analysis scratch (e.g. an ad-hoc PyTorch/ROCm env) and must never reach the repo —
 # they are multi-GB and machine-specific. NOTE: `*.py` is deliberately NOT ignored, because
 # capture-host/*.py (the Polar capture host) is tracked and authored.
+# BOTH FORMS, and the slashless one is the load-bearing addition. A trailing slash matches
+# DIRECTORIES ONLY, so `.venv/` does NOT ignore a SYMLINK named `.venv` — which is exactly what you
+# create when running the capture-host tests from a git worktree (`ln -s ../../Tepna/capture-host/
+# .venv`), the workflow CLAUDE.md §1 tells you to use. It then shows up as untracked, and a blanket
+# stage sweeps it into somebody's commit — the failure §2 spends a page warning about.
 venv/
 .venv/
+venv
+.venv
 env/
 **/venv/
 **/.venv/
+**/venv
+**/.venv
 __pycache__/
 *.py[cod]
 *.egg-info/

@@ -14283,6 +14283,58 @@
        value of the classifier is that it is wrong in the SAFE direction.
 
        Node-lane only — it imports a tool — so the browser lane SKIPs, exactly like docs-ledger. ════ */
+    /* ── land-pr: the PR-landing state machine (LAND-PR, 2026-08-09) ───────────────────────────
+       `main` moves a median 7.2 min while CI takes ~10-12 over 7 required checks, and the ruleset
+       sets strict=true, so every session hand-writes a polling loop and they keep being wrong in
+       the same ways. The loop is now a tool; this drives its PURE core, so the decisions are pinned
+       without `gh`, a network or a clock. */
+    group('Land-PR — BEHIND is the race, not a failure; a missing REQUIRED check is not pending', 'tools · land-pr', function (T) {
+      var d = env.landDecide;
+      if (typeof d !== 'function') {
+        T.skip('land-pr decision core is wired into this lane', 'browser lane cannot import tools/land-pr.mjs');
+        return;
+      }
+      var OPEN = function (mergeState, buckets, extra) {
+        var s = { state: 'OPEN', mergeState: mergeState, buckets: buckets || {}, required: [], reported: [] };
+        for (var k in extra || {}) s[k] = extra[k];
+        return s;
+      };
+
+      // The terminal states.
+      T.eq('MERGED is done', d({ state: 'MERGED' }).action, 'done');
+      T.eq('CLOSED-unmerged stops rather than spinning', d({ state: 'CLOSED' }).action, 'closed');
+
+      /* THE FOUR ACTIONS THAT COST TIME ON #1095, each pinned to the response it actually needs. */
+      T.eq('BEHIND updates the branch (this is the race, not an error)', d(OPEN('BEHIND', { pass: 22 })).action, 'update');
+      T.eq('BLOCKED with checks running WAITS', d(OPEN('BLOCKED', { pass: 19, pending: 1 })).action, 'wait');
+      T.eq('UNKNOWN mergeability WAITS — GitHub is still computing it', d(OPEN('UNKNOWN', { pass: 22 })).action, 'wait');
+      T.eq('CLEAN + green merges', d(OPEN('CLEAN', { pass: 22 })).action, 'merge');
+
+      /* FAILURE OUTRANKS BEHIND. If this ordering inverted, a failing PR whose branch went behind
+         would be "updated", re-running CI and hiding the red behind a fresh pending — the tool would
+         churn indefinitely on a PR that can never merge. */
+      T.eq('a failing check is fatal even while BEHIND', d(OPEN('BEHIND', { pass: 3, fail: 1 })).action, 'fail');
+      T.eq('a failing check is fatal even while others are pending', d(OPEN('BLOCKED', { pass: 3, fail: 1, pending: 6 })).action, 'fail');
+
+      /* A SKIPPED MATRIX JOB reports an unexpanded literal name, so the required context never
+         arrives at all. That is NOT "pending" — nothing is running — and waiting cannot fix it. */
+      var missing = OPEN('BLOCKED', { pass: 20, skipping: 1 }, { required: ['test (py3.12)', 'biome'], reported: ['biome'] });
+      T.eq('a required context that was never reported is STUCK, not wait', d(missing).action, 'stuck');
+      T.ok('and it names the context', /py3\.12/.test(d(missing).why));
+
+      /* ...but only once nothing is pending. A run that has not STARTED is also absent from the
+         reported list, and calling that stuck would abort every PR in its first seconds. */
+      var early = OPEN('BLOCKED', { pass: 1, pending: 6 }, { required: ['test (py3.12)', 'biome'], reported: ['biome'] });
+      T.eq('an unreported required check while others run is WAIT, not stuck', d(early).action, 'wait');
+
+      /* FAILS OPEN on an unreadable ruleset: unknown requirements must never manufacture `stuck`,
+         or a `gh api` hiccup would abort a perfectly good PR. */
+      T.eq('no known requirements -> never stuck', d(OPEN('CLEAN', { pass: 5 }, { required: [], reported: [] })).action, 'merge');
+
+      // A real conflict is the one case a human must resolve — never auto-updated around.
+      T.eq('DIRTY stops and points at the rebase rules', d(OPEN('DIRTY', { pass: 22 })).action, 'fail');
+    });
+
     group('Rebase-safe — the generated/source classifier fails CLOSED (REBASE-SAFE)', 'tools · rebase-safe', function (T) {
       var cls = env.rebaseClassify;
       if (typeof cls !== 'function') {
