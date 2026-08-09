@@ -297,6 +297,32 @@ Status lives in a one-line header block on the first content line (just after an
   dashboard — reorganize *that view*, not the files. Now that all briefs already sit in `briefs/`, do
   NOT further sub-folder them into `Done/`/`Executed/` — that breaks every cross-reference + splits git
   history (same failure as renaming); status lives in the header, not the path.
+- 🔴 **BEFORE YOU EDIT A BRIEF, CHECK IT HAS NOT ALREADY BEEN ANSWERED — mandatory, hook-enforced.**
+  Someone else is probably working the same brief queue (§👥). A brief is the ONE artifact several
+  sessions reach for at once, and overwriting one produces **no conflict**: answers land in different
+  sections, git sees no overlapping hunk, the squash silently keeps the newer text, and no gate in this
+  repo can see it. Measured 2026-08-08 on `GENERATOR-FOLLOWUPS-III`, **twice in one day** — #1055 dropped
+  #1034's §2 (a better-evidenced answer, proven by execution) and left the brief contradicting its own §4
+  for two commits; then #1059 and #1061 independently wrote the *same* reconciliation, because neither
+  session could see the other coming either.
+
+  ```sh
+  git fetch origin main
+  git log --oneline $(git merge-base HEAD origin/main)..origin/main -- briefs/<NAME>-BRIEF.md
+  ```
+
+  Non-empty ⇒ **read those commits before writing** (`git log -p …`) — they may already answer what you
+  are about to say — then rebase (`node tools/rebase-safe.mjs`) so your edit lands **on top of** them
+  rather than instead of them. **Hook-enforced** by `.claude/hooks/guard-stale-brief.sh` (PreToolUse on
+  `Edit|Write`, self-tested by `npm run test:hooks`, wired into `npm run check`), which runs exactly that
+  query for the file you are touching and denies with the commit list. It covers `briefs/*.md` +
+  `DOCS-INDEX.md`, reads your LOCAL `origin/main` and never fetches — so it can only **under**-report,
+  which is why the `git fetch` above is part of the rule and not the hook. Escape hatch, for when you
+  have read them and are deliberately writing over them: `CLAUDE_ALLOW_STALE_BRIEF=1`.
+
+  ⚠️ **This is a different failure from a merge conflict, and the absence of one is the tell.** If a
+  brief edit rebases cleanly against a brief that moved, that is not reassurance — it is the exact
+  signature of the bug.
 - **This whole lifecycle is now gate-backed** by the `docs-ledger` group in `tests/dex-tests.js`: a stray
   root brief, a malformed/absent status header on a brief dated ≥ 2026-07-03, an unindexed brief, a dead
   **relative link** in `DOCS-INDEX.md` (any target — `](briefs/…)` resolves against the real brief set, and
