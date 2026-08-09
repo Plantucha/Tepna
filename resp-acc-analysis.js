@@ -629,7 +629,66 @@
     return rows;
   }
 
+  /* THE SESSION STAMP, IN BOTH LAYOUTS THE FLEET ACTUALLY WRITES.
+     Polar Sensor Logger (phone) writes `_YYYYMMDD_HHMMSS_ACC.txt`; the capture host writes the SAME
+     BYTES under `_YYYYMMDDHHMMSS_ACC.txt` — one 14-digit run, no separator (CAPTURE-HOST-INTEGRATOR-
+     FOLD §1; `tools/trio-batch.mjs` has carried both as RE_POLAR / RE_POLAR_CH all along).
+
+     Only the phone form was matched, so **every box-captured night was invisible to this apparatus** —
+     and invisible is the precise word. The file passed the `Polar_H10 … _ACC.txt` filter, then fell out
+     of the grouping loop on a bare `continue`: not skipped-with-a-reason, not counted, not logged. A
+     drop of nothing but box nights reported "no ACC+BRP night pairs found" and said nothing about why.
+     MOTIONDEX-RESPIRATORY-RATE §4a recorded the symptom; this is the fix.
+
+     It lives HERE, in the pure module, rather than beside its caller in `resp-acc-analysis-app.js`
+     where the defect was, for one reason: this file is loaded by BOTH test runners and the app layer is
+     loaded by neither. A parser that decides which nights a paper is allowed to see must be gateable.
+
+     Returns `{ day: 'YYYYMMDD', hhmmss: 'HHMMSS' }`, or null when neither layout matches. */
+  function sessionStamp(name) {
+    var s = String(name || '');
+    var m = /_(\d{8})_(\d{6})_ACC\.txt$/i.exec(s);
+    if (m) return { day: m[1], hhmmss: m[2] };
+    m = /_(\d{8})(\d{6})_ACC\.txt$/i.exec(s); // capture-host: one 14-digit run, no separator
+    return m ? { day: m[1], hhmmss: m[2] } : null;
+  }
+
+  /* BLAND–ALTMAN — the agreement figure the three papers need, as NUMBERS.
+     `agreement()` already publishes bias / loa / rmse; this returns the per-epoch geometry a plot is
+     drawn from, so the figure and the table cannot disagree about what they show. Kept pure and here
+     (not in the drawing layer) for the same reason as `sessionStamp`: a published figure's arithmetic
+     must be gateable, and no test runner loads the app layer.
+
+     Convention, stated because both appear in the literature: `diff = pred − ref` (so a POSITIVE bias
+     means the estimator over-reads), `mean = (pred + ref) / 2` on the x-axis, and the limits of
+     agreement are bias ± 1.96·SD of the differences, using the SAMPLE SD (n−1). Non-finite pairs are
+     dropped, not zero-filled. Fewer than two usable pairs ⇒ null: one pair has no SD, and a limit of
+     agreement computed from it would be a fabricated interval. */
+  function blandAltman(pred, ref) {
+    if (!pred || !ref) return null;
+    var n = Math.min(pred.length, ref.length),
+      pts = [],
+      d = [];
+    for (var i = 0; i < n; i++) {
+      var p = +pred[i],
+        r = +ref[i];
+      if (!isFinite(p) || !isFinite(r)) continue;
+      pts.push({ mean: (p + r) / 2, diff: p - r });
+      d.push(p - r);
+    }
+    if (d.length < 2) return null;
+    var sum = 0;
+    for (i = 0; i < d.length; i++) sum += d[i];
+    var bias = sum / d.length,
+      ss = 0;
+    for (i = 0; i < d.length; i++) ss += (d[i] - bias) * (d[i] - bias);
+    var sd = Math.sqrt(ss / (d.length - 1)); // sample SD — these are a sample of nights, not the population
+    return { points: pts, n: d.length, bias: bias, sd: sd, upper: bias + 1.96 * sd, lower: bias - 1.96 * sd };
+  }
+
   global.RespAccAnalysis = {
+    sessionStamp: sessionStamp,
+    blandAltman: blandAltman,
     readEDF: readEDF,
     readAnnotations: readAnnotations,
     detectBreaths: detectBreaths,
