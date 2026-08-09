@@ -1,0 +1,43 @@
+{
+  "_README": [
+    "THE EQUIVALENCE CLASSIFICATION for capture-host's diff-scoped mutation gate.",
+    "Sibling of the repo-root tools/mutate-equivalence.json, same rules, same failure modes.",
+    "",
+    "A surviving mutant is not automatically a test gap. Some cannot be killed by ANY input, because a",
+    "guard the mutation weakens is followed by code that rejects the same cases anyway. Leaving those",
+    "red forever is how mutate_diff.py's own header says a gate dies ('trains people to ignore it');",
+    "waving them through in a PR comment is how it starts lying. This file is the third option.",
+    "",
+    "KEYED ON THE MUTANT'S DIFF (its -/+ line pair, whitespace-normalised) — never on mutmut's",
+    "__mutmut_N index, which renumbers whenever anything earlier in the function changes and would",
+    "silently start excusing a different mutation.",
+    "",
+    "THE CLASSES, and they are not interchangeable:",
+    "  no-distinguishing-input  a battery of inputs was run against original and mutant and every one",
+    "                           agreed. STRONG EVIDENCE, NOT PROOF: a proof needs an argument over the",
+    "                           whole domain. `probe` records what was actually run so the claim can be",
+    "                           re-checked or widened.",
+    "  untestable-by-design     a log string, or a branch unreachable by construction. The argument in",
+    "                           `why` must be about the CODE, not about the test suite.",
+    "  real-gap                 killable, no test yet. STILL FAILS THE GATE. Debt, not an excuse.",
+    "",
+    "THIS FILE CANNOT FLATTER THE VERDICT. mutate_diff.py reports three states loudly:",
+    "  REFUTED   an entry claims equivalence and the mutant was KILLED. The claim is wrong; fix the",
+    "            ENTRY, never the test. This FAILS the gate — it is the only way a stale file could",
+    "            hide a real gap.",
+    "  ORPHANED  an entry matches no generated mutant (the line moved). Excluded from every count, so",
+    "            a stale entry shrinks nothing.",
+    "  unclassified survivors fail the gate exactly as before. Silence is never equivalence."
+  ],
+  "probe_verity_survey.py": [
+    {
+      "key": "- if not (len(tail) == 6 and tail.isdigit()): | + if not (len(tail) == 6 or tail.isdigit()):",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "probe_verity_survey.x__session_matches__mutmut_12",
+      "why": "The weakened guard lets through exactly two extra shapes: len==6 but not all digits, and all digits but len!=6. Both then reach strptime(tail, '%H%M%S'), which raises ValueError for either, and the except returns False — the same value the guard would have returned. The guard is a fast path, not a semantic gate, so no input can separate them.",
+      "probe": "133,495 directory names: 26,699 tails (lengths 0-8 over digits+letters+' -:.', plus the hand-picked 120059/995959/9999XX/12345/1234567/240000/000000/235959/00000/0000000) crossed with 5 prefixes (dated matching, dated non-matching, undated, bare, three-part). Original vs mutant differed on 0.",
+      "recorded": "2026-08-09",
+      "found_by": "diff-scoped mutation gate on PR #1090"
+    }
+  ]
+}

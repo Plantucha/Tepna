@@ -702,6 +702,36 @@ def test_a_directory_that_is_not_a_session_is_not_ours():
     assert psv._session_matches("/pull/U_0_20260802_R_235950", midnight) is True
 
 
+def test_the_session_match_boundaries_the_mutation_gate_found_open():
+    """Five surviving mutants in `_session_matches`, all in the date arm this branch added.
+
+    The diff-scoped mutation gate on #1090 reported them; the tests written with that fix pinned the
+    BEHAVIOUR (wrong day rejected, midnight accepted) and left the arm's own edges unexamined, so a
+    weakened predicate still passed. Each assertion below is tied to the mutant it kills, verified by
+    re-applying that mutant — a kill claimed from reading the code is the failure mode this repo keeps
+    rediscovering.
+    """
+    e = _dt.datetime(2026, 8, 3, 12, 0, 0)
+
+    # mutmut_27 (`len(parts) >= 3` -> `> 3`) and mutmut_28 (`-> >= 4`). A THREE-part name is the
+    # shortest that still carries a date; the existing fixtures all have five parts, so both mutants
+    # read identically. The date must also DIFFER from the run's, or falling back to `expect.date()`
+    # lands on the same answer and the mutant survives anyway.
+    assert psv._session_matches("/pull/20260803_R_120059", e) is True, "a three-part name still carries its date"
+    assert psv._session_matches("/pull/20260701_R_120059", e) is False, "…and that date is still checked"
+
+    # mutmut_32 (`parts[-3].isdigit()` -> `parts[-4].isdigit()`). Every existing fixture has a DIGIT at
+    # [-4] ("U_0_…"), so the two indices agree and the mutant is invisible. A non-digit there separates
+    # them.
+    assert psv._session_matches("/pull/U_x_20260701_R_120059", e) is False, "the date is read from [-3], not [-4]"
+
+    # mutmut_51 (`< 180` -> `<= 180`) and mutmut_52 (`-> < 181`). The window is EXCLUSIVE at 180 s.
+    assert psv._session_matches("/pull/U_0_20260803_R_120300", e) is False, "exactly 180 s is outside the window"
+    assert psv._session_matches("/pull/U_0_20260803_R_120259", e) is True, "…and 179 s is inside it"
+    assert psv._session_matches("/pull/U_0_20260803_R_115700", e) is False, "the window is symmetric — 180 s early is out too"
+    assert psv._session_matches("/pull/U_0_20260803_R_115701", e) is True, "…and 179 s early is in"
+
+
 def test_the_local_clock_helper_is_a_real_epoch():
     assert abs(psv._now_epoch() - _dt.datetime.now().timestamp()) < 5
 

@@ -1,5 +1,8 @@
+# Both forms: a trailing slash matches directories only, and a worktree test run symlinks .venv here.
 .venv/
+.venv
 .venv-cov/
+.venv-cov
 __pycache__/
 *.pyc
 config.yaml
