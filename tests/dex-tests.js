@@ -8206,6 +8206,60 @@
      beat time-shifted early. The fold in analyze() adds each gap's excess dead-time to the beats after it, so
      the existing gap-aware coverage sees it. Both directions are asserted: the defect's misread is exhibited,
      then shown fixed. ════ */
+    /* ════ THE fs CORRECTION MUST ASK WHETHER THERE IS A SECOND CLOCK ════════════════════════════
+       Clock Contract §7: "FIRST ASK WHETHER THERE IS A SECOND CLOCK AT ALL — read `independent`,
+       never a ~0 ppm." `parseECGText` is the ONE consumer that reads `hostAxis.ppm` and divides `fs`
+       by it, and its apply condition was `ok && isFinite(ppm) && span >= MIN` — none of which a
+       DERIVED host column fails. `ok` is satisfied by a derived column and so is the span gate.
+       Measured on the real H10 captures (2026-08-09, full files, 3.7 M rows, up to 481 min): the
+       host↔device slope is **0.0 ppm** with a 1–3 ms residual. Two independent crystals cannot agree
+       to 0.0 ppm over eight hours — that column is the device stamp restamped, which is exactly what
+       `independent === false` reports. On such a file the correction is a no-op, so the guard costs
+       nothing there; it earns its place on a capture where the host IS independent, by keeping the
+       decision explicit instead of resting on "ppm happened to be ~0".
+       Both directions are pinned below, because a guard that only ever refuses is indistinguishable
+       from one that has broken the feature. */
+    group('ECGDex fs — a DERIVED host column is not a second clock (Clock §7)', 'ecgdex-dsp · clock-contract', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG available', false, 'not loaded');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var BASE = Date.UTC(2026, 5, 17, 1, 0, 0);
+      // 2600 rows × 1000 ms ⇒ a 2600 s span, clearing ECG_AXIS_MIN_SPAN_MS (2400 s) with a small
+      // fixture: anchors are sampled every 500 rows, so this yields 6 of them (≥3 is hostAxis's floor).
+      function build(hostAt) {
+        var rows = [HDR];
+        for (var i = 0; i < 2600; i++) {
+          var rel = i * 1000;
+          rows.push(new Date(hostAt(rel, i)).toISOString() + ';0;' + rel + ';' + (100 + (i % 40)));
+        }
+        return rows.join('\n');
+      }
+      // DERIVED: the host column IS the device stamp restamped — zero divergence, no jitter.
+      var derived = D.parseECG(build(function (rel) { return BASE + rel; }));
+      // INDEPENDENT: a host clock running 500 ppm fast, with ±4 ms of delivery jitter so the residual
+      // spread exceeds the 2 ms discriminator. Deterministic jitter — no Math.random in a gate.
+      var indep = D.parseECG(build(function (rel, i) { return BASE + Math.round(rel * (1 + 500e-6)) + (i % 3) * 4; }));
+
+      var dAx = derived.hostAxis || {},
+        iAx = indep.hostAxis || {};
+      T.eq('a derived host column is reported as NOT independent', dAx.independent, false);
+      T.eq('…and the fs correction is therefore NOT applied', dAx.applied, false);
+      T.eq('a genuinely independent host column IS independent', iAx.independent, true);
+      T.eq('…and there the correction IS applied — the guard did not break the feature', iAx.applied, true);
+      // the consequence, asserted on the number rather than described
+      T.ok('fs is left alone on the derived capture', derived.fs === Math.round(derived.fs), 'fs=' + derived.fs);
+      /* Direction and order of magnitude, not the exact rate. §7 is explicit that `ppm` is biased at
+         the ENDS — the running median clamps there, so it UNDER-reads by a factor (1 − 5/(n−1)), and
+         this fixture deliberately carries few anchors (6) to stay small. Measured here: ~250 ppm
+         recovered from a planted 500. Asserting the planted value would be asserting the bias away. */
+      var movedPpm = (1 / (indep.fs / derived.fs) - 1) * 1e6;
+      T.ok('fs is corrected on the independent one, in the right direction and the right order', movedPpm > 100 && movedPpm < 600, 'derived=' + derived.fs + ' indep=' + indep.fs + ' recovered=' + Math.round(movedPpm) + ' ppm from a planted 500');
+      T.ok('the refusal is auditable — spreadMs is forwarded, not just a boolean', dAx.spreadMs != null && iAx.spreadMs != null, JSON.stringify([dAx.spreadMs, iAx.spreadMs]));
+    });
+
     group('ECGDex parseECG — mean-interval fs + raw-gap accounting (DEEP-AUDIT-II §4.3/§4.2)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseECG === 'function')) {
