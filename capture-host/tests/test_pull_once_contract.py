@@ -304,3 +304,47 @@ def test_a_COMPLETE_pull_still_lands_at_the_final_path(tmp_path, monkeypatch):
     assert len(dats) == 1 and dats[0].stat().st_size == len(blob)
     assert list(tmp_path.rglob("*.part")) == [], "a completed pull leaves no .part behind"
     assert saved and saved[0].endswith(".dat")
+
+
+
+
+# ── an unreadable sidecar is not "a session with no metadata" ────────────────────────────────────────
+# Found by triaging capture.py's swallowing `except` handlers (DEEP-AUDIT-FOLLOWUPS §3's carried-forward
+# list). `session_meta` returned a bare `{}` on ANY failure to read `<file>.meta.json`, and monitor.html
+# renders that as a clean `✓ <filename>` with the size simply absent — indistinguishable from success.
+#
+# The sidecar is where the SHORTFALL lives: `bytes` vs `declared_size` is how a truncated pull is told
+# from a whole one. A sidecar we cannot read is precisely the case where saying nothing is worst.
+#
+# NOTE: the first version of these tests RE-IMPLEMENTED the function's body and asserted on the copy —
+# the anti-pattern this repo's own audit records as "a test that re-implements its subject tests
+# nothing". It passed while proving nothing. `session_meta` was a closure, which is what invited that;
+# hoisting it to module level is why these can call the real thing.
+import capture as _capture
+
+
+def test_a_readable_sidecar_is_returned_verbatim(tmp_path):
+    p = tmp_path / "a.dat"
+    p.write_bytes(b"x")
+    (tmp_path / "a.dat.meta.json").write_text('{"bytes": 7, "declared_size": 7}')
+    assert _capture.session_meta(str(p)) == {"bytes": 7, "declared_size": 7}
+
+
+def test_a_corrupt_sidecar_says_UNREADABLE_not_empty(tmp_path, caplog):
+    p = tmp_path / "b.dat"
+    p.write_bytes(b"x")
+    (tmp_path / "b.dat.meta.json").write_text("{ this is not json")
+    with caplog.at_level("WARNING"):
+        m = _capture.session_meta(str(p), "Ring")
+    assert m.get("unreadable") is True, "a corrupt sidecar must say so, not vanish into {}"
+    assert m.get("reason") == "JSONDecodeError", m
+    assert m != {}, "the bare {} is what made this indistinguishable from a real empty session"
+    assert "unreadable" in caplog.text, "and it must reach the journal, not only the API"
+
+
+def test_a_MISSING_sidecar_is_unreadable_too(tmp_path):
+    """pull_session writes the sidecar immediately after the data, so an absent one is not 'normal'."""
+    p = tmp_path / "c.dat"
+    p.write_bytes(b"x")
+    m = _capture.session_meta(str(p))
+    assert m.get("unreadable") is True and m.get("reason") == "FileNotFoundError", m
