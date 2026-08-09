@@ -14695,6 +14695,20 @@
        WHAT IT DELIBERATELY DOES NOT DO: check that a DOI resolves. That needs network, which CI must
        not have, and it is the weak half anyway — all three wrong-paper DOIs resolved perfectly.
 
+       SCOPE, settled by measurement in FOLLOWUPS-II §2 — the first cut left three surfaces undecided,
+       and silence about a surface reads as coverage, which is the failure this chain exists to prevent:
+        · `papers/**` IN. The published artifacts, and the place a wrong author list does the most
+          damage, because the link still resolves and still lands on the paper being described. Adding
+          it found ZERO problems across 32 occurrences — which is the point of gating it: it is clean
+          today and now cannot drift.
+        · `docs/**.md` IN (4 occurrences, clean) — authored specs no builder writes. `docs/*.html`
+          stays OUT: served copies of root pages, already gated at their source, so including them
+          would report every finding twice.
+        · `briefs/` OUT, and measured rather than assumed: 49 occurrences, **17 problems, all false**.
+          A brief quotes a wrong attribution IN ORDER TO SAY IT IS WRONG — `CITATION-ATTRIBUTION-
+          FOLLOWUPS` trips four times on the very defects it fixed. Gating briefs would make the gate
+          loudest exactly where the repo is documenting its own corrections.
+
        Three noise sources, each of which would have buried a real finding, and each paid for once:
         · CORPORATE AUTHORS. Crossref stores 10.1161/…'s author as the full society name, whose last
           word is "Electrophysiology"; the guides use the conventional "Task Force of the ESC and
@@ -14780,7 +14794,34 @@
           else if (!yearOk) problems.push(s.file + '  ' + doi + ' — no year within ±1 of ' + rec.year);
         }
       });
-      T.ok('the gate actually reached the citations (a scope that matches nothing would pass vacuously)', checked >= 100, 'checked ' + checked + ' DOI occurrences across ' + C.surfaces.length + ' surfaces');
+      T.ok('the gate actually reached the citations (a scope that matches nothing would pass vacuously)', checked >= 180, 'checked ' + checked + ' DOI occurrences across ' + C.surfaces.length + ' surfaces');
+      /* PIN THE SCOPE STRUCTURALLY, not just by count. A count floor alone cannot tell "papers/ was
+         dropped" from "a paper lost a citation" — and dropping a surface is the failure that passes
+         quietly, because a narrower gate is always greener. These name the two surfaces §2 brought in. */
+      var kinds = C.surfaces.map(function (s) {
+        return s.file;
+      });
+      T.ok(
+        'papers/ is in scope — the published artifacts, where a wrong author list does the most damage',
+        kinds.some(function (f) {
+          return f.indexOf('papers/') === 0;
+        }),
+        kinds.join(', ').slice(0, 160)
+      );
+      T.ok(
+        'docs/**.md is in scope — authored specs no builder writes',
+        kinds.some(function (f) {
+          return f.indexOf('docs/') === 0 && /\.md$/.test(f);
+        }),
+        kinds.join(', ').slice(0, 160)
+      );
+      T.ok(
+        'docs/*.html stays OUT — served copies of root pages, already gated at their source',
+        !kinds.some(function (f) {
+          return f.indexOf('docs/') === 0 && /\.html$/.test(f);
+        }),
+        kinds.join(', ').slice(0, 160)
+      );
       T.eq('every DOI on a source surface names the ledger’s first author and a year within ±1', problems, []);
       /* A DOI on a surface but absent from the ledger is a ledger gap, not a citation defect — it is
          reported separately so the two never get conflated. */
