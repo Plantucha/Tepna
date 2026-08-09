@@ -276,6 +276,51 @@ failure is generic, so it should also cover paths a later fixture adds.
 `STATUS["devices"].setdefault(name, {})`, and the session-opening `_set(name, connected=False, …)` runs
 first, so the key always exists and the default is unreachable — the same shape as the three in §3.2.
 
+### 5.3b · The writer dispatch — the durable record (22 mutants)
+
+The mirror of §3's bus family: that one pins what reaches the monitor and disappears, this pins what
+is written to disk and is the only copy. The second is what the box exists to produce, and a wrong
+column is not noticed until someone computes HRV from the night, months later, unrecoverably.
+
+**Why all 22 survived.** The existing coverage is the file's EXISTENCE and its SIZE:
+
+```python
+ecgs = list((tmp_path / "captures").rglob("*_ECG.txt"))
+assert ecgs and ecgs[0].stat().st_size > 60
+```
+
+Both are invariant under every one of these mutations. A PPI row with `hr` and `pp_ms` transposed is
+exactly as long as a correct one — 60 is a believable interval only if you are not looking, and 850 is
+not a believable HR only if you are.
+
+**Closed: 12 killed, 10 EQUIVALENT.** The tests read the files back and assert column layout and
+values: PSL's PPI order (interval first, hr LAST, flag bits split to blocker/contact/contact), the
+three LED channels with ambient as its own column, ACC's three axes in order, GYRO/MAG's scaled floats,
+ECG's back-timing (the frame stamps only its last sample, so `sensor_ns` must climb to exactly the
+frame's value), and HR's split into `_HR.txt` + the `_RR.txt` sibling that is the HRV substrate.
+
+**FINDING — `t_ms` is a DEAD PARAMETER on five writer methods.** Confirmed by AST over `writers.py`,
+not by eye:
+
+| method | never reads |
+|---|---|
+| `write_ecg` · `write_acc` · `write_ppg` · `write_gyro` · `write_mag` | `t_ms` |
+| `write_ppi` · `write_hr` | `sensor_ns` (deliberate, documented) |
+
+`write_ecg` instead derives its `timestamp [ms]` column itself, as `self._rel_ms(sensor_ns)`. So the
+caller computes `t_ms` in `decode_frame`, passes it, and the writer computes the same column a second
+way. **Two sources for one column**: if they ever diverge the file says one thing and every caller
+believes another. Five of the ten equivalents are exactly this — `t_ms=None` changes nothing because
+nothing reads it. Reported, not changed: dropping a parameter is a signature change, and CLAUDE.md's
+back-compat rule says keep it. The dead-ness is now visible in a test rather than only in the AST.
+
+The other equivalents are honest by design and are pinned so they stay that way: PPI and HR carry **no
+device-clock column** (PPI frames have no usable device clock — every row this box has written has
+`sensor_ns == 0`, which `nightqc.file_span_sec` already assumes), so a test now stops someone "fixing"
+the writer to emit a column of zeros. `write_ppg(…, v[:4], …)` is equivalent because the writer takes
+`cols[:3]` internally, and `hr_writer = ""` is equivalent because `""` is falsy exactly where `None`
+was and is overwritten whenever `hr` is a requested stream.
+
 ### 5.4 · A harness defect that made earlier numbers wrong
 
 The kill-checker applied a mutant by matching its source line as a **text anchor**, and refused when
