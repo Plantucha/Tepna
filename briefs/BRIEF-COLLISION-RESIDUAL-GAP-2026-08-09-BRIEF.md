@@ -60,22 +60,50 @@ This is not hypothetical: **every computed edit I made to `DOCS-INDEX.md` and to
 place is easier to compute than to hand-write. All of them were unguarded. The sibling
 `guard-shared-tree.sh` matches `Bash` precisely because that is where the damage arrives.
 
-## 4 · What would actually close §2
+## 4 · What would actually close §2 — RESOLVED 2026-08-09
 
-In order of leverage, and the first one probably makes the others unnecessary:
+> ### ⚠️ CORRECTED — merge queue was chosen, and it is NOT AVAILABLE on this repo
+>
+> The original §4 listed branch protection first and merge queue was recommended in review as the
+> better fit, on the reasoning that it gives the same guarantee without the rebase tax a repo merging
+> ~15 PRs an hour would otherwise pay. **The reasoning was right and the availability was never
+> checked.** GitHub merge queue is an **organization-repository** feature; `Tepna` is user-owned
+> (`owner.type: User`), so the API refuses the rule at schema level — the same error with *no
+> parameters at all*:
+>
+> ```
+> {"message":"Validation Failed","errors":["Invalid rule 'merge_queue': "],"status":"422"}
+> ```
+>
+> Two attempts, both atomic; ruleset `protect-main` (#18794443) verified unchanged after each. This
+> is the brief's own §5 failure committed inside the brief that defines it: a capability asserted
+> without verification. `.github/workflows/*.yml` carry `merge_group:` triggers from #1083 — harmless,
+> correct, and dormant unless the repo is ever transferred to an organization.
 
-1. **Branch protection: "Require branches to be up to date before merging."** A one-setting change on
-   the repo. It forces the stale branch to rebase onto current `main` before the merge button works, so
-   the second PR either conflicts (visible) or re-applies onto the text the first one landed. It is the
-   only mechanism here that sees both PRs, because it runs at the moment both exist. Given #1066 was
-   opened *"per owner request, after it happened twice in one day"*, this is the setting to reach for.
-   **This is an owner action — it is not in the repo.**
-2. **A PR-level CI check** — fail when a file the PR touches has changed on `main` since the PR's
-   merge-base. Same query as the hook, run where the hook cannot stand. Redundant if (1) is enabled;
-   worth it only if (1) is undesirable for other reasons.
-3. **Widen the matcher to `Bash`** for the guarded paths. Cheap, closes §3, and does nothing for §2 —
-   and parsing shell for file writes is the losing game `guard-shared-tree.sh` documents as its own
-   known gap. Do it for §3's sake, not as a fix for §2.
+**What was implemented instead — a PR-level stale-file check (#1086).** It asks whether this PR edits
+a guarded doc that already moved on the base branch since the branch point. That case produces **no git
+conflict** — the constructed scenario auto-merges cleanly — which is why nothing else sees it.
+
+It beats the local hook on both of §1/§3's holes: it reads the **real ref** rather than your last fetch,
+and it does not care whether the bytes arrived via `Edit`, `Write`, or a `Bash` heredoc. Scope is the
+same guarded set (`briefs/*.md` + `DOCS-INDEX.md`) — gating source would be red on nearly every PR at
+this merge rate, and source is the case git already handles by conflicting. Verified on three
+constructed cases before being trusted (fires on the collision, quiet on source churn, quiet once
+rebased), shipped with `stale-file.test.sh`.
+
+**Remaining options, re-ranked against what is actually possible here:**
+
+1. **Make the stale-file check REQUIRED.** It is advisory today: it goes red on the PR but does not
+   block, and auto-merge is used on essentially every PR here — so as it stands it informs rather than
+   prevents. Adding `stale-file` to `protect-main`'s required-status-checks list is a one-line ruleset
+   change and is what converts it from a signal into a gate. **Owner decision.**
+2. **`strict_required_status_checks_policy = true`** — still available, still the most complete
+   in-repo option, still carrying the rebase-churn cost that made merge queue attractive. `npm run
+   rebase` reduces that to one command, which is the honest counter-argument to the cost objection.
+3. **Widen the hook's matcher to `Bash`** — closes §3, does nothing for §2. Worth doing on its own
+   merits, not as a fix for the concurrent case.
+4. **Transfer the repo to an organization** — unlocks merge queue properly. Far beyond a settings
+   change, and listed only so the option is not re-discovered as if it were new.
 
 ## 5 · What must NOT be done
 
@@ -87,8 +115,12 @@ the next person looking. Several of my own PR bodies this session said *"the col
 
 ## Done when
 
-- [ ] §2 addressed by branch protection **(owner)**, or a conscious decision recorded here that
-      concurrent brief edits are tolerable and the reconciliation cost is accepted.
+- [x] **§2 detected 2026-08-09** by the stale-file PR check (#1086), after merge queue was chosen and
+      found unavailable on a user-owned repo (§4). Detection is not prevention — see the next box.
+- [ ] **§2 PREVENTED** — the check is advisory: it reds the PR but does not block, and auto-merge is
+      used on essentially every PR here, so today it informs rather than stops. Add `stale-file` to
+      `protect-main`'s required-status-checks list **(owner)**, or record that advisory is enough and
+      why.
 - [ ] §3 closed by widening the matcher, **or** recorded as accepted with the reason.
 - [ ] Any prose claiming the hook covers the concurrent case corrected — `CLAUDE.md` §📌's own wording
       is accurate today (it describes the local query and the fetch-first rule) and needs no change;
@@ -97,5 +129,9 @@ the next person looking. Several of my own PR bodies this session said *"the col
 ## Cross-references
 
 - `.claude/hooks/guard-stale-brief.sh` — the guard, its header timeline, and its honest caveats.
+- `.github/workflows/stale-file.yml` + `stale-file.test.sh` — the CI half, and the three constructed
+  cases it was verified against before being trusted.
 - `CLAUDE.md` §📌 — the fetch-first rule the hook's freshness depends on.
 - `GENERATOR-FOLLOWUPS-III-2026-08-08-BRIEF.md` — the file both collisions happened on.
+- Ruleset `protect-main` (#18794443) — where `strict_required_status_checks_policy` and the
+  required-check list live; both remaining owner levers are there.
