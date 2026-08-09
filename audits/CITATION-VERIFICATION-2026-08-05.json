@@ -11,7 +11,8 @@
       "authorAliases": [
         "DuBois"
       ],
-      "aliasNote": "Crossref spells the surname \"Du BOIS\"; the paper and the guides spell it \"DuBois\". Same author, no space."
+      "aliasNote": "Crossref spells the surname \"Du BOIS\"; the paper and the guides spell it \"DuBois\". Same author, no space.",
+      "aliasSource": "crossref-variant"
     },
     "10.1001/jama.283.14.1829": {
       "firstAuthor": "Nieto",
@@ -130,7 +131,8 @@
       "authorAliases": [
         "Mosteller"
       ],
-      "aliasNote": "Crossref carries NO author for this record. Supplied from the paper itself (Mosteller RD)."
+      "aliasNote": "Crossref carries NO author for this record. Supplied from the paper itself (Mosteller RD).",
+      "aliasSource": "from-paper"
     },
     "10.1063/1.166141": {
       "firstAuthor": "Peng",
@@ -290,7 +292,8 @@
         "Task Force of the European Society of Cardiology and the North American Society of Pacing and Electrophysiology",
         "Task Force of the ESC and NASPE"
       ],
-      "aliasNote": "CORPORATE AUTHOR. Crossref stores the full society name; the parse kept only its last word (Electrophysiology), and the guides use the conventional short form. Both are correct — the aliases exist so a correct citation cannot red."
+      "aliasNote": "CORPORATE AUTHOR. Crossref stores the full society name; the parse kept only its last word (Electrophysiology), and the guides use the conventional short form. Both are correct — the aliases exist so a correct citation cannot red.",
+      "aliasSource": "crossref-variant"
     },
     "10.1161/01.HYP.32.2.365": {
       "firstAuthor": "Takazawa",
@@ -329,7 +332,8 @@
       "authorAliases": [
         "Baevsky"
       ],
-      "aliasNote": "Crossref carries NO author for this record. Supplied from the paper itself (Baevsky RM, Chernikova AG) so the check is enforceable rather than skipped."
+      "aliasNote": "Crossref carries NO author for this record. Supplied from the paper itself (Baevsky RM, Chernikova AG) so the check is enforceable rather than skipped.",
+      "aliasSource": "from-paper"
     },
     "10.1378/chest.124.5.1694": {
       "firstAuthor": "Magalang",
@@ -452,5 +456,5 @@
       "container": "Journal of Clinical Sleep Medicine"
     }
   },
-  "_aliasPolicy": "authorAliases: additional spellings that are CORRECT for this DOI. Needed because a Crossref surname can be a corporate name, a differently-spaced surname, or absent entirely; without them a correct citation reds and the noise buries a real finding (CITATION-ATTRIBUTION-FOLLOWUPS §3, constraint 1)."
+  "_aliasPolicy": "authorAliases: additional spellings that are CORRECT for this DOI. Needed because a Crossref surname can be a corporate name, a differently-spaced surname, or absent entirely; without them a correct citation reds and the noise buries a real finding (CITATION-ATTRIBUTION-FOLLOWUPS §3, constraint 1). EVERY entry carrying authorAliases MUST also carry aliasSource, because the two kinds are not the same evidential class: \"crossref-variant\" = the alias is a spelling or short form of the author Crossref actually recorded, so the check still rests on Crossref; \"from-paper\" = Crossref carries NO author for this record and the name was read off the paper itself, which is mildly circular (the citation being checked supplied the answer) and is therefore marked rather than hidden. Gate-enforced by tests/dex-tests.js group citation-ledger."
 }

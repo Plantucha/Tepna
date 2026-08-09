@@ -15016,6 +15016,27 @@
       /* A DOI on a surface but absent from the ledger is a ledger gap, not a citation defect — it is
          reported separately so the two never get conflated. */
       T.eq('every DOI on a source surface is present in the ledger', unknown, []);
+
+      /* ── ALIAS PROVENANCE (FOLLOWUPS-II §3) ────────────────────────────────────────────────────
+         An alias suppresses a finding, so it is the one field in this ledger that can hide a real
+         defect — and the two kinds are NOT the same evidential class:
+           · `crossref-variant` — a spelling or short form of the author Crossref actually recorded
+             ("Du BOIS"/"DuBois"; the ESC/NASPE Task Force's full society name vs its conventional
+             short form). The check still rests on Crossref.
+           · `from-paper` — Crossref carries **no author at all** for that record, so the name was read
+             off the paper being checked. That is mildly circular, defensible, and must be VISIBLE.
+         Requiring the marker is what keeps the distinction from decaying into "some aliases exist".
+         Unmarked, or marked with an unknown value, is a red — the honest failure for a claim whose
+         evidential basis nobody declared. */
+      var aliasProblems = [];
+      Object.keys(DOIS).forEach(function (k) {
+        var rec = DOIS[k];
+        if (!rec || !rec.authorAliases || !rec.authorAliases.length) return;
+        if (!rec.aliasSource) aliasProblems.push(k + ' — has authorAliases but no aliasSource; declare whether the alias rests on Crossref or on the paper itself');
+        else if (rec.aliasSource !== 'crossref-variant' && rec.aliasSource !== 'from-paper') aliasProblems.push(k + ' — aliasSource "' + rec.aliasSource + '" is not one of crossref-variant | from-paper');
+        else if (rec.aliasSource === 'from-paper' && String(rec.firstAuthor || '').trim() !== '') aliasProblems.push(k + ' — aliasSource "from-paper" but Crossref DID record an author ("' + rec.firstAuthor + '"); that alias is a crossref-variant');
+      });
+      T.eq('every authorAliases entry declares its evidential basis (crossref-variant | from-paper)', aliasProblems, []);
     });
 
     group('Release-ledger — controlled releases machine-checked (CONTROLLED-RELEASES)', 'docs · release-ledger', function (T) {

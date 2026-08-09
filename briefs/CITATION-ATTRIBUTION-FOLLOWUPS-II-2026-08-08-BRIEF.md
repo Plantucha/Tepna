@@ -107,6 +107,34 @@ author, and nothing currently distinguishes them.
 carry a marker separating "verified against Crossref" from "supplied from the paper because Crossref
 has no author" — so a future reader can tell which claim rests on what.
 
+> ### ✅ EXECUTED 2026-08-08 — and the marker is gate-enforced, because an unchecked marker decays too
+>
+> **`aliasSource` is now required on every aliased entry**, with exactly two values:
+>
+> | DOI | `firstAuthor` | `aliasSource` | why |
+> |---|---|---|---|
+> | `10.1001/archinte.1916.…` | `"Du BOIS"` | `crossref-variant` | spacing — the paper spells it `DuBois` |
+> | `10.1161/01.CIR.93.5.1043` | `"Electrophysiology"` | `crossref-variant` | corporate — last word of the ESC/NASPE Task Force's full name |
+> | `10.1056/NEJM198710223171717` | `""` | `from-paper` | Crossref carries **no author**; read off the paper (Mosteller RD) |
+> | `10.12710/cardiometry.2017.10.6676` | `""` | `from-paper` | Crossref carries **no author**; read off the paper (Baevsky RM) |
+>
+> The distinction §3 asked for is exactly this: a `crossref-variant` alias still rests on Crossref, so
+> the check is independent of the thing being checked. A `from-paper` alias does not — the citation
+> supplies its own answer. That is defensible and it is **marked rather than hidden**.
+>
+> **Recording it was not enough, which is this brief's own thesis applied to itself.** A marker nobody
+> checks is a claim in prose, and §1 of `GENERATOR-FOLLOWUPS-III` measured what happens to those: an
+> artifact claim decays silently as the tree moves. So the `citation-ledger` group now asserts it, and
+> was **watched failing three ways** before being trusted — a missing `aliasSource`, an unknown value,
+> and `from-paper` asserted on a record where Crossref *did* record an author (which would launder a
+> variant into the weaker class). All three red; all three restored.
+>
+> **Policy stated in `CLAUDE.md` §📚**, not only in the ledger — including the scope (guides, `papers/**`,
+> `docs/**.md`, root `*.js`; `briefs/` deliberately out at 35 % false positives; no DOI resolution,
+> which needs network) and one prohibition worth naming: **never silence a finding by editing
+> `firstAuthor`.** That is the single edit which makes a real defect disappear, and no gate can catch
+> it — the ledger is the oracle.
+
 ---
 
 ## Explicitly NOT in scope
