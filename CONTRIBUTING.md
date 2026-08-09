@@ -219,6 +219,15 @@ dead-code floor (`noUnreachable`, `noDuplicateObjectKeys`, `noFallthroughSwitchC
 `warn` because the old ESLint `no-cond-assign: except-parens` has no Biome equivalent, and `noDoubleEquals`
 ignores the `!= null` idiom the code relies on). Warnings are advisory (they never fail the gate).
 
+> **`files.maxSize` is set to 4 MiB, and that is load-bearing.** Biome REFUSES any file above the cap,
+> reports the refusal as a *warning*, and exits **0** — so an over-size file reads as checked while
+> being skipped entirely. `tests/dex-tests.js` crossed the 1 MiB default long ago and reached 2.28 MiB,
+> which meant the sole lint+format gate had been green on the repo's largest and most-edited file
+> without opening it (`Checked 0 files in 2ms.`, exit 0). Since CI is `biome ci --changed` and that
+> file is touched by nearly every PR, the blind spot was hit constantly. The cap is now explicit, and
+> the `tooling · biome · coverage` suite group reds the day any includable file crosses it — so the
+> next time this file outgrows the limit you get a failure, not silence.
+
 > **Biome now owns lint (Phase 3 DONE).** ESLint was fully **retired** once Biome's floor proved parity in CI —
 > `.eslintrc.json`, the `npx eslint` script, and the `lint.yml` workflow are all gone; `npm run lint` runs Biome.
 > One pinned tool does format + lint; `format.yml`'s `biome ci --changed` is the sole lint gate.
