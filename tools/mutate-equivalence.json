@@ -62,5 +62,376 @@
       "probe": "correctionAt queried mid-interval",
       "brief": "MUTATION-EQUIVALENCE §3"
     }
+  ],
+  "ppgdex-dsp.js": [
+    {
+      "line": 1885,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < N; i++) y[i] -= slope * t[i] + icpt;",
+      "after": "for (let i = 0; i <= N; i++) y[i] -= slope * t[i] + icpt;",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1886,
+      "op": "num → 0",
+      "before": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
+      "after": "const bands = { vlf: [0, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1886,
+      "op": "num → 0",
+      "before": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
+      "after": "const bands = { vlf: [0.003, 0.04], lf: [0, 0.15], hf: [0.15, 0.4] };",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1886,
+      "op": "num → 0",
+      "before": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0.15, 0.4] };",
+      "after": "const bands = { vlf: [0.003, 0.04], lf: [0.04, 0.15], hf: [0, 0.4] };",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1912,
+      "op": "cmp <= → <",
+      "before": "for (let f = fmin; f <= fCal; f += df) {",
+      "after": "for (let f = fmin; f < fCal; f += df) {",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1938,
+      "op": "cmp < → <=",
+      "before": "if (f >= bands.vlf[0] && f < bands.vlf[1]) vlf += pw;",
+      "after": "if (f >= bands.vlf[0] && f <= bands.vlf[1]) vlf += pw;",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1939,
+      "op": "cmp >= → >",
+      "before": "else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;",
+      "after": "else if (f > bands.lf[0] && f < bands.lf[1]) lf += pw;",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1939,
+      "op": "cmp < → <=",
+      "before": "else if (f >= bands.lf[0] && f < bands.lf[1]) lf += pw;",
+      "after": "else if (f >= bands.lf[0] && f <= bands.lf[1]) lf += pw;",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1940,
+      "op": "cmp >= → >",
+      "before": "else if (f >= bands.hf[0] && f < bands.hf[1]) {",
+      "after": "else if (f > bands.hf[0] && f < bands.hf[1]) {",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1940,
+      "op": "cmp < → <=",
+      "before": "else if (f >= bands.hf[0] && f < bands.hf[1]) {",
+      "after": "else if (f >= bands.hf[0] && f <= bands.hf[1]) {",
+      "class": "no-distinguishing-input",
+      "why": "In lombScargle. Original and mutant produced byte-identical output on every input.",
+      "probe": "lombScargle · numeric/spectral: 70 inputs, 53 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 289,
+      "op": "cmp < → <=",
+      "before": "for (let li = 0; li < lines.length && li < 12; li++) {",
+      "after": "for (let li = 0; li < lines.length && li <= 12; li++) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 320,
+      "op": "bool && → ||",
+      "before": "if (/timestamp/i.test(line) && !pcols) {",
+      "after": "if (/timestamp/i.test(line) || !pcols) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 334,
+      "op": "eq === → !==",
+      "before": "if (nCh === 1) minFields = 3;",
+      "after": "if (nCh !== 1) minFields = 3;",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 353,
+      "op": "bool || → &&",
+      "before": "if (!isFinite(v1) || !isFinite(v2)) continue;",
+      "after": "if (!isFinite(v1) && !isFinite(v2)) continue;",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 358,
+      "op": "cmp >= → >",
+      "before": "const va = pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN;",
+      "after": "const va = pc.amb > 0 ? parseFloat(p[pc.amb]) : NaN;",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 359,
+      "op": "cmp >= → >",
+      "before": "if (pc.amb >= 0 && !isFinite(va)) continue;",
+      "after": "if (pc.amb > 0 && !isFinite(va)) continue;",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 369,
+      "op": "cmp >= → >",
+      "before": "const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());",
+      "after": "const b = BigInt(p[pcols && pcols.ns > 0 ? pcols.ns : 1].trim());",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 395,
+      "op": "bool && → ||",
+      "before": "if (at && isFinite(relNs)) axisAnchors.push({ devMs: relNs / 1e6, hostMs: at.tMs - t0Ms });",
+      "after": "if (at || isFinite(relNs)) axisAnchors.push({ devMs: relNs / 1e6, hostMs: at.tMs - t0Ms });",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 404,
+      "op": "num → 0",
+      "before": "let fs = 176;",
+      "after": "let fs = 0;",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 406,
+      "op": "cmp < → <=",
+      "before": "for (let i = 1; i < n; i++) {",
+      "after": "for (let i = 1; i <= n; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 408,
+      "op": "cmp > → >=",
+      "before": "if (isFinite(d) && d > 0) deltas.push(d);",
+      "after": "if (isFinite(d) && d >= 0) deltas.push(d);",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 408,
+      "op": "bool && → ||",
+      "before": "if (isFinite(d) && d > 0) deltas.push(d);",
+      "after": "if (isFinite(d) || d > 0) deltas.push(d);",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 438,
+      "op": "cmp >= → >",
+      "before": "for (let li = lines.length - 1; li >= 0 && !t; li--) {",
+      "after": "for (let li = lines.length - 1; li > 0 && !t; li--) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 449,
+      "op": "cmp > → >=",
+      "before": "if (deltas.length > 20) {",
+      "after": "if (deltas.length >= 20) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 451,
+      "op": "cmp > → >=",
+      "before": "if (md > 0) fs = 1e9 / md;",
+      "after": "if (md >= 0) fs = 1e9 / md;",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 452,
+      "op": "cmp > → >=",
+      "before": "if (md > 0) {",
+      "after": "if (md >= 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 454,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < deltas.length; i++) if (deltas[i] === md) same++;",
+      "after": "for (let i = 0; i <= deltas.length; i++) if (deltas[i] === md) same++;",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 461,
+      "op": "cmp > → >=",
+      "before": "if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {",
+      "after": "if (firstTs && lastTs && lastTs.tMs >= firstTs.tMs) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 461,
+      "op": "bool && → ||",
+      "before": "if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {",
+      "after": "if (firstTs || lastTs && lastTs.tMs > firstTs.tMs) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 461,
+      "op": "bool && → ||",
+      "before": "if (firstTs && lastTs && lastTs.tMs > firstTs.tMs) {",
+      "after": "if (firstTs && lastTs || lastTs.tMs > firstTs.tMs) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 470,
+      "op": "bool && → ||",
+      "before": "if (hostAx.ok && isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);",
+      "after": "if (hostAx.ok || isFinite(hostAx.ppm)) fs = fs / (1 + hostAx.ppm / 1e6);",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 477,
+      "op": "cmp >= → >",
+      "before": "const axisDrawn = quantizedShare != null && quantizedShare >= 0.99;",
+      "after": "const axisDrawn = quantizedShare != null && quantizedShare > 0.99;",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 484,
+      "op": "cmp > → >=",
+      "before": "if (deltas.length > 20) {",
+      "after": "if (deltas.length >= 20) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 485,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < n; i++) {",
+      "after": "for (let i = 0; i <= n; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 494,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < n; i++) relSec[i] = i / fs;",
+      "after": "for (let i = 0; i <= n; i++) relSec[i] = i / fs;",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 571,
+      "op": "cmp > → >=",
+      "before": "if (timebase === 'device-crystal' && site === 'finger' && n > 0) {",
+      "after": "if (timebase === 'device-crystal' && site === 'finger' && n >= 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 573,
+      "op": "cmp > → >=",
+      "before": "const maxStep = TIME_GAP_STEPS / (fs > 0 ? fs : O2_ADC_HZ); // gap detector, on the host axis just b",
+      "after": "const maxStep = TIME_GAP_STEPS / (fs >= 0 ? fs : O2_ADC_HZ); // gap detector, on the host axis just",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 577,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < n; i++) {",
+      "after": "for (let i = 0; i <= n; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 578,
+      "op": "cmp > → >=",
+      "before": "if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {",
+      "after": "if (i >= 0 && relSec[i] - relSec[i - 1] > maxStep) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 578,
+      "op": "cmp > → >=",
+      "before": "if (i > 0 && relSec[i] - relSec[i - 1] > maxStep) {",
+      "after": "if (i > 0 && relSec[i] - relSec[i - 1] >= maxStep) {",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 612,
+      "op": "bool && → ||",
+      "before": "return lt && lt.tMs != null ? lt.tMs : null;",
+      "after": "return lt || lt.tMs != null ? lt.tMs : null;",
+      "class": "no-distinguishing-input",
+      "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
+      "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    }
   ]
 }
