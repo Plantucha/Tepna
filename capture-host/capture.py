@@ -28,7 +28,7 @@ import alerts
 import nightqc
 import nightarchive
 import storage_targets
-from telemetry import TelemetryBus
+from telemetry import TelemetryBus, optical_worn
 
 # ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
 # systemd assigns ONE priority to a service's whole stdout stream, so with a plain basicConfig every line
@@ -1681,6 +1681,18 @@ async def run_polar(dev: dict, root: str):
                     # no card at all. Both are real: RR is the HRV substrate, HR is the device's reading.
                     BUS.register(_live_key("bpm", tag), f"HR ({name})", "bpm", 0)
 
+                # ── optical-wear state, per connection ──────────────────────────────────────────
+                # `_amb` accumulates the PPG ambient channel; `_AMB_WINDOW` is ~4 s at 55 Hz, long
+                # enough that a hand passing over the sensor cannot flip the verdict and short enough
+                # that taking the armband off is noticed within the 180 s power grace.
+                # `_has_contact_bit` starts False and is raised by the HR handler the first time the
+                # strap reports real contact — a DIRECT measurement always outranks this inference, so
+                # the optical path stands down permanently for straps that have one (the H10 reports
+                # None and never raises it; the COOSPO does).
+                _amb: list[float] = []
+                _AMB_WINDOW = 220
+                _has_contact_bit = False
+
                 # PMD data handler — one char carries all PMD streams; route by measurement type.
                 def on_pmd(_sender, data: bytearray):
                     arrival = _now()
@@ -1715,10 +1727,38 @@ async def run_polar(dev: dict, root: str):
                         v = smp.values
                         if meas == pmd.ECG:    wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, v[0])
                         elif meas == pmd.ACC:  wr.write_acc(smp.phone, smp.sensor_ns, smp.t_ms, *v)
-                        elif meas == pmd.PPG:  wr.write_ppg(smp.phone, smp.sensor_ns, smp.t_ms, v[:3], v[3])
+                        elif meas == pmd.PPG:
+                            wr.write_ppg(smp.phone, smp.sensor_ns, smp.t_ms, v[:3], v[3])
+                            _amb.append(v[3])
                         elif meas == pmd.GYRO: wr.write_gyro(smp.phone, smp.sensor_ns, smp.t_ms, *v)
                         elif meas == pmd.MAG:  wr.write_mag(smp.phone, smp.sensor_ns, smp.t_ms, *v)
                         elif meas == pmd.PPI:  wr.write_ppi(smp.phone, smp.sensor_ns, v[0], v[1], v[2], v[3])
+                    # ── WORN, FROM THE OPTICAL SIGNAL (telemetry.optical_worn) ──────────────────
+                    # A device that declares no skin-contact bit never gets a `worn` verdict from the
+                    # HR path — the Verity says `contact_supported: false` and emits 1 Hz of 0000
+                    # forever. So `power.drop_not_worn_sec` can never fire for it and
+                    # `cpap_harvest.blocking_devices` counts it as streaming, because both read
+                    # `worn is not False`. Measured 2026-08-10: the armband streamed 3 h and 42.5 MB
+                    # into a desk at a flawless 55.0 Hz with every card green and battery 100 %→74 %.
+                    #
+                    # Published on the SAME `worn` key the contact bit uses, so the power drop, the
+                    # CPAP interlock and the monitor all work unchanged — only the SOURCE is new. The
+                    # `_WORN_SINCE` bookkeeping below is a byte-for-byte mirror of the HR branch, for
+                    # the same reason it exists there: the grace clock must survive duty-cycle
+                    # reconnects or each probe restarts it and the drop never happens.
+                    #
+                    # ⚠️ ONLY when the device offers no contact bit. A strap that DOES report contact
+                    # keeps that verdict — it is a direct measurement, and this is an inference.
+                    if len(_amb) >= _AMB_WINDOW and not _has_contact_bit:
+                        _worn = optical_worn(list(_amb))
+                        _amb.clear()
+                        if _worn is not None:
+                            _set(name, worn=_worn,
+                                 last_error=None if _worn else "not worn — optical ambient says off-body")
+                            if _worn:
+                                _WORN_SINCE.pop(addr, None)
+                            elif addr not in _WORN_SINCE:
+                                _WORN_SINCE[addr] = _time.monotonic()
                     # Live push — RAW, per-stream shape (no on-box DSP):
                     key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas) or pmd.SAMPLE_HZ.get(meas)
                     # The frame's LAST sample on the DEVICE's own counter. `effFs` is measured off this
@@ -1748,6 +1788,8 @@ async def run_polar(dev: dict, root: str):
                     # Only straps that ADVERTISE contact support get a worn verdict; on one that does not
                     # (the H10), leaving it None is honest — better an unknown than a fabricated "worn".
                     if contact is not None:
+                        nonlocal _has_contact_bit
+                        _has_contact_bit = True      # a direct measurement outranks the optical inference
                         _set(name, worn=contact,
                              last_error=None if contact else "not worn — no skin contact")
                         # Timestamp the FIRST not-worn so the live loop can measure how long it has lasted.
