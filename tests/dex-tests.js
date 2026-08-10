@@ -8174,6 +8174,56 @@
 
        Every expectation below was MEASURED against the current implementation before being written,
        not predicted from reading it. */
+    /* ── fragmentation: THE THIRD BOOTSTRAP KILL ─────────────────────────────────────────────────
+       19 survivors, zero kills — the third function found in that state, after glucodex's
+       genSynthetic and compareIntervalSeries above. Zero kills means no positive control, which
+       means the prober withholds every verdict regardless of the battery.
+
+       Unlike those two this one is exactly hand-computable, so the expectations below are DERIVED
+       from the definition rather than pinned from a run. PIP is the percentage of INFLECTION POINTS:
+       take successive differences, take their signs (carrying the previous sign across a zero), and
+       count sign changes — then divide by N, the number of BEATS, not by the number of differences.
+       That denominator is itself a mutable choice, and only a case where N and the difference count
+       differ visibly can separate them, which is why the series below are short and exact. */
+    group('PulseDex fragmentation — inflection counting, derived not pinned (mutation bootstrap)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
+      var B = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!B || typeof B.fragmentation !== 'function') {
+        T.skip('PulseDex._bare.fragmentation available', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      var F = B.fragmentation;
+
+      /* STRICT ALTERNATION — every increment reverses, so every one of the 3 interior signs differs
+         from its predecessor: ip = 3 over N = 5 beats ⇒ PIP = 60 %. Maximum fragmentation. */
+      var alt5 = F([1000, 1010, 1000, 1010, 1000]);
+      T.eq('alternating 5 beats ⇒ 3 sign changes over 5 beats ⇒ PIP 60 %', alt5 && alt5.pip, 60);
+      T.eq('…every segment is length 1, so both segment shares are 100 %', alt5 && alt5.pss, 100);
+      T.eq('…and the acceleration share too', alt5 && alt5.pas, 100);
+
+      /* The same shape at 9 beats: ip = 7, N = 9 ⇒ 77.8 %. Two lengths of the same pattern separate
+         a mutated DENOMINATOR (N vs the difference count) — 7/9 = 77.8 but 7/8 would be 87.5. */
+      var alt9 = F([1000, 1010, 1000, 1010, 1000, 1010, 1000, 1010, 1000]);
+      T.eq('alternating 9 beats ⇒ 7 changes over 9 beats ⇒ PIP 77.8 %', alt9 && alt9.pip, 77.8);
+
+      /* ONE TURN — diffs +,+,−,− ⇒ signs 1,1,−1,−1 ⇒ exactly ONE change over 5 beats ⇒ 20 %. */
+      var turn = F([1000, 1010, 1020, 1010, 1000]);
+      T.eq('a single turning point ⇒ PIP 20 %', turn && turn.pip, 20);
+      T.eq('…and only the deceleration segment is short-run, so pas is 0', turn && turn.pas, 0);
+
+      /* MONOTONIC and FLAT must both give zero inflections — and they reach it by DIFFERENT paths:
+         monotonic has all-positive signs, flat has all-ZERO differences whose sign is carried from
+         the previous one (and the first zero seeds to +1). A mutant that drops the carry turns the
+         flat case into noise while leaving the monotonic case intact, so both are needed. */
+      T.eq('a monotonically rising series has no inflections', F([1000, 1010, 1020, 1030]).pip, 0);
+      T.eq('…and a perfectly flat one does not either — the zero-difference sign is carried', F([1000, 1000, 1000, 1000]).pip, 0);
+      T.eq('…the two agree on every index, not merely on PIP', JSON.stringify(F([1000, 1010, 1020, 1030])), JSON.stringify(F([1000, 1000, 1000, 1000])));
+
+      /* THE N < 4 FLOOR, from both sides. */
+      T.eq('three beats is too few to have an inflection', F([1000, 1010, 1000]), null);
+      T.ok('…and four is enough', F([1000, 1010, 1000, 1010]) !== null);
+      T.eq('an empty series is null, not a throw', F([]), null);
+    });
+
     group('PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
       var B = (env.PulseDex && env.PulseDex._bare) || null;
       if (!B || typeof B.compareIntervalSeries !== 'function') {
