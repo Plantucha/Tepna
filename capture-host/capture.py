@@ -1925,6 +1925,30 @@ async def run_polar(dev: dict, root: str):
                             _rates_cfg = (dev.get("rates") or {})
                             _prefer = _rates_cfg.get(pmd.MEAS_NAME.get(meas, ""))
                             used_fs = pmd.chosen_rate(meas, settings, _prefer)
+                            # ── CONFIGURED INTENT vs NEGOTIATED REALITY ─────────────────────────
+                            # `chosen_rate` honours a configured rate ONLY if the device offers it and
+                            # otherwise falls back — deliberately, because a rate the firmware rejects
+                            # would leave a permanently idle stream. The cost of that kindness is that
+                            # asking for something impossible is INDISTINGUISHABLE from getting it:
+                            # `rates: {ppg: 176}` without SDK mode captured whole nights at 55 Hz with
+                            # no error, no warning, and a config that still read 176. It took a
+                            # file-by-file rate audit across six nights to notice (2026-08-04 → 08-09).
+                            #
+                            # So say it. This is the general form of that bug — it fires for any stream
+                            # whose configured rate the device did not offer, not just the one that bit
+                            # us. Logged once per negotiation, at WARNING, naming what was asked for,
+                            # what was used, and what the device actually offered, because "176 was
+                            # ignored" without the menu beside it sends the reader to the wrong file.
+                            if _prefer is not None and _prefer != used_fs:
+                                log.warning(
+                                    "%s %s: configured rate %s Hz was NOT offered by the device — "
+                                    "capturing at %s Hz instead (device offers: %s). The config still "
+                                    "says %s; nothing else will tell you it did not happen.",
+                                    name, pmd.MEAS_NAME.get(meas, meas), _prefer, used_fs,
+                                    settings.get(0x00) or "no menu reported", _prefer)
+                                _set(name, **{"rate_unmet": {
+                                    **(STATUS["devices"].get(name, {}).get("rate_unmet") or {}),
+                                    pmd.MEAS_NAME.get(meas, str(meas)): {"want": _prefer, "got": used_fs}}})
                             # publish the device's own menu so Settings can offer exactly the legal values
                             _set(name, **{"pmd_options": {**(STATUS["devices"].get(name, {}).get("pmd_options") or {}),
                                                           pmd.MEAS_NAME.get(meas, str(meas)): settings.get(0x00) or []}})
