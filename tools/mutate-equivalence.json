@@ -2260,6 +2260,231 @@
       "class": "no-distinguishing-input",
       "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
       "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1700,
+      "op": "bool || → &&",
+      "before": "carbs: header.findIndex((h) => h.startsWith('carbs') || h.includes('carbohydrate') || (h.includes('c",
+      "after": "carbs: header.findIndex((h) => h.startsWith('carbs') && h.includes('carbohydrate') || (h.includes('c",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1700,
+      "op": "bool || → &&",
+      "before": "carbs: header.findIndex((h) => h.startsWith('carbs') || h.includes('carbohydrate') || (h.includes('c",
+      "after": "carbs: header.findIndex((h) => h.startsWith('carbs') || h.includes('carbohydrate') && (h.includes('c",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1700,
+      "op": "negate: drop !",
+      "before": "carbs: header.findIndex((h) => h.startsWith('carbs') || h.includes('carbohydrate') || (h.includes('c",
+      "after": "carbs: header.findIndex((h) => h.startsWith('carbs') || h.includes('carbohydrate') || (h.includes('c",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1701,
+      "op": "negate: drop !",
+      "before": "sugars: header.findIndex((h) => h.includes('sugar') && !h.includes('added')),",
+      "after": "sugars: header.findIndex((h) => h.includes('sugar') && h.includes('added')),",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1705,
+      "op": "bool || → &&",
+      "before": "fat: header.findIndex((h) => h === 'fat (g)' || h.startsWith('fat ('))",
+      "after": "fat: header.findIndex((h) => h === 'fat (g)' && h.startsWith('fat ('))",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1709,
+      "op": "cmp >= → >",
+      "before": "if (i < 0 || i >= cells.length) return null;",
+      "after": "if (i < 0 || i > cells.length) return null;",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1709,
+      "op": "cmp < → <=",
+      "before": "if (i < 0 || i >= cells.length) return null;",
+      "after": "if (i <= 0 || i >= cells.length) return null;",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1709,
+      "op": "bool || → &&",
+      "before": "if (i < 0 || i >= cells.length) return null;",
+      "after": "if (i < 0 && i >= cells.length) return null;",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1714,
+      "op": "cmp >= → >",
+      "before": "ci.time >= 0 &&",
+      "after": "ci.time > 0 &&",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1714,
+      "op": "bool && → ||",
+      "before": "ci.time >= 0 &&",
+      "after": "ci.time >= 0 ||",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1717,
+      "op": "bool && → ||",
+      "before": "return c[ci.time] && /\\d{1,2}:\\d{2}/.test(c[ci.time]);",
+      "after": "return c[ci.time] || /\\d{1,2}:\\d{2}/.test(c[ci.time]);",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1730,
+      "op": "cmp < → <=",
+      "before": "if (c.length < 2 || !c[ci.date]) continue;",
+      "after": "if (c.length <= 2 || !c[ci.date]) continue;",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1730,
+      "op": "bool || → &&",
+      "before": "if (c.length < 2 || !c[ci.date]) continue;",
+      "after": "if (c.length < 2 && !c[ci.date]) continue;",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1731,
+      "op": "bool && → ||",
+      "before": "nutStamps.push(hasTime && c[ci.time] ? c[ci.date] + ' ' + c[ci.time] : c[ci.date]);",
+      "after": "nutStamps.push(hasTime || c[ci.time] ? c[ci.date] + ' ' + c[ci.time] : c[ci.date]);",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1743,
+      "op": "cmp >= → >",
+      "before": "const grp = (ci.group >= 0 ? cells[ci.group] || '' : '').toLowerCase();",
+      "after": "const grp = (ci.group > 0 ? cells[ci.group] || '' : '').toLowerCase();",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1743,
+      "op": "bool || → &&",
+      "before": "const grp = (ci.group >= 0 ? cells[ci.group] || '' : '').toLowerCase();",
+      "after": "const grp = (ci.group >= 0 ? cells[ci.group] && '' : '').toLowerCase();",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1747,
+      "op": "bool && → ||",
+      "before": "const _hasT = hasTime && cells[ci.time];",
+      "after": "const _hasT = hasTime || cells[ci.time];",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1763,
+      "op": "cmp >= → >",
+      "before": "if (hasTime && carbVal != null && carbVal >= 8) {",
+      "after": "if (hasTime && carbVal != null && carbVal > 8) {",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1767,
+      "op": "cmp < → <=",
+      "before": "if (!hasTime || grp.includes('total') || ci.group < 0) {",
+      "after": "if (!hasTime || grp.includes('total') || ci.group <= 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1767,
+      "op": "bool || → &&",
+      "before": "if (!hasTime || grp.includes('total') || ci.group < 0) {",
+      "after": "if (!hasTime && grp.includes('total') || ci.group < 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1792,
+      "op": "cmp > → >=",
+      "before": "const carbs = Math.round(m.carbs / Math.max(1, [...byMeal.values()].length > 0 ? 1 : 1));",
+      "after": "const carbs = Math.round(m.carbs / Math.max(1, [...byMeal.values()].length >= 0 ? 1 : 1));",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1802,
+      "op": "cmp > → >=",
+      "before": ".filter((d) => d._n > 0)",
+      "after": ".filter((d) => d._n >= 0)",
+      "class": "no-distinguishing-input",
+      "why": "In parseNutrition. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseNutrition · header + delimiter (46 survivors): 20 inputs, 10 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 308,
+      "op": "cmp < → <=",
+      "before": "return tsCol < cells.length ? (cells[tsCol] || '').trim() : '';",
+      "after": "return tsCol <= cells.length ? (cells[tsCol] || '').trim() : '';",
+      "class": "no-distinguishing-input",
+      "why": "In parseCSV. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseCSV · CGM ingest (reaches locateColumns): 28 inputs, 17 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 317,
+      "op": "cmp >= → >",
+      "before": "if (gCol >= cells.length) continue;",
+      "after": "if (gCol > cells.length) continue;",
+      "class": "no-distinguishing-input",
+      "why": "In parseCSV. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseCSV · CGM ingest (reaches locateColumns): 28 inputs, 17 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 342,
+      "op": "cmp < → <=",
+      "before": "if (med < 30) {",
+      "after": "if (med <= 30) {",
+      "class": "no-distinguishing-input",
+      "why": "In parseCSV. Original and mutant produced byte-identical output on every input.",
+      "probe": "parseCSV · CGM ingest (reaches locateColumns): 28 inputs, 17 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
     }
   ]
 }

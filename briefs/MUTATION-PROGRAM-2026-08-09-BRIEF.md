@@ -447,9 +447,32 @@ rather than a happy path, and twice the first attempt failed for the same reason
   reports a serial number as blood glucose.
 - `fragmentation` — the same line appears TWICE (inside the run loop and after it) and only a series
   *ending* in alternation reaches the second.
+- `parseCSV` — **the battery never executed the function at all**, and looked thorough while not doing
+  it. Its nine CSV variants stamped rows `M-D-YYYY HH:MM`, dash-separated. That is neither ISO nor one
+  of the Clock Contract §2.4 vendor formats (all slash-separated), so `_ckParse` returned null for
+  every row, every row hit `if (!isFinite(ms)) continue`, and all nine threw the identical
+  `Parsed only 0 valid readings`. Fourteen inputs collapsed to **four** distinct answers and five of
+  eight controls read as equivalent. Because `parseCSV` throws unless ten rows parse, *every* mutant
+  downstream of that floor — the mmol/L auto-detect, the newest-first sort, the quote strip, the
+  European decimal comma — was unreachable at once. Corrected: 28 inputs, **17** distinct answers, and
+  all five families now separate every control (12/12 · 12/12 · 12/12 · 10/10 · 8/8).
+- `parseCSV`'s **file-level DMY lock** then needed a second attempt, and the first was wrong in an
+  instructive way. A 300-row file starting on the **13th** reads like a lock test and is not one: at
+  5-minute cadence it spans 25 h, so every row is dated the 13th or 14th, every row resolves itself,
+  and the lock never becomes load-bearing. The shape that observes it is a file of **ambiguous** days
+  carrying **one** proving row — the proof has to travel from that row to the others. Confirmed by
+  applying the real mutant rather than reasoning about it: all-proving rows give byte-identical output,
+  while ambiguous-plus-one gives `2026-07-05` against the mutant's `2026-05-07`. **A two-month error in
+  every meal-to-glucose alignment**, and the first test could not see it.
 
-So: when a control stays blind, **"widen the battery" is the wrong instinct.** Three times the cause
-was a missing SHAPE, and more of the shapes already present would never have found it.
+So: when a control stays blind, **"widen the battery" is the wrong instinct.** Five times now the cause
+was a missing SHAPE — and twice the missing shape was not an exotic edge case but the ORDINARY one,
+absent because the input never satisfied a precondition the function imposes before doing anything at
+all. More of the shapes already present would not have found any of the five.
+
+**The diagnostic is printed on every run and should be read first:** `battery N inputs, M distinct
+answers`. When M is a small fraction of N the battery is not too narrow — it is being rejected at a
+guard, and no amount of extra input variety helps until that guard is satisfied.
 
 **`cvhrFromNN` is reachable but expensive**, and is the one item worth planning rather than picking
 up. Its output is already exported (`cvhrIndex` / `cvhrEvents` on the analyze result), so no export
