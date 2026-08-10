@@ -22,6 +22,7 @@ import yaml
 import bonding
 import clockcfg
 import offline_lock
+import polar_pmd as pmd          # for SDK_MODE — the feature bit, named once, not spelled "0x9" here
 import polar_psftp
 import storage_targets
 import alerts
@@ -618,13 +619,28 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 # 125 Hz pleth we decode out of the same 0x04 frame as the 1 Hz summary — the second
                 # largest stream on the box, and until now it had no toggle at all.
                 supported = ["spo2", "ppg"]
+            # SDK MODE IS OFFERED ONLY WHERE THE DEVICE ADVERTISES IT (feature bit 0x9), and the
+            # capability is DERIVED, never inferred from vendor or model: a switch that cannot work is
+            # worse than an absent one, because the operator sets it and the config then claims a mode
+            # the hardware never had. `pmd_supported` is the live read, `pmd_supported_seen` what the
+            # last connect saw — the same fallback pair `rate_options` uses, so the switch survives the
+            # device being asleep. Note `supported` above deliberately STRIPS the `0x…` flags, which is
+            # why this reads the unfiltered list instead.
+            seen_flags = [str(x) for x in (st.get("pmd_supported") or d.get("pmd_supported_seen") or [])]
             devs.append({"name": d.get("name"), "address": d.get("address"), "vendor": d.get("vendor"),
                          "streams": d.get("streams") or [], "supported": supported,
                          "bps": _bps_for(d), "bps_ref": _bps_ref(d),
                          # the device's OWN menu of legal rates, read at connect — a dropdown built from
                          # this cannot offer an unsupported value
                          "rate_options": st.get("pmd_options") or {},
-                         "rates": d.get("rates") or {}})
+                         "rates": d.get("rates") or {},
+                         "sdk_capable": hex(pmd.SDK_MODE) in seen_flags,
+                         "sdk_mode": bool(d.get("sdk_mode")),
+                         # WHAT THE DEVICE LAST SAID, which is not what the config asked for: True on,
+                         # False off, None never reported. Kept separate and rendered as its own state —
+                         # collapsing "unknown" into "off" is how a night runs at 55 Hz under a config
+                         # that reads 176 with nothing to show for it (see capture._enter_sdk_mode).
+                         "sdk_mode_actual": st.get("sdk_mode")})
         return web.json_response({
             "settings": settings_schema.describe(cfg),
             "devices": devs,
@@ -733,6 +749,27 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     dev["rates"] = merged
                     changed.append(f"{dev.get('name')}.rates")
                     restart_needed = True     # rate is fixed at PMD START, i.e. at connect
+
+            for addr, want in (body.get("sdk_mode") or {}).items():
+                dev = next((d for d in cfg.get("devices", []) if d.get("address") == addr), None)
+                if not dev:
+                    raise settings_schema.SettingsError(f"unknown device {addr}")
+                if not isinstance(want, bool):
+                    raise settings_schema.SettingsError("sdk_mode must be a boolean")
+                # REFUSE IT ON HARDWARE THAT DOES NOT ADVERTISE IT, for the same reason a rate outside
+                # the device's menu is refused: the alternative is a config asserting a mode the device
+                # will reject at connect, leaving the streams on their normal rates while every surface
+                # says otherwise. Enabling is gated; DISABLING is always allowed, so a flag set against
+                # a device that has since been swapped can still be cleared.
+                sup = [str(x) for x in ((status.get("devices", {}).get(dev.get("name"), {})
+                                         .get("pmd_supported")) or dev.get("pmd_supported_seen") or [])]
+                if want and sup and hex(pmd.SDK_MODE) not in sup:
+                    raise settings_schema.SettingsError(
+                        f"{dev.get('name')} does not advertise SDK mode (feature {hex(pmd.SDK_MODE)})")
+                if bool(dev.get("sdk_mode")) != want:
+                    dev["sdk_mode"] = want
+                    changed.append(f"{dev.get('name')}.sdk_mode")
+                    restart_needed = True     # the mode is entered during PMD negotiation, i.e. at connect
         except settings_schema.SettingsError as e:
             return web.json_response({"ok": False, "error": str(e)}, status=400)
         if changed:

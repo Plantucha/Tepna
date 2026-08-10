@@ -238,6 +238,67 @@ def is_recording(status: dict[int, int], meas: int) -> bool:
     return status.get(meas, NO_MEASUREMENT) in (OFFLINE_ACTIVE, ONLINE_AND_OFFLINE)
 
 
+# ── SDK MODE — the same hardware, with a much larger settings menu ──────────────────────────────────
+#
+# SDK mode is not a measurement; it is a DEVICE MODE, started and stopped with the ordinary START/STOP
+# opcodes against the reserved type `0x09`. Measured on a Verity Sense (`POLAR-VERITY-DEVICE-SURFACE`
+# §4, `POLAR-PMD-COMMAND-SURFACE` §2.2a) — what changes is what `get_settings_cmd` then ANSWERS:
+#
+#     stream   normal            in SDK mode
+#     PPG      55                28 / 44 / 55 / 135 / 176
+#     ACC      52                26 / 52 / 104 / 208 / 416, ±2/4/8/16 G
+#     GYRO     52                26 / 52 / 104 / 208 / 416, ±250…2000 dps
+#
+# ⚠️ FOUR PROPERTIES, EACH WITH ITS OWN WAY OF WASTING A NIGHT:
+#
+# 1. **It does not survive a power cycle, and the device is the only authority on whether it is on.**
+#    So it must be re-entered on EVERY connect and confirmed with `sdk_mode_status_cmd()` — never
+#    assumed from the fact that the command was sent. Same discipline the clock needed: the Verity
+#    accepts `SET_LOCAL_TIME`, echoes it back, and stamps samples from a different clock entirely
+#    (`POLAR-PMD-COMMAND-SURFACE` §2.1). An ACK is not a state.
+# 2. **Every stream must be STOPPED first**, or the device answers `ERROR_INVALID_STATE` (0x0C) and
+#    stays in normal mode. ⚠️ 0x0C is in `TRANSIENT_STATUS`, so a caller that only asks `is_transient`
+#    reads that refusal as "try again later" and records the whole night at 55 Hz believing it asked
+#    for 176.
+# 3. **Entering it INVALIDATES a settings menu already read.** `capture.py` queries settings and starts
+#    from them; SDK mode entered between those two steps leaves the menu stale. Enter FIRST, then query.
+#    The mirror-image bug is documented: an OFFLINE start built from the ONLINE menu is answered
+#    `invalid_sample_rate` (`POLAR-VERITY-DEVICE-SURFACE` §4).
+# 4. **Offline recording stays capped at 13/26/52 Hz regardless**, so SDK mode buys nothing on flash.
+#
+# `0x09` is deliberately absent from `MEAS_NAME` — it is a mode, and `webmon` decides what is capturable
+# with `not str(x).startswith("0x")`, so naming it there would offer it to the user as a stream
+# (gate-locked by `test_capability_flags_are_not_offered_as_streams`).
+SDK_MODE = 0x09
+_OP_SDK_STATUS = 0x06
+
+
+def sdk_mode_cmd(on: bool) -> bytes:
+    """START (`02 09`) or STOP (`03 09`) SDK mode. Measured; `POLAR-VERITY-DEVICE-SURFACE` §4."""
+    return bytes([_OP_START if on else _OP_STOP, SDK_MODE])
+
+
+def sdk_mode_status_cmd() -> bytes:
+    """Control-point write asking whether SDK mode is currently on."""
+    return bytes([_OP_SDK_STATUS])
+
+
+def parse_sdk_mode_status(value: bytes) -> bool | None:
+    """Is SDK mode on? `True`/`False`, or **`None` when the reply does not say**.
+
+    ⚠️ `None` IS NOT `False`, and collapsing the two is how this fails silently. A device that never
+    answered, answered an error, or answered a shape we do not recognise has told us nothing — calling
+    that "off" makes a caller re-send the enter command every cycle to a device already in SDK mode, and
+    publishes `sdk_mode: false` in status while the negotiated rates say otherwise. The reply does not
+    fit the usual envelope (`POLAR-PMD-COMMAND-SURFACE` §3.2): a real one is `f0 06 09 00 00 <flag>`,
+    and the flag is the LAST byte."""
+    if len(value) < 4 or value[0] != 0xF0 or value[1] != _OP_SDK_STATUS:
+        return None
+    if value[3] != 0x00:                       # a non-zero status is an error, not an answer
+        return None
+    return bool(value[-1])
+
+
 def parse_settings_response(value: bytes) -> dict[int, list[int]]:
     """Parse a control-point response to get_settings → {setting_id: [offered values]}. Layout (verified
     on a Verity Sense 2026-07-16): [0xF0, op, meas, status, moreFlag, <setting_id, count(u8),
