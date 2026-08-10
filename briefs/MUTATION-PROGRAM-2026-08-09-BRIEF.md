@@ -406,6 +406,45 @@ without its ceiling beside it, deliberately.
 
 ## 7 · Open work, in order
 
+### 7.0 · TWO THINGS THE PROBING FOUND THAT CHANGE THE METHOD, not just the numbers
+
+Both were discovered by running the prober rather than by reasoning about it, and both are properties
+of the MECHANISM rather than of any node.
+
+**(a) A function with ZERO kills cannot be classified at all — and 12 % of the fleet was in that
+state.** The engine requires a positive control from the same function: a mutant the suite killed,
+replayed to prove the battery reaches the code. With no kills there is nothing to replay, so every
+verdict is withheld *however good the battery is* — and the batteries were good (`genSynthetic` got 52
+distinct answers over 53 inputs; `compareIntervalSeries` 13 over 24). **"0 % killed" and "100 %
+equivalent" are indistinguishable to the tool**, and no better battery closes the gap. The only exit
+is one test.
+
+| file | function | survivors | after one bootstrap test |
+|---|---|---:|---|
+| `glucodex-dsp.js` | `genSynthetic` | 90 | 5 of 6 sampled now die |
+| `pulsedex-dsp.js` | `compareIntervalSeries` | 54 | 3 of 8 |
+| `pulsedex-dsp.js` | `fragmentation` | 19 | 4 of 8 |
+| | | **163** | all now probeable |
+
+So the unit of work is not always "write a battery". For a zero-kill function it is **"write a test,
+THEN a battery"**, and the test is owed on its own merits: `compareIntervalSeries` is the two-signal
+agreement path — whether a Verity and an H10 are measuring the same heart.
+
+**(b) The classification DECAYS, because its key contains a line number.** `(line, op, before)` mixes
+a description of the code with a description of where it sat, so any edit *above* a recorded mutant
+orphans it. Measured: #1127 touched `pulsedex-dsp.js` within HOURS of 19 entries landing and orphaned
+**ten of them** — every one with an identical `(op, before)` still in the file at a new line. An
+orphaned entry is indistinguishable from an unprobed one, so the ledger shrinks silently.
+
+`tools/reanchor-equivalence.mjs` repairs exactly the unambiguous case — one generated mutant with the
+same `(op, before)` — and refuses ambiguous or vanished ones rather than guessing, because a wrong
+re-anchor would excuse a mutant nobody probed. **Re-anchoring is not re-verification**: it moves an
+address, never renews a claim. Run it after any DSP edit; the same decay bit twice in one session.
+
+⚠️ It also found that **`clock.js`'s three entries — the oldest in the ledger, on the file the whole
+mechanism was built for — are genuinely stale** (all three lines now hold different code). They are
+`real-gap` records so nothing is falsely excused, but they had rotted unnoticed.
+
 ### 7.1 · Feed the mechanism — a **committed, general** prober *(first; in progress)*
 
 The ~83 measured-but-unrecorded classifications of §2, produced by a prober that lives in the repo so
