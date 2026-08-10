@@ -1436,5 +1436,79 @@
       "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
       "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
     }
+  ],
+  "cpapdex-dsp.js": [
+    {
+      "line": 635,
+      "op": "num → 0",
+      "before": "nad = 100,",
+      "after": "nad = 0,",
+      "class": "no-distinguishing-input",
+      "why": "In detectDesats. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectDesats · the desaturation detector: 59 inputs, 24 distinct baseline answers; 5/5 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 637,
+      "op": "num → 0",
+      "before": "base = 95;",
+      "after": "base = 0;",
+      "class": "no-distinguishing-input",
+      "why": "In detectDesats. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectDesats · the desaturation detector: 59 inputs, 24 distinct baseline answers; 5/5 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 642,
+      "op": "cmp < → <=",
+      "before": "for (var i = 0; i < n; i++) {",
+      "after": "for (var i = 0; i <= n; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In detectDesats. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectDesats · the desaturation detector: 59 inputs, 24 distinct baseline answers; 5/5 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 649,
+      "op": "cmp < → <=",
+      "before": "for (var j = lo; j < i; j++) {",
+      "after": "for (var j = lo; j <= i; j++) {",
+      "class": "no-distinguishing-input",
+      "why": "In detectDesats. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectDesats · the desaturation detector: 59 inputs, 24 distinct baseline answers; 5/5 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 651,
+      "op": "cmp > → >=",
+      "before": "if (_spo2Valid(v) && v > bmax) bmax = v;",
+      "after": "if (_spo2Valid(v) && v >= bmax) bmax = v;",
+      "class": "no-distinguishing-input",
+      "why": "In detectDesats. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectDesats · the desaturation detector: 59 inputs, 24 distinct baseline answers; 5/5 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 771,
+      "op": "cmp < → <=",
+      "before": "for (var a = 0; a < n; a++) ps[a + 1] = ps[a] + flow[a];",
+      "after": "for (var a = 0; a <= n; a++) ps[a + 1] = ps[a] + flow[a];",
+      "class": "no-distinguishing-input",
+      "why": "In detectBreaths. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectBreaths · flow → breath count: 40 inputs, 12 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 774,
+      "op": "cmp < → <=",
+      "before": "for (var i = 0; i < n; i++) {",
+      "after": "for (var i = 0; i <= n; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In detectBreaths. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectBreaths · flow → breath count: 40 inputs, 12 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 781,
+      "op": "cmp >= → >",
+      "before": "if (lastSign <= 0 && (lastCrossIdx < 0 || i - lastCrossIdx >= minBreathSamp)) {",
+      "after": "if (lastSign <= 0 && (lastCrossIdx < 0 || i - lastCrossIdx > minBreathSamp)) {",
+      "class": "no-distinguishing-input",
+      "why": "In detectBreaths. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectBreaths · flow → breath count: 40 inputs, 12 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    }
   ]
 }
