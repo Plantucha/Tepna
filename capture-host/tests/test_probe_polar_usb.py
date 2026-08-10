@@ -110,6 +110,7 @@ class _FakeDev:
         self.replies, self.stale = list(replies), list(stale)
         self.read_error, self.writes = read_error, []
         self.closed = False
+        self.timeouts = []            # every select() wait, so the WINDOW itself can be asserted
 
 
 _FD = 99
@@ -155,6 +156,7 @@ def _install(monkeypatch, dev):
         # ceiling is deliberately not the window — one test drives 30 s — only "not unbounded".
         assert timeout is not None, "a reply wait of None blocks forever"
         assert 0.0 <= timeout <= 3600, f"bounded, non-negative reply wait; got {timeout!r}"
+        dev.timeouts.append(timeout)
         # timeout == 0 is fetch()'s drain probe: only pre-existing stale bytes are visible to it,
         # otherwise the drain would swallow the reply this request is waiting for.
         ready = bool(dev.stale) if timeout == 0 else bool(dev.stale or dev.replies)
@@ -228,6 +230,45 @@ def test_the_fd_is_closed_even_after_a_successful_fetch(monkeypatch):
     _install(monkeypatch, dev)
     probe.fetch("/dev/hidraw0", "/U/0/")
     assert dev.closed is True, "the hidraw node must not be leaked — it is a single-open device"
+
+
+def test_ack_numbers_advance_across_a_THREE_packet_reply(monkeypatch):
+    """Two packets is not enough to see the counter move. With only a MORE and an END, the second ACK
+    is never sent — the loop breaks on END first — so `pkt_num = next_ack(pkt_num)` could be dropped
+    entirely and nothing noticed. Three packets forces two ACKs, and the device rejects a repeated or
+    absent packet number."""
+    a, b, c = _LISTING[:16], _LISTING[16:32], _LISTING[32:]
+    dev = _FakeDev([_reply(len(a), 0, a, initial=True),
+                    _reply(len(b), 0, b, initial=False),
+                    _reply(len(c), 1, c, initial=False)])
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["real"] == 3
+    acks = [w[2] for w in dev.writes if w[1] == 0x05]
+    assert acks == [0, 1], "each non-final packet is ACKed, and the number ADVANCES"
+    assert [e[0] for e in r["entries"]] == ["DBDC.DAT", "USERID.BPB", "S/", "20260621/"], \
+        "…and the reassembled body is still the listing"
+
+
+def test_the_default_window_is_the_one_the_device_is_actually_given(monkeypatch):
+    """`window` is a default nobody passed, so nothing observed it and 8.0 could become 9.0 unnoticed.
+    It is the entire budget for a reply on a pipe that answers once per USB re-enumeration — the
+    difference between a probe that reports a closed window and one that looks hung."""
+    dev = _FakeDev([_reply(len(_LISTING), 1, _LISTING)])
+    _install(monkeypatch, dev)
+    probe.fetch("/dev/hidraw0", "/U/0/")
+    waits = [t for t in dev.timeouts if t]        # the 0.0 entry is the pre-request drain
+    assert waits and 7.5 < waits[0] <= 8.0, f"the first reply wait is the 8 s window, got {waits[:1]}"
+
+
+def test_the_default_packet_cap_bounds_a_device_that_never_terminates(monkeypatch):
+    """The measured failure this cap exists for: ACKing every filler reply yielded 4000 packets in 8 s.
+    The existing test passes `max_packets` explicitly, so the DEFAULT was unobserved and 400 could
+    become 401 — or, on the same line, something far larger — with nothing to notice."""
+    dev = _FakeDev([_IDLE] * 500)
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/", window=30.0)
+    assert r["idle"] == 400, "stopped at the default cap, not at the end of the device's patience"
 
 
 def test_a_whole_payload_is_marked_complete(monkeypatch):

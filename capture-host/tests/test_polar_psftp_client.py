@@ -218,7 +218,20 @@ def test_list_dir_parses_a_directory(monkeypatch):
     assert _run(go()) == [("BPM.GZ", 12), ("PLETH.GZ", 34)]
 
 
-def test_walk_records_a_truncated_listing_and_still_walks_what_arrived(monkeypatch):
+def test_the_frame_mtu_starts_at_the_BLE_FLOOR_before_any_negotiation():
+    """20 = the 23-byte ATT default minus its 3-byte header, i.e. the smallest payload any BLE link is
+    guaranteed to carry. It is what every request is chunked to until `__aenter__` negotiates something
+    larger, and on this device it is frequently also the FINAL value ("MTU stays 23 here"). Nothing
+    asserted it, so it could become 21 — one byte over what the link guarantees — unnoticed."""
+    assert ps.PolarPsFtp("AA:BB")._frame_mtu == 20
+
+
+def test_a_fresh_session_has_recorded_no_truncated_directories():
+    """The accumulator starts EMPTY, so a non-empty `truncated_dirs` always means something was cut."""
+    assert ps.PolarPsFtp("AA:BB").truncated_dirs == []
+
+
+def test_walk_records_a_truncated_listing_and_still_walks_what_arrived(monkeypatch, caplog):
     """A cut listing must leave a trace on the SESSION, because `walk` yields tuples and a tuple has
     nowhere to say "and there was more". Without `truncated_dirs` a caller sees a short directory and
     a clean run — measured on the real device, where `/U/0/` came back 4 of 6 entries and the tool
@@ -233,8 +246,13 @@ def test_walk_records_a_truncated_listing_and_still_walks_what_arrived(monkeypat
             fs.list_dir_ex = _cut
             rows = [row async for row in fs.walk("/U/0/")]
             return rows, list(fs.truncated_dirs)
-    rows, cut = _run(go())
+    with caplog.at_level("WARNING", logger="polar_psftp"):
+        rows, cut = _run(go())
     assert cut == ["/U/0/"], "the cut path is named, not merely counted"
+    # THE WARNING'S ARGUMENTS ARE THE REPORT. "a listing was truncated" is not actionable; WHICH path,
+    # and how much of it did arrive, is — and an operator staring at a short mirror has nothing else.
+    warn = " ".join(r.getMessage() for r in caplog.records if r.levelname == "WARNING")
+    assert "/U/0/" in warn and "1 complete" in warn
     assert ("/U/0/BPM.GZ", 12, False) in rows, "the entries that DID arrive are still yielded"
 
 
