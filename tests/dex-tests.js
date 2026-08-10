@@ -31782,6 +31782,48 @@
       );
     });
 
+    /* ════ SIMULTANEITY IS A PROPERTY OF THE OVERLAP (PAT-COMPENDIUM §9.1) ════════════════════════
+       `sharedClock` gated every PAT verdict and NOTHING executed it — it lived in a worker, which is
+       exactly why `verdict()` was moved to pat-gate.js before it. Measured 2026-08-10 over 15 box
+       nights it refused 21 of 30 pairings, and it refuses BEFORE verdict() reads coupling or beat IQR,
+       so the nights that passed those bars were never scored. Both halves were mis-named: `dT0`
+       compared FILE START times (the host starts BLE streams sequentially — 55 s to 16 276 s of
+       stagger is routine) and the count ratio compared WHOLE-FILE beat totals for files of different
+       lengths. Real geometry is used below, so these cannot pass against the old form. ════ */
+    group('PAT sharedClock — simultaneity is measured over the OVERLAP, not the file headers', 'pat · sharedclock · regression', function (T) {
+      var G = env.PATGate;
+      if (!G || !G.sharedClock) {
+        T.skip('PATGate.sharedClock not in env', 'wire pat-gate.js into both runners');
+        return;
+      }
+      // 2026-08-02, verbatim: ECG covers 1.8 h, PPG 10 h, files start 1246.9 s apart. Same heart.
+      var ecg = { t0Ms: 0, durSec: 6540, n: 5551 },
+        ppg = { t0Ms: 1246900, durSec: 36000, n: 31580 };
+      var sc = G.sharedClock(ecg, ppg, { min: 109 });
+      T.ok('a REAL box night with a 1246 s start stagger and a 5.5x duration ratio is simultaneous', sc.ok === true, 'rateRatio=' + sc.rateRatio.toFixed(3) + ' overlapMin=' + sc.overlapMin);
+      T.ok('ANTI-VACUITY · the OLD criteria would BOTH have refused this exact night', sc.dT0 > 5000 && sc.beatRatio > 0.12, 'dT0=' + (sc.dT0 / 1000).toFixed(0) + ' s · beatRatio=' + sc.beatRatio.toFixed(3));
+      T.ok('…and the rate ratio it now uses is duration-independent', sc.rateRatio < 0.05, 'ecg ' + (sc.ecgHz * 60).toFixed(1) + ' bpm vs ppg ' + (sc.ppgHz * 60).toFixed(1) + ' bpm');
+
+      // a genuinely different heart rate: 50 bpm against 75 bpm over the same window ⇒ refuse
+      var fast = { t0Ms: 0, durSec: 6540, n: Math.round((6540 * 75) / 60) };
+      T.eq('a real RATE disagreement (50 vs 75 bpm) is refused', G.sharedClock(ecg, fast, { min: 109 }).ok, false);
+
+      // no common interval ⇒ refuse, however well the rates agree
+      var later = { t0Ms: 100000000, durSec: 6540, n: 5551 };
+      var scNo = G.sharedClock(ecg, later, { min: -26 });
+      T.ok('disjoint recordings are refused even with IDENTICAL rates', scNo.ok === false && scNo.rateRatio < 1e-9, 'rateRatio=' + scNo.rateRatio.toFixed(6));
+      T.eq('a sub-floor overlap is refused', G.sharedClock(ecg, ppg, { min: G.SC_MIN_OVERLAP_MIN - 0.01 }).ok, false);
+      T.eq('…and exactly the floor is accepted (boundary, not a gap)', G.sharedClock(ecg, ppg, { min: G.SC_MIN_OVERLAP_MIN }).ok, true);
+
+      // absent `ov` the overlap is DERIVED, never assumed — a caller that forgets it must not pass blindly
+      T.eq('with no overlap argument it derives the interval rather than defaulting to ok', G.sharedClock(ecg, later).ok, false);
+      /* The expectation is the CLOSED FORM of these inputs, not the real night's 109 min — that number
+         came from the real files' durations and asserting it here would be circular (it was used to
+         pick the synthetic ones). Derived must equal what the caller would compute, independently. */
+      var wantMin = (Math.min(ecg.t0Ms + ecg.durSec * 1000, ppg.t0Ms + ppg.durSec * 1000) - Math.max(ecg.t0Ms, ppg.t0Ms)) / 60000;
+      T.ok('…and derives exactly the interval the caller would compute', Math.abs(G.sharedClock(ecg, ppg).overlapMin - wantMin) < 1e-9, 'derived=' + G.sharedClock(ecg, ppg).overlapMin.toFixed(2) + ' want=' + wantMin.toFixed(2));
+    });
+
     group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {
       var PS = env.PatStrict;
       if (!PS || !PS.strictMatchRate) {

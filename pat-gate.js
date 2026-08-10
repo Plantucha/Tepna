@@ -101,5 +101,52 @@
     return { tier: 'maybe', label: 'WEAK COUPLING', why: why };
   }
 
-  root.PATGate = { PAT_GATE: PAT_GATE, verdict: verdict, VERSION: '1.0.0' };
+
+  /* SIMULTANEITY IS A PROPERTY OF THE OVERLAP, NOT OF THE FILE HEADERS (PAT-COMPENDIUM §9.1).
+     The old form was `dT0 <= 5000 && |nEcg - nPpg| / max <= 0.12`, and BOTH halves measured something
+     other than what they are named for. Measured over the 15 box nights on 2026-08-10 it refused 21 of
+     30 pairings, and it refuses BEFORE `verdict()` looks at coupling or beat IQR — so the numbers that
+     actually passed were never reached.
+  
+       · `dT0` is the difference in FILE START times. The capture host starts BLE streams sequentially
+         and a device reconnects on its own schedule, so a stagger of 55 s to 16 276 s is routine and
+         says nothing whatever about a shared timebase. A 5 s tolerance cannot be met by this rig.
+       · `|nEcg - nPpg|` compares WHOLE-FILE beat counts for files of different lengths. On 2026-08-02
+         the ECG covers 1.8 h and the PPG 10 h, giving 5551 vs 31 580 and a ratio of 0.824 — a duration
+         mismatch reported as a clock failure.
+  
+     This is the SAME defect `matchRate` already carried and was fixed for (see the `nCoverable` note in
+     coupledPAT): a statistic over whole files, on a pair that only overlaps in part, measures the
+     recording geometry. `sharedClock` never got the same treatment.
+  
+     So: require a real common interval, and compare BEAT RATES rather than counts. A rate is
+     duration-independent by construction, which is exactly the property the count form lacked. The
+     0.12 tolerance is carried over unchanged and now applies to the rate — this is a fix to WHAT is
+     measured, not a re-tuning of how much is allowed.
+     `dT0` and `beatRatio` are still REPORTED, because they are useful diagnostics and because a reader
+     comparing against a pre-2026-08-10 run needs to see the old numbers; they simply no longer decide. */
+  var SC_RATE_TOL = 0.12, // was the beat-COUNT tolerance; same number, now on rates
+    SC_MIN_OVERLAP_MIN = 5; // a common interval shorter than this cannot support a night's verdict
+  function sharedClock(ecg, ppg, ov) {
+    var dT0 = Math.abs(ecg.t0Ms - ppg.t0Ms),
+      beatRatio = Math.abs(ecg.n - ppg.n) / Math.max(ecg.n, ppg.n, 1);
+    var ecgHz = ecg.durSec > 0 ? ecg.n / ecg.durSec : NaN,
+      ppgHz = ppg.durSec > 0 ? ppg.n / ppg.durSec : NaN;
+    var rateRatio = isFinite(ecgHz) && isFinite(ppgHz) && Math.max(ecgHz, ppgHz) > 0 ? Math.abs(ecgHz - ppgHz) / Math.max(ecgHz, ppgHz) : Infinity;
+    /* No `ov` ⇒ derive the common interval here. pat-gate deliberately does not import the worker's
+       `overlap()`; duplicating three lines is cheaper than a dependency in the other direction. */
+    var overlapMin = ov && isFinite(ov.min) ? ov.min
+      : (Math.min(ecg.t0Ms + ecg.durSec * 1000, ppg.t0Ms + ppg.durSec * 1000) - Math.max(ecg.t0Ms, ppg.t0Ms)) / 60000;
+    return {
+      dT0: dT0,
+      beatRatio: beatRatio, // diagnostic only — see the note above
+      ecgHz: ecgHz,
+      ppgHz: ppgHz,
+      rateRatio: rateRatio,
+      overlapMin: overlapMin,
+      ok: overlapMin >= SC_MIN_OVERLAP_MIN && rateRatio <= SC_RATE_TOL
+    };
+  }
+
+  root.PATGate = { PAT_GATE: PAT_GATE, verdict: verdict, sharedClock: sharedClock, SC_RATE_TOL: SC_RATE_TOL, SC_MIN_OVERLAP_MIN: SC_MIN_OVERLAP_MIN, VERSION: '1.1.0' };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
