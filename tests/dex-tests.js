@@ -15410,6 +15410,55 @@
             PG.verdict({ min: 401 }, cp({ matchRate: 0.895, residIQR: 47.5, med: 454, driftRange: 1147 }), scOK).label,
             'DRIFT-DOMINATED'
           );
+          /* ── PAT-DRIFT-STATISTIC §4 — the gate weighs stepP95, and driftRange is a diagnostic ──
+             `driftRange` is bounded by the 450 ms pairing window and SATURATES there: nine box nights
+             over ~6 h read 420–442 whatever their capture quality. The bar value is unchanged; only
+             the quantity compared against it moved. The decisive case is the first one — a night that
+             fills the whole window by walking must PASS, and under the old statistic it could not. */
+          var bin = function (i, med, n, nBeats, iqr) {
+            return { bin: i, min: i * 5, med: med, n: n, nBeats: nBeats, iqr: isFinite(iqr) ? iqr : 15 };
+          };
+          // a driftless walk of ±20 ms steps that wanders the full window — range saturates, steps don't
+          var walk = [],
+            wv = 200;
+          for (var wi = 0; wi < 80; wi++) {
+            walk.push(bin(wi, wv, 200, 210, 15));
+            wv += wi < 40 ? 11 : -11; // out to 640 and back — fills the 450 ms window, no step over 11
+          }
+          var dsWalk = PG.driftStats(walk);
+          T.ok('§4 a saturating walk has a driftRange at the window scale', dsWalk.driftRange >= 400);
+          T.ok('§4 …but a small stepP95 — the statistic the gate weighs', dsWalk.stepP95 <= 11);
+          T.eq('§4 that night now reaches FEASIBLE', PG.verdict(ovOK, cp({ stepP95: dsWalk.stepP95, driftRange: dsWalk.driftRange }), scOK).label, 'FEASIBLE');
+          T.eq('§4 the SAME night under the old statistic was rejected — this is the change', PG.verdict(ovOK, cp({ driftRange: dsWalk.driftRange }), scOK).label, 'DRIFT-DOMINATED');
+          // a single genuine jump must still fail, or the new statistic is merely permissive
+          var jump = [bin(0, 300, 200, 210), bin(1, 300, 200, 210), bin(2, 600, 200, 210), bin(3, 600, 200, 210)];
+          var dsJ = PG.driftStats(jump);
+          T.ok('§4 one 300 ms step ⇒ stepP95 catches it', dsJ.stepP95 >= 300);
+          T.ok('§4 …and its driftRange is SMALLER than the walk it must outrank', dsJ.driftRange < dsWalk.driftRange);
+          T.eq('§4 a stepping night is DRIFT-DOMINATED', PG.verdict(ovOK, cp({ stepP95: dsJ.stepP95, driftRange: dsJ.driftRange }), scOK).label, 'DRIFT-DOMINATED');
+          // §3 — a bin is admitted by MATCH RATE, never by a pair count. The 2026-08-03 geometry.
+          /* iqr 38 is the REAL value on that bin and it clears the beat bar, so this isolates the
+             match-rate rule — a fixture that also failed on IQR would pass while testing nothing
+             (caught by mutation: zeroing BIN_MATCH_MIN left an earlier version of these green). */
+          var censored = [bin(0, 300, 200, 210), bin(1, 630, 6, 238, 38), bin(2, 300, 200, 210)];
+          var dsC = PG.driftStats(censored);
+          T.eq('§3 a 6-of-238 bin is excluded on MATCH RATE, though its own IQR passes', dsC.binsQualified, 2);
+          T.ok('§3 …so it cannot set the range', dsC.driftRangeQual === 0 && dsC.driftRange > 300);
+          T.eq('§3 its two neighbours are no longer adjacent, so no step is charged', dsC.nSteps, 0);
+          T.eq('§3 match rate just below BIN_MATCH_MIN is excluded', PG.driftStats([bin(0, 300, 159, 200, 15)]).binsQualified, 0);
+          T.eq('§3 a bin whose OWN iqr exceeds the beat bar is excluded too', PG.driftStats([bin(0, 300, 200, 210), bin(1, 310, 200, 210, G.BEAT_IQR_MAX_MS + 1)]).binsQualified, 1);
+          T.eq('§3 iqr exactly at the bar is kept (inclusive)', PG.driftStats([bin(0, 300, 200, 210), bin(1, 310, 200, 210, G.BEAT_IQR_MAX_MS)]).binsQualified, 2);
+          T.eq('§3 match rate exactly BIN_MATCH_MIN is kept (inclusive)', PG.driftStats([bin(0, 300, 160, 200)]).binsQualified, 1);
+          // a recording gap is not a step — the lag was free to move while nothing observed it
+          var gapped = [bin(0, 300, 200, 210), bin(1, 305, 200, 210), bin(40, 600, 200, 210), bin(41, 605, 200, 210)];
+          var dsG = PG.driftStats(gapped);
+          T.eq('§4 a 195-min gap contributes no step', dsG.nSteps, 2);
+          T.ok('§4 …so the gap does not inflate stepP95', dsG.stepP95 <= 5);
+          T.ok('§4 …while driftRange charges the gap in full', dsG.driftRange >= 300);
+          // back-compat: a caller that knows nothing of stepP95 behaves exactly as before
+          T.eq('§4 no stepP95 supplied ⇒ falls back to driftRange', PG.verdict(ovOK, cp({ driftRange: G.DRIFT_MAX_MS + 1 }), scOK).why.driftStat, 'driftRange');
+          T.eq('§4 stepP95 supplied ⇒ that is what was weighed', PG.verdict(ovOK, cp({ stepP95: 10, driftRange: 400 }), scOK).why.driftStat, 'stepP95');
+          T.eq('§4 no bins at all ⇒ no step, and the gate falls back rather than passing on a NaN', PG.driftStats([]).nSteps, 0);
         } else {
           T.ok('PATGate co-loaded (pat-gate.js)', false, 'add pat-gate.js to both runners');
         }
