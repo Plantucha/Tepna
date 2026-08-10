@@ -81,7 +81,14 @@ function ecgRpeakTimes(text) {
   var bp = ECGDSP.bandpass(rec.int16, rec.fs);
   var peaks = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
   var t = new Float64Array(peaks.length);
-  for (var i = 0; i < peaks.length; i++) t[i] = rec.t0Ms + (peaks[i] / rec.fs) * 1000;
+  /* R-peak TIME, not rate: ride the host-disciplined axis when one exists. `i / fs` is the DEVICE
+     clock, and on 160 of 187 real ECG fragments the ppm path is REFUSED by its 40-min span gate — so
+     those fragments carried no time correction at all. Measured over 15 box nights: median divergence
+     48 ms on refused fragments (max 1479 ms), against 0.1 ms where the ppm had already applied. A
+     48 ms axis error is not survivable against a 60 ms PAT bar. `tMsAt` falls back to device time when
+     there is no independent second clock, so this can never fabricate one. */
+  for (var i = 0; i < peaks.length; i++)
+    t[i] = typeof rec.tMsAt === 'function' ? rec.tMsAt(peaks[i]) : rec.t0Ms + (peaks[i] / rec.fs) * 1000;
   return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: peaks.length };
 }
 function ppgFootTimes(text) {

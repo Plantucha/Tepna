@@ -4037,10 +4037,43 @@
        101.89–5124 ms where a real second clock exists), so EVERY one of them is a phone capture and
        every `fs` correction applied to them was derived from a column that is not a clock.
        `ok` is not enough and neither is the span gate: both are satisfied by a derived column. */
+    var fsDevice = fs; // BEFORE any rate correction — `tMsAt` below needs the RAW device rate
     if (ecgHostAx.ok && ecgHostAx.independent !== false && isFinite(ecgHostAx.ppm) && ecgAxisSpanMs >= ECG_AXIS_MIN_SPAN_MS) {
       fs = fs / (1 + ecgHostAx.ppm / 1e6);
       ecgAxisApplied = true;
     }
+    /* ── A SAMPLE'S POSITION IN TIME IS NOT A RATE — `tMsAt` rides the INTERPOLATION, not the ppm ────
+       The block above corrects `fs`, and `fs` is the right thing to correct there: `detectPeaks`, the
+       bandpass coefficients (built from 1/fs), `refinePeaks` and `computeSQI` all consume it as a RATE,
+       and a rate needs the span gate that block spends a table justifying.
+
+       A sample's POSITION IN TIME is a different quantity, and it was being derived from that same
+       scalar — every consumer computing `t0Ms + (i / fs) * 1000`. Clock Contract §7 draws exactly this
+       line: "`hostAxis` does not QUOTE a rate, it interpolates measured divergence, so its residual is
+       bounded by what it observed. Gating on span would refuse the short fragments whose real error is
+       ~3 s, i.e. exactly the case that needs it. A consumer that reads `.ppm` instead of
+       `correctionAt()` is quoting a rate and DOES need a baseline."
+
+       ECGDex sat on the wrong side of that sentence for TIME. The cost is measured, not theoretical:
+       on 2026-08-03 the H10 reads -34.7 ppm, which over 475 min is 989 ms of divergence against the
+       host-disciplined PpgDex axis (PpgDex already consumes `correctionAt` per sample). The observed
+       ECG-to-PPG beat-lag walk on that night is ~1000 ms and WRAPS mod one RR — a sawtooth. The two
+       agree, and that wrap is why whole-night PAT scatter reads 131-136 ms against a ~35 ms two-PPG
+       control that couples on 11 of 14 nights.
+
+       WHY `fsDevice`, NOT `fs`: if the span gate fired, `fs` already carries the ppm, and applying
+       `correctionAt` on top would count the same divergence twice. The interpolation is measured
+       against the DEVICE axis, so it must be applied to the device axis.
+
+       WHY NO SPAN GATE HERE, and why that is not the oversight the ppm path was: `correctionAt` is
+       linear between anchors and FLAT outside them, so a short fragment receives a small bounded
+       correction rather than an amplified one. That boundedness is precisely what `.ppm` lacks.
+
+       ADDITIVE, and deliberately inert until opted into: `fs`, `t0Ms` and every published field are
+       byte-unchanged, so no export can move until a consumer calls this. A recording with no
+       independent second clock returns uncorrected device time — never a fabricated one (§2.6). */
+    var _ecgCorrAt = ecgHostAx.ok && ecgHostAx.independent !== false && typeof ecgHostAx.correctionAt === 'function' ? ecgHostAx.correctionAt : null;
+    var _ecgMsPerSample = 1000 / fsDevice;
     // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
     // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
     // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
@@ -4050,6 +4083,19 @@
     return {
       int16: arr.slice(0, n),
       fs: fs,
+      /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists.
+         `i` may be fractional — `refinePeaks` returns sub-sample R positions and they must not be
+         rounded before the correction is applied. Consumers that need a TIME use this; consumers that
+         need a RATE keep using `fs`. */
+      tMsAt: function (i) {
+        var devMs = i * _ecgMsPerSample;
+        return t0Ms + devMs + (_ecgCorrAt ? _ecgCorrAt(devMs) : 0);
+      },
+      /* Whether `tMsAt` is actually disciplined. Reported so a caller can tell a corrected axis from a
+         device-clock one WITHOUT re-deriving the condition — and so `applied:false` on `hostAxis`
+         (a REFUSED ppm) is never mistaken for "the time axis is uncorrected too". They are different
+         gates now: the ppm is span-gated, the interpolation is not. */
+      tMsCorrected: !!_ecgCorrAt,
       gaps: gaps,
       t0Ms: t0Ms,
       offsetMin: offsetMin,

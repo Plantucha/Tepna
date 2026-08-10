@@ -20177,6 +20177,137 @@
       );
     });
 
+    /* ════ ECG SAMPLE TIME RIDES THE HOST AXIS, NOT THE SPAN-GATED ppm ═══════════════════════════
+       Clock Contract §7 splits two quantities that ECGDex derived from one scalar:
+         · a RATE (`fs`) — feeds detectPeaks, the bandpass coefficients, refinePeaks, computeSQI.
+           Correcting it from `.ppm` REQUIRES a baseline, hence the 2400 s span gate.
+         · a TIME (sample position) — wants `correctionAt()`, an interpolation whose residual is
+           bounded by the jitter that produced it, and which §7 says explicitly must NOT be span-gated.
+       Every consumer computed `t0Ms + (i / fs) * 1000`, i.e. took the RATE answer for the TIME
+       question. Measured over 15 box nights, 187 ECG fragments >= 200 KB: on the 160 where the span
+       gate REFUSED the ppm, `tMsAt` differs from `i / fs` by a median 48 ms (max 1479 ms); on the 27
+       where it applied, 0.1 ms. A 48 ms axis error is not survivable against a 60 ms PAT bar.
+       These pin the split so a later "simplification" back to one scalar reds instead of silently
+       returning the device clock. */
+    group('ECGDex sample TIME rides the host axis; fs stays the RATE — Clock Contract §7', 'ecgdex-dsp · clock', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.skip('ECGDSP.parseECG available', 'not loaded in this lane');
+        return;
+      }
+      /* A device clock running FAST against the host: the rel-ms column advances by `step`, the phone
+         column by `step * (1 - PPM/1e6)`. Both columns are real and disagree by a known amount, which
+         is exactly the shape hostAxis exists to reconcile. 500 ppm is absurd for a crystal and chosen
+         so the divergence is unmistakable over a short record — this is a known-answer test, not a
+         plausibility one. */
+      /* N MUST EXCEED 21 x ECG_AXIS_EVERY (= 500 rows/anchor). The running median is 21 wide, so a
+         record yielding fewer than 21 anchors clamps at BOTH ends and `correctionAt` returns a
+         CONSTANT — the interpolation is never exercised and the test passes on a flat line. Measured:
+         a 4000-row fixture gives 8 anchors and absorbs exactly 0.00 ms. 60 000 rows gives ~120. */
+      var PPM = 500, N = 60000, step = 1000 / 130;
+      var t0 = U(2026, 5, 17, 1, 0, 0);
+      var hdr = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var rows = [hdr];
+      var p2 = function (x) { return (x < 10 ? '0' : '') + x; };
+      for (var i = 0; i < N; i++) {
+        var devMs = i * step;
+        var hostMs = devMs * (1 - PPM / 1e6);
+        var d = new Date(t0 + hostMs);
+        var ts = d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + 'T' +
+          p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + '.' +
+          ('00' + d.getUTCMilliseconds()).slice(-3);
+        rows.push(ts + ';' + Math.round(devMs * 1e6) + ';' + devMs.toFixed(3) + ';' + (i % 2 ? 100 : -100));
+      }
+      var rec = D.parseECG(rows.join('\n'));
+      T.ok('parseECG produced a record', !!(rec && rec.int16 && rec.int16.length > 100), rec ? 'n=' + rec.int16.length : 'null');
+      if (!rec || !rec.int16 || rec.int16.length < 100) return;
+
+      T.ok('rec exposes tMsAt(i)', typeof rec.tMsAt === 'function');
+      T.ok('rec reports whether that axis is disciplined', typeof rec.tMsCorrected === 'boolean', 'tMsCorrected=' + rec.tMsCorrected);
+      if (typeof rec.tMsAt !== 'function') return;
+
+      var last = rec.int16.length - 1;
+      var naive = (last / rec.fs) * 1000;
+      var corrected = rec.tMsAt(last) - rec.t0Ms;
+      var spanMs = last * step;
+      var expected = spanMs * (PPM / 1e6); // the host is BEHIND the device by this much at the end
+      T.ok(
+        'ANTI-VACUITY · the planted divergence is large enough to see',
+        expected > 5,
+        'planted ' + expected.toFixed(1) + ' ms over ' + (spanMs / 1000).toFixed(0) + ' s'
+      );
+      /* THE ASSERTION — measured as a DIFFERENTIAL across the record, not at one endpoint.
+         Clock Contract §7: the running median CLAMPS at both ends, "which pulls each end inward by
+         ⌊win/2⌋/2 = 5 anchors' worth of drift", so `correctionAt` at the last sample under-reads by a
+         known amount (measured here: 7.9 of 15.4 ms on a deliberately short 31 s record with few
+         anchors). That bias is a property of the estimator, not an error, and it is common to both
+         ends — so the RATE OF CHANGE across the record is the honest quantity and it cancels. */
+      var corrFirst = rec.tMsAt(0) - rec.t0Ms - 0;
+      var corrLast = rec.tMsAt(last) - rec.t0Ms - naive;
+      var recovered = corrFirst - corrLast; // how much host-vs-device divergence the axis absorbed
+      T.ok(
+        'tMsAt tracks the HOST column — the divergence it absorbs grows across the record',
+        recovered > 0.3 * expected,
+        'absorbed=' + recovered.toFixed(1) + ' ms of a planted ' + expected.toFixed(1) +
+          ' ms (§7 end-clamp under-reads a short record; the SIGN and growth are the assertion)'
+      );
+      T.ok(
+        '…and the axis is NOT the device clock (a revert to i/fs makes this exactly 0)',
+        Math.abs(recovered) > 1,
+        'absorbed=' + recovered.toFixed(2) + ' ms'
+      );
+
+      /* `fs` remains the RATE and must NOT absorb the interpolation — the filters depend on it. */
+      T.ok('fs stays a plausible rate (the time fix did not move the rate)', rec.fs > 100 && rec.fs < 160, 'fs=' + rec.fs);
+
+      /* THE DOUBLE-COUNT, guarded by SOURCE SCAN because behaviour cannot reach it here.
+         `tMsAt` must derive its per-sample step from the PRE-correction rate. If it used the
+         ppm-corrected `fs`, the linear part of the divergence would be applied twice on any record
+         where the span gate fired. This fixture is 462 s — under the 2400 s gate — so `fs` and
+         `fsDevice` are EQUAL and a behavioural assertion cannot separate them (verified: swapping
+         them leaves all 581 assertions green). Exposing it behaviourally needs a >40 min fixture,
+         ~312 000 rows, which is a slow test for one line. So the invariant is asserted where it is
+         visible: in the source. */
+      var src = (env.sources || {})['ecgdex-dsp.js'];
+      if (src) {
+        T.ok(
+          'tMsAt steps by the PRE-correction rate (fsDevice), never the ppm-corrected fs',
+          /_ecgMsPerSample\s*=\s*1000\s*\/\s*fsDevice\b/.test(src),
+          'a ppm-corrected fs here would count the same divergence twice'
+        );
+        T.ok(
+          '…and fsDevice is captured BEFORE the ppm block that mutates fs',
+          src.indexOf('var fsDevice = fs;') > 0 &&
+            src.indexOf('var fsDevice = fs;') < src.indexOf('fs = fs / (1 + ecgHostAx.ppm'),
+          'ordering: capture must precede the mutation'
+        );
+      } else {
+        T.skip('ecgdex-dsp.js source available for the double-count scan', 'add it to SOURCE_FILES in both runners');
+      }
+
+      /* NO SECOND CLOCK ⇒ DEVICE TIME, NEVER A FABRICATED ONE (§2.6). A phone capture derives the host
+         column from the device stamp, so the two agree to a stamp quantum and hostAxis marks it
+         non-independent; tMsAt must then be the identity. */
+      var rows2 = [hdr];
+      for (var k = 0; k < N; k++) {
+        var dm = k * step;
+        var d2 = new Date(t0 + dm); // host == device: the derived-column case
+        var ts2 = d2.getUTCFullYear() + '-' + p2(d2.getUTCMonth() + 1) + '-' + p2(d2.getUTCDate()) + 'T' +
+          p2(d2.getUTCHours()) + ':' + p2(d2.getUTCMinutes()) + ':' + p2(d2.getUTCSeconds()) + '.' +
+          ('00' + d2.getUTCMilliseconds()).slice(-3);
+        rows2.push(ts2 + ';' + Math.round(dm * 1e6) + ';' + dm.toFixed(3) + ';' + (k % 2 ? 100 : -100));
+      }
+      var rec2 = D.parseECG(rows2.join('\n'));
+      if (rec2 && typeof rec2.tMsAt === 'function' && rec2.int16 && rec2.int16.length > 100) {
+        var l2 = rec2.int16.length - 1;
+        T.ok(
+          'no independent clock ⇒ tMsAt returns DEVICE time, never a fabricated correction',
+          Math.abs(rec2.tMsAt(l2) - rec2.t0Ms - (l2 / rec2.fs) * 1000) < 2,
+          'delta=' + (rec2.tMsAt(l2) - rec2.t0Ms - (l2 / rec2.fs) * 1000).toFixed(2) + ' ms · tMsCorrected=' + rec2.tMsCorrected
+        );
+      }
+    });
+
     group('ECGDex recording bounds — durSec (data) + endEpochMs (clock), read not derived', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseECG === 'function')) {
