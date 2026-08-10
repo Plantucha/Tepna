@@ -135,6 +135,11 @@ def _install(monkeypatch, dev):
         return len(b)
 
     def _select(rl, wl, xl, timeout):
+        # The argument checks matter for the same reason the `os.*` ones do: `select(None, …)` and
+        # `select([fd], None, …)` are TypeErrors on a real kernel, and a fake that ignores its
+        # parameters cannot tell them from the real call.
+        assert rl == [_FD], "the probe waits on the fd it opened"
+        assert wl == [] and xl == [], "it never waits to write, and never on an exceptional condition"
         # timeout == 0 is fetch()'s drain probe: only pre-existing stale bytes are visible to it,
         # otherwise the drain would swallow the reply this request is waiting for.
         ready = bool(dev.stale) if timeout == 0 else bool(dev.stale or dev.replies)
@@ -273,6 +278,11 @@ def test_stale_bytes_in_the_node_are_drained_before_the_request(monkeypatch):
     _install(monkeypatch, dev)
     r = probe.fetch("/dev/hidraw0", "/U/0/")
     assert r["ok"] is True, "a leftover reply must not be parsed as this request's answer"
+    # `ok` alone cannot see the drain: undrained, the stale filler is simply consumed as the first
+    # packet of the reply loop, ACKed, and the real answer still arrives behind it. `idle == 0` is what
+    # actually distinguishes "drained before the request" from "absorbed afterwards" — and without it
+    # the drain's `select(...)[0]` could be indexed `[1]` (never ready, never drains) unnoticed.
+    assert r["idle"] == 0, "the stale byte was drained BEFORE the request, not counted as a reply"
 
 
 def test_a_read_error_is_reported_rather_than_crashing_the_probe(monkeypatch):

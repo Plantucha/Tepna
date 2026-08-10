@@ -174,7 +174,40 @@ def test_the_walk_has_a_depth_limit(monkeypatch, tmp_path):
                   "/A/A/A/A/A/A/": [("A/", 0)], "/A/A/A/A/A/A/A/": [("A/", 0)]}, {})
     _patch(monkeypatch, fs)
     res = _run(pm.mirror("AA:BB", str(tmp_path), redact=False))
-    assert len(res["dirs"]) <= 8
+    # EXACTLY seven, not "at most eight". A bound satisfied by 5, 6, 7 and 8 alike cannot see any of
+    # the arithmetic that produces it, and the mutation gate proved that: the starting depth, the
+    # `>` vs `>=`, `max_depth`'s default and the `depth + 1` step all survived behind `<= 8`. Seven is
+    # `depth` 0…6 inclusive under `if depth > max_depth: return`, i.e. the root plus six levels.
+    assert sorted(res["dirs"]) == ["/"] + ["/" + "A/" * n for n in range(1, 7)]
+
+
+def test_the_depth_limit_is_the_ARGUMENT_not_a_constant(monkeypatch, tmp_path):
+    """`walk` is called with the default from `mirror`, so dropping `max_depth` from the recursive call
+    is invisible there — the parameter has to be exercised with a value that is not the default."""
+    fs = _FakeFs({"/": [("A/", 0)], "/A/": [("A/", 0)], "/A/A/": [("A/", 0)],
+                  "/A/A/A/": [("A/", 0)], "/A/A/A/A/": [("A/", 0)]}, {})
+    out = {"dirs": {}, "files": {}, "errors": {}}
+    _run(pm.walk(fs, "/", out, max_depth=2))
+    assert sorted(out["dirs"]) == ["/", "/A/", "/A/A/"]
+
+
+def test_a_directory_LISTING_that_never_answers_is_bounded(monkeypatch, tmp_path):
+    """The file pull is bounded (above); the LISTING had no test, so its timeout could be dropped
+    entirely and one unanswering directory would hang the whole mirror — on a link that fails every
+    few minutes, which is the condition this tool was written for."""
+    monkeypatch.setattr(pm, "LIST_TIMEOUT", 0.05)
+
+    class _HangingList(_FakeFs):
+        async def list_dir_ex(self, path):
+            if path == "/SYS/":
+                await asyncio.sleep(3600)
+            return await super().list_dir_ex(path)
+
+    fs = _HangingList(TREE, BLOBS)
+    _patch(monkeypatch, fs)
+    res = _run(pm.mirror("AA:BB", str(tmp_path), redact=False))
+    assert "TimeoutError" in res["errors"]["/SYS/"]
+    assert res["files"]["/DEVICE.BPB"]["status"] == "pulled", "the rest of the tree still mirrors"
 
 
 # ── trust ───────────────────────────────────────────────────────────────────────────────────────────

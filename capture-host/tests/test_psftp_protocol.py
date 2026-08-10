@@ -125,6 +125,54 @@ def test_truncation_is_detected_at_the_OUTER_record_too():
     assert truncated is True and entries == [("A.DAT", 5)]
 
 
+# ⚠️ THE TWO `strict=True` FLAGS NEED SEPARATE VECTORS, and this is not a technicality.
+#
+# `_parse_directory_ex` passes `strict=True` twice — once for the repeated-entry loop, once for the
+# fields inside an entry. Every realistic payload (including the real captured one above) is cut in a
+# way that trips BOTH, so each flag masks the other: the mutation gate flipped either one to `False`
+# and the whole file stayed green. That is the core of this fix being untested while looking tested —
+# the exact shape of "a test written from reading the code passes while catching nothing".
+#
+# Each vector below is built so that only ONE of the two can notice it.
+_CUT_OUTER_ONLY = bytes([0x0A, 20]) + bytes([0x0A, 0x02]) + b"S/" + bytes([0x10, 0x00])
+"""An entry header claiming 20 bytes and delivering 6 — and those 6 are a COMPLETE, valid entry. With
+the outer loop lenient the inner one parses them happily and reports a clean `S/`, losing the record
+the missing 14 bytes belonged to without a murmur."""
+
+_CUT_INNER_ONLY = bytes([0x0A, 0x04, 0x0A, 0x09]) + b"20"
+"""The mirror: the entry's own length (4) matches what follows exactly, so the outer loop sees nothing
+wrong. The truncation is one level down, in a name field promising 9 bytes and carrying 2 — which is
+precisely the real device's failure, decoded into a file called "20"."""
+
+
+def test_a_cut_the_OUTER_loop_alone_can_see_is_caught():
+    entries, truncated = ps._parse_directory_ex(_CUT_OUTER_ONLY)
+    assert truncated is True, "the outer strict= flag is what catches this one"
+    assert entries == [], "and the entry it did manage to read is not a whole record"
+
+
+def test_a_cut_the_INNER_loop_alone_can_see_is_caught():
+    entries, truncated = ps._parse_directory_ex(_CUT_INNER_ONLY)
+    assert truncated is True, "the inner strict= flag is what catches this one"
+    assert entries == [], 'and "20" is not a filename'
+
+
+def test_the_exception_carries_the_numbers_that_make_it_diagnosable():
+    """`need`/`have` are the whole content of the report — "the reply was cut" is not actionable, "it
+    declared 9 bytes and 2 arrived" is. Nothing asserted them, so every arithmetic slip in building the
+    exception (`i - 1`, `n + i`, either field dropped to None) survived."""
+    with pytest.raises(ps.TruncatedProtobuf) as e:
+        list(ps._iter_fields(bytes([(1 << 3) | 2, 9]) + b"20", strict=True))
+    assert (e.value.need, e.value.have) == (9, 2)
+    assert "9" in str(e.value) and "2" in str(e.value)
+
+
+def test_a_varint_overrun_reports_the_position_it_ran_off():
+    with pytest.raises(ps.TruncatedProtobuf) as e:
+        list(ps._iter_fields(bytes([(1 << 3) | 0, 0x80]), strict=True))
+    assert (e.value.need, e.value.have) == (3, 2), "one past the end of a 2-byte buffer"
+
+
 def test_a_varint_running_off_the_end_is_truncation_not_an_IndexError():
     """`_read_varint` indexes the buffer directly. A continuation bit set on the last byte walked past
     it and raised a bare IndexError, which callers catch as "garbage payload" and report as a parse
