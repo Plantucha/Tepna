@@ -623,6 +623,38 @@
     if (!headerLine || c < 0 || c >= headerLine.length) return false;
     return _PD_FOREIGN_UNIT.test(String(headerLine[c] || ''));
   }
+  /* ── THE DEVICE'S OWN "THIS INTERVAL IS NOT VALID" FLAG ────────────────────────────────────────
+     A Polar PPI export carries `blocker` — set by the FIRMWARE, per beat, when its own peak-to-peak
+     detector does not trust the interval. It is the vendor's answer to the thing PPI is weakest at:
+     motion. Reading the interval column and ignoring this one takes intervals Polar has explicitly
+     marked invalid and averages them into HRV.
+
+     MEASURED on a real 5.21 h night (Verity `0C301E3F`, 2026-08-09, 36 465 beats) against the
+     simultaneous H10 chest strap, over 62 five-minute epochs:
+
+         blocker IGNORED    rMSSD +15 % vs chest   SD-of-diff 12.4 ms   82 % of epochs within 5 ms
+         blocker HONOURED   rMSSD  +8 %            SD-of-diff  8.7 ms   89 %
+
+     and the flag is unambiguously motion-linked — peak dynamic acceleration at blocked beats runs
+     median 8.0 mg / p90 25.3 against 5.5 / 7.2 at clean ones. 2.76 % of beats were blocked on a night
+     spent asleep; awake it is far higher, which is why the vendor warns about PPI under movement.
+
+     ⚠️ ONLY A PPI EXPORT HAS THIS COLUMN. A plain `_RR.txt` does not, so RR parsing is untouched —
+     the veto is keyed on the header, in the same deterministic, no-threshold style as the foreign-unit
+     veto above.
+
+     ⚠️ DROPPING A BEAT LEAVES A HOLE, and the hole is not self-announcing. Successive-difference
+     metrics (rMSSD/pNN50) then treat the intervals either side of a dropped one as adjacent when they
+     are not. Keeping the bad interval is measurably worse — see the table — but the complete fix is
+     for a consumer to check `tsMs` adjacency, which is why the stamps stay aligned per value and the
+     drop count is REPORTED rather than silent. */
+  function _pdBlockerColFromHeader(parts) {
+    if (!parts) return -1;
+    for (let i = 0; i < parts.length; i++) {
+      if (/^\s*blocker\s*$/i.test(String(parts[i] || ''))) return i;
+    }
+    return -1;
+  }
   function _pdIntervalColByRange(rows, headerLine) {
     if (!rows.length) return -1;
     let ncol = 0;
@@ -701,6 +733,8 @@
       dateAnchorMs = null;
     let sourceFormat = 'rr',
       intervalCol = -1,
+      blockerCol = -1,
+      nBlocked = 0,
       headerLine = null;
 
     if (delimHits >= 2) {
@@ -715,6 +749,7 @@
       if (headerLine) {
         intervalCol = _pdIntervalColFromHeader(headerLine);
         if (/pp[\s_\-]*interval|\bppi\b/i.test(headerLine.join(';'))) sourceFormat = 'ppi';
+        blockerCol = _pdBlockerColFromHeader(headerLine);
       }
       if (intervalCol < 0) {
         // no usable header → pick by physiological range
@@ -742,6 +777,13 @@
         const col = intervalCol >= 0 && intervalCol < parts.length ? intervalCol : parts.length - 1;
         const v = parseFloat((parts[col] || '').replace(',', '.').trim());
         if (!isFinite(v)) continue; // leftover header / label rows fall out here
+        // The device says this interval is not valid — see _pdBlockerColFromHeader. Counted, not
+        // silently discarded: a night where a third of the beats were blocked is a different night
+        // from one where none were, and a caller that cannot see the difference cannot say so.
+        if (blockerCol >= 0 && blockerCol < parts.length && parseFloat((parts[blockerCol] || '').replace(',', '.').trim()) > 0) {
+          nBlocked++;
+          continue;
+        }
         vals.push(v);
         const ts = parts[0].trim();
         const p = parseTimestamp(ts, { dateAnchorMs, prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked, dmyContradictory: _tsOpts.dmyContradictory }); // floating wall-clock
@@ -829,7 +871,12 @@
       nUsable: nUsable,
       usable: usable,
       reason: reason,
-      timeRatio: timeRatio
+      timeRatio: timeRatio,
+      // Intervals the DEVICE flagged invalid and this parser dropped (PPI only; always 0 for an RR
+      // file, which has no such column). Additive — nothing existing reads it. Surfaced because the
+      // count IS the quality signal: 2.76 % on a real sleeping night, far higher awake, and a
+      // consumer that cannot see it cannot tell a still night from one spent tossing.
+      nBlocked: nBlocked
     };
   }
 
