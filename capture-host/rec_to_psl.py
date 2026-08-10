@@ -47,7 +47,32 @@ HEADERS = {
     pmd.ACC: "Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]",
     pmd.GYRO: "Phone timestamp;sensor timestamp [ns];X [dps];Y [dps];Z [dps]",
     pmd.MAG: "Phone timestamp;sensor timestamp [ns];X [G];Y [G];Z [G]",
+    # ⚠️ PPI IS NOT THE GENERIC SHAPE, and that is the whole reason this file used to refuse it. Real
+    # PSL PPI carries NO device-clock column — the frames genuinely have none, every `sensor_ns` the box
+    # has ever written for PPI is 0 — puts the INTERVAL first and HR LAST, and explodes the flag byte
+    # into three columns. Verified against the vendor's own export: 107 `*_PPI.txt` in the PSL corpus,
+    # every one carrying this header byte-for-byte, and it is `writers.py`'s `"ppi"` string exactly.
+    pmd.PPI: "Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]",
 }
+
+# The measurements whose row is NOT `…;{sensor_ns};{values}`. Kept as data rather than as an `if` in the
+# writer so that adding the next such stream is a table edit, not a new branch to get wrong.
+_NO_DEVICE_CLOCK = frozenset({pmd.PPI})
+
+
+def _ppi_row(t, values) -> str:
+    """One PPI beat in PSL column order. `values` is polar_pmd's `(hr, pp_ms, err_ms, flags)`.
+
+    ⚠️ THIS ORDER IS THE BUG DEEP-AUDIT-V F18 FOUND, and it is worth restating because writing it from
+    the wire order is the obvious mistake. PMD sends HR first; PSL writes it LAST. `parseDevicePPI` is
+    POSITIONAL, so a file in wire order is read with the 8.4e17-ns clock as the interval — every beat
+    lands outside the physiological window, every beat is filtered, and the device-PPI lane reports
+    `nDevice: 0`, i.e. "the device produced nothing". The pytest that let that through asserted a HEADER
+    STRING and never parsed a beat, which is why this module's tests round-trip through the real
+    parser instead."""
+    hr, pp_ms, err_ms, flags = values
+    return (f"{t.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]};{pp_ms};{err_ms};"
+            f"{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}")
 
 
 def parse_header(b: bytes) -> dict:
@@ -186,6 +211,9 @@ def write_psl(res: dict, dest: str) -> int:
     with open(dest, "w") as fh:
         fh.write(head + "\n")
         for t, ns, vals in res["rows"]:
+            if meas in _NO_DEVICE_CLOCK:
+                fh.write(_ppi_row(t, vals) + "\n")
+                continue
             cols = ";".join(f"{v:.0f}" if isinstance(v, float) else str(v) for v in vals)
             fh.write(f"{t.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]};{ns};{cols}\n")
     return len(res["rows"])
