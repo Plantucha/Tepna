@@ -282,33 +282,47 @@ file, scoped, bail on (#1027 — an estimate of the whole, `thin()` spreads dete
 | `cpapdex-dsp.js` | **7** | 4 s | 40 % | **40.4 %** | −0.4 | 819 |
 | `pulsedex-dsp.js` | 17 | 6 s | 42 % | **25.5 %** | **+16.5** | 568 |
 | `glucodex-dsp.js` | 16 | 2 s | 55 % | **33.7 %** | **+21.3** | 836 |
-| `oxydex-dsp.js` | 39 | 20 s | 58 % | *unswept* | — | **2680** |
+| `oxydex-dsp.js` | 39 | 20 s | 58 % | **33.8 %** | **+24.2** ³ | **2680** |
 | `ecgdex-dsp.js` | 48 | 137 s | 62 % | *unswept* | — | 1725 |
 | `integrator-dsp.js` | **73** | 310 s | 68 % | *unswept* | — | 1745 |
 
 ¹ hrvdex's 28 % predates #1030's `computeDerived` golden; the 39.1 % is post-fix and canary-guarded,
 so the two measure different code and the error column would be meaningless.
 ² ppgdex's measured figure is post-#1113 (+10 kills); against the same code the sample erred −1.0.
+³ oxydex swept 2026-08-10: 2680 tested, 899 killed, 18 invalid, 1763 survivors, 88 min wall.
+`canary: NONE` because it was the file's FIRST sweep — the run learned one (L72 `eq === → !==`), so the
+next oxydex sweep is canary-guarded. The harness demonstrably worked: it killed 899.
 
 ### 🔴 THE SAMPLE IS NOT RELIABLE, AND THE FAILURE IS BIMODAL RATHER THAN NOISY
 
-Six files have now been swept exhaustively against their 60-mutant sample. The errors do not look
+Seven files have now been swept exhaustively against their 60-mutant sample. The errors do not look
 like a distribution around zero:
 
 ```
 ppgdex −1.0 · motiondex −0.3 · cpapdex −0.4        three essentially EXACT
-pulsedex +16.5 · glucodex +21.3                    two enormous OVERESTIMATES
+pulsedex +16.5 · glucodex +21.3 · oxydex +24.2     three enormous OVERESTIMATES
 ```
 
-One standard error on a 60-draw is ~6 points, so ±0.3–1.0 is suspiciously good and +16.5/+21.3 are
-2.7–3.5 SE out. A sampling error that were merely noisy would scatter; this splits into two
-populations, and **both failures are in the same direction — the sample flatters the file.**
+One standard error on a 60-draw is ~6 points, so ±0.3–1.0 is suspiciously good and +16.5/+21.3/+24.2
+are 2.7–4.0 SE out. A sampling error that were merely noisy would scatter; this splits into two
+populations, and **every failure is in the same direction — the sample flatters the file.**
 
-**The mechanism is not known, and this brief does not guess one.** What follows from the data alone:
+**⚠️ THE PREDICTION THIS BRIEF MADE WAS TESTED, AND IT HELD.** The bullet below used to read "the three
+unswept rows are estimates, and they sit at the top of the table, which is exactly where an optimistic
+bias would put a file nobody can afford to check." `oxydex` was the first of those three to be
+measured. Sampled **58 %** — the highest row that had any hope of being checked — it came in at
+**33.8 %**, near the BOTTOM of the measured table and a **+24.2** error, the largest yet recorded.
 
-- **the three unswept rows above are estimates, not measurements**, and the two most expensive files
-  in the fleet (`ecgdex`, `integrator`) are estimated at 62 % and 68 % — the top of the table, which
-  is exactly where an optimistic bias would put a file nobody can afford to check;
+That is no longer a caution about the method; it is a result. The two files still unswept are
+estimated at 62 % and 68 %, and those are now the only rows left standing on a technique that has
+over-stated three of the four files it was checked against, by 16–24 points, never once in the other
+direction. **Do not quote 62 % or 68 %.** They are the same kind of number 58 % turned out to be.
+
+**The mechanism is still not known, and this brief does not guess one.** What follows from the data:
+
+- **the two remaining unswept rows are estimates, not measurements**, and they are the two most
+  expensive files in the fleet (`ecgdex` 137 s/mutant, `integrator` 310 s) — which is why they are
+  unchecked, and why an optimistic bias there is the most expensive kind to carry;
 - **"the sample held on three files" was never evidence that the sample holds.** It was believed
   after three confirmations and refuted on the fourth and fifth. Three agreeing measurements are the
   same shape as §5's `~27 %` generalisation and §3a's six-cluster claim — this programme's most
