@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-1MKjITCoS3PL3GlJiE9X+u/jhTPJ+4iqY/YD93ogxxw=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B55BPzFS+KM3rrdI4JcYxfmcvs9Xys6v74lu50UOSvU=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-WGAdE8HjXf7mJfKkBvWj9Prp0rLErBrsiaWH93qMB6U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i8ICa5l1D9K+AGr9S553oUO2gjamrcaS40KJj81fWCs=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-1MKjITCoS3PL3GlJiE9X+u/jhTPJ+4iqY/YD93ogxxw=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B55BPzFS+KM3rrdI4JcYxfmcvs9Xys6v74lu50UOSvU=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-cfWApVFWKLfNIo7gB4Jzrge7/Qnsl2HNHo60gvvc26M=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i8ICa5l1D9K+AGr9S553oUO2gjamrcaS40KJj81fWCs=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-vjVfAP9w7lnI4nCDySMLkWcarqZsU36OOYgYdHlQeeo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -12114,6 +12114,38 @@ __exports.HRVDex = window.HRVDex;
     if (!headerLine || c < 0 || c >= headerLine.length) return false;
     return _PD_FOREIGN_UNIT.test(String(headerLine[c] || ''));
   }
+  /* ── THE DEVICE'S OWN "THIS INTERVAL IS NOT VALID" FLAG ────────────────────────────────────────
+     A Polar PPI export carries `blocker` — set by the FIRMWARE, per beat, when its own peak-to-peak
+     detector does not trust the interval. It is the vendor's answer to the thing PPI is weakest at:
+     motion. Reading the interval column and ignoring this one takes intervals Polar has explicitly
+     marked invalid and averages them into HRV.
+
+     MEASURED on a real 5.21 h night (Verity `0C301E3F`, 2026-08-09, 36 465 beats) against the
+     simultaneous H10 chest strap, over 62 five-minute epochs:
+
+         blocker IGNORED    rMSSD +15 % vs chest   SD-of-diff 12.4 ms   82 % of epochs within 5 ms
+         blocker HONOURED   rMSSD  +8 %            SD-of-diff  8.7 ms   89 %
+
+     and the flag is unambiguously motion-linked — peak dynamic acceleration at blocked beats runs
+     median 8.0 mg / p90 25.3 against 5.5 / 7.2 at clean ones. 2.76 % of beats were blocked on a night
+     spent asleep; awake it is far higher, which is why the vendor warns about PPI under movement.
+
+     ⚠️ ONLY A PPI EXPORT HAS THIS COLUMN. A plain `_RR.txt` does not, so RR parsing is untouched —
+     the veto is keyed on the header, in the same deterministic, no-threshold style as the foreign-unit
+     veto above.
+
+     ⚠️ DROPPING A BEAT LEAVES A HOLE, and the hole is not self-announcing. Successive-difference
+     metrics (rMSSD/pNN50) then treat the intervals either side of a dropped one as adjacent when they
+     are not. Keeping the bad interval is measurably worse — see the table — but the complete fix is
+     for a consumer to check `tsMs` adjacency, which is why the stamps stay aligned per value and the
+     drop count is REPORTED rather than silent. */
+  function _pdBlockerColFromHeader(parts) {
+    if (!parts) return -1;
+    for (let i = 0; i < parts.length; i++) {
+      if (/^\s*blocker\s*$/i.test(String(parts[i] || ''))) return i;
+    }
+    return -1;
+  }
   function _pdIntervalColByRange(rows, headerLine) {
     if (!rows.length) return -1;
     let ncol = 0;
@@ -12192,6 +12224,8 @@ __exports.HRVDex = window.HRVDex;
       dateAnchorMs = null;
     let sourceFormat = 'rr',
       intervalCol = -1,
+      blockerCol = -1,
+      nBlocked = 0,
       headerLine = null;
 
     if (delimHits >= 2) {
@@ -12206,6 +12240,7 @@ __exports.HRVDex = window.HRVDex;
       if (headerLine) {
         intervalCol = _pdIntervalColFromHeader(headerLine);
         if (/pp[\s_\-]*interval|\bppi\b/i.test(headerLine.join(';'))) sourceFormat = 'ppi';
+        blockerCol = _pdBlockerColFromHeader(headerLine);
       }
       if (intervalCol < 0) {
         // no usable header → pick by physiological range
@@ -12233,6 +12268,13 @@ __exports.HRVDex = window.HRVDex;
         const col = intervalCol >= 0 && intervalCol < parts.length ? intervalCol : parts.length - 1;
         const v = parseFloat((parts[col] || '').replace(',', '.').trim());
         if (!isFinite(v)) continue; // leftover header / label rows fall out here
+        // The device says this interval is not valid — see _pdBlockerColFromHeader. Counted, not
+        // silently discarded: a night where a third of the beats were blocked is a different night
+        // from one where none were, and a caller that cannot see the difference cannot say so.
+        if (blockerCol >= 0 && blockerCol < parts.length && parseFloat((parts[blockerCol] || '').replace(',', '.').trim()) > 0) {
+          nBlocked++;
+          continue;
+        }
         vals.push(v);
         const ts = parts[0].trim();
         const p = parseTimestamp(ts, { dateAnchorMs, prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked, dmyContradictory: _tsOpts.dmyContradictory }); // floating wall-clock
@@ -12320,7 +12362,12 @@ __exports.HRVDex = window.HRVDex;
       nUsable: nUsable,
       usable: usable,
       reason: reason,
-      timeRatio: timeRatio
+      timeRatio: timeRatio,
+      // Intervals the DEVICE flagged invalid and this parser dropped (PPI only; always 0 for an RR
+      // file, which has no such column). Additive — nothing existing reads it. Surfaced because the
+      // count IS the quality signal: 2.76 % on a real sleeping night, far higher awake, and a
+      // consumer that cannot see it cannot tell a still night from one spent tossing.
+      nBlocked: nBlocked
     };
   }
 
