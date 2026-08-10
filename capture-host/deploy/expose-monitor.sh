@@ -95,8 +95,53 @@ http://vigil.local, http://vigil {{{auth_block}
 }}
 
 # Bare IP / localhost / anything else -> the pinned name, never served directly.
+#
+# EXCEPT /monitor and /api, which ARE served here. The pin exists because localStorage/IndexedDB
+# are per-origin, so a second origin means a second longitudinal history FOR THE DEX APPS. The
+# monitor holds no such state -- it renders live data from /api -- so serving it off the bare IP
+# costs nothing the pin was protecting. The app root still redirects, so a stray bookmark still
+# cannot start a second history.
+#
+# WHY IT'S NEEDED: vigil.local is published by avahi over mDNS, and ANDROID CHROME DOES NOT RESOLVE
+# mDNS -- it returns DNS_PROBE_FINISHED_NXDOMAIN, while a Linux box with nss-mdns resolves the
+# identical URL. Without this the monitor is unreachable from a phone at all.
+#
+# WHY THE CATCH-ALL AND NOT AN IP SITE BLOCK: eno1 is DHCP, so a hardcoded address breaks on a
+# lease change. Matching here covers any address or name.
+#
+# ⚠ AND NO `log` DIRECTIVE HERE. /var/log/tepna is owned vigil:vigil while caddy runs as
+# caddy:caddy, so that path has NEVER been writable and web.log does not exist. The pinned site
+# above TOLERATES it (a periodic "write error", still serving). A SECOND failing writer does not:
+# it panicked with "context: internal error: missing cancel error" and took the whole server down
+# on reload, 2026-08-10. One tolerated failure is not evidence that two are safe.
 :80 {{
-\tredir http://vigil.local{{uri}} permanent
+\thandle /api/* {{
+\t\treverse_proxy 127.0.0.1:8760 {{
+\t\t\tflush_interval -1
+\t\t}}
+\t}}
+\thandle_path /monitor* {{
+\t\treverse_proxy 127.0.0.1:8760 {{
+\t\t\tflush_interval -1
+\t\t}}
+\t}}
+\thandle {{
+\t\tredir http://vigil.local{{uri}} permanent
+\t}}
+\t# Same encoder carve-out as the pinned site: never gzip text/event-stream, or the live SSE
+\t# waveform sits in Caddy's buffer and the scope never paints.
+\tencode gzip {{
+\t\tmatch {{
+\t\t\theader Content-Type text/html*
+\t\t\theader Content-Type text/css*
+\t\t\theader Content-Type text/plain*
+\t\t\theader Content-Type text/csv*
+\t\t\theader Content-Type text/javascript*
+\t\t\theader Content-Type application/json*
+\t\t\theader Content-Type application/javascript*
+\t\t\theader Content-Type image/svg+xml*
+\t\t}}
+\t}}
 }}
 """)
 PY
