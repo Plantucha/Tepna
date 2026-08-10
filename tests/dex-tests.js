@@ -19004,6 +19004,101 @@
       }
     });
 
+    /* ── genSynthetic: THE BOOTSTRAP KILL ────────────────────────────────────────────────────────
+       This group exists because of a limitation the mutation programme found rather than a defect in
+       the code. `genSynthetic` carried NINETY surviving mutants and ZERO kills, and a function with
+       zero kills cannot be equivalence-probed AT ALL: `tools/probe-equivalence.mjs` requires a
+       positive control from the same function — a mutant the suite actually killed, replayed to prove
+       the battery reaches that code — and there was none to replay. The probe duly reported
+       NO CONTROLS and withheld all 90 verdicts even though its battery plainly reached the function
+       (52 distinct answers over 53 inputs). "0 % killed" and "100 % equivalent" are indistinguishable
+       to the tool, and the only exit is a test.
+
+       So this is that test, and its purpose is to make the other 89 CLASSIFIABLE.
+
+       ⚠️ THE GENERATOR IS UNSEEDED — gaussian noise and per-day meal jitter, no seed option. So every
+       assertion here is STRUCTURAL or STATISTICAL. An exact expected series would be flaky, and a
+       tolerance wide enough to hide that would also hide the mutants. */
+    group('GlucoDex genSynthetic — the generator honours its three options (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
+      var G = (env.GLUDSP && env.GLUDSP.genSynthetic && env.GLUDSP) || (env.GlucoDex && env.GlucoDex.genSynthetic && env.GlucoDex) || null;
+      if (!G) {
+        T.skip('GLUDSP.genSynthetic available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      var mean = function (a) {
+        var s = 0;
+        for (var i = 0; i < a.length; i++) s += a[i];
+        return a.length ? s / a.length : NaN;
+      };
+
+      var g = G.genSynthetic({ days: 2, cadence: 5, profile: 'healthy' });
+      T.eq('the unit is mg/dL, stated not assumed', g && g.unit, 'mg/dL');
+      T.eq('…and the source is labelled synthetic so it can never be mistaken for a recording', g && g.source, 'synthetic');
+      T.eq('t0Ms IS the first sample time, not a separate anchor that could drift from it', g && g.t0Ms, g && g.tMs[0]);
+      T.eq('tMs and vMgdl are the same length — one value per stamp', g && g.tMs.length, g && g.vMgdl.length);
+
+      /* CADENCE controls the sample spacing, and it is the one option whose effect is exact: the
+         step is cadence*60000 ms. A single cadence cannot separate `opts.cadence || 5` from a mutant
+         that ignores the argument, so three are checked. */
+      [1, 5, 15].forEach(function (cad) {
+        var r = G.genSynthetic({ days: 1, cadence: cad });
+        var step = cad * 60000,
+          offGrid = 0,
+          gaps = 0;
+        for (var i = 1; i < r.tMs.length; i++) {
+          var d = r.tMs[i] - r.tMs[i - 1];
+          if (d % step !== 0 || d <= 0) offGrid++;
+          if (d > step) gaps++;
+        }
+        /* NOT "every step === cadence*60000": the generator DROPS samples to simulate real CGM
+           dropouts, so a run legitimately contains gaps — a cadence-15 day showed a 105-minute one.
+           The invariant that actually holds, and still separates a mutated stepMs, is that every
+           interval is a positive INTEGER MULTIPLE of the cadence: the grid survives the gaps. */
+        T.eq('cadence ' + cad + ' min ⇒ every interval is a multiple of ' + step + ' ms (gaps included)', offGrid, 0);
+        T.ok('…and the sample grid is that cadence, not a coincidence of it', r.tMs.length > 1 && (r.tMs[1] - r.tMs[0]) % step === 0, 'first step ' + (r.tMs[1] - r.tMs[0]) + ', gaps ' + gaps);
+      });
+
+      /* DAYS controls the span. The count is NOT days*1440/cadence exactly — the generator drops
+         samples to simulate real CGM gaps — so this pins the relationship that actually holds:
+         never more than the ideal, and within 10 % of it. A mutant that ignores `days` or mangles
+         N breaks one side or the other. */
+      [1, 2, 7].forEach(function (d) {
+        var r = G.genSynthetic({ days: d, cadence: 5 });
+        var ideal = Math.round((d * 1440) / 5);
+        T.ok('days ' + d + ' ⇒ sample count ' + r.tMs.length + ' is ≤ the gapless ideal ' + ideal, r.tMs.length <= ideal, String(r.tMs.length));
+        T.ok('…and within 10 % of it (gaps are simulated, not wholesale loss)', r.tMs.length >= ideal * 0.9, String(r.tMs.length) + ' vs ' + ideal);
+      });
+
+      /* PROFILE switches base, dawn amplitude, three meal peaks and the decay constant at once. The
+         means are ~102 (healthy) and ~139 (predm) over 14 days, so a 25 mg/dL floor separates them
+         with room for the noise while still failing if the profile branch is neutralised. */
+      var H = G.genSynthetic({ days: 14, cadence: 5, profile: 'healthy' });
+      var P = G.genSynthetic({ days: 14, cadence: 5, profile: 'predm' });
+      var mh = mean(H.vMgdl),
+        mp = mean(P.vMgdl);
+      T.ok('the predm profile runs at least 25 mg/dL higher than healthy', mp - mh >= 25, 'healthy ' + mh.toFixed(1) + ' vs predm ' + mp.toFixed(1));
+      T.ok('…and healthy still sits in a euglycaemic range, not merely lower', mh > 80 && mh < 125, mh.toFixed(1));
+
+      /* An unknown profile string must fall back to healthy rather than producing a third regime. */
+      var U = G.genSynthetic({ days: 14, cadence: 5, profile: 'nonsense' });
+      T.ok('an unrecognised profile falls back to healthy, not to a third behaviour', Math.abs(mean(U.vMgdl) - mh) < 20, mean(U.vMgdl).toFixed(1) + ' vs healthy ' + mh.toFixed(1));
+
+      /* THE DEFAULTS — days 14, cadence 5 — are three `||` fallbacks a mutant can neutralise. */
+      var D = G.genSynthetic();
+      var D2 = G.genSynthetic({});
+      T.ok('no options ⇒ the 14-day default span', D.tMs.length > 3500 && D.tMs.length <= 4032, String(D.tMs.length));
+      T.eq('…and the 5-minute default cadence', D.tMs[1] - D.tMs[0], 300000);
+      T.eq('an empty options object behaves as no options', D2.tMs[1] - D2.tMs[0], 300000);
+
+      /* Physiologic sanity — every value finite and in a range a CGM can report. A mutant that zeroes
+         an amplitude or a base breaks this even when the means survive. */
+      var bad = 0;
+      for (var i = 0; i < P.vMgdl.length; i++) if (!isFinite(P.vMgdl[i]) || P.vMgdl[i] < 20 || P.vMgdl[i] > 450) bad++;
+      T.eq('every generated value is finite and inside 20–450 mg/dL', bad, 0);
+      var mono = true;
+      for (var j = 1; j < P.tMs.length; j++) if (!(P.tMs[j] > P.tMs[j - 1])) mono = false;
+      T.ok('stamps are strictly increasing', mono);
+    });
     group('GlucoDex variability indices — jIndex/CONGA/GRADE/MAG known-answer (re-scout §GV)', 'glucodex-dsp · variability · known-answer', function (T) {
       var G = env.GlucoDex || env.GLUDSP;
       if (!G || typeof G.analyze !== 'function' || typeof G.parseCSV !== 'function') {
