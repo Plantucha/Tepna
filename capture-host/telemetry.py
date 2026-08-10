@@ -7,7 +7,7 @@
 # A dropped subscriber or a slow browser never blocks capture: the per-subscriber queue drops oldest.
 
 from __future__ import annotations
-import asyncio, collections, datetime as _dt, logging, time
+import asyncio, collections, datetime as _dt, logging, statistics, time
 from dataclasses import dataclass
 
 log = logging.getLogger("tepna.telemetry")
@@ -98,9 +98,11 @@ def optical_worn(ambient, *, threshold: float = _WORN_AMBIENT_MAX,
     vals = [abs(v) for v in ambient if v is not None and v == v]   # drop None/NaN, keep magnitude
     if len(vals) < max(1, min_samples):
         return None
-    vals.sort()
-    median = vals[len(vals) // 2] if len(vals) % 2 else (vals[len(vals) // 2 - 1] + vals[len(vals) // 2]) / 2
-    return median < threshold
+    # `statistics.median`, not a hand-rolled index. The hand-rolled version carried TEN index/operator
+    # mutants that the whole suite could not see (mutate-diff, #1134) — every test fed it a flat buffer,
+    # so `// 2` vs `// 3` and `- 1` vs `+ 1` all returned the same number. The even-length branch is the
+    # part no fixture reached. Deleting the arithmetic is a better answer than fixturing around it.
+    return statistics.median(vals) < threshold
 
 
 def stream_health(nominal_fs, eff_fs, age_s, warmup: bool = False,

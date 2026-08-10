@@ -73,6 +73,32 @@ def test_sign_is_irrelevant():
     assert optical_worn([322929.0] * 200) is False
 
 
+def test_the_threshold_is_EXCLUSIVE_so_a_median_sitting_on_it_is_unworn():
+    """`< threshold`, not `<=`. Nothing in the corpus lands exactly on 5000, so the choice is arbitrary
+    on the data — but it must be PINNED, or the operator flips freely and no test notices. Exclusive is
+    the conservative reading of "below this ⇒ under skin": on the line is not below it."""
+    assert optical_worn([_WORN_AMBIENT_MAX] * 200) is False
+    assert optical_worn([_WORN_AMBIENT_MAX - 1] * 200) is True
+
+
+def test_an_EVEN_length_buffer_medians_the_two_middle_values():
+    """The even branch is the one every other fixture misses — a flat buffer reads the same however the
+    middle index is computed, which is how ten mutants lived on the old hand-rolled line. Straddle the
+    threshold with two distinct middles so the answer depends on averaging THEM specifically."""
+    lo, hi = _WORN_AMBIENT_MAX - 2000, _WORN_AMBIENT_MAX + 1000    # mean 4500 < 5000 ⇒ worn
+    assert optical_worn([1.0] * 99 + [lo, hi] + [9e5] * 99) is True
+    lo2, hi2 = _WORN_AMBIENT_MAX - 500, _WORN_AMBIENT_MAX + 3000   # mean 6250 > 5000 ⇒ unworn
+    assert optical_worn([1.0] * 99 + [lo2, hi2] + [9e5] * 99) is False
+
+
+def test_min_samples_zero_still_needs_ONE_sample():
+    """`max(1, min_samples)` is a floor, not a preference: a median of nothing is not a measurement, and
+    computing one raises rather than returning a verdict."""
+    assert optical_worn([], min_samples=0) is None
+    assert optical_worn([None, float("nan")], min_samples=0) is None
+    assert optical_worn([190.0], min_samples=0) is True
+
+
 def test_nan_and_none_are_dropped_not_counted():
     """A short frame or a parse miss must not be scored as darkness."""
     assert optical_worn([None] * 300) is None
