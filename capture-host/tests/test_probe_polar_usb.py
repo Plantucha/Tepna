@@ -123,7 +123,16 @@ def _install(monkeypatch, dev):
     gate found exactly that on PR #1117: `os.read(None, …)`, `os.read(fd, None)`, `os.write(None, …)`
     and `os.close(None)` all survived. On real hardware every one of those is an unhandled TypeError
     against a device that only answers once per USB re-enumeration. Checking here costs one line each."""
-    monkeypatch.setattr(probe.os, "open", lambda *a, **k: _FD)
+    def _open(path, flags):
+        # The LAST fake still ignoring its arguments. `os.open(None, …)`, a dropped flag and
+        # `O_RDWR & O_NONBLOCK` (which is 0 — read-only, blocking) all read as passes otherwise, and a
+        # BLOCKING open on this node is not a small bug: the drain loop below would hang the probe
+        # against a device that answers once per USB re-enumeration.
+        assert path == "/dev/hidraw0", "the node fetch() was asked for"
+        assert flags == probe.os.O_RDWR | probe.os.O_NONBLOCK, "read-write AND non-blocking"
+        return _FD
+
+    monkeypatch.setattr(probe.os, "open", _open)
 
     def _close(fd):
         assert fd == _FD, "the fd fetch() opened is the fd it must close"
@@ -140,6 +149,12 @@ def _install(monkeypatch, dev):
         # parameters cannot tell them from the real call.
         assert rl == [_FD], "the probe waits on the fd it opened"
         assert wl == [] and xl == [], "it never waits to write, and never on an exceptional condition"
+        # The reply wait must be BOUNDED and NON-NEGATIVE. `None` means "block forever", which on a pipe
+        # that answers once per USB re-enumeration parks the probe indefinitely; a negative value is
+        # rejected by the real `select` outright. That is what `max(0.0, deadline - now)` is for. The
+        # ceiling is deliberately not the window — one test drives 30 s — only "not unbounded".
+        assert timeout is not None, "a reply wait of None blocks forever"
+        assert 0.0 <= timeout <= 3600, f"bounded, non-negative reply wait; got {timeout!r}"
         # timeout == 0 is fetch()'s drain probe: only pre-existing stale bytes are visible to it,
         # otherwise the drain would swallow the reply this request is waiting for.
         ready = bool(dev.stale) if timeout == 0 else bool(dev.stale or dev.replies)
