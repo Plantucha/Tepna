@@ -277,7 +277,7 @@ file, scoped, bail on (#1027 — an estimate of the whole, `thin()` spreads dete
 | file | groups | tag cost | sampled | **MEASURED** | error | mutants |
 |---|---:|---:|---:|---:|---:|---:|
 | `hrvdex-dsp.js` | 15 | 1 s | 28 % | **39.1 %** | — ¹ | 490 |
-| `ppgdex-dsp.js` | **49** | 24 s | 33 % | **38.9 %** | −1.0 ² | 1176 |
+| `ppgdex-dsp.js` | **49** | 24 s | 33 % | **39.0 %** ⁴ | −1.0 ² | 1176 |
 | `motiondex-dsp.js` | 15 | 1 s | 37 % | **37.3 %** | −0.3 | 466 |
 | `cpapdex-dsp.js` | **7** | 4 s | 40 % | **40.4 %** | −0.4 | 819 |
 | `pulsedex-dsp.js` | 17 | 6 s | 42 % | **25.5 %** | **+16.5** | 568 |
@@ -292,6 +292,10 @@ so the two measure different code and the error column would be meaningless.
 ³ oxydex swept 2026-08-10: 2680 tested, 899 killed, 18 invalid, 1763 survivors, 88 min wall.
 `canary: NONE` because it was the file's FIRST sweep — the run learned one (L72 `eq === → !==`), so the
 next oxydex sweep is canary-guarded. The harness demonstrably worked: it killed 899.
+
+⁴ re-swept 2026-08-10 against the expanded battery: 1204 tested, 464 killed, 15 invalid, 725
+survivors, `canary: PASSED` — 39.0 %, confirming the earlier 38.9 % against unchanged code. With 99
+recorded equivalents the DISTINGUISHABLE rate is 464/1090 = **42.6 %**.
 
 ### 🔴 THE SAMPLE IS NOT RELIABLE, AND THE FAILURE IS BIMODAL RATHER THAN NOISY
 
