@@ -93,6 +93,10 @@ def test_capability_flags_are_not_offered_as_streams(tmp_path):
     body = _settings(tmp_path, [_dev(name="V", model="Verity")],
                      status={"V": {"pmd_supported": ["ppg", "0x9", "acc", "0xd", "0xe"]}})
     assert body["devices"][0]["supported"] == ["ppg", "acc"]
+    # …but 0x9 is exactly what the SDK-mode switch keys off, so the same flag that must NOT become a
+    # stream MUST become the capability. The two readings of one bitmask entry are both asserted here
+    # so neither can be "fixed" into the other.
+    assert body["devices"][0]["sdk_capable"] is True
 
 
 def test_a_device_that_advertised_nothing_offers_nothing_rather_than_an_empty_menu(tmp_path):
@@ -122,7 +126,11 @@ def test_each_device_projects_the_keys_the_settings_page_reads(tmp_path):
                      status={"H10": {"pmd_options": {"ecg": [130]}}})
     d = body["devices"][0]
     assert set(d) == {"name", "address", "vendor", "streams", "supported", "bps", "bps_ref",
-                      "rate_options", "rates"}
+                      "rate_options", "rates", "sdk_capable", "sdk_mode", "sdk_mode_actual"}
+    # THREE keys for SDK mode, not one, because they answer different questions: can this hardware do
+    # it (feature 0x9), was it asked for (config), and did the device CONFIRM it (null = never said).
+    # An H10 advertises no such feature, so the switch is not offered for it at all.
+    assert d["sdk_capable"] is False and d["sdk_mode"] is False and d["sdk_mode_actual"] is None
     assert d["name"] == "H10" and d["address"] == "AA:BB" and d["vendor"] == "Polar"
     assert d["streams"] == ["ecg"] and d["rates"] == {"ecg": 130}
     assert d["rate_options"] == {"ecg": [130]}, \

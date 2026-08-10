@@ -1501,6 +1501,38 @@ def _parse_hr(data: bytes):
 _PMD_STREAMS = frozenset({"ecg", "acc", "ppg", "gyro", "mag", "ppi"})
 
 
+async def _enter_sdk_mode(ctrl, name: str) -> bool | None:
+    """Ask the device into SDK mode, then ASK IT WHETHER IT IS. Returns what the DEVICE said:
+    `True` on, `False` off, **`None` it did not say** — never what we intended.
+
+    ⚠️ THE ACK IS NOT THE STATE, and this is the exact shape that has burned this project twice: the
+    Verity accepts `SET_LOCAL_TIME`, echoes it back verbatim, and goes on stamping samples from a
+    different clock (`POLAR-PMD-COMMAND-SURFACE` §2.1); `tepna-clock.sh` reported success while
+    changing nothing. So the START ack is only logged, and the verdict comes from a separate status
+    read. If that read says nothing, the answer is `None` and the caller publishes "unknown" — because
+    the whole cost of getting this wrong is a night captured at 55 Hz under a config that says 176,
+    with every card green.
+
+    `already_in_state`/`already_streaming` on the START is SUCCESS: the device is in SDK mode, which is
+    all that was being asked for. And `invalid_state` (0x0C) is the one refusal worth a WARNING — it
+    means a stream was still running, and it is a member of `TRANSIENT_STATUS`, so a caller that only
+    consults `is_transient` files it as "retry later" and never notices the rate it did not get."""
+    ack = await ctrl(pmd.sdk_mode_cmd(True))
+    st = ack[3] if len(ack) >= 4 else pmd.NO_ACK
+    if st == pmd.INVALID_STATE:
+        log.warning("%s SDK mode refused with invalid_state — a stream was still running, so the "
+                    "device stays on its NORMAL rate menu (PPG 55 Hz, not 176)", name)
+    elif not (pmd.is_started(st) or st == pmd.ALREADY_STREAMING):
+        log.warning("%s SDK mode START → %s", name, pmd.CTRL_STATUS.get(st, hex(st)))
+    on = pmd.parse_sdk_mode_status(await ctrl(pmd.sdk_mode_status_cmd()))
+    if on is None:
+        log.warning("%s SDK mode: the device did not report its mode — treating as UNKNOWN, not off; "
+                    "the rates it offers next are the only thing that says what it actually did", name)
+    else:
+        log.info("%s SDK mode: %s", name, "on" if on else "OFF (the extended rate menu is unavailable)")
+    return on
+
+
 async def run_polar(dev: dict, root: str):
     """Polar PMD + the standard Heart Rate characteristic. Despite the name this is also the path for any
     third-party HR strap, because `hr` is SIG-standard — so the Polar-SPECIFIC rituals below have to be
@@ -1863,6 +1895,20 @@ async def run_polar(dev: dict, root: str):
                     # cadence, same responsiveness, one connect instead of one a minute.
                     while True:
                         charging_hold = False
+                        # ── SDK MODE, BEFORE ANY SETTINGS QUERY ─────────────────────────────────
+                        # SDK mode changes what `get_settings_cmd` ANSWERS (PPG 55 → 28/44/55/135/176),
+                        # so it must be in place before the menu is read: a menu read first and used
+                        # after is stale, and the rate silently stays 55 (polar_pmd's SDK-mode note §3).
+                        # It also requires every stream stopped, which is why the STOPs are issued here
+                        # as a block rather than only interleaved in the per-meas loop below.
+                        #
+                        # Re-run on EVERY pass, not once per connect: SDK mode does not survive a power
+                        # cycle, and this loop doubles as the charging retry — a device docked at
+                        # bedtime and worn at 23:00 re-negotiates here with no reconnect in between.
+                        if dev.get("sdk_mode"):
+                            for meas in list(writers):
+                                await _ctrl(pmd.stop_cmd(meas))
+                            _set(name, sdk_mode=await _enter_sdk_mode(_ctrl, name))
                         for meas in list(writers):
                             await _ctrl(pmd.stop_cmd(meas))   # clear any stale stream from a prior session
                             # Ask the device what settings it offers, then START from THOSE (fixed table is a
