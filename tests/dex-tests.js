@@ -10014,6 +10014,58 @@
        §6.3  Corroboration was a bare existence test, so ONE surge satisfied the 75 s window for every
              apnea inside it: independent confirmation counted once per apnea from one piece of evidence.
      ════ */
+    /* ── _nightFromInput: A ZERO-KILL BOOTSTRAP ──────────────────────────────────────────────────
+       20 survivors and NOT ONE kill, so every one of them was unclassifiable by construction: the
+       equivalence prober needs a positive control from the same function — a mutant the suite killed,
+       replayed to prove a battery reaches the code — and there was nothing to replay. It is the
+       fourth such function found (MUTATION-PROGRAM §7.0's census lists nine, ~320 survivors, about a
+       fifth of everything the fleet has mapped).
+
+       It is also the cheapest of them: `_nightFromInput` is PUBLIC as `CPAPDex.buildNightFromSets`
+       and is almost pure input-shape dispatch, so the branches are the argument shapes themselves.
+       Every expectation below was measured against the implementation before being written, using
+       the node's OWN `_synthEdfSet` as the decoded set rather than an invented one. */
+    group('CPAPDex buildNightFromSets — every input shape it dispatches on (mutation bootstrap)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
+      var X = env.CPAPDex,
+        D = env.CpapDsp;
+      if (!X || typeof X.buildNightFromSets !== 'function' || !D || typeof D._synthEdfSet !== 'function') {
+        T.skip('CPAPDex.buildNightFromSets available', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+      var N = X.buildNightFromSets;
+      var set = D._synthEdfSet({ oxi: true });
+
+      /* FOUR WAYS TO HAND IT THE SAME NIGHT, and each is a separate arm: a bare decoded set (detected
+         by the presence of PLD/BRP/SA2/EVE), the `edfSets` key, the `sets` key, and a pre-built night
+         passed back in. A fixture that only ever used one of them leaves the other three unexercised,
+         which is exactly how a dispatcher accumulates 20 survivors and no kills. */
+      T.eq('a bare decoded EDF set becomes a one-session night', (N(set) || {}).sessions.length, 1);
+      T.eq('…the same set under `edfSets`', (N({ edfSets: [set] }) || {}).sessions.length, 1);
+      T.eq('…and under `sets`', (N({ sets: [set] }) || {}).sessions.length, 1);
+      T.eq('two sets become a two-session night', (N({ sets: [set, set] }) || {}).sessions.length, 2);
+
+      /* IDEMPOTENCE: a night handed back in must come out unchanged rather than being rebuilt or
+         refused — that is the `sessions[0].metrics` short-circuit, and only a REAL night reaches it. */
+      var night = N(set);
+      T.eq('an already-built night passes through unchanged', (N(night) || {}).sessions.length, 1);
+      T.eq('…and so does one wrapped as { night }', (N({ night: night }) || {}).sessions.length, 1);
+
+      /* The `PLD || BRP || SA2 || EVE` sniff: a set carrying only ONE of the four must still be
+         recognised, or the || chain collapses to whichever member the fixtures happened to include. */
+      T.eq('a set carrying only PLD is still recognised as a decoded set', (N({ PLD: { clock: { t0Ms: 1 } } }) || {}).sessions.length, 1);
+
+      /* REFUSALS — every one returns null rather than throwing or fabricating an empty night. A
+         caller that cannot tell "no data" from "a night with nothing in it" cannot report either. */
+      T.eq('null is refused', N(null), null);
+      T.eq('undefined is refused', N(undefined), null);
+      T.eq('a number is refused', N(42), null);
+      T.eq('a string is refused', N('x'), null);
+      T.eq('an object with no sets and no channels is refused', N({}), null);
+      T.eq('an EMPTY sets array is refused, not treated as a night with no sessions', N({ sets: [] }), null);
+      T.eq('a non-array `sets` is refused', N({ sets: 'no' }), null);
+      T.eq('a bare array is refused', N([]), null);
+    });
+
     group('CPAPDex co-import — a surge corroborates ONE apnea, and lands on the right night (§6.3/§6.4)', 'cpapdex-coimport · fusion', function (T) {
       var CN = env.CpapCoimport;
       if (!CN || typeof CN.normalizeEcg !== 'function' || typeof CN.autonomicCorroboration !== 'function') {
