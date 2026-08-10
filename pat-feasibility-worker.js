@@ -266,10 +266,7 @@ function coupledPAT(rTimes, fTimes) {
   /* THE GATED QUANTITY comes from PATGate.driftStats — single-sourced there because this file is in
      no test lane. Absent pat-gate.js the drift fields go undefined and PATGate.verdict falls back to
      `driftRange`, i.e. exactly the pre-2026-08-10 behaviour. */
-  var ds =
-    typeof PATGate !== 'undefined' && PATGate.driftStats
-      ? PATGate.driftStats(binMed)
-      : { stepP95: NaN, nSteps: 0, binsQualified: 0, binsTotal: binMed.length, driftRangeQual: NaN };
+  var ds = typeof PATGate !== 'undefined' && PATGate.driftStats ? PATGate.driftStats(binMed) : { stepP95: NaN, nSteps: 0, binsQualified: 0, binsTotal: binMed.length, driftRangeQual: NaN };
   var slope = NaN,
     linR2 = NaN;
   if (binMed.length >= 3) {

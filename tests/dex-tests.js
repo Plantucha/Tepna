@@ -15429,11 +15429,7 @@
           T.ok('§4 a saturating walk has a driftRange at the window scale', dsWalk.driftRange >= 400);
           T.ok('§4 …but a small stepP95 — the statistic the gate weighs', dsWalk.stepP95 <= 11);
           T.eq('§4 that night now reaches FEASIBLE', PG.verdict(ovOK, cp({ stepP95: dsWalk.stepP95, driftRange: dsWalk.driftRange }), scOK).label, 'FEASIBLE');
-          T.eq(
-            '§4 the SAME night under the old statistic was rejected — this is the change',
-            PG.verdict(ovOK, cp({ driftRange: dsWalk.driftRange }), scOK).label,
-            'DRIFT-DOMINATED'
-          );
+          T.eq('§4 the SAME night under the old statistic was rejected — this is the change', PG.verdict(ovOK, cp({ driftRange: dsWalk.driftRange }), scOK).label, 'DRIFT-DOMINATED');
           // a single genuine jump must still fail, or the new statistic is merely permissive
           var jump = [bin(0, 300, 200, 210), bin(1, 300, 200, 210), bin(2, 600, 200, 210), bin(3, 600, 200, 210)];
           var dsJ = PG.driftStats(jump);
