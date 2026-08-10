@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living — a premise correction, last-verified 2026-08-04) · **Created:** 2026-08-04 · **Corrects:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` §3j/§4.2, `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md` §"arm band" · **Follows:** `PAT-PROXIMAL-DISTAL-PAIR-2026-08-04-BRIEF.md`
+**Status:** DONE — 2026-08-10 · **Consolidated-into:** `PAT-COMPENDIUM-2026-08-10-BRIEF.md` · **Created:** 2026-08-04 · **Corrects:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` §3j/§4.2, `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md` §"arm band" · **Follows:** `PAT-PROXIMAL-DISTAL-PAIR-2026-08-04-BRIEF.md`
 
 # The Verity has ALWAYS been on the left ankle. Every "arm/wrist" plausibility argument in the PAT family is against the wrong band.
 
