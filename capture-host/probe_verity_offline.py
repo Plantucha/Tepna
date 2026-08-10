@@ -45,9 +45,25 @@ import argparse
 import asyncio
 import json
 
+import subprocess
+
 from bleak import BleakClient, BleakScanner
+from bleak.exc import BleakError
 
 import polar_pmd as pmd
+
+
+async def _is_bonded(address: str) -> bool | None:
+    """Does BlueZ hold a bond for this address? `None` when bluetoothctl cannot be asked.
+
+    Read rather than assumed, because it is the whole difference between "press the button" and
+    "pair it first", and those send the operator to opposite ends of the room."""
+    try:
+        info = subprocess.run(["bluetoothctl", "info", address], capture_output=True, text=True,
+                              timeout=15).stdout
+    except Exception:                                            # noqa: BLE001
+        return None
+    return "Bonded: yes" in info
 
 _MEAS_BY_NAME = {v: k for k, v in pmd.MEAS_NAME.items()}
 
@@ -95,10 +111,50 @@ def _ack_status(reply: bytes | None) -> tuple[int, str]:
 
 async def run(address: str, adapter: str | None, meas: int, force: bool, seconds: float) -> dict:
     out: dict = {"address": address, "measurement": pmd.MEAS_NAME[meas], "forced": force}
+    # NOT ADVERTISING IS NOT ABSENT — fall back to the bonded path, exactly as polar_psftp does.
+    #
+    # `find_device_by_address` needs to catch a live advertisement. A bonded+trusted Polar sitting idle
+    # off the charger emits none, so a 20 s scan sees nothing and this probe reported "device not
+    # found — is it advertising, and is the daemon stopped?" — a message that sends the operator to
+    # look at the daemon when the daemon was never the problem. Measured 2026-08-10: a 20 s
+    # `bluetoothctl scan` saw no advertisement while `bluetoothctl info` reported
+    # `Paired: yes / Bonded: yes / Trusted: yes`. BlueZ already knows the device by path, so
+    # `BleakClient(address)` resolves it without a fresh advert.
+    #
+    # `polar_psftp.__aenter__` has carried this fallback for months with the reasoning written out;
+    # this probe simply never got it. Keeping the scan FIRST is deliberate — it returns a rich device
+    # object and confirms the radio is hearing anything at all — the address is the fallback, not the
+    # default.
     dev = await BleakScanner.find_device_by_address(address, timeout=20.0)
     if dev is None:
-        return {**out, "error": "device not found — is it advertising, and is the daemon stopped?"}
-    async with BleakClient(dev, adapter=adapter) if adapter else BleakClient(dev) as client:
+        dev = address
+        out["reached_by"] = "bonded address (no advertisement seen)"
+    else:
+        out["reached_by"] = "advertisement"
+    # ⚠️ THE FALLBACK MUST NOT COST THE CLEAN DIAGNOSIS. Handing `BleakClient` a bare address when the
+    # device is genuinely absent raises `BleakDeviceNotFoundError` out of `__aenter__` as a raw
+    # traceback — which is what the first cut of this change shipped, replacing an actionable sentence
+    # with a stack dump. The two states need DIFFERENT actions and must be reported apart:
+    #   bonded, no advertisement, connect works   -> idle on a wrist; nothing to do
+    #   bonded, no advertisement, connect refused -> the sensor is OFF or out of range. A Verity Sense
+    #                                                off its charger is not ON; it needs its button.
+    client_cm = BleakClient(dev, adapter=adapter) if adapter else BleakClient(dev)
+    try:
+        client = await client_cm.__aenter__()
+    except BleakError as exc:
+        bonded = await _is_bonded(address)
+        return {**out, "error": f"could not reach the device: {type(exc).__name__}: {exc}",
+                "bonded": bonded,
+                "diagnosis": ("bonded and trusted, but BlueZ has no device object — the sensor is "
+                              "POWERED OFF or out of range. Off the charger is not the same as ON: "
+                              "press its button, then re-run." if bonded else
+                              "not bonded — pair it first (bonding.ensure_bonded / bluetoothctl)")}
+    # ⚠️ ALREADY ENTERED ABOVE. An `async with client_cm` here calls `__aenter__` a SECOND time and
+    # bleak raises "Client is already connected" — a bug that hides on every failure path (the connect
+    # raises first and the second enter is never reached) and appears only when the device is actually
+    # reachable. It shipped in the first cut of this change for exactly that reason: the sensor was off,
+    # every run took the error path, and the success path went unexercised. Own the exit explicitly.
+    try:
         cp = _Control(client)
         await cp.start()
 
@@ -139,6 +195,8 @@ async def run(address: str, adapter: str | None, meas: int, force: bool, seconds
             out["stop_ack"] = stop_name
             out["status_after"] = _status_of(await cp.send(pmd.status_cmd()))
         return out
+    finally:
+        await client_cm.__aexit__(None, None, None)
 
 
 def main(argv=None) -> int:
