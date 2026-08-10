@@ -261,6 +261,20 @@ def test_the_default_window_is_the_one_the_device_is_actually_given(monkeypatch)
     assert waits and 7.5 < waits[0] <= 8.0, f"the first reply wait is the 8 s window, got {waits[:1]}"
 
 
+def test_the_wait_never_OVERSHOOTS_the_remaining_budget(monkeypatch):
+    """`max(0.0, deadline - now)` has two jobs and only one was observed. It floors the wait at zero —
+    `select` rejects a negative timeout — and it CAPS the wait at what is left of the window. Raise that
+    floor to 1.0 and the probe waits a full second on a window that may be shorter than that, blowing
+    through its own deadline; with every other test running an 8 s or 30 s window, the overshoot is
+    invisible because the remainder is never under a second. A sub-second window is what exposes it."""
+    dev = _FakeDev([])                     # nothing to answer: the loop runs its wait and gives up
+    _install(monkeypatch, dev)
+    probe.fetch("/dev/hidraw0", "/U/0/", window=0.2)
+    waits = [t for t in dev.timeouts if t]
+    assert waits, "the reply wait happened at all"
+    assert max(waits) <= 0.2, f"never longer than the window that remains, got {max(waits)}"
+
+
 def test_the_default_packet_cap_bounds_a_device_that_never_terminates(monkeypatch):
     """The measured failure this cap exists for: ACKing every filler reply yielded 4000 packets in 8 s.
     The existing test passes `max_packets` explicitly, so the DEFAULT was unobserved and 400 could
