@@ -136,6 +136,13 @@ function spo2Series({ n = 600, base = 96, drop = 0, at = 200, dur = 30, invalidF
   }
   return a;
 }
+/* A pulse series whose VALID fraction is controlled: out-of-band values are what SELFGATE counts as
+   invalid, so the floor at 0.5 can only be straddled by varying that fraction deliberately. */
+const invalidPulse = (validFrac, n = 600) => {
+  const a = new Float32Array(n);
+  for (let i = 0; i < n; i++) a[i] = i < Math.round(n * validFrac) ? 58 : 500;
+  return a;
+};
 const pulseSeries = ({ n = 600, bpm = 58, spikeAt = -1, spike = 0 } = {}) => {
   const a = new Float32Array(n);
   for (let i = 0; i < n; i++) a[i] = spikeAt >= 0 && i >= spikeAt && i < spikeAt + 20 ? bpm + spike : bpm;
@@ -194,22 +201,27 @@ export const families = [
     fn: 'oximetryLane',
     probe: (D) => {
       const out = [];
-      const set = (spo2, pulse) => ({
-        channels: [
-          { label: 'SpO2', data: spo2, fs: 1 },
-          { label: 'Pulse', data: pulse || new Float32Array(spo2.length), fs: 1 }
-        ]
-      });
+      /* ⚠ `chan(rec, base)` reads `rec.signals` as an OBJECT KEYED BY NAME — it walks
+         Object.keys(rec.signals) and strips a `.2s` / `.40ms` suffix off each key. The first draft
+         passed `{channels: [{label, data, fs}]}`, which has no `signals` at all, so `chan` returned
+         null for every case, every call took the no-spo2-channel arm, and the battery reported ONE
+         distinct answer over 55 inputs. Degenerate, correctly refused, and entirely my invention —
+         the shape was there to be read. */
+      const set = (spo2, pulse, key = 'SpO2') => ({ signals: Object.assign({ [key]: { data: spo2, fs: 1 } }, pulse ? { Pulse: { data: pulse, fs: 1 } } : {}) });
       for (const c of [
         set(spo2Series({})),
         set(spo2Series({ drop: 6, dur: 40 })),
+        set(spo2Series({ drop: 6, dur: 40 }), pulseSeries({ spikeAt: 200, spike: 30 })),
         set(spo2Series({ invalidFrom: 0 })), // zero coverage
-        set(spo2Series({ invalidFrom: 300 })), // half coverage — the threshold's own edge
+        set(spo2Series({ invalidFrom: 300 })), // half — the coverage threshold's own edge
         set(spo2Series({ invalidFrom: 599 })),
+        set(spo2Series({}), null), // SpO2 but NO Pulse channel
+        set(spo2Series({}), pulseSeries(), 'SpO2.2s'), // the suffix-stripping path
         set(new Float32Array(0)),
-        { channels: [{ label: 'Pulse', data: pulseSeries(), fs: 1 }] }, // no SpO2 channel at all
-        { channels: [] },
-        { channels: [{ label: 'SpO2', data: null, fs: 1 }] },
+        { signals: { Pulse: { data: pulseSeries(), fs: 1 } } }, // no SpO2 at all
+        { signals: {} },
+        { signals: { SpO2: { data: null, fs: 1 } } },
+        { signals: { crc: { data: spo2Series({}), fs: 1 }, SpO2: { data: spo2Series({}), fs: 1 } } }, // crc keys are skipped
         {},
         null
       ])
@@ -241,9 +253,32 @@ export const families = [
     fn: 'computeMetrics',
     probe: (D) => {
       const out = [];
-      for (const uh of [0, 3.99, 4, 4.01, 8, null, undefined, NaN, -1]) for (const fs of [1, 25, 0, null]) out.push(call(D.computeMetrics, [{ usageHours: uh, fs }]));
-      for (const d of [{}, null, undefined, { usageHours: 7 }, { fs: 25 }]) out.push(call(D.computeMetrics, [d]));
-      /* leakSqi clamps `1 − largeLeakPct/100` into [0,1]; only 0, exactly 100 and beyond show the clamp. */
+      /* The real contract is six fields — usageHours, fs, pressure, pressureMaskOn, leakMaskOn,
+         events — and the first draft supplied two. `d.pressure` is iterated at L312 and `d.events`
+         feeds four event-rate calls, so a {usageHours, fs} object never reached the mask-on-latency
+         scan, the percentile helpers or the AHI arithmetic: 0 of 4 controls separated. */
+      const arr = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+      const evts = (types) => types.map((t, i) => ({ type: t, start: i * 100, dur: 20 }));
+      const base = {
+        usageHours: 7,
+        fs: 25,
+        pressure: arr(600, (i) => (i < 100 ? 0 : 9)), // mask-on starts at 100 — the latency scan
+        pressureMaskOn: arr(500, (i) => 8 + (i % 5)),
+        leakMaskOn: arr(500, () => 12),
+        events: evts(['OA', 'CA', 'H', 'UA', 'CA', 'OA'])
+      };
+      const v = (over) => Object.assign({}, base, over);
+      for (const uh of [0, 3.99, 4, 4.01, 8, null, NaN]) out.push(call(D.computeMetrics, [v({ usageHours: uh })]));
+      out.push(call(D.computeMetrics, [v({ pressure: arr(600, () => 0) })])); // never above 0 — no mask-on at all
+      out.push(call(D.computeMetrics, [v({ pressure: arr(600, () => 9) })])); // on from sample 0
+      out.push(call(D.computeMetrics, [v({ pressure: [0, 9] })]));
+      out.push(call(D.computeMetrics, [v({ pressure: [] })]));
+      for (const e of [[], evts(['CA']), evts(['OA']), evts(['H']), evts(['UA']), evts(['XX']), evts(['CA', 'CA', 'CA'])]) out.push(call(D.computeMetrics, [v({ events: e })]));
+      for (const pm of [[], [8], arr(500, () => 8), arr(500, (i) => i)]) out.push(call(D.computeMetrics, [v({ pressureMaskOn: pm })]));
+      for (const lm of [[], arr(500, () => 0), arr(500, () => 60)]) out.push(call(D.computeMetrics, [v({ leakMaskOn: lm })]));
+      for (const fs of [1, 25, 0]) out.push(call(D.computeMetrics, [v({ fs })]));
+      for (const d of [{}, null, undefined]) out.push(call(D.computeMetrics, [d]));
+      /* leakSqi clamps `1 − largeLeakPct/100` into [0,1]; only 0, exactly 100 and beyond show it. */
       for (const ll of [null, undefined, NaN, 0, 1, 50, 99, 100, 101, 250, -5]) out.push(call(D.leakSqi, [{ largeLeakPct: ll }]));
       out.push(call(D.leakSqi, [{}]));
       return out;
