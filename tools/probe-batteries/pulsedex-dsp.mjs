@@ -129,7 +129,43 @@ function nn(n, { base = 1000, amp = 0, hz = 0, jitter = 0, ectopicAt = -1 } = {}
   }
   return a;
 }
+/* ── RUN-LENGTH CONTROLLED SERIES ────────────────────────────────────────────────────────────
+   `fragmentation`'s `pas` counts CONSECUTIVE runs of length 1 (strict alternation) and only credits
+   them once `altRun >= 4`. None of the smooth series above alternates strictly, so that threshold and
+   the `pas` denominator were both unreachable — the family had 9/11 controls with the two blind ones
+   sitting exactly there. `alt(k, tail)` emits k strictly-alternating beats followed by a monotone
+   tail, which produces k−1 consecutive length-1 runs and then a long one: the only way to sit ON the
+   >= 4 boundary rather than far past it. */
+function alt(k, tail) {
+  const a = [1000];
+  for (let i = 1; i < k; i++) a.push(i % 2 ? 1010 : 1000);
+  for (let i = 0; i < (tail || 0); i++) a.push(a[a.length - 1] + 10);
+  return a;
+}
+/* ⚠️ THE SAME LINE APPEARS TWICE, AND ONLY ONE SHAPE REACHES EACH.
+   `if (altRun >= 4) pasNN += altRun;` sits BOTH inside the run loop (L404, for an alternating stretch
+   that ENDS before the series does) and after it (L408, for one that runs to the very end). `alt()`
+   above puts a monotone tail last, so `altRun` is 0 at loop exit and L408 never fires — it stayed
+   blind through two widenings for that reason alone. `altTail()` is the mirror: a monotone HEAD, then
+   strict alternation to the last beat, so the trailing check is the one that credits it.
+   And in both cases only altRun EXACTLY 4 separates `>= 4` from `> 4`; a longer alternation fires
+   under both. Measured: altTail(4,5) gives pas 44.4 vs 0, altTail(4,6) gives 50 under both. */
+function altTail(head, k) {
+  const a = [1000];
+  for (let i = 0; i < head; i++) a.push(a[a.length - 1] + 10);
+  for (let i = 0; i < k; i++) a.push(i % 2 ? a[a.length - 1] - 10 : a[a.length - 1] + 10);
+  return a;
+}
 const SERIES = [
+  altTail(4, 4), // trailing run of 3 — under the threshold
+  altTail(4, 5), // trailing run of exactly 4 — ON it, and the only shape that separates L408
+  altTail(4, 6), // over it
+  altTail(6, 5),
+  alt(4, 4), // 3 consecutive 1-runs — just UNDER the threshold
+  alt(5, 4), // 4 — exactly ON it
+  alt(6, 4), // 5 — just over
+  alt(40, 0), // maximal alternation, pas saturates
+  alt(9, 0),
   nn(0),
   nn(1),
   nn(4), // one under the ≥5 floor
@@ -151,7 +187,7 @@ const SERIES = [
   undefined
 ];
 
-export const families = [
+const BASE_FAMILIES = [
   {
     name: 'compareIntervalSeries · two-signal agreement (54 survivors)',
     fn: 'compareIntervalSeries',
@@ -217,6 +253,28 @@ export const families = [
          are three different things here and a truthiness mutant sees only one of them. */
       for (const o of [undefined, {}, { preferDMY: true }, { preferDMY: false }, { preferDMY: 0 }, { preferDMY: null }]) out.push(call(B.parseRRInput, [delim(50, { stamp: 'dmy' }), o]));
       out.push(call(B.parseRRInput, ['1000;2000\n1100;2100', undefined])); // delimited but NO timestamp
+      /* ── THE BLOCKER COLUMN, matched on a header cell that is exactly `blocker` ──
+         `_pdBlockerColFromHeader` looks for /^\s*blocker\s*$/i, and the guard is
+         `blockerCol >= 0 && blockerCol < parts.length && parseFloat(...)`. Three conditions, none of
+         which any earlier case reached: no fixture declared the column at all. A device that marks
+         beats it does not trust is the whole reason the column exists — a night with a third of its
+         beats blocked is a different night from one with none. */
+      const blk = (n, { flagEvery = 0, short = 0 } = {}) => {
+        const L = ['Time;RR;blocker'];
+        for (let i = 0; i < n; i++) {
+          const t = new Date(T0 + i * 1000);
+          const ts = `${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}:${String(t.getUTCSeconds()).padStart(2, '0')}`;
+          const flagged = flagEvery && i % flagEvery === 0 ? 1 : 0;
+          L.push(short && i % short === 0 ? `${ts}` : `${ts};${1000 + (i % 40)};${flagged}`);
+        }
+        return L.join('\n');
+      };
+      for (const every of [0, 1, 2, 5]) out.push(call(B.parseRRInput, [blk(60, { flagEvery: every }), undefined]));
+      out.push(call(B.parseRRInput, [blk(60, { flagEvery: 3, short: 7 }), undefined])); // ROWS WITH ONE COLUMN
+      out.push(call(B.parseRRInput, [blk(60, { short: 4 }), undefined]));
+      out.push(call(B.parseRRInput, ['Time;RR;blocker\n00:00:00;1000', undefined])); // declared but row too short
+      out.push(call(B.parseRRInput, ['Time;RR;Blocker\n00:00:00;1000;1\n00:00:01;1010;0', undefined])); // case-insensitive
+      out.push(call(B.parseRRInput, ['Time;RR;blockers\n00:00:00;1000;1\n00:00:01;1010;0', undefined])); // NOT an exact match
       for (const raw of ['', '\n', '   ', 'not a number', '1000', '1000\n1000', '1000\r\n1010\r\n1020']) out.push(call(B.parseRRInput, [raw, undefined]));
       return out;
     }
@@ -251,3 +309,32 @@ export const families = [
     }
   }
 ];
+
+/* ══ REGISTERING WHAT THE PROBES ALREADY RUN (tools/probe-reach.mjs) ═════════════════════════
+   `probe-coverage` said this battery claimed a minority of the file's survivors. The tempting
+   reading — "the batteries are too narrow" — is refuted by `probe-reach`, which counts which
+   functions each probe actually EXECUTES and reports for this file:
+
+       NAMED, NOT REACHED   0
+
+   The inputs were never the problem. These functions were already being called; nothing claimed
+   their survivors, because a family reports only on mutants inside the line range of the `fn` it
+   NAMES. Each is registered under the probe that most exercises it — a survivor needs only ONE
+   family to claim it, so naming more would re-run the same fingerprints for nothing.
+
+   ⚠️ Registration is not classification. Each family must still separate its own controls, and one
+   whose probe reaches a function without its OUTPUT depending on it will report BLIND and void —
+   correctly. This removes the cheapest reason for a blind family, nothing more. */
+const REACHED = {
+  fragmentation: ['periodicBreathingIndex', 'linfit'],
+  parseRRInput: ['_pdIntervalColFromHeader', '_pdForeignUnitCol', '_pdBlockerColFromHeader', '_pdIntervalColByRange', 'medianOf'],
+  compareIntervalSeries: ['artifactClean', '_pdPearson', '_pdSeriesStats']
+};
+
+export const families = BASE_FAMILIES.concat(
+  Object.entries(REACHED).flatMap(([host, fns]) => {
+    const src = BASE_FAMILIES.find((f) => f.fn === host);
+    if (!src) return [];
+    return fns.map((fn) => ({ name: `${fn} · via the ${host} probe (registered, not re-run)`, fn, probe: src.probe }));
+  })
+);

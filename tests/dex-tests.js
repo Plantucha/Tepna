@@ -4264,6 +4264,127 @@
        because the user already had. Measured across this corpus it is always the second: 107 of 107
        Verity `_PPI.txt` files are header-only and 40 of 40 `_HR.txt` are all-zero, so the docs' hedge
        ("often header-only") understates a categorical fact about this firmware. */
+    /* ── cvhrFromNN — 57 survivors, ZERO kills, and the brief's "hard one" ──────────────────────
+       Cyclic variation of heart rate is the autonomic signature of obstructive apnea: the rate falls
+       during the event and overshoots on arousal, producing a sustained oscillation in the 30–70 s
+       band. `cvhrFromNN` band-passes the NN series into that band, takes an envelope, and counts
+       sustained trains. Its output is published as `cvhrIndex` / `cvhrEvents` and is read by the
+       Integrator, so a mutant here changes a number a user sees.
+
+       It had 57 surviving mutants and NOT ONE kill — so the equivalence prober could return no
+       verdict on any of them, however good a battery it was given: with no killed mutant in the same
+       function there is no positive control to prove the battery reaches the code, and "0 % killed"
+       and "100 % equivalent" are the same picture.
+
+       WHY IT WAS FILED AS A PROJECT RATHER THAN A TEST, and why that was wrong. `cvhrFromNN` is not
+       exported; it is called once from deep inside `analyze()`, so reaching it needs a synthetic PPG
+       that survives channel ranking, beat detection, SQI and RR correction while still carrying a
+       controlled apnea-band oscillation. That sounded expensive. It is about twenty lines: an actual
+       PULSE — systolic upstroke, dicrotic notch, diastolic decay — with the instantaneous rate
+       modulated by a slow sine. The previous fixtures were linear RAMPS, which is why nothing
+       downstream of beat detection had ever been exercised.
+
+       THE NEGATION IS THE LOAD-BEARING CASE. An index that is always zero and an index that is never
+       zero are the same measurement; the flat-HR recording is what makes the modulated ones mean
+       something. */
+    group('PpgDex cvhrFromNN — cyclic variation of heart rate, and its negation (mutation bootstrap)', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var P = env.PPGDSP;
+      if (!P || typeof P.parsePPG !== 'function' || typeof P.analyze !== 'function') {
+        T.skip('PPGDSP.parsePPG + analyze available', 'PPGDSP not co-loaded in this runner');
+        return;
+      }
+      var p2 = function (x) {
+        return String(x).padStart(2, '0');
+      };
+      /* A three-LED PPG at 135 Hz. `cvhrPeriodSec`/`cvhrDepth` modulate the INSTANTANEOUS rate, so the
+         oscillation lands in the NN series rather than in the waveform's amplitude — which is what
+         the function actually reads. Per-channel gain keeps the three LEDs from being bit-identical:
+         identical channels take `distinctChannelIdx`'s honest `nCh < 2` path and never vote. */
+      var ppg = function (sec, opts) {
+        opts = opts || {};
+        var fs = 135,
+          hr = opts.hr || 60,
+          per = opts.cvhrPeriodSec || 0,
+          depth = opts.cvhrDepth || 0;
+        var out = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+        var n = Math.round(sec * fs),
+          step = 1000 / fs,
+          devMs = 0,
+          ph = 0,
+          rr = 60000 / hr;
+        for (var i = 0; i < n; i++) {
+          devMs += step;
+          ph += step / rr;
+          if (ph >= 1) {
+            ph -= 1;
+            var hrNow = hr * (1 + (per ? depth * Math.sin((2 * Math.PI * (devMs / 1000)) / per) : 0));
+            rr = 60000 / hrNow;
+          }
+          var w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
+          var v = 20000 + 800 * w;
+          var t = new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + Math.round(devMs));
+          var ts =
+            t.getUTCFullYear() +
+            '-' +
+            p2(t.getUTCMonth() + 1) +
+            '-' +
+            p2(t.getUTCDate()) +
+            ' ' +
+            p2(t.getUTCHours()) +
+            ':' +
+            p2(t.getUTCMinutes()) +
+            ':' +
+            p2(t.getUTCSeconds()) +
+            '.' +
+            String(t.getUTCMilliseconds()).padStart(3, '0');
+          out.push(ts + ';' + Math.round(devMs * 1e6) + ';' + Math.round(v) + ';' + Math.round(v * 0.95 + 30) + ';' + Math.round(v * 1.03 - 25) + ';400');
+        }
+        return out.join('\n');
+      };
+      var run = function (sec, opts) {
+        try {
+          return P.analyze(P.parsePPG(ppg(sec, opts), undefined), null);
+        } catch (e) {
+          return { error: String(e.message) };
+        }
+      };
+
+      // ── 1 · THE FIXTURE MUST ACTUALLY PRODUCE BEATS, or everything below is vacuous ────────────
+      var flat = run(300, {});
+      T.ok('the synthetic PPG yields a beat train at all', flat.nBeats > 250, 'nBeats=' + flat.nBeats);
+      T.ok('…at the requested 60 bpm', Math.abs((flat.hr || 0) - 60) <= 3, 'hr=' + flat.hr);
+
+      // ── 2 · THE NEGATION — a steady heart rate has NO cyclic variation ─────────────────────────
+      T.eq('a flat-HR recording reports cvhrIndex 0', flat.cvhrIndex, 0);
+      T.eq('…and zero CVHR events', flat.cvhrEvents, 0);
+
+      // ── 3 · A REAL APNEA-BAND OSCILLATION IS DETECTED ──────────────────────────────────────────
+      var c40 = run(300, { cvhrPeriodSec: 40, cvhrDepth: 0.18 });
+      T.ok('a 40 s HR cycle raises cvhrIndex well above zero', c40.cvhrIndex > 40, 'cvhrIndex=' + c40.cvhrIndex);
+      T.ok('…and reports discrete events', c40.cvhrEvents >= 4, 'cvhrEvents=' + c40.cvhrEvents);
+      /* index is events per HOUR, so on a 5-minute record it must be ~12x the event count. Pinning
+         the RELATIONSHIP rather than the number catches a mutated 3600/60 conversion without making
+         the test brittle to the detector's exact sensitivity. */
+      T.ok(
+        'cvhrIndex is events per HOUR — ~12x the count on a 5-minute record',
+        c40.cvhrEvents > 0 && Math.abs(c40.cvhrIndex / c40.cvhrEvents - 12) < 3,
+        'index=' + c40.cvhrIndex + ' events=' + c40.cvhrEvents + ' ratio=' + (c40.cvhrIndex / c40.cvhrEvents).toFixed(2)
+      );
+
+      // ── 4 · DEPTH IS ORDERED — a stronger oscillation is not merely also-detected ──────────────
+      var c30 = run(300, { cvhrPeriodSec: 30, cvhrDepth: 0.25 });
+      T.ok('a deeper, faster cycle scores HIGHER than a shallower one', c30.cvhrIndex > c40.cvhrIndex, '30s/0.25=' + c30.cvhrIndex + ' vs 40s/0.18=' + c40.cvhrIndex);
+      /* A shallow oscillation must fall UNDER the ENV_ON = 2.6 bpm sustained-oscillation gate. Without
+         this the threshold is never approached from below and any mutant that lowers it survives. */
+      var shallow = run(300, { cvhrPeriodSec: 60, cvhrDepth: 0.01 });
+      T.eq('a 1 % oscillation is below the sustained-oscillation gate', shallow.cvhrIndex, 0);
+
+      // ── 5 · THE SHORT-RECORD REFUSAL — under 2 minutes no apnea-band train can be resolved ─────
+      var brief = run(90, { cvhrPeriodSec: 40, cvhrDepth: 0.18 });
+      T.eq('a 90 s recording refuses rather than guessing', brief.cvhrIndex, 0);
+      T.eq('…and reports no events', brief.cvhrEvents, 0);
+    });
+
     group('PpgDex distinguishes a missing device PPI from an empty one', 'ppgdex-dsp · ppgdex-app · device-ppi', function (T) {
       /* Asserted, not skipped. The first draft looked this up on the wrong namespace and reported a
          green "(skipped)" while testing nothing — a hollow gate, which is the failure this suite
@@ -10014,6 +10135,384 @@
        §6.3  Corroboration was a bare existence test, so ONE surge satisfied the 75 s window for every
              apnea inside it: independent confirmation counted once per apnea from one piece of evidence.
      ════ */
+    /* ── _nightFromInput: A ZERO-KILL BOOTSTRAP ──────────────────────────────────────────────────
+       20 survivors and NOT ONE kill, so every one of them was unclassifiable by construction: the
+       equivalence prober needs a positive control from the same function — a mutant the suite killed,
+       replayed to prove a battery reaches the code — and there was nothing to replay. It is the
+       fourth such function found (MUTATION-PROGRAM §7.0's census lists nine, ~320 survivors, about a
+       fifth of everything the fleet has mapped).
+
+       It is also the cheapest of them: `_nightFromInput` is PUBLIC as `CPAPDex.buildNightFromSets`
+       and is almost pure input-shape dispatch, so the branches are the argument shapes themselves.
+       Every expectation below was measured against the implementation before being written, using
+       the node's OWN `_synthEdfSet` as the decoded set rather than an invented one. */
+    /* ── inferAccUnit: A ZERO-KILL BOOTSTRAP ─────────────────────────────────────────────────────
+       31 survivors and no kills — the fifth such function (MUTATION-PROGRAM §7.0). It is internal,
+       but reachable through the exported `parseSensorXYZ`, which publishes its verdict as `_unit`.
+
+       THE UNIT IS INFERRED FROM THE MEDIAN VECTOR MAGNITUDE against three gravity-like bands, and
+       every bound is EXCLUSIVE on both sides:
+           300 < med < 3000  ⇒ 'mg'      (≈1000)
+           0.3 < med < 3     ⇒ 'g'       (≈1)
+             3 < med < 30    ⇒ 'm/s2'    (≈9.81)
+       Anything else is null — the function refuses to guess rather than picking the nearest band.
+       That refusal is the safety property: mistaking g for mg is a 1000× error in every downstream
+       metric, and this node's whole ACC pipeline hangs off it.
+
+       Every boundary value below returns NULL, measured. That is what separates `>` from `>=`: at
+       exactly 300 the real code declines and a `>=` mutant would answer 'mg'. A test using only
+       1000/1/9.81 exercises none of the six comparisons. */
+    /* ── locateColumns: A ZERO-KILL BOOTSTRAP ────────────────────────────────────────────────────
+       30 survivors and no kills — the sixth such function (MUTATION-PROGRAM §7.0). Internal, but
+       reachable through the exported `parseCSV`, so it needs a test rather than an export.
+
+       IT EXISTS BECAUSE CGM EXPORTS DO NOT AGREE ON COLUMN ORDER. It scores every column over the
+       first 60 rows: date-likeness (parses as a stamp, contains `:-/`, ≥8 chars) picks the timestamp,
+       and "mostly numeric AND mostly inside a physiologic band" picks glucose — deliberately
+       preferring in-band hits MINUS date hits, so a numeric-looking date column cannot win.
+
+       The assertions below drive the same readings through THREE different layouts. A fixture with
+       one fixed layout exercises the scoring loop exactly once and cannot tell a working scorer from
+       a hardcoded `cells[1]` — which is how 30 survivors accumulate here. */
+    /* ── applySessionCorrections — the LAST zero-kill function in glucodex-dsp.js ────────────────
+       Eight survivors and no kills, so the equivalence prober could return no verdict on any of them:
+       it needs a mutant the suite already kills IN THE SAME FUNCTION as a positive control, and there
+       was none. "0 % killed" and "100 % equivalent" are the same picture to the tool.
+
+       The function is not exported, but its whole result IS — `analyze().sessionCorr` carries
+       `leveled`, `deDrifted`, `offsets` and `globalMedian` — and both corrections are visible in
+       `analyze().daily`. So the fixture is three four-day sensor sessions at DELIBERATELY DIFFERENT
+       LEVELS, separated by 12 h gaps.
+
+       Distinct levels are the load-bearing part. On `genSynthetic`'s own output every session sits at
+       nearly the same level, the offsets come out [1, 0, -1], and at that size an operand swap, a
+       dropped `Math.round` and a broken subtraction all look alike. At 90/110/130 the offsets are
+       [+20, 0, -20] — signed, exact, and each one a different number from its negation. */
+    group('GlucoDex applySessionCorrections — levelling and de-drift, signed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.analyze !== 'function') {
+        T.skip('GLUDSP.analyze available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      /* Three sessions, each 4 days at 5-minute cadence, separated by a 12 h gap. `drift` adds a
+         linear mg/dL-per-day ramp within every session; the sine is a diurnal shape so the medians
+         are not degenerate constants. */
+      var mk = function (levels, drift) {
+        var T2 = [],
+          V = [],
+          t = Date.UTC(2026, 6, 1, 0, 0, 0);
+        for (var s = 0; s < levels.length; s++) {
+          for (var i = 0; i < 4 * 288; i++) {
+            T2.push(t);
+            V.push(levels[s] + (drift ? drift * (i / 288) : 0) + 8 * Math.sin((2 * Math.PI * i) / 288));
+            t += 300000;
+          }
+          t += 12 * 3600000;
+        }
+        return { tMs: T2, vMgdl: V, unit: 'mg/dL', t0Ms: T2[0], source: 'test' };
+      };
+      var run = function (levels, drift, opts) {
+        try {
+          return G.analyze(mk(levels, drift), null, opts);
+        } catch (e) {
+          return { error: String(e.message) };
+        }
+      };
+
+      // ── 1 · NEITHER FLAG ⇒ EARLY RETURN, and it must not touch the series ──────────────────────
+      var none = run([90, 110, 130], 0, {});
+      T.ok('no correction requested ⇒ leveled false', none.sessionCorr && none.sessionCorr.leveled === false, JSON.stringify(none.sessionCorr));
+      T.ok('no correction requested ⇒ deDrifted false', none.sessionCorr && none.sessionCorr.deDrifted === false, JSON.stringify(none.sessionCorr));
+      T.ok('the early return emits NO offsets at all', none.sessionCorr && none.sessionCorr.offsets.length === 0, JSON.stringify(none.sessionCorr && none.sessionCorr.offsets));
+      T.ok('…and no globalMedian is computed on that path', none.sessionCorr && none.sessionCorr.globalMedian === undefined, String(none.sessionCorr && none.sessionCorr.globalMedian));
+      T.ok('three sessions are detected from the 12 h gaps', none.nSessions === 3, 'nSessions=' + none.nSessions);
+
+      // ── 2 · LEVELLING — the offset is (globalMedian − sessionMedian), SIGNED ───────────────────
+      var lev = run([90, 110, 130], 0, { levelSessions: true });
+      T.ok('levelling reports leveled true', lev.sessionCorr && lev.sessionCorr.leveled === true, JSON.stringify(lev.sessionCorr));
+      T.ok('…and deDrifted stays false — the flags are independent', lev.sessionCorr && lev.sessionCorr.deDrifted === false, JSON.stringify(lev.sessionCorr));
+      T.ok('the global median of a 90/110/130 record is 110', lev.sessionCorr && lev.sessionCorr.globalMedian === 110, String(lev.sessionCorr && lev.sessionCorr.globalMedian));
+      /* THE SIGN IS THE ASSERTION. A session BELOW the global median is raised (+20) and one above is
+         lowered (−20); swapping the operands of `allMed - sess.median` yields [−20, 0, +20], which is
+         a different array rather than a differently-rounded one. */
+      T.ok(
+        'offsets are [+20, 0, -20] — low session raised, high session lowered',
+        lev.sessionCorr && JSON.stringify(lev.sessionCorr.offsets) === '[20,0,-20]',
+        JSON.stringify(lev.sessionCorr && lev.sessionCorr.offsets)
+      );
+      T.ok('one offset per detected session', lev.sessionCorr && lev.sessionCorr.offsets.length === lev.nSessions, lev.sessionCorr && lev.sessionCorr.offsets.length + ' vs ' + lev.nSessions);
+
+      // ── 3 · THE CORRECTION REACHES THE SERIES, not just the report ────────────────────────────
+      var dayMed = function (r) {
+        return (r.daily || []).map(function (d) {
+          return Math.round(d.median != null ? d.median : d.mean || 0);
+        });
+      };
+      var beforeL = dayMed(none),
+        afterL = dayMed(lev);
+      var spread = function (a) {
+        return Math.max.apply(null, a) - Math.min.apply(null, a);
+      };
+      T.ok('un-levelled daily medians span the three levels (>=35 mg/dL)', spread(beforeL) >= 35, 'spread=' + spread(beforeL) + ' ' + JSON.stringify(beforeL.slice(0, 12)));
+      T.ok('levelling COLLAPSES that spread to under 15 mg/dL', spread(afterL) < 15, 'spread=' + spread(afterL) + ' ' + JSON.stringify(afterL.slice(0, 12)));
+
+      // ── 4 · DE-DRIFT — a ramp is removed, and it is CENTRED so the level is preserved ──────────
+      var ramp = run([100, 100, 100], 20, {});
+      var flat = run([100, 100, 100], 20, { deDrift: true });
+      T.ok('de-drift reports deDrifted true, leveled false', flat.sessionCorr && flat.sessionCorr.deDrifted === true && flat.sessionCorr.leveled === false, JSON.stringify(flat.sessionCorr));
+      T.ok(
+        '…and emits a ZERO offset per session — de-drift does not level',
+        flat.sessionCorr && /^\[0(,0)*\]$/.test(JSON.stringify(flat.sessionCorr.offsets)),
+        JSON.stringify(flat.sessionCorr && flat.sessionCorr.offsets)
+      );
+      var rampD = dayMed(ramp),
+        flatD = dayMed(flat);
+      T.ok('a 20 mg/dL-per-day ramp spans >= 50 mg/dL across a session', spread(rampD) >= 50, 'spread=' + spread(rampD) + ' ' + JSON.stringify(rampD.slice(0, 8)));
+      T.ok('de-drift flattens it to under 20 mg/dL', spread(flatD) < 20, 'spread=' + spread(flatD) + ' ' + JSON.stringify(flatD.slice(0, 8)));
+      /* The `- mid` term centres the removal on the session midpoint, so the session's LEVEL survives
+         while its SLOPE does not. Dropping that term shifts the whole session by half the drift. */
+      var mid = function (a) {
+        var b = a.slice().sort(function (x, y) {
+          return x - y;
+        });
+        return b[Math.floor(b.length / 2)];
+      };
+      T.ok('…and de-drift preserves the session LEVEL (centred, not shifted)', Math.abs(mid(flatD) - mid(rampD)) <= 6, 'median ' + mid(rampD) + ' -> ' + mid(flatD));
+
+      // ── 5 · BOTH FLAGS TOGETHER — each is reported on its own ──────────────────────────────────
+      var both = run([90, 110, 130], 20, { levelSessions: true, deDrift: true });
+      T.ok('both flags report independently', both.sessionCorr && both.sessionCorr.leveled === true && both.sessionCorr.deDrifted === true, JSON.stringify(both.sessionCorr));
+      T.ok(
+        'levelling still emits signed offsets when de-drift is also on',
+        both.sessionCorr && both.sessionCorr.offsets.length === both.nSessions && both.sessionCorr.offsets[0] > both.sessionCorr.offsets[2],
+        JSON.stringify(both.sessionCorr && both.sessionCorr.offsets)
+      );
+
+      /* ── 6 · LEVEL WITHOUT DE-DRIFT MUST LEAVE THE RAMP ALONE ──────────────────────────────────
+         `if (deDrift && sess.driftPerDay != null)` — with `&&` turned to `||`, a record that HAS a
+         drift estimate gets de-drifted even though the caller never asked. Every case above misses
+         it: with neither flag set the function returns at line 1 and never reaches this branch, so
+         the ONE input that can see it is levelling ON, de-drift OFF, over a ramped series. */
+      var levOnly = run([90, 110, 130], 20, { levelSessions: true });
+      var levOnlyD = dayMed(levOnly);
+      T.ok('levelling alone reports deDrifted false', levOnly.sessionCorr && levOnly.sessionCorr.deDrifted === false, JSON.stringify(levOnly.sessionCorr));
+      T.ok('…and LEAVES the within-session ramp intact — levelling is not de-drifting', spread(levOnlyD) >= 50, 'spread=' + spread(levOnlyD) + ' ' + JSON.stringify(levOnlyD.slice(0, 8)));
+
+      /* ── 7 · THE 20 mg/dL FLOOR IS A REAL CLAMP ────────────────────────────────────────────────
+         `Math.max(20, v)` stops a correction driving a reading to a non-physiological value. Nothing
+         above reaches it, because levelling moves a session TOWARD the global median and therefore
+         cannot overshoot far. A session whose median sits far ABOVE the other two gets a large
+         negative offset, and the diurnal swing then carries its troughs under the floor. */
+      /* The observable has to be the record MINIMUM, not a daily median: a median over 288 readings
+         does not move when the handful beneath the floor are lifted, so an assertion on medians
+         passes whether the clamp is there or not. `analyze().min` is the reading the clamp touches.
+         A wide diurnal swing is what carries the troughs under: with amplitude 120 the corrected
+         session spans −13…227, so the floor is genuinely exercised rather than merely approached. */
+      var mkAmp = function (levels, amp) {
+        var T2 = [],
+          V = [],
+          t = Date.UTC(2026, 6, 1, 0, 0, 0);
+        for (var s = 0; s < levels.length; s++) {
+          for (var i = 0; i < 4 * 288; i++) {
+            T2.push(t);
+            V.push(levels[s] + amp * Math.sin((2 * Math.PI * i) / 288));
+            t += 300000;
+          }
+          t += 12 * 3600000;
+        }
+        return { tMs: T2, vMgdl: V, unit: 'mg/dL', t0Ms: T2[0], source: 'test' };
+      };
+      var clamp;
+      try {
+        clamp = G.analyze(mkAmp([20, 22, 800], 120), null, { levelSessions: true });
+      } catch (e) {
+        clamp = { error: String(e.message) };
+      }
+      T.ok('a session at 800 against 22 gets a large negative offset', clamp.sessionCorr && clamp.sessionCorr.offsets[2] < -600, JSON.stringify(clamp.sessionCorr && clamp.sessionCorr.offsets));
+      T.ok('…and the 20 mg/dL FLOOR holds — no corrected reading goes under it', clamp.min === 20, 'min=' + clamp.min + ' p10=' + clamp.p10);
+
+      /* KNOWN REMAINING GAP, stated rather than papered over: the loop bound `p < sess.e` mutated to
+         `p <= sess.e` corrects ONE extra sample per session. Everything this function exposes is an
+         aggregate — offsets, a global median, daily medians over 288 readings — and one sample moves
+         none of them. Killing it needs a per-sample view of the corrected series, which `analyze`
+         does not export. It stays counted as debt. */
+    });
+
+    group('GlucoDex locateColumns — column order is discovered, not assumed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.parseCSV !== 'function') {
+        T.skip('GLUDSP.parseCSV available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      var stamp = function (i) {
+        return new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + i * 300000).toISOString().slice(0, 16).replace('T', ' ');
+      };
+      var mk = function (n, order, val) {
+        var L = [];
+        for (var i = 0; i < n; i++) {
+          var g = val ? val(i) : 100 + (i % 40);
+          L.push(order === 'tg' ? stamp(i) + ',' + g : order === 'gt' ? g + ',' + stamp(i) : 'junk,' + stamp(i) + ',' + g);
+        }
+        return L.join('\n');
+      };
+      var parse = function (t) {
+        try {
+          return G.parseCSV(t);
+        } catch (e) {
+          return { error: String(e.message) };
+        }
+      };
+
+      // ── THE SAME READINGS IN THREE LAYOUTS MUST GIVE THE SAME SERIES ──
+      var tg = parse(mk(60, 'tg')),
+        gt = parse(mk(60, 'gt')),
+        jtg = parse(mk(60, 'jtg'));
+      T.eq('timestamp first, glucose second', tg.tMs && tg.tMs.length, 60);
+      T.eq('…glucose FIRST, timestamp second — the scorer, not the index, finds it', gt.tMs && gt.tMs.length, 60);
+      T.eq('…and a junk column in front of both', jtg.tMs && jtg.tMs.length, 60);
+      T.eq('all three read the same first value', String(tg.vMgdl[0]) + '/' + String(gt.vMgdl[0]) + '/' + String(jtg.vMgdl[0]), '100/100/100');
+      T.eq('…and the same unit', tg.unit + '/' + gt.unit + '/' + jtg.unit, 'mg/dL/mg/dL/mg/dL');
+
+      /* ── THE TWO PHYSIOLOGIC BANDS, which are also the unit inference ──
+         2–30 is mmol/L, 30–600 is mg/dL. A 5–9 series is mmol and must be CONVERTED, not relabelled:
+         5.0 mmol/L × 18.018 = 90.09 mg/dL. Asserting the unit alone would pass on a mutant that
+         detected mmol and then forgot to multiply. */
+      var mmol = parse(
+        mk(60, 'tg', function (i) {
+          return (5 + (i % 4)).toFixed(1);
+        })
+      );
+      T.eq('a 5–9 series is recognised as mmol/L', mmol.unit, 'mmol/L');
+      T.approx('…and CONVERTED to mg/dL, not merely relabelled', mmol.vMgdl[0], 90.09, 0.2);
+
+      /* Out of both bands the column is still the only numeric one, so it is still chosen — the band
+         score ranks columns, it does not veto them. A mutant that made in-band a REQUIREMENT would
+         reject this file entirely. */
+      var high = parse(
+        mk(60, 'tg', function (i) {
+          return 1000 + i;
+        })
+      );
+      T.eq('a wholly out-of-band numeric column is still the glucose column', high.tMs && high.tMs.length, 60);
+      T.eq('…and is left in mg/dL rather than converted', high.unit, 'mg/dL');
+
+      /* ── TWO NUMERIC COLUMNS, WHICH IS THE ONLY CASE WHERE THE BAND SCORE HAS TO CHOOSE ──
+         With one numeric column the scorer picks it whatever the band test says, so the
+         `(2–30) || (30–600)` predicate is unexercised — it survived a first pass here for exactly
+         that reason. Put an out-of-band device counter beside the glucose column and the band score
+         becomes load-bearing: measured, the real code takes 100 and a mutant that ANDs the two bands
+         (making in-band true only at exactly 30) takes 900000 — a device serial reported as blood
+         glucose. */
+      var twoNum = [];
+      for (var i = 0; i < 60; i++) twoNum.push(stamp(i) + ',' + (900000 + i) + ',' + (100 + (i % 40)));
+      var chosen = parse(twoNum.join('\n'));
+      T.eq('with two numeric columns the PHYSIOLOGIC one is chosen', chosen.vMgdl && chosen.vMgdl[0], 100);
+      T.ok(
+        '…and the out-of-band counter is not mistaken for glucose',
+        chosen.vMgdl &&
+          chosen.vMgdl.every(function (v) {
+            return v < 1000;
+          }),
+        'max ' + (chosen.vMgdl && Math.max.apply(null, chosen.vMgdl))
+      );
+
+      /* ── THE REFUSAL: too few readings names what it wanted, rather than returning an empty set ── */
+      var tiny = parse(mk(2, 'tg'));
+      T.ok('two rows is refused with a message naming the two columns it needs', /timestamp \+ glucose/.test(tiny.error || ''), JSON.stringify(tiny.error || '').slice(0, 90));
+    });
+
+    group('MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
+      var M = env.MOTIONDSP;
+      if (!M || typeof M.parseSensorXYZ !== 'function') {
+        T.skip('MOTIONDSP.parseSensorXYZ available', 'MOTIONDSP not co-loaded in this runner');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];X;Y;Z';
+      var rows = function (n, z) {
+        var L = [HDR];
+        for (var i = 0; i < n; i++) {
+          var t = new Date(Date.UTC(2026, 6, 1) + i * 38).toISOString().replace('T', ' ').replace('Z', '');
+          L.push(t + ';' + i * 38461538 + ';0;0;' + z);
+        }
+        return L.join('\n');
+      };
+      var unitOf = function (n, z) {
+        var r = M.parseSensorXYZ(rows(n, z));
+        return r ? r._unit : 'NO-PARSE';
+      };
+
+      // ── the three bands, at their physical centres ──
+      T.eq('a ~1000 magnitude reads as milli-g', unitOf(60, 1000), 'mg');
+      T.eq('a ~1 magnitude reads as g', unitOf(60, 1), 'g');
+      T.eq('a ~9.81 magnitude reads as m/s²', unitOf(60, 9.81), 'm/s2');
+
+      /* ── EVERY BOUND, EXACTLY ── each of these is null in the real code, and each would become a
+         unit under the corresponding `>=`/`<=` mutant. This is the whole point of the group. */
+      T.eq('exactly 300 is refused — the mg band is open below', unitOf(60, 300), null);
+      T.eq('exactly 3000 is refused — and open above', unitOf(60, 3000), null);
+      T.eq('exactly 0.3 is refused — the g band is open below', unitOf(60, 0.3), null);
+      T.eq("exactly 3 is refused — and it is the g band's open TOP and the m/s² band's open BOTTOM at once", unitOf(60, 3), null);
+      T.eq('exactly 30 is refused — the m/s² band is open above', unitOf(60, 30), null);
+
+      // ── just inside each bound, to prove the band is not simply empty ──
+      T.eq('301 is inside the mg band', unitOf(60, 301), 'mg');
+      T.eq('2999 is too', unitOf(60, 2999), 'mg');
+      T.eq('0.31 is inside the g band', unitOf(60, 0.31), 'g');
+      T.eq('2.9 is too', unitOf(60, 2.9), 'g');
+      T.eq('3.1 is inside the m/s² band', unitOf(60, 3.1), 'm/s2');
+      T.eq('29 is too', unitOf(60, 29), 'm/s2');
+
+      // ── nothing gravity-like at all ──
+      T.eq('a magnitude far below any band is refused, not rounded into g', unitOf(60, 0.01), null);
+      T.eq('an absurd magnitude is refused, not clamped into mg', unitOf(60, 50000), null);
+      T.eq('all-zero rows are refused — a zero median cannot imply a unit', unitOf(60, 0), null);
+
+      /* The ≥8-row floor: fewer samples than that cannot establish a median worth trusting. */
+      T.eq('seven rows is too few to infer a unit', unitOf(7, 1000), null);
+      T.eq('…and eight is enough', unitOf(8, 1000), 'mg');
+    });
+
+    group('CPAPDex buildNightFromSets — every input shape it dispatches on (mutation bootstrap)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
+      var X = env.CPAPDex,
+        D = env.CpapDsp;
+      if (!X || typeof X.buildNightFromSets !== 'function' || !D || typeof D._synthEdfSet !== 'function') {
+        T.skip('CPAPDex.buildNightFromSets available', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+      var N = X.buildNightFromSets;
+      var set = D._synthEdfSet({ oxi: true });
+
+      /* FOUR WAYS TO HAND IT THE SAME NIGHT, and each is a separate arm: a bare decoded set (detected
+         by the presence of PLD/BRP/SA2/EVE), the `edfSets` key, the `sets` key, and a pre-built night
+         passed back in. A fixture that only ever used one of them leaves the other three unexercised,
+         which is exactly how a dispatcher accumulates 20 survivors and no kills. */
+      T.eq('a bare decoded EDF set becomes a one-session night', (N(set) || {}).sessions.length, 1);
+      T.eq('…the same set under `edfSets`', (N({ edfSets: [set] }) || {}).sessions.length, 1);
+      T.eq('…and under `sets`', (N({ sets: [set] }) || {}).sessions.length, 1);
+      T.eq('two sets become a two-session night', (N({ sets: [set, set] }) || {}).sessions.length, 2);
+
+      /* IDEMPOTENCE: a night handed back in must come out unchanged rather than being rebuilt or
+         refused — that is the `sessions[0].metrics` short-circuit, and only a REAL night reaches it. */
+      var night = N(set);
+      T.eq('an already-built night passes through unchanged', (N(night) || {}).sessions.length, 1);
+      T.eq('…and so does one wrapped as { night }', (N({ night: night }) || {}).sessions.length, 1);
+
+      /* The `PLD || BRP || SA2 || EVE` sniff: a set carrying only ONE of the four must still be
+         recognised, or the || chain collapses to whichever member the fixtures happened to include. */
+      T.eq('a set carrying only PLD is still recognised as a decoded set', (N({ PLD: { clock: { t0Ms: 1 } } }) || {}).sessions.length, 1);
+
+      /* REFUSALS — every one returns null rather than throwing or fabricating an empty night. A
+         caller that cannot tell "no data" from "a night with nothing in it" cannot report either. */
+      T.eq('null is refused', N(null), null);
+      T.eq('undefined is refused', N(undefined), null);
+      T.eq('a number is refused', N(42), null);
+      T.eq('a string is refused', N('x'), null);
+      T.eq('an object with no sets and no channels is refused', N({}), null);
+      T.eq('an EMPTY sets array is refused, not treated as a night with no sessions', N({ sets: [] }), null);
+      T.eq('a non-array `sets` is refused', N({ sets: 'no' }), null);
+      T.eq('a bare array is refused', N([]), null);
+    });
+
     group('CPAPDex co-import — a surge corroborates ONE apnea, and lands on the right night (§6.3/§6.4)', 'cpapdex-coimport · fusion', function (T) {
       var CN = env.CpapCoimport;
       if (!CN || typeof CN.normalizeEcg !== 'function' || typeof CN.autonomicCorroboration !== 'function') {
@@ -22414,13 +22913,33 @@
           })
           .join(' | ');
       };
+      /* ── THE PASS COUNT IS PART OF THE ASSERTION, not part of the label ────────────────────────
+         `fail === 0` alone cannot see a self-test that has STOPPED CHECKING THINGS. Delete an `ok(…)`
+         inside selfTest, or make its condition unconditionally true, and `fail` stays 0 while `pass`
+         silently drops — the gate reads green over a self-test that now proves strictly less.
+
+         This is not hypothetical. Mutation-sweeping `cpapdex-dsp.js` leaves 488 survivors, and 122 of
+         them — a quarter of the whole population, and the single largest cluster in the file — sit
+         inside `selfTest` itself, kept alive by exactly this gap. It is the repo's recurring failure
+         wearing one more disguise: a check that ran and reported success about something it never
+         examined.
+
+         So the count is pinned. When you legitimately add or remove a self-test assertion, UPDATE THE
+         NUMBER HERE in the same commit — that edit is the point rather than an obstacle: it is what
+         makes a change in what a module checks about ITSELF visible in review. */
+      var pinPass = function (label, r, want) {
+        T.ok(label + ' self-test reports no failures (' + r.pass + ' passed)', r.fail === 0, r.fail + ' failed · ' + failLog(r));
+        T.ok(
+          label + ' self-test still runs all ' + want + ' of its own assertions',
+          r.pass === want,
+          'pass=' + r.pass + ' expected ' + want + ' — if you added or removed an assertion, update this number deliberately; if you did not, the self-test has stopped checking something'
+        );
+      };
       if (ED && typeof ED.selfTest === 'function') {
-        var re = ED.selfTest();
-        T.ok('cpapdex-edf.js self-test (' + re.pass + ' passed)', re.fail === 0, re.fail + ' failed · ' + failLog(re));
+        pinPass('cpapdex-edf.js', ED.selfTest(), 20);
       } else T.ok('cpapdex-edf.js loaded with selfTest()', false, 'env.CpapEdf missing in this runner');
       if (DS && typeof DS.selfTest === 'function') {
-        var rd = DS.selfTest();
-        T.ok('cpapdex-dsp.js self-test (' + rd.pass + ' passed)', rd.fail === 0, rd.fail + ' failed · ' + failLog(rd));
+        pinPass('cpapdex-dsp.js', DS.selfTest(), 82);
       } else T.ok('cpapdex-dsp.js loaded with selfTest()', false, 'env.CpapDsp missing in this runner');
       T.ok('ecgdex-morph.js exposes analyze() (exercised via ECGDSP.analyze)', !!(EM && typeof EM.analyze === 'function'));
       T.ok('ppgdex-morph.js exposes analyze() (exercised via PPGDSP morphology)', !!(PM && typeof PM.analyze === 'function'));
@@ -31401,6 +31920,56 @@
         '...but a WIDE ENOUGH scan recovers it, which is why the comparison must be scanned',
         !atPeakScanned.refused && atPeakScanned.bestScore > 0.9,
         'peak scanned best=' + atPeakScanned.bestScore
+      );
+    });
+
+    /* ════ SIMULTANEITY IS A PROPERTY OF THE OVERLAP (PAT-COMPENDIUM §9.1) ════════════════════════
+       `sharedClock` gated every PAT verdict and NOTHING executed it — it lived in a worker, which is
+       exactly why `verdict()` was moved to pat-gate.js before it. Measured 2026-08-10 over 15 box
+       nights it refused 21 of 30 pairings, and it refuses BEFORE verdict() reads coupling or beat IQR,
+       so the nights that passed those bars were never scored. Both halves were mis-named: `dT0`
+       compared FILE START times (the host starts BLE streams sequentially — 55 s to 16 276 s of
+       stagger is routine) and the count ratio compared WHOLE-FILE beat totals for files of different
+       lengths. Real geometry is used below, so these cannot pass against the old form. ════ */
+    group('PAT sharedClock — simultaneity is measured over the OVERLAP, not the file headers', 'pat · sharedclock · regression', function (T) {
+      var G = env.PATGate;
+      if (!G || !G.sharedClock) {
+        T.skip('PATGate.sharedClock not in env', 'wire pat-gate.js into both runners');
+        return;
+      }
+      // 2026-08-02, verbatim: ECG covers 1.8 h, PPG 10 h, files start 1246.9 s apart. Same heart.
+      var ecg = { t0Ms: 0, durSec: 6540, n: 5551 },
+        ppg = { t0Ms: 1246900, durSec: 36000, n: 31580 };
+      var sc = G.sharedClock(ecg, ppg, { min: 109 });
+      T.ok('a REAL box night with a 1246 s start stagger and a 5.5x duration ratio is simultaneous', sc.ok === true, 'rateRatio=' + sc.rateRatio.toFixed(3) + ' overlapMin=' + sc.overlapMin);
+      T.ok(
+        'ANTI-VACUITY · the OLD criteria would BOTH have refused this exact night',
+        sc.dT0 > 5000 && sc.beatRatio > 0.12,
+        'dT0=' + (sc.dT0 / 1000).toFixed(0) + ' s · beatRatio=' + sc.beatRatio.toFixed(3)
+      );
+      T.ok('…and the rate ratio it now uses is duration-independent', sc.rateRatio < 0.05, 'ecg ' + (sc.ecgHz * 60).toFixed(1) + ' bpm vs ppg ' + (sc.ppgHz * 60).toFixed(1) + ' bpm');
+
+      // a genuinely different heart rate: 50 bpm against 75 bpm over the same window ⇒ refuse
+      var fast = { t0Ms: 0, durSec: 6540, n: Math.round((6540 * 75) / 60) };
+      T.eq('a real RATE disagreement (50 vs 75 bpm) is refused', G.sharedClock(ecg, fast, { min: 109 }).ok, false);
+
+      // no common interval ⇒ refuse, however well the rates agree
+      var later = { t0Ms: 100000000, durSec: 6540, n: 5551 };
+      var scNo = G.sharedClock(ecg, later, { min: -26 });
+      T.ok('disjoint recordings are refused even with IDENTICAL rates', scNo.ok === false && scNo.rateRatio < 1e-9, 'rateRatio=' + scNo.rateRatio.toFixed(6));
+      T.eq('a sub-floor overlap is refused', G.sharedClock(ecg, ppg, { min: G.SC_MIN_OVERLAP_MIN - 0.01 }).ok, false);
+      T.eq('…and exactly the floor is accepted (boundary, not a gap)', G.sharedClock(ecg, ppg, { min: G.SC_MIN_OVERLAP_MIN }).ok, true);
+
+      // absent `ov` the overlap is DERIVED, never assumed — a caller that forgets it must not pass blindly
+      T.eq('with no overlap argument it derives the interval rather than defaulting to ok', G.sharedClock(ecg, later).ok, false);
+      /* The expectation is the CLOSED FORM of these inputs, not the real night's 109 min — that number
+         came from the real files' durations and asserting it here would be circular (it was used to
+         pick the synthetic ones). Derived must equal what the caller would compute, independently. */
+      var wantMin = (Math.min(ecg.t0Ms + ecg.durSec * 1000, ppg.t0Ms + ppg.durSec * 1000) - Math.max(ecg.t0Ms, ppg.t0Ms)) / 60000;
+      T.ok(
+        '…and derives exactly the interval the caller would compute',
+        Math.abs(G.sharedClock(ecg, ppg).overlapMin - wantMin) < 1e-9,
+        'derived=' + G.sharedClock(ecg, ppg).overlapMin.toFixed(2) + ' want=' + wantMin.toFixed(2)
       );
     });
 

@@ -130,7 +130,7 @@ function corpus(M) {
   return texts;
 }
 
-export const families = [
+const BASE_FAMILIES = [
   {
     name: 'parseSensorXYZ · text ingest (holds inferAccUnit + xyzPlausible)',
     fn: 'parseSensorXYZ',
@@ -310,3 +310,58 @@ export const families = [
     }
   }
 ];
+
+/* ══ REGISTERING WHAT THE PROBES ALREADY RUN ═════════════════════════════════════════════════
+   `tools/probe-coverage.mjs` reported this battery claiming 92 of 287 survivors, and the obvious
+   reading — "the batteries are too narrow" — was wrong. `tools/probe-reach.mjs` counts which
+   functions each probe actually EXECUTES, and for this file it reports:
+
+       REACHED, NOT NAMED   28
+       NAMED, NOT REACHED    0
+
+   Zero. The inputs were never the problem. Every one of these functions was being called, some of
+   them enormously often — `respViterbi` 168 times per probe run, `xyzPlausible` 38 711, `toG` five
+   million — while their survivors sat unclaimed, because a family only ever reports on mutants
+   inside the line range of the `fn` it NAMES.
+
+   So each is registered under the probe that most exercises it. A survivor needs only one family to
+   claim it; naming more than one would re-run the same fingerprints for nothing.
+
+   ⚠️ THIS DOES NOT MAKE THEM CLASSIFIED. Each new family still has to separate its own controls, and
+   a family whose probe reaches a function without its OUTPUT depending on that function will report
+   BLIND and void — correctly. Registration removes the cheapest reason for a blind family; it does
+   not pre-judge the rest. */
+const REACHED = {
+  // the XYZ ingest path — all reached by the parseSensorXYZ corpus
+  parseSensorXYZ: ['inferAccUnit', 'xyzPlausible', 'xyzColsFromHeader', 'xyzColsByTail', 'streamKindFromHeader', 'p2', 'isoStamp', 'mulberry32', 'median'],
+  // the respiratory chain — filters, resampling and the Viterbi track
+  respiratoryEffort: [
+    'respResample',
+    'respBandpass',
+    'respZeroCross',
+    'respGrid',
+    'respWindowSpectrum',
+    'respViterbi',
+    'butterSOS',
+    'sosfilt',
+    'sosfiltfilt',
+    'revArr',
+    'fftR2',
+    'movavg',
+    'sampleHz',
+    'streamBaseMs',
+    'relSecOf',
+    'toG',
+    'mean',
+    'durationOf'
+  ],
+  motionSQI: ['clamp']
+};
+
+export const families = BASE_FAMILIES.concat(
+  Object.entries(REACHED).flatMap(([host, fns]) => {
+    const src = BASE_FAMILIES.find((f) => f.fn === host);
+    if (!src) return [];
+    return fns.map((fn) => ({ name: `${fn} · via the ${host} probe (registered, not re-run)`, fn, probe: src.probe }));
+  })
+);

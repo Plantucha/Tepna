@@ -121,11 +121,15 @@ function overlap(ecg, ppg) {
     e = Math.min(ecg.t0Ms + ecg.durSec * 1000, ppg.t0Ms + ppg.durSec * 1000);
   return { start: s, end: e, min: (e - s) / 60000 };
 }
-function sharedClock(ecg, ppg) {
-  var dT0 = Math.abs(ecg.t0Ms - ppg.t0Ms),
-    beatRatio = Math.abs(ecg.n - ppg.n) / Math.max(ecg.n, ppg.n, 1);
-  return { dT0: dT0, beatRatio: beatRatio, ok: dT0 <= 5000 && beatRatio <= 0.12 };
-}
+/* `sharedClock` moved to pat-gate.js on 2026-08-10, for the reason `verdict()` moved there before it
+   (ENGINE-VERIFICATION-FINDINGS §1.5): a gate criterion living in a WORKER cannot be executed by a
+   test without hand-extraction via `vm`, and this one was wrong for two years' worth of captures
+   without a single assertion touching it. The fix and its evidence are in the pat-gate copy. */
+var sharedClock =
+  (typeof PATGate !== 'undefined' && PATGate.sharedClock) ||
+  function () {
+    return { ok: false, reason: 'pat-gate.js not loaded' };
+  };
 function coupledPAT(rTimes, fTimes) {
   var lags = [],
     lagAtR = [],
@@ -335,7 +339,7 @@ self.onmessage = function (e) {
           ppg = ppgFootTimes(t[1]);
         var ov = overlap(ecg, ppg),
           cp = coupledPAT(ecg.times, ppg.times),
-          sc = sharedClock(ecg, ppg),
+          sc = sharedClock(ecg, ppg, ov),
           vd = PATGate.verdict(ov, cp, sc);
         var ppm = ov.min > 0 && isFinite(cp.driftRange) ? (cp.driftRange / (ov.min * 60000)) * 1e6 : NaN;
         function packCp(c) {

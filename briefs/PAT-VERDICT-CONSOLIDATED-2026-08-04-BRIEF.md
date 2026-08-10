@@ -3,9 +3,17 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** REFERENCE (living — the standing PAT verdict; last-verified 2026-08-04) · **Created:** 2026-08-04 · **Follows:** `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §3c–§3j, `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md`, `INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md` §2-RESULT-II, `PAT-FEASIBILITY-2026-07-08-BRIEF.md`
+**Status:** DONE — 2026-08-10 · **Superseded-by:** `PAT-COMPENDIUM-2026-08-10-BRIEF.md` · **Created:** 2026-08-04 · **Follows:** `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §3c–§3j, `PAT-NO-VALID-ANCHOR-2026-08-02-BRIEF.md`, `INTEGRATOR-PAT-VASCULAR-2026-07-18-BRIEF.md` §2-RESULT-II, `PAT-FEASIBILITY-2026-07-08-BRIEF.md`
 
 # PAT is blocked by ~90 ms of beat-to-beat scatter that is downstream of the heart — every other candidate has now been measured and eliminated
+
+> ⚠️ **SUPERSEDED 2026-08-10 — AND ITS CENTRAL CLAIM IS WITHDRAWN.** This brief concluded the ~90 ms
+> scatter was *"not a clock problem, not an alignment problem, and not a method problem. It is the
+> signal."* All three of those were the cause: ECGDex rounded its `fs` to the nominal 130 (46–126 ppm,
+> 1.25–4.16 s/night, fixed in #1121), the O2Ring's ROW rate was read as its sample rate (~6900 ppm),
+> and `PHYS`'s 450 ms window reports `450/√12 = 129.90 ms` by construction. On box captures with the
+> axis fixed the same interval measures **10–23 ms on three of six nights**. §2's elimination table and
+> §5's method warnings stand and are carried forward. See `PAT-COMPENDIUM-2026-08-10-BRIEF.md`.
 
 > **What this is.** A **consolidation, not a replacement.** Five PAT verdicts have been published from
 > this repo and the reasoning is now spread across four briefs, one of whose title claims is withdrawn
