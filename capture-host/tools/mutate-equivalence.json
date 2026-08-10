@@ -59,5 +59,77 @@
       "recorded": "2026-08-09",
       "found_by": "diff-scoped mutation gate on PR #1117"
     }
+  ],
+  "polar_pmd.py": [
+    {
+      "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, None) or 1",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_26",
+      "why": "The .get default is only consulted for a meas ABSENT from SAMPLE_HZ, and decode_frame raises ValueError('not decoded') for every such meas before the value is ever spent. So the default is unreachable; and even where it were reached, 0 and None are both falsy and the trailing `or 1` maps them to the same 1.",
+      "probe": "Enumerated SAMPLE_HZ: every decodable meas (ECG/PPG/ACC/GYRO/MAG/PPI) is a KEY, so .get hits and the default is never used. Drove decode_frame over 80 frame/fs/prev_last_ns combinations (4 meas x 4 fs incl. None x 5 prev) — the default is consulted 0 times. An unknown meas (0x3E) raises before reaching it."
+    },
+    {
+      "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, ) or 1",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_28",
+      "why": "Dropping the default makes .get return None on a miss — falsy, so the trailing `or 1` yields the same 1 as the falsy 0 it replaced. And the miss branch is unreachable anyway (see mutmut_26).",
+      "probe": "Same 80-combination battery. SAMPLE_HZ.get(PPI, 0) or 1 == SAMPLE_HZ.get(PPI) or 1 == 1."
+    },
+    {
+      "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, 1) or 1",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_29",
+      "why": "A default of 1 is truthy so `or 1` is skipped, but the value is 1 either way. Identical result, and the branch is unreachable regardless.",
+      "probe": "Same 80-combination battery; SAMPLE_HZ.get(PPI, 1) or 1 == 1 == SAMPLE_HZ.get(PPI, 0) or 1."
+    },
+    {
+      "key": "- fs = fs or SAMPLE_HZ.get(meas, 0) or 1 | + fs = fs or SAMPLE_HZ.get(meas, 0) or 2",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_30",
+      "why": "The `or` fallback fires only when SAMPLE_HZ[meas] is falsy, and PPI (rate 0) is the ONLY such meas. PPI frames set ppi=True, which forces back=0 for every sample, so step_ns is computed and never spent — no output byte depends on whether the fallback is 1 or 2.",
+      "probe": "[k for k,v in SAMPLE_HZ.items() if not v] == [3] (PPI). Decoded PPI frames with fs=None at both fallbacks: sensor_ns, t_ms, phone and values byte-identical, because `back = 0 if ppi else (n-1-i)`."
+    },
+    {
+      "key": "- truncated = False | + truncated = None",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_32",
+      "why": "`truncated` is a local consumed only by `if truncated: raise`. None and False are both falsy, so the raise fires identically and no caller can observe which was assigned — the name never leaves the function.",
+      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+    },
+    {
+      "key": "- if prev_last_ns is not None and n > 0: | + if prev_last_ns is not None and n > 1:",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_233",
+      "why": "The guard only gates computing `step_ns` from the device clock. At n == 1 the single sample has back = 0, so neither `sensor_ns` (last_ns - 0) nor `phone` (arrival - 0) depends on step_ns. The branch is reachable at n == 1 and changes nothing observable there; at n == 0 both forms skip it.",
+      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+    },
+    {
+      "key": "- if 0.9 * step_ns <= est <= 1.1 * step_ns: | + if 0.9 / step_ns <= est <= 1.1 * step_ns:",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_237",
+      "why": "Replacing the lower bound with 0.9/step_ns makes it ~1e-7 ns, so the if-branch now also accepts every est in (0, 0.9*step). But the ELIF below (`0 < est < step_ns`) already assigned `step_ns = est` for exactly that range, so the same value is assigned by a different branch. Above 1.1*step both forms refuse; at or below 0 both refuse.",
+      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+    },
+    {
+      "key": "- if 0.9 * step_ns <= est <= 1.1 * step_ns: | + if 0.9 * step_ns < est <= 1.1 * step_ns:",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_239",
+      "why": "Differs only when est == 0.9*step_ns exactly. There the strict form falls to the elif `0 < est < step_ns`, which is true (0.9*step < step) and assigns the identical `step_ns = est`. Probed at that exact boundary for every fs, including fs=1000 where 0.9*nominal*n is an exact integer.",
+      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+    },
+    {
+      "key": "- elif 0 < est < step_ns: | + elif 0 < est <= step_ns:",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_246",
+      "why": "Differs only when est == step_ns exactly — and that value is already inside [0.9*step, 1.1*step], so the IF above matched first and the elif is never reached. Unreachable difference.",
+      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+    },
+    {
+      "key": "- phone=arrival - _dt.timedelta(seconds=back * step_ns / 1e9), | + phone=arrival - _dt.timedelta(seconds=back * step_ns / 1000000001.0),",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "polar_pmd.x_decode_frame__mutmut_282",
+      "why": "A 1e-9 relative change to the divisor. The largest back*step_ns in any real frame is ~a few hundred ms, so the delta is ~1e-10 s — four orders below datetime's 1 us resolution, which quantises it away before it can be observed.",
+      "probe": "455-case battery, `tools/probe_equivalence.py --module polar_pmd.py` (committed, re-runnable): 7 frame shapes x 5 fs (None/52/130/176/1000) x 13 prev_last_ns including the EXACT 0.9x / 1.0x / 1.1x / 0.5x / 1.5x nominal boundaries per fs, plus 0, 1, 3 and n ns. Compared sensor_ns, phone and values byte-for-byte; 0/455 differ. The battery's canaries all fire (sign flip 150/455, PPI >>8 65/455, 1.1-strict 6/455, clamp-lower 45/455), so a zero here is a measurement, not a blind spot — an earlier 160-case battery returned 0 for two of those canaries and was rejected."
+    }
   ]
 }
