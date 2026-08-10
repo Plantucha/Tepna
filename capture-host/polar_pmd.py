@@ -593,11 +593,17 @@ def decode_frame(data: bytes, arrival: _dt.datetime, fs: float | None = None,
     # BACK-TIMING STEP. The negotiated rate is a LABEL, not the hardware's real rate: each Verity sensor
     # die free-runs on its own oscillator. Measured over a full night (2026-07-19): MAG 20.516 Hz against
     # a nominal 20 (+2.6 %), GYRO 51.684 vs 52, ACC 51.672 vs 52, PPG 55.132 vs 55 — while the H10's ECG
-    # is exactly 130.0000. Stepping back by the NOMINAL interval therefore mis-places every sample in the
-    # frame, worst at its start, and the SIGN of the error decides whether anyone notices: where the true
-    # rate is FASTER the frame over-reaches into its predecessor (MAG: 678 backwards timestamps in one
-    # night, down to -112 ms), where it is SLOWER it leaves a silent gap (GYRO/ACC: 22 ms, no backwards
-    # stamp, looks perfectly clean). So derive the step from the device's OWN clock — the previous frame's
+    # holds 130 Hz to within tens of ppm (modal step 7 692 672 ns = 129.9938 Hz, -47 ppm; per-file mean
+    # rate 129.887-130.088 across 50 files of the vendor's own PSL decode — H10-ECG-RATE-CORPUS-CHECK
+    # 2026-08-04 §2). The CONTRAST is what this argument needs and it is intact either way: -0.005 % for
+    # ECG against +2.6 % for MAG, three orders apart. Do NOT read "130.0000" here as an exact integer —
+    # that figure was our own nominal read back (DEVICE-RATE-TRUTH §4.1), and no constant below changes
+    # on account of the correction. Stepping back by the NOMINAL interval therefore mis-places every
+    # sample in the frame, worst at its start, and the SIGN of the error decides whether anyone
+    # notices: where the true rate is FASTER the frame over-reaches into its predecessor (MAG: 678
+    # backwards timestamps in one night, down to -112 ms), where it is SLOWER it leaves a silent gap
+    # (GYRO/ACC: 22 ms, no backwards stamp, looks perfectly clean). So derive the step from the
+    # device's OWN clock — the previous frame's
     # last sample and this frame's are exactly `n` intervals apart — and fall back to nominal only when
     # that is unavailable or implausible.
     step_ns = 1e9 / fs

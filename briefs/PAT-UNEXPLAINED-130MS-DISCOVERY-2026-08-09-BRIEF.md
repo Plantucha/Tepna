@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-08-10 · **Created:** 2026-08-09 · **Follows:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` · **Answered-by:** `PAT-SAWTOOTH-ANSWERS-THE-130MS-2026-08-10-BRIEF.md` · **Affects:** investigation only — **no code change is in scope**
+**Status:** DONE — 2026-08-10 · **Consolidated-into:** `PAT-COMPENDIUM-2026-08-10-BRIEF.md` · **Created:** 2026-08-09 · **Follows:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` · **Answered-by:** `PAT-SAWTOOTH-ANSWERS-THE-130MS-2026-08-10-BRIEF.md` · **Affects:** investigation only — **no code change is in scope**
 
 # ~130 ms of PAT scatter is unaccounted for. Find out what it is.
 

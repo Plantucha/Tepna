@@ -277,38 +277,56 @@ file, scoped, bail on (#1027 — an estimate of the whole, `thin()` spreads dete
 | file | groups | tag cost | sampled | **MEASURED** | error | mutants |
 |---|---:|---:|---:|---:|---:|---:|
 | `hrvdex-dsp.js` | 15 | 1 s | 28 % | **39.1 %** | — ¹ | 490 |
-| `ppgdex-dsp.js` | **49** | 24 s | 33 % | **38.9 %** | −1.0 ² | 1176 |
+| `ppgdex-dsp.js` | **49** | 24 s | 33 % | **39.0 %** ⁴ | −1.0 ² | 1176 |
 | `motiondex-dsp.js` | 15 | 1 s | 37 % | **37.3 %** | −0.3 | 466 |
 | `cpapdex-dsp.js` | **7** | 4 s | 40 % | **40.4 %** | −0.4 | 819 |
 | `pulsedex-dsp.js` | 17 | 6 s | 42 % | **25.5 %** | **+16.5** | 568 |
 | `glucodex-dsp.js` | 16 | 2 s | 55 % | **33.7 %** | **+21.3** | 836 |
-| `oxydex-dsp.js` | 39 | 20 s | 58 % | *unswept* | — | **2680** |
+| `oxydex-dsp.js` | 39 | 20 s | 58 % | **33.8 %** | **+24.2** ³ | **2680** |
 | `ecgdex-dsp.js` | 48 | 137 s | 62 % | *unswept* | — | 1725 |
 | `integrator-dsp.js` | **73** | 310 s | 68 % | *unswept* | — | 1745 |
 
 ¹ hrvdex's 28 % predates #1030's `computeDerived` golden; the 39.1 % is post-fix and canary-guarded,
 so the two measure different code and the error column would be meaningless.
 ² ppgdex's measured figure is post-#1113 (+10 kills); against the same code the sample erred −1.0.
+³ oxydex swept 2026-08-10: 2680 tested, 899 killed, 18 invalid, 1763 survivors, 88 min wall.
+`canary: NONE` because it was the file's FIRST sweep — the run learned one (L72 `eq === → !==`), so the
+next oxydex sweep is canary-guarded. The harness demonstrably worked: it killed 899.
+
+⁴ re-swept 2026-08-10 against the expanded battery: 1204 tested, 464 killed, 15 invalid, 725
+survivors, `canary: PASSED` — 39.0 %, confirming the earlier 38.9 % against unchanged code. With 99
+recorded equivalents the DISTINGUISHABLE rate is 464/1090 = **42.6 %**.
 
 ### 🔴 THE SAMPLE IS NOT RELIABLE, AND THE FAILURE IS BIMODAL RATHER THAN NOISY
 
-Six files have now been swept exhaustively against their 60-mutant sample. The errors do not look
+Seven files have now been swept exhaustively against their 60-mutant sample. The errors do not look
 like a distribution around zero:
 
 ```
 ppgdex −1.0 · motiondex −0.3 · cpapdex −0.4        three essentially EXACT
-pulsedex +16.5 · glucodex +21.3                    two enormous OVERESTIMATES
+pulsedex +16.5 · glucodex +21.3 · oxydex +24.2     three enormous OVERESTIMATES
 ```
 
-One standard error on a 60-draw is ~6 points, so ±0.3–1.0 is suspiciously good and +16.5/+21.3 are
-2.7–3.5 SE out. A sampling error that were merely noisy would scatter; this splits into two
-populations, and **both failures are in the same direction — the sample flatters the file.**
+One standard error on a 60-draw is ~6 points, so ±0.3–1.0 is suspiciously good and +16.5/+21.3/+24.2
+are 2.7–4.0 SE out. A sampling error that were merely noisy would scatter; this splits into two
+populations, and **every failure is in the same direction — the sample flatters the file.**
 
-**The mechanism is not known, and this brief does not guess one.** What follows from the data alone:
+**⚠️ THE PREDICTION THIS BRIEF MADE WAS TESTED, AND IT HELD.** The bullet below used to read "the three
+unswept rows are estimates, and they sit at the top of the table, which is exactly where an optimistic
+bias would put a file nobody can afford to check." `oxydex` was the first of those three to be
+measured. Sampled **58 %** — the highest row that had any hope of being checked — it came in at
+**33.8 %**, near the BOTTOM of the measured table and a **+24.2** error, the largest yet recorded.
 
-- **the three unswept rows above are estimates, not measurements**, and the two most expensive files
-  in the fleet (`ecgdex`, `integrator`) are estimated at 62 % and 68 % — the top of the table, which
-  is exactly where an optimistic bias would put a file nobody can afford to check;
+That is no longer a caution about the method; it is a result. The two files still unswept are
+estimated at 62 % and 68 %, and those are now the only rows left standing on a technique that has
+over-stated three of the four files it was checked against, by 16–24 points, never once in the other
+direction. **Do not quote 62 % or 68 %.** They are the same kind of number 58 % turned out to be.
+
+**The mechanism is still not known, and this brief does not guess one.** What follows from the data:
+
+- **the two remaining unswept rows are estimates, not measurements**, and they are the two most
+  expensive files in the fleet (`ecgdex` 137 s/mutant, `integrator` 310 s) — which is why they are
+  unchecked, and why an optimistic bias there is the most expensive kind to carry;
 - **"the sample held on three files" was never evidence that the sample holds.** It was believed
   after three confirmations and refuted on the fourth and fifth. Three agreeing measurements are the
   same shape as §5's `~27 %` generalisation and §3a's six-cluster claim — this programme's most
@@ -419,11 +437,218 @@ distinct answers over 53 inputs; `compareIntervalSeries` 13 over 24). **"0 % kil
 equivalent" are indistinguishable to the tool**, and no better battery closes the gap. The only exit
 is one test.
 
-| file | function | survivors | after one bootstrap test |
-|---|---|---:|---|
-| `glucodex-dsp.js` | `genSynthetic` | 90 | 5 of 6 sampled now die |
-| `pulsedex-dsp.js` | `compareIntervalSeries` | 54 | 3 of 8 |
-| `pulsedex-dsp.js` | `fragmentation` | 19 | 4 of 8 |
+**Scanned across every swept file, the class is far larger than the three found by accident.** Any
+function holding ≥8 survivors and zero kills, measured against each file's own sweep:
+
+| file | function | survivors | state | conversion |
+|---|---|---:|---|---|
+| `glucodex-dsp.js` | `genSynthetic` | 90 | **done** | 5 of 6 |
+| `ppgdex-dsp.js` | **`cvhrFromNN`** | **57** | open — the hard one | — |
+| `pulsedex-dsp.js` | `compareIntervalSeries` | 54 | **done** | 3 of 8 |
+| `motiondex-dsp.js` | `inferAccUnit` | 31 | **done** | 6 of 9 |
+| `glucodex-dsp.js` | `locateColumns` | 30 | **done** | 3 of 9 |
+| `cpapdex-dsp.js` | `_nightFromInput` | 20 | **done** | 6 of 8 |
+| `pulsedex-dsp.js` | `fragmentation` | 19 | **done** | 4 of 8 |
+| `hrvdex-dsp.js` | `getFilteredRows` | 11 | **not probeable** — reads `document` | — |
+| `glucodex-dsp.js` | `applySessionCorrections` | 8 | **done** | **7 of 8** — the best yet |
+| `glucodex-dsp.js` | `correlateNutrition` | 3 | open (found by the pipeline probe) | — |
+| `glucodex-dsp.js` | `perDay` | 1 | open (found by the pipeline probe) | — |
+| | | **~324** | **seven done, ~252 unlocked** | ≈ 20 % of the mapped fleet |
+
+`applySessionCorrections` converted at **7 of 8** — the highest in the programme — and it took three
+passes, each blocked by the same thing in a different disguise: **the assertion was coarser than the
+mutant.**
+
+- The first pass killed 5. Its fixture came from `genSynthetic`, whose sessions all sit at nearly the
+  same level, so the offsets were `[1, 0, -1]` — at that size an operand swap, a dropped `Math.round`
+  and a broken subtraction all look alike. Three sessions at a deliberate **90 / 110 / 130** give
+  `[+20, 0, -20]`: signed, exact, and different from its own negation.
+- The `deDrift && sess.driftPerDay != null` → `||` mutant needed levelling **on** and de-drift **off**
+  over a *ramped* series. With neither flag the function returns at its first line and never reaches
+  that branch, so every earlier case was structurally blind to it.
+- The `Math.max(20, v)` floor needed the record **minimum**, not a daily median. A median over 288
+  readings does not move when the few beneath the floor are lifted, so the median assertion passed
+  identically with and without the clamp. `analyze().min` reads 20 against the mutant's 0.
+
+The one survivor is honest debt and is recorded as such: `p < sess.e` → `p <= sess.e` corrects one
+extra sample per session, and every value this function exposes is an aggregate — offsets, a global
+median, daily means over 288 readings. One sample moves none of them. Killing it needs a per-sample
+view of the corrected series that `analyze` does not export.
+
+### 7.0d · THE BATTERIES COVERED A MINORITY OF THE FLEET, AND THE TOOL COULD NOT SAY SO
+
+§7.0c found this in one file. It is fleet-wide, and it is the largest single defect the programme has
+turned up — not in the code under test, but **in the instrument**.
+
+`probe-equivalence` scores each family against the mutants in its `fn`'s LINE RANGE. A survivor in a
+function no family names is therefore not "unclassified" — it is **invisible**. It is not counted, not
+reported, and not missed. The run ends *"all controls separated"* and reads as complete. Measured
+2026-08-10, before this work-unit's changes:
+
+| file | survivors | claimable by any family | **invisible** |
+|---|---:|---:|---:|
+| `ppgdex-dsp.js` | 736 | 57 | **679 (92 %)** |
+| `cpapdex-dsp.js` | 488 | 133 | **355 (73 %)** |
+| `motiondex-dsp.js` | 287 | 92 | **195 (68 %)** |
+| `glucodex-dsp.js` | 516 | ~190 | ~326 |
+| `hrvdex-dsp.js` | 298 | 217 | 81 (27 %) |
+| | | | **≈ 1310** |
+
+ppgdex had **three** families for a **46-function** module, and its probes had been reporting clean
+runs throughout. This is precisely the failure class this repo keeps meeting — *a gate that passes
+without examining the thing it names* — and the fix is not a better battery. It is **a number that
+makes the omission visible**, so a battery's REACH is reported beside its verdicts:
+
+```sh
+node tools/probe-coverage.mjs --sweep <sweep.json>     # exits 1 when the majority is invisible
+```
+
+It prints the invisible survivors grouped by enclosing function — each row is a family nobody wrote —
+and is backed by 15 known-answer selftests covering the properties that matter: overlapping ranges
+must not double-count (a nested helper inside a claimed function is normal), boundaries are inclusive
+at both ends, no ranges means nothing claimable rather than everything, and an empty survivor set is
+0 % rather than `NaN`.
+
+**Claimable is not classified**, and the tool says so: a family still has to separate its controls,
+and a distinguishable survivor is debt rather than a win. This measures only whether the prober could
+form an opinion at all — the difference between *"we looked and found a real gap"* and *"we never
+looked"*. Those two were previously the same output.
+
+**ppgdex, rebuilt against that number: 57 → 438 claimable (7.7 % → 59.5 %).** 32 pipeline families now
+cover `analyze` and everything it calls. What had been missing was never access — `analyze` is
+exported — it was **a fixture that survives beat detection**. The battery's existing generator emits a
+linear RAMP: correct for the timing-axis branches it was written for, and pulseless, so every
+beat-dependent function downstream returned empty. A generator with an actual pulse (systolic
+upstroke, dicrotic notch, diastolic decay, per-channel gain so the three LEDs are not bit-identical)
+was verified by execution before any of this was written down:
+
+- 60 s @ 60 bpm → **59 beats, HR 60**; 120 s @ 72 bpm → **130 beats, HR 72**
+- and **`cvhrFromNN`** — the "hard one" listed above with 57 survivors, filed as *a project rather than
+  a battery* — falls straight out of an HR modulated in the apnea band: flat HR → `cvhrIndex 0`, 0
+  events; a 40 s cycle → **84.1, 7 events**; a 30 s cycle → **108.4, 9 events**. It should be struck
+  from the hard list.
+
+⚠️ **No ppgdex classifications are emitted here, deliberately.** The available sweep predates #1129 and
+only **370 of its 736** survivors still sit on their recorded line. Probing a half-stale sweep cannot
+emit wrong verdicts — emission is keyed on the recorded survivor set — but it silently mislabels moved
+survivors as *controls*, which corrupts the one check that proves a battery works at all. A fresh
+sweep is owed before this battery's verdicts are recorded. The instrument landed first because it is
+what prevents the next omission.
+
+### 7.0e · "REACHED" AND "NAMED" ARE DIFFERENT QUESTIONS, AND THE GAP IS 96 FUNCTIONS WIDE
+
+§7.0d measures whether the prober could form an OPINION about a survivor — a question about which
+`fn` names the families declare. Underneath it sits a different question with a different fix: which
+functions the battery's inputs actually EXECUTE. `tools/probe-reach.mjs` answers that one, and the
+two come apart constantly:
+
+| state | meaning | fix |
+|---|---|---|
+| **reached, not named** | the probe already runs it; nothing claims its survivors | **register the existing probe under that `fn` — one line** |
+| **named, not reached** | a family exists but its inputs never get there | a new input SHAPE; a registration would only produce blind controls |
+| neither | no family, never executed | write a family |
+
+Measured across the five batteries: **96 functions are already being executed and are not named.**
+
+```
+motiondex 28 · glucodex 33 · cpapdex 14 · hrvdex 11 · pulsedex 10
+```
+
+On `motiondex-dsp.js` that is nine of the twelve largest invisible clusters — `inferAccUnit`,
+`xyzPlausible`, `sampleHz`, `streamKindFromHeader`, `xyzColsFromHeader` (all reached by the
+`parseSensorXYZ` probe) and `respWindowSpectrum`, `respResample`, `respViterbi`, `movavg` (reached by
+the respiratory probes). **`respViterbi` was being called 168 times per probe run while its 9
+survivors sat unclaimed.** Only `bodyPosition`, `classifyGravity` and `buildNodeExport` are genuinely
+unreached and need new inputs.
+
+**How it measures, and why the first attempt was thrown away.** It injects a counter as the first
+statement of every function body and runs each family's probe ONCE — exact, and one module load per
+family. The first version used mutation as a proxy (perturb a line, see whether the fingerprint moves)
+and did not finish in ten minutes; the direct measurement returns in seconds. When the proxy is
+slower AND weaker than the thing it stands in for, it is not a shortcut.
+
+⚠️ **Reached is not killable, and neither is claimed.** A function can be executed by a probe whose
+output never varies with it — which is exactly what the engine's control check exists to catch, and
+that check still has to pass. This only rules out the cheapest explanation for a blind family: that
+the battery never ran it at all.
+
+### 7.0c · THE PIPELINE IS NOT UNREACHABLE — it was UNPROBED, and it holds NO equivalents
+
+Of glucodex's 516 survivors the original five families claimed ~190. The rest sat in functions the
+module does not export, and were quietly counted as "not covered" rather than as anything specific.
+They are all reached by **`analyze(parsed, progress, opts)`**, which *is* exported, and `genSynthetic`
+supplies its input — so no fixture had to be invented.
+
+**A family's `fn` names the function whose LINE RANGE decides which survivors it claims and which
+kills serve as its controls — not the function the probe calls.** So one 50-input pipeline probe is
+registered once per pipeline function. Registering it as a single `analyze` family instead would have
+classified only the 13 survivors inside `analyze` itself and left the other ~165 untouched, while the
+tool reported a clean run.
+
+The result is a clear negative, and it is worth more than a handful of ledger rows:
+
+| function | survivors | controls | distinguishable | equivalent |
+|---|---:|---|---:|---:|
+| `clean` | 62 | 12/12 | **62** | 0 |
+| `postprandial` | 24 | 2/2 | **24** | 0 |
+| `detectSessions` | 20 | 6/6 | **20** | 0 |
+| `excursions` | 18 | 9/9 | **18** | 0 |
+| `dawnPhenomenon` | 13 | 5/5 | **13** | 0 |
+| `analyze` | 13 | 11/11 | **13** | 0 |
+| `agp` · `nocturnalHypo` · `tierOf` · `daypartVariability` | 16 | all separated | **16** | 0 |
+| | **166** | | **166** | **0** |
+
+Every control separated, so the battery demonstrably reaches all of it — and **not one survivor is
+equivalent**. The classification lever is exhausted here: glucodex's remaining debt is real gaps, and
+the only thing that moves it is tests. That is a more useful answer than more ledger entries would
+have been, and it is the first file where the two levers have been told apart with evidence.
+
+**What the six taught, beyond the counts.** Each converted because its test attacked a DISCRIMINATION
+rather than a happy path, and twice the first attempt failed for the same reason:
+
+- `inferAccUnit` — test the BOUNDS, not the bands. 1000 / 1 / 9.81 confirms three bands exist and
+  exercises none of the six comparisons; every band edge returns null, and that is what separates `>`
+  from `>=`. Mistaking g for mg is a 1000× error in every downstream metric.
+- `locateColumns` — the band predicate survived until a SECOND numeric column was present, because
+  with one column the scorer picks it whatever the band test says. **A discriminator is only tested
+  when something has to be discriminated.** With a device counter beside the glucose column, a mutant
+  reports a serial number as blood glucose.
+- `fragmentation` — the same line appears TWICE (inside the run loop and after it) and only a series
+  *ending* in alternation reaches the second.
+- `parseCSV` — **the battery never executed the function at all**, and looked thorough while not doing
+  it. Its nine CSV variants stamped rows `M-D-YYYY HH:MM`, dash-separated. That is neither ISO nor one
+  of the Clock Contract §2.4 vendor formats (all slash-separated), so `_ckParse` returned null for
+  every row, every row hit `if (!isFinite(ms)) continue`, and all nine threw the identical
+  `Parsed only 0 valid readings`. Fourteen inputs collapsed to **four** distinct answers and five of
+  eight controls read as equivalent. Because `parseCSV` throws unless ten rows parse, *every* mutant
+  downstream of that floor — the mmol/L auto-detect, the newest-first sort, the quote strip, the
+  European decimal comma — was unreachable at once. Corrected: 28 inputs, **17** distinct answers, and
+  all five families now separate every control (12/12 · 12/12 · 12/12 · 10/10 · 8/8).
+- `parseCSV`'s **file-level DMY lock** then needed a second attempt, and the first was wrong in an
+  instructive way. A 300-row file starting on the **13th** reads like a lock test and is not one: at
+  5-minute cadence it spans 25 h, so every row is dated the 13th or 14th, every row resolves itself,
+  and the lock never becomes load-bearing. The shape that observes it is a file of **ambiguous** days
+  carrying **one** proving row — the proof has to travel from that row to the others. Confirmed by
+  applying the real mutant rather than reasoning about it: all-proving rows give byte-identical output,
+  while ambiguous-plus-one gives `2026-07-05` against the mutant's `2026-05-07`. **A two-month error in
+  every meal-to-glucose alignment**, and the first test could not see it.
+
+So: when a control stays blind, **"widen the battery" is the wrong instinct.** Five times now the cause
+was a missing SHAPE — and twice the missing shape was not an exotic edge case but the ORDINARY one,
+absent because the input never satisfied a precondition the function imposes before doing anything at
+all. More of the shapes already present would not have found any of the five.
+
+**The diagnostic is printed on every run and should be read first:** `battery N inputs, M distinct
+answers`. When M is a small fraction of N the battery is not too narrow — it is being rejected at a
+guard, and no amount of extra input variety helps until that guard is satisfied.
+
+**`cvhrFromNN` is reachable but expensive**, and is the one item worth planning rather than picking
+up. Its output is already exported (`cvhrIndex` / `cvhrEvents` on the analyze result), so no export
+change is needed — but it is called once from deep inside `analyze()`, so a test must build a
+synthetic PPG that survives beat detection, SQI and correction while still carrying a controlled
+apnea-band oscillation in its NN series. `getFilteredRows` is the one this method cannot fix at all:
+it reads `document`, so its behaviour is a function of the DOM rather than of its argument, and its 11
+survivors stay unclassified unless it is refactored.
 | | | **163** | all now probeable |
 
 So the unit of work is not always "write a battery". For a zero-kill function it is **"write a test,

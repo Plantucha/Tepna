@@ -74,8 +74,9 @@ if the decode, byte order, and axis packing are all right:
 - **H10 HR vs RR agree to 0.1 bpm** — device HR median 54, RR median 1114 ms → 53.9 bpm. Two
   independently decoded columns. (This clears the *capture* side only. The open
   `ECGDex parseDeviceHR reads the wrong column` defect is on the Dex read side and is untouched.)
-- **ECG is perfect**: 130.0000 Hz true rate, sensor steps exactly 7.6923 ms, zero non-monotonic,
-  zero gaps over 198 minutes, amplitude −821…978 µV.
+- **ECG is clean**: zero non-monotonic, zero gaps over 198 minutes, amplitude −821…978 µV. ⚠️ **This
+  line also claimed a "130.0000 Hz true rate, sensor steps exactly 7.6923 ms". That half is CIRCULAR
+  and is corrected in the §140 table below** — the cleanliness holds, the rate did not.
 - **O2Ring PPG**: 125.754 Hz measured vs `ppg_fs: 125.738` configured — 0.013%. That constant is well
   calibrated; leave it.
 - The **2026-07-18 byte-alignment fix** (`d9b8b51`) is in the running process and holding. Sample
@@ -137,10 +138,28 @@ clocks do not match their nominal labels:
 | GYRO | 52 | **51.6842** | 51.685 | −0.61% |
 | ACC | 52 | **51.6724** | 51.688 | −0.63% |
 | PPG | 55 | **55.1318** | 55.133 | +0.24% |
-| ECG (H10) | 130 | **130.0000** | 130.001 | 0.00% |
+| ECG (H10) | 130 | ~~130.0000~~ **129.9938** (modal step 7 692 672 ns) | 130.001 | ~~0.00%~~ **−0.005 % (−47 ppm)** |
 
 Two fully independent clocks — the device's own `last_ns` and the host's arrival time — agree to four
-significant figures. These rates are real.
+significant figures. **The four Verity rows are real** — they are non-nominal, so they came through the
+device-clock decoder.
+
+> ⚠️ **THE ECG ROW WAS CIRCULAR, and is corrected above** (`H10-ECG-RATE-CORPUS-CHECK-2026-08-04` §2,
+> re-measured 2026-08-09). This table's ECG segment `20260719023533` was the **last session before
+> commit `80e05501`**, which switched `sensor_ns` from the nominal rate to the device's own frame
+> stamps — so **98.63 % of its deltas are exactly `1e9/130`**: our own nominal, read back. Only the
+> host-arrival leg (130.001) was ever a measurement of the device.
+>
+> Measured against **50 files of the vendor's own PSL decode** (`Ecg nightly/`, H10 `02849638`, nominal
+> share **0.000 %** — so the device clock, not our fallback): the modal step is **7 692 672 ns =
+> 129.9938 Hz, −47 ppm**, and the per-file mean rate spans **129.8869–130.0883** (~1 550 ppm), which no
+> single figure describes. **A rate landing exactly on its nominal is the signature of a fallback, not
+> of a good clock** — always report the nominal-share beside a rate (`DEVICE-RATE-TRUTH-2026-08-05`
+> §4.1, which supplies this mechanism).
+>
+> **No constant changes on account of this.** −47 ppm is three orders below `CK_AXIS_MAX_PPM` (50 000)
+> and below what any downstream consumer resolves. §2's back-timing argument is unaffected: it needs
+> the ECG↔MAG *contrast*, and −0.005 % against +2.58 % is the same conclusion.
 
 **The sign of the error decides the symptom, which is why this hid for so long:**
 
