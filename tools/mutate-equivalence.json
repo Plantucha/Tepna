@@ -1594,7 +1594,7 @@
       "probe": "lombScargle · the spectrum: 95 inputs, 19 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 919,
+      "line": 966,
       "op": "cmp >= → >",
       "before": "if (durMin >= 20 * 60) {",
       "after": "if (durMin > 20 * 60) {",
@@ -1603,7 +1603,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 921,
+      "line": 968,
       "op": "num → 0",
       "before": "conf = 0.95;",
       "after": "conf = 0;",
@@ -1612,7 +1612,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 922,
+      "line": 969,
       "op": "num → 0",
       "before": "why = (durMin / 60).toFixed(1) + ' h continuous record';",
       "after": "why = (durMin / 0).toFixed(1) + ' h continuous record';",
@@ -1621,7 +1621,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 923,
+      "line": 970,
       "op": "cmp >= → >",
       "before": "} else if (durMin >= 90) {",
       "after": "} else if (durMin > 90) {",
@@ -1630,7 +1630,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 927,
+      "line": 974,
       "op": "cmp >= → >",
       "before": "} else if (hr >= 100 || rising > 15) {",
       "after": "} else if (hr > 100 || rising > 15) {",
@@ -1639,7 +1639,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 927,
+      "line": 974,
       "op": "cmp > → >=",
       "before": "} else if (hr >= 100 || rising > 15) {",
       "after": "} else if (hr >= 100 || rising >= 15) {",
@@ -1648,7 +1648,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 930,
+      "line": 977,
       "op": "cmp > → >=",
       "before": "why = 'mean HR ' + hr.toFixed(0) + ' bpm' + (rising > 15 ? ', HR rising ' + rising.toFixed(0) : '');",
       "after": "why = 'mean HR ' + hr.toFixed(0) + ' bpm' + (rising >= 15 ? ', HR rising ' + rising.toFixed(0) : '')",
@@ -1657,7 +1657,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 930,
+      "line": 977,
       "op": "num → 0",
       "before": "why = 'mean HR ' + hr.toFixed(0) + ' bpm' + (rising > 15 ? ', HR rising ' + rising.toFixed(0) : '');",
       "after": "why = 'mean HR ' + hr.toFixed(0) + ' bpm' + (rising > 0 ? ', HR rising ' + rising.toFixed(0) : '');",
@@ -1666,7 +1666,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 931,
+      "line": 978,
       "op": "cmp <= → <",
       "before": "} else if (durMin <= 8 && (hour == null || hour < 11)) {",
       "after": "} else if (durMin < 8 && (hour == null || hour < 11)) {",
@@ -1675,7 +1675,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 931,
+      "line": 978,
       "op": "cmp < → <=",
       "before": "} else if (durMin <= 8 && (hour == null || hour < 11)) {",
       "after": "} else if (durMin <= 8 && (hour == null || hour <= 11)) {",
