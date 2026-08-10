@@ -780,8 +780,10 @@
         // The device says this interval is not valid — see _pdBlockerColFromHeader. Counted, not
         // silently discarded: a night where a third of the beats were blocked is a different night
         // from one where none were, and a caller that cannot see the difference cannot say so.
-        if (blockerCol >= 0 && blockerCol < parts.length &&
-            parseFloat((parts[blockerCol] || '').replace(',', '.').trim()) > 0) { nBlocked++; continue; }
+        if (blockerCol >= 0 && blockerCol < parts.length && parseFloat((parts[blockerCol] || '').replace(',', '.').trim()) > 0) {
+          nBlocked++;
+          continue;
+        }
         vals.push(v);
         const ts = parts[0].trim();
         const p = parseTimestamp(ts, { dateAnchorMs, prevTMs, preferDMY: _tsOpts.preferDMY, dmyLocked: _tsOpts.dmyLocked, dmyContradictory: _tsOpts.dmyContradictory }); // floating wall-clock

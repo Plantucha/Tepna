@@ -8265,12 +8265,10 @@
       // error estimate 30 and hr 0 — physiologically absurd next to its ~1000 ms neighbours, and the
       // device says so. Note it sits INSIDE the 300–2000 ms plausibility window, so the range check
       // cannot catch it; only the flag can.
-      var ppi = PPI_HDR + '\n' + [
-        '2026-08-09T22:01:24.965;1000;10;0;1;1;60',
-        '2026-08-09T22:01:25.965;398;30;1;1;1;0',
-        '2026-08-09T22:01:26.365;1010;11;0;1;1;59',
-        '2026-08-09T22:01:27.375;1020;12;0;1;1;59'
-      ].join('\n');
+      var ppi =
+        PPI_HDR +
+        '\n' +
+        ['2026-08-09T22:01:24.965;1000;10;0;1;1;60', '2026-08-09T22:01:25.965;398;30;1;1;1;0', '2026-08-09T22:01:26.365;1010;11;0;1;1;59', '2026-08-09T22:01:27.375;1020;12;0;1;1;59'].join('\n');
       var r = PR(ppi);
       T.eq('the blocked interval is gone', (r.vals || []).indexOf(398), -1);
       T.eq('the three valid beats survive', JSON.stringify(r.vals), JSON.stringify([1000, 1010, 1020]));
@@ -8281,31 +8279,22 @@
          the two disagree. In the standard export `blocker` sits at index 3, so a veto hard-coded to
          column 3 passes every case above; it survived exactly that mutant until this case was added.
          Here the flag is moved to index 1, which a positional veto reads as the INTERVAL column. */
-      var moved = 'Phone Data RX timestamp;blocker;PP-interval [ms];error estimate [ms];hr [bpm]\n' + [
-        '2026-08-09T22:01:24.965;0;1000;10;60',
-        '2026-08-09T22:01:25.965;1;398;30;0',
-        '2026-08-09T22:01:26.365;0;1010;11;59'
-      ].join('\n');
+      var moved =
+        'Phone Data RX timestamp;blocker;PP-interval [ms];error estimate [ms];hr [bpm]\n' +
+        ['2026-08-09T22:01:24.965;0;1000;10;60', '2026-08-09T22:01:25.965;1;398;30;0', '2026-08-09T22:01:26.365;0;1010;11;59'].join('\n');
       var rm = PR(moved);
       T.eq('blocker found by NAME wherever it sits', rm.nBlocked, 1);
       T.eq('…and the right column is still read as the interval', JSON.stringify(rm.vals), JSON.stringify([1000, 1010]));
 
       // An RR file has no blocker column, and its column 3 does not exist — a positional veto would
       // either crash or silently eat data.
-      var rr = 'Phone timestamp;RR-interval [ms]\n' + [
-        '2026-08-09T22:01:24.965;1000',
-        '2026-08-09T22:01:25.965;1010',
-        '2026-08-09T22:01:26.965;1020'
-      ].join('\n');
+      var rr = 'Phone timestamp;RR-interval [ms]\n' + ['2026-08-09T22:01:24.965;1000', '2026-08-09T22:01:25.965;1010', '2026-08-09T22:01:26.965;1020'].join('\n');
       var r2 = PR(rr);
       T.eq('an RR file keeps every interval', JSON.stringify(r2.vals), JSON.stringify([1000, 1010, 1020]));
       T.eq('and reports zero blocked', r2.nBlocked, 0);
 
       // A PPI file with nothing blocked must report 0 — a counter that is always positive says nothing.
-      var clean = PPI_HDR + '\n' + [
-        '2026-08-09T22:01:24.965;1000;10;0;1;1;60',
-        '2026-08-09T22:01:25.965;1010;11;0;1;1;59'
-      ].join('\n');
+      var clean = PPI_HDR + '\n' + ['2026-08-09T22:01:24.965;1000;10;0;1;1;60', '2026-08-09T22:01:25.965;1010;11;0;1;1;59'].join('\n');
       T.eq('a clean PPI night reports zero blocked', PR(clean).nBlocked, 0);
     });
 
