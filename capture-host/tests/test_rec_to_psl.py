@@ -269,6 +269,24 @@ def test_the_flag_BYTE_explodes_into_three_columns_in_bit_order(tmp_path, flags,
     assert r2p._ppi_row(_WHEN, beat) == _live_row(tmp_path, _WHEN, beat, f"f{flags}.txt")
 
 
+def test_the_RETURNED_COUNT_is_what_actually_reached_the_FILE(tmp_path):
+    """`write_psl` returns `len(res["rows"])` — a CLAIM about what it wrote, made without looking. Every
+    other test here wrote a single PPI row, so turning the loop's `continue` into a `break` truncated
+    the file to one beat while the return value still said twelve, and nothing noticed (mutate-diff,
+    #1149). A count that is computed rather than observed is the §4b family: a report of success about
+    something never examined. Assert against the bytes on disk, not against the input length."""
+    rows, t = [], _WHEN
+    for pp in (1190, 1150, 1210, 1175, 1160):
+        rows.append((t, 0, (50, pp, 0, 0b110)))
+        t += _dt.timedelta(milliseconds=pp)
+    dest = str(tmp_path / "many.txt")
+    n = r2p.write_psl({"meas": "ppi", "rows": rows}, dest)
+    lines = open(dest).read().splitlines()
+    assert n == len(rows) == len(lines) - 1, "the count returned is not the count written"
+    assert [ln.split(";")[1] for ln in lines[1:]] == ["1190", "1150", "1210", "1175", "1160"], \
+        "every beat must reach the file, in order — a truncation reads exactly like a short recording"
+
+
 def test_PPI_carries_NO_device_clock_column(tmp_path):
     """Every `sensor_ns` the box has written for PPI is 0 — the frames have no usable device clock — so
     the column is absent rather than present-and-zero. A zero column would be read as a real timebase."""
