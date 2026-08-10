@@ -277,7 +277,7 @@ file, scoped, bail on (#1027 — an estimate of the whole, `thin()` spreads dete
 | file | groups | tag cost | sampled | **MEASURED** | error | mutants |
 |---|---:|---:|---:|---:|---:|---:|
 | `hrvdex-dsp.js` | 15 | 1 s | 28 % | **39.1 %** | — ¹ | 490 |
-| `ppgdex-dsp.js` | **49** | 24 s | 33 % | **38.9 %** | −1.0 ² | 1176 |
+| `ppgdex-dsp.js` | **49** | 24 s | 33 % | **39.0 %** ⁴ | −1.0 ² | 1176 |
 | `motiondex-dsp.js` | 15 | 1 s | 37 % | **37.3 %** | −0.3 | 466 |
 | `cpapdex-dsp.js` | **7** | 4 s | 40 % | **40.4 %** | −0.4 | 819 |
 | `pulsedex-dsp.js` | 17 | 6 s | 42 % | **25.5 %** | **+16.5** | 568 |
@@ -292,6 +292,10 @@ so the two measure different code and the error column would be meaningless.
 ³ oxydex swept 2026-08-10: 2680 tested, 899 killed, 18 invalid, 1763 survivors, 88 min wall.
 `canary: NONE` because it was the file's FIRST sweep — the run learned one (L72 `eq === → !==`), so the
 next oxydex sweep is canary-guarded. The harness demonstrably worked: it killed 899.
+
+⁴ re-swept 2026-08-10 against the expanded battery: 1204 tested, 464 killed, 15 invalid, 725
+survivors, `canary: PASSED` — 39.0 %, confirming the earlier 38.9 % against unchanged code. With 99
+recorded equivalents the DISTINGUISHABLE rate is 464/1090 = **42.6 %**.
 
 ### 🔴 THE SAMPLE IS NOT RELIABLE, AND THE FAILURE IS BIMODAL RATHER THAN NOISY
 
@@ -530,6 +534,43 @@ emit wrong verdicts — emission is keyed on the recorded survivor set — but i
 survivors as *controls*, which corrupts the one check that proves a battery works at all. A fresh
 sweep is owed before this battery's verdicts are recorded. The instrument landed first because it is
 what prevents the next omission.
+
+### 7.0e · "REACHED" AND "NAMED" ARE DIFFERENT QUESTIONS, AND THE GAP IS 96 FUNCTIONS WIDE
+
+§7.0d measures whether the prober could form an OPINION about a survivor — a question about which
+`fn` names the families declare. Underneath it sits a different question with a different fix: which
+functions the battery's inputs actually EXECUTE. `tools/probe-reach.mjs` answers that one, and the
+two come apart constantly:
+
+| state | meaning | fix |
+|---|---|---|
+| **reached, not named** | the probe already runs it; nothing claims its survivors | **register the existing probe under that `fn` — one line** |
+| **named, not reached** | a family exists but its inputs never get there | a new input SHAPE; a registration would only produce blind controls |
+| neither | no family, never executed | write a family |
+
+Measured across the five batteries: **96 functions are already being executed and are not named.**
+
+```
+motiondex 28 · glucodex 33 · cpapdex 14 · hrvdex 11 · pulsedex 10
+```
+
+On `motiondex-dsp.js` that is nine of the twelve largest invisible clusters — `inferAccUnit`,
+`xyzPlausible`, `sampleHz`, `streamKindFromHeader`, `xyzColsFromHeader` (all reached by the
+`parseSensorXYZ` probe) and `respWindowSpectrum`, `respResample`, `respViterbi`, `movavg` (reached by
+the respiratory probes). **`respViterbi` was being called 168 times per probe run while its 9
+survivors sat unclaimed.** Only `bodyPosition`, `classifyGravity` and `buildNodeExport` are genuinely
+unreached and need new inputs.
+
+**How it measures, and why the first attempt was thrown away.** It injects a counter as the first
+statement of every function body and runs each family's probe ONCE — exact, and one module load per
+family. The first version used mutation as a proxy (perturb a line, see whether the fingerprint moves)
+and did not finish in ten minutes; the direct measurement returns in seconds. When the proxy is
+slower AND weaker than the thing it stands in for, it is not a shortcut.
+
+⚠️ **Reached is not killable, and neither is claimed.** A function can be executed by a probe whose
+output never varies with it — which is exactly what the engine's control check exists to catch, and
+that check still has to pass. This only rules out the cheapest explanation for a blind family: that
+the battery never ran it at all.
 
 ### 7.0c · THE PIPELINE IS NOT UNREACHABLE — it was UNPROBED, and it holds NO equivalents
 

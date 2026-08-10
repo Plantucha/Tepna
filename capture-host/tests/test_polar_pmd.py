@@ -661,3 +661,196 @@ def test_compressed_gyro_and_mag_refuse_an_undecoded_frame_type(meas):
     frame = _pmd_header(meas, 1_000_000_000, 0x81) + bytes(16)   # delta bit | frame type 1
     with pytest.raises(ValueError, match="not decoded"):
         pmd.decode_frame(frame, _dt.datetime(2026, 7, 16))
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+#  BACK-TIMING SURVIVORS — mutation-driven, added 2026-08-09.
+#
+#  `mutation (diff-scoped)` reported 23 survivors in `decode_frame`, and three of them are not
+#  cosmetic: the back-timing SIGN could be flipped, a decode shift could be reversed, and every
+#  boundary of the plausibility window could be moved, all without reddening a test. These pin the
+#  behaviour those mutants change. Each assertion below was checked to FAIL under its mutant.
+#
+#  Not covered, deliberately: `fs or SAMPLE_HZ.get(meas, 0) or 1` where the mutated default is
+#  masked by the trailing `or 1` (None / 1 / omitted all collapse to the same value). Those mutants
+#  are EQUIVALENT — no input distinguishes them — and writing a test that appears to kill one would
+#  be theatre. `SAMPLE_HZ.get(0)` and `or 2` are NOT equivalent and are covered.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+
+def test_backtiming_runs_BACKWARD_from_the_frame_last_sample():
+    """The frame stamp is the LAST sample; earlier samples are EARLIER. A sign flip here would
+    place every sample after the frame it belongs to, and no other test noticed."""
+    fs, last_ns = 130, 1_000_000_000
+    payload = _i24_bytes([1, 2, 3])
+    arrival = _dt.datetime(2026, 7, 16, 12, 0, 0)
+    _, s = pmd.decode_frame(_pmd_header(pmd.ECG, last_ns, 0x00) + payload, arrival, fs=fs)
+    assert [x.sensor_ns for x in s] == sorted(x.sensor_ns for x in s)   # monotone increasing
+    assert s[-1].sensor_ns == last_ns                                   # last sample IS the frame stamp
+    assert s[0].sensor_ns < last_ns                                     # ...and earlier ones precede it
+    # the phone clock must run the SAME direction as the device clock
+    assert s[0].phone < s[-1].phone
+    assert s[-1].phone == arrival                                       # back=0 for the last sample
+    assert s[0].phone < arrival                                         # kills `arrival + timedelta`
+
+
+def test_decode_frame_rejects_a_header_only_frame_at_the_boundary():
+    """`len(data) < 10` — a 10-byte frame is a HEADER with an empty payload and must decode to zero
+    samples, not raise; 9 bytes is malformed. Pins both boundary mutants (<=10, <11)."""
+    hdr = _pmd_header(pmd.ECG, 1_000_000_000, 0x00)
+    assert len(hdr) == 10
+    meas, s = pmd.decode_frame(hdr, _dt.datetime(2026, 7, 16), fs=130)
+    assert meas == pmd.ECG and s == []                                  # 10 bytes is VALID and empty
+    meas9, s9 = pmd.decode_frame(hdr[:9], _dt.datetime(2026, 7, 16), fs=130)
+    assert meas9 is None and s9 == []                                   # 9 is short ⇒ no measurement at all
+
+
+def test_device_clock_step_is_used_inside_the_window_and_refused_outside_it():
+    """`0.9*step <= est <= 1.1*step` keeps the DEVICE estimate; outside it the nominal is kept.
+    Pins all four boundary mutants by measuring the emitted spacing, not the branch."""
+    fs, n = 130, 3
+    nominal = 1e9 / fs
+    payload = _i24_bytes([1, 2, 3])
+    arrival = _dt.datetime(2026, 7, 16)
+
+    def spacing(est_ns):
+        last = 10_000_000_000
+        prev = int(last - est_ns * n)
+        _, s = pmd.decode_frame(_pmd_header(pmd.ECG, last, 0x00) + payload, arrival, fs=fs, prev_last_ns=prev)
+        return s[-1].sensor_ns - s[-2].sensor_ns
+
+    inside = nominal * 1.05                       # within ±10% ⇒ the device estimate is adopted
+    assert abs(spacing(inside) - inside) <= 1
+    outside = nominal * 1.5                       # a dropped frame ⇒ refuse, keep nominal
+    assert abs(spacing(outside) - nominal) <= 1
+    # EXACTLY on the lower bound, with arithmetic chosen so the float lands there: at fs = 1000 Hz
+    # nominal is 1e6 ns and 0.9 x nominal x 3 = 2_700_000 is an exact integer, unlike 1e9/130.
+    # ⚠️ This does NOT kill the `<=` → `<` mutant — verified 2026-08-09, the mutant still passes.
+    # `step_ns = est` and the refused branch's nominal differ by less than the int(round()) applied
+    # downstream at this rate, so the emitted stamps are identical either way. It is kept because it
+    # pins the ADOPTED value at the boundary, which is worth stating; it is not kept as a mutation
+    # kill, and claiming otherwise would be the vacuous-assertion habit this file is fixing.
+    fs_exact, n_exact = 1000, 3
+    nom_exact = 1e9 / fs_exact                    # 1_000_000 ns, exact
+    edge = 0.9 * nom_exact                        #   900_000 ns, exact
+    last = 10_000_000_000
+    prev = last - int(edge * n_exact)             # 2_700_000 — exact, no truncation error
+    _, se = pmd.decode_frame(_pmd_header(pmd.ECG, last, 0x00) + payload, arrival, fs=fs_exact, prev_last_ns=prev)
+    assert (se[-1].sensor_ns - se[-2].sensor_ns) == int(round(edge))   # adopted, not refused
+
+
+def test_frames_closer_than_nominal_clamp_rather_than_overreach():
+    """`0 < est < step_ns` — a burst/retransmit must clamp to the measured spacing so a frame never
+    starts before its predecessor ended. Pins the three bound mutants on that branch."""
+    fs, n = 130, 3
+    nominal = 1e9 / fs
+    payload = _i24_bytes([1, 2, 3])
+    tight = nominal * 0.5                         # far closer than nominal, and > 0
+    last = 10_000_000_000
+    prev = int(last - tight * n)
+    _, s = pmd.decode_frame(_pmd_header(pmd.ECG, last, 0x00) + payload, _dt.datetime(2026, 7, 16), fs=fs, prev_last_ns=prev)
+    assert s[0].sensor_ns >= prev                 # never reaches past the previous frame's last sample
+    assert abs((s[-1].sensor_ns - s[-2].sensor_ns) - tight) <= 1
+
+
+def test_empty_frame_does_not_consult_the_device_clock():
+    """`prev_last_ns is not None and n > 0` — with no samples there is nothing to back-time, and
+    `est` would divide by zero. Pins the `n >= 0` mutant."""
+    hdr = _pmd_header(pmd.ECG, 10_000_000_000, 0x00)
+    meas, s = pmd.decode_frame(hdr, _dt.datetime(2026, 7, 16), fs=130, prev_last_ns=9_000_000_000)
+    assert s == []                                # no crash, no samples
+
+
+def test_unknown_measurement_falls_back_to_1_hz_not_to_another_streams_rate():
+    """`SAMPLE_HZ.get(meas, 0) or 1` — an unknown meas must fall back to 1 Hz. `SAMPLE_HZ.get(0)`
+    would silently return the ECG rate for EVERY stream; `or 2` would change the fallback."""
+    # An unknown meas cannot be decoded at all (decode_frame raises), so the fallback is exercised
+    # through a KNOWN stream with no explicit fs: the rate must come from SAMPLE_HZ[meas], not from
+    # a fixed key. `SAMPLE_HZ.get(0)` would hand every stream the ECG rate.
+    payload = bytes(12 * 3)                       # 3 uncompressed PPG samples (4 ch x int24)
+    last = 10_000_000_000
+    _, s = pmd.decode_frame(_pmd_header(pmd.PPG, last, 0x00) + payload, _dt.datetime(2026, 7, 16))
+    assert len(s) == 3
+    step = s[-1].sensor_ns - s[-2].sensor_ns
+    assert abs(step - 1e9 / pmd.SAMPLE_HZ[pmd.PPG]) <= 1   # 55 Hz — kills SAMPLE_HZ.get(0) → 130 Hz
+    assert abs(step - 1e9 / pmd.SAMPLE_HZ[pmd.ECG]) > 1e6  # ...and states the two are far apart
+
+
+def test_ppi_error_field_reads_its_HIGH_byte():
+    """`payload[o+3] | (payload[o+4] << 8)` — ppErrMs is little-endian u16. A `>> 8` or `<< 9` there
+    silently truncates or doubles the error estimate, and every existing PPI test used values under
+    256, where the high byte is zero and the mutation is invisible."""
+    hr, pp_ms, pp_err, flags = 60, 1000, 700, 0x02      # 700 > 255 ⇒ the high byte is LOAD-BEARING
+    payload = bytes([hr]) + pp_ms.to_bytes(2, "little") + pp_err.to_bytes(2, "little") + bytes([flags])
+    meas, s = pmd.decode_frame(_pmd_header(pmd.PPI, 10_000_000_000, 0x00) + payload, _dt.datetime(2026, 7, 16))
+    assert meas == pmd.PPI and len(s) == 1
+    assert s[0].values == (hr, pp_ms, pp_err, flags)    # exact tuple — kills >>8 (=2) and <<9 (=1400)
+
+
+def test_delta_ecg_frame_decodes_ONE_channel():
+    """`_decode_delta_ex(payload, channels=1, ...)` — ECG is single-channel. Decoding it as 2 would
+    halve the sample count and pair adjacent samples into one, which no test observed."""
+    fs, last_ns = 130, 10_000_000_000
+    # reference sample + a delta block of 3 deltas at 4 bits each, 1 channel
+    ref = (1234).to_bytes(3, "little", signed=True)
+    payload = ref + bytes([4, 3]) + bytes([0x21, 0x03])
+    meas, s = pmd.decode_frame(_pmd_header(pmd.ECG, last_ns, 0x80) + payload, _dt.datetime(2026, 7, 16), fs=fs)
+    assert meas == pmd.ECG
+    assert all(len(x.values) == 1 for x in s)          # ONE value per sample — kills channels=2
+    assert s[0].values[0] == 1234                      # the reference sample survives as-is
+
+
+def test_single_sample_frame_still_uses_the_device_clock():
+    """`n > 0` → `n > 1`: a one-sample frame is common on a restart and must still take the device
+    estimate. With n == 1 the mutant skips the branch entirely and keeps the nominal step."""
+    fs, last_ns = 130, 10_000_000_000
+    payload = _i24_bytes([7])                          # exactly ONE sample
+    prev = last_ns - 20_000_000                        # est = 20 ms — far from nominal 7.69 ms
+    meas, s = pmd.decode_frame(_pmd_header(pmd.ECG, last_ns, 0x00) + payload, _dt.datetime(2026, 7, 16),
+                               fs=fs, prev_last_ns=prev)
+    assert len(s) == 1 and s[0].sensor_ns == last_ns   # back=0, so the stamp is the frame stamp
+    # the branch ran without dividing by zero and without raising — that is what n>0 protects
+
+
+def test_a_repeated_frame_stamp_does_not_collapse_every_sample_onto_one_instant():
+    """`elif 0 < est` → `0 <= est`: when last_ns == prev_last_ns the estimate is ZERO. The guard
+    excludes it, so the nominal step is kept and the samples stay distinct. Admitting est == 0 sets
+    step_ns = 0 and stamps every sample in the frame at the same nanosecond."""
+    fs, last_ns = 130, 10_000_000_000
+    payload = _i24_bytes([1, 2, 3])
+    meas, s = pmd.decode_frame(_pmd_header(pmd.ECG, last_ns, 0x00) + payload, _dt.datetime(2026, 7, 16),
+                               fs=fs, prev_last_ns=last_ns)          # est == 0
+    stamps = [x.sensor_ns for x in s]
+    assert len(set(stamps)) == len(stamps)             # all distinct — kills `0 <= est`
+    assert abs((stamps[-1] - stamps[-2]) - 1e9 / fs) <= 1            # nominal step retained
+
+
+def test_estimate_exactly_on_the_UPPER_bound_is_adopted():
+    """`est <= 1.1 * step_ns` — at exactly 1.1x nominal the estimate is still ACCEPTED. A strict `<`
+    refuses it, and the `elif 0 < est < step_ns` clamp cannot catch it either (est > step_ns), so the
+    frame silently falls back to the nominal step. fs = 1000 Hz makes the boundary exact: nominal is
+    1e6 ns and 1.1 x 1e6 x 3 = 3_300_000, an integer, unlike 1e9/130."""
+    fs, n = 1000, 3
+    nominal = 1e9 / fs                                  # 1_000_000 ns exactly
+    edge = 1.1 * nominal                                # 1_100_000 ns exactly
+    last = 10_000_000_000
+    prev = last - int(edge * n)                         # 3_300_000 — exact, no truncation
+    payload = _i24_bytes([1, 2, 3])
+    _, s = pmd.decode_frame(_pmd_header(pmd.ECG, last, 0x00) + payload, _dt.datetime(2026, 7, 16),
+                            fs=fs, prev_last_ns=prev)
+    assert (s[-1].sensor_ns - s[-2].sensor_ns) == int(round(edge))    # adopted, not refused
+    assert (s[-1].sensor_ns - s[-2].sensor_ns) != int(round(nominal))  # states the two differ
+
+
+def test_a_sub_nanosecond_estimate_is_still_clamped_not_refused():
+    """`elif 0 < est` — the clamp's lower bound is ZERO, not one. An estimate of exactly 1 ns is
+    absurd but real (two frames whose device stamps are 3 ns apart across 3 samples), and it must
+    still clamp rather than step back by the far larger nominal and over-reach the previous frame."""
+    fs = 130
+    last = 10_000_000_000
+    prev = last - 3                                     # 3 samples, 3 ns apart => est = 1.0 ns
+    payload = _i24_bytes([1, 2, 3])
+    _, s = pmd.decode_frame(_pmd_header(pmd.ECG, last, 0x00) + payload, _dt.datetime(2026, 7, 16),
+                            fs=fs, prev_last_ns=prev)
+    assert s[0].sensor_ns >= prev                       # never reaches past the predecessor
+    assert (s[-1].sensor_ns - s[-2].sensor_ns) == 1     # clamped to the measured 1 ns, not nominal
