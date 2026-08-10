@@ -52,9 +52,18 @@ try {
 
 var LAG_SEARCH_MS = 2000,
   LAG_TOL_MS = 90,
-  BIN_MIN = 5,
+  BIN_MIN = 5, // bin WIDTH in minutes — NOT a minimum pair count. See BIN_MATCH_MIN.
   PHYS_LO = 200,
-  PHYS_HI = 650;
+  PHYS_HI = 650,
+  /* A bin earns a vote in the drift statistics by MATCH RATE, never by an absolute pair count
+     (PAT-DRIFT-STATISTIC-2026-08-10 §3). Until 2026-08-10 no minimum was applied at all, so a bin
+     holding a single paired beat contributed a full median to a max−min range. On 2026-08-03 finger
+     the bins setting the extremes held 6–24 paired beats against ~238 ECG beats in the same five
+     minutes (3–10 %) with within-bin IQR 106–228 ms, while the 100 %-match bins ran 7–26 ms. Those
+     survivors are also EDGE-CENSORED: as the true lag approaches PHYS_HI only the beats whose foot
+     lands under the ceiling get paired, so the surviving median is dragged to the window edge —
+     which is why they read 619 and 630 ms. Qualifying alone moves that night 404 → 222. */
+  BIN_MATCH_MIN = 0.8;
 
 function median(a) {
   if (!a.length) return NaN;
@@ -218,13 +227,46 @@ function coupledPAT(rTimes, fTimes) {
     .sort(function (a, b) {
       return a - b;
     });
+  /* Denominator per bin = the ECG beats falling in that same bin, so a bin's weight comes from the
+     fraction of beats that paired, not from how many happened to. */
+  var rInBin = {};
+  for (var rb = 0; rb < rTimes.length; rb++) {
+    var rk = Math.floor((rTimes[rb] - t0) / (BIN_MIN * 60000));
+    rInBin[rk] = (rInBin[rk] || 0) + 1;
+  }
   var binMed = binKeys.map(function (b) {
-    return { min: b * BIN_MIN, med: median(bins[b]) };
+    var v = bins[b],
+      nR = rInBin[b] || 0;
+    return {
+      min: b * BIN_MIN,
+      bin: b,
+      med: median(v),
+      n: v.length,
+      nBeats: nR,
+      iqr: quantile(v, 0.75) - quantile(v, 0.25),
+      matchRate: nR ? v.length / nR : 0
+    };
   });
   var medVals = binMed.map(function (x) {
     return x.med;
   });
+  /* `driftRange` is RETAINED as a diagnostic and NO LONGER GATED ON (PAT-DRIFT-STATISTIC-2026-08-10).
+     Pairing is confined to a window PHYS_HI − PHYS_LO = 450 ms wide, so every bin median lies in a
+     450 ms interval by construction and the range is bounded by 450 — and SATURATES there: the nine
+     box recordings longer than ~6 h read 442 431 430 427 427 425 423 423 420, i.e. 93–98 % of the
+     ceiling. That is the window width reported nine times, not nine measurements of drift, and a
+     statistic that pins to a constant for anything long enough can neither rank nights nor fail safe.
+     It saturates because it is the envelope of a DRIFTLESS walk: the bin-to-bin slope is ≈0 (Theil–Sen
+     −6.9…+24.8 ppm, median ≈ −1) and the median |step| is 6–35 ms, so the range grows as σ·√N. On
+     2026-08-02 finger, 22 bins at median |step| 12 ms predict √(8N/π)·σ ≈ 133 ms; measured 125.
+     That walk is why every earlier diagnosis came back null — no trend to find, only √2 from halving
+     the span, nothing from re-selecting beats, and no covariate (ρ against heart rate runs −0.63…+0.32
+     with the sign flipping, and removing the lag~RR fit leaves the range unchanged: 72 → 78). */
   var driftRange = medVals.length ? Math.max.apply(null, medVals) - Math.min.apply(null, medVals) : NaN;
+  /* THE GATED QUANTITY comes from PATGate.driftStats — single-sourced there because this file is in
+     no test lane. Absent pat-gate.js the drift fields go undefined and PATGate.verdict falls back to
+     `driftRange`, i.e. exactly the pre-2026-08-10 behaviour. */
+  var ds = typeof PATGate !== 'undefined' && PATGate.driftStats ? PATGate.driftStats(binMed) : { stepP95: NaN, nSteps: 0, binsQualified: 0, binsTotal: binMed.length, driftRangeQual: NaN };
   var slope = NaN,
     linR2 = NaN;
   if (binMed.length >= 3) {
@@ -267,7 +309,12 @@ function coupledPAT(rTimes, fTimes) {
     nCoupled: pat.length,
     residIQR: residIQR,
     binMed: binMed,
-    driftRange: driftRange,
+    driftRange: driftRange, // diagnostic only — duration-dependent, saturates at PHYS_HI − PHYS_LO
+    driftRangeQual: ds.driftRangeQual, // the same range over qualified bins — also diagnostic
+    stepP95: ds.stepP95, // GATED: p95 |Δ bin median| between adjacent qualified bins
+    nSteps: ds.nSteps,
+    binsQualified: ds.binsQualified,
+    binsTotal: ds.binsTotal,
     slope: slope,
     linR2: linR2,
     inPhysPct: pat.length
@@ -353,6 +400,11 @@ self.onmessage = function (e) {
                 nCoupled: c.nCoupled,
                 residIQR: c.residIQR,
                 driftRange: c.driftRange,
+                driftRangeQual: c.driftRangeQual,
+                stepP95: c.stepP95,
+                nSteps: c.nSteps,
+                binsQualified: c.binsQualified,
+                binsTotal: c.binsTotal,
                 slope: c.slope,
                 linR2: c.linR2,
                 inPhysPct: c.inPhysPct,
