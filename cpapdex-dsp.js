@@ -1547,6 +1547,28 @@
       log.push((cond ? '✓ ' : '✗ ') + name + (cond ? '' : ' — got ' + got));
     }
 
+    /* ── near() IS THE COMPARATOR EVERY OTHER ASSERTION BELOW RUNS THROUGH ─────────────────────
+       Every `ok(…)` here asks `near(actual, expected, tol)`, so a `near` that has quietly become
+       more permissive weakens all 70-odd of them at once — and NOTHING downstream notices, because
+       every value it is asked about is comfortably inside its tolerance. Mutation-sweeping this file
+       proved the point: `a != null && isFinite(a) && …` mutated to `||` — which makes `near` return
+       true for null and for NaN — SURVIVED the full gated suite, as did `<= tol` weakened to `< tol`.
+       122 of this file's 488 survivors are inside `selfTest`, and they are mutants of the checking
+       apparatus rather than of the code it checks.
+
+       A comparator can only be caught being too permissive by asking it something it must REFUSE.
+       These are that negative control, and they are the reason the cluster is killable at all. */
+    /* ⚠ THE BOUNDARY VALUE MUST BE EXACTLY REPRESENTABLE IN BINARY, or this proves nothing. The first
+       version of this line used `near(10, 10.2, 0.2)` — and 10.2 − 10 is 0.19999999999999929, which is
+       STRICTLY LESS than 0.2, so `<=` and `<` agree and the mutant survived a test written to catch
+       it. Halves are exact: 10.5 − 10 is 0.5 to the bit. */
+    ok('near() accepts a value exactly ON the tolerance', near(10, 10.5, 0.5), '10 vs 10.5 ±0.5');
+    ok('near() REJECTS a value just outside the tolerance', !near(10, 10.75, 0.5), '10 vs 10.75 ±0.5');
+    ok('near() REJECTS null — a missing metric is not a passing one', !near(null, 0, 1), 'near(null,0,1)');
+    ok('near() REJECTS undefined', !near(undefined, 0, 1), 'near(undefined,0,1)');
+    ok('near() REJECTS NaN', !near(NaN, 0, 1), 'near(NaN,0,1)');
+    ok('near() REJECTS Infinity', !near(Infinity, 0, 1), 'near(Infinity,0,1)');
+
     var prep = prepare(_synthRaw());
     var m = computeMetrics(prep);
     ok('usageHours ≈ 7.5', near(m.usageHours, 7.5, 0.02), m.usageHours);
