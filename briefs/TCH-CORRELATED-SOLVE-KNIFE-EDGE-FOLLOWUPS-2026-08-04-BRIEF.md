@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-04 · **Spawned-by:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md` §8a (R2, executed) · **Relates:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md`, `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`
+**Status:** DONE — 2026-08-09 (all three §3 items closed. ⚠️ **The last one REFUTED its own hypothesis and §2's diagnosis with it:** ρ̂ (the residual correlation against CPAP-as-truth) and the ρ at which σ(CPAP) vanishes are **the same algebraic expression**, so the measured ρ can never sit anywhere but exactly on the singularity — for any data. Verified to 0.000e+0 pooled, ≤6.1e-16 per night, and 6.11e-16 over 200 random triples. The "0.5 % from ρ_crit" was rounding; there was no gap to explain. Per-night ρ spans −0.007…0.978 and all 9 solvable nights still land on their own ρ_crit with margin 0.0000, so pooling was never the problem. The estimator, refusal path and `rhoCrit` are untouched and sound. See §5.) · **Created:** 2026-08-04 · **Spawned-by:** `TCH-REFERENCE-VALIDATION-2026-07-12-BRIEF.md` §8a (R2, executed) · **Relates:** `INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-2026-07-03-BRIEF.md`, `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md`
 
 # The correlated solve is right; this triplet sits 0.5 % from the singularity that makes it meaningless
 
@@ -103,10 +103,8 @@ the obvious suspect.
       **Gated** — `analysis-stats · rho-crit` grows to 18 assertions, with the anti-vacuity leg carrying
       the meaning: far from the boundary the same field reports **−0.030** and tolerates **±0.0338**, a
       10× contrast against the operating point.
-- [ ] **Test whether one constant ρ per pair is the mis-specification.** ρ(ECG,PPG) is estimated over a
-      whole night; if it varies by epoch, the night-level value can sit near ρ_crit while no epoch does.
-      Re-estimate per epoch and re-solve; if the per-epoch solves are stable while the pooled one
-      collapses, the model is the problem and the triplet is fine.
+- [x] **REFUTED 2026-08-09 — and the real cause is worse than a mis-specification: ρ was measured
+      circularly, so it can NEVER be anywhere but the singularity.** See §5.
 
 ## 4 · Explicitly NOT owed
 
@@ -120,3 +118,111 @@ the obvious suspect.
 - `SENSOR-TRIO-NIGHTS-PAPER-BRIEF.md` — its power curves use the *classic* (ρ = 0) hat, so they are not
   affected by this; the `sensor-trio · tch-parity` gate binds that tool to the gated kernel.
 - Failure-shape sibling: `tch-multinight`'s negative-variance exclusion — same boundary, opposite sign.
+
+---
+
+## 5 · EXECUTED 2026-08-09 — ρ̂ and ρ_crit are the SAME EXPRESSION. The knife edge is an identity.
+
+The open item asked whether one constant ρ per pair is the mis-specification: *"if it varies by epoch,
+the night-level value can sit near ρ_crit while no epoch does."* Both halves were run
+(`tools/tch-per-epoch-rho.mjs`, over the 78 epochs / 16 nights the reference-validation tool extracts).
+
+**The hypothesis is refuted, and the reason is not about pooling at all.**
+
+### 5.1 · What the per-night solve shows
+
+ρ varies **enormously** between nights — far more than the hypothesis needed:
+
+| | pooled | per-night min | median | max |
+|---|---|---|---|---|
+| ρ(ECG,PPG) | 0.6222 | **−0.007** | 0.648 | **0.978** |
+
+And it changes nothing. Of 16 nights: 4 refused (n < 4 — ρ is not estimable on one epoch, and imputing
+one would be inventing a number), 3 admit **no solution at all** at their own ρ, and **all 9 that solve
+return σ(CPAP) = 0.0000 with a margin to their own ρ_crit of 0.0000.** Nine out of nine. Not "near" the
+singularity — *on* it.
+
+### 5.2 · Why: the estimate assumes what the solve is asked to determine
+
+ρ was estimated as the correlation of the two residuals against CPAP **treated as truth**. Write the
+three difference variances as `vCE`, `vCP`, `vEP`. Since `(E−C) − (P−C) = E−P`:
+
+```
+Cov(E−C, P−C) = [vCE + vCP − vEP] / 2
+⟹  ρ̂ = corr(E−C, P−C) = [vCE + vCP − vEP] / (2·√vCE·√vCP)
+```
+
+Now ask the model where σ_C vanishes. With ρ(CPAP,·) = 0 and σ_C = 0: `vCE = σE²`, `vCP = σP²`,
+`vEP = σE² + σP² − 2ρ σE σP`, hence
+
+```
+ρ|σ_C = 0  =  [vCE + vCP − vEP] / (2·√vCE·√vCP)
+```
+
+**The same expression.** Estimating ρ as a residual correlation against one corner held as truth forces
+that corner's σ to zero — for any data, any corpus, any epoch length. Measured: the two agree to
+**0.000e+0** pooled and to ≤ 6.1e-16 on every individual night, and a self-test over **200 random
+triples** (data this tool did not measure, so it cannot be read as a property of the corpus) holds to
+6.11e-16.
+
+### 5.3 · What this retracts, and what it leaves standing
+
+**§2 of this brief is wrong about the cause.** It reasoned: *"That the measured ρ lands 0.5 % from ρ_crit
+is far more likely to mean the model is mis-specified for this triplet than that the physics chose that
+number."* Neither. It lands there **by construction**, and the "0.5 %" was rounding — §8a reported ρ as
+0.42 against a ρ_crit of 0.42199; recomputed at full precision they coincide exactly. There was never a
+0.5 % gap to explain.
+
+**What still stands, and is now better founded:** σ(CPAP) is **not identifiable from this triplet** —
+§3's second box reached that conclusion from the sensitivity (±0.0031 of ρ needed to pin σ to ±0.1 bpm)
+and it is right, but the sharper statement is that *no ρ measured this way carries information about
+σ_CPAP at all*. The estimator, the refusal path and `rhoCrit` are all sound and are untouched by this;
+the known-answer recovery to 1e-6 on six planted triples is unaffected, because there ρ is **planted**,
+not estimated from the residuals.
+
+**What a non-circular ρ would have to look like:** it must come from outside the triplet's own residuals
+— a mechanism argument (R3 already establishes ECG and PPG are both RSA, so they are mechanistically
+correlated *a priori*), a fourth corner, or an independent pairing. Any ρ derived from these three
+series with one of them held as truth is this identity again wearing different variable names.
+
+### 5.3a · ⚠️ EVERY NUMBER IN §5.1–§5.4 IS PHONE-CORPUS DERIVED — the IDENTITY is not
+
+The finding of this section is **algebraic**: ρ̂ and the ρ at which σ(CPAP) vanishes are the same
+expression, so they coincide for **any** data. It was verified over **200 random triples** — data no
+corpus produced — and holds to 6.11e-16. **That does not depend on which corpus ran, and it is what
+§5 is for.**
+
+The *illustrative* figures around it do depend on the corpus, and they came from
+`tools/tch-reference-validation.mjs`, which reads the **phone** tree (`Ecg nightly`) and clips to
+`CLIP_MIN = 30` minutes per night — hence 5–6 epochs per night, 78 in total. On that corpus
+`DexClock.hostAxis` reports **`independent: false`** (0.98 ms residual spread, one stamp quantum), so
+the two devices were never on one timebase to begin with.
+
+**Do NOT re-quote ρ = 0.622, the −0.007…0.978 per-night range, or the 16.43/17.96/13.02 variances as
+corpus facts.** They are one run of one estimator on a substrate that cannot support a cross-device
+claim. The per-night *structure* (wide spread, 9 of 12 solvable nights landing on their own ρ_crit)
+is what matters and is a property of the identity, not of the corpus.
+
+**The box re-run is owed and is NOT blocked by data** — 14 box nights are folded and 30/30
+stream-nights report `independent: true`. It is blocked by tooling: `tch-reference-validation.mjs`
+expects a FLAT PSL tree plus `CPAP/<ymd>`, while the box corpus is per-night directories with a
+separate `cpap/` tree. Adapting that reader is the work-unit; the identity does not wait on it.
+
+### 5.4 · One number that did not reproduce, recorded because it matters
+
+**§8a's variances no longer reproduce.** §8a's ρ = 0 row implies `vCE ≈ 8.91`, `vCP ≈ 11.57`,
+`vEP ≈ 11.91`; measured today they are **16.43 / 17.96 / 13.02**, and the pooled ρ is **0.622**, not
+0.42. The corpus and the respiration estimators have both moved since 2026-08-04 (`d987cdc2` is the
+most recent estimator change). Only σ(PPG) at ρ = 0 survives unchanged, at 2.70.
+
+This does not weaken §5.2 — the identity is algebraic and holds for **any** variances, which is exactly
+why it is worth stating as an identity rather than as a corpus result. But it does mean **§8a's specific
+table should not be re-quoted**: re-run the tool.
+
+### 5.5 · Follow-up
+
+The identity deserves a suite assertion in the `analysis-stats · rho-crit` group, so that nobody
+re-derives a "measured ρ" this way again. It is **not** in this PR: `tests/dex-tests.js` is being
+modified by a concurrent work-unit, and a two-line insertion there is exactly the conflict
+`CLAUDE.md` §2c warns costs a test group. It lives as a self-test inside
+`tools/tch-per-epoch-rho.mjs` meanwhile, which runs on every invocation and fails the process.
