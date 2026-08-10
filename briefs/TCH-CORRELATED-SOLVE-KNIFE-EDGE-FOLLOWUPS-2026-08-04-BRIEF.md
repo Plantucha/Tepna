@@ -185,6 +185,29 @@ not estimated from the residuals.
 correlated *a priori*), a fourth corner, or an independent pairing. Any ρ derived from these three
 series with one of them held as truth is this identity again wearing different variable names.
 
+### 5.3a · ⚠️ EVERY NUMBER IN §5.1–§5.4 IS PHONE-CORPUS DERIVED — the IDENTITY is not
+
+The finding of this section is **algebraic**: ρ̂ and the ρ at which σ(CPAP) vanishes are the same
+expression, so they coincide for **any** data. It was verified over **200 random triples** — data no
+corpus produced — and holds to 6.11e-16. **That does not depend on which corpus ran, and it is what
+§5 is for.**
+
+The *illustrative* figures around it do depend on the corpus, and they came from
+`tools/tch-reference-validation.mjs`, which reads the **phone** tree (`Ecg nightly`) and clips to
+`CLIP_MIN = 30` minutes per night — hence 5–6 epochs per night, 78 in total. On that corpus
+`DexClock.hostAxis` reports **`independent: false`** (0.98 ms residual spread, one stamp quantum), so
+the two devices were never on one timebase to begin with.
+
+**Do NOT re-quote ρ = 0.622, the −0.007…0.978 per-night range, or the 16.43/17.96/13.02 variances as
+corpus facts.** They are one run of one estimator on a substrate that cannot support a cross-device
+claim. The per-night *structure* (wide spread, 9 of 12 solvable nights landing on their own ρ_crit)
+is what matters and is a property of the identity, not of the corpus.
+
+**The box re-run is owed and is NOT blocked by data** — 14 box nights are folded and 30/30
+stream-nights report `independent: true`. It is blocked by tooling: `tch-reference-validation.mjs`
+expects a FLAT PSL tree plus `CPAP/<ymd>`, while the box corpus is per-night directories with a
+separate `cpap/` tree. Adapting that reader is the work-unit; the identity does not wait on it.
+
 ### 5.4 · One number that did not reproduce, recorded because it matters
 
 **§8a's variances no longer reproduce.** §8a's ρ = 0 row implies `vCE ≈ 8.91`, `vCP ≈ 11.57`,
