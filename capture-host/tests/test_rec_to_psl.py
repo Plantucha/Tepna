@@ -21,6 +21,7 @@ import pytest
 
 import polar_pmd as pmd
 import rec_to_psl as r2p
+import writers
 
 STAMP = "2026-08-03 12:01:20"
 POLAR_EPOCH = _dt.datetime(2000, 1, 1)
@@ -179,19 +180,105 @@ def test_a_stream_with_no_known_layout_is_REFUSED_not_written_under_a_guess(tmp_
     usable. It is not usable by anything: it only checked the header STARTS WITH "Phone timestamp;sensor
     timestamp", which the guess satisfies while naming no real column after it.
 
-    Its own example is the reason. PSL's PPI carries NO device-clock column and puts hr LAST, so the
-    guess emits a column that does not exist there and omits the order that does — a file a PSL reader
-    parses into the wrong fields, silently, having been told it was a conversion. The frame scan accepts
-    every measurement in `pmd.MEAS_NAME` while HEADERS covers four, so this path is reachable for real
-    input, not just for a hand-built dict.
+    ⚠️ THIS TEST USED `ppi` AS ITS EXAMPLE, and PPI is now supported — the refusal is what drove the
+    layout being added, so its own case graduated. `ecg` is the remaining measurement the frame scan
+    accepts (it walks all of `pmd.MEAS_NAME`) that HEADERS does not cover, so the path is still
+    reachable for real input rather than only for a hand-built dict. If ECG is ever added here, this
+    test must be re-pointed at whatever is left — asserting the refusal of a stream that no longer
+    exists would be a gate that cannot fire.
 
     Refusing costs a re-run once the layout is added. The guess costs a mislabelled file nobody knows to
     distrust."""
-    res = {"meas": "ppi", "rows": [(_dt.datetime(2026, 8, 3, 1, 2, 3), 1, (1, 2, 3))]}
+    assert set(pmd.MEAS_NAME) - set(r2p.HEADERS) == {pmd.ECG}, \
+        "the unsupported set moved — re-point this test at a stream that really has no layout"
+    res = {"meas": "ecg", "rows": [(_dt.datetime(2026, 8, 3, 1, 2, 3), 1, (1, 2, 3))]}
     dest = str(tmp_path / "o.txt")
     with pytest.raises(ValueError, match="no PSL layout"):
         r2p.write_psl(res, dest)
     assert not os.path.exists(dest), "a refused conversion must leave no half-written file behind"
+
+
+# ── PPI: the layout that has to match the LIVE writer, byte for byte ─────────────────────────────────
+# PPI is the one stream whose row is not `…;{sensor_ns};{values}`, and getting it wrong is invisible:
+# `parseDevicePPI` is POSITIONAL, so a file in PMD wire order (hr first) is read with the sensor clock
+# as the interval, every beat falls outside the physiological window, every beat is filtered, and the
+# device-PPI lane reports `nDevice: 0` — "the device produced nothing". That is DEEP-AUDIT-V F18, and
+# the test that let it through asserted a HEADER STRING.
+#
+# So the gate here is not a string. `writers.write_ppi` is the LIVE path — the code that produced all
+# 107 `*_PPI.txt` in the Polar Sensor Logger corpus — and the offline converter must be
+# indistinguishable from it. Two independent writers, one validated against vendor bytes.
+
+_BEAT = (50, 1190, 0, 0b110)                 # hr, pp_ms, err_ms, flags: contact + contactSupported
+_WHEN = _dt.datetime(2026, 6, 10, 21, 15, 41, 114000)
+# Transcribed from a real capture (Polar_H10_02849638_20260610_211534_PPI.txt, first data row). The
+# corpus carries only `0;1;1` across all 38k rows, so the flag COLUMNS get adversarial cases below.
+_REAL_ROW = "2026-06-10T21:15:41.114;1190;0;0;1;1;50"
+
+
+def _live_row(tmp_path, when, beat, name="live.txt"):
+    """The row the LIVE writer produces for this beat, read back off disk."""
+    hr, pp_ms, err_ms, flags = beat
+    w = writers.StreamWriter(str(tmp_path / name), "ppi", fsync=False)
+    w.write_ppi(when, 0, hr, pp_ms, err_ms, flags)
+    w.close()
+    return open(tmp_path / name).read().splitlines()[1]
+
+
+def test_the_offline_PPI_row_is_byte_identical_to_the_LIVE_writer(tmp_path):
+    """The property that actually matters: a night recovered off the flash must be indistinguishable
+    from the same night streamed. Anything else and the Dexes read two dialects of one format."""
+    assert r2p._ppi_row(_WHEN, _BEAT) == _live_row(tmp_path, _WHEN, _BEAT)
+
+
+def test_the_offline_PPI_row_matches_a_REAL_vendor_row(tmp_path):
+    """…and both match a row Polar Sensor Logger itself wrote. This is the end of the chain: agreeing
+    with our own live writer would be worth little if the live writer had drifted from the vendor."""
+    assert r2p._ppi_row(_WHEN, _BEAT) == _REAL_ROW
+    assert _live_row(tmp_path, _WHEN, _BEAT) == _REAL_ROW
+    assert r2p.HEADERS[pmd.PPI] == writers.StreamWriter.HEADERS["ppi"], \
+        "the offline header must be the live header, not a second copy that can drift"
+
+
+def test_the_INTERVAL_leads_and_HR_TRAILS_which_is_the_opposite_of_the_wire(tmp_path):
+    """F18 itself. PMD sends `(hr, pp, err, flags)`; PSL writes hr LAST. The values here are chosen so
+    the two orders cannot be confused: 50 is not a plausible interval and 1190 is not a plausible HR,
+    so a wire-order file fails on the numbers, not on a column count."""
+    cols = r2p._ppi_row(_WHEN, _BEAT).split(";")
+    assert len(cols) == 7
+    assert cols[1] == "1190", "column 1 must be the PP interval in ms"
+    assert cols[6] == "50", "hr must TRAIL — in wire order this column would hold the flags"
+    assert 300 <= int(cols[1]) <= 2000, "…and it must land inside the physiological window"
+
+
+@pytest.mark.parametrize("flags,expect", [
+    (0b000, ("0", "0", "0")),      # nothing set
+    (0b001, ("1", "0", "0")),      # blocker only — the firmware says this beat is not valid
+    (0b010, ("0", "1", "0")),      # contact WITHOUT support declared
+    (0b100, ("0", "0", "1")),      # support declared, not in contact — the desk case
+    (0b110, ("0", "1", "1")),      # the only combination the real corpus contains
+    (0b111, ("1", "1", "1")),
+])
+def test_the_flag_BYTE_explodes_into_three_columns_in_bit_order(tmp_path, flags, expect):
+    """`blocker;contact;contact` — the vendor's own duplicate naming, which is why the ORDER cannot be
+    read off the header and has to be pinned here. bit0 blocker, bit1 skinContact, bit2
+    skinContactSupported. Every real row is `0;1;1`, so these are committed adversarial twins: without
+    them a swapped bit1/bit2 reproduces the entire corpus."""
+    beat = (50, 1190, 0, flags)
+    assert tuple(r2p._ppi_row(_WHEN, beat).split(";")[3:6]) == expect
+    assert r2p._ppi_row(_WHEN, beat) == _live_row(tmp_path, _WHEN, beat, f"f{flags}.txt")
+
+
+def test_PPI_carries_NO_device_clock_column(tmp_path):
+    """Every `sensor_ns` the box has written for PPI is 0 — the frames have no usable device clock — so
+    the column is absent rather than present-and-zero. A zero column would be read as a real timebase."""
+    res = {"meas": "ppi", "rows": [(_WHEN, 8_400_000_000_000_000_000, _BEAT)]}
+    dest = str(tmp_path / "ppi.txt")
+    assert r2p.write_psl(res, dest) == 1
+    head, row = open(dest).read().splitlines()
+    assert "sensor timestamp" not in head
+    assert "8400000000000000000" not in row, "the device clock leaked into the row"
+    assert row == _REAL_ROW
 
 
 def test_a_known_stream_still_converts(tmp_path):
