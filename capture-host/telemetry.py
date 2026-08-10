@@ -7,7 +7,7 @@
 # A dropped subscriber or a slow browser never blocks capture: the per-subscriber queue drops oldest.
 
 from __future__ import annotations
-import asyncio, collections, datetime as _dt, logging, time
+import asyncio, collections, datetime as _dt, logging, statistics, time
 from dataclasses import dataclass
 
 log = logging.getLogger("tepna.telemetry")
@@ -20,6 +20,89 @@ _RATE_WIN_S = 5.0          # trailing window the effective rate is measured over
 _WEAK_FRAC = 0.7           # < 70 % of nominal Hz ⇒ WEAK (amber)
 _STALL_S = 6.0             # no sample for this long ⇒ STALL (red)
 _WARMUP_S = 1.5            # < this much history ⇒ too early to call WEAK (a just-opened stream)
+
+
+# ── OPTICAL WEAR, FROM THE SIGNAL ITSELF ────────────────────────────────────────────────────────────
+#
+# WHY THIS EXISTS. `worn` normally comes from a strap's skin-contact bit. The Polar Verity Sense
+# declares `contact_supported: false` and emits 1 Hz of `0000` forever, so that path yields None for it
+# — honestly, but permanently. The consequence is not cosmetic: `power.drop_not_worn_sec` can never
+# fire for the armband, and `cpap_harvest.blocking_devices` treats `worn is not False` as "streaming",
+# so an armband on a desk both drains itself and blocks the CPAP harvest.
+#
+# Measured 2026-08-10: the Verity streamed 3 hours and 42.5 MB into a desk at a flawless 55.0 Hz, zero
+# gaps, RSSI −37 — and every health check read green, because every health check asks about the
+# TRANSPORT (rate, age) and none about the CONTENT. Battery went 100 % → 74 %.
+#
+# THE DEVICE DOES SAY, on a channel nobody read. The ambient photodiode sees ROOM LIGHT off the body
+# and DARKNESS under skin, and the separation is not subtle. Scanned across 5730 windows of 30 s from
+# 45 real Verity PPG files (2026-08-01 → 08-10):
+#
+#     |ambient| median per window   worn ~140–190        unworn ~3.2e5–6.5e5
+#     log10 histogram              1–3: 3795 windows     5: 1931 windows     4: FOUR windows
+#
+# Three orders of magnitude apart with four windows in the gap. The threshold below is the geometric
+# midpoint of the widest empty interval in the middle 98 % (1993 → 13160, a factor of 7), NOT a number
+# anyone picked: 5121, rounded to 5000. Validated on files whose state was known independently — the
+# desk file scored 0.0 % worn windows, the overnight file 100.0 %.
+#
+# ⚠️ AMBIENT, NOT PULSE AMPLITUDE. Per-channel SD also separates (14–28×) but its histogram is
+# continuous, so any threshold on it is a judgement call; ambient's is bimodal with an empty gap. And
+# amplitude conflates "not worn" with "worn badly" — a poorly perfused but genuinely worn sensor must
+# not be dropped for power.
+_WORN_AMBIENT_MAX = 5000.0   # |ambient| below this ⇒ under skin. See the gap above.
+_WORN_MIN_SAMPLES = 128      # ~2.3 s at 55 Hz; fewer is not a measurement
+
+
+# PPI flag byte (polar_pmd: bit0 blocker, bit1 skinContact, bit2 skinContactSupported).
+_PPI_CONTACT = 0x02
+_PPI_CONTACT_SUPPORTED = 0x04
+
+
+def ppi_contact(flags) -> bool | None:
+    """Skin contact as the DEVICE reports it in its PPI stream. `True`/`False`/**`None` = not offered**.
+
+    ⚠️ THE VERITY ANSWERS THIS QUESTION TWICE, DIFFERENTLY, AND THE CODE ONLY EVER ASKED THE CHANNEL
+    THAT SAYS NO. Its HR characteristic reports `contact_supported: false` and streams 1 Hz of `0000`
+    forever, which is why `worn` was `None` for it forever. Its PPI stream sets
+    `skinContactSupported = 1` and reports real contact. Measured 2026-08-10 on the same unit:
+
+        armband on a desk    contact = 0 on 31 877 of 31 877 rows
+        armband worn (night) contact = 1 on 20 957 of 20 957 rows
+
+    Perfect separation, no threshold, and it is the device's own measurement rather than an inference —
+    so this OUTRANKS `optical_worn` wherever PPI is a configured stream. `optical_worn` remains the
+    fallback for a configuration that does not enable PPI.
+
+    `None` when the device does not claim support, because an unsupported bit reads 0 and 0 is
+    indistinguishable from a genuine "not touching skin"."""
+    if flags is None:
+        return None
+    f = int(flags)
+    if not f & _PPI_CONTACT_SUPPORTED:
+        return None
+    return bool(f & _PPI_CONTACT)
+
+
+def optical_worn(ambient, *, threshold: float = _WORN_AMBIENT_MAX,
+                 min_samples: int = _WORN_MIN_SAMPLES) -> bool | None:
+    """Is an optical sensor against skin? `True` / `False` / **`None` when it cannot be said**.
+
+    PURE, so it is unit-testable without a device. Takes raw ambient values (sign is irrelevant — the
+    Verity reports them negative), uses the MEDIAN so a handful of saturated samples cannot swing it,
+    and refuses on too little data rather than guessing.
+
+    ⚠️ `None` IS NOT `False`, and the callers make that distinction load-bearing: `worn=False` drops the
+    link for power and unblocks the CPAP harvest, while `None` means "no verdict" and changes nothing.
+    Returning False on a short or empty buffer would drop a sensor that had merely just connected."""
+    vals = [abs(v) for v in ambient if v is not None and v == v]   # drop None/NaN, keep magnitude
+    if len(vals) < max(1, min_samples):
+        return None
+    # `statistics.median`, not a hand-rolled index. The hand-rolled version carried TEN index/operator
+    # mutants that the whole suite could not see (mutate-diff, #1134) — every test fed it a flat buffer,
+    # so `// 2` vs `// 3` and `- 1` vs `+ 1` all returned the same number. The even-length branch is the
+    # part no fixture reached. Deleting the arithmetic is a better answer than fixturing around it.
+    return statistics.median(vals) < threshold
 
 
 def stream_health(nominal_fs, eff_fs, age_s, warmup: bool = False,
