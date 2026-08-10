@@ -2006,6 +2006,51 @@
       "class": "no-distinguishing-input",
       "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
       "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 372,
+      "op": "cmp > → >=",
+      "before": "const s = d.map((v) => (v > 0 ? 1 : v < 0 ? -1 : 0));",
+      "after": "const s = d.map((v) => (v >= 0 ? 1 : v < 0 ? -1 : 0));",
+      "class": "no-distinguishing-input",
+      "why": "In fragmentation. Original and mutant produced byte-identical output on every input.",
+      "probe": "fragmentation + periodicBreathingIndex · NN-series indices: 56 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 372,
+      "op": "cmp < → <=",
+      "before": "const s = d.map((v) => (v > 0 ? 1 : v < 0 ? -1 : 0));",
+      "after": "const s = d.map((v) => (v > 0 ? 1 : v <= 0 ? -1 : 0));",
+      "class": "no-distinguishing-input",
+      "why": "In fragmentation. Original and mutant produced byte-identical output on every input.",
+      "probe": "fragmentation + periodicBreathingIndex · NN-series indices: 56 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 373,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < s.length; i++) {",
+      "after": "for (let i = 0; i <= s.length; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In fragmentation. Original and mutant produced byte-identical output on every input.",
+      "probe": "fragmentation + periodicBreathingIndex · NN-series indices: 56 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 374,
+      "op": "cmp > → >=",
+      "before": "if (s[i] === 0) s[i] = i > 0 ? s[i - 1] : 1;",
+      "after": "if (s[i] === 0) s[i] = i >= 0 ? s[i - 1] : 1;",
+      "class": "no-distinguishing-input",
+      "why": "In fragmentation. Original and mutant produced byte-identical output on every input.",
+      "probe": "fragmentation + periodicBreathingIndex · NN-series indices: 56 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 401,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < runs.length; i++) {",
+      "after": "for (let i = 0; i <= runs.length; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In fragmentation. Original and mutant produced byte-identical output on every input.",
+      "probe": "fragmentation + periodicBreathingIndex · NN-series indices: 56 inputs, 26 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     }
   ],
   "glucodex-dsp.js": [
