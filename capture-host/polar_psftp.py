@@ -68,28 +68,60 @@ def _encode_operation(command: int, path: str) -> bytes:
     p = path.encode("utf-8")
     return bytes([0x08, command]) + b"\x12" + _uvarint(len(p)) + p   # field1 command, field2 path
 
+class TruncatedProtobuf(ValueError):
+    """A length-delimited field declared more bytes than the buffer actually holds.
+
+    ⚠️ THIS IS THE FAILURE A PYTHON SLICE HIDES. `buf[i:i + ln]` with `ln` past the end returns the
+    SHORT remainder — no exception, no signal — so a cut-off reply decodes into a plausible, WRONG
+    message. Measured on the real Verity `0C301E3F` over the USB HID pipe, 2026-08-09: `/U/0/` came
+    back one 64-byte report, flagged END by the device, ending mid-record on
+    `0a0d 0a09 "20"` — an entry declaring a 9-byte name and delivering 2. The old reader turned that
+    into the file `"20"` and returned FOUR entries plus that fabrication. The BLE mirror taken from
+    the same device lists SIX: `20260802/` was corrupted into `"20"` and `20260803/` — 22 PPG/ACC/GYRO
+    recordings — vanished entirely, while the caller reported success.
+
+    The same reader serves the BLE walk (`list_dir` -> `walk` -> `polar_mirror`), so a link that cuts
+    a listing short silently mirrors a subset and writes a MANIFEST that says it is complete. That is
+    the repo's standing bug class (CLAUDE.md §👥.4b) inside the one tool whose job is to prove what is
+    on the device."""
+
+    def __init__(self, need: int, have: int):
+        super().__init__(f"protobuf field declares {need} bytes, buffer holds {have}")
+        self.need, self.have = need, have
+
+
 def _read_varint(buf, i):
     shift = val = 0
     while True:
-        b = buf[i]; i += 1
+        try:
+            b = buf[i]
+        except IndexError:                                  # a varint running off the end IS truncation
+            raise TruncatedProtobuf(i + 1, len(buf)) from None
+        i += 1
         val |= (b & 0x7F) << shift
         if not (b & 0x80):
             return val, i
         shift += 7
 
-def _iter_fields(buf):
+def _iter_fields(buf, strict: bool = False):
+    """Yield `(field_number, value)`. With `strict`, raise TruncatedProtobuf instead of yielding a
+    silently-shortened value — see that class for why the default is not simply changed: several
+    callers parse small fixed replies where a partial read has always meant "field absent", and
+    turning those into exceptions is a behaviour change this repo would have to re-verify on hardware.
+    New readers should pass `strict=True`; `_parse_directory_ex` does."""
     i, n = 0, len(buf)
     while i < n:
         tag, i = _read_varint(buf, i)
         fn, wt = tag >> 3, tag & 7
         if wt == 0:
             v, i = _read_varint(buf, i); yield fn, v
-        elif wt == 2:
-            ln, i = _read_varint(buf, i); yield fn, buf[i:i + ln]; i += ln
-        elif wt == 5:
-            yield fn, buf[i:i + 4]; i += 4
-        elif wt == 1:
-            yield fn, buf[i:i + 8]; i += 8
+        elif wt in (1, 2, 5):
+            ln = 8 if wt == 1 else 4 if wt == 5 else None
+            if ln is None:
+                ln, i = _read_varint(buf, i)
+            if strict and i + ln > n:
+                raise TruncatedProtobuf(ln, n - i)
+            yield fn, buf[i:i + ln]; i += ln
         else:
             raise ValueError(f"bad protobuf wire type {wt}")
 
@@ -99,20 +131,38 @@ def _parse_pb_fields(buf) -> dict:
     return {fn: val for fn, val in _iter_fields(buf)}
 
 
+def _parse_directory_ex(buf) -> tuple[list[tuple[str, int]], bool]:
+    """`(entries, truncated)` — the COMPLETE entries, and whether the payload was cut short.
+
+    A partial trailing record is DROPPED rather than decoded: a name field promising 9 bytes and
+    delivering 2 does not name a file that exists, and a caller that walks it GETs a path the device
+    has never heard of. Reporting the cut is the whole point — `truncated` is the answer, the short
+    list is not."""
+    entries: list[tuple[str, int]] = []
+    truncated = False
+    try:
+        for fn, val in _iter_fields(buf, strict=True):
+            if fn == 1 and isinstance(val, (bytes, bytearray)):
+                name, size = None, 0
+                for efn, ev in _iter_fields(val, strict=True):
+                    if efn == 1 and isinstance(ev, (bytes, bytearray)):
+                        name = ev.decode("utf-8", "replace")
+                    elif efn == 2 and isinstance(ev, int):
+                        size = ev
+                if name is not None:
+                    entries.append((name, size))
+    except TruncatedProtobuf:
+        truncated = True
+    return entries, truncated
+
+
 def _parse_directory(buf) -> list[tuple[str, int]]:
-    """PbPFtpDirectory { repeated PbPFtpEntry entries=1 } ; PbPFtpEntry { name=1, size=2 }."""
-    entries = []
-    for fn, val in _iter_fields(buf):
-        if fn == 1 and isinstance(val, (bytes, bytearray)):
-            name, size = None, 0
-            for efn, ev in _iter_fields(val):
-                if efn == 1 and isinstance(ev, (bytes, bytearray)):
-                    name = ev.decode("utf-8", "replace")
-                elif efn == 2 and isinstance(ev, int):
-                    size = ev
-            if name is not None:
-                entries.append((name, size))
-    return entries
+    """PbPFtpDirectory { repeated PbPFtpEntry entries=1 } ; PbPFtpEntry { name=1, size=2 }.
+
+    Back-compat shape (a bare list). It can no longer FABRICATE an entry from a partial record, but a
+    list alone still cannot say the listing was cut — read `_parse_directory_ex` if that matters, and
+    it does for anything that walks or mirrors."""
+    return _parse_directory_ex(buf)[0]
 
 # ── RFC76 framing ──
 class _Seq:
@@ -210,6 +260,10 @@ class PolarPsFtp:
         self._client: BleakClient | None = None
         self._q: asyncio.Queue = asyncio.Queue()
         self._frame_mtu = 20
+        # Directories whose listing came back CUT SHORT. A walk cannot simply raise — the mirror is
+        # resumable and a partial pass beats none — but it must not report a subset as the whole, so
+        # the cut is accumulated here and lands in the manifest. Empty is the honest "nothing was lost".
+        self.truncated_dirs: list[str] = []
 
     async def __aenter__(self):
         await _bt_disconnect(self.address)
@@ -285,6 +339,12 @@ class PolarPsFtp:
     async def list_dir(self, path: str) -> list[tuple[str, int]]:
         return _parse_directory(await self.get(path))
 
+    async def list_dir_ex(self, path: str) -> tuple[list[tuple[str, int]], bool]:
+        """`(entries, truncated)`. Use this anywhere the ANSWER matters — a walk, a mirror, a "does
+        this recording exist" check. `list_dir` cannot express "and there was more", so a listing cut
+        short by a dropped link reads as a short directory (see TruncatedProtobuf)."""
+        return _parse_directory_ex(await self.get(path))
+
     async def query(self, query_id: int, params: bytes = b"", timeout: float = 20.0) -> bytes:
         """Send a PS-FTP QUERY. Restricted to the time ids (see _ALLOWED_QUERIES) — this is the ONLY
         write this module performs; everything else is strictly read-only."""
@@ -352,9 +412,16 @@ class PolarPsFtp:
         costs a PS-FTP round trip over a 23-byte-MTU link, so on a device with a large unrelated
         subtree the difference between pruning and not is minutes, not milliseconds."""
         try:
-            entries = await self.list_dir(path)
+            entries, truncated = await self.list_dir_ex(path)
         except Exception:
             yield (path, -1, False); return
+        if truncated:
+            # NOT an error row: what did arrive is real and worth walking. What must not happen is the
+            # caller reading the short list as the directory's contents — on the USB pipe that lost 2 of
+            # 6 entries in `/U/0/`, one of them a session dir holding 22 recordings (TruncatedProtobuf).
+            self.truncated_dirs.append(path)
+            log.warning("PS-FTP listing of %s was TRUNCATED — %d complete entries, more were cut off",
+                        path, len(entries))
         for name, size in entries:
             full = path + name
             is_dir = name.endswith("/")

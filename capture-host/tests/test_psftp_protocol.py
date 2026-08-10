@@ -80,6 +80,115 @@ def test_parse_directory_ignores_a_non_entry_field():
     assert ps._parse_directory(ps._pb_uint(7, 42) + _entry("A.DAT", 5)) == [("A.DAT", 5)]
 
 
+# ── TRUNCATION — a cut reply must never decode into a plausible short listing ───────────────────────
+#
+# THE BYTES BELOW CAME OFF THE REAL VERITY `0C301E3F`, 2026-08-09, over the USB HID pipe: one 64-byte
+# report, `flags == 1` (END), ending mid-record. This is a KNOWN-ANSWER vector, not a constructed one —
+# the point of pinning the real payload is that the parser is not being tested against a fixture whose
+# shape the parser's author chose.
+_REAL_TRUNCATED_USB_LISTING = bytes.fromhex(
+    "0a0c0a08444244432e44415410010a0e0a0a5553455249442e42504210460a060a02532f10000a0d0a09"
+    "32303236303632312f10000a0d0a093230"
+)
+# What the BLE mirror of the SAME device reported for `/U/0/` in the same week — the ground truth.
+_BLE_TRUTH = ["DBDC.DAT", "USERID.BPB", "S/", "20260621/", "20260802/", "20260803/"]
+
+
+def test_a_truncated_listing_is_reported_as_truncated_not_as_a_short_directory():
+    entries, truncated = ps._parse_directory_ex(_REAL_TRUNCATED_USB_LISTING)
+    assert truncated is True, "the payload ends mid-record; saying otherwise is the whole bug"
+    assert [n for n, _ in entries] == _BLE_TRUTH[:4]
+
+
+def test_a_truncated_record_never_becomes_a_filename():
+    """THE DEFECT, stated directly. The final record declares a 9-byte name and carries 2, so the old
+    reader — `buf[i:i + ln]`, which silently returns the short remainder — produced a file called
+    "20". A caller walking that GETs `/U/0/20/`, a path the device has never heard of, while the two
+    real session directories it stands for (one holding 22 `.REC` recordings) are simply absent."""
+    names = [n for n, _ in ps._parse_directory(_REAL_TRUNCATED_USB_LISTING)]
+    assert "20" not in names
+    assert not any(n.startswith("20") and n not in _BLE_TRUTH for n in names)
+
+
+def test_a_complete_listing_is_not_flagged_truncated():
+    """The positive control. A truncation detector that fires on everything is not a detector — and
+    this repo has shipped one of those (CLAUDE.md §👥.4b)."""
+    entries, truncated = ps._parse_directory_ex(_entry("A.DAT", 5) + _entry("B/", 0))
+    assert truncated is False and entries == [("A.DAT", 5), ("B/", 0)]
+
+
+def test_truncation_is_detected_at_the_OUTER_record_too():
+    """Cut in the entry's own length prefix rather than inside its name — the outer message is where
+    `_iter_fields` runs off the end, and it must raise there as well."""
+    buf = _entry("A.DAT", 5) + ps._pb_msg(1, ps._pb_msg(1, b"LONGNAME.DAT"))[:-6]
+    entries, truncated = ps._parse_directory_ex(buf)
+    assert truncated is True and entries == [("A.DAT", 5)]
+
+
+# ⚠️ THE TWO `strict=True` FLAGS NEED SEPARATE VECTORS, and this is not a technicality.
+#
+# `_parse_directory_ex` passes `strict=True` twice — once for the repeated-entry loop, once for the
+# fields inside an entry. Every realistic payload (including the real captured one above) is cut in a
+# way that trips BOTH, so each flag masks the other: the mutation gate flipped either one to `False`
+# and the whole file stayed green. That is the core of this fix being untested while looking tested —
+# the exact shape of "a test written from reading the code passes while catching nothing".
+#
+# Each vector below is built so that only ONE of the two can notice it.
+_CUT_OUTER_ONLY = bytes([0x0A, 20]) + bytes([0x0A, 0x02]) + b"S/" + bytes([0x10, 0x00])
+"""An entry header claiming 20 bytes and delivering 6 — and those 6 are a COMPLETE, valid entry. With
+the outer loop lenient the inner one parses them happily and reports a clean `S/`, losing the record
+the missing 14 bytes belonged to without a murmur."""
+
+_CUT_INNER_ONLY = bytes([0x0A, 0x04, 0x0A, 0x09]) + b"20"
+"""The mirror: the entry's own length (4) matches what follows exactly, so the outer loop sees nothing
+wrong. The truncation is one level down, in a name field promising 9 bytes and carrying 2 — which is
+precisely the real device's failure, decoded into a file called "20"."""
+
+
+def test_a_cut_the_OUTER_loop_alone_can_see_is_caught():
+    entries, truncated = ps._parse_directory_ex(_CUT_OUTER_ONLY)
+    assert truncated is True, "the outer strict= flag is what catches this one"
+    assert entries == [], "and the entry it did manage to read is not a whole record"
+
+
+def test_a_cut_the_INNER_loop_alone_can_see_is_caught():
+    entries, truncated = ps._parse_directory_ex(_CUT_INNER_ONLY)
+    assert truncated is True, "the inner strict= flag is what catches this one"
+    assert entries == [], 'and "20" is not a filename'
+
+
+def test_the_exception_carries_the_numbers_that_make_it_diagnosable():
+    """`need`/`have` are the whole content of the report — "the reply was cut" is not actionable, "it
+    declared 9 bytes and 2 arrived" is. Nothing asserted them, so every arithmetic slip in building the
+    exception (`i - 1`, `n + i`, either field dropped to None) survived."""
+    with pytest.raises(ps.TruncatedProtobuf) as e:
+        list(ps._iter_fields(bytes([(1 << 3) | 2, 9]) + b"20", strict=True))
+    assert (e.value.need, e.value.have) == (9, 2)
+    assert "9" in str(e.value) and "2" in str(e.value)
+
+
+def test_a_varint_overrun_reports_the_position_it_ran_off():
+    with pytest.raises(ps.TruncatedProtobuf) as e:
+        list(ps._iter_fields(bytes([(1 << 3) | 0, 0x80]), strict=True))
+    assert (e.value.need, e.value.have) == (3, 2), "one past the end of a 2-byte buffer"
+
+
+def test_a_varint_running_off_the_end_is_truncation_not_an_IndexError():
+    """`_read_varint` indexes the buffer directly. A continuation bit set on the last byte walked past
+    it and raised a bare IndexError, which callers catch as "garbage payload" and report as a parse
+    failure — a different diagnosis from "the reply was cut short", leading somewhere different."""
+    with pytest.raises(ps.TruncatedProtobuf):
+        list(ps._iter_fields(bytes([(1 << 3) | 0, 0x80]), strict=True))
+
+
+def test_iter_fields_stays_lenient_by_default():
+    """`strict=False` keeps the historical shape for the small fixed replies (PbDate / PbTime /
+    GET_LOCAL_TIME) that read a partial field as "absent". Changing that default is a behaviour change
+    on paths this repo has only verified against hardware."""
+    out = list(ps._iter_fields(ps._pb_msg(1, b"ABCDEFGH")[:-4]))
+    assert out == [(1, b"ABCD")]
+
+
 # ── operation encoding ──────────────────────────────────────────────────────────────────────────────
 def test_encode_operation_carries_command_and_path():
     buf = ps._encode_operation(ps.GET, "/U/0/SESSION1.DAT")

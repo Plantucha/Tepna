@@ -81,11 +81,18 @@ async def walk(fs, path, out, depth=0, max_depth=6):
     if depth > max_depth:
         return
     try:
-        entries = await asyncio.wait_for(fs.list_dir(path), LIST_TIMEOUT)
+        entries, truncated = await asyncio.wait_for(fs.list_dir_ex(path), LIST_TIMEOUT)
     except Exception as exc:                                  # noqa: BLE001
         out["errors"][path] = f"list: {type(exc).__name__}: {exc}"
         return
     out["dirs"][path] = [{"name": n, "size": s} for n, s in entries]
+    if truncated:
+        # A MIRROR THAT SILENTLY OMITS FILES IS WORSE THAN NO MIRROR — the manifest is what later
+        # analysis trusts to say what was on the device. A cut listing is therefore recorded as an
+        # ERROR even though the pull of what DID arrive proceeds normally (psftp.TruncatedProtobuf).
+        out["errors"][path] = (f"list: TRUNCATED — the reply was cut off after {len(entries)} "
+                               "complete entries; anything below this path is MISSING from this "
+                               "mirror. Re-run to pick it up.")
     for name, _size in entries:
         if name.endswith("/"):
             await walk(fs, path + name, out, depth + 1, max_depth)
