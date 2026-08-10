@@ -3,9 +3,14 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** DONE — 2026-08-10 · **Created:** 2026-08-10 · **Answers:** `PAT-UNEXPLAINED-130MS-DISCOVERY-2026-08-09-BRIEF.md` · **Affects:** findings only — **no code changed**
+**Status:** DONE — 2026-08-10 · **Consolidated-into:** `PAT-COMPENDIUM-2026-08-10-BRIEF.md` · **Created:** 2026-08-10 · **Answers:** `PAT-UNEXPLAINED-130MS-DISCOVERY-2026-08-09-BRIEF.md` · **Affects:** findings only — **no code changed**
 
 # The ~130 ms was the acceptance window. `450/√12 = 129.90`.
+
+> ⚠️ **SUPERSEDED 2026-08-10 (same day).** Its §2 left the drift's cause unestablished and nominated
+> `Tepna_*_CLOCK.csv` as the next measurement — that file is the host's own NTP discipline log, not a
+> host↔device record, so the nomination was wrong. The cause was found hours later: ECGDex's `fs`
+> derivation rounded to the nominal 130 (fixed in #1121). See `PAT-COMPENDIUM-2026-08-10-BRIEF.md` §4.1.
 
 `PAT-UNEXPLAINED-130MS-DISCOVERY` asked what the unexplained ~130 ms of PAT scatter is. It is not
 scatter. It is `pat-align.js`'s own physiological window, marginalised over a slow inter-device
