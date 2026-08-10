@@ -3906,6 +3906,25 @@
     // at t0Ms. `firstRelMs` is that anchor's zero. Additive: `idx`/`ms` are untouched.
     var firstRelMs = null,
       lastRelMs = null;
+    /* THE DEVICE'S OWN COUNTER, when the file carries one. `timestamp [ms]` is a DERIVED float that
+       loses precision as it grows (see the fs comment below); `sensor timestamp [ns]` beside it is an
+       INTEGER nanosecond counter that loses none. Located BY HEADER NAME, never by position — the
+       same rule PpgDex's channel layout follows, and for the same reason: a positional guess is
+       silently wrong on a layout it was not written for. Absent ⇒ every path below falls back to the
+       `[ms]` column exactly as before. */
+    var nsCol = null;
+    for (var hli = 0; hli < lines.length; hli++) {
+      var hl = lines[hli].trim();
+      if (!hl) continue;
+      var hp = hl.split(/[;\t,]/);
+      if (isFinite(parseFloat(hp[hp.length - 1]))) break; // first row is data — no header to read
+      for (var hc = 0; hc < hp.length; hc++) if (/sensor\s*timestamp/i.test(hp[hc])) nsCol = hc;
+      break;
+    }
+    var firstNsMs = null,
+      prevNsMs = null,
+      nsStepSum = 0,
+      nsStepN = 0;
     var lastTs = null; // phone stamp of the last valid row → the recording's clock end
     function push(v) {
       if (n >= cap) {
@@ -3930,6 +3949,31 @@
       // the 2026-07-16..26 capture corpus, that shortfall put ECGDex's own events outside its declared
       // window on 11 of 11 nights, by +8 min to +326 min.
       lastTs = p[0];
+      // Device counter for THIS row, in ms. Gap rows are excluded by the same `< 50` guard the `[ms]`
+      // path uses; the ns column needs no `msStep * 2.5` slack because it carries no float noise.
+      var devNsMs = null;
+      if (nsCol !== null && p.length > nsCol) {
+        /* `> 0` would be WRONG and is worth the line: a counter legitimately STARTS at 0, so that guard
+           rejects row 0 and anchors `firstNsMs` one sample late — every anchor then sits a full sample
+           step off the host, which reads as a 7.692 ms spread and flips `independent` to true on a
+           derived column. Real captures hide it (the absolute Polar counter is ~8.4e17), a synthetic
+           starting at 0 does not. `Number('')` is 0, not NaN, so the empty-string case is excluded
+           explicitly rather than by the sign test. */
+        var nsRaw = p[nsCol];
+        var rawNs = nsRaw === '' || nsRaw == null ? NaN : Number(nsRaw);
+        if (isFinite(rawNs)) {
+          devNsMs = rawNs / 1e6;
+          if (firstNsMs === null) firstNsMs = devNsMs;
+          if (prevNsMs !== null) {
+            var dn = devNsMs - prevNsMs;
+            if (dn > 0 && dn < 50) {
+              nsStepSum += dn;
+              nsStepN++;
+            }
+          }
+          prevNsMs = devNsMs;
+        }
+      }
       if (t0Ms === null) {
         var pt = parseTimestamp(p[0]);
         if (pt && pt.tMs != null) {
@@ -3974,7 +4018,18 @@
       if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 || n % ECG_AXIS_EVERY === 0)) {
         var aRel = parseFloat(p[2]);
         var aTs = parseTimestamp(p[0]);
-        if (aTs && aTs.tMs != null && isFinite(aRel)) ecgAxisAnchors.push({ devMs: aRel - firstRelMs, hostMs: aTs.tMs - t0Ms });
+        /* BOTH candidate device axes are recorded and the choice is made AFTER the loop, once it is
+           known whether the counter actually counts. A column present but STUCK — some writers emit a
+           literal `0` placeholder — is not a clock (Clock Contract §7: "a device whose axis was DRAWN
+           is not a clock"), and preferring it collapses every anchor onto devMs = 0, which hands
+           hostAxis a degenerate axis and silently inverts `independent`. */
+        if (aTs && aTs.tMs != null && (isFinite(aRel) || devNsMs !== null)) {
+          ecgAxisAnchors.push({
+            devMs: isFinite(aRel) ? aRel - firstRelMs : null,
+            devNs: devNsMs !== null && firstNsMs !== null ? devNsMs - firstNsMs : null,
+            hostMs: aTs.tMs - t0Ms
+          });
+        }
       }
     }
     // DEEP-AUDIT-II §4.3 (#5): derive fs from the MEAN non-gap sample interval — a stamp-span
@@ -3982,8 +4037,29 @@
     // precision as the value grows (7.692288 early → integer "8" late), so any ONE delta reads 125–167 Hz
     // for a true 130 Hz stream (part-files parse at 143/167). Averaging every interval quantises the 7/8 ms
     // jitter back to ~7.69 ms → 130, and gap dropouts are excluded. Falls back to the provisional step.
-    if (stepN > 0) fs = Math.round((1000 * stepN) / stepSum);
+    /* PREFER THE INTEGER COUNTER, AND DO NOT ROUND IT. The `Math.round` below is right for the `[ms]`
+       column and WRONG for this one, and the difference is seconds per night. Rounding forces the
+       estimate to the NOMINAL 130 and discards the crystal: measured over the box corpus the H10's
+       real rate is 129.9866–129.9966 Hz, so the rounded axis runs −45.9 to −125.5 ppm fast, i.e.
+       −1.25 to −4.16 s across one night. That error then survives the host correction below, because
+       correcting a rate cannot recover a rate that was quantised away first — the shipped axis
+       diverged from the file's OWN host↔device record by up to 2894 ms on 2026-08-03, which is 2.4
+       cardiac cycles and is what made PAT unmeasurable (`PAT-SAWTOOTH-ANSWERS-THE-130MS`).
+       The rounding exists for the `[ms]` column's float noise and stays there; an integer ns counter
+       has no such noise, so rounding it only throws information away. */
+    // `nsStepN > 0` IS the "is it a counter" test: a stuck or absent column advances zero times, so it
+    // never reaches here, and the anchors fall back to `[ms]` in the same breath — one condition
+    // governing both, because an fs from one axis and anchors from the other would not compose.
+    var nsUsable = nsStepN > 0;
+    if (nsUsable) fs = (1000 * nsStepN) / nsStepSum;
+    else if (stepN > 0) fs = Math.round((1000 * stepN) / stepSum);
     else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
+    var ecgAxisPicked = [];
+    for (var ai = 0; ai < ecgAxisAnchors.length; ai++) {
+      var av = nsUsable ? ecgAxisAnchors[ai].devNs : ecgAxisAnchors[ai].devMs;
+      if (av != null && isFinite(av)) ecgAxisPicked.push({ devMs: av, hostMs: ecgAxisAnchors[ai].hostMs });
+    }
+    ecgAxisAnchors = ecgAxisPicked;
     /* Discipline `fs` to the host clock. Every beat time in this file is `peaks[k] / fs`, so correcting
        fs is what actually reaches the export — a separate `fsExact` nothing consumed would have been a
        fix in name only. Applied AFTER the integer rounding above, deliberately: that rounding exists to
@@ -4037,10 +4113,43 @@
        101.89–5124 ms where a real second clock exists), so EVERY one of them is a phone capture and
        every `fs` correction applied to them was derived from a column that is not a clock.
        `ok` is not enough and neither is the span gate: both are satisfied by a derived column. */
+    var fsDevice = fs; // BEFORE any rate correction — `tMsAt` below needs the RAW device rate
     if (ecgHostAx.ok && ecgHostAx.independent !== false && isFinite(ecgHostAx.ppm) && ecgAxisSpanMs >= ECG_AXIS_MIN_SPAN_MS) {
       fs = fs / (1 + ecgHostAx.ppm / 1e6);
       ecgAxisApplied = true;
     }
+    /* ── A SAMPLE'S POSITION IN TIME IS NOT A RATE — `tMsAt` rides the INTERPOLATION, not the ppm ────
+       The block above corrects `fs`, and `fs` is the right thing to correct there: `detectPeaks`, the
+       bandpass coefficients (built from 1/fs), `refinePeaks` and `computeSQI` all consume it as a RATE,
+       and a rate needs the span gate that block spends a table justifying.
+
+       A sample's POSITION IN TIME is a different quantity, and it was being derived from that same
+       scalar — every consumer computing `t0Ms + (i / fs) * 1000`. Clock Contract §7 draws exactly this
+       line: "`hostAxis` does not QUOTE a rate, it interpolates measured divergence, so its residual is
+       bounded by what it observed. Gating on span would refuse the short fragments whose real error is
+       ~3 s, i.e. exactly the case that needs it. A consumer that reads `.ppm` instead of
+       `correctionAt()` is quoting a rate and DOES need a baseline."
+
+       ECGDex sat on the wrong side of that sentence for TIME. The cost is measured, not theoretical:
+       on 2026-08-03 the H10 reads -34.7 ppm, which over 475 min is 989 ms of divergence against the
+       host-disciplined PpgDex axis (PpgDex already consumes `correctionAt` per sample). The observed
+       ECG-to-PPG beat-lag walk on that night is ~1000 ms and WRAPS mod one RR — a sawtooth. The two
+       agree, and that wrap is why whole-night PAT scatter reads 131-136 ms against a ~35 ms two-PPG
+       control that couples on 11 of 14 nights.
+
+       WHY `fsDevice`, NOT `fs`: if the span gate fired, `fs` already carries the ppm, and applying
+       `correctionAt` on top would count the same divergence twice. The interpolation is measured
+       against the DEVICE axis, so it must be applied to the device axis.
+
+       WHY NO SPAN GATE HERE, and why that is not the oversight the ppm path was: `correctionAt` is
+       linear between anchors and FLAT outside them, so a short fragment receives a small bounded
+       correction rather than an amplified one. That boundedness is precisely what `.ppm` lacks.
+
+       ADDITIVE, and deliberately inert until opted into: `fs`, `t0Ms` and every published field are
+       byte-unchanged, so no export can move until a consumer calls this. A recording with no
+       independent second clock returns uncorrected device time — never a fabricated one (§2.6). */
+    var _ecgCorrAt = ecgHostAx.ok && ecgHostAx.independent !== false && typeof ecgHostAx.correctionAt === 'function' ? ecgHostAx.correctionAt : null;
+    var _ecgMsPerSample = 1000 / fsDevice;
     // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
     // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
     // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
@@ -4050,6 +4159,19 @@
     return {
       int16: arr.slice(0, n),
       fs: fs,
+      /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists.
+         `i` may be fractional — `refinePeaks` returns sub-sample R positions and they must not be
+         rounded before the correction is applied. Consumers that need a TIME use this; consumers that
+         need a RATE keep using `fs`. */
+      tMsAt: function (i) {
+        var devMs = i * _ecgMsPerSample;
+        return t0Ms + devMs + (_ecgCorrAt ? _ecgCorrAt(devMs) : 0);
+      },
+      /* Whether `tMsAt` is actually disciplined. Reported so a caller can tell a corrected axis from a
+         device-clock one WITHOUT re-deriving the condition — and so `applied:false` on `hostAxis`
+         (a REFUSED ppm) is never mistaken for "the time axis is uncorrected too". They are different
+         gates now: the ppm is span-gated, the interpolation is not. */
+      tMsCorrected: !!_ecgCorrAt,
       gaps: gaps,
       t0Ms: t0Ms,
       offsetMin: offsetMin,

@@ -43,5 +43,14 @@
     "killers": [
       "O2Ring device-crystal is invariant to a corrupted host clock — bad-host acceptance"
     ]
+  },
+  "pulsedex-dsp.js": {
+    "line": 66,
+    "op": "cmp < → <=",
+    "before": "for (let i = 0; i < a.length; i++) {",
+    "after": "for (let i = 0; i <= a.length; i++) {",
+    "killers": [
+      "PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)"
+    ]
   }
 }

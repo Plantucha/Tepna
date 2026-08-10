@@ -126,7 +126,13 @@ def test_both_proxy_routes_disable_buffering():
     # Count the directive, not the word: the comments above discuss flush_interval by name.
     cfg = "\n".join(l for l in _generate().splitlines() if not l.lstrip().startswith("#"))
     blocks = re.findall(r"reverse_proxy[^\n]*\{(.*?)\}", cfg, re.S)
-    assert len(blocks) == 2, f"expected the /api/* and /monitor* proxies, found {len(blocks)}"
+    # A FLOOR, NOT AN EXACT COUNT. The property this test exists for is the loop below — EVERY proxy
+    # to the SSE origin must unbuffer. `== 2` also pinned how many routes there happen to be, so
+    # adding the bare-IP /monitor + /api routes (so the monitor is reachable from a phone, which
+    # cannot resolve mDNS) failed a test about buffering for a reason that had nothing to do with
+    # buffering. The floor is still needed: with zero blocks the loop passes vacuously, which is the
+    # failure mode this file exists to prevent.
+    assert len(blocks) >= 2, f"expected at least the /api/* and /monitor* proxies, found {len(blocks)}"
     for b in blocks:
         assert re.search(r"flush_interval\s+-1", b), (
             "every proxy to the SSE origin needs flush_interval -1")

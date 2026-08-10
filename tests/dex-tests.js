@@ -8158,6 +8158,153 @@
        `crsIdx`'s guard ALSO fires on a real stress of 0 (maximum relaxation; `stressEst` clamps to
        [0,100] and genuinely reaches it) — which the old code mapped to the WORST grade. Null is right
        there too: the ratio is undefined, not zero. */
+    /* ── compareIntervalSeries: THE SECOND BOOTSTRAP KILL ────────────────────────────────────────
+       `compareIntervalSeries` carried FIFTY-FOUR surviving mutants and ZERO kills — the largest
+       single cluster in pulsedex-dsp.js, and the second function found in that state after
+       glucodex's `genSynthetic`. A function with no kills cannot be equivalence-probed at all:
+       `tools/probe-equivalence.mjs` needs a positive control from the same function (a mutant the
+       suite killed, replayed to prove the battery reaches the code) and there was none to replay,
+       so all 54 verdicts were withheld however good the battery was.
+
+       It also deserves a test on its own merits rather than to unlock a count: this is the
+       two-signal agreement path — the code that decides whether a Verity armband and an H10 chest
+       strap are measuring the same heart, and by how much they disagree. CLAUDE.md §7 records that
+       H10↔Verity sit ~3.3 s apart on phone-captured nights, so the matcher's behaviour when the two
+       clocks drift is the interesting part, not the happy path.
+
+       Every expectation below was MEASURED against the current implementation before being written,
+       not predicted from reading it. */
+    /* ── fragmentation: THE THIRD BOOTSTRAP KILL ─────────────────────────────────────────────────
+       19 survivors, zero kills — the third function found in that state, after glucodex's
+       genSynthetic and compareIntervalSeries above. Zero kills means no positive control, which
+       means the prober withholds every verdict regardless of the battery.
+
+       Unlike those two this one is exactly hand-computable, so the expectations below are DERIVED
+       from the definition rather than pinned from a run. PIP is the percentage of INFLECTION POINTS:
+       take successive differences, take their signs (carrying the previous sign across a zero), and
+       count sign changes — then divide by N, the number of BEATS, not by the number of differences.
+       That denominator is itself a mutable choice, and only a case where N and the difference count
+       differ visibly can separate them, which is why the series below are short and exact. */
+    group('PulseDex fragmentation — inflection counting, derived not pinned (mutation bootstrap)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
+      var B = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!B || typeof B.fragmentation !== 'function') {
+        T.skip('PulseDex._bare.fragmentation available', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      var F = B.fragmentation;
+
+      /* STRICT ALTERNATION — every increment reverses, so every one of the 3 interior signs differs
+         from its predecessor: ip = 3 over N = 5 beats ⇒ PIP = 60 %. Maximum fragmentation. */
+      var alt5 = F([1000, 1010, 1000, 1010, 1000]);
+      T.eq('alternating 5 beats ⇒ 3 sign changes over 5 beats ⇒ PIP 60 %', alt5 && alt5.pip, 60);
+      T.eq('…every segment is length 1, so both segment shares are 100 %', alt5 && alt5.pss, 100);
+      T.eq('…and the acceleration share too', alt5 && alt5.pas, 100);
+
+      /* The same shape at 9 beats: ip = 7, N = 9 ⇒ 77.8 %. Two lengths of the same pattern separate
+         a mutated DENOMINATOR (N vs the difference count) — 7/9 = 77.8 but 7/8 would be 87.5. */
+      var alt9 = F([1000, 1010, 1000, 1010, 1000, 1010, 1000, 1010, 1000]);
+      T.eq('alternating 9 beats ⇒ 7 changes over 9 beats ⇒ PIP 77.8 %', alt9 && alt9.pip, 77.8);
+
+      /* ONE TURN — diffs +,+,−,− ⇒ signs 1,1,−1,−1 ⇒ exactly ONE change over 5 beats ⇒ 20 %. */
+      var turn = F([1000, 1010, 1020, 1010, 1000]);
+      T.eq('a single turning point ⇒ PIP 20 %', turn && turn.pip, 20);
+      T.eq('…and only the deceleration segment is short-run, so pas is 0', turn && turn.pas, 0);
+
+      /* MONOTONIC and FLAT must both give zero inflections — and they reach it by DIFFERENT paths:
+         monotonic has all-positive signs, flat has all-ZERO differences whose sign is carried from
+         the previous one (and the first zero seeds to +1). A mutant that drops the carry turns the
+         flat case into noise while leaving the monotonic case intact, so both are needed. */
+      T.eq('a monotonically rising series has no inflections', F([1000, 1010, 1020, 1030]).pip, 0);
+      T.eq('…and a perfectly flat one does not either — the zero-difference sign is carried', F([1000, 1000, 1000, 1000]).pip, 0);
+      T.eq('…the two agree on every index, not merely on PIP', JSON.stringify(F([1000, 1010, 1020, 1030])), JSON.stringify(F([1000, 1000, 1000, 1000])));
+
+      /* THE N < 4 FLOOR, from both sides. */
+      T.eq('three beats is too few to have an inflection', F([1000, 1010, 1000]), null);
+      T.ok('…and four is enough', F([1000, 1010, 1000, 1010]) !== null);
+      T.eq('an empty series is null, not a throw', F([]), null);
+    });
+
+    group('PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
+      var B = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!B || typeof B.compareIntervalSeries !== 'function') {
+        T.skip('PulseDex._bare.compareIntervalSeries available', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      /* A deterministic NN series with a repeating 7-beat pattern, plus the absolute beat-end stamps
+         a real capture carries. `off` shifts every interval, which shifts the WALL CLOCK too — that
+         is what makes the two series drift apart rather than merely differ. */
+      var mk = function (n, base, off) {
+        var v = [],
+          ts = [],
+          t = 1e12;
+        for (var i = 0; i < n; i++) {
+          var x = base + (i % 7) * 8 + (off || 0);
+          v.push(x);
+          t += x;
+          ts.push(t);
+        }
+        return { vals: v, tsMs: ts };
+      };
+      var A = mk(200, 1000, 0),
+        C = mk(200, 1000, 0);
+
+      // ── the identity case: the same recording twice must agree perfectly ──
+      var same = B.compareIntervalSeries(A, C);
+      T.eq('two identical series match every beat', same && same.matched, 200);
+      T.eq('…on the shared wall clock, not by index', same && same.haveAbs, true);
+      T.eq('…with zero bias', same && same.agreement.biasMs, 0);
+      T.eq('…zero spread on the differences', same && same.agreement.sdDiffMs, 0);
+      T.eq('…a perfect correlation', same && same.agreement.pearsonR, 1);
+      T.eq('…100 % of beats within 25 ms', same && same.agreement.within25Pct, 100);
+      T.eq('…and the verdict is ok', same && same.agreement.grade, 'ok');
+      T.eq('…no rMSSD discrepancy between a signal and itself', same && same.discrepancy.dRMSSD, 0);
+      T.eq('…and no transit-time surrogate to report', same && same.discrepancy.pttvMs, 0);
+
+      /* ── THE DRIFT CASE, which is the one that matters ──
+         Adding 12 ms to every interval does not merely offset the values — it stretches the second
+         signal's wall clock, so the two drift apart beat by beat. The nearest-beat matcher's
+         tolerance is max(120 ms, 0.3 × the shorter beat), so matches are LOST as the drift exceeds
+         it. Measured: 126 of 200. That number is the matcher working, not failing, and a mutant that
+         widens or removes the tolerance changes it. */
+      var drift = B.compareIntervalSeries(A, mk(200, 1000, 12));
+      T.ok('a 12 ms per-beat stretch loses matches as the clocks drift apart', drift && drift.matched > 5 && drift.matched < 200, 'matched ' + (drift && drift.matched) + ' of 200');
+      T.ok('…and the surviving matches still report a positive bias', drift && drift.agreement.biasMs > 0, 'bias ' + (drift && drift.agreement.biasMs));
+
+      /* ── NO SHARED CLOCK ⇒ 1:1 index correspondence, a different code path entirely ── */
+      var cum = B.compareIntervalSeries({ vals: A.vals }, { vals: C.vals });
+      T.eq('with no timestamps the matcher falls back to 1:1 beat correspondence', cum && cum.matched, 200);
+      T.eq('…and says so rather than implying a shared clock', cum && cum.haveAbs, false);
+      T.eq('…agreeing perfectly on identical input', cum && cum.agreement.biasMs, 0);
+      /* ⚠️ A LENGTH-MISMATCHED tsMs MATCHES NOTHING — 0 of 200 — AND THAT IS A REAL INCONSISTENCY,
+         pinned here as behaviour rather than endorsed as design. Two decisions use DIFFERENT
+         criteria: `haveAbs` is true whenever both sides merely HAVE a tsMs whose [0] is finite, but
+         `endTs` independently falls back to a cumulative axis when tsMs.length !== vals.length. So a
+         short tsMs puts one side on a cumulative axis starting at 0 while the other stays on
+         absolute wall-clock ms, the two can never come within the tolerance, and the result is a
+         confident "0 matched" rather than a refusal or a fallback.
+         Asserted so the behaviour cannot change unnoticed; whether `haveAbs` should agree with
+         `endTs` is a question for the node's owner, not for this test. */
+      var mismatched = B.compareIntervalSeries({ vals: A.vals, tsMs: [1, 2, 3] }, { vals: C.vals, tsMs: C.tsMs });
+      T.eq('a length-mismatched tsMs strands the two axes and matches nothing (see the note above)', mismatched && mismatched.matched, 0);
+      T.eq('…while still claiming a shared clock — the inconsistency, made visible', mismatched && mismatched.haveAbs, true);
+
+      // ── the ≥5-clean-interval floor, from both sides ──
+      var short4 = B.compareIntervalSeries({ vals: [1000, 1000, 1000, 1000] }, A);
+      T.eq('four intervals is too few to compare, and it says why', short4 && short4.error, 'Need ≥5 intervals in each signal to compare.');
+      var five = B.compareIntervalSeries({ vals: [1000, 1008, 1016, 1024, 1032] }, { vals: [1000, 1008, 1016, 1024, 1032] });
+      T.ok('…and exactly five is enough', five && !five.error, JSON.stringify(five && five.error));
+
+      // ── refusals ──
+      T.eq('a missing primary is null, not a throw', B.compareIntervalSeries(null, A), null);
+      T.eq('a missing reference is null', B.compareIntervalSeries(A, null), null);
+      T.eq('an object with no vals is null', B.compareIntervalSeries({}, A), null);
+
+      /* statsA/statsB describe each side INDEPENDENTLY of the matching, so they must be present even
+         when few beats matched — otherwise a weak comparison hides both signals' own numbers. */
+      T.eq('each side reports its own stats', same && same.statsA.n, 200);
+      T.approx('…including a mean RR the beats actually have', same && same.statsA.meanRR, 1024, 1);
+      T.approx('…and the HR that implies', same && same.statsA.hr, 58.6, 0.5);
+    });
     group('PulseDex indices that cannot be computed report null, not a graded 0 (DA-V §2.6)', 'pulsedex-dsp · fabricated-absence · regression', function (T) {
       var D = env.PulseDex && (env.PulseDex._bare || env.PulseDex);
       if (!(D && typeof D.absIdx === 'function' && typeof D.crsIdx === 'function' && typeof D.siCalc === 'function')) {
@@ -20027,6 +20174,220 @@
         'CONTROL · …and declares no coverage block, because a contiguous night has no hole to declare',
         (c.coverage || null) === null,
         c.coverage ? 'coverage.kind=' + c.coverage.kind : 'absent, as required'
+      );
+    });
+
+    /* ════ ECG SAMPLE TIME RIDES THE HOST AXIS, NOT THE SPAN-GATED ppm ═══════════════════════════
+       Clock Contract §7 splits two quantities that ECGDex derived from one scalar:
+         · a RATE (`fs`) — feeds detectPeaks, the bandpass coefficients, refinePeaks, computeSQI.
+           Correcting it from `.ppm` REQUIRES a baseline, hence the 2400 s span gate.
+         · a TIME (sample position) — wants `correctionAt()`, an interpolation whose residual is
+           bounded by the jitter that produced it, and which §7 says explicitly must NOT be span-gated.
+       Every consumer computed `t0Ms + (i / fs) * 1000`, i.e. took the RATE answer for the TIME
+       question. Measured over 15 box nights, 187 ECG fragments >= 200 KB: on the 160 where the span
+       gate REFUSED the ppm, `tMsAt` differs from `i / fs` by a median 48 ms (max 1479 ms); on the 27
+       where it applied, 0.1 ms. A 48 ms axis error is not survivable against a 60 ms PAT bar.
+       These pin the split so a later "simplification" back to one scalar reds instead of silently
+       returning the device clock. */
+    group('ECGDex sample TIME rides the host axis; fs stays the RATE — Clock Contract §7', 'ecgdex-dsp · clock', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.skip('ECGDSP.parseECG available', 'not loaded in this lane');
+        return;
+      }
+      /* A device clock running FAST against the host: the rel-ms column advances by `step`, the phone
+         column by `step * (1 - PPM/1e6)`. Both columns are real and disagree by a known amount, which
+         is exactly the shape hostAxis exists to reconcile. 500 ppm is absurd for a crystal and chosen
+         so the divergence is unmistakable over a short record — this is a known-answer test, not a
+         plausibility one. */
+      /* N MUST EXCEED 21 x ECG_AXIS_EVERY (= 500 rows/anchor). The running median is 21 wide, so a
+         record yielding fewer than 21 anchors clamps at BOTH ends and `correctionAt` returns a
+         CONSTANT — the interpolation is never exercised and the test passes on a flat line. Measured:
+         a 4000-row fixture gives 8 anchors and absorbs exactly 0.00 ms. 60 000 rows gives ~120. */
+      var PPM = 500,
+        N = 60000,
+        step = 1000 / 130;
+      var t0 = U(2026, 5, 17, 1, 0, 0);
+      var hdr = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var rows = [hdr];
+      var p2 = function (x) {
+        return (x < 10 ? '0' : '') + x;
+      };
+      for (var i = 0; i < N; i++) {
+        var devMs = i * step;
+        var hostMs = devMs * (1 - PPM / 1e6);
+        var d = new Date(t0 + hostMs);
+        var ts =
+          d.getUTCFullYear() +
+          '-' +
+          p2(d.getUTCMonth() + 1) +
+          '-' +
+          p2(d.getUTCDate()) +
+          'T' +
+          p2(d.getUTCHours()) +
+          ':' +
+          p2(d.getUTCMinutes()) +
+          ':' +
+          p2(d.getUTCSeconds()) +
+          '.' +
+          ('00' + d.getUTCMilliseconds()).slice(-3);
+        rows.push(ts + ';' + Math.round(devMs * 1e6) + ';' + devMs.toFixed(3) + ';' + (i % 2 ? 100 : -100));
+      }
+      var rec = D.parseECG(rows.join('\n'));
+      T.ok('parseECG produced a record', !!(rec && rec.int16 && rec.int16.length > 100), rec ? 'n=' + rec.int16.length : 'null');
+      if (!rec || !rec.int16 || rec.int16.length < 100) return;
+
+      T.ok('rec exposes tMsAt(i)', typeof rec.tMsAt === 'function');
+      T.ok('rec reports whether that axis is disciplined', typeof rec.tMsCorrected === 'boolean', 'tMsCorrected=' + rec.tMsCorrected);
+      if (typeof rec.tMsAt !== 'function') return;
+
+      var last = rec.int16.length - 1;
+      var naive = (last / rec.fs) * 1000;
+      var corrected = rec.tMsAt(last) - rec.t0Ms;
+      var spanMs = last * step;
+      var expected = spanMs * (PPM / 1e6); // the host is BEHIND the device by this much at the end
+      T.ok('ANTI-VACUITY · the planted divergence is large enough to see', expected > 5, 'planted ' + expected.toFixed(1) + ' ms over ' + (spanMs / 1000).toFixed(0) + ' s');
+      /* THE ASSERTION — measured as a DIFFERENTIAL across the record, not at one endpoint.
+         Clock Contract §7: the running median CLAMPS at both ends, "which pulls each end inward by
+         ⌊win/2⌋/2 = 5 anchors' worth of drift", so `correctionAt` at the last sample under-reads by a
+         known amount (measured here: 7.9 of 15.4 ms on a deliberately short 31 s record with few
+         anchors). That bias is a property of the estimator, not an error, and it is common to both
+         ends — so the RATE OF CHANGE across the record is the honest quantity and it cancels. */
+      var corrFirst = rec.tMsAt(0) - rec.t0Ms - 0;
+      var corrLast = rec.tMsAt(last) - rec.t0Ms - naive;
+      var recovered = corrFirst - corrLast; // how much host-vs-device divergence the axis absorbed
+      T.ok(
+        'tMsAt tracks the HOST column — the divergence it absorbs grows across the record',
+        recovered > 0.3 * expected,
+        'absorbed=' + recovered.toFixed(1) + ' ms of a planted ' + expected.toFixed(1) + ' ms (§7 end-clamp under-reads a short record; the SIGN and growth are the assertion)'
+      );
+      T.ok('…and the axis is NOT the device clock (a revert to i/fs makes this exactly 0)', Math.abs(recovered) > 1, 'absorbed=' + recovered.toFixed(2) + ' ms');
+
+      /* `fs` remains the RATE and must NOT absorb the interpolation — the filters depend on it. */
+      T.ok('fs stays a plausible rate (the time fix did not move the rate)', rec.fs > 100 && rec.fs < 160, 'fs=' + rec.fs);
+
+      /* THE DOUBLE-COUNT, guarded by SOURCE SCAN because behaviour cannot reach it here.
+         `tMsAt` must derive its per-sample step from the PRE-correction rate. If it used the
+         ppm-corrected `fs`, the linear part of the divergence would be applied twice on any record
+         where the span gate fired. This fixture is 462 s — under the 2400 s gate — so `fs` and
+         `fsDevice` are EQUAL and a behavioural assertion cannot separate them (verified: swapping
+         them leaves all 581 assertions green). Exposing it behaviourally needs a >40 min fixture,
+         ~312 000 rows, which is a slow test for one line. So the invariant is asserted where it is
+         visible: in the source. */
+      var src = (env.sources || {})['ecgdex-dsp.js'];
+      if (src) {
+        T.ok(
+          'tMsAt steps by the PRE-correction rate (fsDevice), never the ppm-corrected fs',
+          /_ecgMsPerSample\s*=\s*1000\s*\/\s*fsDevice\b/.test(src),
+          'a ppm-corrected fs here would count the same divergence twice'
+        );
+        T.ok(
+          '…and fsDevice is captured BEFORE the ppm block that mutates fs',
+          src.indexOf('var fsDevice = fs;') > 0 && src.indexOf('var fsDevice = fs;') < src.indexOf('fs = fs / (1 + ecgHostAx.ppm'),
+          'ordering: capture must precede the mutation'
+        );
+      } else {
+        T.skip('ecgdex-dsp.js source available for the double-count scan', 'add it to SOURCE_FILES in both runners');
+      }
+
+      /* NO SECOND CLOCK ⇒ DEVICE TIME, NEVER A FABRICATED ONE (§2.6). A phone capture derives the host
+         column from the device stamp, so the two agree to a stamp quantum and hostAxis marks it
+         non-independent; tMsAt must then be the identity. */
+      var rows2 = [hdr];
+      for (var k = 0; k < N; k++) {
+        var dm = k * step;
+        var d2 = new Date(t0 + dm); // host == device: the derived-column case
+        var ts2 =
+          d2.getUTCFullYear() +
+          '-' +
+          p2(d2.getUTCMonth() + 1) +
+          '-' +
+          p2(d2.getUTCDate()) +
+          'T' +
+          p2(d2.getUTCHours()) +
+          ':' +
+          p2(d2.getUTCMinutes()) +
+          ':' +
+          p2(d2.getUTCSeconds()) +
+          '.' +
+          ('00' + d2.getUTCMilliseconds()).slice(-3);
+        rows2.push(ts2 + ';' + Math.round(dm * 1e6) + ';' + dm.toFixed(3) + ';' + (k % 2 ? 100 : -100));
+      }
+      var rec2 = D.parseECG(rows2.join('\n'));
+      if (rec2 && typeof rec2.tMsAt === 'function' && rec2.int16 && rec2.int16.length > 100) {
+        var l2 = rec2.int16.length - 1;
+        T.ok(
+          'no independent clock ⇒ tMsAt returns DEVICE time, never a fabricated correction',
+          Math.abs(rec2.tMsAt(l2) - rec2.t0Ms - (l2 / rec2.fs) * 1000) < 2,
+          'delta=' + (rec2.tMsAt(l2) - rec2.t0Ms - (l2 / rec2.fs) * 1000).toFixed(2) + ' ms · tMsCorrected=' + rec2.tMsCorrected
+        );
+      }
+
+      /* `fs` COMES FROM THE INTEGER COUNTER AND IS NOT ROUNDED TO THE NOMINAL.
+         The `[ms]` column is a derived float that loses precision as it grows, which is why its
+         estimate is rounded — and rounding forces 130 exactly, discarding the crystal. Measured on the
+         box corpus the H10's real rate is 129.9866–129.9966 Hz, so the rounded axis ran up to −125.5 ppm
+         fast: −4.16 s across a night, 2.4 cardiac cycles, and the reason PAT was unmeasurable
+         (`PAT-SAWTOOTH-ANSWERS-THE-130MS`). Here the `[ms]` column carries the NOMINAL ladder (as the
+         Polar Sensor Logger writes it) while the ns counter runs at TRUE_HZ, so the two derivations give
+         different answers and the assertion can only pass on the counter. */
+      var TRUE_HZ = 129.9866,
+        trueStep = 1000 / TRUE_HZ;
+      var mkNs = function (base) {
+        var out = [hdr];
+        for (var j = 0; j < 30000; j++) {
+          var dev = j * trueStep;
+          var dd = new Date(t0 + dev); // host tracks the DEVICE here → derived column → no ppm correction
+          out.push(
+            dd.getUTCFullYear() +
+              '-' +
+              p2(dd.getUTCMonth() + 1) +
+              '-' +
+              p2(dd.getUTCDate()) +
+              'T' +
+              p2(dd.getUTCHours()) +
+              ':' +
+              p2(dd.getUTCMinutes()) +
+              ':' +
+              p2(dd.getUTCSeconds()) +
+              '.' +
+              ('00' + dd.getUTCMilliseconds()).slice(-3) +
+              ';' +
+              (base + Math.round(dev * 1e6)) +
+              ';' +
+              ((j * 1000) / 130).toFixed(3) +
+              ';' +
+              (j % 2 ? 100 : -100)
+          );
+        }
+        return D.parseECG(out.join('\n'));
+      };
+      var recNs = mkNs(0);
+      T.ok(
+        'fs is derived from the ns COUNTER, not rounded to the nominal 130',
+        recNs && Math.abs(recNs.fs - TRUE_HZ) < 0.002,
+        'fs=' + (recNs ? recNs.fs.toFixed(4) : 'null') + ' · counter says ' + TRUE_HZ + ' · the [ms] column says 130'
+      );
+      T.ok(
+        'ANTI-VACUITY · that rate is distinguishable from the nominal at this length',
+        Math.abs(TRUE_HZ - 130) / 130 > 5e-6 && recNs && Math.abs(recNs.fs - 130) > 0.005,
+        'planted ' + (((TRUE_HZ - 130) / 130) * 1e6).toFixed(0) + ' ppm; a rounded fs would read exactly 130'
+      );
+
+      /* THE COUNTER MAY START AT ZERO. A `rawNs > 0` guard rejects row 0, anchors the axis one sample
+         late, and puts a full sample step of phantom spread on every anchor — which flipped
+         `independent` to true on a derived column when this was first written. Real Polar files hide it
+         (their counter is ~8.4e17); the same stream offset by that constant must parse identically. */
+      var recNsBig = mkNs(839121708324988128);
+      T.ok(
+        'a counter starting at 0 parses the same as one offset by the real Polar epoch',
+        recNs && recNsBig && Math.abs(recNs.fs - recNsBig.fs) < 0.002 && recNs.tMsCorrected === recNsBig.tMsCorrected,
+        'fs ' + (recNs ? recNs.fs.toFixed(4) : '-') + ' vs ' + (recNsBig ? recNsBig.fs.toFixed(4) : '-') + ' · corrected ' + (recNs || {}).tMsCorrected + '/' + (recNsBig || {}).tMsCorrected
+      );
+      T.ok(
+        '…and neither fabricates a correction from a host column derived off that counter',
+        recNs && recNs.tMsCorrected === false && recNsBig && recNsBig.tMsCorrected === false,
+        'tMsCorrected=' + (recNs || {}).tMsCorrected + '/' + (recNsBig || {}).tMsCorrected
       );
     });
 
