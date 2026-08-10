@@ -758,7 +758,9 @@ function ecgHrMap(text, onPhase) {
       if (!(rr > 250 && rr < 2200)) continue;
       var hr = 60000 / rr;
       if (!(hr >= HR_MIN && hr <= HR_MAX)) continue;
-      pairs.push([secFloor(t0 + (peaks[i] / fs) * 1000), hr]);
+      // TIME, not rate — see pat-feasibility-worker. `rec.tMsAt` rides the host axis where one exists
+      // and returns device time where none does; `t0 + i/fs` is the device clock unconditionally.
+      pairs.push([secFloor(typeof rec.tMsAt === 'function' ? rec.tMsAt(peaks[i]) : t0 + (peaks[i] / fs) * 1000), hr]);
     }
     if (pairs.length < 30) {
       self.__ecgErr = 'HR beats <30';
