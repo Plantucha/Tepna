@@ -56,19 +56,37 @@ class _FakeClient:
             self._cb(0, bytearray(reply))
 
 
-def _install(monkeypatch, client, found=True):
-    async def find(addr, timeout=0):
+# ⚠️ THE FAKES ASSERT WHAT THEY ARE HANDED. A `lambda dev, **kw: client` cannot tell `BleakClient(dev)`
+# from `BleakClient(None)`, so the whole point of the bonded-address fallback — that the ADDRESS is what
+# gets connected when no advertisement was seen — was unobservable. The mutation gate found exactly that
+# (`dev = address` → `dev = None` survived), and it is the third time in one session that a fake
+# ignoring its arguments hid a real hole. `_seen` records the value so a test can assert on it.
+def _install(monkeypatch, client, found=True, addr="AA:BB"):
+    seen = {}
+
+    async def find(a, timeout=0):
+        assert a == addr, f"the scanner must be asked for {addr}, got {a!r}"
+        seen["scanned"] = a
         return object() if found else None
+
+    def _mk(dev, **kw):
+        seen["connected_to"] = dev
+        return client
+
     monkeypatch.setattr(probe.BleakScanner, "find_device_by_address", find)
-    monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: client)
+    monkeypatch.setattr(probe, "BleakClient", _mk)
+    return seen
 
 
 def _run(coro):
     return asyncio.run(coro)
 
 
-def _bonded_says(value):
-    async def _f(_addr):
+def _bonded_says(value, expect="AA:BB"):
+    """The bond read must be asked about the DEVICE, not about None — `_is_bonded(address)` →
+    `_is_bonded(None)` survived until this asserted it."""
+    async def _f(addr):
+        assert addr == expect, f"the bond read must be asked about {expect}, got {addr!r}"
         return value
     return _f
 
@@ -90,10 +108,12 @@ def test_no_advertisement_is_NOT_absence_the_bonded_address_still_connects(monke
     "device not found — is it advertising, and is the daemon stopped?", sending the operator to inspect
     a daemon that was never involved. Measured 2026-08-10: 20 s scan silent, `bluetoothctl info` saying
     Bonded: yes."""
-    _install(monkeypatch, _FakeClient([_status(acc=pmd.NO_MEASUREMENT)]), found=False)
+    seen = _install(monkeypatch, _FakeClient([_status(acc=pmd.NO_MEASUREMENT)]), found=False)
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=False, seconds=1))
     assert "error" not in out, f"a reachable bonded device must not be reported as an error: {out}"
     assert out["reached_by"] == "bonded address (no advertisement seen)"
+    assert seen["connected_to"] == "AA:BB", \
+        "the ADDRESS is what must be connected when no advertisement was seen — that is the fallback"
     assert out["status_before"]["acc"] == "none", "…and the run proceeds normally"
 
 
