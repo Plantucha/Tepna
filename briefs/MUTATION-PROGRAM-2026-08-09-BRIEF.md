@@ -430,6 +430,32 @@ So the unit of work is not always "write a battery". For a zero-kill function it
 THEN a battery"**, and the test is owed on its own merits: `compareIntervalSeries` is the two-signal
 agreement path — whether a Verity and an H10 are measuring the same heart.
 
+**Scanned across every swept file, the class is much larger than the three found by accident.** Any
+function holding ≥8 survivors and zero kills, measured against each file's own sweep:
+
+| file | function | survivors | state |
+|---|---|---:|---|
+| `glucodex-dsp.js` | `genSynthetic` | 90 | bootstrapped |
+| `ppgdex-dsp.js` | **`cvhrFromNN`** | **57** | open |
+| `pulsedex-dsp.js` | `compareIntervalSeries` | 54 | bootstrapped |
+| `motiondex-dsp.js` | `inferAccUnit` | 31 | open |
+| `glucodex-dsp.js` | `locateColumns` | 30 | open |
+| `cpapdex-dsp.js` | `_nightFromInput` | 20 | open |
+| `pulsedex-dsp.js` | `fragmentation` | 19 | bootstrapped |
+| `hrvdex-dsp.js` | `getFilteredRows` | 11 | **not probeable** — reads `document` |
+| `glucodex-dsp.js` | `applySessionCorrections` | 8 | open |
+| | | **~320** | **≈ 20 % of every survivor the fleet has mapped** |
+
+Three are done; five are open and each needs ONE test before any of its survivors can be classified.
+`cvhrFromNN` is the notable one — 57 survivors, no kills, and it is the apnea-band detector
+(`PPGDEX-TESTABLE-SURFACE` §4 named it the highest-value export candidate before that plan was
+withdrawn on cost). It is reachable through `compute()` today, so it needs a test, not an export.
+
+`getFilteredRows` is the one that cannot be fixed this way: it throws `document is not defined` in any
+headless realm, so its behaviour is a function of the DOM rather than of its argument. Its 11
+survivors stay unclassified permanently unless the function is refactored, and saying so is the honest
+outcome rather than pretending a battery could reach it.
+
 **(b) The classification DECAYS, because its key contains a line number.** `(line, op, before)` mixes
 a description of the code with a description of where it sat, so any edit *above* a recorded mutant
 orphans it. Measured: #1127 touched `pulsedex-dsp.js` within HOURS of 19 entries landing and orphaned
