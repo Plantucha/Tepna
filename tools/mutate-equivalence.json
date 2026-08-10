@@ -1844,6 +1844,168 @@
       "class": "no-distinguishing-input",
       "why": "In classifyRecording. Original and mutant produced byte-identical output on every input.",
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1097,
+      "op": "eq === → !==",
+      "before": "if (tsMs && tsMs.length === vals.length && isFinite(tsMs[0])) return tsMs.slice();",
+      "after": "if (tsMs && tsMs.length !== vals.length && isFinite(tsMs[0])) return tsMs.slice();",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1100,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < vals.length; i++) {",
+      "after": "for (let i = 0; i <= vals.length; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1116,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < B.length; i++) {",
+      "after": "for (let i = 0; i <= B.length; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1117,
+      "op": "cmp <= → <",
+      "before": "while (j + 1 < A.length && Math.abs(ta[j + 1] - tb[i]) <= Math.abs(ta[j] - tb[i])) j++;",
+      "after": "while (j + 1 < A.length && Math.abs(ta[j + 1] - tb[i]) < Math.abs(ta[j] - tb[i])) j++;",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1117,
+      "op": "cmp < → <=",
+      "before": "while (j + 1 < A.length && Math.abs(ta[j + 1] - tb[i]) <= Math.abs(ta[j] - tb[i])) j++;",
+      "after": "while (j + 1 <= A.length && Math.abs(ta[j + 1] - tb[i]) <= Math.abs(ta[j] - tb[i])) j++;",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1119,
+      "op": "num → 0",
+      "before": "const tol = Math.max(120, 0.3 * Math.min(A[j], B[i]));",
+      "after": "const tol = Math.max(0, 0.3 * Math.min(A[j], B[i]));",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1120,
+      "op": "cmp <= → <",
+      "before": "if (dt <= tol) {",
+      "after": "if (dt < tol) {",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1140,
+      "op": "num → 0",
+      "before": "return { matched: nM, matchRatePct: +((nM / mAll) * 100).toFixed(0), statsA, statsB, haveAbs, weak: ",
+      "after": "return { matched: nM, matchRatePct: +((nM / mAll) * 0).toFixed(0), statsA, statsB, haveAbs, weak: tr",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1147,
+      "op": "cmp <= → <",
+      "before": "const within25 = (diffs.filter((d) => Math.abs(d) <= 25).length / nM) * 100;",
+      "after": "const within25 = (diffs.filter((d) => Math.abs(d) < 25).length / nM) * 100;",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1160,
+      "op": "cmp > → >=",
+      "before": "const pttv = rmB > rmA ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : 0;",
+      "after": "const pttv = rmB >= rmA ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : 0;",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1163,
+      "op": "bool || → &&",
+      "before": "const kA = primary.kind || 'auto',",
+      "after": "const kA = primary.kind && 'auto',",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1164,
+      "op": "bool || → &&",
+      "before": "kB = reference.kind || 'auto';",
+      "after": "kB = reference.kind && 'auto';",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1165,
+      "op": "eq === → !==",
+      "before": "const refIsPulse = kB === 'ppi' || (kB === 'auto' && kA === 'rr');",
+      "after": "const refIsPulse = kB === 'ppi' || (kB !== 'auto' && kA === 'rr');",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1165,
+      "op": "bool || → &&",
+      "before": "const refIsPulse = kB === 'ppi' || (kB === 'auto' && kA === 'rr');",
+      "after": "const refIsPulse = kB === 'ppi' && (kB === 'auto' && kA === 'rr');",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1166,
+      "op": "cmp <= → <",
+      "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "after": "const agreeGrade = mad < 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1166,
+      "op": "cmp <= → <",
+      "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "after": "const agreeGrade = mad <= 10 && Math.abs(bias) < 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1166,
+      "op": "cmp <= → <",
+      "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "after": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad < 20 ? 'warn' : 'bad';",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1166,
+      "op": "num → 0",
+      "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "after": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 0 ? 'warn' : 'bad';",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     }
   ],
   "glucodex-dsp.js": [
