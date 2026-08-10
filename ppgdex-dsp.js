@@ -2252,6 +2252,12 @@
     return out;
   }
 
+  /* Full-scale points for the 0-1 motion index. NAMED because the gyro's zero-rate floor is capped at
+     a fraction of GY_FULL: as two bare literals the cap and the normaliser could drift apart, and the
+     failure would be silent — a cap that no longer matches the scale it is a fraction of. */
+  const ACC_FULL = 120; // mg of DYNAMIC (de-gravitated) acceleration = full motion
+  const GY_FULL = 40; // dps = full motion
+
   function analyzeMotion(accRows, gyroRows, t0Ms, durSec, magRows) {
     // magRows is LAST + optional so the historical 4-arg contract analyzeMotion(acc,gyro,t0,dur)
     // (and the shared regression suite) keeps working unchanged.
@@ -2327,9 +2333,49 @@
       const base = movavg(Float32Array.from(mags), w);
       accMag = accRows.map((r, i) => ({ s: relSecOf(r), v: Math.abs(mags[i] - base[i]) }));
     }
+    /* ── THE GYRO'S ZERO-RATE BIAS IS NOT MOTION ──────────────────────────────────────────────────
+       ACC is de-gravitated three lines up — `|mag - movavg(mag, ~1s)|` — because a raw accelerometer
+       magnitude is dominated by a constant it must not be credited for. The gyroscope had no such
+       treatment and has exactly the same problem: a MEMS gyro at rest does not read zero.
+
+       MEASURED on a real 4.19 h night (Verity `0C301E3F`, 2026-08-09, 780k samples):
+
+           gyroMag [dps]   p1 3.469   p50 3.854   p90 3.983   p99 12.405   max 353.9
+
+       p1→p90 spans half a dps. That is not a distribution of movement, it is a FLOOR — the arm is
+       still and the sensor reads ~3.85 dps regardless. Against `gyNorm`'s 40 dps full scale that
+       normalises to 0.096 while de-gravitated ACC's median is 0.012, so `max(accNorm, gyNorm)` picked
+       the gyro in **99.18 %** of cells and every quiet epoch carried ~0.1 of motion it had not earned.
+       Mean motion index over that night: 0.110 with the pedestal, 0.044 without.
+
+       Not cosmetic: the index gates per-pulse SQI, which becomes the `conf` on every Ganglior beat
+       event — so a stationary gyroscope was quietly discounting beat confidence all night.
+
+       WHY A FLOOR AND NOT A MOVING AVERAGE. Gravity is slowly-varying (posture), so ACC subtracts a
+       ~1 s baseline. A gyro's zero-rate bias is a STATIC offset, and high-passing it the same way
+       would erase sustained rotation — which is real motion and must survive. So: one robust floor per
+       recording, subtracted, clamped at zero.
+
+       ⚠️ THE FLOOR IS CAPPED, because the estimator can be wrong in the direction that hurts. On a
+       recording that is mostly movement a low percentile is no longer the bias, and subtracting it
+       would erase the very thing being measured. Past `GY_FULL / 4` the "floor" is motion, so it stops
+       being treated as bias — the cap can only ever let MORE motion through, never less.
+
+       NO `Math.max(0, …)` HERE, DELIBERATELY. Subtracting a 10th-percentile floor leaves ~10 % of
+       samples negative, and clamping them looks prudent — but `gyroMag` has exactly ONE consumer, the
+       grid accumulation below, which does `Math.max(gyCell[g], v)` into a ZERO-INITIALISED array. A
+       negative can never win that comparison, so the clamp is unreachable by construction: it was
+       written, the mutation check could not kill it, and dead defensive code is worse than none.
+       ⚠️ That invariant is what makes this safe — a SECOND consumer of `gyroMag` must re-establish it
+       or clamp for itself. */
     let gyroMag = [];
+    let gyroBias = 0;
     if (gyroRows && gyroRows.length > 5) {
-      gyroMag = gyroRows.map((r) => ({ s: relSecOf(r), v: Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z) }));
+      const rawGy = gyroRows.map((r) => Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z));
+      const sortedGy = Array.from(rawGy).sort((a, b) => a - b);
+      const p10 = sortedGy[Math.floor(sortedGy.length * 0.1)];
+      gyroBias = Math.min(isFinite(p10) && p10 > 0 ? p10 : 0, GY_FULL / 4);
+      gyroMag = gyroRows.map((r, i) => ({ s: relSecOf(r), v: rawGy[i] - gyroBias }));
     }
     // accumulate into grid (max within each 0.25s cell)
     const accCell = new Float32Array(nG),
@@ -2360,8 +2406,8 @@
       }
     }
     // normalise: accel in mg (dynamic), gyro in dps. Scale so "still" ≈ 0.
-    const accNorm = (v) => Math.min(1, v / 120); // ~120 mg dynamic = full motion
-    const gyNorm = (v) => Math.min(1, v / 40); // ~40 dps = full motion
+    const accNorm = (v) => Math.min(1, v / ACC_FULL); // ~120 mg dynamic = full motion
+    const gyNorm = (v) => Math.min(1, v / GY_FULL); // ~40 dps = full motion
     /* `onsetGrid` is the SAME quantity WITHOUT the clip. `grid` saturates at 1.0 by design — it is a
        0-1 motion INDEX for epoch reporting and quality gating, where "moving hard" and "moving very
        hard" are usefully the same. For ONSET detection that clip is fatal: on a normal night many
@@ -2372,7 +2418,7 @@
     const onsetGrid = new Float32Array(nG);
     for (let i = 0; i < nG; i++) {
       grid[i] = Math.max(accNorm(accCell[i]), gyNorm(gyCell[i]));
-      onsetGrid[i] = Math.max(accCell[i] / 120, gyCell[i] / 40);
+      onsetGrid[i] = Math.max(accCell[i] / ACC_FULL, gyCell[i] / GY_FULL);
     }
     // smooth
     const sm = movavg(grid, 3);
@@ -2571,6 +2617,10 @@
       series,
       accFs: _accHz != null ? Math.round(_accHz) : null,
       gyroFs: _gyroHz != null ? Math.round(_gyroHz) : null,
+      // The zero-rate floor subtracted from this recording's gyro, in dps. Reported because a silent
+      // correction cannot be checked: ~3.9 on the measured night, and a value at the GY_FULL/4 cap
+      // means the estimator hit its guard rail and the recording is mostly movement.
+      gyroBiasDps: gyroRows && gyroRows.length > 5 ? r2(gyroBias) : null,
       nAcc: accRows ? accRows.length : 0,
       nGyro: gyroRows ? gyroRows.length : 0,
       hasMag: magState.has,
