@@ -457,6 +457,66 @@ extra sample per session, and every value this function exposes is an aggregate 
 median, daily means over 288 readings. One sample moves none of them. Killing it needs a per-sample
 view of the corrected series that `analyze` does not export.
 
+### 7.0d · THE BATTERIES COVERED A MINORITY OF THE FLEET, AND THE TOOL COULD NOT SAY SO
+
+§7.0c found this in one file. It is fleet-wide, and it is the largest single defect the programme has
+turned up — not in the code under test, but **in the instrument**.
+
+`probe-equivalence` scores each family against the mutants in its `fn`'s LINE RANGE. A survivor in a
+function no family names is therefore not "unclassified" — it is **invisible**. It is not counted, not
+reported, and not missed. The run ends *"all controls separated"* and reads as complete. Measured
+2026-08-10, before this work-unit's changes:
+
+| file | survivors | claimable by any family | **invisible** |
+|---|---:|---:|---:|
+| `ppgdex-dsp.js` | 736 | 57 | **679 (92 %)** |
+| `cpapdex-dsp.js` | 488 | 133 | **355 (73 %)** |
+| `motiondex-dsp.js` | 287 | 92 | **195 (68 %)** |
+| `glucodex-dsp.js` | 516 | ~190 | ~326 |
+| `hrvdex-dsp.js` | 298 | 217 | 81 (27 %) |
+| | | | **≈ 1310** |
+
+ppgdex had **three** families for a **46-function** module, and its probes had been reporting clean
+runs throughout. This is precisely the failure class this repo keeps meeting — *a gate that passes
+without examining the thing it names* — and the fix is not a better battery. It is **a number that
+makes the omission visible**, so a battery's REACH is reported beside its verdicts:
+
+```sh
+node tools/probe-coverage.mjs --sweep <sweep.json>     # exits 1 when the majority is invisible
+```
+
+It prints the invisible survivors grouped by enclosing function — each row is a family nobody wrote —
+and is backed by 15 known-answer selftests covering the properties that matter: overlapping ranges
+must not double-count (a nested helper inside a claimed function is normal), boundaries are inclusive
+at both ends, no ranges means nothing claimable rather than everything, and an empty survivor set is
+0 % rather than `NaN`.
+
+**Claimable is not classified**, and the tool says so: a family still has to separate its controls,
+and a distinguishable survivor is debt rather than a win. This measures only whether the prober could
+form an opinion at all — the difference between *"we looked and found a real gap"* and *"we never
+looked"*. Those two were previously the same output.
+
+**ppgdex, rebuilt against that number: 57 → 438 claimable (7.7 % → 59.5 %).** 32 pipeline families now
+cover `analyze` and everything it calls. What had been missing was never access — `analyze` is
+exported — it was **a fixture that survives beat detection**. The battery's existing generator emits a
+linear RAMP: correct for the timing-axis branches it was written for, and pulseless, so every
+beat-dependent function downstream returned empty. A generator with an actual pulse (systolic
+upstroke, dicrotic notch, diastolic decay, per-channel gain so the three LEDs are not bit-identical)
+was verified by execution before any of this was written down:
+
+- 60 s @ 60 bpm → **59 beats, HR 60**; 120 s @ 72 bpm → **130 beats, HR 72**
+- and **`cvhrFromNN`** — the "hard one" listed above with 57 survivors, filed as *a project rather than
+  a battery* — falls straight out of an HR modulated in the apnea band: flat HR → `cvhrIndex 0`, 0
+  events; a 40 s cycle → **84.1, 7 events**; a 30 s cycle → **108.4, 9 events**. It should be struck
+  from the hard list.
+
+⚠️ **No ppgdex classifications are emitted here, deliberately.** The available sweep predates #1129 and
+only **370 of its 736** survivors still sit on their recorded line. Probing a half-stale sweep cannot
+emit wrong verdicts — emission is keyed on the recorded survivor set — but it silently mislabels moved
+survivors as *controls*, which corrupts the one check that proves a battery works at all. A fresh
+sweep is owed before this battery's verdicts are recorded. The instrument landed first because it is
+what prevents the next omission.
+
 ### 7.0c · THE PIPELINE IS NOT UNREACHABLE — it was UNPROBED, and it holds NO equivalents
 
 Of glucodex's 516 survivors the original five families claimed ~190. The rest sat in functions the

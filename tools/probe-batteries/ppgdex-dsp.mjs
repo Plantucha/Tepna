@@ -325,7 +325,184 @@ const LOE_CASES = [];
   for (const j of [null, undefined, {}, [], 'a string', 42, 0, true]) LOE_CASES.push(j);
 }
 
-export const families = [
+/* ══ THE PIPELINE — 679 of this file's 736 survivors were UNPROBED, not unreachable ══════════════
+   Three families (`lombScargle`, `parsePPG`, `ppgLoadOwnExport`) covered **57** survivors of 736. The
+   other 679 were never claimed by any family, so the prober could not have reached a verdict on them
+   however good the batteries were — and nothing said so, because a family only ever reports on the
+   mutants inside its own `fn`'s line range.
+
+   They are not exotic. `analyze(rec, progress)` is exported and calls essentially all of them:
+
+       120 analyze · 57 cvhrFromNN · 26 beatConfidence · 16 detectBeats · 10 consensusBeats
+        10 beatSQI · 10 correctRR · 10 timeDomain · 10 intervalsSpanningTimeGap · 9 ppgCoverage
+         8 channelSNR · 8 holdOverGaps · 7 sqiAt · 6 poincare · 5 dfaAlpha1 · 5 buildEpochs …
+
+   WHAT WAS MISSING WAS A FIXTURE THAT SURVIVES BEAT DETECTION. The battery's existing `rowsTwoClock`
+   emits a linear RAMP — correct for the timing-axis branches it was written for, and pulseless, so
+   every beat-dependent function downstream returned empty. So the generator below emits an actual
+   pulse: a sharp systolic upstroke, a dicrotic notch and a diastolic decay, on all three LEDs with
+   per-channel gain so they are not bit-identical (identical channels take `distinctChannelIdx`'s
+   `nCh < 2` path and never vote).
+
+   Verified by execution before any of it was written down:
+       60 s @ 60 bpm  →  59 beats, HR 60      120 s @ 72 bpm →  130 beats, HR 72
+   and `cvhrFromNN` — the brief's "hard one", 57 survivors, previously filed as a project rather than
+   a battery — falls straight out of an HR modulated in the apnea band:
+       flat HR → cvhrIndex 0, 0 events    40 s cycle → 84.1, 7 events    30 s cycle → 108.4, 9 events */
+const PPG_HDR = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient';
+function ppgText(sec, { fs = 135, hr = 60, amp = 800, base = 20000, cvhrPeriodSec = 0, cvhrDepth = 0, rrJitter = 0, ambient = 400, ambDrift = 0, noise = 0, flatline = 0, sentinel = 0 } = {}) {
+  const out = [PPG_HDR];
+  const n = Math.round(sec * fs),
+    step = 1000 / fs,
+    p2 = (x) => String(x).padStart(2, '0');
+  let devMs = 0,
+    ph = 0,
+    beat = 0,
+    /* The CURRENT beat's RR. Re-drawn at each beat boundary rather than per sample, because
+       beat-to-beat variability is what `correctRR`, `poincare` and `timeDomain` measure — modulating
+       it within a beat would smear the interval instead of varying it. */
+    rr = 60000 / hr;
+  for (let i = 0; i < n; i++) {
+    devMs += step;
+    const tSec = devMs / 1000;
+    ph += step / rr;
+    if (ph >= 1) {
+      ph -= 1;
+      beat++;
+      const hrNow = hr * (1 + (cvhrPeriodSec ? cvhrDepth * Math.sin((2 * Math.PI * tSec) / cvhrPeriodSec) : 0));
+      // deterministic per-beat jitter — a probe must be byte-reproducible, so never Math.random
+      rr = (60000 / hrNow) * (1 + (rrJitter ? (((beat * 7919) % 100) / 100 - 0.5) * 2 * rrJitter : 0));
+    }
+    /* systolic peak + dicrotic notch + diastolic trough — the shape `refineFeet` looks for */
+    const w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
+    // deterministic pseudo-noise — a probe must be byte-reproducible, so never Math.random
+    const nz = noise ? (((i * 7919) % 1000) / 1000 - 0.5) * 2 * noise : 0;
+    const inFlat = flatline && tSec > sec * 0.4 && tSec < sec * 0.4 + flatline;
+    let v = inFlat ? base : base + amp * w + nz;
+    if (sentinel && i % sentinel === 0) v = 156; // the O2Ring sentinel markO2Sentinels/holdOverGaps handle
+    const t = new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + Math.round(devMs));
+    const ts = `${t.getUTCFullYear()}-${p2(t.getUTCMonth() + 1)}-${p2(t.getUTCDate())} ${p2(t.getUTCHours())}:${p2(t.getUTCMinutes())}:${p2(t.getUTCSeconds())}.${String(t.getUTCMilliseconds()).padStart(3, '0')}`;
+    const amb = ambient + (ambDrift ? (ambDrift * i) / n : 0);
+    /* per-channel gain/offset: three real photodiodes are never bit-identical, and identical ones
+       take the honest `nCh < 2` path instead of voting with themselves */
+    out.push(`${ts};${Math.round(devMs * 1e6)};${Math.round(v)};${Math.round(v * 0.95 + 30)};${Math.round(v * 1.03 - 25)};${Math.round(amb)}`);
+  }
+  return out.join('\n');
+}
+
+/* Parse ONCE per case and reuse — `parsePPG` on 40 000 samples dominates the cost otherwise, and the
+   record is not mutated by `analyze`. Built lazily so a battery load costs nothing. */
+let PIPE_CASES = null;
+function pipeCases(D) {
+  if (PIPE_CASES) return PIPE_CASES;
+  const mk = (sec, o) => {
+    try {
+      return D.parsePPG(ppgText(sec, o), undefined);
+    } catch (e) {
+      return { __err: String(e && e.message).slice(0, 60) };
+    }
+  };
+  PIPE_CASES = [
+    ['clean 60 s @60', mk(60, {})],
+    ['clean 120 s @72', mk(120, { hr: 72 })],
+    ['bradycardic @45', mk(120, { hr: 45 })],
+    ['tachycardic @110', mk(120, { hr: 110 })],
+    ['RR jitter 8 %', mk(120, { hr: 65, rrJitter: 0.08 })],
+    /* CVHR — the apnea band. Flat HR is the negation, and both are needed: an index that is always
+       zero and an index that is never zero are the same measurement. */
+    ['CVHR 40 s cycle', mk(300, { cvhrPeriodSec: 40, cvhrDepth: 0.18 })],
+    ['CVHR 30 s deep', mk(300, { cvhrPeriodSec: 30, cvhrDepth: 0.25 })],
+    ['CVHR 60 s shallow', mk(300, { cvhrPeriodSec: 60, cvhrDepth: 0.06 })],
+    ['flat HR 300 s (CVHR negation)', mk(300, {})],
+    /* SIGNAL QUALITY — SQI, beatConfidence and channelSNR are all contrasts, so a battery of clean
+       signals exercises none of them. */
+    ['noisy (SNR floor)', mk(120, { hr: 68, noise: 900 })],
+    ['very noisy', mk(120, { hr: 68, noise: 4000 })],
+    ['low amplitude', mk(120, { hr: 68, amp: 60 })],
+    ['30 s flatline mid-record', mk(180, { hr: 68, flatline: 30 })],
+    ['O2Ring 156 sentinels', mk(120, { hr: 68, sentinel: 97 })],
+    ['ambient drift', mk(120, { hr: 68, ambDrift: 3000 })],
+    /* SAMPLE RATE and LENGTH — cadence, epoching and the coverage split all read fs and span. */
+    ['fs 55 Hz', mk(120, { fs: 55, hr: 68 })],
+    ['fs 28 Hz', mk(120, { fs: 28, hr: 68 })],
+    ['short 20 s', mk(20, { hr: 68 })],
+    ['very short 5 s', mk(5, { hr: 68 })],
+    ['long 300 s', mk(300, { hr: 62 })]
+  ];
+  return PIPE_CASES;
+}
+
+/* ONE probe, MANY families. A family's `fn` decides which survivors it claims and which kills are
+   its controls — NOT which function the probe calls. Registered as a single `analyze` family this
+   would classify the 120 survivors inside `analyze` and silently leave ~250 untouched. */
+function pipelineProbe(s0) {
+  const D = s0.PPGDSP;
+  const out = [];
+  for (const [, rec] of pipeCases(D)) {
+    if (rec && rec.__err) {
+      out.push('PARSE:' + rec.__err);
+      continue;
+    }
+    out.push(call(D.analyze, [rec, null]));
+  }
+  /* A `progress` callback is invoked with distinct stage strings; capturing them proves the calls
+     happen and in what order, which no null-progress case can show. */
+  const seen = [];
+  const first = pipeCases(D)[0][1];
+  if (first && !first.__err)
+    call(D.analyze, [
+      first,
+      (pct, msg) => {
+        seen.push(pct + ':' + msg);
+      }
+    ]);
+  out.push(JSON.stringify(seen));
+  for (const bad of [null, undefined, {}, { ch: [], fs: 0 }]) out.push(call(D.analyze, [bad, null]));
+  return out;
+}
+
+/* The pipeline functions `analyze` reaches. Each claims its own survivors and needs its own
+   controls, so a blind one is reported per-function rather than hidden in an aggregate. */
+const PPG_PIPELINE_FNS = [
+  'analyze',
+  'cvhrFromNN',
+  'beatConfidence',
+  'detectBeats',
+  'detectChannel',
+  'consensusBeats',
+  'consensusSign',
+  'applyConsensusPolarity',
+  'beatSQI',
+  'sqiAt',
+  'correctRR',
+  'buildPPI',
+  'validatePPI',
+  'timeDomain',
+  'poincare',
+  'dfaAlpha1',
+  'sampEn',
+  'beatRegularity',
+  'buildEpochs',
+  'channelSNR',
+  'holdOverGaps',
+  'markO2Sentinels',
+  'ppgCoverage',
+  'buildEvents',
+  'intervalsSpanningTimeGap',
+  'harmonicOutlierRefIdx',
+  'refineFeet',
+  'gapBeats',
+  'countPairs',
+  'pickChannel',
+  'distinctChannelIdx',
+  'hrvShapeViolates'
+];
+
+export const families = PPG_PIPELINE_FNS.map((fn) => ({
+  name: `${fn} · via analyze() — the beat pipeline`,
+  fn,
+  probe: pipelineProbe
+})).concat([
   {
     name: 'lombScargle · numeric/spectral',
     fn: 'lombScargle',
@@ -342,4 +519,4 @@ export const families = [
     /* NOT PPGDSP.loadOwnExport — that is undefined, and reading it is the recorded artefact. */
     probe: (s0) => LOE_CASES.map((j) => call(s0.PpgDex.loadOwnExport, [j]))
   }
-];
+]);
