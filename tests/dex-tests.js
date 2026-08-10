@@ -34181,6 +34181,202 @@
       );
     });
 
+    /* ════ THE FOUR UNGATED NODES — envelope-tracking on a gapped twin ═══════════════════════════════
+       NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS §3. The parent audited six nodes and concluded all six
+       "already compute a span", so only the two that declared DATA seconds (ECGDex, PpgDex) were fixed.
+       Four of the six never got an assertion, and §3 names the risk exactly right: **drift, not absence**
+       — a convention that lives only in a closed brief is how the original defect arose.
+
+       EXECUTING that item found the parent's own table is wrong for two of the four. Every row below was
+       MEASURED by driving the shipped export builder over a synthetic twin with a hole in it, never by
+       reading the source — which is the method §4 of that brief insists on, after the parent was wrong
+       about its own nodes four times in a row by reading.
+
+         node       published field         on a gapped twin          verdict
+         ────────────────────────────────────────────────────────────────────────────────────────────
+         CPAPDex    recording.durSec        8400 s span / 1200 s data  ENVELOPE ✓ (2 h hole included)
+         HRVDex     coverage.recordedSec    null, nWithDuration 0/3    HONEST ✓ (declines to sum to 0)
+         PulseDex   durMin  (+timestamps)   2700 s = span             ENVELOPE ✓
+         PulseDex   durMin  (NO timestamps) 1800 s = data, cov 100 %  ✗ KNOWN DEFECT
+         GlucoDex   coverage.recordedSec    == spanSec, 6 h hole      ✗ KNOWN DEFECT
+
+       The two ✓ pairs are a real ratchet: they red if anyone redefines the field. The two ✗ are pinned
+       as CHARACTERIZATION — the values are wrong, they are recorded so a fix must update this group
+       DELIBERATELY rather than silently, and they are routed to
+       NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II. Pinning a defect is not endorsing it; leaving it
+       unpinned is how it survives another six audits. */
+    group('The four ungated nodes — duration tracks the ENVELOPE on a gapped twin — §3', 'pulsedex-dsp · glucodex-dsp · cpapdex-dsp · hrvdex-dsp · export · duration-semantics', function (T) {
+      var GAP_S = 900;
+
+      /* ── CPAPDex · two sessions with a 2 h hole between them ────────────────────────────────────── */
+      (function () {
+        var D = env.CpapDsp,
+          F = env.CpapFusion;
+        if (!D || typeof D.buildSessionFromEdf !== 'function' || typeof D._synthEdfSet !== 'function' || !F || typeof F.cpapBuildExport !== 'function') {
+          T.skip('CPAPDex · CpapDsp + CpapFusion available', 'not wired in this lane');
+          return;
+        }
+        var s1 = D.buildSessionFromEdf(D._synthEdfSet({ oxi: true, cs: true }), {});
+        var s2 = D.buildSessionFromEdf(D._synthEdfSet({ oxi: true, cs: true }), {});
+        if (!s1 || !s2 || s1.durMin == null) {
+          T.skip('CPAPDex · synthetic sessions built', 'synth set unavailable');
+          return;
+        }
+        var GAP_MS = 2 * 3600 * 1000;
+        s2.t0Ms = s1.t0Ms + s1.durMin * 60000 + GAP_MS;
+        var span = (s2.t0Ms + s2.durMin * 60000 - s1.t0Ms) / 1000;
+        var data = (s1.durMin + s2.durMin) * 60;
+        T.ok(
+          'ANTI-VACUITY · CPAPDex twin really has a hole (span > data by the gap)',
+          Math.abs(span - data - GAP_MS / 1000) < 1 && span > data,
+          'span=' + span + 's data=' + data + 's gap=' + GAP_MS / 1000 + 's'
+        );
+        var ex = F.cpapBuildExport(D.buildNight([s1, s2]));
+        var d = ex && ex.recording ? ex.recording.durSec : null;
+        T.ok('CPAPDex publishes recording.durSec', d != null && isFinite(d), 'durSec=' + d);
+        T.ok(
+          'CPAPDex durSec is the ENVELOPE — the 2 h off-mask hole is INSIDE it, not subtracted',
+          d != null && Math.abs(d - span) < 60 && Math.abs(d - data) > 3600,
+          'durSec=' + d + ' · span=' + span + ' · data=' + data
+        );
+      })();
+
+      /* ── HRVDex · 3 spot measurements across 5 days, none stating its own length ─────────────────── */
+      (function () {
+        var H = env.HRVDex;
+        if (!H || typeof H.compute !== 'function') {
+          T.skip('HRVDex · compute available', 'not wired in this lane');
+          return;
+        }
+        var csv =
+          'Date,Time,Measurement HR,Mean RR,SDNN,rMSSD,pNN50\n' + '2026-06-25,07:00:00,58,1030,62,45,28\n' + '2026-06-26,07:00:00,59,1020,61,44,27\n' + '2026-06-29,07:00:00,57,1040,63,46,29\n'; // ← a 3-day hole between rows 2 and 3
+        var ex = H.compute({ text: csv });
+        var c = ex && ex.recording ? ex.recording.coverage : null;
+        T.ok('HRVDex publishes a sparse coverage block', !!c && c.kind === 'sparse', c ? 'kind=' + c.kind : 'none');
+        if (!c) return;
+        T.ok('…spanSec is the 5-day ENVELOPE (the hole is inside it)', c.spanSec === 345600, 'spanSec=' + c.spanSec);
+        /* THE INVARIANT. Summing three unknown-length spot readings to 0 would assert "nothing was
+           recorded" from "no row said how long it recorded for" — the absent-vs-zero confusion this
+           whole brief family is about. HRVDex is the node that gets this right, and it is the template
+           GlucoDex's own comment cites while doing the opposite. */
+        T.ok(
+          '…recordedSec is NULL, never 0, when no row states its own length',
+          c.recordedSec === null && c.nWithDuration === 0 && c.n === 3,
+          'recordedSec=' + c.recordedSec + ' nWithDuration=' + c.nWithDuration + '/' + c.n
+        );
+        T.ok('…and recordedSec is NOT silently set equal to spanSec', c.recordedSec !== c.spanSec);
+      })();
+
+      /* ── PulseDex · 30 min of beats, a 15 min hole, 30 min more ─────────────────────────────────── */
+      (function () {
+        var P = env.PulseDex;
+        if (!P || typeof P.computeResult !== 'function') {
+          T.skip('PulseDex · computeResult available', 'not wired in this lane');
+          return;
+        }
+        var RR = 1000,
+          NSEG = 900,
+          t0 = Date.UTC(2026, 5, 25, 23, 0, 0);
+        var vals = [],
+          tsMs = [],
+          t = t0,
+          i;
+        for (i = 0; i < NSEG; i++) {
+          vals.push(RR);
+          tsMs.push(t);
+          t += RR;
+        }
+        t += GAP_S * 1000;
+        for (i = 0; i < NSEG; i++) {
+          vals.push(RR);
+          tsMs.push(t);
+          t += RR;
+        }
+        var span = (tsMs[tsMs.length - 1] - tsMs[0]) / 1000; // 2699
+        var data = (vals.length * RR - RR) / 1000; // 1799
+        T.ok('ANTI-VACUITY · PulseDex twin has a 900 s hole', Math.abs(span - data - GAP_S) < 2, 'span=' + span + ' data=' + data);
+
+        var timed = P.computeResult({ vals: vals, tsMs: tsMs });
+        var dT = timed && timed.durMin != null ? timed.durMin * 60 : null;
+        T.ok(
+          'PulseDex WITH timestamps · durMin is the ENVELOPE — the hole is inside it',
+          dT != null && Math.abs(dT - span) < 30 && Math.abs(dT - data) > 600,
+          'durMin*60=' + dT + ' · span=' + span + ' · data=' + data
+        );
+        T.ok(
+          '…and coverage reports the hole (2 of 3 covered), never a manufactured 100 %',
+          timed && timed.coverage != null && timed.coverage > 60 && timed.coverage < 75,
+          'coverage=' + (timed && timed.coverage)
+        );
+
+        /* ⚠️ KNOWN DEFECT — PINNED, NOT ENDORSED. Routed to NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II §1.
+           `beatTimes` has two branches: with timestamps it returns a wall SPAN (correct, asserted above);
+           without them it cumulates RR, so `durMin` silently changes meaning to DATA seconds — the exact
+           defect §1 of the parent fixed in ECGDex, surviving one branch away. Worse, `coverage` is
+           initialised to 100 and only overwritten on the timestamped path, so an untimed stream asserts
+           a completeness it cannot know. These two assertions pin the WRONG values so that fixing them
+           reds this group and forces a deliberate update. Do NOT "make them pass" by editing them. */
+        var untimed = P.computeResult({ vals: vals });
+        var dU = untimed && untimed.durMin != null ? untimed.durMin * 60 : null;
+        T.ok(
+          'KNOWN DEFECT (FOLLOWUPS-II §1) · PulseDex with NO timestamps publishes DATA seconds as durMin',
+          dU != null && Math.abs(dU - data) < 30,
+          'durMin*60=' + dU + ' — should be span ' + span + ' or null, is data ' + data
+        );
+        T.eq('KNOWN DEFECT (FOLLOWUPS-II §1) · …and asserts coverage 100 % on a stream it cannot place in time', untimed && untimed.coverage, 100);
+      })();
+
+      /* ── GlucoDex · 24 h of 5-min CGM cells, a 6 h sensor dropout, 24 h more ────────────────────── */
+      (function () {
+        var G = env.GlucoDex;
+        if (!G || typeof G.compute !== 'function') {
+          T.skip('GlucoDex · compute available', 'not wired in this lane');
+          return;
+        }
+        var STEP = 5 * 60000,
+          NSEG = 288,
+          GAP_MS = 6 * 3600 * 1000,
+          t0 = Date.UTC(2026, 5, 25, 0, 0, 0);
+        var tMs = [],
+          vMgdl = [],
+          t = t0,
+          i;
+        for (i = 0; i < NSEG; i++) {
+          tMs.push(t);
+          vMgdl.push(100);
+          t += STEP;
+        }
+        t += GAP_MS;
+        for (i = 0; i < NSEG; i++) {
+          tMs.push(t);
+          vMgdl.push(100);
+          t += STEP;
+        }
+        var span = (tMs[tMs.length - 1] - tMs[0]) / 1000;
+        var data = span - GAP_MS / 1000;
+        T.ok('ANTI-VACUITY · GlucoDex twin has a 6 h dropout', Math.abs(span - data - GAP_MS / 1000) < 2, 'span=' + span + ' data=' + data);
+        var ex = G.compute({ tMs: tMs, vMgdl: vMgdl, unit: 'mgdl', t0Ms: t0 });
+        var c = ex && ex.recording ? ex.recording.coverage : null;
+        T.ok('GlucoDex publishes a coverage block', !!c, c ? 'kind=' + c.kind : 'none');
+        if (!c) return;
+        T.ok('…spanSec is the ENVELOPE (the dropout is inside it)', Math.abs(c.spanSec - span) < 60, 'spanSec=' + c.spanSec + ' want ~' + span);
+
+        /* ⚠️ KNOWN DEFECT — PINNED, NOT ENDORSED. Routed to NODE-EXPORT-DURATION-SEMANTICS-FOLLOWUPS-II §2.
+           The block's own comment reads: "here `spanSec` and `recordedSec` agree BY MEASUREMENT, which is
+           precisely what the sparse case could not claim." They do not agree by measurement — they are
+           assigned the SAME expression, so they agree by CONSTRUCTION and cannot ever disagree. A CGM wear
+           with a 6 h sensor dropout therefore reports 100 % coverage. The comment also names HRVDex's
+           sparse block as its sibling, and HRVDex is the node that refuses exactly this fabrication
+           (asserted above). Pinned so the fix must update this deliberately. */
+        T.eq('KNOWN DEFECT (FOLLOWUPS-II §2) · GlucoDex recordedSec == spanSec by CONSTRUCTION, so a 6 h dropout reports full coverage', c.recordedSec, c.spanSec);
+        T.ok(
+          'KNOWN DEFECT (FOLLOWUPS-II §2) · …the 6 h hole leaves NO trace — one segment, nWithDuration 1',
+          c.segments && c.segments.length === 1 && c.nWithDuration === 1,
+          'segments=' + (c.segments && c.segments.length) + ' nWithDuration=' + c.nWithDuration
+        );
+      })();
+    });
+
     /* DEX-CITATION-FORMULA-AUDIT — the OFFLINE-checkable half of "every citation verified".
        The acceptance criterion asks for a *working DOI/PMID* on every citation. A suite that takes no
        network cannot check that a DOI RESOLVES — but it can check the two failure modes that need no
