@@ -8158,6 +8158,103 @@
        `crsIdx`'s guard ALSO fires on a real stress of 0 (maximum relaxation; `stressEst` clamps to
        [0,100] and genuinely reaches it) — which the old code mapped to the WORST grade. Null is right
        there too: the ratio is undefined, not zero. */
+    /* ── compareIntervalSeries: THE SECOND BOOTSTRAP KILL ────────────────────────────────────────
+       `compareIntervalSeries` carried FIFTY-FOUR surviving mutants and ZERO kills — the largest
+       single cluster in pulsedex-dsp.js, and the second function found in that state after
+       glucodex's `genSynthetic`. A function with no kills cannot be equivalence-probed at all:
+       `tools/probe-equivalence.mjs` needs a positive control from the same function (a mutant the
+       suite killed, replayed to prove the battery reaches the code) and there was none to replay,
+       so all 54 verdicts were withheld however good the battery was.
+
+       It also deserves a test on its own merits rather than to unlock a count: this is the
+       two-signal agreement path — the code that decides whether a Verity armband and an H10 chest
+       strap are measuring the same heart, and by how much they disagree. CLAUDE.md §7 records that
+       H10↔Verity sit ~3.3 s apart on phone-captured nights, so the matcher's behaviour when the two
+       clocks drift is the interesting part, not the happy path.
+
+       Every expectation below was MEASURED against the current implementation before being written,
+       not predicted from reading it. */
+    group('PulseDex compareIntervalSeries — two signals, one heart (mutation bootstrap)', 'pulsedex-dsp · known-answer · mutation-pinned', function (T) {
+      var B = (env.PulseDex && env.PulseDex._bare) || null;
+      if (!B || typeof B.compareIntervalSeries !== 'function') {
+        T.skip('PulseDex._bare.compareIntervalSeries available', 'PulseDex not co-loaded in this runner');
+        return;
+      }
+      /* A deterministic NN series with a repeating 7-beat pattern, plus the absolute beat-end stamps
+         a real capture carries. `off` shifts every interval, which shifts the WALL CLOCK too — that
+         is what makes the two series drift apart rather than merely differ. */
+      var mk = function (n, base, off) {
+        var v = [],
+          ts = [],
+          t = 1e12;
+        for (var i = 0; i < n; i++) {
+          var x = base + (i % 7) * 8 + (off || 0);
+          v.push(x);
+          t += x;
+          ts.push(t);
+        }
+        return { vals: v, tsMs: ts };
+      };
+      var A = mk(200, 1000, 0),
+        C = mk(200, 1000, 0);
+
+      // ── the identity case: the same recording twice must agree perfectly ──
+      var same = B.compareIntervalSeries(A, C);
+      T.eq('two identical series match every beat', same && same.matched, 200);
+      T.eq('…on the shared wall clock, not by index', same && same.haveAbs, true);
+      T.eq('…with zero bias', same && same.agreement.biasMs, 0);
+      T.eq('…zero spread on the differences', same && same.agreement.sdDiffMs, 0);
+      T.eq('…a perfect correlation', same && same.agreement.pearsonR, 1);
+      T.eq('…100 % of beats within 25 ms', same && same.agreement.within25Pct, 100);
+      T.eq('…and the verdict is ok', same && same.agreement.grade, 'ok');
+      T.eq('…no rMSSD discrepancy between a signal and itself', same && same.discrepancy.dRMSSD, 0);
+      T.eq('…and no transit-time surrogate to report', same && same.discrepancy.pttvMs, 0);
+
+      /* ── THE DRIFT CASE, which is the one that matters ──
+         Adding 12 ms to every interval does not merely offset the values — it stretches the second
+         signal's wall clock, so the two drift apart beat by beat. The nearest-beat matcher's
+         tolerance is max(120 ms, 0.3 × the shorter beat), so matches are LOST as the drift exceeds
+         it. Measured: 126 of 200. That number is the matcher working, not failing, and a mutant that
+         widens or removes the tolerance changes it. */
+      var drift = B.compareIntervalSeries(A, mk(200, 1000, 12));
+      T.ok('a 12 ms per-beat stretch loses matches as the clocks drift apart', drift && drift.matched > 5 && drift.matched < 200, 'matched ' + (drift && drift.matched) + ' of 200');
+      T.ok('…and the surviving matches still report a positive bias', drift && drift.agreement.biasMs > 0, 'bias ' + (drift && drift.agreement.biasMs));
+
+      /* ── NO SHARED CLOCK ⇒ 1:1 index correspondence, a different code path entirely ── */
+      var cum = B.compareIntervalSeries({ vals: A.vals }, { vals: C.vals });
+      T.eq('with no timestamps the matcher falls back to 1:1 beat correspondence', cum && cum.matched, 200);
+      T.eq('…and says so rather than implying a shared clock', cum && cum.haveAbs, false);
+      T.eq('…agreeing perfectly on identical input', cum && cum.agreement.biasMs, 0);
+      /* ⚠️ A LENGTH-MISMATCHED tsMs MATCHES NOTHING — 0 of 200 — AND THAT IS A REAL INCONSISTENCY,
+         pinned here as behaviour rather than endorsed as design. Two decisions use DIFFERENT
+         criteria: `haveAbs` is true whenever both sides merely HAVE a tsMs whose [0] is finite, but
+         `endTs` independently falls back to a cumulative axis when tsMs.length !== vals.length. So a
+         short tsMs puts one side on a cumulative axis starting at 0 while the other stays on
+         absolute wall-clock ms, the two can never come within the tolerance, and the result is a
+         confident "0 matched" rather than a refusal or a fallback.
+         Asserted so the behaviour cannot change unnoticed; whether `haveAbs` should agree with
+         `endTs` is a question for the node's owner, not for this test. */
+      var mismatched = B.compareIntervalSeries({ vals: A.vals, tsMs: [1, 2, 3] }, { vals: C.vals, tsMs: C.tsMs });
+      T.eq('a length-mismatched tsMs strands the two axes and matches nothing (see the note above)', mismatched && mismatched.matched, 0);
+      T.eq('…while still claiming a shared clock — the inconsistency, made visible', mismatched && mismatched.haveAbs, true);
+
+      // ── the ≥5-clean-interval floor, from both sides ──
+      var short4 = B.compareIntervalSeries({ vals: [1000, 1000, 1000, 1000] }, A);
+      T.eq('four intervals is too few to compare, and it says why', short4 && short4.error, 'Need ≥5 intervals in each signal to compare.');
+      var five = B.compareIntervalSeries({ vals: [1000, 1008, 1016, 1024, 1032] }, { vals: [1000, 1008, 1016, 1024, 1032] });
+      T.ok('…and exactly five is enough', five && !five.error, JSON.stringify(five && five.error));
+
+      // ── refusals ──
+      T.eq('a missing primary is null, not a throw', B.compareIntervalSeries(null, A), null);
+      T.eq('a missing reference is null', B.compareIntervalSeries(A, null), null);
+      T.eq('an object with no vals is null', B.compareIntervalSeries({}, A), null);
+
+      /* statsA/statsB describe each side INDEPENDENTLY of the matching, so they must be present even
+         when few beats matched — otherwise a weak comparison hides both signals' own numbers. */
+      T.eq('each side reports its own stats', same && same.statsA.n, 200);
+      T.approx('…including a mean RR the beats actually have', same && same.statsA.meanRR, 1024, 1);
+      T.approx('…and the HR that implies', same && same.statsA.hr, 58.6, 0.5);
+    });
     group('PulseDex indices that cannot be computed report null, not a graded 0 (DA-V §2.6)', 'pulsedex-dsp · fabricated-absence · regression', function (T) {
       var D = env.PulseDex && (env.PulseDex._bare || env.PulseDex);
       if (!(D && typeof D.absIdx === 'function' && typeof D.crsIdx === 'function' && typeof D.siCalc === 'function')) {
