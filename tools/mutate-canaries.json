@@ -8,6 +8,15 @@
       "clock.js — wave 8: duplicate anchors, and an anchor that is not a number"
     ]
   },
+  "cpapdex-dsp.js": {
+    "line": 37,
+    "op": "eq !== → ===",
+    "before": "var _EDF = typeof require !== 'undefined' ? /** @type {any} */ (require)('./cpapdex-edf.js') : root ",
+    "after": "var _EDF = typeof require === 'undefined' ? /** @type {any} */ (require)('./cpapdex-edf.js') : root ",
+    "killers": [
+      "CPAPDex §6.2 — ODI is rated over ANALYZABLE oximeter time, not the therapy span"
+    ]
+  },
   "hrvdex-dsp.js": {
     "line": 101,
     "op": "cmp < → <=",
