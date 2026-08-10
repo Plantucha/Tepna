@@ -20869,6 +20869,66 @@
        metric as an "effective" rate — so this was filed only after checking the two places a user
        actually meets it: the KPI is labelled "ACC Hz" (ppgdex-app.js) and the node-export field is
        plain `accFs`. Neither says "effective", so both are read as the native rate. */
+    /* ════ PPGDex — a STATIONARY gyroscope must not register as motion ═══════════════════════════
+       ACC is de-gravitated before it enters the motion index; the gyro was not, and a MEMS gyro at
+       rest does not read zero. Measured on a real 4.19 h night (Verity 0C301E3F, 780k samples):
+       gyroMag p1 3.469 / p50 3.854 / p90 3.983 dps — half a dps of spread, i.e. a FLOOR, not a
+       distribution of movement. Against the 40 dps full scale it normalised to 0.096 while
+       de-gravitated ACC's median is 0.012, so `max(accNorm, gyNorm)` picked the gyro in 99.18 % of
+       cells and every quiet epoch carried ~0.1 of unearned motion. The index gates per-pulse SQI,
+       which becomes the `conf` on every Ganglior beat event.
+
+       The third case is the one that chose the algorithm: a FLOOR, not a high-pass. Subtracting a
+       moving average — the treatment gravity gets — would erase sustained rotation, which is real
+       motion. */
+    group('PPGDex — the gyro zero-rate floor is removed, and real rotation survives it', 'ppgdex-dsp · motion · regression', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.analyzeMotion === 'function')) {
+        T.ok('PPGDSP.analyzeMotion available', false);
+        return;
+      }
+      var FS = 52,
+        DUR = 600;
+      var mk = function (fn) {
+        var out = [];
+        for (var i = 0; i < FS * DUR; i++) out.push(fn(i / FS, i));
+        return out;
+      };
+      // A PERFECTLY STILL ARM reading the measured 3.85 dps bias on one axis, and nothing else.
+      var still = mk(function (sec) {
+        return { x: 3.85, y: 0, z: 0, relNs: sec * 1e9 };
+      });
+      var mStill = P.analyzeMotion(null, still, 1782000000000, DUR);
+      T.ok('a stationary gyro reports ~zero motion', mStill.meanMotionIndex < 0.01, 'got ' + mStill.meanMotionIndex + ' — the bias is being scored as movement');
+      T.ok('the floor it removed is reported', Math.abs(mStill.gyroBiasDps - 3.85) < 0.05, 'got ' + mStill.gyroBiasDps);
+
+      // SUSTAINED ROTATION — 60 dps for the whole recording, well past full scale. A high-pass would
+      // read this as still after its window settles; a floor must keep it saturated.
+      var spin = mk(function (sec) {
+        return { x: 60, y: 0, z: 0, relNs: sec * 1e9 };
+      });
+      var mSpin = P.analyzeMotion(null, spin, 1782000000000, DUR);
+      T.ok('sustained rotation stays full motion', mSpin.meanMotionIndex > 0.9, 'got ' + mSpin.meanMotionIndex + ' — a high-pass would have erased it');
+
+      // THE CAP. A recording that is mostly movement must not have that movement subtracted as if it
+      // were bias: past GY_FULL/4 = 10 dps the floor stops growing.
+      T.ok('the floor is capped so motion cannot be subtracted away', mSpin.gyroBiasDps <= 10.0001, 'got ' + mSpin.gyroBiasDps);
+
+      // A REAL MOVEMENT ON TOP OF THE BIAS still reads as movement.
+      var burst = mk(function (sec) {
+        return { x: sec > 300 && sec < 310 ? 80 : 3.85, y: 0, z: 0, relNs: sec * 1e9 };
+      });
+      var mBurst = P.analyzeMotion(null, burst, 1782000000000, DUR);
+      T.ok('a burst above the floor is still detected', mBurst.meanMotionIndex > 0.005, 'got ' + mBurst.meanMotionIndex);
+      T.ok('…but the quiet remainder is not inflated', mBurst.meanMotionIndex < 0.1, 'got ' + mBurst.meanMotionIndex);
+
+      // ACC-ONLY recordings are untouched — the gyro branch never runs.
+      var acc = mk(function (sec) {
+        return { x: 10, y: 10, z: 990, relNs: sec * 1e9 };
+      });
+      T.ok('an ACC-only recording reports no gyro floor', P.analyzeMotion(acc, null, 1782000000000, DUR).gyroBiasDps == null);
+    });
+
     group('PPGDex F19 — accFs is the NATIVE rate, not count ÷ span', 'ppgdex-dsp · regression', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.analyzeMotion === 'function')) {
