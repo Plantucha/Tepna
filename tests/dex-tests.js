@@ -10041,6 +10041,101 @@
        Every boundary value below returns NULL, measured. That is what separates `>` from `>=`: at
        exactly 300 the real code declines and a `>=` mutant would answer 'mg'. A test using only
        1000/1/9.81 exercises none of the six comparisons. */
+    /* ── locateColumns: A ZERO-KILL BOOTSTRAP ────────────────────────────────────────────────────
+       30 survivors and no kills — the sixth such function (MUTATION-PROGRAM §7.0). Internal, but
+       reachable through the exported `parseCSV`, so it needs a test rather than an export.
+
+       IT EXISTS BECAUSE CGM EXPORTS DO NOT AGREE ON COLUMN ORDER. It scores every column over the
+       first 60 rows: date-likeness (parses as a stamp, contains `:-/`, ≥8 chars) picks the timestamp,
+       and "mostly numeric AND mostly inside a physiologic band" picks glucose — deliberately
+       preferring in-band hits MINUS date hits, so a numeric-looking date column cannot win.
+
+       The assertions below drive the same readings through THREE different layouts. A fixture with
+       one fixed layout exercises the scoring loop exactly once and cannot tell a working scorer from
+       a hardcoded `cells[1]` — which is how 30 survivors accumulate here. */
+    group('GlucoDex locateColumns — column order is discovered, not assumed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.parseCSV !== 'function') {
+        T.skip('GLUDSP.parseCSV available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      var stamp = function (i) {
+        return new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + i * 300000).toISOString().slice(0, 16).replace('T', ' ');
+      };
+      var mk = function (n, order, val) {
+        var L = [];
+        for (var i = 0; i < n; i++) {
+          var g = val ? val(i) : 100 + (i % 40);
+          L.push(order === 'tg' ? stamp(i) + ',' + g : order === 'gt' ? g + ',' + stamp(i) : 'junk,' + stamp(i) + ',' + g);
+        }
+        return L.join('\n');
+      };
+      var parse = function (t) {
+        try {
+          return G.parseCSV(t);
+        } catch (e) {
+          return { error: String(e.message) };
+        }
+      };
+
+      // ── THE SAME READINGS IN THREE LAYOUTS MUST GIVE THE SAME SERIES ──
+      var tg = parse(mk(60, 'tg')),
+        gt = parse(mk(60, 'gt')),
+        jtg = parse(mk(60, 'jtg'));
+      T.eq('timestamp first, glucose second', tg.tMs && tg.tMs.length, 60);
+      T.eq('…glucose FIRST, timestamp second — the scorer, not the index, finds it', gt.tMs && gt.tMs.length, 60);
+      T.eq('…and a junk column in front of both', jtg.tMs && jtg.tMs.length, 60);
+      T.eq('all three read the same first value', String(tg.vMgdl[0]) + '/' + String(gt.vMgdl[0]) + '/' + String(jtg.vMgdl[0]), '100/100/100');
+      T.eq('…and the same unit', tg.unit + '/' + gt.unit + '/' + jtg.unit, 'mg/dL/mg/dL/mg/dL');
+
+      /* ── THE TWO PHYSIOLOGIC BANDS, which are also the unit inference ──
+         2–30 is mmol/L, 30–600 is mg/dL. A 5–9 series is mmol and must be CONVERTED, not relabelled:
+         5.0 mmol/L × 18.018 = 90.09 mg/dL. Asserting the unit alone would pass on a mutant that
+         detected mmol and then forgot to multiply. */
+      var mmol = parse(
+        mk(60, 'tg', function (i) {
+          return (5 + (i % 4)).toFixed(1);
+        })
+      );
+      T.eq('a 5–9 series is recognised as mmol/L', mmol.unit, 'mmol/L');
+      T.approx('…and CONVERTED to mg/dL, not merely relabelled', mmol.vMgdl[0], 90.09, 0.2);
+
+      /* Out of both bands the column is still the only numeric one, so it is still chosen — the band
+         score ranks columns, it does not veto them. A mutant that made in-band a REQUIREMENT would
+         reject this file entirely. */
+      var high = parse(
+        mk(60, 'tg', function (i) {
+          return 1000 + i;
+        })
+      );
+      T.eq('a wholly out-of-band numeric column is still the glucose column', high.tMs && high.tMs.length, 60);
+      T.eq('…and is left in mg/dL rather than converted', high.unit, 'mg/dL');
+
+      /* ── TWO NUMERIC COLUMNS, WHICH IS THE ONLY CASE WHERE THE BAND SCORE HAS TO CHOOSE ──
+         With one numeric column the scorer picks it whatever the band test says, so the
+         `(2–30) || (30–600)` predicate is unexercised — it survived a first pass here for exactly
+         that reason. Put an out-of-band device counter beside the glucose column and the band score
+         becomes load-bearing: measured, the real code takes 100 and a mutant that ANDs the two bands
+         (making in-band true only at exactly 30) takes 900000 — a device serial reported as blood
+         glucose. */
+      var twoNum = [];
+      for (var i = 0; i < 60; i++) twoNum.push(stamp(i) + ',' + (900000 + i) + ',' + (100 + (i % 40)));
+      var chosen = parse(twoNum.join('\n'));
+      T.eq('with two numeric columns the PHYSIOLOGIC one is chosen', chosen.vMgdl && chosen.vMgdl[0], 100);
+      T.ok(
+        '…and the out-of-band counter is not mistaken for glucose',
+        chosen.vMgdl &&
+          chosen.vMgdl.every(function (v) {
+            return v < 1000;
+          }),
+        'max ' + (chosen.vMgdl && Math.max.apply(null, chosen.vMgdl))
+      );
+
+      /* ── THE REFUSAL: too few readings names what it wanted, rather than returning an empty set ── */
+      var tiny = parse(mk(2, 'tg'));
+      T.ok('two rows is refused with a message naming the two columns it needs', /timestamp \+ glucose/.test(tiny.error || ''), JSON.stringify(tiny.error || '').slice(0, 90));
+    });
+
     group('MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
       var M = env.MOTIONDSP;
       if (!M || typeof M.parseSensorXYZ !== 'function') {
