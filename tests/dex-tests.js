@@ -4264,6 +4264,127 @@
        because the user already had. Measured across this corpus it is always the second: 107 of 107
        Verity `_PPI.txt` files are header-only and 40 of 40 `_HR.txt` are all-zero, so the docs' hedge
        ("often header-only") understates a categorical fact about this firmware. */
+    /* ── cvhrFromNN — 57 survivors, ZERO kills, and the brief's "hard one" ──────────────────────
+       Cyclic variation of heart rate is the autonomic signature of obstructive apnea: the rate falls
+       during the event and overshoots on arousal, producing a sustained oscillation in the 30–70 s
+       band. `cvhrFromNN` band-passes the NN series into that band, takes an envelope, and counts
+       sustained trains. Its output is published as `cvhrIndex` / `cvhrEvents` and is read by the
+       Integrator, so a mutant here changes a number a user sees.
+
+       It had 57 surviving mutants and NOT ONE kill — so the equivalence prober could return no
+       verdict on any of them, however good a battery it was given: with no killed mutant in the same
+       function there is no positive control to prove the battery reaches the code, and "0 % killed"
+       and "100 % equivalent" are the same picture.
+
+       WHY IT WAS FILED AS A PROJECT RATHER THAN A TEST, and why that was wrong. `cvhrFromNN` is not
+       exported; it is called once from deep inside `analyze()`, so reaching it needs a synthetic PPG
+       that survives channel ranking, beat detection, SQI and RR correction while still carrying a
+       controlled apnea-band oscillation. That sounded expensive. It is about twenty lines: an actual
+       PULSE — systolic upstroke, dicrotic notch, diastolic decay — with the instantaneous rate
+       modulated by a slow sine. The previous fixtures were linear RAMPS, which is why nothing
+       downstream of beat detection had ever been exercised.
+
+       THE NEGATION IS THE LOAD-BEARING CASE. An index that is always zero and an index that is never
+       zero are the same measurement; the flat-HR recording is what makes the modulated ones mean
+       something. */
+    group('PpgDex cvhrFromNN — cyclic variation of heart rate, and its negation (mutation bootstrap)', 'ppgdex-dsp · known-answer · mutation-pinned', function (T) {
+      var P = env.PPGDSP;
+      if (!P || typeof P.parsePPG !== 'function' || typeof P.analyze !== 'function') {
+        T.skip('PPGDSP.parsePPG + analyze available', 'PPGDSP not co-loaded in this runner');
+        return;
+      }
+      var p2 = function (x) {
+        return String(x).padStart(2, '0');
+      };
+      /* A three-LED PPG at 135 Hz. `cvhrPeriodSec`/`cvhrDepth` modulate the INSTANTANEOUS rate, so the
+         oscillation lands in the NN series rather than in the waveform's amplitude — which is what
+         the function actually reads. Per-channel gain keeps the three LEDs from being bit-identical:
+         identical channels take `distinctChannelIdx`'s honest `nCh < 2` path and never vote. */
+      var ppg = function (sec, opts) {
+        opts = opts || {};
+        var fs = 135,
+          hr = opts.hr || 60,
+          per = opts.cvhrPeriodSec || 0,
+          depth = opts.cvhrDepth || 0;
+        var out = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+        var n = Math.round(sec * fs),
+          step = 1000 / fs,
+          devMs = 0,
+          ph = 0,
+          rr = 60000 / hr;
+        for (var i = 0; i < n; i++) {
+          devMs += step;
+          ph += step / rr;
+          if (ph >= 1) {
+            ph -= 1;
+            var hrNow = hr * (1 + (per ? depth * Math.sin((2 * Math.PI * (devMs / 1000)) / per) : 0));
+            rr = 60000 / hrNow;
+          }
+          var w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
+          var v = 20000 + 800 * w;
+          var t = new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + Math.round(devMs));
+          var ts =
+            t.getUTCFullYear() +
+            '-' +
+            p2(t.getUTCMonth() + 1) +
+            '-' +
+            p2(t.getUTCDate()) +
+            ' ' +
+            p2(t.getUTCHours()) +
+            ':' +
+            p2(t.getUTCMinutes()) +
+            ':' +
+            p2(t.getUTCSeconds()) +
+            '.' +
+            String(t.getUTCMilliseconds()).padStart(3, '0');
+          out.push(ts + ';' + Math.round(devMs * 1e6) + ';' + Math.round(v) + ';' + Math.round(v * 0.95 + 30) + ';' + Math.round(v * 1.03 - 25) + ';400');
+        }
+        return out.join('\n');
+      };
+      var run = function (sec, opts) {
+        try {
+          return P.analyze(P.parsePPG(ppg(sec, opts), undefined), null);
+        } catch (e) {
+          return { error: String(e.message) };
+        }
+      };
+
+      // ── 1 · THE FIXTURE MUST ACTUALLY PRODUCE BEATS, or everything below is vacuous ────────────
+      var flat = run(300, {});
+      T.ok('the synthetic PPG yields a beat train at all', flat.nBeats > 250, 'nBeats=' + flat.nBeats);
+      T.ok('…at the requested 60 bpm', Math.abs((flat.hr || 0) - 60) <= 3, 'hr=' + flat.hr);
+
+      // ── 2 · THE NEGATION — a steady heart rate has NO cyclic variation ─────────────────────────
+      T.eq('a flat-HR recording reports cvhrIndex 0', flat.cvhrIndex, 0);
+      T.eq('…and zero CVHR events', flat.cvhrEvents, 0);
+
+      // ── 3 · A REAL APNEA-BAND OSCILLATION IS DETECTED ──────────────────────────────────────────
+      var c40 = run(300, { cvhrPeriodSec: 40, cvhrDepth: 0.18 });
+      T.ok('a 40 s HR cycle raises cvhrIndex well above zero', c40.cvhrIndex > 40, 'cvhrIndex=' + c40.cvhrIndex);
+      T.ok('…and reports discrete events', c40.cvhrEvents >= 4, 'cvhrEvents=' + c40.cvhrEvents);
+      /* index is events per HOUR, so on a 5-minute record it must be ~12x the event count. Pinning
+         the RELATIONSHIP rather than the number catches a mutated 3600/60 conversion without making
+         the test brittle to the detector's exact sensitivity. */
+      T.ok(
+        'cvhrIndex is events per HOUR — ~12x the count on a 5-minute record',
+        c40.cvhrEvents > 0 && Math.abs(c40.cvhrIndex / c40.cvhrEvents - 12) < 3,
+        'index=' + c40.cvhrIndex + ' events=' + c40.cvhrEvents + ' ratio=' + (c40.cvhrIndex / c40.cvhrEvents).toFixed(2)
+      );
+
+      // ── 4 · DEPTH IS ORDERED — a stronger oscillation is not merely also-detected ──────────────
+      var c30 = run(300, { cvhrPeriodSec: 30, cvhrDepth: 0.25 });
+      T.ok('a deeper, faster cycle scores HIGHER than a shallower one', c30.cvhrIndex > c40.cvhrIndex, '30s/0.25=' + c30.cvhrIndex + ' vs 40s/0.18=' + c40.cvhrIndex);
+      /* A shallow oscillation must fall UNDER the ENV_ON = 2.6 bpm sustained-oscillation gate. Without
+         this the threshold is never approached from below and any mutant that lowers it survives. */
+      var shallow = run(300, { cvhrPeriodSec: 60, cvhrDepth: 0.01 });
+      T.eq('a 1 % oscillation is below the sustained-oscillation gate', shallow.cvhrIndex, 0);
+
+      // ── 5 · THE SHORT-RECORD REFUSAL — under 2 minutes no apnea-band train can be resolved ─────
+      var brief = run(90, { cvhrPeriodSec: 40, cvhrDepth: 0.18 });
+      T.eq('a 90 s recording refuses rather than guessing', brief.cvhrIndex, 0);
+      T.eq('…and reports no events', brief.cvhrEvents, 0);
+    });
+
     group('PpgDex distinguishes a missing device PPI from an empty one', 'ppgdex-dsp · ppgdex-app · device-ppi', function (T) {
       /* Asserted, not skipped. The first draft looked this up on the wrong namespace and reported a
          green "(skipped)" while testing nothing — a hollow gate, which is the failure this suite
@@ -31799,6 +31920,56 @@
         '...but a WIDE ENOUGH scan recovers it, which is why the comparison must be scanned',
         !atPeakScanned.refused && atPeakScanned.bestScore > 0.9,
         'peak scanned best=' + atPeakScanned.bestScore
+      );
+    });
+
+    /* ════ SIMULTANEITY IS A PROPERTY OF THE OVERLAP (PAT-COMPENDIUM §9.1) ════════════════════════
+       `sharedClock` gated every PAT verdict and NOTHING executed it — it lived in a worker, which is
+       exactly why `verdict()` was moved to pat-gate.js before it. Measured 2026-08-10 over 15 box
+       nights it refused 21 of 30 pairings, and it refuses BEFORE verdict() reads coupling or beat IQR,
+       so the nights that passed those bars were never scored. Both halves were mis-named: `dT0`
+       compared FILE START times (the host starts BLE streams sequentially — 55 s to 16 276 s of
+       stagger is routine) and the count ratio compared WHOLE-FILE beat totals for files of different
+       lengths. Real geometry is used below, so these cannot pass against the old form. ════ */
+    group('PAT sharedClock — simultaneity is measured over the OVERLAP, not the file headers', 'pat · sharedclock · regression', function (T) {
+      var G = env.PATGate;
+      if (!G || !G.sharedClock) {
+        T.skip('PATGate.sharedClock not in env', 'wire pat-gate.js into both runners');
+        return;
+      }
+      // 2026-08-02, verbatim: ECG covers 1.8 h, PPG 10 h, files start 1246.9 s apart. Same heart.
+      var ecg = { t0Ms: 0, durSec: 6540, n: 5551 },
+        ppg = { t0Ms: 1246900, durSec: 36000, n: 31580 };
+      var sc = G.sharedClock(ecg, ppg, { min: 109 });
+      T.ok('a REAL box night with a 1246 s start stagger and a 5.5x duration ratio is simultaneous', sc.ok === true, 'rateRatio=' + sc.rateRatio.toFixed(3) + ' overlapMin=' + sc.overlapMin);
+      T.ok(
+        'ANTI-VACUITY · the OLD criteria would BOTH have refused this exact night',
+        sc.dT0 > 5000 && sc.beatRatio > 0.12,
+        'dT0=' + (sc.dT0 / 1000).toFixed(0) + ' s · beatRatio=' + sc.beatRatio.toFixed(3)
+      );
+      T.ok('…and the rate ratio it now uses is duration-independent', sc.rateRatio < 0.05, 'ecg ' + (sc.ecgHz * 60).toFixed(1) + ' bpm vs ppg ' + (sc.ppgHz * 60).toFixed(1) + ' bpm');
+
+      // a genuinely different heart rate: 50 bpm against 75 bpm over the same window ⇒ refuse
+      var fast = { t0Ms: 0, durSec: 6540, n: Math.round((6540 * 75) / 60) };
+      T.eq('a real RATE disagreement (50 vs 75 bpm) is refused', G.sharedClock(ecg, fast, { min: 109 }).ok, false);
+
+      // no common interval ⇒ refuse, however well the rates agree
+      var later = { t0Ms: 100000000, durSec: 6540, n: 5551 };
+      var scNo = G.sharedClock(ecg, later, { min: -26 });
+      T.ok('disjoint recordings are refused even with IDENTICAL rates', scNo.ok === false && scNo.rateRatio < 1e-9, 'rateRatio=' + scNo.rateRatio.toFixed(6));
+      T.eq('a sub-floor overlap is refused', G.sharedClock(ecg, ppg, { min: G.SC_MIN_OVERLAP_MIN - 0.01 }).ok, false);
+      T.eq('…and exactly the floor is accepted (boundary, not a gap)', G.sharedClock(ecg, ppg, { min: G.SC_MIN_OVERLAP_MIN }).ok, true);
+
+      // absent `ov` the overlap is DERIVED, never assumed — a caller that forgets it must not pass blindly
+      T.eq('with no overlap argument it derives the interval rather than defaulting to ok', G.sharedClock(ecg, later).ok, false);
+      /* The expectation is the CLOSED FORM of these inputs, not the real night's 109 min — that number
+         came from the real files' durations and asserting it here would be circular (it was used to
+         pick the synthetic ones). Derived must equal what the caller would compute, independently. */
+      var wantMin = (Math.min(ecg.t0Ms + ecg.durSec * 1000, ppg.t0Ms + ppg.durSec * 1000) - Math.max(ecg.t0Ms, ppg.t0Ms)) / 60000;
+      T.ok(
+        '…and derives exactly the interval the caller would compute',
+        Math.abs(G.sharedClock(ecg, ppg).overlapMin - wantMin) < 1e-9,
+        'derived=' + G.sharedClock(ecg, ppg).overlapMin.toFixed(2) + ' want=' + wantMin.toFixed(2)
       );
     });
 
