@@ -846,9 +846,9 @@ def test_a_sub_nanosecond_estimate_is_still_clamped_not_refused():
     """`elif 0 < est` — the clamp's lower bound is ZERO, not one. An estimate of exactly 1 ns is
     absurd but real (two frames whose device stamps are 3 ns apart across 3 samples), and it must
     still clamp rather than step back by the far larger nominal and over-reach the previous frame."""
-    fs, n = 130, 3
+    fs = 130
     last = 10_000_000_000
-    prev = last - 3                                     # est = 3/3 = 1.0 ns
+    prev = last - 3                                     # 3 samples, 3 ns apart => est = 1.0 ns
     payload = _i24_bytes([1, 2, 3])
     _, s = pmd.decode_frame(_pmd_header(pmd.ECG, last, 0x00) + payload, _dt.datetime(2026, 7, 16),
                             fs=fs, prev_last_ns=prev)
