@@ -432,8 +432,61 @@ function holding ≥8 survivors and zero kills, measured against each file's own
 | `cpapdex-dsp.js` | `_nightFromInput` | 20 | **done** | 6 of 8 |
 | `pulsedex-dsp.js` | `fragmentation` | 19 | **done** | 4 of 8 |
 | `hrvdex-dsp.js` | `getFilteredRows` | 11 | **not probeable** — reads `document` | — |
-| `glucodex-dsp.js` | `applySessionCorrections` | 8 | open | — |
-| | | **~320** | **six done, ~244 unlocked** | ≈ 20 % of the mapped fleet |
+| `glucodex-dsp.js` | `applySessionCorrections` | 8 | **done** | **7 of 8** — the best yet |
+| `glucodex-dsp.js` | `correlateNutrition` | 3 | open (found by the pipeline probe) | — |
+| `glucodex-dsp.js` | `perDay` | 1 | open (found by the pipeline probe) | — |
+| | | **~324** | **seven done, ~252 unlocked** | ≈ 20 % of the mapped fleet |
+
+`applySessionCorrections` converted at **7 of 8** — the highest in the programme — and it took three
+passes, each blocked by the same thing in a different disguise: **the assertion was coarser than the
+mutant.**
+
+- The first pass killed 5. Its fixture came from `genSynthetic`, whose sessions all sit at nearly the
+  same level, so the offsets were `[1, 0, -1]` — at that size an operand swap, a dropped `Math.round`
+  and a broken subtraction all look alike. Three sessions at a deliberate **90 / 110 / 130** give
+  `[+20, 0, -20]`: signed, exact, and different from its own negation.
+- The `deDrift && sess.driftPerDay != null` → `||` mutant needed levelling **on** and de-drift **off**
+  over a *ramped* series. With neither flag the function returns at its first line and never reaches
+  that branch, so every earlier case was structurally blind to it.
+- The `Math.max(20, v)` floor needed the record **minimum**, not a daily median. A median over 288
+  readings does not move when the few beneath the floor are lifted, so the median assertion passed
+  identically with and without the clamp. `analyze().min` reads 20 against the mutant's 0.
+
+The one survivor is honest debt and is recorded as such: `p < sess.e` → `p <= sess.e` corrects one
+extra sample per session, and every value this function exposes is an aggregate — offsets, a global
+median, daily means over 288 readings. One sample moves none of them. Killing it needs a per-sample
+view of the corrected series that `analyze` does not export.
+
+### 7.0c · THE PIPELINE IS NOT UNREACHABLE — it was UNPROBED, and it holds NO equivalents
+
+Of glucodex's 516 survivors the original five families claimed ~190. The rest sat in functions the
+module does not export, and were quietly counted as "not covered" rather than as anything specific.
+They are all reached by **`analyze(parsed, progress, opts)`**, which *is* exported, and `genSynthetic`
+supplies its input — so no fixture had to be invented.
+
+**A family's `fn` names the function whose LINE RANGE decides which survivors it claims and which
+kills serve as its controls — not the function the probe calls.** So one 50-input pipeline probe is
+registered once per pipeline function. Registering it as a single `analyze` family instead would have
+classified only the 13 survivors inside `analyze` itself and left the other ~165 untouched, while the
+tool reported a clean run.
+
+The result is a clear negative, and it is worth more than a handful of ledger rows:
+
+| function | survivors | controls | distinguishable | equivalent |
+|---|---:|---|---:|---:|
+| `clean` | 62 | 12/12 | **62** | 0 |
+| `postprandial` | 24 | 2/2 | **24** | 0 |
+| `detectSessions` | 20 | 6/6 | **20** | 0 |
+| `excursions` | 18 | 9/9 | **18** | 0 |
+| `dawnPhenomenon` | 13 | 5/5 | **13** | 0 |
+| `analyze` | 13 | 11/11 | **13** | 0 |
+| `agp` · `nocturnalHypo` · `tierOf` · `daypartVariability` | 16 | all separated | **16** | 0 |
+| | **166** | | **166** | **0** |
+
+Every control separated, so the battery demonstrably reaches all of it — and **not one survivor is
+equivalent**. The classification lever is exhausted here: glucodex's remaining debt is real gaps, and
+the only thing that moves it is tests. That is a more useful answer than more ledger entries would
+have been, and it is the first file where the two levers have been told apart with evidence.
 
 **What the six taught, beyond the counts.** Each converted because its test attacked a DISCRIMINATION
 rather than a happy path, and twice the first attempt failed for the same reason:

@@ -228,7 +228,171 @@ const NUT_CASES = [];
   );
 }
 
-export const families = [
+/* ── analyze() — THE GATEWAY TO MOST OF THE FILE ──────────────────────────────────────────────
+   Of 516 survivors, the five original families covered ~190. The rest are not unreachable; they sit
+   in functions the module does not export — `clean`, `detectSessions`, `applySessionCorrections`,
+   `analyzableIndex`, `variability`, `daypartVariability`, `dawnPhenomenon`, `nocturnalHypo`,
+   `excursions`, `postprandial`, `correlateNutrition`, `agp`, `perDay`, `tierOf` — and every one of
+   them is called by `analyze(parsed, progress, opts)`, which IS exported.
+
+   The contract, read from the source rather than guessed (the cpapdex lesson):
+     parsed  {tMs, vMgdl, unit, t0Ms}  — exactly what parseCSV and genSynthetic both return
+     opts    mealMarkers · biasOffset · levelSessions · deDrift · nutrition
+     throws  when fewer than 6 readings survive cleaning
+
+   `genSynthetic` supplies the input, so the generator this battery already exercises doubles as the
+   fixture source — no invented shapes, and the two profiles differ in base level, dawn amplitude,
+   three meal peaks and a decay constant. */
+function series(G, { days = 3, profile = 'healthy', cadence = 5 } = {}) {
+  return G.genSynthetic({ days, profile, cadence });
+}
+/* Deep-copy before mutating: `analyze` writes through `c.gV` when biasOffset is set, and a shared
+   fixture would make each case depend on the order the previous ones ran in. */
+const cp = (p) => ({ tMs: p.tMs.slice(), vMgdl: p.vMgdl.slice(), unit: p.unit, t0Ms: p.t0Ms, source: p.source });
+function shift(p, fn) {
+  const q = cp(p);
+  for (let i = 0; i < q.vMgdl.length; i++) q.vMgdl[i] = fn(q.vMgdl[i], i, q.tMs[i]);
+  return q;
+}
+function punch(p, fromFrac, toFrac) {
+  // remove a contiguous block — a real sensor gap, which `clean` must account as gapMin not activeMin
+  const q = cp(p);
+  const a = Math.floor(q.tMs.length * fromFrac),
+    b = Math.floor(q.tMs.length * toFrac);
+  q.tMs.splice(a, b - a);
+  q.vMgdl.splice(a, b - a);
+  return q;
+}
+
+/* ONE probe, MANY families. A family's `fn` names the function whose LINE RANGE decides which
+   survivors it claims and which kills serve as its controls — it does not have to be the function the
+   probe calls. So the pipeline probe below is registered once per pipeline function: every family
+   sees the same 50 fingerprints, but each is scored against its own function's mutants, and each
+   therefore needs its own controls to separate. Registering them as a single `analyze` family would
+   have classified only the 13 survivors inside `analyze` itself and silently left the other ~300
+   untouched — the tool would have looked like it ran. */
+function analyzeProbe(G) {
+  {
+    const out = [];
+    const base = series(G, { days: 3 });
+    const long = series(G, { days: 14 });
+    const pre = series(G, { days: 3, profile: 'predm' });
+
+    /* Both profiles, three cadences, three lengths — the tier thresholds and the AGP binning all
+         read off span and cadence rather than off values. */
+    for (const profile of ['healthy', 'predm']) for (const days of [1, 3, 14]) for (const cadence of [5, 15]) out.push(call(G.analyze, [series(G, { days, profile, cadence }), null, {}]));
+
+    /* biasOffset is applied with a Math.max(20, …) FLOOR, so a large negative offset is the only
+         input that exercises the clamp — a small one leaves it untouched. */
+    for (const biasOffset of [0, 12, -12, -200, 200]) out.push(call(G.analyze, [cp(base), null, { biasOffset }]));
+
+    /* The session corrections, each alone and together: `sessionsOut` is recomputed only when one
+         of them actually changed the series, which is a branch no single-flag case reaches. */
+    for (const levelSessions of [false, true]) for (const deDrift of [false, true]) out.push(call(G.analyze, [cp(base), null, { levelSessions, deDrift }]));
+    out.push(call(G.analyze, [cp(long), null, { levelSessions: true, deDrift: true }]));
+
+    /* GAPS. `clean` splits active from gap time; a series with no gap never exercises that split,
+         and the tier is a function of activeMin and pctActive rather than of span. */
+    out.push(call(G.analyze, [punch(long, 0.3, 0.35), null, {}])); // one modest gap
+    out.push(call(G.analyze, [punch(punch(long, 0.2, 0.25), 0.6, 0.7), null, {}])); // two gaps
+    out.push(call(G.analyze, [punch(long, 0.1, 0.9), null, {}])); // most of the record missing
+
+    /* VALUE REGIMES — the TIR cuts, the hypo detector and the excursion finder are all threshold
+         comparisons, so each needs a series that sits ON the relevant side rather than near it. */
+    out.push(call(G.analyze, [shift(base, (v) => v + 90), null, {}])); // persistent hyper
+    out.push(call(G.analyze, [shift(base, (v) => Math.max(25, v - 60)), null, {}])); // persistent hypo
+    out.push(call(G.analyze, [shift(base, () => 100), null, {}])); // perfectly flat: zero variability
+    out.push(call(G.analyze, [shift(base, (v, i) => (i % 2 ? v + 45 : v - 45)), null, {}])); // maximal jitter
+    /* A NOCTURNAL hypo specifically — the detector is time-of-day gated, so a hypo placed by index
+         rather than by clock hour would miss it entirely. */
+    out.push(
+      call(G.analyze, [
+        shift(base, (v, _i, t) => {
+          const h = new Date(t).getUTCHours();
+          return h >= 2 && h < 4 ? 58 : v;
+        }),
+        null,
+        {}
+      ])
+    );
+    /* A RAILED series — `clampSat` is read off parsed.vMgdl, i.e. BEFORE cleaning, so it is the one
+         metric a post-clean fixture cannot move. */
+    out.push(call(G.analyze, [shift(base, (v) => Math.max(54, Math.min(200, v))), null, {}]));
+
+    /* MEAL MARKERS drive both `excursions` and `postprandial`; without them both take their
+         unmarked branch and 44 survivors between them are unreachable. */
+    const mealsAt = (p, hours) => {
+      const d0 = Date.UTC(new Date(p.t0Ms).getUTCFullYear(), new Date(p.t0Ms).getUTCMonth(), new Date(p.t0Ms).getUTCDate());
+      const m = [];
+      for (let day = 0; day < 3; day++) for (const h of hours) m.push({ tMs: d0 + day * 86400000 + h * 3600000, carbs: 45 + h });
+      return m;
+    };
+    out.push(call(G.analyze, [cp(base), null, { mealMarkers: mealsAt(base, [8, 13, 19]) }]));
+    out.push(call(G.analyze, [cp(base), null, { mealMarkers: mealsAt(base, [8]) }]));
+    out.push(call(G.analyze, [cp(base), null, { mealMarkers: [] }])); // empty is not the same as absent
+    out.push(call(G.analyze, [cp(base), null, { mealMarkers: mealsAt(base, [3]) }])); // outside any excursion
+
+    /* NUTRITION correlation only runs when `daily` is a non-empty array — three distinct states. */
+    const day0 = new Date(base.t0Ms);
+    const iso = (k) => new Date(Date.UTC(day0.getUTCFullYear(), day0.getUTCMonth(), day0.getUTCDate() + k)).toISOString().slice(0, 10);
+    out.push(call(G.analyze, [cp(base), null, { nutrition: { daily: [] } }]));
+    out.push(call(G.analyze, [cp(base), null, { nutrition: { daily: [0, 1, 2].map((k) => ({ date: iso(k), carbs: 180 + k * 40, energy: 2000, netCarbs: 150 + k * 40 })) } }]));
+    out.push(call(G.analyze, [cp(base), null, { nutrition: { daily: [{ date: '1999-01-01', carbs: 200 }] } }])); // no date overlap
+
+    /* The `< 6 analyzable` throw, from both sides. */
+    const tiny = (n) => {
+      const q = cp(base);
+      q.tMs = q.tMs.slice(0, n);
+      q.vMgdl = q.vMgdl.slice(0, n);
+      return q;
+    };
+    for (const n of [0, 1, 5, 6, 7, 40]) out.push(call(G.analyze, [tiny(n), null, {}]));
+
+    /* A `progress` callback IS invoked five times with distinct stage strings; passing one proves
+         the calls happen and in what order, which no null-progress case can show. */
+    {
+      const seen = [];
+      call(G.analyze, [
+        cp(base),
+        (pct, msg) => {
+          seen.push(pct + ':' + msg);
+        },
+        {}
+      ]);
+      out.push(JSON.stringify(seen));
+    }
+
+    out.push(call(G.analyze, [cp(pre), null, { biasOffset: 8, levelSessions: true, deDrift: true, mealMarkers: mealsAt(pre, [8, 13, 19]) }]));
+    for (const bad of [null, undefined, {}, { tMs: [], vMgdl: [] }]) out.push(call(G.analyze, [bad, null, {}]));
+    return out;
+  }
+}
+
+/* The pipeline functions this reaches, each claiming its own survivors. `analyze` itself is last so
+   the list reads in call order. */
+const PIPELINE_FNS = [
+  'clean',
+  'detectSessions',
+  'applySessionCorrections',
+  'analyzableIndex',
+  'variability',
+  'daypartVariability',
+  'dawnPhenomenon',
+  'nocturnalHypo',
+  'excursions',
+  'postprandial',
+  'correlateNutrition',
+  'agp',
+  'perDay',
+  'tierOf',
+  'analyze'
+];
+
+export const families = PIPELINE_FNS.map((fn) => ({
+  name: `${fn} · via analyze() — the whole pipeline`,
+  fn,
+  probe: analyzeProbe
+})).concat([
   {
     name: 'genSynthetic · the generator (90 survivors)',
     fn: 'genSynthetic',
@@ -380,4 +544,4 @@ export const families = [
       return out;
     }
   }
-];
+]);
