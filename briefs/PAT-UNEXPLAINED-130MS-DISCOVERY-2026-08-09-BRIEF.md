@@ -90,6 +90,32 @@ budget. Do not stop at the drift.
 An analysis that multiplies it by the beat count to derive the drift reaches roughly the right number
 (396 ms vs the measured 385) by an invalid route. Measure the walk; do not derive it from the ratio.
 
+### 5.1b · ⚠️ NAME THE FRAGMENT, NOT THE NIGHT — 2026-08-03 is MIXED-RATE
+
+Every §5.1 number comes from **one fragment**, not "the night":
+
+```
+Polar_VeritySense_0C301E3F_20260803212144_PPG.txt   97 MB   55.07 Hz   <- the overnight fragment
+```
+
+The same night also holds **13 daytime fragments at 176.1–176.2 Hz** (07:57–12:13, 1–23 MB) and a
+55.10 Hz fragment at 16:04. The tools here select the LARGEST file, which is why they landed on the
+overnight one consistently — but a reader who re-runs "on 2026-08-03" without that rule can pick a
+fragment differing by **3.2× in sample rate** and fail to reproduce anything.
+
+Consequences that are NOT bookkeeping:
+
+- **176 Hz is a DAYTIME configuration, not a lab run**, and it appears *inside* nights. Any per-night
+  merge (`trio-batch` merges concurrent sessions) is a candidate for mixing 176 Hz and 55 Hz data. The
+  nocturnal gate should exclude the daytime blocks — that is an assumption to CHECK, not to trust; the
+  same tool's header records an awake afternoon block dragging a corpus median from 4.24 to 6.21 bpm.
+- **There may be no 176 Hz OVERNIGHT data at all.** The repo's 18.68 ms prior result was at 176 Hz;
+  every overnight fragment in this corpus is ~55 Hz. That comparison is not like-for-like, and closing
+  it is a capture-config change, not an analysis one.
+- **Added discriminator:** re-run §5.1 on a 176 Hz fragment (short — 23 MB, ~40 min). If the local term
+  falls with rate, sampling matters more than the 5.24 ms estimate implies; if it does not, sampling is
+  excluded more firmly than that estimate alone can exclude it.
+
 ### 5.1a · The original statement of this lead, kept for the record
 
 ECG 24 447 R-peaks against Verity 24 043 feet — count ratio **0.9835**. Yet only **18–37 %** of
@@ -157,3 +183,70 @@ verdict in the tree.
       in this family and going unrecorded is how it recurs.
 - [ ] **No code changed.** A fix, if one is warranted, is spawned as its own executable brief with its
       own gates.
+
+
+---
+
+## 5.4 · Decomposing the LOCAL term — the part explaining the drift does NOT close
+
+The sawtooth owns the global figure. It does **not** own the **52–96 ms** that survives inside clean
+bins. Budget, using the **measured** fiducial rather than the published one:
+
+| component | magnitude | source |
+|---|---|---|
+| sampling | 5.24 ms | 55.07 Hz overnight fragment, uniform over an 18.1 ms interval |
+| respiratory modulation | 4.3 ms | literature midpoint (PLOS One 2024) — **assumed, untested on this corpus, different population** |
+| PPG fiducial jitter | **19.4 ms** | **measured here** — per-LED three-cornered hat |
+| **ECG fiducial jitter** | **UNMEASURED** | see below — an open term, not a zero |
+| **known total (quadrature)** | **20.55 ms** | √(5.24² + 4.3² + 19.4²) |
+| measured, clean bins | 52–96 ms | |
+| **unexplained locally** | **47.8 – 93.8 ms** | √(52² − 20.55²) … √(96² − 20.55²) |
+
+⚠️ **The budget has no ECG-side fiducial term.** Every fiducial figure above is the PPG *foot*. The
+R-peak has its own detection jitter and it appears nowhere — and unlike the PPG it **cannot** be
+measured the same way: the 19.4 ms came from differencing the Verity's three same-wavelength LEDs,
+which cancels the beat and leaves pure detector noise, and **the H10 has one lead**. Candidate routes:
+a synthetic ECG with known R-peak positions through `detectPeaks`, or the H10's own device RR as a
+second opinion — ⚠️ `_HR.txt` is **smoothed** (a quiet-order artefact that under-states σ) so it cannot
+be used naively. Until measured, carry it as open; treating it as zero is the assumption this corpus
+has punished repeatedly.
+
+### A · Per-LED hat, on a stable-offset (no-wrap) bin
+
+`Var(foot_i − foot_j) = σ²_i + σ²_j`, no physiology term — same beat, same instant. If it reproduces
+~19.4 ms, subtract in quadrature and ~73 ms remains at the 76 ms midpoint. If it comes back at 5–10 ms,
+the fiducial is not the term and the budget's largest known component is wrong.
+
+### B · Motion — cross-correlate the Verity ACC envelope with foot timing
+
+Extract the ACC envelope and cross-correlate against beat-to-beat foot lags **within clean bins only**
+(so drift cannot masquerade as motion). Significant ⇒ motion-driven; noise ⇒ excluded.
+
+### C · BLE delivery latency
+
+The 24 µs chrony figure is *clock* precision, not application delivery, and the 0.073 ms scheduling
+figure is the host's own loop. Neither measures device-side buffering or packet reordering. Use the
+`hostAxis` anchors (`{devMs, hostMs}` off the same row): measure `var(hostMs − devMs)` after removing
+the interpolated offset. Smooth ⇒ a few ms; variable buffering ⇒ 10–50 ms.
+
+### D · Stable-offset controls — and the phone corpus is NOT one
+
+⚠️ **Do not use the phone corpus as a stable-offset baseline.** `hostAxis` reports
+`independent: false` there — 0.98 ms residual spread, one stamp quantum — because the host column was
+DERIVED from each device's stamp. That is not a pinned offset, it is **no second clock at all**, and
+measured H10↔Verity separation is **~3.3 s on phone nights against ~0.2 s on box nights**. It is the
+worse case, and using it would invite attributing instrument divergence to physiology.
+
+Use instead:
+
+- **O2Ring ↔ Verity** — two PPG streams, one host, one daemon, no ECG leg. `pat-ppg-ppg-control.mjs`
+  exists for exactly this and has run **once**, after the `RE_WRIST` fix. Drops below ~20 ms ⇒ the ECG
+  leg is the source; stays 50–100 ms ⇒ the term lives in the PPG/detection layer.
+- **H10 ECG ↔ H10 ACC** — same device, same connect, so device-clock drift cancels *entirely*. Any
+  residual is detection jitter plus transport, with no offset walk to confound it.
+
+## 5.5 · How the two terms compose
+
+The global 131–136 ms **contains** the local 52–96 ms; they do not add. The global figure is the
+convolution of the offset walk with the local scatter, so the correct statement is *"131 ms global, of
+which 52–96 ms is local"* — never *"131 ms plus 52–96 ms"*.
