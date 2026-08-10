@@ -66,6 +66,12 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+def _bonded_says(value):
+    async def _f(_addr):
+        return value
+    return _f
+
+
 # ── read-only by default ─────────────────────────────────────────────────────────────────────────────
 
 def test_a_bare_run_asks_status_and_writes_nothing_else(monkeypatch):
@@ -77,10 +83,43 @@ def test_a_bare_run_asks_status_and_writes_nothing_else(monkeypatch):
     assert "--force-record" in out["verdict"]
 
 
-def test_a_missing_device_is_reported_rather_than_crashing(monkeypatch):
-    _install(monkeypatch, _FakeClient([]), found=False)
+def test_no_advertisement_is_NOT_absence_the_bonded_address_still_connects(monkeypatch):
+    """A bonded+trusted Polar sitting idle emits no advertisement, so `find_device_by_address` returns
+    None while the device is perfectly reachable — BlueZ knows it by path. This used to be reported as
+    "device not found — is it advertising, and is the daemon stopped?", sending the operator to inspect
+    a daemon that was never involved. Measured 2026-08-10: 20 s scan silent, `bluetoothctl info` saying
+    Bonded: yes."""
+    _install(monkeypatch, _FakeClient([_status(acc=pmd.NO_MEASUREMENT)]), found=False)
     out = _run(probe.run("AA:BB", None, pmd.ACC, force=False, seconds=1))
-    assert "not found" in out["error"]
+    assert "error" not in out, f"a reachable bonded device must not be reported as an error: {out}"
+    assert out["reached_by"] == "bonded address (no advertisement seen)"
+    assert out["status_before"]["acc"] == "none", "…and the run proceeds normally"
+
+
+def test_a_genuinely_unreachable_device_gets_a_DIAGNOSIS_not_a_traceback(monkeypatch):
+    """⚠️ THE FALLBACK MUST NOT COST THE CLEAN FAILURE. Handing BleakClient a bare address for an absent
+    device raises BleakDeviceNotFoundError out of `__aenter__`; the first cut of the fallback let that
+    escape as a stack dump, replacing an actionable sentence. The two states need OPPOSITE actions —
+    idle on a wrist (do nothing) vs powered off (press the button) — so the bond state is READ, not
+    guessed."""
+    class _Refuses:
+        async def __aenter__(self):
+            raise probe.BleakError("Device with address AA:BB was not found.")
+
+        async def __aexit__(self, *a):
+            return False
+
+    _install(monkeypatch, _Refuses(), found=False)
+    monkeypatch.setattr(probe, "_is_bonded", _bonded_says(True))
+    out = _run(probe.run("AA:BB", None, pmd.ACC, force=False, seconds=1))
+    assert "could not reach the device" in out["error"], out
+    assert out["bonded"] is True
+    assert "POWERED OFF" in out["diagnosis"], "the actionable half — press its button"
+
+    _install(monkeypatch, _Refuses(), found=False)
+    monkeypatch.setattr(probe, "_is_bonded", _bonded_says(False))
+    out = _run(probe.run("AA:BB", None, pmd.ACC, force=False, seconds=1))
+    assert "not bonded" in out["diagnosis"], "an unpaired device needs pairing, not a button press"
 
 
 # ── the forced path ──────────────────────────────────────────────────────────────────────────────────
