@@ -10014,6 +10014,220 @@
        §6.3  Corroboration was a bare existence test, so ONE surge satisfied the 75 s window for every
              apnea inside it: independent confirmation counted once per apnea from one piece of evidence.
      ════ */
+    /* ── _nightFromInput: A ZERO-KILL BOOTSTRAP ──────────────────────────────────────────────────
+       20 survivors and NOT ONE kill, so every one of them was unclassifiable by construction: the
+       equivalence prober needs a positive control from the same function — a mutant the suite killed,
+       replayed to prove a battery reaches the code — and there was nothing to replay. It is the
+       fourth such function found (MUTATION-PROGRAM §7.0's census lists nine, ~320 survivors, about a
+       fifth of everything the fleet has mapped).
+
+       It is also the cheapest of them: `_nightFromInput` is PUBLIC as `CPAPDex.buildNightFromSets`
+       and is almost pure input-shape dispatch, so the branches are the argument shapes themselves.
+       Every expectation below was measured against the implementation before being written, using
+       the node's OWN `_synthEdfSet` as the decoded set rather than an invented one. */
+    /* ── inferAccUnit: A ZERO-KILL BOOTSTRAP ─────────────────────────────────────────────────────
+       31 survivors and no kills — the fifth such function (MUTATION-PROGRAM §7.0). It is internal,
+       but reachable through the exported `parseSensorXYZ`, which publishes its verdict as `_unit`.
+
+       THE UNIT IS INFERRED FROM THE MEDIAN VECTOR MAGNITUDE against three gravity-like bands, and
+       every bound is EXCLUSIVE on both sides:
+           300 < med < 3000  ⇒ 'mg'      (≈1000)
+           0.3 < med < 3     ⇒ 'g'       (≈1)
+             3 < med < 30    ⇒ 'm/s2'    (≈9.81)
+       Anything else is null — the function refuses to guess rather than picking the nearest band.
+       That refusal is the safety property: mistaking g for mg is a 1000× error in every downstream
+       metric, and this node's whole ACC pipeline hangs off it.
+
+       Every boundary value below returns NULL, measured. That is what separates `>` from `>=`: at
+       exactly 300 the real code declines and a `>=` mutant would answer 'mg'. A test using only
+       1000/1/9.81 exercises none of the six comparisons. */
+    /* ── locateColumns: A ZERO-KILL BOOTSTRAP ────────────────────────────────────────────────────
+       30 survivors and no kills — the sixth such function (MUTATION-PROGRAM §7.0). Internal, but
+       reachable through the exported `parseCSV`, so it needs a test rather than an export.
+
+       IT EXISTS BECAUSE CGM EXPORTS DO NOT AGREE ON COLUMN ORDER. It scores every column over the
+       first 60 rows: date-likeness (parses as a stamp, contains `:-/`, ≥8 chars) picks the timestamp,
+       and "mostly numeric AND mostly inside a physiologic band" picks glucose — deliberately
+       preferring in-band hits MINUS date hits, so a numeric-looking date column cannot win.
+
+       The assertions below drive the same readings through THREE different layouts. A fixture with
+       one fixed layout exercises the scoring loop exactly once and cannot tell a working scorer from
+       a hardcoded `cells[1]` — which is how 30 survivors accumulate here. */
+    group('GlucoDex locateColumns — column order is discovered, not assumed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.parseCSV !== 'function') {
+        T.skip('GLUDSP.parseCSV available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      var stamp = function (i) {
+        return new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + i * 300000).toISOString().slice(0, 16).replace('T', ' ');
+      };
+      var mk = function (n, order, val) {
+        var L = [];
+        for (var i = 0; i < n; i++) {
+          var g = val ? val(i) : 100 + (i % 40);
+          L.push(order === 'tg' ? stamp(i) + ',' + g : order === 'gt' ? g + ',' + stamp(i) : 'junk,' + stamp(i) + ',' + g);
+        }
+        return L.join('\n');
+      };
+      var parse = function (t) {
+        try {
+          return G.parseCSV(t);
+        } catch (e) {
+          return { error: String(e.message) };
+        }
+      };
+
+      // ── THE SAME READINGS IN THREE LAYOUTS MUST GIVE THE SAME SERIES ──
+      var tg = parse(mk(60, 'tg')),
+        gt = parse(mk(60, 'gt')),
+        jtg = parse(mk(60, 'jtg'));
+      T.eq('timestamp first, glucose second', tg.tMs && tg.tMs.length, 60);
+      T.eq('…glucose FIRST, timestamp second — the scorer, not the index, finds it', gt.tMs && gt.tMs.length, 60);
+      T.eq('…and a junk column in front of both', jtg.tMs && jtg.tMs.length, 60);
+      T.eq('all three read the same first value', String(tg.vMgdl[0]) + '/' + String(gt.vMgdl[0]) + '/' + String(jtg.vMgdl[0]), '100/100/100');
+      T.eq('…and the same unit', tg.unit + '/' + gt.unit + '/' + jtg.unit, 'mg/dL/mg/dL/mg/dL');
+
+      /* ── THE TWO PHYSIOLOGIC BANDS, which are also the unit inference ──
+         2–30 is mmol/L, 30–600 is mg/dL. A 5–9 series is mmol and must be CONVERTED, not relabelled:
+         5.0 mmol/L × 18.018 = 90.09 mg/dL. Asserting the unit alone would pass on a mutant that
+         detected mmol and then forgot to multiply. */
+      var mmol = parse(
+        mk(60, 'tg', function (i) {
+          return (5 + (i % 4)).toFixed(1);
+        })
+      );
+      T.eq('a 5–9 series is recognised as mmol/L', mmol.unit, 'mmol/L');
+      T.approx('…and CONVERTED to mg/dL, not merely relabelled', mmol.vMgdl[0], 90.09, 0.2);
+
+      /* Out of both bands the column is still the only numeric one, so it is still chosen — the band
+         score ranks columns, it does not veto them. A mutant that made in-band a REQUIREMENT would
+         reject this file entirely. */
+      var high = parse(
+        mk(60, 'tg', function (i) {
+          return 1000 + i;
+        })
+      );
+      T.eq('a wholly out-of-band numeric column is still the glucose column', high.tMs && high.tMs.length, 60);
+      T.eq('…and is left in mg/dL rather than converted', high.unit, 'mg/dL');
+
+      /* ── TWO NUMERIC COLUMNS, WHICH IS THE ONLY CASE WHERE THE BAND SCORE HAS TO CHOOSE ──
+         With one numeric column the scorer picks it whatever the band test says, so the
+         `(2–30) || (30–600)` predicate is unexercised — it survived a first pass here for exactly
+         that reason. Put an out-of-band device counter beside the glucose column and the band score
+         becomes load-bearing: measured, the real code takes 100 and a mutant that ANDs the two bands
+         (making in-band true only at exactly 30) takes 900000 — a device serial reported as blood
+         glucose. */
+      var twoNum = [];
+      for (var i = 0; i < 60; i++) twoNum.push(stamp(i) + ',' + (900000 + i) + ',' + (100 + (i % 40)));
+      var chosen = parse(twoNum.join('\n'));
+      T.eq('with two numeric columns the PHYSIOLOGIC one is chosen', chosen.vMgdl && chosen.vMgdl[0], 100);
+      T.ok(
+        '…and the out-of-band counter is not mistaken for glucose',
+        chosen.vMgdl &&
+          chosen.vMgdl.every(function (v) {
+            return v < 1000;
+          }),
+        'max ' + (chosen.vMgdl && Math.max.apply(null, chosen.vMgdl))
+      );
+
+      /* ── THE REFUSAL: too few readings names what it wanted, rather than returning an empty set ── */
+      var tiny = parse(mk(2, 'tg'));
+      T.ok('two rows is refused with a message naming the two columns it needs', /timestamp \+ glucose/.test(tiny.error || ''), JSON.stringify(tiny.error || '').slice(0, 90));
+    });
+
+    group('MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
+      var M = env.MOTIONDSP;
+      if (!M || typeof M.parseSensorXYZ !== 'function') {
+        T.skip('MOTIONDSP.parseSensorXYZ available', 'MOTIONDSP not co-loaded in this runner');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];X;Y;Z';
+      var rows = function (n, z) {
+        var L = [HDR];
+        for (var i = 0; i < n; i++) {
+          var t = new Date(Date.UTC(2026, 6, 1) + i * 38).toISOString().replace('T', ' ').replace('Z', '');
+          L.push(t + ';' + i * 38461538 + ';0;0;' + z);
+        }
+        return L.join('\n');
+      };
+      var unitOf = function (n, z) {
+        var r = M.parseSensorXYZ(rows(n, z));
+        return r ? r._unit : 'NO-PARSE';
+      };
+
+      // ── the three bands, at their physical centres ──
+      T.eq('a ~1000 magnitude reads as milli-g', unitOf(60, 1000), 'mg');
+      T.eq('a ~1 magnitude reads as g', unitOf(60, 1), 'g');
+      T.eq('a ~9.81 magnitude reads as m/s²', unitOf(60, 9.81), 'm/s2');
+
+      /* ── EVERY BOUND, EXACTLY ── each of these is null in the real code, and each would become a
+         unit under the corresponding `>=`/`<=` mutant. This is the whole point of the group. */
+      T.eq('exactly 300 is refused — the mg band is open below', unitOf(60, 300), null);
+      T.eq('exactly 3000 is refused — and open above', unitOf(60, 3000), null);
+      T.eq('exactly 0.3 is refused — the g band is open below', unitOf(60, 0.3), null);
+      T.eq("exactly 3 is refused — and it is the g band's open TOP and the m/s² band's open BOTTOM at once", unitOf(60, 3), null);
+      T.eq('exactly 30 is refused — the m/s² band is open above', unitOf(60, 30), null);
+
+      // ── just inside each bound, to prove the band is not simply empty ──
+      T.eq('301 is inside the mg band', unitOf(60, 301), 'mg');
+      T.eq('2999 is too', unitOf(60, 2999), 'mg');
+      T.eq('0.31 is inside the g band', unitOf(60, 0.31), 'g');
+      T.eq('2.9 is too', unitOf(60, 2.9), 'g');
+      T.eq('3.1 is inside the m/s² band', unitOf(60, 3.1), 'm/s2');
+      T.eq('29 is too', unitOf(60, 29), 'm/s2');
+
+      // ── nothing gravity-like at all ──
+      T.eq('a magnitude far below any band is refused, not rounded into g', unitOf(60, 0.01), null);
+      T.eq('an absurd magnitude is refused, not clamped into mg', unitOf(60, 50000), null);
+      T.eq('all-zero rows are refused — a zero median cannot imply a unit', unitOf(60, 0), null);
+
+      /* The ≥8-row floor: fewer samples than that cannot establish a median worth trusting. */
+      T.eq('seven rows is too few to infer a unit', unitOf(7, 1000), null);
+      T.eq('…and eight is enough', unitOf(8, 1000), 'mg');
+    });
+
+    group('CPAPDex buildNightFromSets — every input shape it dispatches on (mutation bootstrap)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
+      var X = env.CPAPDex,
+        D = env.CpapDsp;
+      if (!X || typeof X.buildNightFromSets !== 'function' || !D || typeof D._synthEdfSet !== 'function') {
+        T.skip('CPAPDex.buildNightFromSets available', 'CPAPDex not co-loaded in this runner');
+        return;
+      }
+      var N = X.buildNightFromSets;
+      var set = D._synthEdfSet({ oxi: true });
+
+      /* FOUR WAYS TO HAND IT THE SAME NIGHT, and each is a separate arm: a bare decoded set (detected
+         by the presence of PLD/BRP/SA2/EVE), the `edfSets` key, the `sets` key, and a pre-built night
+         passed back in. A fixture that only ever used one of them leaves the other three unexercised,
+         which is exactly how a dispatcher accumulates 20 survivors and no kills. */
+      T.eq('a bare decoded EDF set becomes a one-session night', (N(set) || {}).sessions.length, 1);
+      T.eq('…the same set under `edfSets`', (N({ edfSets: [set] }) || {}).sessions.length, 1);
+      T.eq('…and under `sets`', (N({ sets: [set] }) || {}).sessions.length, 1);
+      T.eq('two sets become a two-session night', (N({ sets: [set, set] }) || {}).sessions.length, 2);
+
+      /* IDEMPOTENCE: a night handed back in must come out unchanged rather than being rebuilt or
+         refused — that is the `sessions[0].metrics` short-circuit, and only a REAL night reaches it. */
+      var night = N(set);
+      T.eq('an already-built night passes through unchanged', (N(night) || {}).sessions.length, 1);
+      T.eq('…and so does one wrapped as { night }', (N({ night: night }) || {}).sessions.length, 1);
+
+      /* The `PLD || BRP || SA2 || EVE` sniff: a set carrying only ONE of the four must still be
+         recognised, or the || chain collapses to whichever member the fixtures happened to include. */
+      T.eq('a set carrying only PLD is still recognised as a decoded set', (N({ PLD: { clock: { t0Ms: 1 } } }) || {}).sessions.length, 1);
+
+      /* REFUSALS — every one returns null rather than throwing or fabricating an empty night. A
+         caller that cannot tell "no data" from "a night with nothing in it" cannot report either. */
+      T.eq('null is refused', N(null), null);
+      T.eq('undefined is refused', N(undefined), null);
+      T.eq('a number is refused', N(42), null);
+      T.eq('a string is refused', N('x'), null);
+      T.eq('an object with no sets and no channels is refused', N({}), null);
+      T.eq('an EMPTY sets array is refused, not treated as a night with no sessions', N({ sets: [] }), null);
+      T.eq('a non-array `sets` is refused', N({ sets: 'no' }), null);
+      T.eq('a bare array is refused', N([]), null);
+    });
+
     group('CPAPDex co-import — a surge corroborates ONE apnea, and lands on the right night (§6.3/§6.4)', 'cpapdex-coimport · fusion', function (T) {
       var CN = env.CpapCoimport;
       if (!CN || typeof CN.normalizeEcg !== 'function' || typeof CN.autonomicCorroboration !== 'function') {
