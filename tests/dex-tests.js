@@ -20322,6 +20322,73 @@
           'delta=' + (rec2.tMsAt(l2) - rec2.t0Ms - (l2 / rec2.fs) * 1000).toFixed(2) + ' ms · tMsCorrected=' + rec2.tMsCorrected
         );
       }
+
+      /* `fs` COMES FROM THE INTEGER COUNTER AND IS NOT ROUNDED TO THE NOMINAL.
+         The `[ms]` column is a derived float that loses precision as it grows, which is why its
+         estimate is rounded — and rounding forces 130 exactly, discarding the crystal. Measured on the
+         box corpus the H10's real rate is 129.9866–129.9966 Hz, so the rounded axis ran up to −125.5 ppm
+         fast: −4.16 s across a night, 2.4 cardiac cycles, and the reason PAT was unmeasurable
+         (`PAT-SAWTOOTH-ANSWERS-THE-130MS`). Here the `[ms]` column carries the NOMINAL ladder (as the
+         Polar Sensor Logger writes it) while the ns counter runs at TRUE_HZ, so the two derivations give
+         different answers and the assertion can only pass on the counter. */
+      var TRUE_HZ = 129.9866,
+        trueStep = 1000 / TRUE_HZ;
+      var mkNs = function (base) {
+        var out = [hdr];
+        for (var j = 0; j < 30000; j++) {
+          var dev = j * trueStep;
+          var dd = new Date(t0 + dev); // host tracks the DEVICE here → derived column → no ppm correction
+          out.push(
+            dd.getUTCFullYear() +
+              '-' +
+              p2(dd.getUTCMonth() + 1) +
+              '-' +
+              p2(dd.getUTCDate()) +
+              'T' +
+              p2(dd.getUTCHours()) +
+              ':' +
+              p2(dd.getUTCMinutes()) +
+              ':' +
+              p2(dd.getUTCSeconds()) +
+              '.' +
+              ('00' + dd.getUTCMilliseconds()).slice(-3) +
+              ';' +
+              (base + Math.round(dev * 1e6)) +
+              ';' +
+              ((j * 1000) / 130).toFixed(3) +
+              ';' +
+              (j % 2 ? 100 : -100)
+          );
+        }
+        return D.parseECG(out.join('\n'));
+      };
+      var recNs = mkNs(0);
+      T.ok(
+        'fs is derived from the ns COUNTER, not rounded to the nominal 130',
+        recNs && Math.abs(recNs.fs - TRUE_HZ) < 0.002,
+        'fs=' + (recNs ? recNs.fs.toFixed(4) : 'null') + ' · counter says ' + TRUE_HZ + ' · the [ms] column says 130'
+      );
+      T.ok(
+        'ANTI-VACUITY · that rate is distinguishable from the nominal at this length',
+        Math.abs(TRUE_HZ - 130) / 130 > 5e-6 && recNs && Math.abs(recNs.fs - 130) > 0.005,
+        'planted ' + (((TRUE_HZ - 130) / 130) * 1e6).toFixed(0) + ' ppm; a rounded fs would read exactly 130'
+      );
+
+      /* THE COUNTER MAY START AT ZERO. A `rawNs > 0` guard rejects row 0, anchors the axis one sample
+         late, and puts a full sample step of phantom spread on every anchor — which flipped
+         `independent` to true on a derived column when this was first written. Real Polar files hide it
+         (their counter is ~8.4e17); the same stream offset by that constant must parse identically. */
+      var recNsBig = mkNs(839121708324988128);
+      T.ok(
+        'a counter starting at 0 parses the same as one offset by the real Polar epoch',
+        recNs && recNsBig && Math.abs(recNs.fs - recNsBig.fs) < 0.002 && recNs.tMsCorrected === recNsBig.tMsCorrected,
+        'fs ' + (recNs ? recNs.fs.toFixed(4) : '-') + ' vs ' + (recNsBig ? recNsBig.fs.toFixed(4) : '-') + ' · corrected ' + (recNs || {}).tMsCorrected + '/' + (recNsBig || {}).tMsCorrected
+      );
+      T.ok(
+        '…and neither fabricates a correction from a host column derived off that counter',
+        recNs && recNs.tMsCorrected === false && recNsBig && recNsBig.tMsCorrected === false,
+        'tMsCorrected=' + (recNs || {}).tMsCorrected + '/' + (recNsBig || {}).tMsCorrected
+      );
     });
 
     group('ECGDex recording bounds — durSec (data) + endEpochMs (clock), read not derived', 'ecgdex-dsp', function (T) {
