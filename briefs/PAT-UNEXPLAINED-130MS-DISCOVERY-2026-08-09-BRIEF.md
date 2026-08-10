@@ -3,9 +3,18 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-09 · **Follows:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` · **Affects:** investigation only — **no code change is in scope**
+**Status:** DONE — 2026-08-10 · **Created:** 2026-08-09 · **Follows:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` · **Answered-by:** `PAT-SAWTOOTH-ANSWERS-THE-130MS-2026-08-10-BRIEF.md` · **Affects:** investigation only — **no code change is in scope**
 
 # ~130 ms of PAT scatter is unaccounted for. Find out what it is.
+
+> **ANSWERED 2026-08-10 — it is this file's own §6 trap.** `pat-align.js`'s `PHYS = {200, 650}` is a
+> **450 ms** window, and **`450/√12 = 129.90 ms`**; the reported 131–136 ms is the SD of a uniform
+> distribution over it. It reads uniform because the ECG↔PPG offset is a **sawtooth of peak-to-peak ≈
+> one RR** (measured 821–1162 ms, median 1064, on 10 of 10 usable box nights) that ramps for tens of
+> minutes and wraps, filling any fixed window evenly. **§5.1's "wandering phase" was the right lead.**
+> The honest beat-to-beat figure is **within-bin σ = 68 ms** (46–94). See
+> `PAT-SAWTOOTH-ANSWERS-THE-130MS-2026-08-10-BRIEF.md` for the measurements, the method, and its
+> retraction of its own first conclusion.
 
 **DISCOVERY ONLY — no code changes, no fixes, no PRs.** The deliverable is a written finding.
 
