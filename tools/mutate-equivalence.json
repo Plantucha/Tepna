@@ -1756,7 +1756,7 @@
       "probe": "lombScargle · the spectrum: 95 inputs, 19 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 919,
+      "line": 966,
       "op": "cmp >= → >",
       "before": "if (durMin >= 20 * 60) {",
       "after": "if (durMin > 20 * 60) {",
@@ -1765,7 +1765,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 921,
+      "line": 968,
       "op": "num → 0",
       "before": "conf = 0.95;",
       "after": "conf = 0;",
@@ -1774,7 +1774,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 922,
+      "line": 969,
       "op": "num → 0",
       "before": "why = (durMin / 60).toFixed(1) + ' h continuous record';",
       "after": "why = (durMin / 0).toFixed(1) + ' h continuous record';",
@@ -1783,7 +1783,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 923,
+      "line": 970,
       "op": "cmp >= → >",
       "before": "} else if (durMin >= 90) {",
       "after": "} else if (durMin > 90) {",
@@ -1792,7 +1792,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 927,
+      "line": 974,
       "op": "cmp >= → >",
       "before": "} else if (hr >= 100 || rising > 15) {",
       "after": "} else if (hr > 100 || rising > 15) {",
@@ -1801,7 +1801,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 927,
+      "line": 974,
       "op": "cmp > → >=",
       "before": "} else if (hr >= 100 || rising > 15) {",
       "after": "} else if (hr >= 100 || rising >= 15) {",
@@ -1810,7 +1810,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 930,
+      "line": 977,
       "op": "cmp > → >=",
       "before": "why = 'mean HR ' + hr.toFixed(0) + ' bpm' + (rising > 15 ? ', HR rising ' + rising.toFixed(0) : '');",
       "after": "why = 'mean HR ' + hr.toFixed(0) + ' bpm' + (rising >= 15 ? ', HR rising ' + rising.toFixed(0) : '')",
@@ -1819,7 +1819,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 930,
+      "line": 977,
       "op": "num → 0",
       "before": "why = 'mean HR ' + hr.toFixed(0) + ' bpm' + (rising > 15 ? ', HR rising ' + rising.toFixed(0) : '');",
       "after": "why = 'mean HR ' + hr.toFixed(0) + ' bpm' + (rising > 0 ? ', HR rising ' + rising.toFixed(0) : '');",
@@ -1828,7 +1828,7 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 931,
+      "line": 978,
       "op": "cmp <= → <",
       "before": "} else if (durMin <= 8 && (hour == null || hour < 11)) {",
       "after": "} else if (durMin < 8 && (hour == null || hour < 11)) {",
@@ -1837,13 +1837,384 @@
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
     },
     {
-      "line": 931,
+      "line": 978,
       "op": "cmp < → <=",
       "before": "} else if (durMin <= 8 && (hour == null || hour < 11)) {",
       "after": "} else if (durMin <= 8 && (hour == null || hour <= 11)) {",
       "class": "no-distinguishing-input",
       "why": "In classifyRecording. Original and mutant produced byte-identical output on every input.",
       "probe": "classifyRecording · the recording verdict: 118 inputs, 44 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1097,
+      "op": "eq === → !==",
+      "before": "if (tsMs && tsMs.length === vals.length && isFinite(tsMs[0])) return tsMs.slice();",
+      "after": "if (tsMs && tsMs.length !== vals.length && isFinite(tsMs[0])) return tsMs.slice();",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1100,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < vals.length; i++) {",
+      "after": "for (let i = 0; i <= vals.length; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1116,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < B.length; i++) {",
+      "after": "for (let i = 0; i <= B.length; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1117,
+      "op": "cmp <= → <",
+      "before": "while (j + 1 < A.length && Math.abs(ta[j + 1] - tb[i]) <= Math.abs(ta[j] - tb[i])) j++;",
+      "after": "while (j + 1 < A.length && Math.abs(ta[j + 1] - tb[i]) < Math.abs(ta[j] - tb[i])) j++;",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1117,
+      "op": "cmp < → <=",
+      "before": "while (j + 1 < A.length && Math.abs(ta[j + 1] - tb[i]) <= Math.abs(ta[j] - tb[i])) j++;",
+      "after": "while (j + 1 <= A.length && Math.abs(ta[j + 1] - tb[i]) <= Math.abs(ta[j] - tb[i])) j++;",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1119,
+      "op": "num → 0",
+      "before": "const tol = Math.max(120, 0.3 * Math.min(A[j], B[i]));",
+      "after": "const tol = Math.max(0, 0.3 * Math.min(A[j], B[i]));",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1120,
+      "op": "cmp <= → <",
+      "before": "if (dt <= tol) {",
+      "after": "if (dt < tol) {",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1140,
+      "op": "num → 0",
+      "before": "return { matched: nM, matchRatePct: +((nM / mAll) * 100).toFixed(0), statsA, statsB, haveAbs, weak: ",
+      "after": "return { matched: nM, matchRatePct: +((nM / mAll) * 0).toFixed(0), statsA, statsB, haveAbs, weak: tr",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1147,
+      "op": "cmp <= → <",
+      "before": "const within25 = (diffs.filter((d) => Math.abs(d) <= 25).length / nM) * 100;",
+      "after": "const within25 = (diffs.filter((d) => Math.abs(d) < 25).length / nM) * 100;",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1160,
+      "op": "cmp > → >=",
+      "before": "const pttv = rmB > rmA ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : 0;",
+      "after": "const pttv = rmB >= rmA ? +Math.sqrt(Math.max(0, rmB * rmB - rmA * rmA)).toFixed(1) : 0;",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1163,
+      "op": "bool || → &&",
+      "before": "const kA = primary.kind || 'auto',",
+      "after": "const kA = primary.kind && 'auto',",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1164,
+      "op": "bool || → &&",
+      "before": "kB = reference.kind || 'auto';",
+      "after": "kB = reference.kind && 'auto';",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1165,
+      "op": "eq === → !==",
+      "before": "const refIsPulse = kB === 'ppi' || (kB === 'auto' && kA === 'rr');",
+      "after": "const refIsPulse = kB === 'ppi' || (kB !== 'auto' && kA === 'rr');",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1165,
+      "op": "bool || → &&",
+      "before": "const refIsPulse = kB === 'ppi' || (kB === 'auto' && kA === 'rr');",
+      "after": "const refIsPulse = kB === 'ppi' && (kB === 'auto' && kA === 'rr');",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1166,
+      "op": "cmp <= → <",
+      "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "after": "const agreeGrade = mad < 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1166,
+      "op": "cmp <= → <",
+      "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "after": "const agreeGrade = mad <= 10 && Math.abs(bias) < 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1166,
+      "op": "cmp <= → <",
+      "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "after": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad < 20 ? 'warn' : 'bad';",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    },
+    {
+      "line": 1166,
+      "op": "num → 0",
+      "before": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 20 ? 'warn' : 'bad';",
+      "after": "const agreeGrade = mad <= 10 && Math.abs(bias) <= 15 ? 'ok' : mad <= 0 ? 'warn' : 'bad';",
+      "class": "no-distinguishing-input",
+      "why": "In compareIntervalSeries. Original and mutant produced byte-identical output on every input.",
+      "probe": "compareIntervalSeries · two-signal agreement (54 survivors): 24 inputs, 13 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file pulsedex-dsp.js"
+    }
+  ],
+  "glucodex-dsp.js": [
+    {
+      "line": 1340,
+      "op": "cmp < → <=",
+      "before": "if (n < 20) return empty;",
+      "after": "if (n <= 20) return empty;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1340,
+      "op": "num → 0",
+      "before": "if (n < 20) return empty;",
+      "after": "if (n < 0) return empty;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1343,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < n; i++) {",
+      "after": "for (let i = 0; i <= n; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1346,
+      "op": "cmp < → <=",
+      "before": "if (v < lo) lo = v;",
+      "after": "if (v <= lo) lo = v;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1347,
+      "op": "cmp > → >=",
+      "before": "if (v > hi) hi = v;",
+      "after": "if (v >= hi) hi = v;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1349,
+      "op": "bool || → &&",
+      "before": "if (!isFinite(lo) || !isFinite(hi) || hi <= lo) return empty;",
+      "after": "if (!isFinite(lo) && !isFinite(hi) || hi <= lo) return empty;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1383,
+      "op": "cmp >= → >",
+      "before": "const nearLingoFloor = lo >= 53 && lo <= 57,",
+      "after": "const nearLingoFloor = lo > 53 && lo <= 57,",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1383,
+      "op": "cmp <= → <",
+      "before": "const nearLingoFloor = lo >= 53 && lo <= 57,",
+      "after": "const nearLingoFloor = lo >= 53 && lo < 57,",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1384,
+      "op": "cmp >= → >",
+      "before": "nearLingoCeil = hi >= 195 && hi <= 205;",
+      "after": "nearLingoCeil = hi > 195 && hi <= 205;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1384,
+      "op": "cmp <= → <",
+      "before": "nearLingoCeil = hi >= 195 && hi <= 205;",
+      "after": "nearLingoCeil = hi >= 195 && hi < 205;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1384,
+      "op": "bool && → ||",
+      "before": "nearLingoCeil = hi >= 195 && hi <= 205;",
+      "after": "nearLingoCeil = hi >= 195 || hi <= 205;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1384,
+      "op": "num → 0",
+      "before": "nearLingoCeil = hi >= 195 && hi <= 205;",
+      "after": "nearLingoCeil = hi >= 0 && hi <= 205;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1384,
+      "op": "num → 0",
+      "before": "nearLingoCeil = hi >= 195 && hi <= 205;",
+      "after": "nearLingoCeil = hi >= 195 && hi <= 0;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1389,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < n; i++) {",
+      "after": "for (let i = 0; i <= n; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1393,
+      "op": "cmp < → <=",
+      "before": "if (Math.abs(d) < 0.5) {",
+      "after": "if (Math.abs(d) <= 0.5) {",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1403,
+      "op": "cmp >= → >",
+      "before": "const pileUp = at >= 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
+      "after": "const pileUp = at > 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1403,
+      "op": "cmp >= → >",
+      "before": "const pileUp = at >= 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
+      "after": "const pileUp = at >= 3 && pct > 0.3 && ratio >= CLIP_RATIO;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1403,
+      "op": "cmp >= → >",
+      "before": "const pileUp = at >= 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
+      "after": "const pileUp = at >= 3 && pct >= 0.3 && ratio > CLIP_RATIO;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1403,
+      "op": "num → 0",
+      "before": "const pileUp = at >= 3 && pct >= 0.3 && ratio >= CLIP_RATIO;",
+      "after": "const pileUp = at >= 3 && pct >= 0 && ratio >= CLIP_RATIO;",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1404,
+      "op": "cmp >= → >",
+      "before": "const saturated = pileUp && (inVendorBand || ratio >= HARD_RAIL_RATIO);",
+      "after": "const saturated = pileUp && (inVendorBand || ratio > HARD_RAIL_RATIO);",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1410,
+      "op": "bool && → ||",
+      "before": "if (floor.saturated && ceiling.saturated && nearLingoFloor && nearLingoCeil) vendor = 'lingo';",
+      "after": "if (floor.saturated && ceiling.saturated || nearLingoFloor && nearLingoCeil) vendor = 'lingo';",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1410,
+      "op": "bool && → ||",
+      "before": "if (floor.saturated && ceiling.saturated && nearLingoFloor && nearLingoCeil) vendor = 'lingo';",
+      "after": "if (floor.saturated && ceiling.saturated && nearLingoFloor || nearLingoCeil) vendor = 'lingo';",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
+    },
+    {
+      "line": 1411,
+      "op": "bool && → ||",
+      "before": "else if ((floor.saturated && nearLingoFloor) || (ceiling.saturated && nearLingoCeil)) vendor = 'ling",
+      "after": "else if ((floor.saturated && nearLingoFloor) || (ceiling.saturated || nearLingoCeil)) vendor = 'ling",
+      "class": "no-distinguishing-input",
+      "why": "In detectClampSaturation. Original and mutant produced byte-identical output on every input.",
+      "probe": "detectClampSaturation · the rail detector (35 survivors): 28 inputs, 16 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file glucodex-dsp.js"
     }
   ]
 }
