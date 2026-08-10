@@ -432,6 +432,528 @@
       "class": "no-distinguishing-input",
       "why": "In parsePPG. Original and mutant produced byte-identical output on every input.",
       "probe": "parsePPG · string/parsing: 61 inputs, 27 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1568,
+      "op": "cmp < → <=",
+      "before": "if (n < 20) {",
+      "after": "if (n <= 20) {",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1568,
+      "op": "num → 0",
+      "before": "if (n < 20) {",
+      "after": "if (n < 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1569,
+      "op": "cmp < → <=",
+      "before": "for (let k = 0; k < n; k++) out.set(secAbs(k), 1);",
+      "after": "for (let k = 0; k <= n; k++) out.set(secAbs(k), 1);",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1575,
+      "op": "cmp < → <=",
+      "before": "if (S < 1) return out;",
+      "after": "if (S <= 1) return out;",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1578,
+      "op": "cmp < → <=",
+      "before": "for (let k = 0; k < n; k++) {",
+      "after": "for (let k = 0; k <= n; k++) {",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1580,
+      "op": "cmp < → <=",
+      "before": "if (s >= 0 && s < S) {",
+      "after": "if (s >= 0 && s <= S) {",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1580,
+      "op": "bool && → ||",
+      "before": "if (s >= 0 && s < S) {",
+      "after": "if (s >= 0 || s < S) {",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1582,
+      "op": "bool && → ||",
+      "before": "qsum[s] += sqi && Number.isFinite(sqi[k]) ? sqi[k] : 1;",
+      "after": "qsum[s] += sqi || Number.isFinite(sqi[k]) ? sqi[k] : 1;",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1592,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < S; i++) {",
+      "after": "for (let i = 0; i <= S; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1606,
+      "op": "cmp > → >=",
+      "before": "winSqi[i] = cAcc > 0 ? qAcc / cAcc : 0;",
+      "after": "winSqi[i] = cAcc >= 0 ? qAcc / cAcc : 0;",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1609,
+      "op": "cmp > → >=",
+      "before": "for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);",
+      "after": "for (let i = 0; i < S; i++) if (winCnt[i] >= 0) active.push(i);",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1609,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < S; i++) if (winCnt[i] > 0) active.push(i);",
+      "after": "for (let i = 0; i <= S; i++) if (winCnt[i] > 0) active.push(i);",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1627,
+      "op": "cmp >= → >",
+      "before": "const trust = (z) => (z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) * (1 - (z / C) * (z / C)));",
+      "after": "const trust = (z) => (z <= 0 ? 1 : z > C ? 0 : (1 - (z / C) * (z / C)) * (1 - (z / C) * (z / C)));",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1627,
+      "op": "cmp <= → <",
+      "before": "const trust = (z) => (z <= 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) * (1 - (z / C) * (z / C)));",
+      "after": "const trust = (z) => (z < 0 ? 1 : z >= C ? 0 : (1 - (z / C) * (z / C)) * (1 - (z / C) * (z / C)));",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1628,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < S; i++) {",
+      "after": "for (let i = 0; i <= S; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1629,
+      "op": "cmp <= → <",
+      "before": "if (winCnt[i] <= 0) continue;",
+      "after": "if (winCnt[i] < 0) continue;",
+      "class": "no-distinguishing-input",
+      "why": "In beatConfidence. Original and mutant produced byte-identical output on every input.",
+      "probe": "beatConfidence · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 2/2 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1189,
+      "op": "cmp < → <=",
+      "before": "if (nCh < 2) {",
+      "after": "if (nCh <= 2) {",
+      "class": "no-distinguishing-input",
+      "why": "In consensusBeats. Original and mutant produced byte-identical output on every input.",
+      "probe": "consensusBeats · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 9/9 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1193,
+      "op": "num → 0",
+      "before": "const tol = Math.max(1, Math.round(0.05 * fs)); // ±50 ms agreement window",
+      "after": "const tol = Math.max(1, Math.round(0 * fs)); // ±50 ms agreement window",
+      "class": "no-distinguishing-input",
+      "why": "In consensusBeats. Original and mutant produced byte-identical output on every input.",
+      "probe": "consensusBeats · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 9/9 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1220,
+      "op": "cmp <= → <",
+      "before": "while (j < ev.length && ev[j].s - ev[j - 1].s <= tol) {",
+      "after": "while (j < ev.length && ev[j].s - ev[j - 1].s < tol) {",
+      "class": "no-distinguishing-input",
+      "why": "In consensusBeats. Original and mutant produced byte-identical output on every input.",
+      "probe": "consensusBeats · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 9/9 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1237,
+      "op": "num → 0",
+      "before": "const refr = Math.round(fs * 0.3);",
+      "after": "const refr = Math.round(fs * 0);",
+      "class": "no-distinguishing-input",
+      "why": "In consensusBeats. Original and mutant produced byte-identical output on every input.",
+      "probe": "consensusBeats · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 9/9 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1241,
+      "op": "cmp < → <=",
+      "before": "if (peaks.length && rawPeaks[k] - peaks[peaks.length - 1] < refr) {",
+      "after": "if (peaks.length && rawPeaks[k] - peaks[peaks.length - 1] <= refr) {",
+      "class": "no-distinguishing-input",
+      "why": "In consensusBeats. Original and mutant produced byte-identical output on every input.",
+      "probe": "consensusBeats · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 9/9 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1242,
+      "op": "cmp > → >=",
+      "before": "if (refBp[rawPeaks[k]] > refBp[peaks[peaks.length - 1]]) {",
+      "after": "if (refBp[rawPeaks[k]] >= refBp[peaks[peaks.length - 1]]) {",
+      "class": "no-distinguishing-input",
+      "why": "In consensusBeats. Original and mutant produced byte-identical output on every input.",
+      "probe": "consensusBeats · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 9/9 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1251,
+      "op": "num → 0",
+      "before": "let T = Math.round(fs * 0.85);",
+      "after": "let T = Math.round(fs * 0);",
+      "class": "no-distinguishing-input",
+      "why": "In consensusBeats. Original and mutant produced byte-identical output on every input.",
+      "probe": "consensusBeats · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 9/9 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1252,
+      "op": "cmp > → >=",
+      "before": "if (peaks.length > 2) {",
+      "after": "if (peaks.length >= 2) {",
+      "class": "no-distinguishing-input",
+      "why": "In consensusBeats. Original and mutant produced byte-identical output on every input.",
+      "probe": "consensusBeats · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 9/9 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1254,
+      "op": "cmp < → <=",
+      "before": "for (let k = 1; k < peaks.length; k++) dd.push(peaks[k] - peaks[k - 1]);",
+      "after": "for (let k = 1; k <= peaks.length; k++) dd.push(peaks[k] - peaks[k - 1]);",
+      "class": "no-distinguishing-input",
+      "why": "In consensusBeats. Original and mutant produced byte-identical output on every input.",
+      "probe": "consensusBeats · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 9/9 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1256,
+      "op": "cmp > → >=",
+      "before": "if (md > 0) T = Math.round(md);",
+      "after": "if (md >= 0) T = Math.round(md);",
+      "class": "no-distinguishing-input",
+      "why": "In consensusBeats. Original and mutant produced byte-identical output on every input.",
+      "probe": "consensusBeats · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 9/9 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1676,
+      "op": "cmp >= → >",
+      "before": "const inRange = rr.filter((v) => v >= 300 && v <= 2000);",
+      "after": "const inRange = rr.filter((v) => v > 300 && v <= 2000);",
+      "class": "no-distinguishing-input",
+      "why": "In correctRR. Original and mutant produced byte-identical output on every input.",
+      "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1676,
+      "op": "cmp <= → <",
+      "before": "const inRange = rr.filter((v) => v >= 300 && v <= 2000);",
+      "after": "const inRange = rr.filter((v) => v >= 300 && v < 2000);",
+      "class": "no-distinguishing-input",
+      "why": "In correctRR. Original and mutant produced byte-identical output on every input.",
+      "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1676,
+      "op": "num → 0",
+      "before": "const inRange = rr.filter((v) => v >= 300 && v <= 2000);",
+      "after": "const inRange = rr.filter((v) => v >= 0 && v <= 2000);",
+      "class": "no-distinguishing-input",
+      "why": "In correctRR. Original and mutant produced byte-identical output on every input.",
+      "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1677,
+      "op": "num → 0",
+      "before": "const globalMed = inRange.length ? median(inRange) : 800;",
+      "after": "const globalMed = inRange.length ? median(inRange) : 0;",
+      "class": "no-distinguishing-input",
+      "why": "In correctRR. Original and mutant produced byte-identical output on every input.",
+      "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1689,
+      "op": "cmp > → >=",
+      "before": "if (v < 300 || v > 2000) bad = true;",
+      "after": "if (v < 300 || v >= 2000) bad = true;",
+      "class": "no-distinguishing-input",
+      "why": "In correctRR. Original and mutant produced byte-identical output on every input.",
+      "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1689,
+      "op": "cmp < → <=",
+      "before": "if (v < 300 || v > 2000) bad = true;",
+      "after": "if (v <= 300 || v > 2000) bad = true;",
+      "class": "no-distinguishing-input",
+      "why": "In correctRR. Original and mutant produced byte-identical output on every input.",
+      "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1689,
+      "op": "bool || → &&",
+      "before": "if (v < 300 || v > 2000) bad = true;",
+      "after": "if (v < 300 && v > 2000) bad = true;",
+      "class": "no-distinguishing-input",
+      "why": "In correctRR. Original and mutant produced byte-identical output on every input.",
+      "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1689,
+      "op": "num → 0",
+      "before": "if (v < 300 || v > 2000) bad = true;",
+      "after": "if (v < 0 || v > 2000) bad = true;",
+      "class": "no-distinguishing-input",
+      "why": "In correctRR. Original and mutant produced byte-identical output on every input.",
+      "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1690,
+      "op": "cmp > → >=",
+      "before": "else if (Math.abs(v - ref) / ref > PPI_ECTOPY_THR) bad = true; // >30% off the local median",
+      "after": "else if (Math.abs(v - ref) / ref >= PPI_ECTOPY_THR) bad = true; // >30% off the local median",
+      "class": "no-distinguishing-input",
+      "why": "In correctRR. Original and mutant produced byte-identical output on every input.",
+      "probe": "correctRR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1847,
+      "op": "cmp < → <=",
+      "before": "if (nn.length < 3) return null;",
+      "after": "if (nn.length <= 3) return null;",
+      "class": "no-distinguishing-input",
+      "why": "In poincare. Original and mutant produced byte-identical output on every input.",
+      "probe": "poincare · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1851,
+      "op": "cmp < → <=",
+      "before": "for (let i = 1; i < nn.length; i++) {",
+      "after": "for (let i = 1; i <= nn.length; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In poincare. Original and mutant produced byte-identical output on every input.",
+      "probe": "poincare · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1855,
+      "op": "cmp < → <=",
+      "before": "if (d.length < 2) {",
+      "after": "if (d.length <= 2) {",
+      "class": "no-distinguishing-input",
+      "why": "In poincare. Original and mutant produced byte-identical output on every input.",
+      "probe": "poincare · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1857,
+      "op": "cmp < → <=",
+      "before": "for (let i = 1; i < nn.length; i++) d.push(nn[i] - nn[i - 1]);",
+      "after": "for (let i = 1; i <= nn.length; i++) d.push(nn[i] - nn[i - 1]);",
+      "class": "no-distinguishing-input",
+      "why": "In poincare. Original and mutant produced byte-identical output on every input.",
+      "probe": "poincare · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1996,
+      "op": "cmp < → <=",
+      "before": "if (nn.length < 50) return null;",
+      "after": "if (nn.length <= 50) return null;",
+      "class": "no-distinguishing-input",
+      "why": "In dfaAlpha1. Original and mutant produced byte-identical output on every input.",
+      "probe": "dfaAlpha1 · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 2001,
+      "op": "cmp < → <=",
+      "before": "for (let i = 0; i < N; i++) {",
+      "after": "for (let i = 0; i <= N; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In dfaAlpha1. Original and mutant produced byte-identical output on every input.",
+      "probe": "dfaAlpha1 · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 2011,
+      "op": "cmp < → <=",
+      "before": "if (nWin < 1) continue;",
+      "after": "if (nWin <= 1) continue;",
+      "class": "no-distinguishing-input",
+      "why": "In dfaAlpha1. Original and mutant produced byte-identical output on every input.",
+      "probe": "dfaAlpha1 · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 732,
+      "op": "num → 0",
+      "before": "const win = Math.min(sig.length, Math.max(Math.round(fs * 90), Math.round(fs * 20)));",
+      "after": "const win = Math.min(sig.length, Math.max(Math.round(fs * 90), Math.round(fs * 0)));",
+      "class": "no-distinguishing-input",
+      "why": "In channelSNR. Original and mutant produced byte-identical output on every input.",
+      "probe": "channelSNR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 3/3 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 734,
+      "op": "cmp < → <=",
+      "before": "if (s0 < 0) s0 = 0;",
+      "after": "if (s0 <= 0) s0 = 0;",
+      "class": "no-distinguishing-input",
+      "why": "In channelSNR. Original and mutant produced byte-identical output on every input.",
+      "probe": "channelSNR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 3/3 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 735,
+      "op": "eq === → !==",
+      "before": "const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0 + win);",
+      "after": "const slice = s0 !== 0 && win === sig.length ? sig : sig.subarray(s0, s0 + win);",
+      "class": "no-distinguishing-input",
+      "why": "In channelSNR. Original and mutant produced byte-identical output on every input.",
+      "probe": "channelSNR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 3/3 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 735,
+      "op": "eq === → !==",
+      "before": "const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0 + win);",
+      "after": "const slice = s0 === 0 && win !== sig.length ? sig : sig.subarray(s0, s0 + win);",
+      "class": "no-distinguishing-input",
+      "why": "In channelSNR. Original and mutant produced byte-identical output on every input.",
+      "probe": "channelSNR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 3/3 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 735,
+      "op": "bool && → ||",
+      "before": "const slice = s0 === 0 && win === sig.length ? sig : sig.subarray(s0, s0 + win);",
+      "after": "const slice = s0 === 0 || win === sig.length ? sig : sig.subarray(s0, s0 + win);",
+      "class": "no-distinguishing-input",
+      "why": "In channelSNR. Original and mutant produced byte-identical output on every input.",
+      "probe": "channelSNR · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 3/3 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1126,
+      "op": "cmp < → <=",
+      "before": "if (bp[j] < mv) {",
+      "after": "if (bp[j] <= mv) {",
+      "class": "no-distinguishing-input",
+      "why": "In refineFeet. Original and mutant produced byte-identical output on every input.",
+      "probe": "refineFeet · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 3/3 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1133,
+      "op": "cmp < → <=",
+      "before": "for (let j = mi; j < p; j++) {",
+      "after": "for (let j = mi; j <= p; j++) {",
+      "class": "no-distinguishing-input",
+      "why": "In refineFeet. Original and mutant produced byte-identical output on every input.",
+      "probe": "refineFeet · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 3/3 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1135,
+      "op": "cmp > → >=",
+      "before": "if (dv > msv) {",
+      "after": "if (dv >= msv) {",
+      "class": "no-distinguishing-input",
+      "why": "In refineFeet. Original and mutant produced byte-identical output on every input.",
+      "probe": "refineFeet · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 3/3 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 1141,
+      "op": "cmp > → >=",
+      "before": "if (msv > 1e-9) {",
+      "after": "if (msv >= 1e-9) {",
+      "class": "no-distinguishing-input",
+      "why": "In refineFeet. Original and mutant produced byte-identical output on every input.",
+      "probe": "refineFeet · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 3/3 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 2092,
+      "op": "cmp > → >=",
+      "before": "if (nA > 0) {",
+      "after": "if (nA >= 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In countPairs. Original and mutant produced byte-identical output on every input.",
+      "probe": "countPairs · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 1/1 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 2098,
+      "op": "cmp < → <=",
+      "before": "for (let a = 0; a < nA; a++) {",
+      "after": "for (let a = 0; a <= nA; a++) {",
+      "class": "no-distinguishing-input",
+      "why": "In countPairs. Original and mutant produced byte-identical output on every input.",
+      "probe": "countPairs · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 1/1 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 2102,
+      "op": "cmp > → >=",
+      "before": "if (nn[j] - nn[i] > tol) break; // ordered ⇒ every later j is further still",
+      "after": "if (nn[j] - nn[i] >= tol) break; // ordered ⇒ every later j is further still",
+      "class": "no-distinguishing-input",
+      "why": "In countPairs. Original and mutant produced byte-identical output on every input.",
+      "probe": "countPairs · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 1/1 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 2105,
+      "op": "cmp > → >=",
+      "before": "if (Math.abs(nn[i + k] - nn[j + k]) > tol) {",
+      "after": "if (Math.abs(nn[i + k] - nn[j + k]) >= tol) {",
+      "class": "no-distinguishing-input",
+      "why": "In countPairs. Original and mutant produced byte-identical output on every input.",
+      "probe": "countPairs · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 1/1 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 2112,
+      "op": "cmp <= → <",
+      "before": "if (Math.abs(nn[i + m] - nn[j + m]) <= tol) A++;",
+      "after": "if (Math.abs(nn[i + m] - nn[j + m]) < tol) A++;",
+      "class": "no-distinguishing-input",
+      "why": "In countPairs. Original and mutant produced byte-identical output on every input.",
+      "probe": "countPairs · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 1/1 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 2120,
+      "op": "cmp > → >=",
+      "before": "if (Math.abs(nn[t + k] - nn[j + k]) > tol) {",
+      "after": "if (Math.abs(nn[t + k] - nn[j + k]) >= tol) {",
+      "class": "no-distinguishing-input",
+      "why": "In countPairs. Original and mutant produced byte-identical output on every input.",
+      "probe": "countPairs · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 1/1 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
+    },
+    {
+      "line": 778,
+      "op": "cmp > → >=",
+      "before": "if (s.snr > bestScore) {",
+      "after": "if (s.snr >= bestScore) {",
+      "class": "no-distinguishing-input",
+      "why": "In pickChannel. Original and mutant produced byte-identical output on every input.",
+      "probe": "pickChannel · via analyze() — the beat pipeline: 25 inputs, 25 distinct baseline answers; 1/1 same-function controls separated. tools/probe-equivalence.mjs --file ppgdex-dsp.js"
     }
   ],
   "hrvdex-dsp.js": [
