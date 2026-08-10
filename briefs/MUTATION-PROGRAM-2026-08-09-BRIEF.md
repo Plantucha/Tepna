@@ -274,17 +274,49 @@ fleet; never-measured modules then gave 9 → 11 → 10 → 15 → 40.
 **JS — tag price, a 300× spread.** The per-mutant floor is the tag's clean-run time. Sampled 60 per
 file, scoped, bail on (#1027 — an estimate of the whole, `thin()` spreads deterministically).
 
-| file | groups | tag cost | sampled rate | mutants |
-|---|---:|---:|---:|---:|
-| `hrvdex-dsp.js` | 15 | 1 s | 28 % | 490 |
-| `ppgdex-dsp.js` | **49** | 24 s | 33 % | 1176 |
-| `motiondex-dsp.js` | 15 | 1 s | 37 % | 466 |
-| `cpapdex-dsp.js` | **7** | 4 s | 40 % | 819 |
-| `pulsedex-dsp.js` | 17 | 6 s | 42 % | 568 |
-| `glucodex-dsp.js` | 16 | 2 s | 55 % | 836 |
-| `oxydex-dsp.js` | 39 | 20 s | 58 % | **2680** |
-| `ecgdex-dsp.js` | 48 | 137 s | 62 % | 1725 |
-| `integrator-dsp.js` | **73** | 310 s | 68 % | 1745 |
+| file | groups | tag cost | sampled | **MEASURED** | error | mutants |
+|---|---:|---:|---:|---:|---:|---:|
+| `hrvdex-dsp.js` | 15 | 1 s | 28 % | **39.1 %** | — ¹ | 490 |
+| `ppgdex-dsp.js` | **49** | 24 s | 33 % | **38.9 %** | −1.0 ² | 1176 |
+| `motiondex-dsp.js` | 15 | 1 s | 37 % | **37.3 %** | −0.3 | 466 |
+| `cpapdex-dsp.js` | **7** | 4 s | 40 % | **40.4 %** | −0.4 | 819 |
+| `pulsedex-dsp.js` | 17 | 6 s | 42 % | **25.5 %** | **+16.5** | 568 |
+| `glucodex-dsp.js` | 16 | 2 s | 55 % | **33.7 %** | **+21.3** | 836 |
+| `oxydex-dsp.js` | 39 | 20 s | 58 % | *unswept* | — | **2680** |
+| `ecgdex-dsp.js` | 48 | 137 s | 62 % | *unswept* | — | 1725 |
+| `integrator-dsp.js` | **73** | 310 s | 68 % | *unswept* | — | 1745 |
+
+¹ hrvdex's 28 % predates #1030's `computeDerived` golden; the 39.1 % is post-fix and canary-guarded,
+so the two measure different code and the error column would be meaningless.
+² ppgdex's measured figure is post-#1113 (+10 kills); against the same code the sample erred −1.0.
+
+### 🔴 THE SAMPLE IS NOT RELIABLE, AND THE FAILURE IS BIMODAL RATHER THAN NOISY
+
+Six files have now been swept exhaustively against their 60-mutant sample. The errors do not look
+like a distribution around zero:
+
+```
+ppgdex −1.0 · motiondex −0.3 · cpapdex −0.4        three essentially EXACT
+pulsedex +16.5 · glucodex +21.3                    two enormous OVERESTIMATES
+```
+
+One standard error on a 60-draw is ~6 points, so ±0.3–1.0 is suspiciously good and +16.5/+21.3 are
+2.7–3.5 SE out. A sampling error that were merely noisy would scatter; this splits into two
+populations, and **both failures are in the same direction — the sample flatters the file.**
+
+**The mechanism is not known, and this brief does not guess one.** What follows from the data alone:
+
+- **the three unswept rows above are estimates, not measurements**, and the two most expensive files
+  in the fleet (`ecgdex`, `integrator`) are estimated at 62 % and 68 % — the top of the table, which
+  is exactly where an optimistic bias would put a file nobody can afford to check;
+- **"the sample held on three files" was never evidence that the sample holds.** It was believed
+  after three confirmations and refuted on the fourth and fifth. Three agreeing measurements are the
+  same shape as §5's `~27 %` generalisation and §3a's six-cluster claim — this programme's most
+  repeated error is generalising from agreement;
+- a fleet-wide *ranking* built on these numbers is unsafe: `glucodex` and `pulsedex` were ranked 6th
+  and 5th best and are in fact the WORST two measured.
+
+Cheapest way to settle it: sweep one more cheap file and see which population it joins.
 
 - **1–6 s** (`hrvdex`, `motiondex`, `glucodex`, `cpapdex`, `pulsedex`) — **exhaustively sweepable.**
 - **20–310 s** (`oxydex`, `ppgdex`, `ecgdex`, `integrator`) — **sample-and-triage only.**

@@ -39,5 +39,25 @@
       "recorded": "2026-08-09",
       "found_by": "diff-scoped mutation gate on PR #1090"
     }
+  ],
+  "probe_polar_usb.py": [
+    {
+      "key": "- initial = False | + initial = None",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "probe_polar_usb.x_fetch__mutmut_108",
+      "why": "`initial` is read in exactly ONE place — `reply_body(rep, initial)`, whose body is `off = _HDR_FIRST if initial else _HDR_REST`. That is a truthiness test, and `bool(False) == bool(None) == False`, so both values select the same branch by construction rather than by coincidence. No report can separate them: the variable never reaches a comparison, an arithmetic operator, a return value or the result dict.",
+      "probe": "Exhaustive over the shape space of a 64-byte HID report: size 0..63 x flags 0..3 = 256 report shapes, each passed to reply_body() with `False` and with `None`. 0 of 256 differed. Widening it is pointless — the argument is consumed by `if initial` and nothing else.",
+      "recorded": "2026-08-09",
+      "found_by": "diff-scoped mutation gate on PR #1117"
+    },
+    {
+      "key": "- while real + idle < max_packets and time.monotonic() < deadline: | + while real + idle < max_packets and time.monotonic() <= deadline:",
+      "class": "no-distinguishing-input",
+      "mutant_when_recorded": "probe_polar_usb.x_fetch__mutmut_50",
+      "why": "`<` and `<=` differ on exactly one point of the domain: `time.monotonic() == deadline` EXACTLY, as floats. `deadline` is computed once from an earlier `monotonic()` read plus a window, and the clock advances monotonically at nanosecond resolution between the two reads — so hitting it requires a later read to land bit-identically on a value derived from an earlier one. A test cannot arrange it without patching the clock, and patching the clock to a fixed value would make the loop condition constant and test nothing about the deadline. Note the consequence even IF it occurred is one extra loop iteration, which the `max_packets` bound and the `select` timeout both still cap.",
+      "probe": "2,000,000 consecutive `time.monotonic()` reads compared against a deadline captured before the loop: 0 exact matches. `time.get_clock_info('monotonic').resolution` is 1e-09 s on this platform.",
+      "recorded": "2026-08-09",
+      "found_by": "diff-scoped mutation gate on PR #1117"
+    }
   ]
 }

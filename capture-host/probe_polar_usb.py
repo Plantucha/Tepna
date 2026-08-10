@@ -90,6 +90,37 @@
 # diagnostic — it reads the device tree in ~90 ms without touching the BLE link, and that is how the
 # unpruned-walk bug (#710) was found. BLE is the only pull path; do not spend more on USB.
 #
+# ── AMENDED 2026-08-09: "a fast lister" WAS TOO GENEROUS — the one report is SILENTLY TRUNCATED ─────
+#
+# Two corrections to the paragraph above, both measured on the same unit.
+#
+# 1. **`tepna-usbreset.sh` IS deployed now** — the line below saying it is not was true in August's
+#    first week and is not any more. `sudo -n /usr/local/lib/tepna/tepna-usbreset.sh 0da4:0008` on the
+#    box returns `re-enumerated: 1-1 devnum 12 -> 13`, and the very next GET succeeds. So the window
+#    is openable in software and every measurement here is now REPRODUCIBLE without a human at the
+#    dock. It still cannot become a pull path (the one-request limit is unchanged), but "run it twice
+#    and compare" is finally cheap.
+#
+# 2. **The single reply is CUT MID-RECORD and the device flags it END anyway.** Raw frame, 2026-08-09:
+#
+#        #1  id=0x11 size=62 flags=1 pktnum=0    <- flags==1 is END (see is_end above)
+#        body: … 0a0d 0a09 "20260621/" 1000  0a0d 0a09 "20"
+#                                                       ^^ an entry promising a 9-byte name, 2 delivered
+#
+#    The BLE mirror of the SAME device lists six entries in `/U/0/`; USB returned four plus that stub.
+#    `20260802/` was corrupted into a file named `"20"` and `20260803/` — the directory holding 22
+#    PPG/ACC/GYRO/MAG `.REC` recordings — did not appear at all. The old reader reported `ok: true`
+#    and five entries, because a Python slice past the end of a buffer returns the short remainder
+#    instead of raising. Fixed in `polar_psftp.TruncatedProtobuf` / `_parse_directory_ex`; this probe
+#    now publishes `truncated` and leads its verdict with it.
+#
+#    ⚠️ So the FIRST listing this file ever recorded — line 78 above — was itself already truncated;
+#    it just happened to be cut at a record boundary, which is why nobody noticed. **Never cite a USB
+#    listing as the device's filesystem.** `polar_mirror.py` over BLE is the only complete answer, and
+#    POLAR-VERITY-DEVICE-SURFACE §6 is fine precisely because it used the mirror (43 files, 37 dirs).
+#    The two transports disagreed for a week in a direction only one of them could be wrong in, and
+#    nothing compared them.
+#
 # ── HOW THAT WAS NARROWED (kept: each of these looks like "USB doesn't work") ────────────────────────
 #
 # Before the replug test, the listing had been obtained ONCE and everything afterwards got
@@ -104,9 +135,10 @@
 # What was left standing — and then confirmed twice by replug — is that the device serves a window
 # opened by USB RE-ENUMERATION and is charge-only outside it. The first success happened minutes after
 # the dock re-enumerated (bus id 007 -> 009); the second and third came 0.09 s after a deliberate
-# physical replug by the operator. `tepna-usbreset.sh` is written to open that window in software, but
-# it is NOT DEPLOYED (it needs `install -o root` plus a sudoers line), so every measurement here came
-# from a human at the dock. Do not read the helper's existence as "this is automatable today".
+# physical replug by the operator. `tepna-usbreset.sh` was written to open that window in software and
+# was NOT DEPLOYED at the time, so every measurement in THIS paragraph came from a human at the dock.
+# ⚠️ That is no longer true — see the 2026-08-09 amendment above: the helper is installed root-owned in
+# `/usr/local/lib/tepna/` and covered by the box's sudoers grant, and it opens the window on demand.
 #
 # One hypothesis was never excluded, and no longer needs to be: that USB is refused while the BLE link
 # is up. The 3-minute correlation run could not exercise it — `link_epoch` held at 5 and `connected`
@@ -255,13 +287,13 @@ def fetch(dev: str, path: str, window: float = 8.0, max_packets: int = 400) -> d
                     "error": "device answered only 1-byte filler — the sync window is closed; "
                              "replug the dock (or re-enumerate as root) and retry immediately"}
         try:
-            entries = ps._parse_directory(bytes(body))
+            entries, truncated = ps._parse_directory_ex(bytes(body))
         except Exception:
-            # A truncated or non-directory payload must be reported as raw hex, not raised: the
-            # protobuf reader indexes past the end on garbage, and a crash here would destroy the
-            # one piece of evidence that says what the device actually sent.
-            entries = []
-        return {"ok": bool(entries), "idle": idle, "real": real, "bytes": len(body),
+            # A non-directory payload must be reported as raw hex, not raised: a crash here would
+            # destroy the one piece of evidence that says what the device actually sent.
+            entries, truncated = [], False
+        return {"ok": bool(entries), "complete": bool(entries) and not truncated,
+                "truncated": truncated, "idle": idle, "real": real, "bytes": len(body),
                 "entries": entries[:40] if entries else None,
                 "head": None if entries else bytes(body)[:48].hex()}
     finally:
@@ -282,8 +314,15 @@ def main(argv=None) -> int:
     dev, uniq = found
     result = {"device": dev, "serial": uniq, "path": a.path}
     result.update(fetch(dev, a.path, window=a.window))
-    result["verdict"] = ("PS-FTP works over USB HID — polar_psftp's layer is reusable, only the "
-                         "framing changes" if result.get("ok") else result.get("error", "no answer"))
+    # THE VERDICT LEADS WITH THE TRUNCATION, because `ok` is true in that case and reading `ok` alone
+    # is exactly how a 4-of-6 listing was cited as the device's filesystem for a week.
+    result["verdict"] = (
+        f"⚠️ TRUNCATED — {len(result.get('entries') or [])} complete entries came back and the payload "
+        "was cut mid-record. This listing is a SUBSET; the USB pipe caps a reply at one 64-byte report "
+        "and flags it END regardless. Use the BLE mirror (polar_mirror.py) for a complete answer."
+        if result.get("truncated") else
+        "PS-FTP works over USB HID — polar_psftp's layer is reusable, only the framing changes"
+        if result.get("ok") else result.get("error", "no answer"))
     print(json.dumps(result, indent=2))
     return 0
 

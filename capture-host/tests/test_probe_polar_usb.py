@@ -8,6 +8,10 @@
 # supported". Both are pinned here, driven over a fake device rather than real hardware, so the next
 # person to touch this cannot silently reintroduce either.
 
+import json
+
+import pytest
+
 import probe_polar_usb as probe
 
 
@@ -105,26 +109,70 @@ class _FakeDev:
     def __init__(self, replies, stale=(), read_error=False):
         self.replies, self.stale = list(replies), list(stale)
         self.read_error, self.writes = read_error, []
+        self.closed = False
+        self.timeouts = []            # every select() wait, so the WINDOW itself can be asserted
+
+
+_FD = 99
 
 
 def _install(monkeypatch, dev):
-    monkeypatch.setattr(probe.os, "open", lambda *a, **k: 99)
-    monkeypatch.setattr(probe.os, "close", lambda fd: None)
-    monkeypatch.setattr(probe.os, "write", lambda fd, b: dev.writes.append(b) or len(b))
+    """⚠️ THE FAKES ASSERT THEIR ARGUMENTS, and that is load-bearing.
+
+    A fake shaped `lambda fd, b: ...` that never looks at `fd` cannot tell `os.write(fd, …)` from
+    `os.write(None, …)` — so the descriptor plumbing was invisible to the whole file, and the mutation
+    gate found exactly that on PR #1117: `os.read(None, …)`, `os.read(fd, None)`, `os.write(None, …)`
+    and `os.close(None)` all survived. On real hardware every one of those is an unhandled TypeError
+    against a device that only answers once per USB re-enumeration. Checking here costs one line each."""
+    def _open(path, flags):
+        # The LAST fake still ignoring its arguments. `os.open(None, …)`, a dropped flag and
+        # `O_RDWR & O_NONBLOCK` (which is 0 — read-only, blocking) all read as passes otherwise, and a
+        # BLOCKING open on this node is not a small bug: the drain loop below would hang the probe
+        # against a device that answers once per USB re-enumeration.
+        assert path == "/dev/hidraw0", "the node fetch() was asked for"
+        assert flags == probe.os.O_RDWR | probe.os.O_NONBLOCK, "read-write AND non-blocking"
+        return _FD
+
+    monkeypatch.setattr(probe.os, "open", _open)
+
+    def _close(fd):
+        assert fd == _FD, "the fd fetch() opened is the fd it must close"
+        dev.closed = True
+
+    def _write(fd, b):
+        assert fd == _FD, "reports must go to the fd fetch() opened"
+        dev.writes.append(b)
+        return len(b)
 
     def _select(rl, wl, xl, timeout):
+        # The argument checks matter for the same reason the `os.*` ones do: `select(None, …)` and
+        # `select([fd], None, …)` are TypeErrors on a real kernel, and a fake that ignores its
+        # parameters cannot tell them from the real call.
+        assert rl == [_FD], "the probe waits on the fd it opened"
+        assert wl == [] and xl == [], "it never waits to write, and never on an exceptional condition"
+        # The reply wait must be BOUNDED and NON-NEGATIVE. `None` means "block forever", which on a pipe
+        # that answers once per USB re-enumeration parks the probe indefinitely; a negative value is
+        # rejected by the real `select` outright. That is what `max(0.0, deadline - now)` is for. The
+        # ceiling is deliberately not the window — one test drives 30 s — only "not unbounded".
+        assert timeout is not None, "a reply wait of None blocks forever"
+        assert 0.0 <= timeout <= 3600, f"bounded, non-negative reply wait; got {timeout!r}"
+        dev.timeouts.append(timeout)
         # timeout == 0 is fetch()'s drain probe: only pre-existing stale bytes are visible to it,
         # otherwise the drain would swallow the reply this request is waiting for.
         ready = bool(dev.stale) if timeout == 0 else bool(dev.stale or dev.replies)
-        return ([99], [], []) if ready else ([], [], [])
+        return ([_FD], [], []) if ready else ([], [], [])
 
     def _read(fd, n):
+        assert fd == _FD, "replies must be read from the fd fetch() opened"
+        assert n == probe.REPORT_BYTES, "a HID report is fixed-length; a short read splits one reply"
         if dev.stale:
             return dev.stale.pop(0)
         if dev.read_error:
             raise OSError(5, "Input/output error")
         return dev.replies.pop(0)
 
+    monkeypatch.setattr(probe.os, "close", _close)
+    monkeypatch.setattr(probe.os, "write", _write)
     monkeypatch.setattr(probe.select, "select", _select)
     monkeypatch.setattr(probe.os, "read", _read)
 
@@ -137,6 +185,125 @@ def test_a_single_end_packet_is_parsed_into_directory_entries(monkeypatch):
     assert r["ok"] is True
     assert [e[0] for e in r["entries"]] == ["DBDC.DAT", "USERID.BPB", "S/", "20260621/"]
     assert ("20260621/", 0) in r["entries"], "a date-named session directory"
+
+
+# ── TRUNCATION ───────────────────────────────────────────────────────────────────────────────────────
+# The SAME reply, re-measured 2026-08-09 — and the device had more to say. `_LISTING` above is the
+# 2026-08-02 capture, which happened to end on a record boundary and so looked whole. It was not: the
+# USB pipe caps a reply at one 64-byte report and sets the END flag regardless, and on 08-09 the extra
+# bytes that fit landed MID-RECORD. The BLE mirror of the same unit lists SIX entries in `/U/0/`
+# (`20260802/` and `20260803/`, the latter holding 22 `.REC` recordings); both USB captures show FOUR.
+_LISTING_TRUNCATED = _LISTING + bytes.fromhex("0a0d0a093230")     # entry: name len 9, 2 bytes delivered
+
+
+def test_a_truncated_payload_is_reported_as_truncated_not_as_a_short_listing(monkeypatch):
+    dev = _FakeDev([_reply(len(_LISTING_TRUNCATED), 1, _LISTING_TRUNCATED)])
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["truncated"] is True and r["complete"] is False
+    assert [e[0] for e in r["entries"]] == ["DBDC.DAT", "USERID.BPB", "S/", "20260621/"]
+    assert "20" not in [e[0] for e in r["entries"]], "a 2-byte fragment of a 9-byte name is not a file"
+
+
+def test_a_two_byte_report_is_a_REPLY_not_noise(monkeypatch):
+    """`len(rep) < 2` is a "can I read the size/flags byte at all" guard, and 2 bytes is exactly enough.
+    Nothing exercised the boundary, so widening it to `<= 2` or `< 3` — which would discard a minimal
+    END report and make the device look silent, the failure this whole file exists to distinguish from
+    a broken transport — changed nothing observable."""
+    dev = _FakeDev([bytes([probe.IN_REPORT_ID, 0x01])])       # size 0, flags 1 (END), 2 bytes total
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["real"] == 1, "a 2-byte END report was received and counted"
+    assert r["ok"] is False and r["bytes"] == 0, "…and it carried no directory"
+
+
+def test_a_one_byte_report_is_too_short_to_read_and_is_skipped(monkeypatch):
+    """The other side of the same boundary — one byte has no size/flags field to interpret."""
+    dev = _FakeDev([bytes([probe.IN_REPORT_ID]), _reply(len(_LISTING), 1, _LISTING)])
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["ok"] is True and r["real"] == 1, "the runt is skipped, the real reply still lands"
+
+
+def test_the_fd_is_closed_even_after_a_successful_fetch(monkeypatch):
+    dev = _FakeDev([_reply(len(_LISTING), 1, _LISTING)])
+    _install(monkeypatch, dev)
+    probe.fetch("/dev/hidraw0", "/U/0/")
+    assert dev.closed is True, "the hidraw node must not be leaked — it is a single-open device"
+
+
+def test_ack_numbers_advance_across_a_THREE_packet_reply(monkeypatch):
+    """Two packets is not enough to see the counter move. With only a MORE and an END, the second ACK
+    is never sent — the loop breaks on END first — so `pkt_num = next_ack(pkt_num)` could be dropped
+    entirely and nothing noticed. Three packets forces two ACKs, and the device rejects a repeated or
+    absent packet number."""
+    a, b, c = _LISTING[:16], _LISTING[16:32], _LISTING[32:]
+    dev = _FakeDev([_reply(len(a), 0, a, initial=True),
+                    _reply(len(b), 0, b, initial=False),
+                    _reply(len(c), 1, c, initial=False)])
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["real"] == 3
+    acks = [w[2] for w in dev.writes if w[1] == 0x05]
+    assert acks == [0, 1], "each non-final packet is ACKed, and the number ADVANCES"
+    assert [e[0] for e in r["entries"]] == ["DBDC.DAT", "USERID.BPB", "S/", "20260621/"], \
+        "…and the reassembled body is still the listing"
+
+
+def test_the_default_window_is_the_one_the_device_is_actually_given(monkeypatch):
+    """`window` is a default nobody passed, so nothing observed it and 8.0 could become 9.0 unnoticed.
+    It is the entire budget for a reply on a pipe that answers once per USB re-enumeration — the
+    difference between a probe that reports a closed window and one that looks hung."""
+    dev = _FakeDev([_reply(len(_LISTING), 1, _LISTING)])
+    _install(monkeypatch, dev)
+    probe.fetch("/dev/hidraw0", "/U/0/")
+    waits = [t for t in dev.timeouts if t]        # the 0.0 entry is the pre-request drain
+    assert waits and 7.5 < waits[0] <= 8.0, f"the first reply wait is the 8 s window, got {waits[:1]}"
+
+
+def test_the_wait_never_OVERSHOOTS_the_remaining_budget(monkeypatch):
+    """`max(0.0, deadline - now)` has two jobs and only one was observed. It floors the wait at zero —
+    `select` rejects a negative timeout — and it CAPS the wait at what is left of the window. Raise that
+    floor to 1.0 and the probe waits a full second on a window that may be shorter than that, blowing
+    through its own deadline; with every other test running an 8 s or 30 s window, the overshoot is
+    invisible because the remainder is never under a second. A sub-second window is what exposes it."""
+    dev = _FakeDev([])                     # nothing to answer: the loop runs its wait and gives up
+    _install(monkeypatch, dev)
+    probe.fetch("/dev/hidraw0", "/U/0/", window=0.2)
+    waits = [t for t in dev.timeouts if t]
+    assert waits, "the reply wait happened at all"
+    assert max(waits) <= 0.2, f"never longer than the window that remains, got {max(waits)}"
+
+
+def test_the_default_packet_cap_bounds_a_device_that_never_terminates(monkeypatch):
+    """The measured failure this cap exists for: ACKing every filler reply yielded 4000 packets in 8 s.
+    The existing test passes `max_packets` explicitly, so the DEFAULT was unobserved and 400 could
+    become 401 — or, on the same line, something far larger — with nothing to notice."""
+    dev = _FakeDev([_IDLE] * 500)
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/", window=30.0)
+    assert r["idle"] == 400, "stopped at the default cap, not at the end of the device's patience"
+
+
+def test_a_whole_payload_is_marked_complete(monkeypatch):
+    """Positive control: `complete` must be capable of being true, or it reports nothing."""
+    dev = _FakeDev([_reply(len(_LISTING), 1, _LISTING)])
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["truncated"] is False and r["complete"] is True
+
+
+def test_main_leads_the_verdict_with_the_truncation(monkeypatch, capsys):
+    """`ok` stays TRUE on a truncated listing — the transport really did work — so the verdict is the
+    only line that can stop a reader citing four entries as the device's filesystem. One did, for a
+    week: POLAR-VERITY-DEVICE-SURFACE quotes the short list as the device's `/U/0/`."""
+    monkeypatch.setattr(probe, "find_device", lambda: ("/dev/hidraw0", "0C301E3F"))
+    monkeypatch.setattr(probe, "fetch", lambda *a, **k: {
+        "ok": True, "truncated": True, "complete": False, "entries": [("20260621/", 0)]})
+    assert probe.main([]) == 0
+    out = capsys.readouterr().out
+    assert "TRUNCATED" in out and "polar_mirror" in out
+    assert "reusable" not in out, "the success verdict must not also be printed"
 
 
 def test_a_multi_packet_reply_is_acked_and_reassembled(monkeypatch):
@@ -181,6 +348,11 @@ def test_stale_bytes_in_the_node_are_drained_before_the_request(monkeypatch):
     _install(monkeypatch, dev)
     r = probe.fetch("/dev/hidraw0", "/U/0/")
     assert r["ok"] is True, "a leftover reply must not be parsed as this request's answer"
+    # `ok` alone cannot see the drain: undrained, the stale filler is simply consumed as the first
+    # packet of the reply loop, ACKed, and the real answer still arrives behind it. `idle == 0` is what
+    # actually distinguishes "drained before the request" from "absorbed afterwards" — and without it
+    # the drain's `select(...)[0]` could be indexed `[1]` (never ready, never drains) unnoticed.
+    assert r["idle"] == 0, "the stale byte was drained BEFORE the request, not counted as a reply"
 
 
 def test_a_read_error_is_reported_rather_than_crashing_the_probe(monkeypatch):
@@ -217,6 +389,19 @@ def test_unparseable_payload_is_surfaced_as_hex_rather_than_claimed_as_success(m
     _install(monkeypatch, dev)
     r = probe.fetch("/dev/hidraw0", "/U/0/")
     assert r["ok"] is False and r["head"] == "ffffffff"
+
+
+def test_a_payload_the_protobuf_reader_REJECTS_is_also_surfaced_as_hex(monkeypatch):
+    """`\\xff\\xff\\xff\\xff` above is now diagnosed as TRUNCATION (a varint whose continuation bit
+    never clears really has run off the end), which `_parse_directory_ex` handles internally. So the
+    `except` arm needs the OTHER garbage shape to stay reachable: wire type 3 — a deprecated protobuf
+    group — which `_iter_fields` raises on outright rather than desyncing the parser. Either way the
+    bytes must reach the operator, because on this transport they are the only evidence of what the
+    device actually said."""
+    dev = _FakeDev([_reply(1, 1, b"\x0b")])           # tag: field 1, wire type 3
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["ok"] is False and r["truncated"] is False and r["head"] == "0b"
 
 
 def test_permission_denied_names_the_udev_rule(monkeypatch):
@@ -280,12 +465,41 @@ def test_an_unreadable_uevent_is_skipped_rather_than_aborting_the_scan(tmp_path,
 # ── CLI ──────────────────────────────────────────────────────────────────────────────────────────────
 
 def test_main_reports_the_listing_and_a_success_verdict(monkeypatch, capsys):
+    """The stub `fetch` ASSERTS what it was handed. A `lambda *a, **k` cannot see which device, path or
+    window `main` passed, so `fetch(None, …)` and a dropped `window=` both read as success — six such
+    mutants survived here before the arguments were checked."""
     monkeypatch.setattr(probe, "find_device", lambda: ("/dev/hidraw0", "0C301E3F"))
-    monkeypatch.setattr(probe, "fetch",
-                        lambda *a, **k: {"ok": True, "entries": [("20260621/", 0)]})
+
+    def _fetch(dev, path, window=None):
+        assert (dev, path, window) == ("/dev/hidraw0", "/U/0/", 8.0)
+        return {"ok": True, "entries": [("20260621/", 0)]}
+
+    monkeypatch.setattr(probe, "fetch", _fetch)
     assert probe.main([]) == 0
     out = capsys.readouterr().out
     assert "20260621/" in out and "reusable" in out
+
+
+def test_main_prints_two_space_indented_json_because_an_operator_reads_it(monkeypatch, capsys):
+    """The output is the whole product of this tool — a human at a dock comparing two runs. Pin the
+    exact rendering, not merely that the substrings appear: `indent` dropped collapses it to one line
+    and `indent=3` reflows every field, and both otherwise pass every other assertion in this file."""
+    monkeypatch.setattr(probe, "find_device", lambda: ("/dev/hidraw0", "0C301E3F"))
+    monkeypatch.setattr(probe, "fetch", lambda *a, **k: {"ok": True, "entries": [("A/", 0)]})
+    assert probe.main([]) == 0
+    out = capsys.readouterr().out
+    expect = {"device": "/dev/hidraw0", "serial": "0C301E3F", "path": "/U/0/",
+              "ok": True, "entries": [["A/", 0]],
+              "verdict": ("PS-FTP works over USB HID — polar_psftp's layer is reusable, only the "
+                          "framing changes")}
+    assert out == json.dumps(expect, indent=2) + "\n"
+
+
+def test_help_names_the_tool_so_an_operator_knows_what_it_talks_to(monkeypatch, capsys):
+    """`--help` is the only documentation a hand-run diagnostic has at the moment it is run."""
+    with pytest.raises(SystemExit):
+        probe.main(["--help"])
+    assert "PS-FTP over Polar's USB HID pipe (read-only)" in capsys.readouterr().out
 
 
 def test_main_surfaces_the_failure_reason_as_the_verdict(monkeypatch, capsys):
