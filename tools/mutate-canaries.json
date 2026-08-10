@@ -17,6 +17,15 @@
       "CPAPDex §6.2 — ODI is rated over ANALYZABLE oximeter time, not the therapy span"
     ]
   },
+  "glucodex-dsp.js": {
+    "line": 44,
+    "op": "negate: drop !",
+    "before": "if (!sorted.length) return null;",
+    "after": "if (sorted.length) return null;",
+    "killers": [
+      "GlucoDex §5.1/§5.2 — a truncated grid says so, and the session span cannot overflow"
+    ]
+  },
   "hrvdex-dsp.js": {
     "line": 101,
     "op": "cmp < → <=",

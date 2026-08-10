@@ -1509,6 +1509,168 @@
       "class": "no-distinguishing-input",
       "why": "In detectBreaths. Original and mutant produced byte-identical output on every input.",
       "probe": "detectBreaths · flow → breath count: 40 inputs, 12 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 680,
+      "op": "cmp < → <=",
+      "before": "for (var i = 0; i < n; i++) if (_spo2Valid(spo2[i])) valid++;",
+      "after": "for (var i = 0; i <= n; i++) if (_spo2Valid(spo2[i])) valid++;",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 682,
+      "op": "bool || → &&",
+      "before": "if (valid === 0 || coverage < OXI.COVERAGE_FLOOR)",
+      "after": "if (valid === 0 && coverage < OXI.COVERAGE_FLOOR)",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 698,
+      "op": "cmp > → >=",
+      "before": "var hours = n > 0 ? (valid * (spanSec / n)) / 3600 : 0;",
+      "after": "var hours = n >= 0 ? (valid * (spanSec / n)) / 3600 : 0;",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 712,
+      "op": "cmp < → <=",
+      "before": "for (var k = 0; k < n; k++) {",
+      "after": "for (var k = 0; k <= n; k++) {",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 717,
+      "op": "num → 0",
+      "before": "if (s < 90) below90++;",
+      "after": "if (s < 0) below90++;",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 718,
+      "op": "cmp < → <=",
+      "before": "if (s < nadir) nadir = s;",
+      "after": "if (s <= nadir) nadir = s;",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 722,
+      "op": "cmp < → <=",
+      "before": "for (var m = 0; m < pulse.length; m++) {",
+      "after": "for (var m = 0; m <= pulse.length; m++) {",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 724,
+      "op": "cmp >= → >",
+      "before": "if (p >= SELFGATE.PULSE_MIN && p <= SELFGATE.PULSE_MAX) pv.push(p);",
+      "after": "if (p > SELFGATE.PULSE_MIN && p <= SELFGATE.PULSE_MAX) pv.push(p);",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 724,
+      "op": "cmp <= → <",
+      "before": "if (p >= SELFGATE.PULSE_MIN && p <= SELFGATE.PULSE_MAX) pv.push(p);",
+      "after": "if (p >= SELFGATE.PULSE_MIN && p < SELFGATE.PULSE_MAX) pv.push(p);",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 729,
+      "op": "cmp > → >=",
+      "before": "odi: hours > 0 ? +(real.length / hours).toFixed(2) : null,",
+      "after": "odi: hours >= 0 ? +(real.length / hours).toFixed(2) : null,",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 735,
+      "op": "cmp > → >=",
+      "before": "analyzedHours: hours > 0 ? +hours.toFixed(4) : null,",
+      "after": "analyzedHours: hours >= 0 ? +hours.toFixed(4) : null,",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 738,
+      "op": "num → 0",
+      "before": "t90Pct: vArr.length ? +((below90 / vArr.length) * 100).toFixed(2) : null,",
+      "after": "t90Pct: vArr.length ? +((below90 / vArr.length) * 0).toFixed(2) : null,",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 741,
+      "op": "num → 0",
+      "before": "pulseMedian: pv.length ? +_p(pv, 50).toFixed(0) : null,",
+      "after": "pulseMedian: pv.length ? +_p(pv, 0).toFixed(0) : null,",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 742,
+      "op": "num → 0",
+      "before": "pulseRange: pv.length ? +(_p(pv, 95) - _p(pv, 5)).toFixed(0) : null,",
+      "after": "pulseRange: pv.length ? +(_p(pv, 0) - _p(pv, 5)).toFixed(0) : null,",
+      "class": "no-distinguishing-input",
+      "why": "In oximetryLane. Original and mutant produced byte-identical output on every input.",
+      "probe": "oximetryLane · coverage + the lane verdict: 75 inputs, 20 distinct baseline answers; 10/10 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 312,
+      "op": "cmp < → <=",
+      "before": "for (var i = 0; i < d.pressure.length; i++)",
+      "after": "for (var i = 0; i <= d.pressure.length; i++)",
+      "class": "no-distinguishing-input",
+      "why": "In computeMetrics. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeMetrics + leakSqi · the metric block: 43 inputs, 33 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 329,
+      "op": "num → 0",
+      "before": "medianLeak: _p(d.leakMaskOn, 50),",
+      "after": "medianLeak: _p(d.leakMaskOn, 0),",
+      "class": "no-distinguishing-input",
+      "why": "In computeMetrics. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeMetrics + leakSqi · the metric block: 43 inputs, 33 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 330,
+      "op": "num → 0",
+      "before": "p95Leak: _p(d.leakMaskOn, 95),",
+      "after": "p95Leak: _p(d.leakMaskOn, 0),",
+      "class": "no-distinguishing-input",
+      "why": "In computeMetrics. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeMetrics + leakSqi · the metric block: 43 inputs, 33 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
+    },
+    {
+      "line": 333,
+      "op": "cmp > → >=",
+      "before": "return v > 24;",
+      "after": "return v >= 24;",
+      "class": "no-distinguishing-input",
+      "why": "In computeMetrics. Original and mutant produced byte-identical output on every input.",
+      "probe": "computeMetrics + leakSqi · the metric block: 43 inputs, 33 distinct baseline answers; 4/4 same-function controls separated. tools/probe-equivalence.mjs --file cpapdex-dsp.js"
     }
   ],
   "pulsedex-dsp.js": [
