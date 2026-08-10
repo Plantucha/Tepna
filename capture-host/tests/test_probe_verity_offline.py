@@ -14,6 +14,7 @@
 #     request was accepted; only `status` says a recording exists.
 
 import asyncio
+import types
 
 import pytest
 
@@ -281,3 +282,37 @@ def test_the_default_target_is_acc_because_recording_removes_the_live_stream(mon
     monkeypatch.setattr(probe, "run", fake)
     probe.main(["--address", "AA:BB"])
     assert seen["meas"] == pmd.ACC
+
+
+# ── the bond read itself ─────────────────────────────────────────────────────────────────────────────
+# The tests above monkeypatch `_is_bonded`, so its own body never ran. That body is what decides
+# between "press the button" and "pair it first" — opposite ends of the room for the operator — so it
+# needs its own cases, including the one where bluetoothctl cannot be asked at all.
+
+def _bluetoothctl(monkeypatch, *, stdout="", raises=None):
+    def _run(cmd, capture_output=False, text=False, timeout=None):
+        assert cmd[:2] == ["bluetoothctl", "info"], f"unexpected command {cmd}"
+        assert timeout, "an unbounded bluetoothctl would hang the diagnosis it exists to produce"
+        if raises:
+            raise raises
+        return types.SimpleNamespace(stdout=stdout)
+    monkeypatch.setattr(probe.subprocess, "run", _run)
+
+
+def test_bond_read_reports_TRUE_on_a_bonded_device(monkeypatch):
+    _bluetoothctl(monkeypatch, stdout="Device AA:BB\n\tPaired: yes\n\tBonded: yes\n\tTrusted: yes\n")
+    assert _run(probe._is_bonded("AA:BB")) is True
+
+
+def test_bond_read_reports_FALSE_when_paired_but_not_bonded(monkeypatch):
+    """`Paired: yes` is not `Bonded: yes` — polar_mirror's header records that the two diverge and that
+    PS-FTP fails on the difference. Matching the wrong word here would call an unpairable device ready."""
+    _bluetoothctl(monkeypatch, stdout="Device AA:BB\n\tPaired: yes\n\tBonded: no\n")
+    assert _run(probe._is_bonded("AA:BB")) is False
+
+
+def test_bond_read_reports_UNKNOWN_when_bluetoothctl_cannot_be_asked(monkeypatch):
+    """⚠️ None, not False. "I could not find out" and "it is not bonded" prescribe different actions,
+    and defaulting to False would tell the operator to re-pair a device that is already paired."""
+    _bluetoothctl(monkeypatch, raises=FileNotFoundError("bluetoothctl"))
+    assert _run(probe._is_bonded("AA:BB")) is None
