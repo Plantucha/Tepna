@@ -74,6 +74,31 @@ has an obvious cause that nobody needed to invoke correlated physiology for.
 
 The Polar↔Polar result is untouched: neither leg involves the ring.
 
+### ⛔ Do NOT extend this finding to the H10 — its axis is a REAL clock, and it was checked
+
+The natural next thought after this brief is *"if the ring's stamps are drawn, whose else are?"*. That
+question has been asked and answered for the H10, and the answer is **no** — recorded here so the
+drawn-axis conclusion is not spread by association to a device that passes the test.
+
+`H10-ECG-RATE-CORPUS-CHECK-2026-08-04` §3 ran **this brief's own discriminator** over 50 ECG files of
+the vendor's PSL decode (H10 `02849638`, 5.6 M rows; re-measured 2026-08-09):
+
+| | O2Ring (drawn) | H10 ECG (real) |
+|---|---|---|
+| distinct inter-sample deltas | **46** over 60 000 samples — 1 per fragment, all exact reciprocals of an assumed rate | **660 median per file**, 8 029 pooled |
+| modal delta share | **100 %** within a fragment | **26.7 % median**, 55.4 % worst-case — nowhere near the ≥ 99 % bar |
+| nominal share (`1e9/130` exactly) | n/a | **0.000 %** — so it is the device's clock, not our fallback |
+
+So the H10's ppm figure **means something** and the ring's does not: −47 ppm of real crystal error
+against a drawing error that changes with whichever constant the writer chose. The two must not be
+pooled, averaged, or quoted in the same breath as "device clock error".
+
+⚠️ The two cautions this brief earned still apply to the H10 *as method*, just not as verdict: the
+2026-08-05 retraction above (a **writer** can erase the fingerprint a reader depends on) and
+`DEVICE-RATE-TRUTH` §4.1 (a rate landing **exactly** on nominal is a fallback signature). Both are
+reasons to re-run the discriminator rather than to trust this table forever — which is why the
+nominal-share row is in it.
+
 ## 4 · Why `DexClock.hostAxis` must NOT copy the span gate
 
 `dual-clock-rate.mjs` gained a ≥60 min span gate, for a good reason with a number behind it: host
