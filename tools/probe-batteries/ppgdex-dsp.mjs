@@ -463,6 +463,10 @@ function pipelineProbe(s0) {
 
 /* The pipeline functions `analyze` reaches. Each claims its own survivors and needs its own
    controls, so a blind one is reported per-function rather than hidden in an aggregate. */
+/* NOTE: the seven functions in LEAF_FAMILIES are deliberately ABSENT here. They have direct families
+   with inputs chosen for their own branches; registering them twice would give one mutant two
+   verdicts from two probes of very different power, and the weaker (diluted) one would be the
+   family that voids. One fn, one family. */
 const PPG_PIPELINE_FNS = [
   'analyze',
   'cvhrFromNN',
@@ -476,20 +480,13 @@ const PPG_PIPELINE_FNS = [
   'sqiAt',
   'correctRR',
   'buildPPI',
-  'validatePPI',
-  'timeDomain',
   'poincare',
   'dfaAlpha1',
-  'sampEn',
-  'beatRegularity',
   'buildEpochs',
   'channelSNR',
   'holdOverGaps',
-  'markO2Sentinels',
   'ppgCoverage',
   'buildEvents',
-  'intervalsSpanningTimeGap',
-  'harmonicOutlierRefIdx',
   'refineFeet',
   'gapBeats',
   'countPairs',
@@ -498,25 +495,237 @@ const PPG_PIPELINE_FNS = [
   'hrvShapeViolates'
 ];
 
+/* ══ DIRECT LEAF FAMILIES — because ROUTING THROUGH analyze() DILUTES ═══════════════════════════
+   The pipeline probe reaches all of these, and #1147 measured what that is worth: 22 families VOID,
+   with `beatRegularity` separating 0 OF 6 CONTROLS despite being called on every one of the 25
+   inputs. A leaf's result is aggregated, rounded and summarised into the export long before the
+   fingerprint sees it, so a mutation that genuinely changes the leaf changes nothing observable at
+   the far end.
+
+   REACHING A FUNCTION IS NECESSARY AND IT IS NOT SUFFICIENT. That is `probe-reach`'s stated caveat,
+   now measured rather than anticipated. Every function below is EXPORTED, so it can be called
+   directly with inputs chosen for ITS branches rather than for a whole night's recording — which is
+   the only way its controls can separate. Contracts read from source, not inferred. */
+const LEAF_FAMILIES = [
+  {
+    name: 'beatRegularity · local cadence agreement (direct)',
+    fn: 'beatRegularity',
+    probe: (s0) => {
+      const B = s0.PPGDSP;
+      const out = [];
+      /* `peaks` are SAMPLE INDICES. Each score is 1 − min(1, dev/0.5)·0.4 against the MEDIAN interval,
+         floored at 0.6 — so what separates mutants is an exact deviation at a band edge, and a beat
+         whose two neighbouring intervals disagree (it takes the MINIMUM of the two). */
+      const even = (n, step) => Array.from({ length: n }, (_, i) => i * step);
+      for (const n of [0, 1, 2, 3, 4, 5, 12]) out.push(call(B.beatRegularity, [even(n, 135), 135])); // the n<4 guard, both sides
+      for (const frac of [0, 0.1, 0.25, 0.5, 0.75, 1]) {
+        const p = [0, 135, 270, 405, 540];
+        p.push(p[p.length - 1] + Math.round(135 * (1 + frac)));
+        for (let k = 0; k < 4; k++) p.push(p[p.length - 1] + 135);
+        out.push(call(B.beatRegularity, [p, 135]));
+      }
+      /* ⚠️ A SINGLE ODD INTERVAL SCORES 1.0 AND CANNOT SEE THE SCALING FACTOR. Each beat takes the
+         MINIMUM of its two adjacent deviations, so a lone irregular interval always has a regular
+         neighbour on its other side and every beat still comes out perfect. Measured: with only the
+         single-deviation cases above, the `* 0.4 -> * 0` mutant — which flattens EVERY score to 1.0
+         — read as EQUIVALENT, because no input ever produced a score below 1.0 to begin with.
+
+         TWO CONSECUTIVE irregular intervals are what put a beat between two deviations, and that is
+         the only shape in which the scaling factor is observable at all. */
+      const runOf = (dev, count) => {
+        const p = [0, 135, 270, 405];
+        for (let k = 0; k < count; k++) p.push(p[p.length - 1] + Math.round(135 * (1 + dev)));
+        for (let k = 0; k < 4; k++) p.push(p[p.length - 1] + 135);
+        return p;
+      };
+      for (const dev of [0.1, 0.25, 0.5, 0.9]) for (const count of [2, 3, 5]) out.push(call(B.beatRegularity, [runOf(dev, count), 135]));
+      /* A HALVED interval (a double-counted beat) and a DOUBLED one (a missed beat) — the two real
+         detector failures the 0.6 floor exists to score. In RUNS, for the reason above, and singly. */
+      out.push(call(B.beatRegularity, [[0, 135, 270, 337, 404, 471, 606, 741], 135])); // halved, run of 3
+      out.push(call(B.beatRegularity, [[0, 135, 270, 540, 810, 1080, 1215, 1350], 135])); // doubled, run of 3
+      out.push(call(B.beatRegularity, [[0, 135, 270, 337, 472, 607, 742], 135])); // a LONE halved interval
+      out.push(call(B.beatRegularity, [[0, 135, 270, 540, 675, 810, 945], 135])); // a LONE doubled interval
+      out.push(call(B.beatRegularity, [[0, 0, 0, 0, 0, 0], 135])); // median interval 0 ⇒ all null
+      out.push(call(B.beatRegularity, [[5, 4, 3, 2, 1, 0], 135])); // descending ⇒ negative median
+      for (const fs of [135, 55, 0, -1, undefined]) out.push(call(B.beatRegularity, [even(8, 135), fs]));
+      for (const bad of [null, undefined, []]) out.push(call(B.beatRegularity, [bad, 135]));
+      return out;
+    }
+  },
+  {
+    name: 'timeDomain · NN summary with masks (direct)',
+    fn: 'timeDomain',
+    probe: (s0) => {
+      const B = s0.PPGDSP;
+      const out = [];
+      /* timeDomain(nn, cleanMask, omit) draws TWO different subsets from one call: sdnn/meanRR over
+         the omit-filtered set, rMSSD/pNN50 over adjacent CLEAN-MASK pairs only. A battery that never
+         supplies a mask exercises neither. */
+      const nn = (n, base, jit) => Array.from({ length: n }, (_, i) => base + (jit ? (((i * 7919) % 100) / 100 - 0.5) * 2 * jit : 0));
+      for (const n of [0, 1, 2, 3, 60]) out.push(call(B.timeDomain, [nn(n, 1000, 0), null, null]));
+      for (const jit of [0, 5, 50, 200]) out.push(call(B.timeDomain, [nn(60, 1000, jit), null, null]));
+      const base = nn(60, 1000, 40);
+      const allTrue = base.map(() => true);
+      const allFalse = base.map(() => false);
+      out.push(call(B.timeDomain, [base, allTrue, null]));
+      out.push(call(B.timeDomain, [base, allFalse, null])); // NO clean pair at all
+      out.push(call(B.timeDomain, [base, base.map((_, i) => i % 2 === 0), null])); // alternating ⇒ no ADJACENT pair
+      out.push(call(B.timeDomain, [base, base.map((_, i) => i < 30), null])); // one contiguous clean half
+      out.push(call(B.timeDomain, [base, null, allFalse]));
+      out.push(call(B.timeDomain, [base, null, allTrue])); // omit EVERYTHING — the `keep or nn` guard
+      out.push(call(B.timeDomain, [base, null, base.map((_, i) => i > 1)])); // omit all but two — exactly the floor
+      out.push(call(B.timeDomain, [base, allTrue, allTrue]));
+      /* pNN50 counts |Δ| > 50 ms, so a series whose successive difference is EXACTLY 50 is the only
+         input that separates `>` from `>=`. */
+      out.push(call(B.timeDomain, [Array.from({ length: 60 }, (_, i) => 1000 + (i % 2) * 50), null, null]));
+      out.push(call(B.timeDomain, [Array.from({ length: 60 }, (_, i) => 1000 + (i % 2) * 51), null, null]));
+      out.push(call(B.timeDomain, [Array.from({ length: 60 }, (_, i) => 1000 + (i % 2) * 49), null, null]));
+      for (const bad of [null, undefined]) out.push(call(B.timeDomain, [bad, null, null]));
+      return out;
+    }
+  },
+  {
+    name: 'sampEn · sample entropy (direct)',
+    fn: 'sampEn',
+    probe: (s0) => {
+      const B = s0.PPGDSP;
+      const out = [];
+      const nn = (n, base, jit, period) =>
+        Array.from({ length: n }, (_, i) => base + (period ? 30 * Math.sin((2 * Math.PI * i) / period) : 0) + (jit ? (((i * 7919) % 100) / 100 - 0.5) * 2 * jit : 0));
+      for (const n of [0, 1, 59, 60, 61, 300]) out.push(call(B.sampEn, [nn(n, 1000, 30), 2, 0.2])); // the N<60 refusal, both sides
+      for (const m of [undefined, 1, 2, 3]) out.push(call(B.sampEn, [nn(300, 1000, 30), m, 0.2]));
+      for (const r of [undefined, 0.05, 0.2, 0.5, 1]) out.push(call(B.sampEn, [nn(300, 1000, 30), 2, r]));
+      out.push(call(B.sampEn, [nn(300, 1000, 0), 2, 0.2])); // perfectly flat ⇒ sd 0 ⇒ tolerance 0
+      out.push(call(B.sampEn, [nn(300, 1000, 0, 20), 2, 0.2])); // pure periodic ⇒ maximally predictable
+      out.push(call(B.sampEn, [nn(300, 1000, 200), 2, 0.2])); // near-random
+      out.push(call(B.sampEn, [nn(4000, 1000, 30), 2, 0.2])); // past the O(N²) decimation cap
+      for (const bad of [null, undefined]) out.push(call(B.sampEn, [bad, 2, 0.2]));
+      return out;
+    }
+  },
+  {
+    name: 'markO2Sentinels · the 156 invalid marker (direct)',
+    fn: 'markO2Sentinels',
+    probe: (s0) => {
+      const B = s0.PPGDSP;
+      const out = [];
+      /* A sentinel is judged against its REAL neighbours: an isolated 156 is a legitimate sample that
+         happens to equal the marker, a RUN of them is genuinely missing — because a run has no real
+         neighbour to vote for it. So the separating pair is one isolated marker against a run. */
+      const mk = (n, at, runLen, base) => {
+        const a = Array.from({ length: n }, (_, i) => base + (i % 7));
+        for (let k = 0; k < runLen; k++) if (at + k < n) a[at + k] = 156;
+        return a;
+      };
+      for (const runLen of [0, 1, 2, 3, 5, 20]) out.push(call(B.markO2Sentinels, [mk(60, 20, runLen, 20000)]));
+      for (const runLen of [1, 5]) out.push(call(B.markO2Sentinels, [mk(60, 20, runLen, 150)])); // neighbours NEAR 156
+      out.push(call(B.markO2Sentinels, [mk(60, 0, 3, 20000)])); // at the very start — no left neighbour
+      out.push(call(B.markO2Sentinels, [mk(60, 57, 3, 20000)])); // at the very end
+      out.push(call(B.markO2Sentinels, [new Array(40).fill(156)])); // nothing BUT the marker
+      out.push(call(B.markO2Sentinels, [new Array(40).fill(20000)])); // no marker at all
+      for (const bad of [[], [156], [156, 156]]) out.push(call(B.markO2Sentinels, [bad]));
+      return out;
+    }
+  },
+  {
+    name: 'harmonicOutlierRefIdx · the harmonic-counting re-pick (direct)',
+    fn: 'harmonicOutlierRefIdx',
+    probe: (s0) => {
+      const B = s0.PPGDSP;
+      const out = [];
+      /* Re-picks the reference channel ONLY when the others COHERE (spread < 0.15) AND the reference
+         sits at ≥ 1.5× their median — the double-counting signature. Both conditions need their own
+         edge, and `others.length < 2` needs a two-channel case. */
+      out.push(call(B.harmonicOutlierRefIdx, [0, [120, 60, 61, 59], [10, 9, 8, 7]])); // classic 2× harmonic
+      out.push(call(B.harmonicOutlierRefIdx, [0, [90, 60, 61, 59], [10, 9, 8, 7]])); // exactly 1.5× — the edge
+      out.push(call(B.harmonicOutlierRefIdx, [0, [89, 60, 61, 59], [10, 9, 8, 7]])); // just under 1.5×
+      out.push(call(B.harmonicOutlierRefIdx, [0, [120, 60, 70, 55], [10, 9, 8, 7]])); // others do NOT cohere
+      out.push(call(B.harmonicOutlierRefIdx, [0, [120, 60, 61], [10, 9, 8]])); // exactly 2 others
+      out.push(call(B.harmonicOutlierRefIdx, [0, [120, 60], [10, 9]])); // only ONE other ⇒ refuse
+      out.push(call(B.harmonicOutlierRefIdx, [1, [60, 120, 61, 59], [8, 10, 9, 7]])); // reference is not index 0
+      out.push(call(B.harmonicOutlierRefIdx, [0, [null, 60, 61, 59], [10, 9, 8, 7]]));
+      out.push(call(B.harmonicOutlierRefIdx, [0, [0, 60, 61, 59], [10, 9, 8, 7]]));
+      out.push(call(B.harmonicOutlierRefIdx, [0, [Number.NaN, 60, 61, 59], [10, 9, 8, 7]]));
+      out.push(call(B.harmonicOutlierRefIdx, [0, [120, null, null, 59], [10, 9, 8, 7]]));
+      out.push(call(B.harmonicOutlierRefIdx, [0, [120, 0, 0, 0], [10, 9, 8, 7]])); // median of others is 0
+      out.push(call(B.harmonicOutlierRefIdx, [0, [120, 60, 61, 59], [1, 2, 9, 3]])); // best SNR among matchers
+      out.push(call(B.harmonicOutlierRefIdx, [0, [120, 60, 61, 59], [10, 10, 10, 10]])); // tied SNR
+      return out;
+    }
+  },
+  {
+    name: 'intervalsSpanningTimeGap · beats that straddle a discontinuity (direct)',
+    fn: 'intervalsSpanningTimeGap',
+    probe: (s0) => {
+      const B = s0.PPGDSP;
+      const out = [];
+      /* A fast path returns early when there is NO discontinuity anywhere — which is every pre-fix
+         file and every Verity file, so a battery of contiguous recordings never leaves it. */
+      const rel = (n, fs, jumpAt, jumpSec) => Array.from({ length: n }, (_, i) => i / fs + (jumpAt >= 0 && i >= jumpAt ? jumpSec : 0));
+      const contiguous = rel(600, 135, -1, 0);
+      const jumped = rel(600, 135, 300, 10);
+      out.push(call(B.intervalsSpanningTimeGap, [contiguous, 135, [10, 140, 280, 420, 560], 4])); // no jump anywhere
+      out.push(call(B.intervalsSpanningTimeGap, [jumped, 135, [10, 140, 280, 420, 560], 4])); // one interval straddles
+      out.push(call(B.intervalsSpanningTimeGap, [jumped, 135, [310, 340, 370, 400], 3])); // all AFTER the jump
+      out.push(call(B.intervalsSpanningTimeGap, [jumped, 135, [10, 40, 70, 100], 3])); // all BEFORE it
+      out.push(call(B.intervalsSpanningTimeGap, [jumped, 135, [299, 301], 1])); // straddling by one sample
+      out.push(call(B.intervalsSpanningTimeGap, [rel(600, 135, 300, 0.02), 135, [10, 140, 280, 420, 560], 4])); // jump too small to count
+      out.push(call(B.intervalsSpanningTimeGap, [jumped, 135, [-5, 700], 1])); // feet outside the axis ⇒ clamped
+      for (const fs of [135, 0, -1, undefined]) out.push(call(B.intervalsSpanningTimeGap, [jumped, fs, [10, 140], 1]));
+      out.push(call(B.intervalsSpanningTimeGap, [jumped, 135, [10], 0])); // fewer than 2 feet
+      for (const bad of [null, undefined, []]) out.push(call(B.intervalsSpanningTimeGap, [bad, 135, [10, 140], 1]));
+      out.push(call(B.intervalsSpanningTimeGap, [jumped, 135, [null, 140, undefined, 420], 3]));
+      return out;
+    }
+  },
+  {
+    name: 'validatePPI · device PPI against our own (direct)',
+    fn: 'validatePPI',
+    probe: (s0) => {
+      const B = s0.PPGDSP;
+      const out = [];
+      /* Three states the app must tell apart: NO file, an EMPTY file, and a file with too few usable
+         rows. The row filter drops ppi outside (300, 2000) and any non-zero blocker, so each bound
+         needs a row sitting exactly on it. */
+      const ppi = (vals, blocker) => vals.map((v) => ({ ppi: v, blocker: blocker === undefined ? 0 : blocker }));
+      const self = Array.from({ length: 60 }, (_, i) => 900 + (i % 7) * 5);
+      out.push(call(B.validatePPI, [self, null])); // no file
+      out.push(call(B.validatePPI, [self, undefined]));
+      out.push(call(B.validatePPI, [self, []])); // present but empty
+      for (const n of [1, 2, 3, 4, 30]) out.push(call(B.validatePPI, [self, ppi(Array.from({ length: n }, () => 900))]));
+      for (const v of [300, 301, 1999, 2000, 299, 2001]) out.push(call(B.validatePPI, [self, ppi([v, v, v, v])])); // every bound
+      for (const b of [0, 1, null, undefined]) out.push(call(B.validatePPI, [self, ppi([900, 905, 910, 915], b)]));
+      out.push(call(B.validatePPI, [self.slice(0, 2), ppi([900, 905, 910, 915])])); // too few of OUR OWN
+      out.push(call(B.validatePPI, [self, ppi([900, 905, 910, 915])])); // agreeing
+      out.push(call(B.validatePPI, [self, ppi([1800, 1805, 1810, 1815])])); // disagreeing by 2×
+      out.push(call(B.validatePPI, [self, ppi([450, 455, 460, 465])])); // disagreeing the other way
+      out.push(call(B.validatePPI, [[], ppi([900, 905, 910, 915])]));
+      return out;
+    }
+  }
+];
+
 export const families = PPG_PIPELINE_FNS.map((fn) => ({
   name: `${fn} · via analyze() — the beat pipeline`,
   fn,
   probe: pipelineProbe
-})).concat([
-  {
-    name: 'lombScargle · numeric/spectral',
-    fn: 'lombScargle',
-    probe: (s0) => LS_CASES.map(([tt, nn]) => call(s0.PPGDSP.lombScargle, [tt, nn]))
-  },
-  {
-    name: 'parsePPG · string/parsing',
-    fn: 'parsePPG',
-    probe: (s0) => PP_CASES.map(([text, opts]) => call(s0.PPGDSP.parsePPG, [text, opts]))
-  },
-  {
-    name: 'ppgLoadOwnExport · validation/dispatch',
-    fn: 'ppgLoadOwnExport',
-    /* NOT PPGDSP.loadOwnExport — that is undefined, and reading it is the recorded artefact. */
-    probe: (s0) => LOE_CASES.map((j) => call(s0.PpgDex.loadOwnExport, [j]))
-  }
-]);
+}))
+  .concat([
+    {
+      name: 'lombScargle · numeric/spectral',
+      fn: 'lombScargle',
+      probe: (s0) => LS_CASES.map(([tt, nn]) => call(s0.PPGDSP.lombScargle, [tt, nn]))
+    },
+    {
+      name: 'parsePPG · string/parsing',
+      fn: 'parsePPG',
+      probe: (s0) => PP_CASES.map(([text, opts]) => call(s0.PPGDSP.parsePPG, [text, opts]))
+    },
+    {
+      name: 'ppgLoadOwnExport · validation/dispatch',
+      fn: 'ppgLoadOwnExport',
+      /* NOT PPGDSP.loadOwnExport — that is undefined, and reading it is the recorded artefact. */
+      probe: (s0) => LOE_CASES.map((j) => call(s0.PpgDex.loadOwnExport, [j]))
+    }
+  ])
+  .concat(LEAF_FAMILIES);
