@@ -10025,6 +10025,73 @@
        and is almost pure input-shape dispatch, so the branches are the argument shapes themselves.
        Every expectation below was measured against the implementation before being written, using
        the node's OWN `_synthEdfSet` as the decoded set rather than an invented one. */
+    /* ── inferAccUnit: A ZERO-KILL BOOTSTRAP ─────────────────────────────────────────────────────
+       31 survivors and no kills — the fifth such function (MUTATION-PROGRAM §7.0). It is internal,
+       but reachable through the exported `parseSensorXYZ`, which publishes its verdict as `_unit`.
+
+       THE UNIT IS INFERRED FROM THE MEDIAN VECTOR MAGNITUDE against three gravity-like bands, and
+       every bound is EXCLUSIVE on both sides:
+           300 < med < 3000  ⇒ 'mg'      (≈1000)
+           0.3 < med < 3     ⇒ 'g'       (≈1)
+             3 < med < 30    ⇒ 'm/s2'    (≈9.81)
+       Anything else is null — the function refuses to guess rather than picking the nearest band.
+       That refusal is the safety property: mistaking g for mg is a 1000× error in every downstream
+       metric, and this node's whole ACC pipeline hangs off it.
+
+       Every boundary value below returns NULL, measured. That is what separates `>` from `>=`: at
+       exactly 300 the real code declines and a `>=` mutant would answer 'mg'. A test using only
+       1000/1/9.81 exercises none of the six comparisons. */
+    group('MotionDex inferAccUnit — three gravity bands, all bounds exclusive (mutation bootstrap)', 'motiondex-dsp · known-answer · mutation-pinned', function (T) {
+      var M = env.MOTIONDSP;
+      if (!M || typeof M.parseSensorXYZ !== 'function') {
+        T.skip('MOTIONDSP.parseSensorXYZ available', 'MOTIONDSP not co-loaded in this runner');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];X;Y;Z';
+      var rows = function (n, z) {
+        var L = [HDR];
+        for (var i = 0; i < n; i++) {
+          var t = new Date(Date.UTC(2026, 6, 1) + i * 38).toISOString().replace('T', ' ').replace('Z', '');
+          L.push(t + ';' + i * 38461538 + ';0;0;' + z);
+        }
+        return L.join('\n');
+      };
+      var unitOf = function (n, z) {
+        var r = M.parseSensorXYZ(rows(n, z));
+        return r ? r._unit : 'NO-PARSE';
+      };
+
+      // ── the three bands, at their physical centres ──
+      T.eq('a ~1000 magnitude reads as milli-g', unitOf(60, 1000), 'mg');
+      T.eq('a ~1 magnitude reads as g', unitOf(60, 1), 'g');
+      T.eq('a ~9.81 magnitude reads as m/s²', unitOf(60, 9.81), 'm/s2');
+
+      /* ── EVERY BOUND, EXACTLY ── each of these is null in the real code, and each would become a
+         unit under the corresponding `>=`/`<=` mutant. This is the whole point of the group. */
+      T.eq('exactly 300 is refused — the mg band is open below', unitOf(60, 300), null);
+      T.eq('exactly 3000 is refused — and open above', unitOf(60, 3000), null);
+      T.eq('exactly 0.3 is refused — the g band is open below', unitOf(60, 0.3), null);
+      T.eq("exactly 3 is refused — and it is the g band's open TOP and the m/s² band's open BOTTOM at once", unitOf(60, 3), null);
+      T.eq('exactly 30 is refused — the m/s² band is open above', unitOf(60, 30), null);
+
+      // ── just inside each bound, to prove the band is not simply empty ──
+      T.eq('301 is inside the mg band', unitOf(60, 301), 'mg');
+      T.eq('2999 is too', unitOf(60, 2999), 'mg');
+      T.eq('0.31 is inside the g band', unitOf(60, 0.31), 'g');
+      T.eq('2.9 is too', unitOf(60, 2.9), 'g');
+      T.eq('3.1 is inside the m/s² band', unitOf(60, 3.1), 'm/s2');
+      T.eq('29 is too', unitOf(60, 29), 'm/s2');
+
+      // ── nothing gravity-like at all ──
+      T.eq('a magnitude far below any band is refused, not rounded into g', unitOf(60, 0.01), null);
+      T.eq('an absurd magnitude is refused, not clamped into mg', unitOf(60, 50000), null);
+      T.eq('all-zero rows are refused — a zero median cannot imply a unit', unitOf(60, 0), null);
+
+      /* The ≥8-row floor: fewer samples than that cannot establish a median worth trusting. */
+      T.eq('seven rows is too few to infer a unit', unitOf(7, 1000), null);
+      T.eq('…and eight is enough', unitOf(8, 1000), 'mg');
+    });
+
     group('CPAPDex buildNightFromSets — every input shape it dispatches on (mutation bootstrap)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
       var X = env.CPAPDex,
         D = env.CpapDsp;
