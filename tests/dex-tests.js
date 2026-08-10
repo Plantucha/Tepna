@@ -20204,17 +20204,32 @@
          record yielding fewer than 21 anchors clamps at BOTH ends and `correctionAt` returns a
          CONSTANT — the interpolation is never exercised and the test passes on a flat line. Measured:
          a 4000-row fixture gives 8 anchors and absorbs exactly 0.00 ms. 60 000 rows gives ~120. */
-      var PPM = 500, N = 60000, step = 1000 / 130;
+      var PPM = 500,
+        N = 60000,
+        step = 1000 / 130;
       var t0 = U(2026, 5, 17, 1, 0, 0);
       var hdr = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
       var rows = [hdr];
-      var p2 = function (x) { return (x < 10 ? '0' : '') + x; };
+      var p2 = function (x) {
+        return (x < 10 ? '0' : '') + x;
+      };
       for (var i = 0; i < N; i++) {
         var devMs = i * step;
         var hostMs = devMs * (1 - PPM / 1e6);
         var d = new Date(t0 + hostMs);
-        var ts = d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()) + 'T' +
-          p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds()) + '.' +
+        var ts =
+          d.getUTCFullYear() +
+          '-' +
+          p2(d.getUTCMonth() + 1) +
+          '-' +
+          p2(d.getUTCDate()) +
+          'T' +
+          p2(d.getUTCHours()) +
+          ':' +
+          p2(d.getUTCMinutes()) +
+          ':' +
+          p2(d.getUTCSeconds()) +
+          '.' +
           ('00' + d.getUTCMilliseconds()).slice(-3);
         rows.push(ts + ';' + Math.round(devMs * 1e6) + ';' + devMs.toFixed(3) + ';' + (i % 2 ? 100 : -100));
       }
@@ -20231,11 +20246,7 @@
       var corrected = rec.tMsAt(last) - rec.t0Ms;
       var spanMs = last * step;
       var expected = spanMs * (PPM / 1e6); // the host is BEHIND the device by this much at the end
-      T.ok(
-        'ANTI-VACUITY · the planted divergence is large enough to see',
-        expected > 5,
-        'planted ' + expected.toFixed(1) + ' ms over ' + (spanMs / 1000).toFixed(0) + ' s'
-      );
+      T.ok('ANTI-VACUITY · the planted divergence is large enough to see', expected > 5, 'planted ' + expected.toFixed(1) + ' ms over ' + (spanMs / 1000).toFixed(0) + ' s');
       /* THE ASSERTION — measured as a DIFFERENTIAL across the record, not at one endpoint.
          Clock Contract §7: the running median CLAMPS at both ends, "which pulls each end inward by
          ⌊win/2⌋/2 = 5 anchors' worth of drift", so `correctionAt` at the last sample under-reads by a
@@ -20248,14 +20259,9 @@
       T.ok(
         'tMsAt tracks the HOST column — the divergence it absorbs grows across the record',
         recovered > 0.3 * expected,
-        'absorbed=' + recovered.toFixed(1) + ' ms of a planted ' + expected.toFixed(1) +
-          ' ms (§7 end-clamp under-reads a short record; the SIGN and growth are the assertion)'
+        'absorbed=' + recovered.toFixed(1) + ' ms of a planted ' + expected.toFixed(1) + ' ms (§7 end-clamp under-reads a short record; the SIGN and growth are the assertion)'
       );
-      T.ok(
-        '…and the axis is NOT the device clock (a revert to i/fs makes this exactly 0)',
-        Math.abs(recovered) > 1,
-        'absorbed=' + recovered.toFixed(2) + ' ms'
-      );
+      T.ok('…and the axis is NOT the device clock (a revert to i/fs makes this exactly 0)', Math.abs(recovered) > 1, 'absorbed=' + recovered.toFixed(2) + ' ms');
 
       /* `fs` remains the RATE and must NOT absorb the interpolation — the filters depend on it. */
       T.ok('fs stays a plausible rate (the time fix did not move the rate)', rec.fs > 100 && rec.fs < 160, 'fs=' + rec.fs);
@@ -20277,8 +20283,7 @@
         );
         T.ok(
           '…and fsDevice is captured BEFORE the ppm block that mutates fs',
-          src.indexOf('var fsDevice = fs;') > 0 &&
-            src.indexOf('var fsDevice = fs;') < src.indexOf('fs = fs / (1 + ecgHostAx.ppm'),
+          src.indexOf('var fsDevice = fs;') > 0 && src.indexOf('var fsDevice = fs;') < src.indexOf('fs = fs / (1 + ecgHostAx.ppm'),
           'ordering: capture must precede the mutation'
         );
       } else {
@@ -20292,8 +20297,19 @@
       for (var k = 0; k < N; k++) {
         var dm = k * step;
         var d2 = new Date(t0 + dm); // host == device: the derived-column case
-        var ts2 = d2.getUTCFullYear() + '-' + p2(d2.getUTCMonth() + 1) + '-' + p2(d2.getUTCDate()) + 'T' +
-          p2(d2.getUTCHours()) + ':' + p2(d2.getUTCMinutes()) + ':' + p2(d2.getUTCSeconds()) + '.' +
+        var ts2 =
+          d2.getUTCFullYear() +
+          '-' +
+          p2(d2.getUTCMonth() + 1) +
+          '-' +
+          p2(d2.getUTCDate()) +
+          'T' +
+          p2(d2.getUTCHours()) +
+          ':' +
+          p2(d2.getUTCMinutes()) +
+          ':' +
+          p2(d2.getUTCSeconds()) +
+          '.' +
           ('00' + d2.getUTCMilliseconds()).slice(-3);
         rows2.push(ts2 + ';' + Math.round(dm * 1e6) + ';' + dm.toFixed(3) + ';' + (k % 2 ? 100 : -100));
       }

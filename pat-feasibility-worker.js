@@ -87,8 +87,7 @@ function ecgRpeakTimes(text) {
      48 ms on refused fragments (max 1479 ms), against 0.1 ms where the ppm had already applied. A
      48 ms axis error is not survivable against a 60 ms PAT bar. `tMsAt` falls back to device time when
      there is no independent second clock, so this can never fabricate one. */
-  for (var i = 0; i < peaks.length; i++)
-    t[i] = typeof rec.tMsAt === 'function' ? rec.tMsAt(peaks[i]) : rec.t0Ms + (peaks[i] / rec.fs) * 1000;
+  for (var i = 0; i < peaks.length; i++) t[i] = typeof rec.tMsAt === 'function' ? rec.tMsAt(peaks[i]) : rec.t0Ms + (peaks[i] / rec.fs) * 1000;
   return { t0Ms: rec.t0Ms, fs: rec.fs, durSec: rec.durSec, times: t, n: peaks.length };
 }
 function ppgFootTimes(text) {
