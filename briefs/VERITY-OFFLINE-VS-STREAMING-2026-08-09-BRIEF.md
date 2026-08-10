@@ -49,6 +49,30 @@ falls. 5.407 is a *55 Hz* measurement. And `PPG-SAMPLE-RATE-AND-PAT` §4 puts th
 actually use, on an empty flash.** A ~6 h night needs 6.4 MB. There is no configuration of this device
 that holds it.
 
+### 1.0 · Polar's own "600 hours of recording" CONFIRMS this budget — it is HR-only
+
+The obvious objection is the datasheet: Polar advertises **up to 600 h** of internal recording, which
+is 300× what §1 says. Both are right, and the arithmetic is the proof rather than the conflict:
+
+```
+600 h × 3600 s × 1 Hz × 1 B/sample  =  2.16 MB
+```
+
+**2.16 MB is the ~2 MB ceiling.** The vendor's headline figure and the SDK's documented Limit 1 are the
+same physical flash, described from opposite ends — so 600 h is not evidence that the budget is larger,
+it is an independent measurement that the budget is exactly what we assumed. A second consistency
+check, from a completely different direction: the claim implies 1 B/s, and PPG measures 297 B/s, a
+ratio of **297×**; 600 h ÷ 1.96 h is **306×**. Two numbers derived from unrelated sources agreeing to
+3 %.
+
+So **600 h is a 1 Hz heart-rate figure**, and the device says so itself: `0x0E` **`OFFLINE_HR`** is
+advertised as its own measurement type, distinct from PPG, answering `ok` with an *empty* settings menu
+— no rate to choose, because there is only one (`POLAR-PMD-COMMAND-SURFACE` §3.3). Raw 4-channel
+22-bit PPG is ~300× that per second and gets ~1/300th of the hours.
+
+⚠️ **Do not read "600 h" off a spec sheet into a PPG plan.** It is the strongest-looking argument
+against §1 and it is actually §1's best corroboration.
+
 ### 1.1 · Why the shortfall is worse than the ratio suggests
 
 * **The device never erases.** 459 KB of `.REC` from two days of testing is still on the flash and

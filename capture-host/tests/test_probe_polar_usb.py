@@ -8,6 +8,10 @@
 # supported". Both are pinned here, driven over a fake device rather than real hardware, so the next
 # person to touch this cannot silently reintroduce either.
 
+import json
+
+import pytest
+
 import probe_polar_usb as probe
 
 
@@ -105,26 +109,48 @@ class _FakeDev:
     def __init__(self, replies, stale=(), read_error=False):
         self.replies, self.stale = list(replies), list(stale)
         self.read_error, self.writes = read_error, []
+        self.closed = False
+
+
+_FD = 99
 
 
 def _install(monkeypatch, dev):
-    monkeypatch.setattr(probe.os, "open", lambda *a, **k: 99)
-    monkeypatch.setattr(probe.os, "close", lambda fd: None)
-    monkeypatch.setattr(probe.os, "write", lambda fd, b: dev.writes.append(b) or len(b))
+    """⚠️ THE FAKES ASSERT THEIR ARGUMENTS, and that is load-bearing.
+
+    A fake shaped `lambda fd, b: ...` that never looks at `fd` cannot tell `os.write(fd, …)` from
+    `os.write(None, …)` — so the descriptor plumbing was invisible to the whole file, and the mutation
+    gate found exactly that on PR #1117: `os.read(None, …)`, `os.read(fd, None)`, `os.write(None, …)`
+    and `os.close(None)` all survived. On real hardware every one of those is an unhandled TypeError
+    against a device that only answers once per USB re-enumeration. Checking here costs one line each."""
+    monkeypatch.setattr(probe.os, "open", lambda *a, **k: _FD)
+
+    def _close(fd):
+        assert fd == _FD, "the fd fetch() opened is the fd it must close"
+        dev.closed = True
+
+    def _write(fd, b):
+        assert fd == _FD, "reports must go to the fd fetch() opened"
+        dev.writes.append(b)
+        return len(b)
 
     def _select(rl, wl, xl, timeout):
         # timeout == 0 is fetch()'s drain probe: only pre-existing stale bytes are visible to it,
         # otherwise the drain would swallow the reply this request is waiting for.
         ready = bool(dev.stale) if timeout == 0 else bool(dev.stale or dev.replies)
-        return ([99], [], []) if ready else ([], [], [])
+        return ([_FD], [], []) if ready else ([], [], [])
 
     def _read(fd, n):
+        assert fd == _FD, "replies must be read from the fd fetch() opened"
+        assert n == probe.REPORT_BYTES, "a HID report is fixed-length; a short read splits one reply"
         if dev.stale:
             return dev.stale.pop(0)
         if dev.read_error:
             raise OSError(5, "Input/output error")
         return dev.replies.pop(0)
 
+    monkeypatch.setattr(probe.os, "close", _close)
+    monkeypatch.setattr(probe.os, "write", _write)
     monkeypatch.setattr(probe.select, "select", _select)
     monkeypatch.setattr(probe.os, "read", _read)
 
@@ -155,6 +181,33 @@ def test_a_truncated_payload_is_reported_as_truncated_not_as_a_short_listing(mon
     assert r["truncated"] is True and r["complete"] is False
     assert [e[0] for e in r["entries"]] == ["DBDC.DAT", "USERID.BPB", "S/", "20260621/"]
     assert "20" not in [e[0] for e in r["entries"]], "a 2-byte fragment of a 9-byte name is not a file"
+
+
+def test_a_two_byte_report_is_a_REPLY_not_noise(monkeypatch):
+    """`len(rep) < 2` is a "can I read the size/flags byte at all" guard, and 2 bytes is exactly enough.
+    Nothing exercised the boundary, so widening it to `<= 2` or `< 3` — which would discard a minimal
+    END report and make the device look silent, the failure this whole file exists to distinguish from
+    a broken transport — changed nothing observable."""
+    dev = _FakeDev([bytes([probe.IN_REPORT_ID, 0x01])])       # size 0, flags 1 (END), 2 bytes total
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["real"] == 1, "a 2-byte END report was received and counted"
+    assert r["ok"] is False and r["bytes"] == 0, "…and it carried no directory"
+
+
+def test_a_one_byte_report_is_too_short_to_read_and_is_skipped(monkeypatch):
+    """The other side of the same boundary — one byte has no size/flags field to interpret."""
+    dev = _FakeDev([bytes([probe.IN_REPORT_ID]), _reply(len(_LISTING), 1, _LISTING)])
+    _install(monkeypatch, dev)
+    r = probe.fetch("/dev/hidraw0", "/U/0/")
+    assert r["ok"] is True and r["real"] == 1, "the runt is skipped, the real reply still lands"
+
+
+def test_the_fd_is_closed_even_after_a_successful_fetch(monkeypatch):
+    dev = _FakeDev([_reply(len(_LISTING), 1, _LISTING)])
+    _install(monkeypatch, dev)
+    probe.fetch("/dev/hidraw0", "/U/0/")
+    assert dev.closed is True, "the hidraw node must not be leaked — it is a single-open device"
 
 
 def test_a_whole_payload_is_marked_complete(monkeypatch):
@@ -332,12 +385,41 @@ def test_an_unreadable_uevent_is_skipped_rather_than_aborting_the_scan(tmp_path,
 # ── CLI ──────────────────────────────────────────────────────────────────────────────────────────────
 
 def test_main_reports_the_listing_and_a_success_verdict(monkeypatch, capsys):
+    """The stub `fetch` ASSERTS what it was handed. A `lambda *a, **k` cannot see which device, path or
+    window `main` passed, so `fetch(None, …)` and a dropped `window=` both read as success — six such
+    mutants survived here before the arguments were checked."""
     monkeypatch.setattr(probe, "find_device", lambda: ("/dev/hidraw0", "0C301E3F"))
-    monkeypatch.setattr(probe, "fetch",
-                        lambda *a, **k: {"ok": True, "entries": [("20260621/", 0)]})
+
+    def _fetch(dev, path, window=None):
+        assert (dev, path, window) == ("/dev/hidraw0", "/U/0/", 8.0)
+        return {"ok": True, "entries": [("20260621/", 0)]}
+
+    monkeypatch.setattr(probe, "fetch", _fetch)
     assert probe.main([]) == 0
     out = capsys.readouterr().out
     assert "20260621/" in out and "reusable" in out
+
+
+def test_main_prints_two_space_indented_json_because_an_operator_reads_it(monkeypatch, capsys):
+    """The output is the whole product of this tool — a human at a dock comparing two runs. Pin the
+    exact rendering, not merely that the substrings appear: `indent` dropped collapses it to one line
+    and `indent=3` reflows every field, and both otherwise pass every other assertion in this file."""
+    monkeypatch.setattr(probe, "find_device", lambda: ("/dev/hidraw0", "0C301E3F"))
+    monkeypatch.setattr(probe, "fetch", lambda *a, **k: {"ok": True, "entries": [("A/", 0)]})
+    assert probe.main([]) == 0
+    out = capsys.readouterr().out
+    expect = {"device": "/dev/hidraw0", "serial": "0C301E3F", "path": "/U/0/",
+              "ok": True, "entries": [["A/", 0]],
+              "verdict": ("PS-FTP works over USB HID — polar_psftp's layer is reusable, only the "
+                          "framing changes")}
+    assert out == json.dumps(expect, indent=2) + "\n"
+
+
+def test_help_names_the_tool_so_an_operator_knows_what_it_talks_to(monkeypatch, capsys):
+    """`--help` is the only documentation a hand-run diagnostic has at the moment it is run."""
+    with pytest.raises(SystemExit):
+        probe.main(["--help"])
+    assert "PS-FTP over Polar's USB HID pipe (read-only)" in capsys.readouterr().out
 
 
 def test_main_surfaces_the_failure_reason_as_the_verdict(monkeypatch, capsys):
