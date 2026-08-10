@@ -125,7 +125,11 @@ function overlap(ecg, ppg) {
    (ENGINE-VERIFICATION-FINDINGS §1.5): a gate criterion living in a WORKER cannot be executed by a
    test without hand-extraction via `vm`, and this one was wrong for two years' worth of captures
    without a single assertion touching it. The fix and its evidence are in the pat-gate copy. */
-var sharedClock = (typeof PATGate !== 'undefined' && PATGate.sharedClock) || function () { return { ok: false, reason: 'pat-gate.js not loaded' }; };
+var sharedClock =
+  (typeof PATGate !== 'undefined' && PATGate.sharedClock) ||
+  function () {
+    return { ok: false, reason: 'pat-gate.js not loaded' };
+  };
 function coupledPAT(rTimes, fTimes) {
   var lags = [],
     lagAtR = [],

@@ -101,7 +101,6 @@
     return { tier: 'maybe', label: 'WEAK COUPLING', why: why };
   }
 
-
   /* SIMULTANEITY IS A PROPERTY OF THE OVERLAP, NOT OF THE FILE HEADERS (PAT-COMPENDIUM §9.1).
      The old form was `dT0 <= 5000 && |nEcg - nPpg| / max <= 0.12`, and BOTH halves measured something
      other than what they are named for. Measured over the 15 box nights on 2026-08-10 it refused 21 of
@@ -135,8 +134,7 @@
     var rateRatio = isFinite(ecgHz) && isFinite(ppgHz) && Math.max(ecgHz, ppgHz) > 0 ? Math.abs(ecgHz - ppgHz) / Math.max(ecgHz, ppgHz) : Infinity;
     /* No `ov` ⇒ derive the common interval here. pat-gate deliberately does not import the worker's
        `overlap()`; duplicating three lines is cheaper than a dependency in the other direction. */
-    var overlapMin = ov && isFinite(ov.min) ? ov.min
-      : (Math.min(ecg.t0Ms + ecg.durSec * 1000, ppg.t0Ms + ppg.durSec * 1000) - Math.max(ecg.t0Ms, ppg.t0Ms)) / 60000;
+    var overlapMin = ov && isFinite(ov.min) ? ov.min : (Math.min(ecg.t0Ms + ecg.durSec * 1000, ppg.t0Ms + ppg.durSec * 1000) - Math.max(ecg.t0Ms, ppg.t0Ms)) / 60000;
     return {
       dT0: dT0,
       beatRatio: beatRatio, // diagnostic only — see the note above

@@ -31801,7 +31801,11 @@
         ppg = { t0Ms: 1246900, durSec: 36000, n: 31580 };
       var sc = G.sharedClock(ecg, ppg, { min: 109 });
       T.ok('a REAL box night with a 1246 s start stagger and a 5.5x duration ratio is simultaneous', sc.ok === true, 'rateRatio=' + sc.rateRatio.toFixed(3) + ' overlapMin=' + sc.overlapMin);
-      T.ok('ANTI-VACUITY · the OLD criteria would BOTH have refused this exact night', sc.dT0 > 5000 && sc.beatRatio > 0.12, 'dT0=' + (sc.dT0 / 1000).toFixed(0) + ' s · beatRatio=' + sc.beatRatio.toFixed(3));
+      T.ok(
+        'ANTI-VACUITY · the OLD criteria would BOTH have refused this exact night',
+        sc.dT0 > 5000 && sc.beatRatio > 0.12,
+        'dT0=' + (sc.dT0 / 1000).toFixed(0) + ' s · beatRatio=' + sc.beatRatio.toFixed(3)
+      );
       T.ok('…and the rate ratio it now uses is duration-independent', sc.rateRatio < 0.05, 'ecg ' + (sc.ecgHz * 60).toFixed(1) + ' bpm vs ppg ' + (sc.ppgHz * 60).toFixed(1) + ' bpm');
 
       // a genuinely different heart rate: 50 bpm against 75 bpm over the same window ⇒ refuse
@@ -31821,7 +31825,11 @@
          came from the real files' durations and asserting it here would be circular (it was used to
          pick the synthetic ones). Derived must equal what the caller would compute, independently. */
       var wantMin = (Math.min(ecg.t0Ms + ecg.durSec * 1000, ppg.t0Ms + ppg.durSec * 1000) - Math.max(ecg.t0Ms, ppg.t0Ms)) / 60000;
-      T.ok('…and derives exactly the interval the caller would compute', Math.abs(G.sharedClock(ecg, ppg).overlapMin - wantMin) < 1e-9, 'derived=' + G.sharedClock(ecg, ppg).overlapMin.toFixed(2) + ' want=' + wantMin.toFixed(2));
+      T.ok(
+        '…and derives exactly the interval the caller would compute',
+        Math.abs(G.sharedClock(ecg, ppg).overlapMin - wantMin) < 1e-9,
+        'derived=' + G.sharedClock(ecg, ppg).overlapMin.toFixed(2) + ' want=' + wantMin.toFixed(2)
+      );
     });
 
     group('PAT matchRate — the shipped definition cannot fail; the strict one can (PAT-UNDER-PERBLOCK-ALIGNMENT §4)', 'pat · matchrate · chance-floor', function (T) {
