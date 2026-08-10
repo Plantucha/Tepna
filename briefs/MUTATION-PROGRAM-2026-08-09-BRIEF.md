@@ -531,6 +531,43 @@ survivors as *controls*, which corrupts the one check that proves a battery work
 sweep is owed before this battery's verdicts are recorded. The instrument landed first because it is
 what prevents the next omission.
 
+### 7.0e · "REACHED" AND "NAMED" ARE DIFFERENT QUESTIONS, AND THE GAP IS 96 FUNCTIONS WIDE
+
+§7.0d measures whether the prober could form an OPINION about a survivor — a question about which
+`fn` names the families declare. Underneath it sits a different question with a different fix: which
+functions the battery's inputs actually EXECUTE. `tools/probe-reach.mjs` answers that one, and the
+two come apart constantly:
+
+| state | meaning | fix |
+|---|---|---|
+| **reached, not named** | the probe already runs it; nothing claims its survivors | **register the existing probe under that `fn` — one line** |
+| **named, not reached** | a family exists but its inputs never get there | a new input SHAPE; a registration would only produce blind controls |
+| neither | no family, never executed | write a family |
+
+Measured across the five batteries: **96 functions are already being executed and are not named.**
+
+```
+motiondex 28 · glucodex 33 · cpapdex 14 · hrvdex 11 · pulsedex 10
+```
+
+On `motiondex-dsp.js` that is nine of the twelve largest invisible clusters — `inferAccUnit`,
+`xyzPlausible`, `sampleHz`, `streamKindFromHeader`, `xyzColsFromHeader` (all reached by the
+`parseSensorXYZ` probe) and `respWindowSpectrum`, `respResample`, `respViterbi`, `movavg` (reached by
+the respiratory probes). **`respViterbi` was being called 168 times per probe run while its 9
+survivors sat unclaimed.** Only `bodyPosition`, `classifyGravity` and `buildNodeExport` are genuinely
+unreached and need new inputs.
+
+**How it measures, and why the first attempt was thrown away.** It injects a counter as the first
+statement of every function body and runs each family's probe ONCE — exact, and one module load per
+family. The first version used mutation as a proxy (perturb a line, see whether the fingerprint moves)
+and did not finish in ten minutes; the direct measurement returns in seconds. When the proxy is
+slower AND weaker than the thing it stands in for, it is not a shortcut.
+
+⚠️ **Reached is not killable, and neither is claimed.** A function can be executed by a probe whose
+output never varies with it — which is exactly what the engine's control check exists to catch, and
+that check still has to pass. This only rules out the cheapest explanation for a blind family: that
+the battery never ran it at all.
+
 ### 7.0c · THE PIPELINE IS NOT UNREACHABLE — it was UNPROBED, and it holds NO equivalents
 
 Of glucodex's 516 survivors the original five families claimed ~190. The rest sat in functions the
