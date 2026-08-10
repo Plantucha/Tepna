@@ -363,12 +363,18 @@ import polar_pmd as pmd
 class FakePolarClient:
     """A Polar PMD device: answers control-point commands (STOP/GET_SETTINGS/START) with real
     parse_settings_response / START-ack frames, and feeds one ECG data frame once PMD_DATA is subscribed."""
-    def __init__(self, start_status=0x00, hr_frame=None):
+    def __init__(self, start_status=0x00, hr_frame=None, sdk_start_ok=True):
         self.cbs = {}                  # uuid -> notify callback
         self._connected = True
         self.writes = []
         self.start_status = start_status
         self.hr_frame = hr_frame
+        # SDK mode is DEVICE STATE, not a canned reply: START sets it, STOP clears it, and the settings
+        # menu below is read off it. A fake that answered a fixed flag would let the daemon skip the
+        # enter entirely and still look correct. `sdk_start_ok=False` models the real refusal — the
+        # device declining with `invalid_state` because a stream was still running.
+        self.sdk_start_ok = sdk_start_ok
+        self.sdk_mode_on = False
 
     @property
     def is_connected(self): return self._connected
@@ -402,12 +408,29 @@ class FakePolarClient:
         ctrl = self.cbs.get(pmd.PMD_CONTROL)
         if not ctrl:
             return
-        op, meas = cmd[0], cmd[1]
+        # PARAMETERLESS OPS ARE ONE BYTE LONG. `cmd[1]` IndexErrors on the SDK-mode status query
+        # (`06`), and `_ctrl` pairs a reply to its command by `got[1] == cmd[0]`, so the envelope must
+        # echo the OPCODE there rather than a measurement type.
+        op = cmd[0]
+        if len(cmd) < 2:
+            ctrl(0, bytes([0xF0, op, pmd.SDK_MODE, 0x00, 0x00, int(self.sdk_mode_on)]))
+            return
+        meas = cmd[1]
         if op == 0x01:                                    # GET_SETTINGS
-            resp = bytes([0xF0, 0x01, meas, 0x00, 0x00, 0x00, 0x01]) + (130).to_bytes(2, "little")
+            # In SDK mode the device answers with a LARGER menu — that is the entire point of the mode,
+            # so a fake answering identically either way could not tell the two states apart.
+            rates = [130, 176] if self.sdk_mode_on else [130]
+            resp = (bytes([0xF0, 0x01, meas, 0x00, 0x00, 0x00, len(rates)])
+                    + b"".join(r.to_bytes(2, "little") for r in rates))
         elif op == 0x02:                                  # START
-            resp = bytes([0xF0, 0x02, meas, self.start_status])
+            if meas == pmd.SDK_MODE:
+                self.sdk_mode_on = self.sdk_start_ok
+                resp = bytes([0xF0, 0x02, meas, 0x00 if self.sdk_start_ok else pmd.INVALID_STATE])
+            else:
+                resp = bytes([0xF0, 0x02, meas, self.start_status])
         else:                                             # STOP
+            if meas == pmd.SDK_MODE:
+                self.sdk_mode_on = False
             resp = bytes([0xF0, op, meas, 0x00])
         ctrl(0, resp)
 

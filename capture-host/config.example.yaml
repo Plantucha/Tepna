@@ -75,6 +75,33 @@ devices:
     device_id: BBBBBBBB
     address: "YY:YY:YY:YY:YY:YY"
     streams: [ppg, acc]
+    # SDK MODE — unlocks the device's extended rate menu (PPG 28/44/55/135/176; ACC/GYRO to 416).
+    # WITHOUT IT THE VERITY OFFERS PPG AT 55 Hz ONLY, so the `ppg: 176` below is silently ignored:
+    # `polar_pmd.chosen_rate` honours a configured rate only if the device OFFERS it and otherwise
+    # falls back, by design, rather than failing the stream. Entered on every connect (it does not
+    # survive a power cycle) and it requires every stream stopped first.
+    #
+    # The daemon does not trust its own ACK — it asks the device and publishes the answer as
+    # `status.devices[…].sdk_mode`: true / false / **null when the device never said**. Null is NOT
+    # false; the monitor renders it as its own state. Settable from the monitor's Settings card, which
+    # only offers the switch on hardware advertising feature 0x9.
+    sdk_mode: true
+    rates:
+      # 176 Hz IS AN OPERATIONAL CALL, and should be read as one rather than as a technical result.
+      # Measured on this hardware by decimating ONE night, so subject and physiology are held fixed
+      # (`PPG-SAMPLE-RATE-AND-PAT`): rMSSD, per-epoch HR error and PAT residIQR are all FLAT from 44 Hz
+      # up — 37.8 ms and 18.6 ms at both 44 and 176 — for 8.60 %/h against 4.74, i.e. ~11.6 h of
+      # runtime instead of 21.1. That is one night per charge instead of two. The floor that matters is
+      # 25 Hz (below it interpolation fails and PAT precision doubles); on the evidence alone the
+      # recommendation is 44–55 Hz. 11.6 h against a ~6 h night is ample, and that is the case for 176.
+      ppg: 176
+      # ⚠️ GYRO and MAG: `DEVICE-RATE-TRUTH` §5 decides both OFF — drop them from `streams` above rather
+      # than setting a rate here. They are 98.4 MB of the armband's 254.4 MB night. GYRO is not unused
+      # (it is the max in 99.18 % of PpgDex's motion-index cells) but that is a flat ~3.85 dps pedestal
+      # rather than sensitivity, so it changes 0.33 % of gating decisions — `VERITY-OFFLINE-VS-STREAMING`
+      # §3. Expect `meanMotionIndex` to fall from ~0.11 to ~0.04 the first night after; that is the
+      # pedestal leaving, not a regression.
+      acc: 26
 
   # Muse S — raw EEG. Captured via a child tool, NOT bleak directly. Pick by firmware:
   - name: Muse S

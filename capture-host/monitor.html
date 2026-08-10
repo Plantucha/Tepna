@@ -1186,7 +1186,29 @@ async function loadSettings(){
       return `<label class="setrow"><input type="checkbox" data-addr="${esc(d.address)}" data-stream="${esc(k)}" ${on?'checked':''}>
         <span class="k">${esc(k)}</span>${sel}<span class="mb" data-mb="${esc(d.address)}|${esc(k)}"></span></label>`;
     }).join('');
-    return `<div style="margin-bottom:.7rem"><div class="name">${esc(d.name)}</div>${boxes||'<span class="hint">no streams reported yet</span>'}</div>`;
+    // ── SDK MODE ────────────────────────────────────────────────────────────────────────────────
+    // Rendered ONLY where the device advertises feature 0x9 (server-derived `sdk_capable`): a switch
+    // that cannot work is worse than an absent one, because the operator sets it and the config then
+    // claims a mode the hardware never had.
+    //
+    // ⚠️ IT REPORTS WHAT THE DEVICE SAID, NOT WHAT THE CONFIG ASKED FOR, and the three states are kept
+    // apart deliberately. `sdk_mode` is the request; `sdk_mode_actual` is the last thing the device
+    // reported — true / false / **null = it never said**. Folding null into "off" is exactly how a
+    // night runs at 55 Hz under a config reading 176 with every card green, which is the failure that
+    // motivated this control (2026-08-03, and it took a file-by-file rate audit to find).
+    const sdk = !d.sdk_capable ? '' : (() => {
+      const want = !!d.sdk_mode, act = d.sdk_mode_actual;
+      const state = !want ? '' :
+        act === true  ? '<span class="mb" style="color:#3c8">device confirms: on</span>' :
+        act === false ? '<span class="mb" style="color:#c55">device says OFF — the extended rates are NOT in use</span>' :
+                        '<span class="mb" style="color:#ca3">device has not reported its mode — unknown, not off</span>';
+      return `<label class="setrow"><input type="checkbox" class="sdksel" data-addr="${esc(d.address)}" ${want?'checked':''}>
+        <span class="k">SDK mode</span>${state}
+        <span class="mb">Unlocks the device's extended rate menu — PPG 28/44/55/135/<b>176</b> Hz, ACC/GYRO to 416 Hz.
+        Re-entered on every connect (it does not survive a power cycle) and needs all streams stopped.
+        <em style="opacity:.75">(needs reconnect · measured: 176 Hz PPG costs 8.60 %/h against 4.74, ~11.6 h runtime — PPG-SAMPLE-RATE-AND-PAT)</em></span></label>`;
+    })();
+    return `<div style="margin-bottom:.7rem"><div class="name">${esc(d.name)}</div>${sdk}${boxes||'<span class="hint">no streams reported yet</span>'}</div>`;
   }).join('');
   // Every field is POPULATED — from config.yaml if set, otherwise from the daemon's own default (the
   // schema is the single source of truth for those, so the UI cannot advertise a default that differs
@@ -1231,7 +1253,7 @@ function bpsFor(dev,k){
 }
 function updateSetTotal(){
   let bps=0;
-  document.querySelectorAll('#setStreams input[type=checkbox]').forEach(el=>{
+  document.querySelectorAll('#setStreams input[type=checkbox][data-stream]').forEach(el=>{
     const dev = SETTINGS.devices.find(d=>d.address===el.dataset.addr);
     if(!dev) return;
     const b = bpsFor(dev, el.dataset.stream);
@@ -1243,10 +1265,17 @@ function updateSetTotal(){
 }
 async function saveSettings(btn){
   const t0=btn.textContent; btn.disabled=true; btn.textContent='saving…';
-  const streams={}, settings={}, rates={};
-  document.querySelectorAll('#setStreams input[type=checkbox]').forEach(el=>{
+  const streams={}, settings={}, rates={}, sdk_mode={};
+  // `[data-stream]`, not a bare `input[type=checkbox]`. The SDK-mode switch lives in the same
+  // container and carries no `data-stream`, so an unqualified selector pushes `undefined` into the
+  // stream list and the server 400s the whole save on "unknown stream" — taking the unrelated settings
+  // in the same payload down with it.
+  document.querySelectorAll('#setStreams input[type=checkbox][data-stream]').forEach(el=>{
     (streams[el.dataset.addr] = streams[el.dataset.addr] || []);
     if(el.checked) streams[el.dataset.addr].push(el.dataset.stream);
+  });
+  document.querySelectorAll('#setStreams input.sdksel').forEach(el=>{
+    sdk_mode[el.dataset.addr] = el.checked;
   });
   // Both control kinds, in ONE pass. A comma selector returns DOCUMENT order, not selector order, so
   // this does not encode a precedence — and it does not need to: a stream renders a <select> (>1
@@ -1265,7 +1294,7 @@ async function saveSettings(btn){
   });
   try{
     const r = await api('/api/settings',{method:'POST',headers:{'content-type':'application/json'},
-                                         body:JSON.stringify({settings,streams,rates})});
+                                         body:JSON.stringify({settings,streams,rates,sdk_mode})});
     $('#setMsg').textContent = r.ok
       ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — reconnect the device to apply':''}` : 'no changes')
       : 'rejected: '+r.error;

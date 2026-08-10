@@ -353,6 +353,29 @@ The rate overrides are silently deleted by any settings save: `monitor.html:1157
 apply §5. Re-entering SDK mode uses `02 09` (`03 09` exits) and requires all streams stopped, else
 `ERROR_INVALID_STATE` (12). Note `0x04` enumerates the SDK-mode menu **without** entering SDK mode.
 
+> **§6.4 EXECUTED 2026-08-09 — the clobber was already fixed; the SDK-mode ENTRY never existed.**
+> Both halves are in place now, and the second was the larger one. `grep -rn "sdk_mode" capture-host/*.py`
+> found SDK mode only in the **probes** — `capture.py` had never entered it on any night. Without it the
+> device's PPG menu is `[55]`, and `polar_pmd.chosen_rate` honours an unoffered rate by **silently**
+> falling back, so `rates: {ppg: 176}` produced 55 Hz with no error, no warning, and nothing in the
+> config to show for it. Measured across the box's own captures: 176 Hz ran on 2026-08-02/03 and on **no
+> night since** — 08-04 → 08-09 are all 55.0.
+>
+> Built as `devices[].sdk_mode` + `capture._enter_sdk_mode` + a monitor switch offered only where the
+> device advertises feature `0x9`. Three properties are load-bearing, each with its own test:
+> * **Entered BEFORE the settings query.** SDK mode changes what `get_settings_cmd` answers, so a menu
+>   read first and used after is stale — a second, independent silent path back to 55 Hz.
+> * **Re-entered on every negotiation pass**, because it does not survive a power cycle and that loop is
+>   also the charging retry: a device docked at bedtime and worn at 23:00 never reconnects in between.
+> * **Confirmed by asking the device, never from the ACK**, and the answer is a TRI-STATE — `true` /
+>   `false` / **`null` = it did not say**. Collapsing null into false is this brief's own §2.1 clock
+>   finding wearing a different hat: accepted, echoed back verbatim, and stamping from another clock.
+>
+> ⚠️ **§5's 176 Hz row keeps its caveat and gains one.** It already records the rate as having "no
+> remaining technical rationale"; it is now also true that the rate costs a device-mode state machine
+> which did not exist when the row was written. That is the owner's call to make at the fuller price,
+> not a reason to reopen it here.
+
 ### 6.4a · Phase 0 IS DEAD, AND PHASE 4 IS UNBLOCKED ANYWAY (measured 2026-08-05, later the same day)
 
 **§6.1's method cannot run on this firmware.** `RtWave.offset` (`[20:24]`) was probed on hardware and is
