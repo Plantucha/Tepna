@@ -54,6 +54,36 @@ _WORN_AMBIENT_MAX = 5000.0   # |ambient| below this ⇒ under skin. See the gap 
 _WORN_MIN_SAMPLES = 128      # ~2.3 s at 55 Hz; fewer is not a measurement
 
 
+# PPI flag byte (polar_pmd: bit0 blocker, bit1 skinContact, bit2 skinContactSupported).
+_PPI_CONTACT = 0x02
+_PPI_CONTACT_SUPPORTED = 0x04
+
+
+def ppi_contact(flags) -> bool | None:
+    """Skin contact as the DEVICE reports it in its PPI stream. `True`/`False`/**`None` = not offered**.
+
+    ⚠️ THE VERITY ANSWERS THIS QUESTION TWICE, DIFFERENTLY, AND THE CODE ONLY EVER ASKED THE CHANNEL
+    THAT SAYS NO. Its HR characteristic reports `contact_supported: false` and streams 1 Hz of `0000`
+    forever, which is why `worn` was `None` for it forever. Its PPI stream sets
+    `skinContactSupported = 1` and reports real contact. Measured 2026-08-10 on the same unit:
+
+        armband on a desk    contact = 0 on 31 877 of 31 877 rows
+        armband worn (night) contact = 1 on 20 957 of 20 957 rows
+
+    Perfect separation, no threshold, and it is the device's own measurement rather than an inference —
+    so this OUTRANKS `optical_worn` wherever PPI is a configured stream. `optical_worn` remains the
+    fallback for a configuration that does not enable PPI.
+
+    `None` when the device does not claim support, because an unsupported bit reads 0 and 0 is
+    indistinguishable from a genuine "not touching skin"."""
+    if flags is None:
+        return None
+    f = int(flags)
+    if not f & _PPI_CONTACT_SUPPORTED:
+        return None
+    return bool(f & _PPI_CONTACT)
+
+
 def optical_worn(ambient, *, threshold: float = _WORN_AMBIENT_MAX,
                  min_samples: int = _WORN_MIN_SAMPLES) -> bool | None:
     """Is an optical sensor against skin? `True` / `False` / **`None` when it cannot be said**.

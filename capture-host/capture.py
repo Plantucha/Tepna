@@ -28,7 +28,7 @@ import alerts
 import nightqc
 import nightarchive
 import storage_targets
-from telemetry import TelemetryBus, optical_worn
+from telemetry import TelemetryBus, optical_worn, ppi_contact
 
 # ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
 # systemd assigns ONE priority to a service's whole stdout stream, so with a plain basicConfig every line
@@ -1693,6 +1693,18 @@ async def run_polar(dev: dict, root: str):
                 _AMB_WINDOW = 220
                 _has_contact_bit = False
 
+                def _publish_worn(worn: bool, why: str) -> None:
+                    """One publish path for every source of `worn`, so the power bookkeeping cannot
+                    diverge between them. The `_WORN_SINCE` handling mirrors the HR branch exactly: set
+                    ONCE on the first not-worn and left alone, because `should_drop_not_worn` measures
+                    CONTINUOUS not-worn time and restarting the clock each window means the grace never
+                    elapses and the drop never fires."""
+                    _set(name, worn=worn, last_error=None if worn else why)
+                    if worn:
+                        _WORN_SINCE.pop(addr, None)
+                    elif addr not in _WORN_SINCE:
+                        _WORN_SINCE[addr] = _time.monotonic()
+
                 # PMD data handler — one char carries all PMD streams; route by measurement type.
                 def on_pmd(_sender, data: bytearray):
                     arrival = _now()
@@ -1723,6 +1735,10 @@ async def run_polar(dev: dict, root: str):
                     except Exception:  # pragma: no cover — sensor_ns is an unsigned 64-bit int, so
                         pass           # _POLAR_EPOCH + timedelta(µs=ns/1000) is bounded far inside
                                        # datetime's range and cannot raise; the guard is belt-and-braces.
+                    # Per-FRAME, not per-connection: the contact bit is whatever this frame carried.
+                    # (Declared here rather than in the enclosing scope precisely so it cannot go stale
+                    # — a verdict from a frame two minutes ago is not a verdict about now.)
+                    _ppi_contact: bool | None = None
                     for smp in samples:
                         v = smp.values
                         if meas == pmd.ECG:    wr.write_ecg(smp.phone, smp.sensor_ns, smp.t_ms, v[0])
@@ -1732,7 +1748,13 @@ async def run_polar(dev: dict, root: str):
                             _amb.append(v[3])
                         elif meas == pmd.GYRO: wr.write_gyro(smp.phone, smp.sensor_ns, smp.t_ms, *v)
                         elif meas == pmd.MAG:  wr.write_mag(smp.phone, smp.sensor_ns, smp.t_ms, *v)
-                        elif meas == pmd.PPI:  wr.write_ppi(smp.phone, smp.sensor_ns, v[0], v[1], v[2], v[3])
+                        elif meas == pmd.PPI:   # pragma: no branch — PPI is the last of the six
+                            # types decode_frame can return (ECG/ACC/PPG/GYRO/MAG/PPI), and every other
+                            # arm above matches first, so the FALSE edge here is unreachable by
+                            # construction. Same reasoning, same pragma, as the sibling chain below.
+                            wr.write_ppi(smp.phone, smp.sensor_ns, v[0], v[1], v[2], v[3])
+                            # The device's OWN contact bit, from the stream that actually carries one.
+                            _ppi_contact = ppi_contact(v[3])
                     # ── WORN, FROM THE OPTICAL SIGNAL (telemetry.optical_worn) ──────────────────
                     # A device that declares no skin-contact bit never gets a `worn` verdict from the
                     # HR path — the Verity says `contact_supported: false` and emits 1 Hz of 0000
@@ -1749,16 +1771,21 @@ async def run_polar(dev: dict, root: str):
                     #
                     # ⚠️ ONLY when the device offers no contact bit. A strap that DOES report contact
                     # keeps that verdict — it is a direct measurement, and this is an inference.
-                    if len(_amb) >= _AMB_WINDOW and not _has_contact_bit:
+                    # ── PPI CONTACT OUTRANKS THE OPTICAL INFERENCE ──────────────────────────────
+                    # The Verity answers "is it on skin" twice and differently: its HR characteristic
+                    # says `contact_supported: false`, its PPI stream sets skinContactSupported and
+                    # reports the real thing (desk 0/31877, worn 1/20957 — telemetry.ppi_contact). A
+                    # measurement beats an inference, so when PPI is a configured stream it decides and
+                    # the ambient heuristic never runs.
+                    if _ppi_contact is not None and not _has_contact_bit:
+                        _worn = _ppi_contact
+                        _amb.clear()
+                        _publish_worn(_worn, "not worn — the device's PPI contact bit says off-body")
+                    elif len(_amb) >= _AMB_WINDOW and not _has_contact_bit:
                         _worn = optical_worn(list(_amb))
                         _amb.clear()
                         if _worn is not None:
-                            _set(name, worn=_worn,
-                                 last_error=None if _worn else "not worn — optical ambient says off-body")
-                            if _worn:
-                                _WORN_SINCE.pop(addr, None)
-                            elif addr not in _WORN_SINCE:
-                                _WORN_SINCE[addr] = _time.monotonic()
+                            _publish_worn(_worn, "not worn — optical ambient says off-body")
                     # Live push — RAW, per-stream shape (no on-box DSP):
                     key, hz = _live_key(pmd.MEAS_NAME[meas], tag), stream_fs.get(meas) or pmd.SAMPLE_HZ.get(meas)
                     # The frame's LAST sample on the DEVICE's own counter. `effFs` is measured off this

@@ -205,3 +205,82 @@ def test_an_UNDECIDABLE_window_changes_nothing(tmp_path, monkeypatch):
     st = capture.STATUS["devices"]["Verity"]
     assert st.get("worn") is None, f"an undecidable window must publish no verdict: {st}"
     assert "24:AC:AC:0C:30:1E" not in capture._WORN_SINCE, "and start no power-drop clock"
+
+
+# ── the DEVICE'S OWN contact bit (PPI) ───────────────────────────────────────────────────────────────
+# The Verity answers "is it on skin" twice and differently. Its HR characteristic says
+# `contact_supported: false`; its PPI stream sets skinContactSupported and reports the real thing.
+# Measured 2026-08-10 on one unit: desk contact=0 on 31877/31877 rows, worn contact=1 on 20957/20957.
+from telemetry import ppi_contact  # noqa: E402
+
+def test_ppi_contact_reads_the_devices_own_bit():
+    assert ppi_contact(0b110) is True, "supported + contact"
+    assert ppi_contact(0b100) is False, "supported, no contact — the desk case"
+    assert ppi_contact(0b111) is True, "the blocker bit must not affect the contact answer"
+
+
+def test_ppi_contact_is_UNKNOWN_when_the_device_claims_no_support():
+    """⚠️ An unsupported bit reads 0, and 0 is indistinguishable from a genuine 'not touching skin'.
+    Reporting False there would declare every contact-less device off-body and drop it."""
+    assert ppi_contact(0b000) is None
+    assert ppi_contact(0b010) is None, "contact set but not SUPPORTED is not a claim"
+    assert ppi_contact(None) is None
+
+
+def _ppi_frame(flags, n=8):
+    """A PMD PPI frame: per beat HR(u8), ppInMs(u16 LE), ppErrMs(u16 LE), flags(u8)."""
+    body = b""
+    for _ in range(n):
+        body += bytes([60]) + (1000).to_bytes(2, "little") + (10).to_bytes(2, "little") + bytes([flags])
+    return bytes([pmd.PPI]) + (1_000_000_000).to_bytes(8, "little") + bytes([0x00]) + body
+
+
+class _PpiClient(T.FakePolarClient):
+    """Feeds a PPG frame AND a PPI frame, so the two sources can disagree on purpose."""
+
+    def __init__(self, ambient, ppi_flags, **kw):
+        super().__init__(**kw)
+        self._ambient, self._flags = ambient, ppi_flags
+
+    async def start_notify(self, uuid, cb):
+        await super().start_notify(uuid, cb)
+        if getattr(uuid, "uuid", uuid) == pmd.PMD_DATA:
+            cb(0, _ppg_frame(self._ambient))
+            cb(0, _ppi_frame(self._flags))
+
+
+def _drive_ppi(tmp_path, monkeypatch, ambient, flags):
+    T._polar_common(monkeypatch)
+    c = _PpiClient(ambient, flags)
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 1)
+    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg", "ppi"],
+                  address="24:AC:AC:0C:30:1E")
+    T._run(capture.run_polar(dev, str(tmp_path)))
+    return capture.STATUS["devices"]["Verity"]
+
+
+def test_the_PPI_contact_bit_decides_when_it_is_available(tmp_path, monkeypatch):
+    """Ambient here says WORN (dark) while PPI says NO CONTACT. The device's own measurement wins —
+    that is the whole reason this branch exists, and it is the case a heuristic gets wrong."""
+    st = _drive_ppi(tmp_path, monkeypatch, -190, 0b100)
+    assert st.get("worn") is False, st
+    assert "PPI contact bit" in (st.get("last_error") or ""), \
+        "the reason must name WHICH source decided, or the two are indistinguishable in the log"
+    assert "24:AC:AC:0C:30:1E" in capture._WORN_SINCE
+
+
+def test_the_PPI_contact_bit_also_decides_the_other_way(tmp_path, monkeypatch):
+    """Ambient says UNWORN (bright), PPI says contact. Still the device's answer — the inference must
+    not be able to drop a strap the hardware says is on skin."""
+    st = _drive_ppi(tmp_path, monkeypatch, -322929, 0b110)
+    assert st.get("worn") is True, st
+    assert "24:AC:AC:0C:30:1E" not in capture._WORN_SINCE
+
+
+def test_without_PPI_the_ambient_fallback_still_runs(tmp_path, monkeypatch):
+    """PPI is an optional stream. A configuration without it must still get a verdict — that is what
+    the fallback is for, and losing it would put the box back where it started."""
+    st = _drive(tmp_path, monkeypatch, -322929)
+    assert st.get("worn") is False
+    assert "ambient" in (st.get("last_error") or "")
