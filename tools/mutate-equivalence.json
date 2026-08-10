@@ -1056,5 +1056,385 @@
       "why": "In computeCAMQ. Original and mutant produced byte-identical output on every input.",
       "probe": "computeCAMQ · scoring/clamping: 26 inputs, 12 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file hrvdex-dsp.js"
     }
+  ],
+  "motiondex-dsp.js": [
+    {
+      "line": 966,
+      "op": "cmp < → <=",
+      "before": "if (!chestRows || chestRows.length < 30) return { hasData: false };",
+      "after": "if (!chestRows || chestRows.length <= 30) return { hasData: false };",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 975,
+      "op": "cmp <= → <",
+      "before": "if (!isFinite(hz) || hz <= 0) hz = chestRows.length / Math.max(1, chestDurSec);",
+      "after": "if (!isFinite(hz) || hz < 0) hz = chestRows.length / Math.max(1, chestDurSec);",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 975,
+      "op": "bool || → &&",
+      "before": "if (!isFinite(hz) || hz <= 0) hz = chestRows.length / Math.max(1, chestDurSec);",
+      "after": "if (!isFinite(hz) && hz <= 0) hz = chestRows.length / Math.max(1, chestDurSec);",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 979,
+      "op": "cmp < → <=",
+      "before": "for (var a = 0; a < 3; a++) {",
+      "after": "for (var a = 0; a <= 3; a++) {",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 984,
+      "op": "cmp < → <=",
+      "before": "for (i = 0; i < raw.length; i++) band[i] = raw[i] - lo[i];",
+      "after": "for (i = 0; i <= raw.length; i++) band[i] = raw[i] - lo[i];",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 989,
+      "op": "cmp > → >=",
+      "before": "if (!best || v > best.var) best = { var: v, sig: sm };",
+      "after": "if (!best || v >= best.var) best = { var: v, sig: sm };",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 996,
+      "op": "cmp < → <=",
+      "before": "for (i = 1; i < sig.length; i++) {",
+      "after": "for (i = 1; i <= sig.length; i++) {",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 997,
+      "op": "cmp <= → <",
+      "before": "if (sig[i - 1] <= 0 && sig[i] > 0) {",
+      "after": "if (sig[i - 1] < 0 && sig[i] > 0) {",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 999,
+      "op": "cmp >= → >",
+      "before": "if (s2 - lastUp >= minSepSec) {",
+      "after": "if (s2 - lastUp > minSepSec) {",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1006,
+      "op": "cmp > → >=",
+      "before": "var rate = minutes > 0 ? breaths / minutes : NaN;",
+      "after": "var rate = minutes >= 0 ? breaths / minutes : NaN;",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1032,
+      "op": "cmp < → <=",
+      "before": "while (kp < sig.length && tSec[kp] < w0) kp++;",
+      "after": "while (kp <= sig.length && tSec[kp] < w0) kp++;",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1035,
+      "op": "cmp < → <=",
+      "before": "for (var k = kp; k < sig.length && tSec[k] < w1; k++) {",
+      "after": "for (var k = kp; k <= sig.length && tSec[k] < w1; k++) {",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1039,
+      "op": "cmp < → <=",
+      "before": "if (cnt < 3) {",
+      "after": "if (cnt <= 3) {",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1044,
+      "op": "cmp >= → >",
+      "before": "series.push({ tMs: tEp, amp: Math.round(eamp * 1e4) / 1e4, present: eamp >= EFFORT_FLOOR_G });",
+      "after": "series.push({ tMs: tEp, amp: Math.round(eamp * 1e4) / 1e4, present: eamp > EFFORT_FLOOR_G });",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1059,
+      "op": "bool && → ||",
+      "before": "if (spec.hasData && spec.medianBrpm != null) {",
+      "after": "if (spec.hasData || spec.medianBrpm != null) {",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryEffort. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryEffort · the effort series (holds respResample): 221 inputs, 52 distinct baseline answers; 11/11 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 416,
+      "op": "cmp < → <=",
+      "before": "if (!accRows || accRows.length < 10) return { hasData: false };",
+      "after": "if (!accRows || accRows.length <= 10) return { hasData: false };",
+      "class": "no-distinguishing-input",
+      "why": "In actigraphy. Original and mutant produced byte-identical output on every input.",
+      "probe": "actigraphy · per-epoch activity: 93 inputs, 42 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 419,
+      "op": "cmp <= → <",
+      "before": "if (!isFinite(hz) || hz <= 0) hz = accRows.length / Math.max(1, durSec);",
+      "after": "if (!isFinite(hz) || hz < 0) hz = accRows.length / Math.max(1, durSec);",
+      "class": "no-distinguishing-input",
+      "why": "In actigraphy. Original and mutant produced byte-identical output on every input.",
+      "probe": "actigraphy · per-epoch activity: 93 inputs, 42 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 419,
+      "op": "bool || → &&",
+      "before": "if (!isFinite(hz) || hz <= 0) hz = accRows.length / Math.max(1, durSec);",
+      "after": "if (!isFinite(hz) && hz <= 0) hz = accRows.length / Math.max(1, durSec);",
+      "class": "no-distinguishing-input",
+      "why": "In actigraphy. Original and mutant produced byte-identical output on every input.",
+      "probe": "actigraphy · per-epoch activity: 93 inputs, 42 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 441,
+      "op": "bool || → &&",
+      "before": "if (s == null || s < 0) continue;",
+      "after": "if (s == null && s < 0) continue;",
+      "class": "no-distinguishing-input",
+      "why": "In actigraphy. Original and mutant produced byte-identical output on every input.",
+      "probe": "actigraphy · per-epoch activity: 93 inputs, 42 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 445,
+      "op": "cmp > → >=",
+      "before": "if (dyn > MOVE_G) counts[idx] += dyn;",
+      "after": "if (dyn >= MOVE_G) counts[idx] += dyn;",
+      "class": "no-distinguishing-input",
+      "why": "In actigraphy. Original and mutant produced byte-identical output on every input.",
+      "probe": "actigraphy · per-epoch activity: 93 inputs, 42 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 458,
+      "op": "cmp > → >=",
+      "before": "var moving = counts[e] > 1.0; // counts are Σ dynamic-g in the 30 s epoch",
+      "after": "var moving = counts[e] >= 1.0; // counts are Σ dynamic-g in the 30 s epoch",
+      "class": "no-distinguishing-input",
+      "why": "In actigraphy. Original and mutant produced byte-identical output on every input.",
+      "probe": "actigraphy · per-epoch activity: 93 inputs, 42 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 458,
+      "op": "num → 0",
+      "before": "var moving = counts[e] > 1.0; // counts are Σ dynamic-g in the 30 s epoch",
+      "after": "var moving = counts[e] > 0; // counts are Σ dynamic-g in the 30 s epoch",
+      "class": "no-distinguishing-input",
+      "why": "In actigraphy. Original and mutant produced byte-identical output on every input.",
+      "probe": "actigraphy · per-epoch activity: 93 inputs, 42 distinct baseline answers; 8/8 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1086,
+      "op": "cmp < → <=",
+      "before": "if (!accRows || accRows.length < 10) return { conf: 0, flags: ['no-data'] };",
+      "after": "if (!accRows || accRows.length <= 10) return { conf: 0, flags: ['no-data'] };",
+      "class": "no-distinguishing-input",
+      "why": "In motionSQI. Original and mutant produced byte-identical output on every input.",
+      "probe": "motionSQI · signal quality: 59 inputs, 15 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1098,
+      "op": "cmp > → >=",
+      "before": "if (m > 7.5) clip++; // >7.5 g → clip / impact-range (ACC full-scale abuse)",
+      "after": "if (m >= 7.5) clip++; // >7.5 g → clip / impact-range (ACC full-scale abuse)",
+      "class": "no-distinguishing-input",
+      "why": "In motionSQI. Original and mutant produced byte-identical output on every input.",
+      "probe": "motionSQI · signal quality: 59 inputs, 15 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1099,
+      "op": "cmp < → <=",
+      "before": "if (last != null && Math.abs(m - last) < 1e-4) flat++;",
+      "after": "if (last != null && Math.abs(m - last) <= 1e-4) flat++;",
+      "class": "no-distinguishing-input",
+      "why": "In motionSQI. Original and mutant produced byte-identical output on every input.",
+      "probe": "motionSQI · signal quality: 59 inputs, 15 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1100,
+      "op": "cmp < → <=",
+      "before": "if (m < 0.05) staticN++; // near-zero → sensor off / detached",
+      "after": "if (m <= 0.05) staticN++; // near-zero → sensor off / detached",
+      "class": "no-distinguishing-input",
+      "why": "In motionSQI. Original and mutant produced byte-identical output on every input.",
+      "probe": "motionSQI · signal quality: 59 inputs, 15 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1100,
+      "op": "num → 0",
+      "before": "if (m < 0.05) staticN++; // near-zero → sensor off / detached",
+      "after": "if (m < 0) staticN++; // near-zero → sensor off / detached",
+      "class": "no-distinguishing-input",
+      "why": "In motionSQI. Original and mutant produced byte-identical output on every input.",
+      "probe": "motionSQI · signal quality: 59 inputs, 15 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1106,
+      "op": "cmp > → >=",
+      "before": "if (clipFrac > 0.02) flags.push('clip');",
+      "after": "if (clipFrac >= 0.02) flags.push('clip');",
+      "class": "no-distinguishing-input",
+      "why": "In motionSQI. Original and mutant produced byte-identical output on every input.",
+      "probe": "motionSQI · signal quality: 59 inputs, 15 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1106,
+      "op": "num → 0",
+      "before": "if (clipFrac > 0.02) flags.push('clip');",
+      "after": "if (clipFrac > 0) flags.push('clip');",
+      "class": "no-distinguishing-input",
+      "why": "In motionSQI. Original and mutant produced byte-identical output on every input.",
+      "probe": "motionSQI · signal quality: 59 inputs, 15 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1107,
+      "op": "cmp > → >=",
+      "before": "if (flatFrac > 0.5) flags.push('flatline');",
+      "after": "if (flatFrac >= 0.5) flags.push('flatline');",
+      "class": "no-distinguishing-input",
+      "why": "In motionSQI. Original and mutant produced byte-identical output on every input.",
+      "probe": "motionSQI · signal quality: 59 inputs, 15 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1108,
+      "op": "cmp > → >=",
+      "before": "if (offFrac > 0.2) flags.push('sensor-off');",
+      "after": "if (offFrac >= 0.2) flags.push('sensor-off');",
+      "class": "no-distinguishing-input",
+      "why": "In motionSQI. Original and mutant produced byte-identical output on every input.",
+      "probe": "motionSQI · signal quality: 59 inputs, 15 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 1108,
+      "op": "num → 0",
+      "before": "if (offFrac > 0.2) flags.push('sensor-off');",
+      "after": "if (offFrac > 0) flags.push('sensor-off');",
+      "class": "no-distinguishing-input",
+      "why": "In motionSQI. Original and mutant produced byte-identical output on every input.",
+      "probe": "motionSQI · signal quality: 59 inputs, 15 distinct baseline answers; 7/7 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 882,
+      "op": "bool && → ||",
+      "before": "if (typeof opts.confMin === 'number' && isFinite(opts.confMin)) confMin = opts.confMin;",
+      "after": "if (typeof opts.confMin === 'number' || isFinite(opts.confMin)) confMin = opts.confMin;",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 883,
+      "op": "cmp < → <=",
+      "before": "if (!chestRows || chestRows.length < 400) return { hasData: false };",
+      "after": "if (!chestRows || chestRows.length <= 400) return { hasData: false };",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 883,
+      "op": "num → 0",
+      "before": "if (!chestRows || chestRows.length < 400) return { hasData: false };",
+      "after": "if (!chestRows || chestRows.length < 0) return { hasData: false };",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 892,
+      "op": "cmp < → <=",
+      "before": "if (N < nWin) return { hasData: false };",
+      "after": "if (N <= nWin) return { hasData: false };",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 894,
+      "op": "cmp < → <=",
+      "before": "for (var i = 0; i < nWin; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (nWin - 1));",
+      "after": "for (var i = 0; i <= nWin; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (nWin - 1));",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 907,
+      "op": "cmp < → <=",
+      "before": "if (cov < RR_MIN_WIN_COVERAGE) {",
+      "after": "if (cov <= RR_MIN_WIN_COVERAGE) {",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 915,
+      "op": "cmp < → <=",
+      "before": "for (var q2 = 0; q2 < grid.length; q2++) flat[q2] = fv;",
+      "after": "for (var q2 = 0; q2 <= grid.length; q2++) flat[q2] = fv;",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 932,
+      "op": "cmp >= → >",
+      "before": "var covOk = winCov[i] >= RR_MIN_WIN_COVERAGE;",
+      "after": "var covOk = winCov[i] > RR_MIN_WIN_COVERAGE;",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 934,
+      "op": "cmp >= → >",
+      "before": "if (covOk && v.conf[i] >= confMin) {",
+      "after": "if (covOk && v.conf[i] > confMin) {",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    },
+    {
+      "line": 949,
+      "op": "cmp > → >=",
+      "before": "coverage: series.length - nUncovered > 0 ? kept.length / (series.length - nUncovered) : 0,",
+      "after": "coverage: series.length - nUncovered >= 0 ? kept.length / (series.length - nUncovered) : 0,",
+      "class": "no-distinguishing-input",
+      "why": "In respiratoryRate. Original and mutant produced byte-identical output on every input.",
+      "probe": "respiratoryRate · the rate estimate (holds respWindowSpectrum): 237 inputs, 22 distinct baseline answers; 12/12 same-function controls separated. tools/probe-equivalence.mjs --file motiondex-dsp.js"
+    }
   ]
 }
