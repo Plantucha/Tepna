@@ -419,11 +419,45 @@ distinct answers over 53 inputs; `compareIntervalSeries` 13 over 24). **"0 % kil
 equivalent" are indistinguishable to the tool**, and no better battery closes the gap. The only exit
 is one test.
 
-| file | function | survivors | after one bootstrap test |
-|---|---|---:|---|
-| `glucodex-dsp.js` | `genSynthetic` | 90 | 5 of 6 sampled now die |
-| `pulsedex-dsp.js` | `compareIntervalSeries` | 54 | 3 of 8 |
-| `pulsedex-dsp.js` | `fragmentation` | 19 | 4 of 8 |
+**Scanned across every swept file, the class is far larger than the three found by accident.** Any
+function holding ≥8 survivors and zero kills, measured against each file's own sweep:
+
+| file | function | survivors | state | conversion |
+|---|---|---:|---|---|
+| `glucodex-dsp.js` | `genSynthetic` | 90 | **done** | 5 of 6 |
+| `ppgdex-dsp.js` | **`cvhrFromNN`** | **57** | open — the hard one | — |
+| `pulsedex-dsp.js` | `compareIntervalSeries` | 54 | **done** | 3 of 8 |
+| `motiondex-dsp.js` | `inferAccUnit` | 31 | **done** | 6 of 9 |
+| `glucodex-dsp.js` | `locateColumns` | 30 | **done** | 3 of 9 |
+| `cpapdex-dsp.js` | `_nightFromInput` | 20 | **done** | 6 of 8 |
+| `pulsedex-dsp.js` | `fragmentation` | 19 | **done** | 4 of 8 |
+| `hrvdex-dsp.js` | `getFilteredRows` | 11 | **not probeable** — reads `document` | — |
+| `glucodex-dsp.js` | `applySessionCorrections` | 8 | open | — |
+| | | **~320** | **six done, ~244 unlocked** | ≈ 20 % of the mapped fleet |
+
+**What the six taught, beyond the counts.** Each converted because its test attacked a DISCRIMINATION
+rather than a happy path, and twice the first attempt failed for the same reason:
+
+- `inferAccUnit` — test the BOUNDS, not the bands. 1000 / 1 / 9.81 confirms three bands exist and
+  exercises none of the six comparisons; every band edge returns null, and that is what separates `>`
+  from `>=`. Mistaking g for mg is a 1000× error in every downstream metric.
+- `locateColumns` — the band predicate survived until a SECOND numeric column was present, because
+  with one column the scorer picks it whatever the band test says. **A discriminator is only tested
+  when something has to be discriminated.** With a device counter beside the glucose column, a mutant
+  reports a serial number as blood glucose.
+- `fragmentation` — the same line appears TWICE (inside the run loop and after it) and only a series
+  *ending* in alternation reaches the second.
+
+So: when a control stays blind, **"widen the battery" is the wrong instinct.** Three times the cause
+was a missing SHAPE, and more of the shapes already present would never have found it.
+
+**`cvhrFromNN` is reachable but expensive**, and is the one item worth planning rather than picking
+up. Its output is already exported (`cvhrIndex` / `cvhrEvents` on the analyze result), so no export
+change is needed — but it is called once from deep inside `analyze()`, so a test must build a
+synthetic PPG that survives beat detection, SQI and correction while still carrying a controlled
+apnea-band oscillation in its NN series. `getFilteredRows` is the one this method cannot fix at all:
+it reads `document`, so its behaviour is a function of the DOM rather than of its argument, and its 11
+survivors stay unclassified unless it is refactored.
 | | | **163** | all now probeable |
 
 So the unit of work is not always "write a battery". For a zero-kill function it is **"write a test,
