@@ -165,7 +165,7 @@ const DESAT_CASES = [];
   DESAT_CASES.push([[], undefined]);
 }
 
-export const families = [
+const BASE_FAMILIES = [
   {
     name: 'detectDesats · the desaturation detector',
     fn: 'detectDesats',
@@ -315,3 +315,33 @@ export const families = [
     }
   }
 ];
+
+/* ══ REGISTERING WHAT THE PROBES ALREADY RUN (tools/probe-reach.mjs) ═════════════════════════
+   `probe-coverage` said this battery claimed a minority of the file's survivors. The tempting
+   reading — "the batteries are too narrow" — is refuted by `probe-reach`, which counts which
+   functions each probe actually EXECUTES and reports for this file:
+
+       NAMED, NOT REACHED   0
+
+   The inputs were never the problem. These functions were already being called; nothing claimed
+   their survivors, because a family reports only on mutants inside the line range of the `fn` it
+   NAMES. Each is registered under the probe that most exercises it — a survivor needs only ONE
+   family to claim it, so naming more would re-run the same fingerprints for nothing.
+
+   ⚠️ Registration is not classification. Each family must still separate its own controls, and one
+   whose probe reaches a function without its OUTPUT depending on it will report BLIND and void —
+   correctly. This removes the cheapest reason for a blind family, nothing more. */
+const REACHED = {
+  computeMetrics: ['_finite', '_mean', '_sd', '_cov', '_p', '_iqr', '_countWhere', '_leakCV', '_eventRate', 'leakSqi'],
+  oximetryLane: ['chan'],
+  detectDesats: ['_spo2Valid', 'close'],
+  _synthEdfSet: ['_mkSig']
+};
+
+export const families = BASE_FAMILIES.concat(
+  Object.entries(REACHED).flatMap(([host, fns]) => {
+    const src = BASE_FAMILIES.find((f) => f.fn === host);
+    if (!src) return [];
+    return fns.map((fn) => ({ name: `${fn} · via the ${host} probe (registered, not re-run)`, fn, probe: src.probe }));
+  })
+);
