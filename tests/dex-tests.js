@@ -10053,6 +10053,170 @@
        The assertions below drive the same readings through THREE different layouts. A fixture with
        one fixed layout exercises the scoring loop exactly once and cannot tell a working scorer from
        a hardcoded `cells[1]` — which is how 30 survivors accumulate here. */
+    /* ── applySessionCorrections — the LAST zero-kill function in glucodex-dsp.js ────────────────
+       Eight survivors and no kills, so the equivalence prober could return no verdict on any of them:
+       it needs a mutant the suite already kills IN THE SAME FUNCTION as a positive control, and there
+       was none. "0 % killed" and "100 % equivalent" are the same picture to the tool.
+
+       The function is not exported, but its whole result IS — `analyze().sessionCorr` carries
+       `leveled`, `deDrifted`, `offsets` and `globalMedian` — and both corrections are visible in
+       `analyze().daily`. So the fixture is three four-day sensor sessions at DELIBERATELY DIFFERENT
+       LEVELS, separated by 12 h gaps.
+
+       Distinct levels are the load-bearing part. On `genSynthetic`'s own output every session sits at
+       nearly the same level, the offsets come out [1, 0, -1], and at that size an operand swap, a
+       dropped `Math.round` and a broken subtraction all look alike. At 90/110/130 the offsets are
+       [+20, 0, -20] — signed, exact, and each one a different number from its negation. */
+    group('GlucoDex applySessionCorrections — levelling and de-drift, signed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
+      var G = env.GLUDSP;
+      if (!G || typeof G.analyze !== 'function') {
+        T.skip('GLUDSP.analyze available', 'GLUDSP not co-loaded in this runner');
+        return;
+      }
+      /* Three sessions, each 4 days at 5-minute cadence, separated by a 12 h gap. `drift` adds a
+         linear mg/dL-per-day ramp within every session; the sine is a diurnal shape so the medians
+         are not degenerate constants. */
+      var mk = function (levels, drift) {
+        var T2 = [],
+          V = [],
+          t = Date.UTC(2026, 6, 1, 0, 0, 0);
+        for (var s = 0; s < levels.length; s++) {
+          for (var i = 0; i < 4 * 288; i++) {
+            T2.push(t);
+            V.push(levels[s] + (drift ? drift * (i / 288) : 0) + 8 * Math.sin((2 * Math.PI * i) / 288));
+            t += 300000;
+          }
+          t += 12 * 3600000;
+        }
+        return { tMs: T2, vMgdl: V, unit: 'mg/dL', t0Ms: T2[0], source: 'test' };
+      };
+      var run = function (levels, drift, opts) {
+        try {
+          return G.analyze(mk(levels, drift), null, opts);
+        } catch (e) {
+          return { error: String(e.message) };
+        }
+      };
+
+      // ── 1 · NEITHER FLAG ⇒ EARLY RETURN, and it must not touch the series ──────────────────────
+      var none = run([90, 110, 130], 0, {});
+      T.ok('no correction requested ⇒ leveled false', none.sessionCorr && none.sessionCorr.leveled === false, JSON.stringify(none.sessionCorr));
+      T.ok('no correction requested ⇒ deDrifted false', none.sessionCorr && none.sessionCorr.deDrifted === false, JSON.stringify(none.sessionCorr));
+      T.ok('the early return emits NO offsets at all', none.sessionCorr && none.sessionCorr.offsets.length === 0, JSON.stringify(none.sessionCorr && none.sessionCorr.offsets));
+      T.ok('…and no globalMedian is computed on that path', none.sessionCorr && none.sessionCorr.globalMedian === undefined, String(none.sessionCorr && none.sessionCorr.globalMedian));
+      T.ok('three sessions are detected from the 12 h gaps', none.nSessions === 3, 'nSessions=' + none.nSessions);
+
+      // ── 2 · LEVELLING — the offset is (globalMedian − sessionMedian), SIGNED ───────────────────
+      var lev = run([90, 110, 130], 0, { levelSessions: true });
+      T.ok('levelling reports leveled true', lev.sessionCorr && lev.sessionCorr.leveled === true, JSON.stringify(lev.sessionCorr));
+      T.ok('…and deDrifted stays false — the flags are independent', lev.sessionCorr && lev.sessionCorr.deDrifted === false, JSON.stringify(lev.sessionCorr));
+      T.ok('the global median of a 90/110/130 record is 110', lev.sessionCorr && lev.sessionCorr.globalMedian === 110, String(lev.sessionCorr && lev.sessionCorr.globalMedian));
+      /* THE SIGN IS THE ASSERTION. A session BELOW the global median is raised (+20) and one above is
+         lowered (−20); swapping the operands of `allMed - sess.median` yields [−20, 0, +20], which is
+         a different array rather than a differently-rounded one. */
+      T.ok(
+        'offsets are [+20, 0, -20] — low session raised, high session lowered',
+        lev.sessionCorr && JSON.stringify(lev.sessionCorr.offsets) === '[20,0,-20]',
+        JSON.stringify(lev.sessionCorr && lev.sessionCorr.offsets)
+      );
+      T.ok('one offset per detected session', lev.sessionCorr && lev.sessionCorr.offsets.length === lev.nSessions, lev.sessionCorr && lev.sessionCorr.offsets.length + ' vs ' + lev.nSessions);
+
+      // ── 3 · THE CORRECTION REACHES THE SERIES, not just the report ────────────────────────────
+      var dayMed = function (r) {
+        return (r.daily || []).map(function (d) {
+          return Math.round(d.median != null ? d.median : d.mean || 0);
+        });
+      };
+      var beforeL = dayMed(none),
+        afterL = dayMed(lev);
+      var spread = function (a) {
+        return Math.max.apply(null, a) - Math.min.apply(null, a);
+      };
+      T.ok('un-levelled daily medians span the three levels (>=35 mg/dL)', spread(beforeL) >= 35, 'spread=' + spread(beforeL) + ' ' + JSON.stringify(beforeL.slice(0, 12)));
+      T.ok('levelling COLLAPSES that spread to under 15 mg/dL', spread(afterL) < 15, 'spread=' + spread(afterL) + ' ' + JSON.stringify(afterL.slice(0, 12)));
+
+      // ── 4 · DE-DRIFT — a ramp is removed, and it is CENTRED so the level is preserved ──────────
+      var ramp = run([100, 100, 100], 20, {});
+      var flat = run([100, 100, 100], 20, { deDrift: true });
+      T.ok('de-drift reports deDrifted true, leveled false', flat.sessionCorr && flat.sessionCorr.deDrifted === true && flat.sessionCorr.leveled === false, JSON.stringify(flat.sessionCorr));
+      T.ok(
+        '…and emits a ZERO offset per session — de-drift does not level',
+        flat.sessionCorr && /^\[0(,0)*\]$/.test(JSON.stringify(flat.sessionCorr.offsets)),
+        JSON.stringify(flat.sessionCorr && flat.sessionCorr.offsets)
+      );
+      var rampD = dayMed(ramp),
+        flatD = dayMed(flat);
+      T.ok('a 20 mg/dL-per-day ramp spans >= 50 mg/dL across a session', spread(rampD) >= 50, 'spread=' + spread(rampD) + ' ' + JSON.stringify(rampD.slice(0, 8)));
+      T.ok('de-drift flattens it to under 20 mg/dL', spread(flatD) < 20, 'spread=' + spread(flatD) + ' ' + JSON.stringify(flatD.slice(0, 8)));
+      /* The `- mid` term centres the removal on the session midpoint, so the session's LEVEL survives
+         while its SLOPE does not. Dropping that term shifts the whole session by half the drift. */
+      var mid = function (a) {
+        var b = a.slice().sort(function (x, y) {
+          return x - y;
+        });
+        return b[Math.floor(b.length / 2)];
+      };
+      T.ok('…and de-drift preserves the session LEVEL (centred, not shifted)', Math.abs(mid(flatD) - mid(rampD)) <= 6, 'median ' + mid(rampD) + ' -> ' + mid(flatD));
+
+      // ── 5 · BOTH FLAGS TOGETHER — each is reported on its own ──────────────────────────────────
+      var both = run([90, 110, 130], 20, { levelSessions: true, deDrift: true });
+      T.ok('both flags report independently', both.sessionCorr && both.sessionCorr.leveled === true && both.sessionCorr.deDrifted === true, JSON.stringify(both.sessionCorr));
+      T.ok(
+        'levelling still emits signed offsets when de-drift is also on',
+        both.sessionCorr && both.sessionCorr.offsets.length === both.nSessions && both.sessionCorr.offsets[0] > both.sessionCorr.offsets[2],
+        JSON.stringify(both.sessionCorr && both.sessionCorr.offsets)
+      );
+
+      /* ── 6 · LEVEL WITHOUT DE-DRIFT MUST LEAVE THE RAMP ALONE ──────────────────────────────────
+         `if (deDrift && sess.driftPerDay != null)` — with `&&` turned to `||`, a record that HAS a
+         drift estimate gets de-drifted even though the caller never asked. Every case above misses
+         it: with neither flag set the function returns at line 1 and never reaches this branch, so
+         the ONE input that can see it is levelling ON, de-drift OFF, over a ramped series. */
+      var levOnly = run([90, 110, 130], 20, { levelSessions: true });
+      var levOnlyD = dayMed(levOnly);
+      T.ok('levelling alone reports deDrifted false', levOnly.sessionCorr && levOnly.sessionCorr.deDrifted === false, JSON.stringify(levOnly.sessionCorr));
+      T.ok('…and LEAVES the within-session ramp intact — levelling is not de-drifting', spread(levOnlyD) >= 50, 'spread=' + spread(levOnlyD) + ' ' + JSON.stringify(levOnlyD.slice(0, 8)));
+
+      /* ── 7 · THE 20 mg/dL FLOOR IS A REAL CLAMP ────────────────────────────────────────────────
+         `Math.max(20, v)` stops a correction driving a reading to a non-physiological value. Nothing
+         above reaches it, because levelling moves a session TOWARD the global median and therefore
+         cannot overshoot far. A session whose median sits far ABOVE the other two gets a large
+         negative offset, and the diurnal swing then carries its troughs under the floor. */
+      /* The observable has to be the record MINIMUM, not a daily median: a median over 288 readings
+         does not move when the handful beneath the floor are lifted, so an assertion on medians
+         passes whether the clamp is there or not. `analyze().min` is the reading the clamp touches.
+         A wide diurnal swing is what carries the troughs under: with amplitude 120 the corrected
+         session spans −13…227, so the floor is genuinely exercised rather than merely approached. */
+      var mkAmp = function (levels, amp) {
+        var T2 = [],
+          V = [],
+          t = Date.UTC(2026, 6, 1, 0, 0, 0);
+        for (var s = 0; s < levels.length; s++) {
+          for (var i = 0; i < 4 * 288; i++) {
+            T2.push(t);
+            V.push(levels[s] + amp * Math.sin((2 * Math.PI * i) / 288));
+            t += 300000;
+          }
+          t += 12 * 3600000;
+        }
+        return { tMs: T2, vMgdl: V, unit: 'mg/dL', t0Ms: T2[0], source: 'test' };
+      };
+      var clamp;
+      try {
+        clamp = G.analyze(mkAmp([20, 22, 800], 120), null, { levelSessions: true });
+      } catch (e) {
+        clamp = { error: String(e.message) };
+      }
+      T.ok('a session at 800 against 22 gets a large negative offset', clamp.sessionCorr && clamp.sessionCorr.offsets[2] < -600, JSON.stringify(clamp.sessionCorr && clamp.sessionCorr.offsets));
+      T.ok('…and the 20 mg/dL FLOOR holds — no corrected reading goes under it', clamp.min === 20, 'min=' + clamp.min + ' p10=' + clamp.p10);
+
+      /* KNOWN REMAINING GAP, stated rather than papered over: the loop bound `p < sess.e` mutated to
+         `p <= sess.e` corrects ONE extra sample per session. Everything this function exposes is an
+         aggregate — offsets, a global median, daily medians over 288 readings — and one sample moves
+         none of them. Killing it needs a per-sample view of the corrected series, which `analyze`
+         does not export. It stays counted as debt. */
+    });
+
     group('GlucoDex locateColumns — column order is discovered, not assumed (mutation bootstrap)', 'glucodex-dsp · known-answer · mutation-pinned', function (T) {
       var G = env.GLUDSP;
       if (!G || typeof G.parseCSV !== 'function') {
