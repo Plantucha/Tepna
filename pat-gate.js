@@ -44,8 +44,14 @@
   var PAT_GATE = {
     COUPLING_MIN: 0.55, // matchRate ≥ — published
     BEAT_IQR_MAX_MS: 60, // residIQR ≤ — published
-    DRIFT_MAX_MS: 60, // driftRange ≤ for FEASIBLE — published
-    DRIFT_DOMINATED_MS: 250, // driftRange > ⇒ DRIFT-DOMINATED — unstated in prose
+    /* Both bars keep their published VALUES; what they are measured against changed on 2026-08-10
+       (PAT-DRIFT-STATISTIC). They now weigh `cp.stepP95` — the p95 |Δ bin median| between adjacent
+       qualified bins — instead of `cp.driftRange`, which is bounded by, and saturates at, the 450 ms
+       pairing window: nine box nights over ~6 h all read 420–442. Not a re-tuning; the numbers are
+       untouched precisely so this cannot be one. `driftRange` stays in the payload as a diagnostic,
+       and a caller that supplies only `driftRange` still gets the old behaviour. */
+    DRIFT_MAX_MS: 60, // stepP95 ≤ for FEASIBLE — published
+    DRIFT_DOMINATED_MS: 250, // stepP95 > ⇒ DRIFT-DOMINATED — unstated in prose
     LAG_MIN_MS: 60, // median lag ≥ — the `physical` window, unstated in prose
     LAG_MAX_MS: 700 // median lag ≤ — the `physical` window, unstated in prose
   };
@@ -92,8 +98,20 @@
     var tightBeat = isFinite(cp.residIQR) && cp.residIQR <= PAT_GATE.BEAT_IQR_MAX_MS,
       goodMatch = cp.matchRate >= PAT_GATE.COUPLING_MIN,
       physical = cp.med >= PAT_GATE.LAG_MIN_MS && cp.med <= PAT_GATE.LAG_MAX_MS,
-      driftMs = isFinite(cp.driftRange) ? cp.driftRange : Infinity;
-    var why = { tightBeat: tightBeat, goodMatch: goodMatch, physical: physical, driftMs: driftMs, driftOK: driftMs <= PAT_GATE.DRIFT_MAX_MS };
+      /* Prefer `stepP95`; fall back to `driftRange` so a pre-2026-08-10 caller (or a night with too
+         few adjacent qualified bins to form a step) behaves exactly as before rather than passing on
+         a missing field. `driftStat` names which one was weighed, so a reader is never left guessing. */
+      driftStat = isFinite(cp.stepP95) ? 'stepP95' : 'driftRange',
+      driftMs = isFinite(cp.stepP95) ? cp.stepP95 : isFinite(cp.driftRange) ? cp.driftRange : Infinity;
+    var why = {
+      tightBeat: tightBeat,
+      goodMatch: goodMatch,
+      physical: physical,
+      driftStat: driftStat,
+      driftMs: driftMs,
+      driftOK: driftMs <= PAT_GATE.DRIFT_MAX_MS,
+      driftRange: isFinite(cp.driftRange) ? cp.driftRange : null // diagnostic; see PAT_GATE comment
+    };
 
     if (goodMatch && tightBeat && physical && driftMs <= PAT_GATE.DRIFT_MAX_MS) return { tier: 'go', label: 'FEASIBLE', why: why };
     if (goodMatch && tightBeat && driftMs > PAT_GATE.DRIFT_DOMINATED_MS) return { tier: 'no', label: 'DRIFT-DOMINATED', why: why };
@@ -146,5 +164,73 @@
     };
   }
 
-  root.PATGate = { PAT_GATE: PAT_GATE, verdict: verdict, sharedClock: sharedClock, SC_RATE_TOL: SC_RATE_TOL, SC_MIN_OVERLAP_MIN: SC_MIN_OVERLAP_MIN, VERSION: '1.1.0' };
+  /* THE DRIFT STATISTICS (PAT-DRIFT-STATISTIC-2026-08-10). Lives here, not in the worker, for the
+     same reason `sharedClock` moved: the worker is in no test lane, so logic left there is logic
+     nothing executes. `bins` is one record per occupied 5-minute bin, in bin-index order:
+       { bin, med, n, nBeats, iqr }   n = paired beats · nBeats = ECG beats in the SAME bin
+     Two rules, both from the brief:
+       · a bin qualifies on MATCH RATE (n/nBeats) and its own IQR — never on an absolute count of n,
+         which is §3's defect; a bin at 3 % match is edge-censored toward PHYS_HI, not a measurement
+       · steps are taken only between bins ADJACENT IN INDEX, so a recording gap is not charged as a
+         step — the lag is free to have moved during the gap and nothing observed it */
+  var BIN_MATCH_MIN = 0.8;
+  function driftStats(bins, matchMin, iqrMax) {
+    var mm = isFinite(matchMin) ? matchMin : BIN_MATCH_MIN,
+      im = isFinite(iqrMax) ? iqrMax : PAT_GATE.BEAT_IQR_MAX_MS;
+    var list = bins && bins.length ? bins : [];
+    var qual = [];
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i],
+        nb = b.nBeats > 0 ? b.nBeats : 0,
+        mr = nb ? b.n / nb : 0;
+      if (nb && mr >= mm && isFinite(b.iqr) && b.iqr <= im) qual.push(b);
+    }
+    var steps = [];
+    for (var k = 1; k < qual.length; k++) if (qual[k].bin === qual[k - 1].bin + 1) steps.push(Math.abs(qual[k].med - qual[k - 1].med));
+    function rangeOf(a) {
+      if (a.length < 2) return NaN;
+      var lo = a[0],
+        hi = a[0];
+      for (var j = 1; j < a.length; j++) {
+        if (a[j] < lo) lo = a[j];
+        if (a[j] > hi) hi = a[j];
+      }
+      return hi - lo;
+    }
+    /* p95 by nearest-rank on the sorted steps. With few steps this lands on the maximum, which is the
+       conservative direction: a short recording is judged by its worst observed step rather than being
+       let through on a percentile it has too little data to support. */
+    var srt = steps.slice().sort(function (x, y) {
+      return x - y;
+    });
+    var stepP95 = srt.length ? srt[Math.min(srt.length - 1, Math.ceil(0.95 * srt.length) - 1)] : NaN;
+    return {
+      stepP95: stepP95,
+      stepMed: srt.length ? srt[Math.floor(srt.length / 2)] : NaN,
+      nSteps: steps.length,
+      binsQualified: qual.length,
+      binsTotal: list.length,
+      driftRange: rangeOf(
+        list.map(function (x) {
+          return x.med;
+        })
+      ),
+      driftRangeQual: rangeOf(
+        qual.map(function (x) {
+          return x.med;
+        })
+      )
+    };
+  }
+
+  root.PATGate = {
+    PAT_GATE: PAT_GATE,
+    verdict: verdict,
+    sharedClock: sharedClock,
+    driftStats: driftStats,
+    BIN_MATCH_MIN: BIN_MATCH_MIN,
+    SC_RATE_TOL: SC_RATE_TOL,
+    SC_MIN_OVERLAP_MIN: SC_MIN_OVERLAP_MIN,
+    VERSION: '1.2.0'
+  };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
