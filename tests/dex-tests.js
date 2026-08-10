@@ -8239,6 +8239,76 @@
        own comments documented preferDMY:false but the parser accepted no opts to apply it. The fix: accept
        opts.preferDMY LAST + optional (back-compat), run a file-level DexClock.resolveDMY over the collected
        row stamps, and thread the resolved order into every parseTimestamp call — mirror of oxydex-dsp.js. */
+    /* ════ PulseDex — the device's `blocker` flag is HONOURED, not just parsed ═══════════════════
+       A Polar PPI export carries a per-beat `blocker` column the FIRMWARE sets when its own
+       peak-to-peak detector does not trust the interval — the vendor's answer to PPI's weakness
+       under motion. `parseRRInput` read the interval column and ignored it, so intervals Polar had
+       explicitly marked invalid were averaged straight into HRV.
+
+       Measured against a simultaneous H10 chest strap on a real 5.21 h night (Verity 0C301E3F,
+       2026-08-09, 36,465 beats, 62 five-minute epochs): ignoring the flag gives rMSSD +15 % with
+       SD-of-diff 12.4 ms; honouring it gives +8 % and 8.7 ms. The flag is motion-linked — peak
+       dynamic accel at blocked beats is median 8.0 mg / p90 25.3 against 5.5 / 7.2 at clean ones.
+
+       ⚠️ AN `_RR.txt` HAS NO SUCH COLUMN, so RR parsing must be provably untouched. That is the
+       second case below, and it is the one that would catch a veto keyed on position instead of
+       header text. */
+    group('PulseDex — a device-blocked PPI interval is dropped and COUNTED', 'pulsedex-dsp · ingest · regression', function (T) {
+      var P = env.PulseDex;
+      var PR = P && P.parseRRInput;
+      if (typeof PR !== 'function') {
+        T.ok('env.PulseDex.parseRRInput available', false, 'not wired — gate skipped');
+        return;
+      }
+      var PPI_HDR = 'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]';
+      // Row 2 is a REAL blocked beat copied from the box capture: a 398 ms "interval" (150 bpm) with
+      // error estimate 30 and hr 0 — physiologically absurd next to its ~1000 ms neighbours, and the
+      // device says so. Note it sits INSIDE the 300–2000 ms plausibility window, so the range check
+      // cannot catch it; only the flag can.
+      var ppi = PPI_HDR + '\n' + [
+        '2026-08-09T22:01:24.965;1000;10;0;1;1;60',
+        '2026-08-09T22:01:25.965;398;30;1;1;1;0',
+        '2026-08-09T22:01:26.365;1010;11;0;1;1;59',
+        '2026-08-09T22:01:27.375;1020;12;0;1;1;59'
+      ].join('\n');
+      var r = PR(ppi);
+      T.eq('the blocked interval is gone', (r.vals || []).indexOf(398), -1);
+      T.eq('the three valid beats survive', JSON.stringify(r.vals), JSON.stringify([1000, 1010, 1020]));
+      T.eq('and the drop is REPORTED, not silent', r.nBlocked, 1);
+      T.eq('stamps stay aligned with values', (r.tsMs || []).length, (r.vals || []).length);
+
+      /* THE VETO IS KEYED ON HEADER TEXT, NOT COLUMN POSITION — and proving that needs a layout where
+         the two disagree. In the standard export `blocker` sits at index 3, so a veto hard-coded to
+         column 3 passes every case above; it survived exactly that mutant until this case was added.
+         Here the flag is moved to index 1, which a positional veto reads as the INTERVAL column. */
+      var moved = 'Phone Data RX timestamp;blocker;PP-interval [ms];error estimate [ms];hr [bpm]\n' + [
+        '2026-08-09T22:01:24.965;0;1000;10;60',
+        '2026-08-09T22:01:25.965;1;398;30;0',
+        '2026-08-09T22:01:26.365;0;1010;11;59'
+      ].join('\n');
+      var rm = PR(moved);
+      T.eq('blocker found by NAME wherever it sits', rm.nBlocked, 1);
+      T.eq('…and the right column is still read as the interval', JSON.stringify(rm.vals), JSON.stringify([1000, 1010]));
+
+      // An RR file has no blocker column, and its column 3 does not exist — a positional veto would
+      // either crash or silently eat data.
+      var rr = 'Phone timestamp;RR-interval [ms]\n' + [
+        '2026-08-09T22:01:24.965;1000',
+        '2026-08-09T22:01:25.965;1010',
+        '2026-08-09T22:01:26.965;1020'
+      ].join('\n');
+      var r2 = PR(rr);
+      T.eq('an RR file keeps every interval', JSON.stringify(r2.vals), JSON.stringify([1000, 1010, 1020]));
+      T.eq('and reports zero blocked', r2.nBlocked, 0);
+
+      // A PPI file with nothing blocked must report 0 — a counter that is always positive says nothing.
+      var clean = PPI_HDR + '\n' + [
+        '2026-08-09T22:01:24.965;1000;10;0;1;1;60',
+        '2026-08-09T22:01:25.965;1010;11;0;1;1;59'
+      ].join('\n');
+      T.eq('a clean PPI night reports zero blocked', PR(clean).nBlocked, 0);
+    });
+
     group('PulseDex finding D — parseRRInput resolves file-level DMY/MDY (Coospo/Wahoo MDY)', 'pulsedex-dsp · clock · regression', function (T) {
       var P = env.PulseDex;
       var PR = P && P.parseRRInput;
