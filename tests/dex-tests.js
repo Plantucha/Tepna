@@ -22792,13 +22792,33 @@
           })
           .join(' | ');
       };
+      /* ── THE PASS COUNT IS PART OF THE ASSERTION, not part of the label ────────────────────────
+         `fail === 0` alone cannot see a self-test that has STOPPED CHECKING THINGS. Delete an `ok(…)`
+         inside selfTest, or make its condition unconditionally true, and `fail` stays 0 while `pass`
+         silently drops — the gate reads green over a self-test that now proves strictly less.
+
+         This is not hypothetical. Mutation-sweeping `cpapdex-dsp.js` leaves 488 survivors, and 122 of
+         them — a quarter of the whole population, and the single largest cluster in the file — sit
+         inside `selfTest` itself, kept alive by exactly this gap. It is the repo's recurring failure
+         wearing one more disguise: a check that ran and reported success about something it never
+         examined.
+
+         So the count is pinned. When you legitimately add or remove a self-test assertion, UPDATE THE
+         NUMBER HERE in the same commit — that edit is the point rather than an obstacle: it is what
+         makes a change in what a module checks about ITSELF visible in review. */
+      var pinPass = function (label, r, want) {
+        T.ok(label + ' self-test reports no failures (' + r.pass + ' passed)', r.fail === 0, r.fail + ' failed · ' + failLog(r));
+        T.ok(
+          label + ' self-test still runs all ' + want + ' of its own assertions',
+          r.pass === want,
+          'pass=' + r.pass + ' expected ' + want + ' — if you added or removed an assertion, update this number deliberately; if you did not, the self-test has stopped checking something'
+        );
+      };
       if (ED && typeof ED.selfTest === 'function') {
-        var re = ED.selfTest();
-        T.ok('cpapdex-edf.js self-test (' + re.pass + ' passed)', re.fail === 0, re.fail + ' failed · ' + failLog(re));
+        pinPass('cpapdex-edf.js', ED.selfTest(), 20);
       } else T.ok('cpapdex-edf.js loaded with selfTest()', false, 'env.CpapEdf missing in this runner');
       if (DS && typeof DS.selfTest === 'function') {
-        var rd = DS.selfTest();
-        T.ok('cpapdex-dsp.js self-test (' + rd.pass + ' passed)', rd.fail === 0, rd.fail + ' failed · ' + failLog(rd));
+        pinPass('cpapdex-dsp.js', DS.selfTest(), 82);
       } else T.ok('cpapdex-dsp.js loaded with selfTest()', false, 'env.CpapDsp missing in this runner');
       T.ok('ecgdex-morph.js exposes analyze() (exercised via ECGDSP.analyze)', !!(EM && typeof EM.analyze === 'function'));
       T.ok('ppgdex-morph.js exposes analyze() (exercised via PPGDSP morphology)', !!(PM && typeof PM.analyze === 'function'));
