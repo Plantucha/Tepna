@@ -143,7 +143,7 @@ if (IS_MAIN && !has('--selftest')) {
   const file = opt('--file', '');
   const fn = opt('--fn', '');
   const group = opt('--group', '');
-  const jobs = Math.max(1, Number(opt('--jobs', '16')) || 16);
+  const jobsWanted = Math.max(1, Number(opt('--jobs', String(Math.max(1, (await import('node:os')).cpus().length))) ) || 1);
   const sweep = opt('--sweep', '');
   if (!file || !fn || !group) {
     console.error('usage: node tools/killcheck.mjs --file <dsp.js> --fn <name> --group "<test group>" [--jobs N] [--sweep path]');
@@ -203,6 +203,11 @@ if (IS_MAIN && !has('--selftest')) {
      already hand-measured at 80 kills, and did it in 3 s — a perfect-looking run that examined
      nothing. Hard links give real files at near-zero cost, so ROOT lands inside the worker's tree;
      only `node_modules` is symlinked, since nothing resolves a module path through it. */
+  /* CAP THE WORKERS AT THE MUTANT COUNT. Each worker costs a `cp -al` of the whole checkout, and
+     measured on this machine the wall time PLATEAUS at ~16 because that setup — not the test runs —
+     becomes the floor. Spinning up 24 trees to check 5 mutants is pure loss. */
+  const jobs = Math.min(jobsWanted, mine.length);
+  const tSetup = Date.now();
   const dirs = [];
   for (let w = 0; w < jobs; w++) {
     /* SAME FILESYSTEM AS THE REPO, or `cp -al` fails with "Invalid cross-device link": /tmp is
@@ -224,6 +229,7 @@ if (IS_MAIN && !has('--selftest')) {
     dirs.push(d);
   }
 
+  const setupSecs = (Date.now() - tSetup) / 1000;
   let killed = 0,
     survived = 0,
     unapplied = 0,
@@ -260,7 +266,7 @@ if (IS_MAIN && !has('--selftest')) {
 
   console.log(`\n▸ ${file} · ${fn}  L${r.start}-${r.end}   baseline green (${baseAsserts} assertions)`);
   console.log(`  KILLED ${killed}   survived ${survived}${unapplied ? `   ⚠ ${unapplied} could not be applied` : ''}   of ${mine.length}`);
-  console.log(`  ${((100 * killed) / (mine.length - unapplied || 1)).toFixed(0)}% conversion · ${secs.toFixed(0)}s at ${jobs}-way (serial would be ~${((mine.length * 4) / 60).toFixed(0)} min)`);
+  console.log(`  ${((100 * killed) / (mine.length - unapplied || 1)).toFixed(0)}% conversion · ${secs.toFixed(1)}s at ${jobs}-way + ${setupSecs.toFixed(1)}s setup (serial would be ~${((mine.length * 4) / 60).toFixed(0)} min)`);
   if (has('--list') && survivorList.length) {
     console.log('\n  still surviving:');
     for (const m of survivorList.slice(0, 40)) console.log(`    L${m.line} [${m.op}] ${String(m.before).trim().slice(0, 62)}`);
