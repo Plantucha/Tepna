@@ -568,9 +568,34 @@ def test_is_recording_counts_both_offline_and_online_plus_offline():
 
 def test_the_0xf0_envelope_is_stripped_rather_than_parsed_as_data():
     """Reading the envelope as measurement bytes reports garbage states — and the failure mode is the
-    dangerous direction: it would claim streams are active that are not."""
+    dangerous direction: it would claim streams are active that are not.
+
+    ⚠️ THIS TEST USED A 3-BYTE ENVELOPE (`f0 05 00` + payload) AND WAS WRONG. It encoded the parser's
+    own assumption rather than the wire, so it passed against a parser that began reading AT the status
+    byte. The real header is 5 bytes and the status is byte 3 — `PmdControlPointResponse.kt`:
+    `measurementType=data[2]  status=data[3]`, `parameters = copyOfRange(5, size)` — the same header
+    `parse_settings_response` was verified against on hardware."""
     payload = _status_byte(pmd.PPG, pmd.OFFLINE_ACTIVE)
-    assert pmd.parse_status_response(b"\xf0\x05\x00" + payload)[pmd.PPG] == pmd.OFFLINE_ACTIVE
+    frame = b"\xf0\x05\x00\x00\x00" + payload      # [0xF0, op, meas, status=OK, more=0, payload]
+    assert pmd.parse_status_response(frame)[pmd.PPG] == pmd.OFFLINE_ACTIVE
+    assert set(pmd.parse_status_response(frame)) == {pmd.PPG}, \
+        "the status byte was parsed as a measurement — a phantom entry the device never sent"
+
+
+def test_an_ERROR_reply_yields_NOTHING_rather_than_a_measurement_state():
+    """Measured on an H10 2026-08-10: it does not implement op 5 and answers `f0 05 00 01`
+    (ERROR_INVALID_OP_CODE). The old parser read the error code `0x01` as `meas 1 = PPG` and reported
+    `{ppg: "none"}` — a state, for a stream the H10 does not physically have, manufactured out of an
+    error. `is_recording()` consumes this dict directly.
+
+    The SDK is explicit that an error carries no parameters at all (`PmdControlPointResponse.kt`:
+    `parameters` is only filled when `status == SUCCESS`), so `{}` is the faithful answer."""
+    assert pmd.parse_status_response(bytes([0xF0, 0x05, 0x00, 0x01])) == {}, \
+        "an ERROR_INVALID_OP_CODE reply was parsed as measurement data"
+    for err in (0x01, 0x02, 0x03, 0x0C, 0x0D):
+        frame = bytes([0xF0, 0x05, 0x00, err, 0x00]) + _status_byte(pmd.PPG, pmd.OFFLINE_ACTIVE)
+        assert pmd.parse_status_response(frame) == {}, f"status {err:#04x} still yielded a state"
+    assert pmd.is_recording(pmd.parse_status_response(bytes([0xF0, 0x05, 0x00, 0x01])), pmd.PPG) is False
 
 
 def test_an_empty_or_unknown_status_reply_yields_nothing_rather_than_a_guess():

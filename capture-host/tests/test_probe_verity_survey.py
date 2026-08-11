@@ -98,7 +98,11 @@ class _Verity:
             self._cb(0, bytearray(r))
 
     def _status_reply(self):
-        return bytes([0xF0, 0x05, 0xFF]) + bytes((st << 6) | m for m, st in sorted(self.active.items()))
+        # [0xF0, op, meas, status, moreFlag, <payload>] — the status (0x00 = SUCCESS) and the moreFlag
+        # were both missing here, so the payload started two bytes early. It passed only because
+        # parse_status_response began reading at the status byte; see polar_pmd.
+        return (bytes([0xF0, 0x05, 0xFF, 0x00, 0x00])
+                + bytes((st << 6) | m for m, st in sorted(self.active.items())))
 
     def _answer(self, data):
         op = data[0]

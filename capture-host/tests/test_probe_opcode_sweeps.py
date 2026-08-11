@@ -155,7 +155,9 @@ def test_pmd_a_gatt_refusal_stops_rather_than_being_read_as_a_verdict(monkeypatc
 
 
 def test_pmd_stops_anything_left_running(monkeypatch):
-    active = bytes([0xF0, 0x05, 0xFF, 0x00]) + bytes([(pmd.OFFLINE_ACTIVE << 6) | pmd.PPG])
+    # [0xF0, op, meas, status, moreFlag, <payload>] — FIVE header bytes. This built FOUR and passed
+    # only because parse_status_response began reading at the status byte; see polar_pmd.
+    active = bytes([0xF0, 0x05, 0xFF, 0x00, 0x00]) + bytes([(pmd.OFFLINE_ACTIVE << 6) | pmd.PPG])
     c = _PmdClient(replies={0x05: active}, default=0x01)
     _patch_pmd(monkeypatch, c)
     res = _run(pms.run("AA:BB", None, 0x0B, 0x0C, False, False))
