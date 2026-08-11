@@ -224,6 +224,17 @@ def test_a_device_that_will_not_say_is_UNKNOWN_not_off():
     assert _run(capture._exit_sdk_mode(c, "Verity")) is None
 
 
+def test_a_REFUSED_exit_is_warned_about_by_status_name(caplog):
+    """A device that rejects the STOP is not the same as one that accepts it and stays on, and the
+    operator needs the refusal code to tell them apart — `invalid_state` means a stream was still
+    running, anything else means the request itself was wrong."""
+    c = _Ctrl(on_start=pmd.INVALID_STATE,
+              status_reply=bytes([0xF0, 0x06, 0x09, 0x00, 0x00, 0x01]))
+    with caplog.at_level("WARNING"):
+        assert _run(capture._exit_sdk_mode(c, "Verity")) is True
+    assert any("SDK mode STOP" in r.message for r in caplog.records), caplog.text
+
+
 def test_the_exit_is_the_MIRROR_of_the_entry_opcode():
     """`02 09` in, `03 09` out — the ordinary START/STOP pair against measurement type 9, which is what
     makes this a two-line fix rather than a new subsystem."""
