@@ -1,0 +1,169 @@
+{
+  "address": "24:AC:AC:02:84:96",
+  "probed_at": "2026-08-10T20:36:17.556925",
+  "not_sent": {
+    "0x08": "SET_OFFLINE_RECORDING_TRIGGER_MODE \u2014 persists across power cycles",
+    "0x09": "SET_OFFLINE_RECORDING_TRIGGER_SETTINGS \u2014 persists across power cycles"
+  },
+  "features": {
+    "raw": "0f05000000000000000000000000000000",
+    "supported": [
+      "acc",
+      "ecg"
+    ],
+    "supported_ids": [
+      0,
+      2
+    ]
+  },
+  "flag_bits": {},
+  "measurement_types_swept": [
+    "ecg",
+    "acc"
+  ],
+  "transcript": [
+    {
+      "sent": "05",
+      "reply": "f0050001"
+    },
+    {
+      "sent": "06",
+      "reply": "f0060001"
+    },
+    {
+      "sent": "07",
+      "reply": "f0070001"
+    },
+    {
+      "sent": "0a",
+      "reply": "f00a0001"
+    },
+    {
+      "sent": "0100",
+      "reply": "f0010000000001820001010e00"
+    },
+    {
+      "sent": "0180",
+      "reply": "f0018002"
+    },
+    {
+      "sent": "0102",
+      "reply": "f0010200000004190032006400c800010110000203020004000800"
+    },
+    {
+      "sent": "0182",
+      "reply": "f0018202"
+    },
+    {
+      "sent": "0400",
+      "reply": "f0040001"
+    },
+    {
+      "sent": "0480",
+      "reply": "f0048001"
+    },
+    {
+      "sent": "0402",
+      "reply": "f0040201"
+    },
+    {
+      "sent": "0482",
+      "reply": "f0048201"
+    }
+  ],
+  "gatt_refused": [],
+  "links_used": 1,
+  "commands_completed": "12/12",
+  "control_point": {
+    "GET_MEASUREMENT_STATUS": {
+      "raw": "f0050001",
+      "active": {
+        "ppg": "none"
+      }
+    },
+    "GET_SDK_MODE_STATUS": {
+      "raw": "f0060001"
+    },
+    "GET_OFFLINE_RECORDING_TRIGGER_STATUS": {
+      "raw": "f0070001"
+    },
+    "GET_DERIVED_MEASUREMENT_SETTINGS": {
+      "raw": "f00a0001"
+    },
+    "GET_MEASUREMENT_SETTINGS": {
+      "ecg": {
+        "online": {
+          "raw": "f0010000000001820001010e00",
+          "settings": {
+            "rate_hz": [
+              130
+            ],
+            "resolution_bits": [
+              14
+            ]
+          }
+        },
+        "offline": {
+          "raw": "f0018002",
+          "settings": {}
+        }
+      },
+      "acc": {
+        "online": {
+          "raw": "f0010200000004190032006400c800010110000203020004000800",
+          "settings": {
+            "rate_hz": [
+              25,
+              50,
+              100,
+              200
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        "offline": {
+          "raw": "f0018202",
+          "settings": {}
+        }
+      }
+    },
+    "GET_SDK_MODE_MEASUREMENT_SETTINGS": {
+      "ecg": {
+        "online": {
+          "raw": "f0040001",
+          "settings": {}
+        },
+        "offline": {
+          "raw": "f0048001",
+          "settings": {}
+        }
+      },
+      "acc": {
+        "online": {
+          "raw": "f0040201",
+          "settings": {}
+        },
+        "offline": {
+          "raw": "f0048201",
+          "settings": {}
+        }
+      }
+    }
+  },
+  "identity": {
+    "manufacturer": "Polar Electro Oy",
+    "model": "H10",
+    "serial": "02849638",
+    "hardware_rev": "00760690.03",
+    "firmware_rev": "5.0.0",
+    "software_rev": "4.2.0",
+    "battery_pct": 100
+  }
+}
