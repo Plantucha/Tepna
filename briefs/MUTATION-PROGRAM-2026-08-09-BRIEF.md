@@ -283,7 +283,7 @@ file, scoped, bail on (#1027 — an estimate of the whole, `thin()` spreads dete
 | `pulsedex-dsp.js` | 17 | 6 s | 42 % | **25.5 %** | **+16.5** | 568 |
 | `glucodex-dsp.js` | 16 | 2 s | 55 % | **33.7 %** | **+21.3** | 836 |
 | `oxydex-dsp.js` | 39 | 20 s | 58 % | **33.8 %** | **+24.2** ³ | **2680** |
-| `ecgdex-dsp.js` | 48 | 137 s | 62 % | *unswept* | — | 1725 |
+| `ecgdex-dsp.js` | 48 | 137 s | 62 % | **30.4 %** | **+31.6** ⁵ | 1755 |
 | `integrator-dsp.js` | **73** | 310 s | 68 % | *unswept* | — | 1745 |
 
 ¹ hrvdex's 28 % predates #1030's `computeDerived` golden; the 39.1 % is post-fix and canary-guarded,
@@ -297,15 +297,30 @@ next oxydex sweep is canary-guarded. The harness demonstrably worked: it killed 
 survivors, `canary: PASSED` — 39.0 %, confirming the earlier 38.9 % against unchanged code. With 99
 recorded equivalents the DISTINGUISHABLE rate is 464/1090 = **42.6 %**.
 
+⁵ ecgdex swept 2026-08-10: 1755 tested, 526 killed, 22 invalid, 1207 survivors, 5.7 h wall.
+`canary: NONE` — first sweep of the file; it learned one (L68) so the next is guarded. The battery
+landed in #1151 claims 1006 of the 1207 survivors (83.3 %).
+
 ### 🔴 THE SAMPLE IS NOT RELIABLE, AND THE FAILURE IS BIMODAL RATHER THAN NOISY
 
 Seven files have now been swept exhaustively against their 60-mutant sample. The errors do not look
 like a distribution around zero:
 
 ```
-ppgdex −1.0 · motiondex −0.3 · cpapdex −0.4        three essentially EXACT
-pulsedex +16.5 · glucodex +21.3 · oxydex +24.2     three enormous OVERESTIMATES
+sampled  33   37   40   42   55   58   62
+MEASURED 39.0 37.3 40.4 25.5 33.7 33.8 30.4
+error    −6.0 −0.3 −0.4 +16.5 +21.3 +24.2 +31.6
 ```
+
+**SEVEN FILES IN, THE SAMPLE CARRIES NO USABLE SIGNAL — and this is now stronger than the earlier
+"bimodal" reading.** Every measured rate falls in a **15-point band (25.5 – 40.4 %)**. The sample
+spans **29 points (33 – 62 %)**, nearly twice the real spread, and the two series move if anything in
+OPPOSITE directions (r = −0.46 over seven files; with n = 7 the sign is suggestive rather than
+established, but the absence of any positive signal is not in doubt). The error grows monotonically
+with the sampled value: the higher the sample claimed, the more it over-stated.
+
+The fleet is far more HOMOGENEOUS than the map suggested. What looked like a range of code quality
+from 33 % to 62 % is one population around 34 % plus sampling noise that happens to be one-sided.
 
 One standard error on a 60-draw is ~6 points, so ±0.3–1.0 is suspiciously good and +16.5/+21.3/+24.2
 are 2.7–4.0 SE out. A sampling error that were merely noisy would scatter; this splits into two
@@ -324,7 +339,11 @@ direction. **Do not quote 62 % or 68 %.** They are the same kind of number 58 % 
 
 **The mechanism is still not known, and this brief does not guess one.** What follows from the data:
 
-- **the two remaining unswept rows are estimates, not measurements**, and they are the two most
+- **`integrator` is the ONLY estimate left, and it is the highest row of all at 68 %.** On seven
+  files the error has grown monotonically with the sampled value, and 68 % sits above every value
+  ever measured. The honest prediction is that integrator will come in near the fleet's ~34 %, NOT at
+  68 % — and if it does, the sampled column should be struck from this table rather than annotated.
+- **the remaining unswept row is an estimate, not a measurement**, and they are the two most
   expensive files in the fleet (`ecgdex` 137 s/mutant, `integrator` 310 s) — which is why they are
   unchecked, and why an optimistic bias there is the most expensive kind to carry;
 - **"the sample held on three files" was never evidence that the sample holds.** It was believed
