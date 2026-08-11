@@ -136,6 +136,101 @@ _VERITY = {"name": "Verity", "vendor": "Polar", "model": "VeritySense", "device_
 _SUPPORTED = ["ppg", "acc", "0x9", "0xd", "0xe"]
 
 
+# ── the daemon's EXIT, which did not exist and made the switch one-way ──────────────────────────────
+
+# Feature bitmasks as the device actually reports them (`[0x0F, <bits 0-7>, <bits 8-15>]`), because
+# run_polar READS the features off the client and overwrites anything pre-seeded into STATUS — seeding
+# the status dict looked like it worked and did nothing, which is this file's own subject matter.
+FEAT_ECG_ACC = bytes([0x0F, 0x05, 0x00])          # H10: no 0x9
+FEAT_WITH_SDK = bytes([0x0F, 0x05, 0x02])         # bit 9 set
+
+
+def _drive_polar(monkeypatch, tmp_path, *, sdk_cfg, features, sdk_on):
+    """One run_polar session, returning every control-point command written."""
+    capture._STOP = asyncio.Event()
+    T._polar_common(monkeypatch)
+
+    class _C(T.FlexPolarClient):
+        def __init__(self):
+            super().__init__(data_frames=[T._ecg_frame()])
+            self.sdk_mode_on = sdk_on
+
+        async def read_gatt_char(self, uuid):
+            if uuid == pmd.PMD_CONTROL:
+                return features
+            return await super().read_gatt_char(uuid)
+    c = _C()
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 1)
+    capture.STATUS.setdefault("devices", {}).pop("H10", None)
+    dev = T._pdev(streams=["ecg"])
+    if sdk_cfg is not None:
+        dev["sdk_mode"] = sdk_cfg
+    asyncio.run(capture.run_polar(dev, str(tmp_path)))
+    return c.writes
+
+
+def test_switching_sdk_mode_OFF_actually_exits_it_on_the_device(tmp_path, monkeypatch):
+    """The bug, end to end: config says off, the device is IN SdK mode, and before this the daemon
+    simply never mentioned it again — leaving PPI and HR dead until a manual power cycle."""
+    w = _drive_polar(monkeypatch, tmp_path, sdk_cfg=False,
+                     features=FEAT_WITH_SDK, sdk_on=True)
+    assert pmd.sdk_mode_cmd(False) in w, \
+        f"config says sdk_mode off and the device is in it, but no `03 09` was sent: {[x.hex() for x in w]}"
+
+
+def test_a_device_NOT_in_sdk_mode_is_asked_once_and_left_alone(tmp_path, monkeypatch):
+    """Costs one status read and changes nothing — an unconditional exit would churn the control point
+    on every negotiation pass of every night."""
+    w = _drive_polar(monkeypatch, tmp_path, sdk_cfg=False,
+                     features=FEAT_WITH_SDK, sdk_on=False)
+    assert pmd.sdk_mode_status_cmd() in w, "it must ASK before deciding"
+    assert pmd.sdk_mode_cmd(False) not in w, "nothing to exit — it must not send a pointless STOP"
+
+
+def test_hardware_without_the_feature_is_never_asked(tmp_path, monkeypatch):
+    """An H10 answers op 6 with `invalid_op_code`; asking every pass is noise in the one log an
+    operator reads at 07:00."""
+    w = _drive_polar(monkeypatch, tmp_path, sdk_cfg=False, features=FEAT_ECG_ACC, sdk_on=False)
+    assert pmd.sdk_mode_status_cmd() not in w, \
+        "a device that does not advertise feature 0x9 must not be asked about SDK mode at all"
+
+
+def test_leaving_sdk_mode_sends_the_stop_and_then_ASKS(caplog):
+    """`off` must mean OFF. SDK mode is DEVICE state that outlives the config: not re-entering it left
+    a device already in SDK mode there until someone power-cycled the hardware by hand."""
+    c = _Ctrl(status_reply=bytes([0xF0, 0x06, 0x09, 0x00, 0x00, 0x00]))   # reports OFF afterwards
+    assert _run(capture._exit_sdk_mode(c, "Verity")) is False
+    assert c.sent[0] == pmd.sdk_mode_cmd(False), "it must actually STOP SDK mode, not just stop asking"
+    assert pmd.sdk_mode_status_cmd() in c.sent, "…and then ASK, never trust the ack"
+
+
+def test_a_device_still_in_sdk_mode_after_the_exit_is_reported_and_WARNED_about(caplog):
+    """The dangerous answer, and the reason this returns the device's word rather than ours: while it
+    is still in SDK mode the Verity serves NO PPI and NO HR (Polar's product doc), so a silent failure
+    here is two streams missing all night under a config that says they are on."""
+    c = _Ctrl()                                       # status keeps reporting ON
+    with caplog.at_level("WARNING"):
+        assert _run(capture._exit_sdk_mode(c, "Verity")) is True
+    assert any("STILL ON" in r.message for r in caplog.records), caplog.text
+    assert any("power cycle" in r.message for r in caplog.records), \
+        "the operator needs the remedy, not just the symptom"
+
+
+def test_a_device_that_will_not_say_is_UNKNOWN_not_off():
+    """Same tri-state as entry: None is not False. Publishing False here would claim PPI and HR are
+    back when nothing has been confirmed."""
+    c = _Ctrl(status_reply=bytes([0xF0, 0x06, 0x09, 0x01]))     # error reply -> no verdict
+    assert _run(capture._exit_sdk_mode(c, "Verity")) is None
+
+
+def test_the_exit_is_the_MIRROR_of_the_entry_opcode():
+    """`02 09` in, `03 09` out — the ordinary START/STOP pair against measurement type 9, which is what
+    makes this a two-line fix rather than a new subsystem."""
+    assert pmd.sdk_mode_cmd(True) == bytes([0x02, pmd.SDK_MODE])
+    assert pmd.sdk_mode_cmd(False) == bytes([0x03, pmd.SDK_MODE])
+
+
 def _settings(tmp_path, devices, status=None):
     app, cfg, *_ = _mk(tmp_path, devices=devices, status=status)
 
