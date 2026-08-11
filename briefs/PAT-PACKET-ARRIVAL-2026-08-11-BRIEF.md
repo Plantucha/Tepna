@@ -93,8 +93,14 @@ the anatomical check that fails on 7 of 10 nights — had no arrival↔device pa
 - **The ring.** It exposes no device clock on any streaming opcode, but `live["duration"]` (seconds
   into its session) measures **1–55 ppm** against the host once segmented on its resets. Now paired
   with true frame arrival. ⚠️ **1 s quantised, so the ring's offset must be FITTED, not min-filtered** —
-  a minimum over a quantised counter returns the quantum. The `meas` column names which estimator
-  applies, and the QC check refuses to floor-judge it rather than manufacturing a nightly failure.
+  ~~a minimum over a quantised counter returns the quantum~~. **THAT REASON IS RETRACTED (2026-08-11).**
+  The quantum does not contaminate a minimum: worst error 31.5 ms over 270 zero-skew configurations,
+  3.2 % of the quantum. The conclusion survives, but the reason was wrong in a way that mattered —
+  fitting is owed on **every** device, not just the ring, because a minimum has no TIME MODEL and is
+  wrong by roughly half the span's drift (242 ms measured on a real 8 h H10 capture). See
+  [`PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md`](PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md) §5, which
+  ships that fit. The `meas` column names which estimator applies, and the QC check refuses to
+  floor-judge the ring rather than manufacturing a nightly failure.
 - **A silent failure the first cut introduced.** The write is wrapped in a bare `except: pass` —
   correct, telemetry must never disturb the data callback — which makes a *persistent* failure
   invisible. `arrival_rows` now rides in the device status on both paths.
@@ -114,6 +120,11 @@ the anatomical check that fails on 7 of 10 nights — had no arrival↔device pa
 analyses to run on real data: whether the offset really is constant within a connection (within-night
 σ 29–36 ms against 2.2 s between nights is consistent with it but has never been tested), and the
 ECG-vs-ACC within-device control, since both come from one H10 and share its clock.
+
+> **The second one has since been RUN** (`PAT-OFFSET-ESTIMATOR` §4) and it passes: across all four
+> `_ECG`/`_ACC` pairs in the box corpus the two streams of one H10 agree to **0.17 ppm worst / 0.10
+> mean** under the lower-envelope estimator, against 5.78 / 2.20 under `hostAxis`. The first still
+> awaits a night with the sidecar written.
 
 ### 6.1 · CI caught what three local runs could not
 
