@@ -418,6 +418,12 @@ export const families = [
     }
   },
   {
+    /* ⚠️ `fn` NAMES A FUNCTION probe-coverage CANNOT RESOLVE, and it says so rather than pretending.
+       `rmssd`, `mean`, `median` and `std` are ARROW CONSTS — `const rmssd = (a) => {` — and
+       `functionRange` matches only `function NAME(`. So this family RUNS and claims NOTHING; its
+       probe is still worth keeping because the scalars feed every other family, but its survivors are
+       counted as invisible until functionRange learns arrow assignments. The unresolved-fn warning is
+       what surfaced this. */
     name: 'rmssd + mean/median/std · the scalar summaries (direct)',
     fn: 'rmssd',
     probe: (s0) => {
@@ -612,10 +618,10 @@ const ECG_PIPELINE_FNS = [
   'accExtras',
   'epochMotion',
   '_gait',
-  'movementOnsets',
+  '_movementOnsets',
   'stampEpochPositions',
   'planCompanionGraft',
-  'buildNodeExport'
+  'ecgBuildNodeExport'
 ];
 
 export const families2 = ECG_PIPELINE_FNS.map((fn) => ({

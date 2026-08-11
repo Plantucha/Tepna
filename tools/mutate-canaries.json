@@ -63,5 +63,14 @@
       "OxyDex publishes absence as absence — a missing sensor and an uncomputed correlation (DA-V §2.3)",
       "§17-§21 hygiene — no fabricated date, no 0-for-undefined, no pop-default-as-you, pooled indices, badged heroes"
     ]
+  },
+  "ecgdex-dsp.js": {
+    "line": 68,
+    "op": "num → 0",
+    "before": "for (let i = 1; i < a.length; i++) if (Math.abs(a[i] - a[i - 1]) > 50) n++;",
+    "after": "for (let i = 1; i < a.length; i++) if (Math.abs(a[i] - a[i - 1]) > 0) n++;",
+    "killers": [
+      "ECGDex rich export ≡ its committed golden — Integrator-facing surface"
+    ]
   }
 }
