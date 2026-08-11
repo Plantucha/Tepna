@@ -119,6 +119,23 @@ fixture whose output the change moved.
 > ⚠️ After `tools/build-docs.mjs`, **stage from `git status`**, not from the `git add …` line it prints.
 > Observed on #797: it printed nine paths of which **zero** had changed, and omitted the **seven
 > `docs/*.html` it had just rewritten**.
+>
+> ### 🔴 COPY THE COMMAND OUT OF THE WORKFLOW — do not approximate it
+>
+> The rule above is one instance of a general one, and the general one keeps costing round trips: **a
+> locally weaker command than CI's reports green and tells you nothing.** It never looks like a mistake,
+> because the thing you ran did pass. Three instances in a single session (2026-08-11):
+>
+> | ran locally | CI actually runs | what the weaker one missed |
+> |---|---|---|
+> | `npm run lint` | `biome ci` | formatting — `lint` does not check it, so a clean-locally file reds CI |
+> | `pytest` (capture-host) | `pytest --cov …` | coverage entirely; the suite passes far below the gate |
+> | `pytest --cov` | `pytest --cov --cov-branch --cov-fail-under=100` | partial BRANCHES, and nothing enforced — reported `EXIT=0` at the same 99 % CI failed on |
+>
+> The last two are the same file, hours apart. So: **read the command out of `.github/workflows/*.yml`
+> and run that string**, rather than the shorter one you remember. For the JS side that is
+> `npm run check`; for `capture-host/` it is the full `pytest -q --cov --cov-branch
+> --cov-report=term-missing --cov-fail-under=100`.
 
 ---
 
