@@ -1,0 +1,26 @@
+{
+  "glucodex-dsp.js": [
+    "_ckNumEpoch",
+    "_ckZoneMin",
+    "agp",
+    "carbCategory",
+    "correlateNutrition",
+    "pearson",
+    "postprandial",
+    "tzOffset"
+  ],
+  "cpapdex-dsp.js": [
+    "_p2",
+    "fmtClock",
+    "fmtDate",
+    "fmtDateTime",
+    "_leakCV",
+    "compute"
+  ],
+  "motiondex-dsp.js": [
+    "fmtClock",
+    "streamKindFromName",
+    "xyzColsByTail",
+    "streamBaseMs"
+  ]
+}

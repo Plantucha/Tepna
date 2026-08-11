@@ -180,6 +180,59 @@ if (IS_MAIN && !has('--selftest')) {
     process.exit(3);
   }
 
+  /* ── THE CANARY ──────────────────────────────────────────────────────────────────────────────
+     A green baseline proves the suite PASSES. It does not prove a mutation is DETECTED, and those are
+     different claims. The failure this guards is specific and has already happened twice in this
+     toolchain: a worker that resolves back to the real repo runs the UNMUTATED file, every mutant
+     "survives", and the tool reports EVERY FUNCTION PSEUDO-TESTED — which reads as a dramatic finding
+     rather than as a broken instrument.
+
+     So one function known to be NOTICED is emptied first and must still be noticed. It is learned on
+     the first run (the first noticed function) and re-verified on every run after, exactly as
+     mutate.mjs's canary works. A canary that survives VOIDS the run rather than degrading it: a
+     number produced under that doubt is not evidence. */
+  const CANARY_FILE = join(ROOT, 'tools/extreme-canaries.json');
+  let canaries = {};
+  try {
+    canaries = JSON.parse(readFileSync(CANARY_FILE, 'utf8'));
+  } catch (_) {
+    /* absent on the first ever run — it is learned below */
+  }
+  const canaryName = canaries[file];
+  let canaryState = 'NONE';
+  if (canaryName) {
+    const cb = bodies.find((b) => b.fn === canaryName);
+    if (!cb) {
+      console.error(`✗ CANARY GONE — ${canaryName} is no longer a function in ${file}. Delete its entry from tools/extreme-canaries.json deliberately, or fix the name.`);
+      process.exit(3);
+    }
+    const d = mkdtempSync(join(dirname(ROOT), '.extreme-canary-'));
+    execFileSync('cp', [
+      '-al',
+      '--',
+      ...readdirSync(ROOT)
+        .filter((e) => !['.git', 'node_modules', 'coverage', '.nyc_output'].includes(e))
+        .map((e) => join(ROOT, e)),
+      d
+    ]);
+    try {
+      symlinkSync(join(ROOT, 'node_modules'), join(d, 'node_modules'));
+    } catch (_) {}
+    rmSync(join(d, file), { force: true });
+    writeFileSync(join(d, file), emptyBody(src, cb));
+    const cr = await run(d);
+    rmSync(d, { recursive: true, force: true });
+    canaryState = cr.ok ? 'FAILED' : 'PASSED';
+    if (canaryState === 'FAILED') {
+      console.error(`✗ CANARY FAILED — emptying ${canaryName} was NOT noticed by the suite.`);
+      console.error('  The harness is not detecting mutations, so every "pseudo-tested" verdict this run');
+      console.error('  would produce is meaningless. Refusing to report a number. (Check that workers run');
+      console.error('  their OWN tests/run-tests.mjs — resolving back to the repo is how this breaks.)');
+      process.exit(3);
+    }
+    process.stderr.write(`  canary PASSED — emptying ${canaryName} is noticed, so the harness detects mutations\n`);
+  }
+
   const jobs = Math.min(jobsWanted, bodies.length);
   const dirs = [];
   for (let w = 0; w < jobs; w++) {
@@ -227,7 +280,74 @@ if (IS_MAIN && !has('--selftest')) {
   for (const d of dirs) rmSync(d, { recursive: true, force: true });
   const secs = (Date.now() - t0) / 1000;
 
+  /* LEARN a canary from this run so the next one is guarded. The first NOTICED function is used —
+     it is by definition one whose removal the suite detects. */
+  if (!canaryName && noticed > 0) {
+    const firstNoticed = bodies.find((b) => !pseudo.includes(b));
+    if (firstNoticed) {
+      canaries[file] = firstNoticed.fn;
+      try {
+        writeFileSync(CANARY_FILE, JSON.stringify(canaries, null, 2) + '\n');
+        process.stderr.write(`  learned canary for ${file}: ${firstNoticed.fn} — the next run is guarded\n`);
+      } catch (_) {}
+    }
+  }
+  /* ZERO noticed is the signature of a broken harness, not of a catastrophically untested file. Say
+     so rather than printing a spectacular and false result. */
+  if (noticed === 0) {
+    console.error('\n✗ NOT ONE function was noticed — every body could be deleted with the suite green.');
+    console.error('  That is far more likely to be a broken harness than a real finding. Refusing to report.');
+    process.exit(3);
+  }
+
   pseudo.sort((a, b) => a.line - b.line);
+
+  /* ── THE RATCHET ─────────────────────────────────────────────────────────────────────────────
+     A full fleet run is ~8-10 min, which would roughly DOUBLE the merge critical path CLAUDE.md §👥.5
+     already fights — to re-report a number that moves only when someone writes a test. So CI does not
+     gate on the COUNT; it gates on GROWTH. `--baseline` compares against the committed list and fails
+     only on a function that is NEWLY pseudo-tested.
+
+     A file ABSENT from the baseline is not gated at all, deliberately. Recording an unmeasured file as
+     `[]` would assert "nothing here is pseudo-tested" — a claim nobody has checked — and every real
+     finding in it would then read as a regression introduced by whoever next touched it. Absent means
+     unmeasured, and unmeasured means silent. */
+  if (has('--baseline')) {
+    const BFILE = join(ROOT, 'tools/pseudo-tested-baseline.json');
+    let baseline = {};
+    try {
+      baseline = JSON.parse(readFileSync(BFILE, 'utf8'));
+    } catch (_) {}
+    const known = baseline[file];
+    if (!known) {
+      console.log(`  ${file} is not in the baseline — not gated. Add it deliberately with --write-baseline.`);
+      process.exit(0);
+    }
+    const now = pseudo.map((p) => p.fn);
+    const added = now.filter((f) => !known.includes(f));
+    const fixed = known.filter((f) => !now.includes(f));
+    if (fixed.length) console.log(`  ✓ ${fixed.length} function(s) NO LONGER pseudo-tested: ${fixed.join(', ')}\n    …update the baseline so the ratchet tightens: --write-baseline`);
+    if (added.length) {
+      console.error(`\n✗ ${added.length} NEWLY pseudo-tested function(s) in ${file}:`);
+      for (const f of added) console.error(`    ${f}  — its entire body can be deleted with the suite green`);
+      console.error('  Either assert on it, or record it deliberately with --write-baseline.');
+      process.exit(1);
+    }
+    console.log(`  ✓ no new pseudo-tested functions in ${file} (${known.length} known)`);
+    process.exit(0);
+  }
+  if (has('--write-baseline')) {
+    const BFILE = join(ROOT, 'tools/pseudo-tested-baseline.json');
+    let baseline = {};
+    try {
+      baseline = JSON.parse(readFileSync(BFILE, 'utf8'));
+    } catch (_) {}
+    baseline[file] = pseudo.map((p) => p.fn);
+    writeFileSync(BFILE, JSON.stringify(baseline, null, 2) + '\n');
+    console.log(`  baseline written for ${file}: ${pseudo.length} pseudo-tested function(s)`);
+    process.exit(0);
+  }
+
   if (has('--json')) {
     console.log(JSON.stringify({ file, group, functions: bodies.length, pseudoTested: pseudo.map((p) => ({ fn: p.fn, line: p.line })), noticed, secs }, null, 2));
   } else {
