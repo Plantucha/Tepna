@@ -3,9 +3,34 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** REFERENCE (living — the single entry point for PAT; last-verified 2026-08-10) · **Created:** 2026-08-10 · **Supersedes:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` · **Consolidates:** `PAT-UNEXPLAINED-130MS-DISCOVERY-2026-08-09-BRIEF.md`, `PAT-SAWTOOTH-ANSWERS-THE-130MS-2026-08-10-BRIEF.md`, `PAT-SENSOR-PLACEMENT-CORRECTION-2026-08-04-BRIEF.md`
+**Status:** REFERENCE (living — the single entry point for PAT; last-verified 2026-08-11) · **Created:** 2026-08-10 · **Supersedes:** `PAT-VERDICT-CONSOLIDATED-2026-08-04-BRIEF.md` · **Consolidates:** `PAT-UNEXPLAINED-130MS-DISCOVERY-2026-08-09-BRIEF.md`, `PAT-SAWTOOTH-ANSWERS-THE-130MS-2026-08-10-BRIEF.md`, `PAT-SENSOR-PLACEMENT-CORRECTION-2026-08-04-BRIEF.md`
 
 # Pulse Arrival Time in Tepna — everything established, and the three rate errors that hid it
+
+## ⛔ READ THIS FIRST — 2026-08-11 supersedes this brief's standing verdict
+
+Everything below was written before 2026-08-11 and its **conclusion has been replaced**. The body is
+kept because its measurements and its traps remain correct and are still the primary record for each;
+its *verdict* is not. What changed, in the order it was found:
+
+| this brief says | 2026-08-11 |
+|---|---|
+| PAT is blocked by beat-to-beat scatter "downstream of the heart", everything else eliminated | **The gate was weighing a statistic that SATURATES at its own pairing window.** `driftRange` is bounded by `PHYS_HI − PHYS_LO = 450 ms`; nine box nights over ~6 h all read 420–442. Replaced by a per-step statistic with the bar unchanged — Phase 0 went **0 → 8 GO**, the first this project has produced. → `PAT-DRIFT-STATISTIC` |
+| `PHYS = [200,650]` is a plausibility window | **It is a CENSORING CUT** discarding up to **97.4 %** of beats on 16 of 19 site-nights; one night at 97.4 % with an 831 ms median lag still produced a confident number. Now measured and refused. → `PAT-WINDOW-CENSORING` |
+| the corpus is ~8 usable nights | **2 site-nights.** And low censoring does NOT identify them — 2026-08-02 is 0.1 % censored and still anatomically impossible (the ankle, the longer path, arriving *before* the finger). → `PAT-WANDER-ELIMINATION` §1.2 |
+| the residual scatter is the signal and nothing else explains it | **The blocker is a per-connection BLE buffering offset spanning 2.2 s between nights** (Verity−H10, −867…+1321 ms) against a ~10 ms requirement. Not recoverable from existing files — the min-filter has no floor because per-sample stamps are back-timed across each packet. → `PAT-PACKET-ARRIVAL` |
+| PEP is an untested inference | **Measured.** Seismocardiography from the chest ACC puts AO at **92–124 ms** across four nights, up to **19.6×** a phase-scrambled control. ⚠️ It tracks the lag at ρ ≈ 0.6 but **p ≈ 0.07 is the resolution floor of a 15-point test** — a lead, not a result. |
+
+⚠️ **Two claims made on 2026-08-11 and withdrawn the same day**, recorded so they are not re-adopted:
+"100 Hz ACC unlocked PEP" (it did not — 50 Hz was always sufficient; the failure was a cardiac-locked
+control and a 4-sample SNR baseline) and "p = 0.0005" for the PEP↔lag coupling (impossible with 14
+distinct circular shifts; the floor is ~1/15).
+
+New since: [`PAT-DRIFT-STATISTIC-2026-08-10-BRIEF.md`](PAT-DRIFT-STATISTIC-2026-08-10-BRIEF.md) ·
+[`PAT-WANDER-ELIMINATION-2026-08-10-BRIEF.md`](PAT-WANDER-ELIMINATION-2026-08-10-BRIEF.md) ·
+[`PAT-WINDOW-CENSORING-2026-08-11-BRIEF.md`](PAT-WINDOW-CENSORING-2026-08-11-BRIEF.md) ·
+[`PAT-PACKET-ARRIVAL-2026-08-11-BRIEF.md`](PAT-PACKET-ARRIVAL-2026-08-11-BRIEF.md) ·
+[`PAT-GEOMETRY-PROBE-2026-08-11-BRIEF.md`](PAT-GEOMETRY-PROBE-2026-08-11-BRIEF.md)
 
 > **On the two header fields.** `docs-ledger` check5 models `Supersedes`/`Superseded-by` as a strict
 > **1:1** pair, so a many-to-one consolidation cannot be expressed in it. The one brief this
