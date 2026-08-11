@@ -45,6 +45,43 @@ def test_settings_mag_multi_rate_needs_range():
     assert pmd.chosen_rate(pmd.MAG, s, 33) == 20, "an unoffered rate must fall back, not be sent"
 
 
+def test_an_unofferable_preference_takes_the_NEAREST_rate_not_the_MAXIMUM():
+    """The Verity's ACC menu contains no 50, and `_PREF_RATE` asks for 50. The old fallback was
+    `max(rates)` — it picked 416 Hz, the most expensive entry, eight times the rate for a stream whose
+    only consumer is a 4 Hz motion grid. Measured on the box 2026-08-10: ten hours of ACC at 416 Hz,
+    ~20 MB/h against ~2.5, purely because the device's list has no 50 in it."""
+    verity_acc = {0x00: [26, 52, 104, 208, 416]}
+    assert pmd.chosen_rate(pmd.ACC, verity_acc) == 52
+    assert pmd.chosen_rate(pmd.ACC, verity_acc) != max(verity_acc[0x00]), \
+        "regressed to max() — the most expensive entry is never the right answer to 'not offered'"
+    # H10 ACC has no 50 either in some firmwares; 25/50/100/200 does, so the exact match still wins.
+    assert pmd.chosen_rate(pmd.ACC, {0x00: [25, 50, 100, 200]}) == 50
+
+
+def test_a_TIE_goes_to_the_lower_rate():
+    """Equidistant is a real case (target 50 against [25, 75]). Cheaper in battery, radio and disk, and
+    nothing in this suite needs the headroom — so the tie-break is stated rather than incidental."""
+    assert pmd.chosen_rate(pmd.ACC, {0x00: [25, 75]}) == 25
+    assert pmd.chosen_rate(pmd.ACC, {0x00: [75, 25]}) == 25, "order of the device's menu must not matter"
+
+
+def test_an_unofferable_USER_rate_lands_nearest_to_WHAT_WAS_ASKED():
+    """An operator who configures 100 on a device offering [26,52,104,208,416] means 'about 100', not
+    'whatever the project default degrades to'. Nearest-to-intent is 104; nearest-to-_PREF_RATE would
+    be 52, which silently halves a deliberate choice."""
+    assert pmd.chosen_rate(pmd.ACC, {0x00: [26, 52, 104, 208, 416]}, 100) == 104
+
+
+def test_an_EMPTY_menu_keeps_the_vendor_default_because_no_rate_is_SENT():
+    """Deliberately NOT the configured value. `build_start` emits a rate TLV only when the device
+    reported a menu, so with none the device runs at its own default and SAMPLE_HZ is what actually
+    happens on the wire. Returning the config here would be a claim about the wire that is untrue — and
+    this value feeds back-timing and ring sizing, where a wrong rate corrupts sample timestamps."""
+    assert pmd.chosen_rate(pmd.ACC, {}) == pmd.SAMPLE_HZ.get(pmd.ACC, 0)
+    assert pmd.chosen_rate(pmd.ACC, {}, 100) == pmd.SAMPLE_HZ.get(pmd.ACC, 0), \
+        "a configured rate cannot be reported as chosen when no rate was requested"
+
+
 def test_settings_response_rejects_error_status():
     # byte[3] != 0x00 (error) → empty
     assert pmd.parse_settings_response(bytes.fromhex("f0010105000000")) == {}
