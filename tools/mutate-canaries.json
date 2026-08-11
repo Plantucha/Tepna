@@ -72,5 +72,15 @@
     "killers": [
       "ECGDex rich export ≡ its committed golden — Integrator-facing surface"
     ]
+  },
+  "integrator-dsp.js": {
+    "line": 83,
+    "op": "negate: drop !",
+    "before": "if (c == null || !isFinite(c)) continue;",
+    "after": "if (c == null || isFinite(c)) continue;",
+    "killers": [
+      "Integrator periodic-breathing corroboration (§2)",
+      "Fusion algebra — combineConf laws (Phase 8)"
+    ]
   }
 }
