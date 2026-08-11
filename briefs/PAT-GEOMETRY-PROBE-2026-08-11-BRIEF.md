@@ -110,6 +110,63 @@ reported `ok` on the O2Ring's known-synthesized axis. An inert detector reads ex
 result. `drawn` now takes a contiguous block and `step` takes the decimated series, because the two
 probes need opposite samplings.
 
+## 6 · `tools/geometry-passthrough.mjs` — testing the FUNCTIONS, not the data
+
+§3's scanner runs the probes over real recordings, which characterises **data**: this night censors,
+that night steps. It cannot say whether a function is *wrong*, because a real night's true geometry is
+unknown — that is the thing being argued about. This is the software test, and it is the actual
+mutation analogue.
+
+A synthetic ECG and PPG are built whose lag is **flat by construction** — uniform sampling, constant
+heart rate, every PPG foot placed exactly `LAG_MS` after its R-peak — and pushed through the production
+chain. Any shape appearing downstream was introduced by the **code**.
+
+```
+case                          fs(ecg/ppg)  pairs  medLag   IQR  | probes fired
+CLEAN — nothing planted        130.0/55.0   1787   256.9   0.0  | (none)
+ECG host stamp STEP +400 ms    130.0/55.0   1787   857.2 600.0  | step
+PPG host stamp STEP +400 ms    130.0/55.0   1787   490.7 400.0  | step
+PPG host rate error +5000 ppm  130.0/54.7   1578   493.3 445.4  | sawtooth, step
+ECG host rate error +5000 ppm  130.0/55.0   1608   457.0 455.5  | sawtooth, step
+```
+
+**A flat input comes back FLAT — IQR 0.0, six bin medians identical to six decimals.** The alignment
+chain introduces no geometry of its own. And the converse holds: every planted input defect reaches the
+output, so the chain is not merely quiet, it is *sensitive* — a chain that stayed silent on a planted
+defect would be BLIND, which is the failure this repo has shipped before.
+
+**A relative rate error produces a SAWTOOTH by construction.** Three real nights show that shape, and
+until now the mechanism was inference; this is the first evidence it really is an ECG↔PPG rate mismatch
+rather than something that resembles one.
+
+(The recovered 256.9 vs a planted 300 is a definition offset, not drift: the foot is planted relative to
+complex ONSET while `detectPeaks` reports the R PEAK, 35 ms later by construction — 300 − 35 = 265,
+leaving ~8 ms of estimator bias.)
+
+### 6.1 · The fixtures were wrong five times, and each was the same mistake
+
+Building this found no defect in the chain and five in my own synthetic inputs. Every one was an
+**unrealistically clean fixture**, and each produced a confident false result first:
+
+| fixture defect | what it produced |
+|---|---|
+| plants outside `[200,650]` | bounded probes fired — read as a detector failure, was a fixture failure |
+| `ramp` control with hash jitter | `step` fired, **correctly** — a hash contains real discontinuities |
+| `sawtooth` with noiseless ramps | also fired `drawn` — a constant-slope ramp *is* locally a ladder |
+| **three identical PPG channels** | the parser's replicated-column path collapsed them and applied a 125 Hz assumption, so a 55 Hz fixture parsed at 125 and every downstream number was scrambled by 125/55 |
+| **a 12 ms QRS** (1.6 samples at 130 Hz) | Pan–Tompkins could not localise it, scattering the recovered lag by **130 ms on an input flat by construction** — which looked exactly like a chain defect |
+
+The last two are the instructive ones: both looked like software findings and both were the fixture.
+**A synthetic input must be physically plausible, not merely geometrically suggestive** — and the way to
+tell is that the production code was right in every case.
+
+### 6.2 · A constant series has no shape
+
+The clean passthrough exposed a real probe defect: on a perfectly constant output the modal delta is
+**0**, so `drawn`'s tolerance collapses to epsilon and `stepiness` divides by ~0 — and the probes
+"found" two shapes in a flat line. `probeAll` now refuses a degenerate series outright. A diagnosis of a
+constant is not a finding, and reporting one is the same false confidence these probes exist to remove.
+
 ## 4 · What this does NOT do
 
 - **Not a gate on real data.** The gate asserts the *detectors*; the scanner is a tool. Wiring a probe
