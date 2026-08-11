@@ -1733,12 +1733,16 @@ async def run_polar(dev: dict, root: str):
                         # Written before the `writers.get(meas)` gate below on purpose: a stream with no
                         # writer still carries a usable arrival↔device pair, and the offset is a property
                         # of the LINK, not of whichever streams happen to be enabled.
-                        if arr_wr is not None:
-                            try:
-                                arr_wr.write(arrival, name, pmd.MEAS_NAME.get(meas, meas),
-                                             samples[0].sensor_ns, samples[-1].sensor_ns, len(samples))
-                            except Exception:   # telemetry must never disturb the data callback
-                                pass
+                        # No `is not None` guard: `arr_wr` is assigned before this callback is even
+                        # DEFINED, and the callback cannot fire before `start_notify` later still, so the
+                        # false arm is unreachable — it showed up as the one partial branch under
+                        # `--cov-branch` and a test for it could only have been a lie. The try/except is
+                        # the real guard, and it is the one that matters.
+                        try:
+                            arr_wr.write(arrival, name, pmd.MEAS_NAME.get(meas, meas),
+                                         samples[0].sensor_ns, samples[-1].sensor_ns, len(samples))
+                        except Exception:   # telemetry must never disturb the data callback
+                            pass
                     # Diagnostic (inert unless PMD_FRAME_PROBE names a file): records what each frame
                     # ACTUALLY carried vs how many samples we got out of it. Written to answer the Verity
                     # IMU starvation — ACC/GYRO/MAG deliver ~35-44% of nominal with no decode error, so we
