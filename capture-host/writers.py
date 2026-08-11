@@ -763,6 +763,29 @@ class PmdArrivalLogWriter:
         except (OSError, ValueError):
             pass
 
+    @staticmethod
+    def floor_ms(diffs_ms, q: float = 0.01):
+        """The offset estimate, and whether it is a FLOOR or a smear — both, never one alone.
+
+        NOT the bare minimum. Buffering is one-sided so the minimum is the estimator in principle, but a
+        single anomalously early arrival — a scheduling artifact, a chrony step — moves it and nothing
+        says so. A low QUANTILE is robust to that, and the GAP between the two is the diagnostic that
+        made this sidecar necessary in the first place: on the back-timed per-sample stamps the minimum
+        sat 27-115 ms below the 1st percentile, which is what a smeared edge looks like. A real floor has
+        the two nearly coincident.
+
+        Returns (estimate, spread), where spread = quantile - min. Small spread ⇒ a genuine floor and the
+        estimate is usable; large spread ⇒ the edge is smeared and the number must NOT be spent as an
+        offset. Callers are expected to check the second value; returning only the first is how the
+        earlier attempt produced a confident answer from noise.
+        """
+        vals = sorted(v for v in diffs_ms if v is not None and v == v)
+        if len(vals) < 100:
+            return (None, None)          # too few to have an edge at all — refuse, do not guess
+        lo = vals[0]
+        qv = vals[min(len(vals) - 1, int(q * len(vals)))]
+        return (qv, qv - lo)
+
 
 class Spo2CsvWriter:
     """ViHealth-layout SpO2 CSV — `Time,Oxygen Level,Pulse Rate,Motion` with `HH:MM:SS DD/MM/YYYY`

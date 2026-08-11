@@ -1753,7 +1753,13 @@ async def run_polar(dev: dict, root: str):
                     # whenever it leaves the strap, so it must be watched, not assumed).
                     try:
                         dev_dt = _POLAR_EPOCH + _dt.timedelta(microseconds=samples[-1].sensor_ns / 1000)
+                        # `arrival_rows` rides along here because the arrival write above is wrapped in a
+                        # bare `except: pass` — correct, since telemetry must never disturb the data
+                        # callback, but it makes a PERSISTENT writer failure invisible: a dead sidecar
+                        # would look exactly like a quiet night. A count that stops advancing while
+                        # samples keep arriving is the tell, and it costs one field.
                         _set(name, device_time=dev_dt.isoformat(timespec="seconds"),
+                             arrival_rows=(arr_wr.rows if arr_wr is not None else None),
                              clock_skew_sec=round((dev_dt - _utcnow()).total_seconds(), 2))
                     except Exception:  # pragma: no cover — sensor_ns is an unsigned 64-bit int, so
                         pass           # _POLAR_EPOCH + timedelta(µs=ns/1000) is bounded far inside
@@ -2559,6 +2565,19 @@ async def run_oxyii(dev: dict, root: str):
                 oxyflagwr = OxyFrameLogWriter(os.path.join(
                     ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"],
                                            started, "oxyframe", "txt")))
+                # PACKET-ARRIVAL SIDECAR FOR THE RING (PAT-PACKET-ARRIVAL §6). The Polar path records
+                # arrival↔device from `sensor_ns`; the ring exposes no such clock on any streaming
+                # opcode. What it DOES expose is `duration` — seconds into its own session — and that
+                # counter measures 1-55 ppm against the host once segmented on its resets, i.e. a real
+                # device clock, just a coarse one. Pairing it with the true frame arrival gives the ring
+                # the same estimator the Polars get.
+                # ⚠️ 1 s QUANTISATION means the RING'S offset must be fitted, not min-filtered: a
+                # minimum over a quantised counter returns the quantum, not the floor. The intercept of
+                # a regression over thousands of frames recovers it to ~4 ms. The file records the
+                # pairing; choosing the estimator is the reader's job, and `meas` names which is which.
+                oxy_arr_wr = PmdArrivalLogWriter(os.path.join(
+                    ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"],
+                                           started, "pmdarrival", "csv")))
                 reasm = oxyii.Reassembler()
                 # Previous session duration. NOT a drop/dup tally any more: the counters those fields
                 # fed were derived from a misread byte, so they reported phantom loss. The ring exposes
@@ -2695,6 +2714,14 @@ async def run_oxyii(dev: dict, root: str):
                         _seq[0] = live["duration"]
                         _OXYII_LAST_DURATION[addr] = live["duration"]   # survives the next dropout
                         now = _now()
+                        # Arrival↔device pairing, one row per live frame. `duration` is SECONDS, carried
+                        # in the ns column so the file has one shape for every device; the `meas` value
+                        # says which estimator applies (see the writer note above).
+                        try:
+                            _dur_ns = int(live["duration"]) * 1_000_000_000
+                            oxy_arr_wr.write(now, name, "OXYLIVE_DURATION_S", _dur_ns, _dur_ns, 1)
+                        except Exception:   # telemetry must never disturb the data callback
+                            pass
                         if live["spo2"] is not None:
                             # `live["pr"]` passed through AS-IS, including None — `or 0` used to turn an
                             # unreadable pulse rate into a written 0 (VIGIL-PPG-GRID-AUDIT §5.2). The
@@ -2707,6 +2734,7 @@ async def run_oxyii(dev: dict, root: str):
                             note_data(name, _time.monotonic())
                             _set(name, rows=wr.rows, spo2=live["spo2"], pr=live["pr"], battery=live["batt"],
                                  motion=live["motion"], worn=True, last_sample=now.isoformat(),
+                                 arrival_rows=oxy_arr_wr.rows,
                                  charging=bool(live.get("batt_state")), last_error=None)
                         else:
                             BUS.push("motion_o2", [live["motion"]])
@@ -2809,6 +2837,10 @@ async def run_oxyii(dev: dict, root: str):
             _set(name, connected=False, last_error=repr(e))
             log.warning("%s link error: %r", name, e)
         finally:
+            try:
+                oxy_arr_wr.close()
+            except Exception:
+                pass
             # Report the honest gaps this session inserted. Silence here would re-create the very problem
             # the gap insertion fixes — a lossy link that LOOKS clean. Logged even at zero, so "no gaps"
             # is an observation rather than an absence of evidence.

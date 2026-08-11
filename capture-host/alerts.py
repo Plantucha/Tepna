@@ -227,6 +227,43 @@ def offline_alert_suppressed(optional: bool, ever_connected: bool) -> bool:
 #   has written something                          — a device that produced nothing all night is
 #                                                    `missing`, which already alerts. Two names for
 #                                                    one fault is noise.
+def arrival_canary(qc: dict, live: dict) -> list[str]:
+    """THE CANARY for the packet-arrival sidecar — streams whose offset floor has stopped being a floor.
+
+    The sidecar exists so `min(arrival - device)` recovers the per-connection BLE offset, which works
+    only because buffering is one-sided and therefore has a hard lower EDGE. Two things can silently
+    take that away: the writer dying (rows stop while samples continue) and the edge smearing (a wedged
+    stack, a clock step, a device that starts batching differently). Neither shows up in the data files,
+    and without this both surface weeks later inside an analysis — which is exactly how the back-timed
+    stamps this replaces went unnoticed for the whole corpus.
+
+    Two failures, deliberately reported as one list a human can act on:
+      * SMEARED — nightqc measured `floor_ok: False`, i.e. the minimum sits far below the low quantile.
+      * DEAD    — the device is connected and writing samples, but its sidecar row count is not
+                  advancing. The write is wrapped in a bare `except: pass` (telemetry must never disturb
+                  the data callback), so a persistent failure is invisible by construction; this is the
+                  only thing that would notice.
+
+    NEVER fires on `floor_ok: None`. That is the QUANTISED ring, whose offset must be fitted rather than
+    min-filtered — judging it by the floor rule would page someone every single night, and an alert that
+    always fires is one nobody reads.
+    """
+    out = []
+    for row in qc.get("arrival") or []:
+        if row.get("floor_ok") is False:                      # is False, never falsy — None means unjudged
+            out.append(f"{row.get('device')} {row.get('meas')} — arrival floor smeared "
+                       f"({row.get('floor_spread_ms')} ms below the 1st percentile)")
+    for name, st in (live or {}).items():
+        if not st or not st.get("connected"):
+            continue
+        rows, arr = st.get("rows"), st.get("arrival_rows")
+        # Only a device that is DEMONSTRABLY producing data can have a dead sidecar. `arrival_rows` is
+        # absent on non-PMD devices and None before the first frame — neither is a fault.
+        if arr is not None and rows and arr == 0:
+            out.append(f"{name} — writing samples but the arrival sidecar has no rows")
+    return out
+
+
 def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
     """Devices that are connected and awake but have stopped producing data.
 

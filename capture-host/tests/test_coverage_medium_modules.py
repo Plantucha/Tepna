@@ -43,6 +43,9 @@ def test_stream_writer_fsync_path_and_idempotent_close(tmp_path):
     (lambda p: writers.HostClockLogWriter(p, fsync=True), lambda w: w.write(WHEN, {"trust": "ntp"})),
     (lambda p: writers.LinkLogWriter(p, fsync=True), lambda w: w.write(WHEN, "D", True, -50, 90)),
     (lambda p: writers.Spo2CsvWriter(p, fsync=True), lambda w: w.write(WHEN, 96, 54, 0)),
+    # Joined here rather than given a bespoke test: this list IS the contract every sidecar writer is
+    # held to, and a new writer that sits outside it is one nobody notices has stopped meeting it.
+    (lambda p: writers.PmdArrivalLogWriter(p, fsync=True), lambda w: w.write(WHEN, "D", "ECG", 1_000_000_000, 1_069_000_000, 10)),
 ])
 def test_every_sidecar_fsyncs_and_survives_double_close(tmp_path, make, write):
     w = make(str(tmp_path / "s.csv"))
@@ -180,6 +183,7 @@ class _RaisingFh:
     (lambda p: writers.HostClockLogWriter(p, fsync=False), lambda w: w.write(WHEN, {"trust": "x"})),
     (lambda p: writers.LinkLogWriter(p, fsync=False), lambda w: w.write(WHEN, "D", True, -1, 1)),
     (lambda p: writers.Spo2CsvWriter(p, fsync=False), lambda w: w.write(WHEN, 96, 54, 0)),
+    (lambda p: writers.PmdArrivalLogWriter(p, fsync=False), lambda w: w.write(WHEN, "D", "ECG", 1_000_000_000, 1_069_000_000, 10)),
 ])
 def test_a_writer_close_swallows_a_raising_handle(tmp_path, make, write):
     """close() must never propagate — a failing flush/fsync/close during teardown would mask the real
@@ -195,6 +199,7 @@ def test_a_writer_close_swallows_a_raising_handle(tmp_path, make, write):
     (lambda p: writers.HostClockLogWriter(p, flush_interval=0, fsync=False), lambda w: w.write(WHEN, {"trust": "x"})),
     (lambda p: writers.LinkLogWriter(p, flush_interval=0, fsync=False), lambda w: w.write(WHEN, "D", True, -1, 1)),
     (lambda p: writers.Spo2CsvWriter(p, flush_interval=0, fsync=False), lambda w: w.write(WHEN, 96, 54, 0)),
+    (lambda p: writers.PmdArrivalLogWriter(p, flush_interval=0, fsync=False), lambda w: w.write(WHEN, "D", "ECG", 1_000_000_000, 1_069_000_000, 10)),
 ])
 def test_zero_flush_interval_flushes_on_every_write(tmp_path, make, write):
     w = make(str(tmp_path / "w.txt"))
