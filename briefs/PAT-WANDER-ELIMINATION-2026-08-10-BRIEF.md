@@ -72,6 +72,65 @@ biases every statistic computed through it,** and nights must be screened on edg
 before their common-mode is quoted. The headline figure should be read as **ρ ≈ 0.86 on the uncensored
 night**, with the censored nights' values not yet trustworthy in either direction.
 
+### 1.2 · ⛔ THE OBJECT WAS TWO PHENOMENA — most of §3 was computed on a mixture
+
+§1.1 said nights must be screened on edge censoring. Doing it produced a stronger result than a
+caveat. Pairing WITHOUT the window — first foot after R, bounded only by `0.9 × local RR`, which is the
+constraint that actually prevents beat slip — measures the censoring instead of assuming it:
+
+| night · site | uncensored median | below 200 | above 650 | **total censored** | uncensored wander |
+|---|---|---|---|---|---|
+| **2026-08-02 finger** | 366 | 0.1 % | 0.1 % | **0.1 %** | **125** |
+| **2026-08-02 ankle** | 336 | 0.0 % | 0.0 % | **0.0 %** | **129** |
+| **2026-07-28 finger** | 401 | 0.1 % | 0.1 % | **0.2 %** | **72** |
+| 2026-07-28 ankle | 224 | 28.4 % | 0.0 % | 28.4 % | 111 |
+| 2026-08-01 ankle | 218 | 46.7 % | 2.3 % | 49.0 % | 378 |
+| 2026-08-04 finger | 603 | 14.5 % | 45.2 % | 59.8 % | **1002** |
+| 2026-08-05 ankle | 567 | 13.8 % | 41.1 % | 54.9 % | 830 |
+| 2026-08-06 ankle | 585 | 9.3 % | 40.0 % | 49.3 % | 848 |
+| 2026-08-07 finger | 478 | 26.5 % | 28.8 % | 55.3 % | 770 |
+| 2026-07-30 finger | 831 | 1.5 % | **95.9 %** | 97.4 % | 49 |
+
+**The shipped window discarded most of the data on 16 of 19 site-nights**, up to 97 %. And the
+uncensored wander on the censored nights — 1002, 848, 834, 830, 770, 759, 717 ms — is **≈ one RR
+interval**, which is the signature `PAT-SAWTOOTH-ANSWERS-THE-130MS` measured directly (offset ramping
+through 821–1162 ms, then wrapping).
+
+The traces settle it. Uncensored 5-min bin medians, same code, two nights:
+
+```
+2026-08-04 (60 % censored)
+  239 155 104  61 | 946 913 889 887 877 879 897 | 376 397 412 … 607 | 324 … 687 | 561 … 1063 | 928 951 …
+      ramp, WRAP, ramp, WRAP, ramp, WRAP — amplitude ≈ one RR
+
+2026-08-02 (0.1 % censored)
+  433 410 398 391 390 373 364 348 336 337 323 318 310 308 321 335 353 368 383 396 405 399
+      one smooth U — down 433→308, back to 405, no wrap, 125 ms total
+```
+
+**So "the wander" was two phenomena analysed as one:**
+
+1. **On censored nights — the sawtooth.** A drifting inter-device relative phase wrapping mod one RR,
+   already documented in `PAT-SAWTOOTH-ANSWERS-THE-130MS`. The window sliced it, and the slice looked
+   like slow movement. **This is not PAT and no PAT statistic computed on those nights means anything.**
+2. **On uncensored nights — a smooth 72–129 ms excursion** with no wrap. This is the real object.
+
+**Consequences, stated plainly:**
+
+- **§3's eliminations were computed on the mixture and are therefore not valid as stated.** Testing a
+  covariate against a signal that is part clock artifact and part physiology is why every one of them
+  returned an inconsistent sign. They are not *wrong*, they are **uninformative**, and they must be
+  re-run on uncensored nights before any of them counts as an elimination.
+- **The common-mode figure survives only where it was measurable.** Recomputed on the uncensored
+  pairing: **ρ = 0.86 on 2026-08-02 (0.1 % censored)**; the other nights give −0.58, 0.53, 0.85, 0.87,
+  −0.14, −0.18, 0.99, −0.30, 0.96 at 4.9–59.8 % censoring, i.e. no information in either direction.
+- **The usable corpus for PAT is 2–3 site-nights, not 8.** That is the single most important number in
+  this brief.
+- **The `PHYS` window was masking an offset problem**, not filtering an implausible one. On nights where
+  the inter-device offset puts the true lag outside `[200,650]`, the window silently retained whatever
+  fraction happened to fall inside — which is how a night with a 97 % censored, 831 ms median lag still
+  produced a confident-looking PAT number.
+
 ## 2.1 · THE METHOD THAT SHOULD HAVE COME FIRST — partition the chain, don't enumerate causes
 
 §2 and §3 list nineteen candidates chosen because each *sounded plausible*: posture, battery, ultradian
@@ -130,6 +189,12 @@ the low-match-rate nights. It does not touch the wander (those bins fail qualifi
 independent data-quality signal that may be worth a detector.
 
 ## 3 · Eliminated — physiology and environment
+
+> ⛔ **READ §1.2 FIRST. Every row below was computed on a MIXTURE of the sawtooth and the real
+> excursion, so each is uninformative rather than conclusive.** They are retained because the method
+> and the instruments are reusable and because the negative on `time-of-night` (which needs many
+> nights) is hard to redo, not because the corpus supported them. Re-running these on uncensored
+> nights is item 0 of §6.
 
 | candidate | instrument | result |
 |---|---|---|
@@ -209,9 +274,12 @@ alongside the 130 Hz ECG. **Verify the rate from a written file before using it*
 
 Open, in order of expected value:
 
-0. **Screen every night on edge-censoring fraction before quoting anything through the `PHYS` window**
-   (§1.1). Cheap, and it decides which nights the rest of this brief's numbers may be computed on. The
-   uncensored night 2026-08-02 is the only fully trustworthy case at present.
+0. **Re-run §3's eliminations on uncensored nights only** (§1.2). The screening itself is done — the
+   verdicts computed on top of it are not. Until then §3 is a record of instruments, not of exclusions.
+0b. **Resolve the sawtooth, or the corpus stays at 2–3 site-nights.** Every heavily censored night is
+   a night where the inter-device offset drifts through a whole RR; recovering those recordings is
+   worth more than any further covariate hunting, because it is the difference between n=2 and n=15.
+   Owned by `PAT-SAWTOOTH-ANSWERS-THE-130MS`, which leaves the cause unestablished.
 1. **Ensemble SCG at 100 Hz** → PEP per 5-min bin, with the shifted-trigger control mandatory. This
    converts §6's inference into a measurement, or refutes it.
 2. **Pulse-wave analysis features** (stiffness/reflection index from the pulse shape) — untested here,
