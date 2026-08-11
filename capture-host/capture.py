@@ -11,8 +11,8 @@
 from __future__ import annotations
 import argparse, asyncio, contextlib, json, logging, math, os, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter,
-                     HostClockLogWriter, capture_filename, missing_identity, night_dir,
-                     open_sample_writers)
+                     HostClockLogWriter, PmdArrivalLogWriter, capture_filename, missing_identity,
+                     night_dir, open_sample_writers)
 import proc_util
 import polar_pmd as pmd
 import viatom
@@ -1625,6 +1625,9 @@ async def run_polar(dev: dict, root: str):
                                            # rate. Per-connection scope: a reconnect must NOT carry a stale
                                            # seam across the gap (the guard would reject it anyway).
         hr_writer = None
+        # Declared out here, not inside the connect block, so the `finally` can close it even when the
+        # session dies before a single packet lands — the same reason hr_writer lives here.
+        arr_wr = None
         started = _now()
         ndir = night_dir(root, started)
         charging_hold = False              # device refused PMD because it is on the charger (status 0x0D).
@@ -1648,6 +1651,16 @@ async def run_polar(dev: dict, root: str):
                     p = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, stream, ext))
                     return StreamWriter(p, stream)
                 tag = _dev_tag(dev)
+                # PACKET-ARRIVAL SIDECAR (PAT-PACKET-ARRIVAL). The per-sample `phone` stamps this
+                # session writes are BACK-TIMED across each packet from one arrival, so the inter-device
+                # offset cannot be recovered from them: the minimum of (host - device) has no floor,
+                # only a smear the width of the packet. Measured, that minimum sits 27-115 ms below the
+                # 1st percentile — an outlier, not an edge. This records the TRUE arrival instant beside
+                # the device timestamp of the packet's first sample, which is the one pairing that makes
+                # the per-connection offset measurable. Opened per session, alongside the stream files.
+                arr_wr = PmdArrivalLogWriter(
+                    os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"],
+                                                        started, "pmdarrival", "csv")))
                 meas_of = {"ecg": pmd.ECG, "acc": pmd.ACC, "ppg": pmd.PPG,
                            "gyro": pmd.GYRO, "mag": pmd.MAG, "ppi": pmd.PPI}
 
@@ -1716,6 +1729,16 @@ async def run_polar(dev: dict, root: str):
                         _set(name, last_error=str(e)); return   # only ValueError — a decoder must never disturb the callback
                     if samples:
                         prev_ns[meas] = samples[-1].sensor_ns   # seam anchor for the next frame's step
+                        # THE TRUE ARRIVAL, paired with the device stamp of this packet's FIRST sample.
+                        # Written before the `writers.get(meas)` gate below on purpose: a stream with no
+                        # writer still carries a usable arrival↔device pair, and the offset is a property
+                        # of the LINK, not of whichever streams happen to be enabled.
+                        if arr_wr is not None:
+                            try:
+                                arr_wr.write(arrival, name, pmd.MEAS_NAME.get(meas, meas),
+                                             samples[0].sensor_ns, samples[-1].sensor_ns, len(samples))
+                            except Exception:   # telemetry must never disturb the data callback
+                                pass
                     # Diagnostic (inert unless PMD_FRAME_PROBE names a file): records what each frame
                     # ACTUALLY carried vs how many samples we got out of it. Written to answer the Verity
                     # IMU starvation — ACC/GYRO/MAG deliver ~35-44% of nominal with no decode error, so we
@@ -2241,6 +2264,8 @@ async def run_polar(dev: dict, root: str):
             # its file for exactly this reason; this generalises it to every way a session can end.
             # discard(), never os.remove(wr.path): the writer knows every file it owns and `path` names
             # only the primary — see StreamWriter.paths (CAPTURE-HOST-DEEP-AUDIT §C8).
+            if arr_wr is not None:
+                arr_wr.close()
             for wr in list(writers.values()) + ([hr_writer] if hr_writer else []):
                 if not wr.rows:
                     names = ", ".join(os.path.basename(p) for p in wr.paths)
