@@ -266,6 +266,57 @@ sudo -n /usr/local/lib/tepna/tepna-restart.sh restart
    before any of this is useful downstream — potentially the largest piece of work in the brief, and
    currently unestimated.
 
+### MEASURED 2026-08-10/11 — the H10 half is settled, and one design assumption is dead
+
+The probe ran (`probe_pmd_surface.py`, plus PS-FTP queries by hand). Everything below is off the
+hardware or off the SDK source, not off this brief:
+
+| question | answer | evidence |
+|---|---|---|
+| Does the H10 do PMD offline recording? | **No.** | `0180`/`0182` (settings, offline bit) → `0x02 INVALID_MEASUREMENT_TYPE`. The `0x80` bit is not a recording flag to it, it is an invalid type. |
+| Does it advertise SDK mode? | **No.** | feature bitmask `0f05` = bits 0,2 = ECG + ACC only. No `0x9`, no PPG, no PPI, no offline-recording feature. |
+| Can we ask it what it is recording? | **No, not over PMD.** | `05` MEASUREMENT_STATUS → `0x01 INVALID_OP_CODE`. Recording state must come from PS-FTP `REQUEST_RECORDING_STATUS (16)`. |
+| How much memory (§6 Q2, H10 side)? | **The device will not say.** | PS-FTP `GET_DISK_SPACE (5)` → `201 NOT_IMPLEMENTED`. Polar's published figure is the only source: **"+30 hours" of HR at 1 Hz, ONE session at a time.** |
+| Is PS-FTP reachable at all? | **Yes.** | query 5 returned a structured protobuf error — the transport works end to end, so query 16 is reachable when wanted. |
+
+Firmware 5.0.0, hardware `00760690.03`. ECG fixed 130 Hz / 14-bit; ACC 25/50/100/200 Hz, 16-bit,
+±2/4/8 g.
+
+**The wire format in this brief is CORRECT — re-read from the SDK source, not trusted.**
+`pftp_request.proto` and `types.proto` confirm `REQUEST_START_RECORDING = 14`, `STOP = 15`,
+`STATUS = 16`, `PbPFtpRequestStartRecordingParams`, `SAMPLE_TYPE_HEART_RATE = 1` and
+**`SAMPLE_TYPE_RR_INTERVAL = 16`** verbatim. Two corrections: `PbDuration`'s fields are
+`optional … default 0`, not required; and the enum has **six queries this brief omits** —
+`GET_DISK_SPACE = 5`, `REQUEST_SYNCHRONIZATION = 13`, and `START/STOP/PAUSE/RESUME/
+GET_EXERCISE_STATUS/START_DM_EXERCISE = 21–26`.
+
+⚠️ **§6 Q1 IS STILL OPEN.** Whether the H10 ACCEPTS `SampleType.RR` was not tested — no start command
+was ever sent, because that needs the `_ALLOWED_QUERIES` widening this brief rightly gates. Everything
+above narrows the design around that question; it does not answer it.
+
+### ⚠️ THE VERITY MODE SELECTOR AS DESIGNED WOULD DELETE TWO STREAMS
+
+`documentation/products/PolarVeritySense.md`, which this brief did not consult:
+
+```
+| PPI | PPI online stream or offline recording is not supported in SDK MODE |
+| HR  | HR  online stream or offline recording is not supported in SDK MODE |
+```
+
+SDK mode is what unlocks PPG above 55 Hz — so **"SDK mode on" and "PPI/HR available" are mutually
+exclusive on this hardware**, and the monitor offered both as independent switches. Measured
+2026-08-10: SDK mode was enabled for 176 Hz PPG at ~11:30 and PPI answered `invalid_state` for the
+rest of the day and the whole night; the night's QC recorded `Polar Verity Sense:hr` missing and 0 PPI
+rows. Worse, SDK mode is DEVICE state that survives the config — turning the switch off only stopped
+us re-entering it, so a manual power cycle was the only cure (fixed since: the switch now sends
+`03 09`).
+
+⚠️ **And the skin-contact bit is not a foundation to build on.** Same doc: *"Skin contact detection is
+very unreliable in Polar Verity Sense. Skin contact of PPI packets should not be trusted."* Our own
+corpus separates perfectly (desk 0/31,877 rows, worn 1/20,957), so it is usable — but its documented
+failure direction is a FALSE `worn`, which for a drop-the-link decision is the safe direction and for
+a "the data is good" decision is not.
+
 ---
 
 ## 6a · The monitor control — a MODE, and it ships in Phase 2, not before
