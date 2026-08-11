@@ -132,17 +132,32 @@ export function censoring(values, lo, hi, edgeBand) {
 
 /* DRAWN — was this axis synthesized as `index x assumed_rate` rather than measured?
    A constructed ladder has its inter-sample deltas concentrated on a single value; a real clock's
-   deltas scatter around it. `share` is the fraction of deltas within `tol` of the modal delta. The
-   O2Ring's synthesized stamp sits near 1.0 here; a real device axis with delivery jitter does not. */
+   deltas scatter around it.
+
+   ⚠️ ONE TOLERANCE IS NOT ENOUGH, and the first version got this wrong in a way that produced false
+   findings on real data. At a 1e-3 relative tolerance a HOST-CORRECTED axis also reads as a perfect
+   ladder, because the correction is ppm-scale: at 130 Hz the deltas are 7.69 ms and the tolerance is
+   0.0077 ms, while a 20.7 ppm correction changes each delta by 0.00016 ms — 48x BELOW the tolerance.
+   Measured consequence: the ECG sample axis read `drawn` at exactly 1.000 on six real nights whose
+   host axis was applied and working.
+   So the shares are computed at THREE tolerances and the verdict is taken at the fine one. A true
+   ladder is constant to floating-point exactness and holds 1.000 at every level; a ppm-corrected axis
+   holds 1.000 only at the coarse level and collapses at the fine one. The coarse share is retained
+   because the SPREAD across levels is the diagnosis: `1.000 / 1.000 / 1.000` is synthesized, while
+   `1.000 / low / low` is corrected and was never drawn at all. */
 export function drawnAxis(times, tol) {
   const d = diffs(Array.from(times));
-  if (d.length < 16) return { share: NaN, drawn: false, n: d.length };
+  if (d.length < 16) return { share: NaN, shares: null, drawn: false, n: d.length };
   const m = med(d);
-  const t = Number.isFinite(tol) ? tol : Math.max(1e-9, Math.abs(m) * 1e-3);
-  let same = 0;
-  for (const x of d) if (Math.abs(x - m) <= t) same++;
-  const share = same / d.length;
-  return { share, modal: m, drawn: share >= 0.99, n: d.length };
+  const at = (t) => {
+    let same = 0;
+    for (const x of d) if (Math.abs(x - m) <= t) same++;
+    return same / d.length;
+  };
+  const rel = (f) => at(Math.max(Number.EPSILON, Math.abs(m) * f));
+  const shares = { fine: rel(1e-6), mid: rel(1e-4), coarse: rel(1e-3) };
+  const share = Number.isFinite(tol) ? at(tol) : shares.coarse;
+  return { share, shares, modal: m, drawn: shares.fine >= 0.99, n: d.length };
 }
 
 /* STEP — one discontinuity far outside the local scatter. Reported as the ratio of the largest step to
@@ -192,6 +207,13 @@ export function plant(kind, n) {
       out.push(i % 3 === 0 ? 90 + i : 300 + (i % 40)); // a third outside — by design
     else if (kind === 'drawn')
       out.push(300 + i * 0.5); // an exact ladder, constant delta, in bounds
+    /* A ppm-CORRECTED axis: constant deltas at a coarse tolerance, varying at a fine one. This is the
+       shape that fooled the single-tolerance probe on six real nights, so it is a first-class plant —
+       it must read as NOT drawn while still showing coarse-share 1.000, which IS the diagnosis.
+       Kept on the SAME scale as the `drawn` plant so it stays inside [200,650]: the first cut spanned
+       0-952 ms and the bounded probes fired on it, which is the isolate-one-shape rule broken by the
+       very file that states it — twice now, in the same session. */
+    else if (kind === 'corrected') out.push(300 + i * 0.5 - 20e-6 * (i * 0.5) * (i / N) * 0.5);
     else if (kind === 'step')
       out.push(300 + (i % 7) + (i > N / 2 ? 200 : 0)); // one jump, in bounds
     else if (kind === 'clean') out.push(300 + 20 * Math.sin(i / 9) + ((i * 2654435761) % 11) - 5);

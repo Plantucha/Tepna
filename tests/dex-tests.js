@@ -39049,7 +39049,7 @@
         T.eq('§2 planted ' + shape + ' fires exactly [' + shape + ']', fired.join(','), shape);
       });
       // the controls: a real series that is merely noisy, trending or wandering must fire NOTHING
-      ['clean', 'ramp', 'walk'].forEach(function (ctrl) {
+      ['clean', 'ramp', 'walk', 'corrected'].forEach(function (ctrl) {
         T.eq('§2 control ' + ctrl + ' fires nothing', G.probeAll(G.plant(ctrl), OPTS).fired.length, 0);
       });
       // the real numbers each probe was built from — these are the defects, not synthetic stand-ins
@@ -39062,6 +39062,16 @@
       var drawn = G.drawnAxis([0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136]);
       T.ok('§2 the O2Ring 8 ms ladder reads as DRAWN', drawn.drawn && drawn.share === 1);
       T.ok('§2 …and a jittered version of the SAME rate does not', !G.drawnAxis([0, 8, 15, 25, 31, 41, 47, 57, 63, 73, 80, 87, 97, 103, 113, 119, 129, 135]).drawn);
+      /* ONE TOLERANCE IS NOT ENOUGH. A ppm-scale host correction changes a 7.69 ms delta by 0.00016 ms,
+         48x below a 1e-3 relative tolerance — so a CORRECTED axis read `drawn` at exactly 1.000 on six
+         real nights. The verdict is taken at the fine tolerance; the SPREAD across tolerances is the
+         diagnosis, and both halves are asserted so neither can silently regress. */
+      var lad = G.drawnAxis(G.plant('drawn')),
+        cor = G.drawnAxis(G.plant('corrected'));
+      T.ok('§2 a true ladder is constant at EVERY tolerance', lad.drawn && lad.shares.fine === 1 && lad.shares.coarse === 1);
+      T.ok('§2 a ppm-corrected axis is NOT drawn — the defect that shipped', !cor.drawn);
+      T.ok('§2 …yet still reads 1.000 at the coarse tolerance, which is why it fooled one', cor.shares.coarse === 1);
+      T.ok('§2 …and the spread across tolerances is the diagnosis', cor.shares.coarse - cor.shares.fine > 0.5);
       // a probe must also be able to say NO on the shape it hunts, or it is a rubber stamp
       T.ok('§2 saturation says NO on a distribution spread across the window', !G.saturation(G.plant('clean'), 200, 650).saturated);
       T.ok('§2 sawtooth says NO on a monotone ramp (no wrap)', !G.sawtooth(G.plant('ramp'), 450).isSawtooth);
