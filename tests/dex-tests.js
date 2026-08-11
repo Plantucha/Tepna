@@ -39025,6 +39025,57 @@
       }
     });
 
+    /* PAT-GEOMETRY-PROBE §2 — THE SPECIFICITY MATRIX.
+       Every timeline defect this project has shipped was a SHAPE, and each was found by eye only after
+       a wrong conclusion had been published: driftRange SATURATING at the 450 ms window, the ECG↔PPG
+       offset SAWTOOTHING mod one RR, PHYS CENSORING up to 97.4 % of beats, the O2Ring axis being a
+       DRAWN ladder, hostAxis carrying a seconds-scale STEP.
+       The probes are the geometric analogue of mutation testing — the signature IS the mutant — and the
+       property that makes them worth anything is SPECIFICITY, not sensitivity. A detector that fires on
+       everything would have "found" all five defects and located none. So the assertion is the full
+       matrix: each planted shape fires its OWN probe and leaves the other four silent, and three
+       controls (a clean signal, a smooth trend, a random walk) fire nothing at all.
+       Node-lane only — the browser lane cannot import an ESM tool, so it SKIPs as docs-ledger does. */
+    group('geometry-probe — five timeline shapes, and each probe fires on ONLY its own', 'geometry-probe · timeline · alignment · specificity', function (T) {
+      var G = env.GeomProbe;
+      if (!G || typeof G.probeAll !== 'function') {
+        T.skip('geometry-probe: ESM tool import unavailable in this lane');
+        return;
+      }
+      var OPTS = { lo: 200, hi: 650, period: 450 };
+      // the diagonal: planted shape -> its own probe, and nothing else
+      G.PROBES.forEach(function (shape) {
+        var fired = G.probeAll(G.plant(shape), OPTS).fired;
+        T.eq('§2 planted ' + shape + ' fires exactly [' + shape + ']', fired.join(','), shape);
+      });
+      // the controls: a real series that is merely noisy, trending or wandering must fire NOTHING
+      ['clean', 'ramp', 'walk'].forEach(function (ctrl) {
+        T.eq('§2 control ' + ctrl + ' fires nothing', G.probeAll(G.plant(ctrl), OPTS).fired.length, 0);
+      });
+      // the real numbers each probe was built from — these are the defects, not synthetic stand-ins
+      /* driftRange is a RANGE, so its interval is [0, window width] — NOT the lag interval [200,650].
+         The first cut passed the lag bounds and the probe correctly said no; wrong bounds, right
+         detector. The nine real values sit at 93-98 % of the 450 ms ceiling. */
+      var sat = G.saturation([442, 431, 430, 427, 427, 425, 423, 423, 420, 428], 0, 450);
+      T.ok('§2 the nine real driftRange values read as SATURATED at the window', sat.saturated);
+      T.ok('§2 …and the same values against the WRONG interval do not — bounds are load-bearing', !G.saturation([442, 431, 430, 427, 427, 425, 423, 423, 420, 428], 200, 650).saturated);
+      var drawn = G.drawnAxis([0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136]);
+      T.ok('§2 the O2Ring 8 ms ladder reads as DRAWN', drawn.drawn && drawn.share === 1);
+      T.ok('§2 …and a jittered version of the SAME rate does not', !G.drawnAxis([0, 8, 15, 25, 31, 41, 47, 57, 63, 73, 80, 87, 97, 103, 113, 119, 129, 135]).drawn);
+      // a probe must also be able to say NO on the shape it hunts, or it is a rubber stamp
+      T.ok('§2 saturation says NO on a distribution spread across the window', !G.saturation(G.plant('clean'), 200, 650).saturated);
+      T.ok('§2 sawtooth says NO on a monotone ramp (no wrap)', !G.sawtooth(G.plant('ramp'), 450).isSawtooth);
+      T.ok('§2 sawtooth says NO on a random walk (wraps but no consistent ramp)', !G.sawtooth(G.plant('walk'), 450).isSawtooth);
+      T.ok('§2 step says NO on a smooth trend', !G.stepiness(G.plant('ramp')).hasStep);
+      T.ok('§2 censoring says NO when everything is inside the interval', !G.censoring(G.plant('clean'), 200, 650).censored);
+      // censoring must ALSO report the edge bias, which is the half that makes a remnant misleading
+      var cen = G.censoring(G.plant('censoring'), 200, 650);
+      T.ok('§2 censoring reports how much was discarded', cen.outside > 0.2);
+      T.ok('§2 …and that the survivors are edge-biased', isFinite(cen.keptEdgeShare));
+      // degenerate input must refuse rather than invent a verdict
+      T.ok('§2 too few points ⇒ no verdict, not a false one', G.probeAll([1, 2, 3], OPTS).fired.length === 0);
+    });
+
     group('A second oximeter cannot double the apnea index — §3.1', 'integrator-dsp · apnea · fabricated-redundancy', function (T) {
       var RF = env.runFusion;
       T.ok('runFusion available', typeof RF === 'function');

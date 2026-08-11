@@ -1543,6 +1543,18 @@ async function main() {
         return null;
       }
     })(),
+    /* PAT-GEOMETRY-PROBE §2 — the five geometric signatures every timeline defect in this project has
+       turned out to be (saturation · sawtooth · censoring · drawn · step), as pure detectors. The group
+       plants each shape and asserts the SPECIFICITY MATRIX: own probe fires, other four silent. Same
+       module the tool runs, so detector and CLI cannot drift. Node-lane only; the browser lane has no
+       ESM tool import and SKIPs, as docs-ledger does. */
+    GeomProbe: await (async () => {
+      try {
+        return await import('../tools/geometry-probe.mjs');
+      } catch {
+        return null;
+      }
+    })(),
     toolSources: readToolSources(),
     sources: readSources(),
     // §F1.5 — the TCH golden's input builder, shared with tools/regen-integrator-goldens.mjs
