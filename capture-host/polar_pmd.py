@@ -391,13 +391,33 @@ def chosen_rate(meas: int, settings: dict[int, list[int]], prefer: int | None = 
     """The sample rate build_start() will select for this meas (for back-timing + ring sizing).
 
     `prefer` is a user choice (config `devices[].rates`). It is HONOURED ONLY IF THE DEVICE OFFERS IT —
-    an unsupported rate would be rejected at START and leave a permanently idle stream, so an invalid
-    choice silently falls back to the built-in preference rather than breaking capture."""
+    an unsupported rate would be rejected at START and leave a permanently idle stream, so an
+    unofferable choice degrades to the NEAREST rate the device does offer rather than breaking capture.
+
+    ⚠️ NEAREST, NOT MAX. This fell back to `max(rates)`, i.e. the most EXPENSIVE entry on the menu, for
+    any target the device does not list. A project preference is not a device capability: `_PREF_RATE`
+    asks ACC for 50 and a Verity Sense offers [26, 52, 104, 208, 416], so the nearest sane answer is 52
+    and the old code chose 416 — eight times the rate, ~20 MB/h instead of ~2.5, for a stream whose
+    consumer is a 4 Hz motion grid that cannot use anything above ~52. Measured on the box 2026-08-10:
+    the Verity streamed ACC at 416 Hz for ten hours purely because its menu has no 50 in it.
+
+    Ties go to the LOWER rate: cheaper in battery, radio and disk, and nothing in this suite needs the
+    headroom. "The device does not offer what we asked for" means "pick the closest thing it does",
+    never "pick the biggest".
+
+    An EMPTY menu is a different case and deliberately keeps the vendor default: `build_start` only
+    emits a rate TLV when the device reported a menu, so with none the device runs at its own default
+    and `SAMPLE_HZ` is what actually happens. Returning the configured value there would be a claim
+    about the wire that is not true — capture.py warns about that mismatch separately."""
     rates = settings.get(0x00) or []
-    if prefer is not None and prefer in rates:
-        return prefer
-    pref = _PREF_RATE.get(meas)
-    return pref if pref in rates else (max(rates) if rates else SAMPLE_HZ.get(meas, 0))
+    if not rates:
+        return SAMPLE_HZ.get(meas, 0)
+    target = prefer if prefer is not None else _PREF_RATE.get(meas)
+    if target is None:
+        return max(rates)                       # no preference expressed for this measurement at all
+    if target in rates:
+        return target
+    return min(rates, key=lambda r: (abs(r - target), r))
 
 
 def build_start(meas: int, settings: dict[int, list[int]], prefer: int | None = None) -> bytes | None:
