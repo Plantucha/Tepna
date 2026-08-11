@@ -1,0 +1,67 @@
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# JS LINE/BRANCH/FUNCTION COVERAGE — the number the JS side never had.
+#
+# WHY THIS EXISTS. capture-host enforces `pytest --cov --cov-branch --cov-fail-under=100`, and its
+# mutation kill rate is 74.6 % (8074 mutants, 19 modules). The JS fleet, fully swept, is 38.5 %
+# (9996 mutants, 8 DSPs) — and had NO coverage tooling at all. Coverage is not mutation adequacy, but
+# it is a PRECONDITION: a mutant on a line the suite never executes cannot be killed by anything.
+#
+# The whole MUTATION-PROGRAM brief is a record of rediscovering that by hand, one function at a time —
+# parseCSV parsing zero rows because its stamps were dash-separated, genSynthetic's artifact spans
+# sitting at t = 88 min beyond every fixture, beatRegularity never scoring below 1.0 because a lone
+# irregular interval always has a regular neighbour. Every one of those is a coverage report line.
+#
+# NO THRESHOLD YET, deliberately. A floor has to be set from a measured baseline; guessed, it lands
+# red on day one and gets switched off. This publishes the number so the floor can be chosen.
+#
+# NOT ON EVERY PR: the coverage run IS the full suite (~8 min), so per-PR it would double the merge
+# critical path CLAUDE.md §👥.5 is already fighting, to report a number that does not move commit to
+# commit. Weekly + on-demand, same reasoning as ci-timing.yml.
+name: coverage
+
+on:
+  schedule:
+    - cron: '41 6 * * 1' # Mondays 06:41 UTC — after ci-timing, same off-peak window
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: js coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Measure
+        run: |
+          set -o pipefail
+          npx c8 --reporter=text --reporter=text-summary \
+            node tests/run-tests.mjs 2>&1 | tee /tmp/cov.txt
+      - name: Publish to the job summary
+        if: always()
+        run: |
+          {
+            echo '## JS coverage'
+            echo
+            echo 'Reference: capture-host runs `--cov-fail-under=100` and mutation-kills 74.6 %.'
+            echo 'The JS fleet mutation-kills 38.5 %. Coverage is the precondition, not the goal.'
+            echo
+            echo '```'
+            sed -n '/Coverage summary/,/^====/p' /tmp/cov.txt || true
+            echo '```'
+            echo
+            echo '<details><summary>Per-file</summary>'
+            echo
+            echo '```'
+            grep -E '^\s*[A-Za-z0-9_.-]+\.js\s*\|' /tmp/cov.txt | sort -t'|' -k2 -n | head -40 || true
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"

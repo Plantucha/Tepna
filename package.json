@@ -21,6 +21,8 @@
     "test:shard": "node tests/run-tests.mjs --shard",
     "verify:shard-union": "node tests/verify-shard-union.mjs",
     "test:build-core": "node tests/build-core-tests.mjs",
+    "coverage": "c8 node tests/run-tests.mjs",
+    "coverage:report": "c8 --reporter=html --reporter=text-summary node tests/run-tests.mjs",
     "verify:manifest": "node tests/verify-manifest.mjs",
     "test:hooks": "bash .claude/hooks/guard-shared-tree.test.sh && bash .claude/hooks/guard-stale-brief.test.sh",
     "check:dex": "node tests/check-dex.mjs",
@@ -39,6 +41,7 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.3"
+    "@biomejs/biome": "2.5.3",
+    "c8": "10.1.2"
   }
 }
