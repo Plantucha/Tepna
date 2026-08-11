@@ -618,7 +618,20 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 # The ring has no PMD feature bitmask; its capturable set is fixed and known. `ppg` is the
                 # 125 Hz pleth we decode out of the same 0x04 frame as the 1 Hz summary — the second
                 # largest stream on the box, and until now it had no toggle at all.
-                supported = ["spo2", "ppg"]
+                #
+                # ⚠️ `ppg2w` WAS MISSING HERE AND THAT DELETED IT FROM config.yaml. For a device with no
+                # capability read this list IS the offer set, so a capturable stream absent from it is
+                # not merely un-toggleable: `saveSettings` posts only the rendered checkboxes and the
+                # server assigns the WHOLE list per address, so the first ordinary save after that
+                # stream was enabled silently dropped it. Measured — the O2Ring wrote 110 MB of `_PPG2W`
+                # on the night of 2026-08-09 and 0 rows on 2026-08-10, and the config backups bracket
+                # the loss to a routine settings save (`bak-20260809-083246` has it,
+                # `bak-2026-08-10-1806` does not). `write_ppg2w` was present the whole time; nothing was
+                # broken except this list.
+                #
+                # The rule: anything `run_oxyii` can open a writer for MUST appear here, or enabling it
+                # is unreachable and keeping it is impossible. Gate-backed below.
+                supported = ["spo2", "ppg", "ppg2w"]
             # SDK MODE IS OFFERED ONLY WHERE THE DEVICE ADVERTISES IT (feature bit 0x9), and the
             # capability is DERIVED, never inferred from vendor or model: a switch that cannot work is
             # worse than an absent one, because the operator sets it and the config then claims a mode
