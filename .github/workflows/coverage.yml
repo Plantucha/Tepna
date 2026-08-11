@@ -38,12 +38,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
-      - run: npm ci
       - name: Measure
         run: |
           set -o pipefail
-          npx c8 --reporter=text --reporter=text-summary \
+          npx -y c8@10.1.2 --reporter=text --reporter=text-summary \
             node tests/run-tests.mjs 2>&1 | tee /tmp/cov.txt
       - name: Publish to the job summary
         if: always()

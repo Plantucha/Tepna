@@ -13496,6 +13496,474 @@
      `spo2 < 50 && spo2 > 100` is unsatisfiable, so a low-SpO₂ row survives the filter. Hence one
      out-of-range row per axis — and, separately, the four BOUNDARY values, because `<`→`<=` mutants
      are only killed by a row that must be KEPT at exactly 50 / 100 / 20 / 250. */
+    /* ── computeSmartSummary — 166 survivors, the LARGEST cluster in the fleet, untested ────────
+       It turns a night into scored metric cards, and it is almost entirely THRESHOLD LADDERS:
+
+           minSpo2:  >= 93 ? 0 : >= 90 ? 3 : >= 87 ? 5 : >= 85 ? 7 : 10
+           t95:      <  1 ? 0 : <  5 ? 2 : < 10 ? 4 : < 20 ? 6 : < 30 ? 8 : 10
+
+       So the survivors are the BOUNDARIES, and only a value sitting exactly ON one separates `>=`
+       from `>`. A realistic night lands mid-band and cannot see any of them — the same lesson as
+       inferAccUnit's g/mg bands and beatRegularity's deviation floor.
+
+       The table below is transcribed from the source rather than remembered, and each row is checked
+       at the boundary AND one step either side, so an off-by-one in either direction fails. */
+    group('OxyDex computeSmartSummary scores every threshold at its exact boundary', 'oxydex-dsp · known-answer · mutation-pinned', function (T) {
+      var OB = env.OxyDex && env.OxyDex._bare;
+      if (!(OB && typeof OB.computeSmartSummary === 'function')) {
+        T.skip('OxyDex._bare.computeSmartSummary exposed', 'not on the bare surface');
+        return;
+      }
+      /* A night carrying every block computeSmartSummary reads, so each metric is PUSHED. Values are
+         overwritten per case; what matters here is that no block is absent, because an absent block
+         skips its push entirely and the metric never appears to be scored at all. */
+      var night = function (patch) {
+        var n = {
+          stats: { minSpo2: 95, t95pct: 0.5, meanSpo2: 97 },
+          ct94: { ct94Pct: 1 },
+          odi4: { rate: 1 },
+          odi3: { rate: 1 },
+          odi1: { odi1Rate: 1 },
+          osc: { episodeCount: 0 },
+          rolling: { worst10minSpo2: 95, cdi: 1 },
+          oxyCrash: { oxyCrashRate: 0 },
+          hb: { rate: 0.1 },
+          hypLoad: { hypoxicLoad: 0 },
+          ahiEst: { ahiODI4: 1 },
+          sleepArch: { wasoMin: 1, solMin: 1 },
+          motSleep: { wasoPct: 1, sleepEff: 99 },
+          sleepP: { spi: 0 },
+          comp: { nsi: 1 },
+          ssi: { ssi: 0 },
+          cross: { autoArousalIdx: 0 },
+          hrnDip: { hrnDip: 20 },
+          recIdx: { recoveryIndex: 0 },
+          sbii: { sbii: 0, sbiiQ: 'low' },
+          pred3p: { pred3p: 0, pred3pQ: 'low' },
+          desSev: { desSev: 0 },
+          spo2Adv: { wtdsi: 0 },
+          patScore: { csScore: 0, csLabel: 'none', uarsScore: 0, uarsLabel: 'none' }
+        };
+        if (patch) patch(n);
+        return n;
+      };
+      /* It returns { ranked, top5, impression, overallScore } — NOT a bare array. Read from source
+         after the first version assumed an array and reported every metric "absent", which is the
+         same shape of mistake as the ecgdex validateHR contract. */
+      var rankedOf = function (patch) {
+        var r = OB.computeSmartSummary(night(patch));
+        return (r && r.ranked) || [];
+      };
+      var scoreOf = function (key, patch) {
+        var out = rankedOf(patch);
+        for (var i = 0; i < out.length; i++) if (out[i].key === key) return out[i].score;
+        return '(metric ' + key + ' absent)';
+      };
+      /* set a dotted path, so the table stays declarative */
+      var setter = function (path) {
+        var parts = path.split('.');
+        return function (v) {
+          return function (n) {
+            var o = n;
+            for (var i = 0; i < parts.length - 1; i++) o = o[parts[i]];
+            o[parts[parts.length - 1]] = v;
+          };
+        };
+      };
+
+      /* key, path, and [value, expectedScore] pairs — each threshold hit EXACTLY, plus a step either
+         side. Transcribed from the ternary chains in the source. */
+      var TABLE = [
+        [
+          'minSpo2',
+          'stats.minSpo2',
+          [
+            [94, 0],
+            [93, 0],
+            [92.9, 3],
+            [90, 3],
+            [89.9, 5],
+            [87, 5],
+            [86.9, 7],
+            [85, 7],
+            [84.9, 10]
+          ]
+        ],
+        [
+          't95',
+          'stats.t95pct',
+          [
+            [0.9, 0],
+            [1, 2],
+            [4.9, 2],
+            [5, 4],
+            [9.9, 4],
+            [10, 6],
+            [19.9, 6],
+            [20, 8],
+            [29.9, 8],
+            [30, 10]
+          ]
+        ],
+        [
+          'meanSpo2',
+          'stats.meanSpo2',
+          [
+            [96, 0],
+            [95.9, 1],
+            [95, 1],
+            [94.9, 3],
+            [94, 3],
+            [93.9, 5],
+            [93, 5],
+            [92.9, 8]
+          ]
+        ],
+        [
+          'odi4',
+          'odi4.rate',
+          [
+            [1.9, 0],
+            [2, 2],
+            [4.9, 2],
+            [5, 5],
+            [14.9, 5],
+            [15, 8],
+            [29.9, 8],
+            [30, 10]
+          ]
+        ],
+        [
+          'odi3',
+          'odi3.rate',
+          [
+            [2.9, 0],
+            [3, 2],
+            [7.9, 2],
+            [8, 5],
+            [19.9, 5],
+            [20, 8],
+            [34.9, 8],
+            [35, 10]
+          ]
+        ],
+        [
+          'odi1',
+          'odi1.odi1Rate',
+          [
+            [9.9, 0],
+            [10, 2],
+            [19.9, 2],
+            [20, 5],
+            [39.9, 5],
+            [40, 8]
+          ]
+        ],
+        [
+          'hbRate',
+          'hb.rate',
+          [
+            [0.4, 0],
+            [0.5, 2],
+            [1.9, 2],
+            [2, 5],
+            [4.9, 5],
+            [5, 7],
+            [9.9, 7],
+            [10, 10]
+          ]
+        ],
+        /* sleepEff and WASO% live in an `else if (n.motSleep)` — they run ONLY when sleepArch is
+           ABSENT. With both blocks present sleepArch wins and this arm is dead, which is why the
+           first version of this row reported the metric missing for every value. `noArch` drops
+           sleepArch so the else-branch is the one under test. */
+        [
+          'sleepEff',
+          'motSleep.sleepEff',
+          [
+            [95, 0],
+            [94.9, 1],
+            [90, 1],
+            [89.9, 4],
+            [80, 4],
+            [79.9, 7]
+          ],
+          true
+        ],
+        [
+          'nsi',
+          'comp.nsi',
+          [
+            [19.9, 0],
+            [20, 2],
+            [39.9, 2],
+            [40, 5],
+            [59.9, 5],
+            [60, 7],
+            [79.9, 7],
+            [80, 10]
+          ]
+        ],
+        [
+          'ct94',
+          'ct94.ct94Pct',
+          [
+            [4.9, 1],
+            [5, 4],
+            [14.9, 4],
+            [15, 7],
+            [29.9, 7],
+            [30, 10]
+          ]
+        ],
+        [
+          'cdi',
+          'rolling.cdi',
+          [
+            [2.9, 0],
+            [3, 2],
+            [7.9, 2],
+            [8, 5],
+            [14.9, 5],
+            [15, 7],
+            [24.9, 7],
+            [25, 10]
+          ]
+        ],
+        [
+          'hypLoad',
+          'hypLoad.hypoxicLoad',
+          [
+            [0.4, 0],
+            [0.5, 2],
+            [1.9, 2],
+            [2, 5],
+            [4.9, 5],
+            [5, 9]
+          ]
+        ],
+        [
+          'ahiEst',
+          'ahiEst.ahiODI4',
+          [
+            [4.9, 0],
+            [5, 3],
+            [14.9, 3],
+            [15, 6],
+            [29.9, 6],
+            [30, 9]
+          ]
+        ],
+        [
+          'sol',
+          'sleepArch.solMin',
+          [
+            [9.9, 0],
+            [10, 2],
+            [19.9, 2],
+            [20, 4],
+            [29.9, 4],
+            [30, 7]
+          ]
+        ],
+        [
+          'spi',
+          'sleepP.spi',
+          [
+            [4.9, 0],
+            [5, 2],
+            [9.9, 2],
+            [10, 5],
+            [19.9, 5],
+            [20, 8]
+          ]
+        ],
+        [
+          'ssi',
+          'ssi.ssi',
+          [
+            [0.29, 0],
+            [0.3, 2],
+            [0.79, 2],
+            [0.8, 5],
+            [1.49, 5],
+            [1.5, 8]
+          ]
+        ],
+        [
+          'aai',
+          'cross.autoArousalIdx',
+          [
+            [0.9, 0],
+            [1, 2],
+            [2.9, 2],
+            [3, 5],
+            [5.9, 5],
+            [6, 8]
+          ]
+        ],
+        [
+          'desSev',
+          'desSev.desSev',
+          [
+            [4.9, 0],
+            [5, 3],
+            [14.9, 3],
+            [15, 6],
+            [29.9, 6],
+            [30, 9]
+          ]
+        ],
+        [
+          'wtdsi',
+          'spo2Adv.wtdsi',
+          [
+            [0.9, 0],
+            [1, 2],
+            [2.9, 2],
+            [3, 5],
+            [4.9, 5],
+            [5, 9]
+          ]
+        ],
+        [
+          'waso',
+          'sleepArch.wasoMin',
+          [
+            [4.9, 0],
+            [5, 2],
+            [14.9, 2],
+            [15, 5],
+            [29.9, 5],
+            [30, 8]
+          ]
+        ]
+      ];
+      var noArch = function (inner) {
+        return function (n) {
+          delete n.sleepArch;
+          inner(n);
+        };
+      };
+      var r, c, i, j, set, patch;
+      for (i = 0; i < TABLE.length; i++) {
+        r = TABLE[i];
+        set = setter(r[1]);
+        for (j = 0; j < r[2].length; j++) {
+          c = r[2][j];
+          patch = r[3] ? noArch(set(c[0])) : set(c[0]);
+          T.eq(r[0] + ' @ ' + c[0] + ' scores ' + c[1], scoreOf(r[0], patch), c[1]);
+        }
+      }
+
+      /* THE EITHER/OR ITSELF is a branch, and it is the reason the row above needs `noArch`. */
+      T.eq('with sleepArch present, WASO comes from sleepArch (minutes)', scoreOf('waso', setter('sleepArch.wasoMin')(40)), 8);
+      T.eq(
+        '…and sleepEff is NOT emitted at all',
+        scoreOf('sleepEff', function () {}),
+        '(metric sleepEff absent)'
+      );
+      T.eq('with sleepArch ABSENT, WASO falls to motSleep (percent)', scoreOf('waso', noArch(setter('motSleep.wasoPct')(40))), 8);
+      T.eq('…and sleepEff IS emitted', scoreOf('sleepEff', noArch(setter('motSleep.sleepEff')(99))), 0);
+
+      /* ── SEVERITY is derived from the score, and its own two boundaries are separate mutants ────
+         sev = score < 3 ? 'g' : score < 6 ? 'w' : 'r'. Scores of exactly 3 and exactly 6 are the only
+         inputs that separate `<` from `<=`, and the ladders above happen to produce both. */
+      var sevOf = function (key, patch) {
+        var out = rankedOf(patch);
+        for (var k = 0; k < out.length; k++) if (out[k].key === key) return out[k].sev;
+        return '(absent)';
+      };
+      var setMin = setter('stats.minSpo2');
+      T.eq('score 0 is green', sevOf('minSpo2', setMin(95)), 'g');
+      T.eq('score 3 is WARN — the < 3 boundary', sevOf('minSpo2', setMin(92)), 'w');
+      T.eq('score 5 is still warn', sevOf('minSpo2', setMin(88)), 'w');
+      T.eq('score 7 is RED — past the < 6 boundary', sevOf('minSpo2', setMin(86)), 'r');
+      T.eq('score 10 is red', sevOf('minSpo2', setMin(80)), 'r');
+
+      /* ── cs / uars are NOT ladders — the score is score*3 and the severity is pinned by ===1 ──
+         `csScore * 3` with `sev = csScore === 1 ? 'w' : 'r'`, and the push is guarded by `> 0`, so
+         zero must emit NOTHING while 1 and 2 emit different severities from the same formula. */
+      var csSet = setter('patScore.csScore');
+      T.eq('csScore 0 emits no card at all', scoreOf('cs', csSet(0)), '(metric cs absent)');
+      T.eq('csScore 1 scores 3', scoreOf('cs', csSet(1)), 3);
+      T.eq('csScore 2 scores 6', scoreOf('cs', csSet(2)), 6);
+      T.eq('csScore 3 scores 9', scoreOf('cs', csSet(3)), 9);
+      T.eq('csScore 1 is WARN', sevOf('cs', csSet(1)), 'w');
+      T.eq('csScore 2 is RED — the === 1 pin, not a threshold', sevOf('cs', csSet(2)), 'r');
+      var uSet = setter('patScore.uarsScore');
+      T.eq('uarsScore 0 emits no card', scoreOf('uars', uSet(0)), '(metric uars absent)');
+      T.eq('uarsScore 1 scores 3 and warns', scoreOf('uars', uSet(1)), 3);
+      T.eq('uarsScore 2 is red', sevOf('uars', uSet(2)), 'r');
+
+      /* ── push() DROPS null AND undefined, and that is not the same as scoring 0 ─────────────── */
+      T.eq('a null metric value is not pushed at all', scoreOf('minSpo2', setMin(null)), '(metric minSpo2 absent)');
+      T.eq('an undefined metric value is not pushed', scoreOf('minSpo2', setMin(undefined)), '(metric minSpo2 absent)');
+      T.eq('…but ZERO is pushed and scored', scoreOf('odi4', setter('odi4.rate')(0)), 0);
+
+      /* ── CATEGORY assignment, which is a key-membership test rather than a threshold ─────────── */
+      var catOf = function (key) {
+        var out = rankedOf();
+        for (var k = 0; k < out.length; k++) if (out[k].key === key) return out[k].cat;
+        return '(absent)';
+      };
+      T.eq('minSpo2 is categorised spo2', catOf('minSpo2'), 'spo2');
+      T.eq('nsi is categorised hr', catOf('nsi'), 'hr');
+      T.eq(
+        'sleepEff is categorised sleep',
+        (function () {
+          var o = rankedOf(noArch(function () {}));
+          for (var q = 0; q < o.length; q++) if (o[q].key === 'sleepEff') return o[q].cat;
+          return '(absent)';
+        })(),
+        'sleep'
+      );
+      T.ok(
+        'every emitted metric carries a key, a score and a severity',
+        rankedOf().every(function (m) {
+          return m.key && typeof m.score === 'number' && /^[gwr]$/.test(m.sev);
+        }),
+        'shape'
+      );
+
+      /* ── ranked / top5 / overallScore — the three things it actually returns ─────────────────── */
+      var worst = OB.computeSmartSummary(
+        night(function (n) {
+          n.stats.minSpo2 = 80;
+          n.stats.t95pct = 40;
+          n.stats.meanSpo2 = 90;
+          n.odi4.rate = 40;
+          n.odi3.rate = 40;
+          n.hb.rate = 20;
+          n.comp.nsi = 90;
+          n.motSleep.sleepEff = 70;
+        })
+      );
+      var best = OB.computeSmartSummary(night());
+      T.ok(
+        'ranked is sorted WORST first',
+        worst.ranked.length > 1 && worst.ranked[0].score >= worst.ranked[worst.ranked.length - 1].score,
+        worst.ranked
+          .map(function (m) {
+            return m.score;
+          })
+          .join(',')
+      );
+      T.eq('top5 is at most five entries', worst.top5.length <= 5, true);
+      T.eq('…and top5 is the head of ranked', worst.top5[0] && worst.top5[0].key, worst.ranked[0] && worst.ranked[0].key);
+      T.ok('a bad night scores WORSE than a good one', worst.overallScore > best.overallScore, 'bad=' + worst.overallScore + ' good=' + best.overallScore);
+      T.ok('overallScore stays within 0..10', best.overallScore >= 0 && worst.overallScore <= 10, 'good=' + best.overallScore + ' bad=' + worst.overallScore);
+      T.ok('an impression string is produced for both', typeof worst.impression === 'string' && typeof best.impression === 'string', typeof worst.impression);
+      T.ok('…and the two impressions differ', worst.impression !== best.impression, 'identical impression for a 10-score and a 0-score night');
+
+      /* A night with NO blocks at all must yield an empty list rather than throwing — the loader
+         calls this on partially-parsed nights. */
+      var bare = OB.computeSmartSummary({});
+      T.ok('an empty night yields a result object, not an exception', !!(bare && bare.ranked), typeof bare);
+      T.eq('…with no ranked metrics', bare.ranked.length, 0);
+      T.eq('…and no top5', bare.top5.length, 0);
+    });
+
     /* ── parseJSONL — 144 unclassified survivors, the fleet's third-largest cluster, UNTESTED ────
        `parseJSONL` reads the unified `_summary.json` / JSONL night export and reconstructs a night
        object field by field. It is ~50 assignments of two shapes, and the difference between them is
