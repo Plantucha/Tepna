@@ -15459,6 +15459,25 @@
           T.eq('§4 no stepP95 supplied ⇒ falls back to driftRange', PG.verdict(ovOK, cp({ driftRange: G.DRIFT_MAX_MS + 1 }), scOK).why.driftStat, 'driftRange');
           T.eq('§4 stepP95 supplied ⇒ that is what was weighed', PG.verdict(ovOK, cp({ stepP95: 10, driftRange: 400 }), scOK).why.driftStat, 'stepP95');
           T.eq('§4 no bins at all ⇒ no step, and the gate falls back rather than passing on a NaN', PG.driftStats([]).nSteps, 0);
+          /* ── PAT-WINDOW-CENSORING §2 — a night the PHYS window has eaten is REFUSED, not scored ──
+             `[200,650]` was treated as a plausibility filter; it is a censoring cut. Where the
+             inter-device offset puts the true lag outside it, the surviving beats are an edge-biased
+             remnant. The decisive case is the last one: a night that passes EVERY other leg must still
+             be refused on censoring alone, or the refusal is decorative. */
+          T.eq('§2 a night within the censoring bar is unaffected', PG.verdict(ovOK, cp({ censoredPct: 0.1, stepP95: 10 }), scOK).label, 'FEASIBLE');
+          T.eq('§2 exactly at CENSORED_MAX_PCT still passes (inclusive)', PG.verdict(ovOK, cp({ censoredPct: G.CENSORED_MAX_PCT, stepP95: 10 }), scOK).label, 'FEASIBLE');
+          T.eq('§2 the real 2026-08-04 finger night (59.8 %) ⇒ WINDOW-CENSORED', PG.verdict(ovOK, cp({ censoredPct: 59.8, stepP95: 10 }), scOK).label, 'WINDOW-CENSORED');
+          T.eq('§2 …and it is a REFUSAL, not a downgrade', PG.verdict(ovOK, cp({ censoredPct: 59.8, stepP95: 10 }), scOK).tier, 'no');
+          T.eq('§2 the 97.4 % night that still produced a confident PAT number', PG.verdict(ovOK, cp({ censoredPct: 97.4, stepP95: 10 }), scOK).label, 'WINDOW-CENSORED');
+          T.ok('§2 why{} carries the measured share', Math.abs(PG.verdict(ovOK, cp({ censoredPct: 59.8, stepP95: 10 }), scOK).why.censoredPct - 59.8) < 1e-9);
+          T.eq('§2 absent censoredPct ⇒ UNCHANGED behaviour (pre-2026-08-11 callers)', PG.verdict(ovOK, cp({ stepP95: 10 }), scOK).label, 'FEASIBLE');
+          T.eq('§2 a NaN censoredPct does not refuse — it means "not measurable", not "bad"', PG.verdict(ovOK, cp({ censoredPct: NaN, stepP95: 10 }), scOK).label, 'FEASIBLE');
+          // censoring outranks a night that is otherwise perfect on every published leg
+          T.eq(
+            '§2 an otherwise FEASIBLE night is still refused on censoring alone',
+            PG.verdict(ovOK, cp({ matchRate: 0.99, residIQR: 8, med: 400, stepP95: 5, censoredPct: 34.5 }), scOK).label,
+            'WINDOW-CENSORED'
+          );
         } else {
           T.ok('PATGate co-loaded (pat-gate.js)', false, 'add pat-gate.js to both runners');
         }
@@ -39004,6 +39023,107 @@
         // render as 100 % — a ratio with no denominator is unknown, not complete.
         T.ok('§2.3 · …and a null recordedFrac renders as an em-dash, never as complete', /frac == null \? '—'/.test(_ir));
       }
+    });
+
+    /* PAT-GEOMETRY-PROBE §2 — THE SPECIFICITY MATRIX.
+       Every timeline defect this project has shipped was a SHAPE, and each was found by eye only after
+       a wrong conclusion had been published: driftRange SATURATING at the 450 ms window, the ECG↔PPG
+       offset SAWTOOTHING mod one RR, PHYS CENSORING up to 97.4 % of beats, the O2Ring axis being a
+       DRAWN ladder, hostAxis carrying a seconds-scale STEP.
+       The probes are the geometric analogue of mutation testing — the signature IS the mutant — and the
+       property that makes them worth anything is SPECIFICITY, not sensitivity. A detector that fires on
+       everything would have "found" all five defects and located none. So the assertion is the full
+       matrix: each planted shape fires its OWN probe and leaves the other four silent, and three
+       controls (a clean signal, a smooth trend, a random walk) fire nothing at all.
+       Node-lane only — the browser lane cannot import an ESM tool, so it SKIPs as docs-ledger does. */
+    /* PAT-GEOMETRY-PROBE §6 — DOES THE CHAIN INTRODUCE GEOMETRY? The sibling group tests the probes.
+       This tests the FUNCTIONS, and it is the real mutation analogue: a synthetic ECG and PPG whose lag
+       is FLAT by construction are pushed through parseECG -> detectPeaks -> tMsAt and parsePPG ->
+       detectChannel -> foot, and any shape that appears downstream was introduced by the code, not by a
+       recording. Then the converse, which matters just as much: each planted INPUT defect must reach
+       the output. A chain that stays silent on a planted defect is not clean, it is BLIND — the failure
+       mode this repo has shipped more than once. */
+    group('geometry-passthrough — a flat input must come out flat, and a planted defect must NOT', 'geometry-probe · timeline · alignment · passthrough', function (T) {
+      var GP = env.GeomPass;
+      if (!GP || typeof GP.passthrough !== 'function') {
+        T.skip('geometry-passthrough: ESM tool import unavailable in this lane');
+        return;
+      }
+      var dsp = GP.loadDsp();
+      var DUR = 600;
+      var clean = GP.passthrough(dsp, DUR, {}, {});
+      T.ok('§6 the chain recovers both sampling rates from the synthetic inputs', Math.abs(clean.ecgFs - GP.ECG_HZ) < 0.5 && Math.abs(clean.ppgFs - GP.PPG_HZ) < 0.5);
+      T.ok('§6 it pairs essentially every beat', clean.nPairs > (DUR * 1000) / GP.RR_MS - 20);
+      /* THE HEADLINE: a lag that is flat by construction comes back flat. Not "small" — FLAT. Any
+         scatter here would be introduced by the code between input and output. */
+      T.ok('§6 a flat input lag comes back FLAT (IQR ≈ 0)', clean.lagIqr < 1);
+      T.ok('§6 …and no probe fires on the output', clean.fired.length === 0);
+      /* The lag lands ~35 ms below the planted value because the foot is planted relative to complex
+         ONSET while detectPeaks reports the R PEAK, 35 ms later by construction. Asserted as a range so
+         a real drift in the estimator still trips it. */
+      T.ok('§6 the recovered lag matches the planted one, allowing the R-peak offset', clean.medLag > GP.LAG_MS - 60 && clean.medLag < GP.LAG_MS + 10);
+      // and the converse — each planted input defect must be VISIBLE downstream
+      var ecgStep = GP.passthrough(dsp, DUR, { hostStepMs: 400 }, {});
+      T.ok('§6 a 400 ms ECG host-stamp STEP reaches the output', ecgStep.fired.indexOf('step') >= 0);
+      var ppgStep = GP.passthrough(dsp, DUR, {}, { hostStepMs: 400 });
+      T.ok('§6 a 400 ms PPG host-stamp STEP reaches the output', ppgStep.fired.indexOf('step') >= 0);
+      var ppgRate = GP.passthrough(dsp, DUR, {}, { hostPpm: 5000 });
+      T.ok('§6 a PPG rate error reaches the output', ppgRate.fired.length > 0);
+      /* A relative rate error produces a SAWTOOTH by construction — which is what the real corpus
+         shows on three nights, and this is the first evidence the mechanism actually is a rate
+         mismatch rather than something that merely resembles one. */
+      T.ok('§6 …as a SAWTOOTH, confirming the real-night mechanism', ppgRate.fired.indexOf('sawtooth') >= 0);
+      T.ok('§6 a planted defect moves the median lag well off the clean value', Math.abs(ppgStep.medLag - clean.medLag) > 100);
+    });
+
+    group('geometry-probe — five timeline shapes, and each probe fires on ONLY its own', 'geometry-probe · timeline · alignment · specificity', function (T) {
+      var G = env.GeomProbe;
+      if (!G || typeof G.probeAll !== 'function') {
+        T.skip('geometry-probe: ESM tool import unavailable in this lane');
+        return;
+      }
+      var OPTS = { lo: 200, hi: 650, period: 450 };
+      // the diagonal: planted shape -> its own probe, and nothing else
+      G.PROBES.forEach(function (shape) {
+        var fired = G.probeAll(G.plant(shape), OPTS).fired;
+        T.eq('§2 planted ' + shape + ' fires exactly [' + shape + ']', fired.join(','), shape);
+      });
+      // the controls: a real series that is merely noisy, trending or wandering must fire NOTHING
+      ['clean', 'ramp', 'walk', 'corrected'].forEach(function (ctrl) {
+        T.eq('§2 control ' + ctrl + ' fires nothing', G.probeAll(G.plant(ctrl), OPTS).fired.length, 0);
+      });
+      // the real numbers each probe was built from — these are the defects, not synthetic stand-ins
+      /* driftRange is a RANGE, so its interval is [0, window width] — NOT the lag interval [200,650].
+         The first cut passed the lag bounds and the probe correctly said no; wrong bounds, right
+         detector. The nine real values sit at 93-98 % of the 450 ms ceiling. */
+      var sat = G.saturation([442, 431, 430, 427, 427, 425, 423, 423, 420, 428], 0, 450);
+      T.ok('§2 the nine real driftRange values read as SATURATED at the window', sat.saturated);
+      T.ok('§2 …and the same values against the WRONG interval do not — bounds are load-bearing', !G.saturation([442, 431, 430, 427, 427, 425, 423, 423, 420, 428], 200, 650).saturated);
+      var drawn = G.drawnAxis([0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136]);
+      T.ok('§2 the O2Ring 8 ms ladder reads as DRAWN', drawn.drawn && drawn.share === 1);
+      T.ok('§2 …and a jittered version of the SAME rate does not', !G.drawnAxis([0, 8, 15, 25, 31, 41, 47, 57, 63, 73, 80, 87, 97, 103, 113, 119, 129, 135]).drawn);
+      /* ONE TOLERANCE IS NOT ENOUGH. A ppm-scale host correction changes a 7.69 ms delta by 0.00016 ms,
+         48x below a 1e-3 relative tolerance — so a CORRECTED axis read `drawn` at exactly 1.000 on six
+         real nights. The verdict is taken at the fine tolerance; the SPREAD across tolerances is the
+         diagnosis, and both halves are asserted so neither can silently regress. */
+      var lad = G.drawnAxis(G.plant('drawn')),
+        cor = G.drawnAxis(G.plant('corrected'));
+      T.ok('§2 a true ladder is constant at EVERY tolerance', lad.drawn && lad.shares.fine === 1 && lad.shares.coarse === 1);
+      T.ok('§2 a ppm-corrected axis is NOT drawn — the defect that shipped', !cor.drawn);
+      T.ok('§2 …yet still reads 1.000 at the coarse tolerance, which is why it fooled one', cor.shares.coarse === 1);
+      T.ok('§2 …and the spread across tolerances is the diagnosis', cor.shares.coarse - cor.shares.fine > 0.5);
+      // a probe must also be able to say NO on the shape it hunts, or it is a rubber stamp
+      T.ok('§2 saturation says NO on a distribution spread across the window', !G.saturation(G.plant('clean'), 200, 650).saturated);
+      T.ok('§2 sawtooth says NO on a monotone ramp (no wrap)', !G.sawtooth(G.plant('ramp'), 450).isSawtooth);
+      T.ok('§2 sawtooth says NO on a random walk (wraps but no consistent ramp)', !G.sawtooth(G.plant('walk'), 450).isSawtooth);
+      T.ok('§2 step says NO on a smooth trend', !G.stepiness(G.plant('ramp')).hasStep);
+      T.ok('§2 censoring says NO when everything is inside the interval', !G.censoring(G.plant('clean'), 200, 650).censored);
+      // censoring must ALSO report the edge bias, which is the half that makes a remnant misleading
+      var cen = G.censoring(G.plant('censoring'), 200, 650);
+      T.ok('§2 censoring reports how much was discarded', cen.outside > 0.2);
+      T.ok('§2 …and that the survivors are edge-biased', isFinite(cen.keptEdgeShare));
+      // degenerate input must refuse rather than invent a verdict
+      T.ok('§2 too few points ⇒ no verdict, not a false one', G.probeAll([1, 2, 3], OPTS).fired.length === 0);
     });
 
     group('A second oximeter cannot double the apnea index — §3.1', 'integrator-dsp · apnea · fabricated-redundancy', function (T) {

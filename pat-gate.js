@@ -53,7 +53,14 @@
     DRIFT_MAX_MS: 60, // stepP95 ≤ for FEASIBLE — published
     DRIFT_DOMINATED_MS: 250, // stepP95 > ⇒ DRIFT-DOMINATED — unstated in prose
     LAG_MIN_MS: 60, // median lag ≥ — the `physical` window, unstated in prose
-    LAG_MAX_MS: 700 // median lag ≤ — the `physical` window, unstated in prose
+    LAG_MAX_MS: 700, // median lag ≤ — the `physical` window, unstated in prose
+    /* The share of beats the `[200,650]` pairing window DISCARDS, above which the night is refused
+       (PAT-WINDOW-CENSORING-2026-08-11). Not a tuned value: over the box corpus the two populations
+       are 0.0 / 0.1 / 0.2 % against 4.9 – 97.4 %, so any bound between them separates the corpus, and
+       2 % sits 10× above the clean group and 2.5× below the nearest censored one. Scoped to the
+       ANALYSED BEATS, not to the file — which is why 2026-08-02 survives despite its device axis
+       carrying a 22 s step elsewhere in the recording. */
+    CENSORED_MAX_PCT: 2
   };
 
   /* Evaluate the gate for one night.
@@ -94,6 +101,27 @@
       };
     if (!cp || !cp.ok) return { tier: 'no', label: 'NOT COUPLED', why: null };
     if (!sc || !sc.ok) return { tier: 'no', label: 'NOT SIMULTANEOUS', why: null };
+    /* REFUSE A NIGHT THE WINDOW HAS EATEN. `[PHYS_LO, PHYS_HI]` was treated as a plausibility filter;
+       it is a censoring cut, and where the inter-device offset puts the true lag outside it the window
+       keeps an edge-biased remnant and every leg below is computed on that. This is a REFUSAL, not a
+       downgrade, for the same reason as NO SHARED CLOCK: the quantity is not identifiable, so a tier
+       would be a guess dressed as a measurement. Measured: 16 of 19 box site-nights lose most of their
+       beats here, and one at 97.4 % (median lag 831 ms) still produced a confident PAT number.
+       Absent `censoredPct` the behaviour is UNCHANGED — a caller that cannot compute it is not refused,
+       which keeps every pre-2026-08-11 consumer working. */
+    if (isFinite(cp.censoredPct) && cp.censoredPct > PAT_GATE.CENSORED_MAX_PCT)
+      return {
+        tier: 'no',
+        label: 'WINDOW-CENSORED',
+        why: {
+          censoredPct: cp.censoredPct,
+          censoredN: cp.censoredN != null ? cp.censoredN : null,
+          reason:
+            'the physiological window discards ' +
+            cp.censoredPct.toFixed(1) +
+            ' % of beats — the inter-device offset puts the true lag outside it, so what survives is an edge-biased remnant, not a transit time'
+        }
+      };
 
     var tightBeat = isFinite(cp.residIQR) && cp.residIQR <= PAT_GATE.BEAT_IQR_MAX_MS,
       goodMatch = cp.matchRate >= PAT_GATE.COUPLING_MIN,

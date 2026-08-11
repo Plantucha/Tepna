@@ -176,6 +176,37 @@ function coupledPAT(rTimes, fTimes) {
     }
   }
   if (lags.length < 20) return { ok: false, reason: 'Too few R→foot pairs (' + lags.length + ') — no overlap or detection failed.' };
+  /* HOW MUCH OF THE NIGHT DOES THE PHYSIOLOGICAL WINDOW THROW AWAY? (PAT-WINDOW-CENSORING-2026-08-11)
+     `[PHYS_LO, PHYS_HI]` is applied above as if it were a plausibility filter. It is a CENSORING CUT:
+     where the inter-device offset puts the true R→foot lag outside it, the window silently keeps
+     whatever fraction happens to fall inside and every statistic downstream is computed on that
+     remnant. Measured over the box corpus it discarded most of the data on 16 of 19 site-nights — one
+     night ran a median lag of 831 ms with 95.9 % above `PHYS_HI` and still produced a confident PAT
+     number, and the surviving beats are edge-biased because only the ones under the ceiling pair.
+     So measure it: pair again with NO window, bounded only by 0.9 × the LOCAL RR — the constraint that
+     actually prevents beat slip (a bound above one RR admits the next beat's foot, the defect
+     `pat-align` fixed) — and report the share that lands outside. Diagnostic here; the gate weighs it. */
+  var censOut = 0,
+    censIn = 0,
+    cj = 0;
+  for (var ci = 0; ci + 1 < rTimes.length; ci++) {
+    var cr = rTimes[ci],
+      crr = rTimes[ci + 1] - cr;
+    if (!(crr > 300 && crr < 2000)) continue;
+    var ccap = 0.9 * crr;
+    while (cj < nf && fTimes[cj] < cr) cj++;
+    for (var ck = cj; ck < nf; ck++) {
+      var cl = fTimes[ck] - cr;
+      if (cl > ccap) break;
+      if (cl > 0) {
+        if (cl < PHYS_LO || cl > PHYS_HI) censOut++;
+        else censIn++;
+        break;
+      }
+    }
+  }
+  var censTot = censOut + censIn,
+    censoredPct = censTot >= 200 ? (100 * censOut) / censTot : NaN;
   var modal = median(lags),
     LOCAL_WIN_MS = 30000,
     pat = [],
@@ -309,6 +340,8 @@ function coupledPAT(rTimes, fTimes) {
     nCoupled: pat.length,
     residIQR: residIQR,
     binMed: binMed,
+    censoredPct: censoredPct, // GATED: share of beats the PHYS window discards (NaN if too few beats)
+    censoredN: censTot,
     driftRange: driftRange, // diagnostic only — duration-dependent, saturates at PHYS_HI − PHYS_LO
     driftRangeQual: ds.driftRangeQual, // the same range over qualified bins — also diagnostic
     stepP95: ds.stepP95, // GATED: p95 |Δ bin median| between adjacent qualified bins
@@ -399,6 +432,8 @@ self.onmessage = function (e) {
                 matchRate: c.matchRate,
                 nCoupled: c.nCoupled,
                 residIQR: c.residIQR,
+                censoredPct: c.censoredPct,
+                censoredN: c.censoredN,
                 driftRange: c.driftRange,
                 driftRangeQual: c.driftRangeQual,
                 stepP95: c.stepP95,
