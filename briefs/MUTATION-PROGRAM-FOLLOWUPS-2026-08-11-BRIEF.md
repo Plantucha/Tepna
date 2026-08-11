@@ -4,8 +4,8 @@
 # MUTATION PROGRAM — FOLLOW-UPS
 
 Executes-from: `MUTATION-PROGRAM-2026-08-09-BRIEF.md`. That brief set the target and the method; this
-one records what executing it **discovered**, and the two things that need an owner decision rather
-than more work.
+one records what executing it **discovered**, and the decision the owner has since made on the back
+of it (§2: the target is now **99 % of distinguishable**, raised from 90 %).
 
 The whole fleet is now measured for the first time. Everything below is a measurement or a refutation
 of something this programme previously believed.
@@ -36,7 +36,38 @@ withdrawn there.
 
 ---
 
-## 2 · 🔴 THE 90 % TARGET NEEDS RE-RATIFYING — it is not reachable on this trajectory
+## 2 · ✅ THE TARGET IS **99 % OF DISTINGUISHABLE** — owner-ratified 2026-08-11, RAISED from 90 %
+
+The concern below was raised, heard, and the bar was **raised rather than lowered**. Recorded so the
+scope is not mistaken for an accident:
+
+> **at ANY kill/classify split, ~98.5 % of the outstanding survivors must be RESOLVED** — killed if
+> killable, classified as equivalent if not. There is no ratio that avoids the work.
+>
+> ```
+>  equivalents found   kills needed   survivors resolved
+>       0 %               5497          5497 / 5590   98.3 %
+>      30 %               3837          5514 / 5590   98.6 %
+>      60 %               2177          5531 / 5590   98.9 %
+> ```
+>
+> Classifying aggressively changes the KILL count enormously and the RESOLVED count barely at all.
+> So the work is not "choose a strategy" — it is **every survivor, one at a time**.
+
+`tools/mutation-worklist.mjs` is the queue, regenerated from the sweeps and the ledger on every run
+rather than transcribed. **499 functions hold 5885 unresolved survivors.** The top 30 are 37 % of the
+work; the remaining 469 are the other 63 %, so unlike a 55 % target there is no point at which the
+tail can be skipped.
+
+⚠️ **The list shows VERIFIED state, not claimed state.** It reads the last sweep, so kills from tests
+written since do not appear until that file is re-swept. `parseJSONL` still lists 144 and
+`computeSmartSummary` 162 although both now have tests killing 80 and 72. Re-sweeping is therefore not
+optional bookkeeping at this target — it is how progress becomes real, and §6's 10–100× test-selection
+work is what makes re-sweeping affordable enough to do after every batch.
+
+### 2a · The original concern, retained
+
+
 
 The target is *90 % of distinguishable mutants killed*. Measured against the real denominator:
 
@@ -130,8 +161,17 @@ top  30 functions -> 51.6 %      top 100 -> 60.6 %      all 492 -> 72.7 %
 **Diminishing returns bite after ~50 functions.** There is a second axis: within a function, 2–3
 passes and it saturates (`parseJSONL` 61 → 46 → 80; `applySessionCorrections` 5 → 6 → 7 of 8).
 
-**Recommendation: do the top 30–50, then re-evaluate** — past 100 you pay full price for single-digit
-gains.
+⚠️ **THIS SECTION'S ADVICE IS SUPERSEDED BY §2, and the difference matters.** It was written for a
+55–60 % target, where the tail is skippable and "stop after 50" is the right call. **At 99 % it is
+not** — the top 30 are 37 % of the work and the other 469 functions are the remaining 63 %. There is
+no point at which the tail can be abandoned.
+
+What survives is the ORDERING, not the stopping rule: work the list in rank order because the early
+functions are 58× denser, so the fleet number moves fastest at the start and morale-per-hour is
+highest there. But the projection above (72.7 % if every function converts at 56 %) says the plain
+approach does not reach 99 % — so §6's re-sweep economics stop being an optimisation and become a
+prerequisite, and the tail functions will need the cheaper per-function loop that only fast
+re-sweeping makes possible.
 
 ---
 
