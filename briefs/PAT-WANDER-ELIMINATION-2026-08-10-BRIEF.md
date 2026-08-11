@@ -30,13 +30,82 @@ left ankle}, post-#1121 DSPs, 5-minute bins qualified by match rate ≥ 80 % and
   at the 450 ms pairing window and had to be replaced as a gate criterion.
 - **Present at full quality.** 2026-07-28 finger: the lag walks 428 → 369 → 441 ms over three hours at
   97–100 % match with 7–39 ms within-bin IQR, and the chest does not move. Nothing is broken.
-- **68–95 % COMMON-MODE across two PPG devices with independent clocks.** ρ(finger, ankle) over shared
-  bins = 0.85 (07-27) · 0.86 (08-02) · 0.79 (08-03) · 0.95 (08-05) · 0.68 (07-28); 0.05 on 08-01, which
-  has only 12 shared bins. The ankle−finger difference ranges 64–107 % of the smaller leg, consistent
-  with ρ≈0.85 and confirming a real site-specific component alongside the shared one.
+- **COMMON-MODE across two PPG devices with independent clocks** — ρ(finger, ankle) over shared bins =
+  0.85 (07-27) · 0.86 (08-02) · 0.79 (08-03) · 0.95 (08-05) · 0.68 (07-28); 0.05 on 08-01, which has
+  only 12 shared bins. ⚠️ **This figure is analysis-dependent on some nights — see §1.1.**
 
 **The common-mode result is the load-bearing one.** Two independent devices moving together places the
 term upstream of both.
+
+### 1.1 · CORRECTION — part of the apparent common-mode is manufactured by the shared analysis
+
+The claim above was measured under ONE window and ONE qualification rule applied to BOTH legs, and the
+analysis layer is itself a shared term (§2.1 cell 14/15). Re-running with the analysis varied:
+
+| night | config | finger | ankle | ρ | edge-censored |
+|---|---|---|---|---|---|
+| **2026-08-02** | shipped `[200,650]` 5 min | 125 | 129 | **0.86** | **0 % / 0 %** |
+| | WIDE `[100,900]` 5 min | 125 | 129 | **0.86** | 0 % / 0 % |
+| | narrow `[250,550]` 5 min | 125 | 129 | **0.86** | 0 % / 2 % |
+| | 15 min bins | 96 | 110 | 0.88 | — |
+| | no qualification | 125 | 129 | 0.86 | — |
+| 2026-07-28 | shipped | 63 | 75 | 0.68 | 0 % / **37 %** |
+| | WIDE | 72 | **111** | **0.52** | 0 % / 1 % |
+| 2026-08-03 | shipped | 186 | 142 | 0.79 | 7 % / 13 % |
+| | WIDE | **586** | 238 | **0.51** | 3 % / 4 % |
+| 2026-08-05 | shipped | 110 | 119 | 0.95 | 10 % / 13 % |
+| | no qualification | 395 | 430 | **−0.13** | 10 % / 13 % |
+
+Two conclusions, opposite in direction:
+
+- **On a night with ZERO edge censoring the wander is completely analysis-invariant.** 2026-08-02 gives
+  125/129 ms and ρ = 0.86 under every window, every bin width, qualified or raw. That night is a clean
+  positive control: its wander is in the signal, not in the analysis. This is the strongest single
+  result in the brief and it did not exist before the correction.
+- **Where the lag distribution reaches the window edge, the shipped `[200,650]` TRUNCATES real lag and
+  the shared cut inflates the apparent agreement.** 07-28's ankle is 37 % censored; widening drops that
+  to 1 % and takes ρ from 0.68 to 0.52. Widening triples 08-03's finger wander (186 → 586). Dropping
+  qualification takes 08-05 from ρ = 0.95 to **−0.13**.
+
+**So `PHYS = [200, 650]` is not merely a physiological plausibility range — it is a censoring cut that
+biases every statistic computed through it,** and nights must be screened on edge-censoring fraction
+before their common-mode is quoted. The headline figure should be read as **ρ ≈ 0.86 on the uncensored
+night**, with the censored nights' values not yet trustworthy in either direction.
+
+## 2.1 · THE METHOD THAT SHOULD HAVE COME FIRST — partition the chain, don't enumerate causes
+
+§2 and §3 list nineteen candidates chosen because each *sounded plausible*: posture, battery, ultradian
+rhythm, respiration. That is sampling an unbounded space, and it is why nineteen tests produced nineteen
+negatives while leaving a live term untested. Most of them were also **premature** — they ask what makes
+a quantity vary before establishing which quantity it is.
+
+The bounded version. `PAT = t_foot − t_R`, so every term that can move it, and whether it is SHARED
+between the two PPG sites or per-device:
+
+| | term | shared? |
+|---|---|---|
+| **Ⅰ signal** | 1 PEP · 2 central transit | **shared** |
+| | 3 peripheral transit | per-site |
+| **Ⅱ ECG chain** | 4 electrode/analog front end · 5 sampling clock · 6 transport + host stamping · 7 R fiducial | **shared** |
+| **Ⅲ PPG chain** | 8 optics · 9 clock · 10 transport · 11 foot fiducial | per-device |
+| **Ⅳ time base** | 12 host clock | **shared** |
+| | 13 per-device axis correction | per-device |
+| **Ⅴ analysis** | 14 pairing rule + `PHYS` window · 15 binning + qualification | **shared** |
+
+The single common-mode measurement then collapses the space in one step: the term must be in the shared
+column, `{1, 2, 4, 5, 6, 7, 12, 14, 15}`. Everything per-device is excluded for free, untested. Of the
+rest, substitution kills 5·6·12 (clock) and 7 (fiducial), leaving **1, 2 (the signal), 4 (the ECG analog
+front end), and 14, 15 (the analysis layer)**.
+
+**Cell 14/15 had never been tested, and testing it found a real contribution (§1.1).** By Occam it should
+have been tested *first*: a shared, data-dependent analysis step manufactures correlated movement with no
+new physical mechanism at all, whereas physiology requires one. The enumeration approach never surfaced
+it, because "my own window might be creating this" is not a hypothesis that sounds plausible — it is one
+that a partition produces mechanically.
+
+**The trap, stated generally: when a search returns many negatives, suspect the search space, not the
+signal.** Enumerating plausible causes cannot terminate and cannot prove coverage. Partitioning the
+measurement chain does both, and it tells you which cells a single observation has already eliminated.
 
 ## 2 · Eliminated — instrumentation (each by substitution, not by argument)
 
@@ -140,6 +209,9 @@ alongside the 130 Hz ECG. **Verify the rate from a written file before using it*
 
 Open, in order of expected value:
 
+0. **Screen every night on edge-censoring fraction before quoting anything through the `PHYS` window**
+   (§1.1). Cheap, and it decides which nights the rest of this brief's numbers may be computed on. The
+   uncensored night 2026-08-02 is the only fully trustworthy case at present.
 1. **Ensemble SCG at 100 Hz** → PEP per 5-min bin, with the shifted-trigger control mandatory. This
    converts §6's inference into a measurement, or refutes it.
 2. **Pulse-wave analysis features** (stiffness/reflection index from the pulse shape) — untested here,
