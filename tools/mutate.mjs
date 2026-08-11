@@ -102,6 +102,7 @@ import { cpus } from 'node:os';
 import { execFileSync, execSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
+import { createHash } from 'node:crypto';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -142,6 +143,7 @@ const AS_JSON = has('--json');
    `--journal`  path override; `--no-journal` disables recording entirely
    `--quiet-stream` suppress the per-mutant line (the aggregate progress line still prints) */
 const RESUME = has('--resume');
+const INCREMENTAL = has('--incremental');
 const JOURNAL = has('--no-journal') ? false : opt('--journal', null);
 const STREAM = !has('--quiet-stream');
 /* Mutants are independent, so this is embarrassingly parallel — but every mutant rewrites the SAME
@@ -580,7 +582,7 @@ const EXCUSING = new Set(['no-distinguishing-input', 'untestable-by-design']);
    orphan an entry. */
 /* ── readJournal — the resume decision, PURE so it is known-answer testable ───────────────────
    Returns { done, jammed }:
-     done   Map(key -> verdict)  every mutant that reached a verdict
+     done   Map(key -> record)   every mutant that reached a verdict, with its fingerprints
      jammed [key]                every mutant that STARTED and never finished
 
    A start with no verdict can only mean the process died while that mutant was in flight — the
@@ -590,6 +592,59 @@ const EXCUSING = new Set(['no-distinguishing-input', 'untestable-by-design']);
 
    A TORN FINAL LINE IS DISCARDED, not fatal: the process may have been killed mid-write, and half a
    record must not cost the thirteen hours in front of it. */
+/* ── INCREMENTAL SWEEPS — what may soundly be reused, and what may not ───────────────────────
+   A full fleet re-sweep is ~24 h and the 99 % programme runs ~15 of them. Most of that work is
+   repeated: between sweeps we add ONE test group and change nothing else.
+
+   ⚠️ THE TEMPTING VERSION IS UNSOUND. "Nothing changed, so reuse everything" is false for SURVIVORS:
+   a newly added group can kill any survivor anywhere, and without per-test coverage there is no way
+   to know which. Reusing a survived verdict would silently record a mutant as alive that the new test
+   already kills — a wrong number that looks like progress.
+
+   What IS sound is the other half. A mutant KILLED by group G stays killed as long as
+     (a) the enclosing function's source is byte-identical, and
+     (b) group G still exists with byte-identical body.
+   Nothing else in the file can resurrect it. That is 3702 of 9996 mutants on the current fleet — a
+   third of the work, not the ninety per cent an optimistic reading suggests.
+
+   `groupBodies` extracts each `group('title', 'tags', function … )` body by brace matching, so a
+   change to ONE group invalidates only the mutants that group killed. Hashing the whole test file
+   instead would invalidate everything on every commit and save nothing at all, which is the version
+   that looks like it works and does not. */
+export function groupBodies(src) {
+  const out = new Map();
+  const s = String(src || '');
+  const re = /group\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g;
+  let m;
+  while ((m = re.exec(s))) {
+    const title = m[2];
+    let i = s.indexOf('{', m.index);
+    if (i < 0) continue;
+    let d = 0;
+    for (let j = i; j < s.length; j++) {
+      const ch = s[j];
+      if (ch === '{') d++;
+      else if (ch === '}') {
+        d--;
+        if (d === 0) {
+          out.set(title, s.slice(i, j + 1));
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/* Reuse decision for ONE journal record. PURE — the whole rule in one testable place. */
+export function mayReuse(rec, fnHashNow, groupHashNow) {
+  if (!rec || rec.v !== 'KILLED') return false; // survivors and invalids must be re-tested
+  if (!rec.fh || rec.fh !== fnHashNow) return false; // the mutated function changed
+  if (!rec.ks || !rec.ks.length) return false; // killed by nothing we can name ⇒ cannot verify
+  for (const g of rec.ks) if (groupHashNow.get(g) !== undefined && rec.gh && rec.gh[g] === groupHashNow.get(g)) return true;
+  return false; // the killing group is gone or edited
+}
+
 export function readJournal(text) {
   const done = new Map();
   const starts = new Map(); // key -> how many times it has been STARTED without finishing
@@ -603,7 +658,7 @@ export function readJournal(text) {
     }
     if (!rec || typeof rec.k !== 'string') continue;
     if (rec.v === undefined) starts.set(rec.k, (starts.get(rec.k) || 0) + 1);
-    else done.set(rec.k, rec.v);
+    else done.set(rec.k, rec); // the WHOLE record — incremental needs its fingerprints
   }
   /* ⚠️ ONE UNFINISHED START IS NOT A JAM, and treating it as one throws away good work. With 16
      workers, up to 16 mutants are in flight at any instant, so ANY interrupt leaves ~16 started and
@@ -805,10 +860,57 @@ async function runFile(file) {
      Append-only NDJSON: each line is one small atomic O_APPEND write, so concurrent workers cannot
      interleave a partial record, and a torn final line is discarded by the reader rather than
      crashing it. */
+  /* ── INCREMENTAL fingerprints ────────────────────────────────────────────────────────────────
+     `fnHash(line)` hashes the source of the function ENCLOSING that line, so an edit anywhere else in
+     the file does not invalidate a mutant. `groupHash` is the current body of every test group, so an
+     edit to one group invalidates only what that group killed. Hashing the whole file on either side
+     would invalidate everything on every commit — the version that looks incremental and saves
+     nothing. */
+  const _fnRanges = (() => {
+    const out = [];
+    const ls = original.split('\n');
+    for (let i = 0; i < ls.length; i++) {
+      const mm = ls[i].match(/(?:^|[^\w$.])function\s+(\w+)\s*\(/);
+      if (!mm) continue;
+      let d = 0,
+        seen = false;
+      for (let j = i; j < ls.length; j++) {
+        for (const ch of ls[j]) {
+          if (ch === '{') {
+            d++;
+            seen = true;
+          } else if (ch === '}') {
+            d--;
+            if (seen && d === 0) {
+              out.push({ start: i + 1, end: j + 1, text: ls.slice(i, j + 1).join('\n') });
+              j = ls.length;
+              break;
+            }
+          }
+        }
+        if (out.length && out[out.length - 1].start === i + 1) break;
+      }
+    }
+    return out;
+  })();
+  const _sha = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
+  const fnHash = (line) => {
+    let best = null;
+    for (const r of _fnRanges) if (line >= r.start && line <= r.end && (!best || r.end - r.start < best.end - best.start)) best = r;
+    return best ? _sha(best.text) : _sha('(top level)');
+  };
+  let _groupHash = new Map();
+  try {
+    const gb = groupBodies(readFileSync(join(ROOT, 'tests/dex-tests.js'), 'utf8'));
+    for (const [k, v] of gb) _groupHash.set(k, _sha(v));
+  } catch (_) {
+    /* no test file readable ⇒ no group hashes ⇒ nothing is reusable, which fails CLOSED */
+  }
+
   const journalPath = JOURNAL || join(ROOT, '.mutate-journal', file.replace(/[/\\]/g, '_') + '.jsonl');
   const jkey = (m) => m.line + '\u0000' + m.op + '\u0000' + m.before + '\u0000' + m.after;
   let prior = { done: new Map(), jammed: [] };
-  if (RESUME && existsSync(journalPath)) {
+  if ((RESUME || INCREMENTAL) && existsSync(journalPath)) {
     prior = readJournal(readFileSync(journalPath, 'utf8'));
     process.stderr.write(
       '  resuming: ' + prior.done.size + ' mutant(s) already recorded' + (prior.jammed.length ? ', ' + prior.jammed.length + ' QUARANTINED as jammed (started, never finished)' : '') + '\n'
@@ -817,7 +919,9 @@ async function runFile(file) {
   if (JOURNAL !== false) {
     try {
       mkdirSync(dirname(journalPath), { recursive: true });
-      if (!RESUME) writeFileSync(journalPath, '');
+      /* Truncating here would destroy the very history --incremental reads. Only a plain cold run
+         starts a fresh journal. */
+      if (!RESUME && !INCREMENTAL) writeFileSync(journalPath, '');
     } catch (_) {
       /* an unwritable journal must not stop the sweep — it only costs resumability */
     }
@@ -853,8 +957,9 @@ async function runFile(file) {
        matching the journal's key back onto the freshly generated mutant, so the survivor list stays
        a list of real mutant records rather than bare keys. */
     for (const m of picked) {
-      const v = prior.done.get(jkey(m));
-      if (v === undefined) continue;
+      const rec0 = prior.done.get(jkey(m));
+      if (rec0 === undefined) continue;
+      const v = rec0.v;
       if (v === 'KILLED') killed++;
       else if (v === 'INVALID') {
         invalid++;
@@ -916,12 +1021,40 @@ async function runFile(file) {
     heartbeat = null;
   };
 
+  /* INCREMENTAL: replay only the kills that are still provably kills, and re-test everything else.
+     Separate from --resume, which replays a partial run of the SAME code; this replays across code
+     and test changes, and is therefore the one that has to be conservative. */
+  const applyIncremental = () => {
+    if (!INCREMENTAL || !prior.done.size) return;
+    const before = picked.length;
+    const keep = [];
+    for (const m of picked) {
+      const rec0 = prior.done.get(jkey(m));
+      if (rec0 && mayReuse(rec0, fnHash(m.line), _groupHash)) {
+        killed++;
+        done++;
+        reusedCount++;
+        for (const g of rec0.ks || []) killers.set(g, (killers.get(g) || 0) + 1);
+      } else keep.push(m);
+    }
+    picked = keep;
+    process.stderr.write(
+      '  incremental: ' +
+        reusedCount +
+        ' kill(s) replayed unchanged, ' +
+        (before - reusedCount) +
+        ' to re-test' +
+        (reusedCount === 0 ? '  ⚠ NOTHING REUSED — the journal is empty, or every function/group hash moved' : '') +
+        '\n    (survivors are ALWAYS re-tested — a new group can kill any of them)\n'
+    );
+  };
+
   const invalids = [];
+  let reusedCount = 0;
   let resumedCount = 0;
   let killed = 0,
     invalid = 0,
     done = 0;
-  applyResume();
   const trees = [];
   const _t0 = Date.now();
   let _lastLine = 0;
@@ -977,6 +1110,10 @@ async function runFile(file) {
      `{ verdict, killers }` from the async pool. Normalising here keeps both paths on one classifier
      rather than duplicating the bookkeeping. */
   const killers = new Map(); // group title → how many mutants it killed
+  /* Both replays run AFTER every counter they write to exists —  is one of them, and
+     calling earlier died in the temporal dead zone. */
+  applyResume();
+  applyIncremental();
   const classify = (v, mu) => {
     const verdict = typeof v === 'string' ? v : v.verdict;
     const ks = (typeof v === 'string' ? [] : v.killers) || [];
@@ -996,7 +1133,14 @@ async function runFile(file) {
       invalid++;
       invalids.push({ ...mu, reason: (typeof v === 'string' ? null : v.reason) || 'no-output' });
     } else survivors.push(mu);
-    jwrite({ k: jkey(mu), v: verdict, ks: ks.length ? ks : undefined, r: typeof v === 'string' ? undefined : v.reason });
+    jwrite({
+      k: jkey(mu),
+      v: verdict,
+      ks: ks.length ? ks : undefined,
+      r: typeof v === 'string' ? undefined : v.reason,
+      fh: fnHash(mu.line),
+      gh: ks.length ? Object.fromEntries(ks.map((g) => [g, _groupHash.get(g)])) : undefined
+    });
     /* ONE LINE PER MUTANT, on stderr so stdout stays pure NDJSON. An aggregate counter tells you a
        sweep is alive; it does not tell you WHAT it is finding, and on a 13 h run the difference
        between "still working" and "working on something useful" is worth a line each. */
@@ -1154,7 +1298,7 @@ async function runFile(file) {
     generatedInFile: touched ? allGenerated.length : undefined,
     touchedLines: touched ? touched.size : undefined,
     // the canary is scaffolding, not a measurement — it must not enter the denominator it guards
-    tested: picked.length - (canaryMu ? 1 : 0) + resumedCount,
+    tested: picked.length - (canaryMu ? 1 : 0) + resumedCount + reusedCount,
     killed: canaryState === 'FAILED' ? null : killed,
     invalid,
     // the mutants that never RAN — listed, so a survivor can never hide as a bare count again
@@ -1380,13 +1524,31 @@ function selftest() {
   const none = classifySurvivors(undefined, survived, genAll);
   ck('classify · no entries ⇒ every survivor unclassified, nothing excused', none.unclassified.length + ':' + none.excused.length, '3:0');
 
+  /* ── incremental · groupBodies + mayReuse ───────────────────────────────────────────────────── */
+  const GB = groupBodies("group('alpha', 'tag', function (T) { a({ b: 1 }); });\ngroup(\"beta\", 't', function (T) { c(); });");
+  ck('groups · both titles are found', [...GB.keys()].join(','), 'alpha,beta');
+  ck('groups · a body with NESTED braces is captured whole', GB.get('alpha').includes('{ b: 1 }'), true);
+  ck('groups · …and stops at its own closing brace', GB.get('alpha').endsWith('}'), true);
+  ck('groups · an empty source yields nothing', groupBodies('').size, 0);
+
+  const H = new Map([['G', 'ghash']]);
+  ck('reuse · a KILLED mutant with matching function + group hashes is reusable', mayReuse({ v: 'KILLED', fh: 'f', ks: ['G'], gh: { G: 'ghash' } }, 'f', H), true);
+  ck('reuse · …but NOT if the function source moved', mayReuse({ v: 'KILLED', fh: 'OLD', ks: ['G'], gh: { G: 'ghash' } }, 'f', H), false);
+  ck('reuse · …NOT if the killing group was edited', mayReuse({ v: 'KILLED', fh: 'f', ks: ['G'], gh: { G: 'STALE' } }, 'f', H), false);
+  ck('reuse · …NOT if the killing group is gone', mayReuse({ v: 'KILLED', fh: 'f', ks: ['GONE'], gh: { GONE: 'x' } }, 'f', H), false);
+  /* THE LOAD-BEARING REFUSAL: a survivor can be killed by any newly added group, so reusing it would
+     record a mutant as alive that the new test already kills — a wrong number wearing the shape of
+     progress. Survivors and invalids are ALWAYS re-tested. */
+  ck('reuse · a SURVIVED verdict is never reusable, however unchanged', mayReuse({ v: 'SURVIVED', fh: 'f', ks: ['G'], gh: { G: 'ghash' } }, 'f', H), false);
+  ck('reuse · an INVALID verdict is never reusable', mayReuse({ v: 'INVALID', fh: 'f', ks: ['G'], gh: { G: 'ghash' } }, 'f', H), false);
+  ck('reuse · a kill with no named killer cannot be verified, so is re-tested', mayReuse({ v: 'KILLED', fh: 'f', ks: [], gh: {} }, 'f', H), false);
   /* ── readJournal · resume + the JAMMED-mutant detection ─────────────────────────────────────
      The whole point of the two-record scheme: a `start` with no verdict is the mutant that was in
      flight when the process died, i.e. the one that jammed. Retrying it turns one jam into an
      infinite loop across restarts, so it must be QUARANTINED and reported. */
   const J = readJournal(['{"k":"a"}', '{"k":"a","v":"KILLED"}', '{"k":"JAMMER"}', '{"k":"c","v":"SURVIVED"}', '{"k":"d","v":"INVALID"}', '{"k":"tor'].join('\n'));
-  ck('journal · a finished mutant is recorded with its verdict', J.done.get('a'), 'KILLED');
-  ck('journal · every verdict kind round-trips', J.done.get('c') + '/' + J.done.get('d'), 'SURVIVED/INVALID');
+  ck('journal · a finished mutant is recorded with its verdict', J.done.get('a').v, 'KILLED');
+  ck('journal · every verdict kind round-trips', J.done.get('c').v + '/' + J.done.get('d').v, 'SURVIVED/INVALID');
   ck('journal · ONE unfinished start is a RETRY, not a jam (it was merely in flight)', J.retry.join(','), 'JAMMER');
   ck('journal · …and nothing is quarantined on a single interrupt', J.jammed.length, 0);
   ck('journal · …and a finished mutant is neither', J.jammed.includes('a') || J.retry.includes('a'), false);
@@ -1397,7 +1559,7 @@ function selftest() {
   ck('journal · a mutant that finished after a retry is done, not jammed', readJournal('{"k":"x"}\n{"k":"x"}\n{"k":"x","v":"KILLED"}').jammed.length, 0);
   ck('journal · a TORN final line is ignored, not fatal', J.done.has('tor') || J.jammed.includes('tor'), false);
   ck('journal · an empty journal yields nothing to skip', readJournal('').done.size + ':' + readJournal('').jammed.length, '0:0');
-  ck('journal · junk lines are skipped', readJournal('not json\n{"k":"z","v":"KILLED"}').done.get('z'), 'KILLED');
+  ck('journal · junk lines are skipped', readJournal('not json\n{"k":"z","v":"KILLED"}').done.get('z').v, 'KILLED');
   ck('journal · a record with no key is ignored', readJournal('{"v":"KILLED"}').done.size, 0);
 
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
