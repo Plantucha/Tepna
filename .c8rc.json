@@ -1,0 +1,19 @@
+{
+  "//": "JS coverage for the Dex suite. NO THRESHOLD YET — this measures, it does not gate. The Python side runs --cov-fail-under=100 and its mutation kill rate is 74.6% against the JS fleet's 38.5%; a floor here is the obvious next step, but it has to be set from a measured baseline rather than guessed, or it lands red on day one and gets disabled.",
+  "all": true,
+  "src": ["."],
+  "include": ["*.js"],
+  "exclude": [
+    "node_modules/**",
+    "tests/**",
+    "tools/**",
+    "docs/**",
+    "papers/**",
+    "**/*.min.js",
+    "*.config.js",
+    "manifest-gate.js",
+    "provenance-ledger.js"
+  ],
+  "reporter": ["text-summary"],
+  "skip-full": false
+}

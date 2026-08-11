@@ -209,7 +209,11 @@ function loadInto(ctx, file) {
   // shared vm realm can't eval. classicify() sheds the module syntax (the IIFE + window attaches remain),
   // so the DSP loads exactly as before. No-op on classic files, so it is safe to run on every module.
   const code = DexBuild.classicify(readFileSync(p, 'utf8'));
-  vm.runInContext(code, ctx, { filename: file });
+  /* ABSOLUTE path as the vm filename. V8 attributes coverage to this URL, and c8 keeps only files
+     that resolve under the project root — with the RELATIVE name it kept none of them, so a coverage
+     run reported on the harness and silently omitted every DSP it had just exercised. classicify()
+     replaces line CONTENTS in place (^…$ with /gm), so line numbers still match the file on disk. */
+  vm.runInContext(code, ctx, { filename: p });
 }
 
 /* ── 2 · gather sources (static checks) and fixtures (export completeness) ── */

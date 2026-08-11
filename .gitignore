@@ -198,3 +198,7 @@ __pycache__/
 .coverage.*
 htmlcov/
 .mutation-crawl/
+
+# c8 / coverage output — generated, never committed
+coverage/
+.nyc_output/
