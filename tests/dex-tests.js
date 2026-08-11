@@ -15459,6 +15459,25 @@
           T.eq('§4 no stepP95 supplied ⇒ falls back to driftRange', PG.verdict(ovOK, cp({ driftRange: G.DRIFT_MAX_MS + 1 }), scOK).why.driftStat, 'driftRange');
           T.eq('§4 stepP95 supplied ⇒ that is what was weighed', PG.verdict(ovOK, cp({ stepP95: 10, driftRange: 400 }), scOK).why.driftStat, 'stepP95');
           T.eq('§4 no bins at all ⇒ no step, and the gate falls back rather than passing on a NaN', PG.driftStats([]).nSteps, 0);
+          /* ── PAT-WINDOW-CENSORING §2 — a night the PHYS window has eaten is REFUSED, not scored ──
+             `[200,650]` was treated as a plausibility filter; it is a censoring cut. Where the
+             inter-device offset puts the true lag outside it, the surviving beats are an edge-biased
+             remnant. The decisive case is the last one: a night that passes EVERY other leg must still
+             be refused on censoring alone, or the refusal is decorative. */
+          T.eq('§2 a night within the censoring bar is unaffected', PG.verdict(ovOK, cp({ censoredPct: 0.1, stepP95: 10 }), scOK).label, 'FEASIBLE');
+          T.eq('§2 exactly at CENSORED_MAX_PCT still passes (inclusive)', PG.verdict(ovOK, cp({ censoredPct: G.CENSORED_MAX_PCT, stepP95: 10 }), scOK).label, 'FEASIBLE');
+          T.eq('§2 the real 2026-08-04 finger night (59.8 %) ⇒ WINDOW-CENSORED', PG.verdict(ovOK, cp({ censoredPct: 59.8, stepP95: 10 }), scOK).label, 'WINDOW-CENSORED');
+          T.eq('§2 …and it is a REFUSAL, not a downgrade', PG.verdict(ovOK, cp({ censoredPct: 59.8, stepP95: 10 }), scOK).tier, 'no');
+          T.eq('§2 the 97.4 % night that still produced a confident PAT number', PG.verdict(ovOK, cp({ censoredPct: 97.4, stepP95: 10 }), scOK).label, 'WINDOW-CENSORED');
+          T.ok('§2 why{} carries the measured share', Math.abs(PG.verdict(ovOK, cp({ censoredPct: 59.8, stepP95: 10 }), scOK).why.censoredPct - 59.8) < 1e-9);
+          T.eq('§2 absent censoredPct ⇒ UNCHANGED behaviour (pre-2026-08-11 callers)', PG.verdict(ovOK, cp({ stepP95: 10 }), scOK).label, 'FEASIBLE');
+          T.eq('§2 a NaN censoredPct does not refuse — it means "not measurable", not "bad"', PG.verdict(ovOK, cp({ censoredPct: NaN, stepP95: 10 }), scOK).label, 'FEASIBLE');
+          // censoring outranks a night that is otherwise perfect on every published leg
+          T.eq(
+            '§2 an otherwise FEASIBLE night is still refused on censoring alone',
+            PG.verdict(ovOK, cp({ matchRate: 0.99, residIQR: 8, med: 400, stepP95: 5, censoredPct: 34.5 }), scOK).label,
+            'WINDOW-CENSORED'
+          );
         } else {
           T.ok('PATGate co-loaded (pat-gate.js)', false, 'add pat-gate.js to both runners');
         }
