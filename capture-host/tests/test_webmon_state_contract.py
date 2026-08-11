@@ -137,12 +137,17 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
     assert body["archive"] == {"verified": True}
     assert body["cpap"] == {"state": "ok", "files": 5}
     assert set(body) == {"adapter", "devices", "streams", "host_clock", "storage", "qc", "host",
-                         "archive", "cpap"}
+                         # `alerts` is the ALERT TRANSPORT's own health, not an alert. It belongs on
+                         # this surface because every other block here is designed to reach the
+                         # operator by webhook, so a webhook that silently stops turns each of them
+                         # into "found out next week" — the transport has to be as visible as what it
+                         # guards. Three states, kept apart: delivered / unproven / failing.
+                         "archive", "cpap", "alerts"}
 
 
 def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):
     body = _state(tmp_path, [DEV], {})
-    for k in ("host_clock", "storage", "qc", "host", "archive", "cpap"):
+    for k in ("host_clock", "storage", "qc", "host", "archive", "cpap", "alerts"):
         assert k in body, f"{k} must be present-and-null, never absent"
     for k in ("storage", "qc", "host", "archive", "cpap"):
         assert body[k] is None
