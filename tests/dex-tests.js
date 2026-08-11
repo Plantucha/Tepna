@@ -39036,6 +39036,46 @@
        matrix: each planted shape fires its OWN probe and leaves the other four silent, and three
        controls (a clean signal, a smooth trend, a random walk) fire nothing at all.
        Node-lane only — the browser lane cannot import an ESM tool, so it SKIPs as docs-ledger does. */
+    /* PAT-GEOMETRY-PROBE §6 — DOES THE CHAIN INTRODUCE GEOMETRY? The sibling group tests the probes.
+       This tests the FUNCTIONS, and it is the real mutation analogue: a synthetic ECG and PPG whose lag
+       is FLAT by construction are pushed through parseECG -> detectPeaks -> tMsAt and parsePPG ->
+       detectChannel -> foot, and any shape that appears downstream was introduced by the code, not by a
+       recording. Then the converse, which matters just as much: each planted INPUT defect must reach
+       the output. A chain that stays silent on a planted defect is not clean, it is BLIND — the failure
+       mode this repo has shipped more than once. */
+    group('geometry-passthrough — a flat input must come out flat, and a planted defect must NOT', 'geometry-probe · timeline · alignment · passthrough', function (T) {
+      var GP = env.GeomPass;
+      if (!GP || typeof GP.passthrough !== 'function') {
+        T.skip('geometry-passthrough: ESM tool import unavailable in this lane');
+        return;
+      }
+      var dsp = GP.loadDsp();
+      var DUR = 600;
+      var clean = GP.passthrough(dsp, DUR, {}, {});
+      T.ok('§6 the chain recovers both sampling rates from the synthetic inputs', Math.abs(clean.ecgFs - GP.ECG_HZ) < 0.5 && Math.abs(clean.ppgFs - GP.PPG_HZ) < 0.5);
+      T.ok('§6 it pairs essentially every beat', clean.nPairs > (DUR * 1000) / GP.RR_MS - 20);
+      /* THE HEADLINE: a lag that is flat by construction comes back flat. Not "small" — FLAT. Any
+         scatter here would be introduced by the code between input and output. */
+      T.ok('§6 a flat input lag comes back FLAT (IQR ≈ 0)', clean.lagIqr < 1);
+      T.ok('§6 …and no probe fires on the output', clean.fired.length === 0);
+      /* The lag lands ~35 ms below the planted value because the foot is planted relative to complex
+         ONSET while detectPeaks reports the R PEAK, 35 ms later by construction. Asserted as a range so
+         a real drift in the estimator still trips it. */
+      T.ok('§6 the recovered lag matches the planted one, allowing the R-peak offset', clean.medLag > GP.LAG_MS - 60 && clean.medLag < GP.LAG_MS + 10);
+      // and the converse — each planted input defect must be VISIBLE downstream
+      var ecgStep = GP.passthrough(dsp, DUR, { hostStepMs: 400 }, {});
+      T.ok('§6 a 400 ms ECG host-stamp STEP reaches the output', ecgStep.fired.indexOf('step') >= 0);
+      var ppgStep = GP.passthrough(dsp, DUR, {}, { hostStepMs: 400 });
+      T.ok('§6 a 400 ms PPG host-stamp STEP reaches the output', ppgStep.fired.indexOf('step') >= 0);
+      var ppgRate = GP.passthrough(dsp, DUR, {}, { hostPpm: 5000 });
+      T.ok('§6 a PPG rate error reaches the output', ppgRate.fired.length > 0);
+      /* A relative rate error produces a SAWTOOTH by construction — which is what the real corpus
+         shows on three nights, and this is the first evidence the mechanism actually is a rate
+         mismatch rather than something that merely resembles one. */
+      T.ok('§6 …as a SAWTOOTH, confirming the real-night mechanism', ppgRate.fired.indexOf('sawtooth') >= 0);
+      T.ok('§6 a planted defect moves the median lag well off the clean value', Math.abs(ppgStep.medLag - clean.medLag) > 100);
+    });
+
     group('geometry-probe — five timeline shapes, and each probe fires on ONLY its own', 'geometry-probe · timeline · alignment · specificity', function (T) {
       var G = env.GeomProbe;
       if (!G || typeof G.probeAll !== 'function') {

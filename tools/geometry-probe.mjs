@@ -149,6 +149,8 @@ export function drawnAxis(times, tol) {
   const d = diffs(Array.from(times));
   if (d.length < 16) return { share: NaN, shares: null, drawn: false, n: d.length };
   const m = med(d);
+  // a constant series is not a ladder: a ladder has a constant NON-ZERO step
+  if (!(Math.abs(m) > 0)) return { share: NaN, shares: null, spread: NaN, modal: m, drawn: false, n: d.length };
   const at = (t) => {
     let same = 0;
     for (const x of d) if (Math.abs(x - m) <= t) same++;
@@ -157,7 +159,18 @@ export function drawnAxis(times, tol) {
   const rel = (f) => at(Math.max(Number.EPSILON, Math.abs(m) * f));
   const shares = { fine: rel(1e-6), mid: rel(1e-4), coarse: rel(1e-3) };
   const share = Number.isFinite(tol) ? at(tol) : shares.coarse;
-  return { share, shares, modal: m, drawn: shares.fine >= 0.99, n: d.length };
+  /* The verdict keys on the FINE share plus the SPREAD, not on an absolute coarse share.
+     Measured over 14 real nights, the two populations do not overlap and the gap is enormous:
+       a synthesized ladder   fine 0.987-0.998, spread 0.000  (fine == coarse exactly)
+       a ppm-corrected axis   fine 0.003-0.442, spread 0.132-0.997
+       a host-disciplined PPG fine 0.291,       spread 0.335
+     A 0.99 bar on the fine share alone SPLIT the ladder population — 2026-08-06 (0.987) and 2026-08-09
+     (0.989) carry the signature exactly (fine == coarse) and were excluded by two thousandths, while
+     the nearest non-ladder sits at 0.442. So the bar moves to 0.9, which has a 2x margin to anything
+     that is not a ladder, and the spread must be ~0, which is the mechanism: a real correction VARIES
+     between tolerances, a drawn one cannot. Both conditions are read off the data, neither is chosen. */
+  const spread = shares.coarse - shares.fine;
+  return { share, shares, spread, modal: m, drawn: shares.fine >= 0.9 && spread <= 0.05, n: d.length };
 }
 
 /* STEP — one discontinuity far outside the local scatter. Reported as the ratio of the largest step to
@@ -175,6 +188,16 @@ export function stepiness(values) {
    lights several has not been diagnosed, it has been described. */
 export function probeAll(values, opts) {
   const o = opts || {};
+  /* A CONSTANT SERIES HAS NO SHAPE, and the probes degenerate on one: the modal delta is 0, so
+     `drawn`'s tolerance collapses to epsilon and `stepiness` divides by ~0 and reports a huge ratio.
+     Found by the passthrough test, where a clean synthetic input comes out of the production chain
+     EXACTLY flat (six bin medians identical to six decimals) and the probes then "found" two shapes in
+     it. Refuse instead: a diagnosis of a constant is not a finding, and reporting one would be the
+     same false confidence these probes exist to remove. */
+  const vv = asc(values);
+  const scale = Math.abs(qt(vv, 0.5)) || 1;
+  const spreadRel = (qt(vv, 0.75) - qt(vv, 0.25)) / scale;
+  if (vv.length >= 8 && spreadRel < 1e-9) return { degenerate: true, fired: [], reason: 'constant series — no shape to diagnose' };
   const r = {
     saturation: saturation(values, o.lo, o.hi, o.tol),
     sawtooth: sawtooth(values, o.period),
@@ -202,7 +225,12 @@ export function plant(kind, n) {
     if (kind === 'saturation')
       out.push(i % 2 ? 205 : 645); // pinned to both bounds
     else if (kind === 'sawtooth')
-      out.push(200 + ((i * 37) % 450)); // ramp, wrap, ramp
+      /* Ramp, wrap, ramp — with SMOOTH scatter on the ramp. A noiseless sawtooth has perfectly
+         constant slope between wraps, which is locally a ladder, so it also fires `drawn` once that
+         probe keys on the spread. Third time in this file that an unrealistically clean plant broke
+         specificity: a plant must be physically plausible, not merely geometrically suggestive. A real
+         drifting-clock sawtooth ramps with jitter. */
+      out.push(200 + ((i * 37) % 450) + 1.2 * Math.sin(i / 3));
     else if (kind === 'censoring')
       out.push(i % 3 === 0 ? 90 + i : 300 + (i % 40)); // a third outside — by design
     else if (kind === 'drawn')
