@@ -224,6 +224,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             "qc": status.get("qc"),
             # Boot/adapter facts: uptime (a moved started_at = a spurious restart) + a mis-pin flag.
             "host": status.get("host"),
+            # Alert-transport health. The monitor renders three states from it — ok / unproven /
+            # FAILING — because "enabled and never delivered anything" is not the same as working.
+            "alerts": status.get("alerts"),
             # Offload result, so the sidebar pill can say whether anything actually left the box.
             "archive": status.get("archive"),
             # CPAP harvest (CPAP-AUTOHARVEST-2026-07-26-BRIEF). Its OWN block, deliberately not a
