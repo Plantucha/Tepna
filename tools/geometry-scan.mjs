@@ -144,7 +144,7 @@ function scan(dir, dsp) {
       s = stepiness(t);
     row('1 ECG sample axis', {
       fired: [d.drawn && 'drawn', s.hasStep && 'step'].filter(Boolean),
-      note: 'delta-share ' + (d.share != null ? d.share.toFixed(3) : '-') + '  step-ratio ' + (s.ratio != null ? s.ratio.toFixed(1) : '-')
+      note: 'ladder fine/coarse ' + (d.shares ? d.shares.fine.toFixed(3) + '/' + d.shares.coarse.toFixed(3) : '-') + '  step-ratio ' + (s.ratio != null ? s.ratio.toFixed(1) : '-')
     });
   }
   // 2 — ECG beat times
@@ -178,7 +178,10 @@ function scan(dir, dsp) {
       for (let i = 0; i < Math.min(n, 5000); i++) contig.push(toMs(i));
       const d = drawnAxis(contig),
         s = stepiness(t);
-      row('3 PPG axis (' + site + ')', { fired: [d.drawn && 'drawn', s.hasStep && 'step'].filter(Boolean), note: 'delta-share ' + d.share.toFixed(3) + '  step-ratio ' + s.ratio.toFixed(1) });
+      row('3 PPG axis (' + site + ')', {
+        fired: [d.drawn && 'drawn', s.hasStep && 'step'].filter(Boolean),
+        note: 'ladder fine/coarse ' + (d.shares ? d.shares.fine.toFixed(3) + '/' + d.shares.coarse.toFixed(3) : '-') + '  step-ratio ' + s.ratio.toFixed(1)
+      });
     }
     const F = feet(det.bp, det.peaks, pr.fs, 150).map(toMs);
     // 4 — PPG foot times

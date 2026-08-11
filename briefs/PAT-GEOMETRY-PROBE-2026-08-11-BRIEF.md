@@ -34,8 +34,8 @@ plus `probeAll` and `plant(kind)`. The planted shapes live beside the detectors 
 kept in a different file from the thing it tests drifts away from it.
 
 **The gate asserts the full specificity matrix** (`geometry-probe` group, Node-lane only): each planted
-shape fires its own probe and *only* its own, and three controls — a clean noisy signal, a smooth trend,
-a random walk — fire nothing at all. Plus the real numbers each probe was built from: the nine
+shape fires its own probe and *only* its own, and four controls — a clean noisy signal, a smooth trend,
+a random walk, and a ppm-CORRECTED axis — fire nothing at all. Plus the real numbers each probe was built from: the nine
 `driftRange` values read as saturated, the O2Ring's 8 ms ladder reads as drawn, and a jittered version
 of the same rate does not.
 
@@ -63,12 +63,14 @@ Measured, and the value is the **attribution**:
 
 ```
 2026-08-02   every stage ok                                       (median lag 366, 0.1 % discarded)
-2026-08-04   1 ECG axis        DRAWN        delta-share 1.000
-             3 PPG axis finger DRAWN        delta-share 0.993
+2026-08-04   1 ECG axis        ok           ladder 0.122/1.000  (see §3.1)
+             3 PPG axis finger DRAWN        ladder 0.993/0.993
              5 lag finger      CENSORING, SATURATION   median 603, 59.8 % discarded
              6 binned finger   STEP, SATURATION        6 wraps, step-ratio 22.4
-2026-08-10   1 ECG axis        ok           delta-share 0.700     ← after the capture-side timebase fix
-             3 PPG axis finger ok           delta-share 0.626
+2026-08-05   3 PPG axis finger DRAWN, STEP  step-ratio  46.5     ← a genuine axis discontinuity
+             4 PPG foot times  STEP         step-ratio 283.5        propagating into the feet
+2026-08-10   1 ECG axis        ok           ladder 0.000/0.700   ← after the capture-side timebase fix
+             3 PPG axis finger ok           ladder 0.291/0.626
              5 lag finger      CENSORING, SATURATION   median 238, 42.1 % discarded
              5 lag ankle       ok                      median 368,  0.4 % discarded
 ```
@@ -76,11 +78,31 @@ Measured, and the value is the **attribution**:
 On 2026-08-04 the axes are clean at stages 2 and 4 and the defect enters at **pairing** — which is the
 attribution the whole `PAT-WANDER-ELIMINATION` exercise spent nineteen tests failing to make.
 
-⚠️ **`drawn` at stages 1/3 is a LEAD, not a verdict.** A host-disciplined axis interpolates between
-anchors, so over a 5000-sample window its correction can be locally constant and the deltas come out
-exact. The share separates the cases in practice — exact ladder 1.000, the O2Ring's legacy synthesized
-stamp 0.993, a real corrected axis 0.61–0.74 — but confirm against `hostAxis.applied` or the file's
-`# timebase=` header before calling an axis drawn.
+### 3.1 · `drawn` needed THREE tolerances — the first version produced six false findings
+
+Shipped with a single 1e-3 relative tolerance, `drawnAxis` reported the **ECG sample axis** as drawn at
+exactly **1.000 on six real nights** whose host axis was applied and working. The arithmetic says why: at
+130 Hz the deltas are 7.69 ms, so the tolerance is 0.0077 ms, while a 20.7 ppm correction changes each
+delta by **0.00016 ms — 48× below it**. A corrected axis is indistinguishable from a synthesized one at
+that resolution.
+
+Fixed by computing the share at three tolerances and taking the verdict at the fine one. **The spread
+across tolerances is the diagnosis**, and it separates the populations on real data:
+
+| night · stage | fine (1e-6) | coarse (1e-3) | verdict |
+|---|---|---|---|
+| 2026-08-04 ECG axis | **0.122** | 1.000 | ok — corrected, was falsely `DRAWN` |
+| 2026-08-07 ECG axis | **0.249** | 1.000 | ok — corrected |
+| 2026-08-04 PPG finger | **0.993** | 0.993 | **DRAWN** — constant at both, a true ladder |
+| 2026-08-10 PPG finger | 0.291 | 0.626 | ok — after the capture-side timebase fix |
+
+`1.000 / 1.000` is synthesized; `1.000 / low` was never drawn at all. The `corrected` plant is now a
+first-class fixture asserting exactly that, and it had to be rescaled onto the same range as the `drawn`
+plant after the first cut spanned 0–952 ms and tripped the bounded probes — **the isolate-one-shape rule
+broken by the very file that states it, twice in one session.**
+
+⚠️ Even sharpened, confirm a `drawn` verdict against `hostAxis.applied` or the file's `# timebase=`
+header before acting on it.
 
 ⚠️ **The scanner had this defect itself and it is worth keeping as a warning:** the first cut decimated
 the axis to ~4000 points before probing, and decimation destroys a constant-delta signature — so it
@@ -96,6 +118,21 @@ probes need opposite samplings.
   the cause is the device, the parser or the correction.
 - **Not exhaustive.** Five shapes are the ones this project has actually been bitten by. A sixth will
   turn up; add it beside its plant.
+
+## 5 · What the first corpus-wide run found
+
+Fourteen nights, every stage. Three results worth keeping:
+
+- **The O2Ring axis is drawn on 12 of 14 nights**, at fine-share **0.991–0.996** — and that number is
+  the mechanism, not just a verdict: ~0.7 % of deltas differ, and at 125 Hz with ~60 bpm one inserted
+  marker row per beat is 1/125 = 0.8 % of rows. The probe reproduced the marker-row signature
+  independently of the work that first described it.
+- **A new defect, localised in one pass: 2026-08-05 finger** — `3 PPG axis: DRAWN, STEP` (step-ratio
+  46.5) propagating into `4 PPG foot times: STEP` (283.5). That is the night whose `duration_s` counter
+  fit badly and whose dual-site result was internally inconsistent, and which had resisted explanation.
+- ⛔ **The sawtooth is RARER than previously claimed.** It fires on **3 of 14** nights (1–2 wraps each).
+  `PAT-WANDER-ELIMINATION` §1.2 says the censored nights "are the sawtooth"; most are **step +
+  censoring**, a different shape with a different cause. That sentence should be read as corrected here.
 
 ## Done when
 
