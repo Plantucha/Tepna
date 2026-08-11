@@ -85,6 +85,50 @@ Volume is one line per packet, order 10–20 MB a night.
   measured (within-night σ 29–36 ms against 2.2 s between nights) but has not been directly tested,
   and this sidecar is what would finally allow it to be.
 
+## 6 · Hardening — what shipping the first cut exposed
+
+The first version covered only the Polar path, which made it **half a fix**: the finger leg — half of
+the anatomical check that fails on 7 of 10 nights — had no arrival↔device pairing at all.
+
+- **The ring.** It exposes no device clock on any streaming opcode, but `live["duration"]` (seconds
+  into its session) measures **1–55 ppm** against the host once segmented on its resets. Now paired
+  with true frame arrival. ⚠️ **1 s quantised, so the ring's offset must be FITTED, not min-filtered** —
+  a minimum over a quantised counter returns the quantum. The `meas` column names which estimator
+  applies, and the QC check refuses to floor-judge it rather than manufacturing a nightly failure.
+- **A silent failure the first cut introduced.** The write is wrapped in a bare `except: pass` —
+  correct, telemetry must never disturb the data callback — which makes a *persistent* failure
+  invisible. `arrival_rows` now rides in the device status on both paths.
+- **A QC floor check.** `nightqc.arrival_quality()` measures `min − p01` per device per night and
+  reports `floor_ok`. Deliberately **not** folded into `ok`: a smeared floor is a defect of the offset
+  *measurement*, not of the night's physiology, and conflating them would make a good recording read as
+  a capture failure.
+- **A robust floor.** `floor_ms()` returns `(estimate, spread)` — a low quantile rather than the bare
+  minimum, so one anomalously early arrival cannot become the answer — and **refuses** below 100 points.
+  Returning only the estimate is how the earlier attempt produced confidence from noise.
+- **A canary.** `alerts.arrival_canary()` fires on both silent deaths: **SMEARED** (`floor_ok: False`)
+  and **DEAD** (connected, writing samples, sidecar rows stuck at zero — the only thing that can notice
+  the swallowed exception). It never fires on `floor_ok: None`, the quantised ring: an alert that fires
+  every night is one nobody reads.
+
+**Two further checks are now MEASURABLE rather than needing code**, and are deliberately left as
+analyses to run on real data: whether the offset really is constant within a connection (within-night
+σ 29–36 ms against 2.2 s between nights is consistent with it but has never been tested), and the
+ECG-vs-ACC within-device control, since both come from one H10 and share its clock.
+
+### 6.1 · CI caught what three local runs could not
+
+#1164 failed twice on **coverage, never on correctness**. capture-host enforces 100 % statement *and*
+branch coverage via `pytest -q --cov --cov-branch --cov-report=term-missing --cov-fail-under=100`. I ran
+bare `pytest`, then `--cov` without `--cov-branch` or `--cov-fail-under` — both reported green below the
+gate. Third instance of one pattern in a single session, after `biome lint` (CI runs `biome ci`) and
+bare `pytest`: **a locally weaker command than CI's, read as green.** The durable fix is to copy the
+command out of the workflow rather than approximate it; see `CONTRIBUTING.md`.
+
+The one real gap it surfaced was an `if arr_wr is not None:` guard whose false arm is **unreachable** —
+`arr_wr` is assigned before the callback is defined, and the callback cannot fire until `start_notify`
+later still. Removed rather than tested: a test for it could only have faked a state the code cannot be
+in. The `try/except` is the guard that matters and it stays.
+
 ## Done when
 
 - [x] `PmdArrivalLogWriter` in `capture-host/writers.py`
@@ -93,7 +137,10 @@ Volume is one line per packet, order 10–20 MB a night.
 - [x] tests pin exact integer ns, distinguishable 8 ms arrivals, blank-never-zero, and an end-to-end
       min-filter that recovers a planted 400 ms offset within 5 ms of the 1st percentile
 - [x] mutants killed: blank→0 (1 failure), arrival rounded to the second (2), ns as float (5)
-- [x] capture-host suite **3257 passed**
+- [x] capture-host suite **3283 passed at 100.00 % under CI's exact command** (statements AND branches)
+- [x] §6 hardening: ring path · `arrival_rows` in status · `arrival_quality` QC · `floor_ms` · `arrival_canary`
+- [x] mutants killed — floor: bare minimum (3), answering below 100 points (1); QC: floor-judging the
+      quantised ring (1); canary: never fires (2), falsy test instead of `is False` (1), dead arm dropped (1)
 
 Related: [`PAT-WINDOW-CENSORING-2026-08-11-BRIEF.md`](PAT-WINDOW-CENSORING-2026-08-11-BRIEF.md) ·
 [`PAT-WANDER-ELIMINATION-2026-08-10-BRIEF.md`](PAT-WANDER-ELIMINATION-2026-08-10-BRIEF.md) ·
