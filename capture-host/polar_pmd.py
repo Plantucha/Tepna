@@ -216,15 +216,36 @@ def status_cmd() -> bytes:
 def parse_status_response(value: bytes) -> dict[int, int]:
     """Parse a control-point status reply → {measurement type: active state}.
 
-    Tolerates the two framings the control point uses — a bare payload, and the `0xF0 op [status]`
-    envelope the settings reply carries — because reading the envelope wrong would report every stream
-    as inactive, which is exactly the false "it did not start" this command exists to rule out."""
+    Tolerates the two framings the control point uses — a bare payload, and the `0xF0` envelope —
+    because reading the envelope wrong would report every stream as inactive, which is exactly the
+    false "it did not start" this command exists to rule out.
+
+    ⚠️ THE ENVELOPE IS 5 BYTES AND THE STATUS IS BYTE 3. This read `body[3:]`, i.e. it began parsing AT
+    the status byte, and it never looked at the status at all. Two consequences, both measured on an
+    H10 2026-08-10:
+
+      · An ERROR reply became DATA. The H10 does not implement op 5 and answers `f0 05 00 01` —
+        `ERROR_INVALID_OP_CODE`. The old code returned `body = b"\\x01"`, read `0x01 & 0x3F = 1 = PPG`,
+        and reported `{ppg: "none"}` — a measurement state, for a stream this device does not have, out
+        of an error code. `is_recording()` consumes exactly this dict.
+      · A SUCCESS reply gained a phantom. Parsing from index 3 reads the status byte `0x00` as
+        `meas 0 = ECG, state = none`, so every enveloped reply carried an ECG entry it never contained.
+
+    The layout is from the SDK, not inferred: `PmdControlPointResponse.kt` —
+    `responseCode=data[0]  opCode=data[1]  measurementType=data[2]  status=data[3]`, and
+    `parameters = data.copyOfRange(5, size)` **only when status == SUCCESS**; on any error the SDK
+    leaves parameters EMPTY. Same header `parse_settings_response` was already verified against on
+    hardware ([0xF0, op, meas, status, moreFlag, …]).
+
+    An error therefore yields `{}` — "the device did not tell us", which `is_recording` already reads
+    as not-recording. That is the honest direction: the alternative invents activity from an error."""
     if not value:
         return {}
     body = value
     if body[0] == 0xF0:
-        # [0xF0, op, status, ...] — skip the envelope; older firmware omits the status byte.
-        body = body[3:] if len(body) > 2 and body[1] == _OP_STATUS else body[2:]
+        if len(body) < 4 or body[3] != 0x00:      # not SUCCESS ⇒ the reply carries no parameters
+            return {}
+        body = body[5:]                            # [0xF0, op, meas, status, moreFlag, <payload>]
     out: dict[int, int] = {}
     for b in body:
         meas, state = b & 0x3F, (b & 0xC0) >> 6
