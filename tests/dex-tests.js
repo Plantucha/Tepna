@@ -11814,9 +11814,27 @@
         return;
       }
       var BASE = {
-        _hr: 62, _meanRR: 968, _sdnn: 54, _rmssd: 41, _mxdmn: 320, _pnn50: 18.5, _amo50: 31,
-        _mode: 950, _totalPow: 3200, _hf: 900, _lf: 1400, _vlf: 900, _stress: 3.2, _energy: 5.1,
-        _focus: 4.4, _sns: 1.2, _psns: 2.1, _coherence: 3.3, _hrv: 60, _cv: 5.6, _spanMin: 6
+        _hr: 62,
+        _meanRR: 968,
+        _sdnn: 54,
+        _rmssd: 41,
+        _mxdmn: 320,
+        _pnn50: 18.5,
+        _amo50: 31,
+        _mode: 950,
+        _totalPow: 3200,
+        _hf: 900,
+        _lf: 1400,
+        _vlf: 900,
+        _stress: 3.2,
+        _energy: 5.1,
+        _focus: 4.4,
+        _sns: 1.2,
+        _psns: 2.1,
+        _coherence: 3.3,
+        _hrv: 60,
+        _cv: 5.6,
+        _spanMin: 6
       };
       /* The derived columns that are NOT finite, as a sorted space-joined string — readable in a
          failure message, unlike a hash. */
@@ -11897,7 +11915,7 @@
         ['_coherence', 'd_coh_energy d_efc d_focus_eff d_hile d_incoherent_stress d_pti d_se_div d_sfd d_vo2_delta d_welfare'],
         ['_hrv', 'd_vo2_delta'],
         ['_cv', 'd_vo2_delta'],
-        ['_spanMin', 'd_vo2_delta'],
+        ['_spanMin', 'd_vo2_delta']
       ];
       for (var i = 0; i < CASES.length; i++) {
         T.eq('absent ' + CASES[i][0] + ' → exactly these columns fall to NaN', nonFinite(CASES[i][0]), CASES[i][1]);
@@ -11956,7 +11974,7 @@
         ['_coherence', '37/1545.381034'],
         ['_hrv', '46/1650.912877'],
         ['_cv', '46/1650.912877'],
-        ['_spanMin', '46/1650.912877'],
+        ['_spanMin', '46/1650.912877']
       ];
       for (var q = 0; q < DIGESTS.length; q++) {
         T.eq('absent ' + DIGESTS[q][0] + ' → the surviving columns still compute the same values', digest(DIGESTS[q][0]), DIGESTS[q][1]);
