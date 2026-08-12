@@ -1,0 +1,78 @@
+<!--
+Copyright 2026 Michal Planicka
+SPDX-License-Identifier: Apache-2.0
+-->
+
+**Status:** PROPOSED · **Created:** 2026-08-12 · **Follows:** `PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md`
+
+# The estimator exists and has never seen a real arrival
+
+`PAT-OFFSET-ESTIMATOR` shipped two published estimators and a certificate. Everything it claims was
+measured on **planted data** or on the *per-sample* columns of existing captures. The sidecar that
+motivated it had not written a single row when that brief was stamped DONE. This is what execution
+surfaced, in the order it should be answered.
+
+## 1 · The first real night — the only item that is not optional
+
+The arrival sidecar deployed 2026-08-11 (box HEAD carries #1170; `PmdArrivalLogWriter` verified
+present in the deployed `writers.py` and `capture.py`; daemon active). The first `*_PMDARRIVAL.csv`
+will be written by the capture that starts the evening of 2026-08-11.
+
+- **Read values, not durations.** A sidecar that exists proves nothing — the whole reason `arrival_rows`
+  and `arrival_canary` exist is that the write is wrapped in a bare `except: pass`. Check
+  `nightqc.arrival_quality()`'s `rows` per device, then check the values are not degenerate.
+  (Precedent: a 194-night SpO₂ claim that was 193 nights of a −1 fill.)
+- **Then run `clock_offset.estimate` on it** and read `certified`. The sweep predicts **77 %**
+  certification in a real night's regime (n ≥ 2000 over 8 h, jitter ≤ 30 ms) — so roughly one night in
+  four legitimately refusing is the expected outcome, not a defect.
+- ⚠️ **The ring leg is the one to watch.** Its `OXYLIVE_DURATION_S` pairing has never been exercised at
+  all, and the whole argument for fitting rather than min-filtering rests on a drift of 1–55 ppm that
+  was measured *once*, out of band.
+
+## 2 · Is the offset actually constant within a connection?
+
+`PAT-PACKET-ARRIVAL` §5 assumes it and says plainly that it "has not been directly tested." Within-night
+σ of 29–36 ms against 2.2 s between nights is *consistent* with constancy and does not establish it.
+The sidecar is what finally allows the test: fit `estimate` over the first and second halves of one
+connection separately and compare. If the offset moves within a connection, the per-connection model is
+wrong and the correction cannot be a single number.
+
+## 3 · Does correcting both legs repair the anatomical sign?
+
+**This is the actual goal and nothing has attempted it.** 7 of 10 nights are anatomically impossible —
+the ankle, the longer path, reporting arrival *before* the finger. Apply the measured offset to both
+legs and re-run the pairing. Success is the SIGN becoming positive on nights where it was negative, not
+a better-looking number. If the sign does not repair, the per-connection offset was not the blocker and
+`PAT-PACKET-ARRIVAL` §1 needs revisiting.
+
+## 4 · What the mutation gate exposed, which is not about PAT at all
+
+Recorded here because it was found executing this brief and would otherwise be lost:
+
+- **`tools/mutate_diff.py` fails open.** With mutmut absent it prints *"every mutant on the changed
+  functions was killed"* and `survivors: []` — zero mutants generated, reported green. It should refuse.
+- **`mutation (diff-scoped)` is not a required check**, so #1170 merged red and the gaps stayed open on
+  `main` until #1174. Either make it required or accept that it is advisory and check it by hand.
+- **100 % statement AND branch coverage coexisted with 94 surviving mutants** on `clock_offset.py`.
+  Worth remembering the next time a coverage number is offered as evidence of anything.
+
+## 5 · Deliberately NOT proposed
+
+- **Consuming the offset in an export.** Nothing reads `nightqc`'s `offset` yet, and it should stay that
+  way until §3 shows the correction repairs the sign. A correction that has not been shown to fix the
+  anatomy has no business in a `ganglior.node-export`.
+- **Tuning `AGREE_MAX_MS`.** It is PAT's requirement, not a fitted parameter. If real nights certify at
+  a rate far from 77 %, that is information about the capture, and the threshold moves only with an
+  argument about the requirement.
+
+## Done when
+
+- [ ] a real `*_PMDARRIVAL.csv` exists, its rows are non-degenerate, and `estimate` has been run on it
+- [ ] the ring leg's `OXYLIVE_DURATION_S` pairing is confirmed to produce a usable fit
+- [ ] within-connection constancy tested by halves, and the result recorded either way
+- [ ] the anatomical sign re-checked after correcting both legs
+- [ ] `mutate_diff.py` refuses instead of greening when mutmut is missing
+
+Related: [`PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md`](PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md) ·
+[`PAT-PACKET-ARRIVAL-2026-08-11-BRIEF.md`](PAT-PACKET-ARRIVAL-2026-08-11-BRIEF.md) ·
+[`PAT-WINDOW-CENSORING-2026-08-11-BRIEF.md`](PAT-WINDOW-CENSORING-2026-08-11-BRIEF.md)
