@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 
+import allan
 import clock_offset
 import writers
 from datetime import datetime, timedelta
@@ -426,6 +427,15 @@ def newest_data_mtime(night_dir: str) -> float | None:
 
 
 
+def _tau0_of(pairs) -> float:
+    """Mean packet interval in SECONDS — ADEV's sample interval. Measured from the HOST stamps, which
+    are the axis this phase series is indexed on; taking it from the device would let a stalled counter
+    shrink its own tau0 and silently rescale the whole curve."""
+    if len(pairs) < 2:
+        return 0.0
+    return ((pairs[-1][0] - pairs[0][0]) / 1000.0) / (len(pairs) - 1)
+
+
 def host_jitter(delays: list[float], min_n: int = 100) -> dict | None:
     """HOST-SIDE delivery jitter per packet, in ms. None when there are too few packets to say.
 
@@ -550,6 +560,15 @@ def arrival_quality(night_dir: str) -> list[dict]:
                 "quantised": quantised,
                 "offset": offset,
                 "jitter": host_jitter(diffs),
+                # CLOCK STABILITY AS A CURVE. `arrival - device` is a phase (time-error) series, ADEV's
+                # native input, and the SLOPE names a mechanism where a ppm cannot: measured 2026-08-11,
+                # all four Polar streams are white/flicker PHASE (slope -0.99 to -1.00) averaging to
+                # 0.023-0.094 ms — the clock sits ~100x inside PAT's 10 ms budget and is not the
+                # bottleneck. The ring is white FREQUENCY at 615 ms, four orders worse.
+                # Reported, gated by NOTHING: the last two arrival diagnostics that shipped with
+                # thresholds both fired on every stream of the first real night. See
+                # ALLAN-DEVIATION-2026-08-12-BRIEF.
+                "stability": allan.stability(diffs, _tau0_of(pairs)),
                 "floor_spread_ms": None if spread is None else round(spread, 1),
                 # The verdict a reader should branch on. None where it cannot be judged — an unknown is
                 # not a pass, and the earlier attempt's whole failure was reporting a number that had
