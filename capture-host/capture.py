@@ -3204,11 +3204,16 @@ def publish_recording(now_mono: float, grace_sec: float) -> bool:
     return any_rec
 
 
+_NOTIFIER = None        # set in main(); read by status_loop to publish alert-transport health
+
+
 async def status_loop(root: str, data_stale_sec: float = 120.0):
     path = os.path.join(root, "captures", "status.json")
     while not _STOP.is_set():
         STATUS["updated"] = _now().isoformat()
         STATUS["recording"] = publish_recording(_time.monotonic(), data_stale_sec)
+        if _NOTIFIER is not None:
+            STATUS["alerts"] = _NOTIFIER.stats()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             _tmp = path + ".tmp"
@@ -4732,6 +4737,11 @@ async def main():
     # Push-alert transport (webhook) — disabled unless config sets alerts.enabled + alerts.webhook_url.
     _acfg = cfg.get("alerts") or {}
     notifier = alerts.Notifier(_acfg.get("webhook_url"), enabled=bool(_acfg.get("enabled")))
+    # Published every status tick (see status_loop). Module-level rather than threaded through a dozen
+    # signatures because the ONE thing this needs is to reach the same surface as everything else it
+    # guards — an alert transport whose own health is invisible is the failure it exists to prevent.
+    global _NOTIFIER
+    _NOTIFIER = notifier
 
     # EVERY background task is supervised. Several of them are the recovery ladder itself — adapter_watchdog
     # is the one thing that un-wedges a dead radio — so a task dying quietly is strictly worse here than

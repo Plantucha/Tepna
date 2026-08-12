@@ -119,6 +119,32 @@ def test_status_loop_writes_status_json(tmp_path, monkeypatch):
     assert (tmp_path / "captures" / "status.json").exists()
 
 
+def test_status_loop_publishes_the_ALERT_TRANSPORTS_OWN_HEALTH(tmp_path, monkeypatch):
+    """The alert path is the last line of defence for every silent-absence failure the daemon guards
+    against, so its own health has to reach the same surface as the capture it protects. Measured
+    2026-08-11: 32 alerts fired in 24 h and the journal held ONE delivery outcome in 48 h — nothing
+    said whether the rest landed, because success was silent and nothing was published anywhere."""
+    import alerts as _alerts
+    monkeypatch.setattr(capture, "_NOTIFIER", _alerts.Notifier(url="https://hook", enabled=True))
+    capture.STATUS.pop("alerts", None)
+    _stop_after(monkeypatch, 1)
+    _run(capture.status_loop(str(tmp_path)))
+    st = capture.STATUS.get("alerts")
+    assert st is not None, "the alert transport's health never reached status.json"
+    # `enabled and nothing delivered` is UNPROVEN, not healthy — the state the real box was in.
+    assert st["enabled"] is True and st["last_ok"] is None and st["delivered"] == 0
+
+
+def test_status_loop_works_with_NO_notifier_configured(tmp_path, monkeypatch):
+    """The other side of the branch: alerting off (or main() not yet reached) must publish nothing
+    rather than an empty dict that renders as a card claiming a transport exists."""
+    monkeypatch.setattr(capture, "_NOTIFIER", None)
+    capture.STATUS.pop("alerts", None)
+    _stop_after(monkeypatch, 1)
+    _run(capture.status_loop(str(tmp_path)))
+    assert "alerts" not in capture.STATUS
+
+
 # ── adapter_watchdog ────────────────────────────────────────────────────────────────────────────────
 def test_adapter_watchdog_disabled_returns_immediately(monkeypatch):
     _run(capture.adapter_watchdog("hci0", {"watchdog": {"enabled": False}}))   # early return, no loop

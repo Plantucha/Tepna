@@ -1057,7 +1057,7 @@ async function loadState(){
   const na=$('#navActiveN'); na.style.display = active?'inline-block':'none'; na.textContent = active;
   const nd=$('#navDevN'); nd.style.display = conn?'inline-block':'none'; nd.textContent = conn;
   renderSideStats();          // sidebar counters: every view, not just Overview
-  renderBoxHealth(s.storage, s.qc, s.host);
+  renderBoxHealth(s.storage, s.qc, s.host, s.alerts);
   renderStoragePill(s.storage);   // sidebar: visible in every view
   renderCpap(s.cpap);
   renderDownload(DEVICES);
@@ -1504,10 +1504,34 @@ function renderSideStats(){
 // Box health strip (Overview): disk + tonight's capture QC, published by the guardrail pollers into
 // /api/state. Each block appears only once its poller has run (null before then); border-left signals ok
 // (teal) vs a warning (amber) — a low disk, or a night with a missing stream.
-function renderBoxHealth(storage, qc, host){
+function renderBoxHealth(storage, qc, host, alerts){
   const el = $('#boxHealth'), title = $('#boxHealthTitle');
   if(!el) return;
   const cards = [];
+  // ── ALERT TRANSPORT ──────────────────────────────────────────────────────────────────────────────
+  // The one card that is about the WARNING SYSTEM rather than the capture. Every other failure here is
+  // designed to reach you by webhook, so a webhook that silently stops turns each of them into "you
+  // find out next week". Measured 2026-08-11: 32 alerts fired in 24 h and the journal held ONE delivery
+  // outcome in 48 h — a failure — with nothing saying whether the rest landed.
+  //
+  // THREE STATES, kept apart on purpose, the same discipline as sdk_mode_actual:
+  //   never tried  — enabled but nothing sent yet. NOT "healthy"; it is unproven.
+  //   failing      — last attempt errored, and it says WHY.
+  //   ok           — something was actually delivered, and when.
+  if(alerts && alerts.enabled){
+    const failing = !!alerts.last_error;
+    const never = !alerts.last_ok && !failing;
+    const when = alerts.last_ok ? new Date(alerts.last_ok*1000).toISOString().replace('T',' ').slice(0,16) : null;
+    const colour = failing ? 'var(--status-bad)' : (never ? 'var(--status-caution)' : 'var(--status-ok)');
+    cards.push(`<div class="ov-stat" style="border-left-color:${colour}">
+      <div class="lab">Alerts</div>
+      <div class="val" style="font-size:15px">${failing?'FAILING':(never?'unproven':'ok')}</div>
+      <div class="sub">${failing ? esc(String(alerts.last_error)).slice(0,80)
+                       : never ? 'enabled, nothing delivered yet'
+                       : ('last '+esc(when)+' UTC · '+esc(alerts.delivered)+' delivered'
+                          +(alerts.failed?(' · '+esc(alerts.failed)+' failed'):'')
+                          +(alerts.suppressed?(' · '+esc(alerts.suppressed)+' deduped'):''))}</div></div>`);
+  }
   if(host){
     // A pinned adapter that did not resolve is a silent mis-pin — every connect hangs against the wrong
     // radio. Started_at makes a spurious mid-night restart visible (a boot time that moved after dark).
