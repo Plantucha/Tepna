@@ -17866,6 +17866,27 @@
       T.eq('UNKNOWN mergeability WAITS — GitHub is still computing it', d(OPEN('UNKNOWN', { pass: 22 })).action, 'wait');
       T.eq('CLEAN + green merges', d(OPEN('CLEAN', { pass: 22 })).action, 'merge');
 
+      /* ── AN UNREADABLE SNAPSHOT IS NOT AN EMPTY ONE ──────────────────────────────────────────
+         Measured 2026-08-12 on #1183. A `net/http: TLS handshake timeout` from the GraphQL API made
+         `gh pr checks` throw; the snapshot fell back to an empty check list, which is
+         indistinguishable from "no run exists" — and the missing-required-context rule fired,
+         printing `stuck: required check never reported: test, no-network, typecheck, biome, …` for a
+         PR that was green and merged four minutes later on a re-run.
+
+         `stuck` is the one verdict meaning WAITING CANNOT HELP. Waiting was exactly right. So an
+         unreadable snapshot resolves to `wait`, and the asymmetry is deliberate: a spurious `wait`
+         costs one more poll, a spurious `stuck` abandons a landable PR. */
+      T.eq('an UNREADABLE snapshot waits — an API error is not an empty check list', d(OPEN('BLOCKED', {}, { readable: false, required: ['test', 'biome'], reported: [] })).action, 'wait');
+      T.eq(
+        '…and it outranks the missing-required-context rule, which would otherwise say stuck',
+        d(OPEN('BLOCKED', {}, { readable: false, required: ['test'], reported: [] })).why.indexOf('API error') >= 0,
+        true
+      );
+      /* The rule it guards must still fire when the snapshot IS readable, or this fix would have
+         disabled the skipped-matrix detection it sits in front of. */
+      T.eq('a READABLE snapshot with a genuinely absent required context is still stuck', d(OPEN('BLOCKED', {}, { readable: true, required: ['test (py3.12)'], reported: ['test'] })).action, 'stuck');
+      T.eq('…and the default (no `readable` key at all) is treated as readable, not unknown', d(OPEN('BLOCKED', {}, { required: ['test (py3.12)'], reported: ['test'] })).action, 'stuck');
+
       /* FAILURE OUTRANKS BEHIND. If this ordering inverted, a failing PR whose branch went behind
          would be "updated", re-running CI and hiding the red behind a fresh pending — the tool would
          churn indefinitely on a PR that can never merge. */
