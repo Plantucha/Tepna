@@ -116,13 +116,34 @@ def _model_of(dev: dict) -> str:
     return "H10" if "h10" in blob else ("Verity" if ("verity" in blob or "sense" in blob) else "O2Ring")
 
 
+# The markers that make a device RECOGNISED. `_model_of` defaults an unknown device to "O2Ring" so its
+# callers always get a string; that default must never reach the nominal-rate table, because a sensor
+# this suite has never seen would then inherit the O2Ring's rates and be judged against them. A user can
+# change any device's rate at any time and can attach sensors whose rates are documented nowhere — the
+# honest answer for those is "no reference rate", not "the last model in the if-chain".
+_MODEL_MARKERS = (("H10", ("h10",)), ("Verity", ("verity", "sense")), ("O2Ring", ("o2ring", "wellue", "viatom")))
+
+
+def _recognised_model(dev: dict):
+    """The model, only if the device actually matches a known marker. None for anything else."""
+    blob = f"{dev.get('model', '')} {dev.get('name', '')}".lower()
+    for name, marks in _MODEL_MARKERS:
+        if any(m in blob for m in marks):
+            return name
+    return None
+
+
 def _expected_hz(dev: dict, stream: str):
     """The rate to judge coverage against: the device's CONFIGURED rate for this stream if set, else the
-    model nominal, else None (unknown — no coverage claim for a stream we have no reference rate for)."""
+    model nominal for a RECOGNISED model, else None (unknown — no coverage claim for a stream we have no
+    reference rate for, and no borrowed one from a model this device is not)."""
     rate = (dev.get("rates") or {}).get(stream)
     if rate:
         return float(rate)
-    return _NOMINAL_HZ.get(_model_of(dev), {}).get(stream)
+    model = _recognised_model(dev)
+    if model is None:
+        return None
+    return _NOMINAL_HZ.get(model, {}).get(stream)
 
 
 # How many rows to read when measuring a rate off a stream file. The device stamp is monotonic and the
@@ -209,10 +230,24 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
     reads as "the radio dropped packets" when the truth is "the rate you asked for was refused". One is
     a link fault you might chase for hours; the other is a one-line config answer.
 
-    `ok` is True only when the two agree within 10 %, which is far wider than any crystal error (tens of
-    ppm) and far narrower than any step on a device menu (28/44/55/135/176). None where the rate cannot
-    be measured — an unknown is not a pass, and a stream with no `sensor timestamp` column is not judged
-    at all rather than being judged wrong.
+    ⚠️ `matches_config` IS NOT A FAULT FLAG, and nothing gates on it. A user may change a device's rate
+    at any time, for any sensor, and a future sensor may offer rates nobody has documented — so the
+    capture must simply RUN at whatever arrives, and it does: coverage divides by the measured rate,
+    back-timing uses the negotiated one, and the optical worn detector refuses outside its calibrated
+    domain rather than guessing. A disagreement here means "the config no longer describes this
+    device", which is information about the CONFIG, not a defect in the night.
+
+    It is still worth reporting, because the one case that does cost a night is invisible otherwise: a
+    rate that was ASKED for and silently refused (`polar_pmd`'s SDK-MODE trap 2, where 0x0C reads as
+    transient and the whole night records at 55 Hz believing it asked for 176). Saying "you got 55, you
+    configured 176" is a one-line answer; leaving it to coverage names it `degraded` and sends you
+    after the radio.
+
+    False only when both numbers exist and differ by more than 10 % — far wider than any crystal error
+    (tens of ppm), far narrower than any step on a device menu (28/44/55/135/176). None where either is
+    unknown: an unmeasurable rate is not a pass, and a stream with no `sensor timestamp` column is not
+    judged at all rather than judged wrong. A device with no configured rate is likewise unjudged,
+    which is the correct answer for a sensor this suite has never seen.
     """
     out = []
     try:
@@ -238,7 +273,7 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
                 "stream": stream,
                 "requested_hz": want,
                 "measured_hz": None if got is None else round(got, 2),
-                "ok": ok,
+                "matches_config": ok,
             })
     return out
 
