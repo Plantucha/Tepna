@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-08-12 · **Follows:** `PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md`
+**Status:** IN-PROGRESS · **Created:** 2026-08-12 · **Follows:** `PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md`
 
 # The estimator exists and has never seen a real arrival
 
@@ -28,6 +28,32 @@ will be written by the capture that starts the evening of 2026-08-11.
 - ⚠️ **The ring leg is the one to watch.** Its `OXYLIVE_DURATION_S` pairing has never been exercised at
   all, and the whole argument for fitting rather than min-filtering rests on a drift of 1–55 ppm that
   was measured *once*, out of band.
+
+## 1a · §1 IS ANSWERED — the first real night ran (2026-08-12)
+
+`159,607 rows, 13.3 MB, 10 files`. Writer sound: arrivals strictly monotonic per stream, no row with
+`last_sensor_ns < first_sensor_ns`, `n_samples` constant and never zero, and the five empty sidecars
+are HR/RR-only sessions that never enter the PMD path, i.e. honest.
+
+| stream | n | certified | agree | ppm |
+|---|---|---|---|---|
+| H10 `ecg` | 45,663 | **yes** | 4.55 ms | −20.42 |
+| H10 `acc` | 36,125 | **yes** | 4.08 ms | −20.51 |
+| Verity `ppg` / `acc` | 35,223 / 10,948 | **yes, after the pairing fix** | — | −19.6 / −24.2 |
+| O2Ring `duration` | 24,289 | no | 22,300 ms | 5231 |
+
+The H10's two streams agree to **0.09 ppm**, against the 0.17-worst/0.10-mean predicted from the
+planted sweep and the box corpus — an independent reproduction on data that did not exist when the
+prediction was made — and −20.4/−20.5 ppm is a third landing on Clock Contract §7's documented −20.3.
+
+**Three findings carried into `PAT-PACKET-ARRIVAL` §6.2:** the pairing used the wrong column (fixed,
+and it is what unblocked the Verity); the ring's counter runs at **3851 ppm**, not 1–55, so the finger
+leg has no PAT-grade clock; and the 5 ms floor premise was unreachable, so the SMEARED canary arm is
+retired after firing on every stream.
+
+**§3 is now the blocker and is unchanged:** whether correcting both legs repairs the anatomical sign.
+The inter-device offset is measurable for the first time (~923 ms H10↔Verity on this connection), so
+the experiment can finally be run — but the ring leg may not support it.
 
 ## 2 · Is the offset actually constant within a connection?
 
@@ -67,8 +93,8 @@ Recorded here because it was found executing this brief and would otherwise be l
 
 ## Done when
 
-- [ ] a real `*_PMDARRIVAL.csv` exists, its rows are non-degenerate, and `estimate` has been run on it
-- [ ] the ring leg's `OXYLIVE_DURATION_S` pairing is confirmed to produce a usable fit
+- [x] a real `*_PMDARRIVAL.csv` exists, its rows are non-degenerate, and `estimate` has been run on it
+- [x] the ring leg's `OXYLIVE_DURATION_S` pairing tested — it does NOT produce a usable fit (3851 ppm)
 - [ ] within-connection constancy tested by halves, and the result recorded either way
 - [ ] the anatomical sign re-checked after correcting both legs
 - [ ] `mutate_diff.py` refuses instead of greening when mutmut is missing

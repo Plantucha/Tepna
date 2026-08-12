@@ -275,22 +275,26 @@ def arrival_canary(qc: dict, live: dict) -> list[str]:
     and without this both surface weeks later inside an analysis — which is exactly how the back-timed
     stamps this replaces went unnoticed for the whole corpus.
 
-    Two failures, deliberately reported as one list a human can act on:
-      * SMEARED — nightqc measured `floor_ok: False`, i.e. the minimum sits far below the low quantile.
-      * DEAD    — the device is connected and writing samples, but its sidecar row count is not
-                  advancing. The write is wrapped in a bare `except: pass` (telemetry must never disturb
-                  the data callback), so a persistent failure is invisible by construction; this is the
-                  only thing that would notice.
+    ⚠️ THE SMEARED ARM IS RETIRED, and it is the last paragraph of this docstring coming true. It fired
+    on EVERY stream on the first real night (2026-08-11). `floor_ok` demands the minimum sit within 5 ms
+    of the 1st percentile; measured, true arrivals smear 29.3 / 42.0 ms (H10 acc / ecg) and
+    155.1 / 590.6 ms (Verity ppg / acc). The premise was wrong, not the captures: BLE callback
+    scheduling jitter is tens of milliseconds, so a 5 ms floor was never reachable — and the back-timed
+    per-sample stamps this sidecar replaced smeared 27-115 ms, i.e. THE SAME ORDER.
 
-    NEVER fires on `floor_ok: None`. That is the QUANTISED ring, whose offset must be fitted rather than
-    min-filtered — judging it by the floor rule would page someone every single night, and an alert that
-    always fires is one nobody reads.
+    The arm goes rather than getting a looser threshold, because the quantity stopped mattering: the H10
+    certified with `agree = 4.5 ms` DESPITE a 42 ms floor smear, since the lower envelope does not need
+    a sharp edge. `clock_offset.estimate`'s `certified` is what a consumer actually spends. Re-tuning the
+    number would have kept a check that measures something real and irrelevant, and paged someone nightly
+    to say so. `floor_spread_ms` stays in the QC report as a diagnostic.
+
+    What remains is the failure nothing else can see:
+      * DEAD — the device is connected and writing samples, but its sidecar row count is not advancing.
+               The write is wrapped in a bare `except: pass` (telemetry must never disturb the data
+               callback), so a persistent failure is invisible by construction. It stayed correctly
+               silent across all 159,607 rows of the first real night.
     """
     out = []
-    for row in qc.get("arrival") or []:
-        if row.get("floor_ok") is False:                      # is False, never falsy — None means unjudged
-            out.append(f"{row.get('device')} {row.get('meas')} — arrival floor smeared "
-                       f"({row.get('floor_spread_ms')} ms below the 1st percentile)")
     for name, st in (live or {}).items():
         if not st or not st.get("connected"):
             continue
