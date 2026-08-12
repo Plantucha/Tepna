@@ -50,6 +50,7 @@ import { execFileSync } from 'node:child_process';
    Returns { action, why } where action is one of:
      'done'   merged — stop, success           'fail'   a check failed — stop, do not retry
      'closed' closed unmerged — stop           'stuck'  a required context will never arrive
+     (an UNREADABLE snapshot — API error — is 'wait', never 'stuck': see decide())
      'update' branch is behind — update it     'wait'   checks still running — keep waiting
      'merge'  green and current — merge now
    ──────────────────────────────────────────────────────────────────────────────────────────── */
@@ -70,6 +71,19 @@ export function decide(snap) {
      produces (it reports the unexpanded literal name, so `test (py3.12)` never arrives). Waiting
      cannot fix it — the tool must say so instead of burning 45 minutes proving it. Only conclusive
      once nothing is pending, because a run that has not started yet is also absent. */
+  /* ⚠️ AN UNREADABLE SNAPSHOT IS NOT AN EMPTY ONE, and conflating them produces this tool's most
+     severe verdict for its most transient cause. Measured 2026-08-12 on #1183: a
+     `net/http: TLS handshake timeout` from the GraphQL API made `gh pr checks` throw, the snapshot
+     fell back to an empty list, and `stuck: required check never reported: test, no-network,
+     typecheck, biome, …` was printed for a PR that was green and merged four minutes later on a
+     re-run. `stuck` means WAITING CANNOT HELP; waiting was exactly the right response.
+
+     So a snapshot that could not be read is `wait`, checked BEFORE the missing-context rule. The
+     asymmetry is deliberate: a spurious `wait` costs one more poll, a spurious `stuck` abandons a
+     landable PR. Same family as everything else in this toolchain — an absence being read as
+     evidence when it was really a failed measurement. */
+  if (snap.readable === false) return { action: 'wait', why: 'could not read checks (API error) — an unreadable snapshot is not an empty one' };
+
   if (pending === 0 && (snap.required || []).length) {
     const seen = new Set(snap.reported || []);
     const missing = snap.required.filter((r) => !seen.has(r));
@@ -98,14 +112,17 @@ const gh = (args) => execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 32 
 function snapshot(pr) {
   const view = JSON.parse(gh(['pr', 'view', String(pr), '--json', 'state,mergeStateStatus']));
   let checks = [];
+  let readable = true;
   try {
     checks = JSON.parse(gh(['pr', 'checks', String(pr), '--json', 'name,bucket']));
-  } catch {
+  } catch (e) {
     /* `gh pr checks` exits non-zero when any check is failing — that is a VERDICT, not an error, and
-       throwing it away would turn a red PR into an unreadable one. The JSON is still on stdout only
-       when the command succeeds, so on throw we fall back to an empty list and let the next tick
-       read it; a genuinely failing PR surfaces through `mergeStateStatus` regardless. */
+       throwing it away would turn a red PR into an unreadable one. But a THROW here also covers the
+       network dying, and those two must not produce the same snapshot: see the `readable` guard in
+       `decide()`. If stdout parsed, the non-zero exit was the verdict and the snapshot is readable;
+       if it did not, we know nothing and must say so rather than reporting zero checks. */
     checks = [];
+    readable = false;
   }
   const buckets = {};
   for (const c of checks) buckets[c.bucket] = (buckets[c.bucket] || 0) + 1;
@@ -113,6 +130,7 @@ function snapshot(pr) {
     state: view.state,
     mergeState: view.mergeStateStatus,
     buckets,
+    readable,
     reported: checks.map((c) => c.name),
     required: requiredContexts()
   };
