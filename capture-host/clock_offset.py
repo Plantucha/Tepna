@@ -126,10 +126,11 @@ def lower_envelope(pts, n_total=None, sum_t=None):
     are exactly the edges of the points' LOWER CONVEX HULL, so the whole LP reduces to a hull walk plus
     one pass over its edges. Exact, O(n) on already-sorted input, no dependency, nothing to tune.
 
-    ⚠️ PRECONDITION: `t >= 0`. That is what makes the gradient non-negative and therefore the objective
-    BOUNDED; with negative t the LP can be unbounded and the hull-edge maximum is no longer its optimum
-    (it is still a line below all points, so the failure is silent — which is why `estimate` shifts t to
-    start at 0 rather than trusting its caller).
+    NO PRECONDITION ON THE ORIGIN OF t. An earlier draft of this docstring claimed `t >= 0` was required
+    for boundedness and `estimate` shifted to satisfy it. Measured, the shift changed nothing: the summed
+    residual is a property of the LINE, and a line's residuals do not depend on where the coordinate
+    origin sits, so the hull-edge argmin is origin-independent. Verified across shifts of 0, +1.786e9 and
+    -1e6 — identical slope to nine decimals, identical line. The shift was deleted.
 
     Returns `(a_ms_per_sec, b_ms)` or None if every point shares one t (no line is determined).
     """
@@ -214,18 +215,17 @@ def estimate(points):
     n = len(pts)
     if n < MIN_POINTS:
         return {"ok": False, "reason": "too-few", "n": n}
+
+    # No shift and no separate span guard, both deleted after the mutation gate showed them inert:
+    #   * shifting t to 0 changed NOTHING. The summed residual is a property of the LINE, not of the
+    #     coordinate origin, so the hull-edge argmin is origin-independent by construction — verified
+    #     over shifts of 0, +1.786e9 and -1e6, identical slope to 9 decimals and identical line.
+    #   * `if span <= 0` was unreachable as a distinct outcome: all-equal t collapses to one point in
+    #     `_floor_by_t`, so the hull has < 2 vertices and the `env is None` arm below returns the same
+    #     `no-span` refusal. Two guards for one condition, and the mutant that deleted either survived.
     span = pts[-1][0] - pts[0][0]
-    if span <= 0:
-        return {"ok": False, "reason": "no-span", "n": n}
-
-    # Shift to t=0 so `lower_envelope`'s boundedness precondition holds whatever the caller passed —
-    # absolute epoch seconds, a relative axis, or something starting negative. The slope is invariant
-    # under the shift and `t_ref_sec` is reported back in the caller's own coordinates.
-    t0 = pts[0][0]
-    pts = [(t - t0, d) for t, d in pts]
-
     t_ref = sum(t for t, _ in pts) / n
-    env = lower_envelope(pts, n_total=n, sum_t=sum(t for t, _ in pts))
+    env = lower_envelope(pts)
     pax = paxson(pts)
     if env is None or pax is None:
         return {"ok": False, "reason": "no-span", "n": n}
@@ -245,7 +245,7 @@ def estimate(points):
         "ok": True,
         "n": n,
         "span_sec": round(span, 1),
-        "t_ref_sec": round(t_ref + t0, 1),
+        "t_ref_sec": round(t_ref, 1),
         # The certified answer, or None. Never a number that only one estimator stands behind.
         "offset_ms": round(off_env, 3) if certified else None,
         "offset_envelope_ms": round(off_env, 3),
