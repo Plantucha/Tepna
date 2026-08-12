@@ -1,5 +1,7 @@
 {
   "glucodex-dsp.js": "mean",
   "cpapdex-dsp.js": "_ckMk",
-  "motiondex-dsp.js": "p2"
+  "motiondex-dsp.js": "p2",
+  "hrvdex-dsp.js": "setHooks",
+  "pulsedex-dsp.js": "ansBalance"
 }
