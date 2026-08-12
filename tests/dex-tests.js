@@ -11996,6 +11996,148 @@
       T.eq('with _stress absent, d_hfnu is untouched — the subjective gate does not leak into spectral', Math.round(rows2[0].d_hfnu * 1e4) / 1e4, 39.1304);
     });
 
+    /* ── THE quantity.js-ABSENT FALLBACK PATHS ──────────────────────────────────────────────────
+       After the guard battery above, 106 of computeDerived's 149 survivors remained, and reading the
+       list showed they were not a harder version of the same problem — they were a DIFFERENT one.
+       They cluster on lines like
+
+           var _baev = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.guardBaevsky ? … : null;
+           var _meanRRs0 = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? … : r._meanRR / 1000;
+
+       and on the `else` arms those guards protect. `quantity.js` IS loaded in both lanes, so every one
+       of those conditions is permanently true, the `else` arms are DEAD CODE under test, and no input
+       to `computeDerived` can reach them. A mutant inside unreachable code cannot be killed by a
+       better fixture; it can only be killed by changing what is loaded.
+
+       So this group removes `DexUnits` for the duration of one call. `quantity.js` publishes it as a
+       plain global (`root.DexUnits = {…}`), so it can be taken away and put back — and the fallback
+       arms become live: the hard `/1000` instead of `asSecondsRR`, and the unguarded Baevsky formula
+       instead of `guardBaevsky`.
+
+       ⚠️ THIS IS THE MS-SCALE BUG THE SOURCE WARNS ABOUT, EXERCISED ON PURPOSE. The comment at L563
+       records that a ms-unit vendor export "silently mis-scaled d_si by up to 10⁶× here before". The
+       fallback is what it mis-scaled through. Pinning it is not endorsing it — it is making the
+       difference between guarded and unguarded VISIBLE, so that if someone deletes the guard the
+       numbers move and this group says so.
+
+       RESTORATION IS IN A `finally` AND THEN ASSERTED. A global mutated by one group and left that
+       way would silently change every group that runs after it, and the failure would surface
+       somewhere unrelated. */
+    group('HRVDex computeDerived — the quantity.js-absent fallback arms', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex._bare not loaded');
+        return;
+      }
+      /* The DSPs run in a realm the assertions cannot reach, so the removal is done BY THE RUNNER —
+         `env.withGlobalRemoved`, added to both runners for exactly this. */
+      if (typeof env.withGlobalRemoved !== 'function' || !env.DexUnits) {
+        /* Not a pass. Without the toggle this group would pin one arm twice and call it a
+           comparison, which is the failure it exists to avoid. */
+        T.skip('the runner can remove a global', 'env.withGlobalRemoved / DexUnits unavailable');
+        return;
+      }
+      var DAY = 86400000;
+      var BASE = {
+        _hr: 62,
+        _meanRR: 968,
+        _sdnn: 54,
+        _rmssd: 41,
+        _mxdmn: 320,
+        _pnn50: 18.5,
+        _amo50: 31,
+        _mode: 950,
+        _totalPow: 3200,
+        _hf: 900,
+        _lf: 1400,
+        _vlf: 900,
+        _stress: 3.2,
+        _energy: 5.1,
+        _focus: 4.4,
+        _sns: 1.2,
+        _psns: 2.1,
+        _coherence: 3.3,
+        _hrv: 60,
+        _cv: 5.6,
+        _spanMin: 6
+      };
+      var run = function (withoutUnits, seed) {
+        var rows = [];
+        for (var n = 0; n < 4; n++) {
+          var r = {};
+          for (var k in BASE) r[k] = BASE[k];
+          r._tMs = Date.UTC(2026, 5, 10, 3, 0, 0) + n * DAY;
+          if (seed) r[seed] = 0;
+          rows.push(r);
+        }
+        if (withoutUnits)
+          env.withGlobalRemoved('DexUnits', function () {
+            D.computeDerived(rows);
+          });
+        else D.computeDerived(rows);
+        return rows[rows.length - 1];
+      };
+      var six = function (v) {
+        return typeof v === 'number' && isFinite(v) ? Math.round(v * 1e6) / 1e6 : String(v);
+      };
+
+      var withU = run(false, null);
+      var noU = run(true, null);
+
+      /* THE DISCRIMINATION CHECK, first. If removing DexUnits changed nothing, the two arms are
+         value-identical here and every assertion below would pass without exercising the fallback —
+         a group that cannot fail. Baevsky is the one that must move: guarded normalises Mode/MxDMn
+         to seconds, unguarded divides raw ms. */
+      T.ok('removing DexUnits actually changes the answer — the fallback arm is live', six(withU.d_si) !== six(noU.d_si), 'guarded ' + six(withU.d_si) + ' vs fallback ' + six(noU.d_si));
+
+      T.eq('guarded d_si — Mode/MxDMn normalised to SECONDS by DexUnits.guardBaevsky', six(withU.d_si), 50.986842);
+      T.eq('fallback d_si — the unguarded formula, raw ms straight into the denominator', six(noU.d_si), 0.000051);
+      /* 999742, not a round 10^6, because `six()` rounds the guarded value to 6 decimals before the
+         division — the ratio is quoted from the PINNED numbers so it stays checkable by hand rather
+         than being a second, independently-drifting measurement. The L563 comment says a ms-unit
+         vendor export "silently mis-scaled d_si by up to 10⁶× here before"; this is that factor,
+         standing still in a test instead of in a shipped export. */
+      T.eq('…and the guard is worth 10^6 — exactly the mis-scale L563 records', Math.round(six(withU.d_si) / six(noU.d_si)), 999742);
+      T.eq('guarded d_si_ms DETECTS the ms scale and says so', String(withU.d_si_ms), 'true');
+      T.eq('the fallback has nothing to detect with, so it reports false — silently wrong, not flagged', String(noU.d_si_ms), 'false');
+      T.eq('guarded d_si_flagged — converted value is plausible, nothing to surface', String(withU.d_si_flagged), 'false');
+      T.eq('fallback d_si_flagged is hard-false: it cannot flag what it cannot measure', String(noU.d_si_flagged), 'false');
+      T.eq('guarded _baevskyS carries the seconds-normalised pair on for CSI', withU._baevskyS === null ? 'null' : 'object', 'object');
+      T.eq('fallback _baevskyS is null — every downstream consumer must cope with its absence', noU._baevskyS === null ? 'null' : 'object', 'null');
+      /* The SECOND fallback, independent of Baevsky: asSecondsRR vs a hard /1000. I assumed these
+         would agree — the hard divide looks like what asSecondsRR does — and they differ by 1000x,
+         because asSecondsRR reads the value's UNIT rather than assuming ms. Pinned as measured. */
+      T.eq('d_mxdmn_meanrr, guarded via DexUnits.asSecondsRR', six(withU.d_mxdmn_meanrr), 0.330579);
+      T.eq('d_mxdmn_meanrr, fallback via the hard /1000 — 1000x out, and it is the same shape of bug', six(noU.d_mxdmn_meanrr), 330.578512);
+
+      /* The absent-seed battery, run in the fallback realm — the multi-operand guards on the `else`
+         arm are only reachable here, so zeroing has to happen with DexUnits removed to touch them. */
+      var nf = function (seed) {
+        var r = run(true, seed);
+        var out = [];
+        for (var c in r) {
+          var v = r[c];
+          if (c.indexOf('d_') !== 0 || typeof v !== 'number' || isFinite(v)) continue;
+          out.push(c + (Number.isNaN(v) ? '' : v > 0 ? ':+Inf' : ':-Inf'));
+        }
+        return out.sort().join(' ');
+      };
+      var FCASES = [
+        ['_amo50', 'd_si d_vo2_delta'],
+        ['_mode', 'd_si d_vo2_delta'],
+        ['_mxdmn', 'd_si d_vo2_delta'],
+        ['_meanRR', 'd_csi d_cv_calc d_cvi d_mxdmn_meanrr d_nn50 d_rsa d_vo2_delta'],
+        ['_rmssd', 'd_cai d_cvi d_lnrmssd d_vo2_delta']
+      ];
+      for (var i = 0; i < FCASES.length; i++) {
+        T.eq('fallback realm · absent ' + FCASES[i][0] + ' → exactly these columns fall to NaN', nf(FCASES[i][0]), FCASES[i][1]);
+      }
+
+      /* ⚠️ AND PROVE THE GLOBAL CAME BACK. A `finally` that runs is not the same as a `finally` that
+         restored the right thing, and the cost of getting this wrong is paid by an unrelated group. */
+      T.ok('DexUnits is restored after the group', !!(env.DexUnits && env.DexUnits.guardBaevsky) && isFinite(run(false, null).d_si));
+    });
+
     group('HRVDex storage failure survives the success line (DEEP-AUDIT-II §1.11)', 'hrvdex-dsp', function (T) {
       // the bare-helper surface (HRVDex._bare) is the deliberate test-access namespace, per hrvdex-dsp.js
       var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
