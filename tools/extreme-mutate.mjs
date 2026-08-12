@@ -434,18 +434,13 @@ if (IS_MAIN && !has('--selftest')) {
   const executions = new Map();
   let coverageOK = false;
   try {
+    /* ⚠️ `npx -y c8@10.1.2`, NOT node_modules/.bin/c8. c8 is deliberately NOT a devDependency here
+       (#1163: adding it desynced package-lock.json and broke `npm ci`), so the repo runs it through npx
+       exactly as `typecheck` runs tsc. Hardcoding the .bin path worked only on the machine where an
+       earlier `--no-save` install had left it, and silently refused everywhere else. */
     execFileSync(
-      process.execPath,
-      [
-        join(ROOT, 'node_modules/.bin/c8'),
-        '--reporter=json',
-        '--report-dir=' + covDir,
-        '--exclude=tests/**',
-        '--exclude=tools/**',
-        process.execPath,
-        join(ROOT, 'tests/run-tests.mjs'),
-        '--group=' + group
-      ],
+      'npx',
+      ['-y', 'c8@10.1.2', '--reporter=json', '--report-dir=' + covDir, '--exclude=tests/**', '--exclude=tools/**', process.execPath, join(ROOT, 'tests/run-tests.mjs'), '--group=' + group],
       { cwd: ROOT, stdio: 'ignore', timeout: 600000 }
     );
   } catch (_) {
@@ -471,7 +466,38 @@ if (IS_MAIN && !has('--selftest')) {
     console.error('  and the first is far more common. Check that npx c8 runs and that the group filter is right.');
     process.exit(3);
   }
-  process.stderr.write('  coverage: ' + [...executions.values()].filter((n) => n > 0).length + '/' + executions.size + ' functions executed by --group=' + group + '\n');
+  const reached = [...executions.values()].filter((n) => n > 0).length;
+  process.stderr.write('  coverage: ' + reached + '/' + executions.size + ' functions executed by --group=' + group + '\n');
+  /* ⚠️ THE SCOPE IS PART OF THE FINDING, and it is easy to read past. "0 executions" means "no test in
+     THIS GROUP calls it" — never "dead code", and not even "the suite does not cover it". Measured
+     2026-08-11: hrvdex fmtClock/fmtDate/fmtDateTime read 0 under --group=hrvdex-dsp and are in fact
+     executed 2/2/1 times, by a group named `Clock Contract §5 …` that the filter does not select. The
+     filter scopes by the FILE's name; the tests that reach a file are named after the CONTRACT they
+     pin. So a not-reached count is an upper bound on what the suite leaves unguarded, and the sweep's
+     kill verdicts inherit the same bound — a mutant is only ever offered to this group's tests.
+
+     Scoping coverage and mutants to the SAME group is still right: classifying against tests that were
+     never run would be worse. But the number must be reported with its scope attached. */
+  /* NON-VACUITY, and it FAILS CLOSED. If the selected group reaches NOTHING in this file, every
+     function would report 0 executions and the honest answer is NOT MEASURED, not "nothing is
+     covered". A filter that matches no relevant test reads exactly like a suite that asserts nothing —
+     the same shape as `pytest` without `--cov` printing `N passed` and never evaluating the floor.
+
+     ⚠️ THE CANARY USUALLY FIRES FIRST, and this guard exists for the case where it cannot. A learned
+     canary is a function IN THIS FILE, so a group that reaches nothing here also fails to notice the
+     canary and the run already refuses — I tried to demonstrate this guard with --group=docs-ledger
+     and got the canary refusal instead. But a canary is LEARNED on the first successful run, so the
+     first run of any new file has none, and that is exactly when a filter typo is most likely. */
+  if (reached === 0) {
+    console.error('✗ --group=' + group + ' REACHES NOTHING in ' + file + ' — refusing to classify.');
+    console.error('  Zero of ' + executions.size + ' functions were executed, which is indistinguishable from a filter typo.');
+    console.error('  "not measured" is the honest answer here; "0 covered" would be a fabricated one.');
+    process.exit(3);
+  }
+  if (reached < executions.size) {
+    process.stderr.write('  ⚠ ' + (executions.size - reached) + ' function(s) are NOT REACHED BY THIS GROUP — an UPPER BOUND on what the\n');
+    process.stderr.write('    suite leaves unguarded. Another group may reach them under a name this filter does not match.\n');
+  }
 
   const jobs = Math.min(jobsWanted, bodies.length);
   const dirs = [];
@@ -527,7 +553,7 @@ if (IS_MAIN && !has('--selftest')) {
          running eight is pure cost for a verdict already determined. */
       if (!(executions.get(b.fn) > 0)) {
         uncovered.push(b);
-        if (!has('--json')) process.stderr.write('  ∅ not-covered   ' + b.fn.padEnd(28) + ' L' + b.line + '  — no test in this group calls it\n');
+        if (!has('--json')) process.stderr.write('  ∅ not-reached   ' + b.fn.padEnd(28) + ' L' + b.line + '  — no test in this group calls it\n');
         continue;
       }
       const verdicts = [];
@@ -653,7 +679,8 @@ if (IS_MAIN && !has('--selftest')) {
           group,
           functions: bodies.length,
           pseudoTested: pseudo.map((p) => ({ fn: p.fn, line: p.line, survived: p.ops })),
-          notCovered: uncovered.map((p) => ({ fn: p.fn, line: p.line })),
+          scope: '--group=' + group,
+          notReachedByGroup: uncovered.map((p) => ({ fn: p.fn, line: p.line })),
           excluded: trivial.map((p) => ({ fn: p.fn, line: p.line, matcher: p.matcher })),
           partiallyTested: partial.map((p) => ({ fn: p.fn, line: p.line, survived: p.ops })),
           noticed,
@@ -667,7 +694,7 @@ if (IS_MAIN && !has('--selftest')) {
   } else {
     console.log(`\n▸ ${file} · ${bodies.length} function(s) · ${secs.toFixed(0)}s at ${jobs}-way`);
     console.log(
-      `  PSEUDO-TESTED ${pseudo.length}   partially ${partial.length}   not-covered ${uncovered.length}   excluded ${trivial.length}   tested ${noticed}` +
+      `  PSEUDO-TESTED ${pseudo.length}   partially ${partial.length}   not-reached ${uncovered.length}   excluded ${trivial.length}   tested ${noticed}` +
         /* DENOMINATOR = THE CLASSIFIED POPULATION, not every function in the file. An uncovered or
            Descartes-excluded function was never put to the question, so counting it below the line
            states a rate over experiments that did not run. */
