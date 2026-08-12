@@ -28,7 +28,7 @@ import alerts
 import nightqc
 import nightarchive
 import storage_targets
-from telemetry import TelemetryBus, optical_worn, ppi_contact
+from telemetry import TelemetryBus, calibrated_for, optical_worn, ppi_contact
 
 # ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
 # systemd assigns ONE priority to a service's whole stdout stream, so with a plain basicConfig every line
@@ -1533,6 +1533,38 @@ async def _enter_sdk_mode(ctrl, name: str) -> bool | None:
     return on
 
 
+async def _exit_sdk_mode(ctrl, name: str) -> bool | None:
+    """Ask the device OUT of SDK mode, then ASK IT WHETHER IT IS. Same contract as `_enter_sdk_mode`:
+    returns what the DEVICE said — `True` still on, `False` off, `None` it did not say.
+
+    ⚠️ WITHOUT THIS, THE SWITCH IS ONE-WAY. SDK mode is DEVICE state that persists until a power cycle;
+    turning the config flag off only stopped us re-entering it, so the device stayed in SDK mode
+    indefinitely. That is not a cosmetic asymmetry, because on a Verity Sense SDK mode DISABLES two
+    streams outright — Polar's own product doc: "PPI online stream or offline recording is not
+    supported in SDK MODE", likewise HR. Measured 2026-08-10: PPI last started at 11:37, then answered
+    `invalid_state` on every attempt for the rest of the day and the whole night, and the night's QC
+    recorded `Polar Verity Sense:hr` and 0 PPI rows. Switching SDK mode off changed nothing; only
+    power-cycling the armband by hand brought them back.
+
+    So `off` must mean OFF. The exit is issued with streams stopped, for the same reason the entry is
+    (the device refuses the transition otherwise), and the verdict comes from a status read rather than
+    the ack — an ack is "accepted", which this file already learned the hard way for the clock."""
+    ack = await ctrl(pmd.sdk_mode_cmd(False))
+    st = ack[3] if len(ack) >= 4 else pmd.NO_ACK
+    if not (pmd.is_started(st) or st == pmd.ALREADY_STREAMING):
+        log.warning("%s SDK mode STOP → %s", name, pmd.CTRL_STATUS.get(st, hex(st)))
+    on = pmd.parse_sdk_mode_status(await ctrl(pmd.sdk_mode_status_cmd()))
+    if on is None:
+        log.warning("%s SDK mode: the device did not report its mode after the exit — UNKNOWN, not "
+                    "off; PPI and HR stay unavailable while it is still in SDK mode", name)
+    elif on:
+        log.warning("%s SDK mode: STILL ON after an exit request — PPI and HR remain unavailable; a "
+                    "power cycle clears it", name)
+    else:
+        log.info("%s SDK mode: off (PPI and HR are available again)", name)
+    return on
+
+
 async def run_polar(dev: dict, root: str):
     """Polar PMD + the standard Heart Rate characteristic. Despite the name this is also the path for any
     third-party HR strap, because `hr` is SIG-standard — so the Polar-SPECIFIC rituals below have to be
@@ -1815,7 +1847,17 @@ async def run_polar(dev: dict, root: str):
                         _amb.clear()
                         _publish_worn(_worn, "not worn — the device's PPI contact bit says off-body")
                     elif len(_amb) >= _AMB_WINDOW and not _has_contact_bit:
-                        _worn = optical_worn(list(_amb))
+                        # PASS THE NEGOTIATED RATE, or the domain check is inert. The calibration was
+                        # measured at 55 Hz and at 176 the ambient channel pegs — same worn wrist,
+                        # opposite verdict. `stream_fs` is what the device actually agreed to, not what
+                        # the config asked for, which is the only number that describes these samples.
+                        # PASS THE NEGOTIATED RATE, or the domain check is inert. The calibration was
+                        # measured at 55 Hz and at 176 the ambient channel pegs — same worn wrist,
+                        # opposite verdict. `stream_fs` is what the device actually agreed to, not what
+                        # the config asked for, which is the only number that describes these samples.
+                        # Out of domain ⇒ None ⇒ nothing is published; the operator was told why at
+                        # negotiation time, not here (this runs every window).
+                        _worn = optical_worn(list(_amb), fs=stream_fs.get(pmd.PPG))
                         _amb.clear()
                         if _worn is not None:
                             _publish_worn(_worn, "not worn — optical ambient says off-body")
@@ -2011,6 +2053,18 @@ async def run_polar(dev: dict, root: str):
                             for meas in list(writers):
                                 await _ctrl(pmd.stop_cmd(meas))
                             _set(name, sdk_mode=await _enter_sdk_mode(_ctrl, name))
+                        elif hex(pmd.SDK_MODE) in (STATUS["devices"].get(name, {})
+                                                   .get("pmd_supported") or []):
+                            # OFF MUST MEAN OFF. SDK mode is device state that outlives the config: not
+                            # re-entering it leaves a device that is already in it there until someone
+                            # power-cycles the hardware. Ask first and act only on a `True`, so a device
+                            # that was never in SDK mode costs one status read and no state change.
+                            # Gated on the feature bit because a device without it (the H10) answers op
+                            # 6 with `invalid_op_code`, and asking every pass would be noise.
+                            if pmd.parse_sdk_mode_status(await _ctrl(pmd.sdk_mode_status_cmd())):
+                                for meas in list(writers):
+                                    await _ctrl(pmd.stop_cmd(meas))
+                                _set(name, sdk_mode=await _exit_sdk_mode(_ctrl, name))
                         for meas in list(writers):
                             await _ctrl(pmd.stop_cmd(meas))   # clear any stale stream from a prior session
                             # Ask the device what settings it offers, then START from THOSE (fixed table is a
@@ -2097,6 +2151,17 @@ async def run_polar(dev: dict, root: str):
                                     break                 # retrying the fixed cmd cannot help while charging
                             if started:                  # record + re-register at the ACTUAL negotiated rate
                                 stream_fs[meas] = used_fs
+                                if meas == pmd.PPG and not calibrated_for(used_fs):
+                                    # SAY IT WHERE THE RATE IS DECIDED. The optical worn calibration
+                                    # was measured at 55 Hz; at another rate the ambient channel does
+                                    # not carry the same meaning, so no verdict is published at all.
+                                    # Silence would read as "the detector is fine and the strap is on".
+                                    log.warning("%s: PPG negotiated %s Hz, but optical worn detection "
+                                                "is calibrated at 55 Hz only — NO worn verdict will be "
+                                                "published this session. The power drop and the CPAP "
+                                                "interlock both read `worn is False`, so both stay "
+                                                "inactive rather than acting on a wrong reading.",
+                                                name, used_fs)
                                 stream_scale[meas] = pmd.axis_scale(meas, settings)   # device-reported range/resolution
                                 _register(meas, used_fs)
                                 _set(name, charging=False)

@@ -1113,6 +1113,15 @@ class FlexPolarClient(FakePolarClient):
         ctrl = self.cbs.get(pmd.PMD_CONTROL)
         if not ctrl:
             return
+        # PARAMETERLESS OPS ARE ONE BYTE — `cmd[1]` IndexErrors on them, `_ctrl` catches the exception
+        # and returns b"", and the caller reads that as "the device did not answer". The BASE class has
+        # handled this since the SDK-mode work; this override lost it, which silently made every
+        # parameterless op (SDK-mode status 0x06, measurement status 0x05) untestable through the fake
+        # every test in this file uses. `_ctrl` pairs a reply by `got[1] == cmd[0]`, so the envelope
+        # must echo the OPCODE at [1], not a measurement type.
+        if len(cmd) < 2:
+            ctrl(0, bytes([0xF0, cmd[0], pmd.SDK_MODE, 0x00, 0x00, int(self.sdk_mode_on)]))
+            return
         op, meas = cmd[0], cmd[1]
         if op == 0x01:
             resp = bytes([0xF0, 0x01, meas, 0x00, 0x00, 0x00, 0x01]) + (130).to_bytes(2, "little")
