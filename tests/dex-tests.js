@@ -1078,6 +1078,76 @@
       }
     });
 
+    /* ════ CLOCK CONTRACT §5 — DISPLAY READS getUTC*, SO OUTPUT IS VIEWER-INDEPENDENT ═════════════
+
+       §5 is non-negotiable and, until now, unasserted in most of the fleet. `fmtClock`/`fmtDate`/
+       `fmtDateTime` exist in five nodes and NOTHING checked what any of them returns — found by
+       extreme mutation, which replaces a whole function body: replacing all three with `return ''`
+       left the suite green, and a mutant that survives `return ''` proves there is no assertion on
+       the output at all, not merely a weak one.
+
+       WHY THE ZONE IS FORCED. `tMs` is FLOATING — local civil time encoded as if it were UTC — so a
+       formatter must read it back with the getUTC* family. On a UTC machine `getHours()` and
+       `getUTCHours()` agree, so a test written on a UTC CI box passes against a broken formatter.
+       Asia/Kolkata (+05:30) is inherited from the §2.1 group above for the same two reasons: non-zero
+       and NOT a whole hour, so it also catches an implementation that rounds to hours.
+
+       THE INSTANT IS CHOSEN SO BOTH THE HOUR AND THE DATE MOVE: 22:30:15 UTC is 04:00:15 the NEXT DAY
+       in Kolkata. A formatter reading local getters therefore gets both fields wrong, which is exactly
+       the failure §1 describes — a New-York night reading 03:00 in London. The ANTI-VACUITY assertion
+       below proves the fixture can see that before any formatter is checked. */
+    group('Clock Contract §5 — every node display formatter is viewer-timezone-independent', 'clock · display · mutation-pinned', function (T) {
+      var NODES = [
+        ['HRVDex', env.HRVDex && env.HRVDex._bare],
+        ['PulseDex', env.PulseDex && env.PulseDex._bare],
+        ['CpapDsp', env.CpapDsp],
+        ['PPGDSP', env.PPGDSP || env.PpgDSP],
+        ['IntegratorDSP', env.IntegratorDSP]
+      ].filter(function (r) {
+        return r[1] && typeof r[1].fmtClock === 'function';
+      });
+      if (!NODES.length) {
+        T.skip('a node formatter is reachable', 'no *-dsp co-loaded in this lane');
+        return;
+      }
+      if (typeof process === 'undefined' || !process || !process.env) {
+        // Browser lane: cannot force a zone, so this assertion is Node-only by construction.
+        T.skip('TZ can be forced', 'no process.env (browser lane)');
+        return;
+      }
+      var saved = process.env.TZ;
+      try {
+        process.env.TZ = 'Asia/Kolkata'; // +05:30
+        var MS = Date.UTC(2026, 5, 7, 22, 30, 15);
+        var local = new Date(MS);
+        if (local.getTimezoneOffset() === 0) {
+          // The zone did not take (an ICU-less build). Skipping is honest; asserting would be vacuous.
+          T.skip('forced zone took effect', 'TZ change had no effect on this runtime');
+          return;
+        }
+        /* ANTI-VACUITY — without this the whole group could pass on a runtime where the zone silently
+           did nothing, which is the shape of a gate that reports success about something it never
+           examined. A local reading must differ in BOTH fields for the assertions below to have power. */
+        T.ok('ANTI-VACUITY · a local-getter reading differs in the HOUR here', local.getHours() !== 22, 'getHours()=' + local.getHours() + ' vs UTC 22');
+        T.ok('ANTI-VACUITY · …and in the DATE, so a date-only formatter is covered too', local.getDate() !== 7, 'getDate()=' + local.getDate() + ' vs UTC 7');
+
+        for (var i = 0; i < NODES.length; i++) {
+          var name = NODES[i][0],
+            o = NODES[i][1];
+          T.eq(name + '.fmtClock reads the UTC wall clock, not the viewer’s', o.fmtClock(MS), '22:30');
+          if (typeof o.fmtDate === 'function') {
+            T.eq(name + '.fmtDate does not roll to the viewer’s date', o.fmtDate(MS), '2026-06-07');
+          }
+          if (typeof o.fmtDateTime === 'function') {
+            T.eq(name + '.fmtDateTime agrees with its two halves', o.fmtDateTime(MS), '2026-06-07 22:30');
+          }
+        }
+      } finally {
+        if (saved === undefined) delete process.env.TZ;
+        else process.env.TZ = saved;
+      }
+    });
+
     /* ════ WAVE 9 — THE MILLISECOND BAND IS CLOSED AT BOTH ENDS ═══════════════════════════════════
        `_ckMk` validates the time components with `… || ms < 0 || ms > 999`. A mutation of that last
        comparison to `ms >= 999` has survived every sweep, and the standing classification recorded it
