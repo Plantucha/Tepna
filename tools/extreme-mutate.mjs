@@ -128,6 +128,27 @@ export function replaceBody(src, b, replacement) {
 
 /* Descartes' classification from a set of per-operator verdicts.
    PURE, because it is the whole point of the change and must be pinned. */
+/* ── THE COVERAGE LEG, which this tool was missing entirely ──────────────────────────────────
+   Descartes' rule has TWO conditions: a function is pseudo-tested iff it is COVERED **and** every
+   applicable extreme mutant survives. A function no test ever calls has all its mutants survive
+   TRIVIALLY — that is NOT-COVERED, a different and much cheaper finding.
+
+   Measured on hrvdex-dsp.js, 2026-08-11: of 18 functions this tool called pseudo-tested, SIXTEEN were
+   never executed at all. The honest rate was 2/37 = 5.4 %, not 48.6 %. Every "outlier" the earlier
+   runs reported was mostly this.
+
+   It also dissolves an apparent corroboration. c8 reporting hrvdex as the fleet's least-executed file
+   looked like a second instrument confirming pseudo-testedness. It was the SAME FACT — "these
+   functions are not executed" — read twice, and counting it as independent support was wrong.
+
+   Coverage is per-function from c8's Istanbul-shaped report, and it is scoped to THE GROUP UNDER
+   TEST: a function covered only by some other group is not reachable by this run's mutants either, so
+   the two must use the same filter or the classification is incoherent. */
+export function classifyDescartes(verdicts, executions) {
+  if (!(executions > 0)) return 'not-covered';
+  return classifyExtreme(verdicts);
+}
+
 export function classifyExtreme(verdicts) {
   const v = verdicts.filter((x) => x !== undefined);
   if (!v.length) return 'not-applicable';
@@ -289,6 +310,53 @@ if (IS_MAIN && !has('--selftest')) {
     process.stderr.write(`  canary PASSED — emptying ${canaryName} is noticed, so the harness detects mutations\n`);
   }
 
+  /* ── PER-FUNCTION COVERAGE, same group filter as the mutants ────────────────────────────────
+     Without this the tool cannot tell "nothing asserts on it" from "nothing calls it", and the second
+     is both far more common and a different problem. Collected once, from c8's Istanbul-shaped
+     report, before any mutant runs. */
+  const covDir = join(dirname(ROOT), '.extreme-cov-' + process.pid);
+  const executions = new Map();
+  let coverageOK = false;
+  try {
+    execFileSync(
+      process.execPath,
+      [
+        join(ROOT, 'node_modules/.bin/c8'),
+        '--reporter=json',
+        '--report-dir=' + covDir,
+        '--exclude=tests/**',
+        '--exclude=tools/**',
+        process.execPath,
+        join(ROOT, 'tests/run-tests.mjs'),
+        '--group=' + group
+      ],
+      { cwd: ROOT, stdio: 'ignore', timeout: 600000 }
+    );
+  } catch (_) {
+    /* fall through — handled below */
+  }
+  try {
+    const rep = JSON.parse(readFileSync(join(covDir, 'coverage-final.json'), 'utf8'));
+    const key = Object.keys(rep).find((k) => k.endsWith('/' + file) || k.endsWith('\\' + file));
+    if (key) {
+      const e = rep[key];
+      for (const [fid, meta] of Object.entries(e.fnMap || {})) executions.set(meta.name, e.f[fid] || 0);
+      coverageOK = executions.size > 0;
+    }
+    rmSync(covDir, { recursive: true, force: true });
+  } catch (_) {
+    rmSync(covDir, { recursive: true, force: true });
+  }
+  if (!coverageOK) {
+    /* FAIL CLOSED. Without coverage every uncovered function would be reported as pseudo-tested — the
+       exact conflation this leg exists to prevent, and it inflated hrvdex from 5.4 % to 48.6 %. */
+    console.error('✗ NO PER-FUNCTION COVERAGE for ' + file + ' — refusing to classify.');
+    console.error('  Without it, "nothing calls this" is indistinguishable from "nothing asserts on this",');
+    console.error('  and the first is far more common. Check that npx c8 runs and that the group filter is right.');
+    process.exit(3);
+  }
+  process.stderr.write('  coverage: ' + [...executions.values()].filter((n) => n > 0).length + '/' + executions.size + ' functions executed by --group=' + group + '\n');
+
   const jobs = Math.min(jobsWanted, bodies.length);
   const dirs = [];
   for (let w = 0; w < jobs; w++) {
@@ -312,6 +380,7 @@ if (IS_MAIN && !has('--selftest')) {
 
   const pseudo = [];
   const partial = [];
+  const uncovered = [];
   let noticed = 0,
     next = 0,
     mutantsRun = 0;
@@ -328,11 +397,24 @@ if (IS_MAIN && !has('--selftest')) {
          killed by the first, so the average cost stays near 1 mutant rather than 8. The price: a
          short-circuited function reports as "noticed" without separating PARTIALLY-tested from fully
          tested. --classify runs the whole set and splits them. */
+      /* An UNCOVERED function needs no mutants at all: every one of them would survive trivially, so
+         running eight is pure cost for a verdict already determined. */
+      if (!(executions.get(b.fn) > 0)) {
+        uncovered.push(b);
+        if (!has('--json')) process.stderr.write('  ∅ not-covered   ' + b.fn.padEnd(28) + ' L' + b.line + '  — no test in this group calls it\n');
+        continue;
+      }
       const verdicts = [];
       const survivedOps = [];
       for (const op of EXTREME_OPS) {
         const mutated = replaceBody(src, b, op.body);
         if (mutated === null) continue;
+        /* ⚠️ A SPLICE THAT CHANGED NOTHING MUST NEVER BE SCORED. A function whose body already IS the
+           replacement — `function f() { return null; }` under the `return null` operator — produces
+           byte-identical source, the suite passes because nothing was mutated, and that vacuous pass
+           counts as "survived" and pushes the function toward PSEUDO-TESTED. A fabricated finding,
+           failing silently and in the same direction as the brace bug did. */
+        if (mutated === src) continue;
         rmSync(join(d, file), { force: true });
         writeFileSync(join(d, file), mutated);
         mutantsRun++;
@@ -341,7 +423,7 @@ if (IS_MAIN && !has('--selftest')) {
         if (res.ok) survivedOps.push(op.name);
         if (!res.ok && !FULL) break;
       }
-      const verdict = classifyExtreme(verdicts);
+      const verdict = classifyDescartes(verdicts, executions.get(b.fn) || 0);
       if (verdict === 'pseudo-tested') {
         pseudo.push({ ...b, ops: survivedOps });
         if (!has('--json')) process.stderr.write('  ● PSEUDO-TESTED ' + b.fn.padEnd(28) + ' L' + String(b.line).padEnd(6) + ' all ' + verdicts.length + ' extreme mutants survived\n');
@@ -447,7 +529,7 @@ if (IS_MAIN && !has('--selftest')) {
   } else {
     console.log(`\n▸ ${file} · ${bodies.length} function(s) · ${secs.toFixed(0)}s at ${jobs}-way`);
     console.log(
-      `  PSEUDO-TESTED ${pseudo.length}   partially ${partial.length}   noticed ${noticed}   (${((100 * noticed) / bodies.length).toFixed(0)}% of functions have at least one assertion that depends on them)`
+      `  PSEUDO-TESTED ${pseudo.length}   partially ${partial.length}   not-covered ${uncovered.length}   tested ${noticed}   (${((100 * noticed) / bodies.length).toFixed(0)}% of functions have at least one assertion that depends on them)`
     );
     if (pseudo.length) {
       console.log('\n  Each of these can have its ENTIRE BODY DELETED with the suite still green:');
