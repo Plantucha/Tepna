@@ -1398,6 +1398,20 @@ async function main() {
        The DSPs run in a vm context the assertions cannot see, so the toggle has to be handed in from
        the runner. Restoration is in a `finally`; the caller should ASSERT it afterwards, because a
        global left mutated by one group fails in an unrelated one. */
+    /* Construct a Date INSIDE the module realm. `instanceof` is realm-scoped: the DSPs run in a vm
+       context with its own intrinsics, so a host-constructed `new Date(ms)` fails
+       `x instanceof Date` there and any code guarded that way silently takes its else-branch.
+       hrvdex-dsp L718 does exactly that — `r._date instanceof Date ? r._date.getUTCHours() : 8` —
+       so a fixture passing a host Date gets hour 8 at every hour, and three "different" hours pin
+       one arm three times. Nothing errors; the branch just never runs. */
+    realmDate: function (ms) {
+      /* The factory is EVALUATED INSIDE the context. `ctx.Date` is not reachable — a contextified
+         sandbox does not expose the realm's intrinsics as own properties, and reading it gives
+         undefined ("ctx.Date is not a constructor"). Running the arrow inside the realm returns a
+         constructor that belongs to it. */
+      if (!ctx.__realmDate) ctx.__realmDate = vm.runInContext('(ms) => new Date(ms)', ctx);
+      return ctx.__realmDate(ms);
+    },
     withGlobalRemoved: function (name, fn) {
       var saved = ctx[name];
       try {

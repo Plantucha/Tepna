@@ -12138,6 +12138,141 @@
       T.ok('DexUnits is restored after the group', !!(env.DexUnits && env.DexUnits.guardBaevsky) && isFinite(run(false, null).d_si));
     });
 
+    /* ── THE BRANCHES A UNIFORM FIXTURE CANNOT REACH ────────────────────────────────────────────
+       Two groups in, computeDerived is at 98 surviving. Reading the list again shows a third shape,
+       distinct from the first two: branches selected by something the fixture holds CONSTANT.
+
+         L734  circAdj = _hrvIsAllNight(r) ? 1.0 : mHour < 10 ? 1.08 : mHour > 16 ? 0.95 : 1.0
+         L603  _hasNu   = r._totalPow > 0 && r._vlf != null && r._totalPow > r._vlf
+         L604  _hasBands = r._hf > 0 && r._lf > 0 && r._vlf > 0
+
+       The circadian factor has THREE arms chosen by the hour of the recording, and every row in the
+       earlier fixtures is stamped 03:00, so two of them never run. The spectral guards have three
+       operands each, and zeroing ONE flips one operand while the others still short-circuit the
+       same way — the `||` mutant and the original agree. And `_vlf != null` cannot be moved by a
+       zero at all: 0 is not null, so that operand is true either way.
+
+       So: vary the HOUR, vary `_spanMin` across the all-night threshold, use `null` where the guard
+       tests for null, and zero PAIRS where a single zero is absorbed. */
+    group('HRVDex computeDerived — circadian, all-night and multi-operand spectral guards', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex._bare not loaded');
+        return;
+      }
+      if (typeof env.realmDate !== 'function') {
+        /* Not a pass: without a realm-correct Date the circadian arms cannot be selected at all and
+           this group would pin the default arm three times. */
+        T.skip('the runner can build a realm-correct Date', 'env.realmDate unavailable');
+        return;
+      }
+      var DAY = 86400000;
+      var BASE = {
+        _hr: 62,
+        _meanRR: 968,
+        _sdnn: 54,
+        _rmssd: 41,
+        _mxdmn: 320,
+        _pnn50: 18.5,
+        _amo50: 31,
+        _mode: 950,
+        _totalPow: 3200,
+        _hf: 900,
+        _lf: 1400,
+        _vlf: 900,
+        _stress: 3.2,
+        _energy: 5.1,
+        _focus: 4.4,
+        _sns: 1.2,
+        _psns: 2.1,
+        _coherence: 3.3,
+        _hrv: 60,
+        _cv: 5.6,
+        _spanMin: 6
+      };
+      /* `hour` stamps every row, `over` is applied to every row. Four rows on four distinct UTC days
+         so the date-keyed VO2 window fills — established in the guard group, and the reason a
+         one-row fixture reports d_vo2_roll7 NaN for a reason unrelated to the guard under test. */
+      var at = function (hour, over) {
+        var rows = [];
+        for (var n = 0; n < 4; n++) {
+          var r = {};
+          for (var k in BASE) r[k] = BASE[k];
+          r._tMs = Date.UTC(2026, 5, 10, hour, 0, 0) + n * DAY;
+          /* ⚠️ `_date`, NOT `_tMs`, is what selects the circadian arm: L718 reads
+             `r._date instanceof Date ? r._date.getUTCHours() : 8`. A fixture carrying only `_tMs`
+             falls to the DEFAULT 8 and silently takes the morning arm at every hour — my first
+             version did exactly that, and the discrimination check below is the only reason it was
+             not pinned as three identical values called "branch coverage".
+             Per Clock Contract §5 the Date is built from the floating tMs and read via getUTC*,
+             which is what L718 does. */
+          r._date = env.realmDate ? env.realmDate(r._tMs) : new Date(r._tMs);
+          if (over) for (var o in over) r[o] = over[o];
+          rows.push(r);
+        }
+        D.computeDerived(rows);
+        return rows[rows.length - 1];
+      };
+      var six = function (v) {
+        return typeof v === 'number' && isFinite(v) ? Math.round(v * 1e6) / 1e6 : String(v);
+      };
+      var shape = function (r) {
+        var out = [];
+        for (var c in r) {
+          var v = r[c];
+          if (c.indexOf('d_') !== 0 || typeof v !== 'number' || isFinite(v)) continue;
+          out.push(c + (Number.isNaN(v) ? '' : v > 0 ? ':+Inf' : ':-Inf'));
+        }
+        return out.sort().join(' ');
+      };
+
+      /* ── THE CIRCADIAN ARMS ─────────────────────────────────────────────────────────────────
+         1.08 before 10:00, 0.95 after 16:00, 1.0 between — and 1.0 flat for an all-night recording
+         regardless of hour, which is the branch that OVERRIDES the other three. */
+      var early = at(8, null);
+      var mid = at(12, null);
+      var late = at(18, null);
+      var night = at(8, { _spanMin: 240 });
+
+      /* Discrimination first: if the three hours agreed, every assertion below would pass while
+         exercising one arm three times. */
+      T.ok(
+        'the hour of day actually changes the answer — the circadian arms are live',
+        six(early.d_rmssd_circ) !== six(mid.d_rmssd_circ) && six(mid.d_rmssd_circ) !== six(late.d_rmssd_circ),
+        'early ' + six(early.d_rmssd_circ) + ' mid ' + six(mid.d_rmssd_circ) + ' late ' + six(late.d_rmssd_circ)
+      );
+      T.eq('08:00 takes the morning arm (x1.08)', six(early.d_rmssd_circ), 37.962963);
+      T.eq('12:00 takes the neutral arm (x1.0)', six(mid.d_rmssd_circ), 41);
+      T.eq('18:00 takes the evening arm (x0.95)', six(late.d_rmssd_circ), 43.157895);
+      /* ⚠️ circAdj DIVIDES: `d_rmssd_circ = _rmssd / circAdj` (L720). So the morning factor of 1.08
+         makes the OUTPUT smaller, not larger, and my first version of these two assertions asserted
+         the factors directly and failed — 1.052632, not 0.95. The ratios are stated as the reciprocal
+         they actually are, because writing 1.08 here would have read as correct to anyone skimming. */
+      T.eq('the morning arm DIVIDES by 1.08 — the output is 1/1.08 of neutral', Math.round((six(early.d_rmssd_circ) / six(mid.d_rmssd_circ)) * 1e6) / 1e6, Math.round((1 / 1.08) * 1e6) / 1e6);
+      T.eq('…and the evening arm divides by 0.95, so the output is LARGER', Math.round((six(late.d_rmssd_circ) / six(mid.d_rmssd_circ)) * 1e6) / 1e6, Math.round((1 / 0.95) * 1e6) / 1e6);
+      /* _spanMin 240 >= ALL_NIGHT_MIN_MIN (180). An all-night recording spans the hours, so applying
+         a spot-sample circadian correction to it would be a category error — the code says so and
+         this pins that it holds even at an hour that would otherwise take a different arm. */
+      T.eq('an ALL-NIGHT recording ignores the hour and takes 1.0, even stamped 08:00', six(night.d_rmssd_circ), six(mid.d_rmssd_circ));
+
+      /* ── MULTI-OPERAND SPECTRAL GUARDS ──────────────────────────────────────────────────────
+         `_hasBands = _hf > 0 && _lf > 0 && _vlf > 0`: zeroing one operand leaves the other two
+         truthy, so `&&` -> `||` still reaches the same branch. Zero PAIRS, and all three. */
+      T.eq('_hf and _lf both absent', shape(at(3, { _hf: 0, _lf: 0 })), 'd_lfhf d_lfhf_totpow d_plaw d_rsa d_sai d_sdi d_spectral_ent d_svi d_vlf_hf d_vo2_delta');
+      T.eq('_lf and _vlf both absent', shape(at(3, { _lf: 0, _vlf: 0 })), 'd_lfhf d_lfhf_totpow d_plaw d_sai d_sdi d_spectral_ent d_svi d_vlf_hf d_vo2_delta');
+      T.eq('all three bands absent', shape(at(3, { _hf: 0, _lf: 0, _vlf: 0 })), 'd_lfhf d_lfhf_totpow d_plaw d_rsa d_sai d_sdi d_spectral_ent d_svi d_vlf_hf d_vo2_delta');
+      T.eq('_totalPow and _vlf both absent', shape(at(3, { _totalPow: 0, _vlf: 0 })), 'd_hfnu d_lfhf_totpow d_lfnu d_plaw d_spectral_ent d_vlf_hf d_vlf_pct d_vo2_delta');
+      /* `_totalPow > r._vlf` is an ORDERING operand, not a presence one — no amount of zeroing
+         reaches it. A VLF larger than the total power is physically impossible and arithmetically
+         reachable, which is exactly the input that separates `>` from `>=`. */
+      T.eq('_vlf EXCEEDS _totalPow — the ordering operand, unreachable by zeroing', shape(at(3, { _vlf: 5000 })), 'd_hfnu d_lfnu d_vo2_delta');
+      T.eq('_vlf EQUALS _totalPow — the boundary of that same comparison', shape(at(3, { _vlf: 3200 })), 'd_hfnu d_lfnu d_vo2_delta');
+      /* `_vlf != null` cannot be moved by 0, because 0 is not null. This is the only value that
+         flips that operand, and no earlier fixture supplied it. */
+      T.eq('_vlf is NULL, not zero — the != null operand', shape(at(3, { _vlf: null })), 'd_hfnu d_lfnu d_plaw d_spectral_ent d_vlf_hf d_vlf_pct d_vo2_delta');
+      T.eq('_totalPow is NULL', shape(at(3, { _totalPow: null })), 'd_hfnu d_lfhf_totpow d_lfnu d_vlf_pct d_vo2_delta');
+    });
+
     group('HRVDex storage failure survives the success line (DEEP-AUDIT-II §1.11)', 'hrvdex-dsp', function (T) {
       // the bare-helper surface (HRVDex._bare) is the deliberate test-access namespace, per hrvdex-dsp.js
       var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
