@@ -116,8 +116,37 @@ def test_the_ring_has_a_fixed_capturable_set_because_it_has_no_bitmask(tmp_path,
     the box, and it went a long time with no toggle at all."""
     body = _settings(tmp_path, [_dev(name="Ring", model="O2Ring-S", vendor=vendor)],
                      status={"Ring": {"pmd_supported": ["ecg"]}})
-    assert body["devices"][0]["supported"] == ["spo2", "ppg"], \
+    assert body["devices"][0]["supported"] == ["spo2", "ppg", "ppg2w"], \
         "the ring's set is fixed, and must not inherit a Polar bitmask"
+
+
+def test_every_stream_the_RING_CAN_WRITE_is_offerable(tmp_path):
+    """DERIVED from `capture.run_oxyii`, not a second hardcoded list — because a hardcoded list is what
+    broke it.
+
+    For a device with no capability read, this offer set IS the capability declaration. A capturable
+    stream missing from it is not merely un-toggleable: `saveSettings` posts only the rendered
+    checkboxes and the server assigns the WHOLE list per address, so the first save after such a stream
+    is enabled silently DELETES it from config.yaml. Measured — the O2Ring wrote 110 MB of `_PPG2W` on
+    the night of 2026-08-09 and none on 2026-08-10, with the config backups bracketing the loss to an
+    ordinary settings save. `write_ppg2w` existed the whole time.
+
+    So the assertion is against the source of truth: every stream name `run_oxyii` gates a writer on
+    must be offerable. Add a stream to capture.py and forget this list, and this test says so."""
+    import inspect
+    import re
+
+    import capture
+    src = inspect.getsource(capture)
+    # `ppg2wr = (StreamWriter(...) if "ppg2w" in (dev.get("streams") or []) else None)`
+    gated = set(re.findall(r'"([a-z0-9_]+)" in \(dev\.get\("streams"\)', src))
+    body = _settings(tmp_path, [_dev(name="Ring", vendor="Wellue", model="O2Ring-S",
+                                     address="CC:DD", streams=["spo2"])])
+    offered = set(body["devices"][0]["supported"])
+    missing = sorted(g for g in gated if g not in offered)
+    assert not missing, (
+        f"capture.py can write {missing} for the ring but the settings page never offers them — they "
+        f"cannot be switched on, and any save wipes them from config.yaml. Offered: {sorted(offered)}")
 
 
 def test_each_device_projects_the_keys_the_settings_page_reads(tmp_path):
@@ -126,7 +155,13 @@ def test_each_device_projects_the_keys_the_settings_page_reads(tmp_path):
                      status={"H10": {"pmd_options": {"ecg": [130]}}})
     d = body["devices"][0]
     assert set(d) == {"name", "address", "vendor", "streams", "supported", "bps", "bps_ref",
-                      "rate_options", "rates", "sdk_capable", "sdk_mode", "sdk_mode_actual"}
+                      "rate_options", "rates", "sdk_capable", "sdk_mode", "sdk_mode_actual",
+                      # Recording destination, and the same three-question split as SDK mode: can this
+                      # hardware record to flash (`offline_capable`, derived from the PMD feature list),
+                      # what was ASKED for (`record_offline`, config), and what the DEVICE reports it is
+                      # actually doing (`recording_offline`, from measurement-status op 5 — never from
+                      # the START ack, because an ack means "accepted", not "recording").
+                      "offline_capable", "record_offline", "recording_offline"}
     # THREE keys for SDK mode, not one, because they answer different questions: can this hardware do
     # it (feature 0x9), was it asked for (config), and did the device CONFIRM it (null = never said).
     # An H10 advertises no such feature, so the switch is not offered for it at all.

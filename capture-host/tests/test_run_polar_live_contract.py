@@ -336,9 +336,18 @@ def test_the_device_menu_is_PUBLISHED_and_MERGED_not_replaced(tmp_path, monkeypa
     _drive(monkeypatch, tmp_path, ["ecg", "acc", "ppg"],
            frames=[T._ecg_frame(), T._acc_frame(), T._ppg_frame()], sets=sets)
     opts = capture.STATUS["devices"]["H10"]["pmd_options"]
-    assert set(opts) == {"ecg", "acc", "ppg"}, (
+    assert {"ecg", "acc", "ppg"} <= set(opts), (
         f"pmd_options carries {sorted(opts)} — a per-stream write that does not merge leaves only the "
         "last stream, and Settings then offers rates for one stream as if they were all of them")
+    # ⚠️ WAS `== {"ecg","acc","ppg"}`, i.e. exactly the streams that were ENABLED — which is the very
+    # narrowness that made a disabled stream's rate unsettable: no menu, so no dropdown, so the only way
+    # to choose gyro's rate was to enable it at its default, reconnect, set it, and reconnect again. The
+    # menu is now also read for supported-but-disabled measurements (a settings QUERY starts nothing),
+    # so equality here would pin the bug. Both properties are asserted instead: the merge is preserved,
+    # AND the off streams are present.
+    assert {"gyro", "mag"} <= set(opts), (
+        f"pmd_options carries {sorted(opts)} — a supported measurement that is switched OFF still needs "
+        "its menu published, or its rate cannot be chosen without first enabling it at some default")
     for stream, legal in opts.items():
         assert legal == [130], f"{stream}: the device's own menu must be published verbatim, got {legal}"
 

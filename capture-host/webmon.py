@@ -56,6 +56,9 @@ def _valid_mac(a) -> bool:
 # Derived from the writer layouts so it cannot drift from what a runner can open, plus the two the
 # non-PMD runners add (`spo2` from the ring, `eeg` from the Muse child tool).
 KNOWN_STREAMS = frozenset(StreamWriter.HEADERS) | {"spo2", "eeg"}
+# The measurements the offline bit can express AT ALL. It rides the PMD control point, so `hr` (Heart
+# Rate Service) and `spo2` (a Viatom device, no PMD) are not candidates however the UI is wired.
+_OFFLINE_CAPABLE = frozenset({"ecg", "acc", "ppg", "gyro", "mag", "ppi"})
 
 # A body that is not a JSON OBJECT. Distinct from `{}` on purpose (CAPTURE-HOST-DEEP-AUDIT §D1/§D3):
 # `{}` is a caller who sent an object and omitted the keys, which several endpoints treat as a
@@ -618,7 +621,20 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 # The ring has no PMD feature bitmask; its capturable set is fixed and known. `ppg` is the
                 # 125 Hz pleth we decode out of the same 0x04 frame as the 1 Hz summary — the second
                 # largest stream on the box, and until now it had no toggle at all.
-                supported = ["spo2", "ppg"]
+                #
+                # ⚠️ `ppg2w` WAS MISSING HERE AND THAT DELETED IT FROM THE CONFIG. This list is the whole
+                # offer set for a non-PMD device, so a capturable stream absent from it is not merely
+                # un-toggleable — `saveSettings` posts the rendered checkboxes and the server assigns the
+                # WHOLE list per address, so the first save after it was enabled silently dropped it.
+                # Measured: the O2Ring wrote 110 MB of `_PPG2W` on the night of 2026-08-09 and none on
+                # 2026-08-10, and the config backups bracket the loss to an ordinary settings save
+                # (`bak-20260809-083246` has it, `bak-2026-08-10-1806` does not). `write_ppg2w` was
+                # there the whole time; nothing was broken except this list.
+                #
+                # The rule this encodes: for a device with no capability read, the offer set IS the
+                # capability declaration — anything `run_oxyii` can open a writer for must appear here,
+                # or enabling it becomes unreachable and keeping it becomes impossible.
+                supported = ["spo2", "ppg", "ppg2w"]
             # SDK MODE IS OFFERED ONLY WHERE THE DEVICE ADVERTISES IT (feature bit 0x9), and the
             # capability is DERIVED, never inferred from vendor or model: a switch that cannot work is
             # worse than an absent one, because the operator sets it and the config then claims a mode
@@ -631,9 +647,32 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                          "streams": d.get("streams") or [], "supported": supported,
                          "bps": _bps_for(d), "bps_ref": _bps_ref(d),
                          # the device's OWN menu of legal rates, read at connect — a dropdown built from
-                         # this cannot offer an unsupported value
-                         "rate_options": st.get("pmd_options") or {},
+                         # this cannot offer an unsupported value.
+                         #
+                         # REMEMBERED, exactly like `pmd_supported_seen` two lines down. `pmd_options` is
+                         # the LIVE read and is empty for any device not currently connected, so a menu
+                         # built from it alone renders no <select> at all and THE RATE CANNOT BE SET
+                         # UNTIL THE DEVICE HAPPENS TO BE UP — which is backwards, because the rate is
+                         # exactly what you want to fix BEFORE a night starts. The server already
+                         # persists `pmd_options_seen` on save and already validates against it; only
+                         # this line, the one the browser reads, was missing the fallback. Observed
+                         # 2026-08-10: H10 `acc` offered no control and sat at its 200 Hz default
+                         # (~185 MB/night) with `{'acc': [25, 50, 100, 200]}` sitting in the config.
+                         "rate_options": st.get("pmd_options") or d.get("pmd_options_seen") or {},
                          "rates": d.get("rates") or {},
+                         # Streams retargeted at the device's own flash, plus what the DEVICE last
+                         # said about each (capture publishes `recording_offline` from measurement-status
+                         # op 5, never from the START ack — an ack means "accepted", not "recording").
+                         # WHAT CAN BE RECORDED AT ALL on this hardware: a PMD measurement the
+                         # device actually advertises. Server-derived so the UI cannot offer a control
+                         # that the POST would then refuse.
+                         # `supported` is `[...] or None` above — a device that has never connected
+                         # reports None, and `.intersection(None)` is a TypeError that 500s the WHOLE
+                         # settings page, not just this field. Caught by the settings-contract suite.
+                         "offline_capable": sorted(_OFFLINE_CAPABLE.intersection(supported or []))
+                                            if d.get("vendor") == "Polar" else [],
+                         "record_offline": d.get("record_offline") or [],
+                         "recording_offline": st.get("recording_offline") or {},
                          "sdk_capable": hex(pmd.SDK_MODE) in seen_flags,
                          "sdk_mode": bool(d.get("sdk_mode")),
                          # WHAT THE DEVICE LAST SAID, which is not what the config asked for: True on,
@@ -749,6 +788,33 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     dev["rates"] = merged
                     changed.append(f"{dev.get('name')}.rates")
                     restart_needed = True     # rate is fixed at PMD START, i.e. at connect
+
+            for addr, want in (body.get("record_offline") or {}).items():
+                dev = next((d for d in cfg.get("devices", []) if d.get("address") == addr), None)
+                if not dev:
+                    raise settings_schema.SettingsError(f"unknown device {addr}")
+                if not isinstance(want, list) or not all(isinstance(x, str) for x in want):
+                    raise settings_schema.SettingsError("record_offline must be a list of stream names")
+                # ONLY PMD MEASUREMENTS. `hr` rides the Heart Rate Service, not PMD, so the offline bit
+                # cannot express it at all — accepting it here would write a config the daemon silently
+                # ignores, which is the shape of every "the setting did nothing" bug.
+                bad = [x for x in want if x not in _OFFLINE_CAPABLE]
+                if bad:
+                    raise settings_schema.SettingsError(
+                        f"cannot record {', '.join(bad)} to flash — PMD measurements only "
+                        f"({', '.join(sorted(_OFFLINE_CAPABLE))})")
+                # And only what THIS device offers, for the same reason a rate outside its menu is
+                # refused: a config naming a measurement the hardware lacks is a promise it cannot keep.
+                st = status.get("devices", {}).get(dev.get("name"), {})
+                sup = st.get("pmd_supported") or dev.get("pmd_supported_seen")
+                unsup = [x for x in want if sup and x not in sup]
+                if unsup:
+                    raise settings_schema.SettingsError(
+                        f"{dev.get('name')} does not offer {', '.join(unsup)}")
+                if sorted(dev.get("record_offline") or []) != sorted(want):
+                    dev["record_offline"] = want
+                    changed.append(f"{dev.get('name')}.record_offline")
+                    restart_needed = True   # the offline START is issued during PMD negotiation
 
             for addr, want in (body.get("sdk_mode") or {}).items():
                 dev = next((d for d in cfg.get("devices", []) if d.get("address") == addr), None)

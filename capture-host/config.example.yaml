@@ -86,6 +86,20 @@ devices:
     # false; the monitor renders it as its own state. Settable from the monitor's Settings card, which
     # only offers the switch on hardware advertising feature 0x9.
     sdk_mode: true
+    # RECORD TO THE DEVICE'S OWN FLASH instead of streaming. The same negotiated START command with bit
+    # 7 set on the measurement byte (polar_pmd.as_offline) — proven on hardware 2026-08-10: `02 83`
+    # acked ok and the device then reported `ppi: "offline"`.
+    #
+    # ⚠️ A TYPE CANNOT BE BOTH. A stream listed here produces NO live data for as long as it records, so
+    # no writer and no bus entry is created for it — the absence is real and is shown as real.
+    # ⚠️ AND YOU MUST BE ABLE TO GET IT BACK. Retrieval is PS-FTP, which on this box has never completed
+    # over BLE (no PS-FTP traffic in the journal at all; 3/3 manual attempts failed 2026-08-10). The
+    # path measured working so far is USB, in the window just after re-enumeration. A night recorded to
+    # flash you cannot pull is worse than one not recorded, so treat this as a BACKUP against a dropping
+    # link, not as the primary path, until the pull is wired up.
+    # ⚠️ SDK mode is NOT re-entered while a recording runs: it demands every stream stopped, and the only
+    # way to grant that mid-recording is to end the recording.
+    # record_offline: [ppi]
     rates:
       # 176 Hz IS AN OPERATIONAL CALL, and should be read as one rather than as a technical result.
       # Measured on this hardware by decimating ONE night, so subject and physiology are held fixed

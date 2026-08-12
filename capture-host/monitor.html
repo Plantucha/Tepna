@@ -1177,14 +1177,33 @@ async function loadSettings(){
         : '';
       const sel = opts.length > 1
         ? `<select data-addr="${esc(d.address)}" data-rate="${esc(k)}" class="ratesel">` +
-          opts.map(r=>`<option value="${r}" ${(cur||defaultRate(d,k,opts))==r?'selected':''}>${r} Hz${PREF_RATE[k]===r?' ✓ recommended':''}</option>`).join('') +
+          opts.map(r=>`<option value="${r}" ${(cur||defaultRate(d,k,opts))==r?'selected':''}>${r} Hz${nearestRate(k,opts)===r?' ✓ recommended':''}</option>`).join('') +
           `</select>`
         // One option is not a choice, so it stays plain text — but the value still has to travel. No
         // options at all means the device has never reported a menu; a configured rate is still real and
         // must survive, and that is the case a bare <span> could not express even in principle.
         : (opts.length===1 ? `<span class="mb">${opts[0]} Hz</span>${carry}` : carry);
+      // ── LIVE vs TO-DEVICE ────────────────────────────────────────────────────────────────────
+      // Offered only for PMD measurements on a Polar (`offline_capable`, server-derived): the offline
+      // bit rides the PMD control point, so `hr` and `spo2` cannot express it however this is wired.
+      //
+      // ⚠️ Shows what the DEVICE said, not what was asked. `recording_offline[k]` is published from
+      // measurement-status (op 5), never from the START ack — an ack means "accepted", and a recording
+      // that never started must not read as one that did.
+      const offCap = (d.offline_capable||[]).includes(k);
+      const isOff = (d.record_offline||[]).includes(k);
+      const actOff = (d.recording_offline||{})[k];
+      const offState = !isOff ? '' :
+        actOff === true  ? '<span class="mb" style="color:#3c8">device confirms: recording to flash</span>' :
+        actOff === false ? '<span class="mb" style="color:#c55">device does NOT confirm a recording</span>' :
+                           '<span class="mb" style="color:#ca3">not yet reported — unknown, not running</span>';
+      const dest = !offCap ? '' :
+        `<select class="destsel" data-addr="${esc(d.address)}" data-stream="${esc(k)}">
+           <option value="live" ${isOff?'':'selected'}>live</option>
+           <option value="offline" ${isOff?'selected':''}>to device</option>
+         </select>${offState}`;
       return `<label class="setrow"><input type="checkbox" data-addr="${esc(d.address)}" data-stream="${esc(k)}" ${on?'checked':''}>
-        <span class="k">${esc(k)}</span>${sel}<span class="mb" data-mb="${esc(d.address)}|${esc(k)}"></span></label>`;
+        <span class="k">${esc(k)}</span>${sel}${dest}<span class="mb" data-mb="${esc(d.address)}|${esc(k)}"></span></label>`;
     }).join('');
     // ── SDK MODE ────────────────────────────────────────────────────────────────────────────────
     // Rendered ONLY where the device advertises feature 0x9 (server-derived `sdk_capable`): a switch
@@ -1233,10 +1252,20 @@ async function loadSettings(){
 }
 // The rate the daemon would pick with no override: its built-in preference if offered, else the max.
 const PREF_RATE = {ecg:130, ppg:55, acc:50, gyro:52, mag:20};   // mirrors polar_pmd._PREF_RATE
-function defaultRate(d,k,opts){
+// NEAREST OFFERED, never the maximum. The preference is a PROJECT choice and a device menu need not
+// contain it: the Verity offers ACC at 26/52/104/208/416 and the project prefers 50, so the old exact
+// match tagged nothing — and its fallback then picked `Math.max`, i.e. **416 Hz, the most expensive
+// entry on the menu**, for every stream nobody had configured. Measured 2026-08-10: the Verity streamed
+// ACC at 416 Hz for ten hours, 8x what the 4 Hz motion grid can use, purely because its list has no 50.
+// A missing preference means "pick the closest thing it does offer", not "pick the biggest".
+// Ties go to the LOWER rate: cheaper in battery, radio and disk, and nothing here needs the headroom.
+function nearestRate(k, opts){
   const p = PREF_RATE[k];
-  return (p!=null && opts.includes(p)) ? p : Math.max.apply(null, opts);
+  if(!opts || !opts.length) return null;
+  if(p == null) return Math.min.apply(null, opts);
+  return opts.slice().sort((a,b) => Math.abs(a-p) - Math.abs(b-p) || a-b)[0];
 }
+function defaultRate(d,k,opts){ return nearestRate(k, opts); }
 function selectedRate(dev,k){
   const el = document.querySelector(`select[data-addr="${dev.address}"][data-rate="${k}"]`);
   if(el) return parseFloat(el.value);
@@ -1265,7 +1294,7 @@ function updateSetTotal(){
 }
 async function saveSettings(btn){
   const t0=btn.textContent; btn.disabled=true; btn.textContent='saving…';
-  const streams={}, settings={}, rates={}, sdk_mode={};
+  const streams={}, settings={}, rates={}, sdk_mode={}, record_offline={};
   // `[data-stream]`, not a bare `input[type=checkbox]`. The SDK-mode switch lives in the same
   // container and carries no `data-stream`, so an unqualified selector pushes `undefined` into the
   // stream list and the server 400s the whole save on "unknown stream" — taking the unrelated settings
@@ -1276,6 +1305,15 @@ async function saveSettings(btn){
   });
   document.querySelectorAll('#setStreams input.sdksel').forEach(el=>{
     sdk_mode[el.dataset.addr] = el.checked;
+  });
+  // ⚠️ EVERY device with a destination control must post a list, INCLUDING AN EMPTY ONE. The server
+  // assigns the whole list per address, so an address omitted from the payload keeps whatever the
+  // config already had — meaning switching the last stream back to `live` would silently not stick.
+  // Seed the address from the control's presence, not from whether anything is selected. (Same class
+  // as the `rates:` wipe that lost the Verity's `ppg: 176` — see the carry note above.)
+  document.querySelectorAll('#setStreams select.destsel').forEach(el=>{
+    const list = (record_offline[el.dataset.addr] = record_offline[el.dataset.addr] || []);
+    if(el.value === 'offline') list.push(el.dataset.stream);
   });
   // Both control kinds, in ONE pass. A comma selector returns DOCUMENT order, not selector order, so
   // this does not encode a precedence — and it does not need to: a stream renders a <select> (>1
@@ -1294,7 +1332,7 @@ async function saveSettings(btn){
   });
   try{
     const r = await api('/api/settings',{method:'POST',headers:{'content-type':'application/json'},
-                                         body:JSON.stringify({settings,streams,rates,sdk_mode})});
+                                         body:JSON.stringify({settings,streams,rates,sdk_mode,record_offline})});
     $('#setMsg').textContent = r.ok
       ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — reconnect the device to apply':''}` : 'no changes')
       : 'rejected: '+r.error;

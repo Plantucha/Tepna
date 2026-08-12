@@ -1655,7 +1655,20 @@ async def run_polar(dev: dict, root: str):
                     base, unit, ch, labs = _LIVE_META[pmd.MEAS_NAME[meas]]
                     BUS.register(_live_key(pmd.MEAS_NAME[meas], tag), f"{base} ({name})", unit, fs_val, ch, labs)
 
+                # ── STREAMS RECORDED TO THE DEVICE'S OWN FLASH, NOT STREAMED ─────────────────────
+                # `record_offline: [ppi]` retargets a stream at the device's flash: the SAME negotiated
+                # START command with bit 7 set on the measurement byte (polar_pmd.as_offline). Proven on
+                # hardware 2026-08-10 — `02 83` acked ok and the device then reported `ppi: "offline"`.
+                #
+                # ⚠️ A DATA TYPE CANNOT BE BOTH (polar_pmd §OFFLINE RECORDING): starting an offline
+                # recording of a type means there is no live stream of it. So NO live writer and NO bus
+                # registration is created here — a writer would produce a header-only file that reads as
+                # "the stream ran and the device said nothing", which is the fabricated-absence class
+                # this repo keeps re-learning. The absence is REAL and must look real.
+                _rec_off = {meas_of[s] for s in (dev.get("record_offline") or []) if s in meas_of}
                 for s in streams:
+                    if s in meas_of and meas_of[s] in _rec_off:
+                        continue
                     if s in meas_of:
                         writers[meas_of[s]] = w(s)
                         # RATE UNKNOWN UNTIL NEGOTIATED — 0, not the vendor default (2026-08-05).
@@ -1799,6 +1812,7 @@ async def run_polar(dev: dict, root: str):
                     except Exception:
                         pass
                 if writers:
+                    _supported_types: set[int] = set()
                     # Log which PMD measurement types the device actually supports (feature bitmask).
                     try:
                         feat = pmd.parse_features(
@@ -1806,6 +1820,7 @@ async def run_polar(dev: dict, root: str):
                         names = sorted(pmd.MEAS_NAME.get(t, hex(t)) for t in feat)
                         log.info("%s PMD supports: %s", name, " ".join(names))
                         _set(name, pmd_supported=names)
+                        _supported_types = set(feat)
                     except Exception as e:
                         log.info("%s feature read skipped: %r", name, e)
 
@@ -1905,11 +1920,35 @@ async def run_polar(dev: dict, root: str):
                         # Re-run on EVERY pass, not once per connect: SDK mode does not survive a power
                         # cycle, and this loop doubles as the charging retry — a device docked at
                         # bedtime and worn at 23:00 re-negotiates here with no reconnect in between.
-                        if dev.get("sdk_mode"):
+                        # ── WHAT IS ALREADY RECORDING TO FLASH? Asked ONCE per pass, before anything is
+                        # stopped, because every decision below turns on it.
+                        #
+                        # ⚠️ ONE STOP SERVES BOTH. `stop_cmd` clears the online AND the offline
+                        # measurement — the offline-flavoured `03 82` is refused outright with GATT
+                        # Unlikely Error (probe_verity_offline, proven on hardware). So the routine
+                        # "clear any stale stream" STOP below would END an in-progress flash recording on
+                        # EVERY reconnect, splitting one night into as many recordings as the link had
+                        # drops. A recording already running is therefore left strictly alone: not
+                        # stopped, not restarted, not re-negotiated.
+                        _recording_now: set[int] = set()
+                        if _rec_off:
+                            _st = pmd.parse_status_response(await _ctrl(pmd.status_cmd()) or b"")
+                            _recording_now = {m for m in _rec_off if pmd.is_recording(_st, m)}
+                            if _recording_now:
+                                log.info("%s: already recording to flash (%s) — leaving it running",
+                                         name, ", ".join(pmd.MEAS_NAME.get(m, str(m))
+                                                         for m in sorted(_recording_now)))
+                        # SDK mode demands every stream stopped (ERROR_INVALID_STATE otherwise), and the
+                        # only way to grant that mid-recording is to end the recording. Not worth a rate
+                        # menu: SDK mode lasts until a power cycle, and a power cycle would have taken the
+                        # recording with it anyway.
+                        if dev.get("sdk_mode") and not _recording_now:
                             for meas in list(writers):
                                 await _ctrl(pmd.stop_cmd(meas))
                             _set(name, sdk_mode=await _enter_sdk_mode(_ctrl, name))
-                        for meas in list(writers):
+                        for meas in list(writers) + sorted(_rec_off - set(writers)):
+                            if meas in _recording_now:
+                                continue
                             await _ctrl(pmd.stop_cmd(meas))   # clear any stale stream from a prior session
                             # Ask the device what settings it offers, then START from THOSE (fixed table is a
                             # fallback). Devices differ: Verity ACC isn't 200 Hz, MAG needs a range, etc.
@@ -1954,10 +1993,16 @@ async def run_polar(dev: dict, root: str):
                                                           pmd.MEAS_NAME.get(meas, str(meas)): settings.get(0x00) or []}})
                             started = False
                             transient = False
+                            _off = meas in _rec_off
                             for cmd, how in ((pmd.build_start(meas, settings, _prefer), "negotiated"),
                                              (pmd.START.get(meas), "fixed")):
                                 if not cmd:  # pragma: no cover — every requested stream is a known measurement,
                                     continue  # for which build_start() and START[meas] both return a command.
+                                # The SAME negotiated command, retargeted at the flash. `as_offline` sets
+                                # bit 7 of the measurement byte and touches nothing else, so the settings
+                                # this device just agreed to travel with it verbatim.
+                                if _off:
+                                    cmd, how = pmd.as_offline(cmd), how + "→flash"
                                 ack = await _ctrl(cmd)
                                 st = ack[3] if len(ack) >= 4 else pmd.NO_ACK
                                 # `already_streaming` is NOT proof that the data will reach US. The H10 serves
@@ -1993,7 +2038,26 @@ async def run_polar(dev: dict, root: str):
                                     break
                                 if transient:
                                     break                 # retrying the fixed cmd cannot help while charging
-                            if started:                  # record + re-register at the ACTUAL negotiated rate
+                            if started and _off:
+                                # ⚠️ THE ACK IS NOT THE RECORDING. `ok` means the command was accepted;
+                                # only measurement-status (op 5) says the device is actually writing to
+                                # flash, and that distinction is the whole reason probe_verity_offline
+                                # confirms by status rather than by ack. Publish what the DEVICE says, so
+                                # a recording that never started cannot read as one that did.
+                                _st2 = pmd.parse_status_response(await _ctrl(pmd.status_cmd()) or b"")
+                                _rec_ok = pmd.is_recording(_st2, meas)
+                                log.log(logging.INFO if _rec_ok else logging.WARNING,
+                                        "%s %s: device %s recording to flash", name,
+                                        pmd.MEAS_NAME.get(meas, meas),
+                                        "confirms" if _rec_ok else "does NOT confirm")
+                                _set(name, **{"recording_offline": {
+                                    **(STATUS["devices"].get(name, {}).get("recording_offline") or {}),
+                                    pmd.MEAS_NAME.get(meas, str(meas)): bool(_rec_ok)}})
+                                _set(name, charging=False)
+                                _CHARGING.discard(name)
+                                # No _register / no stream_fs: nothing will arrive on the link for this
+                                # measurement, and a registered stream with no samples paints `stall`.
+                            elif started:                # record + re-register at the ACTUAL negotiated rate
                                 stream_fs[meas] = used_fs
                                 stream_scale[meas] = pmd.axis_scale(meas, settings)   # device-reported range/resolution
                                 _register(meas, used_fs)
@@ -2054,6 +2118,25 @@ async def run_polar(dev: dict, root: str):
                                 del writers[meas]
                                 BUS.unregister(_live_key(pmd.MEAS_NAME.get(meas, str(meas)), tag))
                             await asyncio.sleep(0.2)
+                        # ── THE MENU FOR STREAMS THAT ARE **OFF** ────────────────────────────────────
+                        # A rate menu was only ever read inside the loop above, i.e. only for streams
+                        # already enabled — so a disabled stream had no menu, the UI could render no
+                        # dropdown, and choosing its rate meant: enable it at whatever default, wait for
+                        # a reconnect, set the rate, wait for another. Chicken-and-egg, and the default
+                        # you were forced through is the expensive one (Verity ACC 416, H10 ACC 200).
+                        #
+                        # Asking is a settings QUERY, not a START: it moves no data, opens no writer and
+                        # changes no device state. It must run AFTER the SDK-mode block, because SDK mode
+                        # is exactly what widens these menus — reading first would remember the narrow
+                        # list and offer PPG 55-only forever.
+                        for meas in sorted(_supported_types - set(writers) - _rec_off):
+                            if meas not in pmd.MEAS_NAME:
+                                continue      # a capability flag (0x9 SDK mode), not a measurement
+                            _opts = pmd.parse_settings_response(await _ctrl(pmd.get_settings_cmd(meas)))
+                            if _opts:
+                                _set(name, **{"pmd_options": {
+                                    **(STATUS["devices"].get(name, {}).get("pmd_options") or {}),
+                                    pmd.MEAS_NAME[meas]: _opts.get(0x00) or []}})
                         if not charging_hold:
                             break
                         # Give the link up the moment anything else wants it — above all an offline pull,
