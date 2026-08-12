@@ -346,6 +346,19 @@ def test_calibrated_for_is_pure_and_tolerant_of_a_reported_rate_that_wobbles():
     assert calibrated_for(None), "an unknown rate is in-domain by design"
 
 
+def test_the_tolerance_is_INCLUSIVE_at_exactly_its_edge():
+    """`<= tol`, not `< tol`. The window exists to absorb a device reporting 54.9 for 55.0, so a rate
+    sitting exactly one tolerance away is the LAST in-domain value rather than the first out — and the
+    boundary has to be pinned or the comparison is free to flip. Nothing else here can see it: every
+    other case is 0.6 Hz away or 80 Hz away, and both operators agree on those."""
+    from telemetry import _WORN_FS_TOL_HZ, calibrated_for
+    edge = 55.0 + _WORN_FS_TOL_HZ
+    assert calibrated_for(edge), f"{edge} Hz is exactly one tolerance out and must still be in-domain"
+    assert calibrated_for(55.0 - _WORN_FS_TOL_HZ), "…and symmetric below"
+    nudge = 55.0 + _WORN_FS_TOL_HZ + 0.01
+    assert not calibrated_for(nudge), f"{nudge} Hz is past the edge and must be refused"
+
+
 def test_adding_a_rate_to_the_domain_is_the_ONLY_way_to_widen_it():
     """The domain is data, injectable, so a future re-derivation is a one-line change with its own
     evidence — and so this test can prove the gate is the tuple and not something incidental."""
