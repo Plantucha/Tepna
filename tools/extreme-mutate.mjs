@@ -41,6 +41,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripNonCode } from './probe-equivalence.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -57,15 +58,30 @@ const IS_MAIN = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(
    what a function is. */
 export function functionBodies(src) {
   const s = String(src || '');
+  /* ⚠️ BRACE-COUNT ON THE MASKED COPY, SPLICE THE ORIGINAL. Counting braces in raw source is wrong
+     and produces CORRUPT output: a `}` inside a string, comment or regex ends the body early. Proven
+     on `function f(a) { var s = "}"; return a + 1; }` — the first version cut at the quoted brace and
+     emitted source that does not parse.
+
+     That failure is quiet in the worst way: a file that will not parse fails the suite, which this
+     tool reads as "the tests noticed", so a mis-bounded function is silently recorded as TESTED. It
+     under-reports rather than over-reports, which is why the earlier fleet numbers were sound but
+     incomplete.
+
+     `stripNonCode` (probe-equivalence) blanks strings/comments/regexes IN PLACE, preserving every
+     offset and newline — so positions found in the mask address the original exactly. Reused rather
+     than reimplemented; it is already selftested there, and this file had no business owning a third
+     copy of that logic. */
+  const mask = stripNonCode(s);
   const out = [];
   const re = /(?:^|[^\w$.])function\s+(\w+)\s*\(/g;
   let m;
-  while ((m = re.exec(s))) {
-    const open = s.indexOf('{', re.lastIndex);
+  while ((m = re.exec(mask))) {
+    const open = mask.indexOf('{', re.lastIndex);
     if (open < 0) continue;
     let d = 0;
-    for (let j = open; j < s.length; j++) {
-      const ch = s[j];
+    for (let j = open; j < mask.length; j++) {
+      const ch = mask[j];
       if (ch === '{') d++;
       else if (ch === '}') {
         d--;
@@ -82,8 +98,48 @@ export function functionBodies(src) {
 /* Replace ONE function's body with an empty one. Returns null when the body is already empty — an
    empty function cannot be emptied, and reporting it as "survived" would be a free false positive on
    every no-op stub in the file. */
+/* ── THE DESCARTES OPERATOR SET ──────────────────────────────────────────────────────────────
+   Descartes' DEFAULT_MUTATION_OPERATORS: void, null, empty, true, false, 0, 1, "" plus typed
+   variants. JS has no static types, so every operator is APPLICABLE to every function and the tests
+   decide — a `return []` on a function whose caller does arithmetic simply gets noticed.
+
+   ⚠️ THE VERDICT RULE IS NOT "the empty body survived". Descartes' MethodClassification: a function is
+   PSEUDO-TESTED iff EVERY applicable extreme mutant survives; if some survive and some are killed it
+   is PARTIALLY-TESTED. The first version of this tool used the empty body alone and called that
+   pseudo-tested, which OVER-REPORTS — a function whose body can be emptied unnoticed but whose
+   `return 1` is caught does have some assertion behind it. */
+export const EXTREME_OPS = [
+  { name: 'empty', body: '' },
+  { name: 'return null', body: ' return null; ' },
+  { name: 'return 0', body: ' return 0; ' },
+  { name: 'return 1', body: ' return 1; ' },
+  { name: "return ''", body: " return ''; " },
+  { name: 'return true', body: ' return true; ' },
+  { name: 'return false', body: ' return false; ' },
+  { name: 'return []', body: ' return []; ' }
+];
+
+/* Replace a function's body with an arbitrary replacement. */
+export function replaceBody(src, b, replacement) {
+  const inner = stripNonCode(src).slice(b.open + 1, b.close);
+  if (!inner.trim()) return null; // nothing to replace — see emptyBody
+  return src.slice(0, b.open + 1) + replacement + src.slice(b.close);
+}
+
+/* Descartes' classification from a set of per-operator verdicts.
+   PURE, because it is the whole point of the change and must be pinned. */
+export function classifyExtreme(verdicts) {
+  const v = verdicts.filter((x) => x !== undefined);
+  if (!v.length) return 'not-applicable';
+  if (v.every((x) => x === 'survived')) return 'pseudo-tested';
+  if (v.every((x) => x === 'killed')) return 'tested';
+  return 'partially-tested';
+}
+
 export function emptyBody(src, b) {
-  const inner = src.slice(b.open + 1, b.close);
+  /* Emptiness is judged on the masked text: a body containing only comments has no behaviour to
+     delete, so emptying it is a guaranteed survivor and a free false positive. */
+  const inner = stripNonCode(src).slice(b.open + 1, b.close);
   if (!inner.trim()) return null;
   return src.slice(0, b.open + 1) + src.slice(b.close);
 }
@@ -219,7 +275,7 @@ if (IS_MAIN && !has('--selftest')) {
       symlinkSync(join(ROOT, 'node_modules'), join(d, 'node_modules'));
     } catch (_) {}
     rmSync(join(d, file), { force: true });
-    writeFileSync(join(d, file), emptyBody(src, cb));
+    writeFileSync(join(d, file), replaceBody(src, cb, EXTREME_OPS[0].body));
     const cr = await run(d);
     rmSync(d, { recursive: true, force: true });
     canaryState = cr.ok ? 'FAILED' : 'PASSED';
@@ -255,8 +311,11 @@ if (IS_MAIN && !has('--selftest')) {
   }
 
   const pseudo = [];
+  const partial = [];
   let noticed = 0,
-    next = 0;
+    next = 0,
+    mutantsRun = 0;
+  const FULL = has('--classify');
   const t0 = Date.now();
   const worker = async (w) => {
     const d = dirs[w];
@@ -264,15 +323,35 @@ if (IS_MAIN && !has('--selftest')) {
       const i = next++;
       if (i >= bodies.length) return;
       const b = bodies[i];
-      rmSync(join(d, file), { force: true });
-      writeFileSync(join(d, file), emptyBody(src, b));
-      const res = await run(d);
-      if (res.ok) {
-        pseudo.push(b);
-        if (!has('--json')) process.stderr.write('  [31m● PSEUDO-TESTED[0m ' + b.fn.padEnd(30) + ' L' + b.line + '  — body deleted, suite still green\n');
+      /* EVERY operator, per Descartes — but SHORT-CIRCUIT on the first kill unless --classify.
+         One killed operator already proves the function is not pseudo-tested, and most functions are
+         killed by the first, so the average cost stays near 1 mutant rather than 8. The price: a
+         short-circuited function reports as "noticed" without separating PARTIALLY-tested from fully
+         tested. --classify runs the whole set and splits them. */
+      const verdicts = [];
+      const survivedOps = [];
+      for (const op of EXTREME_OPS) {
+        const mutated = replaceBody(src, b, op.body);
+        if (mutated === null) continue;
+        rmSync(join(d, file), { force: true });
+        writeFileSync(join(d, file), mutated);
+        mutantsRun++;
+        const res = await run(d);
+        verdicts.push(res.ok ? 'survived' : 'killed');
+        if (res.ok) survivedOps.push(op.name);
+        if (!res.ok && !FULL) break;
+      }
+      const verdict = classifyExtreme(verdicts);
+      if (verdict === 'pseudo-tested') {
+        pseudo.push({ ...b, ops: survivedOps });
+        if (!has('--json')) process.stderr.write('  ● PSEUDO-TESTED ' + b.fn.padEnd(28) + ' L' + String(b.line).padEnd(6) + ' all ' + verdicts.length + ' extreme mutants survived\n');
+      } else if (verdict === 'partially-tested') {
+        partial.push({ ...b, ops: survivedOps });
+        if (!has('--json'))
+          process.stderr.write('  ◐ partially     ' + b.fn.padEnd(28) + ' L' + String(b.line).padEnd(6) + survivedOps.length + '/' + verdicts.length + ' survived: ' + survivedOps.join(', ') + '\n');
       } else {
         noticed++;
-        if (!has('--json')) process.stderr.write('  ○ noticed        ' + b.fn.padEnd(30) + ' L' + b.line + '\n');
+        if (!has('--json')) process.stderr.write('  ○ noticed       ' + b.fn.padEnd(28) + ' L' + b.line + '\n');
       }
     }
   };
@@ -349,10 +428,27 @@ if (IS_MAIN && !has('--selftest')) {
   }
 
   if (has('--json')) {
-    console.log(JSON.stringify({ file, group, functions: bodies.length, pseudoTested: pseudo.map((p) => ({ fn: p.fn, line: p.line })), noticed, secs }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          file,
+          group,
+          functions: bodies.length,
+          pseudoTested: pseudo.map((p) => ({ fn: p.fn, line: p.line, survived: p.ops })),
+          partiallyTested: partial.map((p) => ({ fn: p.fn, line: p.line, survived: p.ops })),
+          noticed,
+          mutantsRun,
+          secs
+        },
+        null,
+        2
+      )
+    );
   } else {
     console.log(`\n▸ ${file} · ${bodies.length} function(s) · ${secs.toFixed(0)}s at ${jobs}-way`);
-    console.log(`  PSEUDO-TESTED ${pseudo.length}   noticed ${noticed}   (${((100 * noticed) / bodies.length).toFixed(0)}% of functions have at least one assertion that depends on them)`);
+    console.log(
+      `  PSEUDO-TESTED ${pseudo.length}   partially ${partial.length}   noticed ${noticed}   (${((100 * noticed) / bodies.length).toFixed(0)}% of functions have at least one assertion that depends on them)`
+    );
     if (pseudo.length) {
       console.log('\n  Each of these can have its ENTIRE BODY DELETED with the suite still green:');
       for (const p of pseudo) console.log(`    L${String(p.line).padEnd(6)} ${p.fn}`);
