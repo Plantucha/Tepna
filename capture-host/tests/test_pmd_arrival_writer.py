@@ -234,6 +234,26 @@ def test_canary_fires_on_a_dead_sidecar():
     assert len(got) == 1 and "no rows" in got[0], got
 
 
+def test_canary_keeps_scanning_past_a_disconnected_device():
+    """A device that is DOWN must not stop the scan — `continue`, never `break`.
+
+    The DEAD arm is now the canary's only arm, so it is the sole thing that can notice the swallowed
+    `except: pass` in the write path. If a disconnected device aborted the loop, a later device whose
+    sidecar had died would go unreported, and the failure this alert exists for would be silent again.
+
+    That ordering is what makes the difference visible, and no existing case had it: the other tests
+    either carry one device, or put the disconnected one where a `break` changes nothing. Dict order
+    is insertion order, so the down device is deliberately FIRST.
+    """
+    import alerts
+    live = {
+        "Polar Verity": {"connected": False, "rows": 0, "arrival_rows": 0},   # down, not a fault
+        "Polar H10": {"connected": True, "rows": 40321, "arrival_rows": 0},   # writing, sidecar dead
+    }
+    got = alerts.arrival_canary({}, live)
+    assert len(got) == 1 and "Polar H10" in got[0] and "no rows" in got[0], got
+
+
 def test_canary_is_silent_on_the_quantised_ring():
     """`floor_ok: None` is UNJUDGED, not failed. The ring's counter is 1 s quantised so its offset is
     fitted, not min-filtered; firing here would page someone every night and the alert would be
