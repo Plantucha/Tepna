@@ -223,8 +223,7 @@ function mutantsFor(src) {
     };
     for (const op of OPS) {
       const re = new RegExp(op.re.source, op.re.flags);
-      let m;
-      while ((m = re.exec(L)) !== null) {
+      for (let m = re.exec(L); m !== null; m = re.exec(L)) {
         if (!isCode(m.index, m[0].length)) continue; // inside a comment or a string literal
         const mutatedLine = L.slice(0, m.index) + m[0].replace(new RegExp(op.re.source), op.to) + L.slice(m.index + m[0].length);
         if (mutatedLine === L) continue;
@@ -370,7 +369,10 @@ export function changedLinesFromDiff(diffText) {
     const count = m[2] === undefined ? 1 : Number(m[2]);
     if (!count) continue; // a pure DELETION adds no line to test — not a gap, just nothing there
     let set = out.get(path);
-    if (!set) out.set(path, (set = new Set()));
+    if (!set) {
+      set = new Set();
+      out.set(path, set);
+    }
     for (let i = 0; i < count; i++) set.add(start + i);
   }
   return out;
@@ -426,9 +428,8 @@ function runSuiteAsync(filter, cwd, timeoutMs) {
          mutant that merely makes a group throw still counts as killed. */
       if (verdictFromOutput(out) === 'INVALID') return resolve({ verdict: 'INVALID', killers: [], reason });
       const seen = new Set();
-      let m;
       KILLER_RE.lastIndex = 0;
-      while ((m = KILLER_RE.exec(out))) seen.add(m[1]);
+      for (let m = KILLER_RE.exec(out); m !== null; m = KILLER_RE.exec(out)) seen.add(m[1]);
       resolve({ verdict: 'KILLED', killers: Array.from(seen) });
     });
   });
@@ -615,8 +616,7 @@ export function groupBodies(src) {
   const out = new Map();
   const s = String(src || '');
   const re = /group\(\s*(['"`])((?:\\.|(?!\1).)*)\1/g;
-  let m;
-  while ((m = re.exec(s))) {
+  for (let m = re.exec(s); m !== null; m = re.exec(s)) {
     const title = m[2];
     let i = s.indexOf('{', m.index);
     if (i < 0) continue;
@@ -949,7 +949,11 @@ async function runFile(file) {
     if (!(RESUME && prior.done.size + prior.jammed.length)) return;
     const jam = new Set(prior.jammed);
     quarantined = picked.filter((m) => jam.has(jkey(m))).map((m) => ({ line: m.line, op: m.op, before: m.before, after: m.after }));
-    const before = picked.length;
+    /* The FULL mutant set for this run, captured before the replayed and quarantined ones are
+       filtered out — so the resume line can state a denominator. Without it the readout gives two
+       numbers that a reader cannot check against anything, which is how the first resume printed
+       `tested 12` for a 60-mutant sweep and looked partial rather than wrong. */
+    const total = picked.length;
     /* FOLD THE PRIOR VERDICTS INTO THIS RUN'S COUNTERS BEFORE DROPPING THEM FROM THE QUEUE.
        Without this a resumed sweep reports only the mutants IT tested — the first resume here read
        `tested 12` for a 60-mutant sweep, which is not a partial result but a WRONG one: the rate
@@ -978,7 +982,9 @@ async function runFile(file) {
         quarantined.length +
         ' quarantined as JAMMED — ' +
         picked.length +
-        ' left to test' +
+        ' left to test of ' +
+        total +
+        ' total' +
         (prior.retry.length ? ', incl. ' + prior.retry.length + ' retried (in flight when the last run died)' : '') +
         '\n'
     );

@@ -143,7 +143,7 @@ if (IS_MAIN && !has('--selftest')) {
   const file = opt('--file', '');
   const fn = opt('--fn', '');
   const group = opt('--group', '');
-  const jobsWanted = Math.max(1, Number(opt('--jobs', String(Math.max(1, (await import('node:os')).cpus().length))) ) || 1);
+  const jobsWanted = Math.max(1, Number(opt('--jobs', String(Math.max(1, (await import('node:os')).cpus().length)))) || 1);
   const sweep = opt('--sweep', '');
   if (!file || !fn || !group) {
     console.error('usage: node tools/killcheck.mjs --file <dsp.js> --fn <name> --group "<test group>" [--jobs N] [--sweep path]');
@@ -266,7 +266,9 @@ if (IS_MAIN && !has('--selftest')) {
 
   console.log(`\n▸ ${file} · ${fn}  L${r.start}-${r.end}   baseline green (${baseAsserts} assertions)`);
   console.log(`  KILLED ${killed}   survived ${survived}${unapplied ? `   ⚠ ${unapplied} could not be applied` : ''}   of ${mine.length}`);
-  console.log(`  ${((100 * killed) / (mine.length - unapplied || 1)).toFixed(0)}% conversion · ${secs.toFixed(1)}s at ${jobs}-way + ${setupSecs.toFixed(1)}s setup (serial would be ~${((mine.length * 4) / 60).toFixed(0)} min)`);
+  console.log(
+    `  ${((100 * killed) / (mine.length - unapplied || 1)).toFixed(0)}% conversion · ${secs.toFixed(1)}s at ${jobs}-way + ${setupSecs.toFixed(1)}s setup (serial would be ~${((mine.length * 4) / 60).toFixed(0)} min)`
+  );
   if (has('--list') && survivorList.length) {
     console.log('\n  still surviving:');
     for (const m of survivorList.slice(0, 40)) console.log(`    L${m.line} [${m.op}] ${String(m.before).trim().slice(0, 62)}`);

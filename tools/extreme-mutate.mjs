@@ -86,8 +86,10 @@ export function functionBodies(src) {
   const mask = stripNonCode(s);
   const out = [];
   const re = /(?:^|[^\w$.])function\s+(\w+)\s*\(/g;
-  let m;
-  while ((m = re.exec(mask))) {
+  /* Assignment lifted out of the condition: biome's lint floor rejects `while ((m = re.exec(...)))`,
+     and it is right that the idiom hides a mutation inside a test. Same iteration, stated. */
+  let m = re.exec(mask);
+  for (; m !== null; m = re.exec(mask)) {
     const open = mask.indexOf('{', re.lastIndex);
     if (open < 0) continue;
     let d = 0;
