@@ -1148,6 +1148,102 @@
       }
     });
 
+    /* ════ CLOCK CONTRACT §6 — THE EXPORTED EVENT `t` IS THE CROSS-NODE CURRENCY ══════════════════
+
+       The §5 group above pins five nodes' formatters directly. MotionDex's is module-private, so it
+       is unreachable that way — and it is the one that matters most: `motiondex-dsp.js` writes
+       `fmtClock(seg.tStartMs)` straight into `ganglior_events[].t`, and it is the ONLY node in the
+       fleet that puts a formatted clock string into that field (`grep -ln "t: .*fmtClock(" *-dsp.js`).
+
+       WHY THAT RAISES THE STAKES. §6 makes `t` a wall-clock string with NO DATE, which consumers
+       recombine with `startEpochMs`'s date, rolling past midnight. So a formatter reading local
+       getters here does not mis-render a label — it hands every downstream consumer a wrong instant
+       to reconstruct from, silently, in the fleet's shared currency. That is the Integrator's input.
+
+       Reached end-to-end through `buildNodeExport`, which needs only a position track, so this pins
+       the real export path rather than a function lifted out of it. */
+    group('Clock Contract §6 — MotionDex’s exported event `t` is the UTC wall clock', 'motiondex-dsp · export · clock · mutation-pinned', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.buildNodeExport === 'function')) {
+        T.skip('MOTIONDSP.buildNodeExport available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      if (typeof process === 'undefined' || !process || !process.env) {
+        T.skip('TZ can be forced', 'no process.env (browser lane)');
+        return;
+      }
+      var saved = process.env.TZ;
+      try {
+        process.env.TZ = 'Asia/Kolkata'; // +05:30 — non-zero AND not a whole hour
+        var T0 = Date.UTC(2026, 5, 7, 22, 30, 15);
+        var local = new Date(T0);
+        if (local.getTimezoneOffset() === 0) {
+          T.skip('forced zone took effect', 'TZ change had no effect on this runtime');
+          return;
+        }
+        T.ok('ANTI-VACUITY · a local-getter reading differs here', local.getHours() !== 22, 'getHours()=' + local.getHours() + ' vs UTC 22');
+
+        /* The third segment crosses MIDNIGHT in UTC (22:30 + 2 h). §6 says `t` carries no date, so it
+           must read 00:30:15 — a formatter that leaked a local date would render the previous day. */
+        var ex = MD.buildNodeExport({
+          t0Ms: T0,
+          position: {
+            track: [
+              { pos: 'supine', tStartMs: T0 },
+              { pos: 'left', tStartMs: T0 + 3600000 },
+              { pos: 'right', tStartMs: T0 + 7200000 },
+              { pos: 'prone', tStartMs: null } // no time ⇒ null, never a fabricated stamp (§2.6)
+            ]
+          }
+        });
+        var evs = (ex && ex.ganglior_events) || [];
+        T.eq('four posture segments yield four events', evs.length, 4);
+        T.eq('event t is the UTC wall clock, not the viewer’s', evs[0] && evs[0].t, '22:30:15');
+        T.eq('…in HH:MM:SS, the shape §6 specifies', evs[1] && evs[1].t, '23:30:15');
+        T.eq('…and past midnight it carries no date, so it wraps rather than rolling back a day', evs[2] && evs[2].t, '00:30:15');
+        T.eq('a segment with no time exports t null — never a fabricated stamp', evs[3] && evs[3].t, null);
+
+        /* THE CONTRACT ITSELF, asserted generically so a future event type inherits it: `t` must be
+           reconstructible from `tMs`. This is exactly the recombination every consumer performs. */
+        var p2 = function (n) {
+          return (n < 10 ? '0' : '') + n;
+        };
+        var mismatched = 0;
+        for (var i = 0; i < evs.length; i++) {
+          if (evs[i].tMs == null) continue;
+          var d = new Date(evs[i].tMs);
+          if (evs[i].t !== p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds())) mismatched++;
+        }
+        T.eq('every event’s t agrees with getUTC* applied to its own tMs', mismatched, 0);
+
+        /* THE SECONDS FIELD NEEDS ITS OWN ZONE, and finding out why is the point of this block.
+           Every IANA offset since 1972 is a whole number of MINUTES, so `getSeconds()` and
+           `getUTCSeconds()` return the same value under Kolkata, Kathmandu, Chatham, Eucla — under
+           anything modern. The seconds third of this formatter is therefore invisible to the check
+           above, and a `getUTCSeconds -> getSeconds` mutant survives it (measured, not assumed).
+
+           It is NOT equivalent, though, and the difference is worth the four lines: JS still models
+           pre-1972 LOCAL MEAN TIME, where offsets carry seconds. Africa/Monrovia ran at -00:44:30
+           until 1972, so a 1960 instant there reads :45 locally against :15 UTC. That is the only
+           input that separates them, and calling the mutant equivalent without looking would have
+           filed a killable defect as unkillable. */
+        process.env.TZ = 'Africa/Monrovia';
+        var LMT = Date.UTC(1960, 0, 1, 12, 0, 15);
+        var lmt = new Date(LMT);
+        if (lmt.getSeconds() === lmt.getUTCSeconds()) {
+          T.skip('sub-minute LMT offset available', 'this runtime does not model pre-1972 LMT seconds');
+        } else {
+          T.ok('ANTI-VACUITY · local seconds really do differ under a sub-minute offset', lmt.getSeconds() !== 15, 'getSeconds()=' + lmt.getSeconds() + ' vs UTC 15');
+          var lex = MD.buildNodeExport({ t0Ms: LMT, position: { track: [{ pos: 'supine', tStartMs: LMT }] } });
+          var lt = lex && lex.ganglior_events && lex.ganglior_events[0] && lex.ganglior_events[0].t;
+          T.eq('…and the exported seconds are still UTC, so the whole HH:MM:SS is getUTC*', lt, '12:00:15');
+        }
+      } finally {
+        if (saved === undefined) delete process.env.TZ;
+        else process.env.TZ = saved;
+      }
+    });
+
     /* ════ WAVE 9 — THE MILLISECOND BAND IS CLOSED AT BOTH ENDS ═══════════════════════════════════
        `_ckMk` validates the time components with `… || ms < 0 || ms > 999`. A mutation of that last
        comparison to `ms >= 999` has survived every sweep, and the standing classification recorded it
