@@ -228,9 +228,68 @@ they are insufficiently varied.
   mutants in a self-test belong in the denominator at all is a question this brief raises and does not
   answer.
 
+## 9 · FINDINGS FROM EXECUTING §5 ON hrvdex `computeDerived` (2026-08-12)
+
+`computeDerived` went **149 → 93 surviving, 56 killed (38 %)** across #1180 / #1181 / #1182. The
+survivors fell into three shapes, and each needed a *different* kind of input rather than more of the
+same — that sequence is the reusable part.
+
+| shape | why the previous fixture could not reach it | what reached it |
+|---|---|---|
+| single-operand guards `a && b` | a row where everything is present takes the same branch under `&&` and `\|\|` | each seed zeroed IN TURN (falsy **and** on the `> 0` boundary) |
+| dead fallback arms | `typeof DexUnits !== 'undefined'` is permanently true — the `else` arms never execute | `env.withGlobalRemoved('DexUnits', fn)` |
+| branches selected by held-constant state | every row stamped 03:00; every `_vlf` a number | varying hour, `_spanMin` across the all-night threshold, `null` vs `0`, PAIRS zeroed, an ORDERING operand (`_vlf > _totalPow`) |
+
+### 9.1 ⚠️ `instanceof` IS REALM-SCOPED — a fleet-wide harness trap
+
+`hrvdex-dsp.js:718` reads `r._date instanceof Date ? r._date.getUTCHours() : 8`. The DSPs run in a vm
+context created from a bare `{}`, so it carries **its own intrinsics**: a host-constructed
+`new Date(ms)` is not `instanceof` that realm's `Date`, the guard is false, and the code takes the
+`: 8` default. Three fixtures stamped 08:00 / 12:00 / 18:00 all took the **morning** arm and produced
+identical numbers. Nothing threw and nothing warned.
+
+`env.realmDate(ms)` now exists in both runners. In Node it must be evaluated INSIDE the context
+(`vm.runInContext('(ms) => new Date(ms)', ctx)`); `ctx.Date` is not an own property of a contextified
+sandbox and reading it yields `undefined is not a constructor`.
+
+**Blast radius: five sites, all hrvdex `_date`** — `-dsp:718` (fixed), `-app:408` and `-app:437`,
+`-render:1345` and `-render:1490`. Any future fixture handing a `Date` to any of them has the same
+hole.
+
+### 9.2 The CSV and JSONL export DATE field is untested — `grep -c '_date:' tests/dex-tests.js` = 0
+
+No test anywhere sets `_date`, so `exportCSV`'s `Date` column and `exportJSONL`'s `date` field have
+only ever been exercised on the else-branch: `''` and `null`. This is a user-visible export surface
+with zero coverage, and it is not the realm bug — it is simply absent.
+
+Not attempted here because both exporters take **no arguments**: they read module-level `rows` and
+drive a download, so covering them needs state injection or a DOM harness rather than a fixture. That
+is the work-unit, and it is worth doing — an export field that has never been produced is exactly the
+class of gap §7's payload work keeps surfacing.
+
+### 9.3 A discrimination check earns its place every time
+
+Each of the three groups opens with an assertion that the *manipulation changed the answer*. It fired
+three times in one session: the fully-populated row was itself producing NaNs (twice — a row count
+was the obvious fix and the wrong one; the VO₂ window is DATE-KEYED); removing `DexUnits` had to be
+shown to move `d_si` before the fallback values meant anything; and the circadian hours were identical
+twice over, first because `circAdj` feeds `d_rmssd_circ` rather than the column asserted on, then
+because of §9.1. Without it, all three groups would have passed while comparing something to itself.
+
+### 9.4 What is left, and why it is not more of the same
+
+93 survivors remain, concentrated on **profile-dependent thresholds** —
+`p_prof.hrmax_manual > 0 && >= 140 && > _hrRestR + 45`, `p_prof.elev <= 1500`. Those need
+`setHooks({ getProfile })`, and **`setHooks` has no getter, so there is no way to restore the previous
+hook**. No test in the repo uses it today. Either the DSP grows a way to read the current hooks, or a
+group accepts that it must reinstate a *known* profile rather than the *previous* one — a decision
+worth making deliberately rather than discovering halfway through.
+
 ## Done when
 
 - [ ] The owner has ratified, adjusted, or per-file'd the 90 % target against §2.
 - [ ] Coverage-guided test selection (§6) exists, or is explicitly declined with a reason.
 - [ ] The top 30 functions from §5 have tests, each with a measured before → after kill count.
 - [ ] `functionRange` resolves arrow consts, or the limitation is recorded in the tool's header.
+- [ ] §9.2 — the export `date` field has a test, or the reason it cannot is recorded.
+- [ ] §9.4 — `setHooks` restoration is resolved before profile-gated branches are attempted.
