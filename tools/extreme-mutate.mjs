@@ -28,6 +28,17 @@
  *
  * Cost: ~1 mutant per function against ~12, so a file is triaged in a fraction of a sweep.
  *
+ * ⚠️ A SURVIVING EXTREME MUTANT CANNOT LOCALISE THE DEFECT, and that is not a detail — it is why the
+ * papers call this a COMPLEMENT to operator mutation rather than a cheaper version of it. Replacing a
+ * whole body hides WHICH PART is unguarded. A concrete case from this repo, 2026-08-11: in a `HH:MM:SS`
+ * formatter, `getUTCSeconds -> getSeconds` SURVIVES almost every conceivable test, because every IANA
+ * offset since 1972 is a whole number of minutes, so local and UTC seconds agree under Kolkata,
+ * Kathmandu, Chatham, Eucla — anything modern. It is NOT equivalent: JS still models pre-1972 local
+ * mean time, and Africa/Monrovia ran at -00:44:30 until 1972, so a 1960 instant reads :45 locally
+ * against :15 UTC. One input separates them. An extreme mutant on that formatter is killed by any test
+ * that checks the hour, so this tool reports it TESTED and the seconds third stays unguarded forever.
+ * Rank with this; find with the operator sweep.
+ *
  * ⚠️ AN EMPTIED BODY THAT BREAKS THE SUITE IS NOT A PASS. A function whose removal makes the whole
  * group throw counts as KILLED here, exactly as in a normal sweep — the tests noticed. What this
  * hunts is the silent case: everything green, function gone.
@@ -86,7 +97,15 @@ export function functionBodies(src) {
       else if (ch === '}') {
         d--;
         if (d === 0) {
-          out.push({ fn: m[1], open, close: j, line: s.slice(0, m.index).split('\n').length });
+          /* Params come from the mask too, and only the plain identifiers — a destructured or
+             defaulted parameter is not something `return_param` can reason about, so it is simply
+             absent from the list and the matcher declines rather than guesses. */
+          const params = mask
+            .slice(re.lastIndex, mask.indexOf(')', re.lastIndex))
+            .split(',')
+            .map((p) => p.trim())
+            .filter((p) => /^\w+$/.test(p));
+          out.push({ fn: m[1], open, close: j, params, line: s.slice(0, m.index).split('\n').length });
           break;
         }
       }
@@ -147,6 +166,52 @@ export function replaceBody(src, b, replacement) {
 export function classifyDescartes(verdicts, executions) {
   if (!(executions > 0)) return 'not-covered';
   return classifyExtreme(verdicts);
+}
+
+/* ── DESCARTES' STOP-MATCHERS, ported rather than rediscovered one crash at a time ───────────
+   Descartes ships 16 matchers naming method shapes it refuses to mutate. This tool met the first of
+   them by accident: `function f() { return null; }` under the `return null` operator splices to
+   BYTE-IDENTICAL source, the suite passes because nothing was mutated, and that vacuous pass scores
+   as "survived". That is Descartes' `constant` matcher, and the reason it exists is exactly the
+   reason the byte-identical guard was needed — the mutant of a trivial accessor is equivalent to it.
+
+   ⚠️ THE SCOPE DIFFERS FROM THE BYTE-IDENTICAL GUARD, and the difference is the whole point of
+   porting the list. The guard SKIPS one operator; Descartes EXCLUDES THE FUNCTION. Those come apart
+   when the skipped operator is the only applicable one: skipping leaves the function with an EMPTY
+   outcome set, and an empty outcome set is not a verdict. This file used to score that case as
+   `noticed` — crediting a function as TESTED on the strength of an experiment that never ran. A
+   function with nothing to mutate must produce NO REPORT ENTRY at all, in either direction.
+
+   A trivial function's pseudo-testedness carries no information: `return this._x;` survives every
+   extreme mutant that happens to return the same shape, and no assertion you could add would change
+   what the mutation means. Reporting them buries the real findings under accessors.
+
+   Returns the matcher name (for the report) or null. Conservative by construction — anything it
+   cannot recognise is NOT trivial, so the failure mode is running mutants that were not needed
+   rather than silently dropping a real finding. */
+export function trivialMatcher(src, b) {
+  /* EMPTINESS is judged on the MASK — a body of nothing but comments has no behaviour to delete.
+     Everything else is judged on the RAW text, because the mask blanks string literals outright:
+     `return "x";` masks to `return    ;`, which is indistinguishable from a bare `return;` and made
+     the string case decline. Reading raw is safe here only because every pattern below is fully
+     anchored, so a trailing comment or any extra token declines rather than matching — the
+     conservative direction. */
+  const masked = stripNonCode(src)
+    .slice(b.open + 1, b.close)
+    .trim();
+  if (!masked) return 'empty';
+  const inner = src.slice(b.open + 1, b.close).trim();
+  const params = b.params || [];
+  const one = inner.replace(/;$/, '').trim();
+  if (/^return\s+this$/.test(one)) return 'return_this';
+  if (/^return(\s+(null|undefined|true|false|-?\d+(\.\d+)?|'[^']*'|"[^"]*"|`[^`]*`|\[\s*\]|\{\s*\}))?$/.test(one)) return 'constant';
+  const mRet = /^return\s+(\w+)$/.exec(one);
+  if (mRet && params.includes(mRet[1])) return 'return_param';
+  const mSet = /^this\.\w+\s*=\s*(\w+)$/.exec(one);
+  if (mSet && params.includes(mSet[1])) return 'setter';
+  const mGet = /^return\s+this\.\w+$/.exec(one);
+  if (mGet) return 'getter';
+  return null;
 }
 
 export function classifyExtreme(verdicts) {
@@ -221,6 +286,57 @@ if (IS_MAIN && has('--selftest')) {
   /* The arrow-const limitation, stated as a test so it cannot be forgotten: `const f = () => {}` is
      invisible to this tool, exactly as it is to probe-coverage's functionRange. */
   eq('an ARROW CONST is not found — a known, shared limitation', functionBodies('const rmssd = (a) => { return a; };').length, 0);
+
+  /* ── DESCARTES' STOP-MATCHERS ─────────────────────────────────────────────────────────────── */
+  const TRIV = [
+    'function c() { return null; }',
+    'function s() { return "x"; }',
+    'function z() { return 0; }',
+    'function arr() { return []; }',
+    'function self() { return this; }',
+    'function idp(v) { return v; }',
+    'function setx(v) { this.x = v; }',
+    'function getx() { return this.x; }',
+    'function real(a) { return a * 2 + 1; }'
+  ].join('\n');
+  const TB = functionBodies(TRIV);
+  const mat = (n) =>
+    trivialMatcher(
+      TRIV,
+      TB.find((b) => b.fn === n)
+    );
+  eq('a constant-returning function is EXCLUDED (Descartes `constant`)', mat('c'), 'constant');
+  eq('…string literal too', mat('s'), 'constant');
+  eq('…and 0, which a truthiness check would have missed', mat('z'), 'constant');
+  eq('…and the empty array', mat('arr'), 'constant');
+  eq('`return this` is excluded', mat('self'), 'return_this');
+  eq('a function returning its own parameter unchanged is excluded', mat('idp'), 'return_param');
+  eq('a setter is excluded', mat('setx'), 'setter');
+  eq('a getter is excluded', mat('getx'), 'getter');
+  /* The matcher must DECLINE on anything with real behaviour, or the tool silently stops looking at
+     the code it exists to examine. Over-running mutants is the acceptable failure; under-reporting a
+     pseudo-tested function is not. */
+  eq('a function with actual behaviour is NOT excluded', mat('real'), null);
+  eq('…nor is one that merely mentions a parameter it does not return', trivialMatcher('function f(v) { return v.length; }', functionBodies('function f(v) { return v.length; }')[0]), null);
+  eq('…nor is `return notAParam` — the identifier must be in the signature', trivialMatcher('function f(a) { return glob; }', functionBodies('function f(a) { return glob; }')[0]), null);
+
+  /* ── THE EMPTY OUTCOME SET ────────────────────────────────────────────────────────────────── */
+  eq('a covered function with NO applicable operator is not-applicable', classifyDescartes([], 5), 'not-applicable');
+  eq('…and not-applicable is NOT one of the three verdicts, so it cannot be filed as tested', ['pseudo-tested', 'partially-tested', 'tested'].includes(classifyDescartes([], 5)), false);
+  eq('an uncovered function is not-covered whatever its verdicts say', classifyDescartes(['survived', 'survived'], 0), 'not-covered');
+  eq('…even when every mutant was killed — coverage is checked FIRST', classifyDescartes(['killed'], 0), 'not-covered');
+  eq('covered + all survived is pseudo-tested', classifyDescartes(['survived', 'survived'], 1), 'pseudo-tested');
+  eq('covered + mixed is partially-tested', classifyDescartes(['survived', 'killed'], 1), 'partially-tested');
+  eq('covered + all killed is tested', classifyDescartes(['killed', 'killed'], 1), 'tested');
+
+  /* The byte-identical splice, which is the same fact as the `constant` matcher seen from the other
+     side: the operator and the body coincide, so the "mutant" is the original. */
+  const IDENT = 'function c() { return null; }';
+  eq(
+    'splicing `return null` into a body that IS `return null` yields identical source',
+    replaceBody(IDENT, functionBodies(IDENT)[0], ' return null; ').replace(/\s+/g, ' '),
+    IDENT.replace(/\s+/g, ' ')
+  );
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
@@ -381,6 +497,8 @@ if (IS_MAIN && !has('--selftest')) {
   const pseudo = [];
   const partial = [];
   const uncovered = [];
+  const trivial = [];
+  const noticedBodies = [];
   let noticed = 0,
     next = 0,
     mutantsRun = 0;
@@ -397,6 +515,14 @@ if (IS_MAIN && !has('--selftest')) {
          killed by the first, so the average cost stays near 1 mutant rather than 8. The price: a
          short-circuited function reports as "noticed" without separating PARTIALLY-tested from fully
          tested. --classify runs the whole set and splits them. */
+      /* TRIVIAL first, before coverage: an accessor is uninformative whether or not a test calls it,
+         and Descartes excludes it from the population rather than filing it under a bucket. */
+      const triv = trivialMatcher(src, b);
+      if (triv) {
+        trivial.push({ ...b, matcher: triv });
+        if (!has('--json')) process.stderr.write('  · excluded      ' + b.fn.padEnd(28) + ' L' + String(b.line).padEnd(6) + ' Descartes stop-matcher: ' + triv + '\n');
+        continue;
+      }
       /* An UNCOVERED function needs no mutants at all: every one of them would survive trivially, so
          running eight is pure cost for a verdict already determined. */
       if (!(executions.get(b.fn) > 0)) {
@@ -431,8 +557,15 @@ if (IS_MAIN && !has('--selftest')) {
         partial.push({ ...b, ops: survivedOps });
         if (!has('--json'))
           process.stderr.write('  ◐ partially     ' + b.fn.padEnd(28) + ' L' + String(b.line).padEnd(6) + survivedOps.length + '/' + verdicts.length + ' survived: ' + survivedOps.join(', ') + '\n');
+      } else if (verdict === 'not-applicable') {
+        /* Every operator was skipped, so nothing was ever run. NOT a pass — the previous code fell
+           through to `noticed++` here and credited the function as tested on an experiment that did
+           not happen. No report entry, and no denominator entry either. */
+        trivial.push({ ...b, matcher: 'no-applicable-operator' });
+        if (!has('--json')) process.stderr.write('  · excluded      ' + b.fn.padEnd(28) + ' L' + String(b.line).padEnd(6) + ' no applicable operator — not scored\n');
       } else {
         noticed++;
+        noticedBodies.push(b);
         if (!has('--json')) process.stderr.write('  ○ noticed       ' + b.fn.padEnd(28) + ' L' + b.line + '\n');
       }
     }
@@ -444,7 +577,10 @@ if (IS_MAIN && !has('--selftest')) {
   /* LEARN a canary from this run so the next one is guarded. The first NOTICED function is used —
      it is by definition one whose removal the suite detects. */
   if (!canaryName && noticed > 0) {
-    const firstNoticed = bodies.find((b) => !pseudo.includes(b));
+    /* From a function the suite ACTUALLY noticed. The old `bodies.find(b => !pseudo.includes(b))`
+       would happily elect an uncovered or excluded function — one whose mutant was never run — as
+       the canary, and a canary that cannot fail guards nothing. */
+    const firstNoticed = noticedBodies[0];
     if (firstNoticed) {
       canaries[file] = firstNoticed.fn;
       try {
@@ -517,6 +653,8 @@ if (IS_MAIN && !has('--selftest')) {
           group,
           functions: bodies.length,
           pseudoTested: pseudo.map((p) => ({ fn: p.fn, line: p.line, survived: p.ops })),
+          notCovered: uncovered.map((p) => ({ fn: p.fn, line: p.line })),
+          excluded: trivial.map((p) => ({ fn: p.fn, line: p.line, matcher: p.matcher })),
           partiallyTested: partial.map((p) => ({ fn: p.fn, line: p.line, survived: p.ops })),
           noticed,
           mutantsRun,
@@ -529,7 +667,13 @@ if (IS_MAIN && !has('--selftest')) {
   } else {
     console.log(`\n▸ ${file} · ${bodies.length} function(s) · ${secs.toFixed(0)}s at ${jobs}-way`);
     console.log(
-      `  PSEUDO-TESTED ${pseudo.length}   partially ${partial.length}   not-covered ${uncovered.length}   tested ${noticed}   (${((100 * noticed) / bodies.length).toFixed(0)}% of functions have at least one assertion that depends on them)`
+      `  PSEUDO-TESTED ${pseudo.length}   partially ${partial.length}   not-covered ${uncovered.length}   excluded ${trivial.length}   tested ${noticed}` +
+        /* DENOMINATOR = THE CLASSIFIED POPULATION, not every function in the file. An uncovered or
+           Descartes-excluded function was never put to the question, so counting it below the line
+           states a rate over experiments that did not run. */
+        (pseudo.length + partial.length + noticed
+          ? `\n  ${((100 * noticed) / (pseudo.length + partial.length + noticed)).toFixed(0)}% of the ${pseudo.length + partial.length + noticed} CLASSIFIED function(s) have an assertion that depends on them`
+          : '\n  nothing classified — every function was excluded or uncovered')
     );
     if (pseudo.length) {
       console.log('\n  Each of these can have its ENTIRE BODY DELETED with the suite still green:');
