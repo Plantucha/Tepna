@@ -11783,6 +11783,219 @@
       T.eq('computeDerived still produces 52 derived columns', produced.length, 52);
     });
 
+    /* ── THE GUARDS, not the outputs ────────────────────────────────────────────────────────────
+       The group above pins all 52 derived columns on ONE fully-populated row, and 149 mutants
+       survived it. They survived for a structural reason, not a coverage one: every derivation in
+       `computeDerived` is written `a && b ? f(a, b) : NaN` or `x > 0 ? g(x) : NaN`, and when every
+       seed is present and non-zero, `a && b` and `a || b` take the SAME branch and `x > 0` and
+       `x >= 0` are both true. A row on which everything works cannot separate them. That is the
+       single largest survivor cluster in the fleet — 149 of hrvdex-dsp.js's 298.
+
+       So this group supplies the input that does separate them: each seed field zeroed IN TURN.
+       Zero is doing two jobs at once, which is why it is the right value rather than `undefined` —
+       it is falsy, so it flips every `&&`/`||` guard that reads the field, AND it sits exactly on
+       the boundary, so it flips every `> 0` / `>= 0` comparison too.
+
+       WHAT IS PINNED is the SET OF COLUMNS that go non-finite — which is precisely the observable
+       behaviour of a guard, and precisely what these operators change. `computeDerived`'s own
+       comment states the contract this checks: an absent input must fall to NaN, "the honest
+       answer when age/sex/BP were never supplied", never a fabricated number. A mutant that turns
+       `&&` into `||` computes a value from a missing operand — the exact failure the comment
+       forbids — and it moves a column out of this set.
+
+       CHARACTERISATION, not validation. These sets were produced by this code. Two were checked by
+       hand against the source: zeroing `_meanRR` must take out `d_cv_calc` (it divides by it) and
+       `_rmssd` must take out `d_lnrmssd` (`log` of a non-positive is not finite). Both hold. The
+       rest are pinned so that any change becomes visible, which is the point. */
+    group('HRVDex computeDerived — the GUARDS, one seed absent at a time', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
+      var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
+      if (!D || typeof D.computeDerived !== 'function') {
+        T.skip('computeDerived available', 'HRVDex._bare not loaded');
+        return;
+      }
+      var BASE = {
+        _hr: 62,
+        _meanRR: 968,
+        _sdnn: 54,
+        _rmssd: 41,
+        _mxdmn: 320,
+        _pnn50: 18.5,
+        _amo50: 31,
+        _mode: 950,
+        _totalPow: 3200,
+        _hf: 900,
+        _lf: 1400,
+        _vlf: 900,
+        _stress: 3.2,
+        _energy: 5.1,
+        _focus: 4.4,
+        _sns: 1.2,
+        _psns: 2.1,
+        _coherence: 3.3,
+        _hrv: 60,
+        _cv: 5.6,
+        _spanMin: 6
+      };
+      /* The derived columns that are NOT finite, as a sorted space-joined string — readable in a
+         failure message, unlike a hash. */
+      /* FOUR rows on FOUR DISTINCT UTC DAYS, and the control below is what forced both properties.
+         `d_vo2_roll7` averages a window that needs three entries (L758) — but the window is
+         DATE-KEYED (L745-755): it walks back collecting rows whose `utcDayKey(_tMs)` it has not
+         seen. A fixture with no `_tMs` produces an empty day key, so NOTHING enters the window and
+         the column is NaN no matter how many rows there are. My first attempt used three rows with
+         no stamps and the control caught it — a row count was the obvious fix and the wrong one.
+
+         Stamps are floating wall-clock ms per the Clock Contract §1, one day apart, so the four
+         rows land on four distinct day keys. This also drives `utcDayKey`, which the equivalence
+         probe had to withhold verdicts on for want of a control.
+
+         The zeroed seed is applied to EVERY row, so the window is uniform and the last row's
+         verdict is the guard's rather than an artefact of a partially-filled window. */
+      var DAY = 86400000;
+      var nonFinite = function (seed) {
+        var rows = [];
+        for (var n = 0; n < 4; n++) {
+          var r = {};
+          for (var k in BASE) r[k] = BASE[k];
+          r._tMs = Date.UTC(2026, 5, 10, 3, 0, 0) + n * DAY;
+          if (seed) r[seed] = 0;
+          rows.push(r);
+        }
+        D.computeDerived(rows);
+        rows = [rows[rows.length - 1]];
+        var out = [];
+        /* ⚠️ NaN AND ±Infinity ARE DIFFERENT ANSWERS, and collapsing them cost most of this group's
+           power. The first version recorded "not finite", which made `x > 0` and `x >= 0`
+           indistinguishable on a zeroed seed: the original returns NaN, the `>=` mutant computes
+           `Math.log(0)` and returns -Infinity, and both are !isFinite. Measured: 24 of 149 killed.
+           Infinity is also the more alarming of the two — NaN is the documented honest answer for an
+           absent input, an infinity is a division by a zero that got through. */
+        for (var c in rows[0]) {
+          var v = rows[0][c];
+          if (c.indexOf('d_') !== 0 || typeof v !== 'number' || isFinite(v)) continue;
+          out.push(c + (Number.isNaN(v) ? '' : v > 0 ? ':+Inf' : ':-Inf'));
+        }
+        return out.sort().join(' ');
+      };
+
+      /* ⚠️ THE CONTROL, and it is load-bearing. If the fully-populated row ALSO produced non-finite
+         columns, every assertion below would be measuring a broken fixture rather than a guard, and
+         the group would pass while discriminating nothing. Assert the discriminating power comes
+         from the zeroing. */
+      /* ⚠️ THE CONTROL, and it is load-bearing — it has already failed twice and corrected the
+         fixture both times. If the fully-populated row also produced non-finite columns, every
+         assertion below would be measuring a broken fixture rather than a guard, and the group
+         would pass while discriminating nothing.
+
+         `d_vo2_delta` is the ONE permitted exception and it is not a fixture defect: it needs a
+         VO₂ ground truth entered on the PROFILE (`_p.vo2gt > 0`, L762), which this headless fixture
+         deliberately does not supply, and the source's own comment says "NaN when no GT entered".
+         Naming it here rather than filtering it out keeps the exception visible — if it ever became
+         finite, that would be a real change and this assertion would catch it. */
+      T.eq('a fully-populated row leaves every derived column finite but d_vo2_delta', nonFinite(null), 'd_vo2_delta');
+
+      var CASES = [
+        ['_hr', 'd_vei d_vo2_base d_vo2_delta d_vo2_hrv d_vo2_roll7'],
+        ['_meanRR', 'd_csi d_cv_calc d_cvi d_mxdmn_meanrr d_nn50 d_rsa d_vo2_delta'],
+        ['_sdnn', 'd_cai d_cv_calc d_dfa_proxy d_ortho d_pns_eff d_rmssd_sdnn d_sd1_sd2 d_vo2_delta'],
+        ['_rmssd', 'd_cai d_cvi d_lnrmssd d_vo2_delta'],
+        ['_mxdmn', 'd_si d_vo2_delta'],
+        ['_pnn50', 'd_pns_eff d_vo2_delta'],
+        ['_amo50', 'd_si d_vo2_delta'],
+        ['_mode', 'd_si d_vo2_delta'],
+        ['_totalPow', 'd_hfnu d_lfhf_totpow d_lfnu d_vlf_pct d_vo2_delta'],
+        ['_hf', 'd_lfhf d_lfhf_totpow d_plaw d_rsa d_sai d_sdi d_spectral_ent d_svi d_vlf_hf d_vo2_delta'],
+        ['_lf', 'd_lfhf d_lfhf_totpow d_plaw d_sai d_sdi d_spectral_ent d_svi d_vo2_delta'],
+        ['_vlf', 'd_plaw d_spectral_ent d_vlf_hf d_vo2_delta'],
+        ['_stress', 'd_ans_load d_coh_energy d_crs d_focus_eff d_hile d_pti d_se_div d_sfd d_vo2_delta'],
+        ['_energy', 'd_ans_load d_coh_energy d_efc d_focus_eff d_hile d_pti d_se_div d_sfd d_vo2_delta d_welfare'],
+        ['_focus', 'd_coh_energy d_efc d_focus_eff d_hile d_pti d_se_div d_sfd d_vo2_delta'],
+        ['_sns', 'd_ans_load d_coh_energy d_focus_eff d_hile d_pti d_se_div d_sfd d_vo2_delta'],
+        ['_psns', 'd_ans_load d_coh_energy d_focus_eff d_hile d_otr d_pti d_se_div d_sfd d_vo2_delta'],
+        ['_coherence', 'd_coh_energy d_efc d_focus_eff d_hile d_incoherent_stress d_pti d_se_div d_sfd d_vo2_delta d_welfare'],
+        ['_hrv', 'd_vo2_delta'],
+        ['_cv', 'd_vo2_delta'],
+        ['_spanMin', 'd_vo2_delta']
+      ];
+      for (var i = 0; i < CASES.length; i++) {
+        T.eq('absent ' + CASES[i][0] + ' → exactly these columns fall to NaN', nonFinite(CASES[i][0]), CASES[i][1]);
+      }
+
+      /* ── AND THE VALUES, because the NaN-SET alone leaves most of them alive ─────────────────
+         A guard mutant can keep every column finite and still compute a DIFFERENT number: `a && b`
+         and `a || b` agree on which branch runs whenever the zeroed field is not one of the two
+         operands, but the arithmetic downstream can still shift. Pinning only the shape of the
+         answer measured 43 of 149; the shape is necessary and nowhere near sufficient.
+
+         So each zeroed row also carries a DIGEST of its finite values — the count, and the sum
+         rounded to 6 decimals. A sum is a weak hash and that is a deliberate trade: it is one
+         readable number per row rather than 45 literals, it catches any change to any column, and
+         when it fails the NaN-set assertion above usually names where. Rounded because the suite
+         must agree across platforms; 1e-6 is far coarser than any real double drift and far finer
+         than any change these operators produce. */
+      var digest = function (seed) {
+        var rows = [];
+        for (var n = 0; n < 4; n++) {
+          var r = {};
+          for (var k in BASE) r[k] = BASE[k];
+          r._tMs = Date.UTC(2026, 5, 10, 3, 0, 0) + n * DAY;
+          if (seed) r[seed] = 0;
+          rows.push(r);
+        }
+        D.computeDerived(rows);
+        var last = rows[rows.length - 1];
+        var n2 = 0;
+        var s = 0;
+        for (var c in last) {
+          if (c.indexOf('d_') !== 0 || typeof last[c] !== 'number' || !isFinite(last[c])) continue;
+          n2++;
+          s += last[c];
+        }
+        return n2 + '/' + Math.round(s * 1e6) / 1e6;
+      };
+      var DIGESTS = [
+        ['_hr', '42/1516.104117'],
+        ['_meanRR', '40/622.252166'],
+        ['_sdnn', '39/1522.209459'],
+        ['_rmssd', '43/1528.636879'],
+        ['_mxdmn', '45/1599.264877'],
+        ['_pnn50', '45/2085.606194'],
+        ['_amo50', '45/1599.926035'],
+        ['_mode', '45/1599.926035'],
+        ['_totalPow', '42/1522.069127'],
+        ['_hf', '37/644.827336'],
+        ['_lf', '39/1584.575877'],
+        ['_vlf', '43/1592.662088'],
+        ['_stress', '38/1561.926609'],
+        ['_energy', '37/1642.805009'],
+        ['_focus', '39/1647.140077'],
+        ['_sns', '39/1644.48423'],
+        ['_psns', '38/1642.533032'],
+        ['_coherence', '37/1545.381034'],
+        ['_hrv', '46/1650.912877'],
+        ['_cv', '46/1650.912877'],
+        ['_spanMin', '46/1650.912877']
+      ];
+      for (var q = 0; q < DIGESTS.length; q++) {
+        T.eq('absent ' + DIGESTS[q][0] + ' → the surviving columns still compute the same values', digest(DIGESTS[q][0]), DIGESTS[q][1]);
+      }
+      /* Two spot-checks that the SET is not the whole story: a guard mutant could keep the same NaN
+         set and still compute a different number. Pin one value that survives each of two different
+         absences, so the numeric path is asserted too. */
+      var r1 = {};
+      for (var k1 in BASE) r1[k1] = BASE[k1];
+      r1._hf = 0;
+      var rows1 = [r1];
+      D.computeDerived(rows1);
+      T.eq('with _hf absent, d_cv_calc is still computed from the fields that ARE present', Math.round(rows1[0].d_cv_calc * 1e6) / 1e6, 5.578512);
+      var r2 = {};
+      for (var k2 in BASE) r2[k2] = BASE[k2];
+      r2._stress = 0;
+      var rows2 = [r2];
+      D.computeDerived(rows2);
+      T.eq('with _stress absent, d_hfnu is untouched — the subjective gate does not leak into spectral', Math.round(rows2[0].d_hfnu * 1e4) / 1e4, 39.1304);
+    });
+
     group('HRVDex storage failure survives the success line (DEEP-AUDIT-II §1.11)', 'hrvdex-dsp', function (T) {
       // the bare-helper surface (HRVDex._bare) is the deliberate test-access namespace, per hrvdex-dsp.js
       var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
