@@ -310,3 +310,85 @@ def test_without_PPI_the_ambient_fallback_still_runs(tmp_path, monkeypatch):
     st = _drive(tmp_path, monkeypatch, -322929)
     assert st.get("worn") is False
     assert "ambient" in (st.get("last_error") or "")
+
+
+# ── the calibration's DOMAIN ────────────────────────────────────────────────────────────────────────
+# Every threshold in this module came from 45 Verity files at 55 Hz. At 176 Hz the ambient channel of a
+# WORN armband reads ~650,800 with a 208-count spread — pegged, not a light level — landing in the
+# 55 Hz "unworn" cluster. Measured 2026-08-10: a worn device showing a 57 bpm pulse was dropped every
+# 90 s. Two changes the same day, neither checked against the other.
+
+def test_the_detector_REFUSES_at_a_rate_it_was_never_calibrated_at():
+    """None, not False. Both consumers read `worn is False` — the power drop and the CPAP interlock —
+    so refusing disables a feature while guessing drops a sensor mid-night."""
+    worn_at_176 = [-650808.0] * 400          # a WORN armband at 176 Hz, from the real capture
+    assert optical_worn(worn_at_176, fs=176) is None, "176 Hz is outside the calibrated domain"
+    assert optical_worn(worn_at_176, fs=135) is None
+    # …and the same samples at the rate it WAS calibrated at still get a verdict (a wrong-looking one,
+    # which is the point: the number is only meaningful where it was measured).
+    assert optical_worn(worn_at_176, fs=55) is False
+
+
+def test_the_calibrated_rate_still_works_and_an_UNKNOWN_rate_is_allowed():
+    """`fs=None` means the caller cannot say. Refusing there would silently disable worn detection for
+    every call site that predates the parameter — the concession is deliberate and documented."""
+    assert optical_worn(_many(WORN_REAL), fs=55) is True
+    assert optical_worn(_many(UNWORN_REAL), fs=55) is False
+    assert optical_worn(_many(WORN_REAL)) is True             # no fs given → unchanged behaviour
+    assert optical_worn(_many(WORN_REAL), fs=None) is True
+
+
+def test_calibrated_for_is_pure_and_tolerant_of_a_reported_rate_that_wobbles():
+    """The box logs 55.0 but a device may report 54.9 — that is the same rate, not a new domain."""
+    from telemetry import calibrated_for
+    assert calibrated_for(55.0) and calibrated_for(54.9) and calibrated_for(55.6)
+    assert not calibrated_for(176) and not calibrated_for(135) and not calibrated_for(28)
+    assert calibrated_for(None), "an unknown rate is in-domain by design"
+
+
+def test_the_tolerance_is_INCLUSIVE_at_exactly_its_edge():
+    """`<= tol`, not `< tol`. The window exists to absorb a device reporting 54.9 for 55.0, so a rate
+    sitting exactly one tolerance away is the LAST in-domain value rather than the first out — and the
+    boundary has to be pinned or the comparison is free to flip. Nothing else here can see it: every
+    other case is 0.6 Hz away or 80 Hz away, and both operators agree on those."""
+    from telemetry import _WORN_FS_TOL_HZ, calibrated_for
+    edge = 55.0 + _WORN_FS_TOL_HZ
+    assert calibrated_for(edge), f"{edge} Hz is exactly one tolerance out and must still be in-domain"
+    assert calibrated_for(55.0 - _WORN_FS_TOL_HZ), "…and symmetric below"
+    nudge = 55.0 + _WORN_FS_TOL_HZ + 0.01
+    assert not calibrated_for(nudge), f"{nudge} Hz is past the edge and must be refused"
+
+
+def test_adding_a_rate_to_the_domain_is_the_ONLY_way_to_widen_it():
+    """The domain is data, injectable, so a future re-derivation is a one-line change with its own
+    evidence — and so this test can prove the gate is the tuple and not something incidental."""
+    from telemetry import calibrated_for
+    assert not calibrated_for(176)
+    assert calibrated_for(176, rates=(55.0, 176.0)), "the tuple IS the domain"
+
+
+def test_the_daemon_SAYS_when_the_rate_puts_worn_detection_out_of_domain(tmp_path, monkeypatch, caplog):
+    """Told at NEGOTIATION, not at the first filled sample window — that is where the rate is decided,
+    it is once per session rather than every ~4 s, and it reaches the operator before a night runs.
+
+    Silence would be its own bug: no verdict and no reason reads as "the detector is fine and the
+    strap is on", which is exactly how 2026-08-10 looked from the outside."""
+    import asyncio
+    import sys as _sys
+
+    _sys.path.insert(0, __import__("os").path.dirname(__file__))
+    import capture
+    import test_capture_runners as T
+
+    capture._STOP = asyncio.Event()
+    T._polar_common(monkeypatch)
+    c = T.FlexPolarClient(data_frames=[T._ppg_frame()])
+    c.sdk_mode_on = True                       # widens the fake's menu so PPG lands off 55 Hz
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 1)
+    dev = T._pdev(streams=["ppg"])
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture.run_polar(dev, str(tmp_path)))
+    hits = [r.message for r in caplog.records if "calibrated at 55 Hz only" in r.message]
+    assert hits, f"no out-of-domain warning; saw: {[r.message[:70] for r in caplog.records]}"
+    assert "worn is False" in hits[0], "the operator needs the CONSEQUENCE, not just the fact"

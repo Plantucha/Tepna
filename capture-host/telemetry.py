@@ -53,6 +53,27 @@ _WARMUP_S = 1.5            # < this much history ⇒ too early to call WEAK (a j
 _WORN_AMBIENT_MAX = 5000.0   # |ambient| below this ⇒ under skin. See the gap above.
 _WORN_MIN_SAMPLES = 128      # ~2.3 s at 55 Hz; fewer is not a measurement
 
+# ── THE CALIBRATION'S DOMAIN, DECLARED BESIDE THE NUMBER IT QUALIFIES ───────────────────────────────
+#
+# Every threshold above came from 45 real Verity PPG files captured at 55 Hz. NONE of it was measured
+# anywhere else, and the ambient channel does not scale the way one might assume: at 176 Hz the same
+# worn armband reads ~650,800 with a spread of 208 counts — a PEGGED value, not a light level — which
+# lands squarely in the 55 Hz "unworn" cluster (3.2e5–6.5e5). So the detector reports NOT WORN for a
+# device on a wrist, confidently, using a number that is simply not about that rate.
+#
+# Measured 2026-08-10, and it shipped: PPG default moved to 176 Hz in the morning and this detector
+# landed in the evening, each defensible alone and neither checked against the other. A worn armband
+# showing a textbook pulse at 57 bpm was dropped every 90 s to "save battery".
+#
+# ⚠️ THE AFTERNOON CHECK THAT "VALIDATED" IT WAS RUN ON AN UNWORN DEVICE, so it agreed for the wrong
+# reason. A passing check on a case that cannot fail is not evidence — see AUDIT-PROMPT's standing
+# complaint about gates that pass without exercising anything.
+#
+# So the constant carries its domain and the function REFUSES outside it. Adding a rate here is not a
+# config change: it means someone captured a worn night at that rate and re-derived the numbers.
+_WORN_CALIBRATED_PPG_HZ = (55.0,)
+_WORN_FS_TOL_HZ = 1.0        # the box logs 55.0 but a device may report 54.9; this is not a rate menu
+
 
 # PPI flag byte (polar_pmd: bit0 blocker, bit1 skinContact, bit2 skinContactSupported).
 _PPI_CONTACT = 0x02
@@ -84,8 +105,23 @@ def ppi_contact(flags) -> bool | None:
     return bool(f & _PPI_CONTACT)
 
 
+def calibrated_for(fs, *, rates=_WORN_CALIBRATED_PPG_HZ, tol: float = _WORN_FS_TOL_HZ) -> bool:
+    """Is the optical worn calibration valid at this PPG rate?
+
+    PURE and separate from `optical_worn` so the daemon can say WHY it has no verdict, and so the
+    domain is assertable without feeding samples through the detector.
+
+    ⚠️ AN UNKNOWN RATE (`None`) IS TREATED AS IN-DOMAIN. That is deliberate and is the one concession:
+    every caller that cannot report a rate predates this parameter, and refusing there would silently
+    disable worn detection for all of them. A caller that KNOWS its rate and reports one we never
+    measured is the case this exists to catch."""
+    if fs is None:
+        return True
+    return any(abs(float(fs) - r) <= tol for r in rates)
+
+
 def optical_worn(ambient, *, threshold: float = _WORN_AMBIENT_MAX,
-                 min_samples: int = _WORN_MIN_SAMPLES) -> bool | None:
+                 min_samples: int = _WORN_MIN_SAMPLES, fs: float | None = None) -> bool | None:
     """Is an optical sensor against skin? `True` / `False` / **`None` when it cannot be said**.
 
     PURE, so it is unit-testable without a device. Takes raw ambient values (sign is irrelevant — the
@@ -95,6 +131,11 @@ def optical_worn(ambient, *, threshold: float = _WORN_AMBIENT_MAX,
     ⚠️ `None` IS NOT `False`, and the callers make that distinction load-bearing: `worn=False` drops the
     link for power and unblocks the CPAP harvest, while `None` means "no verdict" and changes nothing.
     Returning False on a short or empty buffer would drop a sensor that had merely just connected."""
+    if not calibrated_for(fs):
+        # REFUSE, don't guess. `None` already means "no verdict" everywhere downstream — the power drop
+        # and the CPAP interlock both read `worn is False`, not `worn is not True` — so refusing costs
+        # a feature and guessing costs a night's capture.
+        return None
     vals = [abs(v) for v in ambient if v is not None and v == v]   # drop None/NaN, keep magnitude
     if len(vals) < max(1, min_samples):
         return None

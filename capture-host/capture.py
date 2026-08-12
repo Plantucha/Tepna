@@ -28,7 +28,7 @@ import alerts
 import nightqc
 import nightarchive
 import storage_targets
-from telemetry import TelemetryBus, optical_worn, ppi_contact
+from telemetry import TelemetryBus, calibrated_for, optical_worn, ppi_contact
 
 # ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
 # systemd assigns ONE priority to a service's whole stdout stream, so with a plain basicConfig every line
@@ -1847,7 +1847,17 @@ async def run_polar(dev: dict, root: str):
                         _amb.clear()
                         _publish_worn(_worn, "not worn — the device's PPI contact bit says off-body")
                     elif len(_amb) >= _AMB_WINDOW and not _has_contact_bit:
-                        _worn = optical_worn(list(_amb))
+                        # PASS THE NEGOTIATED RATE, or the domain check is inert. The calibration was
+                        # measured at 55 Hz and at 176 the ambient channel pegs — same worn wrist,
+                        # opposite verdict. `stream_fs` is what the device actually agreed to, not what
+                        # the config asked for, which is the only number that describes these samples.
+                        # PASS THE NEGOTIATED RATE, or the domain check is inert. The calibration was
+                        # measured at 55 Hz and at 176 the ambient channel pegs — same worn wrist,
+                        # opposite verdict. `stream_fs` is what the device actually agreed to, not what
+                        # the config asked for, which is the only number that describes these samples.
+                        # Out of domain ⇒ None ⇒ nothing is published; the operator was told why at
+                        # negotiation time, not here (this runs every window).
+                        _worn = optical_worn(list(_amb), fs=stream_fs.get(pmd.PPG))
                         _amb.clear()
                         if _worn is not None:
                             _publish_worn(_worn, "not worn — optical ambient says off-body")
@@ -2141,6 +2151,17 @@ async def run_polar(dev: dict, root: str):
                                     break                 # retrying the fixed cmd cannot help while charging
                             if started:                  # record + re-register at the ACTUAL negotiated rate
                                 stream_fs[meas] = used_fs
+                                if meas == pmd.PPG and not calibrated_for(used_fs):
+                                    # SAY IT WHERE THE RATE IS DECIDED. The optical worn calibration
+                                    # was measured at 55 Hz; at another rate the ambient channel does
+                                    # not carry the same meaning, so no verdict is published at all.
+                                    # Silence would read as "the detector is fine and the strap is on".
+                                    log.warning("%s: PPG negotiated %s Hz, but optical worn detection "
+                                                "is calibrated at 55 Hz only — NO worn verdict will be "
+                                                "published this session. The power drop and the CPAP "
+                                                "interlock both read `worn is False`, so both stay "
+                                                "inactive rather than acting on a wrong reading.",
+                                                name, used_fs)
                                 stream_scale[meas] = pmd.axis_scale(meas, settings)   # device-reported range/resolution
                                 _register(meas, used_fs)
                                 _set(name, charging=False)
