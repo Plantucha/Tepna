@@ -83,6 +83,39 @@ export function classifyPath({ base, main, branch }) {
   return 'diverged';
 }
 
+/* ── RESOLVING `DIVERGED`, because it is the verdict that gets skimmed ────────────────────────
+   A sibling session ran this algorithm over six merged PRs: DIVERGED was the MAJORITY of non-trivial
+   rows — 5 of 6 branches had one — and every instance was benign, a later PR having touched the same
+   file. `polar_pmd.py`, `webmon.py`, `DOCS-INDEX.md` are exactly the files several sessions touch in
+   one night. A verdict that is usually benign and occasionally not is the shape nobody reads.
+
+   So: ask whether the branch's OWN added lines are present in main's current blob. Present ⇒ the
+   change landed and main merely moved on around it. Absent ⇒ the divergence is hiding a real loss.
+
+   PRESENCE IN THE CURRENT BLOB, not `git log -S`. A history search would answer "main saw this line
+   once", which stays true after a later commit removed it — the wrong question by one word.
+
+   Distinctive lines only. A `+}` or a blank matches everywhere and would resolve every row to LANDED,
+   which is the failure mode that matters here: this refinement can only ever turn a loud verdict
+   quiet, so its bar has to be high. Fewer than two usable lines ⇒ it declines and DIVERGED stands. */
+export function distinctiveAdded(diffText, min = 24) {
+  return String(diffText || '')
+    .split('\n')
+    .filter((l) => l.startsWith('+') && !l.startsWith('+++'))
+    .map((l) => l.slice(1).trim())
+    .filter((l) => l.length >= min && /[A-Za-z]/.test(l))
+    .filter((l, i, a) => a.indexOf(l) === i);
+}
+
+export function refineDiverged(lines, mainText) {
+  if (!lines || lines.length < 2) return { verdict: 'diverged', reason: 'too few distinctive lines to probe' };
+  const src = String(mainText || '');
+  const absent = lines.filter((l) => !src.includes(l));
+  if (absent.length === 0) return { verdict: 'landed-with-evidence', reason: `all ${lines.length} added lines present on main` };
+  if (absent.length === lines.length) return { verdict: 'stranded', reason: `none of ${lines.length} added lines are on main` };
+  return { verdict: 'diverged', reason: `${absent.length}/${lines.length} added lines missing from main`, absent: absent.slice(0, 3) };
+}
+
 /* Seconds between a push and the merge that was supposed to carry it. Kept as a DIAGNOSTIC beside the
    content verdict, never as the verdict — see the header. Both inputs are forced to epoch seconds
    before subtraction, because the one thing known to go wrong here is comparing a local-time string
@@ -144,6 +177,31 @@ if (IS_MAIN && has('--selftest')) {
   eq('a non-date returns null rather than NaN-compares as safe', pushedAfterMergeSec(AT_MERGE, 'not a date'), null);
   eq('a non-numeric head returns null', pushedAfterMergeSec('nope', MERGED), null);
 
+  /* ── THE DIVERGED PROBE ───────────────────────────────────────────────────────────────────── */
+  const DIFF = ['+++ b/x.js', '+  const distinctiveIdentifierOne = 1;', '+}', '+', '+  const distinctiveIdentifierTwo = 2;', '-  gone();'].join('\n');
+  eq('only distinctive ADDED lines are probed', distinctiveAdded(DIFF).join('|'), 'const distinctiveIdentifierOne = 1;|const distinctiveIdentifierTwo = 2;');
+  eq(
+    '…the +++ header is not a code line',
+    distinctiveAdded(DIFF).some((l) => l.includes('+++')),
+    false
+  );
+  eq('…and a bare `+}` is excluded — it would match everywhere and resolve every row to LANDED', distinctiveAdded(DIFF).includes('}'), false);
+  eq(
+    'removed lines are not added lines',
+    distinctiveAdded(DIFF).some((l) => l.includes('gone')),
+    false
+  );
+
+  const L = distinctiveAdded(DIFF);
+  eq('every added line present on main — resolves to landed WITH EVIDENCE', refineDiverged(L, L.join('\n')).verdict, 'landed-with-evidence');
+  eq('none present — the divergence was hiding a real loss', refineDiverged(L, 'unrelated content').verdict, 'stranded');
+  eq('some present — stays DIVERGED rather than being resolved either way', refineDiverged(L, L[0]).verdict, 'diverged');
+  eq('…and names what is missing', refineDiverged(L, L[0]).absent.length, 1);
+  /* The refinement can only ever turn a LOUD verdict quiet, so it must decline when it cannot see
+     enough. One line is not a sample. */
+  eq('fewer than two distinctive lines — DECLINES, diverged stands', refineDiverged(['x'], 'x').verdict, 'diverged');
+  eq('no lines at all — declines rather than declaring landed', refineDiverged([], 'anything').verdict, 'diverged');
+
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
@@ -187,7 +245,16 @@ if (IS_MAIN && !has('--selftest')) {
     path: p,
     verdict: classifyPath({ base: blob(base, p), main: blob('origin/main', p), branch: blob(branch, p) })
   }));
+  for (const r of rows) {
+    if (r.verdict !== 'diverged') continue;
+    const lines = distinctiveAdded(git(['diff', base, branch, '--', r.path], ''));
+    const ref = refineDiverged(lines, git(['show', `origin/main:${r.path}`], ''));
+    r.verdict = ref.verdict;
+    r.reason = ref.reason;
+    if (ref.absent) r.absent = ref.absent;
+  }
   const stranded = rows.filter((r) => r.verdict === 'stranded');
+  const landedEv = rows.filter((r) => r.verdict === 'landed-with-evidence');
   const diverged = rows.filter((r) => r.verdict === 'diverged');
 
   /* THE DIAGNOSTIC, printed beside the verdict and never as it. A positive value means the branch was
@@ -198,7 +265,7 @@ if (IS_MAIN && !has('--selftest')) {
   const delta = pushedAfterMergeSec(git(['log', '-1', '--format=%ct', branch], null), mergedAt);
 
   if (has('--json')) {
-    console.log(JSON.stringify({ branch, base, mergedAt, pushedAfterMergeSec: delta, paths: paths.length, stranded, diverged }, null, 2));
+    console.log(JSON.stringify({ branch, base, mergedAt, pushedAfterMergeSec: delta, paths: paths.length, stranded, diverged, landedWithEvidence: landedEv }, null, 2));
   } else {
     console.log(`\n▸ ${branch} vs origin/main · ${paths.length} path(s) touched since ${base.slice(0, 9)}`);
     if (delta != null) {
@@ -213,9 +280,13 @@ if (IS_MAIN && !has('--selftest')) {
       console.log('    git worktree add ../wt-<task> -b claude/<task> origin/main');
       console.log('    git cherry-pick <the stranded commits, in order>');
     }
+    if (landedEv.length) {
+      console.log(`\n  ✓ ${landedEv.length} was DIVERGED, resolved by probe — main holds a later version that still contains this branch's lines:`);
+      for (const r of landedEv) console.log('      ' + r.path + '  (' + r.reason + ')');
+    }
     if (diverged.length) {
       console.log(`\n  ? ${diverged.length} DIVERGED — main holds a THIRD version. Not a verdict; look:`);
-      for (const r of diverged) console.log('      ' + r.path);
+      for (const r of diverged) console.log('      ' + r.path + '  — ' + (r.reason || '') + (r.absent ? '\n          missing: ' + r.absent.join(' | ') : ''));
     }
     if (!stranded.length && !diverged.length) console.log('  ✓ every touched path is on main');
   }

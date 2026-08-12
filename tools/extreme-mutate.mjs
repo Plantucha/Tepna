@@ -477,7 +477,15 @@ if (IS_MAIN && !has('--selftest')) {
      kill verdicts inherit the same bound — a mutant is only ever offered to this group's tests.
 
      Scoping coverage and mutants to the SAME group is still right: classifying against tests that were
-     never run would be worse. But the number must be reported with its scope attached. */
+     never run would be worse. But the number must be reported with its scope attached.
+
+     ⚠️ AND THE LANE IS THE SECOND HALF OF THE SCOPE. c8 instruments the NODE lane. The browser
+     render-coverage rigs boot real bundles in iframes, which c8 cannot see at all, so a function
+     exercised only there reads 0 here. MEASURED by the tests/ session, 2026-08-11, by hooking the
+     assignment inside the rigs: hrvdex `getFilteredRows` 25 calls, `_hrvUpdateExportHint` 5,
+     `restoreHRVRows` 1 — all three reported 0 executions by c8. They are covered; the instrument is
+     blind. So NOT-REACHED means "no node-lane test in this group calls it" and NEVER "dead code":
+     for those three the action is a browser-lane assertion, not deletion. */
   /* NON-VACUITY, and it FAILS CLOSED. If the selected group reaches NOTHING in this file, every
      function would report 0 executions and the honest answer is NOT MEASURED, not "nothing is
      covered". A filter that matches no relevant test reads exactly like a suite that asserts nothing —
@@ -495,8 +503,11 @@ if (IS_MAIN && !has('--selftest')) {
     process.exit(3);
   }
   if (reached < executions.size) {
-    process.stderr.write('  ⚠ ' + (executions.size - reached) + ' function(s) are NOT REACHED BY THIS GROUP — an UPPER BOUND on what the\n');
-    process.stderr.write('    suite leaves unguarded. Another group may reach them under a name this filter does not match.\n');
+    process.stderr.write('  ⚠ ' + (executions.size - reached) + ' function(s) are NOT REACHED BY THIS NODE-LANE GROUP — an UPPER BOUND on what\n');
+    process.stderr.write('    the suite leaves unguarded, twice over: another GROUP may reach them under a name this\n');
+    process.stderr.write('    filter does not match, and the browser render LANE is invisible to c8 entirely.\n');
+    process.stderr.write('    Measured: hrvdex getFilteredRows/_hrvUpdateExportHint/restoreHRVRows run 25/5/1 times\n');
+    process.stderr.write('    in the render rigs and read 0 here. NOT-REACHED never means dead code.\n');
   }
 
   const jobs = Math.min(jobsWanted, bodies.length);
@@ -680,6 +691,7 @@ if (IS_MAIN && !has('--selftest')) {
           functions: bodies.length,
           pseudoTested: pseudo.map((p) => ({ fn: p.fn, line: p.line, survived: p.ops })),
           scope: '--group=' + group,
+          lane: 'node (c8 cannot see the browser render rigs)',
           notReachedByGroup: uncovered.map((p) => ({ fn: p.fn, line: p.line })),
           excluded: trivial.map((p) => ({ fn: p.fn, line: p.line, matcher: p.matcher })),
           partiallyTested: partial.map((p) => ({ fn: p.fn, line: p.line, survived: p.ops })),
