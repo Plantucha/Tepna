@@ -383,7 +383,24 @@ SAMPLE_HZ = {ECG: 130, PPG: 55, ACC: 200, GYRO: 52, MAG: 50, PPI: 0}  # PPI irre
 #             369 MB/night, 30 % of everything the box wrote. 50 Hz costs 90 MB.
 #   MAG 20  — heading changes slowly in bed and body POSITION comes from the ACC gravity vector, not the
 #             magnetometer; 20 Hz is still well above what any of it needs. 96 MB -> 38 MB.
-#   ECG 130 / PPG 55 / GYRO 52 — the only rate those devices offer; listed for completeness.
+#   ECG 130 / GYRO 52 — the only rate those devices offer; listed for completeness.
+#   PPG 55  — ⚠️ NOT the only rate, and this line used to claim it was. The Verity offers
+#             28 / 44 / 55 / 135 / 176 **in SDK mode** — the SDK-MODE block above has said so all
+#             along, the two contradicted each other, and this was the one being read.
+#             55 stays the DEFAULT because it is all a normal-mode menu lists, and `chosen_rate`
+#             degrades to the nearest offered rate, so a device without SDK mode still lands here.
+#             ⚠️ It is a floor with a cost, and PAT is where the cost shows. At 55 Hz one sample is
+#             18.14 ms. Measured on the 2026-08-11 box night, the systolic-foot scatter between the
+#             THREE co-located LEDs of ONE device — same clock, same pulse, so this is detection error
+#             alone — was 22.8-24.2 ms IQR (sigma ~12.7 ms), almost exactly one sample period, even
+#             though `refineFeet` already interpolates sub-sample and the intersecting-tangent method
+#             it uses is the most accurate in the literature. The same night's PPG beat detection found
+#             20,911 beats against the ECG's 31,615: a third never came out.
+#             Raising a device is a per-device `rates.ppg` + `sdk_mode: true` CONFIG choice, not a
+#             change here — it costs ~3.2x the PPG volume at 176 Hz, and it only helps a device that
+#             actually enters SDK mode. ⚠️ Confirm from the RECORDED fs, never from the ACK: SDK-MODE
+#             trap 2 is that the refusal 0x0C sits in TRANSIENT_STATUS, so a caller that only asks
+#             `is_transient` records the whole night at 55 believing it asked for 176.
 _PREF_RATE = {ECG: 130, PPG: 55, ACC: 50, GYRO: 52, MAG: 20}
 
 
