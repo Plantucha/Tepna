@@ -1533,6 +1533,38 @@ async def _enter_sdk_mode(ctrl, name: str) -> bool | None:
     return on
 
 
+async def _exit_sdk_mode(ctrl, name: str) -> bool | None:
+    """Ask the device OUT of SDK mode, then ASK IT WHETHER IT IS. Same contract as `_enter_sdk_mode`:
+    returns what the DEVICE said — `True` still on, `False` off, `None` it did not say.
+
+    ⚠️ WITHOUT THIS, THE SWITCH IS ONE-WAY. SDK mode is DEVICE state that persists until a power cycle;
+    turning the config flag off only stopped us re-entering it, so the device stayed in SDK mode
+    indefinitely. That is not a cosmetic asymmetry, because on a Verity Sense SDK mode DISABLES two
+    streams outright — Polar's own product doc: "PPI online stream or offline recording is not
+    supported in SDK MODE", likewise HR. Measured 2026-08-10: PPI last started at 11:37, then answered
+    `invalid_state` on every attempt for the rest of the day and the whole night, and the night's QC
+    recorded `Polar Verity Sense:hr` and 0 PPI rows. Switching SDK mode off changed nothing; only
+    power-cycling the armband by hand brought them back.
+
+    So `off` must mean OFF. The exit is issued with streams stopped, for the same reason the entry is
+    (the device refuses the transition otherwise), and the verdict comes from a status read rather than
+    the ack — an ack is "accepted", which this file already learned the hard way for the clock."""
+    ack = await ctrl(pmd.sdk_mode_cmd(False))
+    st = ack[3] if len(ack) >= 4 else pmd.NO_ACK
+    if not (pmd.is_started(st) or st == pmd.ALREADY_STREAMING):
+        log.warning("%s SDK mode STOP → %s", name, pmd.CTRL_STATUS.get(st, hex(st)))
+    on = pmd.parse_sdk_mode_status(await ctrl(pmd.sdk_mode_status_cmd()))
+    if on is None:
+        log.warning("%s SDK mode: the device did not report its mode after the exit — UNKNOWN, not "
+                    "off; PPI and HR stay unavailable while it is still in SDK mode", name)
+    elif on:
+        log.warning("%s SDK mode: STILL ON after an exit request — PPI and HR remain unavailable; a "
+                    "power cycle clears it", name)
+    else:
+        log.info("%s SDK mode: off (PPI and HR are available again)", name)
+    return on
+
+
 async def run_polar(dev: dict, root: str):
     """Polar PMD + the standard Heart Rate characteristic. Despite the name this is also the path for any
     third-party HR strap, because `hr` is SIG-standard — so the Polar-SPECIFIC rituals below have to be
@@ -2021,6 +2053,18 @@ async def run_polar(dev: dict, root: str):
                             for meas in list(writers):
                                 await _ctrl(pmd.stop_cmd(meas))
                             _set(name, sdk_mode=await _enter_sdk_mode(_ctrl, name))
+                        elif hex(pmd.SDK_MODE) in (STATUS["devices"].get(name, {})
+                                                   .get("pmd_supported") or []):
+                            # OFF MUST MEAN OFF. SDK mode is device state that outlives the config: not
+                            # re-entering it leaves a device that is already in it there until someone
+                            # power-cycles the hardware. Ask first and act only on a `True`, so a device
+                            # that was never in SDK mode costs one status read and no state change.
+                            # Gated on the feature bit because a device without it (the H10) answers op
+                            # 6 with `invalid_op_code`, and asking every pass would be noise.
+                            if pmd.parse_sdk_mode_status(await _ctrl(pmd.sdk_mode_status_cmd())):
+                                for meas in list(writers):
+                                    await _ctrl(pmd.stop_cmd(meas))
+                                _set(name, sdk_mode=await _exit_sdk_mode(_ctrl, name))
                         for meas in list(writers):
                             await _ctrl(pmd.stop_cmd(meas))   # clear any stale stream from a prior session
                             # Ask the device what settings it offers, then START from THOSE (fixed table is a
@@ -3181,11 +3225,16 @@ def publish_recording(now_mono: float, grace_sec: float) -> bool:
     return any_rec
 
 
+_NOTIFIER = None        # set in main(); read by status_loop to publish alert-transport health
+
+
 async def status_loop(root: str, data_stale_sec: float = 120.0):
     path = os.path.join(root, "captures", "status.json")
     while not _STOP.is_set():
         STATUS["updated"] = _now().isoformat()
         STATUS["recording"] = publish_recording(_time.monotonic(), data_stale_sec)
+        if _NOTIFIER is not None:
+            STATUS["alerts"] = _NOTIFIER.stats()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             _tmp = path + ".tmp"
@@ -4709,6 +4758,11 @@ async def main():
     # Push-alert transport (webhook) — disabled unless config sets alerts.enabled + alerts.webhook_url.
     _acfg = cfg.get("alerts") or {}
     notifier = alerts.Notifier(_acfg.get("webhook_url"), enabled=bool(_acfg.get("enabled")))
+    # Published every status tick (see status_loop). Module-level rather than threaded through a dozen
+    # signatures because the ONE thing this needs is to reach the same surface as everything else it
+    # guards — an alert transport whose own health is invisible is the failure it exists to prevent.
+    global _NOTIFIER
+    _NOTIFIER = notifier
 
     # EVERY background task is supervised. Several of them are the recovery ladder itself — adapter_watchdog
     # is the one thing that un-wedges a dead radio — so a task dying quietly is strictly worse here than

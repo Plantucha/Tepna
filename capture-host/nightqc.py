@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 
+import clock_offset
 import writers
 from datetime import datetime, timedelta
 
@@ -293,9 +294,20 @@ def arrival_quality(night_dir: str) -> list[dict]:
     back-timed per-sample stamps this sidecar replaces, that gap ran 27-115 ms — a smear, not a floor.
     A real floor has the two nearly coincident.
 
-    Ring rows are reported but NOT floor-judged: `duration` is quantised to 1 s, so a minimum over it
-    returns the quantum rather than the edge, and its offset must be fitted instead. Judging it by the
-    same rule would manufacture a failure every night.
+    Ring rows are reported but NOT floor-judged: `duration` is quantised to 1 s, and the spread between
+    its minimum and a low quantile is then a property of the quantum rather than of the link, so the
+    smear verdict does not mean there what it means elsewhere. Judging it by the same rule would
+    manufacture a failure every night.
+
+    `offset` carries the actual estimate, from `clock_offset.estimate`, and it runs on EVERY device
+    including the ring — counter quantisation and BLE buffering are both one-sided positive, so one
+    lower envelope serves both. It is what a consumer should spend. `floor_*` stays as the smear
+    diagnostic that showed the per-sample stamps were unusable, and remains ring-exempt.
+
+    ⚠️ The two answer DIFFERENT questions and will not agree on a night with any skew, because
+    `floor_ms` has no time model: it returns one number for a quantity that moved across the recording.
+    Measured on a real 8 h H10 capture it sat 242 ms from the fitted value, against PAT's 10 ms budget.
+    Prefer `offset`; read `floor_ok` as "did this stream have an edge at all".
     """
     import csv as _csv
     out = []
@@ -316,17 +328,23 @@ def arrival_quality(night_dir: str) -> list[dict]:
                     try:
                         host_ms = datetime.fromisoformat(ts).timestamp() * 1000.0
                         per.setdefault((row.get("device", ""), row.get("meas", "")), []).append(
-                            host_ms - int(ns) / 1e6)
+                            (host_ms, host_ms - int(ns) / 1e6))
                     except (ValueError, TypeError):
                         continue
         except OSError:
             continue
-        for (device, meas), diffs in sorted(per.items()):
+        for (device, meas), pairs in sorted(per.items()):
             quantised = meas.endswith("_DURATION_S")
+            diffs = [d for _, d in pairs]
             est, spread = (None, None) if quantised else writers.PmdArrivalLogWriter.floor_ms(diffs)
+            # t relative to this stream's first packet, in seconds — the estimator quotes its offset at
+            # the centroid of t, so the absolute host epoch must not leak into the fit.
+            t0 = pairs[0][0]
+            offset = clock_offset.estimate([((h - t0) / 1000.0, d) for h, d in pairs])
             out.append({
                 "file": name, "device": device, "meas": meas, "rows": len(diffs),
                 "quantised": quantised,
+                "offset": offset,
                 "floor_spread_ms": None if spread is None else round(spread, 1),
                 # The verdict a reader should branch on. None where it cannot be judged — an unknown is
                 # not a pass, and the earlier attempt's whole failure was reporting a number that had

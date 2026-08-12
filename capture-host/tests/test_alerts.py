@@ -229,3 +229,79 @@ def test_a_non_2xx_rejection_is_also_logged(caplog):
     with caplog.at_level("WARNING"):
         assert _run(n.send("strap off", "H10")) is False
     assert "strap off" in " ".join(r.getMessage() for r in caplog.records)
+
+
+# ── delivery is RECORDED, not merely attempted ──────────────────────────────────────────────────────
+# 32 alerts fired on the box in 24 h and the journal held exactly ONE delivery outcome in 48 h — a
+# failure. Nothing said whether the other 32 landed, because success was silent and nothing was
+# published. These pin the three states apart, because collapsing them is the whole defect.
+
+def test_a_delivered_alert_is_recorded_with_a_timestamp():
+    async def ok_post(url, payload):
+        return True
+    n = alerts.Notifier(url="https://hook", enabled=True, _post=ok_post)
+    assert asyncio.run(n.send("t", "m")) is True
+    st = n.stats()
+    assert st["delivered"] == 1 and st["failed"] == 0
+    assert st["last_ok"] is not None, "a delivery with no timestamp cannot be told from no delivery"
+    assert st["last_error"] is None
+    assert st["last_title"] == "t"
+
+
+def test_ENABLED_BUT_NEVER_DELIVERED_is_its_own_state_not_healthy():
+    """The state the box was actually in. `last_ok is None` with no error means the transport is
+    UNPROVEN — rendering that as ok is how a dead webhook reads as a working one."""
+    n = alerts.Notifier(url="https://hook", enabled=True, _post=None)
+    st = n.stats()
+    assert st["enabled"] is True and st["last_ok"] is None and st["last_error"] is None
+    assert st["delivered"] == 0
+
+
+def test_a_FAILED_send_records_why_and_does_not_look_delivered():
+    async def boom(url, payload):
+        raise TimeoutError()
+    n = alerts.Notifier(url="https://hook", enabled=True, _post=boom)
+    assert asyncio.run(n.send("t", "m")) is False
+    st = n.stats()
+    assert st["failed"] == 1 and st["delivered"] == 0 and st["last_ok"] is None
+    assert "TimeoutError" in (st["last_error"] or ""), st
+
+
+def test_a_NON_2XX_is_a_failure_not_a_silent_success():
+    async def rejected(url, payload):
+        return False
+    n = alerts.Notifier(url="https://hook", enabled=True, _post=rejected)
+    assert asyncio.run(n.send("t", "m")) is False
+    assert n.stats()["failed"] == 1 and n.stats()["last_ok"] is None
+
+
+def test_a_SUPPRESSED_alert_is_counted_and_never_counted_as_sent():
+    """Dedupe returning a bare False was indistinguishable from a failed send. It is neither: nothing
+    was attempted, and the operator was still not told."""
+    calls = []
+
+    async def ok_post(url, payload):
+        calls.append(payload)
+        return True
+    n = alerts.Notifier(url="https://hook", enabled=True, _post=ok_post)
+    assert asyncio.run(n.send("t", "m", key="k", dedupe_sec=60, now=100.0)) is True
+    assert asyncio.run(n.send("t", "m", key="k", dedupe_sec=60, now=110.0)) is False
+    st = n.stats()
+    assert len(calls) == 1
+    assert st["delivered"] == 1 and st["suppressed"] == 1 and st["failed"] == 0
+
+
+def test_a_LATER_success_clears_the_error_so_the_card_recovers():
+    """Otherwise one transient timeout paints FAILING for the rest of the daemon's life."""
+    state = {"fail": True}
+
+    async def flaky(url, payload):
+        if state["fail"]:
+            raise TimeoutError()
+        return True
+    n = alerts.Notifier(url="https://hook", enabled=True, _post=flaky)
+    asyncio.run(n.send("t", "m"))
+    assert n.stats()["last_error"] is not None
+    state["fail"] = False
+    asyncio.run(n.send("t", "m"))
+    assert n.stats()["last_error"] is None and n.stats()["last_ok"] is not None

@@ -277,3 +277,140 @@ def test_arrival_quality_survives_an_unreadable_file(tmp_path):
         assert nightqc.arrival_quality(str(tmp_path)) == []
     finally:
         os.chmod(p, 0o644)
+
+
+def test_arrival_quality_never_opens_a_stream_on_a_row_it_skipped(tmp_path):
+    """A row missing EITHER column is skipped BEFORE that stream's bucket exists.
+
+    The guard has to be `or`, and it is the only thing standing between a half-blank row and a crash.
+    The parse that raises sits in the ARGUMENT of `per.setdefault(...).append(...)`, so the bucket has
+    already been created by the time it fails and the `except` cannot take it back. A `(device, meas)`
+    seen ONLY on such a row would then reach the reporting loop carrying zero pairs — an empty stream
+    that was never measured, in a summary whose whole job is to say what WAS measured.
+    """
+    import nightqc
+    p = os.path.join(tmp_path, "Tepna_h_PMDARRIVAL.csv")
+    with open(p, "w") as fh:
+        fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+        fh.write("2026-08-11T22:00:00.000;ghost;ECG;;;10\n")             # parseable stamp, no device stamp
+        fh.write("2026-08-11T22:00:01.000;real;ECG;1000000;2000000;10\n")
+    assert [r["device"] for r in nightqc.arrival_quality(str(tmp_path))] == ["real"]
+
+
+def test_arrival_quality_keeps_reading_the_night_after_an_unreadable_sidecar(tmp_path):
+    """An unreadable sidecar costs that FILE, never the ones after it.
+
+    Sidecars are walked in name order, so abandoning the walk on the first OSError would silently drop
+    every device later in the alphabet — the H10 lost because the Verity's sidecar had bad permissions.
+    Partial blindness that still returns a plausible list is exactly what QC exists to prevent.
+    """
+    import nightqc
+    bad = os.path.join(tmp_path, "Tepna_a_PMDARRIVAL.csv")
+    with open(bad, "w") as fh:
+        fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+    os.chmod(bad, 0o000)
+    _write_sidecar(os.path.join(tmp_path, "Tepna_b_PMDARRIVAL.csv"), "ECG", [400.0, 401.0, 403.0])
+    try:
+        rows = nightqc.arrival_quality(str(tmp_path))
+    finally:
+        os.chmod(bad, 0o644)
+    assert [r["file"] for r in rows] == ["Tepna_b_PMDARRIVAL.csv"], rows
+
+
+def test_arrival_quality_reads_a_quoted_field_verbatim(tmp_path):
+    """A quoted field's bytes survive the read — which is the whole reason for `newline=""`.
+
+    The csv module documents that a file it reads must be opened with `newline=""`; without it Python's
+    universal-newline translation rewrites a CR *inside a quoted field* before the parser ever sees it.
+    `device` is the key this row is joined on — against the LINK sidecar, against the capture filenames
+    — so a silently rewritten one is a device that no longer matches itself. The house writer cannot
+    emit a quoted field, but a hand-repaired or foreign sidecar can, and QC reads whatever is on disk.
+    """
+    import nightqc
+    p = os.path.join(tmp_path, "Tepna_q_PMDARRIVAL.csv")
+    with open(p, "w", newline="") as fh:
+        fh.write("Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples\n")
+        fh.write('2026-08-11T22:00:00.000;"Polar H10\r\n02849638";ECG;1000000;2000000;10\n')
+    assert [r["device"] for r in nightqc.arrival_quality(str(tmp_path))] == ["Polar H10\r\n02849638"]
+
+
+# ─── arrival_quality: the offset estimate, its units, and its time axis ──────────────────────────
+
+_BASE_NS = 500_000_000_000       # a device counter, not an epoch — 500 s since the sensor powered on
+_CADENCE_MS = 5000               # a PPI packet lands about every 5 s
+_ONE_SIDED = [0, 3, 5, 9, 14, 21, 30, 44, 61, 90] * 60      # 600 packets, never early
+
+
+def _write_long_sidecar(path, offset_ms=400.0, delays=_ONE_SIDED):
+    """~50 min of packets: a CONSTANT `offset_ms` plus one-sided buffering, and no planted skew.
+
+    Long on purpose. `clock_offset.SPAN_MIN_SEC` is 2400 s, and every property below that names a UNIT
+    or an ORIGIN is invisible on the 23 s fixtures above — a 0.1 % error in the time axis moves a 23 s
+    span by 0.02 s, which rounds clean away.
+    """
+    w = PmdArrivalLogWriter(path, fsync=False)
+    for i, extra in enumerate(delays):
+        dev_ns = _BASE_NS + i * _CADENCE_MS * 1_000_000
+        arr = _T0 + _dt.timedelta(milliseconds=i * _CADENCE_MS + offset_ms + extra)
+        w.write(arr, "dev", "PPI", dev_ns, dev_ns + 1_000_000, 5)
+    w.close()
+
+
+def test_arrival_quality_recovers_the_planted_offset(tmp_path):
+    """The estimate comes back as a VALUE, at the planted offset, in milliseconds.
+
+    PAT's budget is 10 ms, so every conversion between the CSV column and `clock_offset.estimate`
+    matters at well under one millisecond — and both columns are the kind that hide a scale error:
+    the device stamp is NANOseconds against a 5e11 counter, the host stamp is seconds-since-epoch
+    against 1.79e9. A divisor or multiplier off by one part per million moves this number by ~0.5 ms
+    and ~1.8e6 ms respectively, and neither shows up as anything but a still-plausible float. The
+    expectation is computed here from the plant, not read back off the row.
+    """
+    import nightqc
+    _write_long_sidecar(os.path.join(tmp_path, "Tepna_o_PMDARRIVAL.csv"))
+    off = nightqc.arrival_quality(str(tmp_path))[0]["offset"]
+    expected = _T0.timestamp() * 1000.0 - _BASE_NS / 1e6 + 400.0
+    assert off["ok"] is True and off["certified"] is True, off
+    assert abs(off["offset_ms"] - expected) < 0.05, f"offset {off['offset_ms']} != planted {expected}"
+    # nothing was planted to drift, so a rate here is an artefact of the axis and not a clock
+    assert abs(off["slope_ppm"]) < 0.5, off
+
+
+def test_arrival_quality_fits_on_seconds_since_this_streams_first_packet(tmp_path):
+    """The t handed to the estimator is SECONDS ELAPSED FROM THIS STREAM'S FIRST PACKET.
+
+    Unit, origin and sign are all load-bearing and NONE of them shows up in `offset_ms`: the fit is
+    origin-independent (a line's residuals do not move when the coordinate origin does), so a wrong
+    origin leaves the offset looking perfect and corrupts only the quantity that ships so a consumer
+    can RECONSTRUCT the line — `t_ref_sec`, the t the offset is quoted at. The absolute host epoch as
+    the origin (1.79e9 s), the *second* packet as the origin (5 s late), or milliseconds left unscaled
+    all land here and nowhere else. `span_sec` pins the scale independently of the origin.
+    """
+    import nightqc
+    _write_long_sidecar(os.path.join(tmp_path, "Tepna_t_PMDARRIVAL.csv"))
+    off = nightqc.arrival_quality(str(tmp_path))[0]["offset"]
+    hs = [i * _CADENCE_MS + extra for i, extra in enumerate(_ONE_SIDED)]   # arrivals, ms from the first
+    t_ref = sum(h - hs[0] for h in hs) / len(hs) / 1000.0
+    assert abs(off["t_ref_sec"] - t_ref) < 0.06, f"{off['t_ref_sec']} is not {t_ref} s past packet 1"
+    assert abs(off["span_sec"] - (hs[-1] - hs[0]) / 1000.0) < 0.06, off   # the field is rounded to 0.1 s
+    # ~2995 s clears SPAN_MIN_SEC, so the rate is quotable — a mis-scaled axis flips this too
+    assert off["skew_quotable"] is True, off
+
+
+def test_arrival_quality_refuses_an_estimate_from_a_single_packet(tmp_path):
+    """A stream that delivered one packet is still REPORTED, and its offset is an explicit refusal.
+
+    `clock_offset` needs MIN_POINTS before a lower edge exists at all, and the refusal contract is
+    `hostAxis`'s: a reason and NO estimate, so a consumer cannot read a silent zero out of a
+    measurement that was declined. The row itself must survive, or a stream that died after its first
+    packet vanishes from QC — and one packet is also the narrowest input the reader ever sees, where
+    the only pair there is to anchor t on is `pairs[0]`.
+    """
+    import nightqc
+    p = os.path.join(tmp_path, "Tepna_s_PMDARRIVAL.csv")
+    w = PmdArrivalLogWriter(p, fsync=False)
+    w.write(_T0, "dev", "ECG", _BASE_NS, _BASE_NS + 69_000_000, 10)
+    w.close()
+    rows = nightqc.arrival_quality(str(tmp_path))
+    assert len(rows) == 1 and rows[0]["rows"] == 1, rows
+    assert rows[0]["offset"] == {"ok": False, "reason": "too-few", "n": 1}, rows

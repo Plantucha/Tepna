@@ -557,6 +557,25 @@ and all 5378 assertions still went red in CI on `STALE (7): CPAPDex.html, ECGDex
 the `static` job failed, so it presents as a test failure and is not one** — that misread is the part
 that costs time. Same trap as #450 and DEEP-AUDIT-III-FOLLOWUPS §2.5.
 
+### 🐍 capture-host has its OWN gate — `./check.sh`, and a hand-built pytest line is NOT it
+
+`npm run check` covers the JS side. **`capture-host/` is a separate lane with a separate gate**, and it
+is `capture-host/check.sh`: ruff · shellcheck · `pytest -q --cov --cov-branch --cov-fail-under=100`.
+CI runs those as three jobs; the script is the one local invocation that runs all three.
+
+⚠️ **A pytest line without `--cov` does not fail the coverage floor — it does not EVALUATE it.** There
+is no error, no warning, and no coverage table: the run just prints `N passed` and exits 0. Measured
+2026-08-11, twice in one session: 3264 tests passed, the author reported the gate green, and CI failed
+on `Required test coverage of 100% not reached. Total coverage: 99.98%` — one uncovered line. The tell
+is an ABSENCE (no `TOTAL` row), which is exactly the shape §4b warns about — a check that reports
+success about something it never examined.
+
+`check.sh`'s own header already says this about a sibling case ("`pytest --cov` printed 100 % and
+`ruff` failed on the very next line"). Run the script.
+
+⚠️ `shellcheck` missing locally exits **127** and the summary prints it beside a real failure. That is
+a missing TOOL, not a failing gate — check which before you go looking for a bug in your diff.
+
 ⚠️ **After `tools/build-docs.mjs`, stage from `git status`, NOT from the `git add …` line it prints.**
 Observed 2026-08-03: it printed nine paths of which **zero** had changed, and omitted the **seven
 `docs/*.html` it had just rewritten**.

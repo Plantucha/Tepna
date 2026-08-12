@@ -1078,6 +1078,172 @@
       }
     });
 
+    /* ════ CLOCK CONTRACT §5 — DISPLAY READS getUTC*, SO OUTPUT IS VIEWER-INDEPENDENT ═════════════
+
+       §5 is non-negotiable and, until now, unasserted in most of the fleet. `fmtClock`/`fmtDate`/
+       `fmtDateTime` exist in five nodes and NOTHING checked what any of them returns — found by
+       extreme mutation, which replaces a whole function body: replacing all three with `return ''`
+       left the suite green, and a mutant that survives `return ''` proves there is no assertion on
+       the output at all, not merely a weak one.
+
+       WHY THE ZONE IS FORCED. `tMs` is FLOATING — local civil time encoded as if it were UTC — so a
+       formatter must read it back with the getUTC* family. On a UTC machine `getHours()` and
+       `getUTCHours()` agree, so a test written on a UTC CI box passes against a broken formatter.
+       Asia/Kolkata (+05:30) is inherited from the §2.1 group above for the same two reasons: non-zero
+       and NOT a whole hour, so it also catches an implementation that rounds to hours.
+
+       THE INSTANT IS CHOSEN SO BOTH THE HOUR AND THE DATE MOVE: 22:30:15 UTC is 04:00:15 the NEXT DAY
+       in Kolkata. A formatter reading local getters therefore gets both fields wrong, which is exactly
+       the failure §1 describes — a New-York night reading 03:00 in London. The ANTI-VACUITY assertion
+       below proves the fixture can see that before any formatter is checked. */
+    group('Clock Contract §5 — every node display formatter is viewer-timezone-independent', 'clock · display · mutation-pinned', function (T) {
+      var NODES = [
+        ['HRVDex', env.HRVDex && env.HRVDex._bare],
+        ['PulseDex', env.PulseDex && env.PulseDex._bare],
+        ['CpapDsp', env.CpapDsp],
+        ['PPGDSP', env.PPGDSP || env.PpgDSP],
+        ['IntegratorDSP', env.IntegratorDSP]
+      ].filter(function (r) {
+        return r[1] && typeof r[1].fmtClock === 'function';
+      });
+      if (!NODES.length) {
+        T.skip('a node formatter is reachable', 'no *-dsp co-loaded in this lane');
+        return;
+      }
+      if (typeof process === 'undefined' || !process || !process.env) {
+        // Browser lane: cannot force a zone, so this assertion is Node-only by construction.
+        T.skip('TZ can be forced', 'no process.env (browser lane)');
+        return;
+      }
+      var saved = process.env.TZ;
+      try {
+        process.env.TZ = 'Asia/Kolkata'; // +05:30
+        var MS = Date.UTC(2026, 5, 7, 22, 30, 15);
+        var local = new Date(MS);
+        if (local.getTimezoneOffset() === 0) {
+          // The zone did not take (an ICU-less build). Skipping is honest; asserting would be vacuous.
+          T.skip('forced zone took effect', 'TZ change had no effect on this runtime');
+          return;
+        }
+        /* ANTI-VACUITY — without this the whole group could pass on a runtime where the zone silently
+           did nothing, which is the shape of a gate that reports success about something it never
+           examined. A local reading must differ in BOTH fields for the assertions below to have power. */
+        T.ok('ANTI-VACUITY · a local-getter reading differs in the HOUR here', local.getHours() !== 22, 'getHours()=' + local.getHours() + ' vs UTC 22');
+        T.ok('ANTI-VACUITY · …and in the DATE, so a date-only formatter is covered too', local.getDate() !== 7, 'getDate()=' + local.getDate() + ' vs UTC 7');
+
+        for (var i = 0; i < NODES.length; i++) {
+          var name = NODES[i][0],
+            o = NODES[i][1];
+          T.eq(name + '.fmtClock reads the UTC wall clock, not the viewer’s', o.fmtClock(MS), '22:30');
+          if (typeof o.fmtDate === 'function') {
+            T.eq(name + '.fmtDate does not roll to the viewer’s date', o.fmtDate(MS), '2026-06-07');
+          }
+          if (typeof o.fmtDateTime === 'function') {
+            T.eq(name + '.fmtDateTime agrees with its two halves', o.fmtDateTime(MS), '2026-06-07 22:30');
+          }
+        }
+      } finally {
+        if (saved === undefined) delete process.env.TZ;
+        else process.env.TZ = saved;
+      }
+    });
+
+    /* ════ CLOCK CONTRACT §6 — THE EXPORTED EVENT `t` IS THE CROSS-NODE CURRENCY ══════════════════
+
+       The §5 group above pins five nodes' formatters directly. MotionDex's is module-private, so it
+       is unreachable that way — and it is the one that matters most: `motiondex-dsp.js` writes
+       `fmtClock(seg.tStartMs)` straight into `ganglior_events[].t`, and it is the ONLY node in the
+       fleet that puts a formatted clock string into that field (`grep -ln "t: .*fmtClock(" *-dsp.js`).
+
+       WHY THAT RAISES THE STAKES. §6 makes `t` a wall-clock string with NO DATE, which consumers
+       recombine with `startEpochMs`'s date, rolling past midnight. So a formatter reading local
+       getters here does not mis-render a label — it hands every downstream consumer a wrong instant
+       to reconstruct from, silently, in the fleet's shared currency. That is the Integrator's input.
+
+       Reached end-to-end through `buildNodeExport`, which needs only a position track, so this pins
+       the real export path rather than a function lifted out of it. */
+    group('Clock Contract §6 — MotionDex’s exported event `t` is the UTC wall clock', 'motiondex-dsp · export · clock · mutation-pinned', function (T) {
+      var MD = env.MOTIONDSP;
+      if (!(MD && typeof MD.buildNodeExport === 'function')) {
+        T.skip('MOTIONDSP.buildNodeExport available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      if (typeof process === 'undefined' || !process || !process.env) {
+        T.skip('TZ can be forced', 'no process.env (browser lane)');
+        return;
+      }
+      var saved = process.env.TZ;
+      try {
+        process.env.TZ = 'Asia/Kolkata'; // +05:30 — non-zero AND not a whole hour
+        var T0 = Date.UTC(2026, 5, 7, 22, 30, 15);
+        var local = new Date(T0);
+        if (local.getTimezoneOffset() === 0) {
+          T.skip('forced zone took effect', 'TZ change had no effect on this runtime');
+          return;
+        }
+        T.ok('ANTI-VACUITY · a local-getter reading differs here', local.getHours() !== 22, 'getHours()=' + local.getHours() + ' vs UTC 22');
+
+        /* The third segment crosses MIDNIGHT in UTC (22:30 + 2 h). §6 says `t` carries no date, so it
+           must read 00:30:15 — a formatter that leaked a local date would render the previous day. */
+        var ex = MD.buildNodeExport({
+          t0Ms: T0,
+          position: {
+            track: [
+              { pos: 'supine', tStartMs: T0 },
+              { pos: 'left', tStartMs: T0 + 3600000 },
+              { pos: 'right', tStartMs: T0 + 7200000 },
+              { pos: 'prone', tStartMs: null } // no time ⇒ null, never a fabricated stamp (§2.6)
+            ]
+          }
+        });
+        var evs = (ex && ex.ganglior_events) || [];
+        T.eq('four posture segments yield four events', evs.length, 4);
+        T.eq('event t is the UTC wall clock, not the viewer’s', evs[0] && evs[0].t, '22:30:15');
+        T.eq('…in HH:MM:SS, the shape §6 specifies', evs[1] && evs[1].t, '23:30:15');
+        T.eq('…and past midnight it carries no date, so it wraps rather than rolling back a day', evs[2] && evs[2].t, '00:30:15');
+        T.eq('a segment with no time exports t null — never a fabricated stamp', evs[3] && evs[3].t, null);
+
+        /* THE CONTRACT ITSELF, asserted generically so a future event type inherits it: `t` must be
+           reconstructible from `tMs`. This is exactly the recombination every consumer performs. */
+        var p2 = function (n) {
+          return (n < 10 ? '0' : '') + n;
+        };
+        var mismatched = 0;
+        for (var i = 0; i < evs.length; i++) {
+          if (evs[i].tMs == null) continue;
+          var d = new Date(evs[i].tMs);
+          if (evs[i].t !== p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()) + ':' + p2(d.getUTCSeconds())) mismatched++;
+        }
+        T.eq('every event’s t agrees with getUTC* applied to its own tMs', mismatched, 0);
+
+        /* THE SECONDS FIELD NEEDS ITS OWN ZONE, and finding out why is the point of this block.
+           Every IANA offset since 1972 is a whole number of MINUTES, so `getSeconds()` and
+           `getUTCSeconds()` return the same value under Kolkata, Kathmandu, Chatham, Eucla — under
+           anything modern. The seconds third of this formatter is therefore invisible to the check
+           above, and a `getUTCSeconds -> getSeconds` mutant survives it (measured, not assumed).
+
+           It is NOT equivalent, though, and the difference is worth the four lines: JS still models
+           pre-1972 LOCAL MEAN TIME, where offsets carry seconds. Africa/Monrovia ran at -00:44:30
+           until 1972, so a 1960 instant there reads :45 locally against :15 UTC. That is the only
+           input that separates them, and calling the mutant equivalent without looking would have
+           filed a killable defect as unkillable. */
+        process.env.TZ = 'Africa/Monrovia';
+        var LMT = Date.UTC(1960, 0, 1, 12, 0, 15);
+        var lmt = new Date(LMT);
+        if (lmt.getSeconds() === lmt.getUTCSeconds()) {
+          T.skip('sub-minute LMT offset available', 'this runtime does not model pre-1972 LMT seconds');
+        } else {
+          T.ok('ANTI-VACUITY · local seconds really do differ under a sub-minute offset', lmt.getSeconds() !== 15, 'getSeconds()=' + lmt.getSeconds() + ' vs UTC 15');
+          var lex = MD.buildNodeExport({ t0Ms: LMT, position: { track: [{ pos: 'supine', tStartMs: LMT }] } });
+          var lt = lex && lex.ganglior_events && lex.ganglior_events[0] && lex.ganglior_events[0].t;
+          T.eq('…and the exported seconds are still UTC, so the whole HH:MM:SS is getUTC*', lt, '12:00:15');
+        }
+      } finally {
+        if (saved === undefined) delete process.env.TZ;
+        else process.env.TZ = saved;
+      }
+    });
+
     /* ════ WAVE 9 — THE MILLISECOND BAND IS CLOSED AT BOTH ENDS ═══════════════════════════════════
        `_ckMk` validates the time components with `… || ms < 0 || ms > 999`. A mutation of that last
        comparison to `ms >= 999` has survived every sweep, and the standing classification recorded it
