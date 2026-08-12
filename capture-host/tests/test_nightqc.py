@@ -473,10 +473,10 @@ def test_rate_reality_catches_the_rate_that_was_asked_for_but_not_delivered(tmp_
     row = nightqc.rate_reality(str(tmp_path), [dev])[0]
     assert row["requested_hz"] == 176.0
     assert abs(row["measured_hz"] - 55.0) < 0.1
-    assert row["ok"] is False, row
+    assert row["matches_config"] is False, row
 
     dev["rates"]["ppg"] = 55        # asked for what it got
-    assert nightqc.rate_reality(str(tmp_path), [dev])[0]["ok"] is True
+    assert nightqc.rate_reality(str(tmp_path), [dev])[0]["matches_config"] is True
 
 
 def test_host_jitter_is_rate_agnostic_by_construction():
@@ -578,3 +578,66 @@ def test_rate_reality_survives_an_unreadable_night_directory():
     calls this before the coverage loop, so an exception here would take the whole QC summary with it."""
     import nightqc
     assert nightqc.rate_reality("/nonexistent/night", [{"name": "x", "streams": ["ppg"]}]) == []
+
+
+def test_tau0_is_the_mean_packet_interval_in_seconds_exactly():
+    """Pinned exactly, because tau0 SCALES the whole Allan curve: sigma_y is divided by tau, so a wrong
+    tau0 rescales every point and still produces a plausible-looking curve with the right shape. Ten
+    arithmetic mutations survived a shape-only test here."""
+    import nightqc
+    # 5 packets spanning 4 intervals of 250 ms → tau0 = 0.25 s exactly
+    pairs = [(1000.0, 0.0), (1250.0, 0.0), (1500.0, 0.0), (1750.0, 0.0), (2000.0, 0.0)]
+    assert nightqc._tau0_of(pairs) == 0.25
+    # it is a mean over intervals (n-1), not over packets (n) — the classic off-by-one
+    assert nightqc._tau0_of(pairs) != (2000.0 - 1000.0) / 1000.0 / len(pairs)
+    # HOST stamps only: the second member of each pair must never enter it
+    poisoned = [(1000.0, 9e9), (1250.0, -9e9), (1500.0, 5.0), (1750.0, 0.0), (2000.0, 7.0)]
+    assert nightqc._tau0_of(poisoned) == 0.25, "the delay column leaked into the sample interval"
+    # ms → s, exactly
+    assert nightqc._tau0_of([(0.0, 0.0), (2000.0, 0.0)]) == 2.0
+
+
+def test_tau0_refuses_below_two_packets_and_returns_zero_not_one():
+    """A 0.0 makes `allan.adev` refuse (`tau0 <= 0`); a 1.0 would silently claim a one-second interval
+    and produce a whole curve on an axis that was never measured."""
+    import nightqc
+    assert nightqc._tau0_of([]) == 0.0
+    assert nightqc._tau0_of([(1.0, 0.0)]) == 0.0
+    assert nightqc._tau0_of([(0.0, 0.0), (1000.0, 0.0)]) == 1.0, "two packets IS enough"
+
+
+def test_an_unconfigured_or_unmeasurable_rate_is_unjudged_not_failed(tmp_path):
+    """A user may change a device's rate at any time, and a future sensor may offer rates nobody
+    documented — so `matches_config` must be None where either number is unknown, never False. A
+    verdict of False on an unfamiliar sensor would read as a fault in a night that is perfectly fine."""
+    import nightqc
+    step = int(1e9 / 176.0)
+    p = os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt")
+    with open(p, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+        for i in range(1000):
+            fh.write(f"2026-08-12T02:00:00.000;{500_000_000_000 + i * step};1\n")
+    # a device with NO configured rate for this stream, and no model nominal to fall back on
+    dev = {"name": "Some Future Sensor", "device_id": "0C301E3F", "streams": ["ppg"]}
+    row = nightqc.rate_reality(str(tmp_path), [dev])[0]
+    assert row["measured_hz"] is not None, "the rate is still MEASURED and reported"
+    assert row["matches_config"] is None, "unjudged, because there is nothing to judge it against"
+
+
+def test_an_unknown_device_does_not_inherit_another_models_rate_table():
+    """`_model_of` defaults an unrecognised device to "O2Ring" so its callers always get a string.
+    That default must never reach the nominal table: a future sensor would otherwise be judged against
+    the O2Ring's 125.738 Hz row rate — a coverage figure and a rate verdict both computed from a model
+    the device is not. Found by asking what happens when a user attaches something undocumented."""
+    import nightqc
+    unknown = {"name": "Some Future Sensor", "streams": ["ppg"]}
+    assert nightqc._model_of(unknown) == "O2Ring", "the default is unchanged for its other callers"
+    assert nightqc._recognised_model(unknown) is None
+    assert nightqc._expected_hz(unknown, "ppg") is None, "no borrowed rate"
+    # …while every device the suite DOES know still resolves
+    for dev, stream, want in (({"name": "Polar H10"}, "ecg", 130),
+                              ({"name": "Polar Verity Sense"}, "ppg", 55),
+                              ({"name": "Wellue O2Ring-S"}, "ppg", 125.738)):
+        assert nightqc._expected_hz(dev, stream) == want, (dev, stream)
+    # and a CONFIGURED rate always wins, for known and unknown alike
+    assert nightqc._expected_hz({"name": "Some Future Sensor", "rates": {"ppg": 400}}, "ppg") == 400.0
