@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-08-12
+**Status:** DONE — 2026-08-12 · **Created:** 2026-08-12
 
 # Most of what this suite keeps re-deriving is a solved problem in another field
 
@@ -133,7 +133,8 @@ filtering (about to be, §2).
 - [x] §1 Allan deviation shipped and run on real captures
 - [x] §2 Fourier-domain template TOA implemented and measured on the inter-LED scatter — and it does
       NOT win: −9.1 % at 55 Hz, LOSES to tangents at 176 Hz. Recorded as a scout, not adopted (§2.1)
-- [ ] §3 `pat-gate.js` cross-references Kriegeskorte rather than restating the rule
+- [x] §3 `pat-gate.js` cross-references Kriegeskorte rather than restating the rule — `driftStats`'s
+      bin-qualification comment now names circular analysis, cites it, and records the 2026-08-12 violation
 - [x] §4 rejections recorded with the measurement that rejected them
 
 Related: [`ALLAN-DEVIATION-2026-08-12-BRIEF.md`](ALLAN-DEVIATION-2026-08-12-BRIEF.md) ·

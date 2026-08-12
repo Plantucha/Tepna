@@ -143,7 +143,10 @@ def _expected_hz(dev: dict, stream: str):
     model = _recognised_model(dev)
     if model is None:
         return None
-    return _NOMINAL_HZ.get(model, {}).get(stream)
+    # Direct subscript, not `.get(model, {})`: `_recognised_model` returns a key of this table or None,
+    # and None already returned above — so a default here is an arm no input can reach, and an
+    # unreachable arm is removed rather than tested.
+    return _NOMINAL_HZ[model].get(stream)
 
 
 # How many rows to read when measuring a rate off a stream file. The device stamp is monotonic and the

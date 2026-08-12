@@ -641,3 +641,56 @@ def test_an_unknown_device_does_not_inherit_another_models_rate_table():
         assert nightqc._expected_hz(dev, stream) == want, (dev, stream)
     # and a CONFIGURED rate always wins, for known and unknown alike
     assert nightqc._expected_hz({"name": "Some Future Sensor", "rates": {"ppg": 400}}, "ppg") == 400.0
+
+
+def _write_stream(path, hz, rows=1000):
+    step = int(1e9 / hz)
+    with open(path, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];v\n")
+        for i in range(rows):
+            fh.write(f"2026-08-12T02:00:00.000;{500_000_000_000 + i * step};1\n")
+
+
+def test_rate_reality_picks_the_right_device_and_the_largest_of_its_files(tmp_path):
+    """Two devices in one night, and several fragments per stream. The filename filter must not let
+    the OTHER device's file answer for this one, and the largest fragment must win — the short
+    reconnect fragments cannot settle a rate and would report a spurious mismatch."""
+    import nightqc
+    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812010000_PPG.txt"), 55.0, rows=300)
+    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt"), 176.0, rows=4000)
+    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_DEADBEEF_20260812030000_PPG.txt"), 25.0, rows=9000)
+    dev = {"name": "Polar Verity Sense", "device_id": "0C301E3F", "streams": ["ppg"], "rates": {"ppg": 176}}
+    row = nightqc.rate_reality(str(tmp_path), [dev])[0]
+    assert abs(row["measured_hz"] - 176.0) < 0.5, "the LARGEST file of THIS device must win"
+    assert row["matches_config"] is True
+
+
+def test_rate_reality_keeps_scanning_past_a_stream_with_no_files(tmp_path):
+    """`continue`, not `break`: a configured stream that produced nothing must not stop the streams
+    after it being reported. Streams are walked in sorted order, so `acc` precedes `ppg` here."""
+    import nightqc
+    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt"), 176.0, rows=4000)
+    dev = {"name": "Polar Verity Sense", "device_id": "0C301E3F", "streams": ["acc", "ppg"]}
+    rows = nightqc.rate_reality(str(tmp_path), [dev])
+    assert [r["stream"] for r in rows] == ["ppg"], rows
+
+
+def test_the_rate_tolerance_is_ten_percent_of_the_REQUESTED_rate_inclusive(tmp_path):
+    """Two things at once, both of which survived a looser test: the bound is a FRACTION of the
+    requested rate (not a fixed window, and not divided by it), and it is INCLUSIVE — a device sitting
+    exactly on the bound matches, since the bound is the tolerance rather than the first failure."""
+    import nightqc
+    p = os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt")
+    _write_stream(p, 55.0, rows=4000)
+    mk = lambda want: nightqc.rate_reality(  # noqa: E731 - a local factory, not worth a helper
+        str(tmp_path), [{"name": "Polar Verity Sense", "device_id": "0C301E3F",
+                         "streams": ["ppg"], "rates": {"ppg": want}}])[0]
+    assert mk(50.5)["matches_config"] is True, "55 vs 50.5 is 8.9% — inside"
+    assert mk(49.0)["matches_config"] is False, "55 vs 49 is 12.2% — outside"
+    # THE BOUND SCALES WITH THE REQUESTED RATE. A fixed window, or one DIVIDED by the rate, cannot do
+    # both of these: at 55 Hz a 5 ms-equivalent slack is generous, at 176 Hz the same absolute slack is
+    # tiny. 176 vs 165 is 6.3% (inside) where 55 vs 49 was 12.2% (outside) on a smaller absolute gap.
+    _write_stream(p, 176.0, rows=4000)
+    assert mk(165.0)["matches_config"] is True, "6.3% at 176 Hz is inside — an absolute window would not be"
+    assert mk(150.0)["matches_config"] is False, "17.3% is outside at any rate"
+    assert abs(165.0 - 176.0) > abs(55.0 - 49.0), "the inside case has the LARGER absolute gap"
