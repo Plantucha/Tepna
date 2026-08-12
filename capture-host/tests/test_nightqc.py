@@ -643,6 +643,16 @@ def test_an_unknown_device_does_not_inherit_another_models_rate_table():
     assert nightqc._expected_hz({"name": "Some Future Sensor", "rates": {"ppg": 400}}, "ppg") == 400.0
 
 
+def _write_stream_ns(path, step, rows=1000):
+    """Write with an EXPLICIT ns step. `_write_stream` truncates 1e9/hz, so the rate it produces is
+    1e9/int(1e9/hz) — close to `hz` but not equal to it, which is fine for tolerance tests and fatal
+    for a boundary test that must land on the bound BIT-EXACTLY."""
+    with open(path, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];v\n")
+        for i in range(rows):
+            fh.write(f"2026-08-12T02:00:00.000;{500_000_000_000 + i * step};1\n")
+
+
 def _write_stream(path, hz, rows=1000):
     step = int(1e9 / hz)
     with open(path, "w") as fh:
@@ -656,8 +666,11 @@ def test_rate_reality_picks_the_right_device_and_the_largest_of_its_files(tmp_pa
     the OTHER device's file answer for this one, and the largest fragment must win — the short
     reconnect fragments cannot settle a rate and would report a spurious mismatch."""
     import nightqc
-    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812010000_PPG.txt"), 55.0, rows=300)
-    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt"), 176.0, rows=4000)
+    # NOTE THE ORDER: the BIG file sorts FIRST by name. With the big one last, `max(..., key=_size)`
+    # and a mutant picking by name or by list position agree, and the test passes while proving
+    # nothing — that is exactly how this survived the first round.
+    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812010000_PPG.txt"), 176.0, rows=4000)
+    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt"), 55.0, rows=300)
     _write_stream(os.path.join(tmp_path, "Polar_VeritySense_DEADBEEF_20260812030000_PPG.txt"), 25.0, rows=9000)
     dev = {"name": "Polar Verity Sense", "device_id": "0C301E3F", "streams": ["ppg"], "rates": {"ppg": 176}}
     row = nightqc.rate_reality(str(tmp_path), [dev])[0]
@@ -694,3 +707,27 @@ def test_the_rate_tolerance_is_ten_percent_of_the_REQUESTED_rate_inclusive(tmp_p
     assert mk(165.0)["matches_config"] is True, "6.3% at 176 Hz is inside — an absolute window would not be"
     assert mk(150.0)["matches_config"] is False, "17.3% is outside at any rate"
     assert abs(165.0 - 176.0) > abs(55.0 - 49.0), "the inside case has the LARGER absolute gap"
+
+
+def test_the_rate_tolerance_bound_is_INCLUSIVE_at_a_bit_exact_boundary(tmp_path):
+    """`<=`, not `<`, on an input that lands on the bound EXACTLY in IEEE-754.
+
+    Finding it took a search rather than a guess. `measured_hz` returns 1e9/step for an integer ns
+    step, and `_RATE_MISMATCH_TOL * want` rounds onto a different float grid, so almost no pair
+    satisfies `abs(measured - want) == 0.10 * want` exactly — 7.2e7 candidates around nine plausible
+    rates yielded none. Sweeping the ns step itself found one immediately. Both equalities below are
+    asserted, so if a future refactor moves either grid this test FAILS rather than silently
+    degrading into the approximate test it is here to replace.
+    """
+    import nightqc
+    step, want = 2007919, 553.3645087830291
+    _write_stream_ns(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt"), step, rows=4000)
+    measured = 1e9 / step
+    assert abs(measured - want) == nightqc._RATE_MISMATCH_TOL * want, "precondition: exactly on the bound"
+    row = nightqc.rate_reality(str(tmp_path), [{"name": "Polar Verity Sense", "device_id": "0C301E3F",
+                                                "streams": ["ppg"], "rates": {"ppg": want}}])[0]
+    # The row REPORTS `round(got, 2)` but `rate_reality` COMPARES the unrounded `got`. Assert against
+    # the rounded value, and keep the unrounded one in the bound check above — conflating the two is
+    # what made the first version of this test fail on a correct implementation.
+    assert row["measured_hz"] == round(measured, 2), "precondition: the file really measures 1e9/step"
+    assert row["matches_config"] is True, "on the bound is INSIDE the bound — the tolerance IS the tolerance"
