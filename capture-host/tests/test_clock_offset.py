@@ -161,13 +161,73 @@ def test_refuses_when_no_two_subset_minima_have_distinct_t():
 
 
 def test_drops_non_finite_and_unparseable_pairs_rather_than_defaulting():
-    """A fabricated 0 here would sit at the bottom of the cloud and silently BECOME the envelope."""
+    """A fabricated 0 here would sit at the bottom of the cloud and silently BECOME the envelope.
+
+    The junk is INTERLEAVED, not appended. With it all at the end, `continue` and `break` behave
+    identically and the mutant that stops cleaning at the first bad pair survives — which it did.
+    """
     good = _plant(400.0, 0.0, n=200, span=3000.0)
     junk = [(float("nan"), 1.0), (1.0, float("nan")), (float("inf"), 1.0),
             (1.0, float("-inf")), ("x", 1.0), (None, 1.0), (1.0, object())]
-    r = co.estimate(good + junk)
-    assert r["n"] == 200, f"junk leaked into the fit: n={r['n']}"
+    mixed = []
+    for i, p in enumerate(good):
+        mixed.append(p)
+        if i < len(junk):
+            mixed.append(junk[i])          # a bad pair between two good ones, seven times over
+    r = co.estimate(mixed)
+    assert r["n"] == 200, f"junk leaked in, or cleaning stopped early: n={r['n']}"
     assert r["offset_ms"] == pytest.approx(400.0, abs=5.0)
+
+
+# ─── the boundaries, each pinned with an EXACTLY-on-the-line fixture ─────────────────────────────
+
+def test_span_is_measured_across_the_whole_recording():
+    """`pts[-1] - pts[0]`, not an endpoint one sample in, and DIFFERENCED rather than summed.
+
+    The axis is deliberately offset off zero. Every other fixture here starts at t = 0, where
+    `pts[-1] - pts[0]` and `pts[-1] + pts[0]` are the same number — so a summed span survived every
+    one of them, exactly as a zero-origin hull fixture hid the sign in the turn test. A fixture whose
+    origin is 0 cannot see an error in a term multiplied by that origin.
+
+    Pinned exactly: `span_sec` is what `skew_quotable` is decided on, and a near-miss span reads as a
+    perfectly good number.
+    """
+    base = _plant(400.0, 20.0, n=4000, span=28800.0)
+    r = co.estimate([(t + 5000.0, d) for t, d in base])
+    assert r["span_sec"] == 28800.0
+    assert r["t_ref_sec"] == pytest.approx(19400.0, abs=1.0)
+
+
+def test_the_slope_is_reported_in_ppm_not_a_number_near_it():
+    """A 0.1 % error in the ms/s -> ppm conversion is invisible against a loose tolerance, and ppm is
+    quoted to two decimals. Planted at 200 ppm so a 0.1 % slip is 0.2 — far outside this bound."""
+    r = co.estimate(_plant(400.0, 200.0))
+    assert r["slope_ppm"] == pytest.approx(200.0, abs=0.05)
+
+
+def test_a_skew_of_exactly_max_ppm_is_accepted_not_refused():
+    """`MAX_PPM` is an EXCLUSIVE bound: 5 % is the largest rate still believed, not the first refused.
+
+    A perfectly linear 50 ms/s ramp is exactly 50000 ppm, so `>` accepts and `>=` refuses — and a
+    silently-shifted bound would make the refusal fire one crystal earlier than documented.
+    """
+    r = co.estimate([(float(t), 50.0 * t) for t in range(200)])
+    assert r["ok"] is True and r["slope_ppm"] == 50000.0
+
+
+def test_agreement_of_exactly_the_budget_still_certifies():
+    """`AGREE_MAX_MS` is INCLUSIVE: agreement AT the budget passes, since the budget is the
+    requirement rather than the first failure.
+
+    Constructed to land on it exactly. A flat cloud with one deep point at t=0: Paxson's
+    median-of-minima ignores a single outlier among 20 subset minima, so its line is exactly d = 0,
+    while the envelope is dragged onto the lone hull edge (0,-20) -> (T,0), whose value at the
+    centroid is exactly -10. `agree` is then bit-exactly 10.0 (verified at n = 100, 200 and 400).
+    """
+    pts = [(0.0, -20.0)] + [(float(t), 0.0) for t in range(1, 200)]
+    r = co.estimate(pts)
+    assert r["agree_ms"] == 10.0
+    assert r["certified"] is True, "agreement exactly at the budget must certify"
 
 
 # ─── the span gate: the offset still ships, only the RATE is withheld ────────────────────────────
@@ -207,6 +267,39 @@ def test_lower_hull_drops_points_above_the_hull():
     assert co._lower_hull([(0.0, 0.0), (1.0, -1.0), (2.0, 0.0)]) == [(0.0, 0.0), (1.0, -1.0), (2.0, 0.0)]
 
 
+# ─── the hull turn test, pinned at each of its three degrees of freedom ──────────────────────────
+# Every one of these was a SURVIVING MUTANT under tests that already had 100% branch coverage. The
+# turn test has a sign, a comparison and a threshold, and reaching the line proves none of them.
+
+def test_hull_drops_collinear_interior_points():
+    """`cross > 0` POPS a collinear point (cross == 0); `>=` would keep it.
+
+    Not academic — a perfectly linear delay ramp is the noise-free case this estimator is built for,
+    and the hull walk sees cross == 0 at every interior point of it.
+    """
+    assert co._lower_hull([(0.0, 0.0), (1.0, 1.0), (2.0, 2.0)]) == [(0.0, 0.0), (2.0, 2.0)]
+
+
+def test_hull_keeps_a_turn_of_exactly_one():
+    """Pins the THRESHOLD at 0 rather than at some small positive number.
+
+    `(0,0) (1,0) (2,1)` has cross exactly 1, so `> 0` keeps the middle vertex and `> 1` drops it.
+    """
+    assert co._lower_hull([(0.0, 0.0), (1.0, 0.0), (2.0, 1.0)]) == [(0.0, 0.0), (1.0, 0.0), (2.0, 1.0)]
+
+
+def test_hull_turn_test_is_measured_from_the_origin_vertex():
+    """Pins the SIGN of the `p[0] - ox` term. The other hull fixtures all start at x == 0, where
+    `p[0] - ox` and `p[0] + ox` are the same number — so they cannot see this at all."""
+    assert co._lower_hull([(10.0, 0.0), (11.0, 1.0), (12.0, 0.0)]) == [(10.0, 0.0), (12.0, 0.0)]
+
+
+def test_lower_envelope_accepts_a_two_vertex_hull():
+    """Two vertices is the MINIMUM that determines a line, and the common case: a clean ramp hulls to
+    its two endpoints. `len(hull) < 2` must admit it; `<= 2` or `< 3` would refuse every such night."""
+    assert co.lower_envelope([(0.0, 0.0), (1.0, 1.0)]) == (1.0, 0.0)
+
+
 def test_floor_by_t_keeps_the_minimum_at_each_t():
     assert co._floor_by_t([(0.0, 5.0), (0.0, 2.0), (0.0, 9.0), (1.0, 3.0)]) == [(0.0, 2.0), (1.0, 3.0)]
 
@@ -232,6 +325,64 @@ def test_paxson_returns_none_when_it_cannot_form_a_slope():
 def test_median_handles_both_parities():
     assert co._median([3.0, 1.0, 2.0]) == 2.0
     assert co._median([4.0, 1.0, 3.0, 2.0]) == 2.5
+
+
+def _paxson_fixture():
+    """20 subsets of 10, each with ONE unambiguous minimum, on a SAWTOOTH WITH DRIFT.
+
+    The shape is load-bearing and three earlier ones were rejected for being blind, each in a way that
+    looked fine until the mutant was applied:
+
+    * a straight line makes every pairwise slope identical, so the pair set cannot matter;
+    * a SYMMETRIC parabola puts the median at 0 for every pair set — the same blindness, new shape;
+    * any MONOTONE curve leaves the subset minima unchanged when the partition window is widened,
+      because min(subset i, subset i+1) is still subset i's minimum. That one silently hid the
+      chunk-stride mutant, and a fixture that cannot see a mutant is not evidence about it.
+
+    Non-monotone so widening the window picks a different minimum; drifting so the pair set matters.
+    """
+    pts = []
+    for i in range(20):
+        vmin = round(i * 0.6 + (0.0, -8.0, 4.0)[i % 3] + (10.0 if i > 13 else 0.0), 6)
+        for k in range(10):
+            pts.append((float(10 * i + k), vmin if k == 5 else vmin + 100.0))
+    return pts
+
+
+def test_paxson_partitions_by_count_and_takes_each_subset_minimum():
+    """Known answer, pinned exactly — it fixes the CHUNKING (which points form each subset), the PAIR
+    SET (which minima are differenced against which) and the slope ARITHMETIC in one assertion.
+
+    Margins are real, not float noise: widening the chunk stride and dropping/adding adjacent pairs
+    move the slope by 0.006-0.013 here, against a 1-ulp difference on the monotone fixture this
+    replaced. A kill that rests on the last bit of a float is not a kill worth having.
+    """
+    a, b = co.paxson(_paxson_fixture())
+    assert (a, b) == (0.10999999999999999, -2.8)
+
+
+def test_paxson_slope_divides_by_the_time_difference():
+    """Guards the two arithmetic confusions in the denominator — `t_j + t_i` for `t_j - t_i`, and a
+    DELAY read where a time belongs. Both leave the code running and merely wrong: they move the
+    slope to 0.044 and 0.063 against the true 0.110, which no tolerance on a fitted line would
+    notice, because a wrong-but-plausible slope still produces a wrong-but-plausible offset."""
+    a, _ = co.paxson(_paxson_fixture())
+    assert a == pytest.approx(0.110, abs=1e-6)
+    assert abs(a - 0.0442) > 0.01, "the denominator summed the times instead of differencing them"
+    assert abs(a - 0.0634) > 0.01, "the denominator differenced a time against a delay"
+
+
+def test_paxson_skips_a_pair_of_minima_that_share_a_timestamp():
+    """The `mins[j][0] != mins[i][0]` guard exists to stop a zero denominator, and NOTHING ELSE reaches
+    that divide — so reading either index off the wrong axis is an unguarded division by zero.
+
+    Twenty points and twenty subsets means one point per subset, so every point is its own minimum;
+    two of them share a t. The real guard skips that pair. Both index confusions raise here instead,
+    which is why this is a crash test rather than a value test.
+    """
+    pts = ([(5.0, -1.0)] + [(float(i), 100.0) for i in range(1, 10)]
+           + [(5.0, -2.0)] + [(float(i), 100.0) for i in range(11, 20)])
+    assert co.paxson(pts) == (0.0, 100.0)
 
 
 def test_paxson_is_robust_where_least_squares_would_not_be():

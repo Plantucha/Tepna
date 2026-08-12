@@ -29,6 +29,48 @@
     "            a stale entry shrinks nothing.",
     "  unclassified survivors fail the gate exactly as before. Silence is never equivalence."
   ],
+  "clock_offset.py": [
+    {
+      "key": "- for j in range(i + 1, len(mins)) | + for j in range(len(mins))",
+      "class": "no-distinguishing-input",
+      "why": "A PROOF, not a sample. A pair's slope is symmetric under exchange: (v_j-v_i)/(t_j-t_i) and (v_i-v_j)/(t_i-t_j) negate BOTH operands, and IEEE-754 gives (-a)/(-b) == a/b bit-exactly. So widening the inner range from j>i to all j adds, for every unordered pair, a second copy of a slope already present (j==i is removed by the existing t_j != t_i guard). The estimator then takes a MEDIAN, and doubling every element of a multiset leaves its median unchanged: for sorted s_0..s_{m-1} the doubled list has its two middle slots at s_[(m-1)//2] and s_[m//2], which is the definition of the original median for both parities. The intercept is a median over `mins`, which this mutation does not touch.",
+      "probe": "4000 random point-sets (n uniform 3-60, t uniform 0-1000, d uniform -50..50, seed 11): 0 differed. CANARY on the same 4000 sets: the chunk-stride mutant differs on 3960/4000, so the battery has power and a zero here is a measurement, not a blind spot. Also checked on the committed `_paxson_fixture` — deliberately a sawtooth with drift, because monotone and symmetric shapes are provably blind to pair-set changes and three such fixtures were rejected here first.",
+      "recorded": "2026-08-11",
+      "found_by": "diff-scoped mutation gate on PR #1170"
+    },
+    {
+      "key": "- for j in range(i + 1, len(mins)) | + for j in range(i + 1, )",
+      "class": "no-distinguishing-input",
+      "why": "`range(i + 1, )` is `range(i + 1)`, so j runs 0..i instead of i+1..n-1. Over the whole double loop that enumerates every unordered pair EXACTLY ONCE — the mirror image of the original enumeration — with j == i removed by the t_j != t_i guard. By the same exchange symmetry as the sibling entry each mirrored pair yields a bit-identical slope, so the median is handed the SAME multiset, not merely one with the same median.",
+      "probe": "The same 4000 random point-sets: 0 differed, against the same 3960/4000 chunk-stride canary. Also checked on the committed fixture.",
+      "recorded": "2026-08-11",
+      "found_by": "diff-scoped mutation gate on PR #1170"
+    },
+    {
+      "key": "- k = max(2, min(n_subsets, len(pts))) | + k = max(3, min(n_subsets, len(pts)))",
+      "class": "no-distinguishing-input",
+      "why": "The forms differ only where min(n_subsets, len(pts)) < 3, and n_subsets is 20, so only for len(pts) in {0, 1, 2} — a domain small enough to enumerate rather than sample. len 0: every stripe empty under both, no minima, both return None. len 1: the sole point is its own stripe under both, one minimum, no pair with distinct t, both None. len 2: k=2 gives stripes [0:1],[1:2]; k=3 gives [0:0] (empty, skipped), [0:1], [1:2] — the SAME two minima, hence the same slope and intercept. For len >= 3 max() returns its second argument in both forms and the expression is identical.",
+      "probe": "Exhaustive over the reachable domain: all 21 point-sets of size 0, 1 and 2 drawn from four distinct points ((0,0), (1,5), (1,-5), (2,3)) — 4^0+4^1+4^2 = 21 — comparing k-floor 2 against 3. 0 differed. Note `estimate` cannot reach this at all: it refuses below MIN_POINTS = 100, so the difference is reachable only by calling `paxson` directly.",
+      "recorded": "2026-08-11",
+      "found_by": "diff-scoped mutation gate on PR #1170"
+    },
+    {
+      "key": "- continue # an empty stripe when k > len(pts) cannot contribute a minimum | + break # an empty stripe when k > len(pts) cannot contribute a minimum",
+      "class": "no-distinguishing-input",
+      "why": "The arm is reached only when a stripe is empty, which needs k > len(pts). Since k = max(2, min(20, len(pts))), that holds only for len(pts) in {0, 1} — verified as a predicate, not assumed. At len 0 every stripe is empty so both forms leave `mins` empty. At len 1 the first stripe is empty and the second holds the point: `continue` collects one minimum, `break` collects none — but one minimum yields no pair with distinct t, so `slopes` is empty either way and BOTH return None at the very next statement. The difference exists in `mins` and is erased before anything can observe it.",
+      "probe": "Enumerated the entire reachable domain — all 5 point-sets of size 0 and 1 over the same four distinct points — comparing the continue and break forms: 0 differed, both returning None throughout. Reachability confirmed by evaluating max(2,min(20,n)) > n for n in 0..4: True only at n = 0 and 1.",
+      "recorded": "2026-08-11",
+      "found_by": "diff-scoped mutation gate on PR #1170"
+    },
+    {
+      "key": "- if d < out[-1][1]: | + if d <= out[-1][1]:",
+      "class": "untestable-by-design",
+      "why": "A proof over the whole domain, needing no battery. The branch sits inside `if out and out[-1][0] == t`, so the incumbent's time is ALREADY equal to t. The forms differ only when d == out[-1][1], and there the assignment is `out[-1] = (t, d)` with t == out[-1][0] and d == out[-1][1] — it overwrites the tuple with an equal tuple. The mutation changes how many assignments happen and nothing about the value of any of them; `_floor_by_t` returns list CONTENTS and no caller can observe tuple identity.",
+      "probe": "The argument is exhaustive by construction, so the probe only confirms it: 4000 random point-sets drawn from just 8 distinct t values so collisions are frequent (3904 of the 4000 did contain a duplicate t), compared element-by-element — 0 differed. CANARY: the duplicate-t collapse path is genuinely exercised, firing on 195/200 sets, so this is not a battery that never reached the branch.",
+      "recorded": "2026-08-11",
+      "found_by": "diff-scoped mutation gate on PR #1170"
+    }
+  ],
   "probe_verity_survey.py": [
     {
       "key": "- if not (len(tail) == 6 and tail.isdigit()): | + if not (len(tail) == 6 or tail.isdigit()):",
