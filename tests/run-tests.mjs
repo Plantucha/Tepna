@@ -1390,6 +1390,23 @@ async function main() {
     pickProvenanceBanner: ctx.pickProvenanceBanner,
     Quantity: ctx.Quantity,
     DexUnits: ctx.DexUnits,
+    /* Run `fn` with a global temporarily REMOVED from the module realm, then put it back.
+       Some code paths are guarded by `typeof X !== 'undefined'` and only execute when a module is
+       ABSENT — the quantity.js fallback arms in hrvdex-dsp's computeDerived, for instance. The
+       harness always loads quantity.js, so those arms are dead under test and no fixture can reach
+       them; mutants inside them are unkillable for a reason that has nothing to do with the tests.
+       The DSPs run in a vm context the assertions cannot see, so the toggle has to be handed in from
+       the runner. Restoration is in a `finally`; the caller should ASSERT it afterwards, because a
+       global left mutated by one group fails in an unrelated one. */
+    withGlobalRemoved: function (name, fn) {
+      var saved = ctx[name];
+      try {
+        ctx[name] = undefined;
+        return fn();
+      } finally {
+        ctx[name] = saved;
+      }
+    },
     adaptEnvelopeNode: ctx.adaptEnvelopeNode,
     recWindow: ctx.recWindow,
     overlapInterval: ctx.overlapInterval,
