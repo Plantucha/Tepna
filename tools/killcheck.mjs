@@ -77,11 +77,23 @@ export function applyMutant(lines, m) {
   return null;
 }
 
+/* Exported so it can be pinned: the escaping bug it replaces was silent in both directions. */
+export function escapeRe(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /* The enclosing range of `fn`, by brace counting — same method as probe-equivalence and
    mutation-worklist, so all three agree about what a function is. */
 export function functionRange(src, name) {
   const lines = String(src || '').split('\n');
-  const re = new RegExp('(?:^|[^\\w$.])function\\s+' + name.replace(/[$]/g, '\\$') + '\\s*\\(');
+  /* ESCAPE EVERY REGEX METACHARACTER, not just `$`. The original escaped `$` alone — the one that
+     actually occurs in this repo's identifiers — so it read as deliberate and was merely incomplete:
+     a name containing `.` matches any character, and one containing `(` or `[` throws
+     `SyntaxError: Invalid regular expression` from a tool whose whole job is to report a verdict.
+     Neither failure is loud in the right place. Names come from a generated work list rather than
+     from a user, so this is correctness rather than a security boundary, but the fix is the same
+     three characters wider. */
+  const re = new RegExp('(?:^|[^\\w$.])function\\s+' + escapeRe(name) + '\\s*\\(');
   for (let i = 0; i < lines.length; i++) {
     if (!re.test(lines[i])) continue;
     let d = 0,
@@ -133,6 +145,37 @@ if (IS_MAIN && has('--selftest')) {
   ok('functionRange finds a multi-line function', JSON.stringify(functionRange(SRC, 'outer')) === '{"start":1,"end":3}', JSON.stringify(functionRange(SRC, 'outer')));
   ok('…and a one-liner', JSON.stringify(functionRange(SRC, 'other')) === '{"start":4,"end":4}', JSON.stringify(functionRange(SRC, 'other')));
   ok('an absent function is null', functionRange(SRC, 'nope') === null);
+
+  /* ── REGEX ESCAPING, pinned. CodeQL flagged the old `$`-only escape as incomplete and as a regex
+     injection; both failures were silent in the place a reader would look. */
+  ok(
+    'a metacharacter name does not THROW — the old escape raised SyntaxError',
+    (() => {
+      try {
+        functionRange(SRC, 'a(b');
+        return true;
+      } catch (_) {
+        return false;
+      }
+    })()
+  );
+  ok(
+    '…nor does a bracket',
+    (() => {
+      try {
+        functionRange(SRC, 'a[b');
+        return true;
+      } catch (_) {
+        return false;
+      }
+    })()
+  );
+  /* The quiet half: `.` matched ANY character, so a wrong function could be measured and reported
+     with full confidence. `outer` must not be found by a pattern spelled `oute.`. */
+  ok('a `.` in the name is LITERAL — it must not match `outer`', functionRange(SRC, 'oute.') === null);
+  ok('…and `o*ter` matches nothing rather than everything', functionRange(SRC, 'o*ter') === null);
+  ok('escapeRe leaves a plain identifier alone', escapeRe('parseJSONL') === 'parseJSONL');
+  ok('escapeRe still escapes `$`, the one that occurs here', escapeRe('_$scope') === '_\\$scope', escapeRe('_$scope'));
 
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
