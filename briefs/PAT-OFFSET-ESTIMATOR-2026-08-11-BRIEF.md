@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** DONE — 2026-08-11 · **Created:** 2026-08-11
+**Status:** DONE — 2026-08-11 · **Created:** 2026-08-11 · **Followed-by:** `PAT-OFFSET-ESTIMATOR-FOLLOWUPS-2026-08-12-BRIEF.md`
 
 # Spend the arrivals with a published estimator, not a third hand-rolled one
 
