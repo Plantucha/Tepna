@@ -1,0 +1,630 @@
+{
+  "address": "24:AC:AC:0C:30:1E",
+  "probed_at": "2026-08-10T05:03:00.187497",
+  "not_sent": {
+    "0x08": "SET_OFFLINE_RECORDING_TRIGGER_MODE \u2014 persists across power cycles",
+    "0x09": "SET_OFFLINE_RECORDING_TRIGGER_SETTINGS \u2014 persists across power cycles"
+  },
+  "features": {
+    "raw": "0f6e620000000000000000000000000000",
+    "supported": [
+      "acc",
+      "gyro",
+      "mag",
+      "ppg",
+      "ppi",
+      "type_0x09",
+      "type_0x0d",
+      "type_0x0e"
+    ],
+    "supported_ids": [
+      1,
+      2,
+      3,
+      5,
+      6,
+      9,
+      13,
+      14
+    ]
+  },
+  "flag_bits": {
+    "0x09": "SDK_MODE",
+    "0x0d": "OFFLINE_RECORDING",
+    "0x0e": "OFFLINE_HR"
+  },
+  "measurement_types_swept": [
+    "ppg",
+    "acc",
+    "ppi",
+    "gyro",
+    "mag",
+    "0x09",
+    "0x0d",
+    "0x0e"
+  ],
+  "transcript": [
+    {
+      "sent": "05",
+      "reply": "f005ff000002050601030e"
+    },
+    {
+      "sent": "06",
+      "reply": "f00609000000"
+    },
+    {
+      "sent": "07",
+      "reply": "f007ff00000000020005000600010003000e"
+    },
+    {
+      "sent": "0a",
+      "reply": "f00aff0100"
+    },
+    {
+      "sent": "0101",
+      "reply": "f0010100000001370001011600040104"
+    },
+    {
+      "sent": "0181",
+      "reply": "f0010100000001370001011600040104"
+    },
+    {
+      "sent": "0102",
+      "reply": "f001020000000134000101100002010800040103"
+    },
+    {
+      "sent": "0182",
+      "reply": "f00102000000030d001a0034000101100002010800040103"
+    },
+    {
+      "sent": "0103",
+      "reply": "f001030000"
+    },
+    {
+      "sent": "0183",
+      "reply": "f001030000"
+    },
+    {
+      "sent": "0105",
+      "reply": "f00105000000013400010110000201d007040103"
+    },
+    {
+      "sent": "0185",
+      "reply": "f00105000000030d001a003400010110000201d007040103"
+    },
+    {
+      "sent": "0106",
+      "reply": "f00106000000040a001400320064000101100002013200040103"
+    },
+    {
+      "sent": "0186",
+      "reply": "f00106000000030a00140032000101100002013200040103"
+    },
+    {
+      "sent": "0109",
+      "reply": "f001090200"
+    },
+    {
+      "sent": "0189",
+      "reply": "f001090200"
+    },
+    {
+      "sent": "010d",
+      "reply": "f0010d0200"
+    },
+    {
+      "sent": "018d",
+      "reply": "f0010d0200"
+    },
+    {
+      "sent": "010e",
+      "reply": "f0010e0000"
+    },
+    {
+      "sent": "018e",
+      "reply": "f0010e0000"
+    },
+    {
+      "sent": "0401",
+      "reply": "f00401000000051c002c0037008700b00001011600040104"
+    },
+    {
+      "sent": "0481",
+      "reply": "f00401000000031c002c00370001011600040104"
+    },
+    {
+      "sent": "0402",
+      "reply": "f00402000000051a0034006800d000a0010101100002040200040008001000040103"
+    },
+    {
+      "sent": "0482",
+      "reply": "f00402000000030d001a0034000101100002040200040008001000040103"
+    },
+    {
+      "sent": "0403",
+      "reply": "f004030000"
+    },
+    {
+      "sent": "0483",
+      "reply": "f004030000"
+    },
+    {
+      "sent": "0405",
+      "reply": "f00405000000051a0034006800d000a001010110000204fa00f401e803d007040103"
+    },
+    {
+      "sent": "0485",
+      "reply": "f00405000000030d001a003400010110000204fa00f401e803d007040103"
+    },
+    {
+      "sent": "0406",
+      "reply": "f00406000000040a001400320064000101100002013200040103"
+    },
+    {
+      "sent": "0486",
+      "reply": "f00406000000030a00140032000101100002013200040103"
+    },
+    {
+      "sent": "0409",
+      "reply": "f004090200"
+    },
+    {
+      "sent": "0489",
+      "reply": "f004090200"
+    },
+    {
+      "sent": "040d",
+      "reply": "f0040d0200"
+    },
+    {
+      "sent": "048d",
+      "reply": "f0040d0200"
+    },
+    {
+      "sent": "040e",
+      "reply": "f0040e0000"
+    },
+    {
+      "sent": "048e",
+      "reply": "f0040e0000"
+    }
+  ],
+  "gatt_refused": [],
+  "links_used": 1,
+  "commands_completed": "36/36",
+  "control_point": {
+    "GET_MEASUREMENT_STATUS": {
+      "raw": "f005ff000002050601030e",
+      "active": {
+        "ecg": "none",
+        "ppg": "none",
+        "acc": "none",
+        "ppi": "none",
+        "gyro": "none",
+        "mag": "none"
+      }
+    },
+    "GET_SDK_MODE_STATUS": {
+      "raw": "f00609000000"
+    },
+    "GET_OFFLINE_RECORDING_TRIGGER_STATUS": {
+      "raw": "f007ff00000000020005000600010003000e"
+    },
+    "GET_DERIVED_MEASUREMENT_SETTINGS": {
+      "raw": "f00aff0100"
+    },
+    "GET_MEASUREMENT_SETTINGS": {
+      "ppg": {
+        "online": {
+          "raw": "f0010100000001370001011600040104",
+          "settings": {
+            "rate_hz": [
+              55
+            ],
+            "resolution_bits": [
+              22
+            ],
+            "channels": [
+              4
+            ]
+          }
+        },
+        "offline": {
+          "raw": "f0010100000001370001011600040104",
+          "settings": {
+            "rate_hz": [
+              55
+            ],
+            "resolution_bits": [
+              22
+            ],
+            "channels": [
+              4
+            ]
+          }
+        }
+      },
+      "acc": {
+        "online": {
+          "raw": "f001020000000134000101100002010800040103",
+          "settings": {
+            "rate_hz": [
+              52
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              8
+            ],
+            "channels": [
+              3
+            ]
+          }
+        },
+        "offline": {
+          "raw": "f00102000000030d001a0034000101100002010800040103",
+          "settings": {
+            "rate_hz": [
+              13,
+              26,
+              52
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              8
+            ],
+            "channels": [
+              3
+            ]
+          }
+        }
+      },
+      "ppi": {
+        "online": {
+          "raw": "f001030000",
+          "settings": {}
+        },
+        "offline": {
+          "raw": "f001030000",
+          "settings": {}
+        }
+      },
+      "gyro": {
+        "online": {
+          "raw": "f00105000000013400010110000201d007040103",
+          "settings": {
+            "rate_hz": [
+              52
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              2000
+            ],
+            "channels": [
+              3
+            ]
+          }
+        },
+        "offline": {
+          "raw": "f00105000000030d001a003400010110000201d007040103",
+          "settings": {
+            "rate_hz": [
+              13,
+              26,
+              52
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              2000
+            ],
+            "channels": [
+              3
+            ]
+          }
+        }
+      },
+      "mag": {
+        "online": {
+          "raw": "f00106000000040a001400320064000101100002013200040103",
+          "settings": {
+            "rate_hz": [
+              10,
+              20,
+              50,
+              100
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              50
+            ],
+            "channels": [
+              3
+            ]
+          }
+        },
+        "offline": {
+          "raw": "f00106000000030a00140032000101100002013200040103",
+          "settings": {
+            "rate_hz": [
+              10,
+              20,
+              50
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              50
+            ],
+            "channels": [
+              3
+            ]
+          }
+        }
+      },
+      "0x09": {
+        "online": {
+          "raw": "f001090200",
+          "settings": {}
+        },
+        "offline": {
+          "raw": "f001090200",
+          "settings": {}
+        }
+      },
+      "0x0d": {
+        "online": {
+          "raw": "f0010d0200",
+          "settings": {}
+        },
+        "offline": {
+          "raw": "f0010d0200",
+          "settings": {}
+        }
+      },
+      "0x0e": {
+        "online": {
+          "raw": "f0010e0000",
+          "settings": {}
+        },
+        "offline": {
+          "raw": "f0010e0000",
+          "settings": {}
+        }
+      }
+    },
+    "GET_SDK_MODE_MEASUREMENT_SETTINGS": {
+      "ppg": {
+        "online": {
+          "raw": "f00401000000051c002c0037008700b00001011600040104",
+          "settings": {
+            "rate_hz": [
+              28,
+              44,
+              55,
+              135,
+              176
+            ],
+            "resolution_bits": [
+              22
+            ],
+            "channels": [
+              4
+            ]
+          }
+        },
+        "offline": {
+          "raw": "f00401000000031c002c00370001011600040104",
+          "settings": {
+            "rate_hz": [
+              28,
+              44,
+              55
+            ],
+            "resolution_bits": [
+              22
+            ],
+            "channels": [
+              4
+            ]
+          }
+        }
+      },
+      "acc": {
+        "online": {
+          "raw": "f00402000000051a0034006800d000a0010101100002040200040008001000040103",
+          "settings": {
+            "rate_hz": [
+              26,
+              52,
+              104,
+              208,
+              416
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              2,
+              4,
+              8,
+              16
+            ],
+            "channels": [
+              3
+            ]
+          }
+        },
+        "offline": {
+          "raw": "f00402000000030d001a0034000101100002040200040008001000040103",
+          "settings": {
+            "rate_hz": [
+              13,
+              26,
+              52
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              2,
+              4,
+              8,
+              16
+            ],
+            "channels": [
+              3
+            ]
+          }
+        }
+      },
+      "ppi": {
+        "online": {
+          "raw": "f004030000",
+          "settings": {}
+        },
+        "offline": {
+          "raw": "f004030000",
+          "settings": {}
+        }
+      },
+      "gyro": {
+        "online": {
+          "raw": "f00405000000051a0034006800d000a001010110000204fa00f401e803d007040103",
+          "settings": {
+            "rate_hz": [
+              26,
+              52,
+              104,
+              208,
+              416
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              250,
+              500,
+              1000,
+              2000
+            ],
+            "channels": [
+              3
+            ]
+          }
+        },
+        "offline": {
+          "raw": "f00405000000030d001a003400010110000204fa00f401e803d007040103",
+          "settings": {
+            "rate_hz": [
+              13,
+              26,
+              52
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              250,
+              500,
+              1000,
+              2000
+            ],
+            "channels": [
+              3
+            ]
+          }
+        }
+      },
+      "mag": {
+        "online": {
+          "raw": "f00406000000040a001400320064000101100002013200040103",
+          "settings": {
+            "rate_hz": [
+              10,
+              20,
+              50,
+              100
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              50
+            ],
+            "channels": [
+              3
+            ]
+          }
+        },
+        "offline": {
+          "raw": "f00406000000030a00140032000101100002013200040103",
+          "settings": {
+            "rate_hz": [
+              10,
+              20,
+              50
+            ],
+            "resolution_bits": [
+              16
+            ],
+            "range": [
+              50
+            ],
+            "channels": [
+              3
+            ]
+          }
+        }
+      },
+      "0x09": {
+        "online": {
+          "raw": "f004090200",
+          "settings": {}
+        },
+        "offline": {
+          "raw": "f004090200",
+          "settings": {}
+        }
+      },
+      "0x0d": {
+        "online": {
+          "raw": "f0040d0200",
+          "settings": {}
+        },
+        "offline": {
+          "raw": "f0040d0200",
+          "settings": {}
+        }
+      },
+      "0x0e": {
+        "online": {
+          "raw": "f0040e0000",
+          "settings": {}
+        },
+        "offline": {
+          "raw": "f0040e0000",
+          "settings": {}
+        }
+      }
+    }
+  },
+  "identity": {
+    "manufacturer": "Polar Electro Oy",
+    "model": "INW4J",
+    "serial": "0C301E3F",
+    "hardware_rev": "00784292.02",
+    "firmware_rev": "0.1.5",
+    "software_rev": "3.0.16",
+    "battery_pct": 94
+  }
+}
