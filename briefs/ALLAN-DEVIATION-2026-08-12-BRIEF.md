@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-08-12
+**Status:** DONE — 2026-08-12 · **Created:** 2026-08-12
 
 # Stop hand-rolling clock statistics — the field has a standard tool and we keep re-deriving it badly
 
@@ -79,7 +79,8 @@ needs capturing: 2026-08-11 alone carries 159,607 rows across five streams.
 - [x] run on the real arrival sidecars — all four Polar streams white/flicker PHASE, slope −0.99 to
       −1.00, ADEV 0.023–0.094 ms; ring white FREQUENCY at 615 ms
 - [x] reported in `nightqc` as `stability`, gated by nothing
-- [ ] Clock Contract §7's "quote the span" rule cross-referenced to this
+- [x] Clock Contract §7's "quote the span" rule cross-referenced to this — CLAUDE.md §7 now names the
+      span rule as a special case of σ_y(τ), points at `allan.py`, and gives the slope table
 
 Related: [`PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md`](PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md) ·
 [`PAT-PACKET-ARRIVAL-2026-08-11-BRIEF.md`](PAT-PACKET-ARRIVAL-2026-08-11-BRIEF.md)
