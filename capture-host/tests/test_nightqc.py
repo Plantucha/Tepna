@@ -409,3 +409,172 @@ def test_merge_sessions_returns_genuinely_separate_sessions_oldest_first():
     for files in ([early, late], [late, early]):
         got = nightqc.merge_sessions(files)
         assert [s[0] for s in got] == [0.0, 6 * hour], f"not two sessions oldest-first: {got}"
+
+
+# ─── READY FOR ANY Hz — the rate is a fact to be read, not a config value to be trusted ──────────
+
+def test_measured_hz_reads_the_rate_off_the_device_stamps(tmp_path):
+    """The rate a file CARRIES, not the one that was requested.
+
+    `polar_pmd`'s SDK-MODE block documents the way these diverge: streams must be stopped before SDK
+    mode is entered or the device answers 0x0C, which sits in TRANSIENT_STATUS — so a caller that only
+    asks `is_transient` reads the refusal as "try again later" and records the whole night at 55 Hz
+    believing it asked for 176. Verified against real captures at 176.41, 55.11, 130.0 and 50.74 Hz.
+    """
+    import nightqc
+    for hz in (55.0, 176.0, 130.0):
+        p = os.path.join(tmp_path, f"X_{int(hz)}_PPG.txt")
+        step = int(1e9 / hz)
+        with open(p, "w") as fh:
+            fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+            for i in range(1000):
+                fh.write(f"2026-08-12T02:00:00.000;{500_000_000_000 + i * step};1\n")
+        got = nightqc.measured_hz(p)
+        assert abs(got - hz) < 0.01, f"{hz} Hz file measured as {got}"
+
+
+def test_measured_hz_refuses_rather_than_guessing(tmp_path):
+    """Every refusal path returns None. A rate this cannot establish must not be reported as a number —
+    the whole point is to be the one claim that cannot be wrong about itself."""
+    import nightqc
+    assert nightqc.measured_hz(os.path.join(tmp_path, "absent.txt")) is None
+    noscol = os.path.join(tmp_path, "no_col_PPG.txt")
+    with open(noscol, "w") as fh:
+        fh.write("Time,Oxygen Level\n12:00:00 01/01/2026,98\n" * 400)
+    assert nightqc.measured_hz(noscol) is None, "a non-PMD layout must not be judged"
+    short = os.path.join(tmp_path, "short_PPG.txt")
+    with open(short, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+        for i in range(20):
+            fh.write(f"2026-08-12T02:00:00.000;{500_000_000_000 + i * 18_000_000};1\n")
+    assert nightqc.measured_hz(short) is None, "too few rows to divide by"
+    stalled = os.path.join(tmp_path, "stall_PPG.txt")
+    with open(stalled, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+        for _ in range(400):
+            fh.write("2026-08-12T02:00:00.000;500000000000;1\n")
+    assert nightqc.measured_hz(stalled) is None, "a stalled counter cannot name a rate"
+
+
+def test_rate_reality_catches_the_rate_that_was_asked_for_but_not_delivered(tmp_path):
+    """THE FAILURE THIS EXISTS FOR: config asks 176 Hz, the device records 55.
+
+    Coverage does notice — delivered rows are 31% of expected, so the stream reports `degraded` — but
+    that names it a link fault, which is the wrong thing to chase. This names it a rate fault.
+    """
+    import nightqc
+    step = int(1e9 / 55.0)
+    p = os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt")
+    with open(p, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+        for i in range(1000):
+            fh.write(f"2026-08-12T02:00:00.000;{500_000_000_000 + i * step};1\n")
+    dev = {"name": "Polar Verity Sense", "device_id": "0C301E3F", "streams": ["ppg"], "rates": {"ppg": 176}}
+    row = nightqc.rate_reality(str(tmp_path), [dev])[0]
+    assert row["requested_hz"] == 176.0
+    assert abs(row["measured_hz"] - 55.0) < 0.1
+    assert row["ok"] is False, row
+
+    dev["rates"]["ppg"] = 55        # asked for what it got
+    assert nightqc.rate_reality(str(tmp_path), [dev])[0]["ok"] is True
+
+
+def test_host_jitter_is_rate_agnostic_by_construction():
+    """The DEVICE clock supplies the expected cadence, so the same host jitter reports the same at any Hz.
+
+    That is the property that matters when one night may run at 55 Hz and the next at 176: a rate change
+    moves the packet period and must not move this. Differencing consecutive `arrival - device` delays
+    cancels the device cadence and leaves only what the host added.
+    """
+    import random
+    import nightqc
+    for period_ms in (18.14, 5.68):        # 55 Hz and 176 Hz packet cadence
+        rng = random.Random(4)
+        delays = [400.0 + rng.gauss(0, 10) for _ in range(2000)]   # same host jitter either way
+        j = nightqc.host_jitter(delays)
+        # difference of two N(0,10) has sd 14.1, so IQR = 1.349 * 14.1 ~ 19 ms — independent of period
+        assert abs(j["iqr_ms"] - 19.0) < 2.0, (period_ms, j)
+        assert j["n"] == 1999
+
+
+def test_host_jitter_refuses_below_a_hundred_packets():
+    import nightqc
+    assert nightqc.host_jitter([]) is None
+    assert nightqc.host_jitter([1.0] * 50) is None
+    assert nightqc.host_jitter([1.0] * 200) is not None
+
+
+def test_host_jitter_surfaces_a_step_rather_than_averaging_it_away():
+    """A counter reset or a wedged stack is a STEP, and `worst_ms` is what shows it. On the real
+    2026-08-11 ring the reset appeared here as 24,189,016 ms — an obvious artefact rather than a
+    slightly wider IQR, which is the point of reporting the tail beside the spread."""
+    import nightqc
+    d = [400.0] * 500 + [400.0 + 24_189_016.0] * 500
+    j = nightqc.host_jitter(d)
+    assert j["worst_ms"] >= 24_189_016.0
+    assert j["iqr_ms"] < 1.0, "the step must not be smeared into the everyday spread"
+
+
+def test_measured_hz_stops_at_max_rows_and_skips_unparseable_lines(tmp_path):
+    """The row cap and both skip paths. The cap is why a 456 MB PPG file can be asked its rate at all;
+    the skips are why one truncated or non-numeric line does not sink the measurement."""
+    import nightqc
+    p = os.path.join(tmp_path, "big_PPG.txt")
+    step = int(1e9 / 176.0)
+    with open(p, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+        for i in range(6000):                     # > _RATE_SAMPLE_ROWS, so the cap must fire
+            if i == 10:
+                fh.write("truncated-line-with-no-semicolon\n")
+            elif i == 20:
+                fh.write(f"2026-08-12T02:00:00.000;not-a-number;{i}\n")
+            else:
+                fh.write(f"2026-08-12T02:00:00.000;{500_000_000_000 + i * step};{i}\n")
+    got = nightqc.measured_hz(p)
+    assert abs(got - 176.0) < 0.5, got
+    # the cap really did stop early: a tiny cap must still measure the same rate
+    assert abs(nightqc.measured_hz(p, max_rows=300) - 176.0) < 0.5
+
+
+def test_size_of_an_unreadable_path_is_zero():
+    """`rate_reality` picks the LARGEST candidate file; a path that vanishes between listing and sizing
+    must sort last rather than raise."""
+    import nightqc
+    assert nightqc._size("/nonexistent/never/here.txt") == 0
+
+
+def test_dev_matches_falls_back_from_id_to_alias_to_model():
+    """Three routes, because a device's id is corrected over time and older files keep the old one —
+    the same reason `writers.device_ids` exists."""
+    import nightqc
+    dev_id = {"device_id": "0C301E3F", "device_id_aliases": ["AC0C301E"], "name": "Polar Verity Sense"}
+    assert nightqc._dev_matches("Polar_VeritySense_0C301E3F_x_PPG.txt", dev_id) is True
+    assert nightqc._dev_matches("Polar_VeritySense_AC0C301E_x_PPG.txt", dev_id) is True, "alias route"
+    assert nightqc._dev_matches("Polar_VeritySense_DEADBEEF_x_PPG.txt", dev_id) is False, "a different unit"
+    dev_noid = {"name": "Polar Verity Sense"}
+    assert nightqc._dev_matches("Polar_VeritySense_ANY_x_PPG.txt", dev_noid) is True, "model route"
+    assert nightqc._dev_matches("Polar_H10_02849638_x_ECG.txt", dev_noid) is False
+
+
+def test_measured_hz_never_judges_the_o2ring_row_rate_as_a_sample_rate(tmp_path):
+    """THE O2RING TRAP, pinned. Its pleth file writes one row per sample PLUS one per inserted `156`
+    beat marker, so a row count yields ~125.7 for a 125.000 Hz ADC — a row rate wearing a sample
+    rate's units, and exactly the kind of confident-but-wrong number this function exists to avoid.
+
+    The layout guard is what saves it: no `sensor timestamp [ns]` column, no verdict. That guard is
+    load-bearing rather than incidental, so it gets a test of its own.
+    """
+    import nightqc
+    p = os.path.join(tmp_path, "Wellue_O2Ring-S_S8AW2100_20260812020000_PPG.txt")
+    with open(p, "w") as fh:
+        fh.write("Time,ch0,ch1,ch2,ambient\n")
+        for i in range(2000):
+            fh.write(f"{i},1,2,3,4\n")
+    assert nightqc.measured_hz(p) is None, "a non-PMD layout must yield no rate at all"
+
+
+def test_rate_reality_survives_an_unreadable_night_directory():
+    """A night folder that vanished or was never created must yield no rows, not raise — `summarize`
+    calls this before the coverage loop, so an exception here would take the whole QC summary with it."""
+    import nightqc
+    assert nightqc.rate_reality("/nonexistent/night", [{"name": "x", "streams": ["ppg"]}]) == []

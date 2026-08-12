@@ -124,6 +124,146 @@ def _expected_hz(dev: dict, stream: str):
     return _NOMINAL_HZ.get(_model_of(dev), {}).get(stream)
 
 
+# How many rows to read when measuring a rate off a stream file. The device stamp is monotonic and the
+# rate is constant within a session, so a few thousand rows settle it — and a 456 MB PPG file must never
+# be read whole just to name its rate.
+_RATE_SAMPLE_ROWS = 4000
+_RATE_MIN_ROWS = 200        # below this the span is too short to divide by
+_RATE_MISMATCH_TOL = 0.10   # 10 % — wider than crystal error, far narrower than a rate SWAP
+
+
+def measured_hz(path: str, max_rows: int = _RATE_SAMPLE_ROWS):
+    """The rate a stream file ACTUALLY carries, read off its device timestamps. None when unsayable.
+
+    ⚠️ THE CONFIGURED RATE IS A REQUEST, NOT A FACT, and the gap between them is a documented way to
+    lose a night. `polar_pmd`'s SDK-MODE block records it: every stream must be STOPPED before SDK mode
+    is entered, or the device answers `ERROR_INVALID_STATE` (0x0C) — and 0x0C sits in
+    `TRANSIENT_STATUS`, so a caller that only asks `is_transient` reads the refusal as "try again
+    later" and records the whole night at 55 Hz believing it asked for 176.
+
+    `capture.py` already logs `{"want": ..., "got": ...}` for the NEGOTIATED rate, which is a different
+    claim: negotiation is what the device said it would do. This is what the bytes on disk actually are,
+    and it is the only one of the three that cannot be wrong about itself.
+
+    Uses the `sensor timestamp [ns]` column — the DEVICE clock — deliberately, not the host stamp: the
+    host column is back-timed across each packet from one arrival, so it measures the packet cadence
+    rather than the sample rate.
+
+    ⚠️ THE ANSWER IS NOT THE NOMINAL RATE, AND THE FRACTION IS REAL. Measured on the 2026-08-11/12 box
+    captures, with the mechanism identified for each:
+
+      H10 ecg     129.995 Hz   ~-38 ppm from 130 (ecgdex-dsp records 129.9866-129.9966)
+      H10 acc      50.788 Hz   delta is EXACTLY 645 ticks of a 32768 Hz clock: 32768/645 = 50.7876.
+                               Never 50 Hz, and not a drifting 50 — a divided watch crystal.
+      Verity ppg   55.114 Hz   |  one timebase: 176.429/55.114 = 3.2013 against a nominal 3.2, so both
+      Verity ppg  176.429 Hz   |  sit ~+2000 ppm above nominal. Consistent, not noise.
+
+    These match the negotiated rates `polar_pmd` already records ("ECG 129.94 vs 130, H10 ACC 50.72 vs
+    50, Verity PPG 55.11 vs 55"), and row-inflation was ruled out directly: file rows equal the summed
+    `n_samples` the device reported, ratio 1.000000 on all three Polar streams.
+
+    ⚠️ THAT LAST CHECK IS WHY THIS IS PMD-ONLY. The O2Ring's pleth file writes one row per sample PLUS
+    one per inserted `156` beat marker, so counting its rows yields ~125.7 for a 125.000 Hz ADC — a row
+    rate wearing a sample rate's units. This function would report that inflated figure as a rate. It is
+    saved only by the layout guard above (the ring's file carries no `sensor timestamp` column, so it
+    returns None), which is luck rather than design: do NOT relax that guard.
+    """
+    ns: list[int] = []
+    try:
+        with open(path) as fh:
+            head = fh.readline()
+            if "sensor timestamp" not in head:
+                return None                      # not a PMD stream layout — say nothing rather than guess
+            for i, line in enumerate(fh):
+                if i >= max_rows:
+                    break
+                parts = line.split(";")
+                if len(parts) < 2:
+                    continue
+                try:
+                    ns.append(int(parts[1]))
+                except ValueError:
+                    continue
+    except OSError:
+        return None
+    if len(ns) < _RATE_MIN_ROWS:
+        return None
+    # MEDIAN INTER-SAMPLE DELTA, not (n-1)/span across the endpoints. A single dropout inside the
+    # window inflates the span and makes an endpoint estimate UNDER-report the rate — the worst
+    # direction, because a 176 Hz stream with one gap would then read as ~55 and be filed as a failed
+    # rate swap. The median ignores any minority of gaps entirely.
+    deltas = sorted(ns[i] - ns[i - 1] for i in range(1, len(ns)))
+    step_ns = deltas[len(deltas) // 2]
+    if step_ns <= 0:
+        return None                              # a stalled or drawn counter cannot name a rate
+    return 1e9 / step_ns
+
+
+def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
+    """Per stream: the rate ASKED FOR against the rate the file actually carries.
+
+    Exists because "ready for any Hz" is a property nothing else in this reporter checks. Coverage does
+    notice a rate swap, but only as a side effect and with the wrong name: at a configured 176 Hz that
+    silently recorded 55, delivered rows are 31 % of expected, so the stream reports `degraded` — which
+    reads as "the radio dropped packets" when the truth is "the rate you asked for was refused". One is
+    a link fault you might chase for hours; the other is a one-line config answer.
+
+    `ok` is True only when the two agree within 10 %, which is far wider than any crystal error (tens of
+    ppm) and far narrower than any step on a device menu (28/44/55/135/176). None where the rate cannot
+    be measured — an unknown is not a pass, and a stream with no `sensor timestamp` column is not judged
+    at all rather than being judged wrong.
+    """
+    out = []
+    try:
+        names = sorted(os.listdir(night_dir))
+    except OSError:
+        return out
+    for dev in devices or []:
+        for stream in sorted((dev.get("streams") or [])):
+            want = _expected_hz(dev, stream)
+            suffix = "_" + stream.upper() + ".txt"
+            cand = [n for n in names if n.endswith(suffix) and _dev_matches(n, dev)]
+            if not cand:
+                continue
+            # the LARGEST file of the session — the shortest ones are re-connect fragments whose few
+            # hundred rows cannot settle a rate, and would report a spurious mismatch
+            path = max((os.path.join(night_dir, n) for n in cand), key=lambda p: _size(p))
+            got = measured_hz(path)
+            ok = None
+            if got is not None and want:
+                ok = bool(abs(got - want) <= _RATE_MISMATCH_TOL * want)
+            out.append({
+                "device": dev.get("name") or dev.get("model") or "?",
+                "stream": stream,
+                "requested_hz": want,
+                "measured_hz": None if got is None else round(got, 2),
+                "ok": ok,
+            })
+    return out
+
+
+def _size(p: str) -> int:
+    try:
+        return os.path.getsize(p)
+    except OSError:
+        return 0
+
+
+def _dev_matches(name: str, dev: dict) -> bool:
+    """Does this filename belong to this configured device? Matches on the device id when one is set,
+    since two Polar devices in one night differ only by that field."""
+    did = str(dev.get("device_id") or "")
+    if did and did in name:
+        return True
+    if did:
+        for alias in dev.get("device_id_aliases") or []:
+            if str(alias) and str(alias) in name:
+                return True
+        return False
+    model = _model_of(dev).lower()
+    return model in name.lower() or (model == "verity" and "veritysense" in name.lower())
+
+
 def parse_capture_name(fname: str) -> tuple[str, str] | None:
     """(STREAM_TAG, ext) from a capture filename, or None if it is not one. The stream is the last
     `_`-delimited token before the extension (device_id/model may not contain `_`, which holds for every
@@ -286,6 +426,41 @@ def newest_data_mtime(night_dir: str) -> float | None:
 
 
 
+def host_jitter(delays: list[float], min_n: int = 100) -> dict | None:
+    """HOST-SIDE delivery jitter per packet, in ms. None when there are too few packets to say.
+
+    THE DEVICE CLOCK SUPPLIES THE EXPECTED CADENCE, so this needs no sample rate and is correct at any
+    Hz by construction. Each sidecar row carries both clocks, and `delays` is already
+    `arrival - device`; differencing consecutive rows cancels the device's own cadence and leaves
+
+        (arrival_i - arrival_i-1) - (device_i - device_i-1)
+
+    which is what the HOST added between two packets the device emitted on schedule — scheduling
+    latency, BLE stack delay, radio retries. A rate change moves the packet period and does not touch
+    this, which is the property that matters when the same night may run at 55 or 176 Hz.
+
+    ⚠️ It is deliberately NOT folded into any pass/fail. Jitter is one-sided-ish and bursty, and the
+    first arrival check shipped with a threshold (`floor_ok < 5 ms`) that fired on every stream of the
+    first real night because the premise was unreachable. This reports the distribution and lets a
+    reader judge; a bar can be added once there is more than one night of it.
+
+    `iqr` is the everyday spread; `p99` and `worst` are where a wedged stack or a competing radio shows
+    up, and those are the ones that move a PAT measurement rather than merely widening it.
+    """
+    if not delays or len(delays) < min_n:
+        return None
+    d = [delays[i] - delays[i - 1] for i in range(1, len(delays))]
+    s = sorted(d)
+    n = len(s)
+    q = lambda p: s[min(n - 1, int(p * n))]  # noqa: E731 - a local quantile, not worth a helper
+    return {
+        "n": n,
+        "iqr_ms": round(q(0.75) - q(0.25), 2),
+        "p99_ms": round(q(0.99), 2),
+        "worst_ms": round(max(abs(s[0]), abs(s[-1])), 2),
+    }
+
+
 def arrival_quality(night_dir: str) -> list[dict]:
     """Per-device floor quality from the `*_PMDARRIVAL.csv` sidecars.
 
@@ -374,6 +549,7 @@ def arrival_quality(night_dir: str) -> list[dict]:
                 "file": name, "device": device, "meas": meas, "rows": len(diffs),
                 "quantised": quantised,
                 "offset": offset,
+                "jitter": host_jitter(diffs),
                 "floor_spread_ms": None if spread is None else round(spread, 1),
                 # The verdict a reader should branch on. None where it cannot be judged — an unknown is
                 # not a pass, and the earlier attempt's whole failure was reporting a number that had
@@ -487,6 +663,11 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     missing = []
     degraded = []
     optional_absent = []
+    # Read every stream's ACTUAL rate once, up front: the coverage loop below divides by it, and the
+    # same rows are reported as `rates` so a mismatch against the config is visible on its own terms.
+    _rate_rows = rate_reality(night_dir, devices)
+    _measured_hz_of = {(r["device"], r["stream"]): r["measured_hz"]
+                       for r in _rate_rows if r.get("measured_hz")}
     for d in devices:
         did = d.get("device_id")
         # Every id this device's files may carry — the current one plus any corrected-away
@@ -511,7 +692,18 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
                 # `optional_absent` so the box still records that it exists.
                 (optional_absent if opt else missing).append(f"{name}:{s}")
                 continue
-            hz = _expected_hz(d, s)
+            # THE MEASURED RATE WINS. Coverage asks "did we receive the packets the device was
+            # SENDING"; whether it was sending at the rate we asked is a different question, answered
+            # separately by `rates` below. Dividing by a configured value conflates the two and names
+            # the wrong fault: a Verity that recorded 55 Hz under a 176 Hz config delivers 31 % of the
+            # configured expectation and reports `degraded`, which reads as dropped packets and sends
+            # you after the radio. Against the rate it actually ran at, delivery is ~100 % and the
+            # rate mismatch is reported as a rate mismatch.
+            #
+            # NOT tautological: `measured_hz` reads a contiguous head of the file (median inter-sample
+            # delta over ~4000 rows), while coverage counts EVERY row against the whole session span —
+            # so a stream that dies at hour one still reports low coverage at its own correct rate.
+            hz = _measured_hz_of.get((name, s)) or _expected_hz(d, s)
             if hz and span:
                 cov = round(rows / (hz * span), 2)
                 coverage[s] = cov
@@ -568,4 +760,7 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # the night's physiology, and conflating the two would make a perfectly good recording read as a
         # capture failure.
         "arrival": arrival_quality(night_dir),
+        # What rate the files ACTUALLY carry, against what was asked for. Coverage notices a rate swap
+        # only as `degraded`, which names it a link fault; this names it a rate fault.
+        "rates": _rate_rows,
     }
