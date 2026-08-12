@@ -208,13 +208,21 @@ def test_arrival_quality_survives_a_missing_directory():
     assert nightqc.arrival_quality("/nonexistent/night/dir") == []
 
 
-# ─── the canary: it must fire on both failures, and stay silent on the ring ──────────────────────
+# ─── the canary: it must fire on the DEAD sidecar, and on nothing that fires nightly ─────────────
 
-def test_canary_fires_on_a_smeared_floor():
+def test_canary_no_longer_fires_on_a_smeared_floor():
+    """RETIRED ARM — it fired on EVERY stream of the first real night (2026-08-11).
+
+    `floor_ok` wanted the minimum within 5 ms of the 1st percentile. Measured, true arrivals smear
+    29.3 / 42.0 ms (H10 acc / ecg) and 155.1 / 590.6 ms (Verity ppg / acc), because BLE callback
+    scheduling jitter is tens of milliseconds — the premise was unreachable, not the captures faulty.
+    And it did not matter: the H10 certified at `agree = 4.5 ms` DESPITE a 42 ms smear, since the
+    lower envelope needs no sharp edge. An alert that fires nightly is one nobody reads, which is what
+    the canary's own docstring said before it shipped one. `floor_spread_ms` survives as a diagnostic.
+    """
     import alerts
     qc = {"arrival": [{"device": "Polar H10", "meas": "ECG", "floor_ok": False, "floor_spread_ms": 74.2}]}
-    got = alerts.arrival_canary(qc, {})
-    assert len(got) == 1 and "smeared" in got[0] and "74.2" in got[0], got
+    assert alerts.arrival_canary(qc, {}) == []
 
 
 def test_canary_fires_on_a_dead_sidecar():
@@ -369,11 +377,49 @@ def test_arrival_quality_recovers_the_planted_offset(tmp_path):
     import nightqc
     _write_long_sidecar(os.path.join(tmp_path, "Tepna_o_PMDARRIVAL.csv"))
     off = nightqc.arrival_quality(str(tmp_path))[0]["offset"]
-    expected = _T0.timestamp() * 1000.0 - _BASE_NS / 1e6 + 400.0
+    # The pairing is against the LAST sample in the packet, so the planted offset is measured from
+    # there — `_write_long_sidecar` spans each packet 1 ms, and that 1 ms is not part of the link.
+    expected = _T0.timestamp() * 1000.0 - (_BASE_NS + 1_000_000) / 1e6 + 400.0
     assert off["ok"] is True and off["certified"] is True, off
     assert abs(off["offset_ms"] - expected) < 0.05, f"offset {off['offset_ms']} != planted {expected}"
     # nothing was planted to drift, so a rate here is an artefact of the axis and not a clock
     assert abs(off["slope_ppm"]) < 0.5, off
+
+
+def test_two_streams_of_one_device_agree_despite_different_packet_spans(tmp_path):
+    """THE PACKET-FILL TERM — the bug this pairing was changed to fix, pinned.
+
+    A BLE packet carries many samples and is delivered once, so its arrival stamp follows its LAST
+    sample. Pairing against the FIRST therefore adds the packet's fill duration to every delay, and
+    that duration belongs to the STREAM — its rate and frame size — not to the link. Two streams of one
+    device then disagree by exactly the difference in their fill times, while sharing one radio and one
+    clock and therefore one true offset.
+
+    Measured on the first real night: the H10's fill times were 689.9 ms (acc) and 553.8 ms (ecg), a
+    136.1 ms difference, and the first-based offsets differed by 135.1 ms — the anomaly WAS the fill
+    term, to within a millisecond. Switching to the last sample collapsed that spread to 0.7 ms and
+    took the Verity from certifying on neither stream to certifying on both.
+
+    Here the two spans differ 20-fold on identical link timing, so a first-based pairing is wrong by
+    ~1.9 s and no tolerance hides it.
+    """
+    import nightqc
+    p = os.path.join(tmp_path, "Tepna_pair_PMDARRIVAL.csv")
+    w = PmdArrivalLogWriter(p, fsync=False)
+    for meas, span_ms in (("ECG", 100), ("ACC", 2000)):
+        for i, extra in enumerate(_ONE_SIDED):
+            dev_ns = _BASE_NS + i * _CADENCE_MS * 1_000_000
+            # the packet ENDS at dev_ns + span; the link delay after that instant is identical for both
+            arr = _T0 + _dt.timedelta(milliseconds=i * _CADENCE_MS + span_ms + 400.0 + extra)
+            w.write(arr, "dev", meas, dev_ns, dev_ns + span_ms * 1_000_000, 5)
+    w.close()
+
+    rows = {r["meas"]: r["offset"] for r in nightqc.arrival_quality(str(tmp_path))}
+    assert set(rows) == {"ECG", "ACC"}, rows
+    for meas, off in rows.items():
+        assert off["ok"] is True and off["certified"] is True, (meas, off)
+    gap = abs(rows["ECG"]["offset_ms"] - rows["ACC"]["offset_ms"])
+    assert gap < 1.0, f"two streams of one device disagree by {gap:.1f} ms — the fill term leaked in"
 
 
 def test_arrival_quality_fits_on_seconds_since_this_streams_first_packet(tmp_path):

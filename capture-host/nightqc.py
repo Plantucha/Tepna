@@ -308,6 +308,28 @@ def arrival_quality(night_dir: str) -> list[dict]:
     `floor_ms` has no time model: it returns one number for a quantity that moved across the recording.
     Measured on a real 8 h H10 capture it sat 242 ms from the fitted value, against PAT's 10 ms budget.
     Prefer `offset`; read `floor_ok` as "did this stream have an edge at all".
+
+    ## THE PACKET-FILL TERM, and why the pairing uses `last_sensor_ns` (first real night, 2026-08-11)
+
+    A BLE packet carries many samples and is delivered once, so its arrival stamp follows its LAST
+    sample. Pairing against the first therefore adds the packet's fill duration to every delay — and
+    that duration belongs to the STREAM, not the link, so two streams of one device disagree by
+    exactly the difference in their fill times:
+
+    |            | mean fill | offset via `first` | offset via `last` |
+    |------------|-----------|--------------------|-------------------|
+    | H10 acc    |  689.9 ms | 460.2              | **-229.4**        |
+    | H10 ecg    |  553.8 ms | 325.1              | **-228.7**        |
+    | Verity acc | 2155.0 ms | 1887.8 (uncertified)| **691.9**        |
+    | Verity ppg |  657.9 ms | 1152.4 (uncertified)| **696.3**        |
+
+    The H10's fill difference is 136.1 ms and its first-based spread was 135.1 ms — the anomaly is the
+    fill term, to within a millisecond. Switching to `last` collapses the same-device spread from
+    135.1 to **0.7 ms** (H10) and 735.4 to **4.4 ms** (Verity), and takes Verity from certifying on
+    NEITHER stream to certifying on BOTH. The two devices are then on one host clock and differ by
+    ~923 ms — the per-connection inter-device offset `PAT-PACKET-ARRIVAL` §1 called unmeasurable.
+
+    The ring is unaffected: its writer passes the same `_dur_ns` as both first and last.
     """
     import csv as _csv
     out = []
@@ -321,7 +343,14 @@ def arrival_quality(night_dir: str) -> list[dict]:
         try:
             with open(path, newline="") as fh:
                 for row in _csv.DictReader(fh, delimiter=";"):
-                    ns = row.get("first_sensor_ns") or ""
+                    # PAIR AGAINST THE **LAST** SAMPLE IN THE PACKET, not the first. The arrival is
+                    # stamped when the packet LANDS, which is after every sample in it — so
+                    # `arrival - first_sensor_ns` carries the whole packet-FILL duration as spurious
+                    # delay, and that duration is a property of the STREAM (its rate and frame size),
+                    # not of the link. Measured on the first real night: see the module note below.
+                    # `first_sensor_ns` is the fallback only because a row must not be dropped for
+                    # lacking a column the ring path happens to write identically to both.
+                    ns = row.get("last_sensor_ns") or row.get("first_sensor_ns") or ""
                     ts = row.get("Phone timestamp") or ""
                     if not ns or not ts:
                         continue                      # blank is "absent", never a fabricated 0

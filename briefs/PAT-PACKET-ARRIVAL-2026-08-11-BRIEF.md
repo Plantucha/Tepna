@@ -91,7 +91,8 @@ The first version covered only the Polar path, which made it **half a fix**: the
 the anatomical check that fails on 7 of 10 nights — had no arrival↔device pairing at all.
 
 - **The ring.** It exposes no device clock on any streaming opcode, but `live["duration"]` (seconds
-  into its session) measures **1–55 ppm** against the host once segmented on its resets. Now paired
+  into its session) measures ~~**1–55 ppm**~~ **⚠️ MEASURED 3851 ppm ON THE FIRST REAL NIGHT
+  (2026-08-12) — see below** against the host once segmented on its resets. Now paired
   with true frame arrival. ⚠️ **1 s quantised, so the ring's offset must be FITTED, not min-filtered** —
   ~~a minimum over a quantised counter returns the quantum~~. **THAT REASON IS RETRACTED (2026-08-11).**
   The quantum does not contaminate a minimum: worst error 31.5 ms over 270 zero-skew configurations,
@@ -125,6 +126,43 @@ ECG-vs-ACC within-device control, since both come from one H10 and share its clo
 > `_ECG`/`_ACC` pairs in the box corpus the two streams of one H10 agree to **0.17 ppm worst / 0.10
 > mean** under the lower-envelope estimator, against 5.78 / 2.20 under `hostAxis`. The first still
 > awaits a night with the sidecar written.
+
+### 6.2 · ⚠️ THE FIRST REAL NIGHT REFUTED TWO OF §6's NUMBERS (2026-08-12)
+
+The sidecar ran for the first time on 2026-08-11 → 12: **159,607 rows, 13.3 MB, 10 files**, arrivals
+strictly monotonic within every stream, no row with `last_sensor_ns < first_sensor_ns`, `n_samples`
+constant per stream and never zero. Five empty sidecars are CORRECT — those sessions carried only
+`_HR.txt`/`_RR.txt`, which come from the BLE Heart Rate Service and never enter the PMD path. The
+writer is sound. Two of the claims built on top of it were not.
+
+**(a) The ring's counter is not a clock.** Over the pre-reset segment it advanced **24,188 s while the
+host advanced 24,281 s** — losing 93.5 s in 6.7 h, i.e. **3851 ppm**, against the 1–55 ppm asserted
+above. Segmenting on the reset does not rescue it: the largest segment still leaves the two estimators
+**22.3 s** apart, so `clock_offset` refuses to certify. The loss is DISTRIBUTED, not a pause: the 8
+largest single-step lags total 8.8 s of 93.5 s (9.4 %), while 24,083 of 24,178 steps are under 1 s and
+account for 73.2 s. That is consistent with the known quantised, synthesized `duration` counter, and it
+means **the finger leg has no second clock of PAT quality.** Where 1–55 ppm came from is unresolved.
+
+**(b) The 5 ms floor premise was unreachable, and the SMEARED canary fired on every stream.** True
+arrivals smear **29.3 / 42.0 ms** (H10 acc / ecg) and **155.1 / 590.6 ms** (Verity ppg / acc) between
+minimum and 1st percentile — the same order as the 27–115 ms of the back-timed stamps this sidecar
+replaced, because BLE callback scheduling jitter is tens of milliseconds. §6's own last line warned
+that "an alert that fires every night is one nobody reads", and this shipped one. **The SMEARED arm is
+retired**; DEAD stays, and stayed correctly silent across all 159,607 rows. It does not matter for the
+job: the H10 certified at `agree = 4.5 ms` DESPITE a 42 ms smear, since the lower envelope needs no
+sharp edge.
+
+**(c) And the pairing itself was wrong — this one is fixed and is the night's real result.** The
+arrival is stamped when the packet LANDS, after its last sample, so pairing against `first_sensor_ns`
+adds the packet-FILL duration to every delay, and that duration is a property of the STREAM rather than
+the link. The H10's fill times differ by 136.1 ms between acc and ecg and its first-based offsets
+differed by 135.1 ms — the anomaly WAS the fill term. Pairing against `last_sensor_ns` collapses the
+same-device spread from **135.1 → 0.7 ms** (H10) and **735.4 → 4.4 ms** (Verity), and takes the Verity
+from certifying on NEITHER stream to **BOTH**. The two devices are then on one host clock and differ by
+**~923 ms** — the per-connection inter-device offset §1 called unmeasurable.
+
+⚠️ One night, one connection per device. (c) is a mechanism confirmed to a millisecond; (a) and (b) are
+single-night measurements that should be re-checked before anything is built on them.
 
 ### 6.1 · CI caught what three local runs could not
 
