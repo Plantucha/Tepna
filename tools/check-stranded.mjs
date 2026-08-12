@@ -190,10 +190,21 @@ if (IS_MAIN && !has('--selftest')) {
   const stranded = rows.filter((r) => r.verdict === 'stranded');
   const diverged = rows.filter((r) => r.verdict === 'diverged');
 
+  /* THE DIAGNOSTIC, printed beside the verdict and never as it. A positive value means the branch was
+     pushed after its PR merged, which is the MECHANISM of the failure — but it is not the failure,
+     and the two disagree in both directions: a post-merge push that changed nothing is harmless, and
+     a pre-merge push can still be excluded if the PR merged an older SHA. Reported so the content
+     verdict has a plausible cause attached; the content verdict stands on its own. */
+  const delta = pushedAfterMergeSec(git(['log', '-1', '--format=%ct', branch], null), mergedAt);
+
   if (has('--json')) {
-    console.log(JSON.stringify({ branch, base, paths: paths.length, stranded, diverged }, null, 2));
+    console.log(JSON.stringify({ branch, base, mergedAt, pushedAfterMergeSec: delta, paths: paths.length, stranded, diverged }, null, 2));
   } else {
     console.log(`\n▸ ${branch} vs origin/main · ${paths.length} path(s) touched since ${base.slice(0, 9)}`);
+    if (delta != null) {
+      const mins = Math.round(delta / 60);
+      console.log(`  head was pushed ${mins >= 0 ? mins + ' min AFTER' : -mins + ' min before'} the merge at ${mergedAt}` + (delta > 0 ? '  ← the mechanism' : ''));
+    }
     if (stranded.length) {
       console.log(`\n  ✗ ${stranded.length} STRANDED — origin/main still holds the merge-base version:`);
       for (const r of stranded) console.log('      ' + r.path);
