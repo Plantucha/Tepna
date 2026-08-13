@@ -554,7 +554,11 @@
   /* computeDerived(rowsArg?) — derives every d_* column IN PLACE on `rowsArg`, defaulting to the module's
    allRows (so every existing caller is byte-unchanged). The optional argument makes the derivation a PURE,
    headless surface the test runners can drive on a synthetic row without touching app state — exposed as
-   HRVDex.derive() below, which is how the §3/§4 presence-gate regression legs reach these columns. */
+   HRVDex.derive() below, which is how the §3/§4 presence-gate regression legs reach these columns.
+   ⚠ "EVERY column" and "PURE" are load-bearing and were once false: the day-to-day and rolling-window
+   passes iterated `allRows` outright, so ten columns were left UNDEFINED on caller-supplied rows and the
+   windows were computed over app state. All three passes now read `_rows`. If you add a pass, use
+   `_rows` — a pass that reaches for `allRows` re-opens exactly that hole. */
   function computeDerived(rowsArg) {
     // Cache profile ONCE before the loop — avoids 4× DOM reads per row.
     // getProfile() lives in hrvdex-profile.js (a UI module). Guard it so the derivation runs HEADLESS:
@@ -811,7 +815,17 @@
     //   gap=0  → same-day intraday sessions (not day-to-day reactivity)
     //   gap>1  → multi-day gap (missing measurements)
     //   gap=1  → genuine consecutive day comparison ✓
-    allRows.forEach((r, i, arr) => {
+    /* `_rows`, NOT `allRows` — this pass and the rolling-window pass below ignored the argument, so
+       the header's promise above ("derives EVERY d_* column IN PLACE on rowsArg", "a PURE headless
+       surface") held only for the first pass. `HRVDex.derive(rows)` returned d_rmssd_delta_pct,
+       d_ari, d_rmssd_rolling_ln, d_stress_auc, d_rmssd_cv7, d_sdnn_z, d_stress_ac, d_pnn50_slope,
+       d_hrv_momentum and d_recovery_debt as UNDEFINED — a third state beside the NaN this file uses
+       everywhere else for "absent", and one that renders blank rather than absent. Worse, with a
+       populated `allRows` it derived the windows over APP STATE and wrote them onto rows the caller
+       never passed.
+       The no-argument call is unchanged BY CONSTRUCTION: `_rows` IS `allRows` there. Found
+       2026-08-13 by a 14-day-window gate whose columns came back undefined. */
+    _rows.forEach((r, i, arr) => {
       if (i === 0) {
         r.d_rmssd_delta_pct = NaN;
         return;
@@ -821,8 +835,8 @@
       r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd) ? ((r._rmssd - prev._rmssd) / prev._rmssd) * 100 : NaN;
     });
 
-    // Rolling windows
-    allRows.forEach((r, i, arr) => {
+    // Rolling windows  (`_rows`, not `allRows` — see the note on the pass above)
+    _rows.forEach((r, i, arr) => {
       // v2.9: collect exactly 7 distinct calendar days backwards from row i
       const window7 = [];
       {

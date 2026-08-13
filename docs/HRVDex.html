@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-SrFwk9bRUfiRDBY2OhWTdA1NPKRAPPgqf8ik64Wh5ZA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-otez0gtgOzP+MHJg+clI/i3fptlBfHRiXK8CAY45L/M=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-yupVpoake1NR7J1C1pIRd/qeZNKKykW32cppdrej2fs='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7oHiD+bMFu7PAJ8DITaVlISLmk0rNQd3hvceyXJVJOE=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-SrFwk9bRUfiRDBY2OhWTdA1NPKRAPPgqf8ik64Wh5ZA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-otez0gtgOzP+MHJg+clI/i3fptlBfHRiXK8CAY45L/M=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HRVDex — Heart Rate Variability Analyzer · v1.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
@@ -8900,7 +8900,11 @@ body.light .topbar::after{ opacity:.25; }
   /* computeDerived(rowsArg?) — derives every d_* column IN PLACE on `rowsArg`, defaulting to the module's
    allRows (so every existing caller is byte-unchanged). The optional argument makes the derivation a PURE,
    headless surface the test runners can drive on a synthetic row without touching app state — exposed as
-   HRVDex.derive() below, which is how the §3/§4 presence-gate regression legs reach these columns. */
+   HRVDex.derive() below, which is how the §3/§4 presence-gate regression legs reach these columns.
+   ⚠ "EVERY column" and "PURE" are load-bearing and were once false: the day-to-day and rolling-window
+   passes iterated `allRows` outright, so ten columns were left UNDEFINED on caller-supplied rows and the
+   windows were computed over app state. All three passes now read `_rows`. If you add a pass, use
+   `_rows` — a pass that reaches for `allRows` re-opens exactly that hole. */
   function computeDerived(rowsArg) {
     // Cache profile ONCE before the loop — avoids 4× DOM reads per row.
     // getProfile() lives in hrvdex-profile.js (a UI module). Guard it so the derivation runs HEADLESS:
@@ -9157,7 +9161,17 @@ body.light .topbar::after{ opacity:.25; }
     //   gap=0  → same-day intraday sessions (not day-to-day reactivity)
     //   gap>1  → multi-day gap (missing measurements)
     //   gap=1  → genuine consecutive day comparison ✓
-    allRows.forEach((r, i, arr) => {
+    /* `_rows`, NOT `allRows` — this pass and the rolling-window pass below ignored the argument, so
+       the header's promise above ("derives EVERY d_* column IN PLACE on rowsArg", "a PURE headless
+       surface") held only for the first pass. `HRVDex.derive(rows)` returned d_rmssd_delta_pct,
+       d_ari, d_rmssd_rolling_ln, d_stress_auc, d_rmssd_cv7, d_sdnn_z, d_stress_ac, d_pnn50_slope,
+       d_hrv_momentum and d_recovery_debt as UNDEFINED — a third state beside the NaN this file uses
+       everywhere else for "absent", and one that renders blank rather than absent. Worse, with a
+       populated `allRows` it derived the windows over APP STATE and wrote them onto rows the caller
+       never passed.
+       The no-argument call is unchanged BY CONSTRUCTION: `_rows` IS `allRows` there. Found
+       2026-08-13 by a 14-day-window gate whose columns came back undefined. */
+    _rows.forEach((r, i, arr) => {
       if (i === 0) {
         r.d_rmssd_delta_pct = NaN;
         return;
@@ -9167,8 +9181,8 @@ body.light .topbar::after{ opacity:.25; }
       r.d_rmssd_delta_pct = dayGap === 1 && prev._rmssd > 0 && !isNaN(r._rmssd) ? ((r._rmssd - prev._rmssd) / prev._rmssd) * 100 : NaN;
     });
 
-    // Rolling windows
-    allRows.forEach((r, i, arr) => {
+    // Rolling windows  (`_rows`, not `allRows` — see the note on the pass above)
+    _rows.forEach((r, i, arr) => {
       // v2.9: collect exactly 7 distinct calendar days backwards from row i
       const window7 = [];
       {
