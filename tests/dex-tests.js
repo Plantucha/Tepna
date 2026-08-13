@@ -189,10 +189,20 @@
            leaving every other comparison byte-identical — measured: hardening this reds ZERO of the
            suite's 7000+ assertions, so nothing was relying on the conflation. */
         eq: function (name, got, want, detail) {
-          var _tag = function (v) {
-            return typeof v === 'number' && !isFinite(v) ? (Number.isNaN(v) ? '@NaN' : v > 0 ? '@+Inf' : '@-Inf') : JSON.stringify(v);
+          /* A REPLACER, not a top-level check — the collapse happens at EVERY DEPTH.
+             `JSON.stringify({offsetMin: NaN})` is `{"offsetMin":null}`, identical to a genuine
+             `{offsetMin: null}`, and `[NaN, 1]` is `[null, 1]`. Those are precisely the refusal
+             shapes this suite returns: `parseTimestamp` answers `{tMs, offsetMin}` with a null
+             `offsetMin` when the stamp carried no zone, and `hostAxis` refuses with
+             `{ok:false, reason, n}`. A first version of this fix tagged only the top-level value and
+             left all of those blind — caught in review, and the reason the count below is measured
+             over field- and array-level cases too rather than over the 263 top-level ones alone. */
+          var _ser = function (v) {
+            return JSON.stringify(v, function (_k, val) {
+              return typeof val === 'number' && !isFinite(val) ? (Number.isNaN(val) ? '@NaN' : val > 0 ? '@+Inf' : '@-Inf') : val;
+            });
           };
-          var pass = _tag(got) === _tag(want);
+          var pass = _ser(got) === _ser(want);
           G.tests.push({ name: name, pass: pass, detail: pass ? detail || '' : 'got ' + JSON.stringify(got) + ' · want ' + JSON.stringify(want) });
         },
         approx: function (name, got, want, tol, detail) {
@@ -235,6 +245,50 @@
     }
 
     /* ════ 1 · CLOCK CONTRACT — parseTimestamp ════ */
+    /* ════ THE COMPARATOR ITSELF ══════════════════════════════════════════════════════════════
+       `T.eq` used to compare `JSON.stringify(got) === JSON.stringify(want)`, and JSON maps NaN,
+       +Infinity and −Infinity ALL to "null" — at every depth. So `eq(x, null)` passed for any of
+       the four, and so did an expected `{offsetMin: null}` against a NaN offset, or a `[null, 1]`
+       against `[NaN, 1]`. 263 top-level cases, plus field and array positions; 248 of the top-level
+       ones live in the clock group, whose §2.6 rule IS "a missing stamp must be visible (null),
+       never fabricated" — asserted through the one comparator that could not see the difference.
+
+       The sharpest instance, at the time of writing, asserted NaN-refusal THROUGH the collapse:
+           T.eq('…NaN is refused', C.parseTimestamp('23:45', { dateAnchorMs: NaN }), null)
+       If parseTimestamp had returned the NaN straight through instead of refusing it, that passed.
+
+       These assertions pin the RULE rather than the implementation — `eq` cannot cleanly assert its
+       own failure, since a failing assertion reds the suite. The implementation was proven by a
+       measured mutant kill (a CPAPDex path that returns NaN where null is contracted now dies).
+       This group is what trips if someone reverts to a bare stringify. */
+    group('T.eq distinguishes null from NaN and ±Infinity, at any depth', 'harness · comparator', function (T) {
+      var ser = function (v) {
+        return JSON.stringify(v, function (_k, val) {
+          return typeof val === 'number' && !isFinite(val) ? (Number.isNaN(val) ? '@NaN' : val > 0 ? '@+Inf' : '@-Inf') : val;
+        });
+      };
+      T.ok(
+        'a bare JSON.stringify DOES collapse them — the hazard is real, not hypothetical',
+        JSON.stringify(NaN) === JSON.stringify(null) && JSON.stringify(Infinity) === JSON.stringify(null),
+        'JSON no longer collapses non-finites; this group can be simplified'
+      );
+      T.ok('null vs NaN are distinct', ser(null) !== ser(NaN), ser(null) + ' vs ' + ser(NaN));
+      T.ok('null vs +Infinity are distinct', ser(null) !== ser(Infinity), ser(null) + ' vs ' + ser(Infinity));
+      T.ok('NaN vs +Infinity are distinct', ser(NaN) !== ser(Infinity), 'the two non-finites are not interchangeable either');
+      T.ok('+Infinity vs −Infinity are distinct (sign carries meaning)', ser(Infinity) !== ser(-Infinity), ser(Infinity) + ' vs ' + ser(-Infinity));
+      T.ok('a null FIELD is distinct from a NaN field', ser({ offsetMin: null }) !== ser({ offsetMin: NaN }), 'the parseTimestamp refusal shape');
+      T.ok('a null ARRAY slot is distinct from a NaN slot', ser([null, 1]) !== ser([NaN, 1]), 'array position');
+      T.ok('…and nested one level deeper too', ser({ a: { b: null } }) !== ser({ a: { b: NaN } }), 'depth is not special-cased');
+      /* …and equality still means equality. Bound to locals rather than compared inline: biome's
+         noSelfCompare reads `ser(x) === ser(x)` as a mistake, and it is normally right. */
+      var plainA = ser({ a: 1, b: [2, null] }),
+        plainB = ser({ a: 1, b: [2, null] });
+      T.ok('equal values still compare equal', plainA === plainB, 'the tagging broke ordinary equality');
+      var nanA = ser(NaN),
+        nanB = ser(NaN);
+      T.ok('NaN equals NaN under this comparator (both refusals of the same kind)', nanA === nanB, 'NaN no longer self-compares');
+    });
+
     group('Clock Contract — parseTimestamp', 'live mirror', function (T) {
       var P = env.parseTimestamp;
       T.ok('parseTimestamp present', typeof P === 'function');
