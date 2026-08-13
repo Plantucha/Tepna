@@ -12044,6 +12044,152 @@
       );
     });
 
+    /* ════ THE VO2 ROLLING WINDOW, THE GT DELTA, AND THE SUBJECTIVE THRESHOLDS ════════════════
+       Three clusters that the single-row characterisation group below structurally cannot reach:
+       the 7-day window needs SEVERAL rows on DISTINCT UTC days, and the GT delta needs a profile
+       (§9.4's `getHooks` is what makes installing one safe). Derived from the code's own formulas:
+         d_vo2_base = 15.3 × HRmax/HR × altFactor      (Uth-Sørensen; Tanaka HRmax)
+         rmssd_adj  = 1 + 0.08 × (ln rMSSD − 3.7)
+         d_vo2_hrv  = d_vo2_base × rmssd_adj
+       At age 49, elev 0, rMSSD 41: adj = 1 + 0.08×(ln 41 − 3.7) = 1.0010875.
+         HR 62 ⇒ 42.8647 × 1.0010875 = 42.9113      HR 90 ⇒ 29.5290 × 1.0010875 = 29.5611  */
+    group('HRVDex computeDerived — the VO2 window, the GT delta, the subjective gates', 'hrvdex-dsp · vo2window · subjective', function (T) {
+      var M = env.HRVDex;
+      var D = (M && M._bare) || M;
+      if (!M || typeof M.getHooks !== 'function' || !D || typeof D.computeDerived !== 'function') {
+        T.skip('HRVDex hooks + computeDerived available', 'not co-loaded in this lane');
+        return;
+      }
+      var DAY = 86400000;
+      var D0 = Date.UTC(2026, 5, 1, 22, 0, 0);
+      var mk = function (over) {
+        var r = {
+          _hr: 62,
+          _meanRR: 968,
+          _sdnn: 54,
+          _rmssd: 41,
+          _mxdmn: 320,
+          _pnn50: 18.5,
+          _amo50: 31,
+          _mode: 950,
+          _totalPow: 3200,
+          _hf: 900,
+          _lf: 1400,
+          _vlf: 900,
+          _stress: 3.2,
+          _energy: 5.1,
+          _focus: 4.4,
+          _sns: 1.2,
+          _psns: 2.1,
+          _coherence: 3.3,
+          _hrv: 60,
+          _cv: 5.6,
+          _spanMin: 6,
+          _tMs: D0
+        };
+        for (var k in over || {}) r[k] = over[k];
+        return r;
+      };
+      var run = function (rows, prof) {
+        var saved = M.getHooks();
+        try {
+          M.setHooks({
+            getProfile: function () {
+              return prof || { age: 49, sex: 'M', hrmax_manual: 0, hrrest_manual: 0, elev: 0, vo2gt: 0 };
+            }
+          });
+          D.computeDerived(rows);
+          return rows;
+        } finally {
+          M.setHooks(saved);
+        }
+      };
+      var near = function (a, b, tol) {
+        return a != null && isFinite(a) && Math.abs(a - b) <= (tol || 0.01);
+      };
+
+      // ── the ≥3 gate, at both sides ──
+      var four = run([mk({ _tMs: D0 }), mk({ _tMs: D0 + DAY }), mk({ _tMs: D0 + 2 * DAY }), mk({ _tMs: D0 + 3 * DAY })]);
+      T.ok('row 0 · one day in the window ⇒ roll7 NaN (needs ≥3)', isNaN(four[0].d_vo2_roll7), 'got ' + four[0].d_vo2_roll7);
+      T.ok('row 1 · two days ⇒ still NaN', isNaN(four[1].d_vo2_roll7), 'got ' + four[1].d_vo2_roll7);
+      T.ok('row 2 · THREE days ⇒ the gate opens, mean = 42.91', near(four[2].d_vo2_roll7, 42.9113), 'got ' + four[2].d_vo2_roll7);
+      T.ok('row 3 · four days, all equal ⇒ still 42.91', near(four[3].d_vo2_roll7, 42.9113), 'got ' + four[3].d_vo2_roll7);
+
+      /* ── THE WINDOW IS KEYED ON THE DAY, NOT THE ROW ──────────────────────────────────────────
+         Two rows on the SAME UTC day must contribute ONCE. Proving that needs the duplicate to
+         carry a DIFFERENT value, otherwise counting it twice moves no mean and the dedup is
+         invisible. Rows: day1(HR 62) · day2(HR 62) · day3(HR 62) · day3 again(HR 90).
+         Walking back from the last row the days seen are D3, then D3 again (skipped), D2, D1 —
+         so the window is [62, 62, 90] and the mean is (42.9113+42.9113+29.5611)/3 = 38.4612.
+         Count the duplicate and it becomes a 4-entry mean of 39.5737 instead. */
+      var dup = run([mk({ _tMs: D0 }), mk({ _tMs: D0 + DAY }), mk({ _tMs: D0 + 2 * DAY }), mk({ _tMs: D0 + 2 * DAY + 3600000, _hr: 90 })]);
+      T.ok('two rows on ONE day count once — mean is over 3 days, not 4', near(dup[3].d_vo2_roll7, 38.4612, 0.02), 'got ' + dup[3].d_vo2_roll7);
+
+      /* ── THE WINDOW IS SEVEN DAYS, and only an eighth day can show it ────────────────────────
+         With four rows the `_vo2win7.length < 7` bound never binds, so widening it to `<= 7` is
+         invisible — measured. Eight distinct days, with the OLDEST carrying a different HR: the
+         correct window stops after seven (all HR 62 ⇒ 42.9113) while an eight-deep window pulls in
+         the HR-90 day and drops the mean to (42.9113×7 + 29.5611)/8 = 41.2426. */
+      var eight = [];
+      for (var d8 = 0; d8 < 8; d8++) eight.push(mk({ _tMs: D0 + d8 * DAY, _hr: d8 === 0 ? 90 : 62 }));
+      run(eight);
+      T.ok('the window is SEVEN days — the eighth is not reached', near(eight[7].d_vo2_roll7, 42.9113), 'got ' + eight[7].d_vo2_roll7);
+
+      /* A row with NO timestamp has no day key, so it cannot enter the window at all — the guard
+         is `isFinite(arr[j]._tMs)`, and without it an undated row would be counted under ''. */
+      var undated = run([mk({ _tMs: D0 }), mk({ _tMs: D0 + DAY }), mk({ _tMs: undefined, _hr: 90 }), mk({ _tMs: D0 + 2 * DAY })]);
+      T.ok('an UNDATED row cannot enter the date-keyed window', near(undated[3].d_vo2_roll7, 42.9113), 'got ' + undated[3].d_vo2_roll7);
+
+      /* ── THE WINDOW FILTER REFUSES A NEGATIVE ESTIMATE ───────────────────────────────────────
+         `filter(v => !isNaN(v) && v > 0)` — and the `v > 0` half is invisible to every fixture
+         above, because a sane profile cannot produce a non-positive VO2. NaN cannot show it either:
+         for NaN both `!isNaN(v)` and `v > 0` are false, so `&&` and `||` agree there.
+         An age of 400 can. Tanaka gives 208 − 0.7×400 = −72, so every row's estimate is about
+         −17.8 — finite and negative. The filter must drop them all, leaving nothing to average and
+         a roll7 of NaN. Weaken it to `||` and four negatives are averaged instead, publishing a
+         negative VO2max trend from one mistyped profile field.
+         ⚠ `v > 0` → `v >= 0` is EQUIVALENT and stays so: the two differ only at EXACTLY zero, and
+         the estimate cannot be zero. `d_vo2_base` is 15.3 × HRmax/HR × altFactor, whose altitude
+         factor is floored at 0.55 and whose HRmax is either a manual value the gate forces above
+         140 or Tanaka's 208 − 0.7·age — which passes through zero only near age 297.14 and lands
+         at −2.8e-14 rather than 0 in floating point. No input reaches the boundary; do not add an
+         assertion chasing it. */
+      var absurd = run([mk({ _tMs: D0 }), mk({ _tMs: D0 + DAY }), mk({ _tMs: D0 + 2 * DAY }), mk({ _tMs: D0 + 3 * DAY })], {
+        age: 400,
+        sex: 'M',
+        hrmax_manual: 0,
+        hrrest_manual: 0,
+        elev: 0,
+        vo2gt: 0
+      });
+      T.ok('a nonsense age yields a NEGATIVE estimate, which the window refuses ⇒ NaN', isNaN(absurd[3].d_vo2_roll7), 'got ' + absurd[3].d_vo2_roll7 + ' from hrv ' + absurd[3].d_vo2_hrv);
+      T.ok('ANTI-VACUITY · that estimate really is finite and negative, not NaN', absurd[3].d_vo2_hrv < 0 && isFinite(absurd[3].d_vo2_hrv), 'hrv=' + absurd[3].d_vo2_hrv);
+
+      // ── the ground-truth delta: profile-gated, and §9.4 is what makes this reachable ──
+      var noGt = run([mk({})]);
+      T.ok('no VO2 ground truth entered ⇒ delta NaN, never a signed 0', isNaN(noGt[0].d_vo2_delta), 'got ' + noGt[0].d_vo2_delta);
+      var withGt = run([mk({})], { age: 49, sex: 'M', hrmax_manual: 0, hrrest_manual: 0, elev: 0, vo2gt: 40 });
+      T.ok('with GT 40 ⇒ delta = 42.9113 − 40 = 2.91', near(withGt[0].d_vo2_delta, 2.9113), 'got ' + withGt[0].d_vo2_delta);
+      /* The gate is `vo2gt > 0`, so a GT of exactly 0 means "not entered" rather than "measured
+         zero" — pinned because `> 0` weakened to `>= 0` would turn an absent entry into a delta
+         equal to the estimate itself. */
+      var zeroGt = run([mk({})], { age: 49, sex: 'M', hrmax_manual: 0, hrrest_manual: 0, elev: 0, vo2gt: 0 });
+      T.ok('a GT of exactly 0 reads as NOT ENTERED, not as a measured zero', isNaN(zeroGt[0].d_vo2_delta), 'got ' + zeroGt[0].d_vo2_delta);
+
+      // ── d_hile: high-stress + low-energy, both thresholds strict, both sides pinned ──
+      var hile = function (stress, energy) {
+        return run([mk({ _stress: stress, _energy: energy })])[0].d_hile;
+      };
+      T.eq('stress 61 with energy 39 ⇒ 1', hile(61, 39), 1);
+      T.eq('stress 60 is NOT above 60 ⇒ 0 (the bound is strict)', hile(60, 39), 0);
+      T.eq('energy 40 is NOT below 40 ⇒ 0 (strict on the other side too)', hile(61, 40), 0);
+      T.eq('high stress alone is not the finding — energy must also be low', hile(61, 99), 0);
+      /* `_hasSubj` requires ALL SIX subjective seeds > 0; with one at zero the whole family is
+         absent and the column must be NaN rather than a fabricated 0. */
+      var noSubj = run([mk({ _stress: 61, _energy: 39, _focus: 0 })]);
+      T.ok('one missing subjective seed ⇒ NaN, never a graded 0', isNaN(noSubj[0].d_hile), 'got ' + noSubj[0].d_hile);
+    });
+
     group('HRVDex computeDerived — the 52 derived columns, pinned', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
       var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
       if (!D || typeof D.computeDerived !== 'function') {
