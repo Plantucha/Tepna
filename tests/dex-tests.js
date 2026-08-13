@@ -694,6 +694,74 @@
       T.eq('the retired name still resolves to the same function', P.markO2Sentinels, P.markO2BeatMarkers);
     });
 
+    /* ════ SELF-PPI vs FIRMWARE-PPI — BOTH SIDES CORRECTED, or the comparison inverts ════
+       Mirrors ECGDex's `validateRR` card (Beats · Mean · RMSSD · SDNN, each with a Δ%). The defect it
+       fixes is that PpgDex compared an ALREADY-CORRECTED self series against a RAW firmware series, so
+       the row measured our artifact rejection rather than the two detectors. Measured on 2026-08-08:
+       self rMSSD 59.3 vs raw firmware 103.6 reads as the device being 75 % higher — i.e. as if WE were
+       over-smoothing — while correcting the firmware side too (306 beats) brings it to 53.6, a 10.7 %
+       difference. The uncorrected reading does not just exaggerate, it points the wrong way.
+       These pin the INVARIANTS, not the corpus numbers. */
+    group("PpgDex self-vs-firmware PPI corrects BOTH sides, or one side's artifact reads as disagreement", 'ppgdex-dsp · ppi-validation', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.validatePPI !== 'function') {
+        T.skip('PPGDSP.validatePPI available', 'not loaded');
+        return;
+      }
+      // A clean firmware series with real beat-to-beat variability, and a self series that is the
+      // SAME rhythm shifted by a constant — two detectors with a fixed latency between them.
+      var dev = [],
+        self = [];
+      /* Beat-to-beat variability at a PHYSIOLOGICAL scale (rMSSD tens of ms, as a real night has),
+         deterministic so the group cannot flake. A near-constant series would make any residual read
+         as a huge percentage of a near-zero rMSSD, which tests the arithmetic rather than the fix. */
+      var seed = 12345;
+      var rnd = function () {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff - 0.5;
+      };
+      for (var i = 0; i < 400; i++) {
+        var v = 900 + 40 * Math.sin(i / 7) + 60 * rnd();
+        dev.push({ ppi: v, blocker: 0 });
+        self.push(v + 2);
+      }
+      var base = P.validatePPI(self, dev, { source: 'o2ring-marker' });
+      T.ok('a clean pair validates', base.usable === true);
+      T.eq('the firmware source is carried, not guessed', base.source, 'o2ring-marker');
+      /* A CONSTANT OFFSET IS NOT A VARIABILITY DIFFERENCE. This is the assertion that keeps the card
+         honest about what each row means: a fixed detector latency must move Mean and leave rMSSD and
+         SDNN untouched. If a future refactor compares raw series or forgets to correct one side,
+         these two stop being zero. */
+      T.ok('a constant offset moves the MEAN row', base.dMean > 0, 'dMean=' + base.dMean);
+      T.eq('a constant offset leaves rMSSD identical', base.dRMSSD, 0);
+      T.eq('a constant offset leaves SDNN identical', base.dSDNN, 0);
+      // THE DEFECT: artifact on the FIRMWARE side only. Self stays clean; the device gets ectopic
+      // beats. Uncorrected these land almost entirely in rMSSD (a first-difference statistic).
+      var dirty = dev.map(function (d, k) {
+        return { ppi: k % 25 === 11 ? d.ppi * 0.45 : d.ppi, blocker: 0 };
+      });
+      var got = P.validatePPI(self, dirty, { source: 'o2ring-marker' });
+      T.ok('the firmware side was actually corrected', got.devEctopyCorrected > 0, 'devEctopyCorrected=' + got.devEctopyCorrected);
+      T.ok('the RAW firmware rMSSD is reported alongside the corrected one', got.devRawRMSSD > got.devRMSSD, 'raw=' + got.devRawRMSSD + ' corrected=' + got.devRMSSD);
+      /* The bound is the point: uncorrected, this pair's rMSSD differs by hundreds of percent — the
+         raw device rMSSD is many times the self value. After equal treatment the two detectors agree.
+         Deliberately not an exact number: it must hold for the SHAPE of the fix, not one arithmetic. */
+      T.ok(
+        'with both sides corrected, one-sided artifact no longer reads as disagreement',
+        got.dRMSSD < 25,
+        'dRMSSD=' + got.dRMSSD + ' (raw firmware rMSSD ' + got.devRawRMSSD + ' vs self ' + got.selfRMSSD + ')'
+      );
+      T.ok(
+        'and the uncorrected comparison WOULD have disagreed',
+        (100 * Math.abs(got.selfRMSSD - got.devRawRMSSD)) / got.devRawRMSSD > 50,
+        'raw gap=' + ((100 * Math.abs(got.selfRMSSD - got.devRawRMSSD)) / got.devRawRMSSD).toFixed(1) + '%'
+      );
+      // The absent/empty distinction predates this change and must survive it.
+      T.eq('no firmware series at all is still distinguishable from an empty one', P.validatePPI(self, null).filePresent, false);
+      T.eq('an empty series reports the file WAS present', P.validatePPI(self, []).filePresent, true);
+      T.eq('a too-sparse series is unusable, not a comparison', P.validatePPI(self, [{ ppi: 900, blocker: 0 }]).usable, false);
+    });
+
     /* ════ DEVICE-CRYSTAL TIMEBASE — O2Ring 125.000 marker-aware axis (O2RING-ADAPTIVE-TIMEBASE Stage 2) ════
        The O2Ring finger pleth inserts one `156` beat MARKER per beat, so the file's ROW rate is
        125.000 (the crystal ADC) + ~HR/60. The opt-in device-crystal timebase rebuilds relSec on the

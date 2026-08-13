@@ -2821,31 +2821,95 @@
      nothing into it", so the UI said "load the device PPI file to cross-validate" — advice that is
      actionable in the first case and misleading in the second, because the user already did.
 
-     It is the second case in practice. Measured across this corpus: 107 of 107 Verity `_PPI.txt`
-     files are header-only, and 40 of 40 `_HR.txt` are all-zero. The docs' hedge ("often header-only")
-     understates it — on this firmware it is categorical, which is why the computed PPI is not a
-     second opinion but the only one. `filePresent` lets a reader tell "you have nothing to compare"
-     from "your device produced nothing to compare", which are different facts about the world. */
-  function validatePPI(selfNN, devicePPI) {
+     It WAS the second case, categorically, and that is no longer true — the claim is corrected here
+     rather than deleted, because the reason it changed is the useful part. Re-measured 2026-08-13 over
+     132 `_PPI.txt` in the capture corpus: 108 are header-only and 17 carry real intervals, up to
+     29 329 unblocked in one night. The split is not random and it is not firmware version — it is
+     CAPTURE MODE. Every header-only file is phone-captured; every file with data is a box capture from
+     2026-08-05 onward. (Consistent with the Verity's known SDK-mode behaviour, where PPI reports
+     permanently invalid.) So `filePresent` still distinguishes "you have nothing to compare" from
+     "your device produced nothing to compare", and the second is now a statement about HOW the night
+     was captured, not about the hardware. Do not re-derive "the Verity never emits PPI" from an
+     all-phone sample — that inference was made once already and this paragraph is its correction. */
+
+  /* THE COMPARISON MUST CORRECT BOTH SIDES, or it measures our artifact rejection instead of the two
+     detectors (mirrors ECGDex `validateRR`, which Malik-corrects self AND device before comparing).
+     The asymmetry is large and it points the WRONG WAY, which is what makes it worth a comment rather
+     than a line of code. Measured through the real pipeline on 2026-08-08: `nn` reaching this function
+     is already corrected (rMSSD 59.3), while the raw firmware series reads 103.6 — so an uncorrected
+     comparison shows the device 75 % HIGHER and invites exactly one conclusion, that our detector is
+     over-smoothing. Correcting the device the same way costs 306 beats and brings it to 53.6, i.e.
+     dRMSSD 10.7 %: the firmware series carried MORE artifact, not less. The uncorrected reading does
+     not merely exaggerate the disagreement, it inverts its direction.
+     rMSSD is a first-difference statistic, which is precisely where unequal artifact handling lands;
+     the MEANS agreed to 8 ms (0.74 %) the whole time. Correction uses PpgDex's own optical threshold
+     on both sides, not ECGDex's 0.20 Malik rule — pulse-arrival jitter is larger than R-peak jitter
+     (see `correctRR`). Note SDNN stays looser than rMSSD (14.8 / 22.5 % on two nights): it is a
+     whole-record spread, so it also absorbs genuine coverage differences between the two series. */
+  function _ppiCorrect(vals) {
+    // correctRR wants a time axis; the intervals ARE the axis, so accumulate them.
+    const tt = [];
+    let acc = 0;
+    for (let i = 0; i < vals.length; i++) {
+      acc += vals[i] / 1000;
+      tt.push(acc);
+    }
+    const c = correctRR(vals, tt);
+    return { out: c.nn, nc: c.nCorr };
+  }
+  function sdnnOf(rr) {
+    if (!rr || rr.length < 2) return 0;
+    const m = mean(rr);
+    let s = 0;
+    for (let i = 0; i < rr.length; i++) s += (rr[i] - m) * (rr[i] - m);
+    return Math.sqrt(s / (rr.length - 1));
+  }
+  function validatePPI(selfNN, devicePPI, opts) {
     if (!devicePPI) return { hasData: false, filePresent: false };
     if (!devicePPI.length) return { hasData: false, filePresent: true };
+    /* `source` names WHICH firmware produced the comparison series, because PpgDex now has two and
+       they are not interchangeable: the Verity `_PPI.txt` is a wrist device's own interval estimate,
+       while `o2ring-marker` is the finger ring's inserted `156` beat rows. A reader who cannot tell
+       them apart cannot judge the result — different sensor, different site, different detector. */
+    const source = (opts && opts.source) || 'device-ppi';
     const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.blocker == null || d.blocker === 0)).map((d) => d.ppi);
-    if (dev.length < 3 || selfNN.length < 3) return { hasData: true, usable: false, nDevice: dev.length };
-    const sM = mean(selfNN),
-      dM = mean(dev);
-    const sR = rmssdOf(selfNN),
-      dR = rmssdOf(dev);
+    if (dev.length < 3 || selfNN.length < 3) return { hasData: true, filePresent: true, usable: false, source, nDevice: dev.length };
+    const devRaw = rmssdOf(dev);
+    const sC = _ppiCorrect(selfNN),
+      dC = _ppiCorrect(dev);
+    const self = sC.out,
+      devc = dC.out;
+    if (self.length < 3 || devc.length < 3) return { hasData: true, filePresent: true, usable: false, source, nDevice: dev.length };
+    const sM = mean(self),
+      dM = mean(devc);
+    const sR = rmssdOf(self),
+      dR = rmssdOf(devc);
+    const sS = sdnnOf(self),
+      dS = sdnnOf(devc);
+    const pct = (a, b) => (b ? r1((100 * Math.abs(a - b)) / b) : null);
     const agree = 100 * (1 - Math.min(1, Math.abs(sM - dM) / dM));
     return {
       hasData: true,
+      filePresent: true,
       usable: true,
-      nSelf: selfNN.length,
-      nDevice: dev.length,
+      source,
+      nSelf: self.length,
+      nDevice: devc.length,
       selfMean: Math.round(sM),
       devMean: Math.round(dM),
       meanAbsDevMs: Math.round(Math.abs(sM - dM)),
       selfRMSSD: r1(sR),
       devRMSSD: r1(dR),
+      selfSDNN: r1(sS),
+      devSDNN: r1(dS),
+      // Δ as a PERCENT of the device value, the shape ECGDex's verdict pills read.
+      dMean: r2(dM ? (100 * Math.abs(sM - dM)) / dM : 0),
+      dRMSSD: pct(sR, dR),
+      dSDNN: pct(sS, dS),
+      // How much artifact each side carried, so a reader can see the correction rather than trust it.
+      selfEctopyCorrected: sC.nc,
+      devEctopyCorrected: dC.nc,
+      devRawRMSSD: r1(devRaw),
       deviceAgreementPct: r1(agree)
     };
   }
@@ -3453,7 +3517,26 @@
     }
 
     // PPI validation lane
-    const validation = validatePPI(nn, rec.devicePPI);
+    /* TWO firmware sources, and the O2Ring one needs no companion file. A Verity night brings its own
+       `_PPI.txt` (when box-captured); an O2Ring finger night brings nothing — but its `156` beat rows
+       ARE a firmware interval series, carried in-band in the PPG file itself. Preferring the explicit
+       `_PPI.txt` keeps existing behaviour byte-identical wherever one exists; the markers fill the case
+       that previously rendered "no device PPI loaded" on every single O2Ring recording.
+       Shaped as parseDevicePPI's output so ONE comparison path serves both — a second path would be a
+       second place for the two sides to be corrected differently, which is the defect above. */
+    let ppiSource = 'device-ppi',
+      ppiSeries = rec.devicePPI;
+    if ((!ppiSeries || !ppiSeries.length) && rec.beatMarkerSec && rec.beatMarkerSec.length > 3) {
+      const mk = [];
+      for (let i = 1; i < rec.beatMarkerSec.length; i++) {
+        // blocker:0 — the ring publishes no quality flag per marker, and inventing one would be a
+        // fabricated field. The range gate inside validatePPI is the only filter these get.
+        mk.push({ ppi: (rec.beatMarkerSec[i] - rec.beatMarkerSec[i - 1]) * 1000, blocker: 0 });
+      }
+      ppiSeries = mk;
+      ppiSource = 'o2ring-marker';
+    }
+    const validation = validatePPI(nn, ppiSeries, { source: ppiSource });
 
     // markers
     const markers = (rec.markers || []).map((mk) => ({ relSec: mk.relSec, type: mk.type }));
