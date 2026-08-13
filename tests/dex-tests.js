@@ -20913,7 +20913,10 @@
         var rOk = D.riseFraction(det.bp, rec.fs);
         var rBad = D.riseFraction(flipped.bp, rec.fs);
         T.eq(label + ' resolves to sign ' + wantSign, det.sign, wantSign);
-        T.ok(label + ': the RESOLVED polarity has the shorter systolic rise (' + (rOk == null ? 'n/a' : rOk.toFixed(3)) + ' < ' + (rBad == null ? 'n/a' : rBad.toFixed(3)) + ')', rOk != null && rBad != null && rOk < rBad);
+        T.ok(
+          label + ': the RESOLVED polarity has the shorter systolic rise (' + (rOk == null ? 'n/a' : rOk.toFixed(3)) + ' < ' + (rBad == null ? 'n/a' : rBad.toFixed(3)) + ')',
+          rOk != null && rBad != null && rOk < rBad
+        );
       });
 
       /* THE CLEAN TWIN IS THE CONTROL, and it must resolve the OTHER way. Without it an implementation
