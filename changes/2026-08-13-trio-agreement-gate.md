@@ -33,3 +33,25 @@ Also fixes a coordinator HANG: `runOne` resolved only on `close`, which needs th
 AND every stdio pipe to have reached EOF. Measured: 17 nights computed, every stamp written, then 32
 minutes at 0 % CPU with a DEFUNCT child. `exit` now decides, `close` still wins when it arrives first,
 and `error` is handled rather than thrown.
+
+Also wires the packet-arrival sidecar into the fold. `capture.py` writes `*_PMDARRIVAL.csv` (host
+arrival beside the device counter, per BLE packet) and until now NOTHING outside `nightqc.py` read it
+— trio ingested it zero times, so the one artefact that can place two devices on a single timebase
+reached a QC log and stopped. It is now parsed through `DexClock.hostAxis` (Clock Contract §7 forbids
+hand-rolling a rate correction) and persisted as `arrival_<night>.json`.
+
+ABSENCE IS THE PRIMARY PATH. Most recordings have no sidecar — it is written only by the capture box,
+and only since 2026-08-11, so 2 of the 49 corpus nights carry any rows. No sidecar ⇒ returns null,
+prints nothing, writes nothing, fold byte-identical. Header-only files count as ABSENT: several exist
+with zero rows, and without that check the feature would run on nothing and report success.
+
+Three defects were found and fixed while building it, all the same shape — a confident number about
+something never measured:
+  · it collected EVERY sidecar in the capture directory, fitting one "night's clock" across 24.9 h of
+    night-plus-next-day. The Verity's rate was wrong by 17x (2.5 ppm vs the scoped 44 ppm). Anchors are
+    now scoped to the window the fold's own exports define.
+  · header-only files were treated as data.
+  · `independent` was read as "usable". It only asks whether the host column differs from the device
+    column — it says nothing about whether the DEVICE column is a clock. The O2Ring's axis is DRAWN
+    (sample_index x an assumed rate) so it passes at 2730 ppm where a real crystal is +/-100. Now
+    flagged `plausibleCrystal:false`, and the summary counts USABLE clocks, not independent ones.

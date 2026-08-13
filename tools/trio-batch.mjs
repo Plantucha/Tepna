@@ -1070,6 +1070,8 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
             if (nJson >= 1) printDriftFit(dir, p.key);
             // The agreement gate needs at least two nodes to compare; it refuses below that itself.
             if (nJson >= 2) writeAgreement(dir, p.key);
+            // Only when the capture wrote one — absent is the ordinary case, not a failure.
+            writeArrival(dir, p.key, p);
           }
         }
         res();
@@ -1159,6 +1161,131 @@ function cpapApneaTimes(dayDir) {
    Needs no raw files and no contract change — `timeseries.rr.tSec` (ECGDex) and `timeseries.ppi.tSec`
    (PpgDex) are already in the node-export. Prints the chance control beside every number, because the
    block fit maximises the statistic it reports. */
+/* ── THE PACKET-ARRIVAL SIDECAR, WHEN THERE IS ONE (2026-08-13) ──────────────────────────────────
+   `capture.py` writes a `*_PMDARRIVAL.csv` per stream: the HOST arrival stamp beside the DEVICE
+   sensor counter for every BLE packet. Until now nothing outside `capture-host/nightqc.py` read it —
+   trio ingested it zero times, so the one artefact that can place two devices on a single timebase
+   reached a QC log and stopped there.
+
+   ⚠️ MOST RECORDINGS WILL NOT HAVE ONE, AND THAT IS THE NORMAL PATH, NOT AN ERROR. The sidecar is
+   written only by the capture box; a phone capture has none, and even on the box it only began on
+   2026-08-11 — 2 of the 49 nights in this corpus carry any rows at all. Absent ⇒ this returns null
+   and the fold is byte-identical to before. Present-but-empty counts as absent: several files are
+   header-only, and `presence of a file is not presence of data`.
+
+   WHAT IT YIELDS. Each device's counter has its own arbitrary epoch, so `host − device` is not a
+   quantity in itself; what matters is the MAPPING from each device's counter onto host time, because
+   two devices mapped onto one host clock are then mutually comparable — which is exactly the term
+   PAT needs and has never had. `DexClock.hostAxis` is the sanctioned estimator for it (Clock Contract
+   §7 forbids hand-rolling a rate correction), and it publishes `independent`: a phone-style host
+   column that is merely the device stamp rounded is NOT a second clock, and must not be spent as one. */
+function writeArrival(dir, key, p) {
+  const dirs = new Set();
+  for (const k of ['ecg', 'ppg', 'oxy', 'acc_h10', 'acc_ver', 'gyro', 'magn', 'o2ppg']) {
+    for (const f of p[k] || []) if (f && f.full) dirs.add(dirname(f.full));
+  }
+  const files = [];
+  for (const d of dirs) {
+    try {
+      for (const n of readdirSync(d)) if (n.endsWith('_PMDARRIVAL.csv')) files.push(join(d, n));
+    } catch {
+      /* unreadable dir → simply no sidecar from it */
+    }
+  }
+  if (!files.length) return null; // NO BOX, NO SIDECAR — the ordinary case, silently unchanged
+  loadDsps();
+  const DexClock = ctx.DexClock;
+  if (!DexClock || typeof DexClock.hostAxis !== 'function') return null;
+
+  /* SCOPE THE ANCHORS TO THE NIGHT. The sidecars sit in the capture directory, which also holds the
+     NEXT day's recordings — collecting every file in the directory fit one Verity axis across 89483 s
+     (24.9 h), i.e. the night plus the following day, and called the result that night's clock. The
+     window is taken from the exports this fold just wrote, padded an hour each side so a sidecar that
+     starts slightly before the first analysable epoch still counts. */
+  let winLo = Infinity,
+    winHi = -Infinity;
+  for (const node of ['PpgDex', 'ECGDex', 'OxyDex']) {
+    const ef = join(dir, `${node}_${key}.node-export.json`);
+    if (!existsSync(ef)) continue;
+    try {
+      const d = JSON.parse(readFileSync(ef, 'utf8'));
+      const s0 = (d.recording || {}).startEpochMs;
+      const eps = (d.timeseries || {}).epochs || [];
+      if (!isFinite(s0) || !eps.length) continue;
+      winLo = Math.min(winLo, s0);
+      winHi = Math.max(winHi, s0 + (eps[eps.length - 1].tMin + 5) * 60000);
+    } catch {
+      /* unreadable export → contributes no window */
+    }
+  }
+  const PAD_MS = 3600000;
+  const inWindow = (t) => !isFinite(winLo) || (t >= winLo - PAD_MS && t <= winHi + PAD_MS);
+
+  const byDev = new Map();
+  let rows = 0;
+  for (const f of files) {
+    let txt = '';
+    try {
+      txt = readFileSync(f, 'utf8');
+    } catch {
+      continue;
+    }
+    const lines = txt.split('\n');
+    for (let i = 1; i < lines.length; i++) {
+      const c = lines[i].split(';');
+      if (c.length < 5) continue;
+      const t = DexClock.parseTimestamp(c[0], {});
+      const devNs = Number(c[4]); // last_sensor_ns: the arrival stamp follows the LAST sample
+      if (!t || !isFinite(devNs) || devNs <= 0) continue;
+      if (!inWindow(t.tMs)) continue; // a packet from the NEXT day is not this night's clock
+      const dev = c[1] || 'unknown';
+      if (!byDev.has(dev)) byDev.set(dev, []);
+      byDev.get(dev).push({ devMs: devNs / 1e6, hostMs: t.tMs });
+      rows++;
+    }
+  }
+  if (!rows) return null; // header-only files ⇒ treated as absent
+
+  const devices = [];
+  for (const [dev, anchors] of byDev) {
+    anchors.sort((a, b) => a.devMs - b.devMs);
+    const ax = DexClock.hostAxis(anchors, {});
+    devices.push({
+      device: dev,
+      anchors: anchors.length,
+      ok: !!ax.ok,
+      reason: ax.ok ? undefined : ax.reason,
+      // `independent` is the field to branch on — NOT a small ppm. A host column that is the device
+      // stamp rounded reports ~0 ppm and is the ABSENCE of a second clock wearing its shape.
+      independent: ax.independent == null ? null : ax.independent,
+      spreadMs: ax.spreadMs == null ? null : Math.round(ax.spreadMs * 100) / 100,
+      ppm: ax.ppm == null ? null : Math.round(ax.ppm * 10) / 10,
+      maxStepMs: ax.maxStepMs == null ? null : Math.round(ax.maxStepMs * 10) / 10,
+      // The mapping anchor: device counter -> host instant at the first anchor. Two devices carrying
+      // this are on ONE timebase, which is the whole point.
+      /* `independent` IS NOT "USABLE AS A CLOCK", and the O2Ring is the case that proves it. That flag
+         only asks whether the host column differs from the device column; it says nothing about
+         whether the DEVICE column is a clock at all. The ring's axis is DRAWN — sample_index x an
+         assumed rate — so it passes an independence test it should never have been asked, at 2730 ppm
+         where a real crystal is +/-100. Flag the implausibility here so no consumer spends it: a
+         drawn axis may be PLACED on the host timeline, never spent as a second opinion about it. */
+      plausibleCrystal: ax.ppm == null ? null : Math.abs(ax.ppm) <= 200,
+      t0DevMs: anchors.length ? Math.round(anchors[0].devMs) : null,
+      t0HostMs: anchors.length ? anchors[0].hostMs : null,
+      spanSec: anchors.length > 1 ? Math.round((anchors[anchors.length - 1].hostMs - anchors[0].hostMs) / 1000) : 0
+    });
+  }
+  devices.sort((a, b) => b.anchors - a.anchors);
+  const indep = devices.filter((d) => d.independent === true && d.plausibleCrystal !== false).length;
+  console.log(
+    `    ⇄ arrival sidecar: ${devices.length} device(s), ${rows} packet(s)` +
+      `  usable-clock: ${indep}/${devices.length}` +
+      devices.map((d) => `  ${d.device.split(' ')[1] || d.device}:${d.ppm == null ? '—' : d.ppm + 'ppm'}/${d.spreadMs == null ? '—' : d.spreadMs + 'ms'}`).join('')
+  );
+  writeFileSync(join(dir, `arrival_${key}.json`), JSON.stringify({ night: key, packets: rows, files: files.length, devices }, null, 2) + '\n');
+  return devices;
+}
+
 /* ── THE CROSS-NODE AGREEMENT GATE, AND THE FIRST ARTEFACT THIS FOLD PERSISTS (2026-08-13) ───────
    Two shipped `ppgdex-dsp.js` defects — a wrong optical polarity on 10 of 20 nights, and a
    `correctRR` reference lock-in emitting a constant HR for 25 minutes — both passed five green
