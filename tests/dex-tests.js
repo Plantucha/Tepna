@@ -3971,6 +3971,68 @@
       }
     });
 
+    /* ════ surgeEscalation — PSEUDO-TESTED, and it publishes a SENTENCE ═══════════════════════
+       It splits the night into thirds, counts CVHR surges per hour in each, and returns a label a
+       user reads as a clinical impression ("instability signature"). Nothing asserted the split,
+       the rate, the percentage or the wording.
+
+       A THREE-HOUR fixture makes every number exact: each third is 3600 s, so `third / 3600` is 1
+       and `perHour` IS the raw count. Escalation is then ((last − first) / first) × 100. */
+    group('ECGDex surgeEscalation — thirds, rate, and the sentence it publishes', 'ecgdex-dsp · surge', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      var se = E && E.surgeEscalation;
+      T.ok('ECGDSP.surgeEscalation reachable', typeof se === 'function', 'export surgeEscalation from ecgdex-dsp.js');
+      if (typeof se === 'function') {
+        var H = 3600;
+        var DUR = 3 * H; // each third is exactly one hour ⇒ perHour === count
+        var ev = function (secs) {
+          return secs.map(function (s) {
+            return { sec: s };
+          });
+        };
+        // 1 surge in the first hour, 0 in the second, 3 in the third
+        var r = se(ev([100, 7300, 7400, 7500]), DUR);
+        T.eq('thirds are counted separately ⇒ [1, 0, 3] per hour', JSON.stringify((r || {}).perHourThirds), '[1,0,3]');
+        T.eq('escalation is (last − first) ÷ first × 100 = 200 %', (r || {}).escalationPct, 200);
+        T.ok('…and the label says it escalates', /escalates/.test((r || {}).label || ''), (r || {}).label);
+
+        var flat = se(ev([100, 200, 7300, 7400]), DUR);
+        T.eq('equal first and last thirds ⇒ 0 %', flat.escalationPct, 0);
+        T.ok('…and the label says roughly stable', /stable/.test(flat.label), flat.label);
+
+        var eases = se(ev([10, 20, 30, 40, 7300]), DUR);
+        T.eq('4 in the first hour and 1 in the last ⇒ −75 %', eases.escalationPct, -75);
+        T.ok('…and the label says it eases', /eases/.test(eases.label), eases.label);
+
+        /* THE TWO LABEL THRESHOLDS, each at its edge. >40 escalates and <−20 eases, both STRICT,
+           so exactly 40 and exactly −20 must read as stable. 5 → 7 is +40; 5 → 4 is −20. */
+        var at40 = se(ev([1, 2, 3, 4, 5, 7301, 7302, 7303, 7304, 7305, 7306, 7307]), DUR);
+        T.eq('5 then 7 surges ⇒ exactly +40 %', at40.escalationPct, 40);
+        T.ok('…and +40 is NOT escalating — the bound is strict', /stable/.test(at40.label), at40.label);
+        var atMinus20 = se(ev([1, 2, 3, 4, 5, 7301, 7302, 7303, 7304]), DUR);
+        T.eq('5 then 4 surges ⇒ exactly −20 %', atMinus20.escalationPct, -20);
+        T.ok('…and −20 is NOT easing — that bound is strict too', /stable/.test(atMinus20.label), atMinus20.label);
+
+        /* A FIRST third with no surges cannot divide, so the branch answers 100 when the last third
+           has any and 0 when it does not — never NaN or Infinity from a zero denominator. */
+        var zeroFirst = se(ev([3700, 7300, 7400, 7500]), DUR);
+        T.eq('no surges in the first third but some in the last ⇒ 100 %, not Infinity', zeroFirst.escalationPct, 100);
+        var middleOnly = se(ev([3700, 3800, 3900, 4000]), DUR);
+        T.eq('all surges in the MIDDLE third ⇒ 0 %, not NaN', middleOnly.escalationPct, 0);
+
+        /* The final bin is CLAMPED — an event at the very last second computes index 3 and must
+           fold into the third bin rather than write past the array. */
+        var atEnd = se(ev([100, 7300, 7400, DUR]), DUR);
+        T.eq('an event at the last second lands in the THIRD bin, not a fourth', JSON.stringify(atEnd.perHourThirds), '[1,0,3]');
+
+        // ── the two entry guards, each at its edge ──
+        T.eq('3 surges ⇒ null (needs ≥4)', se(ev([1, 2, 3]), DUR), null);
+        T.ok('4 surges ⇒ NOT null', se(ev([1, 2, 3, 4]), DUR) != null, 'the count floor is exclusive?');
+        T.eq('a recording under 90 min ⇒ null (a third of it is not a trend)', se(ev([1, 2, 3, 4]), 90 * 60 - 1), null);
+        T.ok('exactly 90 min ⇒ NOT null (the bound is inclusive)', se(ev([1, 2, 3, 4]), 90 * 60) != null, 'the duration floor is exclusive?');
+      }
+    });
+
     group('ECGDex HRV geometry — triangular index and fragmentation, known-answer', 'ecgdex-dsp · hrv-geometry', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       var ti = E && E.triangularIndex,
