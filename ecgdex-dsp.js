@@ -3837,6 +3837,10 @@
        known-answer possible. Additive export; nothing else consumes these. */
     triangularIndex,
     fragmentation,
+    /* Same reason as the two above (`ecgdex-hrv-geometry`): measured PSEUDO-TESTED, and the only
+       route to it was a full raw-ECG `analyze` run, which cannot pin a hand-derived thirds split.
+       Additive; nothing else consumes it. */
+    surgeEscalation,
     // Additive (contract rule: new data via a NEW field, never by changing an existing shape) —
     // the staging rules and the motion index are now gateable in their own right.
     stageSleep,
