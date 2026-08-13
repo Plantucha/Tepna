@@ -578,6 +578,8 @@ function readEquiv() {
   // beat whose span touches a gap must be dropped, not filled. pairCommitted so a DEX_UPLOADS
   // real-corpus override cannot hide it.
   pairCommitted('ppgdex_finger', 'synthetic_ppgdex_o2ring_finger.txt', 'synthetic_ppgdex_o2ring_finger_golden.node-export.json');
+  // PPG-FOOT-PLACEMENT §0 — the INVERTED-convention twin, the polarity the real hardware produces.
+  pairCommitted('ppgdex_inverted', 'synthetic_ppgdex_verity_inverted.txt', 'synthetic_ppgdex_inverted_golden.node-export.json');
   // The FRAGMENTED Verity twin (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2). Every other committed
   // PpgDex input is contiguous, so `coverage()` returns null on all of them and NOTHING committed
   // exercised the emitter — the gap derivation was gated only by inputs hand-built inside the test,
@@ -1525,7 +1527,7 @@ async function main() {
           sawNestedDeep: paths.indexOf('nested/deep/deeper.js') >= 0,
           n: paths.length
         };
-      } catch (e) {
+      } catch (_e) {
         return null;
       } finally {
         try {
