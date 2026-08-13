@@ -820,7 +820,83 @@
     return pick >= 0 ? pick : refIdx;
   }
 
+  /* ── POLARITY BY UPSTROKE DURATION (PPG-FOOT-PLACEMENT §0, 2026-08-13) ────────────────────────
+     `orient` below decides polarity from the SKEWNESS OF THE FIRST DERIVATIVE. The reasoning is right
+     — a fast upstroke and slow decay do give positive derivative skew — but it is a THIRD MOMENT on a
+     noisy derivative, and it flips under low-frequency contamination. Measured on the box corpus it is
+     WRONG ON 10 OF 20 NIGHTS (0 of 22 phone nights).
+
+     When it flips, the pulse is processed upside down and every downstream number is silently wrong:
+     the ensemble minimum lands AFTER the peak (t = +290 ms rather than −300 ms), the "systolic
+     upstroke" becomes a ~1000 ms near-linear ramp instead of a 160 ms rise, and the foot is placed
+     ~900 ms early. Inter-LED scatter goes 1.7 ms → 25–42 ms.
+
+     ⚠️ THE CONSENSUS-POLARITY PASS CANNOT CATCH THIS, BY CONSTRUCTION. It acts only on a DISSENTER —
+     a strict majority with at least one channel disagreeing — and returns 0 when the channels are
+     unanimous, deliberately, to stay export-inert. On every affected night all three channels agree on
+     the WRONG sign, and unanimously-wrong is indistinguishable from unanimously-right to that rule.
+     That is also why the error is COMMON-MODE across the three LEDs, and so invisible to any
+     inter-channel agreement metric.
+
+     THE RULE HERE IS PHYSIOLOGICAL RATHER THAN STATISTICAL, and has no threshold, no moment and no
+     amplitude term:
+
+         the correct polarity is the one whose median foot→peak rise is a SMALLER FRACTION of the
+         beat interval, because systole is faster than diastole in every cardiac waveform.
+
+     Measured, it returns −1 on all 31 nights across both corpora, takes good nights from 6/20 to 18/20
+     and the worst night from 204.80 ms (70 beats paired) to 3.48 ms (22 335 paired).
+
+     Polarity is a property of the DEVICE and constant for a recording, so it is decided from a bounded
+     sample rather than the whole night — two extra `detectBeats` calls over ~2 minutes, not two over
+     eight hours. The sample is taken from the MIDDLE: the start of a recording is where the sensor is
+     being put on, and donning artefact is exactly the low-frequency contamination that breaks `orient`.
+
+     Falls back to `orient` when the sample carries too few beats to decide, so a channel that cannot be
+     measured keeps the previous behaviour instead of guessing. */
+  /* ⚠️ DECLARE THESE WITH `const`, NOT `var`. They are shipped to the Web-Worker realm through the
+     `consts` map in `_buildWorkerURL`, and dex-tests.js rebuilds that realm by regex-matching
+     `^const NAME = …` out of this file's own text. A `var` is found by neither, so the worker throws
+     `ReferenceError` at RUNTIME while every static check still passes — which is exactly how this
+     was caught, and exactly the drift the `consts` comment below already records once. */
+  const ORIENT_SAMPLE_SEC = 120; // ~100 beats at 50 bpm — enough for a stable median, cheap to detect
+  const ORIENT_MIN_BEATS = 5; // below this a median rise means nothing; defer to `orient`
+
+  function riseFraction(bp, fs) {
+    // median (peak − foot) as a fraction of the beat interval, for ONE already-oriented waveform.
+    var det = detectBeats(bp, fs);
+    var n = Math.min(det.peaks.length, det.feet.length);
+    if (n < ORIENT_MIN_BEATS || !(det.T > 0)) return null;
+    var r = [];
+    for (var k = 0; k < n; k++) {
+      var d = det.peaks[k] - det.feet[k];
+      if (isFinite(d) && d > 0) r.push(d);
+    }
+    if (r.length < ORIENT_MIN_BEATS) return null;
+    return median(r) / det.T;
+  }
+
+  function orientByRise(bp, fs) {
+    var n = bp.length;
+    var want = Math.round(fs * ORIENT_SAMPLE_SEC);
+    var seg;
+    if (!(want > 0) || n <= want) {
+      seg = bp;
+    } else {
+      var lo = Math.floor((n - want) / 2); // the MIDDLE — the start is donning artefact
+      seg = bp.subarray ? bp.subarray(lo, lo + want) : bp.slice(lo, lo + want);
+    }
+    var up = riseFraction(seg, fs);
+    var dn = riseFraction(negate(seg), fs);
+    if (up == null && dn == null) return orient(bp); // undecidable → previous behaviour
+    if (up == null) return -1;
+    if (dn == null) return 1;
+    return dn < up ? -1 : 1;
+  }
+
   // ── orientation: systolic upstroke should be the steep, sharp deflection ──
+  // ⚠️ SUPERSEDED as the default by `orientByRise` above — kept as its fallback for the
+  //    undecidable case, and because it is still the right idea when beats cannot be found.
   function orient(bp) {
     // PPG upstroke (systole→peak) is steeper than the diastolic decay.
     // skewness of the derivative is positive when peaks point "up" correctly.
@@ -1162,7 +1238,7 @@
      the serial and worker paths stay identical by construction (the property the comment above pins). */
   function detectChannel(chan, fs, forceSign) {
     const bp0 = bandpass(chan, fs, 0.5, 8.0);
-    const sign = forceSign === 1 || forceSign === -1 ? forceSign : orient(bp0);
+    const sign = forceSign === 1 || forceSign === -1 ? forceSign : orientByRise(bp0, fs);
     const bp = sign === 1 ? bp0 : negate(bp0);
     const det = detectBeats(bp, fs);
     return { bp, sign, peaks: det.peaks, feet: det.feet, T: det.T };
@@ -3662,14 +3738,14 @@
     // The drift is now gate-backed: dex-tests.js's `PpgDex worker source is CLOSED` group re-derives the
     // call graph from this file's own text and reds if any callee is missing. ADD A FUNCTION HERE
     // whenever a worker-reachable path starts calling it.
-    var deps = [biquad, applyBiquad, reverse, filtfilt, bandpass, mean, std, median, movavg, orient, negate, cadenceSamples, refineFeet, detectBeats, detectChannel];
+    var deps = [biquad, applyBiquad, reverse, filtfilt, bandpass, mean, std, median, movavg, orient, riseFraction, orientByRise, negate, cadenceSamples, refineFeet, detectBeats, detectChannel];
     // Module-level CONSTANTS the shipped functions close over. Functions carry their own source via
     // .toString(), but a `const` at module scope does NOT travel with them — detectBeats reads
     // REFR_CADENCE_FRAC, so without this the worker throws `REFR_CADENCE_FRAC is not defined` even once
     // every FUNCTION it calls is shipped. (That is the second half of the same drift, and the static
     // call-graph check alone did not see it — only running the worker realm did.) Still single-sourced:
     // the VALUE is read from the live module here, never retyped.
-    var consts = { REFR_CADENCE_FRAC: REFR_CADENCE_FRAC, SUBH_FRAC: SUBH_FRAC };
+    var consts = { REFR_CADENCE_FRAC: REFR_CADENCE_FRAC, SUBH_FRAC: SUBH_FRAC, ORIENT_SAMPLE_SEC: ORIENT_SAMPLE_SEC, ORIENT_MIN_BEATS: ORIENT_MIN_BEATS };
     var constSrc = Object.keys(consts)
       .map(function (k) {
         return 'const ' + k + '=' + JSON.stringify(consts[k]) + ';';
@@ -3766,6 +3842,10 @@
     detectChannel,
     consensusBeats,
     consensusSign,
+    /* PPG-FOOT-PLACEMENT §0 — exported so the polarity RULE is directly testable rather than reachable
+       only through a full `detectChannel` run, the same reason `consensusSign` is exported. */
+    orientByRise,
+    riseFraction,
     applyConsensusPolarity,
     distinctChannelIdx,
     intervalsSpanningTimeGap,
