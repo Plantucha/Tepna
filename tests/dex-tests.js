@@ -1609,6 +1609,25 @@
         T.eq('GlucoDex · Feb 30 → null (invalid calendar day)', GP('2026-02-30 12:00:00', {}), null);
         T.eq('GlucoDex · O2Ring hour 25 "25:00:00 07/06/2026" → null', GP('25:00:00 07/06/2026', { preferDMY: true }), null);
         T.eq('GlucoDex · YYYY/MM/DD month 13 "2026/13/01 12:00" → null', GP('2026/13/01 12:00', {}), null);
+        /* ── §2.7 BOUNDARY VALUES — the band is CLOSED, so the EDGE must be ACCEPTED ──────────
+           Everything above probes a component that is FAR out of range (hour 25, minute 99,
+           month 13). None of it can see a bound that has moved by one: weaken `mi > 59` to
+           `mi >= 59` and minute 99 is still rejected, so the assertion stays green over a guard
+           that now refuses a legal minute. Nor can a stamp whose seconds and ms are both ZERO
+           see `se > 59` collapse to `se > 0` — 0 is not greater than 0 either way.
+
+           Measured 2026-08-12: FIVE mutants on this one line survived the whole suite for
+           exactly that reason — `se >= 59`, `mi >= 59`, `ms >= 999`, `se > 0`, `ms > 0`. Each
+           pair below is accept-at-the-edge plus reject-just-outside, which is the only shape
+           that pins a closed band. */
+        T.eq('GlucoDex · §2.7 hour 23 ACCEPTED — band closed at 23', (GP('2026-06-13 23:00:00', {}) || {}).tMs, U(2026, 5, 13, 23, 0, 0));
+        T.eq('GlucoDex · §2.7 minute 59 ACCEPTED — kills `mi >= 59`', (GP('2026-06-13 22:59:00', {}) || {}).tMs, U(2026, 5, 13, 22, 59, 0));
+        T.eq('GlucoDex · §2.7 minute 60 → null', GP('2026-06-13 22:60:00', {}), null);
+        T.eq('GlucoDex · §2.7 second 59 ACCEPTED — kills `se >= 59`', (GP('2026-06-13 22:00:59', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 59));
+        T.eq('GlucoDex · §2.7 second 60 → null', GP('2026-06-13 22:00:60', {}), null);
+        T.eq('GlucoDex · §2.7 a NON-ZERO second is legal — kills `se > 0`', (GP('2026-06-13 22:00:30', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 30));
+        T.eq('GlucoDex · §2.7 ms 999 ACCEPTED — band closed at 999, kills `ms >= 999`', (GP('2026-06-13 22:00:00.999', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 0, 999));
+        T.eq('GlucoDex · §2.7 a NON-ZERO ms is legal — kills `ms > 0`', (GP('2026-06-13 22:00:00.250', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 0, 250));
       }
       // ── PpgDex `parseTimestamp` (ISO/epoch subset) ──
       var PP = env.PPGDSP && env.PPGDSP.parseTimestamp;
@@ -1620,6 +1639,14 @@
         T.eq('PpgDex · Feb 30 → null (was 2026-03-02)', PP('2026-02-30 12:00:00', {}), null);
         T.eq('PpgDex · hour 25 → null (was +1 day)', PP('2026-06-13 25:00:00', {}), null);
         T.eq('PpgDex · minute 99 → null (was 23:39)', PP('2026-06-13 22:99:00', {}), null);
+        // §2.7 boundary pairs — see the GlucoDex block above for why far-out values cannot see these.
+        T.eq('PpgDex · §2.7 hour 23 ACCEPTED', (PP('2026-06-13 23:00:00', {}) || {}).tMs, U(2026, 5, 13, 23, 0, 0));
+        T.eq('PpgDex · §2.7 minute 59 ACCEPTED', (PP('2026-06-13 22:59:00', {}) || {}).tMs, U(2026, 5, 13, 22, 59, 0));
+        T.eq('PpgDex · §2.7 minute 60 → null', PP('2026-06-13 22:60:00', {}), null);
+        T.eq('PpgDex · §2.7 second 59 ACCEPTED', (PP('2026-06-13 22:00:59', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 59));
+        T.eq('PpgDex · §2.7 second 60 → null', PP('2026-06-13 22:00:60', {}), null);
+        T.eq('PpgDex · §2.7 a NON-ZERO second is legal', (PP('2026-06-13 22:00:30', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 30));
+        T.eq('PpgDex · §2.7 ms 999 ACCEPTED — band closed at 999', (PP('2026-06-13 22:00:00.999', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 0, 999));
       }
       // ── CPAPDex `parseTimestamp` (ISO + 14-digit filename compact) ──
       var CP = env.CpapDsp && env.CpapDsp.parseTimestamp;
@@ -1633,6 +1660,13 @@
         T.eq('CPAPDex · month 13 → null', CP('2026-13-01 12:00:00'), null);
         T.eq('CPAPDex · hour 25 → null', CP('2026-06-13 25:00:00'), null);
         T.eq('CPAPDex · compact Feb 31 20260231120000 → null', CP('20260231120000'), null);
+        // §2.7 boundary pairs — see the GlucoDex block above.
+        T.eq('CPAPDex · §2.7 hour 23 ACCEPTED', (CP('2026-06-13 23:00:00') || {}).tMs, U(2026, 5, 13, 23, 0, 0));
+        T.eq('CPAPDex · §2.7 minute 59 ACCEPTED', (CP('2026-06-13 22:59:00') || {}).tMs, U(2026, 5, 13, 22, 59, 0));
+        T.eq('CPAPDex · §2.7 minute 60 → null', CP('2026-06-13 22:60:00'), null);
+        T.eq('CPAPDex · §2.7 second 59 ACCEPTED', (CP('2026-06-13 22:00:59') || {}).tMs, U(2026, 5, 13, 22, 0, 59));
+        T.eq('CPAPDex · §2.7 second 60 → null', CP('2026-06-13 22:00:60'), null);
+        T.eq('CPAPDex · §2.7 ms 999 ACCEPTED — band closed at 999', (CP('2026-06-13 22:00:00.999') || {}).tMs, U(2026, 5, 13, 22, 0, 0, 999));
       }
       // ── CpapEdf `parseEdfClock` (EDF header, the primary CPAP clock) ──
       var EC = env.CpapEdf && env.CpapEdf.parseEdfClock;
@@ -1643,6 +1677,31 @@
         T.eq('CpapEdf · Apr 31 "31.04.26" → null (LEAKED this → May 1)', EC('31.04.26', '22.28.30'), null);
         T.eq('CpapEdf · month 13 "01.13.26" → null', EC('01.13.26', '22.28.30'), null);
         T.eq('CpapEdf · hour 25 "25.28.30" → null', EC('12.06.26', '25.28.30'), null);
+        /* §2.7 boundary pairs. This guard is the ONE that differs in shape — it has no `< 0` arms
+           and no ms component (an EDF header carries none), so month/day are the only closed bands
+           with a low edge, and they are pinned here at BOTH ends. */
+        T.eq('CpapEdf · §2.7 hour 23 ACCEPTED', (EC('12.06.26', '23.28.30') || {}).t0Ms, U(2026, 5, 12, 23, 28, 30));
+        T.eq('CpapEdf · §2.7 minute 59 ACCEPTED', (EC('12.06.26', '22.59.30') || {}).t0Ms, U(2026, 5, 12, 22, 59, 30));
+        T.eq('CpapEdf · §2.7 minute 60 "22.60.30" → null', EC('12.06.26', '22.60.30'), null);
+        T.eq('CpapEdf · §2.7 second 59 ACCEPTED', (EC('12.06.26', '22.28.59') || {}).t0Ms, U(2026, 5, 12, 22, 28, 59));
+        T.eq('CpapEdf · §2.7 second 60 "22.28.60" → null', EC('12.06.26', '22.28.60'), null);
+        T.eq('CpapEdf · §2.7 month 1 ACCEPTED — band closed at 1', (EC('12.01.26', '22.28.30') || {}).t0Ms, U(2026, 0, 12, 22, 28, 30));
+        T.eq('CpapEdf · §2.7 month 12 ACCEPTED — band closed at 12', (EC('12.12.26', '22.28.30') || {}).t0Ms, U(2026, 11, 12, 22, 28, 30));
+        T.eq('CpapEdf · §2.7 day 1 ACCEPTED — band closed at 1', (EC('01.06.26', '22.28.30') || {}).t0Ms, U(2026, 5, 1, 22, 28, 30));
+        T.eq('CpapEdf · §2.7 day 31 ACCEPTED in a 31-day month', (EC('31.07.26', '22.28.30') || {}).t0Ms, U(2026, 6, 31, 22, 28, 30));
+        T.eq('CpapEdf · §2.7 month 0 "12.00.26" → null', EC('12.00.26', '22.28.30'), null);
+        T.eq('CpapEdf · §2.7 day 0 "00.06.26" → null', EC('00.06.26', '22.28.30'), null);
+        /* ⚠ `mo < 1` and `dd < 1` are EQUIVALENT-mutant territory here, and deliberately left as
+           such: the two assertions above pass whether or not those arms fire, because the
+           ROUND-TRIP check below the guard already rejects both. `mo = 0` builds
+           `Date.UTC(y, -1, dd)` — December of the previous year — so `getUTCFullYear()` no longer
+           matches and it returns null; `dd = 0` builds day 0, i.e. the last day of the previous
+           month, and fails the same way. Both digits are parsed from 2-char fields, so a NEGATIVE
+           month or day cannot be constructed at all.
+           Measured 2026-08-12: mutating `mo < 1` → `mo < 0` and `dd < 1` → `dd < 0` survives the
+           whole suite, and no input can distinguish them. They are not a test gap — do not add an
+           assertion chasing them. The guard arms stay because they reject earlier and cheaper than
+           the round-trip does. */
       }
     });
 
