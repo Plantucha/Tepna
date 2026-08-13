@@ -1758,18 +1758,59 @@
     // R-peak jitter, so 0.20 would over-reject clean PPG beats. Per-signal by
     // design (WP-D audit / DEX-DSP-AUDIT-BEATS-ARTIFACT.md), not accidental drift.
     const PPI_ECTOPY_THR = 0.3;
+    /* ── THE REFERENCE MUST BE ABLE TO RE-LOCK (PPGDEX-CORRECTRR-LOCKIN, 2026-08-13) ──────────────
+       Only an ACCEPTED interval updates `accepted`, and a rejected one is replaced by the reference
+       itself. That is a FEEDBACK LOOP: if `ref` ever drifts — one motion burst is enough — every
+       CORRECT interval can sit outside the 30 % band, so it is rejected, replaced by the stale ref,
+       and `accepted` never gains a true value. The reference then cannot recover and the series
+       emits a CONSTANT for as long as the condition holds.
+
+       Measured on the real corpus: a 25-minute run locked at 786 ms while the true interval was
+       1143 ms — 1143/786 = 1.454, and the epochs reported 76 bpm against ECG's 52.4 and the ring's
+       52, with rmssd and sdnn rounding to 0 because every value was the same substitute. It affects
+       ~2.6 % of epochs across 29 of 49 nights, and PpgDex is the outlier in 98 % of three-way
+       adjudicated disagreements.
+
+       THE FIX IS TO NOTICE THE LOOP, NOT TO WIDEN THE BAND. A long run of consecutive rejections is
+       evidence about the REFERENCE, not about the data: real ectopy is sporadic, and an interval
+       series does not legitimately go 30 % off its own median for minutes at a time. After
+       `RESEED_AFTER` consecutive rejections the reference is re-seeded from the RAW local intervals
+       — the same robust median, computed over what actually arrived rather than over what the old
+       reference was willing to accept — and `accepted` is re-primed so the normal path resumes.
+       Widening PPI_ECTOPY_THR instead would let genuine ectopy through everywhere to fix a fault
+       that only occurs after the reference is already wrong. */
+    /* 8 is a middle value, NOT a tuned one: sweeping it 4 / 8 / 16 / 32 on a real night moves the
+       mean absolute error against the simultaneous ECG by 2.30 / 2.31 / 2.34 / 2.37 bpm, with zero
+       epochs made worse at any setting. An 8x span that changes the answer by 3 % is not a knife
+       edge, so this does not need calibrating per corpus. */
+    const RESEED_AFTER = 8; // consecutive rejections that indict the REFERENCE rather than the data
+    let runBad = 0;
     for (let i = 0; i < rr.length; i++) {
       let v = rr[i];
-      const ref = localRef();
+      let ref = localRef();
+      if (runBad >= RESEED_AFTER) {
+        // Re-seed from the RAW neighbourhood, the values the old reference kept refusing.
+        const lo = Math.max(0, i - 6);
+        const raw = [];
+        for (let k = lo; k <= i && k < rr.length; k++) if (rr[k] >= 300 && rr[k] <= 2000) raw.push(rr[k]);
+        if (raw.length) {
+          ref = median(raw);
+          accepted.length = 0;
+          accepted.push(ref); // re-prime so localRef() returns the recovered value, not the stale one
+        }
+        runBad = 0;
+      }
       let bad = false;
       if (v < 300 || v > 2000) bad = true;
       else if (Math.abs(v - ref) / ref > PPI_ECTOPY_THR) bad = true; // >30% off the local median
       if (bad) {
         v = ref;
         nCorr++;
+        runBad++;
         flags.push(1);
       } else {
         accepted.push(v);
+        runBad = 0;
         flags.push(0);
       }
       out.push(v);
