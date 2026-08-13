@@ -497,7 +497,95 @@ A PR whose `mergeStateStatus` is `DIRTY` runs **no** `pull_request` workflows, s
 reports "no checks reported on the branch" and the PR reads as broken. It is conflicted, not failing,
 and the responses are opposite — rebase versus debug. Check `mergeStateStatus` before reading a
 check list as a verdict. (Related: the `land-pr` tool already distinguishes these; a human reading
-the PR page does not.)
+the PR page does not. `land-pr` can still exit on its own network error — a TLS handshake timeout
+killed one run here — which is a different thing again from either.)
+
+### 12.5 · THE COMPARATOR COULD NOT SEE THE DIFFERENCE IT WAS ASKED ABOUT
+
+`T.eq` compared `JSON.stringify(got) === JSON.stringify(want)`, and JSON maps `NaN`, `+Infinity` and
+`−Infinity` **all** to `"null"` — at every depth, so a `{offsetMin: null}` expectation accepted a NaN
+offset and `[null, 1]` accepted `[NaN, 1]`. Measured across the suite: **263** top-level
+`eq(x, null)` assertions, plus 8 null fields and 6 null array slots.
+
+**248 of those 263 are in the clock group** — whose §2.6 rule *is* "a missing stamp must be visible
+(null), never fabricated". The rule was asserted almost entirely through the one comparator that
+could not tell a null from a fabricated NaN. And the sharpest instance in the repo asserted
+NaN-refusal *through* the collapse:
+
+```js
+T.eq('…NaN is refused', C.parseTimestamp('23:45', { dateAnchorMs: NaN }), null)
+```
+
+Had `parseTimestamp` returned the NaN straight through instead of refusing it, that test passed.
+
+Two process points, both earned:
+
+- **The first fix was shallow** — it tagged only the top-level value, leaving every field and array
+  position blind, and the blast-radius claim ("reds zero") was therefore true of the 275 and
+  *untested* for the rest. Caught in review by the vigil-box session. When hardening a comparator,
+  the depth at which the collapse happens is the whole question.
+- **`eq` cannot assert its own failure** — a failing assertion reds the suite — so its guard group
+  pins the RULE (all four values pairwise distinct, at four depths) and includes an anti-vacuity
+  assertion that a bare `JSON.stringify` *does* still collapse them. The implementation is proven
+  separately, by a measured mutant kill.
+
+### 12.6 · A UNANIMOUS-AGREEMENT RULE CANNOT DETECT A COMMON-MODE ERROR
+
+Contributed by the vigil-box session from the PpgDex `orient()` defect (#1200), and recorded here so
+nobody spends a cycle writing a test that cannot exist:
+
+> PpgDex's consensus-polarity pass compares the three LED channels and acts only on a DISSENTER,
+> returning 0 when they are unanimous — deliberately, so it stays export-inert. Optical polarity is a
+> property of the DEVICE, so when `orient()` chose wrongly it chose wrongly for all three channels at
+> once. Unanimously-wrong and unanimously-right are the same input to that rule, so no test written
+> against the consensus pass can distinguish them, at any threshold, on any corpus.
+>
+> Do not chase: a test asserting that consensus detects an inverted pulse cannot exist while the rule
+> is defined over inter-channel disagreement. The defect was common-mode, so EVERY inter-channel
+> agreement metric was blind to it — which is why it survived from the detector's introduction to
+> 2026-08-13 across 20 real nights, 10 of them wrong.
+>
+> What did detect it: an argument from outside the channel-agreement frame entirely — systole is
+> faster than diastole in every cardiac waveform, so the correct polarity is the one whose median
+> foot→peak rise is a smaller fraction of the beat interval. No moment, no threshold, no amplitude
+> term, and no reference to the other channels. The general form: when a check is defined over
+> agreement between replicas, it is blind by construction to anything that moves the replicas
+> together, and the escape is a constraint from the physics rather than a better statistic over the
+> replicas.
+
+This is the strongest equivalence class in the ledger, because it is not about one operator: it says
+an entire *family* of tests is void for an entire *family* of defects. Worth checking against any
+consensus, quorum or cross-channel-agreement rule in the fleet before writing tests for it.
+
+⚠️ It also bears on §11.1's numbers: a mutant inside a consensus rule that only ever fires on a
+dissenter may be equivalent for a corpus in which the replicas agree, and *killable* on one where
+they do not. Corpus-dependence is a third bucket beside "equivalent" and "a real gap".
+
+**THE FLEET AUDIT, run 2026-08-13.** Every consensus / quorum / cross-channel-agreement rule
+outside PpgDex, checked against the rule above:
+
+| rule | verdict |
+|---|---|
+| `integrator-tch.js` — the three-cornered hat itself | **already documented, thoroughly.** Its header states TCH "cancels common-mode by construction → false confidence", that it measures precision and not trueness, and that positive common-mode noise cannot be detected reference-free without an externally supplied `rho`. Nothing to add. |
+| `integrator-dsp.js` `fuseStagingConsensus` | **weaker exposure.** It reports an inter-node REM gap, but the legs are NOT replicas — they use different `stagingMethod`s — and it already fails closed (`disagreement: null`) when the `remFractionBasis` differs. A shared staging error is conceivable but the legs are heterogeneous by construction. |
+| `analysis-stats.js` `_consensusTrust` (and its `sensor-trio-worker.js` twin) | **THE SIGN-FLIPPED CASE, undocumented — see below.** |
+
+`_consensusTrust(hh, vv, oo, C)` weights each epoch by the RANGE across the three devices —
+`max − min` — giving full weight when the range is at or below the median and tapering to zero as
+it grows. It then feeds `tchSigmasFused`.
+
+A range is a DIFFERENCE, so a bias shared by all three cancels out of it exactly: the weighting is
+blind to common-mode by construction, the same way the estimator downstream is. But it is worse
+than blind in one sub-case. Where the shared error also COMPRESSES the spread — three devices
+clipping, saturating or railing to the same value — the range goes to ~0 and the epoch receives the
+MAXIMUM weight. So the epochs most contaminated by common-mode error are the ones the trust
+function selects hardest, and they are then fed to an estimator that cancels common-mode by
+construction.
+
+This is not proposed as a code change: it is a methodological caveat on an analysis tool, and the
+right treatment is the one `integrator-tch.js` already models — say it in the header where a
+consumer reading the number will see it. Recorded here rather than acted on because the analysis
+lane is not this brief's subject and the statistic itself is not wrong, only narrower than it looks.
 
 ## Done when
 
@@ -517,5 +605,12 @@ the PR page does not.)
       the decision to keep one blended number is recorded with a reason.
 - [x] §9.4 — RESOLVED 2026-08-13: `getHooks()` on HRVDex and OxyDex (#1206), which unblocked the
       profile-gated `computeDerived` branches (#1208, #1209).
-- [ ] §12.2 — the other DSPs are checked for columns that are never ASSIGNED on a caller-supplied
-      row, since `undefined` is invisible to the non-finite gates that exist to catch fabrication.
+- [x] §12.2 — DONE 2026-08-13: every `*-dsp.js` / `*-cross.js` / `*-edf.js` scanned for the shape
+      (a function aliasing `arg || moduleArray` that still reads the module array in its body).
+      HRVDex was the only site; fixed in #1211, and it now assigns 62 of 62 columns where it did 52.
+- [x] §12.6 — DONE 2026-08-13: the fleet's other consensus / quorum / agreement rules audited. TCH
+      already documents its own common-mode blindness; `fuseStagingConsensus` is weakly exposed
+      (heterogeneous legs, fails closed on basis mismatch); `_consensusTrust` is the undocumented
+      sign-flipped case and is written up in §12.6.
+- [ ] §12.6 follow-up — `analysis-stats.js` `_consensusTrust` gains a header caveat in the shape
+      `integrator-tch.js` already uses, or the decision not to is recorded with a reason.
