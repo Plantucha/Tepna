@@ -1662,6 +1662,18 @@
         T.eq('GlucoDex · §2.7 a NON-ZERO second is legal — kills `se > 0`', (GP('2026-06-13 22:00:30', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 30));
         T.eq('GlucoDex · §2.7 ms 999 ACCEPTED — band closed at 999, kills `ms >= 999`', (GP('2026-06-13 22:00:00.999', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 0, 999));
         T.eq('GlucoDex · §2.7 a NON-ZERO ms is legal — kills `ms > 0`', (GP('2026-06-13 22:00:00.250', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 0, 250));
+        /* ── §2 ZONE CAPTURE — `_ckZoneMin`, measured PSEUDO-TESTED 2026-08-12 ─────────────────
+           `offsetMin` is the only place a real zone survives into the record (§1), and nothing
+           asserted it for this parser: sign inverted, the hours term zeroed, and the minutes field
+           read one char short ALL survived the whole GlucoDex suite. Each pair below kills one.
+           §2.2 also requires that a zoned stamp and a no-zone local stamp for the same WALL
+           instant produce the SAME floating tMs — the zone is captured, never applied to tMs. */
+        T.eq('GlucoDex · §2 +05:30 ⇒ offsetMin 330 (hours term is ×60)', (GP('2026-06-13T22:00:00+05:30', {}) || {}).offsetMin, 330);
+        T.eq('GlucoDex · §2 −05:30 ⇒ offsetMin −330 (the SIGN is read, not assumed east)', (GP('2026-06-13T22:00:00-05:30', {}) || {}).offsetMin, -330);
+        T.eq('GlucoDex · §2 +05:45 ⇒ 345 — the MINUTES field is two digits, not one', (GP('2026-06-13T22:00:00+05:45', {}) || {}).offsetMin, 345);
+        T.eq('GlucoDex · §2 Z ⇒ offsetMin 0, not null (a zone WAS carried)', (GP('2026-06-13T22:00:00Z', {}) || {}).offsetMin, 0);
+        T.eq('GlucoDex · §2 no zone ⇒ offsetMin null (never a fabricated 0)', (GP('2026-06-13 22:00:00', {}) || {}).offsetMin, null);
+        T.eq('GlucoDex · §2.2 a ZONED stamp yields the SAME floating tMs as the bare local one', (GP('2026-06-13T22:00:00+05:30', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 0));
       }
       // ── PpgDex `parseTimestamp` (ISO/epoch subset) ──
       var PP = env.PPGDSP && env.PPGDSP.parseTimestamp;
