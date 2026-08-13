@@ -473,10 +473,10 @@ def test_rate_reality_catches_the_rate_that_was_asked_for_but_not_delivered(tmp_
     row = nightqc.rate_reality(str(tmp_path), [dev])[0]
     assert row["requested_hz"] == 176.0
     assert abs(row["measured_hz"] - 55.0) < 0.1
-    assert row["ok"] is False, row
+    assert row["matches_config"] is False, row
 
     dev["rates"]["ppg"] = 55        # asked for what it got
-    assert nightqc.rate_reality(str(tmp_path), [dev])[0]["ok"] is True
+    assert nightqc.rate_reality(str(tmp_path), [dev])[0]["matches_config"] is True
 
 
 def test_host_jitter_is_rate_agnostic_by_construction():
@@ -578,3 +578,156 @@ def test_rate_reality_survives_an_unreadable_night_directory():
     calls this before the coverage loop, so an exception here would take the whole QC summary with it."""
     import nightqc
     assert nightqc.rate_reality("/nonexistent/night", [{"name": "x", "streams": ["ppg"]}]) == []
+
+
+def test_tau0_is_the_mean_packet_interval_in_seconds_exactly():
+    """Pinned exactly, because tau0 SCALES the whole Allan curve: sigma_y is divided by tau, so a wrong
+    tau0 rescales every point and still produces a plausible-looking curve with the right shape. Ten
+    arithmetic mutations survived a shape-only test here."""
+    import nightqc
+    # 5 packets spanning 4 intervals of 250 ms → tau0 = 0.25 s exactly
+    pairs = [(1000.0, 0.0), (1250.0, 0.0), (1500.0, 0.0), (1750.0, 0.0), (2000.0, 0.0)]
+    assert nightqc._tau0_of(pairs) == 0.25
+    # it is a mean over intervals (n-1), not over packets (n) — the classic off-by-one
+    assert nightqc._tau0_of(pairs) != (2000.0 - 1000.0) / 1000.0 / len(pairs)
+    # HOST stamps only: the second member of each pair must never enter it
+    poisoned = [(1000.0, 9e9), (1250.0, -9e9), (1500.0, 5.0), (1750.0, 0.0), (2000.0, 7.0)]
+    assert nightqc._tau0_of(poisoned) == 0.25, "the delay column leaked into the sample interval"
+    # ms → s, exactly
+    assert nightqc._tau0_of([(0.0, 0.0), (2000.0, 0.0)]) == 2.0
+
+
+def test_tau0_refuses_below_two_packets_and_returns_zero_not_one():
+    """A 0.0 makes `allan.adev` refuse (`tau0 <= 0`); a 1.0 would silently claim a one-second interval
+    and produce a whole curve on an axis that was never measured."""
+    import nightqc
+    assert nightqc._tau0_of([]) == 0.0
+    assert nightqc._tau0_of([(1.0, 0.0)]) == 0.0
+    assert nightqc._tau0_of([(0.0, 0.0), (1000.0, 0.0)]) == 1.0, "two packets IS enough"
+
+
+def test_an_unconfigured_or_unmeasurable_rate_is_unjudged_not_failed(tmp_path):
+    """A user may change a device's rate at any time, and a future sensor may offer rates nobody
+    documented — so `matches_config` must be None where either number is unknown, never False. A
+    verdict of False on an unfamiliar sensor would read as a fault in a night that is perfectly fine."""
+    import nightqc
+    step = int(1e9 / 176.0)
+    p = os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt")
+    with open(p, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];channel 0\n")
+        for i in range(1000):
+            fh.write(f"2026-08-12T02:00:00.000;{500_000_000_000 + i * step};1\n")
+    # a device with NO configured rate for this stream, and no model nominal to fall back on
+    dev = {"name": "Some Future Sensor", "device_id": "0C301E3F", "streams": ["ppg"]}
+    row = nightqc.rate_reality(str(tmp_path), [dev])[0]
+    assert row["measured_hz"] is not None, "the rate is still MEASURED and reported"
+    assert row["matches_config"] is None, "unjudged, because there is nothing to judge it against"
+
+
+def test_an_unknown_device_does_not_inherit_another_models_rate_table():
+    """`_model_of` defaults an unrecognised device to "O2Ring" so its callers always get a string.
+    That default must never reach the nominal table: a future sensor would otherwise be judged against
+    the O2Ring's 125.738 Hz row rate — a coverage figure and a rate verdict both computed from a model
+    the device is not. Found by asking what happens when a user attaches something undocumented."""
+    import nightqc
+    unknown = {"name": "Some Future Sensor", "streams": ["ppg"]}
+    assert nightqc._model_of(unknown) == "O2Ring", "the default is unchanged for its other callers"
+    assert nightqc._recognised_model(unknown) is None
+    assert nightqc._expected_hz(unknown, "ppg") is None, "no borrowed rate"
+    # …while every device the suite DOES know still resolves
+    for dev, stream, want in (({"name": "Polar H10"}, "ecg", 130),
+                              ({"name": "Polar Verity Sense"}, "ppg", 55),
+                              ({"name": "Wellue O2Ring-S"}, "ppg", 125.738)):
+        assert nightqc._expected_hz(dev, stream) == want, (dev, stream)
+    # and a CONFIGURED rate always wins, for known and unknown alike
+    assert nightqc._expected_hz({"name": "Some Future Sensor", "rates": {"ppg": 400}}, "ppg") == 400.0
+
+
+def _write_stream_ns(path, step, rows=1000):
+    """Write with an EXPLICIT ns step. `_write_stream` truncates 1e9/hz, so the rate it produces is
+    1e9/int(1e9/hz) — close to `hz` but not equal to it, which is fine for tolerance tests and fatal
+    for a boundary test that must land on the bound BIT-EXACTLY."""
+    with open(path, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];v\n")
+        for i in range(rows):
+            fh.write(f"2026-08-12T02:00:00.000;{500_000_000_000 + i * step};1\n")
+
+
+def _write_stream(path, hz, rows=1000):
+    step = int(1e9 / hz)
+    with open(path, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];v\n")
+        for i in range(rows):
+            fh.write(f"2026-08-12T02:00:00.000;{500_000_000_000 + i * step};1\n")
+
+
+def test_rate_reality_picks_the_right_device_and_the_largest_of_its_files(tmp_path):
+    """Two devices in one night, and several fragments per stream. The filename filter must not let
+    the OTHER device's file answer for this one, and the largest fragment must win — the short
+    reconnect fragments cannot settle a rate and would report a spurious mismatch."""
+    import nightqc
+    # NOTE THE ORDER: the BIG file sorts FIRST by name. With the big one last, `max(..., key=_size)`
+    # and a mutant picking by name or by list position agree, and the test passes while proving
+    # nothing — that is exactly how this survived the first round.
+    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812010000_PPG.txt"), 176.0, rows=4000)
+    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt"), 55.0, rows=300)
+    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_DEADBEEF_20260812030000_PPG.txt"), 25.0, rows=9000)
+    dev = {"name": "Polar Verity Sense", "device_id": "0C301E3F", "streams": ["ppg"], "rates": {"ppg": 176}}
+    row = nightqc.rate_reality(str(tmp_path), [dev])[0]
+    assert abs(row["measured_hz"] - 176.0) < 0.5, "the LARGEST file of THIS device must win"
+    assert row["matches_config"] is True
+
+
+def test_rate_reality_keeps_scanning_past_a_stream_with_no_files(tmp_path):
+    """`continue`, not `break`: a configured stream that produced nothing must not stop the streams
+    after it being reported. Streams are walked in sorted order, so `acc` precedes `ppg` here."""
+    import nightqc
+    _write_stream(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt"), 176.0, rows=4000)
+    dev = {"name": "Polar Verity Sense", "device_id": "0C301E3F", "streams": ["acc", "ppg"]}
+    rows = nightqc.rate_reality(str(tmp_path), [dev])
+    assert [r["stream"] for r in rows] == ["ppg"], rows
+
+
+def test_the_rate_tolerance_is_ten_percent_of_the_REQUESTED_rate_inclusive(tmp_path):
+    """Two things at once, both of which survived a looser test: the bound is a FRACTION of the
+    requested rate (not a fixed window, and not divided by it), and it is INCLUSIVE — a device sitting
+    exactly on the bound matches, since the bound is the tolerance rather than the first failure."""
+    import nightqc
+    p = os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt")
+    _write_stream(p, 55.0, rows=4000)
+    mk = lambda want: nightqc.rate_reality(  # noqa: E731 - a local factory, not worth a helper
+        str(tmp_path), [{"name": "Polar Verity Sense", "device_id": "0C301E3F",
+                         "streams": ["ppg"], "rates": {"ppg": want}}])[0]
+    assert mk(50.5)["matches_config"] is True, "55 vs 50.5 is 8.9% — inside"
+    assert mk(49.0)["matches_config"] is False, "55 vs 49 is 12.2% — outside"
+    # THE BOUND SCALES WITH THE REQUESTED RATE. A fixed window, or one DIVIDED by the rate, cannot do
+    # both of these: at 55 Hz a 5 ms-equivalent slack is generous, at 176 Hz the same absolute slack is
+    # tiny. 176 vs 165 is 6.3% (inside) where 55 vs 49 was 12.2% (outside) on a smaller absolute gap.
+    _write_stream(p, 176.0, rows=4000)
+    assert mk(165.0)["matches_config"] is True, "6.3% at 176 Hz is inside — an absolute window would not be"
+    assert mk(150.0)["matches_config"] is False, "17.3% is outside at any rate"
+    assert abs(165.0 - 176.0) > abs(55.0 - 49.0), "the inside case has the LARGER absolute gap"
+
+
+def test_the_rate_tolerance_bound_is_INCLUSIVE_at_a_bit_exact_boundary(tmp_path):
+    """`<=`, not `<`, on an input that lands on the bound EXACTLY in IEEE-754.
+
+    Finding it took a search rather than a guess. `measured_hz` returns 1e9/step for an integer ns
+    step, and `_RATE_MISMATCH_TOL * want` rounds onto a different float grid, so almost no pair
+    satisfies `abs(measured - want) == 0.10 * want` exactly — 7.2e7 candidates around nine plausible
+    rates yielded none. Sweeping the ns step itself found one immediately. Both equalities below are
+    asserted, so if a future refactor moves either grid this test FAILS rather than silently
+    degrading into the approximate test it is here to replace.
+    """
+    import nightqc
+    step, want = 2007919, 553.3645087830291
+    _write_stream_ns(os.path.join(tmp_path, "Polar_VeritySense_0C301E3F_20260812020000_PPG.txt"), step, rows=4000)
+    measured = 1e9 / step
+    assert abs(measured - want) == nightqc._RATE_MISMATCH_TOL * want, "precondition: exactly on the bound"
+    row = nightqc.rate_reality(str(tmp_path), [{"name": "Polar Verity Sense", "device_id": "0C301E3F",
+                                                "streams": ["ppg"], "rates": {"ppg": want}}])[0]
+    # The row REPORTS `round(got, 2)` but `rate_reality` COMPARES the unrounded `got`. Assert against
+    # the rounded value, and keep the unrounded one in the bound check above — conflating the two is
+    # what made the first version of this test fail on a correct implementation.
+    assert row["measured_hz"] == round(measured, 2), "precondition: the file really measures 1e9/step"
+    assert row["matches_config"] is True, "on the bound is INSIDE the bound — the tolerance IS the tolerance"

@@ -137,3 +137,107 @@ def test_explicit_taus_are_honoured_and_impossible_ones_skipped():
     assert 1e9 not in got, "a tau longer than the series must be skipped, not reported"
     assert got == [1.0, 4.0], got
     assert all(p["n"] >= 8 for p in pts)
+
+
+# ─── EXACT pins. The tolerance-based tests above assert the SHAPE of the answer; 39 arithmetic
+#     mutations survived them (terms = n-3m, t = m/tau0, /1001.0, len(pairs)-2, …) because a slope
+#     within 0.1 of theory is unchanged by a small arithmetic slip. These pin the VALUE, against a
+#     second implementation written straight from the definition — the one thing a mutated copy of
+#     the first cannot agree with.
+
+def _reference_adev(x, tau0, m):
+    """Overlapping ADEV at one m, written directly from the textbook formula and nothing else:
+        sigma_y(tau) = sqrt( 1/(2(N-2m)tau^2) * SUM (x[i+2m] - 2x[i+m] + x[i])^2 ),  tau = m*tau0
+    Deliberately independent of `allan.py` — same definition, different code."""
+    n = len(x)
+    terms = n - 2 * m
+    acc = 0.0
+    for i in range(terms):
+        d = x[i + 2 * m] - 2.0 * x[i + m] + x[i]
+        acc += d * d
+    tau = m * tau0
+    return (acc / (2.0 * terms)) ** 0.5 / tau
+
+
+def test_adev_matches_an_independent_implementation_exactly():
+    """Every tau, to 1e-12. Kills the arithmetic: a wrong `terms`, a `m/tau0` for `m*tau0`, a shifted
+    second difference — each moves this and none of them moves a slope by 0.1."""
+    x = _white_fm()
+    pts = allan.adev(x, TAU0)
+    assert len(pts) >= 5
+    for p in pts:
+        m = int(round(p["tau"] / TAU0))
+        assert p["n"] == len(x) - 2 * m, f"terms wrong at m={m}: {p['n']}"
+        assert p["tau"] == m * TAU0
+        assert abs(p["adev"] - _reference_adev(x, TAU0, m)) < 1e-12 * max(1.0, p["adev"]), p
+
+
+def test_adev_scales_exactly_with_tau0():
+    """tau0 enters as a DIVISOR of the phase difference, so halving it doubles every sigma_y and the
+    taus halve. A `m/tau0` or a dropped tau0 breaks this identity; a tolerance never sees it."""
+    x = _white_fm()
+    a = allan.adev(x, 1.0)
+    b = allan.adev(x, 0.5)
+    assert len(a) == len(b)
+    for p, q in zip(a, b):
+        assert abs(q["tau"] - p["tau"] / 2) < 1e-12
+        assert abs(q["adev"] - p["adev"] * 2) < 1e-9 * p["adev"]
+
+
+def test_octave_taus_are_exactly_powers_of_two_and_stop_where_the_series_does():
+    """The ladder is 1,2,4,8,… tau0 — pinned exactly, since `m = 2`, `m *= 3` and an off-by-one in the
+    stop condition all survive a test that only checks 'some taus came back'."""
+    x = [0.0] * 1000
+    x = _white_fm()[:1000]
+    pts = allan.adev(x, 3.0)
+    ms = [round(p["tau"] / 3.0) for p in pts]
+    assert ms == [2 ** i for i in range(len(ms))], ms
+    assert ms[0] == 1, "the ladder must start at one sample interval"
+    # the stop is m <= n / (2 * _MIN_SPAN_MULTIPLE): with n=1000 that is m <= 125, so the last is 64
+    assert ms[-1] == 64, ms
+    assert all(p["n"] >= 8 for p in pts)
+
+
+def test_slope_is_exact_on_a_log_linear_curve():
+    """A curve that IS a power law has an exactly known slope, so the regression is pinned to 1e-12 —
+    which catches `sum(ys) * k`, `(xs[i] + mx)`, `(ys[i] + my)` and `den <= 1`."""
+    for want in (-1.0, -0.5, 0.0, 0.5, 1.0, 2.75):
+        pts = [{"tau": t, "adev": 3.0 * t ** want} for t in (1.0, 2.0, 4.0, 8.0, 16.0)]
+        assert abs(allan.slope(pts) - want) < 1e-12, (want, allan.slope(pts))
+
+
+def test_classify_boundaries_are_half_open_at_the_named_edges():
+    """The edges are -0.75/-0.25/0.25/0.75 and the comparison is STRICT `<`, so a slope sitting exactly
+    on an edge belongs to the HIGHER class. `<=` would silently move every boundary case."""
+    assert allan.classify(-0.75)["noise"] == "white-frequency", "exactly on an edge goes up, not down"
+    assert allan.classify(-0.7501)["noise"] == "white/flicker-phase"
+    assert allan.classify(0.75)["noise"] == "drift"
+    assert allan.classify(0.7499)["noise"] == "random-walk-frequency"
+    assert allan.classify(-0.25)["noise"] == "flicker-frequency"
+    assert allan.classify(0.25)["noise"] == "random-walk-frequency"
+
+
+def test_adev_needs_three_samples_not_four_and_rejects_a_zero_tau0():
+    """The guard is `n < 3` and `tau0 <= 0`, both exactly. A series of exactly 3 with a valid tau0 is
+    ADMITTED (it yields no tau, but the guard is not what stops it), and tau0 = 0 is rejected while a
+    tiny positive tau0 is not."""
+    assert allan.adev([1.0, 2.0], 1.0) == []
+    assert allan.adev([1.0, 2.0, 3.0], 1.0) == [], "3 samples pass the guard but support no tau"
+    assert allan.adev(_white_fm(), 1e-9) != [], "a tiny POSITIVE tau0 is valid"
+    assert allan.adev(_white_fm(), 0.0) == []
+    assert allan.adev(_white_fm(), -1.0) == []
+
+
+def test_adev_skips_a_too_long_tau_and_keeps_going():
+    """`continue`, not `break`: an unsupportable tau in the middle of an explicit list must not
+    truncate the ones after it."""
+    pts = allan.adev(_white_fm(), TAU0, taus=[1.0, 1e9, 4.0])
+    assert [p["tau"] for p in pts] == [1.0, 4.0], pts
+
+
+def test_stability_needs_three_taus_exactly():
+    """`len(pts) < 3` — a two-tau curve has no slope, a three-tau curve does."""
+    x = _white_fm()
+    assert allan.stability(x, TAU0, )["ok"] is True
+    two = allan.adev(x, TAU0, taus=[1.0, 2.0])
+    assert len(two) == 2 and allan.slope(two) is None

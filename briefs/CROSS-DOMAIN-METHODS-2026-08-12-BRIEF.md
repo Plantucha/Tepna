@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-08-12
+**Status:** DONE — 2026-08-12 · **Created:** 2026-08-12
 
 # Most of what this suite keeps re-deriving is a solved problem in another field
 
@@ -31,6 +31,14 @@ four orders worse, now a mechanism rather than an inference from its scattered p
 > NIST/Riley, *Handbook of Frequency Stability Analysis* (SP 1065) · <https://tf.nist.gov/general/pdf/2220.pdf>
 
 ## 2 · ADOPTING — Fourier-domain template matching for the pulse fiducial (pulsar timing)
+
+> 🔴 **RETRACTED 2026-08-12 — this section's premise was measured on ONE night, and it was a bad one.**
+> A 20-night sweep ([`PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md`](PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md))
+> finds the foot is **bimodal**: ≈0.9 ms σ on half the nights and ≈13 ms on the rest, with a clean gap
+> and nothing between. The 12.7 ms below is the BAD mode. On good nights the foot sits inside the PAT
+> budget and beats the 5.69 ms intersecting-tangent RMSE the literature supplied, so the fiducial is
+> **not** "the dominant error term" — it dominates on half the nights and is irrelevant on the other
+> half. The matched-filtering reasoning below stands; only that claim is withdrawn.
 
 **This is now the dominant error term, which is why it is next.** With the clock at 0.03 ms, the PPG
 systolic foot at **12.7 ms σ** (measured between three co-located LEDs of one device — same clock, same
@@ -82,7 +90,14 @@ Raising it improves monotonically (3.03 → 1.86 ms) and still does not overtake
 
 **⚠️ The far larger effect in that table is NOT the estimator — it is 18.78 ms against 1.70 ms, an 11×
 difference in the shipped method between two nights.** That is confounded: different nights, and rate
-and signal quality move together. It is the same confound `PPG-SAMPLE-RATE-AND-PAT` §3 set out to avoid
+and signal quality move together.
+
+> 🔴 **2026-08-12 — THE CONFOUND IS NOW NAMED, AND THE RATE ATTRIBUTION ABOVE IS WRONG.** The 55 Hz
+> test night was in the **bad** foot mode (18.78 ms) and the 176 Hz night in the **good** one (1.70 ms).
+> The template therefore wins where foot placement is genuinely noisy and loses where it is already at
+> ~1 ms — a **mode** effect, not a rate effect. "It earns its keep only where the pulse is
+> under-sampled" is withdrawn; sampling rate was never the variable being measured. This paragraph was
+> right that the 11× must not be read as the rate's effect, and right for the wrong reason. It is the same confound `PPG-SAMPLE-RATE-AND-PAT` §3 set out to avoid
 by decimating one recording, and it is why a **native 176 Hz night against a native 55 Hz night on the
 same subject** remains the only clean test. Do not read 11× as the rate's effect.
 
@@ -133,7 +148,8 @@ filtering (about to be, §2).
 - [x] §1 Allan deviation shipped and run on real captures
 - [x] §2 Fourier-domain template TOA implemented and measured on the inter-LED scatter — and it does
       NOT win: −9.1 % at 55 Hz, LOSES to tangents at 176 Hz. Recorded as a scout, not adopted (§2.1)
-- [ ] §3 `pat-gate.js` cross-references Kriegeskorte rather than restating the rule
+- [x] §3 `pat-gate.js` cross-references Kriegeskorte rather than restating the rule — `driftStats`'s
+      bin-qualification comment now names circular analysis, cites it, and records the 2026-08-12 violation
 - [x] §4 rejections recorded with the measurement that rejected them
 
 Related: [`ALLAN-DEVIATION-2026-08-12-BRIEF.md`](ALLAN-DEVIATION-2026-08-12-BRIEF.md) ·

@@ -198,7 +198,16 @@
        { bin, med, n, nBeats, iqr }   n = paired beats · nBeats = ECG beats in the SAME bin
      Two rules, both from the brief:
        · a bin qualifies on MATCH RATE (n/nBeats) and its own IQR — never on an absolute count of n,
-         which is §3's defect; a bin at 3 % match is edge-censored toward PHYS_HI, not a measurement
+         which is §3's defect; a bin at 3 % match is edge-censored toward PHYS_HI, not a measurement.
+         THIS RULE HAS A NAME AND A CITATION — it is CIRCULAR ANALYSIS ("double dipping"): the use of one
+         dataset for both selection and the selective analysis, invalid whenever the result statistic is
+         not independent of the selection criterion. Selecting the bin with the tightest IQR selects the
+         most CENSORED bin, because censoring toward PHYS_HI is what makes an IQR tight — committed here
+         on 2026-08-12, when a 5-minute window at 11.6 ms residIQR was called the best and was 89 %
+         censored. The prescribed remedy is stronger than "be careful": use INDEPENDENT data for the
+         selection and for the analysis. Kriegeskorte, Simmons, Bellgowan & Baker, Nat Neurosci 12:535
+         (2009), <https://www.nature.com/articles/nn.2303> — 42 % of 134 fMRI papers did this.
+         See briefs/CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md §3
        · steps are taken only between bins ADJACENT IN INDEX, so a recording gap is not charged as a
          step — the lag is free to have moved during the gap and nothing observed it */
   var BIN_MATCH_MIN = 0.8;

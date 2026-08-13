@@ -886,6 +886,16 @@ correction**; call `hostAxis` and consume `correctionAt()`.
 - **`ppm` and `maxStepMs` are DIAGNOSTICS.** Never quote `ppm` without the span beside it (the same H10
   reads −20.3 ppm over 373 min and −65.8 over 10.9). `maxStepMs` surfaces a genuine clock STEP smeared
   across one anchor gap rather than hiding it in a slope.
+  → **That span rule is a hand-derived special case of a standard curve, and the curve is now computed.**
+  A clock's stability is σ_y(τ) — a function of averaging time — which is exactly why one τ-less number
+  cannot describe it; the two H10 figures above ARE two points of that curve, reported as disconnected
+  anecdotes. **`capture-host/allan.py` computes it** (overlapping Allan deviation, `stability(phase, tau0)`),
+  and its SLOPE names the mechanism rather than the magnitude: τ⁻¹ jitter that averages away · τ⁻¹ᐟ² the
+  benign case · τ⁰ a floor where more averaging buys NOTHING · τ⁺¹ᐟ² wander · τ⁺¹ drift. If you are about
+  to answer "does this drift?" or "how long should I average?" with an SD, a ppm, or a fit of two halves —
+  **standard deviation DIVERGES for these noise types as N grows** (NIST/Riley SP 1065), so that answer
+  depends on how much data you happened to have. Use the curve. See
+  [`briefs/ALLAN-DEVIATION-2026-08-12-BRIEF.md`](briefs/ALLAN-DEVIATION-2026-08-12-BRIEF.md).
 - **This does not claim the host is right.** It places every device on ONE timebase so they become
   mutually consistent; whether that timebase is itself correct is the host's business (0.008 ppm on the
   capture box).
