@@ -1630,12 +1630,12 @@
 
     // parseTimestamp mirror — floating + fractional seconds (Clock Contract §2)
     var pt1 = parseTimestamp('20260612_222830');
-    var pt1v = pt1 || {};
+    var pt1v = /** @type {any} */ (pt1 || {});
     ok('parseTimestamp: filename prefix parses at all', !!pt1, JSON.stringify(pt1));
     ok('parseTimestamp: filename prefix → floating tMs', pt1v.tMs === Date.UTC(2026, 5, 12, 22, 28, 30), JSON.stringify(pt1));
     ok('parseTimestamp: a filename prefix carries no zone (offsetMin null)', pt1v.offsetMin === null, JSON.stringify(pt1));
     var pt2 = parseTimestamp('2026-06-12 22:28:30.250');
-    var pt2v = pt2 || {};
+    var pt2v = /** @type {any} */ (pt2 || {});
     ok('parseTimestamp: ISO parses at all', !!pt2, JSON.stringify(pt2));
     ok('parseTimestamp: ISO captures fractional seconds (ms)', pt2v.tMs === Date.UTC(2026, 5, 12, 22, 28, 30, 250), JSON.stringify(pt2));
     ok('parseTimestamp: stamp-less → null (never now())', parseTimestamp('no clock here') === null);
