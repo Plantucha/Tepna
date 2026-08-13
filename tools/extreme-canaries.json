@@ -3,5 +3,8 @@
   "cpapdex-dsp.js": "_ckMk",
   "motiondex-dsp.js": "p2",
   "hrvdex-dsp.js": "setHooks",
-  "pulsedex-dsp.js": "ansBalance"
+  "pulsedex-dsp.js": "ansBalance",
+  "oxydex-dsp.js": "trimSensorWarmup",
+  "ecgdex-dsp.js": "genSynthetic",
+  "ppgdex-dsp.js": "biquad"
 }
