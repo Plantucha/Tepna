@@ -175,6 +175,26 @@ const FIXTURES = [
       note: "O2RING-ADAPTIVE-TIMEBASE Stage 3b — the O2Ring FINGER golden, pinning PpgDex's device-crystal DEFAULT (parsePPG defaults a finger recording to the 125.000 marker-aware axis). Reuses the committed finger twin from the O2RING-FINGER-SITE group. The RICH export (compute(input,{rich:true})) so the golden records quality.timebase 'device-crystal' explicitly, with NO timebase opt ⇒ the DEFAULT. Every other PpgDex golden is a Verity, so the crystal path had no committed leg."
     }
   },
+  /* The INVERTED-CONVENTION twin (PPG-FOOT-PLACEMENT §0). Every other committed PpgDex Verity input
+     resolves to sign +1 — and every one of the 20 REAL Verity nights resolves to −1, because more blood
+     absorbs more light and the raw optical signal DIPS on systole. So the committed corpus exercised a
+     polarity the hardware never produces, and the path the device actually takes had no fixture at all.
+     That is how `orient` could be wrong on 10 of 20 real nights while all five PpgDex goldens stayed
+     green: a golden records whatever compute() returns, so it reds when a value MOVES and never when a
+     value was wrong from the start. Byte-identical to the clean twin with the pulsatile term NEGATED
+     (the DC is untouched — inverting the baseline too would make it unlike any real capture and would
+     let a fix keying on baseline sign pass for the wrong reason), so the pair isolates polarity and
+     nothing else. RICH, because the fields a mis-polarised record corrupts — hrv.*, apnea.cvhrIndex,
+     quality.analyzablePct — live in the rich block. */
+  {
+    name: 'synthetic_ppgdex_inverted_golden.node-export.json',
+    build: () => fromPPGRich('synthetic_ppgdex_verity_inverted.txt'),
+    newRecord: {
+      added: '2026-08-13',
+      inputs: ['synthetic_ppgdex_verity_inverted.txt'],
+      note: "PPG-FOOT-PLACEMENT §0 — the INVERTED-CONVENTION Verity twin, the polarity the real hardware actually produces (all 20 real nights resolve to sign -1; every other committed input resolves to +1). Byte-identical to the clean twin except the pulsatile term is negated, so the pair isolates polarity alone. Pins that detectChannel resolves a real-convention capture correctly end-to-end, through the rich block a mis-polarised record corrupts (analyzablePct, hrv.*, apnea.cvhrIndex). Minted after `orient`'s derivative-skew rule was found wrong on 10 of 20 real nights with all five existing goldens green."
+    }
+  },
   {
     name: 'synthetic_ppgdex_rich_golden.node-export.json',
     build: () => fromPPGRich('synthetic_ppgdex_verity.txt'),
