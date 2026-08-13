@@ -13,6 +13,76 @@ systolic foot actually lands, prompted by a simple question: are the good nights
 They are not. **The good nights are scattered, and the last three nights of the corpus are all bad.**
 There is no drift, no learning curve, and nothing about the setup that visibly improved.
 
+## 0 · 🔴 RESOLVED 2026-08-13 — IT IS A POLARITY BUG IN `orient()`, AND EVERYTHING BELOW IS DOWNSTREAM OF IT
+
+**There is no bimodality, no vasoconstriction, and no rate effect. `ppgdex-dsp.js:orient()` picks the
+WRONG SIGN on half the box corpus**, and every finding in §1–§3 is a symptom of that single defect.
+
+It was found by *looking at the waveform* — an ensemble average aligned on the PEAK (the trustworthy
+landmark; beat counts agree to <0.5 % across channels, so aligning on the foot would beg the question).
+The two "modes" are not two qualities of the same shape. They are the same shape upside down:
+
+| | good nights | bad nights |
+|---|---|---|
+| ensemble minimum | **t = −300 ms** (before the peak) | **t = +290…+320 ms** (AFTER the peak) |
+| 10–90 % rise | **160 ms** | undefined — a ~1000 ms near-linear ramp |
+| shape | sharp foot · fast upstroke · slow decay | slow ramp · sharp peak · fast fall = **a pulse inverted** |
+
+**The proof is symmetric and complete.** `detectChannel(chan, fs, forceSign)` takes an override:
+
+| night | auto | autoIQR | rise | forced −1 | rise |
+|---|---|---|---|---|---|
+| 07-27 (good) | −1 | 1.73 | 308 ms | 1.73 | 308 ms |
+| 08-01 (bad) | **+1** | 25.67 | 853 ms | **2.27** | **290 ms** |
+| 07-29 (bad) | **+1** | 26.22 | 1016 ms | **2.37** | **327 ms** |
+| 08-03 (bad) | **+1** | 30.17 | 871 ms | **2.71** | **308 ms** |
+
+Forcing `+1` on a GOOD night breaks it identically (1.73 → 26.29, rise 308 → 889). Two independent
+predictions both land: the IQR collapses **and** rise time returns to the physiological ~300 ms upstroke.
+Pairing counts go **UP** after the fix (30315→30389, 22548→22659), so it is not censoring.
+
+### Corpus-wide
+
+| | before | after forcing the physiological polarity |
+|---|---|---|
+| good (<5 ms) | 6 / 20 | **18 / 20** |
+| bad (20–42 ms) | 8 | **0** |
+| unmeasurable | 6 | **0** |
+| worst night | 204.80 ms (70 beats paired) | **3.48 ms** (22 335 paired) |
+| range | 1.59 – 204.80 | **1.59 – 7.65** |
+
+`autoSign` is wrong on **10 of 20** box nights and on **0 of 22** phone nights.
+
+**The six "UNMEASURABLE" nights were MIXED polarity across channels**, not defective recordings. 07-20's
+pairs read 3.10 / 303.91 / 307.40 because channel 0 resolved to −1 and channels 1–2 to +1. Forced
+uniform, it pairs 22 335 beats at 3.48 ms. Nothing was wrong with that recording.
+
+### Why it fails, and why the existing safety net cannot catch it
+
+`orient()` (ppgdex-dsp.js:824) infers polarity from the **skewness of the first derivative** — sound
+reasoning (a fast upstroke and slow decay give positive derivative skew) but a THIRD MOMENT on a noisy
+derivative, which flips under low-frequency contamination.
+
+The consensus-polarity pass cannot save it. It acts only when a strict majority agrees **and at least
+one channel dissents**, returning 0 for unanimous so it stays export-inert on consistent records. On
+every bad night all three channels agree on `+1`. **Unanimously wrong is indistinguishable from
+unanimously right to that rule** — the net is structurally blind to precisely this failure. It is also
+why the error is COMMON-MODE, and therefore invisible to the inter-LED metric §3 leaned on.
+
+### The fix: a physiological criterion, not a statistical one
+
+> **The correct polarity is the one whose median foot→peak rise is SHORTER**, because the systolic
+> upstroke is always faster than the diastolic decay.
+
+No moment, no threshold, no amplitude term. On this corpus it returns −1 on **all 31 nights across both
+trees** and produces every "after" number above. Not yet implemented — it is a `ppgdex-dsp.js` change
+that re-bundles three build systems and MOVES EXPORTS, so it needs fixture regeneration and the full
+gate as its own work-unit.
+
+⚠️ **Residual variation survives the fix** (phone nights still span 2.2–13.2 ms). There is a second,
+milder quality effect underneath — but it is not bimodal, and it is not what was wrecking the corpus.
+
+
 ## 1 · The measurement, and the audit that halved it
 
 The metric is **inter-LED pairwise IQR**: three co-located LEDs, one clock, one pulse, so whatever
@@ -55,7 +125,19 @@ gradient. Per-channel foot error is ≈0.9 ms in one mode and ≈13 ms in the ot
 
 **The mechanism is still unknown.** That is the honest state.
 
-## 1b · 🟢 THE MODE IS PREDICTED BY SAMPLING RATE — 176 Hz roughly DOUBLES the odds of a good night
+## 1b · ⛔ RETRACTED 2026-08-13 — THE RATE FINDING WAS THE POLARITY BUG
+
+> **This section is WRONG and is kept only so the error is not repeated.** The phone tree looked good
+> because `orient()` never mis-fires on it (**0 of 22** nights), not because it samples at 176 Hz. The
+> decisive number is WITHIN the box tree at ONE rate: of 19 nights at 55 Hz, `orient()` gets **10 wrong
+> and 9 right**. Rate is constant across them, so rate cannot be the discriminator. The comparison below
+> is cross-tree, its confound was flagged in the text, and I reasoned past it anyway.
+>
+> **`PPG-SAMPLE-RATE-AND-PAT` §3 therefore stands UNAMENDED: rate buys nothing.** The "reconciliation"
+> below — that a decimation design cannot see which mode you land in — is also withdrawn; there are no
+> modes to land in. §3's design was never the weakness this section claimed.
+
+### (retained for the record) THE MODE IS PREDICTED BY SAMPLING RATE — the refuted claim
 
 Splitting the corpus by capture provenance (asked 2026-08-12) separated it by **sampling rate** instead,
 because the two trees differ in both: the phone tree (`Ecg nightly`, June) is natively **176 Hz**
@@ -104,6 +186,12 @@ the win/loss was attributed to SAMPLING RATE. Rate was confounded with mode. §2
 11× as confounded without being able to name the confound — this is it.
 
 ## 3 · Constant-fraction discrimination: measured, NOT adopted
+
+> ⚠️ **2026-08-13 — read §0 first. CFD's "gains" were measured on MIS-POLARISED nights.** A
+> constant-fraction threshold on the inverted signal's long linear ramp is more stable than a tangent
+> intersection on it, which is the whole −33 % on bad nights, and the −107 to −177 ms displacement was
+> CFD sliding along that ramp. Once polarity is correct the nights it "fixed" are already at 2.3–2.7 ms.
+> The decision not to adopt was right; the reason recorded below was not the real one.
 
 From nuclear instrumentation: *time-walk* is the amplitude-dependent deviation of a measured
 time-of-arrival that afflicts leading-edge discriminators, and an intersecting-tangent construction is
@@ -162,9 +250,10 @@ Fixing that outranks any estimator change — it blocks every PAT measurement, n
 - [x] `CROSS-DOMAIN-METHODS` §2's 12.7 ms premise retracted and §2.1's rate attribution corrected
 - [ ] the PAT reference fixed — medians inside 150–400 ms and pairing ≥95 % on both modes
 - [ ] only THEN: re-score CFD against it, and adopt or reject on that number
-- [x] the mode is PREDICTED by sampling rate (38 % good at 55 Hz vs 86 % at 176 Hz) — §1b
-- [ ] a native-176 Hz BOX night, to break the rate/tree confound (the control is currently n=1)
-- [ ] the mode-splitting MECHANISM identified — rate predicts it, but why a night falls either way is unknown
+- [x] ~~the mode is PREDICTED by sampling rate~~ — **RETRACTED §1b**: it was the polarity bug
+- [x] the mode-splitting MECHANISM identified — **`orient()` picks the wrong sign** (§0)
+- [ ] implement the rise-time polarity rule in `ppgdex-dsp.js` (moves exports — regen + full gate)
+- [ ] explain the RESIDUAL 2.2–13.2 ms spread that survives the polarity fix
 
 Related: [`CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md`](CROSS-DOMAIN-METHODS-2026-08-12-BRIEF.md) ·
 [`PPG-SAMPLE-RATE-AND-PAT-2026-08-03-BRIEF.md`](PPG-SAMPLE-RATE-AND-PAT-2026-08-03-BRIEF.md)
