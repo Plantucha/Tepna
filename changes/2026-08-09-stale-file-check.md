@@ -1,8 +1,0 @@
-<!-- SPDX-License-Identifier: Apache-2.0 -->
----
-bump: patch
-type: added
-nodes: [suite]
-brief: BRIEF-COLLISION-RESIDUAL-GAP-2026-08-09-BRIEF.md
----
-Closes §2's concurrent-collision gap with a PR check, after the chosen mechanism turned out to be unavailable: GitHub merge queue is an organization-repository feature and `Tepna` is user-owned, so the API rejects a `merge_queue` rule outright — verified 2026-08-09, and the rejection is schema-level, identical with no parameters at all. The check asks whether this PR edits a shared doc that already moved on the base branch since the branch point. That case produces **no git conflict** — the constructed scenario auto-merges cleanly — which is exactly why nothing else catches it and why it happened twice on one file in one day. Scope is deliberately the same guarded set as `guard-stale-brief.sh` (`briefs/*.md` + `DOCS-INDEX.md`): gating source would be red on nearly every PR at this merge rate, burying the finding, and source is the case git already handles by conflicting. Unlike the local hook it reads the real ref rather than your last fetch, and it does not care whether the bytes arrived via `Edit`, `Write` or a `Bash` heredoc — the two holes that let this through before. Verified on three constructed cases before being trusted: it fires on the collision, stays quiet on source-only churn, and stays quiet once the branch is rebased. The first run of case B reported a false failure and the cause was the **test**, not the check — recorded in the test file, because a verifier wrong in the passing direction is the failure this check exists to catch. Ships the scenario as `stale-file.test.sh` so the logic can be re-checked rather than trusted once.
