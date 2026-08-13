@@ -39237,6 +39237,78 @@
            regex), zero tickets.
        §1.4 `_durBad` was one-sided — it caught a NEGATIVE span and let an INFLATED one pass as a real
            number, which is how a 120-min night reported 1560 with clockNonMonotonic still false. */
+    /* ════ computeVO2maxEstimate — PSEUDO-TESTED: covered by compute(), asserted by nobody ════
+       Descartes (extreme mutation) flags a function as pseudo-tested when it is COVERED and yet
+       EVERY mutant of it survives — the suite runs it and checks nothing it returns. Measured
+       2026-08-12 on oxydex-dsp.js: 7 of 143 functions, and this is the one that publishes a
+       clinical number to a user.
+
+       The expectations below are derived from the CITED FORMULAS, not read off a run — a golden
+       recorded from the code cannot notice the code being wrong:
+         Tanaka 2001    HRmax = 208 − 0.7 × age      → age 49 ⇒ round(173.7) = 174
+         Uth-Sørensen   VO2max = 15.3 × HRmax/HRrest → 15.3 × 174/60 = 44.37 ⇒ 44.4  */
+    group('OxyDex computeVO2maxEstimate — the formula and its refusals', 'oxydex-dsp · vo2max', function (T) {
+      var O = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var B = (O && (O._bare || O)) || {};
+      var fn = B.computeVO2maxEstimate;
+      T.ok('OxyDex._bare.computeVO2maxEstimate reachable', typeof fn === 'function', 'export computeVO2maxEstimate from oxydex-dsp.js');
+      if (typeof fn === 'function') {
+        var mkRows = function (n, hr, motion) {
+          var out = [];
+          for (var i = 0; i < n; i++) out.push({ hr: hr, motion: motion === undefined ? 0 : motion, spo2: 96 });
+          return out;
+        };
+        var HRV0 = { rmssd: null };
+
+        // ── the formula, at a hand-derived point ──
+        var r = fn(mkRows(1800, 60), HRV0, null, null, 49);
+        T.ok('a 1800-row motion-free night yields an estimate', r != null, JSON.stringify(r));
+        T.eq('Tanaka HRmax = round(208 − 0.7·49) = 174', (r || {}).hrMax, 174);
+        T.eq('Uth-Sørensen 15.3 × 174/60 = 44.4 ml/kg/min', (r || {}).vo2max != null ? (r || {}).vo2max : (r || {}).vo2est, 44.4);
+        T.eq('HRrest is the 5th-percentile motion-free HR (all rows 60 ⇒ 60)', (r || {}).hrRest, 60);
+
+        // ── age is an INPUT, not a constant: a different age must move HRmax ──
+        var rYoung = fn(mkRows(1800, 60), HRV0, null, null, 20);
+        T.eq('age 20 ⇒ HRmax = round(208 − 14) = 194 (age is not ignored)', (rYoung || {}).hrMax, 194);
+
+        // ── refusals. Each pins ONE boundary at both sides. ──
+        T.eq('no HRV block ⇒ null (never a fabricated VO2max)', fn(mkRows(1800, 60), null, null, null, 49), null);
+        T.eq('1799 rows ⇒ null (needs ≥1800 = 1 h at 1 Hz)', fn(mkRows(1799, 60), HRV0, null, null, 49), null);
+        T.ok('1800 rows exactly ⇒ NOT null (the bound is inclusive)', fn(mkRows(1800, 60), HRV0, null, null, 49) != null, 'boundary is exclusive?');
+        T.eq('59 motion-free rows ⇒ null (needs ≥60 still samples)', fn(mkRows(59, 60).concat(mkRows(1800, 60, 1)), HRV0, null, null, 49), null);
+        T.eq('every row in motion ⇒ null (no still HR at all)', fn(mkRows(1800, 60, 1), HRV0, null, null, 49), null);
+        T.eq('HRrest 101 ⇒ null (implausible resting HR, upper gate)', fn(mkRows(1800, 101), HRV0, null, null, 49), null);
+        T.ok('HRrest 100 ⇒ NOT null (the upper gate is inclusive)', fn(mkRows(1800, 100), HRV0, null, null, 49) != null, 'upper bound is exclusive?');
+        /* ⚠ The `hrRest < 30` arm is UNREACHABLE and therefore equivalent-mutant territory: the
+           still-HR filter is `r.hr > 30 && r.hr < 120`, so no sample below 31 ever reaches the
+           percentile. Do not add an assertion chasing it — mutating that arm cannot change any
+           output. The rows below prove the FILTER is what excludes them. */
+        T.eq('HR 30 is filtered out of the still set entirely ⇒ null', fn(mkRows(1800, 30), HRV0, null, null, 49), null);
+        T.eq('HR 120 is filtered out too (upper filter is exclusive) ⇒ null', fn(mkRows(1800, 120), HRV0, null, null, 49), null);
+
+        // ── the RMSSD adjustment: (rmssd − 1.4) × 1.05, capped at ±3 ──
+        var rR = fn(mkRows(1800, 60), { rmssd: 2.4 }, null, null, 49);
+        T.eq('RMSSD 2.4 ⇒ adj (2.4−1.4)×1.05 = +1.05 → 1.1, so 44.4+1.1 = 45.5', (rR || {}).vo2max != null ? (rR || {}).vo2max : (rR || {}).vo2est, 45.5);
+        var rCap = fn(mkRows(1800, 60), { rmssd: 99 }, null, null, 49);
+        T.eq('a huge RMSSD is CAPPED at +3 (44.4+3 = 47.4), never unbounded', (rCap || {}).vo2max != null ? (rCap || {}).vo2max : (rCap || {}).vo2est, 47.4);
+
+        /* ── A SPREAD night. Every fixture above holds HR CONSTANT, and a flat distribution cannot
+           see two things: which percentile is taken (every percentile of a constant is that
+           constant), nor whether the >120 samples were filtered out (they change no order
+           statistic when there are none). Both mutants survived the constant fixtures — measured,
+           not assumed.
+             100 samples @50  ·  1700 @80  ·  400 @130 (all motion-free)
+           The 130s are ABOVE the still-HR filter, so the still set is the first 1800 and
+           p5 = index 90 = 50 bpm. Take the median instead and it is 80; let the 130s through and
+           the set grows to 2200, index 110 lands past the 50-block, and it is 80 again. Either
+           way the published VO2max moves, which is the point. */
+        var spread = mkRows(100, 50).concat(mkRows(1700, 80), mkRows(400, 130));
+        var rS = fn(spread, HRV0, null, null, 49);
+        T.eq('spread night · HRrest is the 5th percentile (50), NOT the median (80)', (rS || {}).hrRest, 50);
+        T.eq('spread night · 15.3 × 174/50 = 53.2 ml/kg/min', (rS || {}).vo2max != null ? (rS || {}).vo2max : (rS || {}).vo2est, 53.2);
+      }
+    });
+
     group('OxyDex refuses fabricated dates and inflated spans — §F2/§F1.4', 'oxydex-dsp · clock · guards', function (T) {
       var O = env.OxyDSP || env.OXYDSP;
       var srcs = env.sources || {};
