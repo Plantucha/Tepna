@@ -217,11 +217,20 @@ def test_a_SECOND_unworn_window_does_not_restart_the_grace_clock(tmp_path, monke
     assert len([f for f in (tmp_path / "captures").rglob("*_PPG.txt")]) >= 1
 
 
-def test_an_UNDECIDABLE_window_changes_nothing(tmp_path, monkeypatch):
-    """`optical_worn` returns None when it cannot say. That must publish no verdict and start no clock —
-    an unknown is not an unworn, and treating it as one drops a sensor on a bad frame."""
+def test_an_UNDECIDABLE_window_publishes_None_and_starts_no_clock(tmp_path, monkeypatch):
+    """A detector that cannot say must publish `None` and start no clock — an unknown is not an
+    unworn, and treating it as one drops a sensor on a bad frame.
+
+    ⚠️ THE PUBLISH HALF OF THIS CONTRACT CHANGED 2026-08-13, DELIBERATELY. It previously asserted
+    that an undecidable window published NOTHING. That was the bug: `_set` only ever UPDATES, so
+    publishing nothing leaves the LAST verdict standing — measured, the card read `worn: True` for
+    ten hours while the armband streamed 496 MB into a desk. "Publish no verdict" now means
+    publishing the absence, not withholding it. The clock half is unchanged.
+
+    Patches `worn_verdict`, not `optical_worn`: the combiner is what the daemon calls now, and a
+    patch on a name the code no longer reads is a test that has silently stopped testing."""
     T._polar_common(monkeypatch)
-    monkeypatch.setattr(capture, "optical_worn", lambda *_a, **_k: None)
+    monkeypatch.setattr(capture, "worn_verdict", lambda **_k: (None, "no detector in domain"))
     c = _PpgClient(-322929)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 1)
@@ -231,6 +240,38 @@ def test_an_UNDECIDABLE_window_changes_nothing(tmp_path, monkeypatch):
     st = capture.STATUS["devices"]["Verity"]
     assert st.get("worn") is None, f"an undecidable window must publish no verdict: {st}"
     assert "24:AC:AC:0C:30:1E" not in capture._WORN_SINCE, "and start no power-drop clock"
+
+
+def test_an_ABSTENTION_CLEARS_a_previous_TRUE_which_is_the_ten_hour_bug(tmp_path, monkeypatch):
+    """THE REGRESSION TEST FOR THE ACTUAL DAMAGE, and it is written the only way that can fail.
+
+    `st.get("worn") is None` passes both when `worn` was published as None AND when it was never
+    published at all — so the sibling test above cannot, on its own, tell a fix from the bug. This one
+    publishes a `True` FIRST and then abstains, so the assertion is reachable only if the abstention
+    actively overwrote the stale verdict.
+
+    Measured 2026-08-13: the 176 Hz domain refusal fired correctly on every negotiation, nothing
+    cleared `worn`, and the card read True for ten hours against an armband on a desk — with
+    `drop_not_worn_sec` armed at 180 s and structurally unable to fire."""
+    T._polar_common(monkeypatch)
+    calls = {"n": 0}
+
+    def _verdict(**_k):
+        calls["n"] += 1
+        return (True, "worn per ppi-contact") if calls["n"] == 1 else (None, "no detector in domain")
+
+    monkeypatch.setattr(capture, "worn_verdict", _verdict)
+    c = _PpgClient(-322929, frames=4)
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 1)
+    dev = T._pdev(name="Verity", vendor="Polar", model="VeritySense", streams=["ppg"],
+                  address="24:AC:AC:0C:30:1E")
+    T._run(capture.run_polar(dev, str(tmp_path)))
+    st = capture.STATUS["devices"]["Verity"]
+    assert calls["n"] >= 2, f"the harness must reach a second window for this to test anything: {calls}"
+    assert st.get("worn") is None, (
+        f"an abstention must CLEAR the previous verdict, not leave it standing: {st}")
+    assert "24:AC:AC:0C:30:1E" not in capture._WORN_SINCE
 
 
 # ── the DEVICE'S OWN contact bit (PPI) ───────────────────────────────────────────────────────────────
@@ -291,7 +332,7 @@ def test_the_PPI_contact_bit_decides_when_it_is_available(tmp_path, monkeypatch)
     that is the whole reason this branch exists, and it is the case a heuristic gets wrong."""
     st = _drive_ppi(tmp_path, monkeypatch, -190, 0b100)
     assert st.get("worn") is False, st
-    assert "PPI contact bit" in (st.get("last_error") or ""), \
+    assert "ppi-contact" in (st.get("worn_why") or ""), \
         "the reason must name WHICH source decided, or the two are indistinguishable in the log"
     assert "24:AC:AC:0C:30:1E" in capture._WORN_SINCE
 
