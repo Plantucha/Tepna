@@ -3831,6 +3831,12 @@
     accAnalyze,
     accExtras,
     movementOnsets: _movementOnsets, // exported for `movement-onset-parity` — the gate on the duplication
+    /* Exposed for the `ecgdex-hrv-geometry` known-answer gate. Both were measured PSEUDO-TESTED
+       2026-08-12 — covered by `analyze`, asserted by nobody — and the only route to them was a full
+       raw-ECG run, which cannot pin a hand-derived histogram. Reaching them directly is what makes a
+       known-answer possible. Additive export; nothing else consumes these. */
+    triangularIndex,
+    fragmentation,
     // Additive (contract rule: new data via a NEW field, never by changing an existing shape) —
     // the staging rules and the motion index are now gateable in their own right.
     stageSleep,
