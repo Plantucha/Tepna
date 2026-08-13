@@ -1142,6 +1142,40 @@
             T.eq(name + '.fmtDateTime agrees with its two halves', o.fmtDateTime(MS), '2026-06-07 22:30');
           }
         }
+
+        /* ── SECOND-PRECISION AND NON-`fmtClock` FORMATTERS ────────────────────────────────────
+           The sweep above only reaches a node that exposes `fmtClock`, and only the three methods
+           named there. That left every SECOND-bearing formatter and OxyDex's DD/MM/YYYY formatter
+           outside the contract entirely — measured 2026-08-12 by extreme mutation:
+             · `hrvdex._hrvClockS`  getUTCHours → getHours   SURVIVED the whole suite
+             · `ppgdex.fmtClockSec` seconds → minutes         SURVIVED
+             · `oxydex.fmtTimeFull` day/month transposed      SURVIVED
+           The first is a §5 VIOLATION that would have shipped: a formatter reading the viewer's
+           clock renders a New-York night as a London morning, and nothing was watching.
+           MS carries :15 seconds precisely so a seconds field cannot be confused with minutes. */
+        var SECS = [
+          ['HRVDex._hrvClockS', env.HRVDex && env.HRVDex._bare && env.HRVDex._bare._hrvClockS],
+          ['PPGDSP.fmtClockSec', (env.PPGDSP || env.PpgDSP || {}).fmtClockSec]
+        ].filter(function (r) {
+          return typeof r[1] === 'function';
+        });
+        /* A SECOND stamp whose h/m/s are all SINGLE-DIGIT. 22:30:15 has no component below 10, so
+           the zero-pad branch never runs and `n < 10 ? '0' : ''` weakened to `n < 0` survives —
+           measured. 09:05:03 exercises it in all three fields at once. */
+        var MS9 = Date.UTC(2026, 0, 3, 9, 5, 3);
+        for (var s = 0; s < SECS.length; s++) {
+          T.eq(SECS[s][0] + ' reads the UTC wall clock to the SECOND, not the viewer’s', SECS[s][1](MS), '22:30:15');
+          T.eq(SECS[s][0] + ' zero-pads every single-digit field', SECS[s][1](MS9), '09:05:03');
+        }
+        T.ok('at least one second-precision formatter was reachable', SECS.length > 0, 'none co-loaded — the seconds contract went unchecked');
+
+        var OB = (env.OxyDex && env.OxyDex._bare) || {};
+        if (typeof OB.fmtTimeFull === 'function') {
+          /* OxyDex is absent from NODES above because it exposes no `fmtClock`. It takes a Date
+             rather than a ms, and renders DD/MM/YYYY — so this also pins the day/month ORDER,
+             which a transposition mutant otherwise walks straight through on any date ≤ 12. */
+          T.eq('OxyDex.fmtTimeFull is viewer-independent and DD/MM/YYYY (not MM/DD)', OB.fmtTimeFull(new Date(MS)), '22:30:15 07/06/2026');
+        }
       } finally {
         if (saved === undefined) delete process.env.TZ;
         else process.env.TZ = saved;
@@ -1628,6 +1662,18 @@
         T.eq('GlucoDex · §2.7 a NON-ZERO second is legal — kills `se > 0`', (GP('2026-06-13 22:00:30', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 30));
         T.eq('GlucoDex · §2.7 ms 999 ACCEPTED — band closed at 999, kills `ms >= 999`', (GP('2026-06-13 22:00:00.999', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 0, 999));
         T.eq('GlucoDex · §2.7 a NON-ZERO ms is legal — kills `ms > 0`', (GP('2026-06-13 22:00:00.250', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 0, 250));
+        /* ── §2 ZONE CAPTURE — `_ckZoneMin`, measured PSEUDO-TESTED 2026-08-12 ─────────────────
+           `offsetMin` is the only place a real zone survives into the record (§1), and nothing
+           asserted it for this parser: sign inverted, the hours term zeroed, and the minutes field
+           read one char short ALL survived the whole GlucoDex suite. Each pair below kills one.
+           §2.2 also requires that a zoned stamp and a no-zone local stamp for the same WALL
+           instant produce the SAME floating tMs — the zone is captured, never applied to tMs. */
+        T.eq('GlucoDex · §2 +05:30 ⇒ offsetMin 330 (hours term is ×60)', (GP('2026-06-13T22:00:00+05:30', {}) || {}).offsetMin, 330);
+        T.eq('GlucoDex · §2 −05:30 ⇒ offsetMin −330 (the SIGN is read, not assumed east)', (GP('2026-06-13T22:00:00-05:30', {}) || {}).offsetMin, -330);
+        T.eq('GlucoDex · §2 +05:45 ⇒ 345 — the MINUTES field is two digits, not one', (GP('2026-06-13T22:00:00+05:45', {}) || {}).offsetMin, 345);
+        T.eq('GlucoDex · §2 Z ⇒ offsetMin 0, not null (a zone WAS carried)', (GP('2026-06-13T22:00:00Z', {}) || {}).offsetMin, 0);
+        T.eq('GlucoDex · §2 no zone ⇒ offsetMin null (never a fabricated 0)', (GP('2026-06-13 22:00:00', {}) || {}).offsetMin, null);
+        T.eq('GlucoDex · §2.2 a ZONED stamp yields the SAME floating tMs as the bare local one', (GP('2026-06-13T22:00:00+05:30', {}) || {}).tMs, U(2026, 5, 13, 22, 0, 0));
       }
       // ── PpgDex `parseTimestamp` (ISO/epoch subset) ──
       var PP = env.PPGDSP && env.PPGDSP.parseTimestamp;
