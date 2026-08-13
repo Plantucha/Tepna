@@ -1924,6 +1924,184 @@
     });
 
     /* ════ 4 · INTEGRATOR window honors durationMin (#2/#3) ════ */
+    group('Integrator hrAgreement — a pair DETECTS, only a triple ISOLATES (RAIM)', 'integrator-dsp · cross-node · known-answer', function (T) {
+      /* WHY THIS EXISTS. Two shipped ppgdex-dsp.js defects — a wrong optical polarity on 10 of 20 real
+         nights, and a correctRR reference lock-in emitting a constant HR for 25 minutes — both passed
+         FIVE green PpgDex fixtures. Neither is visible inside the node: a polarity flip is COMMON-MODE
+         across the three LEDs, and a locked reference is SELF-CONSISTENT. Both are obvious the instant
+         PpgDex is placed beside the simultaneous ECG and ring. */
+      var I = env.IntegratorDSP;
+      if (!I || typeof I.hrAgreement !== 'function') {
+        T.ok('IntegratorDSP.hrAgreement is exported', !!(I && typeof I.hrAgreement === 'function'));
+        return;
+      }
+      var mk = function (node, hrs, t0) {
+        return {
+          node: node,
+          epochs: hrs.map(function (h, i) {
+            return { tMs: t0 + i * 300000, hr: h };
+          })
+        };
+      };
+      // Deliberately OFFSET starts: each node carries its own startEpochMs and they differ by up to
+      // 24 min on the real corpus, so alignment must be on the ABSOLUTE instant, not the epoch index.
+      var ppg = mk('PpgDex', [50, 50, 76, 76, 50], 0);
+      var ecg = mk('ECGDex', [50, 50, 50, 50, 50], 3000);
+      var oxy = mk('OxyDex', [50, 51, 51, 50, 50], 9000);
+
+      var three = I.hrAgreement([ppg, ecg, oxy]);
+      T.eq('three sources: the two bad epochs are flagged', three.flagged, 2);
+      T.eq('...and PpgDex is named as the outlier both times', three.fault.PpgDex, 2);
+      T.eq('...ECGDex is never blamed', three.fault.ECGDex, 0);
+      T.eq('...OxyDex is never blamed', three.fault.OxyDex, 0);
+      T.ok('...the flagged epoch is adjudicated', three.epochs[0] && three.epochs[0].adjudicated === true);
+
+      /* THE RAIM BOUNDARY. Two sources that disagree name a PAIR, never a culprit — both sit
+         spread/2 from their own median, so "furthest from the median" is a coin toss. Detection yes,
+         isolation no. */
+      var two = I.hrAgreement([ppg, ecg]);
+      T.eq('two sources still DETECT the disagreement', two.flagged, 2);
+      T.eq('...but nothing is adjudicable', two.adjudicable, 0);
+      T.eq('...and no node is blamed', two.fault.PpgDex + two.fault.ECGDex, 0);
+      T.ok('...the epoch says so explicitly', two.epochs[0] && two.epochs[0].adjudicated === false && two.epochs[0].outlier === null);
+
+      /* A PAIR IS JUDGED ON SPREAD, NOT DISTANCE-FROM-MEDIAN, and this assertion is why: with two
+         sources the median is their midpoint, so a 26 bpm disagreement reads as 13 from it — under any
+         sane tolerance. Judged that way the check silently loses half its sensitivity. */
+      var pair26 = I.hrAgreement([mk('A', [50], 0), mk('B', [76], 0)]);
+      T.eq('a 26 bpm pair disagreement is detected (not halved to 13)', pair26.flagged, 1);
+
+      // A clean night must flag nothing, or the gate cries wolf on every record.
+      var clean = I.hrAgreement([mk('PpgDex', [50, 51, 50], 0), mk('ECGDex', [50, 50, 51], 3000), mk('OxyDex', [51, 50, 50], 9000)]);
+      T.eq('a concordant night flags nothing', clean.flagged, 0);
+      T.eq('...but it did compare every epoch', clean.compared, 3);
+
+      /* A TRUNCATED EPOCH IS NOT A MEASUREMENT. At a recording boundary the last 5-minute epoch may
+         hold seconds of data while carrying an `hr` that looks exactly like a full one. Measured on
+         this corpus: 15 of 2275 epochs hold under a quarter of their night's median beat count and
+         ALL FIFTEEN are ECGDex — a systematic edge effect, not chance. The worst read 122.4 bpm from
+         24 beats where its neighbours held 261-287 and read 56: a strap coming off, scored as
+         tachycardia, and flagged as a sensor disagreement it never was. */
+      var withBeats = function (node, rows, t0) {
+        return {
+          node: node,
+          epochs: rows.map(function (r, i) {
+            return { tMs: t0 + i * 300000, hr: r[0], beats: r[1] };
+          })
+        };
+      };
+      var frag = I.hrAgreement([
+        withBeats(
+          'ECGDex',
+          [
+            [56, 270],
+            [56, 265],
+            [122.4, 24]
+          ],
+          0
+        ),
+        withBeats(
+          'PpgDex',
+          [
+            [55, 280],
+            [55, 275],
+            [55, 270]
+          ],
+          0
+        ),
+        withBeats(
+          'OxyDex',
+          [
+            [55, 90],
+            [55, 88],
+            [55, 86]
+          ],
+          0
+        )
+      ]);
+      T.eq('a 24-beat fragment among 265-beat epochs is DROPPED, not compared', frag.droppedFragments, 1);
+      T.eq('...so it raises no disagreement', frag.flagged, 0);
+      /* The instant SURVIVES the drop — only ECG's vote is withdrawn. PpgDex and OxyDex still hold
+         valid epochs there, so the moment is still compared, as a pair. Dropping a fragment must not
+         delete a moment other sensors measured properly. */
+      T.eq('the instant is still compared — only the fragment source withdraws', frag.compared, 3);
+
+      // Turning the filter off must restore the false alarm — otherwise the test proves nothing.
+      var fragOff = I.hrAgreement(
+        [
+          withBeats(
+            'ECGDex',
+            [
+              [56, 270],
+              [56, 265],
+              [122.4, 24]
+            ],
+            0
+          ),
+          withBeats(
+            'PpgDex',
+            [
+              [55, 280],
+              [55, 275],
+              [55, 270]
+            ],
+            0
+          ),
+          withBeats(
+            'OxyDex',
+            [
+              [55, 90],
+              [55, 88],
+              [55, 86]
+            ],
+            0
+          )
+        ],
+        { minBeatFrac: 0 }
+      );
+      T.eq('with the filter OFF the fragment IS flagged — the filter is what suppresses it', fragOff.flagged, 1);
+
+      /* The yardstick is PER-NODE: the ring carries ~90 beats an epoch where the ECG carries ~265, so
+         a shared constant would discard every OxyDex epoch. Asserted on the DROP COUNT — exactly one
+         epoch was dropped, the ECG fragment — rather than on `compared`, which a change in the
+         timeline logic can move for unrelated reasons. */
+      T.eq('only the ECG fragment is dropped — the low-beat ring is untouched', frag.droppedFragments, 1);
+
+      // No `beats` field at all ⇒ cannot judge ⇒ keep, rather than silently dropping everything.
+      var noBeats = I.hrAgreement([mk('PpgDex', [50, 50], 0), mk('ECGDex', [50, 50], 0), mk('OxyDex', [50, 50], 0)]);
+      T.eq('epochs without a beat count are kept, not dropped', noBeats.compared, 2);
+      T.eq('...and nothing is reported as dropped', noBeats.droppedFragments, 0);
+
+      /* ORDER-INVARIANCE. The first version keyed the timeline off `sources[0]`, so every instant the
+         FIRST source lacked was never compared — and trio passes PpgDex first, so a PpgDex that
+         stopped early made every later ECG/ring disagreement invisible. A gate with a silent blind
+         spot is worse than no gate, because it reports "clean". The timeline is now the UNION.
+         Caught by permuting the arguments, not by reading the code. */
+      var shortP = mk('PpgDex', [50, 50], 0);
+      var longE = mk('ECGDex', [50, 50, 50, 90, 50], 0);
+      var longO = mk('OxyDex', [50, 50, 50, 50, 50], 0);
+      var o1 = I.hrAgreement([shortP, longE, longO]);
+      var o2 = I.hrAgreement([longE, shortP, longO]);
+      var o3 = I.hrAgreement([longO, longE, shortP]);
+      T.eq('the disagreement is seen even though the FIRST source stopped early', o1.flagged, 1);
+      T.eq('argument order does not change what is compared', o1.compared + ',' + o2.compared + ',' + o3.compared, '5,5,5');
+      T.eq('argument order does not change what is flagged', o1.flagged + ',' + o2.flagged + ',' + o3.flagged, '1,1,1');
+
+      /* Anchors are spaced at least one alignment window apart, so three sources whose epochs sit
+         seconds apart raise ONE comparison of that moment, not three near-duplicates. */
+      var stag = I.hrAgreement([mk('A', [50, 50], 0), mk('B', [50, 50], 3000), mk('C', [50, 50], 9000)]);
+      T.eq('staggered starts collapse to one comparison per epoch', stag.compared, 2);
+
+      // REFUSE rather than guess: one source cannot disagree with anything.
+      T.ok('a single source is refused, not scored', I.hrAgreement([mk('PpgDex', [50], 0)]).ok === false);
+      T.ok('no sources at all is refused', I.hrAgreement([]).ok === false);
+
+      /* A source with no epoch inside the alignment window is ABSENT, not agreeing — otherwise a node
+         that stopped recording would silently vote "concordant" for the rest of the night. */
+      var far = I.hrAgreement([mk('PpgDex', [50, 50], 0), mk('ECGDex', [76, 76], 3600000)]);
+      T.eq('a non-overlapping source contributes no comparisons', far.compared, 0);
+    });
+
     group('Integrator window — sparse-event collapse (#2/#3)', 'integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode,
         RW = env.recWindow,
