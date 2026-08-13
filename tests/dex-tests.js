@@ -178,8 +178,31 @@
         ok: function (name, cond, detail) {
           G.tests.push({ name: name, pass: !!cond, detail: detail == null ? '' : String(detail) });
         },
+        /* ⚠️ NaN, ±Infinity AND null ARE FOUR DIFFERENT ANSWERS, and `JSON.stringify` collapses all
+           of them to the string "null". So `T.eq(x, null)` passed for a NaN, for a +Infinity and
+           for a −Infinity — across 275 such assertions in this file — and an infinity is the one
+           this suite calls "the more alarming of the two: a division by a zero that got through"
+           (see the computeDerived guards group, which had to hand-roll its own enumerator for
+           exactly this reason).
+           Found 2026-08-13 when a CPAPDex mutant that returns NaN where null is contracted survived
+           an assertion written to catch it. Tagging the non-finite values keeps them distinct while
+           leaving every other comparison byte-identical — measured: hardening this reds ZERO of the
+           suite's 7000+ assertions, so nothing was relying on the conflation. */
         eq: function (name, got, want, detail) {
-          var pass = JSON.stringify(got) === JSON.stringify(want);
+          /* A REPLACER, not a top-level check — the collapse happens at EVERY DEPTH.
+             `JSON.stringify({offsetMin: NaN})` is `{"offsetMin":null}`, identical to a genuine
+             `{offsetMin: null}`, and `[NaN, 1]` is `[null, 1]`. Those are precisely the refusal
+             shapes this suite returns: `parseTimestamp` answers `{tMs, offsetMin}` with a null
+             `offsetMin` when the stamp carried no zone, and `hostAxis` refuses with
+             `{ok:false, reason, n}`. A first version of this fix tagged only the top-level value and
+             left all of those blind — caught in review, and the reason the count below is measured
+             over field- and array-level cases too rather than over the 263 top-level ones alone. */
+          var _ser = function (v) {
+            return JSON.stringify(v, function (_k, val) {
+              return typeof val === 'number' && !isFinite(val) ? (Number.isNaN(val) ? '@NaN' : val > 0 ? '@+Inf' : '@-Inf') : val;
+            });
+          };
+          var pass = _ser(got) === _ser(want);
           G.tests.push({ name: name, pass: pass, detail: pass ? detail || '' : 'got ' + JSON.stringify(got) + ' · want ' + JSON.stringify(want) });
         },
         approx: function (name, got, want, tol, detail) {
@@ -222,6 +245,50 @@
     }
 
     /* ════ 1 · CLOCK CONTRACT — parseTimestamp ════ */
+    /* ════ THE COMPARATOR ITSELF ══════════════════════════════════════════════════════════════
+       `T.eq` used to compare `JSON.stringify(got) === JSON.stringify(want)`, and JSON maps NaN,
+       +Infinity and −Infinity ALL to "null" — at every depth. So `eq(x, null)` passed for any of
+       the four, and so did an expected `{offsetMin: null}` against a NaN offset, or a `[null, 1]`
+       against `[NaN, 1]`. 263 top-level cases, plus field and array positions; 248 of the top-level
+       ones live in the clock group, whose §2.6 rule IS "a missing stamp must be visible (null),
+       never fabricated" — asserted through the one comparator that could not see the difference.
+
+       The sharpest instance, at the time of writing, asserted NaN-refusal THROUGH the collapse:
+           T.eq('…NaN is refused', C.parseTimestamp('23:45', { dateAnchorMs: NaN }), null)
+       If parseTimestamp had returned the NaN straight through instead of refusing it, that passed.
+
+       These assertions pin the RULE rather than the implementation — `eq` cannot cleanly assert its
+       own failure, since a failing assertion reds the suite. The implementation was proven by a
+       measured mutant kill (a CPAPDex path that returns NaN where null is contracted now dies).
+       This group is what trips if someone reverts to a bare stringify. */
+    group('T.eq distinguishes null from NaN and ±Infinity, at any depth', 'harness · comparator', function (T) {
+      var ser = function (v) {
+        return JSON.stringify(v, function (_k, val) {
+          return typeof val === 'number' && !isFinite(val) ? (Number.isNaN(val) ? '@NaN' : val > 0 ? '@+Inf' : '@-Inf') : val;
+        });
+      };
+      T.ok(
+        'a bare JSON.stringify DOES collapse them — the hazard is real, not hypothetical',
+        JSON.stringify(NaN) === JSON.stringify(null) && JSON.stringify(Infinity) === JSON.stringify(null),
+        'JSON no longer collapses non-finites; this group can be simplified'
+      );
+      T.ok('null vs NaN are distinct', ser(null) !== ser(NaN), ser(null) + ' vs ' + ser(NaN));
+      T.ok('null vs +Infinity are distinct', ser(null) !== ser(Infinity), ser(null) + ' vs ' + ser(Infinity));
+      T.ok('NaN vs +Infinity are distinct', ser(NaN) !== ser(Infinity), 'the two non-finites are not interchangeable either');
+      T.ok('+Infinity vs −Infinity are distinct (sign carries meaning)', ser(Infinity) !== ser(-Infinity), ser(Infinity) + ' vs ' + ser(-Infinity));
+      T.ok('a null FIELD is distinct from a NaN field', ser({ offsetMin: null }) !== ser({ offsetMin: NaN }), 'the parseTimestamp refusal shape');
+      T.ok('a null ARRAY slot is distinct from a NaN slot', ser([null, 1]) !== ser([NaN, 1]), 'array position');
+      T.ok('…and nested one level deeper too', ser({ a: { b: null } }) !== ser({ a: { b: NaN } }), 'depth is not special-cased');
+      /* …and equality still means equality. Bound to locals rather than compared inline: biome's
+         noSelfCompare reads `ser(x) === ser(x)` as a mistake, and it is normally right. */
+      var plainA = ser({ a: 1, b: [2, null] }),
+        plainB = ser({ a: 1, b: [2, null] });
+      T.ok('equal values still compare equal', plainA === plainB, 'the tagging broke ordinary equality');
+      var nanA = ser(NaN),
+        nanB = ser(NaN);
+      T.ok('NaN equals NaN under this comparator (both refusals of the same kind)', nanA === nanB, 'NaN no longer self-compares');
+    });
+
     group('Clock Contract — parseTimestamp', 'live mirror', function (T) {
       var P = env.parseTimestamp;
       T.ok('parseTimestamp present', typeof P === 'function');
@@ -10929,6 +10996,61 @@
       /* The ≥8-row floor: fewer samples than that cannot establish a median worth trusting. */
       T.eq('seven rows is too few to infer a unit', unitOf(7, 1000), null);
       T.eq('…and eight is enough', unitOf(8, 1000), 'mg');
+    });
+
+    /* ════ _leakCV — PSEUDO-TESTED, and it is a NEAR-ZERO-DIVISION GUARD ══════════════════════
+       Leak CV is the coefficient of variation of mask leak: sd ÷ |mean| × 100. On a well-sealed
+       mask the mean approaches zero and the quotient blows up, which is why there is a floor —
+       `LEAK_CV_FLOOR = 2` L/min, below which the answer is null rather than a large number that
+       reads as a catastrophic leak. Nothing asserted any of it.
+
+       Hand-derived, and `_sd` is the SAMPLE deviation (n − 1), which is what makes these exact:
+         [10, 10, 20, 20] ⇒ mean 15, sd = √(100/3) = 5.7735, CV = 38.49 ⇒ 38.5
+         a constant series ⇒ sd 0 ⇒ CV 0.0, neither null nor NaN */
+    group('CPAPDex _leakCV — the CV, and the near-zero-mean floor', 'cpapdex-dsp · leakcv', function (T) {
+      var C = env.CpapDsp;
+      if (!C || typeof C.prepare !== 'function' || typeof C.computeMetrics !== 'function') {
+        T.skip('CpapDsp.prepare + computeMetrics reachable', 'cpapdex-dsp not co-loaded');
+        return;
+      }
+      /* Pressure is 1 everywhere so every sample is mask-on — leakCV reads `leakMaskOn`, and a
+         zero-pressure sample would silently drop its leak value out of the statistic. */
+      var leakCV = function (vals) {
+        var n = vals.length;
+        var pressure = new Float32Array(n);
+        var leak = new Float32Array(n);
+        for (var i = 0; i < n; i++) {
+          pressure[i] = 1;
+          leak[i] = vals[i];
+        }
+        var m = C.computeMetrics(C.prepare({ t0Ms: Date.UTC(2026, 5, 13, 22, 0, 0), fs: 1, pressure: pressure, leak: leak, events: [] }));
+        return m ? m.leakCV : undefined;
+      };
+
+      T.eq('[10,10,20,20] ⇒ sd √(100/3) over mean 15 = 38.5 %', leakCV([10, 10, 20, 20]), 38.5);
+      T.eq('a CONSTANT leak ⇒ CV 0.0 — a sealed mask is not a missing measurement', leakCV([12, 12, 12, 12]), 0);
+      /* THE FLOOR, at both sides. Mean 1.9 is below 2 ⇒ null; mean 2 exactly is not below it ⇒ a
+         number. Without the floor the 1.9 case returns a CV computed on a near-zero denominator —
+         the "well-sealed mask reports a catastrophic leak" failure the guard exists to prevent. */
+      T.eq('mean 1.9 L/min is under the floor ⇒ null, never a blown-up quotient', leakCV([1.9, 1.9, 1.9, 1.9]), null);
+      T.eq('mean exactly 2 ⇒ NOT null (the floor is inclusive)', leakCV([2, 2, 2, 2]), 0);
+      /* ANTI-VACUITY — the sub-floor case is refused because of the MEAN, not because a constant
+         series has no spread: a varying series with the same small mean is refused too, while the
+         same spread at a larger mean produces a number. */
+      /* [0.5, 0.5, 2.5, 2.5] has mean 1.5 — genuinely under the floor while still VARYING. A first
+         draft used [1,1,3,3], whose mean is exactly 2, i.e. AT the floor and therefore reported
+         (57.7 %); the assertion caught my arithmetic, which is the point of deriving the expected
+         value rather than reading it off a run. */
+      T.eq('a VARYING series under the floor is refused too (the gate is the mean)', leakCV([0.5, 0.5, 2.5, 2.5]), null);
+      T.ok('…and the same spread at a larger mean IS reported', leakCV([10, 10, 12, 12]) > 0, 'got ' + leakCV([10, 10, 12, 12]));
+      /* A single sample has no sample deviation (n − 1 = 0) — that must read as null, not 0 %,
+         which would claim a perfectly stable seal from one reading. */
+      /* STRICTLY null, not merely non-finite. One sample has no sample deviation, so the CV is NaN
+         inside — and `isNaN(c) ? null : …` is what converts that to the absent value this suite
+         uses. Asserting with `=== null` is what separates the two: a mutant that drops the
+         conversion returns NaN, which several equality helpers treat as interchangeable with null.
+         Measured — with `T.eq(…, null)` that mutant SURVIVED. */
+      T.ok('one sample ⇒ strictly null, never NaN and never a fabricated 0 %', leakCV([15]) === null, 'got ' + JSON.stringify(leakCV([15])));
     });
 
     group('CPAPDex buildNightFromSets — every input shape it dispatches on (mutation bootstrap)', 'cpapdex-dsp · known-answer · mutation-pinned', function (T) {
