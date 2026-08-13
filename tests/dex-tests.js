@@ -39309,6 +39309,75 @@
       }
     });
 
+    /* ════ computeKarvonenZones — the second PSEUDO-TESTED clinical formula in this file ════
+       Karvonen: a zone edge is a percentage of HEART RATE RESERVE added back to rest, not a
+       percentage of HRmax. Getting that wrong shifts every zone by tens of bpm and still looks
+       plausible, which is exactly the failure a golden recorded off the code cannot see.
+         HRR   = HRmax − HRrest
+         edge  = round(HRR × pct + HRrest)
+       With hrRest 60 and age 49: HRmax = round(208 − 0.7·49) = 174, HRR = 114, so
+         z1 0.5–0.6 → 117–128   z2 0.6–0.7 → 128–140   z3 0.7–0.8 → 140–151
+         z4 0.8–0.9 → 151–163   z5 0.9–1.0 → 163–174
+       and z5.high lands exactly on HRmax, because 100 % of the reserve IS HRmax. That identity
+       is the cheapest way to catch a %-of-HRmax regression. */
+    group('OxyDex computeKarvonenZones — reserve, not max', 'oxydex-dsp · karvonen', function (T) {
+      var O = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var B = (O && (O._bare || O)) || {};
+      var fn = B.computeKarvonenZones;
+      T.ok('OxyDex._bare.computeKarvonenZones reachable', typeof fn === 'function', 'export computeKarvonenZones from oxydex-dsp.js');
+      if (typeof fn === 'function') {
+        var HRV = { rmssd: null };
+        // vo2est.hrRest short-circuits the row requirement, so the zone algebra is isolated here.
+        var z = fn([], HRV, { hrRest: 60 }, null, null, null, null, 49, 480);
+        T.ok('an hrRest carried in from vo2est is enough to build zones', z != null, JSON.stringify(z && z.zones));
+        var Z = (z || {}).zones || {};
+        T.eq('HRmax = round(208 − 0.7·49) = 174', (z || {}).hrMax, 174);
+        T.eq('HRR = 174 − 60 = 114 (reserve, not max)', (z || {}).hrr, 114);
+        T.eq('Z1 low  = round(114×0.5 + 60) = 117', (Z.z1 || {}).low, 117);
+        T.eq('Z1 high = round(114×0.6 + 60) = 128', (Z.z1 || {}).high, 128);
+        T.eq('Z2 low  = 128 (zones abut, no gap)', (Z.z2 || {}).low, 128);
+        T.eq('Z3 high = round(114×0.8 + 60) = 151', (Z.z3 || {}).high, 151);
+        T.eq('Z4 high = round(114×0.9 + 60) = 163', (Z.z4 || {}).high, 163);
+        /* z5.low is the one edge where ROUNDING is observable: 114×0.9 + 60 = 162.6, so round
+           gives 163 and floor gives 162. Every other low edge here lands on .0/.4/.2 where the
+           two agree, which is why a `Math.round → Math.floor` mutant survived without this. */
+        T.eq('Z5 low  = round(114×0.9 + 60) = 163, NOT floor 162', (Z.z5 || {}).low, 163);
+        T.eq('Z5 high = 174 — 100 % of the RESERVE is exactly HRmax', (Z.z5 || {}).high, 174);
+        T.ok('Z5 high === hrMax, the identity that catches a %-of-HRmax regression', (Z.z5 || {}).high === (z || {}).hrMax, (Z.z5 || {}).high + ' vs ' + (z || {}).hrMax);
+        T.ok('zones are strictly ascending across all five', Z.z1 && Z.z1.low < Z.z2.low && Z.z2.low < Z.z3.low && Z.z3.low < Z.z4.low && Z.z4.low < Z.z5.low, JSON.stringify(Z));
+
+        // age is an input, not a constant
+        var zYoung = fn([], HRV, { hrRest: 60 }, null, null, null, null, 20, 480);
+        T.eq('age 20 ⇒ HRmax 194, so HRR = 134', (zYoung || {}).hrr, 134);
+
+        // ── refusals ──
+        T.eq('no HRV block ⇒ null', fn([], null, { hrRest: 60 }, null, null, null, null, 49, 480), null);
+        /* ⚠ This gate is 80, NOT the 100 that computeVO2maxEstimate uses. The two functions read
+           the same hrRest and disagree on what counts as plausible; that is deliberate here (a
+           training zone off a resting HR above 80 would be nonsense) but it is a real asymmetry,
+           so both sides of THIS bound are pinned rather than assumed to match its sibling. */
+        T.eq('hrRest 81 ⇒ null (the zone gate is 80, not the VO2max gate of 100)', fn([], HRV, { hrRest: 81 }, null, null, null, null, 49, 480), null);
+        T.ok('hrRest 80 ⇒ NOT null (bound inclusive)', fn([], HRV, { hrRest: 80 }, null, null, null, null, 49, 480) != null, 'bound is exclusive?');
+        T.eq('no hrRest source and too few rows ⇒ null (needs ≥3600 = 1 h)', fn([], HRV, null, null, null, null, null, 49, 480), null);
+        /* An EMPTY rows array cannot pin the ≥3600 bound: it is caught again by the `length < 60`
+           guard further down, so weakening the first gate changes nothing. 100 rows clears that
+           second guard and leaves the 3600 bound as the only thing refusing. */
+        var mkRows = function (n, hr) {
+          var out = [];
+          for (var i = 0; i < n; i++) out.push({ hr: hr, motion: 0, spo2: 96 });
+          return out;
+        };
+        T.eq('100 rows (past the ≥60 still-set guard, short of 3600) ⇒ still null', fn(mkRows(100, 60), HRV, null, null, null, null, null, 49, 480), null);
+        T.ok('3600 rows with no vo2est ⇒ zones built from the rows themselves', (fn(mkRows(3600, 60), HRV, null, null, null, null, null, 49, 480) || {}).hrr === 114, 'row-derived hrRest path');
+        /* A vo2est that exists but carries NO hrRest must fall through to the rows. `vo2est &&
+           vo2est.hrRest` and `vo2est || vo2est.hrRest` agree whenever hrRest is present, so only
+           this shape separates them — under `||` the hrRest becomes undefined and every zone
+           silently turns NaN while the function still returns an object. */
+        var zEmptyVo2 = fn(mkRows(3600, 60), HRV, {}, null, null, null, null, 49, 480);
+        T.eq('a vo2est with no hrRest falls through to the rows, never to undefined', ((zEmptyVo2 || {}).zones || {}).z1 ? zEmptyVo2.zones.z1.low : null, 117);
+      }
+    });
+
     group('OxyDex refuses fabricated dates and inflated spans — §F2/§F1.4', 'oxydex-dsp · clock · guards', function (T) {
       var O = env.OxyDSP || env.OXYDSP;
       var srcs = env.sources || {};
