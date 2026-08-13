@@ -1,8 +1,0 @@
-<!-- SPDX-License-Identifier: Apache-2.0 -->
----
-bump: patch
-type: changed
-nodes: [suite]
-brief: GENERATOR-FOLLOWUPS-III-2026-08-08-BRIEF.md
----
-§2 asked whether MotionDex or CPAPDex is single-recording for the same accidental reason ECGDex was — a renderer reachable only from a worker file. Answered by execution, not by reading headers. **No renderer is worker-only any more**: all eleven live in `synth-gen.js` and are on the `SYNTH` export, and `cohort-full.js`'s same-named `renderECGInt16` is a thin delegate, not a second copy. **MotionDex is accidental.** `MotionDex.src.html` loads neither `synth-gen.js` nor `dex-patient-gen.js`, `motiondex-app.js` carries zero `SYNTH` references where every other node's app carries 3–6, and there is no `.synth-line` — yet `renderXYZ` already emits the exact header `motiondex-dsp.js` documents as its ACC input, and driven end-to-end in a co-loaded realm the generator's bytes parse in the node's own parser: `MOTIONDSP.parseSensorXYZ` returns 31 200 rows from a 600 s render. The capability exists; the app cannot reach it; nothing was ever decided. **CPAPDex is deliberate.** The text-line generator has no EDF renderer at all because EDF is binary; CPAPDex ships its own committed synthetic EDF set from `tools/make-synthetic-edf.mjs`, a path that was deliberately built and hardened after the demo was found to be fetching ten real gitignored recordings and 404ing for everyone but the maintainer. Recorded rather than fixed: giving MotionDex the generator is a source + re-bundle + provenance change, spawned as §4 rather than smuggled into an answer.

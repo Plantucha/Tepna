@@ -1,8 +1,0 @@
-<!-- SPDX-License-Identifier: Apache-2.0 -->
----
-bump: patch
-type: fixed
-nodes: [suite]
-brief: BRIEF-COLLISION-RESIDUAL-GAP-2026-08-09-BRIEF.md
----
-§4 recommended a mechanism that cannot exist here. Merge queue was chosen on the reasoning that it gives the same guarantee as "require branches to be up to date" without the rebase tax a repo merging ~15 PRs an hour would pay — the reasoning was right and the **availability was never checked**. GitHub merge queue is an organization-repository feature and `Tepna` is user-owned, so the API refuses the rule at schema level: the identical 422 with no parameters at all, twice, both atomic, ruleset `protect-main` verified unchanged after each. That is this brief's own §5 failure committed inside the brief that defines it — a capability asserted without verification — and it is recorded as such rather than quietly reworded. §4 now states what was implemented instead: the stale-file PR check (#1086), which reads the real ref rather than a local fetch and does not care whether bytes arrived via `Edit`, `Write` or a `Bash` heredoc — the two holes that let the original collisions through. The Done-when is split to separate **detection from prevention**: the check is advisory today, it reds a PR but does not block, and auto-merge is used on essentially every PR here, so it informs rather than stops. Two owner levers remain and are named with the ruleset they live on: add `stale-file` to the required-check list, or set `strict_required_status_checks_policy = true`. The `merge_group` triggers from #1083 are left in place — harmless, correct, and dormant unless the repo is ever transferred to an organization.
