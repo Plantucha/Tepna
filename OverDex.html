@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-1MKjITCoS3PL3GlJiE9X+u/jhTPJ+4iqY/YD93ogxxw=' 'sha256-3PFb04omYk7R3ZxJ+povN1kVhfK4fO3vjwQUK51fLzw=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FUfKXxAia5DFN1kbae6M8wWm1gOdUnrbc4wew4GiadA=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-Zxv5BYA6LcQpcPPuG2d25zhup28C+RnBN4SjOryyxXI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cfWApVFWKLfNIo7gB4Jzrge7/Qnsl2HNHo60gvvc26M=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0S23XRK73TaqnP1X14OeTGg5q49c2BbEKhHS+lflmyQ=' 'sha256-1MKjITCoS3PL3GlJiE9X+u/jhTPJ+4iqY/YD93ogxxw=' 'sha256-5alctU76p1np13kqqRtTLIHe/Thcgc/8+/YhRA6RpBk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FUfKXxAia5DFN1kbae6M8wWm1gOdUnrbc4wew4GiadA=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LWn2UCO1/3Ttfcie8xYx9KebAJYc+VxU4re4rLCXiM4=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-PSsuP2B25MxEEb1g6NFSDBn3tMcrS+hjhr7BaO7Ujp0=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Zg0VuZposJeHUmYwdGlxPYv7/96XL9I90WDHTkIO/fI=' 'sha256-Zxv5BYA6LcQpcPPuG2d25zhup28C+RnBN4SjOryyxXI=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bO8/fYtpPniksNCHoA5MPp4pPo5kTma7y02DYTU9CkE=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cfWApVFWKLfNIo7gB4Jzrge7/Qnsl2HNHo60gvvc26M=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -23830,7 +23830,83 @@ __exports.GlucoDex = window.GlucoDex;
     return pick >= 0 ? pick : refIdx;
   }
 
+  /* ── POLARITY BY UPSTROKE DURATION (PPG-FOOT-PLACEMENT §0, 2026-08-13) ────────────────────────
+     `orient` below decides polarity from the SKEWNESS OF THE FIRST DERIVATIVE. The reasoning is right
+     — a fast upstroke and slow decay do give positive derivative skew — but it is a THIRD MOMENT on a
+     noisy derivative, and it flips under low-frequency contamination. Measured on the box corpus it is
+     WRONG ON 10 OF 20 NIGHTS (0 of 22 phone nights).
+
+     When it flips, the pulse is processed upside down and every downstream number is silently wrong:
+     the ensemble minimum lands AFTER the peak (t = +290 ms rather than −300 ms), the "systolic
+     upstroke" becomes a ~1000 ms near-linear ramp instead of a 160 ms rise, and the foot is placed
+     ~900 ms early. Inter-LED scatter goes 1.7 ms → 25–42 ms.
+
+     ⚠️ THE CONSENSUS-POLARITY PASS CANNOT CATCH THIS, BY CONSTRUCTION. It acts only on a DISSENTER —
+     a strict majority with at least one channel disagreeing — and returns 0 when the channels are
+     unanimous, deliberately, to stay export-inert. On every affected night all three channels agree on
+     the WRONG sign, and unanimously-wrong is indistinguishable from unanimously-right to that rule.
+     That is also why the error is COMMON-MODE across the three LEDs, and so invisible to any
+     inter-channel agreement metric.
+
+     THE RULE HERE IS PHYSIOLOGICAL RATHER THAN STATISTICAL, and has no threshold, no moment and no
+     amplitude term:
+
+         the correct polarity is the one whose median foot→peak rise is a SMALLER FRACTION of the
+         beat interval, because systole is faster than diastole in every cardiac waveform.
+
+     Measured, it returns −1 on all 31 nights across both corpora, takes good nights from 6/20 to 18/20
+     and the worst night from 204.80 ms (70 beats paired) to 3.48 ms (22 335 paired).
+
+     Polarity is a property of the DEVICE and constant for a recording, so it is decided from a bounded
+     sample rather than the whole night — two extra `detectBeats` calls over ~2 minutes, not two over
+     eight hours. The sample is taken from the MIDDLE: the start of a recording is where the sensor is
+     being put on, and donning artefact is exactly the low-frequency contamination that breaks `orient`.
+
+     Falls back to `orient` when the sample carries too few beats to decide, so a channel that cannot be
+     measured keeps the previous behaviour instead of guessing. */
+  /* ⚠️ DECLARE THESE WITH `const`, NOT `var`. They are shipped to the Web-Worker realm through the
+     `consts` map in `_buildWorkerURL`, and dex-tests.js rebuilds that realm by regex-matching
+     `^const NAME = …` out of this file's own text. A `var` is found by neither, so the worker throws
+     `ReferenceError` at RUNTIME while every static check still passes — which is exactly how this
+     was caught, and exactly the drift the `consts` comment below already records once. */
+  const ORIENT_SAMPLE_SEC = 120; // ~100 beats at 50 bpm — enough for a stable median, cheap to detect
+  const ORIENT_MIN_BEATS = 5; // below this a median rise means nothing; defer to `orient`
+
+  function riseFraction(bp, fs) {
+    // median (peak − foot) as a fraction of the beat interval, for ONE already-oriented waveform.
+    var det = detectBeats(bp, fs);
+    var n = Math.min(det.peaks.length, det.feet.length);
+    if (n < ORIENT_MIN_BEATS || !(det.T > 0)) return null;
+    var r = [];
+    for (var k = 0; k < n; k++) {
+      var d = det.peaks[k] - det.feet[k];
+      if (isFinite(d) && d > 0) r.push(d);
+    }
+    if (r.length < ORIENT_MIN_BEATS) return null;
+    return median(r) / det.T;
+  }
+
+  function orientByRise(bp, fs) {
+    var n = bp.length;
+    var want = Math.round(fs * ORIENT_SAMPLE_SEC);
+    var seg;
+    if (!(want > 0) || n <= want) {
+      seg = bp;
+    } else {
+      var lo = Math.floor((n - want) / 2); // the MIDDLE — the start is donning artefact
+      seg = bp.subarray ? bp.subarray(lo, lo + want) : bp.slice(lo, lo + want);
+    }
+    var up = riseFraction(seg, fs);
+    var dn = riseFraction(negate(seg), fs);
+    if (up == null && dn == null) return orient(bp); // undecidable → previous behaviour
+    if (up == null) return -1;
+    if (dn == null) return 1;
+    return dn < up ? -1 : 1;
+  }
+
   // ── orientation: systolic upstroke should be the steep, sharp deflection ──
+  // ⚠️ SUPERSEDED as the default by `orientByRise` above — kept as its fallback for the
+  //    undecidable case, and because it is still the right idea when beats cannot be found.
   function orient(bp) {
     // PPG upstroke (systole→peak) is steeper than the diastolic decay.
     // skewness of the derivative is positive when peaks point "up" correctly.
@@ -24172,7 +24248,7 @@ __exports.GlucoDex = window.GlucoDex;
      the serial and worker paths stay identical by construction (the property the comment above pins). */
   function detectChannel(chan, fs, forceSign) {
     const bp0 = bandpass(chan, fs, 0.5, 8.0);
-    const sign = forceSign === 1 || forceSign === -1 ? forceSign : orient(bp0);
+    const sign = forceSign === 1 || forceSign === -1 ? forceSign : orientByRise(bp0, fs);
     const bp = sign === 1 ? bp0 : negate(bp0);
     const det = detectBeats(bp, fs);
     return { bp, sign, peaks: det.peaks, feet: det.feet, T: det.T };
@@ -26672,14 +26748,14 @@ __exports.GlucoDex = window.GlucoDex;
     // The drift is now gate-backed: dex-tests.js's `PpgDex worker source is CLOSED` group re-derives the
     // call graph from this file's own text and reds if any callee is missing. ADD A FUNCTION HERE
     // whenever a worker-reachable path starts calling it.
-    var deps = [biquad, applyBiquad, reverse, filtfilt, bandpass, mean, std, median, movavg, orient, negate, cadenceSamples, refineFeet, detectBeats, detectChannel];
+    var deps = [biquad, applyBiquad, reverse, filtfilt, bandpass, mean, std, median, movavg, orient, riseFraction, orientByRise, negate, cadenceSamples, refineFeet, detectBeats, detectChannel];
     // Module-level CONSTANTS the shipped functions close over. Functions carry their own source via
     // .toString(), but a `const` at module scope does NOT travel with them — detectBeats reads
     // REFR_CADENCE_FRAC, so without this the worker throws `REFR_CADENCE_FRAC is not defined` even once
     // every FUNCTION it calls is shipped. (That is the second half of the same drift, and the static
     // call-graph check alone did not see it — only running the worker realm did.) Still single-sourced:
     // the VALUE is read from the live module here, never retyped.
-    var consts = { REFR_CADENCE_FRAC: REFR_CADENCE_FRAC, SUBH_FRAC: SUBH_FRAC };
+    var consts = { REFR_CADENCE_FRAC: REFR_CADENCE_FRAC, SUBH_FRAC: SUBH_FRAC, ORIENT_SAMPLE_SEC: ORIENT_SAMPLE_SEC, ORIENT_MIN_BEATS: ORIENT_MIN_BEATS };
     var constSrc = Object.keys(consts)
       .map(function (k) {
         return 'const ' + k + '=' + JSON.stringify(consts[k]) + ';';
@@ -26776,6 +26852,10 @@ __exports.GlucoDex = window.GlucoDex;
     detectChannel,
     consensusBeats,
     consensusSign,
+    /* PPG-FOOT-PLACEMENT §0 — exported so the polarity RULE is directly testable rather than reachable
+       only through a full `detectChannel` run, the same reason `consensusSign` is exported. */
+    orientByRise,
+    riseFraction,
     applyConsensusPolarity,
     distinctChannelIdx,
     intervalsSpanningTimeGap,

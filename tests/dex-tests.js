@@ -20202,6 +20202,69 @@
        channel detected on its own orientation contributes nothing), and only then does the second
        show the fix restoring it. Without `detectChannel`'s forceSign the second assertion cannot
        pass, so this group fails on the pre-fix module rather than merely describing it. */
+    group('PpgDex polarity is decided by UPSTROKE DURATION, not derivative skew (PPG-FOOT-PLACEMENT §0)', 'ppgdex-dsp · orientation · regression', function (T) {
+      /* WHAT THIS PINS. `orient` decided polarity from the SKEWNESS OF THE FIRST DERIVATIVE — a third
+         moment on a noisy derivative — and was measured WRONG ON 10 OF 20 real box nights. An inverted
+         pulse is processed upside down: the ensemble minimum lands AFTER the peak, the "upstroke"
+         becomes a ~1000 ms ramp instead of ~160 ms, the foot is placed ~900 ms early, and inter-LED
+         scatter goes 1.7 ms -> 25-42 ms. The consensus-polarity pass above CANNOT catch it: it acts
+         only on a DISSENTER and returns 0 when channels are unanimous, so unanimously-wrong reads as
+         unanimously-right — which is also why the error is common-mode and invisible to any
+         inter-channel agreement metric.
+
+         The replacement has no threshold, no moment and no amplitude term: the correct polarity is the
+         one whose median foot->peak rise is a SMALLER FRACTION of the beat interval, because systole is
+         faster than diastole in every cardiac waveform. */
+      var D = env.PPGDSP;
+      if (!D || typeof D.orientByRise !== 'function') {
+        T.ok('PPGDSP.orientByRise is exported', !!(D && typeof D.orientByRise === 'function'));
+        return;
+      }
+      var fs = 55;
+      // A pulse with the REAL asymmetry: a 160 ms systolic rise on a 1200 ms beat, slow decay after.
+      function train(sec, invert) {
+        var n = Math.round(fs * sec),
+          a = new Float32Array(n),
+          Tb = Math.round(fs * 1.2),
+          up = Math.round(fs * 0.16);
+        for (var i = 0; i < n; i++) {
+          var ph = i % Tb;
+          var v = ph < up ? ph / up : 1 - (ph - up) / (Tb - up);
+          a[i] = invert ? -(v - 0.5) : v - 0.5;
+        }
+        return a;
+      }
+      T.eq('an upright pulse train is left alone', D.orientByRise(train(300, false), fs), 1);
+      T.eq('an INVERTED pulse train is corrected — the bug this replaces', D.orientByRise(train(300, true), fs), -1);
+
+      /* THE ASYMMETRY IS THE WHOLE SIGNAL, so a SYMMETRIC (triangular) wave must not be decided by it.
+         Both orientations then have the same rise fraction and the rule must not pretend to know. */
+      var sym = new Float32Array(fs * 300);
+      for (var i = 0; i < sym.length; i++) {
+        var ph = i % Math.round(fs * 1.2),
+          h = Math.round(fs * 0.6);
+        sym[i] = (ph < h ? ph / h : 1 - (ph - h) / h) - 0.5;
+      }
+      T.ok('a symmetric wave still returns a polarity rather than throwing', D.orientByRise(sym, fs) === 1 || D.orientByRise(sym, fs) === -1);
+
+      // Undecidable input must FALL BACK, not guess: flat signal has no beats either way.
+      T.eq('a flat channel falls back to `orient` rather than inventing a sign', D.orientByRise(new Float32Array(fs * 300), fs), D.orient ? D.orient(new Float32Array(fs * 300)) : 1);
+
+      /* riseFraction is the quantity the rule compares, so pin it against ARITHMETIC rather than a
+         recorded constant: a 160 ms rise on a 1200 ms beat is 0.133 by construction. */
+      var rf = D.riseFraction(train(300, false), fs);
+      T.ok('riseFraction recovers the planted 160/1200 ratio (+/-0.02)', rf != null && Math.abs(rf - 0.16 / 1.2) < 0.02);
+      T.eq('riseFraction refuses a signal with too few beats', D.riseFraction(train(3, false), fs), null);
+
+      /* THE CANARY. An implementation that returned a CONSTANT would satisfy any single-orientation
+         test above; assert the two orientations map to DIFFERENT answers. */
+      T.ok('upright and inverted resolve to OPPOSITE polarities (a constant would pass everything else)', D.orientByRise(train(300, false), fs) === -D.orientByRise(train(300, true), fs));
+
+      // Back-compat: forceSign still wins over the new rule, exactly as it did over `orient`.
+      T.eq('forceSign still overrides the automatic rule (+1)', D.detectChannel(train(120, true), fs, 1).sign, 1);
+      T.eq('forceSign still overrides the automatic rule (-1)', D.detectChannel(train(120, false), fs, -1).sign, -1);
+    });
+
     group('PpgDex consensus polarity — an inverted channel rejoins the vote (E-5)', 'ppgdex-dsp · consensus · regression', function (T) {
       var D = env.PPGDSP;
       T.ok('PPGDSP.detectChannel + consensusBeats available', !!(D && typeof D.detectChannel === 'function' && typeof D.consensusBeats === 'function'));
