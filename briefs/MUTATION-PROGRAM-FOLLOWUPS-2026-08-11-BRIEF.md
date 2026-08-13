@@ -285,6 +285,97 @@ hook**. No test in the repo uses it today. Either the DSP grows a way to read th
 group accepts that it must reinstate a *known* profile rather than the *previous* one — a decision
 worth making deliberately rather than discovering halfway through.
 
+## 10 · FOUR CLUSTERS KILLED, AND THE THREE THINGS THAT ONLY THE RE-APPLY STEP FOUND (2026-08-12)
+
+99 mutants killed across four PRs — #1190 CPAPDex `selfTest` conjunctions (32), #1192 Clock §2.7
+boundaries in all four node-local parsers (34), #1193 `computeVO2maxEstimate` (17), #1194
+`computeKarvonenZones` (16). Every count is a *measured* before → after, per §5's requirement.
+
+### 10.1 · One defect shape, three disguises
+
+All four clusters are the same bug: **an assertion that passes for a weaker reason than it claims.**
+
+| shape | the mutant that proves it | why the old assertion could not see it |
+|---|---|---|
+| `ok('…', A && B)` | `&&` → `\|\|` | passes on `A` alone; `B` was never checked |
+| far-out-of-range clock inputs | `mi > 59` → `mi >= 59` | minute 99 is still rejected — only minute **59** can see the bound move |
+| pseudo-tested function | any mutant at all | the suite runs it and reads nothing it returns |
+
+§7 says this programme keeps re-learning that a gate must be *seen to fail*. These are three more
+instances, and two of them had a **comment in the source already describing the hazard** — the
+`selfTest` cluster and the §2.7 guard both did. Documenting a hazard is not measuring it.
+
+### 10.2 · THE FIXTURE IS THE USUAL CULPRIT, NOT THE CODE
+
+In three of the four clusters the re-apply step found survivors, and **every one was a weakness in
+the new test's fixture** rather than a missing assertion:
+
+- **Constant inputs cannot test an order statistic.** Every VO₂max fixture held HR constant, so
+  neither "which percentile" (`0.05` → `0.5`) nor "were the >120 samples filtered" could change any
+  output. A spread night — 100 @50, 1700 @80, 400 @130 — kills both.
+- **A bound masked by a later guard is not pinned.** `n < 3600` survived an empty rows array
+  because a `length < 60` guard below refuses it anyway. Pin a bound with an input that *only* that
+  bound refuses.
+- **A guard tested only where its operands agree is not pinned.** `vo2est && vo2est.hrRest` → `||`
+  survived because the fixture always carried an `hrRest`. With `{}` the mutant takes `undefined`,
+  every zone becomes `NaN`, **and the function still returns a well-shaped object** — the worst
+  available failure. Only the shape where the two operators disagree can catch it.
+- **Rounding is invisible at the wrong point.** `Math.round` → `Math.floor` survived until an edge
+  landing on `.6` was asserted; every other edge fell on `.0/.2/.4`, where the two agree.
+
+**Practical rule for §5 work: after writing the test, re-apply the mutant. If it does not go red,
+the fixture is too kind.** Three of four here would otherwise have shipped as "comprehensively
+tested" on green output.
+
+### 10.3 · A SCOPED KILL RATE IS AN UPPER BOUND — some recorded survivors are artifacts
+
+`h < 0` → `h < 0 && h > 23` in glucodex reads as a **survivor** in the per-file sweep and is **RED**
+under `--group=node-local-clock`. It was never offered to the group that kills it. This is the same
+scoping caveat §5 records for coverage, and it applies to **kill verdicts** too: an unknown fraction
+of the fleet's recorded survivors are tests-not-run rather than tests-not-written. Before writing a
+test for a survivor, check it against the contract-named groups, not just the file-named one.
+
+### 10.4 · FOUR MUTANTS PROVEN EQUIVALENT — recorded so they stop being counted
+
+Documented in place, each with its proof, and each with an explicit *do not add an assertion for
+this*:
+
+- `cpapdex-edf.js` `mo < 1`, `dd < 1` — subsumed by the date round-trip three lines below.
+  `mo = 0` builds `Date.UTC(y, -1, dd)` (the previous December) and fails the year check; `dd = 0`
+  builds the last day of the previous month. Both fields are 2-digit, so a negative value cannot be
+  constructed at all.
+- `oxydex-dsp.js` `hrRest < 30` — unreachable: the still-HR filter is `hr > 30 && hr < 120`, so no
+  sample below 31 ever reaches the percentile.
+
+These belong in the *equivalent* bucket of §2's `tested − invalid − equivalent` denominator.
+
+### 10.5 · TOOLING: an unscoped `String.replace` measures the WRONG function, confidently
+
+A verification harness written for §10 reported 13/17 kills. All four "survivors" were **its own
+bug**: `if (n < 1800) return null` occurs three times in `oxydex-dsp.js`, and `String.replace` with a
+string argument replaces only the FIRST — so it mutated `computeRMSSDarc` and reported the result
+under the name of a function it had never touched. Scoped to the function body by brace-matching,
+the same run gives 17/17.
+
+This is the third instance of this exact class in the programme (`killcheck.mjs`'s unescaped regex,
+two clobbered test groups). **Any tool that locates code by string or regex must scope to the
+function it names and fail loudly when the pattern is absent or ambiguous** — a `hits > 1` count is
+worth printing.
+
+### 10.6 · A CONTRACT ASYMMETRY THE TESTS SURFACED
+
+`computeVO2maxEstimate` gates hrRest at `> 100`; `computeKarvonenZones` gates the **same value** at
+`> 80`. Defensible — a training zone off a resting HR above 80 would be nonsense — but undocumented
+until now. Both bounds are pinned independently rather than assumed to match.
+
+### 10.7 · MEASUREMENT HYGIENE: never hand-mutate source while a sweep is running
+
+`extreme-mutate` and `killcheck` build their workers with `cp -al` **hard links**, so a worker's
+files share inodes with the checkout. Editing a source file in place during a sweep is therefore
+visible to every in-flight worker, and can flip verdicts in a run that reports no error. One fleet
+Descartes run was discarded for this. **Serialize manual mutation against sweeps, or run them from
+different checkouts.**
+
 ## Done when
 
 - [ ] The owner has ratified, adjusted, or per-file'd the 90 % target against §2.
@@ -293,3 +384,7 @@ worth making deliberately rather than discovering halfway through.
 - [ ] `functionRange` resolves arrow consts, or the limitation is recorded in the tool's header.
 - [ ] §9.2 — the export `date` field has a test, or the reason it cannot is recorded.
 - [ ] §9.4 — `setHooks` restoration is resolved before profile-gated branches are attempted.
+- [ ] §10.3 — the fleet's survivor lists are re-checked against contract-named groups, so the
+      scope-artifact fraction is known rather than assumed.
+- [ ] §10.5 — every string/regex-locating tool in `tools/` scopes to the named function and fails
+      loudly on an absent or ambiguous pattern.
