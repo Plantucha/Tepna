@@ -438,6 +438,67 @@ kill rate is computed over a population that is 43 % checking-apparatus; hrvdex'
 0 %. Those two numbers are not measuring the same thing, and §1's fleet figure inherits the blend.
 **Report production and checking-apparatus rates separately, or report the split beside the total.**
 
+## 12 · SIX MORE CLUSTERS, TWO REAL DEFECTS, AND WHEN *NOT* TO RE-RECORD (2026-08-13)
+
+Continuing §10's programme: ~194 mutants killed across 17 PRs. §9.4 is resolved (owner chose
+`getHooks()`, #1206) and that unblocked the profile-gated `computeDerived` branches, which were the
+largest single survivor cluster in the fleet.
+
+### 12.1 · THE BLIND-FIXTURE TAXONOMY, three shapes longer
+
+§10.2 listed six. Three more, each measured:
+
+- **A SELF-SIMILAR series cannot test a lag.** `ac_pairs.push([x[j], x[j+1]])` mutated to
+  `[x[j], x[j]]` survives a rising ramp, because correlating a ramp with the *next* day gives 1 and
+  correlating it with *itself* also gives 1. An alternating series makes `y = 60 − x`, so the honest
+  answer is −1 while self-pairing still says +1.
+- **A ONE-ELEMENT result cannot test a scale factor.** `tMin: k * 5 → k * 1` survives whenever the
+  only surviving epoch is `k = 0`.
+- **A clamp whose FLOOR coincides with its TRIGGER is untestable from below** — and that is
+  equivalence, not a gap. `stress_high` fires at stress ≥ 70 and its ramp is `(stress−50)/50`,
+  which is exactly 0.4 at 70, so `Math.max(0.4, …)` never binds. Its `hrv_low` sibling *is*
+  load-bearing (rMSSD 19 ⇒ 0.05) and is pinned. Check the sibling before recording either.
+
+### 12.2 · `undefined` IS A THIRD STATE, AND IT HID A REAL DEFECT
+
+`computeDerived(rowsArg)` honoured its argument in only ONE of its three passes; the day-to-day and
+rolling-window passes iterated the module's `allRows`. Its own header promised the opposite
+("EVERY d_* column", "a PURE headless surface"). So `HRVDex.derive(rows)` returned **ten** columns
+as `undefined` — not NaN — and in the app it computed those windows over APP STATE and wrote them
+onto rows the caller never passed. Fixed in #1211 (owner's call); the no-argument path is unchanged
+by construction.
+
+**The generalisable part:** this file's whole discipline is *absent must be visibly absent*, and
+`undefined` slips through it. It is not `NaN`, so a non-finite enumeration skips it; it renders
+blank; `x != null` is FALSE for it and TRUE for NaN. **A column that is never assigned is invisible
+to exactly the gates written to catch fabricated values.** Grep for assignment coverage, not just
+value correctness.
+
+### 12.3 · VERIFY THE BLAST RADIUS BEFORE RE-RECORDING A CHARACTERISATION
+
+The fix moved 57 assertions in a group that is explicitly a characterisation. Re-recording it is the
+sanctioned workflow — and is also exactly how a real regression gets laundered into a golden. So the
+literals were not touched until this had been checked mechanically:
+
+> for all 35 column-set expectations, the new set is the old set plus a subset of the ten window
+> columns, and NO per-row column changed.
+
+**Do that check first, every time a fix moves a golden.** It is ten lines of script and it is the
+difference between "the expectations followed the fix" and "the expectations absorbed a bug".
+
+Two mechanical notes that cost time: a bare string replace over `tests/dex-tests.js` hits SEVERAL
+arrays at once (9 of 39 literals silently skipped), so patch by unique text or scope to one array by
+line range; and an earlier draft *excluded* the newly-visible columns from the enumeration, which
+would have discarded power the fix had just bought — four of them discriminate on the zeroed seed.
+
+### 12.4 · "NO CHECKS REPORTED" IS NOT A CI FAILURE
+
+A PR whose `mergeStateStatus` is `DIRTY` runs **no** `pull_request` workflows, so `gh pr checks`
+reports "no checks reported on the branch" and the PR reads as broken. It is conflicted, not failing,
+and the responses are opposite — rebase versus debug. Check `mergeStateStatus` before reading a
+check list as a verdict. (Related: the `land-pr` tool already distinguishes these; a human reading
+the PR page does not.)
+
 ## Done when
 
 - [ ] The owner has ratified, adjusted, or per-file'd the 90 % target against §2.
@@ -454,3 +515,7 @@ kill rate is computed over a population that is 43 % checking-apparatus; hrvdex'
       (the method is proven: oxydex went 7 → 5 and the diff named exactly the two that were fixed).
 - [ ] §11.1 — the fleet kill rate is reported with its production / checking-apparatus split, or
       the decision to keep one blended number is recorded with a reason.
+- [x] §9.4 — RESOLVED 2026-08-13: `getHooks()` on HRVDex and OxyDex (#1206), which unblocked the
+      profile-gated `computeDerived` branches (#1208, #1209).
+- [ ] §12.2 — the other DSPs are checked for columns that are never ASSIGNED on a caller-supplied
+      row, since `undefined` is invisible to the non-finite gates that exist to catch fabrication.
