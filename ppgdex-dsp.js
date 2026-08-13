@@ -227,44 +227,64 @@
     return null;
   }
 
-  // ── O2Ring PPG_INVALID sentinel (PPGDEX-O2RING-FINGER-SITE §2.4, PR #212 / O2RING-PROTOCOL §3b) ──
-  //  156 (0x9C) is the ring's missing-sample marker, and it is **IN-BAND** — a legal amplitude — so it
-  //  cannot be rejected on value alone. Measured on the 90 s probe capture: 156 occurs 61× while every
-  //  neighbouring value (152–160) occurs 2–10×, i.e. ~8× over-represented; an isolation test splits it
-  //  57 isolated / 4 trend-consistent, agreeing with the excess-over-neighbours estimate (~93 % / ~7 %).
-  //  Rejecting every 156 would punch ~7 % of holes into VALID signal.
-  //  A rejected sample is a GAP — never median-filled, never interpolated. Median-filling a known-invalid
-  //  marker fabricates a measurement over missing data (CLAUDE.md; PR #212 declined it explicitly — the
-  //  vendor interpolates, we do not). Real impulsive noise here is 0.04 %, so there is no despiker.
-  const O2_PPG_INVALID = 156;
-  const O2_SENTINEL_ISOLATION = 25; // LSB from the local trend; measured separation, §2.4
+  /* ── O2Ring `156` BEAT MARKER (DEVICE-RATE-TRUTH §2; was "PPG_INVALID sentinel", §2.4 / PR #212) ──
+     156 (0x9C) is a row the firmware INSERTS once per detected beat — it is NOT a missing-sample
+     sentinel, and the old name asserted the opposite. The distinction is not cosmetic: a sentinel
+     means "data was lost here", a marker means "a beat happened here", and the second is a
+     MEASUREMENT that was being discarded.
+
+     What does NOT change: the marker row is still excluded from the waveform, because an inserted row
+     is not an ADC sample. It is never median-filled or interpolated (the vendor interpolates; we do
+     not — PR #212 declined that explicitly). On the device-crystal path it correctly advances no time.
+
+     156 is **IN-BAND** — a legal amplitude — so it cannot be classified on value alone, and an
+     isolation test against real neighbours splits the two populations. That test was built from
+     amplitude statistics on a 90 s probe (156 occurs 61× where neighbours 152–160 occur 2–10×; split
+     57 isolated / 4 trend-consistent). It is now corroborated by a criterion it was never tuned
+     against — the regularity of the intervals it yields — on two full nights:
+
+       subset      n        median interval        within 0.5–2× median
+       ISOLATED    18 039   1152 ms = 52.1 bpm     97.7 %   ← the beat train
+       TREND-OK       147   5296 ms = 11.3 bpm      3.4 %   ← real signal that happens to equal 156
+
+     So the isolated set (99.2 % of all 156s) is a firmware beat fiducial, published below as `beats`.
+     Its value is that it is SAME-DEVICE and SAME-STREAM: no inter-device clock offset, no
+     cross-channel common mode — precisely the blind spot that let the optical polarity defect hide.
+     ⚠️ It records the firmware's DETECTION instant, so it carries an unknown fixed latency: sound for
+     intervals (PPI/HRV) and for detector timing VARIABILITY, never for absolute PAT. */
+  const O2_BEAT_MARKER = 156;
+  const O2_MARKER_ISOLATION = 25; // LSB from the local trend; measured separation, §2.4
   // The O2Ring's crystal ADC sample rate — 32 MHz ÷8 ÷32000 = 125.000 Hz exactly (TI AFE4403, no
   // internal RC). This is the DEVICE-CRYSTAL timebase (O2RING-ADAPTIVE-TIMEBASE §2, DEVICE-RATE-TRUTH
   // §2): the honest sample clock, distinct from the ~125.7 ROW rate the ns column carries (which is
   // 125.000 + one inserted `156` beat marker per beat). Used only on the opt-in device-crystal path.
   const O2_ADC_HZ = 125.0;
-  function markO2Sentinels(x) {
+  function markO2BeatMarkers(x) {
     const gap = new Uint8Array(x.length);
+    const beats = [];
     let rejected = 0,
       kept = 0;
     for (let i = 0; i < x.length; i++) {
-      if (x[i] !== O2_PPG_INVALID) continue;
-      // Judge against REAL neighbours only — a sentinel run must not vote for its own legitimacy.
+      if (x[i] !== O2_BEAT_MARKER) continue;
+      // Judge against REAL neighbours only — a marker run must not vote for its own legitimacy.
       let sum = 0,
         cnt = 0;
       for (let k = i - 2; k <= i + 2; k++) {
         if (k === i || k < 0 || k >= x.length) continue;
-        if (x[k] === O2_PPG_INVALID) continue;
+        if (x[k] === O2_BEAT_MARKER) continue;
         sum += x[k];
         cnt++;
       }
-      // No real neighbour to judge against ⇒ a run of the invalid marker ⇒ missing.
-      if (!cnt || Math.abs(O2_PPG_INVALID - sum / cnt) > O2_SENTINEL_ISOLATION) {
+      // No real neighbour to judge against ⇒ a run of the marker value ⇒ inserted, not signal.
+      if (!cnt || Math.abs(O2_BEAT_MARKER - sum / cnt) > O2_MARKER_ISOLATION) {
         gap[i] = 1;
+        beats.push(i);
         rejected++;
       } else kept++;
     }
-    return { gap, rejected, kept };
+    // `rejected`/`kept` keep their names: they are a published contract (trio-batch, ppg-gap-bridge-scan,
+    // the crystal-timebase gate). `beats` is additive — the same rows, as positions rather than a count.
+    return { gap, rejected, kept, beats };
   }
   // Host-anchor spacing, in accepted rows. 500 ≈ 2.8 s at 176 Hz, giving ~2400 anchors on a 190 min
   // file — the geometry the running-median window was tuned against (clock.js CK_AXIS_WIN).
@@ -540,7 +560,7 @@
     // in a Verity count stream (where it would be an ordinary, and astronomically rare, raw ADC value).
     // Keyed on SITE, not on nCh: a replicated 3-column O2Ring file is still an O2Ring, and keying on
     // the column count skipped the sentinel pass on 526 of its files in this corpus alone.
-    const sent = site === 'finger' ? markO2Sentinels(chArr[0]) : null;
+    const sent = site === 'finger' ? markO2BeatMarkers(chArr[0]) : null;
     /* See the hostAxis block below (DA-V §2.7 F17). `axisDrawn` is the STATISTICAL signature; this is
        the PROVENANCE fact — an O2Ring finger layout carries a host-synthesised axis whether or not the
        writer's rate estimator happens to have left it quantized. Named separately from `axisDrawn` so
@@ -619,6 +639,11 @@
       gap: sent ? sent.gap : null,
       sentinelRejected: sent ? sent.rejected : 0,
       sentinelKept: sent ? sent.kept : 0,
+      /* The firmware's own beat fiducials, as TIMES on the published axis. Positions, not a count —
+         the same rows `sentinelRejected` tallies. Seconds rather than row indices deliberately: the
+         crystal path rebuilds `relSec` underneath, so an index would not survive the rebuild, and a
+         consumer wants an instant anyway. Null for the wrist layout (no O2Ring, no markers). */
+      beatMarkerSec: sent && sent.beats.length ? Float64Array.from(sent.beats, (i) => relSec[i]) : null,
       /* What the host discipline actually did, so a consumer can SEE it rather than infer it.
          `maxStepMs` is the one to read: a large value is a real clock STEP smeared across one anchor
          gap, not a rate — the 2026-07-26 corpus carries a 1.90 s O2Ring step and a 3.22 s H10 one. */
@@ -2796,31 +2821,95 @@
      nothing into it", so the UI said "load the device PPI file to cross-validate" — advice that is
      actionable in the first case and misleading in the second, because the user already did.
 
-     It is the second case in practice. Measured across this corpus: 107 of 107 Verity `_PPI.txt`
-     files are header-only, and 40 of 40 `_HR.txt` are all-zero. The docs' hedge ("often header-only")
-     understates it — on this firmware it is categorical, which is why the computed PPI is not a
-     second opinion but the only one. `filePresent` lets a reader tell "you have nothing to compare"
-     from "your device produced nothing to compare", which are different facts about the world. */
-  function validatePPI(selfNN, devicePPI) {
+     It WAS the second case, categorically, and that is no longer true — the claim is corrected here
+     rather than deleted, because the reason it changed is the useful part. Re-measured 2026-08-13 over
+     132 `_PPI.txt` in the capture corpus: 108 are header-only and 17 carry real intervals, up to
+     29 329 unblocked in one night. The split is not random and it is not firmware version — it is
+     CAPTURE MODE. Every header-only file is phone-captured; every file with data is a box capture from
+     2026-08-05 onward. (Consistent with the Verity's known SDK-mode behaviour, where PPI reports
+     permanently invalid.) So `filePresent` still distinguishes "you have nothing to compare" from
+     "your device produced nothing to compare", and the second is now a statement about HOW the night
+     was captured, not about the hardware. Do not re-derive "the Verity never emits PPI" from an
+     all-phone sample — that inference was made once already and this paragraph is its correction. */
+
+  /* THE COMPARISON MUST CORRECT BOTH SIDES, or it measures our artifact rejection instead of the two
+     detectors (mirrors ECGDex `validateRR`, which Malik-corrects self AND device before comparing).
+     The asymmetry is large and it points the WRONG WAY, which is what makes it worth a comment rather
+     than a line of code. Measured through the real pipeline on 2026-08-08: `nn` reaching this function
+     is already corrected (rMSSD 59.3), while the raw firmware series reads 103.6 — so an uncorrected
+     comparison shows the device 75 % HIGHER and invites exactly one conclusion, that our detector is
+     over-smoothing. Correcting the device the same way costs 306 beats and brings it to 53.6, i.e.
+     dRMSSD 10.7 %: the firmware series carried MORE artifact, not less. The uncorrected reading does
+     not merely exaggerate the disagreement, it inverts its direction.
+     rMSSD is a first-difference statistic, which is precisely where unequal artifact handling lands;
+     the MEANS agreed to 8 ms (0.74 %) the whole time. Correction uses PpgDex's own optical threshold
+     on both sides, not ECGDex's 0.20 Malik rule — pulse-arrival jitter is larger than R-peak jitter
+     (see `correctRR`). Note SDNN stays looser than rMSSD (14.8 / 22.5 % on two nights): it is a
+     whole-record spread, so it also absorbs genuine coverage differences between the two series. */
+  function _ppiCorrect(vals) {
+    // correctRR wants a time axis; the intervals ARE the axis, so accumulate them.
+    const tt = [];
+    let acc = 0;
+    for (let i = 0; i < vals.length; i++) {
+      acc += vals[i] / 1000;
+      tt.push(acc);
+    }
+    const c = correctRR(vals, tt);
+    return { out: c.nn, nc: c.nCorr };
+  }
+  function sdnnOf(rr) {
+    if (!rr || rr.length < 2) return 0;
+    const m = mean(rr);
+    let s = 0;
+    for (let i = 0; i < rr.length; i++) s += (rr[i] - m) * (rr[i] - m);
+    return Math.sqrt(s / (rr.length - 1));
+  }
+  function validatePPI(selfNN, devicePPI, opts) {
     if (!devicePPI) return { hasData: false, filePresent: false };
     if (!devicePPI.length) return { hasData: false, filePresent: true };
+    /* `source` names WHICH firmware produced the comparison series, because PpgDex now has two and
+       they are not interchangeable: the Verity `_PPI.txt` is a wrist device's own interval estimate,
+       while `o2ring-marker` is the finger ring's inserted `156` beat rows. A reader who cannot tell
+       them apart cannot judge the result — different sensor, different site, different detector. */
+    const source = (opts && opts.source) || 'device-ppi';
     const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.blocker == null || d.blocker === 0)).map((d) => d.ppi);
-    if (dev.length < 3 || selfNN.length < 3) return { hasData: true, usable: false, nDevice: dev.length };
-    const sM = mean(selfNN),
-      dM = mean(dev);
-    const sR = rmssdOf(selfNN),
-      dR = rmssdOf(dev);
+    if (dev.length < 3 || selfNN.length < 3) return { hasData: true, filePresent: true, usable: false, source, nDevice: dev.length };
+    const devRaw = rmssdOf(dev);
+    const sC = _ppiCorrect(selfNN),
+      dC = _ppiCorrect(dev);
+    const self = sC.out,
+      devc = dC.out;
+    if (self.length < 3 || devc.length < 3) return { hasData: true, filePresent: true, usable: false, source, nDevice: dev.length };
+    const sM = mean(self),
+      dM = mean(devc);
+    const sR = rmssdOf(self),
+      dR = rmssdOf(devc);
+    const sS = sdnnOf(self),
+      dS = sdnnOf(devc);
+    const pct = (a, b) => (b ? r1((100 * Math.abs(a - b)) / b) : null);
     const agree = 100 * (1 - Math.min(1, Math.abs(sM - dM) / dM));
     return {
       hasData: true,
+      filePresent: true,
       usable: true,
-      nSelf: selfNN.length,
-      nDevice: dev.length,
+      source,
+      nSelf: self.length,
+      nDevice: devc.length,
       selfMean: Math.round(sM),
       devMean: Math.round(dM),
       meanAbsDevMs: Math.round(Math.abs(sM - dM)),
       selfRMSSD: r1(sR),
       devRMSSD: r1(dR),
+      selfSDNN: r1(sS),
+      devSDNN: r1(dS),
+      // Δ as a PERCENT of the device value, the shape ECGDex's verdict pills read.
+      dMean: r2(dM ? (100 * Math.abs(sM - dM)) / dM : 0),
+      dRMSSD: pct(sR, dR),
+      dSDNN: pct(sS, dS),
+      // How much artifact each side carried, so a reader can see the correction rather than trust it.
+      selfEctopyCorrected: sC.nc,
+      devEctopyCorrected: dC.nc,
+      devRawRMSSD: r1(devRaw),
       deviceAgreementPct: r1(agree)
     };
   }
@@ -3428,7 +3517,26 @@
     }
 
     // PPI validation lane
-    const validation = validatePPI(nn, rec.devicePPI);
+    /* TWO firmware sources, and the O2Ring one needs no companion file. A Verity night brings its own
+       `_PPI.txt` (when box-captured); an O2Ring finger night brings nothing — but its `156` beat rows
+       ARE a firmware interval series, carried in-band in the PPG file itself. Preferring the explicit
+       `_PPI.txt` keeps existing behaviour byte-identical wherever one exists; the markers fill the case
+       that previously rendered "no device PPI loaded" on every single O2Ring recording.
+       Shaped as parseDevicePPI's output so ONE comparison path serves both — a second path would be a
+       second place for the two sides to be corrected differently, which is the defect above. */
+    let ppiSource = 'device-ppi',
+      ppiSeries = rec.devicePPI;
+    if ((!ppiSeries || !ppiSeries.length) && rec.beatMarkerSec && rec.beatMarkerSec.length > 3) {
+      const mk = [];
+      for (let i = 1; i < rec.beatMarkerSec.length; i++) {
+        // blocker:0 — the ring publishes no quality flag per marker, and inventing one would be a
+        // fabricated field. The range gate inside validatePPI is the only filter these get.
+        mk.push({ ppi: (rec.beatMarkerSec[i] - rec.beatMarkerSec[i - 1]) * 1000, blocker: 0 });
+      }
+      ppiSeries = mk;
+      ppiSource = 'o2ring-marker';
+    }
+    const validation = validatePPI(nn, ppiSeries, { source: ppiSource });
 
     // markers
     const markers = (rec.markers || []).map((mk) => ({ relSec: mk.relSec, type: mk.type }));
@@ -3896,7 +4004,8 @@
     harmonicOutlierRefIdx,
     cadenceSamples,
     beatRegularity,
-    markO2Sentinels,
+    markO2BeatMarkers,
+    markO2Sentinels: markO2BeatMarkers, // back-compat alias — the old name asserted the wrong semantics
     refineFeet,
     detectChannelsAsync,
     buildPPI,

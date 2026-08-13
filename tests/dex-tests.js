@@ -622,6 +622,146 @@
       T.ok('a drawn axis with host anchors declares its timing came from the HOST', drawn.hostAxis.ok !== true || drawn.hostAxis.timingSource === 'host', 'got ' + drawn.hostAxis.timingSource);
     });
 
+    /* ════ THE `156` MARKER IS A BEAT, AND ITS POSITION IS A MEASUREMENT (DEVICE-RATE-TRUTH §2) ════
+       The ring inserts one `156` row per detected beat. The code counted those rows (`sentinelRejected`,
+       which the crystal axis needs) and then THREW THE POSITIONS AWAY, because the old name —
+       `O2_PPG_INVALID`, "missing-sample sentinel" — asserted they marked absent data rather than a
+       detected event. They are a free, same-device, same-stream beat fiducial: no inter-device clock
+       offset and no cross-channel common mode, which is the blind spot that hid the optical polarity
+       defect. On the real corpus the firmware marker lands a stable ~184–200 ms after our own detected
+       foot with a MAD of 8 ms — ONE sample at 125 Hz — so it also validates our detector's timing.
+       These pin the CONTRACT (published, aligned with the count, monotonic, on the crystal grid),
+       never one night's numbers. */
+    group('O2Ring `156` beat markers are published as POSITIONS, not just counted', 'ppgdex-dsp · o2ring-beat-marker', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PPGDSP.parsePPG available', 'not loaded');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+      // Same construction as the crystal group below: an ISOLATED 156 every 25th row (neighbours ~127,
+      // so |156-127| = 29 > the 25 isolation band ⇒ classified as an inserted marker, not signal).
+      var N = 2000,
+        txt = HDR,
+        ns = 0;
+      for (var i = 0; i < N; i++) {
+        var isMarker = i % 25 === 12 && i < N - 4;
+        var d = new Date(Date.UTC(2026, 6, 26, 22, 0, 0) + Math.round((i / 125.9) * 1000));
+        txt += d.toISOString().slice(0, 23) + ';' + ns + ';' + (isMarker ? 156 : 124 + (i % 7)) + '\n';
+        ns += 7953045;
+      }
+      var rec = P.parsePPG(txt);
+      T.ok('a finger recording publishes the marker positions at all', rec.beatMarkerSec != null, 'beatMarkerSec was ' + (rec.beatMarkerSec == null ? 'null' : rec.beatMarkerSec.length + ' entries'));
+      // THE defect: the rows were counted and the positions dropped. A count without positions is the
+      // measurement thrown away, so the two must agree by construction — same rows, two views.
+      T.eq('one published position per counted marker row', rec.beatMarkerSec.length, rec.sentinelRejected);
+      T.ok('markers were actually present to publish', rec.sentinelRejected > 20, 'got ' + rec.sentinelRejected);
+      var mono = true;
+      for (var k = 1; k < rec.beatMarkerSec.length; k++) if (!(rec.beatMarkerSec[k] > rec.beatMarkerSec[k - 1])) mono = false;
+      T.ok('marker times are strictly increasing (a beat train, not a bag of samples)', mono);
+      /* Markers sit 25 rows apart with 24 REAL samples between them, and on the crystal grid a marker
+         row advances no time — so the spacing is exactly 24/125 s. Derived from the fixture geometry,
+         not a recorded magic number: if marker deflation breaks, this moves. */
+      var gap = rec.beatMarkerSec[1] - rec.beatMarkerSec[0];
+      T.ok('marker spacing is the deflated crystal interval 24/125 s', Math.abs(gap - 24 / 125) < 1e-9, 'got ' + gap + ' s, expected ' + 24 / 125);
+      T.ok('positions are SECONDS on the published axis, not row indices', rec.beatMarkerSec[0] < rec.relSec[rec.relSec.length - 1] && rec.beatMarkerSec[0] > 0, 'got ' + rec.beatMarkerSec[0]);
+      // A wrist (Verity) file has no O2Ring markers: 156 there is an ordinary raw ADC count, and
+      // claiming beats from it would fabricate a beat train out of ordinary signal.
+      var wrist = P.parsePPG(
+        'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient\n' +
+          (function () {
+            var o = '',
+              s = 0;
+            for (var j = 0; j < 400; j++) {
+              o +=
+                new Date(Date.UTC(2026, 6, 26, 22, 0, 0) + Math.round((j / 176) * 1000)).toISOString().slice(0, 23) +
+                ';' +
+                s +
+                ';' +
+                (156 + (j % 5)) +
+                ';' +
+                (156 + (j % 5)) +
+                ';' +
+                (156 + (j % 5)) +
+                ';0\n';
+              s += 5681818;
+            }
+            return o;
+          })()
+      );
+      T.eq('a wrist layout publishes NO markers — 156 there is an ordinary ADC count', wrist.beatMarkerSec, null);
+      // The old export name asserted the wrong semantics; it stays reachable so no consumer breaks.
+      T.eq('the retired name still resolves to the same function', P.markO2Sentinels, P.markO2BeatMarkers);
+    });
+
+    /* ════ SELF-PPI vs FIRMWARE-PPI — BOTH SIDES CORRECTED, or the comparison inverts ════
+       Mirrors ECGDex's `validateRR` card (Beats · Mean · RMSSD · SDNN, each with a Δ%). The defect it
+       fixes is that PpgDex compared an ALREADY-CORRECTED self series against a RAW firmware series, so
+       the row measured our artifact rejection rather than the two detectors. Measured on 2026-08-08:
+       self rMSSD 59.3 vs raw firmware 103.6 reads as the device being 75 % higher — i.e. as if WE were
+       over-smoothing — while correcting the firmware side too (306 beats) brings it to 53.6, a 10.7 %
+       difference. The uncorrected reading does not just exaggerate, it points the wrong way.
+       These pin the INVARIANTS, not the corpus numbers. */
+    group("PpgDex self-vs-firmware PPI corrects BOTH sides, or one side's artifact reads as disagreement", 'ppgdex-dsp · ppi-validation', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.validatePPI !== 'function') {
+        T.skip('PPGDSP.validatePPI available', 'not loaded');
+        return;
+      }
+      // A clean firmware series with real beat-to-beat variability, and a self series that is the
+      // SAME rhythm shifted by a constant — two detectors with a fixed latency between them.
+      var dev = [],
+        self = [];
+      /* Beat-to-beat variability at a PHYSIOLOGICAL scale (rMSSD tens of ms, as a real night has),
+         deterministic so the group cannot flake. A near-constant series would make any residual read
+         as a huge percentage of a near-zero rMSSD, which tests the arithmetic rather than the fix. */
+      var seed = 12345;
+      var rnd = function () {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff - 0.5;
+      };
+      for (var i = 0; i < 400; i++) {
+        var v = 900 + 40 * Math.sin(i / 7) + 60 * rnd();
+        dev.push({ ppi: v, blocker: 0 });
+        self.push(v + 2);
+      }
+      var base = P.validatePPI(self, dev, { source: 'o2ring-marker' });
+      T.ok('a clean pair validates', base.usable === true);
+      T.eq('the firmware source is carried, not guessed', base.source, 'o2ring-marker');
+      /* A CONSTANT OFFSET IS NOT A VARIABILITY DIFFERENCE. This is the assertion that keeps the card
+         honest about what each row means: a fixed detector latency must move Mean and leave rMSSD and
+         SDNN untouched. If a future refactor compares raw series or forgets to correct one side,
+         these two stop being zero. */
+      T.ok('a constant offset moves the MEAN row', base.dMean > 0, 'dMean=' + base.dMean);
+      T.eq('a constant offset leaves rMSSD identical', base.dRMSSD, 0);
+      T.eq('a constant offset leaves SDNN identical', base.dSDNN, 0);
+      // THE DEFECT: artifact on the FIRMWARE side only. Self stays clean; the device gets ectopic
+      // beats. Uncorrected these land almost entirely in rMSSD (a first-difference statistic).
+      var dirty = dev.map(function (d, k) {
+        return { ppi: k % 25 === 11 ? d.ppi * 0.45 : d.ppi, blocker: 0 };
+      });
+      var got = P.validatePPI(self, dirty, { source: 'o2ring-marker' });
+      T.ok('the firmware side was actually corrected', got.devEctopyCorrected > 0, 'devEctopyCorrected=' + got.devEctopyCorrected);
+      T.ok('the RAW firmware rMSSD is reported alongside the corrected one', got.devRawRMSSD > got.devRMSSD, 'raw=' + got.devRawRMSSD + ' corrected=' + got.devRMSSD);
+      /* The bound is the point: uncorrected, this pair's rMSSD differs by hundreds of percent — the
+         raw device rMSSD is many times the self value. After equal treatment the two detectors agree.
+         Deliberately not an exact number: it must hold for the SHAPE of the fix, not one arithmetic. */
+      T.ok(
+        'with both sides corrected, one-sided artifact no longer reads as disagreement',
+        got.dRMSSD < 25,
+        'dRMSSD=' + got.dRMSSD + ' (raw firmware rMSSD ' + got.devRawRMSSD + ' vs self ' + got.selfRMSSD + ')'
+      );
+      T.ok(
+        'and the uncorrected comparison WOULD have disagreed',
+        (100 * Math.abs(got.selfRMSSD - got.devRawRMSSD)) / got.devRawRMSSD > 50,
+        'raw gap=' + ((100 * Math.abs(got.selfRMSSD - got.devRawRMSSD)) / got.devRawRMSSD).toFixed(1) + '%'
+      );
+      // The absent/empty distinction predates this change and must survive it.
+      T.eq('no firmware series at all is still distinguishable from an empty one', P.validatePPI(self, null).filePresent, false);
+      T.eq('an empty series reports the file WAS present', P.validatePPI(self, []).filePresent, true);
+      T.eq('a too-sparse series is unusable, not a comparison', P.validatePPI(self, [{ ppi: 900, blocker: 0 }]).usable, false);
+    });
+
     /* ════ DEVICE-CRYSTAL TIMEBASE — O2Ring 125.000 marker-aware axis (O2RING-ADAPTIVE-TIMEBASE Stage 2) ════
        The O2Ring finger pleth inserts one `156` beat MARKER per beat, so the file's ROW rate is
        125.000 (the crystal ADC) + ~HR/60. The opt-in device-crystal timebase rebuilds relSec on the

@@ -620,22 +620,34 @@ import { PPGUI } from './ppgdex-render.js';
     if (!v || !v.hasData) {
       /* Absent and empty need DIFFERENT text. One is a user action item, the other is a device fact
          with nothing to do about it — and telling someone to load a file they already loaded is
-         worse than saying nothing. Measured on this corpus, the second case is universal: 107 of 107
-         Verity `_PPI.txt` files are header-only. */
+         worse than saying nothing. The "universal on this firmware" claim this comment used to carry
+         (107 of 107 header-only) was falsified on re-measurement: it is CAPTURE MODE, not firmware.
+         See the note above `validatePPI` in ppgdex-dsp.js. */
       body =
         v && v.filePresent
-          ? `<div class="q-note" style="padding:20px 8px">A device <code>*_PPI.txt</code> was loaded and is <b>empty</b> — the Polar Sense wrote a header and no intervals. Nothing to cross-validate against, and no action will change that on this firmware. PpgDex's <b>self-PPI</b> from the raw waveform is not a second opinion here, it is the only one. <span class="dim">Its two fiducials (foot vs peak) still cross-check each other — see PPI fiducials above.</span></div>`
-          : `<div class="q-note" style="padding:20px 8px">No device <code>*_PPI.txt</code> loaded. PpgDex's <b>self-PPI</b> from the raw waveform stands alone; load the device PPI file to cross-validate — though on the Polar Sense it is usually header-only. <span class="dim">This is a validation lane only — self-PPI is never replaced by device PPI, and PPI is never handed to PulseDex.</span></div>`;
+          ? `<div class="q-note" style="padding:20px 8px">A device <code>*_PPI.txt</code> was loaded and is <b>empty</b> — the Polar Sense wrote a header and no intervals. Nothing to cross-validate against. <b>This is a capture-mode fact, not a hardware limit:</b> in this corpus every header-only file is phone-captured, while box captures do carry intervals. PpgDex's <b>self-PPI</b> from the raw waveform stands alone here. <span class="dim">Its two fiducials (foot vs peak) still cross-check each other — see PPI fiducials above.</span></div>`
+          : `<div class="q-note" style="padding:20px 8px">No firmware interval series available. PpgDex's <b>self-PPI</b> from the raw waveform stands alone; load a device <code>*_PPI.txt</code> to cross-validate. <span class="dim">An O2Ring finger recording needs no companion file — its <code>156</code> beat markers are read from the PPG file itself. This is a validation lane only — self-PPI is never replaced by firmware PPI, and PPI is never handed to PulseDex.</span></div>`;
     } else if (!v.usable) {
-      body = `<div class="q-note" style="padding:20px 8px">Device PPI present (${v.nDevice} interval${v.nDevice === 1 ? '' : 's'}) but too sparse / blocker-flagged to validate against. Showing self-PPI only.</div>`;
+      body = `<div class="q-note" style="padding:20px 8px">Firmware intervals present (${v.nDevice}) but too sparse / blocker-flagged to validate against. Showing self-PPI only.</div>`;
     } else {
-      body = `<div class="q-grid">
-      <div class="q-stat">${evBadge('Agreement')}<div class="q-val ${v.deviceAgreementPct >= 95 ? 'ok' : v.deviceAgreementPct >= 88 ? 'warn' : 'bad'}">${v.deviceAgreementPct}%</div><div class="q-lbl">Agreement</div><div class="q-sub">self vs device mean</div></div>
-      <div class="q-stat"><div class="q-val neutral">${v.meanAbsDevMs}</div><div class="q-lbl">Mean abs dev${evBadge('Mean abs dev')}</div><div class="q-sub">ms</div></div>
-      <div class="q-stat"><div class="q-val neutral">${v.selfMean}/${v.devMean}</div><div class="q-lbl">Mean PPI${evBadge('Mean PPI')}</div><div class="q-sub">self / device ms</div></div>
-      <div class="q-stat"><div class="q-val neutral">${v.selfRMSSD}/${v.devRMSSD}</div><div class="q-lbl">rMSSD${evBadge('rMSSD')}</div><div class="q-sub">self / device ms</div></div>
-    </div>
-    <div class="q-note">Self-PPI (${v.nSelf} intervals detected from the optical waveform) cross-checked against the device's on-board PP-intervals (${v.nDevice} clean). This proves the extracted intervals are trustworthy — the value-add over a node that's simply <i>handed</i> RR/PPI.</div>`;
+      /* The ECGDex `valCard` shape (Metric · Self · Firmware · Δ · Verdict), because a per-metric Δ is
+         the thing a reader can act on and a single blended "agreement %" is not — that number is
+         computed from the MEANS alone, so it reads 99.3 % on a night whose rMSSD is 10.7 % apart.
+         It is kept, below the table, labelled for what it actually measures. */
+      const src = v.source === 'o2ring-marker' ? `O2Ring <code>156</code> beat markers <span class="dim">(in-band, no companion file)</span>` : `device <code>*_PPI.txt</code>`;
+      const cell = (d) => (d == null ? `<td class="mono dim">—</td>` : `<td class="mono ${d < 5 ? 'ok' : d < 12 ? 'warn' : 'bad'}">${d}%</td>`);
+      const pill = (d, lo, hi) =>
+        d == null ? '' : d < lo ? `<span class="pill pill-green">within ${lo}%</span>` : d < hi ? `<span class="pill pill-yellow">close</span>` : `<span class="pill pill-red">off</span>`;
+      const nPill = Math.abs(v.nSelf - v.nDevice) / v.nDevice < 0.03 ? `<span class="pill pill-green">match</span>` : `<span class="pill pill-yellow">check</span>`;
+      body = `<table class="data-table">
+      <tr><th>Metric</th><th>Self (waveform)</th><th>Firmware</th><th>Δ</th><th>Verdict</th></tr>
+      <tr><td>Beats</td><td class="mono">${v.nSelf}</td><td class="mono">${v.nDevice}</td><td class="mono dim">${((100 * Math.abs(v.nSelf - v.nDevice)) / v.nDevice).toFixed(1)}%</td><td>${nPill}</td></tr>
+      <tr><td>Mean PPI${evBadge('Mean PPI')}</td><td class="mono">${v.selfMean} ms</td><td class="mono">${v.devMean} ms</td>${cell(v.dMean)}<td>${v.dMean < 2 ? `<span class="pill pill-green">match</span>` : `<span class="pill pill-yellow">drift</span>`}</td></tr>
+      <tr><td>rMSSD${evBadge('rMSSD')}</td><td class="mono">${v.selfRMSSD} ms</td><td class="mono">${v.devRMSSD} ms</td>${cell(v.dRMSSD)}<td>${pill(v.dRMSSD, 5, 12)}</td></tr>
+      <tr><td>SDNN${evBadge('SDNN')}</td><td class="mono">${v.selfSDNN} ms</td><td class="mono">${v.devSDNN} ms</td>${cell(v.dSDNN)}<td>${pill(v.dSDNN, 5, 12)}</td></tr>
+    </table>
+    <div class="q-note">Self-PPI (${v.nSelf} intervals from the optical waveform) against ${src}. <b>Both sides are artifact-corrected</b> with the same optical threshold, so the comparison measures the two detectors rather than one side's artifact rejection — ${v.devEctopyCorrected} firmware beat${v.devEctopyCorrected === 1 ? '' : 's'} corrected (raw firmware rMSSD ${v.devRawRMSSD} → ${v.devRMSSD} ms) against ${v.selfEctopyCorrected} on the self side. Uncorrected, this row can invert: a firmware series carrying more artifact reads as if <i>we</i> were over-smoothing.
+    <span class="dim">Mean-only agreement ${v.deviceAgreementPct}% — that figure comes from the means alone and cannot see the rMSSD/SDNN rows above it. This is a validation lane only: self-PPI is never replaced by firmware PPI.</span></div>`;
     }
     $('validationCard').innerHTML = body;
     $('validationSection').style.display = 'block';
