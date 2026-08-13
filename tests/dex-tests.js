@@ -11935,7 +11935,29 @@
         return;
       }
       var mkRow = function () {
-        return { _hr: 62, _meanRR: 968, _sdnn: 54, _rmssd: 41, _mxdmn: 320, _pnn50: 18.5, _amo50: 31, _mode: 950, _totalPow: 3200, _hf: 900, _lf: 1400, _vlf: 900, _stress: 3.2, _energy: 5.1, _focus: 4.4, _sns: 1.2, _psns: 2.1, _coherence: 3.3, _hrv: 60, _cv: 5.6, _spanMin: 6 };
+        return {
+          _hr: 62,
+          _meanRR: 968,
+          _sdnn: 54,
+          _rmssd: 41,
+          _mxdmn: 320,
+          _pnn50: 18.5,
+          _amo50: 31,
+          _mode: 950,
+          _totalPow: 3200,
+          _hf: 900,
+          _lf: 1400,
+          _vlf: 900,
+          _stress: 3.2,
+          _energy: 5.1,
+          _focus: 4.4,
+          _sns: 1.2,
+          _psns: 2.1,
+          _coherence: 3.3,
+          _hrv: 60,
+          _cv: 5.6,
+          _spanMin: 6
+        };
       };
       var withProfile = function (prof) {
         var saved = M.getHooks();
@@ -12010,8 +12032,16 @@
          injected numbers above quietly measuring nothing. */
       var rowsD = [mkRow()];
       D.computeDerived(rowsD);
-      T.ok('ANTI-VACUITY · the AMBIENT profile is real (age 42), not the empty headless default', near(rowsD[0].d_vo2_base, 44.0739), 'ambient produced ' + rowsD[0].d_vo2_base + ' · getProfile()=' + JSON.stringify(M.getHooks().getProfile()));
-      T.ok('…and every injected value above DIFFERS from it, so the injection did something', !near(manual.d_vo2_base, rowsD[0].d_vo2_base) && !near(at140.d_vo2_base, rowsD[0].d_vo2_base), 'injected values match the ambient one — the hook may not be taking');
+      T.ok(
+        'ANTI-VACUITY · the AMBIENT profile is real (age 42), not the empty headless default',
+        near(rowsD[0].d_vo2_base, 44.0739),
+        'ambient produced ' + rowsD[0].d_vo2_base + ' · getProfile()=' + JSON.stringify(M.getHooks().getProfile())
+      );
+      T.ok(
+        '…and every injected value above DIFFERS from it, so the injection did something',
+        !near(manual.d_vo2_base, rowsD[0].d_vo2_base) && !near(at140.d_vo2_base, rowsD[0].d_vo2_base),
+        'injected values match the ambient one — the hook may not be taking'
+      );
     });
 
     group('HRVDex computeDerived — the 52 derived columns, pinned', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
