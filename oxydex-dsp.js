@@ -71,6 +71,14 @@
   function setHooks(h) {
     if (h) for (var k in _ui) if (typeof h[k] === 'function') _ui[k] = h[k];
   }
+  /* The counterpart to setHooks, so an installed hook can be UNDONE exactly — see the longer note
+     in hrvdex-dsp.js. Returns a SHALLOW COPY, never `_ui` itself. Additive; nothing else reads it.
+     (MUTATION-PROGRAM-FOLLOWUPS §9.4) */
+  function getHooks() {
+    var out = {};
+    for (var gk in _ui) out[gk] = _ui[gk];
+    return out;
+  }
 
   // CONFIG
   // ═══════════════════════════════════════════
@@ -7020,6 +7028,7 @@
   // setStatus/setProgress/renderAll/showError/upVO2category here; headless callers never register,
   // so the no-op/null defaults hold and the export is byte-identical.
   OxyDex.setHooks = setHooks;
+  OxyDex.getHooks = getHooks;
   // mutable cross-file state, namespace-proxied — the DSP closure owns `allNights`; the app
   // module bridges window.allNights to this on its own page (the guarded window proxy below
   // keeps serving the non-namespaced classic realms).

@@ -11866,6 +11866,184 @@
        Compared with a relative tolerance rather than ===, because these are floating-point chains: an
        exact match would red on a harmless last-bit difference while still catching every mutation
        that moves a result meaningfully. */
+    /* ════ §9.4 · THE HOOK CONTRACT, AND THE BRANCHES IT UNBLOCKS ═════════════════════════════
+       `setHooks` merges into module-local `_ui` and had no counterpart, so a caller that installed
+       a profile could not put back what was there — only guess. In the Node lane the guess happens
+       to be right (nothing there calls setHooks, so the defaults are always what was there), but
+       that is a property of the lane, not of the contract. `getHooks` closes it, and with an exact
+       save/restore the profile-gated VO2 branches become testable for the first time. */
+    group('HRVDex/OxyDex setHooks ⇄ getHooks — the injection contract', 'hrvdex-dsp · oxydex-dsp · hooks', function (T) {
+      [
+        ['HRVDex', env.HRVDex, 'getProfile'],
+        ['OxyDex', env.OxyDex, 'upVO2category']
+      ].forEach(function (row) {
+        var name = row[0],
+          M = row[1],
+          key = row[2];
+        if (!M || typeof M.setHooks !== 'function') {
+          T.skip(name + '.setHooks reachable', 'module not co-loaded in this lane');
+          return;
+        }
+        T.ok(name + '.getHooks exposed (§9.4)', typeof M.getHooks === 'function', 'add getHooks to ' + name);
+        if (typeof M.getHooks !== 'function') return;
+        var saved = M.getHooks();
+        try {
+          T.ok(name + '.getHooks returns the hook set, including ' + key, typeof saved[key] === 'function', JSON.stringify(Object.keys(saved)));
+          /* A COPY, not the live object. Handing back `_ui` itself would let a caller mutate the
+             live hooks through what it was given — the very bug getHooks exists to prevent. */
+          saved.__probe = 1;
+          T.ok(name + '.getHooks returns a COPY — mutating it cannot reach the live hooks', M.getHooks().__probe === undefined, 'getHooks handed out the live _ui');
+          delete saved.__probe;
+
+          var sentinel = function () {
+            return { __sentinel: true };
+          };
+          var patch = {};
+          patch[key] = sentinel;
+          M.setHooks(patch);
+          T.ok(name + '.setHooks installs the hook', M.getHooks()[key] === sentinel, 'hook not installed');
+          /* NON-FUNCTIONS ARE IGNORED — the guard is `typeof h[k] === 'function'`. Without it a
+             stray string would replace a callable and every call site would throw. */
+          var bad = {};
+          bad[key] = 'not a function';
+          M.setHooks(bad);
+          T.ok(name + '.setHooks IGNORES a non-function value', M.getHooks()[key] === sentinel, 'a string replaced a callable hook');
+          /* UNKNOWN KEYS ARE IGNORED — the loop walks `_ui`, not the argument, so the hook set is
+             a closed vocabulary and a typo cannot silently add a hook nobody calls. */
+          M.setHooks({ totallyUnknownHook: sentinel });
+          T.ok(name + '.setHooks IGNORES an unknown key (closed vocabulary)', M.getHooks().totallyUnknownHook === undefined, 'an unknown key was accepted');
+          T.ok(name + '.setHooks(null) is a no-op, not a throw', (M.setHooks(null), M.getHooks()[key] === sentinel), 'null argument disturbed the hooks');
+        } finally {
+          M.setHooks(saved); // the whole point: an EXACT restore, not a guess at the defaults
+        }
+        T.ok(name + ' hooks restored exactly after the round-trip', M.getHooks()[key] === saved[key], 'restore did not put the original back');
+      });
+    });
+
+    /* The §9.4 payoff: `p_prof` reaches computeDerived ONLY through the getProfile hook, so before
+       getHooks existed these two branches could not be exercised without leaking a fake profile
+       into every later group in the realm. Both expectations are derived from the formulas at
+       hrvdex-dsp.js:750-753 by hand:
+         Tanaka        HRmax  = 208 − 0.7 × 49        = 173.7
+         Uth-Sørensen  vo2base = 15.3 × HRmax / HRrest × altitude factor
+         altitude      1 at or below 1500 m, else 1 − (elev − 1500)/300 × 0.01, floored at 0.55  */
+    group('HRVDex computeDerived — the PROFILE-GATED VO2 branches (§9.4)', 'hrvdex-dsp · profile · vo2', function (T) {
+      var M = env.HRVDex;
+      var D = (M && M._bare) || M;
+      if (!M || typeof M.setHooks !== 'function' || typeof M.getHooks !== 'function' || !D || typeof D.computeDerived !== 'function') {
+        T.skip('HRVDex hooks + computeDerived available', 'not co-loaded in this lane');
+        return;
+      }
+      var mkRow = function () {
+        return {
+          _hr: 62,
+          _meanRR: 968,
+          _sdnn: 54,
+          _rmssd: 41,
+          _mxdmn: 320,
+          _pnn50: 18.5,
+          _amo50: 31,
+          _mode: 950,
+          _totalPow: 3200,
+          _hf: 900,
+          _lf: 1400,
+          _vlf: 900,
+          _stress: 3.2,
+          _energy: 5.1,
+          _focus: 4.4,
+          _sns: 1.2,
+          _psns: 2.1,
+          _coherence: 3.3,
+          _hrv: 60,
+          _cv: 5.6,
+          _spanMin: 6
+        };
+      };
+      var withProfile = function (prof) {
+        var saved = M.getHooks();
+        try {
+          M.setHooks({
+            getProfile: function () {
+              return prof;
+            }
+          });
+          var rows = [mkRow()];
+          D.computeDerived(rows);
+          return rows[0];
+        } finally {
+          M.setHooks(saved);
+        }
+      };
+      var near = function (a, b) {
+        return a != null && isFinite(a) && Math.abs(a - b) < 0.01;
+      };
+
+      var base = withProfile({ age: 49, hrmax_manual: 0, hrrest_manual: 0, elev: 0 });
+      T.ok('no manual HRmax ⇒ Tanaka 173.7, so 15.3 × 173.7/62 = 42.86', near(base.d_vo2_base, 42.8647), 'got ' + base.d_vo2_base);
+
+      var manual = withProfile({ age: 49, hrmax_manual: 180, hrrest_manual: 0, elev: 0 });
+      T.ok('a plausible manual HRmax (180) REPLACES Tanaka ⇒ 15.3 × 180/62 = 44.42', near(manual.d_vo2_base, 44.4194), 'got ' + manual.d_vo2_base);
+
+      /* The manual value is accepted only if it clears THREE gates: > 0, ≥ 140, and > HRrest + 45.
+         Each is pinned by a value that fails exactly one of them and falls back to Tanaka. */
+      var low = withProfile({ age: 49, hrmax_manual: 139, hrrest_manual: 0, elev: 0 });
+      T.ok('a manual HRmax of 139 fails the ≥140 gate and falls back to Tanaka', near(low.d_vo2_base, 42.8647), 'got ' + low.d_vo2_base);
+      var at140 = withProfile({ age: 49, hrmax_manual: 140, hrrest_manual: 0, elev: 0 });
+      T.ok('…and 140 exactly is ACCEPTED — the gate is inclusive ⇒ 15.3 × 140/62 = 34.55', near(at140.d_vo2_base, 34.5484), 'got ' + at140.d_vo2_base);
+      /* HRrest 100 ⇒ the manual 140 is no longer 45 above it (140 < 145), so it is refused even
+         though it clears ≥140, and the result falls back to Tanaka. This is the gate the other two
+         cannot show.
+         ⚠ Note what does NOT change: the divisor stays `r._hr` (62, the night's mean), NOT the
+         manual `hrrest_manual`. `_hrRestR` is built from hrrest_manual and then used ONLY inside
+         the HRmax plausibility gate — it never reaches the VO2 quotient. So a user's entered
+         resting HR can change WHETHER their entered HRmax is believed, and nothing else. That may
+         well be deliberate (the night's own HR is the better HRrest proxy) but it is not obvious
+         from the field name, so it is pinned here rather than left to be rediscovered. */
+      var narrow = withProfile({ age: 49, hrmax_manual: 140, hrrest_manual: 100, elev: 0 });
+      T.ok('a manual HRmax within 45 of HRrest is refused ⇒ back to Tanaka 42.86', near(narrow.d_vo2_base, 42.8647), 'got ' + narrow.d_vo2_base);
+      T.ok('…and hrrest_manual never becomes the VO2 divisor — the night mean HR does', near(narrow.d_vo2_base, base.d_vo2_base), 'hrrest_manual leaked into the quotient');
+
+      /* ⚠ `elev <= 1500` → `< 1500` is an EQUIVALENT mutant, and provably so: at exactly 1500 the
+         else-branch computes max(0.55, 1 − (0/300)×0.01) = 1, which is what the `<=` branch
+         returns anyway. The two forms agree on every input, so no assertion can separate them.
+         Kept as a boundary characterisation; do not add another chasing the operator. */
+      var sea = withProfile({ age: 49, hrmax_manual: 0, hrrest_manual: 0, elev: 1500 });
+      T.ok('1500 m is AT the altitude threshold — factor 1, unchanged', near(sea.d_vo2_base, 42.8647), 'got ' + sea.d_vo2_base);
+      var alt = withProfile({ age: 49, hrmax_manual: 0, hrrest_manual: 0, elev: 2100 });
+      T.ok('2100 m ⇒ factor 0.98, so 42.8647 × 0.98 = 42.01', near(alt.d_vo2_base, 42.0074), 'got ' + alt.d_vo2_base);
+      var everest = withProfile({ age: 49, hrmax_manual: 0, hrrest_manual: 0, elev: 40000 });
+      T.ok('an absurd elevation is FLOORED at 0.55, never driven negative ⇒ 23.58', near(everest.d_vo2_base, 23.5756), 'got ' + everest.d_vo2_base);
+
+      /* ── ANTI-VACUITY, and the reason getHooks had to exist ───────────────────────────────────
+         The DSP's own `_ui.getProfile` default returns `{}`, and the module header says the
+         profile-dependent columns then "fall to NaN — the honest headless default". That is NOT
+         what this lane runs. `hrvdex-profile.js` is co-loaded here and its
+         `if (window.HRVDex && window.HRVDex.setHooks) …` bottom line FIRES against the runner's
+         window shim, installing a real profile (age 42) before any test executes.
+
+         So the live hook is a populated profile, not `{}` — measured, not assumed. Restoring the
+         DOCUMENTED DEFAULTS after a test would therefore have been WRONG: it would replace a real
+         installed profile with an empty one and silently change every profile-dependent column in
+         every later group. Only an exact save/restore is safe, which is precisely what §9.4 asked
+         for and what `getHooks` provides.
+
+         This assertion pins the ambient profile's age at 42 via its VO2: 15.3 × (208 − 0.7·42)/62
+         = 44.07. If the ambient profile ever changes, this reds and says so, instead of the
+         injected numbers above quietly measuring nothing. */
+      var rowsD = [mkRow()];
+      D.computeDerived(rowsD);
+      T.ok(
+        'ANTI-VACUITY · the AMBIENT profile is real (age 42), not the empty headless default',
+        near(rowsD[0].d_vo2_base, 44.0739),
+        'ambient produced ' + rowsD[0].d_vo2_base + ' · getProfile()=' + JSON.stringify(M.getHooks().getProfile())
+      );
+      T.ok(
+        '…and every injected value above DIFFERS from it, so the injection did something',
+        !near(manual.d_vo2_base, rowsD[0].d_vo2_base) && !near(at140.d_vo2_base, rowsD[0].d_vo2_base),
+        'injected values match the ambient one — the hook may not be taking'
+      );
+    });
+
     group('HRVDex computeDerived — the 52 derived columns, pinned', 'hrvdex-dsp · known-answer · mutation-pinned', function (T) {
       var D = (env.HRVDex && env.HRVDex._bare) || env.HRVDex;
       if (!D || typeof D.computeDerived !== 'function') {
