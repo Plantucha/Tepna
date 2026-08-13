@@ -1,8 +1,0 @@
-<!-- SPDX-License-Identifier: Apache-2.0 -->
----
-bump: patch
-type: added
-nodes: [suite]
-brief: CITATION-ATTRIBUTION-FOLLOWUPS-II-2026-08-08-BRIEF.md
----
-§3 asked for the `authorAliases` policy to live where a contributor meets it, and for the two entries whose alias came from the paper — because Crossref carries no author at all — to be distinguishable from the two that are Crossref-resolved. An alias suppresses a finding, so it is the one field in this ledger that can hide a real defect, and the two kinds are not the same evidential class: a `crossref-variant` alias is a spelling or short form of what Crossref recorded (`Du BOIS`/`DuBois`; the ESC/NASPE Task Force's full society name), so the check still rests on Crossref; a `from-paper` alias means Crossref has no author and the name was read off the paper being checked, which is mildly circular and is now marked rather than hidden. **Recording it was not enough** — this brief's sibling measured what happens to claims nobody re-checks, so `aliasSource` is required by the `citation-ledger` group and was watched failing three ways before being trusted: a missing marker, an unknown value, and `from-paper` asserted on a record where Crossref *did* record an author, which would launder a variant into the weaker class. The policy now sits in `CLAUDE.md` §📚 with the gate's scope (guides, `papers/**`, `docs/**.md`, root `*.js`; `briefs/` deliberately out at 35 % false positives; no DOI resolution, which needs network) and one prohibition worth naming: never silence a finding by editing `firstAuthor`, because the ledger is the oracle and no gate can catch that.

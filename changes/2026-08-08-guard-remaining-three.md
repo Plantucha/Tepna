@@ -1,8 +1,0 @@
-<!-- SPDX-License-Identifier: Apache-2.0 -->
----
-bump: patch
-type: fixed
-nodes: [suite]
-brief: DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md
----
-Re-probing the merged guard showed that five of the eight bypasses found on 2026-08-05 were closed by #986 — command substitution, local-branch/tag/short-hash refs, the `-s` form — and three were not. All three are now closed, with the cases pinned in `guard-shared-tree.test.sh` (13 rows, every one of which the merged guard allows). **`docs/` is not wholesale generated**: `build-docs.mjs` owns the served copies, but 28 AUTHORED specs live there (`docs/LEXICON.md`, `docs/EXPORT-SHAPES.md`, all of `docs/COMPLIANCE/`), and #990 already fixed this in the CLASSIFIER — so `rebase-safe.mjs --classify docs/LEXICON.md` said SOURCE while the hook waved through the hand-rolled checkout that reverts it. A guard and the tool it points at must not disagree about the same path; `docs/**.md` is now kept as source and the rest of `docs/` stays exempt. **Authored `*.html` was invisible** because the extension list carried `src.html` but not `html`, leaving `Science.html`, `index.html` and every `* Reference.html` revertible in silence — the mirror of the glob `rebase-safe.mjs`'s own docstring refuses to use. The eleven owned bundles stay exempt by name, an allow-list that fails safe: a bundle added to the fleet and not added here merely over-denies and points at `npm run rebase`, which is the right answer for a bundle conflict anyway. **`git add *`** is blanket staging in both spellings — the shell expands it to every top-level entry, and the quoted form is git's own recursive pathspec glob.

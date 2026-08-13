@@ -1,8 +1,0 @@
-<!-- SPDX-License-Identifier: Apache-2.0 -->
----
-bump: patch
-type: changed
-nodes: [suite]
-brief: CITATION-ATTRIBUTION-FOLLOWUPS-2026-08-05-BRIEF.md
----
-`CITATION-ATTRIBUTION-FOLLOWUPS` shipped in the previous work-unit but was left reading `PROPOSED` with four unticked boxes and no record of execution — the same stale-header trap that makes a merged brief look like available work, and `CLAUDE.md` §📌 requires a follow-up be spawned after executing a brief. Both are now discharged: the header flips to `DONE — 2026-08-08` with each item recorded against what was actually done, and `CITATION-ATTRIBUTION-FOLLOWUPS-II-2026-08-08-BRIEF.md` carries the residue. The fourth box is closed as **N/A and that being the correct outcome** — no DOI was added or changed, only `authorAliases` on four entries, so re-stamping `last-verified` would have asserted a re-verification nobody ran. The residue is three items: a fixture re-verification is **owed and unrun** because a DSP comment sits inside the compute closure and `computeHash` moved on all five rebuilt bundles (the pair is tabulated, and the parent explicitly warns against hand-stamping `verifiedUnder`, writing "export-inert" in prose, or reading the green suite as settling it — 12 of its skips are precisely the corpus-absent GATE-C legs); the gate's scope stops at source surfaces while DOIs also live in `docs/` and `briefs/`, neither gated nor consciously exempted; and `authorAliases` is documented only inside the ledger, with two of its four entries supplied from the paper because Crossref carries no author at all — defensible but mildly circular, and not yet distinguished from a Crossref-resolved author.
