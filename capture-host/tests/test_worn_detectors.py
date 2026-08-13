@@ -80,6 +80,29 @@ def test_too_few_samples_is_no_verdict_not_a_verdict_of_not_worn():
     assert telemetry.ambient_stability_worn([], fs=176.0) is None
 
 
+def test_EXACTLY_min_samples_is_ENOUGH_and_one_fewer_is_not():
+    """The guard is `< min_samples`, so exactly `min_samples` IS a measurement. Both edges asserted,
+    because a test that only feeds 400 samples proves the guard exists and says nothing about where
+    it sits — `<` and `<=` are then indistinguishable, and mutating one to the other survives the
+    whole suite. Found by the diff-scoped mutation gate on this very branch."""
+    n = telemetry._WORN_SD_MIN_SAMPLES
+    at_the_edge = [1000.0 + (i % 3) * 8.0 for i in range(n)]
+    assert telemetry.ambient_stability_worn(at_the_edge, fs=176.0) is True, (
+        f"exactly {n} samples must yield a verdict — the guard refuses FEWER than min_samples")
+    assert telemetry.ambient_stability_worn(at_the_edge[:-1], fs=176.0) is None, (
+        f"{n - 1} samples must not, or the boundary is off by one in the other direction")
+
+
+def test_the_FLOOR_of_two_is_the_binding_term_when_a_caller_asks_for_less():
+    """`max(2, min_samples)` — two is the floor because a "spread" of one sample is not a spread. A
+    caller passing `min_samples=2` must therefore get a verdict from exactly two samples; if the floor
+    were 3 it would not. Nothing else in this file distinguishes those, since the default 256 makes
+    `max(2, 256)` and `max(3, 256)` the same number."""
+    assert telemetry.ambient_stability_worn([1000.0, 1000.0], fs=176.0, min_samples=2) is True
+    assert telemetry.ambient_stability_worn([1000.0], fs=176.0, min_samples=1) is None, (
+        "one sample can never be a spread, whatever the caller asks for")
+
+
 def test_None_and_NaN_samples_are_dropped_rather_than_poisoning_the_spread():
     dirty = ([None] * 5) + [float("nan")] * 5 + WORN_SD
     assert telemetry.ambient_stability_worn(dirty, fs=176.0) is True
