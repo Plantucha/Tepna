@@ -1,6 +1,6 @@
 ---
 bump: patch
-type: docs
+type: changed
 brief: PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md
 ---
 
