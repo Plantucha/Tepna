@@ -1924,6 +1924,68 @@
     });
 
     /* ════ 4 · INTEGRATOR window honors durationMin (#2/#3) ════ */
+    group('Integrator hrAgreement — a pair DETECTS, only a triple ISOLATES (RAIM)', 'integrator-dsp · cross-node · known-answer', function (T) {
+      /* WHY THIS EXISTS. Two shipped ppgdex-dsp.js defects — a wrong optical polarity on 10 of 20 real
+         nights, and a correctRR reference lock-in emitting a constant HR for 25 minutes — both passed
+         FIVE green PpgDex fixtures. Neither is visible inside the node: a polarity flip is COMMON-MODE
+         across the three LEDs, and a locked reference is SELF-CONSISTENT. Both are obvious the instant
+         PpgDex is placed beside the simultaneous ECG and ring. */
+      var I = env.IntegratorDSP;
+      if (!I || typeof I.hrAgreement !== 'function') {
+        T.ok('IntegratorDSP.hrAgreement is exported', !!(I && typeof I.hrAgreement === 'function'));
+        return;
+      }
+      var mk = function (node, hrs, t0) {
+        return {
+          node: node,
+          epochs: hrs.map(function (h, i) {
+            return { tMs: t0 + i * 300000, hr: h };
+          })
+        };
+      };
+      // Deliberately OFFSET starts: each node carries its own startEpochMs and they differ by up to
+      // 24 min on the real corpus, so alignment must be on the ABSOLUTE instant, not the epoch index.
+      var ppg = mk('PpgDex', [50, 50, 76, 76, 50], 0);
+      var ecg = mk('ECGDex', [50, 50, 50, 50, 50], 3000);
+      var oxy = mk('OxyDex', [50, 51, 51, 50, 50], 9000);
+
+      var three = I.hrAgreement([ppg, ecg, oxy]);
+      T.eq('three sources: the two bad epochs are flagged', three.flagged, 2);
+      T.eq('...and PpgDex is named as the outlier both times', three.fault.PpgDex, 2);
+      T.eq('...ECGDex is never blamed', three.fault.ECGDex, 0);
+      T.eq('...OxyDex is never blamed', three.fault.OxyDex, 0);
+      T.ok('...the flagged epoch is adjudicated', three.epochs[0] && three.epochs[0].adjudicated === true);
+
+      /* THE RAIM BOUNDARY. Two sources that disagree name a PAIR, never a culprit — both sit
+         spread/2 from their own median, so "furthest from the median" is a coin toss. Detection yes,
+         isolation no. */
+      var two = I.hrAgreement([ppg, ecg]);
+      T.eq('two sources still DETECT the disagreement', two.flagged, 2);
+      T.eq('...but nothing is adjudicable', two.adjudicable, 0);
+      T.eq('...and no node is blamed', two.fault.PpgDex + two.fault.ECGDex, 0);
+      T.ok('...the epoch says so explicitly', two.epochs[0] && two.epochs[0].adjudicated === false && two.epochs[0].outlier === null);
+
+      /* A PAIR IS JUDGED ON SPREAD, NOT DISTANCE-FROM-MEDIAN, and this assertion is why: with two
+         sources the median is their midpoint, so a 26 bpm disagreement reads as 13 from it — under any
+         sane tolerance. Judged that way the check silently loses half its sensitivity. */
+      var pair26 = I.hrAgreement([mk('A', [50], 0), mk('B', [76], 0)]);
+      T.eq('a 26 bpm pair disagreement is detected (not halved to 13)', pair26.flagged, 1);
+
+      // A clean night must flag nothing, or the gate cries wolf on every record.
+      var clean = I.hrAgreement([mk('PpgDex', [50, 51, 50], 0), mk('ECGDex', [50, 50, 51], 3000), mk('OxyDex', [51, 50, 50], 9000)]);
+      T.eq('a concordant night flags nothing', clean.flagged, 0);
+      T.eq('...but it did compare every epoch', clean.compared, 3);
+
+      // REFUSE rather than guess: one source cannot disagree with anything.
+      T.ok('a single source is refused, not scored', I.hrAgreement([mk('PpgDex', [50], 0)]).ok === false);
+      T.ok('no sources at all is refused', I.hrAgreement([]).ok === false);
+
+      /* A source with no epoch inside the alignment window is ABSENT, not agreeing — otherwise a node
+         that stopped recording would silently vote "concordant" for the rest of the night. */
+      var far = I.hrAgreement([mk('PpgDex', [50, 50], 0), mk('ECGDex', [76, 76], 3600000)]);
+      T.eq('a non-overlapping source contributes no comparisons', far.compared, 0);
+    });
+
     group('Integrator window — sparse-event collapse (#2/#3)', 'integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode,
         RW = env.recWindow,

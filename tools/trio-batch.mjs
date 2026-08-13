@@ -959,6 +959,8 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
   const t0 = Date.now();
   const queue = splitNodes ? work.flatMap((p) => TRIO_NODES.map((n) => ({ p, node: n }))) : work.map((p) => ({ p, node: null }));
   const queue0 = queue.length; // immutable job count — `queue` is drained by the workers
+  // How long to wait for a dead child's pipes to drain before reporting without them (see `settle`).
+  const CHILD_STDIO_GRACE_MS = 5000;
   const nightOutcome = new Map(); // night key → { ok, total } so the parent can stamp a fully-green night
   let done = 0,
     failed = 0;
@@ -980,7 +982,39 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
       ch.stderr.on('data', (d) => {
         out += d;
       });
-      ch.on('close', (code) => {
+      /* ── THE RUN MUST NOT BE ABLE TO HANG AFTER THE WORK IS DONE (2026-08-13) ────────────────────
+         `close` fires only once the child has exited AND every stdio pipe has reached EOF. Those are
+         different events, and the second one can simply never arrive — a pipe held open leaves the
+         parent waiting on a child that is already dead. Measured here: 17 nights computed, every
+         `.trio-stamp` written, and the coordinator then sat for 32 minutes at 0 % CPU with a DEFUNCT
+         child it had never reaped, because nothing but `close` could resolve this promise.
+
+         That is the worst shape a hang can take: all the work is finished and none of it is reported,
+         so it is indistinguishable from a slow night. `exit` is the event that actually means the
+         process is gone, so it is the one that decides — `close` is still preferred when it arrives
+         first (its stdio is complete), and `exit` arms a short grace period for the pipes to drain
+         before resolving with what was captured.
+
+         `error` is handled for the same reason: an unhandled `error` on a child emitter THROWS, so a
+         spawn failure (EAGAIN under load, a bad interpreter path) would take down a run that has
+         already computed most of its nights rather than failing that one job. */
+      let settled = false;
+      let graceT = null;
+      const settle = (code, why) => {
+        if (settled) return;
+        settled = true;
+        if (graceT) clearTimeout(graceT);
+        if (why) out += `\n[trio-batch] child ${why}\n`;
+        finish(code);
+      };
+      ch.on('error', (e) => settle(1, `spawn/runtime error: ${e && e.message ? e.message : e}`));
+      ch.on('exit', (code, signal) => {
+        // The process is GONE. Give the pipes a moment to flush, then report regardless.
+        graceT = setTimeout(() => settle(code == null ? (signal ? 1 : 0) : code, `exited (${signal || code}) but its stdio never closed — reporting anyway`), CHILD_STDIO_GRACE_MS);
+        if (graceT.unref) graceT.unref();
+      });
+      ch.on('close', (code) => settle(code, null));
+      function finish(code) {
         done++;
         // Print each night's block whole, so interleaved children never shred each other's output.
         const body = out
@@ -1030,10 +1064,12 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
                `--allow-partial` exists to undo — a night that cannot be clock-fitted can still be
                drift-fitted, and on this corpus that is most of them. */
             if (nJson >= 1) printDriftFit(dir, p.key);
+            // The agreement gate needs at least two nodes to compare; it refuses below that itself.
+            if (nJson >= 2) writeAgreement(dir, p.key);
           }
         }
         res();
-      });
+      }
     });
   const workers = Array.from({ length: Math.min(plan.jobs, queue.length) }, async () => {
     while (queue.length) await runOne(queue.shift());
@@ -1119,6 +1155,71 @@ function cpapApneaTimes(dayDir) {
    Needs no raw files and no contract change — `timeseries.rr.tSec` (ECGDex) and `timeseries.ppi.tSec`
    (PpgDex) are already in the node-export. Prints the chance control beside every number, because the
    block fit maximises the statistic it reports. */
+/* ── THE CROSS-NODE AGREEMENT GATE, AND THE FIRST ARTEFACT THIS FOLD PERSISTS (2026-08-13) ───────
+   Two shipped `ppgdex-dsp.js` defects — a wrong optical polarity on 10 of 20 nights, and a
+   `correctRR` reference lock-in emitting a constant HR for 25 minutes — both passed five green
+   PpgDex fixtures. Neither was visible inside the node (a polarity flip is common-mode across the
+   three LEDs; a locked reference is self-consistent). Both were obvious the moment PpgDex was put
+   beside the simultaneous ECG and ring — which is exactly what this fold had all the data to do and
+   never did.
+
+   So the fold now runs `IntegratorDSP.hrAgreement` over the exports it just wrote, and WRITES the
+   verdict next to them. Writing it is half the point: every clock fit this tool computes is printed
+   and then lost with the scrollback, so nothing downstream can read, diff or gate on any of it. The
+   sidecar makes the night's cross-sensor verdict an artefact rather than a log line. */
+function writeAgreement(dir, key) {
+  // The PARENT never loads a DSP realm (it plans and spawns), so pull one in here — the same thing
+  // `printDriftFit` does for the clock fit, and for the same reason.
+  loadDsps();
+  const nodes = ['PpgDex', 'ECGDex', 'OxyDex'];
+  const sources = [];
+  for (const n of nodes) {
+    const f = join(dir, `${n}_${key}.node-export.json`);
+    if (!existsSync(f)) continue;
+    try {
+      const d = JSON.parse(readFileSync(f, 'utf8'));
+      const s0 = (d.recording || {}).startEpochMs;
+      const eps = ((d.timeseries || {}).epochs || [])
+        .filter((e) => e && typeof e.hr === 'number' && isFinite(e.hr) && isFinite(e.tMin))
+        // ABSOLUTE instant, never the epoch index: the nodes' starts differ by up to 24 min on this
+        // corpus, so comparing tMin across them compares different moments.
+        .map((e) => ({ tMs: s0 + e.tMin * 60000, hr: e.hr }));
+      if (eps.length) sources.push({ node: n, epochs: eps });
+    } catch {
+      /* unreadable export → that node simply does not vote */
+    }
+  }
+  const r = ctx.IntegratorDSP.hrAgreement(sources, {});
+  if (!r || !r.ok) {
+    console.log(`    ⚖ agreement: ${r && r.reason ? r.reason : 'not computed'}`);
+    return null;
+  }
+  const worst = Object.keys(r.fault).sort((a, b) => r.fault[b] - r.fault[a])[0];
+  const named = r.fault[worst] > 0 ? `  worst=${worst} (${r.fault[worst]})` : '';
+  console.log(`    ⚖ HR agreement: ${r.flagged}/${r.compared} epoch(s) disagree >${r.tolBpm} bpm (${r.flaggedPct} %)` + `  adjudicable=${r.adjudicable}${named}  nodes=${r.nodes.join('/')}`);
+  // Only the SUMMARY plus the flagged epochs — a full per-epoch dump would be most of the night.
+  const outPath = join(dir, `agreement_${key}.json`);
+  writeFileSync(
+    outPath,
+    JSON.stringify(
+      {
+        night: key,
+        tolBpm: r.tolBpm,
+        nodes: r.nodes,
+        compared: r.compared,
+        adjudicable: r.adjudicable,
+        flagged: r.flagged,
+        flaggedPct: r.flaggedPct,
+        fault: r.fault,
+        epochs: r.epochs
+      },
+      null,
+      2
+    ) + '\n'
+  );
+  return r;
+}
+
 function printDriftFit(dir, key) {
   /* Timing PROVENANCE for a closure leg (WEARABLE-HOST-AXIS-FOLLOWUPS §F3). A drawn axis
      (`sample_index x an assumed rate`) is a constant, not a clock — passing one to fitClockClosure

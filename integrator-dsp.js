@@ -5056,6 +5056,139 @@ function _wrappedSlopeFit(rows, rrMs, opts) {
   return { driftPpm: best.ppm, offsetMs: best.phaseMs, residRmsMs: rms, concentration: best.concentration, blocks: rows.length };
 }
 
+/* ── CROSS-NODE HR AGREEMENT (2026-08-13) ────────────────────────────────────────────────────────
+   THE CHECK THIS SUITE DID NOT HAVE, AND THE TWO BUGS THAT PROVED IT WAS MISSING. On 2026-08-13
+   `ppgdex-dsp.js` was found to (a) resolve the WRONG OPTICAL POLARITY on 10 of 20 real nights and
+   (b) LOCK `correctRR` to a stale reference and emit a constant interval series for 25 minutes at a
+   time. Both shipped past five green PpgDex fixtures, and neither was findable inside the node: a
+   polarity flip is COMMON-MODE across all three LEDs, and a locked reference is SELF-CONSISTENT.
+   What found them was comparing PpgDex against the simultaneous ECG and the ring — which is this
+   layer's whole reason to exist, and which nothing was doing.
+
+   THE RULE IS THE ONE GNSS INTEGRITY MONITORING (RAIM) STATES: redundancy DETECTS a fault, but
+   ISOLATING which source is at fault needs one more source than detecting it. Two sources that
+   disagree name a PAIR, never a culprit — an error made by hand during that investigation and
+   corrected only by bringing in the third sensor. So:
+
+       2 sources → `detected` may be true, `adjudicated` is FALSE and `outlier` is null
+       3+        → the outlier is the source furthest from the MEDIAN, and it is named
+
+   Alignment is on ABSOLUTE time, never on an epoch index: each node carries its own
+   `startEpochMs` and they differ by up to 24 minutes on this corpus, so comparing `tMin` across
+   nodes compares different moments (also made by hand, also corrected). A source with no epoch
+   inside `tolMs` of the reference instant does not vote — it is absent, not agreeing.
+
+   Consistent with this file's existing stance on disagreement: it publishes every source and the
+   spread and says plainly when they disagree. It does NOT average, and it does NOT repair a node. */
+var HR_AGREE_TOL_BPM = 15; // a disagreement worth naming; sleep HR moves far less than this between sensors
+var HR_AGREE_ALIGN_MS = 150000; // ±2.5 min — half a 5-minute epoch, so an epoch matches at most one
+
+function hrAgreement(sources, opts) {
+  opts = opts || {};
+  var tol = opts.tolBpm != null ? opts.tolBpm : HR_AGREE_TOL_BPM;
+  var alignMs = opts.alignMs != null ? opts.alignMs : HR_AGREE_ALIGN_MS;
+  var src = (sources || []).filter(function (s) {
+    return s && s.node && s.epochs && s.epochs.length;
+  });
+  if (src.length < 2) return { ok: false, reason: 'need >=2 sources with epochs', sources: src.length };
+
+  // index each source by absolute instant
+  var idx = src.map(function (s) {
+    var m = [];
+    for (var i = 0; i < s.epochs.length; i++) {
+      var e = s.epochs[i];
+      if (e && isFinite(e.tMs) && isFinite(e.hr)) m.push({ t: e.tMs, hr: e.hr });
+    }
+    m.sort(function (a, b) {
+      return a.t - b.t;
+    });
+    return { node: s.node, pts: m };
+  });
+  var near = function (pts, t) {
+    var best = null;
+    for (var i = 0; i < pts.length; i++) {
+      var d = Math.abs(pts[i].t - t);
+      if (d <= alignMs && (best === null || d < Math.abs(pts[best].t - t))) best = i;
+    }
+    return best === null ? null : pts[best];
+  };
+
+  var ref = idx[0];
+  var epochs = [],
+    fault = {},
+    compared = 0,
+    flagged = 0,
+    adjudicable = 0;
+  for (var k = 0; k < idx.length; k++) fault[idx[k].node] = 0;
+
+  for (var p = 0; p < ref.pts.length; p++) {
+    var t = ref.pts[p].t;
+    var vals = [];
+    for (var q = 0; q < idx.length; q++) {
+      var hit = q === 0 ? ref.pts[p] : near(idx[q].pts, t);
+      if (hit) vals.push({ node: idx[q].node, hr: hit.hr });
+    }
+    if (vals.length < 2) continue;
+    compared++;
+    var hrs = vals
+      .map(function (v) {
+        return v.hr;
+      })
+      .slice()
+      .sort(function (a, b) {
+        return a - b;
+      });
+    var med = hrs.length % 2 ? hrs[(hrs.length - 1) / 2] : (hrs[hrs.length / 2 - 1] + hrs[hrs.length / 2]) / 2;
+    var spread = hrs[hrs.length - 1] - hrs[0];
+    /* DETECTION CRITERION DIFFERS BY SOURCE COUNT, and getting this wrong silently halves the
+       sensitivity. With TWO sources the median is their midpoint, so each sits spread/2 from it and a
+       26 bpm disagreement reads as 13 — under any sane tolerance. A pair is detected on its SPREAD.
+       With three or more the median is a real consensus and distance-from-it is the right measure. */
+    var out =
+      vals.length === 2
+        ? spread > tol
+          ? vals.slice()
+          : []
+        : vals.filter(function (v) {
+            return Math.abs(v.hr - med) > tol;
+          });
+    if (vals.length >= 3) adjudicable++;
+    if (!out.length) continue;
+    flagged++;
+    /* WITH ONLY TWO SOURCES THE OUTLIER IS NOT KNOWABLE. Both sit `spread/2` from their own median,
+       so "furthest from the median" is a coin toss dressed as an answer. Report the disagreement and
+       decline to name anyone — that is the RAIM detect-vs-exclude boundary. */
+    var adjudicated = vals.length >= 3;
+    var culprit = null;
+    if (adjudicated) {
+      culprit = out[0].node;
+      for (var r = 1; r < out.length; r++) if (Math.abs(out[r].hr - med) > Math.abs(out[0].hr - med)) culprit = out[r].node;
+      fault[culprit]++;
+    }
+    epochs.push({
+      tMs: t,
+      sources: vals,
+      median: med,
+      spreadBpm: Math.round(spread * 10) / 10,
+      adjudicated: adjudicated,
+      outlier: culprit
+    });
+  }
+  return {
+    ok: true,
+    tolBpm: tol,
+    nodes: idx.map(function (s) {
+      return s.node;
+    }),
+    compared: compared,
+    adjudicable: adjudicable,
+    flagged: flagged,
+    flaggedPct: compared ? Math.round((1000 * flagged) / compared) / 10 : 0,
+    fault: fault,
+    epochs: epochs
+  };
+}
+
 function fitClockClosure(sources, opts) {
   opts = opts || {};
   var withBeats = (sources || []).filter(function (s) {
@@ -6321,6 +6454,8 @@ window.IntegratorDSP = {
   MEASURED_WEARABLE_PAIR_PPM,
   fitClockDrift,
   fitClockClosure,
+  /* the cross-node HR agreement gate — see the block above it for why this layer, not the nodes */
+  hrAgreement,
   _wrappedSlopeFit,
   // Timing fiducial over timeseries.spo2 — deliberately NOT OxyDex's clinical desat_event.
   desatOnsetsFromSeries,
