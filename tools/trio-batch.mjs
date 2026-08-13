@@ -1246,6 +1246,15 @@ function writeArrival(dir, key, p) {
   }
   if (!rows) return null; // header-only files ⇒ treated as absent
 
+  const medOf = (a) => {
+    const v = a.slice().sort((x, y) => x - y);
+    return v.length ? v[v.length >> 1] : NaN;
+  };
+  // Median absolute deviation — the honest scatter of a median under heavy BLE delivery jitter.
+  const madOf = (a) => {
+    const m = medOf(a);
+    return medOf(a.map((x) => Math.abs(x - m)));
+  };
   const devices = [];
   for (const [dev, anchors] of byDev) {
     anchors.sort((a, b) => a.devMs - b.devMs);
@@ -1270,6 +1279,13 @@ function writeArrival(dir, key, p) {
          where a real crystal is +/-100. Flag the implausibility here so no consumer spends it: a
          drawn axis may be PLACED on the host timeline, never spent as a second opinion about it. */
       plausibleCrystal: ax.ppm == null ? null : Math.abs(ax.ppm) <= 200,
+      /* THE MAPPING CONSTANT, AS A MEDIAN — never a single anchor. Per-device arrival spread here is
+         3013 ms (Verity) and 7005 ms (H10), so one packet is not an estimate: taking the first put
+         this offset 1355 ms from the median-derived value, which is larger than PAT itself. `MAD` is
+         published beside it because a 500 ms offset with 3000 ms scatter is not a measurement, and
+         the number has to say so. */
+      offsetMs: anchors.length ? Math.round(medOf(anchors.map((a) => a.hostMs - a.devMs)) * 10) / 10 : null,
+      offsetMadMs: anchors.length ? Math.round(madOf(anchors.map((a) => a.hostMs - a.devMs)) * 10) / 10 : null,
       t0DevMs: anchors.length ? Math.round(anchors[0].devMs) : null,
       t0HostMs: anchors.length ? anchors[0].hostMs : null,
       spanSec: anchors.length > 1 ? Math.round((anchors[anchors.length - 1].hostMs - anchors[0].hostMs) / 1000) : 0

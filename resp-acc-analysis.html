@@ -5820,6 +5820,79 @@ function hrAgreement(sources, opts) {
   };
 }
 
+/* ── ARRIVAL-DERIVED INTER-DEVICE OFFSET (2026-08-13) ────────────────────────────────────────────
+   The capture box writes a per-packet sidecar carrying the HOST arrival stamp beside the DEVICE
+   counter. Two devices stamped by one host are therefore measurable against each other DIRECTLY —
+   no beat matching, which is the method that can only ever pin an offset modulo one heartbeat.
+
+   THIS PUBLISHES THE MEASUREMENT; IT DOES NOT APPLY IT. Measured on 2026-08-12, PAT's in-window yield
+   goes 69 % -> 99 % once an offset is applied — and then SATURATES at 99.2 % from +50 ms all the way
+   to +316 ms. So the gate cannot tell which offset is right: choosing one by maximising yield is
+   selecting on the statistic being judged, the circular analysis this file already warns about
+   elsewhere. An INDEPENDENT measurement is the only way out, and that is what this is.
+
+   REFUSALS, because a number here is worse than a gap:
+     · a device whose axis is DRAWN (`plausibleCrystal:false`) is not a clock. The O2Ring reports
+       2730 ppm where a real crystal is +/-100, and it passes `independent` only because that flag
+       compares two COLUMNS, not two clocks. It may be PLACED on the host timeline, never spent as an
+       opinion about it.
+     · a device whose host column is the device stamp ROUNDED (`independent:false`) has no second
+       clock at all — a phone capture reads ~1.00 ms spread, one stamp quantum.
+     · fewer than two survivors ⇒ there is no pair to offset. */
+function arrivalPairOffsets(devices, opts) {
+  opts = opts || {};
+  var list = (devices || []).filter(function (d) {
+    return d && d.ok === true && d.independent === true && d.plausibleCrystal !== false && isFinite(d.offsetMs);
+  });
+  var refused = (devices || [])
+    .filter(function (d) {
+      return list.indexOf(d) < 0;
+    })
+    .map(function (d) {
+      return {
+        device: d && d.device,
+        reason:
+          !d || d.ok !== true
+            ? 'axis refused'
+            : d.independent !== true
+              ? 'host column is not an independent clock'
+              : d.plausibleCrystal === false
+                ? 'drawn axis — ' + d.ppm + ' ppm is not a crystal'
+                : 'incomplete anchor'
+      };
+    });
+  if (list.length < 2) return { ok: false, reason: 'need >=2 usable clocks', usable: list.length, refused: refused };
+
+  var pairs = [];
+  for (var i = 0; i < list.length; i++) {
+    for (var j = i + 1; j < list.length; j++) {
+      var a = list[i],
+        b = list[j];
+      /* Each device's (host - counter) constant. Two Polars share the PMD counter epoch, so the
+         DIFFERENCE of those constants is their clock offset directly. Devices from different vendors
+         do not share an epoch — the difference is then not an offset, and saying so is the point of
+         `sameEpoch`. */
+      /* The MEDIAN (host - counter) per device. A single anchor is not an estimate here: measured
+         arrival spread is 3013-7005 ms, and the first packet put this 1355 ms off. */
+      var ca = a.offsetMs;
+      var cb = b.offsetMs;
+      var sameEpoch = Math.abs(ca - cb) < 3600000; // within an hour ⇒ the same counter origin
+      pairs.push({
+        a: a.device,
+        b: b.device,
+        offsetMs: sameEpoch ? Math.round((ca - cb) * 10) / 10 : null,
+        sameEpoch: sameEpoch,
+        reason: sameEpoch ? undefined : 'different counter epochs — the difference is not an offset',
+        madMs: Math.max(a.offsetMadMs || 0, b.offsetMadMs || 0),
+        ppmA: a.ppm,
+        ppmB: b.ppm,
+        spanSec: Math.min(a.spanSec || 0, b.spanSec || 0)
+      });
+    }
+  }
+  return { ok: true, usable: list.length, pairs: pairs, refused: refused };
+}
+
 function fitClockClosure(sources, opts) {
   opts = opts || {};
   var withBeats = (sources || []).filter(function (s) {
@@ -7085,6 +7158,8 @@ window.IntegratorDSP = {
   MEASURED_WEARABLE_PAIR_PPM,
   fitClockDrift,
   fitClockClosure,
+  /* arrival-sidecar offsets — published as a measurement, never applied here (see the block) */
+  arrivalPairOffsets,
   /* the cross-node HR agreement gate — see the block above it for why this layer, not the nodes */
   hrAgreement,
   _wrappedSlopeFit,
