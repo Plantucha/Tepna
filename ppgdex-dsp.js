@@ -2857,6 +2857,169 @@
     const c = correctRR(vals, tt);
     return { out: c.nn, nc: c.nCorr };
   }
+
+  /* ── DETECTOR STABILITY vs AVERAGING TIME (overlapping Allan deviation) ────────────────────────
+     WHAT THIS IS, because the method is borrowed and the application is not obvious. Allan deviation
+     is clock metrology's standard answer to "does this error shrink if I average longer?" — a single
+     SD cannot answer it, because for several common noise types SD DIVERGES as N grows (NIST/Riley
+     SP 1065). Here it is applied not to a clock but to the DISAGREEMENT between two beat detectors
+     watching the same heart: our optical foot detector and the device's own firmware detector. The
+     physiology is common to both, so it cancels in the difference, and what remains is detector noise
+     alone. That difference series is a genuine two-oscillator comparison, which is ADEV's native case.
+
+     ⚠️ The input must be PHASE (a time-error series), not intervals. RR/PPI intervals are a FREQUENCY
+     series, and a heart is not an oscillator with stationary noise — run raw intervals through this
+     and the curve is dominated by respiratory sinus arrhythmia and sleep-stage drift, i.e. it measures
+     HRV with an instrument built to make HRV disappear. Measured on 2026-08-08: the detector
+     difference gives slope −1.007 (pure jitter, 45.8 ms/beat → 0.02 ms at 40 min), while the same
+     night's beat times against a uniform grid give −0.307 and stall at 27 ms. Different questions.
+
+     WHY THE SLOPE IS THE ANSWER and the magnitude is not: −1 jitter that averages away · −½ benign ·
+     0 A FLOOR that averaging cannot remove · +½ wander · +1 deterministic drift. A −1 slope with no
+     floor is what licenses treating a SUSTAINED divergence as a real fault rather than accumulated
+     noise — without it that inference is an assumption.
+
+     THREE IMPLEMENTATIONS, DELIBERATELY, AND GATED AGAINST EACH OTHER. `capture-host/allan.py` works
+     in the phase domain via the second difference; `integrator-tch.js allanDeviation` works in the
+     frequency domain via overlapping averages; this is the frequency form again because PpgDex cannot
+     reach either (Python is a different lane, and inlining the Integrator's TCH module into this
+     bundle for one function is not worth it — while promoting it to the shared spine would re-stamp
+     all 8 provenance fragments, §👥.3, for that same one function). The two formulations are
+     algebraically equivalent and were verified to agree to every reported digit across all 12 τ on a
+     real night; `tests/dex-tests.js` pins this against BOTH siblings so a third variant cannot drift. */
+  const ALLAN_MIN_PAIRS = 64; // below this the octave ladder has too few τ to fit a slope at all
+  function allanFromPhase(phaseMs, tau0Sec) {
+    // PHASE → FRACTIONAL FREQUENCY: y[i] = (x[i+1] − x[i]) / tau0. This is the change of variable that
+    // makes the overlapping-average form apply; it is why this matches the phase-domain sibling.
+    const y = [];
+    for (let i = 1; i < phaseMs.length; i++) {
+      const v = (phaseMs[i] - phaseMs[i - 1]) / tau0Sec;
+      if (!isFinite(v)) return [];
+      y.push(v);
+    }
+    const N = y.length;
+    if (N < 3) return [];
+    const pre = new Float64Array(N + 1);
+    for (let j = 0; j < N; j++) pre[j + 1] = pre[j] + y[j];
+    const out = [];
+    for (let m = 1; 2 * m + 1 <= N; m *= 2) {
+      let sum = 0,
+        cnt = 0;
+      for (let i = 0; i + 2 * m <= N; i++) {
+        const d = (pre[i + 2 * m] - pre[i + m]) / m - (pre[i + m] - pre[i]) / m;
+        sum += d * d;
+        cnt++;
+      }
+      if (cnt < 8) break; // an estimate from a handful of terms is wider than the answer it gives
+      out.push({ tau: m * tau0Sec, adev: Math.sqrt(sum / (2 * cnt)), n: cnt });
+    }
+    return out;
+  }
+  /* Slope midpoints between the canonical exponents, and the SAME vocabulary as capture-host/allan.py
+     `_NOISE`. Kept verbatim on purpose: two lanes naming the same curve differently is a defect a
+     reader cannot see. Drift is the open-ended top, so it is the fall-through rather than a table edge
+     — an edge no slope can fail makes the fall-through unreachable. */
+  const ALLAN_NOISE = [
+    [-0.75, 'white/flicker-phase', 'jitter — averages away fast'],
+    [-0.25, 'white-frequency', 'benign; averaging helps as √N'],
+    [0.25, 'flicker-frequency', 'A FLOOR — more averaging buys nothing'],
+    [0.75, 'random-walk-frequency', 'wanders; a longer fit is worse than a short one']
+  ];
+  function allanSlope(points) {
+    const pts = (points || []).filter((p) => p.adev > 0 && p.tau > 0);
+    if (pts.length < 3) return null; // two points fit any line and cannot be checked
+    const xs = pts.map((p) => Math.log10(p.tau)),
+      ys = pts.map((p) => Math.log10(p.adev));
+    const mx = mean(xs),
+      my = mean(ys);
+    let num = 0,
+      den = 0;
+    for (let i = 0; i < xs.length; i++) {
+      num += (xs[i] - mx) * (ys[i] - my);
+      den += (xs[i] - mx) * (xs[i] - mx);
+    }
+    return den > 0 ? num / den : null;
+  }
+  /* ⚠️ KNOWN LIMITATION, RECORDED BECAUSE THIS SHIPS ON A NEW CONSUMER SURFACE (2026-08-13).
+     The boundary test is a strict `<` against a POINT ESTIMATE, so a slope landing on an edge is
+     assigned a type the data does not support, and the returned `slope` is ROUNDED — so the digit that
+     decided it is not even in the output. Measured: -0.7501 classifies as white/flicker-phase and
+     -0.7500 as white-frequency, both reporting slope -0.75, with `meaning` flipping between "averages
+     away" and "helps as sqrt(N)" — the field a consumer branches on. Our own ECGDex pair sits exactly
+     there (slope -0.7500, OLS SE 0.0204, so the -0.75 edge is inside the CI).
+     Pre-existing and shared with `capture-host/allan.py`, which has the identical structure. A joint
+     fix across both lanes is queued: refuse to NAME a type when a boundary lies within 1.96 SE, publish
+     `slopeSE` unconditionally, and stop rounding the slope in the DATA (round at display). It is
+     deliberately not fixed here — a two-language contract must move in ONE changeset or the lanes
+     drift, which is the property this file's parity gate exists to protect.
+     ⚠️ When that lands, note the SE is a LOWER BOUND: overlapping ADEV points are correlated (adjacent
+     taus reuse most of the same samples) while OLS assumes independent residuals. Do not tighten 1.96
+     back to 1 SE believing that is the more rigorous choice.
+     This does NOT weaken the marker-pair result shipped today: slope -1.0071, SE 0.0028, the nearest
+     boundary ~90 SEs away, which survives any multiplier. The ambiguity only bites where the call is
+     already close. */
+  function classifyAllan(sl) {
+    if (sl == null) return null; // an unknown is not a noise type
+    for (let i = 0; i < ALLAN_NOISE.length; i++) {
+      if (sl < ALLAN_NOISE[i][0]) return { slope: r2(sl), noise: ALLAN_NOISE[i][1], meaning: ALLAN_NOISE[i][2] };
+    }
+    return { slope: r2(sl), noise: 'drift', meaning: 'deterministic — fit and remove it, never average through it' };
+  }
+  /* Pairs two beat-time series (SECONDS, on the same axis) and returns the stability of their
+     disagreement. `maxPairSec` rejects a beat with no counterpart rather than pairing it across a
+     dropout — a fabricated pair injects a step the curve would read as wander. */
+  function detectorStability(selfSec, fwSec, maxPairSec) {
+    if (!selfSec || !fwSec || selfSec.length < ALLAN_MIN_PAIRS || fwSec.length < 3) return null;
+    const tol = maxPairSec || 0.3;
+    const ph = [],
+      bt = [];
+    for (let k = 0; k < selfSec.length; k++) {
+      const t = selfSec[k];
+      let lo = 0,
+        hi = fwSec.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (fwSec[mid] < t) lo = mid + 1;
+        else hi = mid;
+      }
+      let bi = lo,
+        best = Math.abs(fwSec[lo] - t);
+      if (lo > 0 && Math.abs(fwSec[lo - 1] - t) < best) {
+        bi = lo - 1;
+        best = Math.abs(fwSec[lo - 1] - t);
+      }
+      if (best < tol) {
+        ph.push((t - fwSec[bi]) * 1000);
+        bt.push(t);
+      }
+    }
+    if (ph.length < ALLAN_MIN_PAIRS) return null;
+    const tau0 = (bt[bt.length - 1] - bt[0]) / (bt.length - 1);
+    if (!(tau0 > 0)) return null;
+    const curve = allanFromPhase(ph, tau0);
+    if (curve.length < 3) return null;
+    const cls = classifyAllan(allanSlope(curve));
+    if (!cls) return null;
+    let best = curve[0];
+    for (const p of curve) if (p.adev < best.adev) best = p;
+    return {
+      nPaired: ph.length,
+      pairedPct: r1((100 * ph.length) / selfSec.length),
+      tau0Sec: r2(tau0),
+      taus: curve.length,
+      slope: cls.slope,
+      noise: cls.noise,
+      meaning: cls.meaning,
+      atShortestMs: r2(curve[0].adev),
+      atLongestMs: curve[curve.length - 1].adev,
+      tauMaxSec: Math.round(curve[curve.length - 1].tau),
+      /* The averaging window a measurement built on this pair should actually use — the principled
+         replacement for a window length chosen by intuition. On a pure-jitter pair it is simply the
+         longest τ measured, and saying so is more honest than implying a minimum was found. */
+      optimalTauSec: Math.round(best.tau),
+      curve: curve.map((p) => ({ tau: r2(p.tau), adev: p.adev, n: p.n }))
+    };
+  }
   function sdnnOf(rr) {
     if (!rr || rr.length < 2) return 0;
     const m = mean(rr);
@@ -3537,6 +3700,15 @@
       ppiSource = 'o2ring-marker';
     }
     const validation = validatePPI(nn, ppiSeries, { source: ppiSource });
+    /* The stability leg needs BOTH detectors' beat TIMES on ONE axis, which is true only for the
+       marker source: those rows sit in the same file, on the same `relSec`, as the feet we detected.
+       A `_PPI.txt` carries intervals plus the host's ARRIVAL stamps, so differencing against it would
+       measure BLE transport jitter on top of detector jitter and report the sum as detector noise —
+       a worse answer than none. Null there, and the card says why rather than showing a number that
+       does not mean what it appears to. */
+    if (validation && validation.usable && ppiSource === 'o2ring-marker' && rec.beatMarkerSec) {
+      validation.stability = detectorStability(footSec, Array.from(rec.beatMarkerSec));
+    }
 
     // markers
     const markers = (rec.markers || []).map((mk) => ({ relSec: mk.relSec, type: mk.type }));
@@ -3986,6 +4158,11 @@
     analyzeMotion,
     movementOnsets,
     validatePPI,
+    // Exposed for the cross-implementation parity gate (allan.py / integrator-tch.js) — see the
+    // DETECTOR STABILITY block above. Not part of any node contract.
+    allanFromPhase,
+    classifyAllan,
+    detectorStability,
     bandpass,
     detectBeats,
     detectChannel,
