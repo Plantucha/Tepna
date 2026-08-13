@@ -3502,6 +3502,61 @@
        Strong/Moderate/Weak pill. Class 3a: an epoch carrying no observation must leave BOTH sides.
        The synthetic below is built so the two rules DISAGREE: 4 agreements, 4 abstentions and
        3 conflicts ⇒ old (4+4)/12 = 75 %, honest 4+1/8 = 63 %. */
+    /* ════ HRV GEOMETRY — triangularIndex + fragmentation, both PSEUDO-TESTED ═════════════════
+       Measured 2026-08-12: covered by `analyze` on every run, asserted by nothing. Not a scope
+       artifact either — `N / maxC` inverted to `maxC / N`, which returns a completely different
+       number, is GREEN under `--group=ECGDex` as well, so the committed golden does not pin these
+       fields at all.
+
+       Task Force 1996 (Circulation 93:1043) defines the HRV triangular index as the total number
+       of NN intervals divided by the height of their histogram, binned at 1/128 s = 7.8125 ms.
+       Every expectation below is derived from that definition by hand, not recorded from a run. */
+    group('ECGDex HRV geometry — triangular index and fragmentation, known-answer', 'ecgdex-dsp · hrv-geometry', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      var ti = E && E.triangularIndex,
+        fr = E && E.fragmentation;
+      T.ok('ECGDSP.triangularIndex reachable', typeof ti === 'function', 'export triangularIndex from ecgdex-dsp.js');
+      T.ok('ECGDSP.fragmentation reachable', typeof fr === 'function', 'export fragmentation from ecgdex-dsp.js');
+      var rep = function (n, v) {
+        var o = [];
+        for (var i = 0; i < n; i++) o.push(v);
+        return o;
+      };
+      if (typeof ti === 'function') {
+        /* 800 ms → bin round(800/7.8125) = round(102.4) = 102; 900 → round(115.2) = 115.
+           25 intervals, tallest bin 20 ⇒ 25/20 = 1.25. */
+        T.eq('triangular index = total NN ÷ tallest histogram bin (25/20)', ti(rep(20, 800).concat(rep(5, 900))), 1.25);
+        /* THE BIN WIDTH AND THE ROUNDING, in one fixture. 804 ms → 804/7.8125 = 102.912, which
+           ROUNDS to 103 — a different bin from 800's 102 — so the two stay separate and the answer
+           is 20/10 = 2.00. Widen the bin to 1000/64 and 804 lands on 51 alongside 800; FLOOR it
+           instead and 102.912 truncates to 102, also alongside 800. Either way the bins merge, the
+           tallest becomes 20, and the index collapses to 1.00. One fixture, two mutants. */
+        T.eq('800 and 804 ms fall in DIFFERENT 7.8125 ms bins ⇒ 20/10 = 2.00', ti(rep(10, 800).concat(rep(10, 804))), 2.0);
+        /* Two decimals: 7/3 = 2.3333… A `toFixed(0)` would report 2. */
+        T.eq('the index keeps TWO decimals (7/3 = 2.33, not 2)', ti(rep(3, 800).concat(rep(2, 900), rep(2, 1000))), 2.33);
+        /* ⚠ `if (f[k] > maxC)` → `>=` is an EQUIVALENT mutant: only the VALUE of maxC is kept, and
+           on a tie the value assigned is identical. No input can distinguish them. Do not add an
+           assertion chasing it. */
+      }
+      if (typeof fr === 'function') {
+        /* Perfectly alternating: 6 deltas, every sign differs from the last ⇒ 6 inversion points
+           counted over i=1..5 = 5, PIP = 5/7 = 71.4 %. Six runs of length 1 ⇒ IALS = 6/7 = 0.857,
+           and every run is shorter than 3 ⇒ PSS = 100 %. */
+        var alt = fr([800, 810, 800, 810, 800, 810, 800]);
+        T.eq('alternating NN · PIP = 5/7 = 71.4 %', (alt || {}).pip, 71.4);
+        T.eq('alternating NN · IALS = 6 runs / 7 NN = 0.857', (alt || {}).ials, 0.857);
+        T.eq('alternating NN · every run is short ⇒ PSS = 100 %', (alt || {}).pss, 100);
+        /* Monotone up then down: two runs of length THREE. The short-run threshold is `L < 3`, so
+           a run of exactly 3 must NOT count — PSS = 0. This is the pair that pins the bound;
+           the alternating case above cannot, since every run there is length 1. */
+        var mono = fr([800, 810, 820, 830, 820, 810, 800]);
+        T.eq('one turning point · PIP = 1/7 = 14.3 %', (mono || {}).pip, 14.3);
+        T.eq('…two runs over 7 NN ⇒ IALS = 0.286', (mono || {}).ials, 0.286);
+        T.eq('…a run of EXACTLY 3 is not short ⇒ PSS = 0 %', (mono || {}).pss, 0);
+        T.eq('fewer than 4 NN ⇒ null, never a fabricated fragmentation', fr([800, 810, 800]), null);
+      }
+    });
+
     group('ECGDex staging consensus — an abstention is not an agreement (§6.1)', 'ecgdex-dsp · consensus · fabricated-absence', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.accExtras === 'function')) {
