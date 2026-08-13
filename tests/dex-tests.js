@@ -3511,6 +3511,81 @@
        Task Force 1996 (Circulation 93:1043) defines the HRV triangular index as the total number
        of NN intervals divided by the height of their histogram, binned at 1/128 s = 7.8125 ms.
        Every expectation below is derived from that definition by hand, not recorded from a run. */
+    /* ════ accAnalyze — PSEUDO-TESTED, and it decides a SLEEP POSITION ════════════════════════
+       `posture` feeds `epoch.position` and the Ganglior event meta, and the Integrator weights
+       osaConf/AHI by it — supine worsens OSA. It was computed on every ACC-bearing recording and
+       asserted by nothing.
+
+       The classifier is pure geometry on the gravity vector, so every case here is derived rather
+       than recorded: normalise (gx,gy,gz), then tilt = acos(|uz|) in degrees, and
+         |uz| ≥ 0.70 → Supine (uz>0) / Prone (uz<0)
+         else |uy| ≥ 0.55 → Upright (uy>0) / Head-down (uy<0)
+         else → Left side (ux>0) / Right side
+       Chest-strap convention: +z anterior, so lying face-up puts gravity on +z. */
+    group('ECGDex accAnalyze — posture from the gravity vector, known-answer', 'ecgdex-dsp · posture', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      var acc = E && E.accAnalyze;
+      T.ok('ECGDSP.accAnalyze reachable', typeof acc === 'function', 'export accAnalyze from ecgdex-dsp.js');
+      if (typeof acc === 'function') {
+        var FS = 4;
+        /* A CONSTANT orientation held for 60 s at 4 Hz = 240 samples, comfortably past the
+           `length < fs * 30` floor. Constant is right here: posture is the DC (gravity) component,
+           so holding still is the physiological case, not a degenerate fixture. */
+        var hold = function (x, y, z, n) {
+          var out = [];
+          for (var i = 0; i < (n || 240); i++) out.push({ x: x, y: y, z: z, tsMs: i * (1000 / FS) });
+          return out;
+        };
+        var P = function (x, y, z) {
+          var r = acc(hold(x, y, z), FS, 0, 60, null);
+          return r ? r.posture + '/' + r.tiltDeg : null;
+        };
+
+        T.eq('gravity on +z ⇒ Supine, 0° from horizontal', P(0, 0, 1), 'Supine/0');
+        T.eq('gravity on −z ⇒ Prone, still 0° (tilt is unsigned)', P(0, 0, -1), 'Prone/0');
+        T.eq('gravity on +y ⇒ Upright, 90°', P(0, 1, 0), 'Upright/90');
+        T.eq('gravity on −y ⇒ Head-down, 90°', P(0, -1, 0), 'Head-down/90');
+        T.eq('gravity on +x ⇒ Left side, 90°', P(1, 0, 0), 'Left side/90');
+        T.eq('gravity on −x ⇒ Right side, 90°', P(-1, 0, 0), 'Right side/90');
+
+        /* THE TWO THRESHOLDS, each at its own edge. |uz| = 0.70 exactly is still Supine —
+           acos(0.7) = 45.57° ⇒ 46 — and one hundredth below it falls through to the y-test. */
+        T.eq('|uz| exactly 0.70 ⇒ still Supine (inclusive), tilt 46°', P(0, Math.sqrt(1 - 0.49), 0.7), 'Supine/46');
+        T.eq('|uz| 0.69 falls THROUGH to the y-test ⇒ Upright', P(0, Math.sqrt(1 - 0.4761), 0.69), 'Upright/46');
+        /* ⚠ THE 0.55 EDGE IS NOT CONSTRUCTIBLE, unlike the 0.70 one above. `uy` is `gy / hypot(...)`,
+           and for gy = 0.55 the magnitude lands a bit either side of 1, so the normalised value comes
+           out 0.5499999999999999 rather than 0.55 — the assertion written for it read `Left side`.
+           Same trap the CPAPDex self-test records for `near(10, 10.2, 0.2)`: a boundary case proves
+           nothing unless the boundary value is exactly representable AFTER the arithmetic that
+           reaches it. Bracketed instead, and the `>=` vs `>` distinction is recorded below as
+           unreachable rather than papered over with a case that only appears to test it. */
+        T.eq('|uy| just above 0.55 ⇒ Upright', P(Math.sqrt(1 - 0.3136), 0.56, 0), 'Upright/90');
+        T.eq('|uy| 0.54 falls through to the x-test ⇒ Left side', P(Math.sqrt(1 - 0.2916), 0.54, 0), 'Left side/90');
+
+        /* The classifier NORMALISES, so magnitude must not matter — a sensor reporting in g and one
+           reporting in milli-g must land on the same posture. */
+        /* ── NORMALISATION, and why a LARGER vector cannot show it ──────────────────────────────
+           A 1000× vector proves nothing: `tilt` clamps with `Math.min(1, |uz|)` and 1000 is already
+           past every threshold, so skipping the divide changes no answer — measured, that mutant
+           survived it. A vector SMALLER than 1 g does show it. At (0, 0, 0.5) the normalised uz is
+           1.0 ⇒ Supine at 0°, while an unnormalised 0.5 fails the 0.7 test, falls past the y-test,
+           and lands on `Right side` at acos(0.5) = 60°. Both the label and the tilt move. */
+        T.eq('a 1000× larger vector is the same posture', P(0, 0, 1000), 'Supine/0');
+        T.eq('a vector SMALLER than 1 g is normalised too — 0.5 g on +z is still Supine/0°', P(0, 0, 0.5), 'Supine/0');
+
+        /* ── the entry guard: fewer than fs × 30 samples is not enough to place a body ── */
+        T.eq('119 samples at 4 Hz ⇒ null (needs ≥ fs × 30 = 120)', acc(hold(0, 0, 1, 119), FS, 0, 60, null), null);
+        T.ok('120 samples exactly ⇒ NOT null (the floor is inclusive)', acc(hold(0, 0, 1, 120), FS, 0, 60, null) != null, 'floor is exclusive?');
+        T.eq('no samples at all ⇒ null, never a fabricated posture', acc([], FS, 0, 60, null), null);
+        /* fs defaults to 4 when absent, so the SAME 120 samples pass with fs omitted and fail at
+           fs 8 — which is what pins the default rather than assuming it. */
+        T.ok('fs defaults to 4 — 120 samples pass with no fs given', acc(hold(0, 0, 1, 120), null, 0, 60, null) != null, 'default fs is not 4');
+        T.eq('…and the same 120 samples are too few at fs 8 (8 × 30 = 240)', acc(hold(0, 0, 1, 120), 8, 0, 60, null), null);
+        T.eq('the reported accFs echoes the default, not a guess', (acc(hold(0, 0, 1, 240), null, 0, 60, null) || {}).accFs, 4);
+        T.eq('durMin is derived from samples ÷ fs ÷ 60 (240 @ 4 Hz = 1.0)', (acc(hold(0, 0, 1, 240), FS, 0, 60, null) || {}).durMin, 1);
+      }
+    });
+
     group('ECGDex HRV geometry — triangular index and fragmentation, known-answer', 'ecgdex-dsp · hrv-geometry', function (T) {
       var E = env.ECGDSP || env.EcgDsp;
       var ti = E && E.triangularIndex,
