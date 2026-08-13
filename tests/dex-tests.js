@@ -8847,6 +8847,64 @@
        ⚠️ AN `_RR.txt` HAS NO SUCH COLUMN, so RR parsing must be provably untouched. That is the
        second case below, and it is the one that would catch a veto keyed on position instead of
        header text. */
+    /* ════ TWO PSEUDO-TESTED PulseDex FUNCTIONS (measured 2026-08-12) ═════════════════════════
+       `cohEst` is a coherence index surfaced to the user; `_pdForeignUnitCol` is the §B1 guard
+       that stops the RR column-scanner choosing an accelerometer or temperature column. Both ran
+       on every file and nothing asserted an output. */
+    group('PulseDex cohEst + the §B1 foreign-unit veto — known-answer', 'pulsedex-dsp · coh · foreign-unit', function (T) {
+      var P = env.PulseDex && env.PulseDex._bare;
+      var coh = P && P.cohEst;
+      T.ok('PulseDex.cohEst reachable', typeof coh === 'function', 'export cohEst from pulsedex-dsp.js');
+      if (typeof coh === 'function') {
+        /* round(min(100, rm/sd × 100 × 0.7)) — a ratio, a 0.7 scale and a 100 ceiling. */
+        T.eq('rm = sd ⇒ ratio 1 scaled by 0.7 ⇒ 70, not 100', coh(50, 50), 70);
+        T.eq('rm = 2·sd ⇒ 140 clipped to the 100 CEILING', coh(100, 50), 100);
+        /* 0.65 × 70 = 45.5 — the one input where round and floor disagree. */
+        T.eq('45.5 ROUNDS to 46, it is not truncated to 45', coh(65, 100), 46);
+        /* Ratio orientation: inverted, this same input gives 100 rather than 46. */
+        T.eq('the ratio is rm ÷ sd, not sd ÷ rm', coh(65, 100) < coh(100, 65), true);
+        T.eq('zero mean ⇒ 0, never NaN', coh(0, 50), 0);
+      }
+
+      var PR = P && P.parseRRInput;
+      T.ok('PulseDex.parseRRInput reachable', typeof PR === 'function', 'export parseRRInput');
+      if (typeof PR === 'function') {
+        /* §B1 IS ABOUT WHICH COLUMN GETS CHOSEN, so `intervalCol` is the property to assert — not
+           whether the file produced values. Neither header below matches an interval NAME, so the
+           range scanner runs; both candidate columns hold values inside the 300–2000 ms window, so
+           the range check cannot separate them. Ties keep the FIRST qualifying column, which means
+           without the unit veto the milli-g column at index 1 wins and every HRV metric downstream
+           is computed on motion. With it, the scanner walks past and takes the beats at index 2. */
+        var mixRows = [];
+        for (var q = 0; q < 12; q++) mixRows.push('2026-08-09T22:01:' + (24 + q) + '.000;95' + (q % 10) + ';100' + (q % 5));
+        var mixed = PR('Phone timestamp;acc [mg];beats\n' + mixRows.join('\n')) || {};
+        T.eq('the [mg] column is walked past — the beats column is chosen instead', mixed.intervalCol, 2);
+        T.eq('…and the values adopted are the beats, not the milli-g', (mixed.vals || [])[0], 1000);
+        var mixedG = PR('Phone timestamp;gyro [dps];beats\n' + mixRows.join('\n')) || {};
+        T.eq('[dps] is vetoed too — the whole unit set, not just [mg]', mixedG.intervalCol, 2);
+
+        /* THE CONSERVATION LAW, which is the guard that actually REFUSES a pure accelerometer file.
+           An interval series must sum to the elapsed time. Real ACC is sampled fast — ~20 ms apart —
+           while its values rail near 950 mg, so read as RR it claims ~50× the span it covers. The
+           documented offenders are 24.6× (H10) and 15.6× (Verity) against a 2.0 threshold.
+           ⚠ This needs a REALISTIC sample rate to fire. A first draft of this fixture spaced the
+           rows 1 s apart, which makes ~1000 mg values conserve time almost exactly (ratio 1.09) and
+           sails through — the file looked accepted and I nearly filed a defect against the veto. The
+           sample rate IS the signal here. */
+        var accRows = [];
+        for (var z = 0; z < 12; z++) accRows.push('2026-08-09T22:01:24.' + String(z * 20).padStart(3, '0') + ';9' + (40 + z) + ';95' + (z % 10) + ';96' + (z % 10));
+        var acc = PR('Phone timestamp;X [mg];Y [mg];Z [mg]\n' + accRows.join('\n')) || {};
+        T.ok('a 50 Hz accelerometer file is REFUSED as an interval series', acc.usable === false, JSON.stringify({ usable: acc.usable, ratio: acc.timeRatio, n: acc.nUsable }));
+        T.ok('…and the refusal is the time-conservation ratio, stated not guessed', acc.timeRatio != null && acc.timeRatio > 2, 'timeRatio=' + acc.timeRatio);
+        /* ANTI-VACUITY — genuine 1 Hz beats of the same magnitude ARE accepted, so the rejection
+           above is the conservation law and not the fixture being unreadable. */
+        var rrRows = [];
+        for (var w = 0; w < 12; w++) rrRows.push('2026-08-09T22:01:' + String(24 + w).padStart(2, '0') + '.000;100' + (w % 5));
+        var rr = PR('Phone timestamp;PP-interval [ms]\n' + rrRows.join('\n')) || {};
+        T.ok('ANTI-VACUITY · real ~1 s beats conserve time and ARE accepted', rr.usable === true, JSON.stringify({ usable: rr.usable, ratio: rr.timeRatio }));
+      }
+    });
+
     group('PulseDex — a device-blocked PPI interval is dropped and COUNTED', 'pulsedex-dsp · ingest · regression', function (T) {
       var P = env.PulseDex;
       var PR = P && P.parseRRInput;
