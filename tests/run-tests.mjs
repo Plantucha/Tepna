@@ -1527,7 +1527,7 @@ async function main() {
           sawNestedDeep: paths.indexOf('nested/deep/deeper.js') >= 0,
           n: paths.length
         };
-      } catch (e) {
+      } catch (_e) {
         return null;
       } finally {
         try {
