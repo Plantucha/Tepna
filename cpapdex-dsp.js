@@ -1591,16 +1591,15 @@
     var s2 = buildSession(prepare(raw2), { fname: 'b' });
     var night = buildNight([s2, s1]); // intentionally out of order
     ok('night anchor = earliest session', night.t0Ms === s1.t0Ms, fmtDateTime(night.t0Ms));
-    ok(
-      'sessions sorted by t0Ms',
-      night.sessions[0].fname === 'a' && night.sessions[1].fname === 'b',
-      night.sessions
-        .map(function (x) {
-          return x.fname;
-        })
-        .join(',')
-    );
-    ok('one off-mask gap ≈ 20 min', night.offMaskGaps.length === 1 && near(night.offMaskGaps[0].gapMin, 20, 0.2), JSON.stringify(night.offMaskGaps));
+    var fnameOrder = night.sessions
+      .map(function (x) {
+        return x.fname;
+      })
+      .join(',');
+    ok('sessions sorted by t0Ms — first is "a"', night.sessions[0].fname === 'a', fnameOrder);
+    ok('sessions sorted by t0Ms — second is "b"', night.sessions[1].fname === 'b', fnameOrder);
+    ok('exactly one off-mask gap', night.offMaskGaps.length === 1, JSON.stringify(night.offMaskGaps));
+    ok('that off-mask gap ≈ 20 min', near((night.offMaskGaps[0] || {}).gapMin, 20, 0.2), JSON.stringify(night.offMaskGaps));
     ok('off-mask gap carries afterIdx (render/fusion contract)', night.offMaskGaps[0].afterIdx === 0, JSON.stringify(night.offMaskGaps[0]));
     ok('therapyHours ≈ 7 (4+3, no 24h jump)', near(night.therapyHours, 7, 0.05), night.therapyHours);
     ok('overnight stays monotonic (gap > 0)', night.offMaskGaps[0].gapMin > 0, night.offMaskGaps[0].gapMin);
@@ -1616,23 +1615,29 @@
     var hist = [mkN(1, 5, 8), mkN(2, 5.5, 7), mkN(3, 6, 6), mkN(4, 6.5, 5), mkN(5, 7, 4), mkN(6, 7, 3), mkN(7, 7.5, 2)];
     var lng2 = /** @type {any} */ (buildLongitudinal(hist));
     ok('longitudinal: usageTrend7d > 0 (usage rising)', lng2.usageTrend7d > 0, lng2.usageTrend7d);
-    ok('longitudinal: ahiTrend30d mean ≈ 5 over 7 nights', lng2.ahiTrend30d && near(lng2.ahiTrend30d.mean, 5, 0.6), JSON.stringify(lng2.ahiTrend30d));
+    ok('longitudinal: ahiTrend30d block present', !!lng2.ahiTrend30d, JSON.stringify(lng2.ahiTrend30d));
+    ok('longitudinal: ahiTrend30d mean ≈ 5 over 7 nights', near((lng2.ahiTrend30d || {}).mean, 5, 0.6), JSON.stringify(lng2.ahiTrend30d));
     ok('longitudinal: chronological order independent of input order', buildLongitudinal(hist.slice().reverse()).usageTrend7d === lng2.usageTrend7d, 'reversed == forward');
     // Was `if (root.CPAPCross)` — an UNGUARDED read that threw outright under CommonJS
     // (root is null there), so `node cpapdex-dsp.js --selftest` had never reached this
     // point. Since §F5 makes CPAPCross resolve in BOTH realms, the block is now always
     // expected and the assertion is unconditional — which is what makes the fix gated.
-    ok(
-      'longitudinal: crossNight block present (CPAPCross resolved in this realm)',
-      !!(lng2.crossNight && lng2.crossNight.metrics && lng2.crossNight.metrics.residualAHI),
-      JSON.stringify(lng2.crossNight && (lng2.crossNight.schema || lng2.crossNight.doc))
-    );
+    var xn = lng2.crossNight || {},
+      xnMetrics = xn.metrics || {};
+    ok('longitudinal: crossNight block present (CPAPCross resolved in this realm)', !!lng2.crossNight, JSON.stringify(xn.schema || xn.doc || null));
+    ok('longitudinal: crossNight carries a metrics block', !!xn.metrics, JSON.stringify(Object.keys(xn)));
+    ok('longitudinal: crossNight metrics carry residualAHI', !!xnMetrics.residualAHI, JSON.stringify(xnMetrics));
 
     // parseTimestamp mirror — floating + fractional seconds (Clock Contract §2)
     var pt1 = parseTimestamp('20260612_222830');
-    ok('parseTimestamp: filename prefix → floating tMs', pt1 && pt1.tMs === Date.UTC(2026, 5, 12, 22, 28, 30) && pt1.offsetMin === null, JSON.stringify(pt1));
+    var pt1v = pt1 || {};
+    ok('parseTimestamp: filename prefix parses at all', !!pt1, JSON.stringify(pt1));
+    ok('parseTimestamp: filename prefix → floating tMs', pt1v.tMs === Date.UTC(2026, 5, 12, 22, 28, 30), JSON.stringify(pt1));
+    ok('parseTimestamp: a filename prefix carries no zone (offsetMin null)', pt1v.offsetMin === null, JSON.stringify(pt1));
     var pt2 = parseTimestamp('2026-06-12 22:28:30.250');
-    ok('parseTimestamp: ISO captures fractional seconds (ms)', pt2 && pt2.tMs === Date.UTC(2026, 5, 12, 22, 28, 30, 250), JSON.stringify(pt2));
+    var pt2v = pt2 || {};
+    ok('parseTimestamp: ISO parses at all', !!pt2, JSON.stringify(pt2));
+    ok('parseTimestamp: ISO captures fractional seconds (ms)', pt2v.tMs === Date.UTC(2026, 5, 12, 22, 28, 30, 250), JSON.stringify(pt2));
     ok('parseTimestamp: stamp-less → null (never now())', parseTimestamp('no clock here') === null);
 
     // ════════ STEP 2 ADDITIONS — real-signal adapter, self-gate, QC lane ════════
@@ -1654,7 +1659,8 @@
     }
     var evA = { onset: 30, startIdx: 30, nadirIdx: 31, endIdx: 49, depth: 31, duration: 19 };
     selfGateDesat(evA, puA, spA);
-    ok('self-gate: 1.5 s cliff ⇒ artifact (nonphysiologic-kinetics)', evA.artifact === true && evA.reason === 'nonphysiologic-kinetics', evA.reason);
+    ok('self-gate: 1.5 s cliff ⇒ artifact', evA.artifact === true, evA.artifact);
+    ok('self-gate: 1.5 s cliff reason is nonphysiologic-kinetics', evA.reason === 'nonphysiologic-kinetics', evA.reason);
 
     var spB = [],
       puB = []; // gentle 30 s desat, valid pulse
@@ -1679,7 +1685,8 @@
     }); // perfusion collapse (pulse all out-of-band)
     var evC = { onset: 20, startIdx: 20, nadirIdx: 49, endIdx: 50, depth: 8, duration: 30 };
     selfGateDesat(evC, puC, spB);
-    ok('self-gate: <50% valid pulse ⇒ artifact (perfusion-collapse)', evC.artifact === true && evC.reason === 'perfusion-collapse', evC.reason);
+    ok('self-gate: <50% valid pulse ⇒ artifact', evC.artifact === true, evC.artifact);
+    ok('self-gate: <50% valid pulse reason is perfusion-collapse', evC.reason === 'perfusion-collapse', evC.reason);
 
     // ── leak L/s → L/min conversion (dim-driven) ──
     ok('leakToLpm: L/s ×60', leakToLpm({ data: Float32Array.from([0.5]), dim: 'L/s' })[0] === 30);
@@ -1693,7 +1700,8 @@
       ],
       0
     );
-    ok('eveEvents maps OA, drops Cheyne-Stokes', evMap.length === 1 && evMap[0].type === 'OA', JSON.stringify(evMap));
+    ok('eveEvents drops Cheyne-Stokes — exactly one event survives', evMap.length === 1, JSON.stringify(evMap));
+    ok('eveEvents maps the survivor to OA', (evMap[0] || {}).type === 'OA', JSON.stringify(evMap));
     ok(
       'periodicBreathingSec sums CS/PB spans',
       periodicBreathingSec([
@@ -1726,11 +1734,14 @@
       ]) === 60
     );
     var pbOpen = periodicBreathingSpans([{ class: 'Cheyne-Stokes', durSec: 0, onsetSec: 200, boundary: 'start' }], 500);
-    ok('periodicBreathingSpans: a Start still open at EOF closes at the session end', pbOpen.sec === 300 && pbOpen.unpairedStart === 1, JSON.stringify(pbOpen));
+    ok('periodicBreathingSpans: a Start still open at EOF closes at the session end', pbOpen.sec === 300, JSON.stringify(pbOpen));
+    ok('periodicBreathingSpans: …and that Start is counted as unpaired', pbOpen.unpairedStart === 1, JSON.stringify(pbOpen));
     var pbNoDur = periodicBreathingSpans([{ class: 'Cheyne-Stokes', durSec: 0, onsetSec: 200, boundary: 'start' }]);
-    ok('periodicBreathingSpans: an open Start with NO session length contributes nothing (never guessed)', pbNoDur.sec === 0 && pbNoDur.unpairedStart === 1, JSON.stringify(pbNoDur));
+    ok('periodicBreathingSpans: an open Start with NO session length contributes nothing (never guessed)', pbNoDur.sec === 0, JSON.stringify(pbNoDur));
+    ok('periodicBreathingSpans: …and it is still counted as unpaired', pbNoDur.unpairedStart === 1, JSON.stringify(pbNoDur));
     var pbOrphan = periodicBreathingSpans([{ class: 'Cheyne-Stokes', durSec: 0, onsetSec: 200, boundary: 'end' }], 500);
-    ok('periodicBreathingSpans: an End with no Start is discarded, never back-dated to zero', pbOrphan.sec === 0 && pbOrphan.unpairedEnd === 1, JSON.stringify(pbOrphan));
+    ok('periodicBreathingSpans: an End with no Start is discarded, never back-dated to zero', pbOrphan.sec === 0, JSON.stringify(pbOrphan));
+    ok('periodicBreathingSpans: …and that End is counted as unpaired', pbOrphan.unpairedEnd === 1, JSON.stringify(pbOrphan));
     var pbNest = periodicBreathingSpans(
       [
         { class: 'Cheyne-Stokes', durSec: 0, onsetSec: 100, boundary: 'start' },
@@ -1739,10 +1750,12 @@
       ],
       500
     );
-    ok('periodicBreathingSpans: repeated Starts do not nest — the first owns the span', pbNest.sec === 100 && pbNest.spans === 1, JSON.stringify(pbNest));
+    ok('periodicBreathingSpans: repeated Starts do not nest — the first owns the span', pbNest.sec === 100, JSON.stringify(pbNest));
+    ok('periodicBreathingSpans: …and the repeat yields ONE span, not two', pbNest.spans === 1, JSON.stringify(pbNest));
     var sessMk = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ csMarkers: true }), { fname: 'sM' }));
     var sessDur = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ cs: true }), { fname: 'sD' }));
-    ok('buildSessionFromEdf: the two PB encodings of the SAME 120 s span agree end-to-end', sessMk.pbSec === 120 && sessDur.pbSec === 120, sessMk.pbSec + ' vs ' + sessDur.pbSec);
+    ok('buildSessionFromEdf: the CSR Start/End marker encoding yields 120 s', sessMk.pbSec === 120, String(sessMk.pbSec));
+    ok('buildSessionFromEdf: the durSec encoding of the SAME span also yields 120 s', sessDur.pbSec === 120, String(sessDur.pbSec));
 
     // ── full EDF-set integration: buildSessionFromEdf on a synthetic file-set ──
     var sess = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ cs: true }), { fname: 's1' }));
@@ -1807,7 +1820,9 @@
       return 10 + (1.5 * Math.floor(i / WIN)) / 7;
     });
     var bMode = /** @type {any} */ (classifyMode(borderline, FS));
-    ok('§F2 an indeterminate envelope ⇒ mode null (REFUSES to guess)', bMode.mode === null && bMode.envIqr > MODE_CPAP_MAX && bMode.envIqr < MODE_APAP_MIN, bMode.mode + ' @ ' + bMode.envIqr);
+    ok('§F2 an indeterminate envelope ⇒ mode null (REFUSES to guess)', bMode.mode === null, bMode.mode + ' @ ' + bMode.envIqr);
+    ok('§F2 …and that envelope really is above the CPAP ceiling', bMode.envIqr > MODE_CPAP_MAX, bMode.envIqr + ' vs ' + MODE_CPAP_MAX);
+    ok('§F2 …and below the APAP floor — i.e. genuinely in the dead band', bMode.envIqr < MODE_APAP_MIN, bMode.envIqr + ' vs ' + MODE_APAP_MIN);
 
     // (4) too little mask-on time to judge ⇒ null (never a default label)
     ok(
@@ -1831,8 +1846,10 @@
      no device setting. ── */
     var nmAgree = nightMetrics([{ _pool: mkPool('CPAP') }, { _pool: mkPool('CPAP') }]);
     var nmSplit = nightMetrics([{ _pool: mkPool('CPAP') }, { _pool: mkPool('APAP') }]);
-    ok('§1 night mode is ALWAYS null — even when every session agrees (a night cannot name a device setting)', nmAgree && nmAgree.mode === null, nmAgree && nmAgree.mode);
-    ok('§1 night mode is null when sessions disagree too', nmSplit && nmSplit.mode === null, nmSplit && nmSplit.mode);
+    ok('§1 the agreeing-sessions night was built at all', !!nmAgree, JSON.stringify(nmAgree));
+    ok('§1 night mode is ALWAYS null — even when every session agrees (a night cannot name a device setting)', (nmAgree || {}).mode === null, (nmAgree || {}).mode);
+    ok('§1 the disagreeing-sessions night was built at all', !!nmSplit, JSON.stringify(nmSplit));
+    ok('§1 night mode is null when sessions disagree too', (nmSplit || {}).mode === null, (nmSplit || {}).mode);
     ok(
       '§1 a night still reports pressureEnvIqr (the measurement survives; only the CLAIM is retired)',
       nmAgree && nmAgree.pressureEnvIqr != null && isFinite(nmAgree.pressureEnvIqr),
@@ -1861,7 +1878,9 @@
     ok('§1 longitudinal: outlier nights do NOT flip the setting (the per-night label would have)', classifyModeLongitudinal(noisy).mode === 'APAP', classifyModeLongitudinal(noisy).mode);
 
     var lb = buildLongitudinal(runOf(1.4, 10));
-    ok('§1 buildLongitudinal surfaces mode + modeEnvIqr + modeNights', lb.mode === 'APAP' && lb.modeEnvIqr != null && lb.modeNights === 10, lb.mode + '/' + lb.modeEnvIqr + '/' + lb.modeNights);
+    ok('§1 buildLongitudinal surfaces mode', lb.mode === 'APAP', String(lb.mode));
+    ok('§1 buildLongitudinal surfaces modeEnvIqr', lb.modeEnvIqr != null, String(lb.modeEnvIqr));
+    ok('§1 buildLongitudinal surfaces modeNights', lb.modeNights === 10, String(lb.modeNights));
     ok('§1 buildLongitudinal on ONE night ⇒ mode null (a night is not a setting)', buildLongitudinal(runOf(1.4, 1)).mode === null);
     ok('EDF session: EPR delta ≈ 3', near(sess.metrics.eprDelta, 3, 0.3), sess.metrics.eprDelta);
     ok('EDF session: epap95 present (expiratory P95 ≈ 7)', near(sess.metrics.epap95, 7, 0.5), sess.metrics.epap95);
@@ -1881,12 +1900,14 @@
     );
     ok('EDF session: periodicBreathingPct = 20% (120/600 s)', near(sess.metrics.periodicBreathingPct, 20, 0.5), sess.metrics.periodicBreathingPct);
     ok('EDF session: breathRate ≈ 15 brpm (flow-derived)', near(sess.metrics.breathRate, 15, 3), sess.metrics.breathRate);
-    ok('EDF session: SA2 sentinel ⇒ oximetry lane unavailable', sess.oximetry.available === false && sess.oximetry.reason === 'oximeter-not-connected', JSON.stringify(sess.oximetry));
+    ok('EDF session: SA2 sentinel ⇒ oximetry lane unavailable', sess.oximetry.available === false, JSON.stringify(sess.oximetry));
+    ok('EDF session: …and the reason names the disconnected oximeter', sess.oximetry.reason === 'oximeter-not-connected', JSON.stringify(sess.oximetry));
 
     // ── oximetry lane WHEN a valid oximeter + a real desat is present ──
     var sessO = /** @type {any} */ (buildSessionFromEdf(_synthEdfSet({ oxi: true }), {}));
     ok('EDF session: valid oximeter ⇒ lane available', sessO.oximetry.available === true, JSON.stringify(sessO.oximetry));
-    ok('EDF session: real desat detected, NOT self-gated', sessO.oximetry.desatCount >= 1 && sessO.oximetry.artifactCount === 0, JSON.stringify(sessO.oximetry));
+    ok('EDF session: real desat detected', sessO.oximetry.desatCount >= 1, JSON.stringify(sessO.oximetry));
+    ok('EDF session: …and it was NOT self-gated as an artifact', sessO.oximetry.artifactCount === 0, JSON.stringify(sessO.oximetry));
     ok('EDF session: spo2Nadir ≈ 89', near(sessO.oximetry.spo2Nadir, 89, 1.5), sessO.oximetry.spo2Nadir);
 
     // ── injected squeeze: a real-looking desat with a perfusion collapse is gated out of ODI ──
@@ -1895,7 +1916,8 @@
 
     // ── night-level pooled metrics from real sessions ──
     var nightR = buildNight([buildSessionFromEdf(_synthEdfSet({}), { fname: 'n1' })]);
-    ok('night metrics pooled from sessions (AHI present)', !!(nightR.metrics && nightR.metrics.residualAHI != null), JSON.stringify(nightR.metrics));
+    ok('night carries a pooled metrics block', !!nightR.metrics, JSON.stringify(nightR.metrics));
+    ok('night metrics pooled from sessions (AHI present)', (nightR.metrics || {}).residualAHI != null, JSON.stringify(nightR.metrics));
 
     return { pass: pass, fail: fail, log: log };
   }

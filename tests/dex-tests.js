@@ -24414,11 +24414,21 @@
          inside selfTest, or make its condition unconditionally true, and `fail` stays 0 while `pass`
          silently drops — the gate reads green over a self-test that now proves strictly less.
 
-         This is not hypothetical. Mutation-sweeping `cpapdex-dsp.js` leaves 488 survivors, and 122 of
-         them — a quarter of the whole population, and the single largest cluster in the file — sit
-         inside `selfTest` itself, kept alive by exactly this gap. It is the repo's recurring failure
-         wearing one more disguise: a check that ran and reported success about something it never
-         examined.
+         This is not hypothetical. Mutation-sweeping `cpapdex-dsp.js` leaves 472 survivors (re-measured
+         2026-08-12; the earlier note said 488/122), and 132 of them — the single largest cluster in the
+         file — sit inside `selfTest` itself, kept alive by exactly this gap. It is the repo's recurring
+         failure wearing one more disguise: a check that ran and reported success about something it
+         never examined.
+
+         32 of those 132 were `&&` → `||` on a COMPOUND assertion, and they are gone as of this commit:
+         every `ok('…', A && B)` in `selfTest` has been split into one `ok` per conjunct. The mutant
+         proved the compound form asserts less than it reads as — `ok('…', pt1 && pt1.tMs === X)` mutated
+         to `||` still PASSES whenever `pt1` is merely truthy, so the value was never checked. Where a
+         conjunct was a null-guard rather than a claim, the guard became its own assertion and the value
+         check reads through `(x || {})` — which is self-killing: mutate that `||` to `&&` and the
+         default becomes `{}`, so the value check fails and the mutant dies.
+
+         KEEP IT THAT WAY: a new `ok(…, A && B)` here re-opens the hole. One assertion, one claim.
 
          So the count is pinned. When you legitimately add or remove a self-test assertion, UPDATE THE
          NUMBER HERE in the same commit — that edit is the point rather than an obstacle: it is what
@@ -24435,7 +24445,7 @@
         pinPass('cpapdex-edf.js', ED.selfTest(), 20);
       } else T.ok('cpapdex-edf.js loaded with selfTest()', false, 'env.CpapEdf missing in this runner');
       if (DS && typeof DS.selfTest === 'function') {
-        pinPass('cpapdex-dsp.js', DS.selfTest(), 82);
+        pinPass('cpapdex-dsp.js', DS.selfTest(), 107);
       } else T.ok('cpapdex-dsp.js loaded with selfTest()', false, 'env.CpapDsp missing in this runner');
       T.ok('ecgdex-morph.js exposes analyze() (exercised via ECGDSP.analyze)', !!(EM && typeof EM.analyze === 'function'));
       T.ok('ppgdex-morph.js exposes analyze() (exercised via PPGDSP morphology)', !!(PM && typeof PM.analyze === 'function'));
